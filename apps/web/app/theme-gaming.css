@@ -1,0 +1,47 @@
+/*
+ * Gaming look for Day and Night. Current turns this off by not matching
+ * `html:not([data-theme='current'])`. No images, no blur, no extra fonts.
+ */
+
+html:not([data-theme="current"]) .cn-topbar {
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--cn-brand) 40%, var(--cn-line));
+}
+
+html:not([data-theme="current"]) .cn-wordmark-text {
+  letter-spacing: 0.06em;
+}
+
+html:not([data-theme="current"]) .cn-tab {
+  letter-spacing: 0.02em;
+}
+
+html:not([data-theme="current"]) .cn-card {
+  box-shadow:
+    var(--cn-lit),
+    0 1px 0 color-mix(in srgb, var(--cn-text) 4%, transparent);
+}
+
+html:not([data-theme="current"]) .cn-matches {
+  gap: var(--cn-sp-2);
+}
+
+html:not([data-theme="current"]) .cn-match-name {
+  min-height: 24px;
+  font-size: var(--cn-t-sm);
+}
+
+html:not([data-theme="current"]) .cn-sheet-champ {
+  font-family: var(--cn-font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+html:not([data-theme="current"]) .cn-game-result {
+  letter-spacing: 0.03em;
+}
+
+html:not([data-theme="current"]) .cn-fun-stat .cn-num,
+html:not([data-theme="current"]) .cn-record-wl {
+  letter-spacing: 0.02em;
+}

@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isCurrentTab, NAV_ITEMS, WORDMARK } from '@/lib/nav';
+import { ThemeToggle } from './ThemeToggle';
 
 /**
- * The top bar (05-design.md, "The app shell"): identity on the left, destinations on the
- * right. It carries **no state** — the live pill belongs to the status strip, next to the
- * thing it describes, because a product has one place for a piece of information.
+ * The top bar (05-design.md, "The app shell"): identity on the left, destinations in the
+ * middle, theme on the right. The live pill still belongs to the status strip. The theme
+ * choice is this device's and is the one piece of chrome the bar is allowed to hold.
  *
  * A client component for one reason: the current tab is the one the reader is on, and that is
  * `usePathname()`. Everything it renders is server-rendered first, so the bar is in the first
@@ -27,6 +28,8 @@ export function TopBar() {
           <span className="cn-wordmark-bar" aria-hidden="true" />
           <span className="cn-display cn-wordmark-text">{WORDMARK}</span>
         </Link>
+
+        <ThemeToggle />
 
         <nav className="cn-tabs" aria-label="Sections">
           {NAV_ITEMS.map((item) => {

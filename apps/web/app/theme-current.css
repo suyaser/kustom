@@ -1,0 +1,51 @@
+/*
+ * CURRENT — Floodlit, the look that shipped before Day / Night.
+ *
+ * Isolated on purpose. To drop it:
+ *   1. Delete this file and its import in `app/layout.tsx`.
+ *   2. Remove `current` from THEME_ORDER and THEME_LABELS in `lib/theme.ts`.
+ *   3. Drop the Current assertions in `app/_shell/ThemeToggle.test.tsx`.
+ *
+ * Values are the Floodlit table in docs/05-design.md, 2026-09-09. Light follows the OS
+ * the way the old `prefers-color-scheme` switch did.
+ */
+
+[data-theme="current"] {
+  color-scheme: dark;
+
+  --cn-bg: #0b0e14;
+  --cn-surface: #141923;
+  --cn-raise: #1d2431;
+  --cn-line: #2a3140;
+  --cn-text: #eef2f8;
+  --cn-dim: #94a0b2;
+  --cn-blue: #4c9aff;
+  --cn-red: #ff6b63;
+  --cn-brand: #ffb13c;
+  --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
+  --cn-floodlight: radial-gradient(
+    120% 70% at 50% -15%,
+    color-mix(in srgb, var(--cn-brand) 5%, transparent),
+    transparent 65%
+  );
+  --cn-radius: 10px;
+  --cn-radius-row: 8px;
+  --cn-radius-chip: 4px;
+}
+
+@media (prefers-color-scheme: light) {
+  [data-theme="current"] {
+    color-scheme: light;
+
+    --cn-bg: #eef1f6;
+    --cn-surface: #ffffff;
+    --cn-raise: #dae2ed;
+    --cn-line: #d5dce7;
+    --cn-text: #10141b;
+    --cn-dim: #556072;
+    --cn-blue: #1f5fc4;
+    --cn-red: #b4302b;
+    --cn-brand: #8a5a0b;
+    --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 70%, transparent);
+  }
+}

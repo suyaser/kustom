@@ -1,43 +1,64 @@
 /*
- * Floodlit — the v2 design system (docs/05-design.md, "Floodlit — the v2 system (2026-09-09)").
+ * Tokens for the public pages. Day (default) and Night are the gaming look; Current
+ * (Floodlit) is restored in `theme-current.css` and can be deleted with that file.
  *
  * Nine colours per theme and everything else derived from them with color-mix(), so there is
- * no tenth colour to keep in step. Dark is the default, not the alternate: the page is opened
- * from a WhatsApp link in a dark room. `color-scheme: dark light` makes the pre-paint
- * background, the scrollbars and every form control follow the same choice, so there is no
- * white flash on the way in.
- *
- * The two tokens v1 did not have are the reason the page can look built: `raise`, the layer
- * above a card, and `line`, a real border colour rather than an alpha guess. `accent` is
- * renamed `brand` — same job, every rule unchanged.
- *
- * There is no theme toggle in M3. `prefers-color-scheme` is the whole switch.
+ * no tenth colour to keep in step. `data-theme` is the whole switch. A beforeInteractive
+ * script writes it from localStorage so the first paint is already the stored theme.
  *
  * The admin area deliberately does NOT adopt these (05-design.md, "The admin area stays
  * plain"): `app/admin/admin.css` keeps `color-scheme: light dark` and `.admin { font-family:
  * system-ui }`, which is what stops the `body` rule below reaching it.
  */
 
+:root,
+[data-theme="day"] {
+  color-scheme: light;
+
+  --cn-bg: #f1f4fa;
+  --cn-surface: #ffffff;
+  --cn-raise: #e4eaf3;
+  --cn-line: #c8d0de;
+  --cn-text: #0e141c;
+  --cn-dim: #4d5868;
+  --cn-blue: #1b5fd0;
+  --cn-red: #c42e2e;
+  --cn-brand: #8f5a08;
+  --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 70%, transparent);
+  --cn-floodlight: radial-gradient(
+    120% 70% at 50% -15%,
+    color-mix(in srgb, #3d7ee8 8%, transparent),
+    transparent 65%
+  );
+}
+
+[data-theme="night"] {
+  color-scheme: dark;
+
+  --cn-bg: #080a10;
+  --cn-surface: #121821;
+  --cn-raise: #1a2230;
+  --cn-line: #334056;
+  --cn-text: #f3f6fc;
+  --cn-dim: #8e9aad;
+  --cn-blue: #5aa7ff;
+  --cn-red: #ff736c;
+  --cn-brand: #ffc24a;
+  --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 8%, transparent);
+  --cn-floodlight: radial-gradient(
+    120% 70% at 50% -15%,
+    color-mix(in srgb, var(--cn-brand) 8%, transparent),
+    transparent 65%
+  );
+}
+
 :root {
-  color-scheme: dark light;
-
-  --cn-bg: #0b0e14;
-  --cn-surface: #141923;
-  --cn-raise: #1d2431;
-  --cn-line: #2a3140;
-  --cn-text: #eef2f8;
-  --cn-dim: #94a0b2;
-  --cn-blue: #4c9aff;
-  --cn-red: #ff6b63;
-  --cn-brand: #ffb13c;
-
   --cn-blue-tint: color-mix(in srgb, var(--cn-blue) 10%, var(--cn-surface));
   --cn-red-tint: color-mix(in srgb, var(--cn-red) 10%, var(--cn-surface));
   --cn-brand-tint: color-mix(in srgb, var(--cn-brand) 12%, var(--cn-surface));
   --cn-blue-line: color-mix(in srgb, var(--cn-blue) 55%, var(--cn-line));
   --cn-red-line: color-mix(in srgb, var(--cn-red) 55%, var(--cn-line));
   --cn-pressed: color-mix(in srgb, var(--cn-text) 8%, var(--cn-raise));
-  --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
   --cn-glow: 0 0 0 4px color-mix(in srgb, var(--cn-brand) 14%, transparent);
 
   --cn-sp-1: 0.25rem;
@@ -57,9 +78,9 @@
   --cn-t-xl: 2rem;
   --cn-t-display: 2.75rem;
 
-  --cn-radius: 10px;
-  --cn-radius-row: 8px;
-  --cn-radius-chip: 4px;
+  --cn-radius: 6px;
+  --cn-radius-row: 4px;
+  --cn-radius-chip: 2px;
 
   /*
    * The generated `next/font` variables carry one family each. The fallback stack lives here
@@ -68,21 +89,6 @@
    */
   --cn-font-sans: var(--cn-font-archivo), "Helvetica Neue", Arial, system-ui, sans-serif;
   --cn-font-mono: var(--cn-font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --cn-bg: #eef1f6;
-    --cn-surface: #ffffff;
-    --cn-raise: #dae2ed;
-    --cn-line: #d5dce7;
-    --cn-text: #10141b;
-    --cn-dim: #556072;
-    --cn-blue: #1f5fc4;
-    --cn-red: #b4302b;
-    --cn-brand: #8a5a0b;
-    --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 70%, transparent);
-  }
 }
 
 /* The three sizes that grow with the viewport, and only upward. */
@@ -108,6 +114,13 @@ body {
   font-size: var(--cn-t-base);
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Admin keeps the browser's canvas (05-design.md, "The admin area stays plain"). */
+body:has(.admin) {
+  background: canvas;
+  color: canvastext;
+  font-family: system-ui, sans-serif;
 }
 
 /*

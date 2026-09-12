@@ -1,6 +1,10 @@
 import { Archivo, IBM_Plex_Mono } from 'next/font/google';
+import Script from 'next/script';
 import type { ReactNode } from 'react';
+import { THEME_BOOTSTRAP, THEME_COLOR, THEME_DEFAULT } from '@/lib/theme';
 import './tokens.css';
+import './theme-gaming.css';
+import './theme-current.css';
 
 /**
  * The two families of `docs/05-design.md`: Archivo for anything read as language, IBM Plex
@@ -42,22 +46,28 @@ export const metadata = {
 
 /**
  * `viewport-fit` and no user scaling limits: the page is read at arm's length and a friend
- * must be able to zoom it. `themeColor` follows the palette so the phone's browser chrome
- * does not sit as a white bar over a near-black page.
+ * must be able to zoom it. `themeColor` is Day's paper; the toggle rewrites the meta tag.
  */
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0b0e14' },
-    { media: '(prefers-color-scheme: light)', color: '#eef1f6' },
-  ],
+  themeColor: THEME_COLOR[THEME_DEFAULT],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${plexMono.variable}`}>
-      <body>{children}</body>
+    <html
+      lang="en"
+      className={`${archivo.variable} ${plexMono.variable}`}
+      data-theme={THEME_DEFAULT}
+      suppressHydrationWarning
+    >
+      <body>
+        <Script id="cn-theme" strategy="beforeInteractive">
+          {THEME_BOOTSTRAP}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }

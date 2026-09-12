@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RELEASES_URL } from '@/lib/nav';
 import { HOW_THIS_WORKS_LINES } from '@/lib/shellCopy';
+import { THEME_LABELS, THEME_PICKER_LABEL } from '@/lib/theme';
 import { Shell } from './Shell';
 
 /**
@@ -82,6 +83,15 @@ describe('the top bar', () => {
     const companion = screen.getByRole('link', { name: 'Companion ↗' });
     expect(companion).toHaveAttribute('href', RELEASES_URL);
     expect(companion).toHaveAttribute('target', '_blank');
+  });
+
+  it('offers Day, Night and Current, with Day marked', () => {
+    draw('/');
+
+    expect(screen.getByRole('group', { name: THEME_PICKER_LABEL })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: THEME_LABELS.day })).toBeChecked();
+    expect(screen.getByRole('radio', { name: THEME_LABELS.night })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: THEME_LABELS.current })).toBeInTheDocument();
   });
 });
 

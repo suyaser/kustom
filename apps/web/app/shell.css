@@ -16,13 +16,7 @@
   min-height: 100svh;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(
-      120% 70% at 50% -15%,
-      color-mix(in srgb, var(--cn-brand) 5%, transparent),
-      transparent 65%
-    ),
-    var(--cn-bg);
+  background: var(--cn-floodlight), var(--cn-bg);
 }
 
 .cn-topbar {
@@ -64,22 +58,41 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Top bar: identity left, destinations right. Two 44px rows on a phone, one at ≥720px.
- * It carries no state — the live pill belongs to the status strip.
+ * Top bar: wordmark + theme on the first phone row, tabs on the second.
+ * Desktop is wordmark, tabs, theme. The live pill still belongs to the status strip.
  * ------------------------------------------------------------------------- */
 
 .cn-topbar-inner {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "wordmark theme"
+    "tabs tabs";
+  align-items: center;
+  column-gap: var(--cn-sp-3);
 }
 
 .cn-wordmark {
+  grid-area: wordmark;
   display: flex;
   align-items: center;
   gap: var(--cn-sp-2);
   min-height: 44px;
   color: var(--cn-text);
   text-decoration: none;
+}
+
+.cn-themes {
+  grid-area: theme;
+  display: flex;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+  border: 1px solid var(--cn-line);
+  border-radius: var(--cn-radius-row);
+  overflow: hidden;
+  background: var(--cn-surface);
 }
 
 /* The lamp, and the entire logo: 3 x 18px of amber. No image, no crest, no favicon work. */
@@ -96,12 +109,48 @@
 }
 
 .cn-tabs {
+  grid-area: tabs;
   display: flex;
   align-items: stretch;
   gap: var(--cn-sp-4);
   /* A fifth destination scrolls rather than wrapping the bar onto a third row. */
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+.cn-theme {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--cn-sp-3);
+  border: 0;
+  border-inline-start: 1px solid var(--cn-line);
+  background: transparent;
+  color: var(--cn-dim);
+  font-family: var(--cn-font-sans);
+  font-size: var(--cn-t-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cn-theme:first-child {
+  border-inline-start: 0;
+}
+
+.cn-theme-on {
+  color: var(--cn-brand);
+  background: var(--cn-brand-tint);
+}
+
+.cn-theme:active {
+  background: var(--cn-pressed);
+}
+
+@media (max-width: 379px) {
+  .cn-theme {
+    padding: 0 var(--cn-sp-2);
+    font-size: var(--cn-t-xs);
+  }
 }
 
 .cn-tabs::-webkit-scrollbar {
@@ -132,6 +181,7 @@
 
 @media (min-width: 720px) {
   .cn-topbar-inner {
+    display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
@@ -139,6 +189,7 @@
   }
 
   .cn-tabs {
+    margin-inline-start: auto;
     gap: var(--cn-sp-5);
   }
 }
@@ -288,5 +339,9 @@
 
   .cn-tab:active {
     transform: none;
+  }
+
+  .cn-theme:active {
+    background: var(--cn-pressed);
   }
 }

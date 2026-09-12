@@ -13,8 +13,10 @@ Discord voice and about to be in a game. They have three questions, in this orde
 2. **Why these teams?**
 3. **What happened?**
 
-Everything below is ordered by those three questions. Dark theme is the default, not the alternate. Phone
-widths are the design width; the desktop layout adds a second column and a rail, not a bigger phone.
+Everything below is ordered by those three questions. **Day is the default theme** (2026-09-12): a light
+gaming look. Night is the same system after dark. Current is Floodlit, isolated in `theme-current.css` so
+it can be deleted without touching Day or Night. Phone widths are the design width; the desktop layout adds
+a second column and a rail, not a bigger phone.
 
 Tone, **amended 2026-09-09 by the user's own calibration**: *"it should look like an actual gaming product,
 modern, something like Blitz and so, with its own character and style."* v1 read this as a scoreboard in a
@@ -230,15 +232,33 @@ product rather than a document that happens to be dark.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  ▍KUSTOM            Tonight  Leaderboard  Games  Stats  Companion ↗  │  top bar: raise, 1px line under
+│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun   Day│Night│Current │
 ├───────────────────────────────────────────────────────────────┤
 │                                                               │
-│   … page content, on the ink, under the floodlight …          │
+│   … page content, on the paper or the ink, under the floodlight … │
 │                                                               │
 ├───────────────────────────────────────────────────────────────┤
 │  How this works · Get the companion · Your games              │  footer: dim, t-sm
 └───────────────────────────────────────────────────────────────┘
 ```
+
+### Themes — Day, Night, Current (2026-09-12)
+
+Three named looks, one `data-theme` on `<html>`, persisted in `localStorage` as `cn-theme`. A
+`beforeInteractive` script writes the attribute before first paint so a stored Night does not flash Day.
+
+| Name | File | What it is |
+|---|---|---|
+| **Day** (default) | `tokens.css` `:root` / `[data-theme=day]` plus `theme-gaming.css` | Light gaming look: cool paper, sharper radii (6 / 4 / 2), a blue floodlight, HUD top-bar edge, uppercase mono champion chips. |
+| **Night** | `tokens.css` `[data-theme=night]` plus `theme-gaming.css` | The same system after dark: deeper ink than Floodlit, hotter gold, the same sharp geometry. |
+| **Current** | `theme-current.css` only | Floodlit as it shipped (dark default, light when the OS asks). Isolated so it can be deleted: drop that file and its import, drop `current` from `THEME_ORDER` / `THEME_LABELS`, drop the Current assertions. |
+
+Colour is still a team, a state, or nothing. Day and Night do not add a fourth colour, champion art, glass,
+or a second font. Admin is untouched.
+
+The theme control is a 44px radiogroup in the top bar (`Day` · `Night` · `Current`), Archivo `t-sm`, the
+chosen chip in `brand` on `brand-tint`. Phone: wordmark and the group on the first row, tabs on the second.
+Desktop: wordmark, tabs, group. The live pill stays in the status strip.
 
 - **Wordmark.** `KUSTOM` in the display cut at `t-md`, upper case, letter-spacing `0.02em`, in `text`,
   preceded by a 3px × 18px `brand` bar (`▍`). That bar is the lamp and it is the entire logo. No image, no
@@ -251,12 +271,13 @@ product rather than a document that happens to be dark.
   `Games`, `Stats`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
   `Games` with M5.25, `Stats` with M5.4, `Companion` is external and always there. A nav item that 404s is worse than a missing
   one. Keep the list in one exported array (`lib/nav.ts`) so no page hand-writes it.
-- **Phone.** Two rows: wordmark row (44px), then the tab row (44px, tabs left aligned, horizontally scrollable
-  with no scrollbar if a fifth destination ever exists). Not sticky — a sticky bar costs 88px of a 700px
-  screen on the one page people read in full.
-- **Desktop (≥720px).** One row: wordmark left, tabs right.
+- **Phone.** Two rows: wordmark and the theme group (44px), then the tab row (44px, tabs left aligned,
+  horizontally scrollable with no scrollbar). Not sticky — a sticky bar costs 88px of a 700px screen on the
+  one page people read in full.
+- **Desktop (≥720px).** One row: wordmark left, tabs, theme group right.
 - **The live pill is not in the top bar.** It belongs to the status strip, next to the state it describes, and
-  a product has one place for a piece of information. The top bar carries identity and destinations only.
+  a product has one place for a piece of information. The top bar carries identity, destinations, and the
+  theme group (`Day` · `Night` · `Current`).
 - **Footer.** One line of links, `t-sm` `dim`, top border `line`, `sp-6` above it. The date and season are the
   status strip's slug line and are not repeated here. `Your games` appears only for a signed-in viewer and points at
   `/p/<their puuid>`. `Get the companion` points at the **releases page**, not the `.exe` — the tonight page
@@ -278,9 +299,7 @@ Shell CSS, in outline:
 .cn-shell {                      /* wraps top bar, main, footer */
   min-height: 100svh;            /* svh, not vh: the phone URL bar must not move the footer */
   display: flex; flex-direction: column;
-  background:
-    radial-gradient(120% 70% at 50% -15%, color-mix(in srgb, var(--cn-brand) 5%, transparent), transparent 65%),
-    var(--cn-bg);
+  background: var(--cn-floodlight), var(--cn-bg);
 }
 .cn-topbar { background: var(--cn-raise); border-bottom: 1px solid var(--cn-line); }
 .cn-topbar-inner, .cn-main, .cn-footer-inner {
