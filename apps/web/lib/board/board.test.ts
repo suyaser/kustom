@@ -202,8 +202,35 @@ describe('the copy product owns', () => {
   it('has one vocabulary for a game that moved nothing, and one sentence under it', () => {
     expect(NOT_RATED).toBe('not rated');
     expect(NOT_RATED_HINT).toBe(
+      "Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.",
+    );
+  });
+
+  /**
+   * **M7.17.** The hint enumerates, so the list has to be complete: ARAM is the first of the four
+   * reasons and the most common one in this group's history since M7.11's rebuild. The row's own
+   * label does not change with it — M3.23's one vocabulary means every unrated row still reads the
+   * same three syllables, and the reason is said once, under the list.
+   */
+  it('names ARAM first in the hint and nowhere else in the vocabulary', () => {
+    expect(NOT_RATED_HINT).toContain('ratings: ARAM, too short');
+    // One word added, nothing else in the sentence touched.
+    expect(NOT_RATED_HINT.replace('ARAM, ', '')).toBe(
       "Some games don't move ratings: too short, short a player, or added from match history and not counted yet.",
     );
+    // No per-row reason, and no other constant grew a mode word.
+    const others = [
+      NOT_RATED,
+      SETTLING_SENTENCE,
+      SETTLING_SENTENCE_PLAYER,
+      SETTLING_SENTENCE_SHORT,
+      WEEK_BOARD_SENTENCE,
+      WEEK_BOARD_SENTENCE_SHORT,
+      MVP_EXPLANATION,
+      ...Object.values(WINDOW_LABELS),
+      ...Object.values(WINDOW_EMPTY),
+    ];
+    for (const sentence of others) expect(sentence.toUpperCase()).not.toContain('ARAM');
   });
 
   /**

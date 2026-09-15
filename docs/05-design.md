@@ -231,7 +231,7 @@ product rather than a document that happens to be dark.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  Mystery   Day Night │
+│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  Daily   Day Night │
 ├───────────────────────────────────────────────────────────────┤
 │                                                               │
 │   … page content, on the paper or the ink, under the floodlight … │
@@ -269,9 +269,19 @@ the status strip.
   Kustom. Six letters at 800 weight is also a better wordmark than thirteen.
 - **Nav.** Tabs, mono `t-xs`, `0.08em`, lower case is wrong here — these are destinations, so Archivo `t-sm`
   500 in `dim`, the current one in `text` with a 2px `brand` underline. Order: `Tonight`, `Leaderboard`,
-  `Games`, `Stats`, `Fun`, `Mystery`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
-  `Games` with M5.25, `Stats` with M5.4, `Fun` with M5.24, `Mystery` with M5.32, `Companion` is external and always there. A nav item that 404s is worse than a missing
+  `Games`, `Stats`, `Fun`, `Daily`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
+  `Games` with M5.25, `Stats` with M5.4, `Fun` with M5.24, `Daily` with M5.32, `Companion` is external and always there. A nav item that 404s is worse than a missing
   one. Keep the list in one exported array (`lib/nav.ts`) so no page hand-writes it.
+- **The daily tab is `Daily`, not the name of either game** (renamed 2026-09-16 by M8.4, from `Mystery`).
+  Two games now alternate civil days behind `/mystery` (Daily Mystery and Guess the Award), and this tab is
+  rendered by the shell on **every** page of the site. Naming one game would make the shell state a fact it does
+  not have: the shell has not loaded today's challenge, and it must not spend a query per page view to learn
+  which game it is, so `Mystery` over an award day was the same wrong word printed on six pages at once.
+  `Daily` is true on both days and on a day with no challenge at all. The word lives in `lib/mystery/copy.ts`
+  as `DAILY_LABEL` and `lib/nav.ts` imports it, exactly like `Games`, `Stats` and `Fun` — the tab is still the
+  page's own word, that word just stopped being a title. **`/mystery`'s `<title>` does name the game**
+  (`Guess the Award · Kustom`), because that page has already paid for the load and a tab reading one game over
+  a card reading the other is the page arguing with itself.
 - **Phone.** Two rows: wordmark and the theme switch (44px), then the tab row (44px, tabs left aligned,
   horizontally scrollable with no scrollbar). Not sticky — a sticky bar costs 88px of a 700px screen on the
   one page people read in full.
@@ -954,7 +964,7 @@ placement are the designer's and are untouched.
 | past the ten | *(shipped)* `Around` | shipped, kept |
 | nameless hint | *(shipped)* `Names fill in after someone's first game.` | shipped, kept |
 | no season | *(shipped, M3.17)* `No season is active, so tonight's games are not being saved. An admin can start one.` | shipped, kept |
-| nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `Mystery` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) |
+| nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is |
 | footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
 | how this works, line 2 | `The bot makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.` | product 2026-09-09 — **changed** |
@@ -1458,7 +1468,7 @@ words below are fixed.
 | a player with no name | `Someone` | *(shipped, M3.10)* kept |
 | nameless hint, once per page while any row reads `Someone` | `Names fill in after someone's first game.` | *(shipped, M3.10)* kept |
 | rating column, unrated game | `not rated` | **new**, product 2026-09-10 (M3.23) |
-| hint under Recent games, when any row is unrated | `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.` | **new**, product 2026-09-10 (M3.23). **Defect, raised by the designer 2026-09-16 (M7 review): the list is now short one reason.** Since M7.1 an ARAM is stored, listed and never rated, and M7.11's rebuild un-rated the four ARAM nights already in the history — so rows read `not rated` for a reason this sentence does not offer, on a page whose whole job is to explain why a number did or did not move. The sentence enumerates, so an unlisted reason reads as a bug rather than a rule. Proposed: `Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.` — the shortest honest repair, first because it is now the most common of the four. **Product's string and product's call**; `NOT_RATED_HINT` in `lib/board/copy.ts` and the prose under "Rating history" below both change or neither does |
+| hint under Recent games, when any row is unrated | `Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.` | **amended, product 2026-09-16 (M7.17)** — was `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.` (new, product 2026-09-10, M3.23). **The defect the designer raised on 2026-09-16 (M7 review) — the list was short one reason — is fixed by this row.** Since M7.1 an ARAM is stored, listed and never rated, and M7.11's rebuild un-rated the four ARAM nights already in the history, so rows read `not rated` for a reason the sentence did not offer, on a page whose whole job is to explain why a number did or did not move. The sentence enumerates, so an unlisted reason reads as a bug rather than a rule. **One word added and nothing else in the sentence touched**: ARAM goes first because it is now the most common of the four, there is no second sentence, and no argument for *why* ARAM does not rate — that lives in `00-product.md` and not in a hint line. **No per-row reason**: M3.23's one vocabulary stands, so `NOT_RATED` is untouched and every unrated row still reads the same three syllables. `NOT_RATED_HINT` in `lib/board/copy.ts`, pinned by code point in `lib/board/board.test.ts`; the prose under "Rating history" below says the same string |
 | nightly embed, field name | `Top ten` when ten lines print, `The board` when fewer | **amended, product 2026-09-10 (M3.22)** — was `Top ten` always; see "Nightly leaderboard embed" |
 | window picker, the five options | `This week` · `Last week` · `This month` · `Last month` · `All time` | **new**, product 2026-09-10 (M5.12) — the same five words are the option, the board heading and the post title |
 | window picker, accessible name (on screen nowhere) | `Time window` | **new**, product 2026-09-10 (M5.12) — the `<nav>`'s `aria-label`, so five links are not announced as a second unnamed "navigation" beside `Leaderboard`. Product's own noun, and true on all three pages; if **M5.8** gives the control a visible heading it is this string, verbatim |
@@ -2459,7 +2469,7 @@ still-settling sentence · `By role` · `Recent games` · the nameless hint.
   `1392 (−42)` right. A list of results with no dates cannot answer the first question anybody asks of it. The
   section header carries a right-aligned `rating` legend and the number carries visually-hidden `Rating`, the
   same rule the board row's bare Proven already follows.
-- **Unrated games are listed, not hidden** (product, 2026-09-10, M3.23). `Recent games` is the last five games the player played, rated or not, in `started_at` order, and an unrated one counts toward the five. Its rating column reads `not rated` — mono `t-sm` `dim`, right-aligned where `1392 (−42)` sits, no delta, no em-dash, no visually-hidden `Rating` on that row — while `Won` / `Lost`, the date and the duration print as normal. A refused game (too short, nine players, a duplicate player) and a backfilled game that `rebuild-ratings` has not folded yet read the same two words; the backfill row gains its number when the rebuild runs. Everything else on the page stays rated-only: the two numbers, the chart, the seed line, `By role` and the `37 games · 20W 17L` record, which is why the record may count fewer games than the list shows. Once per page, only when at least one row reads `not rated`, directly under the list with the nameless hint's placement rule: `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.` **That list is one reason short since M7.1** — an ARAM is stored, listed and never rated, and the four ARAM nights already in the group's history became `not rated` rows when M7.11's rebuild ran. The copy table's own row carries the proposed repair and it is product's call.
+- **Unrated games are listed, not hidden** (product, 2026-09-10, M3.23). `Recent games` is the last five games the player played, rated or not, in `started_at` order, and an unrated one counts toward the five. Its rating column reads `not rated` — mono `t-sm` `dim`, right-aligned where `1392 (−42)` sits, no delta, no em-dash, no visually-hidden `Rating` on that row — while `Won` / `Lost`, the date and the duration print as normal. A refused game (too short, nine players, a duplicate player) and a backfilled game that `rebuild-ratings` has not folded yet read the same two words; the backfill row gains its number when the rebuild runs. Everything else on the page stays rated-only: the two numbers, the chart, the seed line, `By role` and the `37 games · 20W 17L` record, which is why the record may count fewer games than the list shows. Once per page, only when at least one row reads `not rated`, directly under the list with the nameless hint's placement rule: `Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.` **ARAM joined that list on 2026-09-16 (M7.17)** — since M7.1 an ARAM is stored, listed and never rated, and the four ARAM nights already in the group's history became `not rated` rows when M7.11's rebuild ran, which makes it the most common of the four reasons. The placement rule and the row's own two words are unchanged.
 - **This page is the all-time track on every window, including the two week ones** (noted by the designer
   2026-09-16; the gap is M7.3's own, recorded in its status row as an approved follow-up that is not yet
   scheduled). `/leaderboard?window=this-week` prints a player's **weekly** Rating as their one number, off a
@@ -3128,8 +3138,8 @@ ARAM night reaches the tonight page, and it is correct**: no headline in the win
 `MVP` line, nothing that would read as a rated result. The one thing this state does not do is *say* which of
 the reasons it was, and product has ruled since 2026-09-09 that it should not — the page has no apology to
 make. The reason lives in `00-product.md` ("Only Summoner's Rift customs move the number") and, for a reader
-who goes looking, on `/p/[puuid]`'s `not rated` row — see the defect noted against that row's hint, which does
-not yet name ARAM among its reasons.
+who goes looking, on `/p/[puuid]`'s `not rated` row, whose hint has named ARAM first among its reasons since
+M7.17 (2026-09-16).
 
 Idle copy (product, 2026-09-08 — final), the same sentence the placeholder page already carries from M1.10 so
 the wording does not change under people when M3.4 lands: `When ten of you are in a custom lobby with the
@@ -3183,26 +3193,171 @@ Listed because each one is a thing a page like this drifts into:
 - No toasts. Realtime already changes the thing you are looking at.
 - No numbers rendered in a proportional font, ever.
 
-## Daily Mystery (M5.32)
+## The daily game — Daily Mystery and Guess the Award (M5.32, extended by M8.4)
 
-One accountless guessing game per civil day, on `/` and `/mystery`. Floodlit's own rules still win: no
-emoji, no named leaderboard, no purple, no champion art. The visitor is a cookie. The League player is
-the one on the scoreboard. Those are different people and the page never pretends otherwise.
+One accountless guessing game per civil day, on `/` and `/mystery`. Since M8.4 there are **two** games and
+they alternate civil days: **Daily Mystery** (a standout-or-disastrous stat line, guess whose it is) and
+**Guess the Award** (the best number in one game in one category, guess whose it is). One challenge per day
+either way, so nothing about the card's shape changed: one card, one route, one countdown, one row in
+`daily_mysteries`.
 
-- **The crime is the large type.** KDA in the display cut, then two or three hook lines (deaths, CS,
-  duration). That is the whole above-the-fold card.
+Floodlit's own rules still win: no emoji, no named leaderboard, no purple, no champion art. The visitor is a
+cookie. The League player is the one on the scoreboard. Those are different people and the page never
+pretends otherwise.
+
+**The card never names the rotation.** It does not say "today is award day", does not explain the parity, and
+never promises what tomorrow is — the card is whatever it is, and the two sentences that used to promise
+another *case* or a `Next mystery` were each wrong by exactly one day. The one surface that does name today's
+game is the one that has already loaded it: the card's own heading and `/mystery`'s `<title>`.
+
+- **The day's question is the large type; the hook under it is what changed.** The heading is the category
+  (`Disaster class`, `Most gold`), then the kicker (`The crime` / `The award`), then `Someone in our customs
+  went` and the **KDA in the display cut on both games**, then two or three hook lines. On a mystery day
+  those lines are the category's own (deaths, kill participation, CS, damage taken, duration); on an award
+  day they are exactly two — **the award's own number under its own label**, then the duration. That is the
+  whole above-the-fold card.
 - **Six names, two columns, 44px.** Same button recipe as reroll. A second tap locks the guess. There is
-  no username field.
+  no username field. Identical on both games: the question is always *who*.
 - **Clues are a list, not a quiz.** `Clue 1 · Champion` then the word. Reveal is one button under the
-  names. The page never prints a clue the visitor has not asked for.
-- **After the lock, the card becomes the case file.** Correct / Wrong, it was <name>, the full
-  performance, then `Who did everyone blame?` as labelled bars. Community numbers are absent from the
-  play state because they are not in the props.
+  names. The page never prints a clue the visitor has not asked for. The clue ladder is the same eight
+  types on both games.
+- **After the lock, the card becomes the case file.** Correct / Wrong, `It was <name>`, the full
+  performance, then `Who did everyone blame?` — `Who did everyone pick?` on an award day — as labelled bars,
+  with `Most falsely accused: <name>` / `Most wrong picks: <name>` under them. Nobody is *accused* of winning
+  an award, which is the whole reason those four sentences fork. Community numbers are absent from the play
+  state because they are not in the props.
+- **The award's own number is the first row of the performance panel, and it is never inferred.** It is read
+  off the revealed scoreboard by the same function the hook used, so the day's premise and the day's reveal
+  cannot print two different numbers. Four of the seven awards (gold, vision, mitigation, objectives) are not
+  otherwise rows in that panel, and before M8.4's fix pass those days settled without ever showing the number
+  they were about. The two that *are* rows (damage, CS) print once, in the award's row, and the duplicate
+  below is dropped.
+- **A column the database never stored reads `Not recorded`, never `0`.** Vision score, damage mitigated and
+  objective damage arrived with migrations 0014 / 0015 (M7.7, M7.14); a game older than the backfill has no
+  number, and null is not zero. It prints in `text`, not mono — it is a sentence about the absence of a
+  number, not a number.
 - **First Detective is a sentence, not a medal.** Brand colour, no trophy. Later visitors get `Someone
-  has already claimed today's First Detective.` and never a name.
+  has already claimed today's First Detective.` and never a name. The badge keeps its name on both games
+  (one `first_correct_at` column, one word for whoever gets today right first); only the sentence under it
+  forks, because "solve the mystery" is not what an award day was.
 - **Percentile is a bucket** (`Top 5%` … `Top 50%`) or nothing. Under ten correct guesses the page stays
   quiet.
-- **Share copies a spoiler-free line.** `Daily Mystery #184 — solved with 1 clue. Top 15%.` Never the
-  player.
-- **Countdown** to the next civil midnight in `CUSTOMS_NIGHT_TZ`, mono, under a hairline. Same clock
-  the rotation uses. Not the 06:00 night boundary.
+- **Share copies a spoiler-free line.** `Daily Mystery #184 — solved with 1 clue. Top 15%.` or `Guess the
+  Award #7 — solved with 1 clue. Top 15%.` Never the player. Each game counts its own challenges, which is
+  why 0016 moved the unique to `(kind, challenge_number)` and why `#184` and `#7` sit side by side.
+- **Countdown** to the next civil midnight in `CUSTOMS_NIGHT_TZ`, mono, under a hairline. Same clock the
+  rotation uses. Not the 06:00 night boundary. **Its label is `Next game` on both games and on the empty
+  card** — the clock runs to the moment *the other* game starts, so it names neither.
+
+### An award day, drawn
+
+```
+Guess the Award #7                          ← slug, mono t-xs
+Most gold                                   ← t-display, categoryLabel
+THE AWARD                                   ← kicker, t-xs 0.08em dim
+Someone in our customs went
+12 / 2 / 8                                  ← the KDA, display cut, both games
+  Gold                21.4k                 ← the award's own number and label
+  Game                34:12
+Who was it?
+  [ Nadia ] [ Bahaa ] [ Omar ] …            ← six, two columns, 44px
+```
+
+and after the lock:
+
+```
+Guess the Award #7
+Correct
+MOST GOLD · AWARD SETTLED                   ← category, then what became of it
+It was Nadia
+First detective. You are the first person today to name the right player.
+You solved it with 1 clue.
+Top 15%
+
+Your result
+  Today's award is settled      Correct
+  Clues used                    1 clue
+  Solved in                     18 seconds
+  Your guess: Nadia             Yes
+
+12 / 2 / 8
+  Gold                          21.4k       ← the award's row, first
+  Champion                      Nidalee
+  Role                          JUNGLE
+  Damage                        28.9k
+  CS                            241
+  Game                          34:12 · Mon 15 Sep
+  Result                        Won
+
+Today's community
+  Attempts 31 · Correct 19 · Wrong 12 · Accuracy 61.3%
+
+Who did everyone pick?
+  Nadia   ████████████████   61%
+  Bahaa   ███████            26%
+  …
+  Most wrong picks: Bahaa
+
+Next game                       04:11:57
+```
+
+#### Copy — the daily game (M5.32; the award column added 2026-09-16, M8.4)
+
+Every string below is in `apps/web/lib/mystery/copy.ts`. The rule that decided the fork: **a word that names
+the thing being guessed about forks; a word that names the visitor, the mechanic or the scoreboard does not.**
+A crime, a case, a blame are award-day lies; a clue, a guess, a detective, a percentile are true of both.
+
+| Where | Daily Mystery | Guess the Award | Note |
+|---|---|---|---|
+| card heading, share prefix | `Daily Mystery #184` | `Guess the Award #7` | `challengeHeading(kind, n)`. Each game counts its own challenges (0016: unique on `(kind, challenge_number)`) |
+| kicker over the hook | `The crime` | `The award` | `gameCopy(kind).kicker` |
+| kicker over the answer | `Case closed` | `Award settled` | `.closedKicker`, printed after the category on one line |
+| result-panel row label | `Today's case is closed` | `Today's award is settled` | `.todayClosed` |
+| distribution heading | `Who did everyone blame?` | `Who did everyone pick?` | `.blame` |
+| line under the bars | `Most falsely accused: Bahaa` | `Most wrong picks: Bahaa` | `mostAccusedLine(kind, name)`. `Most wrongly named` was rejected in M8.4's fix pass: it reads both ways at once |
+| First Detective's sentence | `You are the first person today to solve the mystery correctly.` | `You are the first person today to name the right player.` | `firstDetectiveYou(kind)`. The badge above it is `First detective` on both |
+| share, solved | `Daily Mystery #184 — solved with 1 clue. Top 15%.` | `Guess the Award #7 — solved with 1 clue. Top 15%.` | `zero clues` / `1 clue` / `n clues`; the bucket is dropped when there is none |
+| share, missed | `Daily Mystery #184 — missed it. There's another one tomorrow.` | `Guess the Award #7 — missed it. There's another one tomorrow.` | **changed 2026-09-16 (M8.4)**, both games — it promised another *case*, and under alternation tomorrow is the other game |
+| countdown label | `Next game` | `Next game` | **new 2026-09-16 (M8.4)**, replacing a per-game label. Kind-neutral on purpose: the clock ends when the other game starts |
+| nav tab | `Daily` | `Daily` | **renamed 2026-09-16 (M8.4)** from `Mystery`; see "The app shell". `DAILY_LABEL`, imported by `lib/nav.ts` |
+| a stat the database never stored | `Not recorded` | `Not recorded` | A null M7.7 / M7.14 column on a game older than migrations 0014 / 0015. Never `0`, never an em-dash |
+| the empty day | `No customs to expose yet. Play a few and the first mystery writes itself.` under the heading `Daily Mystery` | *(same)* | Nothing was built, so there is no kind and the card does not guess one. It is the last sentence still naming one game, on the one screen where neither has happened yet; product's string to revisit if a group ever sits on it, not worth a fork today |
+| everything else | `Who was it?` · `Guess now` · `Need help?` · `Reveal a clue` / `Reveal another clue` · `Locked in` · `Lock in <name>` · `Back` · `It was <name>` · `You guessed <name>.` · `Correct` / `Wrong` · `First detective` · `Someone has already claimed today's First Detective.` · `Your result` · `Clues used` · `Solved in` · `Today's community` · `<n>% of today's detectives were fooled.` · `Someone in our customs went` · `Copy result` / `Copied` | *(identical)* | One constant each, not two. `detectives` names the visitor, not the thing they were asked about, so it survives an award day |
+
+**The seven awards.** The heading is the day's question; the label is what the number is printed under, in
+the hook and again on the reveal. They differ on purpose: `Most vision` is a superlative, `Vision score` is a
+column.
+
+| Category | Heading (`categoryLabel`) | Stat label (`awardStatLabel`) | Reads as | Null before |
+|---|---|---|---|---|
+| `kda` | `Widest KDA` | `KDA` | `5.50` — two decimals, `(K+A) / max(1, D)` | — |
+| `damage` | `Most damage` | `Damage` | `41.2k` | — |
+| `gold` | `Most gold` | `Gold` | `21.4k` | — |
+| `vision` | `Most vision` | `Vision score` | `62` — integer | 0014 (M7.7) |
+| `mitigation` | `Most damage mitigated` | `Damage mitigated` | `38.6k` | 0014 (M7.7) |
+| `cs` | `Most CS` | `CS` | `241` — integer | — |
+| `objectives` | `Most damage to objectives` | `Objective damage` | `19.7k` | 0015 (M7.14) |
+
+The five mystery headings (`Disaster class`, `Monster game`, `Farming simulator`, `Raid boss`, `Where were
+you?`) are unchanged by M8.4 and share the same `categoryLabel`.
+
+#### Two notes on the closed card's layout (designer, 2026-09-16 — flags, not defects)
+
+- **The two-part kicker reads well and should stay one line.** `MOST GOLD · AWARD SETTLED` is the day's
+  question and its outcome in the order a reader wants them, in the micro-label's own size and colour, under
+  a headline that is already `Correct` / `Wrong` — three facts, three weights, no repetition. The one thing
+  to watch is width: `MOST DAMAGE TO OBJECTIVES · AWARD SETTLED` at `t-xs` with `0.08em` is about 300px of a
+  358px content column at 390, so it wraps on the next phone down and the break lands wherever it lands.
+  **The fix, if it is ever wanted, is one property and no markup change**: the two halves are already
+  separate `<span>`s, so `.cn-mystery-kicker span { white-space: nowrap }` moves the break to the middot.
+  Not requested here.
+- **The award's number belongs where it is, but the `kda` day prints one fact twice.** First row of the
+  performance panel, under a panel whose heading is the KDA, is the right order — the award is why the day
+  existed, and everything under it is context. On a `Widest KDA` day, though, the heading reads `12 / 2 / 8`
+  and the row directly under it reads `KDA 5.50`: the same fact in two notations, 8px apart. Harmless, and
+  cheaper to live with than a special case, but recorded here so it is not re-discovered as a bug.
+- **The play card's biggest number is the KDA on both games.** On five of the seven awards the award's own
+  number is a hook line and the display cut belongs to a KDA the day is not about. That is defensible — the
+  KDA is the strongest identifying fact the page can show six suspects, and it is the one shape every seat
+  has — but it is a design question nobody has actually been asked, so it is a flag for the lead rather than
+  a rule. **Do not change it on this pass.**

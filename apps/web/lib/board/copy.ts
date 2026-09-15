@@ -243,9 +243,16 @@ export const NOT_RATED = 'not rated';
 /**
  * The sentence under the list, once per page, printed only while a row reads {@link NOT_RATED}
  * — the same placement rule as M3.10's nameless hint (product, 2026-09-10).
+ *
+ * **`ARAM` is the first of the four reasons** (product, 2026-09-16, M7.17). The sentence
+ * enumerates, so a reason it leaves out reads as a bug rather than a rule — and since M7.1 an
+ * ARAM is stored, listed and never rated, which M7.11's rebuild turned into the most common
+ * reason in this group's stored history. One word added and nothing else in the sentence
+ * touched: no second sentence, and no argument for *why* ARAM does not rate, which lives in
+ * `00-product.md` and not in a hint line.
  */
 export const NOT_RATED_HINT =
-  "Some games don't move ratings: too short, short a player, or added from match history and not counted yet.";
+  "Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.";
 
 /** `05-design.md`, "Rating history": the chart's title, the same word as line 2 of a row. */
 export const CHART_TITLE = RATING_LABEL;
