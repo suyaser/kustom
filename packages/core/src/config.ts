@@ -7,6 +7,8 @@
  * same change.
  */
 
+import type { Role } from './types';
+
 /** The ranked tiers the League client reports, uppercase as the client sends them. */
 export type RankTier =
   | 'IRON'
@@ -22,6 +24,17 @@ export type RankTier =
 
 /** Division within a tier. IV is the tier base. Master and above have none. */
 export type RankDivision = 'I' | 'II' | 'III' | 'IV';
+
+/**
+ * Which of the three performance weight vectors a player is scored on (M7.13).
+ *
+ * Three, not five. `carry` lumps top, mid and adc together **because M7.12 measured that
+ * nothing in the end-of-game block separates top from mid** — a bucket that never has to tell
+ * them apart cannot be wrong about it. What the same measurement did pin, 46 of 46 sides with
+ * an independent Smite check, is jungle and support, which are exactly the two roles the flat
+ * M7.8 vector misread. The split is drawn where the evidence is and nowhere else.
+ */
+export type PerformanceBucket = 'carry' | 'jungle' | 'support';
 
 export const config = {
   rating: {
@@ -86,22 +99,70 @@ export const config = {
       tau: 0.3,
     },
     /**
-     * The performance score (M7.8): six weights that sum to 1.00, over components each
-     * normalised inside the game (a player's value divided by the best of the ten), so every
-     * term is in `[0, 1]` and gold cannot swamp KDA by being a four-digit number. KDA is
-     * `(kills + assists) / max(1, deaths)`. A component whose game-wide maximum is zero
-     * contributes zero to everybody instead of dividing by zero.
+     * Which weight vector each role is scored on (M7.13). **This map is named here and
+     * nowhere else**: a second copy is how top quietly stops being a carry.
      *
-     * op.gg's own formula is proprietary and unpublished; this is a documented community
-     * approximation and a tunable like every other number here, not gospel.
+     * A role outside these five, or no role at all, is not in this map, and the game gets no
+     * MVP rather than a silent fall back to `carry` — see `rating/performance.ts`.
+     */
+    performanceBucket: {
+      top: 'carry',
+      mid: 'carry',
+      adc: 'carry',
+      jungle: 'jungle',
+      support: 'support',
+    } satisfies Record<Role, PerformanceBucket>,
+    /**
+     * The performance score (M7.8, revised in place by M7.13): six weights that sum to 1.00,
+     * over components each normalised inside the game (a player's value divided by the best of
+     * the ten), so every term is in `[0, 1]` and gold cannot swamp KDA by being a four-digit
+     * number. KDA is `(kills + assists) / max(1, deaths)`. A component whose game-wide maximum
+     * is zero contributes zero to everybody instead of dividing by zero.
+     *
+     * **Three vectors, not one** (M7.13), keyed by the bucket `performanceBucket` puts the
+     * player's role in. M7.8 scored a support and an adc on the same six weights, which asked
+     * each of them to win MVP on the other's terms. Only *which* vector multiplies a player's
+     * six normalised components changed; the components, the normalisation and the bonus did
+     * not.
+     *
+     * | component | `carry` | `jungle` | `support` |
+     * |---|---|---|---|
+     * | KDA | 0.15 | 0.25 | 0.25 |
+     * | damage to champions | 0.30 | 0.20 | 0.05 |
+     * | gold | 0.20 | 0.15 | 0.05 |
+     * | vision score | 0.05 | 0.15 | 0.40 |
+     * | damage self-mitigated | 0.10 | 0.10 | 0.15 |
+     * | CS | 0.20 | 0.15 | 0.10 |
+     *
+     * op.gg's own formula is proprietary and unpublished; these are hand-reasoned from what
+     * each role is actually for, fitted to nothing, and are tunables like every other number
+     * here, not gospel.
      */
     performance: {
-      kda: 0.1,
-      damageToChamps: 0.2,
-      gold: 0.2,
-      visionScore: 0.25,
-      damageSelfMitigated: 0.15,
-      cs: 0.1,
+      carry: {
+        kda: 0.15,
+        damageToChamps: 0.3,
+        gold: 0.2,
+        visionScore: 0.05,
+        damageSelfMitigated: 0.1,
+        cs: 0.2,
+      },
+      jungle: {
+        kda: 0.25,
+        damageToChamps: 0.2,
+        gold: 0.15,
+        visionScore: 0.15,
+        damageSelfMitigated: 0.1,
+        cs: 0.15,
+      },
+      support: {
+        kda: 0.25,
+        damageToChamps: 0.05,
+        gold: 0.05,
+        visionScore: 0.4,
+        damageSelfMitigated: 0.15,
+        cs: 0.1,
+      },
     },
     /**
      * The MVP / ACE adjustment (M7.8), applied after `rateGame` and never inside it. The MVP

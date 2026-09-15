@@ -120,8 +120,8 @@ Rules:
   rebuild (M5.2) overwrites them.
 - `game_players.vision_score` and `damage_self_mitigated` are nullable **with no default** (0014, M7.7), and the
   null is the point: it means "this game never stored it", which is a different fact from a game with no wards
-  or a tank who mitigated nothing, and M7.8's MVP / ACE bonus skips a game rather than scoring somebody at
-  zero for a number nobody kept. Ingest reads both off the posted `raw` block — uppercase key first
+  or a tank who mitigated nothing, and the MVP / ACE bonus (M7.8) skips a game rather than scoring somebody at
+  zero for a number nobody kept. It skips a game with a null `game_players.role` the same way (M7.13). Ingest reads both off the posted `raw` block — uppercase key first
   (`VISION_SCORE`, `TOTAL_DAMAGE_SELF_MITIGATED`), camelCase as the fallback (`visionScore`,
   `damageSelfMitigated`), which covers the live end-of-game block and the backfilled match detail — so no
   companion release is owed for them. Both writers pass every number through `storedStat`
@@ -257,30 +257,42 @@ rating has moved. No column stores the score and no API field carries it. `evenn
 of its own, since `predictWin` answers 0, 1 or 0.5 for an empty side (decision, 2026-09-15). Reading this score
 must never feed back into `score` or `compareSplits`: it does not change which split the balancer picks.
 
-### The performance score and the MVP / ACE bonus (M7.8)
+### The performance score and the MVP / ACE bonus (M7.8, weights revised by M7.13)
 
 `rating/performance.ts` is three pure functions — `performanceScores`, `mvpAce`, `applyMvpAceBonus` — over one
 game's own numbers. **MVP** is the highest-scoring player on the winning team, **ACE** the highest-scoring player
 on the losing team; those are op.gg's terms for op.gg's idea, whose formula is proprietary and unpublished, so
-this one is a documented community approximation and a tunable like every other number in `config.ts`.
+this one is hand-reasoned, fitted to nothing, and a tunable like every other number in `config.ts`.
 
-Six components, weighted, in `config.rating.performance`:
+Six components — and **three weight vectors over them, picked by the player's role** (M7.13), in
+`config.rating.performance`:
 
-| component | weight |
-|---|---|
-| KDA | 0.10 |
-| damage to champions | 0.20 |
-| gold | 0.20 |
-| vision score | 0.25 |
-| damage self-mitigated | 0.15 |
-| CS | 0.10 |
+| component | `carry` (top/mid/adc) | `jungle` | `support` |
+|---|---|---|---|
+| KDA | 0.15 | 0.25 | 0.25 |
+| damage to champions | 0.30 | 0.20 | 0.05 |
+| gold | 0.20 | 0.15 | 0.05 |
+| vision score | 0.05 | 0.15 | 0.40 |
+| damage self-mitigated | 0.10 | 0.10 | 0.15 |
+| CS | 0.20 | 0.15 | 0.10 |
 
-They sum to 1.00. **Each component is normalised inside the game**: a player's value divided by the best of the
-ten for that component, so every term is in `[0, 1]` and gold does not swamp KDA by being a four-digit number.
-KDA is `(kills + assists) / max(1, deaths)`. A component whose game-wide maximum is zero contributes zero to
-everybody rather than dividing by zero. A score is therefore in `[0, 1]` and is comparable **only inside its own
-game**, which is all MVP and ACE need. The six are summed in the table's order, which is part of the pinned
-arithmetic. Ties go to the lower puuid, never to the array's order.
+Every row sums to 1.00. The role-to-bucket map is `config.rating.performanceBucket` and lives **only** there:
+top, mid and adc are all `carry`, jungle is `jungle`, support is `support`. **Three buckets, not five**, because
+M7.12 measured that nothing in the stored end-of-game block separates top from mid — a bucket that never has to
+tell them apart cannot be wrong about it — while jungle and support, the two roles the single M7.8 vector
+misread, were pinned 46 of 46 sides with an independent Smite check. A single flat vector scored a support and
+an adc on the same six weights, which asked each to win MVP on the other's terms.
+
+**Each component is still normalised inside the game**: a player's value divided by the best of the ten for that
+component — the whole ten, never the best within their own bucket — so every term is in `[0, 1]` and gold does
+not swamp KDA by being a four-digit number. KDA is `(kills + assists) / max(1, deaths)`. A component whose
+game-wide maximum is zero contributes zero to everybody rather than dividing by zero, whatever that player's
+bucket weights say about it. A score is therefore in `[0, 1]` and is comparable **only inside its own game**,
+which is all MVP and ACE need. The six are summed in the table's order, which is part of the pinned arithmetic.
+Ties go to the lower puuid, never to the array's order.
+
+Nothing here requires a side to hold five distinct roles: buckets are read per player, and a side with two
+supports and no top is scored as it comes. The balancer's view of roles is not involved.
 
 The adjustment is applied **after** `rateGame` (or `rateGameWeekly`) and never inside it, so the base rating maths
 stays untouched and independently testable — `applyMvpAceBonus` takes the fold's `{ puuid, before, after }` and
@@ -300,9 +312,21 @@ carried vision, a `null`, a `NaN` — there is **no MVP and no ACE** (`mvpAce` r
 exactly as it was before M7.8. There is no partial scoring: it would rank a player who has a vision score against
 one who does not.
 
-The worked example's ten (`docs/00-product.md`, blue winning) score Bilal 0.7000, Lena 0.5875, Hana 0.5625, Rami
-0.5500, Iris and Nadia 0.5000, Theo 0.4125, Omar 0.2750, Karim 0.2500, Yuki 0.0000 — so Bilal is the MVP and Lena
-the ACE, pinned in `rating/performance.test.ts`.
+**And if any of the ten has no role, the same three answers** (M7.13): `performanceScores` returns `null`,
+`mvpAce` returns `null`, and `applyMvpAceBonus` gives back an untouched copy of the fold. Role is an input like
+the other eight numbers and it declines the same way — per game, never per player. `null`, `undefined` and a
+value outside the five roles all count as no role; it **never falls back to `carry`**, because a silent default
+is a guess printed as a fact. The cost is accepted and real: every backfilled game carries `role = null` for all
+ten (decision, 2026-09-09; M5.18 is unresolved), so the backfilled half of the history never has an MVP. The
+games that keep one are the live end-of-game ones. Only the shape guard still throws: anything that is not five
+a side, or a puuid twice, is a caller bug rather than missing data.
+
+The worked example's ten (`docs/00-product.md`, blue winning, on the roles the balancer gave them) score Bilal
+0.8875, Lena 0.7000, Iris and Nadia 0.5000, Theo and Rami 0.4875, Hana 0.3875, Omar 0.2875, Karim 0.2500, Yuki
+0.0000 — so Bilal is the MVP and Lena the ACE, pinned in `rating/performance.test.ts`. That game has no support
+who ran the map, so the buckets reorder the middle and not the top; the test file also pins a hand-built ten
+where the support has the best vision and the worst damage and wins MVP under these weights, having lost it
+under M7.8's single vector.
 
 ## Balancer (`packages/core/balance`)
 

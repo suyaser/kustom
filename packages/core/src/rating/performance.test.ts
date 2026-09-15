@@ -4,16 +4,20 @@ import {
   config,
   type MvpAce,
   mvpAce,
+  type PerformanceBucket,
   type PerformancePlayer,
   performanceScores,
   type Rating,
   type RatingChange,
+  ROLES,
+  type Role,
   rateGame,
 } from '../index';
 
 /**
- * The ten named players of the worked example in `docs/00-product.md`, on the sides the
- * balancer put them on. Blue wins, which makes the MVP a blue player and the ACE a red one.
+ * The ten named players of the worked example in `docs/00-product.md`, on the sides and the
+ * roles the balancer put them on. Blue wins, which makes the MVP a blue player and the ACE a
+ * red one.
  *
  * Every stat is a clean binary fraction of that component's game-wide maximum (1, 3/4, 1/2,
  * 1/4 or 0), so the expected score below is exact in floating point and a wrong weight fails
@@ -33,6 +37,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'hana',
     side: 100,
+    role: 'top',
     kills: 1,
     deaths: 2,
     assists: 3,
@@ -45,6 +50,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'iris',
     side: 100,
+    role: 'jungle',
     kills: 5,
     deaths: 2,
     assists: 3,
@@ -57,6 +63,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'karim',
     side: 100,
+    role: 'mid',
     kills: 1,
     deaths: 2,
     assists: 3,
@@ -69,6 +76,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'bilal',
     side: 100,
+    role: 'adc',
     kills: 6,
     deaths: 0,
     assists: 2,
@@ -81,6 +89,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'theo',
     side: 100,
+    role: 'support',
     kills: 0,
     deaths: 2,
     assists: 4,
@@ -94,6 +103,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'omar',
     side: 200,
+    role: 'top',
     kills: 4,
     deaths: 2,
     assists: 4,
@@ -106,6 +116,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'rami',
     side: 200,
+    role: 'jungle',
     kills: 2,
     deaths: 2,
     assists: 2,
@@ -118,6 +129,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'nadia',
     side: 200,
+    role: 'mid',
     kills: 3,
     deaths: 2,
     assists: 5,
@@ -130,6 +142,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'lena',
     side: 200,
+    role: 'adc',
     kills: 7,
     deaths: 2,
     assists: 5,
@@ -142,6 +155,7 @@ const GAME: PerformancePlayer[] = [
   {
     puuid: 'yuki',
     side: 200,
+    role: 'support',
     kills: 0,
     deaths: 7,
     assists: 0,
@@ -153,32 +167,132 @@ const GAME: PerformancePlayer[] = [
   },
 ];
 
-/**
- * The score, written out a second time from the six literal weights, in the documented order,
- * over each player's fraction of that component's maximum. Same arithmetic, same order, so
- * `toBe` is the right assertion: this is a pin on the weights and on the normalisation, not a
- * restatement of the implementation.
- */
-function expectedScore(f: {
+interface Fractions {
   kda: number;
   damageToChamps: number;
   gold: number;
   visionScore: number;
   damageSelfMitigated: number;
   cs: number;
-}): number {
+}
+
+/**
+ * The three weight vectors of the M7.13 brief, written out a second time as literals so the
+ * expected scores below do not read the numbers they are meant to pin. A tune of
+ * `config.rating.performance` must fail here first.
+ */
+const BRIEF_WEIGHTS: Record<PerformanceBucket, Fractions> = {
+  carry: {
+    kda: 0.15,
+    damageToChamps: 0.3,
+    gold: 0.2,
+    visionScore: 0.05,
+    damageSelfMitigated: 0.1,
+    cs: 0.2,
+  },
+  jungle: {
+    kda: 0.25,
+    damageToChamps: 0.2,
+    gold: 0.15,
+    visionScore: 0.15,
+    damageSelfMitigated: 0.1,
+    cs: 0.15,
+  },
+  support: {
+    kda: 0.25,
+    damageToChamps: 0.05,
+    gold: 0.05,
+    visionScore: 0.4,
+    damageSelfMitigated: 0.15,
+    cs: 0.1,
+  },
+};
+
+/** The bucket each of the five roles is scored on, written out a second time (M7.13). */
+const BRIEF_BUCKETS: Record<Role, PerformanceBucket> = {
+  top: 'carry',
+  mid: 'carry',
+  adc: 'carry',
+  jungle: 'jungle',
+  support: 'support',
+};
+
+/**
+ * The score, from the literal weights of that player's bucket, in the documented component
+ * order, over their fraction of each component's game-wide maximum. Same arithmetic, same
+ * order, so `toBe` is the right assertion: this is a pin on the weights and on the
+ * normalisation, not a restatement of the implementation.
+ */
+function expectedScore(bucket: PerformanceBucket, f: Fractions): number {
+  const w = BRIEF_WEIGHTS[bucket];
   return (
-    0.1 * f.kda +
-    0.2 * f.damageToChamps +
-    0.2 * f.gold +
-    0.25 * f.visionScore +
-    0.15 * f.damageSelfMitigated +
-    0.1 * f.cs
+    w.kda * f.kda +
+    w.damageToChamps * f.damageToChamps +
+    w.gold * f.gold +
+    w.visionScore * f.visionScore +
+    w.damageSelfMitigated * f.damageSelfMitigated +
+    w.cs * f.cs
+  );
+}
+
+/**
+ * The retired M7.8 flat vector, kept in the test and nowhere else, so the one test that has to
+ * show the change doing its job can say what the old formula would have answered. There is no
+ * flat scorer in `packages/core` any more and this must never become one.
+ */
+const M7_8_FLAT: Fractions = {
+  kda: 0.1,
+  damageToChamps: 0.2,
+  gold: 0.2,
+  visionScore: 0.25,
+  damageSelfMitigated: 0.15,
+  cs: 0.1,
+};
+
+/** Every player's fraction of the game-wide maximum, component by component. */
+function fractionsOf(players: readonly PerformancePlayer[]): Map<string, Fractions> {
+  const raw = players.map((p) => ({
+    puuid: p.puuid,
+    kda: ((p.kills as number) + (p.assists as number)) / Math.max(1, p.deaths as number),
+    damageToChamps: p.damageToChamps as number,
+    gold: p.gold as number,
+    visionScore: p.visionScore as number,
+    damageSelfMitigated: p.damageSelfMitigated as number,
+    cs: p.cs as number,
+  }));
+  const keys = ['kda', 'damageToChamps', 'gold', 'visionScore', 'damageSelfMitigated', 'cs'] as const;
+  const max = {} as Fractions;
+  for (const k of keys) max[k] = Math.max(0, ...raw.map((r) => r[k]));
+  return new Map(
+    raw.map((r) => {
+      const f = {} as Fractions;
+      for (const k of keys) f[k] = max[k] <= 0 ? 0 : r[k] / max[k];
+      return [r.puuid, f];
+    }),
+  );
+}
+
+/** What M7.8's single flat vector would have scored this game. Test-only, see `M7_8_FLAT`. */
+function flatScores(players: readonly PerformancePlayer[]): Map<string, number> {
+  const fractions = fractionsOf(players);
+  return new Map(
+    players.map((p) => {
+      const f = fractions.get(p.puuid) as Fractions;
+      return [
+        p.puuid,
+        M7_8_FLAT.kda * f.kda +
+          M7_8_FLAT.damageToChamps * f.damageToChamps +
+          M7_8_FLAT.gold * f.gold +
+          M7_8_FLAT.visionScore * f.visionScore +
+          M7_8_FLAT.damageSelfMitigated * f.damageSelfMitigated +
+          M7_8_FLAT.cs * f.cs,
+      ];
+    }),
   );
 }
 
 /** Each player's fraction of the maximum, component by component, in the same order. */
-const FRACTIONS: Record<string, Parameters<typeof expectedScore>[0]> = {
+const FRACTIONS: Record<string, Fractions> = {
   bilal: { kda: 1, damageToChamps: 1, gold: 1, visionScore: 0.25, damageSelfMitigated: 0.25, cs: 1 },
   hana: { kda: 0.25, damageToChamps: 0.25, gold: 0.5, visionScore: 1, damageSelfMitigated: 0.75, cs: 0.25 },
   iris: { kda: 0.5, damageToChamps: 0.5, gold: 0.5, visionScore: 0.5, damageSelfMitigated: 0.5, cs: 0.5 },
@@ -219,17 +333,35 @@ const FRACTIONS: Record<string, Parameters<typeof expectedScore>[0]> = {
   yuki: { kda: 0, damageToChamps: 0, gold: 0, visionScore: 0, damageSelfMitigated: 0, cs: 0 },
 };
 
-/** The worked example's scores, to two and a half decimals, for the doc and for a human. */
+/** The bucket each of the worked example's ten is scored on, from the roles above. */
+const BUCKETS: Record<string, PerformanceBucket> = {
+  hana: 'carry',
+  iris: 'jungle',
+  karim: 'carry',
+  bilal: 'carry',
+  theo: 'support',
+  omar: 'carry',
+  rami: 'jungle',
+  nadia: 'carry',
+  lena: 'carry',
+  yuki: 'support',
+};
+
+/**
+ * The worked example's scores under the three vectors, to four decimals, for the doc and for a
+ * human. Bilal the adc is still the MVP and Lena the adc still the ACE — this game has no
+ * support who ran the map, so the buckets reorder the middle and not the top.
+ */
 const READABLE: Record<string, number> = {
-  bilal: 0.7,
-  hana: 0.5625,
+  bilal: 0.8875,
+  hana: 0.3875,
   iris: 0.5,
   karim: 0.25,
-  theo: 0.4125,
-  lena: 0.5875,
-  rami: 0.55,
+  theo: 0.4875,
+  lena: 0.7,
+  rami: 0.4875,
   nadia: 0.5,
-  omar: 0.275,
+  omar: 0.2875,
   yuki: 0,
 };
 
@@ -239,11 +371,19 @@ function scoreOf(scores: readonly { puuid: string; score: number }[], puuid: str
   return found.score;
 }
 
-/** Ten players, all with the same stat line: every component normalises to 1 for everybody. */
+function expectedFor(puuid: string, override?: Partial<Fractions>): number {
+  const f = FRACTIONS[puuid];
+  const bucket = BUCKETS[puuid];
+  if (f === undefined || bucket === undefined) throw new Error(`no fractions for ${puuid}`);
+  return expectedScore(bucket, { ...f, ...override });
+}
+
+/** Ten players, same roles, all with the same stat line: every component normalises to 1. */
 function allTheSame(): PerformancePlayer[] {
   return GAME.map((p) => ({
     puuid: p.puuid,
     side: p.side,
+    role: p.role,
     kills: 5,
     deaths: 2,
     assists: 3,
@@ -260,22 +400,47 @@ function reversed<T>(xs: readonly T[]): T[] {
   return [...xs].reverse();
 }
 
-describe('config.rating.performance / config.rating.mvp', () => {
-  it('carries the six weights from the M7.8 brief, and nothing else', () => {
-    expect(config.rating.performance).toEqual({
-      kda: 0.1,
-      damageToChamps: 0.2,
-      gold: 0.2,
-      visionScore: 0.25,
-      damageSelfMitigated: 0.15,
-      cs: 0.1,
-    });
+describe('config.rating.performance / performanceBucket / mvp', () => {
+  it('carries the three weight vectors from the M7.13 brief, and nothing else', () => {
+    expect(config.rating.performance).toEqual(BRIEF_WEIGHTS);
   });
 
-  it('weights sum to 1.00', () => {
-    const w = config.rating.performance;
+  it.each(['carry', 'jungle', 'support'] as const)('the %s vector sums to 1.00', (bucket) => {
+    const w = config.rating.performance[bucket];
     const sum = w.kda + w.damageToChamps + w.gold + w.visionScore + w.damageSelfMitigated + w.cs;
     expect(sum).toBeCloseTo(1, 12);
+  });
+
+  it('has exactly one vector per bucket, and no bucket without a vector', () => {
+    expect(Object.keys(config.rating.performance).sort()).toEqual(['carry', 'jungle', 'support']);
+  });
+
+  it('names the role-to-bucket map in exactly one place, covering all five roles', () => {
+    expect(config.rating.performanceBucket).toEqual(BRIEF_BUCKETS);
+    // Every role the rest of core knows about has a bucket, and every bucket has a vector.
+    for (const role of ROLES) {
+      const bucket = config.rating.performanceBucket[role];
+      expect(config.rating.performance[bucket]).toBeDefined();
+    }
+    expect(Object.keys(config.rating.performanceBucket).sort()).toEqual([...ROLES].sort());
+  });
+
+  it('lumps top, mid and adc into carry, because nothing tells top from mid (M7.12)', () => {
+    expect(config.rating.performanceBucket.top).toBe('carry');
+    expect(config.rating.performanceBucket.mid).toBe('carry');
+    expect(config.rating.performanceBucket.adc).toBe('carry');
+    expect(config.rating.performanceBucket.jungle).toBe('jungle');
+    expect(config.rating.performanceBucket.support).toBe('support');
+  });
+
+  it('weights vision far higher for a support than for a carry, and damage the other way', () => {
+    // The one sentence the whole task exists for, as an assertion.
+    expect(config.rating.performance.support.visionScore).toBeGreaterThan(
+      config.rating.performance.carry.visionScore,
+    );
+    expect(config.rating.performance.carry.damageToChamps).toBeGreaterThan(
+      config.rating.performance.support.damageToChamps,
+    );
   });
 
   it('carries the two fractions', () => {
@@ -289,14 +454,10 @@ describe('config.rating.performance / config.rating.mvp', () => {
 });
 
 describe('performanceScores', () => {
-  it('scores the worked example, exactly', () => {
+  it('scores the worked example, exactly, each player on their own role vector', () => {
     const scores = performanceScores(GAME);
     if (scores === null) throw new Error('expected scores');
-    for (const p of GAME) {
-      const fractions = FRACTIONS[p.puuid];
-      if (fractions === undefined) throw new Error(`no fractions for ${p.puuid}`);
-      expect(scoreOf(scores, p.puuid)).toBe(expectedScore(fractions));
-    }
+    for (const p of GAME) expect(scoreOf(scores, p.puuid)).toBe(expectedFor(p.puuid));
   });
 
   it('scores the worked example to the numbers in the architecture doc', () => {
@@ -322,12 +483,24 @@ describe('performanceScores', () => {
     }
   });
 
-  it('gives the player who is best at everything exactly the sum of the weights', () => {
+  it('gives the player who is best at everything exactly the sum of their own vector', () => {
     const scores = performanceScores(allTheSame());
     if (scores === null) throw new Error('expected scores');
-    const w = config.rating.performance;
-    const all = w.kda + w.damageToChamps + w.gold + w.visionScore + w.damageSelfMitigated + w.cs;
-    for (const s of scores) expect(s.score).toBe(all);
+    for (const p of allTheSame()) {
+      const bucket = BUCKETS[p.puuid] as PerformanceBucket;
+      const w = config.rating.performance[bucket];
+      const all = w.kda + w.damageToChamps + w.gold + w.visionScore + w.damageSelfMitigated + w.cs;
+      expect(scoreOf(scores, p.puuid)).toBe(all);
+    }
+  });
+
+  it('normalises against the whole ten, not against the players in the same bucket', () => {
+    // Bilal (carry) holds the CS maximum; Iris (jungle) is scored on 160/320, not on the best
+    // CS among junglers, which would be her own and would make her fraction 1.
+    const scores = performanceScores(GAME);
+    if (scores === null) throw new Error('expected scores');
+    expect(scoreOf(scores, 'iris')).toBe(expectedScore('jungle', FRACTIONS.iris as Fractions));
+    expect(FRACTIONS.iris?.cs).toBe(0.5);
   });
 
   it('gives a player with nothing exactly zero', () => {
@@ -341,7 +514,7 @@ describe('performanceScores', () => {
     if (scores === null) throw new Error('expected scores');
     // Bilal has zero deaths and 6 + 2 = 8, which is the game's best KDA, not Infinity.
     expect(Number.isFinite(scoreOf(scores, 'bilal'))).toBe(true);
-    expect(scoreOf(scores, 'bilal')).toBe(expectedScore(FRACTIONS.bilal as never));
+    expect(scoreOf(scores, 'bilal')).toBe(expectedFor('bilal'));
   });
 
   it('gives a component with a game-wide maximum of zero to nobody, rather than dividing by zero', () => {
@@ -349,9 +522,7 @@ describe('performanceScores', () => {
     const scores = performanceScores(noVision);
     if (scores === null) throw new Error('expected scores');
     for (const p of GAME) {
-      const f = FRACTIONS[p.puuid];
-      if (f === undefined) throw new Error(`no fractions for ${p.puuid}`);
-      expect(scoreOf(scores, p.puuid)).toBe(expectedScore({ ...f, visionScore: 0 }));
+      expect(scoreOf(scores, p.puuid)).toBe(expectedFor(p.puuid, { visionScore: 0 }));
       expect(Number.isNaN(scoreOf(scores, p.puuid))).toBe(false);
     }
   });
@@ -385,6 +556,275 @@ describe('performanceScores', () => {
   });
 });
 
+/**
+ * Role is an input like the other eight numbers and declines the same way (M7.13): per game,
+ * never per player, and never by picking a vector for somebody. Pinned beside the missing-stat
+ * tests above, because they are the same rule.
+ */
+describe('a game with no role', () => {
+  const noRole = [null, undefined, 'bottom' as Role, '' as Role] as const;
+  const labels = ['null', 'undefined', 'a role outside the five', 'an empty string'] as const;
+
+  it.each(noRole.map((role, i) => [labels[i], role] as const))(
+    'returns null from performanceScores when one of the ten has %s',
+    (_label, role) => {
+      const missing = GAME.map((p, i) => (i === 4 ? { ...p, role } : p));
+      expect(performanceScores(missing)).toBeNull();
+    },
+  );
+
+  it.each(noRole.map((role, i) => [labels[i], role] as const))(
+    'returns null from mvpAce when one of the ten has %s',
+    (_label, role) => {
+      const missing = GAME.map((p, i) => (i === 7 ? { ...p, role } : p));
+      expect(mvpAce(missing, 100)).toBeNull();
+    },
+  );
+
+  it('gives a backfilled game — all ten role null — no MVP and no ACE', () => {
+    const backfilled = GAME.map((p) => ({ ...p, role: null }));
+    expect(performanceScores(backfilled)).toBeNull();
+    expect(mvpAce(backfilled, 100)).toBeNull();
+  });
+
+  it('never falls back to carry for an unknown role, even when the stats are perfect', () => {
+    // Yuki is bottom of the game on every component, so a silent `carry` default would still
+    // name Bilal the MVP and the bug would be invisible. Move the unknown role onto Bilal.
+    const unknown = GAME.map((p) => (p.puuid === 'bilal' ? { ...p, role: 'BOTTOM' as Role } : p));
+    expect(performanceScores(unknown)).toBeNull();
+    expect(mvpAce(unknown, 100)).toBeNull();
+  });
+
+  it('still throws, not returns null, when the game is not five a side', () => {
+    // The shape guard comes first: a nine-player game is a caller bug, a role-less one is data.
+    const nine = GAME.slice(0, 9).map((p) => ({ ...p, role: null }));
+    expect(() => mvpAce(nine, 100)).toThrow(/five/);
+  });
+
+  it('hands applyMvpAceBonus an untouched copy of the fold, the same as a missing stat does', () => {
+    const blueIds = GAME.filter((p) => p.side === 100).map((p) => p.puuid);
+    const redIds = GAME.filter((p) => p.side === 200).map((p) => p.puuid);
+    const seed: Rating = { mu: 25, sigma: 8.33 };
+    const after = rateGame(
+      blueIds.map(() => seed),
+      redIds.map(() => seed),
+      100,
+    );
+    const base: RatingChange[] = [
+      ...blueIds.map((puuid, i) => ({ puuid, before: seed, after: after.blue[i] as Rating })),
+      ...redIds.map((puuid, i) => ({ puuid, before: seed, after: after.red[i] as Rating })),
+    ];
+
+    const noRoleGame = GAME.map((p, i) => (i === 3 ? { ...p, role: null } : p));
+    const noStatGame = GAME.map((p, i) => (i === 3 ? { ...p, visionScore: null } : p));
+
+    // The same three answers, from the same three functions, for both kinds of missing input.
+    expect(performanceScores(noRoleGame)).toBeNull();
+    expect(performanceScores(noStatGame)).toBeNull();
+    expect(mvpAce(noRoleGame, 100)).toBeNull();
+    expect(mvpAce(noStatGame, 100)).toBeNull();
+    expect(applyMvpAceBonus(base, mvpAce(noRoleGame, 100))).toEqual(base);
+    expect(applyMvpAceBonus(base, mvpAce(noStatGame, 100))).toEqual(base);
+  });
+});
+
+/**
+ * Acceptance 5 of the M7.13 brief: the change doing its one job, pinned so a later tune cannot
+ * silently undo it.
+ *
+ * A hand-built ten. Blue's support ran the map — the game's best vision score, the game's worst
+ * damage to champions, nothing else — and Blue's adc is fed. Under M7.8's single flat vector
+ * the adc wins MVP; under the three vectors the support does, and nobody had to out-damage
+ * anybody to get there.
+ */
+describe('the support who ran the map (acceptance 5)', () => {
+  const HAND_BUILT: PerformancePlayer[] = [
+    // blue: three unremarkable players, one fed adc, one support with the map
+    {
+      puuid: 'b-top',
+      side: 100,
+      role: 'top',
+      kills: 1,
+      deaths: 2,
+      assists: 3,
+      damageToChamps: 10000,
+      gold: 4000,
+      visionScore: 20,
+      damageSelfMitigated: 12000,
+      cs: 80,
+    },
+    {
+      puuid: 'b-jungle',
+      side: 100,
+      role: 'jungle',
+      kills: 1,
+      deaths: 2,
+      assists: 3,
+      damageToChamps: 10000,
+      gold: 4000,
+      visionScore: 20,
+      damageSelfMitigated: 12000,
+      cs: 80,
+    },
+    {
+      puuid: 'b-mid',
+      side: 100,
+      role: 'mid',
+      kills: 1,
+      deaths: 2,
+      assists: 3,
+      damageToChamps: 10000,
+      gold: 4000,
+      visionScore: 20,
+      damageSelfMitigated: 12000,
+      cs: 80,
+    },
+    {
+      // The game's best damage, three quarters of the gold and the CS: a fed adc.
+      puuid: 'b-adc',
+      side: 100,
+      role: 'adc',
+      kills: 3,
+      deaths: 2,
+      assists: 1,
+      damageToChamps: 40000,
+      gold: 12000,
+      visionScore: 20,
+      damageSelfMitigated: 12000,
+      cs: 240,
+    },
+    {
+      // The game's best KDA and best vision, and the game's worst damage: zero.
+      puuid: 'b-support',
+      side: 100,
+      role: 'support',
+      kills: 0,
+      deaths: 1,
+      assists: 8,
+      damageToChamps: 0,
+      gold: 4000,
+      visionScore: 80,
+      damageSelfMitigated: 24000,
+      cs: 80,
+    },
+    // red: loses, and holds the gold, CS and mitigation maxima so blue's adc does not hold all six
+    {
+      puuid: 'r-top',
+      side: 200,
+      role: 'top',
+      kills: 2,
+      deaths: 2,
+      assists: 2,
+      damageToChamps: 20000,
+      gold: 16000,
+      visionScore: 20,
+      damageSelfMitigated: 24000,
+      cs: 320,
+    },
+    {
+      puuid: 'r-jungle',
+      side: 200,
+      role: 'jungle',
+      kills: 2,
+      deaths: 2,
+      assists: 2,
+      damageToChamps: 20000,
+      gold: 8000,
+      visionScore: 40,
+      damageSelfMitigated: 48000,
+      cs: 160,
+    },
+    {
+      puuid: 'r-mid',
+      side: 200,
+      role: 'mid',
+      kills: 3,
+      deaths: 2,
+      assists: 5,
+      damageToChamps: 20000,
+      gold: 8000,
+      visionScore: 40,
+      damageSelfMitigated: 24000,
+      cs: 160,
+    },
+    {
+      puuid: 'r-adc',
+      side: 200,
+      role: 'adc',
+      kills: 7,
+      deaths: 2,
+      assists: 5,
+      damageToChamps: 30000,
+      gold: 12000,
+      visionScore: 20,
+      damageSelfMitigated: 24000,
+      cs: 240,
+    },
+    {
+      puuid: 'r-support',
+      side: 200,
+      role: 'support',
+      kills: 0,
+      deaths: 7,
+      assists: 1,
+      damageToChamps: 1000,
+      gold: 1000,
+      visionScore: 5,
+      damageSelfMitigated: 1000,
+      cs: 10,
+    },
+  ];
+
+  it('gives the support the best vision and the worst damage of the ten', () => {
+    const best = (pick: (p: PerformancePlayer) => number): string =>
+      [...HAND_BUILT].sort((a, b) => pick(b) - pick(a))[0]?.puuid as string;
+    const worst = (pick: (p: PerformancePlayer) => number): string =>
+      [...HAND_BUILT].sort((a, b) => pick(a) - pick(b))[0]?.puuid as string;
+    expect(best((p) => p.visionScore as number)).toBe('b-support');
+    expect(worst((p) => p.damageToChamps as number)).toBe('b-support');
+  });
+
+  it("under M7.8's flat vector the fed adc was the MVP", () => {
+    const flat = flatScores(HAND_BUILT);
+    expect(flat.get('b-adc') as number).toBeGreaterThan(flat.get('b-support') as number);
+    const blueBest = [...flat].filter(([id]) => id.startsWith('b-')).sort((a, b) => b[1] - a[1])[0];
+    expect(blueBest?.[0]).toBe('b-adc');
+  });
+
+  it('under the three vectors the support is the MVP', () => {
+    const scores = performanceScores(HAND_BUILT);
+    if (scores === null) throw new Error('expected scores');
+    expect(scoreOf(scores, 'b-support')).toBeGreaterThan(scoreOf(scores, 'b-adc'));
+    expect(mvpAce(HAND_BUILT, 100)?.mvp).toBe('b-support');
+  });
+
+  it('scores both of them exactly, on their own vectors', () => {
+    const scores = performanceScores(HAND_BUILT);
+    if (scores === null) throw new Error('expected scores');
+    const f = fractionsOf(HAND_BUILT);
+    expect(scoreOf(scores, 'b-support')).toBe(expectedScore('support', f.get('b-support') as Fractions));
+    expect(scoreOf(scores, 'b-adc')).toBe(expectedScore('carry', f.get('b-adc') as Fractions));
+    expect(scoreOf(scores, 'b-support')).toBeCloseTo(0.7625, 12);
+    expect(scoreOf(scores, 'b-adc')).toBeCloseTo(0.675, 12);
+  });
+
+  it('does not depend on insertion order', () => {
+    expect(mvpAce(reversed(HAND_BUILT), 100)?.mvp).toBe('b-support');
+  });
+
+  it('is scored as it comes when a side holds two supports and no top', () => {
+    // M7.12 saw zero of these in 230 rows; the buckets are read per player and nothing here
+    // requires a side to hold five distinct roles.
+    const twoSupports = HAND_BUILT.map((p) => (p.puuid === 'b-top' ? { ...p, role: 'support' as Role } : p));
+    const scores = performanceScores(twoSupports);
+    if (scores === null) throw new Error('expected scores');
+    expect(scoreOf(scores, 'b-top')).toBe(
+      expectedScore('support', fractionsOf(twoSupports).get('b-top') as Fractions),
+    );
+    expect(mvpAce(twoSupports, 100)?.mvp).toBe('b-support');
+  });
+});
+
 describe('mvpAce', () => {
   it('names the best winner MVP and the best loser ACE', () => {
     expect(mvpAce(GAME, 100)).toEqual({ mvp: 'bilal', ace: 'lena' });
@@ -399,30 +839,10 @@ describe('mvpAce', () => {
     expect(mvpAce(reversed(GAME), 100)).toEqual({ mvp: 'bilal', ace: 'lena' });
   });
 
-  it('lets a support with vision beat a fed carry', () => {
-    // Hana keeps the best vision (0.25) and best mitigation (0.15) and is behind Bilal on the
-    // other four; four tenths of the score is enough.
-    const withVision = GAME.map((p) =>
-      p.puuid === 'hana'
-        ? {
-            ...p,
-            kills: 5,
-            deaths: 2,
-            assists: 3,
-            damageToChamps: 20000,
-            gold: 12000,
-            damageSelfMitigated: 48000,
-          }
-        : p,
-    );
-    const scores = performanceScores(withVision);
-    if (scores === null) throw new Error('expected scores');
-    expect(scoreOf(scores, 'hana')).toBeGreaterThan(scoreOf(scores, 'bilal'));
-    expect(mvpAce(withVision, 100)).toEqual({ mvp: 'hana', ace: 'lena' });
-  });
-
   it('breaks a tie by puuid ascending, not by position', () => {
     const tied = allTheSame();
+    // Every player scores the sum of their own vector, which is 1.00 for all three buckets, so
+    // the whole game ties and only the puuid decides.
     expect(mvpAce(tied, 100)).toEqual({ mvp: 'bilal', ace: 'lena' });
     expect(mvpAce(reversed(tied), 100)).toEqual({ mvp: 'bilal', ace: 'lena' });
   });

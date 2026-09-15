@@ -26,7 +26,13 @@ export {
   type Split,
 } from './balance/index';
 
-export { type Config, config, type RankDivision, type RankTier } from './config';
+export {
+  type Config,
+  config,
+  type PerformanceBucket,
+  type RankDivision,
+  type RankTier,
+} from './config';
 export {
   balanceScore,
   displayRating,
