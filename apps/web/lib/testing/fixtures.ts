@@ -72,6 +72,16 @@ export interface EogBodyOptions {
   roles?: readonly (string | null)[];
   /** Extra keys mixed into `raw`, for the credential-scrub assertions. */
   raw?: Record<string, unknown>;
+  /**
+   * Add the three nullable stat columns — vision score, damage self mitigated, damage to
+   * objectives — so the stored game can be scored and has an MVP and an ACE (M7.9).
+   *
+   * **Off by default, and that is the point.** Every game this fixture has ever posted has a
+   * null in all three, which is exactly a game played before migrations `0014` and `0015`: the
+   * fold gives it no MVP and rates it digit for digit as it did before the bonus existed. A
+   * test that wants the bonus asks for it.
+   */
+  performanceStats?: boolean;
 }
 
 /**
@@ -96,6 +106,15 @@ export function eogBody(options: EogBodyOptions): Record<string, unknown> {
     gameName: null,
     tagLine: null,
     summonerId: 1_000_000 + index,
+    // Every number climbs with the index, so no two players tie on a component and the best
+    // player on each side is the last one on it: index 4 of blue, index 9 of red.
+    ...(options.performanceStats === true
+      ? {
+          visionScore: 10 + index * 3,
+          damageSelfMitigated: 5_000 + index * 750,
+          damageToObjectives: 2_000 + index * 900,
+        }
+      : {}),
   }));
 
   return {
