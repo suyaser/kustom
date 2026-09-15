@@ -179,7 +179,9 @@ async function loadMembers(
 ): Promise<MemberView[]> {
   const { data, error } = await client
     .from('lobby_members')
-    .select('player_id, role_override, is_spectator, created_at')
+    // `side` is the column M4.11 reads: where the client has each person right now, so the
+    // page can tell whether the ten are already on the sides the split gave them.
+    .select('player_id, role_override, is_spectator, side, created_at')
     .eq('lobby_id', lobbyId)
     .order('created_at', { ascending: true })
     .order('player_id', { ascending: true });
@@ -212,6 +214,7 @@ async function loadMembers(
       isSpectator: row.is_spectator,
       joinedAt: row.created_at,
       rating: displayRating(rating.mu),
+      side: toSide(row.side),
     });
   }
 
@@ -279,6 +282,17 @@ async function loadRatings(
 /** M3.10's fallback is applied at render; the loader carries the honest `null`. */
 function displayName(player: PlayerRow): PlayerName {
   return player.display_name ?? player.game_name ?? null;
+}
+
+/**
+ * `lobby_members.side` is a plain `smallint` to the generated types, and the page's `SideValue`
+ * is `100 | 200`. Anything else — a null for a spectator, and a number that is neither, which
+ * the check constraint forbids but this key cannot promise — is carried as `null`: **not
+ * knowing where somebody is sitting is not the same as knowing they are in the right seat**, and
+ * `null` is the value the side line keeps itself on screen for (M4.11).
+ */
+function toSide(side: number | null): SideValue | null {
+  return side === 100 ? 100 : side === 200 ? 200 : null;
 }
 
 /**
@@ -358,6 +372,9 @@ function toSeat(
     name: member?.name ?? null,
     role: assignment.role,
     rating: member?.rating ?? 0,
+    // Where the client has them, beside the side this split gave them. A seat with no member
+    // row keeps `null`, which reads as "not known to be in the right place" (M4.11).
+    liveSide: member?.side ?? null,
     offRole:
       member === undefined
         ? false

@@ -1021,15 +1021,13 @@ reader nothing. Two things that look like exceptions are not:
 
 **It is not drawn in `in_game`, and that is not the designer's call to reverse.** Once the game launches there
 is no lobby to move in, so `Move to your side in the lobby.` names a thing that does not exist for the half
-hour it would sit on the screen. The line belongs to `balanced` only. **M4.11** removes it from `in_game`.
+hour it would sit on the screen. The line belongs to `balanced` only, since M4.7 (b).
 
-**Inside `balanced` the line does not yet disappear when all ten match, and that deferral is confirmed.**
-M4.3's acceptance check 7 wants it gone the moment every seat matches its side, and it stays open, not
-softened: the tonight snapshot does not carry each member's side, so meeting it is a data change, not a copy
-change. Today the gate is off and nobody is moved by us, so the ten who move themselves keep reading an
-instruction they have already followed — for the seconds between the last person moving and the game
-starting, on a page whose next line is the explanation strip. That is the smallest version of this cost, and
-it is paid only until the gate flips, which is when the check earns its data. **M4.11** carries both halves.
+**Inside `balanced` the line now goes the moment every seat matches its side** (M4.11, landed 2026-09-15).
+M4.3's acceptance check 7 asked for exactly this: the tonight snapshot carries each member's live
+`lobby_members.side`, and the line is drawn only while at least one of the ten is mismatched or has not yet
+reported a side at all — a seat nobody has placed keeps the line up rather than being read as a match, because
+that is the seat the switch-side queue itself cannot move and the page is the only thing telling them to.
 
 The sit-out strip, the explanation line, the no-season sentence, the `No more splits.` note and every embed
 string are **unchanged**. v2 is a visual redesign; it does not get to rewrite settled sentences.

@@ -4,9 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
 import { ROSTER_STABLE_MS } from '@/lib/lobbyState';
 import { eogBody, lobbyBody } from '@/lib/testing/fixtures';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+import { sideLine } from '@/lib/tonight/copy';
 
 /**
  * The tonight page against the Supabase CLI local stack (M3.4).
@@ -262,6 +264,55 @@ if (stack === null) {
 
       const { error: restore } = await db.from('splits').update({ is_chosen: true }).eq('id', chosenId);
       if (restore) throw new Error(restore.message);
+    });
+
+    /**
+     * The side line goes when the sides are right (M4.11, M4.3's acceptance check 7).
+     *
+     * What only this file can prove: the loader really reads `lobby_members.side` through the
+     * anon key and RLS, so the line on the page follows the column a companion post writes. The
+     * component tests own where the line sits and what it says; this owns the wire.
+     */
+    it('drops the side line once every one of the ten sits where the split put them', async () => {
+      const before = await loadTonight(anon, { nightStart: tonightStart() });
+      const teams = before.lobby?.teams;
+      expect(teams?.blue).toHaveLength(5);
+
+      const sideOf = async (puuid: string, side: 100 | 200) => {
+        const { data: player } = await db.from('players').select('id').eq('puuid', puuid).single();
+        const { error } = await db
+          .from('lobby_members')
+          .update({ side })
+          .eq('lobby_id', lobbyId)
+          .eq('player_id', player?.id ?? '');
+        if (error) throw new Error(error.message);
+      };
+
+      // What a companion post looks like once the ten have finished moving.
+      for (const seat of teams?.blue ?? []) await sideOf(seat.puuid, 100);
+      for (const seat of teams?.red ?? []) await sideOf(seat.puuid, 200);
+
+      // As React prints it: `escapeHtml` is this file's `& < >` helper, and both of the
+      // sentences carry a straight apostrophe, which the renderer writes as `&#x27;`. Pinned,
+      // because the *absence* assertion below would pass on any string the page never contains.
+      const printed = escapeHtml(sideLine(SWITCH_SIDE_ENABLED)).replace(/'/g, '&#x27;');
+
+      const sorted = await loadTonight(anon, { nightStart: tonightStart() });
+      expect(sorted.lobby?.teams?.blue.map((seat) => seat.liveSide)).toEqual([100, 100, 100, 100, 100]);
+      expect(sorted.lobby?.teams?.red.map((seat) => seat.liveSide)).toEqual([200, 200, 200, 200, 200]);
+      expect(await firstPaint()).not.toContain(printed);
+      expect(await firstPaint()).not.toContain('cn-side-line');
+
+      // One person drags themselves back across, which is one `lobby_members` update.
+      const stray = teams?.blue[0]?.puuid ?? '';
+      await sideOf(stray, 200);
+
+      const strayed = await loadTonight(anon, { nightStart: tonightStart() });
+      expect(strayed.lobby?.teams?.blue[0]?.liveSide).toBe(200);
+      expect(await firstPaint()).toContain(printed);
+
+      // Hand the lobby back the way the posts left it: the sides `members(10)` reported.
+      for (const [index, puuid] of ten.entries()) await sideOf(puuid, index < 5 ? 100 : 200);
     });
 
     it('becomes the result when the game ends, with both mu values for the delta', async () => {

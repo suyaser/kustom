@@ -39,6 +39,10 @@ export function workedMembers(count = WORKED_ROSTER.length): MemberView[] {
     // Long enough ago that the three-second "just joined" marker is off by default.
     joinedAt: JOINED_LONG_AGO,
     rating: displayRating(player.mu),
+    // **Nobody has been placed by default** (M4.11). A lobby that has just been balanced is a
+    // lobby nobody has moved in yet, so the fixture's honest value is `null` — which keeps the
+    // side line on screen, the state every test written before M4.11 was written against.
+    side: null,
   }));
 }
 
@@ -56,6 +60,8 @@ export function extraMember(overrides: Partial<MemberView> = {}): MemberView {
     isSpectator: true,
     joinedAt: JOINED_LONG_AGO,
     rating: 1300,
+    // A spectator has no side in the client at all: the one row `switch_side` can never move.
+    side: null,
     ...overrides,
   };
 }
@@ -91,6 +97,8 @@ export function workedTeams(options: TeamsFixtureOptions = {}): TeamsView {
         role: assignment.role,
         rating: member.rating,
         offRole: isOffRole(member, assignment.role),
+        // The loader's own rule: the seat carries the member row's side, whatever it is.
+        liveSide: member.side,
       };
     });
 
@@ -109,6 +117,26 @@ export function workedTeams(options: TeamsFixtureOptions = {}): TeamsView {
     blueWinProb: split.blueWinProb,
     splits,
   };
+}
+
+/**
+ * The same split with the ten **seated where it put them** (M4.11): every blue seat's
+ * `liveSide` is 100 and every red seat's is 200, which is the lobby the group has finished
+ * moving in and the one state where the side line is not drawn.
+ *
+ * `moved` names the seats that are somewhere else — `{ [puuid]: 200 }` for a blue seat still
+ * sitting on red, or `null` for somebody the client has not placed. Nothing else about the
+ * split changes, which is what makes "the cards are byte-identical" a test of the cards and not
+ * of the fixture.
+ */
+export function seatedOnTheirSides(
+  teams: TeamsView,
+  moved: Readonly<Record<string, 100 | 200 | null>> = {},
+): TeamsView {
+  const seat = (seats: readonly SeatView[], side: 100 | 200): SeatView[] =>
+    seats.map((one) => ({ ...one, liveSide: one.puuid in moved ? (moved[one.puuid] ?? null) : side }));
+
+  return { ...teams, blue: seat(teams.blue, 100), red: seat(teams.red, 200) };
 }
 
 /** The worked example played out: red wins, and every after rating is `rateGame`'s. */
@@ -162,6 +190,7 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
     isSpectator: false,
     joinedAt: JOINED_LONG_AGO,
     rating: displayRating(player.mu),
+    side: null,
   }));
 
   const balanced = balance({
@@ -193,6 +222,7 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
         role: assignment.role,
         rating: member.rating,
         offRole: isOffRole(member, assignment.role),
+        liveSide: member.side,
       };
     });
 

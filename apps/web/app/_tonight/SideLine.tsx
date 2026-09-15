@@ -11,6 +11,12 @@ import { sideLine } from '@/lib/tonight/copy';
  * Whether that state is reached is the caller's (`TonightView`), because the same `teams` block
  * also draws an unrated finish.
  *
+ * **And it goes when the sides are right** (M4.11). That condition is the caller's too, and for
+ * the same reason: this component knows one sentence, and `anySeatOnTheWrongSide` is a fact
+ * about ten seats. Whichever of the two sentences is on screen is the same sentence for as long
+ * as the element exists — it is drawn, and later it is not drawn; it never changes under a
+ * reader, which is why it is still not a live region.
+ *
  * **One line under both cards, not one per card.** `05-design.md`'s "Teams" section places
  * everything else on this screen and is silent about this line, so it takes the section's own
  * shape: the sit-out strip above the cards and the explanation below them are each one

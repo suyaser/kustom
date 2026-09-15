@@ -31,6 +31,16 @@ export interface MemberView {
   joinedAt: string;
   /** `displayRating(mu)` for the active season, seeded from rank when there is no row. */
   rating: number;
+  /**
+   * `lobby_members.side`: where the **client** has this person sitting right now, `100` blue,
+   * `200` red, and `null` for a spectator or somebody the client has not placed (M4.11).
+   *
+   * It is not where the split puts them — that is {@link SeatView.role}'s card — and the two
+   * differing is the whole of the side line. The companion rewrites this column on every lobby
+   * post, so a friend dragging themselves across fires a `lobby_members` event and the page
+   * re-reads (`TonightLive`).
+   */
+  side: SideValue | null;
 }
 
 /** One of the ten in the promoted split. */
@@ -41,6 +51,17 @@ export interface SeatView {
   rating: number;
   /** Core's `isOffRole`, never a re-derived `role !== mainRole`. */
   offRole: boolean;
+  /**
+   * {@link MemberView.side}, carried onto the seat the split gave this player (M4.11): where
+   * the client has them, beside where they are supposed to be. `null` when they have no member
+   * row at all (`game_players` and `lobby_members` are not always the same ten) or when the
+   * client has not placed them.
+   *
+   * **Nothing in the card renders it.** It decides one thing — whether the side line is on the
+   * page — and a seat moving from the wrong side to the right one must leave the two cards byte
+   * for byte as they were.
+   */
+  liveSide: SideValue | null;
 }
 
 /** One of the lobby's stored splits, as the reroll control needs it. */

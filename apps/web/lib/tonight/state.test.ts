@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { switchSideMoves } from '../commands/switchSide';
 import {
   extraMember,
   lobbyView,
+  seatedOnTheirSides,
   snapshot,
   workedMembers,
   workedResult,
   workedTeams,
 } from '../testing/tonightFixtures';
 import { fillingSentence } from './copy';
-import { tonightHeader, tonightState } from './state';
+import { anySeatOnTheWrongSide, tonightHeader, tonightState } from './state';
 
 /**
  * The status strip, state by state (M3.18, `05-design.md`, "Copy — final (product
@@ -86,6 +88,73 @@ describe('the strip headline, one per state', () => {
     expect(withoutTeams.headline).toBe('GAME OVER');
     expect(withoutTeams.sentence).toBe('');
   });
+});
+
+/**
+ * Whether the side line is on the page (M4.11, M4.3's acceptance check 7).
+ *
+ * The predicate is the page's half of a rule the server already has in
+ * `lib/commands/switchSide.ts`, so the last test here holds the two against each other: the
+ * queue and the line must not disagree about who is in the wrong seat.
+ */
+describe('is anybody on the wrong side', () => {
+  it('says yes until somebody has told us where the ten are sitting', () => {
+    // The default fixture: a split nobody has moved for, every `liveSide` null.
+    expect(anySeatOnTheWrongSide(workedTeams())).toBe(true);
+  });
+
+  it('says no once every seat is on the side the split gave it', () => {
+    expect(anySeatOnTheWrongSide(seatedOnTheirSides(workedTeams()))).toBe(false);
+  });
+
+  it('says yes for one stray out of ten, on either card', () => {
+    const teams = workedTeams();
+    const blue = teams.blue[3]?.puuid ?? '';
+    const red = teams.red[1]?.puuid ?? '';
+
+    expect(anySeatOnTheWrongSide(seatedOnTheirSides(teams, { [blue]: 200 }))).toBe(true);
+    expect(anySeatOnTheWrongSide(seatedOnTheirSides(teams, { [red]: 100 }))).toBe(true);
+  });
+
+  /**
+   * **`null` is not a match.** The queue skips a seat with no side — a spectator cannot be
+   * toggled onto a team — and `switchSide.ts` says the line on the page is what tells that
+   * person to move. So the one case where the two rules differ is the one where the page has to
+   * be the louder of the two.
+   */
+  it('says yes for a seat the client has not placed, which the queue skips', () => {
+    const teams = workedTeams();
+    const unplaced = teams.blue[0]?.puuid ?? '';
+    const seated = seatedOnTheirSides(teams, { [unplaced]: null });
+
+    expect(anySeatOnTheWrongSide(seated)).toBe(true);
+    expect(movesFor(seated)).toHaveLength(0);
+  });
+
+  it('agrees with the queue everywhere the queue has an opinion', () => {
+    const teams = workedTeams();
+    const stray = teams.red[4]?.puuid ?? '';
+
+    const matched = seatedOnTheirSides(teams);
+    expect(movesFor(matched)).toHaveLength(0);
+    expect(anySeatOnTheWrongSide(matched)).toBe(false);
+
+    const mismatched = seatedOnTheirSides(teams, { [stray]: 100 });
+    expect(movesFor(mismatched).map((move) => move.puuid)).toEqual([stray]);
+    expect(anySeatOnTheWrongSide(mismatched)).toBe(true);
+  });
+
+  /** The same teams, read the way `queueSwitchSideForBalance` reads them. */
+  function movesFor(teams: ReturnType<typeof workedTeams>) {
+    return switchSideMoves(
+      { blue: teams.blue, red: teams.red },
+      [...teams.blue, ...teams.red].map((seat) => ({
+        playerId: seat.puuid,
+        puuid: seat.puuid,
+        side: seat.liveSide,
+      })),
+    );
+  }
 });
 
 describe('the sentence while the lobby fills', () => {

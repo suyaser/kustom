@@ -6,7 +6,6 @@ import type { MysteryPageState } from '@/lib/mystery/service';
 import { displayDelta, formatWebDelta, isGain } from '@/lib/ratingDisplay';
 import { NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
 import {
-  evennessLine,
   HEAD_SEPARATOR,
   joinWebNames,
   MISSED_INVITE_END,
@@ -20,7 +19,7 @@ import {
   sitOutGeneral,
 } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import { hasNamelessRow, tonightHeader, tonightState } from '@/lib/tonight/state';
+import { anySeatOnTheWrongSide, hasNamelessRow, tonightHeader, tonightState } from '@/lib/tonight/state';
 import type {
   LobbyView,
   MemberView,
@@ -347,8 +346,16 @@ function TeamsBlock({
        * that no longer exists. The same rule M4.10's line one element down follows, for the same
        * reason — and `teams` also draws a **finished** game the fold did not rate, with the teams
        * still up under `GAME OVER`, which the status gate rules out too.
+       *
+       * **And it goes when the sides are right** (M4.11, M4.3's acceptance 7). An instruction
+       * everybody has already followed is a line that teaches a reader to stop reading this
+       * page's lines. The moment the companion's next lobby post has all ten on the sides the
+       * split gave them, the element is gone — not hidden, not a reserved gap — and the
+       * explanation strip closes up under the cards. The cards themselves do not know this
+       * happened: nothing in `TeamCard` reads `liveSide`, so the markup either side of the
+       * change is identical and the one thing that moves on screen is the line itself.
        */}
-      {lobby.status === 'balanced' ? <SideLine /> : null}
+      {lobby.status === 'balanced' && anySeatOnTheWrongSide(teams) ? <SideLine /> : null}
       <Explanation
         lobby={lobby}
         teams={teams}
@@ -356,19 +363,6 @@ function TeamsBlock({
         // the session again before it writes; this only decides whether a button is on screen.
         showReroll={viewer.isAdmin && lobby.status === 'balanced'}
       />
-      {/*
-       * M3.31's one line, **under the explanation strip and not between it and the cards**: the
-       * strip "sits directly below both team cards" (05-design.md, "Explanation line") and this
-       * is a gloss of its first clause, so it reads after the sentence it re-says, not before.
-       * The stored sentence itself is untouched — not edited, not reordered, not shortened.
-       *
-       * Gated on the status and not on the block, for the same reason as the two lines around
-       * it: `teams` also draws a **finished** game the fold did not rate — a remake, a
-       * four-minute surrender — with the teams still up under `GAME OVER` (`lib/tonight/state.ts`,
-       * M3.4), and `Teams are 92% even.` under a final headline is a line about a decision the
-       * night has already closed. The brief scopes it to under the *balanced* teams.
-       */}
-      {lobby.status === 'balanced' ? <Evenness blueWinProb={teams.blueWinProb} /> : null}
       {/*
        * Still true while the teams are up and people are moving to their sides, and **gone the
        * moment the game starts**, when there is nothing left to join (M4.10). `in_game` renders
@@ -557,28 +551,6 @@ function Explanation({
       {showReroll ? <RerollControl lobbyId={lobby.id} splits={teams.splits} /> : null}
     </div>
   );
-}
-
-/**
- * `Teams are 92% even.` (M3.31). The one number on this page a friend reads without being
- * taught it: `Gap 100` means nothing until you know a side sums to about 7,600, and
- * `Blue favored 54%` is read by half the group as "blue wins" rather than "it is a coin flip".
- *
- * **The same number as the sentence above it, not a second comparison of the two sides.** It is
- * `evenness` of the chosen split's *stored* `blue_win_prob` — the column the explanation's own
- * first clause was written from — so it cannot say the teams are even while the line above says
- * blue is favoured 70%, and it does not drift once a rating moves overnight. Nothing here
- * touches the seats on screen.
- *
- * A sentence, in the page's body size: no bar, no meter, no colour scale. No stored probability
- * is no element at all. Its caller decides *when* it is drawn — `balanced` only, like the two
- * lines either side of it in `TeamsBlock`.
- */
-function Evenness({ blueWinProb }: { blueWinProb: number | null }) {
-  const line = evennessLine(blueWinProb);
-  if (line === null) return null;
-
-  return <p className="cn-even">{line}</p>;
 }
 
 /**

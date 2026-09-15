@@ -1,4 +1,4 @@
-import { evenness, resolveRoles } from '@customs/core';
+import { resolveRoles } from '@customs/core';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/admin/lobbyStart';
@@ -12,6 +12,7 @@ import {
   extraMember,
   lobbyView,
   offRoleFixture,
+  seatedOnTheirSides,
   snapshot,
   workedMembers,
   workedResult,
@@ -28,7 +29,7 @@ import {
   sideLine,
 } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import type { SeatView, TeamsView, TonightSnapshot } from '@/lib/tonight/types';
+import type { SeatView, TonightSnapshot } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import { TonightView } from './TonightView';
 
@@ -501,135 +502,100 @@ describe('teams: balanced and in_game are the same block', () => {
       const { container: filling } = draw(snapshot(lobbyView({ status: 'open' })));
       expect(filling.querySelector('.cn-side-line')).toBeNull();
     });
-  });
-});
 
-/**
- * `Teams are 92% even.` (M3.31), the one line under the balanced teams.
- *
- * The rule the whole task breaks on is that this is **the stored `blue_win_prob` read a second
- * time**, never a second comparison of the two sides: the line and the explanation's own
- * `Blue favored …%` come from one number, so they cannot disagree the morning after somebody's
- * rating has moved. The tests below pin that by feeding the view a probability that does *not*
- * match the seats on screen and asserting the line follows the probability.
- */
-describe('how even the teams are (M3.31)', () => {
-  /** The worked split with a chosen stored probability; the seats and the sentence are untouched. */
-  function withProb(blueWinProb: number, explanation?: string): TeamsView {
-    const teams = workedTeams();
-    return { ...teams, blueWinProb, explanation: explanation ?? teams.explanation };
-  }
+    /**
+     * **And it goes when the sides are right** (M4.11, which is M4.3's acceptance check 7).
+     *
+     * The three cases are one fixture apart: the same balanced lobby, the same ten, the same
+     * split — only where the client has each person sitting differs. That is deliberate, because
+     * the third assertion below is that the cards cannot tell the difference.
+     */
+    describe('once the ten are where the split put them', () => {
+      const balanced = (teams: ReturnType<typeof workedTeams>) =>
+        snapshot(lobbyView({ status: 'balanced', teams }));
 
-  function evenLine(container: HTMLElement): string | null {
-    return container.querySelector('.cn-even')?.textContent ?? null;
-  }
+      function cardsMarkup(container: HTMLElement): string {
+        const cards = container.querySelector('.cn-cards');
+        expect(cards).not.toBeNull();
+        return cards?.innerHTML ?? '';
+      }
 
-  it('prints the stored probability through core, not a number of its own', () => {
-    const teams = workedTeams();
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams })));
+      it('draws nothing at all when all ten match', () => {
+        const { container } = draw(balanced(seatedOnTheirSides(workedTeams())));
 
-    // The assertion is the identity, not a literal: if `evenness` is ever retuned, this line
-    // moves with it rather than going stale beside it.
-    expect(evenLine(container)).toBe(`Teams are ${evenness(teams.blueWinProb)}% even.`);
-    expect(evenLine(container)).toBe('Teams are 92% even.');
-  });
+        // Absent, not hidden and not an empty paragraph holding a gap open: the explanation
+        // strip closes up under the cards (`05-design.md`, "the height it leaves behind is not
+        // reserved").
+        expect(container.querySelector('.cn-side-line')).toBeNull();
+        expect(container.textContent).not.toContain(sideLine(SWITCH_SIDE_ENABLED));
+        // Everything else about the block is untouched: this removes a line, not a state.
+        expect(container.querySelectorAll('.cn-cards .cn-team')).toHaveLength(2);
+        expect(container.querySelector('.cn-explain-text')).not.toBeNull();
+      });
 
-  it('is the same number as the sentence above it: 70% favored is 60% even', () => {
-    const { container } = draw(
-      snapshot(
-        lobbyView({
-          status: 'balanced',
-          teams: withProb(0.7, 'Blue favored 70%. Everyone on a main role. Gap 640.'),
-        }),
-      ),
-    );
+      it('is back the moment one of the ten is on the wrong side', () => {
+        const teams = workedTeams();
+        const stray = teams.blue[0];
+        expect(stray).toBeDefined();
+        // One blue seat still sitting on red. Nine people being right is not the condition.
+        const { container } = draw(balanced(seatedOnTheirSides(teams, { [stray?.puuid ?? '']: 200 })));
 
-    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 70%.');
-    expect(evenLine(container)).toBe('Teams are 60% even.');
-  });
+        const lines = container.querySelectorAll('.cn-side-line');
+        expect(lines).toHaveLength(1);
+        expect(lines[0]?.textContent).toBe(sideLine(SWITCH_SIDE_ENABLED));
+      });
 
-  /**
-   * The line is derived from the split's *stored* number and never recomputed from the ratings
-   * on the page. Same ten seats, same sums, a different stored probability: only this line moves.
-   */
-  it('follows the stored probability even when the ratings on screen say otherwise', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: withProb(0.9) })));
+      /**
+       * **The cards are byte-identical across the change** (M4.11's acceptance). Nothing in a
+       * team card reads `liveSide`, so the only DOM that differs between a sorted lobby and a
+       * lobby with one person out of place is the line itself — no name moves, no rating
+       * re-renders, and React's reconciler has nothing to touch inside `.cn-cards` when the
+       * `lobby_members` event lands.
+       */
+      it('changes the line and not one byte of the two cards', () => {
+        const teams = workedTeams();
+        const stray = teams.blue[0];
+        const matched = draw(balanced(seatedOnTheirSides(teams)));
+        const mismatched = draw(balanced(seatedOnTheirSides(teams, { [stray?.puuid ?? '']: 200 })));
 
-    // The seats are the 54% worked split, sums and all — and the line still reads the column.
-    expect(container.querySelector('.cn-sum')).toHaveTextContent('7695');
-    expect(evenLine(container)).toBe('Teams are 20% even.');
-  });
+        expect(cardsMarkup(mismatched.container)).toBe(cardsMarkup(matched.container));
+        // …and the assertion above is not passing because both are empty.
+        expect(cardsMarkup(matched.container)).toContain('cn-seat');
+        // The one difference between the two documents is the side line.
+        expect(matched.container.querySelector('.cn-side-line')).toBeNull();
+        expect(mismatched.container.querySelector('.cn-side-line')).not.toBeNull();
+      });
 
-  it('says `as even as they get` at the top of the scale, never `100% even`', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: withProb(0.5) })));
+      /**
+       * **A side we were never told is not a side that matches.** A spectator among the chosen
+       * ten has `lobby_members.side` null and the queue cannot move them (`switchSide.ts`
+       * clause (c)) — the line is exactly what tells that person to move, so it stays.
+       */
+      it('stays up for a seat the client has not placed', () => {
+        const teams = workedTeams();
+        const unplaced = teams.red[2];
+        expect(unplaced).toBeDefined();
+        const { container } = draw(balanced(seatedOnTheirSides(teams, { [unplaced?.puuid ?? '']: null })));
 
-    expect(evenLine(container)).toBe('Teams are as even as they get.');
-    expect(container.textContent).not.toContain('100% even');
-  });
+        expect(container.querySelector('.cn-side-line')).not.toBeNull();
+      });
 
-  it('prints nothing at all — not `—`, not `unknown` — for a split with no stored probability', () => {
-    const teams = workedTeams();
-    // `splits.blue_win_prob` is `not null` in the schema, so this is the row written before the
-    // column, or a payload that crossed a wire and lost it. The page drops the line, not the page.
-    const missing = { ...teams, blueWinProb: null as unknown as number };
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: missing })));
+      /** The default fixture — a lobby nobody has moved in yet — still prints it. */
+      it('is up on a split nobody has moved for', () => {
+        const { container } = draw(balanced(workedTeams()));
 
-    expect(container.querySelector('.cn-even')).toBeNull();
-    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 54%.');
-  });
+        expect(container.querySelectorAll('.cn-side-line')).toHaveLength(1);
+      });
 
-  it('sits under the explanation strip, which keeps its place directly below the cards', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })));
+      /** Matched sides do not resurrect the line in the states that never draw it. */
+      it('does not come back in `in_game` because everybody matches', () => {
+        const { container } = draw(
+          snapshot(lobbyView({ status: 'in_game', teams: seatedOnTheirSides(workedTeams()) })),
+        );
 
-    const order = [...(container.querySelector('.cn-block')?.children ?? [])].map((child) => child.className);
-    expect(order.indexOf('cn-even')).toBe(order.findIndex((name) => name.includes('cn-explain')) + 1);
-  });
-
-  /**
-   * Gated on `lobbies.status` and not on the block, like the side line and the lobby line
-   * around it. The case that makes the gate necessary is the third one: `teams` is **not** only
-   * the balanced page. A finish the fold did not rate — a remake, a four-minute surrender —
-   * keeps the teams and the explanation up under `GAME OVER` (`lib/tonight/state.ts`, M3.4) and
-   * draws this very block, so a line gated on the block alone would say how even the teams are
-   * under a final headline.
-   */
-  it('is drawn on the balanced page and nowhere else', () => {
-    const { container: balancedPage } = draw(
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })),
-    );
-    expect(evenLine(balancedPage)).toBe('Teams are 92% even.');
-
-    // Before there is a split there is nothing to be even about.
-    const { container: filling } = draw(snapshot(lobbyView({ status: 'open' })));
-    expect(filling.querySelector('.cn-even')).toBeNull();
-
-    // Once it has launched, the same block is up and the question is no longer open.
-    const { container: inGame } = draw(snapshot(lobbyView({ status: 'in_game', teams: workedTeams() })));
-    expect(inGame.querySelector('.cn-even')).toBeNull();
-  });
-
-  it('is absent under `GAME OVER` on a finish the fold did not rate, where the same block is drawn', () => {
-    const { container } = draw(
-      snapshot(
-        lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult({ rated: false }) }),
-      ),
-    );
-
-    // The path this is about: the teams block, not the result block. Both assertions matter —
-    // without them the case silently becomes the one below, which never reaches this code.
-    expect(strip(container)[1]).toBe('GAME OVER');
-    expect(container.querySelectorAll('.cn-team')).toHaveLength(2);
-    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 54%.');
-    expect(container.querySelector('.cn-even')).toBeNull();
-  });
-
-  it('is absent under a rated result, where `Blue was favored 54%.` already keeps the bot honest', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
-    );
-
-    expect(container.querySelector('.cn-prediction')).toHaveTextContent('Blue was favored 54%.');
-    expect(container.querySelector('.cn-even')).toBeNull();
+        expect(container.querySelector('.cn-side-line')).toBeNull();
+      });
+    });
   });
 });
 

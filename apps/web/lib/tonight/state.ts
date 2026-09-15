@@ -11,7 +11,7 @@ import {
   IN_GAME_SENTENCE,
   isNameless,
 } from './copy';
-import type { LobbyView, PlayerName, SplitChoice, TonightSnapshot, TonightState } from './types';
+import type { LobbyView, PlayerName, SplitChoice, TeamsView, TonightSnapshot, TonightState } from './types';
 
 /**
  * Snapshot in, one primary block out (05-design.md, "The tonight page's three states — one
@@ -148,6 +148,29 @@ export function nextRerollSplit(splits: readonly SplitChoice[]): SplitChoice | n
   const chosen = splits.find((split) => split.isChosen);
   if (chosen === undefined) return null;
   return splits.find((split) => split.rank === chosen.rank + 1) ?? null;
+}
+
+/**
+ * Is anybody in the promoted split sitting on the wrong side of the client's lobby? That is the
+ * one question the side line exists to answer (M4.11, M4.3's acceptance 7).
+ *
+ * The rule is the server's own, `lib/commands/switchSide.ts`'s `switchSideMoves`, read the way a
+ * page has to read it rather than the way a queue does:
+ *
+ * - a seat whose `liveSide` is the side the split gave them **matches**;
+ * - a seat whose `liveSide` is the other side does not, and the line stays up;
+ * - a seat whose `liveSide` is **`null`** does not either. The queue skips those — a spectator
+ *   cannot be toggled onto a team, and `switchSide.ts` says in as many words that "the line on
+ *   the page is what tells them to move". `null` is *not knowing*, and a line that vanished on
+ *   not knowing would be a page claiming the room is sorted because nobody told it otherwise.
+ *
+ * Which means the line's absence is a positive statement: all ten reported, all ten in place.
+ * The seconds between the last person moving and the companion's next lobby post are seconds the
+ * line is still up — the page cannot be more current than the client that reports it, and being
+ * a poll behind is the honest failure here.
+ */
+export function anySeatOnTheWrongSide(teams: TeamsView): boolean {
+  return teams.blue.some((seat) => seat.liveSide !== 100) || teams.red.some((seat) => seat.liveSide !== 200);
 }
 
 /** Everyone around, in join order: the ten and the sitters, for the "you" marker. */
