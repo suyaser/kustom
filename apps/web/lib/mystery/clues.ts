@@ -1,6 +1,7 @@
 import type { RoleValue } from '@customs/db';
 import { formatDamage, formatDuration } from '../discord/embeds';
 import {
+  awardStatLabel,
   clueTypeLabel,
   HOOK_CS,
   HOOK_DAMAGE,
@@ -12,11 +13,23 @@ import {
   historicalGamesLine,
   roleWord,
 } from './copy';
-import type { MysteryCategory, MysteryClueType, MysteryClueView, MysteryHookLine } from './types';
+import type {
+  AwardCategory,
+  MysteryCategory,
+  MysteryClueType,
+  MysteryClueView,
+  MysteryHookLine,
+} from './types';
 
 /**
  * Progressive clues, built once when the day is created and stored server-side.
  * The public GET never receives these values. Each POST returns the next row only.
+ *
+ * **The ladder is per kind, the storage is not** (M8.4): both games write the same
+ * `daily_mystery_clues` rows with the same clue types, revealed one at a time by the same
+ * endpoint. Daily Mystery opens on the champion and narrows to the stat line; Guess the Award
+ * opens on the rest of the stat line — the vaguest thing left about the game — and narrows to
+ * the role, the champion and finally this player's own history.
  */
 
 export interface ClueSource {
@@ -73,6 +86,98 @@ export function buildStoredClues(source: ClueSource): StoredClue[] {
     capped.push({ type: 'historical', value: historical, revealOrder: capped.length + 1 });
   }
   return capped;
+}
+
+export interface AwardClueSource {
+  category: AwardCategory;
+  champion: string | null;
+  role: RoleValue | null;
+  damage: number;
+  cs: number;
+  gold: number;
+  damageTaken: number | null;
+  championTimes: number | null;
+  gamesPlayed: number;
+}
+
+/**
+ * Guess the Award's ladder. The award's own number is the hook, so it never appears as a
+ * clue: what walks down is two more of the same scoreboard's numbers, then the role, then
+ * the champion, then the one fact about this player that is not about this game at all.
+ */
+export function buildAwardClues(source: AwardClueSource): StoredClue[] {
+  const rows: StoredClue[] = [];
+  const push = (type: MysteryClueType, value: string | null): void => {
+    if (value === null || value.trim() === '') return;
+    rows.push({ type, value, revealOrder: rows.length + 1 });
+  };
+
+  const spent = new Map<MysteryClueType, string>([
+    ['damage', formatDamage(source.damage)],
+    ['gold', formatDamage(source.gold)],
+    ['cs', String(source.cs)],
+  ]);
+  if (source.damageTaken !== null) spent.set('damage_taken', formatDamage(source.damageTaken));
+  // Whichever stat the hook already printed is not a clue about anything.
+  const skip: MysteryClueType | null =
+    source.category === 'damage'
+      ? 'damage'
+      : source.category === 'gold'
+        ? 'gold'
+        : source.category === 'cs'
+          ? 'cs'
+          : null;
+  let taken = 0;
+  for (const type of ['damage', 'gold', 'cs', 'damage_taken'] as const) {
+    if (type === skip || taken >= 2) continue;
+    const value = spent.get(type);
+    if (value === undefined) continue;
+    push(type, value);
+    taken += 1;
+  }
+
+  push('role', source.role === null ? null : roleWord(source.role));
+  push('champion', source.champion);
+
+  const historical =
+    source.champion !== null && source.championTimes !== null && source.championTimes > 0
+      ? historicalChampLine(source.champion, source.championTimes)
+      : source.gamesPlayed > 0
+        ? historicalGamesLine(source.gamesPlayed)
+        : null;
+  const capped = rows.slice(0, historical === null ? 5 : 4);
+  if (historical !== null) {
+    capped.push({ type: 'historical', value: historical, revealOrder: capped.length + 1 });
+  }
+  return capped;
+}
+
+/** The one line the award card opens on: the number that stood out, and the game's length. */
+export function awardHookLines(input: {
+  category: AwardCategory;
+  value: number;
+  durationS: number;
+}): MysteryHookLine[] {
+  return [
+    { label: awardStatLabel(input.category), value: awardStatValue(input.category, input.value) },
+    { label: HOOK_DURATION, value: formatDuration(input.durationS) },
+  ];
+}
+
+/** `41.2k`, `312`, `5.50` — the shape each award stat is read in. */
+export function awardStatValue(category: AwardCategory, value: number): string {
+  switch (category) {
+    case 'kda':
+      return value.toFixed(2);
+    case 'vision':
+    case 'cs':
+      return String(Math.round(value));
+    case 'damage':
+    case 'gold':
+    case 'mitigation':
+    case 'objectives':
+      return formatDamage(Math.round(value));
+  }
 }
 
 export function clueView(clue: StoredClue): MysteryClueView {

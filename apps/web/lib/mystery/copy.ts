@@ -1,14 +1,30 @@
-import type { MysteryCategory, MysteryClueType, MysteryPercentileBucket } from './types';
+import type {
+  AwardCategory,
+  ChallengeCategory,
+  MysteryClueType,
+  MysteryKind,
+  MysteryPercentileBucket,
+} from './types';
 
 /**
- * Every sentence Daily Mystery says, in Floodlit's voice: plain nouns, real numbers, no
+ * Every sentence the daily game says, in Floodlit's voice: plain nouns, real numbers, no
  * emoji, no "EPIC", no named leaderboard. The visitor is anonymous. The League player is
  * the one we are exposing.
+ *
+ * **Two games** (M8.4). Nothing here names the rotation, says "today is award day" or
+ * explains the parity: the card is whatever it is. `MYSTERY_TITLE` is untouched and
+ * `AWARD_TITLE` sits beside it.
  */
 
 export const MYSTERY_LABEL = 'Mystery';
 
 export const MYSTERY_TITLE = 'Daily Mystery';
+
+export const AWARD_TITLE = 'Guess the Award';
+
+export function challengeTitle(kind: MysteryKind): string {
+  return kind === 'award' ? AWARD_TITLE : MYSTERY_TITLE;
+}
 
 export const MYSTERY_CRIME = 'The crime';
 
@@ -50,8 +66,12 @@ export const MYSTERY_SHARE = 'Copy result';
 
 export const MYSTERY_SHARE_DONE = 'Copied';
 
-export function mysteryHeading(challengeNumber: number): string {
-  return `${MYSTERY_TITLE} #${challengeNumber}`;
+/**
+ * `Daily Mystery #41` or `Guess the Award #7`. Each game counts its own cases, which is why
+ * migration 0016 moved the unique to `(kind, challenge_number)`.
+ */
+export function challengeHeading(kind: MysteryKind, challengeNumber: number): string {
+  return `${challengeTitle(kind)} #${challengeNumber}`;
 }
 
 export function mysterySomeoneLine(): string {
@@ -74,7 +94,7 @@ export function youGuessedLine(name: string): string {
   return `You guessed ${name}.`;
 }
 
-export function categoryLabel(category: MysteryCategory): string {
+export function categoryLabel(category: ChallengeCategory): string {
   switch (category) {
     case 'disaster':
       return 'Disaster class';
@@ -86,6 +106,40 @@ export function categoryLabel(category: MysteryCategory): string {
       return 'Raid boss';
     case 'ghost':
       return 'Where were you?';
+    case 'kda':
+      return 'Widest KDA';
+    case 'damage':
+      return 'Most damage';
+    case 'gold':
+      return 'Most gold';
+    case 'vision':
+      return 'Most vision';
+    case 'mitigation':
+      return 'Most damage mitigated';
+    case 'cs':
+      return 'Most CS';
+    case 'objectives':
+      return 'Most damage to objectives';
+  }
+}
+
+/** The label the award's own number is printed under, in the hook and on the reveal. */
+export function awardStatLabel(category: AwardCategory): string {
+  switch (category) {
+    case 'kda':
+      return 'KDA';
+    case 'damage':
+      return HOOK_DAMAGE;
+    case 'gold':
+      return 'Gold';
+    case 'vision':
+      return 'Vision score';
+    case 'mitigation':
+      return 'Damage mitigated';
+    case 'cs':
+      return HOOK_CS;
+    case 'objectives':
+      return 'Objective damage';
   }
 }
 
@@ -192,17 +246,22 @@ export function solvedInLine(ms: number): string {
 }
 
 export function shareSolved(
+  kind: MysteryKind,
   challengeNumber: number,
   cluesUsed: number,
   bucket: MysteryPercentileBucket | null,
 ): string {
   const clues = cluesUsed === 0 ? 'zero clues' : cluesUsed === 1 ? '1 clue' : `${cluesUsed} clues`;
   const rank = bucket === null ? '' : ` ${percentileLabel(bucket)}.`;
-  return `Daily Mystery #${challengeNumber} — solved with ${clues}.${rank}`;
+  return `${challengeHeading(kind, challengeNumber)} — solved with ${clues}.${rank}`;
 }
 
-export function shareMissed(challengeNumber: number): string {
-  return `Daily Mystery #${challengeNumber} — missed it. Tomorrow's another case.`;
+/**
+ * The missed line ends `There's another one tomorrow.` for **both** games (product, M8.4).
+ * It used to promise another case, which alternation made untrue: tomorrow is the other game.
+ */
+export function shareMissed(kind: MysteryKind, challengeNumber: number): string {
+  return `${challengeHeading(kind, challengeNumber)} — missed it. There's another one tomorrow.`;
 }
 
 export const HOOK_DEATHS = 'Deaths';

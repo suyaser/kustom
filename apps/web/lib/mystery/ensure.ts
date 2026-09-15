@@ -2,25 +2,27 @@ import type { DailyMysteryRow, Json, RoleValue } from '@customs/db';
 import { mysteryPublicHookSchema } from '@customs/db/schemas';
 import { championName } from '../champs/names';
 import { inChunks } from '../chunks';
-import { formatDuration } from '../discord/embeds';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { civilDayKey, civilDayStart, nextCivilMidnight } from '../night';
 import { rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
-import { buildStoredClues, hookLines } from './clues';
-import { kdaLine } from './copy';
-import { scorePerformance } from './score';
-import {
-  MYSTERY_RECENT_GAME_DAYS,
-  MYSTERY_RECENT_PLAYER_DAYS,
-  type MysteryCandidate,
-  pickMystery,
-  shuffleSuspects,
-} from './select';
-import type { MysteryCategory, MysteryPublicHook } from './types';
+import { type BuildGame, type BuildSeat, type BuiltChallenge, planChallenge } from './build';
+import { MYSTERY_RECENT_GAME_DAYS, MYSTERY_RECENT_PLAYER_DAYS } from './select';
+import type { MysteryKind, MysteryPublicHook } from './types';
+
+/**
+ * The one writer of a daily challenge (M5.32, second game added by M8.4).
+ *
+ * There is exactly one `ensureToday*` in this project and this is it: both games, one row per
+ * civil day, one unique on `day` so two simultaneous first visitors cannot fork the day, and
+ * the service role for every read and write, because the answer and the unrevealed clues are
+ * not public facts.
+ *
+ * All of the deciding is `build.ts`, which takes no client. This file reads rows, hands them
+ * over, and inserts what comes back.
+ */
 
 const CANDIDATE_GAMES = 500;
-const SUSPECT_COUNT = 6;
 
 interface GameRow {
   id: string;
@@ -42,6 +44,9 @@ interface SeatRow {
   gold: number;
   damage_to_champs: number;
   cs: number;
+  vision_score: number | null;
+  damage_self_mitigated: number | null;
+  damage_to_objectives: number | null;
 }
 
 export async function loadExistingDay(client: ServiceClient, day: string): Promise<DailyMysteryRow | null> {
@@ -70,16 +75,10 @@ async function createDay(
   timeZone: string,
   day: string,
 ): Promise<DailyMysteryRow | null> {
-  const built = await buildCandidate(client, now, day);
+  const built = await buildToday(client, now, day);
   if (built === null) return null;
 
-  const { data: last } = await client
-    .from('daily_mysteries')
-    .select('challenge_number')
-    .order('challenge_number', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const challengeNumber = (last?.challenge_number ?? 0) + 1;
+  const challengeNumber = await nextChallengeNumber(client, built.kind);
   const activeFrom = civilDayStart(now, timeZone);
   const expiresAt = nextCivilMidnight(now, timeZone);
 
@@ -87,6 +86,7 @@ async function createDay(
     .from('daily_mysteries')
     .insert({
       day,
+      kind: built.kind,
       challenge_number: challengeNumber,
       game_id: built.gameId,
       mystery_player_id: built.playerId,
@@ -122,19 +122,24 @@ async function createDay(
   return data;
 }
 
-async function buildCandidate(
-  client: ServiceClient,
-  now: Date,
-  day: string,
-): Promise<{
-  gameId: string;
-  playerId: string;
-  score: number;
-  category: MysteryCategory;
-  suspectIds: string[];
-  hook: MysteryPublicHook;
-  clues: ReturnType<typeof buildStoredClues>;
-} | null> {
+/**
+ * The next number **within this kind** (M8.4). `Daily Mystery #41` must not become `#43`
+ * because two award days fell between; the unique on `(kind, challenge_number)` is what makes
+ * that a rule rather than a hope.
+ */
+async function nextChallengeNumber(client: ServiceClient, kind: MysteryKind): Promise<number> {
+  const { data: last } = await client
+    .from('daily_mysteries')
+    .select('challenge_number')
+    .eq('kind', kind)
+    .order('challenge_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (last?.challenge_number ?? 0) + 1;
+}
+
+/** Read the window, hand it to the pure builder, give back whatever it decided today is. */
+async function buildToday(client: ServiceClient, now: Date, day: string): Promise<BuiltChallenge | null> {
   const games = await loadGames(client);
   if (games.length === 0) return null;
 
@@ -144,6 +149,12 @@ async function buildCandidate(
   );
   if (seats.length === 0) return null;
 
+  const puuids = await loadPuuids(
+    client,
+    seats.map((seat) => seat.player_id),
+  );
+  const avoid = await loadAvoid(client, now);
+
   const seatsByGame = new Map<string, SeatRow[]>();
   for (const seat of seats) {
     const list = seatsByGame.get(seat.game_id) ?? [];
@@ -151,126 +162,42 @@ async function buildCandidate(
     seatsByGame.set(seat.game_id, list);
   }
 
-  const avoid = await loadAvoid(client, now);
-  const puuids = await loadPuuids(
-    client,
-    seats.map((seat) => seat.player_id),
-  );
-  const scored: MysteryCandidate[] = [];
-  const riftFirst: MysteryCandidate[] = [];
-
-  for (const game of games) {
-    const roster = seatsByGame.get(game.id) ?? [];
+  const built: BuildGame[] = games.map((game) => {
     const raw = rawFactsFromUnknown(game.raw);
-    const rift = matchesQueue(gameModeFromRaw(game.raw), 'sr');
-    for (const seat of roster) {
-      const facts = raw.byPuuid[puuids.get(seat.player_id) ?? ''] ?? raw.byPuuid[seat.player_id];
-      const damageTaken = facts?.damageTaken ?? null;
-      const scoredRow = scorePerformance({
-        kills: seat.kills,
-        deaths: seat.deaths,
-        assists: seat.assists,
-        cs: seat.cs,
-        damage: seat.damage_to_champs,
-        damageTaken,
-        durationS: game.duration_s,
-      });
-      if (scoredRow === null) continue;
-      const candidate: MysteryCandidate = {
-        gameId: game.id,
-        playerId: seat.player_id,
-        score: scoredRow.score,
-        category: scoredRow.category,
-        startedAt: new Date(game.started_at),
-      };
-      scored.push(candidate);
-      if (rift) riftFirst.push(candidate);
-    }
-  }
-
-  const pool = riftFirst.length > 0 ? riftFirst : scored;
-  const picked = pickMystery(pool, day, avoid);
-  if (picked === null) return null;
-
-  const game = games.find((row) => row.id === picked.gameId);
-  const roster = game === undefined ? [] : (seatsByGame.get(game.id) ?? []);
-  const seat = roster.find((row) => row.player_id === picked.playerId);
-  if (game === undefined || seat === undefined) return null;
-
-  const raw = rawFactsFromUnknown(game.raw);
-  const facts = raw.byPuuid[puuids.get(seat.player_id) ?? ''] ?? undefined;
-  const champion = facts?.championName ?? (seat.champion_id === null ? null : championName(seat.champion_id));
-  const teamKills = roster.filter((row) => row.side === seat.side).reduce((sum, row) => sum + row.kills, 0);
-  const kp = teamKills <= 0 ? null : Math.round(((seat.kills + seat.assists) / teamKills) * 100);
-  const hook: MysteryPublicHook = {
-    kills: seat.kills,
-    deaths: seat.deaths,
-    assists: seat.assists,
-    kda: kdaLine(seat.kills, seat.deaths, seat.assists),
-    durationS: game.duration_s,
-    durationLabel: formatDuration(game.duration_s),
-    lines: hookLines({
-      category: picked.category,
-      deaths: seat.deaths,
-      kp,
-      cs: seat.cs,
-      damage: seat.damage_to_champs,
-      damageTaken: facts?.damageTaken ?? null,
+    return {
+      id: game.id,
+      startedAt: new Date(game.started_at),
       durationS: game.duration_s,
-    }),
-  };
-  const parsedHook = mysteryPublicHookSchema.parse(hook);
-
-  const championTimes =
-    champion === null || seat.champion_id === null
-      ? null
-      : seats.filter((row) => row.player_id === seat.player_id && row.champion_id === seat.champion_id)
-          .length;
-  const gamesPlayed = new Set(
-    seats.filter((row) => row.player_id === seat.player_id).map((row) => row.game_id),
-  ).size;
-
-  const clues = buildStoredClues({
-    category: picked.category,
-    champion,
-    role: seat.role ?? facts?.role ?? null,
-    damage: seat.damage_to_champs,
-    cs: seat.cs,
-    gold: seat.gold,
-    damageTaken: facts?.damageTaken ?? null,
-    longestLivedS: facts?.longestLivedS ?? null,
-    championTimes,
-    gamesPlayed,
+      isRift: matchesQueue(gameModeFromRaw(game.raw), 'sr'),
+      seats: (seatsByGame.get(game.id) ?? []).map((seat) => {
+        const facts = raw.byPuuid[puuids.get(seat.player_id) ?? ''] ?? raw.byPuuid[seat.player_id];
+        return {
+          playerId: seat.player_id,
+          side: seat.side,
+          role: seat.role ?? facts?.role ?? null,
+          championId: seat.champion_id,
+          championName:
+            facts?.championName ?? (seat.champion_id === null ? null : championName(seat.champion_id)),
+          kills: seat.kills,
+          deaths: seat.deaths,
+          assists: seat.assists,
+          gold: seat.gold,
+          damageToChamps: seat.damage_to_champs,
+          cs: seat.cs,
+          // The column first, the blob second: `copy-raw-stats` fills the column from the
+          // blob, so a row that has one has the other, and a row that has neither is a game
+          // Guess the Award cannot be about.
+          visionScore: seat.vision_score ?? facts?.visionScore ?? null,
+          damageSelfMitigated: seat.damage_self_mitigated ?? facts?.damageSelfMitigated ?? null,
+          damageToObjectives: seat.damage_to_objectives ?? facts?.damageToObjectives ?? null,
+          damageTaken: facts?.damageTaken ?? null,
+          longestLivedS: facts?.longestLivedS ?? null,
+        } satisfies BuildSeat;
+      }),
+    };
   });
 
-  const suspectIds = pickSuspects(seat.player_id, roster, seats, day);
-
-  return {
-    gameId: picked.gameId,
-    playerId: picked.playerId,
-    score: picked.score,
-    category: picked.category,
-    suspectIds,
-    hook: parsedHook,
-    clues,
-  };
-}
-
-function pickSuspects(answerId: string, roster: SeatRow[], allSeats: SeatRow[], day: string): string[] {
-  const counts = new Map<string, number>();
-  for (const seat of allSeats) counts.set(seat.player_id, (counts.get(seat.player_id) ?? 0) + 1);
-  const sameGame = roster.map((row) => row.player_id).filter((id) => id !== answerId);
-  const frequent = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([id]) => id)
-    .filter((id) => id !== answerId);
-  const unique: string[] = [answerId];
-  for (const id of [...sameGame, ...frequent]) {
-    if (unique.includes(id)) continue;
-    unique.push(id);
-    if (unique.length >= SUSPECT_COUNT) break;
-  }
-  return shuffleSuspects(unique, day);
+  return planChallenge({ dayKey: day, games: built, avoid });
 }
 
 async function loadGames(client: ServiceClient): Promise<GameRow[]> {
@@ -289,7 +216,7 @@ async function loadSeats(client: ServiceClient, gameIds: string[]): Promise<Seat
     const { data, error } = await client
       .from('game_players')
       .select(
-        'game_id, player_id, side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs',
+        'game_id, player_id, side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives',
       )
       .in('game_id', chunk);
     if (error) throw new Error(`daily mystery: failed to read scoreboard: ${error.message}`);
@@ -311,6 +238,11 @@ async function loadPuuids(client: ServiceClient, ids: string[]): Promise<Map<str
   return map;
 }
 
+/**
+ * What both games have to stay off: games used in the last three weeks and anybody who has
+ * been the answer in the last week. **No `kind` filter, on purpose** — the two games share
+ * one memory, or yesterday's Daily Mystery answers today's Guess the Award.
+ */
 async function loadAvoid(
   client: ServiceClient,
   now: Date,

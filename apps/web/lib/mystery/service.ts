@@ -12,9 +12,10 @@ import { ensureTodayMystery, parseStoredHook } from './ensure';
 import { mysteryPlayerName } from './names';
 import { type AttemptStat, buildCommunity, percentileBucket, rankAmongCorrect } from './stats';
 import type {
-  MysteryCategory,
+  ChallengeCategory,
   MysteryClueView,
   MysteryEmptyView,
+  MysteryKind,
   MysteryPerformance,
   MysteryPlayView,
   MysteryPublicHook,
@@ -33,6 +34,15 @@ const DEFAULT_HOOK: MysteryPublicHook = {
   durationLabel: '0:00',
   lines: [],
 };
+
+/**
+ * Which game a stored row is. The column is text and this is the one place it becomes a
+ * union: anything else — a row from a future kind, a hand-edited value — reads as a Daily
+ * Mystery rather than throwing a card off the home page.
+ */
+function kindOf(value: string): MysteryKind {
+  return value === 'award' ? 'award' : 'mystery';
+}
 
 export type MysteryPageState =
   | { kind: 'empty'; empty: MysteryEmptyView }
@@ -293,7 +303,8 @@ async function buildPlay(
     challengeId: row.id,
     challengeNumber: row.challenge_number,
     day: row.day,
-    category: row.category as MysteryCategory,
+    kind: kindOf(row.kind),
+    category: row.category as ChallengeCategory,
     expiresAt: row.expires_at,
     hook: parseStoredHook(row.hook) ?? DEFAULT_HOOK,
     suspects,
@@ -341,7 +352,8 @@ async function buildResult(
     challengeId: row.id,
     challengeNumber: row.challenge_number,
     day: row.day,
-    category: row.category as MysteryCategory,
+    kind: kindOf(row.kind),
+    category: row.category as ChallengeCategory,
     expiresAt: row.expires_at,
     hook: parseStoredHook(row.hook) ?? DEFAULT_HOOK,
     suspects,
@@ -441,7 +453,9 @@ async function loadPerformance(
   if (gameError) throw new Error(`daily mystery: failed to read game: ${gameError.message}`);
   const { data: seat, error: seatError } = await client
     .from('game_players')
-    .select('side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, player_id')
+    .select(
+      'side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, player_id, vision_score, damage_self_mitigated, damage_to_objectives',
+    )
     .eq('game_id', row.game_id)
     .eq('player_id', row.mystery_player_id)
     .maybeSingle();
@@ -474,6 +488,11 @@ async function loadPerformance(
     goldLabel: formatDamage(seat?.gold ?? 0),
     damageTaken,
     damageTakenLabel: damageTaken === null ? null : formatDamage(damageTaken),
+    // The column first, the blob second, null when neither said — the reveal of an award day
+    // is about one of these three, and a made-up zero would be a lie about a tank.
+    visionScore: seat?.vision_score ?? facts?.visionScore ?? null,
+    damageSelfMitigated: seat?.damage_self_mitigated ?? facts?.damageSelfMitigated ?? null,
+    damageToObjectives: seat?.damage_to_objectives ?? facts?.damageToObjectives ?? null,
     durationS,
     durationLabel: formatDuration(durationS),
     won: game !== null && seat !== null && game.winning_side === seat.side,

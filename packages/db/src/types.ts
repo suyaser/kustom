@@ -152,6 +152,7 @@ export type Database = {
           hook: Json
           id: string
           interesting_score: number
+          kind: string
           mystery_player_id: string
           suspect_ids: string[]
         }
@@ -167,6 +168,7 @@ export type Database = {
           hook: Json
           id?: string
           interesting_score: number
+          kind?: string
           mystery_player_id: string
           suspect_ids: string[]
         }
@@ -182,6 +184,7 @@ export type Database = {
           hook?: Json
           id?: string
           interesting_score?: number
+          kind?: string
           mystery_player_id?: string
           suspect_ids?: string[]
         }

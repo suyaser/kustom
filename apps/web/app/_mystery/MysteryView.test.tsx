@@ -18,6 +18,7 @@ const play: MysteryPlayView = {
   challengeId: '11111111-1111-4111-8111-111111111111',
   challengeNumber: 184,
   day: '2026-09-13',
+  kind: 'mystery',
   category: 'disaster',
   expiresAt: '2026-09-13T21:00:00.000Z',
   hook: {
@@ -59,6 +60,9 @@ const result: MysteryResultView = {
     goldLabel: '9.8k',
     damageTaken: null,
     damageTakenLabel: null,
+    visionScore: null,
+    damageSelfMitigated: null,
+    damageToObjectives: null,
     durationS: 1902,
     durationLabel: '31:42',
     won: false,

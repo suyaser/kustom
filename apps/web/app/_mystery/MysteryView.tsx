@@ -2,6 +2,7 @@ import {
   actualPlayerLine,
   attemptsSoFarLine,
   categoryLabel,
+  challengeHeading,
   cluesUsedLine,
   cluesUsedShort,
   communityAccuracyLine,
@@ -31,7 +32,6 @@ import {
   MYSTERY_WRONG,
   MYSTERY_YOUR_RESULT,
   mostAccusedLine,
-  mysteryHeading,
   mysterySomeoneLine,
   notAloneWrong,
   percentileLabel,
@@ -154,7 +154,7 @@ function PlayCase({
   return (
     <section className="cn-card cn-mystery" aria-labelledby="cn-mystery-title">
       <header className="cn-mystery-head">
-        <p className="cn-num cn-slug">{mysteryHeading(play.challengeNumber)}</p>
+        <p className="cn-num cn-slug">{challengeHeading(play.kind, play.challengeNumber)}</p>
         <h2 id="cn-mystery-title" className="cn-display cn-mystery-title">
           {categoryLabel(play.category)}
         </h2>
@@ -254,7 +254,7 @@ function ClosedCase({
   return (
     <section className="cn-card cn-mystery cn-mystery-closed" aria-labelledby="cn-mystery-title">
       <header className="cn-mystery-head">
-        <p className="cn-num cn-slug">{mysteryHeading(result.challengeNumber)}</p>
+        <p className="cn-num cn-slug">{challengeHeading(result.kind, result.challengeNumber)}</p>
         <h2 id="cn-mystery-title" className="cn-display cn-mystery-title">
           {personal.correct ? MYSTERY_CORRECT : MYSTERY_WRONG}
         </h2>
@@ -391,8 +391,8 @@ function ClosedCase({
       </button>
       <span className="cn-sr-only">
         {personal.correct
-          ? shareSolved(result.challengeNumber, personal.cluesUsed, personal.percentile)
-          : shareMissed(result.challengeNumber)}
+          ? shareSolved(result.kind, result.challengeNumber, personal.cluesUsed, personal.percentile)
+          : shareMissed(result.kind, result.challengeNumber)}
       </span>
 
       <Countdown expiresAt={result.expiresAt} now={now} />

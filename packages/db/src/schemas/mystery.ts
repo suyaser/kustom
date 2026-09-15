@@ -1,15 +1,44 @@
 import { z } from 'zod';
 
 /**
- * Daily Mystery (M5.32) request and response envelopes.
+ * The daily game (M5.32, second kind added by M8.4) request and response envelopes.
  *
  * GET /api/daily-mystery never includes the answer, unrevealed clue values, or
- * community guess distribution. Those appear only after a locked guess.
+ * community guess distribution. Those appear only after a locked guess — on an
+ * award day exactly as on a mystery day.
  */
+
+/**
+ * Which of the two daily games a challenge is. Daily Mystery and Guess the Award
+ * alternate civil days (M8.4); the value is **stored** on the row, never inferred
+ * from the date at read time.
+ */
+export const MYSTERY_KINDS = ['mystery', 'award'] as const;
+
+export const mysteryKindSchema = z.enum(MYSTERY_KINDS);
 
 export const MYSTERY_CATEGORIES = ['disaster', 'monster', 'farming', 'raid_boss', 'ghost'] as const;
 
 export const mysteryCategorySchema = z.enum(MYSTERY_CATEGORIES);
+
+/**
+ * Guess the Award's categories: which of `performanceScores`' seven components the
+ * standout led their game in (`packages/core/src/rating/performance.ts`). The two
+ * category sets are disjoint, and the database check is per kind (migration 0016).
+ */
+export const AWARD_CATEGORIES = [
+  'kda',
+  'damage',
+  'gold',
+  'vision',
+  'mitigation',
+  'cs',
+  'objectives',
+] as const;
+
+export const awardCategorySchema = z.enum(AWARD_CATEGORIES);
+
+export const challengeCategorySchema = z.enum([...MYSTERY_CATEGORIES, ...AWARD_CATEGORIES]);
 
 export const MYSTERY_CLUE_TYPES = [
   'champion',
@@ -57,7 +86,8 @@ export const mysteryPlayViewSchema = z.object({
   challengeId: z.string().uuid(),
   challengeNumber: z.number().int().positive(),
   day: z.string(),
-  category: mysteryCategorySchema,
+  kind: mysteryKindSchema,
+  category: challengeCategorySchema,
   expiresAt: z.string(),
   hook: mysteryPublicHookSchema,
   suspects: z.array(mysterySuspectSchema).min(1),
@@ -108,6 +138,11 @@ export const mysteryPerformanceSchema = z.object({
   goldLabel: z.string(),
   damageTaken: z.number().int().nonnegative().nullable(),
   damageTakenLabel: z.string().nullable(),
+  // The three M7.7 / M7.14 columns, so an award reveal can print the stat the award was
+  // about. Null for every game stored before those migrations, exactly as the column is.
+  visionScore: z.number().int().nonnegative().nullable(),
+  damageSelfMitigated: z.number().int().nonnegative().nullable(),
+  damageToObjectives: z.number().int().nonnegative().nullable(),
   durationS: z.number().int().nonnegative(),
   durationLabel: z.string(),
   won: z.boolean(),
@@ -157,7 +192,8 @@ export const mysteryResultViewSchema = z.object({
   challengeId: z.string().uuid(),
   challengeNumber: z.number().int().positive(),
   day: z.string(),
-  category: mysteryCategorySchema,
+  kind: mysteryKindSchema,
+  category: challengeCategorySchema,
   expiresAt: z.string(),
   hook: mysteryPublicHookSchema,
   suspects: z.array(mysterySuspectSchema),
@@ -184,5 +220,9 @@ export const mysteryCronResponseSchema = z.object({
   ok: z.literal(true),
   status: z.enum(['created', 'exists', 'empty']),
   challengeId: z.string().uuid().nullable(),
+  // Which game today turned out to be, for the operator reading the cron log. Null when
+  // neither game could be built. An award day that fell back reads `mystery`, because that
+  // is what was stored (M8.4).
+  kind: mysteryKindSchema.nullable(),
   day: z.string(),
 });
