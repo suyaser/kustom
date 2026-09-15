@@ -301,12 +301,13 @@ export const ROLE_TAP_OFFLINE = 'That did not reach the server. Your role is unc
 export const LINK_OFFLINE = 'That did not reach the server. Nothing changed — tap it again.';
 
 /* ---------------------------------------------------------------------------
- * `Start a lobby` (M4.2's control, M4.7's placement).
+ * `Start a lobby` (M4.2's control, M4.7's placement, M4.13's gate).
  *
- * Every word the control says is product's and lives in `lib/admin/lobbyStart.ts`, beside the
- * rules that answer with it: the label, the pending line, the invited line and the four
- * refusals are imported from there and never retyped here. This one sentence is the page's
- * own, for the same reason the role tap's is — only the browser knows a request never left it.
+ * Every word the control says is product's and lives in `lib/lobbyStart.ts`, beside the rules
+ * that answer with it: the label, the pending line, the invited line and the four refusals are
+ * imported from there and never retyped here. The two sentences below are the page's own, for
+ * the same reason the role tap's is — only the browser knows a request never left it, and only
+ * the page knows what to say to somebody who is not signed in at all.
  * ------------------------------------------------------------------------- */
 
 /**
@@ -315,6 +316,24 @@ export const LINK_OFFLINE = 'That did not reach the server. Nothing changed — 
  * what is unchanged, then the whole fix.
  */
 export const START_LOBBY_OFFLINE = 'That did not reach the server. No lobby was opened — tap it again.';
+
+/**
+ * The signed-out visitor's sentence on the **idle** page, back from the suspension the
+ * 2026-09-10 copy row put it under (M4.13). It was suspended on two grounds: it promised a
+ * button a non-admin could not press — which this milestone removes — and "this page's one
+ * sign-in already lives on the role card forty pixels away", which is false in the one state
+ * that matters: `RoleTonight` draws nothing at all for a signed-out visitor with no live lobby,
+ * so on an idle page there is no other sign-in control anywhere on this site.
+ *
+ * It is the reason, and {@link SIGN_IN_LABEL} beside it is the label — the role card's own
+ * signed-out shape (the designer, 2026-09-10). **Never a disabled button.**
+ *
+ * The control prints this same sentence for a **401** as well, which is the same fact: a session
+ * that expired between the render and the press. The route's own `sign in required` is gate
+ * vocabulary and not a sentence for a friend on a phone, so it is the one refusal on this
+ * control the page answers in its own words.
+ */
+export const START_LOBBY_SIGN_IN = 'Sign in with Discord to start a lobby.';
 
 /* ---------------------------------------------------------------------------
  * `Missed the invite?` (M4.10, product 2026-09-10).

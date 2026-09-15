@@ -1,19 +1,26 @@
 import { randomInt } from 'node:crypto';
 import { COMPANION_COMMAND_TTL_MS } from '@customs/db/schemas';
+import { type NameableRow, playerLabel } from './admin/playerName';
+import { type AdminWriteResult, writeFailed, writeOk } from './admin/result';
 import {
   type CommandGate,
   enqueueCommands,
   isCommandKindEnabled,
   nightWindow,
   sweepExpiredCommands,
-} from '../commands';
-import { DEFAULT_NIGHT_TIME_ZONE, formatDayMonth } from '../night';
-import type { ServiceClient } from '../supabase';
-import { type NameableRow, playerLabel } from './playerName';
-import { type AdminWriteResult, writeFailed, writeOk } from './result';
+} from './commands';
+import { DEFAULT_NIGHT_TIME_ZONE, formatDayMonth } from './night';
+import type { ServiceClient } from './supabase';
 
 /**
  * Start a lobby (M4.2): the one tap this product has.
+ *
+ * **In `lib/`, not `lib/admin/`, since M4.13.** The press is no longer an admin write: it moved
+ * onto M3.6's `/api/me/*` class and every **linked** player may make it, so the rules and the
+ * words followed the route out of the admin tree. Both surfaces — the tonight page and the one
+ * button on `/admin` — import this one copy, which is the whole point of moving it rather than
+ * leaving a second one behind. The two helpers it still borrows from `lib/admin/` are the name
+ * chain and the write-result type, neither of which is about being an admin.
  *
  * 21:40, seven friends in voice, one of them taps **Start a lobby** on a phone. Somebody's
  * League client — nobody had to decide whose — opens a custom with a name and a password

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/admin/lobbyStart';
 import { getRerollableLobby, NO_MORE_SPLITS, type RerollableLobby } from '@/lib/admin/reroll';
 import { getActiveSeason } from '@/lib/admin/seasons';
 import { requireAdmin } from '@/lib/adminPage';
+import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStart';
 import { NO_ACTIVE_SEASON_MESSAGE } from '@/lib/season';
 import { getServiceClient } from '@/lib/supabase';
 import { type LobbyStartView, loadLobbyStartOrNone } from '@/lib/tonight/lobbyStart';
@@ -93,6 +93,10 @@ export default async function AdminIndexPage({ searchParams }: { searchParams: P
 /**
  * `Start a lobby` (M4.2), the same route and the same words as the tonight page's control.
  *
+ * **The route is `/api/me/lobbies/start` since M4.13** — this is the one form on this page whose
+ * route is not an admin route, because the press is no longer an admin write. An admin passes
+ * its gate with no special case: `players.is_admin` can only be true on a row that is linked.
+ *
  * The admin area ships no dress and no client JavaScript beyond `AdminForm`, so this is one
  * button and one sentence: the refusal comes back in the route's own words, and a successful
  * press prints `Opening a lobby on <Name>'s PC…` from the response's host.
@@ -106,7 +110,10 @@ function StartLobby({ start }: { start: LobbyStartView | null }) {
 
   return (
     <>
-      <AdminForm action="/api/admin/lobbies/start" kind="lobby-start">
+      <AdminForm action="/api/me/lobbies/start" kind="lobby-start">
+        {/* The route's own default is the tonight page, which is where its other surface
+            lives. Only the no-JavaScript path reads this; the route re-validates it. */}
+        <input type="hidden" name="redirectTo" value="/admin" />
         <button type="submit">{START_LOBBY_BUTTON}</button>
       </AdminForm>
       {start === null ? <Empty>{NO_LOBBY_STARTED}</Empty> : null}

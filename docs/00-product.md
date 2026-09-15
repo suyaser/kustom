@@ -53,7 +53,7 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 Everything else happens without anybody touching it. These three exist because the docs already accepted them,
 and each is one tap:
 
-- **Start a lobby** (M4.2, admins for now). The first tap of the night, and the only one that is optional:
+- **Start a lobby** (M4.2, every linked player since M4.13). The first tap of the night, and the only one that is optional:
   whoever has the companion running can open a custom from their client the way they always have. Pressing the
   button instead opens one on somebody's PC — the server picks whose, the most recently seen friend whose
   companion has been up in the last ten minutes — with a name like `Customs 09 Sep #1` and a four-digit password
@@ -62,9 +62,10 @@ and each is one tap:
   joins by hand. If
   nobody's companion is running there is nothing to open and the page says exactly that. There are no fields on
   it: no mode, no name, no password, because each of those is a step. Two people tapping at once get one lobby.
-  Today only an admin sees the button — widening it to any friend signed in with Discord is the piece of M4.2
-  that is still open — and the group has not yet started a night this way in front of anybody, so the first
-  real press is still ahead of us.
+  Anybody who has picked themselves out of a lobby once sees the button — which is the twenty people who play,
+  and nobody has to find out who the admins are to get the night started. A visitor who is not signed in is
+  offered the sign-in instead; whoever the link was forwarded to gets neither. The group has not yet started a
+  night this way in front of anybody, so the first real press is still ahead of us.
 - **Reroll** (M3.2, admins). Teams are posted and somebody wants a different night. One tap promotes the
   second split, one more promotes the third, and then it stops: three splits come out of the balancer and
   there is no fourth. A reroll posts a new message in Discord saying which reroll it is; it never edits the

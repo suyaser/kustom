@@ -13,8 +13,8 @@
  * page prints the route's own words.
  */
 
-import { startLobbyResponseSchema } from '@/app/api/admin/lobbies/start/schema';
-import { openingOnPcLine } from './lobbyStart';
+import { startLobbyResponseSchema } from '@/app/api/me/lobbies/start/schema';
+import { openingOnPcLine } from '../lobbyStart';
 
 export type AdminFormKind = 'players' | 'tokens' | 'discord' | 'reroll' | 'lobby-start';
 
@@ -37,7 +37,8 @@ export function adminNotice(kind: AdminFormKind, values: SubmittedValues, body: 
 }
 
 /**
- * `app/api/admin/lobbies/start/handler.ts` — and **not a second copy of the sentence** (M4.2).
+ * `app/api/me/lobbies/start/handler.ts` — and **not a second copy of the sentence** (M4.2, moved
+ * off the admin class by M4.13).
  *
  * The pending line is `openingOnPcLine`, which the handler itself calls, so the two surfaces
  * compose one function with one argument rather than spelling one string twice. The argument

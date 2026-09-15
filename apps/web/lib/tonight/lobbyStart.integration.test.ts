@@ -30,7 +30,7 @@ if (stack === null) {
   process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
 
   const { loadLobbyStart } = await import('./lobbyStart');
-  const { startLobbySentence, openingOnPcLine } = await import('@/lib/admin/lobbyStart');
+  const { startLobbySentence, openingOnPcLine } = await import('@/lib/lobbyStart');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },

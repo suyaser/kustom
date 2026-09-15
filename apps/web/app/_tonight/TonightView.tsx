@@ -38,7 +38,7 @@ import { RerollControl } from './RerollControl';
 import { RoleTonight } from './RoleTonight';
 import { SeatRack } from './SeatRack';
 import { SideLine } from './SideLine';
-import { StartLobby } from './StartLobby';
+import { StartLobby, StartLobbySignIn } from './StartLobby';
 
 /**
  * The tonight page's markup (M3.4, Floodlit v2 in M3.18). A pure function of one snapshot and
@@ -80,7 +80,7 @@ export interface TonightViewProps {
   topPlayers: readonly BoardRow[];
   /**
    * Tonight's newest `create_lobby`, read on the **server** with the service role and only for
-   * an admin (`lib/tonight/lobbyStart.ts`). `null` for everybody else and for a night nobody
+   * a linked viewer (`lib/tonight/lobbyStart.ts`). `null` for everybody else and for a night nobody
    * has pressed the button on. It is not part of the snapshot on purpose: the snapshot is
    * re-read in the browser with the anon key, which may not see this table at all.
    */
@@ -118,18 +118,27 @@ export function TonightView({
   const header = tonightHeader(state);
   const seatViewer = { puuid: viewerPuuid(viewer), isAdmin: viewerIsAdmin(viewer) };
   /**
+   * M4.10's lobby line is for a **signed-in viewer matched to a player row** and nobody else
+   * (product and the designer, 2026-09-10). The password is not a secret among the twenty
+   * friends who play; it is not for whoever the WhatsApp link was forwarded to.
+   *
+   * It is the `Start a lobby` gate too, since M4.13: the same twenty people, decided once.
+   */
+  const linked = viewer.kind === 'linked';
+  /**
    * `Start a lobby` (M4.2), with the button in the one state where pressing it can do
    * anything: the idle page (the designer, 2026-09-10). From `filling` on a lobby row exists,
    * so the route can only answer `There is already a lobby open.` — and a control whose only
    * outcome is a refusal is not a control. `filling` gets the same block without the button:
    * the invited count, or the sentence for a create that failed.
    *
-   * **Admin only** while the route is admin-gated (`04-decisions.md`, 2026-09-10), and being
-   * drawn is not permission: the route checks the session again before it writes. An anonymous
-   * visitor is shown nothing — product's `Sign in with Discord to start a lobby.` is suspended
-   * until the press widens to linked players, not deleted.
+   * **Every linked player, not only an admin** (M4.13): nobody in voice should have to find out
+   * who is an admin to get the night started. `players.is_admin` can only be true on a row that
+   * is already linked, so an admin keeps it with no special case. Being drawn is still not
+   * permission — the route resolves the session again before it writes, and a forged press gets
+   * the 403 sentence.
    */
-  const startLobby = seatViewer.isAdmin ? (
+  const startLobby = linked ? (
     <StartLobby
       start={lobbyStart}
       press={state.kind === 'idle'}
@@ -138,11 +147,13 @@ export function TonightView({
     />
   ) : null;
   /**
-   * M4.10's lobby line is for a **signed-in viewer matched to a player row** and nobody else
-   * (product and the designer, 2026-09-10). The password is not a secret among the twenty
-   * friends who play; it is not for whoever the WhatsApp link was forwarded to.
+   * And the signed-out visitor's way in, on the **idle** page only: the sentence product wrote
+   * for M4.2 and suspended on 2026-09-10, back now that there is a button behind it for anybody
+   * who signs in (M4.13). A signed-in visitor with **no player row** gets neither — they are
+   * signed in, so inviting them to sign in is noise, and `SIGNED_IN_NO_LOBBY` at the foot of
+   * the column already says the true thing to them.
    */
-  const linked = viewer.kind === 'linked';
+  const startSignIn = viewer.kind === 'anonymous' && state.kind === 'idle' ? <StartLobbySignIn /> : null;
 
   /**
    * **The idle page keeps the 44rem column it has at 720px** (M3.30, the designer, from the
@@ -174,7 +185,7 @@ export function TonightView({
          * ten empty seats are 480px, so a button under them is under the fold on the phone
          * this page is designed for, and on an idle page it is the only thing to do.
          */}
-        {state.kind === 'idle' ? startLobby : null}
+        {state.kind === 'idle' ? (startLobby ?? startSignIn) : null}
         {idle ? <MysteryHome mystery={mystery} /> : null}
         {state.kind === 'idle' ? <Idle /> : null}
         {state.kind === 'filling' ? (

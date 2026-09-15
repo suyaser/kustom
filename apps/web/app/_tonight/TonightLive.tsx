@@ -71,7 +71,7 @@ export interface TonightLiveProps {
    */
   topPlayers: readonly BoardRow[];
   /**
-   * Tonight's newest `create_lobby`, read on the server for an admin only. Re-read by
+   * Tonight's newest `create_lobby`, read on the server for a linked viewer only. Re-read by
    * `router.refresh()` — see {@link START_POLL_MS} — and never by the snapshot's own re-read,
    * which is made with the anon key and cannot see that table.
    */
