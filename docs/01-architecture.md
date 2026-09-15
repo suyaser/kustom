@@ -161,6 +161,38 @@ Rules:
   The API still reads the pending row first for the friendly refusal and maps a `23505` on this index to the same
   409. An ack, a non-retryable nack or the expiry sweep takes the row out of the two live statuses and releases the lock.
 
+### The daily game (`daily_mysteries`, M5.32; two games from M8.4)
+
+One challenge per civil date in `CUSTOMS_NIGHT_TZ`, in four tables (`0013`): `daily_mysteries` (the challenge and
+its answer), `daily_mystery_clues`, `daily_mystery_sessions` and `daily_mystery_attempts`. All four have RLS on
+with **no policy at all** and the grants revoked, like `window_posts` and `companion_tokens`: the answer, the
+unrevealed clues and the visitor ids are not public facts, so every read goes through the API with the service
+role and the answer never ships in the first GET.
+
+**There are two games and they alternate civil days** (M8.4): Daily Mystery asks who played like a stat line,
+Guess the Award asks who a standout stat line belongs to. One a day, never two — `daily_mysteries.day` keeps its
+unique — decided by the parity of the day counted from the epoch (`kindForDay`), which keeps alternating across a
+31st into a 1st where a day-of-month parity would not. `0016` added `kind text not null default 'mystery'`, made
+the `category` check **per kind**, and moved the unique to `(kind, challenge_number)` so `Daily Mystery #41` does
+not become `#43` because two award days fell between.
+
+**The kind is stored, never re-derived from the date.** A parity rule decides what to *create*; the column is
+what a row *is*. An award day the window cannot fill falls back to a Daily Mystery and stores `mystery`, and the
+fallback does not shift the rotation — tomorrow is whatever the parity says.
+
+The award game's standout is `performanceScores` from `@customs/core` and nothing else, by way of
+`pickAwardStandout`: one candidate per game, the player who scores highest, ranked across games by their gap to
+the runner-up, with the card's category the component they led the game in by the widest margin. So every game
+stored before M7.7 and every backfilled game (no role) is unscorable and simply not a candidate, and **ARAM is
+excluded outright** — four of the seven components mean nothing on that map. Daily Mystery keeps M5.32's own
+`scorePerformance` and its Rift-preferred, ARAM-allowed pool.
+
+One implementation, not two: `ensureTodayMystery` (`lib/mystery/ensure.ts`) is the only writer, `build.ts` is the
+only day builder and is pure, `select.ts` is the only selector, and the recent-game and recent-player avoidance
+is **shared across the kinds** — being yesterday's Daily Mystery answer keeps you out of today's Guess the Award,
+or the pair of games leaks its own answer. The Vercel Cron warms the day and the first GET creates it lazily;
+both agree because both ask `civilDayKey` for the same string.
+
 ## Rating model (`packages/core/rating`)
 
 OpenSkill, default Plackett-Luce model, two teams of five.

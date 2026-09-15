@@ -1,15 +1,43 @@
 import type { RoleValue } from '@customs/db';
 
 /**
- * Daily Mystery (M5.32): one accountless guessing game per civil day.
+ * The daily game (M5.32): one accountless guessing game per civil day.
  *
  * The League player on the scoreboard and the website visitor are different people.
  * Visitors are a random id in a cookie / localStorage. Nobody signs in to play.
+ *
+ * **Two games, alternating civil days** (M8.4): Daily Mystery asks who played like this,
+ * Guess the Award asks who a standout stat line belongs to. One challenge a day, one
+ * service, one set of tables. The kind is stored on the row, never re-derived from the
+ * date, so a stored challenge keeps meaning what it meant.
  */
+
+export const MYSTERY_KINDS = ['mystery', 'award'] as const;
+
+export type MysteryKind = (typeof MYSTERY_KINDS)[number];
 
 export const MYSTERY_CATEGORIES = ['disaster', 'monster', 'farming', 'raid_boss', 'ghost'] as const;
 
 export type MysteryCategory = (typeof MYSTERY_CATEGORIES)[number];
+
+/**
+ * Guess the Award's categories: which of `performanceScores`' seven components the day's
+ * standout led their game in. Disjoint from the five above, and checked per kind by
+ * migration 0016.
+ */
+export const AWARD_CATEGORIES = [
+  'kda',
+  'damage',
+  'gold',
+  'vision',
+  'mitigation',
+  'cs',
+  'objectives',
+] as const;
+
+export type AwardCategory = (typeof AWARD_CATEGORIES)[number];
+
+export type ChallengeCategory = MysteryCategory | AwardCategory;
 
 export const MYSTERY_CLUE_TYPES = [
   'champion',
@@ -65,6 +93,10 @@ export interface MysteryPerformance {
   goldLabel: string;
   damageTaken: number | null;
   damageTakenLabel: string | null;
+  /** M7.7 / M7.14's three columns. Null for every game stored before them. */
+  visionScore: number | null;
+  damageSelfMitigated: number | null;
+  damageToObjectives: number | null;
   durationS: number;
   durationLabel: string;
   won: boolean;
@@ -110,7 +142,9 @@ export interface MysteryPlayView {
   challengeId: string;
   challengeNumber: number;
   day: string;
-  category: MysteryCategory;
+  /** Which game today is. The view picks its title and its question off this. */
+  kind: MysteryKind;
+  category: ChallengeCategory;
   expiresAt: string;
   hook: MysteryPublicHook;
   suspects: MysterySuspect[];
@@ -124,7 +158,8 @@ export interface MysteryResultView {
   challengeId: string;
   challengeNumber: number;
   day: string;
-  category: MysteryCategory;
+  kind: MysteryKind;
+  category: ChallengeCategory;
   expiresAt: string;
   hook: MysteryPublicHook;
   suspects: MysterySuspect[];

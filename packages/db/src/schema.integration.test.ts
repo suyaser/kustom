@@ -484,6 +484,88 @@ if (stack === null) {
     });
   });
 
+  /**
+   * What `0016_guess_the_award.sql` added to `0013_daily_mystery.sql` (M8.4): a stored kind,
+   * a category check that is per kind, and a challenge number that counts within its kind.
+   */
+  describe('daily_mysteries', () => {
+    const days = [`2032-01-01`, `2032-01-02`, `2032-01-03`, `2032-01-04`, `2032-01-05`, `2032-01-06`];
+    let challengeGameId = '';
+
+    async function challenge(day: string, extra: Record<string, unknown> = {}): Promise<RestResult> {
+      return insert('daily_mysteries', {
+        day,
+        challenge_number: 1,
+        game_id: challengeGameId,
+        mystery_player_id: playerAId,
+        interesting_score: 1,
+        category: 'disaster',
+        suspect_ids: [playerAId, playerBId],
+        hook: {},
+        active_from: `${day}T00:00:00.000Z`,
+        expires_at: `${day}T23:59:59.000Z`,
+        ...extra,
+      });
+    }
+
+    beforeAll(async () => {
+      const found = await rest('service', `games?lcu_game_id=eq.${gameId}&select=id`);
+      challengeGameId = String(rows(found.body)[0]?.id ?? '');
+    });
+
+    afterAll(async () => {
+      await rest('service', `daily_mysteries?day=in.(${days.join(',')})`, { method: 'DELETE' });
+    });
+
+    it('defaults an existing row to the Daily Mystery it already was', async () => {
+      const created = await challenge(days[0] as string);
+      expect(created.status).toBe(201);
+      expect(rows(created.body)[0]?.kind).toBe('mystery');
+    });
+
+    it('refuses a kind that is not one of the two games', async () => {
+      const result = await challenge(days[1] as string, { kind: 'quiz' });
+      expect(result.ok).toBe(false);
+    });
+
+    it('checks the category against the kind, both ways round', async () => {
+      // An award category on a mystery row, and a mystery category on an award row: each is
+      // the other game's vocabulary and neither is storable.
+      const crossed = await challenge(days[1] as string, { category: 'vision' });
+      expect(crossed.ok).toBe(false);
+
+      const alsoCrossed = await challenge(days[1] as string, {
+        kind: 'award',
+        category: 'disaster',
+      });
+      expect(alsoCrossed.ok).toBe(false);
+
+      const fine = await challenge(days[1] as string, { kind: 'award', category: 'vision' });
+      expect(fine.status).toBe(201);
+    });
+
+    it('counts each game separately, and still refuses a repeat inside one', async () => {
+      // `#1` exists for both kinds now, which a single unique on the column would have
+      // refused — and is exactly why `Daily Mystery #41` does not become `#43`.
+      const both = await rest(
+        'service',
+        `daily_mysteries?day=in.(${days[0]},${days[1]})&select=kind,challenge_number`,
+      );
+      expect(rows(both.body)).toHaveLength(2);
+      expect(rows(both.body).map((row) => row.challenge_number)).toEqual([1, 1]);
+
+      const repeat = await challenge(days[2] as string, { challenge_number: 1 });
+      expect(repeat.status).toBe(409);
+    });
+
+    it('still takes one challenge per civil day', async () => {
+      const first = await challenge(days[3] as string, { challenge_number: 2 });
+      expect(first.status).toBe(201);
+      const second = await challenge(days[3] as string, { challenge_number: 3 });
+      expect(second.status).toBe(409);
+    });
+  });
+
   describe('bootstrap_admin', () => {
     it('promotes an existing player and is idempotent', async () => {
       const first = await rest('service', 'rpc/bootstrap_admin', {

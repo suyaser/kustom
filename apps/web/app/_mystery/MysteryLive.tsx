@@ -113,11 +113,12 @@ export function MysteryLive({ initial }: { initial: MysteryPageState }) {
     if (state.kind !== 'closed') return;
     const text = state.result.personal.correct
       ? shareSolved(
+          state.result.kind,
           state.result.challengeNumber,
           state.result.personal.cluesUsed,
           state.result.personal.percentile,
         )
-      : shareMissed(state.result.challengeNumber);
+      : shareMissed(state.result.kind, state.result.challengeNumber);
     try {
       await navigator.clipboard.writeText(text);
       setShareCopied(true);

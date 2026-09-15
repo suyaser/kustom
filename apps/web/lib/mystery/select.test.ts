@@ -1,5 +1,13 @@
+import type { PerformancePlayer } from '@customs/core';
 import { describe, expect, it } from 'vitest';
-import { dayIndex, type MysteryCandidate, pickMystery, shuffleSuspects } from './select';
+import {
+  dayIndex,
+  kindForDay,
+  type MysteryCandidate,
+  pickAwardStandout,
+  pickMystery,
+  shuffleSuspects,
+} from './select';
 
 function row(
   partial: Partial<MysteryCandidate> & Pick<MysteryCandidate, 'gameId' | 'playerId'>,
@@ -52,6 +60,107 @@ describe('pickMystery', () => {
     expect(otherDay?.gameId).toBe(
       pickMystery(many, '2026-09-14', { recentGameIds: new Set(), recentPlayerIds: new Set() })?.gameId,
     );
+  });
+});
+
+describe('kindForDay (M8.4)', () => {
+  it('alternates over fourteen consecutive days', () => {
+    const day = (offset: number): string =>
+      new Date(Date.UTC(2026, 8, 14) + offset * 86_400_000).toISOString().slice(0, 10);
+    const kinds = Array.from({ length: 14 }, (_, i) => kindForDay(day(i)));
+    expect(kinds).toEqual([
+      'mystery',
+      'award',
+      'mystery',
+      'award',
+      'mystery',
+      'award',
+      'mystery',
+      'award',
+      'mystery',
+      'award',
+      'mystery',
+      'award',
+      'mystery',
+      'award',
+    ]);
+  });
+
+  it('keeps alternating across a month boundary, which a day-of-month parity would not', () => {
+    // 31 October into 1 November: two odd days in a row by `%2` on the date itself.
+    expect(kindForDay('2026-10-30')).toBe('mystery');
+    expect(kindForDay('2026-10-31')).toBe('award');
+    expect(kindForDay('2026-11-01')).toBe('mystery');
+    expect(kindForDay('2026-11-02')).toBe('award');
+  });
+
+  it('answers mystery for anything that is not a civil day key', () => {
+    expect(kindForDay('')).toBe('mystery');
+    expect(kindForDay('tomorrow')).toBe('mystery');
+  });
+});
+
+describe('pickAwardStandout (M8.4)', () => {
+  const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
+
+  function seat(index: number, overrides: Partial<PerformancePlayer> = {}): PerformancePlayer {
+    return {
+      puuid: `p${index}`,
+      side: index < 5 ? 100 : 200,
+      role: ROLES[index % 5] ?? 'mid',
+      kills: 5,
+      deaths: 5,
+      assists: 5,
+      damageToChamps: 20_000,
+      gold: 12_000,
+      cs: 180,
+      visionScore: 20,
+      damageSelfMitigated: 20_000,
+      damageToObjectives: 5_000,
+      ...overrides,
+    };
+  }
+
+  const ten = (): PerformancePlayer[] => Array.from({ length: 10 }, (_, i) => seat(i));
+
+  it('names the player core scores highest, and the stat they led by the widest margin', () => {
+    const players = ten();
+    // Damage and nothing else: the widest lead over the runner-up is what the clues talk
+    // about, so a player who also tripled everybody's KDA would be a KDA award instead.
+    players[3] = seat(3, { role: 'adc', damageToChamps: 80_000 });
+    const standout = pickAwardStandout(players);
+    expect(standout?.playerId).toBe('p3');
+    expect(standout?.category).toBe('damage');
+  });
+
+  it('declines a game missing a component, which is every game stored before M7.7', () => {
+    const players = ten();
+    players[7] = seat(7, { visionScore: null });
+    expect(pickAwardStandout(players)).toBeNull();
+  });
+
+  it('declines a game where anybody has no role, which is every backfilled one', () => {
+    const players = ten();
+    players[0] = seat(0, { role: null });
+    expect(pickAwardStandout(players)).toBeNull();
+  });
+
+  it('gives back the gap to the runner-up, so a lopsided game outranks an even one', () => {
+    const even = ten();
+    const lopsided = ten();
+    lopsided[9] = seat(9, {
+      role: 'support',
+      visionScore: 200,
+      assists: 30,
+      deaths: 1,
+      damageSelfMitigated: 90_000,
+    });
+    const flat = pickAwardStandout(even);
+    const wide = pickAwardStandout(lopsided);
+    expect(flat).not.toBeNull();
+    expect(wide).not.toBeNull();
+    expect(wide?.playerId).toBe('p9');
+    expect(wide?.score).toBeGreaterThan(flat?.score ?? 0);
   });
 });
 

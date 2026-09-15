@@ -10,8 +10,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Make sure today's Daily Mystery exists before the first friend opens the site
- * (M5.32). Safe at any cadence: unique on `day`, a second call is a no-op.
+ * Make sure today's challenge exists before the first friend opens the site (M5.32).
+ * Safe at any cadence: unique on `day`, a second call is a no-op.
+ *
+ * **One route for both games** (M8.4): which of the two today is comes from the same
+ * `civilDayKey` the first lazy GET would use, so the cron and a visitor cannot disagree
+ * about it, and there is no per-kind schedule to keep in step with anything.
  */
 export async function GET(request: Request): Promise<Response> {
   let secret: string | undefined;
@@ -47,6 +51,9 @@ export async function GET(request: Request): Promise<Response> {
     ok: true,
     status: row === null ? 'empty' : 'exists',
     challengeId: row?.id ?? null,
+    // Which of the two games today turned out to be (M8.4). Stored, so a day that fell back
+    // reads `mystery` here and in the database alike.
+    kind: row === null ? null : row.kind === 'award' ? 'award' : 'mystery',
     day,
   });
 }
