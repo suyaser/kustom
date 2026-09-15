@@ -3,6 +3,7 @@ import process from 'node:process';
 import {
   config,
   mvpAce,
+  type PerformanceBucket,
   type PerformancePlayer,
   performanceScores,
   type Role,
@@ -16,6 +17,30 @@ import { championName } from '../lib/champs/names.ts';
  * same 23 real ten-human customs M7.12 measured.
  *
  *   pnpm --filter web exec node --import tsx scripts/m7-13-battle-test.ts <rows.json> [--detail] [--quoted]
+ *
+ * (or `pnpm --filter web m7-13-battle-test <rows.json>`, the package script, same arguments.)
+ *
+ * ## The M7.14 addendum
+ *
+ * M7.14 added a seventh component, `damageToObjectives`, weighted `0.15` on the jungle vector
+ * and `0.00` on the other two. That moves what "the new column" means — it used to be the
+ * six-component three-bucket formula, it is now the seven-component one — so the default report
+ * above would quietly be comparing *two* changes at once if it were read as M7.13's evidence.
+ *
+ *   pnpm --filter web exec node --import tsx scripts/m7-13-battle-test.ts <rows.json> --addendum [--detail] [--quoted]
+ *
+ * `--addendum` prints a different report over the same file: **six components against seven**,
+ * both bucket-weighted, which isolates M7.14 and nothing else. The flat column does not appear
+ * in it at all, deliberately — flat-against-seven would conflate M7.13 and M7.14 into one table
+ * and neither number would mean anything. Without the flag the report is exactly what it was:
+ * flat against whatever core exports today, so M7.13's own acceptance stays re-derivable.
+ *
+ * The "before" side of the addendum is `M7_13_SIX` below, the retired M7.13 per-bucket weights,
+ * written as seven-entry records with `damageToObjectives` pinned to `0.00` so the one
+ * normaliser in this file scores both columns unchanged. The addendum also checks M7.14's own
+ * claim against the real rows rather than trusting it: every carry and every support seat must
+ * score *identically* under six and under seven, because `score + 0 * share` is exact. If one
+ * does not, the run says which and exits 1.
  *
  * **It reads a file and prints a table. It opens no database connection, holds no credentials,
  * and writes nothing anywhere** — deliberately, because M7.13 is a read-only inspection and
@@ -57,8 +82,14 @@ import { championName } from '../lib/champs/names.ts';
  *   (select count(*) from game_players gp join windowed w on w.id = gp.game_id
  *      where gp.role is null)                                                   as rows_with_no_role,
  *   (select count(*) from game_players gp join windowed w on w.id = gp.game_id
- *      where gp.vision_score is null or gp.damage_self_mitigated is null)       as rows_missing_a_stat;
+ *      where gp.vision_score is null or gp.damage_self_mitigated is null
+ *         or gp.damage_to_objectives is null)                                  as rows_missing_a_stat;
  * ```
+ *
+ * `damage_to_objectives` joined that null check with M7.14 (migration `0015`). A row written
+ * before it and never reached by the backwards copy has no score under *either* column of the
+ * addendum, and the run will say so rather than score the six column on rows the seven column
+ * had to decline.
  *
  * Query 2, the extraction. One row, one column; save that single cell to a file.
  *
@@ -82,7 +113,7 @@ import { championName } from '../lib/champs/names.ts';
  *     coalesce(nullif(p.display_name, ''), nullif(p.game_name, ''), left(p.puuid, 8)) as name,
  *     gp.side, gp.role::text as role, gp.champion_id,
  *     gp.kills, gp.deaths, gp.assists, gp.damage_to_champs, gp.gold,
- *     gp.vision_score, gp.damage_self_mitigated, gp.cs
+ *     gp.vision_score, gp.damage_self_mitigated, gp.cs, gp.damage_to_objectives
  *   from live10 l
  *   join game_players gp on gp.game_id = l.id
  *   join players p on p.id = gp.player_id
@@ -92,7 +123,8 @@ import { championName } from '../lib/champs/names.ts';
  * from r;
  * ```
  *
- * JSON and not CSV on purpose: `vision_score` and `damage_self_mitigated` are nullable, a CSV
+ * JSON and not CSV on purpose: `vision_score`, `damage_self_mitigated` and
+ * `damage_to_objectives` are all nullable, a CSV
  * turns a null into an empty cell, and reading that back as `0` would score a real tank at
  * nothing — the exact confusion migration `0014` exists to prevent. JSON keeps null null. A cell
  * the editor truncates cannot pass silently either: the paste stops parsing.
@@ -107,19 +139,36 @@ import { championName } from '../lib/champs/names.ts';
  *   against core on every game before anything is printed**: scoring with core's own bucket
  *   weights must reproduce core's own scores to 1e-9, or the run aborts. So the two columns can
  *   only differ by the weights, never by drift in a second implementation of the normalisation.
+ * - **Six** (`--addendum` only): `M7_13_SIX`, the retired M7.13 per-bucket weights, through that
+ *   same checked normaliser. Retired the same way and for the same reason as `M7_8_FLAT`: core
+ *   revised its numbers in place, so the only honest "before" is a literal beside the "after".
  *
- * Exit codes: 0 fine, 1 bad arguments, a file that will not parse, or the normalisation check
- * failing against core.
+ * Exit codes: 0 fine, 1 bad arguments, a file that will not parse, the normalisation check
+ * failing against core, or — in `--addendum` — a carry or support seat whose score moved.
  *
  * Honest limit, at the time this was written: the two queries above were read by eye against
- * `0001_init.sql` and `0014_vision_and_mitigation.sql` and have not been executed anywhere —
- * this session had no hosted credentials and could not reach the local stack either. The
- * script itself was exercised end to end on synthetic rows in the query's exact shape, including
- * a row with no role, a row with a null stat, and a truncated paste.
+ * `0001_init.sql`, `0014_vision_and_mitigation.sql` and `0015_damage_to_objectives.sql` and have
+ * not been executed anywhere — this session had no hosted credentials and could not reach the
+ * local stack either. The script itself was exercised end to end on synthetic rows in the
+ * query's exact shape, including a row with no role, a row with a null stat, and a truncated
+ * paste. The extraction query grew `gp.damage_to_objectives` with M7.14, so a `rows.json`
+ * pasted before that date will not parse against `RowSchema` — re-run the query, do not patch
+ * the file.
  */
 
-/** The six components, in core's order. Changing the order changes the last bits of a score. */
-const COMPONENTS = ['kda', 'damageToChamps', 'gold', 'visionScore', 'damageSelfMitigated', 'cs'] as const;
+/**
+ * The seven components, in core's order (`damageToObjectives` last, M7.14). Changing the order
+ * changes the last bits of a score.
+ */
+const COMPONENTS = [
+  'kda',
+  'damageToChamps',
+  'gold',
+  'visionScore',
+  'damageSelfMitigated',
+  'cs',
+  'damageToObjectives',
+] as const;
 
 type Component = (typeof COMPONENTS)[number];
 type Weights = Record<Component, number>;
@@ -128,6 +177,10 @@ type Weights = Record<Component, number>;
  * The retired M7.8 flat vector. M7.13 replaced it in place, so there is no flat scorer left in
  * `packages/core` and this must never become one: it exists in this one-off measurement, and in
  * core's own test, only so the "before" column can say what the old formula would have answered.
+ *
+ * `damageToObjectives: 0` is not a weight M7.8 had — M7.8 had six components and no seventh.
+ * It is how a six-component vector is written in a seven-component world, and it keeps this
+ * column numerically identical to what it printed before M7.14.
  */
 const M7_8_FLAT: Weights = {
   kda: 0.1,
@@ -136,6 +189,51 @@ const M7_8_FLAT: Weights = {
   visionScore: 0.25,
   damageSelfMitigated: 0.15,
   cs: 0.1,
+  damageToObjectives: 0,
+};
+
+/**
+ * The retired M7.13 per-bucket vectors: what core exported between M7.13 and M7.14, before the
+ * seventh component. Retired the same way `M7_8_FLAT` is, and kept here for the same one
+ * reason — `--addendum`'s "before" column. It must never become a second scorer.
+ *
+ * `damageToObjectives` is pinned to `0.00` in all three so the same `scoreWith` normaliser runs
+ * unchanged over both columns; the six-component score of a player is the seven-component sum
+ * with a zero term added, which is exact.
+ *
+ * The one row M7.14 moved is `jungle`: `kda` 0.25 to 0.20, `gold` 0.15 to 0.10, `cs` 0.15 to
+ * 0.10, and the 0.15 those three gave up became `damageToObjectives`. `carry` and `support` are
+ * character-for-character what core still has, which is exactly why the addendum can assert
+ * their scores did not move and expect zero.
+ */
+const M7_13_SIX: Record<PerformanceBucket, Weights> = {
+  carry: {
+    kda: 0.15,
+    damageToChamps: 0.3,
+    gold: 0.2,
+    visionScore: 0.05,
+    damageSelfMitigated: 0.1,
+    cs: 0.2,
+    damageToObjectives: 0,
+  },
+  jungle: {
+    kda: 0.25,
+    damageToChamps: 0.2,
+    gold: 0.15,
+    visionScore: 0.15,
+    damageSelfMitigated: 0.1,
+    cs: 0.15,
+    damageToObjectives: 0,
+  },
+  support: {
+    kda: 0.25,
+    damageToChamps: 0.05,
+    gold: 0.05,
+    visionScore: 0.4,
+    damageSelfMitigated: 0.15,
+    cs: 0.1,
+    damageToObjectives: 0,
+  },
 };
 
 const ROLES: readonly string[] = ['top', 'jungle', 'mid', 'adc', 'support'];
@@ -161,6 +259,9 @@ const RowSchema = z.looseObject({
   vision_score: z.number().nullable(),
   damage_self_mitigated: z.number().nullable(),
   cs: z.number().nullable(),
+  // M7.14's seventh. Required, not `.optional()`: a paste without the column is a paste from
+  // the old query, and the addendum would silently score nothing rather than say so.
+  damage_to_objectives: z.number().nullable(),
 });
 
 type Row = z.infer<typeof RowSchema>;
@@ -182,20 +283,24 @@ interface Args {
   file: string;
   detail: boolean;
   quoted: boolean;
+  /** M7.14: print six-against-seven instead of flat-against-new. See the header comment. */
+  addendum: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args | null {
   let file: string | null = null;
   let detail = false;
   let quoted = false;
+  let addendum = false;
   for (const arg of argv) {
     if (arg === '--detail') detail = true;
     else if (arg === '--quoted') quoted = true;
+    else if (arg === '--addendum') addendum = true;
     else if (arg.startsWith('--')) return null;
     else if (file === null) file = arg;
     else return null;
   }
-  return file === null ? null : { file, detail, quoted };
+  return file === null ? null : { file, detail, quoted, addendum };
 }
 
 /**
@@ -254,6 +359,7 @@ function toGames(rows: readonly Row[]): Game[] {
       visionScore: row.vision_score,
       damageSelfMitigated: row.damage_self_mitigated,
       cs: row.cs,
+      damageToObjectives: row.damage_to_objectives,
     });
   }
   // `started_at` order, the same order the rating fold uses, by instant and not by string: two
@@ -265,7 +371,7 @@ function toGames(rows: readonly Row[]): Game[] {
   return [...byGame.values()].sort((a, b) => at(a) - at(b) || a.id.localeCompare(b.id));
 }
 
-/** The six component values for one player, or null if any of the eight numbers is missing. */
+/** The seven component values for one player, or null if any of the nine numbers is missing. */
 function componentsOf(p: PerformancePlayer): Weights | null {
   const n = (v: number | null | undefined): number | null =>
     typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -277,6 +383,7 @@ function componentsOf(p: PerformancePlayer): Weights | null {
   const visionScore = n(p.visionScore);
   const damageSelfMitigated = n(p.damageSelfMitigated);
   const cs = n(p.cs);
+  const damageToObjectives = n(p.damageToObjectives);
   if (
     kills === null ||
     deaths === null ||
@@ -285,7 +392,8 @@ function componentsOf(p: PerformancePlayer): Weights | null {
     gold === null ||
     visionScore === null ||
     damageSelfMitigated === null ||
-    cs === null
+    cs === null ||
+    damageToObjectives === null
   ) {
     return null;
   }
@@ -296,6 +404,7 @@ function componentsOf(p: PerformancePlayer): Weights | null {
     visionScore,
     damageSelfMitigated,
     cs,
+    damageToObjectives,
   };
 }
 
@@ -357,10 +466,22 @@ function bestOf(seats: readonly Seat[], scores: Map<string, number>, side: Side)
   return winner.puuid;
 }
 
-function bucketWeightsFor(p: PerformancePlayer): Weights | null {
+/** The bucket core puts this player's role in, or null for no role and for anything else. */
+function bucketOf(p: PerformancePlayer): PerformanceBucket | null {
   const role = p.role;
   if (role === null || role === undefined || !ROLES.includes(role)) return null;
-  return config.rating.performance[config.rating.performanceBucket[role]];
+  return config.rating.performanceBucket[role];
+}
+
+function bucketWeightsFor(p: PerformancePlayer): Weights | null {
+  const bucket = bucketOf(p);
+  return bucket === null ? null : config.rating.performance[bucket];
+}
+
+/** The same role-to-bucket map, against the retired M7.13 weights. `--addendum`'s "before". */
+function sixWeightsFor(p: PerformancePlayer): Weights | null {
+  const bucket = bucketOf(p);
+  return bucket === null ? null : M7_13_SIX[bucket];
 }
 
 interface Verdict {
@@ -372,8 +493,11 @@ interface GameResult {
   game: Game;
   flat: Verdict | null;
   bucket: Verdict | null;
+  /** The M7.13 six-component verdict, `--addendum`'s "before". Null whenever `bucket` is. */
+  six: Verdict | null;
   flatScores: Map<string, number> | null;
   bucketScores: Map<string, number> | null;
+  sixScores: Map<string, number> | null;
   declined: string | null;
 }
 
@@ -388,13 +512,16 @@ function evaluate(game: Game): GameResult {
       game,
       flat: null,
       bucket: null,
+      six: null,
       flatScores: null,
       bucketScores: null,
+      sixScores: null,
       declined: `not five a side (${blue} blue, ${red} red)`,
     };
   }
 
   const flatScores = scoreWith(seats, () => M7_8_FLAT);
+  const sixScores = scoreWith(seats, sixWeightsFor);
   const localBucketScores = scoreWith(seats, bucketWeightsFor);
   const coreScores = performanceScores(seats);
 
@@ -430,8 +557,16 @@ function evaluate(game: Game): GameResult {
         ? null
         : { mvp: bestOf(seats, flatScores, game.winningSide), ace: bestOf(seats, flatScores, losing) },
     bucket: coreVerdict === null ? null : { mvp: coreVerdict.mvp, ace: coreVerdict.ace },
+    // The six-component verdict is read through `bestOf`, the same tie-break core uses, and it
+    // exists only where core's own verdict does: the two columns of the addendum are always the
+    // same set of games, because the missing-input rule is per game and identical for both.
+    six:
+      sixScores === null || coreVerdict === null
+        ? null
+        : { mvp: bestOf(seats, sixScores, game.winningSide), ace: bestOf(seats, sixScores, losing) },
     flatScores,
     bucketScores: localBucketScores,
+    sixScores,
     declined,
   };
 }
@@ -474,11 +609,302 @@ function roleCounts(
   return counts;
 }
 
+/**
+ * Every seat's share of the game-wide maximum of one component, or null when the game cannot be
+ * scored at all. The same normalisation the scores use, pulled out so the addendum can print the
+ * objective-damage share that produced a jungler's move rather than only the move.
+ */
+function sharesOf(game: Game, component: Component): Map<string, number> | null {
+  const values: Weights[] = [];
+  for (const s of game.seats) {
+    const v = componentsOf(s);
+    if (v === null) return null;
+    values.push(v);
+  }
+  let max = 0;
+  for (const v of values) if (v[component] > max) max = v[component];
+  const out = new Map<string, number>();
+  game.seats.forEach((s, i) => {
+    const v = values[i]?.[component] ?? 0;
+    out.set(s.puuid, max <= 0 ? 0 : v / max);
+  });
+  return out;
+}
+
+const f3 = (n: number): string => n.toFixed(3);
+const f4 = (n: number): string => n.toFixed(4);
+const signed4 = (n: number): string => (n > 0 ? `+${n.toFixed(4)}` : n.toFixed(4));
+
+/**
+ * One game's ten seats with every raw number and both score columns. `'flat'` is the table
+ * `--detail` has always printed, unchanged; `'addendum'` is the same rows with the objective
+ * damage that only matters to M7.14, and six against seven instead of flat against new.
+ */
+function fullGameTable(r: GameResult, mode: 'flat' | 'addendum'): string {
+  const seats = [...r.game.seats].sort(
+    (a, b) => a.side - b.side || ROLES.indexOf(a.role ?? '') - ROLES.indexOf(b.role ?? ''),
+  );
+  const common = ['side', 'role', 'player', 'champion', 'k/d/a', 'dmg', 'gold', 'vis', 'mit', 'cs'];
+  const headers =
+    mode === 'flat'
+      ? [...common, 'flat', 'buckets', 'pick']
+      : [...common, 'obj', 'six', 'seven', 'Δ', 'pick'];
+  return table(
+    headers,
+    seats.map((s) => {
+      const marks: string[] = [];
+      if (mode === 'flat') {
+        if (s.puuid === r.flat?.mvp) marks.push('MVP(flat)');
+        if (s.puuid === r.bucket?.mvp) marks.push('MVP(new)');
+        if (s.puuid === r.flat?.ace) marks.push('ACE(flat)');
+        if (s.puuid === r.bucket?.ace) marks.push('ACE(new)');
+      } else {
+        if (s.puuid === r.six?.mvp) marks.push('MVP(six)');
+        if (s.puuid === r.bucket?.mvp) marks.push('MVP(seven)');
+        if (s.puuid === r.six?.ace) marks.push('ACE(six)');
+        if (s.puuid === r.bucket?.ace) marks.push('ACE(seven)');
+      }
+      const cells = [
+        s.side === 100 ? 'blue' : 'red',
+        s.role ?? 'no role',
+        s.name,
+        championName(s.championId),
+        `${s.kills ?? '?'}/${s.deaths ?? '?'}/${s.assists ?? '?'}`,
+        String(s.damageToChamps ?? '?'),
+        String(s.gold ?? '?'),
+        String(s.visionScore ?? '?'),
+        String(s.damageSelfMitigated ?? '?'),
+        String(s.cs ?? '?'),
+      ];
+      if (mode === 'flat') {
+        return [
+          ...cells,
+          f3(r.flatScores?.get(s.puuid) ?? 0),
+          f3(r.bucketScores?.get(s.puuid) ?? 0),
+          marks.join(' '),
+        ];
+      }
+      const six = r.sixScores?.get(s.puuid) ?? 0;
+      const seven = r.bucketScores?.get(s.puuid) ?? 0;
+      return [
+        ...cells,
+        String(s.damageToObjectives ?? '?'),
+        f4(six),
+        f4(seven),
+        signed4(seven - six),
+        marks.join(' '),
+      ];
+    }),
+  );
+}
+
+/**
+ * The M7.14 addendum: six components against seven, both bucket-weighted, so the only thing
+ * that differs between the two columns is the seventh component and the three jungle weights it
+ * came out of. Returns false when a carry or a support seat moved, which would mean M7.14's
+ * central claim is false on real data and nothing else in here should be quoted.
+ */
+function printAddendum(say: (s?: string) => void, results: readonly GameResult[], detail: boolean): boolean {
+  const scored = results.filter((r) => r.six !== null && r.bucket !== null);
+  const mvpMoved = scored.filter((r) => r.six?.mvp !== r.bucket?.mvp);
+  const aceMoved = scored.filter((r) => r.six?.ace !== r.bucket?.ace);
+
+  say();
+  say('## Every jungler, six against seven');
+  say();
+  say('Both junglers of every scored game, whether or not the pick moved, with the objective damage');
+  say('that did it: the raw number, and the share of the game-wide best that the normaliser actually');
+  say('multiplies. `pick` is what that seat was called under each formula.');
+  say();
+
+  const jungleRows: string[][] = [];
+  let jungleSeats = 0;
+  let up = 0;
+  let down = 0;
+  let same = 0;
+  let biggestRise = 0;
+  let biggestFall = 0;
+  // Numbered over every game, not over the scored ones, so `#` means the same row here as it
+  // does in the default report and in the declined list above.
+  results.forEach((r, i) => {
+    if (r.six === null || r.bucket === null) return;
+    const shares = sharesOf(r.game, 'damageToObjectives');
+    for (const s of r.game.seats) {
+      if (s.role !== 'jungle') continue;
+      jungleSeats += 1;
+      const six = r.sixScores?.get(s.puuid) ?? 0;
+      const seven = r.bucketScores?.get(s.puuid) ?? 0;
+      const delta = seven - six;
+      if (delta > 0) up += 1;
+      else if (delta < 0) down += 1;
+      else same += 1;
+      if (delta > biggestRise) biggestRise = delta;
+      if (delta < biggestFall) biggestFall = delta;
+      const was = (v: Verdict | null): string =>
+        v === null ? '—' : v.mvp === s.puuid ? 'MVP' : v.ace === s.puuid ? 'ACE' : '—';
+      const before = was(r.six);
+      const after = was(r.bucket);
+      jungleRows.push([
+        String(i + 1),
+        night(r.game.startedAt),
+        `${s.name} (${championName(s.championId)})`,
+        s.side === r.game.winningSide ? 'won' : 'lost',
+        String(s.damageToObjectives ?? '?'),
+        shares === null ? '?' : f3(shares.get(s.puuid) ?? 0),
+        f4(six),
+        f4(seven),
+        signed4(delta),
+        before,
+        after,
+        before === after ? '' : 'moved',
+      ]);
+    }
+  });
+  say(
+    table(
+      [
+        '#',
+        'night',
+        'jungler',
+        'side',
+        'obj dmg',
+        'obj share',
+        'six',
+        'seven',
+        'Δ',
+        'pick six',
+        'pick seven',
+        'moved',
+      ],
+      jungleRows,
+    ),
+  );
+
+  // The claim, checked against the rows rather than asserted: a zero weight on the seventh
+  // component means `score + 0 * share`, which is exact, so these must be equal to the bit.
+  let checkedSeats = 0;
+  let worstDrift = 0;
+  const drifted: string[] = [];
+  for (const r of scored) {
+    for (const s of r.game.seats) {
+      if (s.role === 'jungle' || s.role === null) continue;
+      checkedSeats += 1;
+      const six = r.sixScores?.get(s.puuid) ?? 0;
+      const seven = r.bucketScores?.get(s.puuid) ?? 0;
+      const delta = Math.abs(seven - six);
+      if (delta > worstDrift) worstDrift = delta;
+      if (delta !== 0) {
+        drifted.push(`${night(r.game.startedAt)} \`${r.game.id}\`: ${s.name} (${s.role}) ${six} → ${seven}`);
+      }
+    }
+  }
+
+  const movedAny = mvpMoved.length > 0 || aceMoved.length > 0;
+  if (movedAny) {
+    say();
+    say('## Every pick that moved, with both scores');
+    say();
+    const movedRows: string[][] = [];
+    for (const r of scored) {
+      for (const title of ['MVP', 'ACE'] as const) {
+        const before = title === 'MVP' ? r.six?.mvp : r.six?.ace;
+        const after = title === 'MVP' ? r.bucket?.mvp : r.bucket?.ace;
+        if (before === undefined || after === undefined || before === after) continue;
+        const fmt = (p: string): string =>
+          `${f4(r.sixScores?.get(p) ?? 0)} / ${f4(r.bucketScores?.get(p) ?? 0)}`;
+        movedRows.push([
+          night(r.game.startedAt),
+          title,
+          label(r.game, before),
+          fmt(before),
+          label(r.game, after),
+          fmt(after),
+        ]);
+      }
+    }
+    say(table(['night', 'pick', 'six picked', 'six / seven', 'seven picked', 'six / seven'], movedRows));
+  }
+
+  const mvpSix = roleCounts(scored, (r) => r.six?.mvp ?? null);
+  const mvpSeven = roleCounts(scored, (r) => r.bucket?.mvp ?? null);
+  const aceSix = roleCounts(scored, (r) => r.six?.ace ?? null);
+  const aceSeven = roleCounts(scored, (r) => r.bucket?.ace ?? null);
+  say();
+  say('### Picks by role, six against seven');
+  say();
+  say(
+    table(
+      ['role', 'MVP six', 'MVP seven', 'ACE six', 'ACE seven', 'both six', 'both seven'],
+      [...ROLES, 'no role'].map((role) => [
+        role,
+        String(mvpSix.get(role) ?? 0),
+        String(mvpSeven.get(role) ?? 0),
+        String(aceSix.get(role) ?? 0),
+        String(aceSeven.get(role) ?? 0),
+        String((mvpSix.get(role) ?? 0) + (aceSix.get(role) ?? 0)),
+        String((mvpSeven.get(role) ?? 0) + (aceSeven.get(role) ?? 0)),
+      ]),
+    ),
+  );
+
+  say();
+  say('## Totals');
+  say();
+  say(`- Games scored under both formulas: **${scored.length}** of ${results.length}.`);
+  say(`- **MVPs that moved: ${mvpMoved.length} of ${scored.length}.**`);
+  say(`- **ACEs that moved: ${aceMoved.length} of ${scored.length}.**`);
+  say(
+    `- Games where neither pick moved: ${
+      scored.filter((r) => r.six?.mvp === r.bucket?.mvp && r.six?.ace === r.bucket?.ace).length
+    }.`,
+  );
+  say(
+    `- Jungle seats: ${jungleSeats}. Score rose on ${up}, fell on ${down}, identical on ${same}. Largest rise ${signed4(
+      biggestRise,
+    )}, largest fall ${signed4(biggestFall)}.`,
+  );
+  if (drifted.length === 0) {
+    say(
+      `- **Carry and support seats: ${checkedSeats} checked, every one bit-for-bit identical under six and seven** (largest |Δ| = 0). M7.14's claim holds on the real rows, not only in the config comment.`,
+    );
+  } else {
+    say(
+      `- **Carry and support seats: ${drifted.length} of ${checkedSeats} moved, largest |Δ| = ${worstDrift}.** M7.14 says this cannot happen; do not quote anything above until it is explained.`,
+    );
+    for (const d of drifted) say(`  - ${d}`);
+  }
+  const noRole = scored.reduce((n, r) => n + r.game.seats.filter((s) => s.role === null).length, 0);
+  if (noRole > 0) say(`- Seats with no role inside a scored game: ${noRole}. (Core declines those games.)`);
+
+  if (detail) {
+    say();
+    say('## Every game in full');
+    for (const r of results) {
+      say();
+      say(
+        `### ${night(r.game.startedAt)} — \`${r.game.lcuGameId}\` — ${r.game.winningSide === 100 ? 'blue' : 'red'} won`,
+      );
+      say();
+      say(fullGameTable(r, 'addendum'));
+    }
+  }
+
+  say();
+  say('## Judgement');
+  say();
+  say('Written by hand, not by this script. The question the addendum asks is narrower than');
+  say('M7.13\'s: not "are the picks better" but "did giving a jungler 0.15 for objectives move the');
+  say('right junglers, and only junglers". Read the moved rows against the objective share column:');
+  say('a jungler who gained the pick should be one who actually took the objectives.');
+
+  return drifted.length === 0;
+}
+
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
   if (args === null) {
     console.error(
-      'usage: pnpm --filter web exec node --import tsx scripts/m7-13-battle-test.ts <rows.json> [--detail] [--quoted]',
+      'usage: pnpm --filter web exec node --import tsx scripts/m7-13-battle-test.ts <rows.json> [--addendum] [--detail] [--quoted]',
     );
     process.exitCode = 1;
     return;
@@ -489,8 +915,22 @@ function main(): void {
     const raw = unwrap(readFileSync(args.file, 'utf8').trim());
     rows = raw.map((r, i) => {
       const parsed = RowSchema.safeParse(r);
-      if (!parsed.success)
-        throw new Error(`row ${i}: ${parsed.error.issues.map((e) => e.message).join('; ')}`);
+      if (!parsed.success) {
+        // Name the column, not just the type: the overwhelmingly likely cause of a failure here
+        // is a `rows.json` pasted before M7.14 added `damage_to_objectives` to the query, and
+        // "expected number, received undefined" on its own does not say which column is missing.
+        const issues = parsed.error.issues.map((e) =>
+          e.path.length > 0 ? `${e.path.join('.')}: ${e.message}` : e.message,
+        );
+        const stale = parsed.error.issues.some((e) => e.path[0] === 'damage_to_objectives');
+        throw new Error(
+          `row ${i}: ${issues.join('; ')}${
+            stale
+              ? ' — this paste predates M7.14. Re-run query 2 from the header comment, which now selects gp.damage_to_objectives.'
+              : ''
+          }`,
+        );
+      }
       return parsed.data;
     });
   } catch (error) {
@@ -507,7 +947,11 @@ function main(): void {
     for (const line of s.split('\n')) out.push(line);
   };
 
-  say(`# M7.13 battle test — flat M7.8 against the three buckets`);
+  say(
+    args.addendum
+      ? '# M7.14 addendum — six components against seven'
+      : '# M7.13 battle test — flat M7.8 against the three buckets',
+  );
   say();
   say(
     `${rows.length} player rows, ${games.length} games, ${night(games[0]?.startedAt ?? '')} to ${night(
@@ -534,6 +978,27 @@ function main(): void {
   } catch (error) {
     console.error(`m7-13-battle-test: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
+    return;
+  }
+
+  const emit = (): void => {
+    console.log(args.quoted ? out.map((l) => `    > ${l}`.trimEnd()).join('\n') : out.join('\n'));
+  };
+
+  // `--addendum` is a different report over the same rows, not an extra section on this one: the
+  // flat column has no business in a table that is meant to isolate M7.14. Everything above this
+  // line — the counts, the two warnings — is common to both and already said.
+  if (args.addendum) {
+    const cannot = results.filter((r) => r.declined !== null);
+    if (cannot.length > 0) {
+      say();
+      say(
+        `Games neither formula can score, excluded from every total below: ${cannot.length}. A game missing \`damage_to_objectives\` for even one of the ten is one of these, under six as much as under seven — the missing-input rule is per game and does not care what the weight on the missing component is.`,
+      );
+      for (const r of cannot) say(`- ${night(r.game.startedAt)} \`${r.game.id}\`: ${r.declined}`);
+    }
+    if (!printAddendum(say, results, args.detail)) process.exitCode = 1;
+    emit();
     return;
   }
 
@@ -672,49 +1137,7 @@ function main(): void {
         `### ${night(r.game.startedAt)} — \`${r.game.lcuGameId}\` — ${r.game.winningSide === 100 ? 'blue' : 'red'} won`,
       );
       say();
-      say(
-        table(
-          [
-            'side',
-            'role',
-            'player',
-            'champion',
-            'k/d/a',
-            'dmg',
-            'gold',
-            'vis',
-            'mit',
-            'cs',
-            'flat',
-            'buckets',
-            'pick',
-          ],
-          [...r.game.seats]
-            .sort((a, b) => a.side - b.side || ROLES.indexOf(a.role ?? '') - ROLES.indexOf(b.role ?? ''))
-            .map((s) => {
-              const marks: string[] = [];
-              if (s.puuid === r.flat?.mvp) marks.push('MVP(flat)');
-              if (s.puuid === r.bucket?.mvp) marks.push('MVP(new)');
-              if (s.puuid === r.flat?.ace) marks.push('ACE(flat)');
-              if (s.puuid === r.bucket?.ace) marks.push('ACE(new)');
-              return [
-                s.side === 100 ? 'blue' : 'red',
-                s.role ?? 'no role',
-                s.name,
-                championName(s.championId),
-                `${s.kills ?? '?'}/${s.deaths ?? '?'}/${s.assists ?? '?'}`,
-                String(s.damageToChamps ?? '?'),
-                String(s.gold ?? '?'),
-                String(s.visionScore ?? '?'),
-                String(s.damageSelfMitigated ?? '?'),
-                String(s.cs ?? '?'),
-                (r.flatScores?.get(s.puuid) ?? 0).toFixed(3),
-                (r.bucketScores?.get(s.puuid) ?? 0).toFixed(3),
-                marks.join(' '),
-              ];
-            }),
-        ),
-      );
+      say(fullGameTable(r, 'flat'));
     }
   }
 
@@ -727,7 +1150,7 @@ function main(): void {
   );
   say('reports — the weights are not tuned until the table looks nicer.');
 
-  console.log(args.quoted ? out.map((l) => `    > ${l}`.trimEnd()).join('\n') : out.join('\n'));
+  emit();
 }
 
 main();

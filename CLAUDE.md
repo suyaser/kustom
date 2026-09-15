@@ -61,7 +61,7 @@ pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
                              # zero. A blob that never carried the numbers, or carried one no
                              # integer column can hold, leaves them null on purpose
                              # (null is not zero) and never aborts the run.
-pnpm --filter web m7-13-battle-test <path-to-rows.json> [--detail] [--quoted]
+pnpm --filter web m7-13-battle-test <path-to-rows.json> [--detail] [--quoted] [--addendum]
                              # M7.13: compares the retired flat M7.8 formula against the current
                              # rating/performance.ts export over a set of real games, game by
                              # game, MVP and ACE. Takes no credentials and writes nothing -- the
@@ -69,7 +69,10 @@ pnpm --filter web m7-13-battle-test <path-to-rows.json> [--detail] [--quoted]
                              # (SQL pasted from the Supabase editor) and saves to a file first.
                              # --detail prints every game's full ten; --quoted prefixes every
                              # line with "    > " so the output drops straight under a milestones.md
-                             # brief. Re-run for M7.14's jungle-only addendum once that lands.
+                             # brief. --addendum prints M7.14's jungle-only comparison instead --
+                             # the retired six-component bucket weights against the current
+                             # seven-component export, every jungler's score before and after, and
+                             # a check that no carry or support seat moved (exit 1 if one did).
 pnpm --filter companion dev  # needs the League client running on this machine (M2.1)
 pnpm --filter companion build:win   # bundle + Node SEA -> apps/companion/dist/Kustom.exe + Kustom.exe.sha256 (from any host; build:exe is an alias)
 pnpm --filter companion build:host  # the same pipeline for this machine's platform, to check the exe before a Windows run
