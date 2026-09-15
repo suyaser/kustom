@@ -12,8 +12,8 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M2 Companion v1: roster and results | in progress | M2.1 to M2.5, M2.7 to M2.10, M2.13 to M2.15, M2.18 to M2.20 done; M2.6 built as Kustom.exe 0.1.3 (apps/companion/dist, sha256 ffe6345e…), publish (v0.1.3, plus the kustom-releases README rename) and the Windows run pending on the user; **a 0.1.5 bump and publish is owed by M4.1's gate flip** — 0.1.4 has `verified: false` baked in and nacks every queued lobby write; M2 ticks after Session 2 of docs/06-test-night.md. |
 | M3 Teams in Discord and on the web | in progress | M3.0 to M3.5, M3.7, M3.8, M3.10 to M3.24 done; the whole web is Floodlit as of 2026-09-10 (shell, tonight page, leaderboard, player page, rail). M3.6 (migration 0009), M3.25, M3.27, M3.28, M3.29 landed. M3.26 and M3.30 landed 2026-09-11. Nothing calls `/api/cron/leaderboard` yet. **Reopened 2026-09-15 by M3.31** (how even the teams are, as a percentage): it is one more line in the explanation under the teams, computed from the `blue_win_prob` the split already stores, so it belongs here and not in M8. Sequenced after M7.2 and M7.8, which are editing the same core file. |
 | M4 Lobby automation, voice split, presence | in progress | **M4.1 done 2026-09-12**: companion and server halves landed (migration 0006 on kustom); the first live verify-commands (16.17, 2026-09-09) got 500 INVALID_LOBBY with the community body, so 0.1.4 carried a corrected probe built from the client's own lobby UI code, and the rerun on 16.18 (2026-09-12) had all three writes accepted first try (200/200/204) — both gates and the three reference rows are green. M4.2 server side and M4.9 lock index landed 2026-09-10 (migrations 0006 and 0008 on kustom; page control pending on the web engineer). Next: M4.3. Needs M3. M4.7a control and M4.10 lobby line landed 2026-09-11. M4.7 both halves landed 2026-09-11. M4.12 landed 2026-09-11. **The flip is not live for the group yet**: the exe the group runs is 0.1.4 (the probe build, cut before the flip) with `LOBBY_WRITE_VERIFICATION.verified: false` compiled in, so it nacks `endpoint_unverified` for every command the now-open server queues — a companion version bump and `pnpm --filter companion release` are owed first (tracked on M2.6). Remaining: the companion rebuild, M4.8 and M4.11 (and M4.3's acceptance 7, which is M4.11). |
-| M5 Backfill, windows, stats | in progress | M5.1, M5.2, M5.11 landed (backfill walker, scan route, approval toggle, rebuild-ratings, dropped lobby status); migrations 0004 and 0005 pushed to kustom. **Reshaped 2026-09-10**: seasons are gone (M5.3 dropped, ratings never reset) and the board is read through time windows instead — M5.9 boundaries, M5.12 picker, M5.10 + M5.13 the automatic weekly and monthly Discord post, M5.14 removes season creation. Roles become inferred from play (M5.16 to M5.18) and `/p/[puuid]` explains a rating (M5.15). M5.4 to M5.7 need M3. Independent of M4. M5.17 inferred roles stored (migration 0010 on kustom) and M5.18 mechanism landed 2026-09-10; M5.9/M5.12/M5.14 windows in progress. M5.5 missed-game report landed 2026-09-10. M5.9, M5.12, M5.14 windows landed 2026-09-10; M5.13 and M5.10 landed 2026-09-11 (migration 0011 on kustom, Vercel Cron daily 04:30 UTC); M5.15 and M4.7 in progress; next M5.4, M5.8. M5.4 /stats and M5.8 landed 2026-09-11. M5.7 stored seed landed 2026-09-11 (migration 0012 on kustom). M5.20 and M5.22 landed 2026-09-11. M5.21 and M5.23 landed 2026-09-11. M5.24 `/fun` landed 2026-09-12. M5.25 `/games` landed 2026-09-12. M5.26 Rift/ARAM split on `/games` and `/fun` landed 2026-09-12. M5.27 `/fun` first blood, deaths, steals and fear bans from `games.raw` landed 2026-09-12. M5.28 `/fun` This game expand landed 2026-09-12. M5.29 `/fun` museum groups, steal names, champion tables and display roles on the open scoreboard landed 2026-09-12. M5.30 `/leaderboard` per-game expand landed 2026-09-13. M5.31 `/fun` OTP vs variety pools landed 2026-09-13. M5.32 Daily Mystery landed 2026-09-13 (migration 0013; `/` card + `/mystery`; civil midnight in `CUSTOMS_NIGHT_TZ`; Vercel Cron `0 21,22 * * *` plus lazy create on first GET). M5.33 `/fun` lucky trash vs most robbed landed 2026-09-13. **M5.34 landed 2026-09-15: the week starts on Sunday, not Monday** (the user; Egypt's week) — a `weekStart` anchor change with no schema, no rating and no cron-schedule change, landed before M7.3, which reseeds the weekly rating on that boundary; the hosted flip-day overlap was stamped so no duplicate board reached the channel. Open: M5.6 (needs a client), M5.18 table (needs a capture night). **M5.35 added 2026-09-15** (the user, off product's role-detection research): two extra lines to read off the M5.18 capture night — whether `gameData.teamOne[]/teamTwo[].selectedPosition` is a real per-player role at `GameStart` or leftover queue preference. It rides on that night, adds no endpoint, no companion behaviour and no release, and cannot be dispatched before the recording exists. Paired with **M7.12**, it is an input to a possible future **M7.13**, which the user has not approved and which is not scoped. |
-| M7 Ratings that are fair | in progress | Opened 2026-09-15 from the user's four settled decisions after a week of customs left the group calling the ratings unfair. Eleven tasks, plus **M7.12** appended the same day: **M7.1** ARAM never rates (the bug; land it first), **M7.2** to **M7.4** a second weekly rating track that never forms teams, **M7.5** and **M7.6** decaying fill protection, **M7.7** to **M7.9** the MVP / ACE bonus (M7.7 is the blocking persist), **M7.10** the post and the player page name the MVP and the ACE, **M7.11** the single `rebuild-ratings` run that closes the milestone. Three later resolutions, 2026-09-15: **one rebuild at the end and none per fix**, **no monthly track** (the month windows keep the all-time number, decided, not deferred), and **the bonus is surfaced, not silent**. Every task changes the rating model, which is why none of them is an M5 task. **Runs before M6**, which is still waiting on a month of M2. **M5.34 (the week starts on Sunday) lands before M7.3**: M7.2 to M7.4's briefs were amended 2026-09-15 to say Sunday wherever they named the week's reset day. **M7.1 landed 2026-09-15.** M7.7's verification half landed the same day (vision score / damage-mitigated corroborated for real ten-player customs; no companion release owed). M7.2 (the weekly rating fold) landed 2026-09-15. **M7.5 landed 2026-09-15**: fill protection in `packages/core`'s balancer, `config.balance.fillProtectionFactor` (1.0), charged once and read from both `assignRoles` and the split score so the two cannot drift. **M7.8 landed 2026-09-15**: `rating/performance.ts` — `performanceScores`, `mvpAce`, `applyMvpAceBonus`, `config.rating.performance` and `config.rating.mvp`; `rateGame` untouched, `sigma` untouched, no MVP at all for a game missing any component; wired into nothing until M7.9. **M7.7 landed 2026-09-15**, both halves: migration `0014` adds `vision_score` / `damage_self_mitigated` to `game_players` nullable with no default, ingest fills both off the posted `raw` block through the one existing reader, and the reviewer's blocking find — a negative or out-of-int4 number in a blob 500ing ingest for ever — is gated by `storedStat` with a regression test. Pushed to the hosted project the same day; `pnpm --filter web copy-raw-stats` ran against it (44 games with a gap, all 44 fillable, 436 rows filled, 0 rows still short) and a second run confirmed idempotent. **M5.34 (the week starts on Sunday) landed 2026-09-15**, including the hosted `window_posts` stamp that suppresses the overlapping Monday-anchored week. **M7.6 landed 2026-09-15**: `gamesSinceLastFill` computed in `apps/web/lib/ingest/balance.ts` and handed to the balancer, live in the balance path immediately — no rebuild needed, since it is a balancer input, not part of the fold. **M7.3 landed 2026-09-15**: the weekly board reads the weekly rating; see its own checkbox for detail. Next: M7.9 (needs M7.7 ✓ and M7.8 ✓), then M7.4 (needs M7.3 ✓), M7.10, M7.11. M7.12 can run any time, independently. **M7.3's sort key was settled 2026-09-15 before dispatch: the two week windows sort on `Rating`, not on Proven** (the user; decision row, `00-product.md` carve-out, brief, copy and acceptance all rewritten the same day — M7.2's output is unaffected, this is only what M7.3's board sorts and prints). **M7.12 added 2026-09-15** (the user, off product's role-detection research): a read-only measurement of how good `detectedTeamPosition` actually is on ten-human customs. It changes nothing, owes no rebuild, does not wait on M7.11 — and **blocks every role-aware proposal** until it lands. **Pointer, and it is only a pointer: M7.12 and M5.35 are the two inputs to a possible future M7.13**, a revision of M7.8's six performance components once we know whether roles can be trusted (a support and an adc are scored on the same six numbers today). **M7.13 is not approved and is not scoped** — no ID is reserved for it beyond this sentence, no brief exists, and nobody picks it up until the user has read M7.12's answer and said so. |
+| M5 Backfill, windows, stats | in progress | M5.1, M5.2, M5.11 landed (backfill walker, scan route, approval toggle, rebuild-ratings, dropped lobby status); migrations 0004 and 0005 pushed to kustom. **Reshaped 2026-09-10**: seasons are gone (M5.3 dropped, ratings never reset) and the board is read through time windows instead — M5.9 boundaries, M5.12 picker, M5.10 + M5.13 the automatic weekly and monthly Discord post, M5.14 removes season creation. Roles become inferred from play (M5.16 to M5.18) and `/p/[puuid]` explains a rating (M5.15). M5.4 to M5.7 need M3. Independent of M4. M5.17 inferred roles stored (migration 0010 on kustom) and M5.18 mechanism landed 2026-09-10; M5.9/M5.12/M5.14 windows in progress. M5.5 missed-game report landed 2026-09-10. M5.9, M5.12, M5.14 windows landed 2026-09-10; M5.13 and M5.10 landed 2026-09-11 (migration 0011 on kustom, Vercel Cron daily 04:30 UTC); M5.15 and M4.7 in progress; next M5.4, M5.8. M5.4 /stats and M5.8 landed 2026-09-11. M5.7 stored seed landed 2026-09-11 (migration 0012 on kustom). M5.20 and M5.22 landed 2026-09-11. M5.21 and M5.23 landed 2026-09-11. M5.24 `/fun` landed 2026-09-12. M5.25 `/games` landed 2026-09-12. M5.26 Rift/ARAM split on `/games` and `/fun` landed 2026-09-12. M5.27 `/fun` first blood, deaths, steals and fear bans from `games.raw` landed 2026-09-12. M5.28 `/fun` This game expand landed 2026-09-12. M5.29 `/fun` museum groups, steal names, champion tables and display roles on the open scoreboard landed 2026-09-12. M5.30 `/leaderboard` per-game expand landed 2026-09-13. M5.31 `/fun` OTP vs variety pools landed 2026-09-13. M5.32 Daily Mystery landed 2026-09-13 (migration 0013; `/` card + `/mystery`; civil midnight in `CUSTOMS_NIGHT_TZ`; Vercel Cron `0 21,22 * * *` plus lazy create on first GET). M5.33 `/fun` lucky trash vs most robbed landed 2026-09-13. **M5.34 landed 2026-09-15: the week starts on Sunday, not Monday** (the user; Egypt's week) — a `weekStart` anchor change with no schema, no rating and no cron-schedule change, landed before M7.3, which reseeds the weekly rating on that boundary; the hosted flip-day overlap was stamped so no duplicate board reached the channel. Open: M5.6 (needs a client), M5.18 table (needs a capture night). **M5.35 added 2026-09-15** (the user, off product's role-detection research): two extra lines to read off the M5.18 capture night — whether `gameData.teamOne[]/teamTwo[].selectedPosition` is a real per-player role at `GameStart` or leftover queue preference. It rides on that night, adds no endpoint, no companion behaviour and no release, and cannot be dispatched before the recording exists. It was paired with **M7.12** as an input to a possible future **M7.13** — **M7.12 landed and M7.13 is now scoped** (the role-bucketed performance weights, 2026-09-15), and it is scoped off `detectedTeamPosition` alone, so **M5.35 is not blocking it**. What M5.35 would still buy is a role for games the end-of-game block never covered; and note that until **M5.18** gives backfilled games a role at all, M7.13 gives those games no MVP, on purpose. |
+| M7 Ratings that are fair | in progress | Opened 2026-09-15 from the user's four settled decisions after a week of customs left the group calling the ratings unfair. Eleven tasks, plus **M7.12** appended the same day: **M7.1** ARAM never rates (the bug; land it first), **M7.2** to **M7.4** a second weekly rating track that never forms teams, **M7.5** and **M7.6** decaying fill protection, **M7.7** to **M7.9** the MVP / ACE bonus (M7.7 is the blocking persist), **M7.10** the post and the player page name the MVP and the ACE, **M7.11** the single `rebuild-ratings` run that closes the milestone. Three later resolutions, 2026-09-15: **one rebuild at the end and none per fix**, **no monthly track** (the month windows keep the all-time number, decided, not deferred), and **the bonus is surfaced, not silent**. Every task changes the rating model, which is why none of them is an M5 task. **Runs before M6**, which is still waiting on a month of M2. **M5.34 (the week starts on Sunday) lands before M7.3**: M7.2 to M7.4's briefs were amended 2026-09-15 to say Sunday wherever they named the week's reset day. **M7.1 landed 2026-09-15.** M7.7's verification half landed the same day (vision score / damage-mitigated corroborated for real ten-player customs; no companion release owed). M7.2 (the weekly rating fold) landed 2026-09-15. **M7.5 landed 2026-09-15**: fill protection in `packages/core`'s balancer, `config.balance.fillProtectionFactor` (1.0), charged once and read from both `assignRoles` and the split score so the two cannot drift. **M7.8 landed 2026-09-15**: `rating/performance.ts` — `performanceScores`, `mvpAce`, `applyMvpAceBonus`, `config.rating.performance` and `config.rating.mvp`; `rateGame` untouched, `sigma` untouched, no MVP at all for a game missing any component; wired into nothing until M7.9. **M7.7 landed 2026-09-15**, both halves: migration `0014` adds `vision_score` / `damage_self_mitigated` to `game_players` nullable with no default, ingest fills both off the posted `raw` block through the one existing reader, and the reviewer's blocking find — a negative or out-of-int4 number in a blob 500ing ingest for ever — is gated by `storedStat` with a regression test. Pushed to the hosted project the same day; `pnpm --filter web copy-raw-stats` ran against it (44 games with a gap, all 44 fillable, 436 rows filled, 0 rows still short) and a second run confirmed idempotent. **M5.34 (the week starts on Sunday) landed 2026-09-15**, including the hosted `window_posts` stamp that suppresses the overlapping Monday-anchored week. **M7.6 landed 2026-09-15**: `gamesSinceLastFill` computed in `apps/web/lib/ingest/balance.ts` and handed to the balancer, live in the balance path immediately — no rebuild needed, since it is a balancer input, not part of the fold. **M7.3 landed 2026-09-15**: the weekly board reads the weekly rating; see its own checkbox for detail. Next: M7.9 (needs M7.7 ✓ and M7.8 ✓), then M7.4 (needs M7.3 ✓), M7.10, M7.11. M7.12 can run any time, independently. **M7.3's sort key was settled 2026-09-15 before dispatch: the two week windows sort on `Rating`, not on Proven** (the user; decision row, `00-product.md` carve-out, brief, copy and acceptance all rewritten the same day — M7.2's output is unaffected, this is only what M7.3's board sorts and prints). **M7.12 added 2026-09-15** (the user, off product's role-detection research): a read-only measurement of how good `detectedTeamPosition` actually is on ten-human customs. It changes nothing, owes no rebuild, does not wait on M7.11 — and **blocks every role-aware proposal** until it lands. **M7.12 landed 2026-09-15** and the answer was good enough: 23 real ten-human customs, five distinct roles on 46 of 46 sides, 0 nulls, Smite agreeing 46 of 46, with one recorded limit — nothing in the blob separates top from mid. **M7.13 was scoped the same day off it** (the design is the user's, approved after reading that answer): the performance score reads the role. M7.8's single flat weight vector becomes three, keyed by a role bucket — `carry` (top, mid, adc, lumped on purpose because that is the one distinction M7.12 could not make), `jungle`, `support` — with the same six components, the same within-game normalisation, the same 1.25× / 0.80×, and **no MVP at all for a game where any of the ten has no role**, which is M7.8's existing missing-input rule applied to a new input and not a second model. It **revises M7.8 in place rather than layering**, because nothing M7.8 produced has ever reached a player, and it therefore **lands before M7.9**. Two steps: the pure formula in `packages/core` (`core-engineer`), and a read-only battle test of the new picks against the old ones over the same 23 games (`platform-engineer`, no writes, no rebuild). One open sub-question it carries: whether `damageDealtToObjectives` is real in both stored shapes and worth a seventh component for the jungle row — verified first, and if it checks out it opens **M7.14** (the column, the copy and the reweighted jungle row, both pre-answered in M7.13's brief) rather than dragging a migration into a core task. **M5.35 is not a dependency of any of it.** |
 | M8 The day after: rivals, awards, a second guessing game | not started | Opened 2026-09-15 from four ideas of the user's, all four settled with them the same day. **M8.1** nemesis and best duo on `/fun`; **M8.2** won against the odds — the honest "best comeback", read from the stored `blue_win_prob` so a rebuild cannot move it (**confirmed by the user over the literal biggest-`mu`-swing version**); **M8.3** the existing awards as badges on `/leaderboard`'s closed windows, placement only, because most improved and longest streak already shipped in M5.4; **M8.4** Guess the Award, and **the two games alternate civil days** (the user, 2026-09-15) — one challenge per day as today, so `daily_mysteries.day` keeps its unique and the only migration is additive (`kind`, a widened `category` check, `(kind, challenge_number)`). The fourth idea, the balance percentage, is **M3.31** and not here. Every task is a read over stored games; none touches the rating model. **Starts after M7 clears `apps/web`** (M8.1 to M8.3 after M7.4; M8.4 after M7.9). Nothing in M8 is waiting on an answer. |
 | M9 Does coming back after a break break the rating? | not started | The user asked on 2026-09-15 for `sigma` decay after a layoff and settled the same day that **the measurement comes first**. **M9.1** is that measurement and is a real task: a read-only script over the hosted project that counts 14-day-plus returns and compares the first game back against ordinary games **at the same `sigma`**, run **after M7.11** so it measures the model the group is actually on. It changes nothing and decides nothing. **M9.2**, the decay function itself, has no brief and is not to be picked up until the user has read M9.1's numbers — it would move Proven and the balancer's inputs, the one thing all four of M7's changes avoided, and it would want a second rebuild after M7.11 was meant to be the only one. Paste M9.1's numbers into this row when it lands. |
 | M6 Tray app and polish | not started | Needs M2 stable for a month. |
@@ -4731,6 +4731,16 @@ components, which the user has not approved and which is not scoped anywhere in 
 one-rebuild rule and it owes no rebuild: **M7.11 is still the last task in this milestone that changes a number**,
 and M7.12 can be worked before it, after it, or beside any M8 task.
 
+**And that read came back "good enough", so there is a thirteenth task** (added 2026-09-15; the design is the
+user's, approved the same day, product scoped it the same day). **M7.13** is what M7.12 unblocked: M7.8 scores a
+support and an adc on the same six weights, and it is revised **in place** to score each player against one of
+three weight vectors chosen by a role bucket — `carry` (top, mid, adc, lumped together because the one thing
+M7.12 could not do is tell top from mid), `jungle`, `support`. Same six components, same within-game
+normalisation, same bonus; only the weights move, and a game where any of the ten has no role gets no MVP, the
+same way a game missing a stat already gets none. It is revised rather than layered because **nothing M7.8
+produced has ever reached a player** — M7.9 and M7.10 have not landed — so **M7.13 lands before M7.9** and the
+milestone still owes exactly one rebuild.
+
 - [x] **M7.1** (landed 2026-09-15: a second export `gateRatedGame` beside the untouched `gateGame` in `apps/web/lib/ingest/fold.ts` adds the queue check via the existing `matchesQueue`/`gameModeFromRaw`; `rating.ts` and `rebuild.ts` both pass it `games.raw`/`raw->gameMode`; a missing mode stays Rift; `gateGame` and `countedGames` are unchanged so `/stats`, `/fun` and the streak stay mixed as M5.26 requires. Entailed and documented: an ARAM no longer gets a Discord result embed, since only a rated game gets one — the teams post is unaffected. No rebuild run; that is M7.11's.) ARAM never rates. `gateGame` in `apps/web/lib/ingest/fold.ts` checks participant count, side split and duration and nothing else, so a long enough ARAM custom folds into OpenSkill today. Add the queue check, store every mode and rate only Summoner's Rift. *(owner: `platform-engineer`; `core-engineer` reviews, it is shared fold logic; no dependencies, land it first)*
 
     > **Brief (product, 2026-09-15)**
@@ -5377,6 +5387,16 @@ and M7.12 can be worked before it, after it, or beside any M8 task.
     > Applying it (M7.9). Naming the MVP or the ACE on any surface — that is **M7.10**, decided by the user on
     > 2026-09-15 and scoped there; this task prints nothing anywhere. Weighting by role, by champion, or by game
     > length. A per-team ACE on the winning side.
+    >
+    > **Amended by product, 2026-09-15, after M7.12 measured the roles and the user approved a design off it.**
+    > The "weighting by role" line above is overtaken: **M7.13 revises this task's formula in place** — the same
+    > six components, the same within-game normalisation, the same three functions and the same 1.25× / 0.80×,
+    > with the single flat weight vector in `config.rating.performance` replaced by three keyed on a role bucket
+    > (`carry` = top/mid/adc, `jungle`, `support`), and no MVP at all for a game where any of the ten has no
+    > role. Nothing this task produced has ever reached a player — M7.9 and M7.10 have not landed and no row
+    > stores an MVP — so it is revised before it is ever applied rather than shipped and replaced. Everything
+    > else in this brief stands as written; read the weights table above as history and M7.13's as current.
+    > Weighting by champion or by game length is still out of scope, and so is a per-team ACE.
 
 - [ ] **M7.9** Apply the MVP / ACE bonus in the fold, once, for both callers. *(owner: `platform-engineer`; after M7.7 and M7.8, and land it in the same session as M7.7's backwards copy)*
 
@@ -5590,7 +5610,262 @@ and M7.12 can be worked before it, after it, or beside any M8 task.
     >   nothing — the deliverable is the numbers in the reference doc, not the tool.
     > - **It ends with a judgement and no scope.** The one sentence in acceptance 3 may say "good enough" or
     >   "not good enough". It may not open a task, change a weight, or add a component to M7.8's score. What it
-    >   feeds is **M7.13**, described in the status row and deliberately not scoped.
+    >   feeds is **M7.13**, described in the status row and deliberately not scoped. *(It said "good enough",
+    >   the user read it and approved a design the same day, and **M7.13 is scoped below**, 2026-09-15.)*
+
+- [ ] **M7.13** The performance score reads the role: three weight vectors instead of one. A revision of
+  **M7.8's own formula, in place** — same six components, same within-game normalisation, same bonus, same three
+  exported functions — where which weights a player is scored on is picked by a role bucket: **carry** (top, mid,
+  adc), **jungle**, **support**. A game where any of the ten has no role has no MVP and no ACE, exactly as a game
+  missing a stat already does. Pure, in `packages/core`, plus a read-only battle test against the same 23 real
+  customs M7.12 measured. **Lands before M7.9**, so no player ever sees an MVP the flat formula picked.
+  *(owner: `core-engineer` for the formula, `platform-engineer` for the battle test; after M7.12 ✓ and M7.8 ✓;
+  the design is the user's, approved 2026-09-15 off M7.12's answer, and product scoped it the same day)*
+
+    > **Brief (product, 2026-09-15)**
+    >
+    > ### Why this exists, and why it is M7.8 revised rather than a second thing
+    >
+    > M7.8 scores a support and an adc on the same six weights. Vision is 0.25 of that score and damage to
+    > champions is 0.20, so on the numbers a support is being asked to win MVP on the carry's terms and the
+    > carry on the support's — the "why did *they* get it" argument the whole milestone exists to stop, waiting
+    > to happen on the first night M7.10 prints a name.
+    >
+    > It could not be scoped before now, on purpose: nothing role-aware was allowed until **M7.12** measured
+    > whether the client's roles are real. It did — 46 of 46 sides, 0 nulls, Smite agreeing 46 of 46 — and the
+    > user approved this design off that answer.
+    >
+    > **It revises M7.8's implementation in place; it does not layer a second formula on top.** M7.8 has landed
+    > and is ticked, but **nothing it produces has ever reached a player**: M7.9 (apply) and M7.10 (print)
+    > have not landed, no row stores an MVP, and no post has named one. So the cheapest honest move is to change
+    > the formula before it is ever applied, rather than ship one model, print it, and replace it in a fortnight.
+    > There is one performance model in this project and after this task it is this one. A second exported
+    > scorer beside the old one is explicitly not what this is — two models in one history is the thing the
+    > 2026-09-15 decision rows already settled against.
+    >
+    > ### What a player sees
+    >
+    > Nothing, this task, the same as M7.8. Later, when M7.10 prints the names: the MVP of a game is more often
+    > the person the room would have named. A support who ran the map can win it on vision and a jungler on
+    > objectives and KDA, without either of them having to out-damage the adc to do it, and an adc stops being
+    > punished for not warding.
+    >
+    > ### The buckets
+    >
+    > Three, not five, and the middle one is the point:
+    >
+    > | bucket | roles |
+    > |---|---|
+    > | `carry` | top, mid, adc |
+    > | `jungle` | jungle |
+    > | `support` | support |
+    >
+    > **top, mid and adc are lumped together because M7.12 found nothing in the blob separates top from mid.**
+    > That is the one limit that measurement recorded, and this design steps around it instead of arguing with
+    > it: a bucket that never has to tell top from mid cannot be wrong about it. What the data *does* pin, to
+    > 46 of 46 with an independent Smite check, is jungle and support — which are exactly the two roles whose
+    > job the flat formula misreads. So the split is drawn where the evidence is, and nowhere else.
+    >
+    > A five-role split is **not** what this is, and must not quietly become it: five vectors would need the
+    > top/mid distinction the data does not have, and would be five hand-set numbers each defended by nothing.
+    > (`04-decisions.md`, 2026-09-10, already rejected five *ratings* for a different reason; this is a second,
+    > independent reason not to go to five here.)
+    >
+    > ### The weights
+    >
+    > Three vectors in `config.rating.performance`, keyed by bucket. Each row sums to 1.00.
+    >
+    > | component | `carry` (top/mid/adc) | `jungle` | `support` |
+    > |---|---|---|---|
+    > | KDA | 0.15 | 0.25 | 0.25 |
+    > | damage to champions | 0.30 | 0.20 | 0.05 |
+    > | gold | 0.20 | 0.15 | 0.05 |
+    > | vision score | 0.05 | 0.15 | 0.40 |
+    > | damage self-mitigated | 0.10 | 0.10 | 0.15 |
+    > | CS | 0.20 | 0.15 | 0.10 |
+    >
+    > They are hand-reasoned from what each role is actually for, and they are **tunables in `config.ts` like
+    > every other number in this project, not gospel** — the same sentence M7.8's brief carries. They are not
+    > fitted to anything, and this task may not fit them to anything: see "What this does not do" below.
+    >
+    > ### What does not change
+    >
+    > Everything else about M7.8, and this list is exhaustive:
+    >
+    > - **The six components** and how each is read. KDA is still `(kills + assists) / max(1, deaths)`.
+    > - **The within-game normalisation.** Every component is still divided by the best of the ten in that same
+    >   game, so the baseline is still the nine people who were actually there. This is the property the
+    >   2026-09-15 decision row kept the formula for and it survives untouched: a Bronze player can still win
+    >   MVP on a Bronze-heavy night.
+    > - **The score is still in `[0, 1]`** and still means nothing outside its own game.
+    > - **MVP is still the best score on the winning side, ACE the best on the losing side**, ties by puuid
+    >   ascending.
+    > - **The bonus is still 1.25× and 0.80×**, still applied after `rateGame`, still never touching `sigma`.
+    > - **`rateGame` and `rateGameWeekly` are not touched**, and M1.3's and M7.2's tests still pass unmodified.
+    >
+    > Only which of three weight vectors a player's six normalised components are multiplied by changes, and
+    > only the player's own role chooses it.
+    >
+    > ### A game with no role
+    >
+    > **If any of the ten has no role, the game has no MVP and no ACE** and is rated exactly as it is today.
+    >
+    > Read that as the rule M7.8 already has, not a new one. M7.8 declines to answer when it is missing an
+    > input, per game and never per player, because partial scoring would rank a player who has a vision score
+    > against one who does not. Role is now an input. A player whose role is unknown cannot be scored against a
+    > vector, and picking one for them — or scoring them on the old flat one — would be exactly the partial
+    > answer that rule exists to refuse. **This is one model declining to answer, not a second model**, and
+    > nobody should read it as reopening the settled objection to role-aware scoring built on outside data:
+    > there is no outside data here, no population baseline, and no second formula anywhere in the history.
+    >
+    > **What it costs, plainly:** every **backfilled** game carries `role = null` for all ten
+    > (`04-decisions.md`, 2026-09-09; M5.18 is unresolved and needs a capture night nobody has scheduled), so
+    > the backfilled half of the history will never have an MVP. Today, after M7.7's copy, those games *could*
+    > have had one. That is a real loss and the user accepted it: an MVP picked without knowing who played
+    > support is worth less than no MVP. The games that keep one are the live end-of-game ones — the 23 M7.12
+    > measured, and every night from here.
+    >
+    > ### Step 1: is `damageDealtToObjectives` real, and does it belong to the jungler?
+    >
+    > A jungler's job is objectives and **none of the six components reads one**. Do this first, before the
+    > weights are typed, because the answer decides whether the table above is final.
+    >
+    > What product already read (fixtures only, `packages/lcu/fixtures/16.17/`, and **this is not the
+    > verification** — it is where to start looking): the live end-of-game block carries it per player, twice,
+    > as `TOTAL_DAMAGE_DEALT_TO_OBJECTIVES` and `damageDealtToObjectives` with the same value; the
+    > match-history detail carries it per participant as `stats.damageDealtToObjectives`. That is the same
+    > two-name pattern, in the same two shapes, that M7.7 verified for vision and mitigation.
+    >
+    > What the engineer owes, to this project's "verify before you claim" rule:
+    >
+    > 1. Confirm it on **real stored customs**, both shapes, from `games.raw` on the hosted project — not from
+    >    the one fixture — with real non-zero per-player values that differ across the ten.
+    > 2. Record the answer. If it is not there in both shapes with real values, **drop it, say so, and ship the
+    >    six-component table above unchanged.** That is a clean outcome, not a failure.
+    > 3. If it is there: **it still does not go into this task.** `game_players` has no column for it, so a
+    >    seventh component would need a migration, an ingest change and a backwards copy out of `games.raw` —
+    >    M7.7 over again, a `platform-engineer` session with schema in it — and, because the missing-input rule
+    >    is all-or-nothing, adding it would blank the MVP on every game already stored until that copy ran.
+    >    None of that belongs in a pure-core task that has to land before M7.9. It opens **M7.14**, and this
+    >    brief pre-answers the question M7.14 would otherwise have to invent, so that nobody hand-sets a weight
+    >    twice:
+    >
+    >    | jungle row, if M7.14 happens | |
+    >    |---|---|
+    >    | KDA | 0.20 |
+    >    | damage to champions | 0.20 |
+    >    | gold | 0.10 |
+    >    | vision score | 0.15 |
+    >    | damage self-mitigated | 0.10 |
+    >    | CS | 0.10 |
+    >    | **damage to objectives** | **0.15** |
+    >
+    >    The 0.15 comes off gold, CS and KDA, 0.05 each: gold and CS because objective damage is a second
+    >    reading of the same farming clock and would otherwise be counted three times, KDA by one notch because
+    >    a jungler taking objectives is doing the thing ganks were a proxy for. **The `carry` and `support` rows
+    >    do not move** — they would carry the seventh component at weight 0.00, which changes no score.
+    >
+    > ### The battle test, once the formula exists
+    >
+    > The weights are hand-reasoned, so they are validated the way the rejected alternatives' own reasoning said
+    > this kind of change should be: **against this group's real games, by inspection, read-only**.
+    >
+    > - **The games**: the same 23 real ten-human Summoner's Rift customs M7.12 measured on the hosted `kustom`
+    >   project (`source = 'eog'`, exactly ten `game_players` rows, `raw->>'gameMode'` CLASSIC, 2026-09-08 to
+    >   2026-09-14). The same access pattern as M7.12: SQL the user pastes from the Supabase editor, or the lead
+    >   hands over the rows. **Nothing is written. No column, no rebuild, no rating moves.**
+    > - **The comparison**: game by game, who the *current* flat M7.8 formula picks as MVP and ACE against who
+    >   the three-bucket formula picks, with the role of each pick beside it and a mark on every row that
+    >   changed.
+    > - **The totals**: how many of the 23 MVPs moved, how many ACEs moved, and the count of picks by role
+    >   before and after.
+    > - **The judgement**: one short paragraph, plain words, in the register M7.12's write-up ended on — do the
+    >   new picks look more like what somebody who watched that game would have called it? This is an eyeball
+    >   test against known games and is meant to be. There is no statistical test to run: ~44 games is not
+    >   enough to fit anything, which is precisely why the two rejected alternatives were rejected and why this
+    >   is validated by inspection instead.
+    > - **Where it lands**: as an indented `> **Battle test (<engineer>, <date>)**` block under this brief, so
+    >   it persists beside the weights it justifies, plus the headline numbers in the status row.
+    >
+    > **If the new picks look worse, the task stops and reports.** It does not tune the weights until the table
+    > looks nicer — that is fitting on 23 games, which is the thing this design exists to avoid — and it does
+    > not ship anyway. A bad result is a finding for the user, who set these numbers.
+    >
+    > ### Edge cases
+    >
+    > - **A backfilled game** (all ten `role = null`): no MVP, no ACE, rated exactly as today. Covered above.
+    > - **One player of the ten with a null role**, live: same answer. The rule is per game, never per player,
+    >   exactly as the missing-stat rule is.
+    > - **A role the model does not know** — a value outside the five — is treated as no role, and the game gets
+    >   no MVP. It never falls back to `carry`, because a silent default is a guess printed as a fact.
+    > - **A side with two supports and no top**, which M7.12 saw zero of in 230 rows: scored as it comes. The
+    >   buckets are read per player and nothing here requires a side to hold five distinct roles. The balancer's
+    >   view of roles is not involved.
+    > - **An ARAM custom** has no MVP for the reason it already had none: it is not rated at all (M7.1).
+    > - **A tie on the score** is unchanged: highest score, then puuid ascending.
+    > - **A remake or a nine-player game** never reaches this; it is gated out before the fold.
+    > - **Every component's game-wide maximum is zero** for some component: it contributes zero to everybody, as
+    >   today, whatever the bucket weights say.
+    >
+    > ### Acceptance
+    >
+    > 1. Step 1 is answered in writing before the weights are final: `damageDealtToObjectives` confirmed, or
+    >    not, on real stored customs in **both** shapes, with the answer recorded in `03-lcu-reference.md` if it
+    >    taught us something about the client and in the status row either way. If it is confirmed, **M7.14** is
+    >    opened with the jungle row above and this task ships the six-component table; if it is not, this task
+    >    ships the six-component table. Either way `carry` and `support` are untouched by the question.
+    > 2. `performanceScores` still exists, still returns one score per player in input order, and is still the
+    >    only scorer exported. `PerformancePlayer` gains the player's role; a missing or unknown one is a
+    >    first-class value, not a throw. There is no second scoring function and no `role`-less flat path left
+    >    behind for a caller to pick by accident.
+    > 3. The three vectors live in `config.rating.performance` and nowhere else, each summing to 1.00, with a
+    >    test that asserts the sums. The role-to-bucket map is named in exactly one place.
+    > 4. A game with any of the ten missing a role returns `null` from `performanceScores`, `null` from
+    >    `mvpAce`, and an untouched copy of the fold's result from `applyMvpAceBonus` — the same three answers a
+    >    game missing a stat already gives, pinned in a test beside the existing missing-stat test.
+    > 5. A test with a hand-built ten where the support has the game's best vision and the worst damage shows
+    >    the support winning MVP under the new weights and not under the old ones — the change doing its one
+    >    job, pinned so a later tune cannot silently undo it.
+    > 6. `mvpAce`'s five-a-side rule, its tie rule, `applyMvpAceBonus`'s exact 1.25× / 0.80×, and `sigma` out
+    >    equalling `sigma` in are all unchanged and still tested.
+    > 7. `rateGame` and `rateGameWeekly` are untouched; M1.3's and M7.2's tests pass unmodified.
+    > 8. The battle test's table, totals and judgement are appended under this brief, and the run wrote nothing
+    >    to the database.
+    > 9. `01-architecture.md`'s rating section carries the three vectors, the buckets and the missing-role rule,
+    >    replacing M7.8's single table rather than sitting beside it.
+    > 10. A decision row records the design, and `00-product.md`'s "Carrying is worth a little more" paragraph
+    >     says what "best" now means.
+    > 11. `pnpm -r typecheck` and `pnpm -r test` pass; the status table is updated.
+    >
+    > ### What this does not do, and out of scope
+    >
+    > - **It does not change M7.9 or M7.10.** They apply and print whatever `performanceScores` and `mvpAce`
+    >   produce, and their briefs stand as written. M7.9 gains one obligation only: it hands the role it already
+    >   has on every `game_players` row to the scorer.
+    > - **No external data, no population baseline, no z-scores, no percentile against anybody outside the
+    >   lobby.** Closed on 2026-09-15 and not reopened here: the weights are hand-reasoned, the normalisation is
+    >   still within-game, and nothing is vendored.
+    > - **No fitting**, from this group's ~44 games or from anywhere else. Also rejected on 2026-09-15, and the
+    >   battle test is an inspection, not a fit.
+    > - **No five-role split**, now or later, unless something new tells top from mid.
+    > - **No seventh component in this task** — see step 1.
+    > - Kill participation as a component, named as a candidate in the 2026-09-15 decision row, stays a
+    >   candidate and is not part of this.
+    > - No new column, no migration, no ingest change, no rebuild. **M7.11 is still the one rebuild**, it still
+    >   runs last, and this task lands before M7.9 so the rebuild it already owed is the only one.
+    > - Naming or printing anything (M7.10). Showing a score as a number anywhere (still forbidden, M7.8's rule).
+    > - Any change to the balancer, to off-role cost, or to what the model thinks your main is. Nothing here
+    >   reaches `inferRoles` or `assignRoles`.
+    >
+    > ### Two notes on sequencing (product, not part of the ask)
+    >
+    > - **It lands before M7.9.** Not because M7.9 would break, but because the moment M7.9 lands a real night's
+    >   MVP is stored by whatever formula is in core that evening, and the argument for revising M7.8 in place
+    >   rather than layering is precisely that nothing has been applied yet. If M7.9 somehow lands first, this
+    >   still lands before **M7.10**, and M7.11's rebuild restates every stored answer under the new formula.
+    > - **M8.4 is downstream and unaffected in shape.** It needs a stored MVP, not the formula, and its brief
+    >   already handles "no game in the window can be scored". It should know that its pool is now live-eog
+    >   games only.
 
 Acceptance: an ARAM night moves nobody's rating; `This week` on the leaderboard is the week the group actually
 had, and `All time` is still the one number the balancer uses; a player filled last night is filled again only
@@ -5598,7 +5873,10 @@ when there is nobody else; the person who carried the game keeps a little more o
 they were; every rating moved exactly once, on the night M7.11 ran, and the group heard it from us first; and
 the all-time rating has still never been reset. And, separately from all of that and visible on no page, we
 know in a number how often the client's own `detectedTeamPosition` gets a ten-human custom's roles right —
-measured, not assumed, with nothing changed to find out.
+measured, not assumed, with nothing changed to find out. And because that number came back good, the person who
+carried is worked out against what their role was for: the support who ran the map can win it on vision, the
+jungler on objectives and fights, the carry on damage, and on a game where we do not know who played what,
+nobody wins it at all.
 
 ## M8 The day after: rivals, the awards where people look, and a second guessing game (1 to 2 days, needs M5; M8.4 needs M7)
 
@@ -6171,19 +6449,22 @@ Inside M7 the four threads are independent and only join at the one rebuild:
 M7.1 (ARAM never rates) ---------------------------------------------\
 M7.2 (the tuned fold, core) -- M7.3 (the weekly board) -- M7.4 (awards + the weekly post) --\
 M7.5 (fill protection, core) -- M7.6 (the input, at the balance call) ------------------ >-- M7.11 (the one rebuild)
-M7.7 (vision and mitigation stored) --\                                                 /
-                                       >-- M7.9 (apply it) -- M7.10 (name MVP and ACE) /
-M7.8 (the score and the bonus, core) -/
+M7.7 (vision and mitigation stored) -----------\                                        /
+                                                >-- M7.9 (apply it) -- M7.10 (name it) /
+M7.8 (the score, core) -- M7.13 (three vectors) /
 ```
 
 **M7.12** (how good is `detectedTeamPosition`) is in none of those four threads and joins nothing: it is a read
-that changes no file the others touch, so it can be worked at any point, including after M7.11. What waits on it
-is everything role-aware that is not yet scoped — a possible **M7.13** (revising M7.8's performance components),
-unapproved, no brief. **M5.35** (does the client know the roles at `GameStart`?) is the other half of that
-question and is dispatched with the **M5.18** capture night, because the recording is its only input.
+that changes no file the others touch, so it can be worked at any point, including after M7.11. What waited on it
+was everything role-aware, and the first of those is now scoped: **M7.13** revises M7.8's weights into three
+role-bucketed vectors, in place, in `packages/core`, and **lands before M7.9** so no stored MVP is ever picked by
+the flat formula. It owes no rebuild of its own — M7.11 is still the only run — and it adds no column, so it is
+on M7.8's thread and nowhere else. **M5.35** (does the client know the roles at `GameStart`?) is the other half
+of the role question and is dispatched with the **M5.18** capture night, because the recording is its only input;
+it is not a dependency of M7.13, which reads the role the end-of-game block already stores.
 
-M7.1, M7.2, M7.5, M7.7 and M7.8 can be worked at the same time. M7.9 lands in the same session as M7.7's
-backwards copy. **M5.34 (the week starts on Sunday) lands before M7.3**: it is not a rating task and it is not
+M7.1, M7.2, M7.5, M7.7 and M7.8 can be worked at the same time. M7.13 comes after M7.8 and before M7.9. M7.9
+lands in the same session as M7.7's backwards copy. **M5.34 (the week starts on Sunday) lands before M7.3**: it is not a rating task and it is not
 in M7, but M7.3 reseeds the weekly rating on the week's own boundary and that boundary moves. **M7.11 is the
 last task that changes a number and is the only `rebuild-ratings` run in the milestone** — no task before it
 rebuilds the hosted project, so the group's numbers move once, and M7.12 after it moves none.
