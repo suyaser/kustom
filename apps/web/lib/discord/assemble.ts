@@ -1,12 +1,14 @@
 import { type Assignment, displayRating, isOffRole, type Role } from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
+import { type FoldPerformance, gatedGameAward } from '../ingest/fold';
 import type { PoolMember, SeatMove } from '../ingest/selection';
 import { displayDelta } from '../ratingDisplay';
 import type { ServiceClient } from '../supabase';
 import type {
   PlayerName,
   PromotedSplit,
+  ResultAward,
   ResultEmbedInput,
   ResultPlayer,
   SeatLine,
@@ -155,10 +157,20 @@ export interface ResultSourcePlayer {
   puuid: string;
   name: PlayerName;
   side: SideValue;
+  /** What the two columns print: the scoreboard's role, or the stored split's as a fallback. */
   role: Role | null;
   damage: number;
   muBefore: number | null;
   muAfter: number | null;
+  /**
+   * The stat line the performance score is computed from, straight off `game_players` (M7.10).
+   *
+   * **Its `role` is the scoreboard column alone**, with no fallback to the split — unlike the
+   * `role` above it, which is what the columns print. The fold read that column and nothing
+   * else, so a game it gave no MVP to because a position was missing must not grow one here:
+   * the name on this line has to be the player whose delta was actually amplified.
+   */
+  stats: FoldPerformance;
 }
 
 /**
@@ -194,12 +206,43 @@ export function buildResultInput(source: ResultSource, context: EmbedContext): R
     durationS: source.durationS,
     blue: rated.filter((player) => player.side === 100).map(toPlayer),
     red: rated.filter((player) => player.side === 200).map(toPlayer),
+    award: resultAward(source),
     blueWinProb: source.blueWinProb,
     topDamage: top === undefined || top.damage <= 0 ? null : { name: top.name, damage: top.damage },
     gameNumber: source.gameNumber,
     url: context.url,
     timestamp: context.timestamp,
   };
+}
+
+/**
+ * The MVP and the ACE of this game, as two names, or `null` when it has none (M7.10).
+ *
+ * **The answer is `gatedGameAward`'s and nothing here re-derives it**: this function maps the
+ * two puuids it comes back with onto the names the columns above are already printing. That is
+ * the whole of acceptance 3 — the embed and `/p/[puuid]` call one function on the same columns
+ * of the same game, so the two surfaces cannot disagree about who carried it.
+ *
+ * Two reasons the answer is `null`, and both of them print nothing rather than a word:
+ *
+ * - **The game is not a clean rated ten.** `gatedGameAward` runs `gateGame` first, because
+ *   core's `mvpAce` *throws* on anything that is not five a side with ten distinct puuids and a
+ *   500 here would cost the whole result post. This is reached only for a game whose ten rows
+ *   all carry `mu_before` and `mu_after` — the caller checked — which is what rules out a
+ *   remake, a short surrender and an ARAM (M7.1: four null rating columns, for ever).
+ * - **The game cannot be scored.** Any of the nine numbers missing for any of the ten, or any
+ *   of the ten roles: core returns `null` and the post loses the line and keeps everything else.
+ */
+function resultAward(source: ResultSource): ResultAward | null {
+  const award = gatedGameAward(
+    source.players.map((player) => ({ puuid: player.puuid, side: player.side, ...player.stats })),
+    source.durationS,
+    source.winningSide,
+  );
+  if (award === null) return null;
+
+  const names = new Map(source.players.map((player) => [player.puuid, player.name]));
+  return { mvp: names.get(award.mvp) ?? null, ace: names.get(award.ace) ?? null };
 }
 
 /**
@@ -252,10 +295,15 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
   if (error) throw new Error(`discord: game lookup failed: ${error.message}`);
   if (!game || (game.winning_side !== 100 && game.winning_side !== 200)) return null;
 
+  // **The same read, nine columns wider** (M7.10, acceptance 4). The MVP and the ACE are named
+  // from the performance score, and the performance score is these columns; asking for them
+  // here costs the round trip this query was already making, where a second query would have
+  // cost the post a second round trip on the one path that runs while ten people are looking at
+  // Discord.
   const { data: rows, error: playerError } = await client
     .from('game_players')
     .select(
-      'side, role, damage_to_champs, mu_before, mu_after, players!inner(puuid, display_name, game_name)',
+      'side, role, kills, deaths, assists, damage_to_champs, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, mu_after, players!inner(puuid, display_name, game_name)',
     )
     .eq('game_id', gameId);
   if (playerError) throw new Error(`discord: game_players lookup failed: ${playerError.message}`);
@@ -269,11 +317,24 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
       name: row.players.display_name ?? row.players.game_name ?? null,
       side: (row.side === 100 ? 100 : 200) as SideValue,
       // What the scoreboard says first; the split's role is the fallback, so the two embeds
-      // line up even when the client reported no position.
+      // line up even when the client reported no position. The award below does **not** take
+      // that fallback — see {@link ResultSourcePlayer.stats}.
       role: row.role ?? splitRoles.roles.get(row.players.puuid) ?? null,
       damage: row.damage_to_champs,
       muBefore: row.mu_before,
       muAfter: row.mu_after,
+      stats: {
+        role: row.role,
+        kills: row.kills,
+        deaths: row.deaths,
+        assists: row.assists,
+        damageToChamps: row.damage_to_champs,
+        gold: row.gold,
+        cs: row.cs,
+        visionScore: row.vision_score,
+        damageSelfMitigated: row.damage_self_mitigated,
+        damageToObjectives: row.damage_to_objectives,
+      },
     }));
 
   return {

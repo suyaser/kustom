@@ -189,11 +189,34 @@ export interface ResultPlayer {
   delta: number;
 }
 
+/**
+ * Who carried each side, as two names (M7.10).
+ *
+ * **Both or neither.** Core hands back an MVP and an ACE together or hands back nothing, and
+ * this type says the same thing: there is no half-line naming a winner's best player and
+ * nobody on the other side. A name is a {@link PlayerName}, so a player the database has never
+ * been told about is `Someone` here exactly as they are in the columns above.
+ */
+export interface ResultAward {
+  /** The highest-scoring player on the **winning** side. */
+  mvp: PlayerName;
+  /** The highest-scoring player on the **losing** side. */
+  ace: PlayerName;
+}
+
 export interface ResultEmbedInput {
   winningSide: Side;
   durationS: number;
   blue: readonly ResultPlayer[];
   red: readonly ResultPlayer[];
+  /**
+   * The MVP and the ACE, or `null` for a game that has none (M7.10).
+   *
+   * Required rather than optional, like {@link TeamsEmbedInput.switchSideEnabled}: the answer is
+   * `gameAward`'s and a caller that forgot to ask would silently print the post the group had
+   * before the bonus existed, which is the one failure nobody would notice.
+   */
+  award: ResultAward | null;
   /** The chosen split's `blue_win_prob`, or `null` when this game had no stored split. */
   blueWinProb: number | null;
   /** The single highest `damage_to_champs`, or `null` when the block carried none. */
@@ -361,11 +384,56 @@ export function resultEmbed(input: ResultEmbedInput): WebhookPayload {
     fields: [
       { name: 'Blue', value: fieldValue(inLaneOrder(input.blue).map(resultLine)), inline: true },
       { name: 'Red', value: fieldValue(inLaneOrder(input.red).map(resultLine)), inline: true },
+      // One line, under the two columns, and **only when there is one** (M7.10). A game the
+      // score cannot be computed for — a column stored before migration `0014`, a role the
+      // client never reported — adds no field at all, and the post is byte-identical to the
+      // one this group has been reading since M3.3.
+      ...(input.award === null
+        ? []
+        : [{ name: AWARD_FIELD_NAME, value: fieldValue([awardLine(input.award)]) }]),
     ],
     footer: { text: resultFooter(input.gameNumber) },
     timestamp: input.timestamp,
   });
 }
+
+/**
+ * The two words in front of the two names (M7.10, product's copy).
+ *
+ * Upper case because they are op.gg's terms and the group reads them there every day; not
+ * `Mvp`, not `mvp`, and never a trophy, a medal, a colour or a `#1` beside them. Pinned by code
+ * point in `embeds.test.ts`.
+ */
+export const MVP_LABEL = 'MVP';
+export const ACE_LABEL = 'ACE';
+
+/**
+ * `MVP Lena · ACE Rami` — product's line, verbatim and in that order (M7.10).
+ *
+ * Two names, a middle dot, and nothing else: no score, no percentage, no emoji, nothing for the
+ * other eight and no "nearly MVP" anywhere. The MVP comes first because the winning side does.
+ * Names go through {@link renderName}, so a long Riot ID is truncated at 32 characters and
+ * escaped exactly as it is in the two columns above it.
+ */
+export function awardLine(award: ResultAward): string {
+  return `${MVP_LABEL} ${renderName(award.mvp)} · ${ACE_LABEL} ${renderName(award.ace)}`;
+}
+
+/**
+ * The award field's name: a zero-width space, which is Discord's way of writing a field with no
+ * heading (M7.10).
+ *
+ * Product asked for **one line under the existing block** and wrote no heading for it, and this
+ * agent does not write product's copy. A field is the only place in an embed that is *under*
+ * the two inline columns — the description is above them and the footer belongs to
+ * `Kustom · game 47` — and Discord rejects a field whose name is the empty string. So the name
+ * is a character that takes no room and says nothing, and the line reads as a line.
+ *
+ * It is also, deliberately, the **last** field: `guardEmbed` gives ground from the last field
+ * backwards when an embed is over 6000 characters, so the lowest-priority line of the post is
+ * the first to go and the ten rating rows are never cut to make room for it (M4.12).
+ */
+export const AWARD_FIELD_NAME = '​';
 
 /**
  * The nightly board (M3.5, `05-design.md`, "Nightly leaderboard embed").
@@ -500,7 +568,7 @@ export function windowSummaryEmbed(input: WindowSummaryEmbedInput): WebhookPaylo
 }
 
 /** `**Most improved** Nadia · +212 · 1266 → 1478`. The label is bold; the rest is quoted. */
-function awardLine(award: WindowAward): string {
+function windowAwardLine(award: WindowAward): string {
   return `**${award.label}** ${award.line}`;
 }
 
@@ -514,7 +582,7 @@ function awardLine(award: WindowAward): string {
  * Losing a whole award to a tie in the one above it would be the wrong three lines to lose.
  */
 function awardLines(award: WindowAward): FieldLine[] {
-  return awardLine(award)
+  return windowAwardLine(award)
     .split('\n')
     .map((text, index) => (index === 0 ? { text, keep: KEEP_LAST_STANDING } : text));
 }

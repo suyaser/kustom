@@ -55,12 +55,23 @@ import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
 /** Five a side. Anything else is not a game we rate. */
 export const TEAM_SIZE = PLAYERS_PER_GAME / 2;
 
-/** One `game_players` row, reduced to what **the gate** reads. */
-export interface FoldPlayer {
-  playerId: string;
+/**
+ * What **the gate itself** reads off a row: which side, and who.
+ *
+ * Split out of {@link FoldPlayer} by M7.10 so a surface that only wants to *print* an answer —
+ * the result embed, `/p/[puuid]`'s recent games — can run the same shape check without
+ * inventing a `playerId` it has no use for. `gateGame` never read that field; this only says so
+ * in the type.
+ */
+export interface FoldGatePlayer {
   /** The tie-break for the order the two teams are handed to core. */
   puuid: string;
   side: SideValue;
+}
+
+/** One `game_players` row, reduced to what **the fold** reads: the gate's two, plus the key. */
+export interface FoldPlayer extends FoldGatePlayer {
+  playerId: string;
 }
 
 /**
@@ -112,7 +123,7 @@ export type FoldSkipReason = 'participant-count' | 'side-split' | 'duration' | '
  * put a {@link FoldRatedPlayer} in and need one back out, because {@link foldGame} reads the
  * stat line off exactly these two arrays.
  */
-export type FoldGate<T extends FoldPlayer = FoldPlayer> =
+export type FoldGate<T extends FoldGatePlayer = FoldPlayer> =
   | { ok: true; blue: T[]; red: T[] }
   | { ok: false; reason: FoldSkipReason };
 
@@ -128,7 +139,7 @@ export type FoldGate<T extends FoldPlayer = FoldPlayer> =
  * we write do — the fold has to be reproducible from the table, not from the order a
  * PostgREST select happened to return.
  */
-export function gateGame<T extends FoldPlayer>(players: readonly T[], durationS: number): FoldGate<T> {
+export function gateGame<T extends FoldGatePlayer>(players: readonly T[], durationS: number): FoldGate<T> {
   if (players.length !== PLAYERS_PER_GAME) {
     return { ok: false, reason: 'participant-count' };
   }
@@ -154,7 +165,7 @@ export function gateGame<T extends FoldPlayer>(players: readonly T[], durationS:
  */
 export type RatedSkipReason = FoldSkipReason | 'game-mode';
 
-export type RatedGate<T extends FoldPlayer = FoldPlayer> =
+export type RatedGate<T extends FoldGatePlayer = FoldPlayer> =
   | { ok: true; blue: T[]; red: T[] }
   | { ok: false; reason: RatedSkipReason };
 
@@ -186,7 +197,7 @@ export function isRatedMode(raw: unknown): boolean {
  * "what counts as Rift" living in two places is how the live fold and the rebuild start
  * disagreeing.
  */
-export function gateRatedGame<T extends FoldPlayer>(
+export function gateRatedGame<T extends FoldGatePlayer>(
   players: readonly T[],
   durationS: number,
   raw: unknown,
@@ -250,13 +261,49 @@ export function foldGame(
  *
  * Exported because it is the only place in the app that names an MVP, and a surface that wants
  * to print one (M7.10) has to read it here rather than fold a second copy of the formula.
+ *
+ * **It inherits core's contract and throws** — it does not return `null` — when it is handed
+ * anything that is not five a side with ten distinct puuids. {@link foldGame} only ever reaches
+ * it behind {@link gateRatedGame}; a *printing* surface has no such gate of its own and calls
+ * {@link gatedGameAward} instead.
  */
-export function gameAward(players: readonly FoldRatedPlayer[], winningSide: SideValue): MvpAce | null {
+export function gameAward(players: readonly FoldAwardPlayer[], winningSide: SideValue): MvpAce | null {
   return mvpAce(players.map(toPerformancePlayer), winningSide);
 }
 
+/**
+ * What {@link gameAward} needs, and nothing else: the stat line, the side and the puuid.
+ *
+ * {@link FoldRatedPlayer} satisfies it, which is how the fold keeps calling the same function
+ * with its own row. A surface that reads `game_players` to *print* a result (M7.10) satisfies it
+ * too, without carrying the fold's `playerId` through a display type.
+ */
+export interface FoldAwardPlayer extends FoldGatePlayer, FoldPerformance {}
+
+/**
+ * {@link gameAward} behind {@link gateGame}: the MVP and the ACE of a game a **surface** is
+ * about to print (M7.10), and `null` for anything that is not a clean ten.
+ *
+ * One function for both printing surfaces — the Discord result embed and `/p/[puuid]`'s recent
+ * games — so acceptance 3 ("the two surfaces cannot disagree about one game") is a fact about
+ * there being one call, not two implementations that agree today.
+ *
+ * It answers the **shape** question only, and its callers answer the other one: both of them
+ * reach here only for a game whose ten rows all carry `mu_after`, which is what "the fold rated
+ * this" means and is therefore how a remake, a short surrender and an ARAM (M7.1, four null
+ * rating columns for ever) all arrive with no award rather than with a wrong one.
+ */
+export function gatedGameAward<T extends FoldAwardPlayer>(
+  players: readonly T[],
+  durationS: number,
+  winningSide: SideValue,
+): MvpAce | null {
+  const gate = gateGame(players, durationS);
+  return gate.ok ? gameAward(players, winningSide) : null;
+}
+
 /** A rename, not a computation: the nine stored numbers and the role, under core's spellings. */
-function toPerformancePlayer(player: FoldRatedPlayer): PerformancePlayer {
+function toPerformancePlayer(player: FoldAwardPlayer): PerformancePlayer {
   return {
     puuid: player.puuid,
     side: player.side,
@@ -273,7 +320,7 @@ function toPerformancePlayer(player: FoldRatedPlayer): PerformancePlayer {
   };
 }
 
-function byPuuid(a: FoldPlayer, b: FoldPlayer): number {
+function byPuuid(a: FoldGatePlayer, b: FoldGatePlayer): number {
   return a.puuid < b.puuid ? -1 : a.puuid > b.puuid ? 1 : 0;
 }
 

@@ -1,6 +1,7 @@
 import { displayRating, type Rating, seedFromRank } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
 import { inChunks } from '../chunks';
+import { type FoldAwardPlayer, type FoldPerformance, gatedGameAward } from '../ingest/fold';
 import { readSeed, type StoredSeed, seedFor } from '../ingest/seed';
 // `LANE_ORDER` left with `roleRecord` (M5.20): `By role` is `lib/stats`' fold now.
 import { inLaneOrder } from '../laneOrder';
@@ -14,7 +15,15 @@ import { boardBreakdown } from './breakdown';
 import { rankLabel, SETTLING_GAMES } from './copy';
 import { sortBoardRows } from './order';
 import { recentGames } from './recent';
-import type { BoardGame, BoardRow, BoardView, PlayerBoardView, RecentGame, RecentTeammate } from './types';
+import type {
+  BoardGame,
+  BoardRow,
+  BoardView,
+  PlayerBoardView,
+  RecentAward,
+  RecentGame,
+  RecentTeammate,
+} from './types';
 import {
   foldWeeklyRatings,
   isWeekWindow,
@@ -809,7 +818,10 @@ async function loadRecentGames(
   if (played.length === 0) return [];
 
   const gameIds = played.map(({ game }) => game.id);
-  const rows = await loadGameRows(client, gameIds);
+  // Wider by the nine stat columns (M7.10): the MVP and the ACE are named from them, by the
+  // same function the fold used, and this is the read that was already fetching all ten rows of
+  // each of these games for the lane-ordered five beside the row.
+  const rows = await loadGameRows(client, gameIds, { withStats: true });
   const names = await loadNamesByPlayerId(
     client,
     rows.map((row) => row.playerId),
@@ -822,8 +834,9 @@ async function loadRecentGames(
   );
 
   return played.map(({ row, game }) => {
-    const team: RecentTeammate[] = rows
-      .filter((other) => other.gameId === game.id && other.side === row.side)
+    const all = rows.filter((other) => other.gameId === game.id);
+    const team: RecentTeammate[] = all
+      .filter((other) => other.side === row.side)
       // A scoreboard row whose player we cannot read is not a row we can draw: no name and no
       // puuid to key it on. The foreign key says it cannot happen; a blank line in a list of
       // five would read as a bug if it ever did.
@@ -841,11 +854,51 @@ async function loadRecentGames(
       role: row.role,
       muBefore: row.muBefore,
       muAfter: row.muAfter,
+      award: recentAward(all, game, names, row.playerId),
       // Blue's chance, as it was stored. The page turns it into this player's own side's.
       blueWinProb: game.lobbyId === null ? null : (odds.get(game.lobbyId) ?? null),
       team: inLaneOrder(team),
     };
   });
+}
+
+/**
+ * Was **this player** the MVP or the ACE of this game (M7.10)? `null` for the eight who were
+ * neither, and for every game that has no award at all.
+ *
+ * The answer is `gatedGameAward`'s, which is the function the Discord result embed calls on the
+ * same columns of the same game — so the word on this row and the name in that post cannot
+ * disagree (acceptance 3). Nothing here re-derives a score, and nothing prints "nearly MVP".
+ *
+ * Three ways to `null`, and all three print nothing:
+ *
+ * - **A row whose player we could not read**, so there is no puuid to match on. The same
+ *   condition already drops that row from the five beside it.
+ * - **A game the fold did not rate**: a row here with a null `mu_after` is a remake, a short
+ *   surrender, a backfilled game waiting for `rebuild-ratings`, or an ARAM (M7.1, four null
+ *   rating columns for ever). None of them has an MVP, and the row already says `not rated`.
+ * - **A game the score cannot be computed for**: a column stored before migration `0014` or
+ *   `0015`, or one of the ten with no role. Core's own rule, unchanged.
+ */
+function recentAward(
+  all: readonly PlayerGameRow[],
+  game: SeasonGame,
+  names: ReadonlyMap<string, { puuid: string; name: PlayerName }>,
+  playerId: string,
+): RecentAward | null {
+  const mine = names.get(playerId)?.puuid;
+  if (mine === undefined) return null;
+
+  const ten: FoldAwardPlayer[] = [];
+  for (const row of all) {
+    const puuid = names.get(row.playerId)?.puuid;
+    if (puuid === undefined || row.muAfter === null || row.stats === null) return null;
+    ten.push({ puuid, side: row.side, ...row.stats });
+  }
+
+  const award = gatedGameAward(ten, game.durationS, game.winningSide);
+  if (award === null) return null;
+  return award.mvp === mine ? 'mvp' : award.ace === mine ? 'ace' : null;
 }
 
 /**
@@ -1078,7 +1131,20 @@ interface PlayerGameRow {
   muAfter: number | null;
   /** Beside `mu_after`, because a window's Proven is `mu - 2σ` **as of that game** (M5.12). */
   sigmaAfter: number | null;
+  /**
+   * The stat line the performance score is computed from (M7.10), or `null` on a read that did
+   * not ask for it.
+   *
+   * Only the recent-games read asks: it is nine integers on at most fifty rows, where the
+   * board's read is the same shape over a thousand games and prints no award. The one place
+   * that wants an MVP pays for it.
+   */
+  stats: FoldPerformance | null;
 }
+
+/** The nine stat columns the performance score reads, for the one select that asks for them. */
+const STAT_COLUMNS =
+  'kills, deaths, assists, damage_to_champs, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives' as const;
 
 /**
  * One player's scoreboard rows for a season, newest first.
@@ -1140,14 +1206,33 @@ function withRange<Q extends { gte(column: string, value: string): Q; lt(column:
   return next;
 }
 
-/** `game_players` for a set of games, in chunks, so no response is silently truncated. */
-async function loadGameRows(client: PublicClient, gameIds: readonly string[]): Promise<PlayerGameRow[]> {
+/**
+ * `game_players` for a set of games, in chunks, so no response is silently truncated.
+ *
+ * `withStats` is **the same query, nine columns wider** (M7.10, acceptance 4) and not a second
+ * read. It is on for the five rows `Recent games` draws and off for the season-wide read behind
+ * the board, which prints no award and would be carrying ninety thousand integers to say so.
+ */
+async function loadGameRows(
+  client: PublicClient,
+  gameIds: readonly string[],
+  options: { withStats?: boolean } = {},
+): Promise<PlayerGameRow[]> {
   const rows: PlayerGameRow[] = [];
   for (const chunk of inChunks(gameIds)) {
-    const { data, error } = await client
-      .from('game_players')
-      .select('game_id, player_id, side, role, mu_before, mu_after, sigma_after')
-      .in('game_id', chunk);
+    // Two spelled-out selects rather than one string built at run time: a column list that is
+    // a literal is checked against the generated types, and a typo in a nine-column addition
+    // would otherwise only show up as a 400 on somebody's page.
+    const { data, error } =
+      options.withStats === true
+        ? await client
+            .from('game_players')
+            .select(`game_id, player_id, side, role, mu_before, mu_after, sigma_after, ${STAT_COLUMNS}`)
+            .in('game_id', chunk)
+        : await client
+            .from('game_players')
+            .select('game_id, player_id, side, role, mu_before, mu_after, sigma_after')
+            .in('game_id', chunk);
     if (error) throw new Error(`board: game player lookup failed: ${error.message}`);
     rows.push(...(data ?? []).map(toGameRow));
   }
@@ -1162,6 +1247,15 @@ interface RawGamePlayerRow {
   mu_before: number | null;
   mu_after: number | null;
   sigma_after?: number | null;
+  kills?: number | null;
+  deaths?: number | null;
+  assists?: number | null;
+  damage_to_champs?: number | null;
+  gold?: number | null;
+  cs?: number | null;
+  vision_score?: number | null;
+  damage_self_mitigated?: number | null;
+  damage_to_objectives?: number | null;
 }
 
 function toGameRow(row: RawGamePlayerRow): PlayerGameRow {
@@ -1173,5 +1267,27 @@ function toGameRow(row: RawGamePlayerRow): PlayerGameRow {
     muBefore: row.mu_before,
     muAfter: row.mu_after,
     sigmaAfter: row.sigma_after ?? null,
+    stats: 'kills' in row ? toStats(row) : null,
+  };
+}
+
+/**
+ * The row's stat line under core's spellings — a rename, never a computation (M7.10).
+ *
+ * `role` is the scoreboard's own column with no fallback anywhere, because that is the column
+ * the fold read: an MVP printed here has to be the player whose delta was actually amplified.
+ */
+function toStats(row: RawGamePlayerRow): FoldPerformance {
+  return {
+    role: row.role,
+    kills: row.kills ?? null,
+    deaths: row.deaths ?? null,
+    assists: row.assists ?? null,
+    damageToChamps: row.damage_to_champs ?? null,
+    gold: row.gold ?? null,
+    cs: row.cs ?? null,
+    visionScore: row.vision_score ?? null,
+    damageSelfMitigated: row.damage_self_mitigated ?? null,
+    damageToObjectives: row.damage_to_objectives ?? null,
   };
 }

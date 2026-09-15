@@ -5662,6 +5662,45 @@ ever loses its MVP to a column that has not been filled yet.
     > Printing the performance score itself, anywhere. An MVP table on `/fun` or `/stats`, an all-time MVP
     > count, or an award — those are `/fun`'s register and they get their own task if the group asks twice.
     > Naming an MVP for a game nobody rated. Any change to the bonus itself.
+    >
+    > ### The platform half landed 2026-09-16 (`platform-engineer`)
+    >
+    > The embed and both loaders. The player page's **rendering** is the `web-engineer`'s half and this box is
+    > not ticked until it lands.
+    >
+    > - **The brief's "no new computation" premise was false and the accommodation is M7.9's**, already built
+    >   and reviewed: nothing distinguishes an amplified `mu_after` from a plain one without recomputing, so
+    >   `lib/ingest/fold.ts` exports `gameAward`, the same call `foldGame` makes. This task added
+    >   `gatedGameAward(players, durationS, winningSide)` beside it — `gameAward` behind `gateGame` — because
+    >   core's `mvpAce` *throws* on anything that is not five a side with ten distinct puuids, and a printing
+    >   surface has no gate of its own. **Both surfaces call that one function**, which is what makes
+    >   acceptance 3 a fact about there being one call rather than two implementations that agree today. No
+    >   stored marker, no second copy of the formula, and no decision row owed: this is M7.9's export being used
+    >   for what it was exported for.
+    > - **Acceptance 4 holds as "the same query, wider select"**: `loadResultSource`'s `game_players` read
+    >   gains the nine stat columns, and the recent-games read in `lib/board/load.ts` gains them behind a
+    >   `withStats` flag so the season-wide board read — a thousand games of ten rows that print no award —
+    >   is byte-for-byte the query it was. Neither path makes a second round trip.
+    > - **The rated gate both surfaces use is "all ten rows carry `mu_after`"**, which is what "the fold rated
+    >   this" means and is therefore how a remake, a short surrender and an ARAM (M7.1: four null rating
+    >   columns, for ever) all arrive with no award rather than a wrong one.
+    > - **The award reads `game_players.role` with no fallback**, unlike the role the two columns print, which
+    >   falls back to the stored split. The fold read the column; a game it gave no MVP to must not grow one on
+    >   a surface, or the post would name somebody whose delta was never amplified.
+    > - **The embed line is its own last field with a zero-width-space name.** Product asked for one line
+    >   *under* the existing block and wrote no heading for it; a field is the only place in an embed that is
+    >   under the two inline columns, and Discord rejects an empty field name. Being last also makes it the
+    >   first thing `guardEmbed` gives up when a post is over 6000 characters, which is exactly the priority
+    >   the brief's long-Riot-ID edge case asks for. **A copy-table row for `05-design.md` is owed and is the
+    >   designer's**, not this agent's — proposed text is in the handback.
+    > - Tests: `lib/discord/embeds.test.ts` pins `MVP Lena · ACE Rami` by code point and pins that a game with
+    >   no award is the two-field post it was; `lib/discord/assemble.test.ts` pins the embed's answer against
+    >   `gatedGameAward`'s own for the same ten rows, so a later hand computing it a second way fails the test
+    >   whatever names it produces; `app/award.integration.test.ts` inserts one ten-row game and reads it
+    >   through **both** surfaces against the local stack — the service-key Discord query and the anon-key page
+    >   query — and pins that they name the same two people, plus that one missing `vision_score` silences both.
+    > - The loader's field for the page is `RecentGame.award: 'mvp' | 'ace' | null` — **this player's** place in
+    >   that game, `null` for the other eight and for every game with no award.
 
 - [ ] **M7.11** The one rebuild. After every M7 task has landed, run `pnpm --filter web rebuild-ratings` exactly once, confirm it is clean, and tell the group. *(owner: `platform-engineer`, with the lead; after M7.1, M7.3, M7.4, M7.6, M7.9 and M7.10 — **the last task in the milestone that changes a number**; M7.12 below is numbered after it but is a read, is not gated by it, and owes no rebuild)*
 

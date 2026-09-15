@@ -8,6 +8,9 @@ import { WORKED_ROSTER, workedBalance, workedNames, workedPool, workedPuuid } fr
 import { buildTeamsInput } from './assemble';
 import {
   ACCENT_COLOR,
+  ACE_LABEL,
+  AWARD_FIELD_NAME,
+  awardLine,
   BLUE_COLOR,
   boardFooter,
   formatDamage,
@@ -16,6 +19,7 @@ import {
   joinNames,
   type LeaderboardEmbedInput,
   leaderboardEmbed,
+  MVP_LABEL,
   RED_COLOR,
   type ResultEmbedInput,
   type ResultPlayer,
@@ -373,6 +377,11 @@ function workedResultInput(overrides: Partial<ResultEmbedInput> = {}): ResultEmb
     red: side(split.red, rated.red),
     blueWinProb: split.blueWinProb,
     topDamage: { name: 'Lena', damage: 47_300 },
+    // M7.10. Red won the worked example, so its MVP comes off Red and its ACE off Blue: Lena
+    // is Red's adc and Iris is Blue's jungler. (Product's illustration of the line reads
+    // `MVP Lena · ACE Rami`; Rami is on Red here, so the pair is named on this roster's own
+    // sides and the string itself is pinned by `awardLine` below.)
+    award: { mvp: 'Lena', ace: 'Iris' },
     gameNumber: 47,
     url: SITE_URL,
     timestamp: '2026-09-08T21:09:12.000Z',
@@ -392,7 +401,7 @@ describe('resultEmbed, the worked example lost by the favourite', () => {
   it('wears the winning side colour, and blue keeps the first column', () => {
     expect(embed?.color).toBe(RED_COLOR);
     expect(embed?.title).toBe('Red wins · 34:12');
-    expect(embed?.fields.map((field) => field.name)).toEqual(['Blue', 'Red']);
+    expect(embed?.fields.map((field) => field.name)).toEqual(['Blue', 'Red', AWARD_FIELD_NAME]);
     expect(resultEmbed(workedResultInput({ winningSide: 100 })).embeds[0]?.color).toBe(BLUE_COLOR);
     expect(resultEmbed(workedResultInput({ winningSide: 100 })).embeds[0]?.fields[0]?.name).toBe('Blue');
   });
@@ -876,5 +885,71 @@ describe('windowSummaryEmbed, the closed window', () => {
     ).embeds[0]?.fields[0]?.value;
 
     expect(value).toBe('`1` Someone · 700 · 1 game');
+  });
+});
+
+/**
+ * The MVP / ACE line (M7.10), pinned by code point.
+ *
+ * Product's copy is `MVP Lena · ACE Rami` — two names, a middle dot, no score, no percentage,
+ * no emoji — and this file is where a string the group reads is allowed to be a literal. The
+ * separator is U+00B7, the same middle dot every other line in these embeds uses; a hyphen or a
+ * bullet here would be a fifth punctuation on a surface with four.
+ */
+describe('the MVP / ACE line', () => {
+  it("is product's line, character for character", () => {
+    expect(awardLine({ mvp: 'Lena', ace: 'Rami' })).toBe('MVP Lena · ACE Rami');
+    expect([...awardLine({ mvp: 'Lena', ace: 'Rami' })].map((character) => character.codePointAt(0))).toEqual(
+      [
+        0x4d, 0x56, 0x50, 0x20, 0x4c, 0x65, 0x6e, 0x61, 0x20, 0xb7, 0x20, 0x41, 0x43, 0x45, 0x20, 0x52, 0x61,
+        0x6d, 0x69,
+      ],
+    );
+    expect(MVP_LABEL).toBe('MVP');
+    expect(ACE_LABEL).toBe('ACE');
+  });
+
+  it('is floodlit: no emoji, no trophy, no colour of its own, no `#1`', () => {
+    const line = awardLine({ mvp: 'Lena', ace: 'Rami' });
+    // Printable ASCII and the middle dot, and nothing else: an emoji, an arrow or a medal is
+    // outside this set by construction.
+    expect(/^[ -~·]+$/u.test(line)).toBe(true);
+    expect(line).not.toContain('#');
+    expect(line).not.toContain('**');
+  });
+
+  it('renders a nameless player as `Someone`, like every other line', () => {
+    expect(awardLine({ mvp: null, ace: 'Rami' })).toBe('MVP Someone · ACE Rami');
+  });
+
+  it('truncates and escapes a long Riot ID exactly as the columns above it do', () => {
+    const long = `${'a'.repeat(40)}_x`;
+    expect(awardLine({ mvp: long, ace: 'Rami' })).toBe(`MVP ${renderName(long)} · ACE Rami`);
+    expect(renderName(long)).toContain('…');
+  });
+
+  it('sits under the two columns, in a field with no heading', () => {
+    const embed = resultEmbed(workedResultInput()).embeds[0];
+    const field = embed?.fields[2];
+    expect(embed?.fields).toHaveLength(3);
+    expect(field?.name).toBe(AWARD_FIELD_NAME);
+    // Not inline, so it is a line under the two columns rather than a third one beside them.
+    expect(field?.inline).toBeUndefined();
+    expect(field?.value).toBe('MVP Lena · ACE Iris');
+  });
+
+  /**
+   * Acceptance 2: **a game with no award is the post this group already reads.** Not a field
+   * with a dash in it, not the word `unknown`, not an empty heading — the same two fields, and
+   * everything else byte for byte what it was before M7.10 existed.
+   */
+  it('prints no field at all when the game has no award', () => {
+    const embed = resultEmbed(workedResultInput({ award: null })).embeds[0];
+    const before = resultEmbed(workedResultInput()).embeds[0];
+
+    expect(embed?.fields).toHaveLength(2);
+    expect(embed?.fields.map((field) => field.name)).toEqual(['Blue', 'Red']);
+    expect(embed?.fields).toEqual(before?.fields.slice(0, 2));
+    expect({ ...embed, fields: [] }).toEqual({ ...before, fields: [] });
   });
 });

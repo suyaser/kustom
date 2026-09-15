@@ -169,6 +169,16 @@ export interface RecentTeammate {
   role: RoleValue | null;
 }
 
+/**
+ * What this player was in one game, when they were one of the two (M7.10).
+ *
+ * `mvp` is the highest-scoring player on the side that won, `ace` the highest-scoring player on
+ * the side that lost — op.gg's two words, because they are the two words this group already
+ * uses. There is no third value and no rank: the other eight carry `null`, and no page prints
+ * "you were nearly MVP".
+ */
+export type RecentAward = 'mvp' | 'ace';
+
 export interface RecentGame {
   gameId: string;
   /** ISO 8601. The list is newest first; nothing on the page draws a date axis. */
@@ -181,6 +191,21 @@ export interface RecentGame {
   /** The two mu values the delta is computed from, at render. Never a formatted delta. */
   muBefore: number | null;
   muAfter: number | null;
+  /**
+   * `mvp`, `ace`, or `null` — **this player's** place in this game's award (M7.10), beside the
+   * delta it explains: M7.9 gives the MVP a quarter more of what they gained and gives the ACE
+   * a fifth of their loss back, and until this field nothing on the page said which two `+43`s
+   * were not the same `+43`.
+   *
+   * The loader reads it from `gatedGameAward` — the one function that names an MVP in this app,
+   * the one the fold itself applied and the one the Discord result post prints — so the word
+   * here and the name there are one answer about one game.
+   *
+   * `null` is every ordinary row and also every game that has no award: a remake, an ARAM, a
+   * game stored before the stat columns existed, a game one of whose ten has no role. A row
+   * with no word is the normal case and says nothing at all about the player.
+   */
+  award: RecentAward | null;
   /**
    * The chance the balancer gave **blue** in the split the group played (M5.15):
    * `games.lobby_id` → the lobby's chosen split → `splits.blue_win_prob`. The page turns it

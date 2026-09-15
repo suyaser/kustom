@@ -300,6 +300,9 @@ export function workedRecentGame(overrides: Partial<RecentGame> = {}): RecentGam
     role: 'top',
     muBefore: 23.9,
     muAfter: 23.2,
+    // Hana carried nothing in the worked example, which is the ordinary row (M7.10): nine rows
+    // in ten print no word, and a fixture that awarded one by default would hide that.
+    award: null,
     // The split the group played gave blue 58%: Hana was on 100 and lost as the favourite,
     // which is the second of product's two worked sentences (M5.15).
     blueWinProb: 0.58,
