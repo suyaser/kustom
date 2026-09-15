@@ -145,9 +145,20 @@ OpenSkill, default Plackett-Luce model, two teams of five.
   player's own `sigma^2`, so a settled player's rating is sticky and a new player's moves fast. Rank does not
   affect the size of a win — two players with the same sigma on the same winning team gain exactly the same amount.
 - Balance on `mu`. Leaderboard sorts on `ordinal = mu - 2 * sigma`. Display rating is `round(mu * 60)`.
-- A game is rated only when its stored row has ten `game_players`, five a side, and `duration_s` over 300
-  seconds: M1.5 stores every `CUSTOM_GAME` block, remakes included. The fold runs exactly once per game, claimed
-  by the null `mu_after` column.
+- A game is rated only when its stored row has ten `game_players`, five a side, `duration_s` over 300
+  seconds, **and its `games.raw` names Summoner's Rift** — `CLASSIC` or no mode at all, since every night
+  captured before the companion stored one was Rift (M5.26, M7.1). M1.5 stores every `CUSTOM_GAME` block,
+  remakes and ARAM included. The fold runs exactly once per game, claimed by the null `mu_after` column.
+- **Two gates, in `apps/web/lib/ingest/fold.ts`, and they answer different questions** (M7.1). `gateGame` is
+  "a game happened that can be read": ten rows, five a side, over 300 seconds, nobody twice. That is the
+  universe `/stats`, `/fun`, `/p/[puuid]` and the board's streak fold through `countedGames`, and an ARAM
+  night belongs in it. `gateRatedGame` is `gateGame` plus the mode, it adds one skip reason (`game-mode`),
+  and it has exactly two callers: the live fold and the rebuild. An ARAM custom is stored whole — ten rows, a
+  scoreboard, its `raw` — with four null rating columns for ever, the companion still gets a 2xx, and the
+  lobby still finishes. **Discord posts no result embed for it**, per the 2026-09-08 rule that a result posts
+  only for a rated game (`onFinished` returns early on `!rated`, and `buildResultInput` needs both `mu`
+  columns on all ten): before M7.1 a long enough ARAM rated and so was announced, and from M7.1 it is not.
+  Teams posts are unaffected — they come from the split, not the fold.
 - After each game call `rate([blueTeam, redTeam], { rank: [winnerRank...] })`. Store before and after on
   `game_players`. Ratings are a pure fold over games ordered by `started_at`, so they can be rebuilt from scratch
   after a backfill or a model change (`pnpm --filter web rebuild-ratings`).

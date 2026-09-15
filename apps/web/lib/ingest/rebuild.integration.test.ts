@@ -58,6 +58,8 @@ if (stack === null) {
   const tiedLowGameId = base + 8;
   /** One more game, after a rank has moved, for M5.7's "nothing ever rewrites a seed". */
   const afterTheClimbGameId = base + 10;
+  /** A night on the Howling Abyss, which the fold walks past (M7.1). */
+  const aramGameId = base + 11;
   const allGameIds = [
     ...liveGameIds,
     oldBackfillGameId,
@@ -67,6 +69,7 @@ if (stack === null) {
     tiedLowGameId,
     tiedHighGameId,
     afterTheClimbGameId,
+    aramGameId,
   ];
 
   let token = '';
@@ -809,6 +812,99 @@ if (stack === null) {
 
       await db.from('players').update({ rank_tier: 'GOLD', rank_division: 'II' }).eq('id', climber);
       await db.from('games').delete().eq('lcu_game_id', afterTheClimbGameId);
+    });
+  });
+
+  /**
+   * ARAM never rates (M7.1), from the rebuild's side.
+   *
+   * **Last in the file on purpose**: every case above counts the season's games, and this one
+   * adds one to it.
+   */
+  describe('the map (M7.1)', () => {
+    async function aramGameUuid(): Promise<string> {
+      const { data } = await db.from('games').select('id').eq('lcu_game_id', aramGameId).single();
+      return data?.id ?? '';
+    }
+
+    it('skips an ARAM, leaves its columns null, and moves nobody else by a digit', async () => {
+      // Settle the season first. The case above posted a game, let it rate, and then deleted
+      // it, so the stored `ratings` still count a game that is gone — true of this file and of
+      // nothing this case is about.
+      expect((await rebuild()).ok).toBe(true);
+
+      const before = JSON.parse(await dump()) as { rows: { game_id: string }[]; ratings: unknown[] };
+      const dry = await rebuild({ dryRun: true });
+      if (!dry.ok) throw new Error(`the season would not fold: ${dry.message}`);
+      const consideredBefore = dry.report.considered;
+
+      const response = await postGame(
+        post(
+          eogBody({
+            gameId: aramGameId,
+            puuids,
+            partyId: null,
+            startedAt: '2026-09-13T20:00:00.000Z',
+            durationS: 1_800,
+            raw: { gameMode: 'ARAM' },
+          }),
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ created: true, rated: false, reason: 'game-mode' });
+
+      const result = await rebuild();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.report.considered).toBe(consideredBefore + 1);
+      expect(result.report.skipped['game-mode']).toBe(1);
+      expect(formatRebuildReport(result.report)).toContain('1 game-mode');
+      // Not a problem: an ARAM night is a night that happened, it just carries no rating.
+      expect(result.report.problems).toEqual([]);
+
+      const aramId = await aramGameUuid();
+      for (const row of await ratingColumns(aramGameId)) {
+        expect(row.mu_before).toBeNull();
+        expect(row.mu_after).toBeNull();
+      }
+
+      // Acceptance 3: the Rift games' numbers are the ones they had before the ARAM existed,
+      // and no `ratings` row counts it.
+      const after = JSON.parse(await dump()) as { rows: { game_id: string }[]; ratings: unknown[] };
+      expect(after.rows.filter((row) => row.game_id !== aramId)).toEqual(before.rows);
+      expect(after.ratings).toEqual(before.ratings);
+    });
+
+    it('un-rates an ARAM an older fold already rated, which is what M7.11 will do', async () => {
+      // The database as it is today: ARAM games with four rating columns the fold wrote before
+      // this gate existed. One rebuild is all it takes to give them back.
+      const aramId = await aramGameUuid();
+      await db
+        .from('game_players')
+        .update({ mu_before: 30, sigma_before: 5, mu_after: 31, sigma_after: 4.9 })
+        .eq('game_id', aramId);
+
+      const result = await rebuild();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.report.gamePlayerRowsChanged).toBe(10);
+      for (const row of await ratingColumns(aramGameId)) {
+        expect(row.mu_before).toBeNull();
+        expect(row.mu_after).toBeNull();
+      }
+    });
+
+    it('is still idempotent with an ARAM in the season', async () => {
+      const first = await rebuild();
+      expect(first.ok).toBe(true);
+      const afterFirst = await dump();
+
+      const second = await rebuild();
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      expect(second.report.gamePlayerRowsChanged).toBe(0);
+      expect(second.report.ratingRowsChanged).toBe(0);
+      expect(await dump()).toBe(afterFirst);
     });
   });
 }

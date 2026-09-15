@@ -1,5 +1,6 @@
 import { type Rating, rateGame } from '@customs/core';
 import type { SideValue } from '@customs/db';
+import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
 
 /**
@@ -14,6 +15,19 @@ import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
  * incremental fold exactly" is a fact about this file being the only implementation, not a
  * hope about two copies staying in step. The gate below has to be shared for the same reason:
  * a game the live fold skipped and the rebuild rated would move numbers nobody played for.
+ *
+ * **There are two gates here and they answer two different questions** (M7.1).
+ *
+ * - {@link gateGame} — "did a game happen that can be read?" Ten rows, five a side, over 300
+ *   seconds, nobody twice. That is the universe `countedGames` folds for `/stats`, `/fun`,
+ *   `/p/[puuid]` and the board's streak, and an ARAM night belongs in it: it was played, it has
+ *   a scoreboard, and M5.26 settled that `/stats` and the rating fold stay mixed.
+ * - {@link gateRatedGame} — "and may it move the rating?" Everything above **and** the map. Only
+ *   `rating.ts` and `rebuild.ts` call it, and nothing on any page does.
+ *
+ * Folding the mode into `gateGame` instead would have emptied `/fun?queue=aram` — that page
+ * folds `countedGames` and *then* filters to ARAM — so the separation is the whole shape of the
+ * fix, not a style choice.
  *
  * The maths itself is `rateGame` in `@customs/core` and is not repeated here (CLAUDE.md).
  */
@@ -44,6 +58,10 @@ export type FoldGate =
 /**
  * M2.5's gate: ten rows, five a side, over 300 seconds. 300 exactly is not rated.
  *
+ * **"A game happened", not "a game rates"** (M7.1): the map is not asked about here, because
+ * this is also the universe `/stats` and `/fun` count and an ARAM night counts there. The
+ * rating callers use {@link gateRatedGame}, which is this plus the mode.
+ *
  * On the way through it sorts each side by puuid ascending, which is the order both callers
  * hand to `rateGame`. OpenSkill's answer does not depend on that order today, but the columns
  * we write do — the fold has to be reproducible from the table, not from the order a
@@ -65,6 +83,53 @@ export function gateGame(players: readonly FoldPlayer[], durationS: number): Fol
     return { ok: false, reason: 'duration' };
   }
   return { ok: true, blue, red };
+}
+
+/**
+ * Why a game that happened is not *rated*. {@link gateGame}'s four reasons, plus the map.
+ *
+ * `game-mode` is only ever produced by {@link gateRatedGame}: it is not a reason a game fails to
+ * count on `/stats`, which is exactly the point of there being two gates.
+ */
+export type RatedSkipReason = FoldSkipReason | 'game-mode';
+
+export type RatedGate =
+  | { ok: true; blue: FoldPlayer[]; red: FoldPlayer[] }
+  | { ok: false; reason: RatedSkipReason };
+
+/**
+ * Is this game's mode one the rating fold may read? **Summoner's Rift, and nothing else** (M7.1).
+ *
+ * `raw` is `games.raw` — the stored end-of-game block or match detail — and the client's
+ * `gameMode` on it is the authority. The two helpers are `lib/games/queue.ts`'s, the same pair
+ * `/games`, `/fun` and the Daily Mystery read, so "Rift" means one thing in this app:
+ * `CLASSIC`, or a **missing** mode.
+ *
+ * **A missing mode is Rift** (M5.26, 2026-09-12): every night captured before the companion
+ * stored a mode was Rift, and treating null as unknown would un-rate the group's whole history.
+ * ARAM, `KIWI`, `URF` and whatever the client invents next patch are stored with their ten rows
+ * and their scoreboard and four null rating columns, for ever.
+ */
+export function isRatedMode(raw: unknown): boolean {
+  return matchesQueue(gameModeFromRaw(raw), 'sr');
+}
+
+/**
+ * The gate the **rating** fold uses: {@link gateGame} and then the map (M7.1).
+ *
+ * The order matters to the log and to nothing else — a nine-player ARAM is still reported as
+ * `participant-count`, exactly as it was before this check existed, so a rebuild's skip counts
+ * only grow a new column rather than move numbers between the old ones.
+ *
+ * Both rating callers pass `games.raw` straight through; neither of them interprets it, because
+ * "what counts as Rift" living in two places is how the live fold and the rebuild start
+ * disagreeing.
+ */
+export function gateRatedGame(players: readonly FoldPlayer[], durationS: number, raw: unknown): RatedGate {
+  const gate = gateGame(players, durationS);
+  if (!gate.ok) return gate;
+  if (!isRatedMode(raw)) return { ok: false, reason: 'game-mode' };
+  return gate;
 }
 
 /**

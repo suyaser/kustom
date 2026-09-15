@@ -113,8 +113,9 @@ export const companionGameResponseSchema = z.object({
    *
    * A `source: 'backfill'` game is always `{ rated: false, reason: 'backfill' }` — stored, in
    * order, waiting for `pnpm --filter web rebuild-ratings` (M5.2). For an end-of-game post
-   * `reason` names M2.5's gate when it did not rate: `duration`, `participant-count`,
-   * `side-split`, `already-rated`.
+   * `reason` names the gate when it did not rate: `duration`, `participant-count`,
+   * `side-split`, `duplicate-player`, `already-rated`, and — M7.1 — `game-mode`, which is an
+   * ARAM or any other map: stored whole, never rated, and still a 2xx.
    */
   rated: z.boolean().optional(),
   reason: z.string().nullable().optional(),

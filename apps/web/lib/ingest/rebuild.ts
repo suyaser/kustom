@@ -1,7 +1,8 @@
 import type { Rating } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
+import { gameModeFromRaw } from '../games/queue';
 import type { ServiceClient } from '../supabase';
-import { type FoldPlayer, type FoldSkipReason, foldGame, gateGame } from './fold';
+import { type FoldPlayer, foldGame, gateRatedGame, type RatedSkipReason } from './fold';
 import { recomputeInferredRoles, selectAllPlayerIds } from './roles';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
@@ -107,7 +108,7 @@ export interface RebuildOptions {
   now?: Date;
 }
 
-export type RebuildSkipReason = FoldSkipReason;
+export type RebuildSkipReason = RatedSkipReason;
 
 export interface RebuildReport {
   seasonId: string;
@@ -162,6 +163,19 @@ interface SnapshotGame {
   durationS: number;
   winningSide: SideValue;
   source: string;
+  /**
+   * Enough of `games.raw` to answer the map (M7.1) — `{ gameMode }`, and not the blob.
+   *
+   * The rebuild has to read the mode for the same reason the live fold does: a game the live
+   * fold refused to rate and the rebuild rated would move numbers nobody played for. It must
+   * not read the whole block to do it: this select covers **a whole season**, an end-of-game
+   * block is tens of kilobytes, and a hosted rebuild would drag the season's JSON across the
+   * wire to look at one string. PostgREST projects the field (`raw->gameMode`) and the shape
+   * put back together here is the only shape `gameModeFromRaw` ever looks at, so the answer is
+   * identical to the live fold's on every input, including a null `raw` and a `gameMode` that
+   * is not a string.
+   */
+  raw: unknown;
 }
 
 interface SnapshotRow extends FoldPlayer {
@@ -236,6 +250,9 @@ export async function rebuildRatings(
     'side-split': 0,
     duration: 0,
     'duplicate-player': 0,
+    // ARAM and anything else that is not the Rift (M7.1). Not a problem, and not a number that
+    // should worry anybody: it is how many nights on the Howling Abyss the fold walked past.
+    'game-mode': 0,
   };
   const writes: WriteRow[] = [];
   let rated = 0;
@@ -258,7 +275,7 @@ export async function rebuildRatings(
 
   for (const game of games) {
     const players = byGame.get(game.id) ?? [];
-    const gate = gateGame(players, game.durationS);
+    const gate = gateRatedGame(players, game.durationS, game.raw);
 
     if (!gate.ok) {
       skipped[gate.reason] += 1;
@@ -504,7 +521,7 @@ async function selectSeasonGames(client: ServiceClient, seasonId: string): Promi
   const rows = await selectPaged('games select', (from, to) =>
     client
       .from('games')
-      .select('id, lcu_game_id, started_at, duration_s, winning_side, source')
+      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, raw->gameMode')
       .eq('season_id', seasonId)
       .not('winning_side', 'is', null)
       .order('started_at', { ascending: true })
@@ -521,6 +538,10 @@ async function selectSeasonGames(client: ServiceClient, seasonId: string): Promi
       durationS: row.duration_s,
       winningSide: row.winning_side as SideValue,
       source: row.source,
+      // The projection, put back into the shape the shared reader takes. A game whose `raw` is
+      // null, or whose block named no mode, arrives here as `{ gameMode: null }` — which is
+      // Rift, exactly as it is for the live fold.
+      raw: { gameMode: row.gameMode },
     }));
 }
 
@@ -644,7 +665,10 @@ async function pruneRatings(
 
 /**
  * Did the world move under us? The id set, any game's winning side, any game's participant
- * count. Anything else about a game (its `raw`, its lobby) cannot change the fold.
+ * count, and — since M7.1 — any game's **mode**, because the mode is now part of what the fold
+ * reads. A repost of a stored game merges `teams[].bans` onto its `raw` (`game.ts`), so that
+ * column is not frozen the way the others are; the rest of `raw` and the lobby still cannot
+ * change the fold.
  */
 async function fenceDrift(
   client: ServiceClient,
@@ -662,6 +686,9 @@ async function fenceDrift(
     const snapshot = before.get(game.id);
     if (snapshot === undefined) return `game ${game.lcuGameId} is new`;
     if (snapshot.winningSide !== game.winningSide) return `game ${game.lcuGameId} changed sides`;
+    if (gameModeFromRaw(snapshot.raw) !== gameModeFromRaw(game.raw)) {
+      return `game ${game.lcuGameId} changed mode`;
+    }
   }
 
   const counts = await selectPaged('fence count', (from, to) =>

@@ -1,8 +1,9 @@
 import { type Rating, type Role, seedFromRank } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
+import { gameModeFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
-import { type FoldSkipReason, foldGame, gateGame, mustGet } from './fold';
+import { foldGame, gateRatedGame, mustGet, type RatedSkipReason } from './fold';
 import { recomputeInferredRoles, roleInferenceFlags } from './roles';
 import { readSeed, type StoredSeed, seedColumns } from './seed';
 
@@ -15,7 +16,7 @@ import { readSeed, type StoredSeed, seedColumns } from './seed';
  * rebuild (M5.2), which replays exactly this for every game of a season.
  */
 
-export type RatingSkipReason = FoldSkipReason | 'already-rated' | 'backfill';
+export type RatingSkipReason = RatedSkipReason | 'already-rated' | 'backfill';
 
 export interface RatingFoldResult {
   rated: boolean;
@@ -50,18 +51,23 @@ export const BACKFILL_NOT_RATED: RatingFoldResult = { rated: false, reason: 'bac
  * Rate one stored game, once.
  *
  * The gate first (`fold.ts`): ten `game_players` rows, five a side, `duration_s` over 300
- * seconds. M1.5 stores *every* `CUSTOM_GAME` block — remakes and four-minute surrenders
- * included — so this is where a game nobody played stops. 300 exactly is not rated. The row is
- * kept either way; only `ratings` is left alone.
+ * seconds, and — M7.1 — Summoner's Rift. M1.5 stores *every* `CUSTOM_GAME` block — remakes,
+ * four-minute surrenders and Howling Abyss nights included — so this is where a game the
+ * balancer's number must not learn from stops. 300 exactly is not rated. The row is kept either
+ * way, with its scoreboard and its `raw`; only the four rating columns and `ratings` are left
+ * alone, and the caller still answers the companion 2xx (a non-2xx would make it retry a game
+ * that will never rate) and still finishes the lobby.
  */
 export async function rateStoredGame(client: ServiceClient, gameId: string): Promise<RatingFoldResult> {
   const game = await selectGame(client, gameId);
   const rows = await selectGamePlayers(client, gameId);
 
-  const gate = gateGame(rows, game.durationS);
+  const gate = gateRatedGame(rows, game.durationS, game.raw);
   if (!gate.ok) {
     console.info(
-      `rating: game ${gameId} not rated: ${gate.reason} (${rows.length} rows, ${game.durationS}s)`,
+      `rating: game ${gameId} not rated: ${gate.reason} (${rows.length} rows, ${game.durationS}s, mode ${
+        gameModeFromRaw(game.raw) ?? 'CLASSIC (missing)'
+      })`,
     );
     return { rated: false, reason: gate.reason, claimed: 0 };
   }
@@ -172,12 +178,18 @@ interface StoredGame {
   winningSide: SideValue;
   /** Null for a backfilled game and for a game played from no lobby: nobody was filled. */
   lobbyId: string | null;
+  /**
+   * The stored end-of-game block, for its `gameMode` and nothing else (M7.1). Read as `unknown`
+   * on purpose: `isRatedMode` is the only thing that interprets it, and a null `raw` — a row
+   * written before the blob was kept — is Rift, exactly as it was before this column was read.
+   */
+  raw: unknown;
 }
 
 async function selectGame(client: ServiceClient, gameId: string): Promise<StoredGame> {
   const { data, error } = await client
     .from('games')
-    .select('season_id, duration_s, winning_side, lobby_id')
+    .select('season_id, duration_s, winning_side, lobby_id, raw')
     .eq('id', gameId)
     .single();
   if (error) throw new Error(`rating: game select failed: ${error.message}`);
@@ -189,6 +201,7 @@ async function selectGame(client: ServiceClient, gameId: string): Promise<Stored
     durationS: data.duration_s,
     winningSide: data.winning_side,
     lobbyId: data.lobby_id,
+    raw: data.raw,
   };
 }
 
