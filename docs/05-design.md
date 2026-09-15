@@ -1456,6 +1456,7 @@ words below are fixed.
 | games cannot be saved, admin and API | `Games cannot be saved: the database is missing its one season row.` | **amended, product 2026-09-10 (M5.14)** — was `… Start a season on the Seasons page.`; there is no such page action now |
 | games are not being saved, tonight page | `Tonight's games are not being saved. Play on — they can be added back from match history later.` | **amended, product 2026-09-10 (M5.14)** — was `An admin can start one.`; backfill is true, and it is the only thing the twenty people holding the link can act on |
 | inferred roles on `/admin/players` (plain page, no dress) | `support · jungle · from 17 games` · `flexible · from 2 games` · `flexible · no games yet` | **new**, product 2026-09-10 (M5.17) — read-only text where two selects used to be |
+| award badge on a `/leaderboard` row, `Last week` and `Last month` only | `Most improved` · `Best off-role` · `Cursed duo` | **no new string, designer 2026-09-15 (M8.3)** — placement only. The three are **imported from `lib/stats/copy.ts`** (`MOST_IMPROVED`, `BEST_OFF_ROLE`, `CURSED_DUO`), never retyped and never re-cased, for the reason that file's own header gives: they are printed on a page *and* in a Discord post, and one surface saying `Cursed duo` while another says `Worst duo` is a bug nobody finds until somebody wins it. This is the second board-page string that lives in `lib/stats/copy.ts` rather than `lib/board/copy.ts`, and it stays there — a copy of an award's title in the board's own file is the drift this row exists to prevent. The badge is the title **alone**: no count, no delta, no partner name, no `#1`, no calendar — `/p/[puuid]`'s `Most improved, September.` carries the calendar because that page has no window heading, and `/leaderboard`'s `h1` already names the window. Nothing is drawn on `This week`, `This month` or `All time`. See "The award badge on a board row" |
 
 **Why the three new ones stand.**
 
@@ -2134,6 +2135,10 @@ and the group say them in lower case).
   `0` fall through to `Rating`, so the column is still non-increasing top to bottom. `0` is also the honest
   reading — the board has not credited you with anything yet — and the still-settling sentence is what
   explains it.
+- **There is a third line, and only on a row that won one of the window's awards** (M8.3, 2026-09-15). It holds
+  labelled badges and nothing else, it is drawn on `Last week` and `Last month` only, and it is never drawn in
+  the tonight rail. Everything about it — the dress, the order of two badges, the wrap — is its own section
+  below, "The award badge on a board row".
 
 ### Leaderboard row expand (M5.30) — 2026-09-13
 
@@ -2150,6 +2155,122 @@ already opens.
 - The side is the 3px leading rule, blue or red, never a wash behind `Won`.
 - The tonight rail never opens: `loadTopPlayers` does not attach the breakdown.
 - Rated games only. An unrated row does not move the number the expand is explaining.
+
+### The award badge on a board row (M8.3, designer 2026-09-15)
+
+On `Last week` and `Last month` the winners' rows carry the award's own words. On `This week`, `This month` and
+`All time` nothing is drawn, because those windows have no awards to draw (M5.4: *an award that changes every
+night is a statistic, not an award*), and this task does not invent any. The tonight rail never badges.
+
+**It is a third line, its own run, under the meta.** Not inside line 2's middot run and not beside the name:
+
+```
+ 3  Nadia                              ▾   1548     ← line 1, unchanged
+    12 games · 8W 4L · +153 · W3        Rating 2088 ← line 2, unchanged
+    [Most improved] [Cursed duo]                    ← line 3, only on a row that won something
+```
+
+- **Not in line 2.** `12 games · 8W 4L · +153 · W3 · Most improved` sets an award as the last item of a run of
+  statistics, separated by the same middot, in the same size and colour as the numbers around it — which is
+  precisely the reading M5.4 spent a paragraph refusing. The run is one window fact ("what happened inside the
+  window"); an award is what came out of it. It also fits at 390 only just, so the second badge would wrap
+  inside the meta span and land under the record with `Rating` baseline-aligned to the line above it — the same
+  third line, arrived at by accident and with no control over it.
+- **Not on line 1.** The name is `flex: 1 1 auto` with an ellipsis, and the triangle and the primary number own
+  the right edge. A chip between them buys its width out of the one thing on the row a reader is looking for.
+- **Left-aligned under the name, and line 3 has no right-hand group.** Lines 1 and 2 are each two groups pinned
+  to opposite edges; this one is deliberately not, because there is no second fact to pin. `padding-bottom:
+  var(--cn-sp-2)` on the run, with line 2's existing `padding-bottom: var(--cn-sp-2)` above it, so the badges
+  sit in the row's own rhythm and the row grows from 56px to about 84px. **A badged row being taller than its
+  neighbours is the point**: three rows in twenty carry more, which is how a label earns attention without
+  taking a colour.
+
+**The badge itself: the settling chip's shape, in language's typeface.**
+
+```css
+/* An award the window handed out (M8.3). A label, not a control and not a decoration. */
+.cn-row-awards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cn-sp-2);
+  margin: 0;
+  padding-bottom: var(--cn-sp-2);
+}
+
+.cn-award {
+  border: 1px solid var(--cn-line);
+  border-radius: var(--cn-radius-chip);
+  padding: 0 var(--cn-sp-2);
+  font-family: var(--cn-font-sans);
+  font-size: var(--cn-t-xs);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--cn-dim);
+  white-space: nowrap;
+}
+```
+
+- **Archivo, not mono**, and this is the one place it parts company with the `settling` chip it borrows its box
+  from. The type rule is `number or role → mono`; `Most improved` is neither, it is a two-word phrase with a
+  capital letter, and a capital on a mono micro-label is forbidden three sections up (`top`, `live`, `settling`,
+  never `This Week`). The window picker's labels are Archivo for the same reason. The difference is also useful:
+  on `Last month` a row can carry `settling` on line 2 and `Most improved` on line 3, and mono-lowercase versus
+  Archivo-sentence-case is what stops two identical marks from meaning two different things on one row.
+- **`dim`, 1px `line`, `radius-chip` — no colour of its own.** Not `brand`: `brand` is the one lamp, spent on the
+  chosen window chip and the viewer's own row on this page already, and three amber boxes down a board would
+  outrank both. Not blue or red — those are sides. The hairline is not decoration, it is what makes two words in
+  `dim` read as a label rather than as text that wandered out of line 2.
+- **Never a number, an icon, a trophy, a medal, a `#1`, an emoji or a count.** The badge is the award's title and
+  nothing else. `Cursed duo` does not name the partner and `Most improved` does not print `+153`: the line
+  already prints that player's climb, and the full award line with both halves of a duo is `/stats`'s, once.
+- **No tooltip and no `title` attribute.** A tooltip is a hover, the page is read on a phone, and a badge that
+  needs explaining is a badge that should have been a sentence.
+
+**Two badges on one row.** A row can win more than one — most improved and cursed duo is the ordinary case, and
+all three is possible. They print in **the awards' own order, always: `Most improved`, `Best off-role`,
+`Cursed duo`** — `awardBlocks`' order, which is `/stats`' order and the Discord post's order. Never sorted by
+anything else, never re-ordered per row, because a reader comparing two badged rows should meet the same
+sequence on both. Each badge is `white-space: nowrap` and the run is `flex-wrap: wrap`, so if a run ever exceeds
+the row it breaks **between** badges and never inside a label.
+
+**390px.** Content box is `390 − 2×16 gutter − 2×12 row padding = 334px`. Budget, at Archivo 500 12px with 8px
+of padding each side and a 1px border: `Most improved` ≈ 99px, `Best off-role` ≈ 99px, `Cursed duo` ≈ 81px. The
+worst pair is 206px and all three are 295px, so **every case fits on one line at 390** and the wrap rule is
+insurance rather than layout. Those are budgets, not measurements: check the real thing at 390 with two badges
+before calling it done.
+
+**1280px.** The board card sits in the same 44rem column, so the run has ~648px and nothing about it changes.
+**The row does not become a table and the badges do not move to the right edge at any width** — one structure at
+both widths, for the rule the row already follows (*at ≥720px the row does not become a table, same lines, wider
+gutters*). A badge that lives on line 3 on a phone and at the end of line 2 on a laptop is two layouts and two
+tests for three rows a week.
+
+**The badge is not a control, and the expand is untouched (M5.30).** The run renders inside `BoardRowLines`,
+after `.cn-row-bottom` — so it is inside the `<summary>` on an expandable row and inside the `<li>` on a row
+with nothing to open, from one place in the component. Consequences, and all three are wanted:
+
+- The whole row, badges included, stays **one** tap target for the `<details>`. The badge enlarges that target
+  rather than competing with it.
+- **No `<a>`, no `<button>`, no `tabindex` inside the run.** An interactive element inside a `<summary>` is a
+  nested control: a thumb landing near it either toggles nothing or navigates by accident. In particular the
+  badge does **not** link to `/stats`, tempting as that is — the brief says the badge is not a control, and the
+  window picker plus the nav already reach that page.
+- It must sit **inside** the summary, not after the `</details>`: outside it, an open row would print its award
+  under the list of games it won the award with, where it reads as a caption on the last game.
+
+**A screen reader** hears the badge as the last words of the row, after the meta: *"Nadia, 1548 Proven, 12
+games, 8W 4L, plus 153, W3, Most improved"*. No `aria-label`, no visually-hidden prefix, no `role` — the words
+are already language, and the window that handed the award out is the `h1` above the board. Both halves of a
+cursed duo are badged and both are on the board, so the pair explains itself: two rows, same two words.
+
+**Edge cases**, all of them falling out of "the loader hands the row its list and the row prints it": no
+qualifying winner means no run and a board byte-identical to today's; a tie means both rows carry the badge; a
+cursed-duo winner who is not on the board is simply not badged and **no ghost row is added**. The word `season`
+appears nowhere in any of it.
+
+**Light and dark.** One recipe. `dim` on `surface` clears 7:1 in both themes at this size, and the `line`
+hairline is the same one already drawn between every two rows, so the badge inherits the board's own edge rather
+than introducing a second one.
 
 ### Still-settling marker (M3.8)
 
