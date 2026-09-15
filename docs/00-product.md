@@ -167,12 +167,14 @@ and until 2026-09-15 it was quietly counted, which is a bug and not a policy (M7
 
 **Carrying is worth a little more.** The best player on the winning side keeps about a quarter more of what
 they gained, and the best player on the losing side gives back about a fifth less. Best means the highest
-score on a six-part reading of that game — kills and assists against deaths, damage to champions, gold,
-vision, damage soaked, and CS — the same shape op.gg's MVP and ACE use. Everyone is read on those same six
-numbers, and always against the other nine people who were actually in that game, never against some average
-player somewhere else. **What weighs most depends on the role you played** (2026-09-15, M7.13): vision is most
+score on a seven-part reading of that game: kills and assists against deaths, damage to champions, gold,
+vision, damage soaked, CS, and damage to towers, dragons and barons. The first six count for everybody, near
+enough the shape op.gg's MVP and ACE use; the seventh counts for the jungler and nobody else. Everyone is read
+against the other nine people who were actually in that game, never against some average player somewhere
+else. **What weighs most depends on the role you played** (2026-09-15, M7.13): vision is most
 of a support's score and almost none of a carry's, damage to champions is most of a carry's, and a jungler is
-read somewhere between the two. Top, mid and adc are read the same way as each other, because the game's own
+read somewhere between the two, plus the one number nobody else is scored on: what they took off the map
+(M7.14). Top, mid and adc are read the same way as each other, because the game's own
 record does not reliably say which of top and mid somebody was. It is a small adjustment made after
 the model has rated the game, it never turns a win into a loss or the other way round, and it leaves Proven's
 "how sure are we" half alone: a good night is not the same thing as certainty (M7.8).

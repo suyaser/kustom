@@ -271,39 +271,53 @@ rating has moved. No column stores the score and no API field carries it. `evenn
 of its own, since `predictWin` answers 0, 1 or 0.5 for an empty side (decision, 2026-09-15). Reading this score
 must never feed back into `score` or `compareSplits`: it does not change which split the balancer picks.
 
-### The performance score and the MVP / ACE bonus (M7.8, weights revised by M7.13)
+### The performance score and the MVP / ACE bonus (M7.8, weights revised by M7.13, seventh component by M7.14)
 
 `rating/performance.ts` is three pure functions — `performanceScores`, `mvpAce`, `applyMvpAceBonus` — over one
 game's own numbers. **MVP** is the highest-scoring player on the winning team, **ACE** the highest-scoring player
 on the losing team; those are op.gg's terms for op.gg's idea, whose formula is proprietary and unpublished, so
 this one is hand-reasoned, fitted to nothing, and a tunable like every other number in `config.ts`.
 
-Six components — and **three weight vectors over them, picked by the player's role** (M7.13), in
+Seven components — and **three weight vectors over them, picked by the player's role** (M7.13), in
 `config.rating.performance`:
 
 | component | `carry` (top/mid/adc) | `jungle` | `support` |
 |---|---|---|---|
-| KDA | 0.15 | 0.25 | 0.25 |
+| KDA | 0.15 | 0.20 | 0.25 |
 | damage to champions | 0.30 | 0.20 | 0.05 |
-| gold | 0.20 | 0.15 | 0.05 |
+| gold | 0.20 | 0.10 | 0.05 |
 | vision score | 0.05 | 0.15 | 0.40 |
 | damage self-mitigated | 0.10 | 0.10 | 0.15 |
-| CS | 0.20 | 0.15 | 0.10 |
+| CS | 0.20 | 0.10 | 0.10 |
+| damage to objectives | 0.00 | 0.15 | 0.00 |
+
+**Damage to objectives is the seventh and newest** (M7.14, from `game_players.damage_to_objectives`): a jungler's
+job is the map, and the six above read only fights and farm. It is the **one component weighted for a single
+bucket**. The 0.15 came off the jungle row's gold, CS and KDA, 0.05 each — gold and CS because objective damage
+is a second reading of the same farming clock, KDA by one notch because a jungler taking objectives is doing the
+thing ganks were a proxy for — so `carry` and `support` scores are **bit-for-bit what they were under M7.13**,
+pinned by a test. A `0.00` weight is not an exemption from the missing-input rule below.
 
 Every row sums to 1.00. The role-to-bucket map is `config.rating.performanceBucket` and lives **only** there:
 top, mid and adc are all `carry`, jungle is `jungle`, support is `support`. **Three buckets, not five**, because
 M7.12 measured that nothing in the stored end-of-game block separates top from mid — a bucket that never has to
 tell them apart cannot be wrong about it — while jungle and support, the two roles the single M7.8 vector
 misread, were pinned 46 of 46 sides with an independent Smite check. A single flat vector scored a support and
-an adc on the same six weights, which asked each to win MVP on the other's terms.
+an adc on the same weights, which asked each to win MVP on the other's terms.
 
 **Each component is still normalised inside the game**: a player's value divided by the best of the ten for that
 component — the whole ten, never the best within their own bucket — so every term is in `[0, 1]` and gold does
 not swamp KDA by being a four-digit number. KDA is `(kills + assists) / max(1, deaths)`. A component whose
 game-wide maximum is zero contributes zero to everybody rather than dividing by zero, whatever that player's
 bucket weights say about it. A score is therefore in `[0, 1]` and is comparable **only inside its own game**,
-which is all MVP and ACE need. The six are summed in the table's order, which is part of the pinned arithmetic.
-Ties go to the lower puuid, never to the array's order.
+which is all MVP and ACE need. The seven are summed in the table's order, which is part of the pinned arithmetic
+— damage to objectives last, which is the other half of why adding it left `carry` and `support` scores exactly
+where they were. Ties go to the lower puuid, never to the array's order.
+
+A game where **all ten did zero objective damage** — a twelve-minute surrender with no plates — hits the same
+`maximum is zero` branch as any other component: it contributes zero to everybody, the jungle row's remaining six
+weights then sum to 0.85 for everybody in that bucket, and nothing is renormalised. Renormalising per game would
+mean the weights differ game to game, which is a second model.
 
 Nothing here requires a side to hold five distinct roles: buckets are read per player, and a side with two
 supports and no top is scored as it comes. The balancer's view of roles is not involved.
@@ -321,26 +335,37 @@ gives back the same ten. With `delta = after.mu - before.mu`:
 The bound is the construction: both factors are positive and fixed, so the sign of a delta never flips and no term
 is unbounded. A winner always gains; a loser always loses.
 
-**If any of the six components is missing for any of the ten** — a game stored before M7.7, a blob that never
-carried vision, a `null`, a `NaN` — there is **no MVP and no ACE** (`mvpAce` returns `null`) and the game is rated
-exactly as it was before M7.8. There is no partial scoring: it would rank a player who has a vision score against
-one who does not.
+**If any of the seven components is missing for any of the ten** — a game stored before M7.7 or M7.14, a blob
+that never carried vision, a `null`, a `NaN` — there is **no MVP and no ACE** (`mvpAce` returns `null`) and the
+game is rated exactly as it was before M7.8. There is no partial scoring: it would rank a player who has a vision
+score against one who does not.
+
+**The rule is universal and is not scoped to where the weight is above zero** (M7.14). A carry with no objectives
+number, whose weight on it is `0.00`, takes the MVP off the game exactly as a jungler with none does.
+`componentsOf` checks all nine of its inputs for every player before any bucket is consulted, and the reasons are
+that the denominator is the whole game (a player who drops out of a component's maximum changes what everybody
+else is measured against, so the jungler's score would depend on whether we happened to store a *laner's*
+number), that a weight-scoped rule would let a `config.ts` nudge reach back and change which past games are
+scorable at all, and that one rule is explainable where two are not. A weight may change what a score is; it may
+never change whether a game has one.
 
 **And if any of the ten has no role, the same three answers** (M7.13): `performanceScores` returns `null`,
 `mvpAce` returns `null`, and `applyMvpAceBonus` gives back an untouched copy of the fold. Role is an input like
-the other eight numbers and it declines the same way — per game, never per player. `null`, `undefined` and a
+the other nine numbers and it declines the same way — per game, never per player. `null`, `undefined` and a
 value outside the five roles all count as no role; it **never falls back to `carry`**, because a silent default
 is a guess printed as a fact. The cost is accepted and real: every backfilled game carries `role = null` for all
 ten (decision, 2026-09-09; M5.18 is unresolved), so the backfilled half of the history never has an MVP. The
 games that keep one are the live end-of-game ones. Only the shape guard still throws: anything that is not five
 a side, or a puuid twice, is a caller bug rather than missing data.
 
-The worked example's ten (`docs/00-product.md`, blue winning, on the roles the balancer gave them) score Bilal
-0.8875, Lena 0.7000, Iris and Nadia 0.5000, Theo and Rami 0.4875, Hana 0.3875, Omar 0.2875, Karim 0.2500, Yuki
-0.0000 — so Bilal is the MVP and Lena the ACE, pinned in `rating/performance.test.ts`. That game has no support
-who ran the map, so the buckets reorder the middle and not the top; the test file also pins a hand-built ten
-where the support has the best vision and the worst damage and wins MVP under these weights, having lost it
-under M7.8's single vector.
+The worked example's ten (`docs/00-product.md`, blue winning, on the roles the balancer gave them, with the
+objectives column the test file gives them) score Bilal 0.8875, Lena 0.7000, Rami 0.5750, Iris 0.5375, Nadia
+0.5000, Theo 0.4875, Hana 0.3875, Omar 0.2875, Karim 0.2500, Yuki 0.0000 — so Bilal is the MVP and Lena the ACE,
+pinned in `rating/performance.test.ts`. M7.14 moved the two junglers there and nobody else (Rami 0.4875 ->
+0.5750, Iris 0.5000 -> 0.5375). That game has no support who ran the map, so the buckets reorder the middle and
+not the top; the test file also pins a hand-built ten where the support has the best vision and the worst damage
+and wins MVP under these weights, having lost it under M7.8's single vector, and a second one where a jungler
+who is exactly mid-table on the other six wins MVP on objective damage alone, having lost it under M7.13's six.
 
 ## Balancer (`packages/core/balance`)
 

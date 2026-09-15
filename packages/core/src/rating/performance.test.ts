@@ -31,6 +31,7 @@ import {
  * | vision score | 80 | Hana |
  * | damage self-mitigated | 48000 | Rami |
  * | CS | 320 | Bilal |
+ * | damage to objectives | 20000 | Rami (M7.14) |
  */
 const GAME: PerformancePlayer[] = [
   // blue
@@ -46,6 +47,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 80,
     damageSelfMitigated: 36000,
     cs: 80,
+    damageToObjectives: 5000,
   },
   {
     puuid: 'iris',
@@ -59,6 +61,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 40,
     damageSelfMitigated: 24000,
     cs: 160,
+    damageToObjectives: 15000,
   },
   {
     puuid: 'karim',
@@ -72,6 +75,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 20,
     damageSelfMitigated: 12000,
     cs: 80,
+    damageToObjectives: 0,
   },
   {
     puuid: 'bilal',
@@ -85,6 +89,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 20,
     damageSelfMitigated: 12000,
     cs: 320,
+    damageToObjectives: 5000,
   },
   {
     puuid: 'theo',
@@ -98,6 +103,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 60,
     damageSelfMitigated: 24000,
     cs: 80,
+    damageToObjectives: 0,
   },
   // red
   {
@@ -112,6 +118,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 20,
     damageSelfMitigated: 12000,
     cs: 80,
+    damageToObjectives: 5000,
   },
   {
     puuid: 'rami',
@@ -125,6 +132,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 40,
     damageSelfMitigated: 48000,
     cs: 160,
+    damageToObjectives: 20000,
   },
   {
     puuid: 'nadia',
@@ -138,6 +146,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 40,
     damageSelfMitigated: 24000,
     cs: 160,
+    damageToObjectives: 5000,
   },
   {
     puuid: 'lena',
@@ -151,6 +160,7 @@ const GAME: PerformancePlayer[] = [
     visionScore: 20,
     damageSelfMitigated: 24000,
     cs: 240,
+    damageToObjectives: 10000,
   },
   {
     puuid: 'yuki',
@@ -164,10 +174,12 @@ const GAME: PerformancePlayer[] = [
     visionScore: 0,
     damageSelfMitigated: 0,
     cs: 0,
+    damageToObjectives: 0,
   },
 ];
 
-interface Fractions {
+/** The six components M7.8 and M7.13 read, without M7.14's seventh. */
+interface SixFractions {
   kda: number;
   damageToChamps: number;
   gold: number;
@@ -176,12 +188,55 @@ interface Fractions {
   cs: number;
 }
 
+/** The seven components the scorer reads today (M7.14 added `damageToObjectives`). */
+interface Fractions extends SixFractions {
+  damageToObjectives: number;
+}
+
 /**
- * The three weight vectors of the M7.13 brief, written out a second time as literals so the
- * expected scores below do not read the numbers they are meant to pin. A tune of
- * `config.rating.performance` must fail here first.
+ * The three weight vectors of the M7.13 brief as M7.14 reweighted them, written out a second
+ * time as literals so the expected scores below do not read the numbers they are meant to pin.
+ * A tune of `config.rating.performance` must fail here first.
+ *
+ * Only the jungle row moved: 0.05 each off gold, CS and KDA to pay for the seventh component.
+ * `carry` and `support` carry it at 0.00 and are otherwise untouched.
  */
 const BRIEF_WEIGHTS: Record<PerformanceBucket, Fractions> = {
+  carry: {
+    kda: 0.15,
+    damageToChamps: 0.3,
+    gold: 0.2,
+    visionScore: 0.05,
+    damageSelfMitigated: 0.1,
+    cs: 0.2,
+    damageToObjectives: 0,
+  },
+  jungle: {
+    kda: 0.2,
+    damageToChamps: 0.2,
+    gold: 0.1,
+    visionScore: 0.15,
+    damageSelfMitigated: 0.1,
+    cs: 0.1,
+    damageToObjectives: 0.15,
+  },
+  support: {
+    kda: 0.25,
+    damageToChamps: 0.05,
+    gold: 0.05,
+    visionScore: 0.4,
+    damageSelfMitigated: 0.15,
+    cs: 0.1,
+    damageToObjectives: 0,
+  },
+};
+
+/**
+ * M7.13's six-component vectors, kept in the test and nowhere else, so the tests that have to
+ * show what M7.14 changed — and what it did not — can say what the previous formula answered.
+ * There is no six-component scorer in `packages/core` any more and this must never become one.
+ */
+const M7_13_SIX: Record<PerformanceBucket, SixFractions> = {
   carry: {
     kda: 0.15,
     damageToChamps: 0.3,
@@ -231,6 +286,20 @@ function expectedScore(bucket: PerformanceBucket, f: Fractions): number {
     w.gold * f.gold +
     w.visionScore * f.visionScore +
     w.damageSelfMitigated * f.damageSelfMitigated +
+    w.cs * f.cs +
+    w.damageToObjectives * f.damageToObjectives
+  );
+}
+
+/** The same arithmetic under M7.13's six components, for the tests that compare the two. */
+function sixComponentScore(bucket: PerformanceBucket, f: SixFractions): number {
+  const w = M7_13_SIX[bucket];
+  return (
+    w.kda * f.kda +
+    w.damageToChamps * f.damageToChamps +
+    w.gold * f.gold +
+    w.visionScore * f.visionScore +
+    w.damageSelfMitigated * f.damageSelfMitigated +
     w.cs * f.cs
   );
 }
@@ -240,7 +309,7 @@ function expectedScore(bucket: PerformanceBucket, f: Fractions): number {
  * show the change doing its job can say what the old formula would have answered. There is no
  * flat scorer in `packages/core` any more and this must never become one.
  */
-const M7_8_FLAT: Fractions = {
+const M7_8_FLAT: SixFractions = {
   kda: 0.1,
   damageToChamps: 0.2,
   gold: 0.2,
@@ -259,8 +328,17 @@ function fractionsOf(players: readonly PerformancePlayer[]): Map<string, Fractio
     visionScore: p.visionScore as number,
     damageSelfMitigated: p.damageSelfMitigated as number,
     cs: p.cs as number,
+    damageToObjectives: p.damageToObjectives as number,
   }));
-  const keys = ['kda', 'damageToChamps', 'gold', 'visionScore', 'damageSelfMitigated', 'cs'] as const;
+  const keys = [
+    'kda',
+    'damageToChamps',
+    'gold',
+    'visionScore',
+    'damageSelfMitigated',
+    'cs',
+    'damageToObjectives',
+  ] as const;
   const max = {} as Fractions;
   for (const k of keys) max[k] = Math.max(0, ...raw.map((r) => r[k]));
   return new Map(
@@ -293,9 +371,33 @@ function flatScores(players: readonly PerformancePlayer[]): Map<string, number> 
 
 /** Each player's fraction of the maximum, component by component, in the same order. */
 const FRACTIONS: Record<string, Fractions> = {
-  bilal: { kda: 1, damageToChamps: 1, gold: 1, visionScore: 0.25, damageSelfMitigated: 0.25, cs: 1 },
-  hana: { kda: 0.25, damageToChamps: 0.25, gold: 0.5, visionScore: 1, damageSelfMitigated: 0.75, cs: 0.25 },
-  iris: { kda: 0.5, damageToChamps: 0.5, gold: 0.5, visionScore: 0.5, damageSelfMitigated: 0.5, cs: 0.5 },
+  bilal: {
+    kda: 1,
+    damageToChamps: 1,
+    gold: 1,
+    visionScore: 0.25,
+    damageSelfMitigated: 0.25,
+    cs: 1,
+    damageToObjectives: 0.25,
+  },
+  hana: {
+    kda: 0.25,
+    damageToChamps: 0.25,
+    gold: 0.5,
+    visionScore: 1,
+    damageSelfMitigated: 0.75,
+    cs: 0.25,
+    damageToObjectives: 0.25,
+  },
+  iris: {
+    kda: 0.5,
+    damageToChamps: 0.5,
+    gold: 0.5,
+    visionScore: 0.5,
+    damageSelfMitigated: 0.5,
+    cs: 0.5,
+    damageToObjectives: 0.75,
+  },
   karim: {
     kda: 0.25,
     damageToChamps: 0.25,
@@ -303,6 +405,7 @@ const FRACTIONS: Record<string, Fractions> = {
     visionScore: 0.25,
     damageSelfMitigated: 0.25,
     cs: 0.25,
+    damageToObjectives: 0,
   },
   theo: {
     kda: 0.25,
@@ -311,6 +414,7 @@ const FRACTIONS: Record<string, Fractions> = {
     visionScore: 0.75,
     damageSelfMitigated: 0.5,
     cs: 0.25,
+    damageToObjectives: 0,
   },
   lena: {
     kda: 0.75,
@@ -319,9 +423,26 @@ const FRACTIONS: Record<string, Fractions> = {
     visionScore: 0.25,
     damageSelfMitigated: 0.5,
     cs: 0.75,
+    damageToObjectives: 0.5,
   },
-  rami: { kda: 0.25, damageToChamps: 0.5, gold: 0.5, visionScore: 0.5, damageSelfMitigated: 1, cs: 0.5 },
-  nadia: { kda: 0.5, damageToChamps: 0.5, gold: 0.5, visionScore: 0.5, damageSelfMitigated: 0.5, cs: 0.5 },
+  rami: {
+    kda: 0.25,
+    damageToChamps: 0.5,
+    gold: 0.5,
+    visionScore: 0.5,
+    damageSelfMitigated: 1,
+    cs: 0.5,
+    damageToObjectives: 1,
+  },
+  nadia: {
+    kda: 0.5,
+    damageToChamps: 0.5,
+    gold: 0.5,
+    visionScore: 0.5,
+    damageSelfMitigated: 0.5,
+    cs: 0.5,
+    damageToObjectives: 0.25,
+  },
   omar: {
     kda: 0.5,
     damageToChamps: 0.25,
@@ -329,8 +450,17 @@ const FRACTIONS: Record<string, Fractions> = {
     visionScore: 0.25,
     damageSelfMitigated: 0.25,
     cs: 0.25,
+    damageToObjectives: 0.25,
   },
-  yuki: { kda: 0, damageToChamps: 0, gold: 0, visionScore: 0, damageSelfMitigated: 0, cs: 0 },
+  yuki: {
+    kda: 0,
+    damageToChamps: 0,
+    gold: 0,
+    visionScore: 0,
+    damageSelfMitigated: 0,
+    cs: 0,
+    damageToObjectives: 0,
+  },
 };
 
 /** The bucket each of the worked example's ten is scored on, from the roles above. */
@@ -351,15 +481,18 @@ const BUCKETS: Record<string, PerformanceBucket> = {
  * The worked example's scores under the three vectors, to four decimals, for the doc and for a
  * human. Bilal the adc is still the MVP and Lena the adc still the ACE — this game has no
  * support who ran the map, so the buckets reorder the middle and not the top.
+ *
+ * M7.14 moved the two junglers and nobody else: Rami, who holds the game's objective damage,
+ * goes 0.4875 -> 0.5750, and Iris 0.5000 -> 0.5375. The other eight are what M7.13 printed.
  */
 const READABLE: Record<string, number> = {
   bilal: 0.8875,
   hana: 0.3875,
-  iris: 0.5,
+  iris: 0.5375,
   karim: 0.25,
   theo: 0.4875,
   lena: 0.7,
-  rami: 0.4875,
+  rami: 0.575,
   nadia: 0.5,
   omar: 0.2875,
   yuki: 0,
@@ -392,6 +525,7 @@ function allTheSame(): PerformancePlayer[] {
     visionScore: 40,
     damageSelfMitigated: 24000,
     cs: 160,
+    damageToObjectives: 12000,
   }));
 }
 
@@ -401,14 +535,48 @@ function reversed<T>(xs: readonly T[]): T[] {
 }
 
 describe('config.rating.performance / performanceBucket / mvp', () => {
-  it('carries the three weight vectors from the M7.13 brief, and nothing else', () => {
+  it('carries the three weight vectors from the M7.13 brief as M7.14 reweighted them, and nothing else', () => {
     expect(config.rating.performance).toEqual(BRIEF_WEIGHTS);
   });
 
   it.each(['carry', 'jungle', 'support'] as const)('the %s vector sums to 1.00', (bucket) => {
     const w = config.rating.performance[bucket];
-    const sum = w.kda + w.damageToChamps + w.gold + w.visionScore + w.damageSelfMitigated + w.cs;
+    const sum =
+      w.kda + w.damageToChamps + w.gold + w.visionScore + w.damageSelfMitigated + w.cs + w.damageToObjectives;
     expect(sum).toBeCloseTo(1, 12);
+  });
+
+  it.each(['carry', 'jungle', 'support'] as const)('the %s vector has exactly seven entries', (bucket) => {
+    expect(Object.keys(config.rating.performance[bucket]).sort()).toEqual([
+      'cs',
+      'damageSelfMitigated',
+      'damageToChamps',
+      'damageToObjectives',
+      'gold',
+      'kda',
+      'visionScore',
+    ]);
+  });
+
+  it('scores damage to objectives for the jungler and for nobody else (M7.14)', () => {
+    expect(config.rating.performance.jungle.damageToObjectives).toBe(0.15);
+    expect(config.rating.performance.carry.damageToObjectives).toBe(0);
+    expect(config.rating.performance.support.damageToObjectives).toBe(0);
+  });
+
+  it('paid for the jungle row out of gold, CS and KDA, 0.05 each, and touched no other row', () => {
+    // The seventh weight is not free: the brief says exactly where it came from.
+    expect(M7_13_SIX.jungle.kda - config.rating.performance.jungle.kda).toBeCloseTo(0.05, 12);
+    expect(M7_13_SIX.jungle.gold - config.rating.performance.jungle.gold).toBeCloseTo(0.05, 12);
+    expect(M7_13_SIX.jungle.cs - config.rating.performance.jungle.cs).toBeCloseTo(0.05, 12);
+    expect(config.rating.performance.jungle.damageToChamps).toBe(M7_13_SIX.jungle.damageToChamps);
+    expect(config.rating.performance.jungle.visionScore).toBe(M7_13_SIX.jungle.visionScore);
+    expect(config.rating.performance.jungle.damageSelfMitigated).toBe(M7_13_SIX.jungle.damageSelfMitigated);
+    for (const bucket of ['carry', 'support'] as const) {
+      const { damageToObjectives, ...six } = config.rating.performance[bucket];
+      expect(damageToObjectives).toBe(0);
+      expect(six).toEqual(M7_13_SIX[bucket]);
+    }
   });
 
   it('has exactly one vector per bucket, and no bucket without a vector', () => {
@@ -489,7 +657,14 @@ describe('performanceScores', () => {
     for (const p of allTheSame()) {
       const bucket = BUCKETS[p.puuid] as PerformanceBucket;
       const w = config.rating.performance[bucket];
-      const all = w.kda + w.damageToChamps + w.gold + w.visionScore + w.damageSelfMitigated + w.cs;
+      const all =
+        w.kda +
+        w.damageToChamps +
+        w.gold +
+        w.visionScore +
+        w.damageSelfMitigated +
+        w.cs +
+        w.damageToObjectives;
       expect(scoreOf(scores, p.puuid)).toBe(all);
     }
   });
@@ -540,6 +715,7 @@ describe('performanceScores', () => {
     'visionScore',
     'damageSelfMitigated',
     'cs',
+    'damageToObjectives',
   ] as const)('returns null when %s is null for one player', (field) => {
     const missing = GAME.map((p, i) => (i === 6 ? { ...p, [field]: null } : p));
     expect(performanceScores(missing)).toBeNull();
@@ -629,6 +805,379 @@ describe('a game with no role', () => {
 });
 
 /**
+ * M7.14's missing-input rule: **universal, and not scoped to where the weight is above zero**.
+ *
+ * A null objectives number on a *carry* — whose weight on that component is `0.00` — still takes
+ * the MVP off the whole game. The component is normalised against the best of the ten, so a
+ * player who drops out of that maximum changes the jungler's share; and a weight-scoped rule
+ * would let a `config.ts` nudge change which past games are scorable at all. One rule.
+ */
+describe('a missing objectives number (M7.14, acceptance 5)', () => {
+  const carries = ['hana', 'karim', 'bilal', 'omar', 'nadia', 'lena'] as const;
+  const supports = ['theo', 'yuki'] as const;
+  const junglers = ['iris', 'rami'] as const;
+
+  it.each([null, undefined, Number.NaN] as const)(
+    'takes the MVP off the game when a carry has %s objectives, though their weight on it is 0.00',
+    (value) => {
+      // Karim is a mid, so `carry`, whose objectives weight is exactly zero. The weight-scoped
+      // rule this test exists to refuse would score this game happily.
+      expect(config.rating.performance.carry.damageToObjectives).toBe(0);
+      const missing = GAME.map((p) => (p.puuid === 'karim' ? { ...p, damageToObjectives: value } : p));
+      expect(performanceScores(missing)).toBeNull();
+      expect(mvpAce(missing, 100)).toBeNull();
+    },
+  );
+
+  it.each([...carries, ...supports, ...junglers])(
+    'takes the MVP off the game when %s is missing it, whatever their bucket',
+    (puuid) => {
+      const missing = GAME.map((p) => (p.puuid === puuid ? { ...p, damageToObjectives: null } : p));
+      expect(performanceScores(missing)).toBeNull();
+      expect(mvpAce(missing, 100)).toBeNull();
+    },
+  );
+
+  it('hands applyMvpAceBonus an untouched copy of the fold, like every other missing input', () => {
+    const blueIds = GAME.filter((p) => p.side === 100).map((p) => p.puuid);
+    const redIds = GAME.filter((p) => p.side === 200).map((p) => p.puuid);
+    const seed: Rating = { mu: 25, sigma: 8.33 };
+    const after = rateGame(
+      blueIds.map(() => seed),
+      redIds.map(() => seed),
+      100,
+    );
+    const base: RatingChange[] = [
+      ...blueIds.map((puuid, i) => ({ puuid, before: seed, after: after.blue[i] as Rating })),
+      ...redIds.map((puuid, i) => ({ puuid, before: seed, after: after.red[i] as Rating })),
+    ];
+    // The carry again, not the jungler: the case a weight-scoped rule would get wrong.
+    const missing = GAME.map((p) => (p.puuid === 'bilal' ? { ...p, damageToObjectives: null } : p));
+    expect(applyMvpAceBonus(base, mvpAce(missing, 100))).toEqual(base);
+  });
+
+  it('still scores a game where everybody has the number, including a zero', () => {
+    // `0` is a fact — a jungler who never contested a dragon — and is not missing.
+    const zeroes = GAME.map((p) => ({ ...p, damageToObjectives: 0 }));
+    const scores = performanceScores(zeroes);
+    if (scores === null) throw new Error('expected scores');
+    expect(scores).toHaveLength(10);
+  });
+
+  it('gives a game where all ten did zero objective damage that component to nobody', () => {
+    // The `best <= 0` branch, for the seventh component: the jungle row's other six then sum to
+    // 0.85 for everybody in that bucket, and nothing is renormalised.
+    const zeroes = GAME.map((p) => ({ ...p, damageToObjectives: 0 }));
+    const scores = performanceScores(zeroes);
+    if (scores === null) throw new Error('expected scores');
+    for (const p of GAME) {
+      expect(scoreOf(scores, p.puuid)).toBe(expectedFor(p.puuid, { damageToObjectives: 0 }));
+      expect(Number.isNaN(scoreOf(scores, p.puuid))).toBe(false);
+    }
+    const w = config.rating.performance.jungle;
+    expect(w.kda + w.damageToChamps + w.gold + w.visionScore + w.damageSelfMitigated + w.cs).toBeCloseTo(
+      0.85,
+      12,
+    );
+  });
+});
+
+/**
+ * Acceptance 7 of the M7.14 brief: `carry` and `support` scores are what they were before this
+ * task, to the last bit. Their seventh weight is `0.00` and it multiplies out to nothing.
+ */
+describe('carries and supports are untouched by the seventh component (M7.14, acceptance 7)', () => {
+  const nonJungle = GAME.filter((p) => p.role !== 'jungle');
+
+  /** The same ten with a different objectives number on every one of them. */
+  function withObjectives(values: Record<string, number>): PerformancePlayer[] {
+    return GAME.map((p) => ({ ...p, damageToObjectives: values[p.puuid] ?? 0 }));
+  }
+
+  const A = withObjectives({
+    hana: 5000,
+    iris: 15000,
+    karim: 0,
+    bilal: 5000,
+    theo: 0,
+    omar: 5000,
+    rami: 20000,
+    nadia: 5000,
+    lena: 10000,
+    yuki: 0,
+  });
+  const B = withObjectives({
+    hana: 19000,
+    iris: 1,
+    karim: 44444,
+    bilal: 1200,
+    theo: 90000,
+    omar: 3,
+    rami: 7,
+    nadia: 61000,
+    lena: 0,
+    yuki: 31000,
+  });
+
+  it('scores every non-jungle player identically under two wildly different objectives columns', () => {
+    const a = performanceScores(A);
+    const b = performanceScores(B);
+    if (a === null || b === null) throw new Error('expected scores');
+    for (const p of nonJungle) expect(scoreOf(b, p.puuid)).toBe(scoreOf(a, p.puuid));
+  });
+
+  it('moves the junglers, so the test above is not passing for the wrong reason', () => {
+    const a = performanceScores(A);
+    const b = performanceScores(B);
+    if (a === null || b === null) throw new Error('expected scores');
+    expect(scoreOf(b, 'rami')).not.toBe(scoreOf(a, 'rami'));
+    expect(scoreOf(b, 'iris')).not.toBe(scoreOf(a, 'iris'));
+  });
+
+  it("gives every non-jungle player exactly M7.13's six-component score", () => {
+    const scores = performanceScores(GAME);
+    if (scores === null) throw new Error('expected scores');
+    const f = fractionsOf(GAME);
+    for (const p of nonJungle) {
+      const bucket = BUCKETS[p.puuid] as PerformanceBucket;
+      expect(scoreOf(scores, p.puuid)).toBe(sixComponentScore(bucket, f.get(p.puuid) as Fractions));
+    }
+  });
+
+  it('moves both junglers off their six-component score, and Rami the furthest', () => {
+    const scores = performanceScores(GAME);
+    if (scores === null) throw new Error('expected scores');
+    const f = fractionsOf(GAME);
+    // Rami holds the game's objective damage, so he gains the most; Iris is at three quarters.
+    expect(scoreOf(scores, 'rami')).toBeGreaterThan(sixComponentScore('jungle', f.get('rami') as Fractions));
+    expect(scoreOf(scores, 'rami')).toBeCloseTo(0.575, 12);
+    expect(sixComponentScore('jungle', f.get('rami') as Fractions)).toBeCloseTo(0.4875, 12);
+    expect(scoreOf(scores, 'iris')).toBeCloseTo(0.5375, 12);
+    expect(sixComponentScore('jungle', f.get('iris') as Fractions)).toBeCloseTo(0.5, 12);
+  });
+});
+
+/**
+ * Acceptance 8 of the M7.14 brief: the change doing its one job, pinned so a later tune cannot
+ * silently undo it.
+ *
+ * A hand-built ten. Blue's jungler took the map — the game's best objective damage — and is
+ * exactly mid-table on all six of the other components (every fraction 0.5). Blue's adc is
+ * ahead of him on damage. Under M7.13's six components the adc is the MVP; under the seven the
+ * jungler is, and he never had to out-farm or out-damage anybody to get there.
+ */
+describe('the jungler who took the map (M7.14, acceptance 8)', () => {
+  const HAND_BUILT: PerformancePlayer[] = [
+    // blue, and blue wins
+    {
+      puuid: 'b-top',
+      side: 100,
+      role: 'top',
+      kills: 2,
+      deaths: 4,
+      assists: 2,
+      damageToChamps: 10000,
+      gold: 8000,
+      visionScore: 20,
+      damageSelfMitigated: 24000,
+      cs: 160,
+      damageToObjectives: 5000,
+    },
+    {
+      // Mid-table on all six — every fraction is exactly 0.5 — and the game's objective damage.
+      puuid: 'b-jungle',
+      side: 100,
+      role: 'jungle',
+      kills: 3,
+      deaths: 2,
+      assists: 1,
+      damageToChamps: 20000,
+      gold: 8000,
+      visionScore: 40,
+      damageSelfMitigated: 24000,
+      cs: 160,
+      damageToObjectives: 20000,
+    },
+    {
+      puuid: 'b-mid',
+      side: 100,
+      role: 'mid',
+      kills: 2,
+      deaths: 4,
+      assists: 2,
+      damageToChamps: 10000,
+      gold: 8000,
+      visionScore: 20,
+      damageSelfMitigated: 12000,
+      cs: 160,
+      damageToObjectives: 2500,
+    },
+    {
+      // Three quarters of the game's damage to champions: the six-component MVP.
+      puuid: 'b-adc',
+      side: 100,
+      role: 'adc',
+      kills: 3,
+      deaths: 2,
+      assists: 1,
+      damageToChamps: 30000,
+      gold: 8000,
+      visionScore: 20,
+      damageSelfMitigated: 24000,
+      cs: 160,
+      damageToObjectives: 5000,
+    },
+    {
+      puuid: 'b-support',
+      side: 100,
+      role: 'support',
+      kills: 0,
+      deaths: 4,
+      assists: 6,
+      damageToChamps: 5000,
+      gold: 4000,
+      visionScore: 20,
+      damageSelfMitigated: 12000,
+      cs: 40,
+      damageToObjectives: 0,
+    },
+    // red loses, and holds most of the maxima so blue's two contenders do not hold them all
+    {
+      puuid: 'r-top',
+      side: 200,
+      role: 'top',
+      kills: 2,
+      deaths: 2,
+      assists: 2,
+      damageToChamps: 20000,
+      gold: 16000,
+      visionScore: 20,
+      damageSelfMitigated: 48000,
+      cs: 320,
+      damageToObjectives: 5000,
+    },
+    {
+      puuid: 'r-jungle',
+      side: 200,
+      role: 'jungle',
+      kills: 2,
+      deaths: 4,
+      assists: 2,
+      damageToChamps: 10000,
+      gold: 8000,
+      visionScore: 40,
+      damageSelfMitigated: 24000,
+      cs: 160,
+      damageToObjectives: 10000,
+    },
+    {
+      puuid: 'r-mid',
+      side: 200,
+      role: 'mid',
+      kills: 4,
+      deaths: 2,
+      assists: 4,
+      damageToChamps: 20000,
+      gold: 12000,
+      visionScore: 40,
+      damageSelfMitigated: 24000,
+      cs: 240,
+      damageToObjectives: 2500,
+    },
+    {
+      puuid: 'r-adc',
+      side: 200,
+      role: 'adc',
+      kills: 6,
+      deaths: 2,
+      assists: 2,
+      damageToChamps: 40000,
+      gold: 12000,
+      visionScore: 20,
+      damageSelfMitigated: 24000,
+      cs: 240,
+      damageToObjectives: 5000,
+    },
+    {
+      puuid: 'r-support',
+      side: 200,
+      role: 'support',
+      kills: 0,
+      deaths: 4,
+      assists: 8,
+      damageToChamps: 5000,
+      gold: 4000,
+      visionScore: 80,
+      damageSelfMitigated: 12000,
+      cs: 40,
+      damageToObjectives: 0,
+    },
+  ];
+
+  /** What M7.13's six components would have scored this game. Test-only, see `M7_13_SIX`. */
+  function sixScores(players: readonly PerformancePlayer[]): Map<string, number> {
+    const fractions = fractionsOf(players);
+    return new Map(
+      players.map((p) => [
+        p.puuid,
+        sixComponentScore(
+          config.rating.performanceBucket[p.role as Role],
+          fractions.get(p.puuid) as Fractions,
+        ),
+      ]),
+    );
+  }
+
+  it("gives the jungler the game's best objective damage and the middle of everything else", () => {
+    const f = fractionsOf(HAND_BUILT).get('b-jungle') as Fractions;
+    expect(f.damageToObjectives).toBe(1);
+    expect(f.kda).toBe(0.5);
+    expect(f.damageToChamps).toBe(0.5);
+    expect(f.gold).toBe(0.5);
+    expect(f.visionScore).toBe(0.5);
+    expect(f.damageSelfMitigated).toBe(0.5);
+    expect(f.cs).toBe(0.5);
+    const best = [...HAND_BUILT].sort(
+      (a, b) => (b.damageToObjectives as number) - (a.damageToObjectives as number),
+    )[0];
+    expect(best?.puuid).toBe('b-jungle');
+  });
+
+  it("under M7.13's six components the adc was the MVP", () => {
+    const six = sixScores(HAND_BUILT);
+    expect(six.get('b-adc') as number).toBeGreaterThan(six.get('b-jungle') as number);
+    expect(six.get('b-adc')).toBeCloseTo(0.5625, 12);
+    expect(six.get('b-jungle')).toBeCloseTo(0.5, 12);
+    const blueBest = [...six].filter(([id]) => id.startsWith('b-')).sort((a, b) => b[1] - a[1])[0];
+    expect(blueBest?.[0]).toBe('b-adc');
+  });
+
+  it('under the seven the jungler is the MVP', () => {
+    const scores = performanceScores(HAND_BUILT);
+    if (scores === null) throw new Error('expected scores');
+    expect(scoreOf(scores, 'b-jungle')).toBeGreaterThan(scoreOf(scores, 'b-adc'));
+    expect(scoreOf(scores, 'b-jungle')).toBeCloseTo(0.575, 12);
+    expect(scoreOf(scores, 'b-adc')).toBeCloseTo(0.5625, 12);
+    expect(mvpAce(HAND_BUILT, 100)?.mvp).toBe('b-jungle');
+  });
+
+  it('changed nothing for the four other blue players, or for red', () => {
+    const scores = performanceScores(HAND_BUILT);
+    if (scores === null) throw new Error('expected scores');
+    const six = sixScores(HAND_BUILT);
+    for (const p of HAND_BUILT.filter((q) => q.role !== 'jungle')) {
+      expect(scoreOf(scores, p.puuid)).toBe(six.get(p.puuid) as number);
+    }
+    // And the ACE, who is a carry, is the same player under both.
+    expect(mvpAce(HAND_BUILT, 100)?.ace).toBe('r-adc');
+  });
+
+  it('does not depend on insertion order', () => {
+    expect(mvpAce(reversed(HAND_BUILT), 100)?.mvp).toBe('b-jungle');
+  });
+});
+
+/**
  * Acceptance 5 of the M7.13 brief: the change doing its one job, pinned so a later tune cannot
  * silently undo it.
  *
@@ -652,6 +1201,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 20,
       damageSelfMitigated: 12000,
       cs: 80,
+      damageToObjectives: 3000,
     },
     {
       puuid: 'b-jungle',
@@ -665,6 +1215,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 20,
       damageSelfMitigated: 12000,
       cs: 80,
+      damageToObjectives: 12000,
     },
     {
       puuid: 'b-mid',
@@ -678,6 +1229,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 20,
       damageSelfMitigated: 12000,
       cs: 80,
+      damageToObjectives: 1500,
     },
     {
       // The game's best damage, three quarters of the gold and the CS: a fed adc.
@@ -692,6 +1244,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 20,
       damageSelfMitigated: 12000,
       cs: 240,
+      damageToObjectives: 6000,
     },
     {
       // The game's best KDA and best vision, and the game's worst damage: zero.
@@ -706,6 +1259,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 80,
       damageSelfMitigated: 24000,
       cs: 80,
+      damageToObjectives: 0,
     },
     // red: loses, and holds the gold, CS and mitigation maxima so blue's adc does not hold all six
     {
@@ -720,6 +1274,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 20,
       damageSelfMitigated: 24000,
       cs: 320,
+      damageToObjectives: 4000,
     },
     {
       puuid: 'r-jungle',
@@ -733,6 +1288,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 40,
       damageSelfMitigated: 48000,
       cs: 160,
+      damageToObjectives: 9000,
     },
     {
       puuid: 'r-mid',
@@ -746,6 +1302,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 40,
       damageSelfMitigated: 24000,
       cs: 160,
+      damageToObjectives: 1500,
     },
     {
       puuid: 'r-adc',
@@ -759,6 +1316,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 20,
       damageSelfMitigated: 24000,
       cs: 240,
+      damageToObjectives: 6000,
     },
     {
       puuid: 'r-support',
@@ -772,6 +1330,7 @@ describe('the support who ran the map (acceptance 5)', () => {
       visionScore: 5,
       damageSelfMitigated: 1000,
       cs: 10,
+      damageToObjectives: 0,
     },
   ];
 
@@ -860,6 +1419,7 @@ describe('mvpAce', () => {
             visionScore: 0,
             damageSelfMitigated: 0,
             cs: 0,
+            damageToObjectives: 0,
           }
         : p,
     );

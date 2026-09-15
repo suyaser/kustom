@@ -1,14 +1,15 @@
 /**
- * The performance score and the MVP / ACE bonus (M7.8, revised in place by M7.13).
- * Spec: docs/01-architecture.md "The performance score and the MVP / ACE bonus" and the M7.8
- * and M7.13 briefs in docs/02-milestones.md.
+ * The performance score and the MVP / ACE bonus (M7.8, revised in place by M7.13 and M7.14).
+ * Spec: docs/01-architecture.md "The performance score and the MVP / ACE bonus" and the M7.8,
+ * M7.13 and M7.14 briefs in docs/02-milestones.md.
  *
  * Three functions and nothing else:
  *
- * - `performanceScores` — six weighted components, each normalised inside the game, one score
+ * - `performanceScores` — seven weighted components, each normalised inside the game, one score
  *   in `[0, 1]` per player. Comparable only inside its own game, which is all this needs.
- *   **Which of three weight vectors multiplies those six is picked by the player's own role**
- *   (M7.13): `carry` for top/mid/adc, `jungle`, `support`.
+ *   **Which of three weight vectors multiplies those seven is picked by the player's own role**
+ *   (M7.13): `carry` for top/mid/adc, `jungle`, `support`. The seventh, damage to objectives,
+ *   is weighted `0.15` for the jungle vector and `0.00` for the other two (M7.14).
  * - `mvpAce` — the MVP is the best score on the winning side, the ACE the best on the losing
  *   side. Both are op.gg's words for op.gg's idea; the formula here is ours.
  * - `applyMvpAceBonus` — a bounded, post-hoc adjustment to the `mu` deltas a fold already
@@ -17,7 +18,7 @@
  *
  * There is exactly one scorer in this project and it is this one. M7.13 revised M7.8's weights
  * in place rather than layering a second formula beside them, because nothing M7.8 produced
- * had ever reached a player.
+ * had ever reached a player, and M7.14 added its seventh component the same way.
  *
  * Pure: no clock, no I/O, no network, and specifically no call to op.gg or any other service.
  * Arithmetic over numbers the League client already gave us.
@@ -32,17 +33,30 @@ const { performance: WEIGHTS, performanceBucket: BUCKET_OF_ROLE, mvp: MVP } = co
 const TEAM_SIZE = 5;
 
 /**
- * The six components, in the order the brief's table lists them and the order they are summed
+ * The seven components, in the order the brief's table lists them and the order they are summed
  * in. The order is part of the pinned arithmetic: changing it changes the last bits of a score.
+ * `damageToObjectives` is last (M7.14). What actually kept every `carry` and `support` score
+ * bit-for-bit unchanged is that their weight on it is `0.00` — `score + 0` is exact in IEEE 754
+ * regardless of where the zero-weight term falls in the sum. The ordering is pinned anyway,
+ * because it also protects the *relative* order of the original six against a future reorder.
  */
-const COMPONENTS = ['kda', 'damageToChamps', 'gold', 'visionScore', 'damageSelfMitigated', 'cs'] as const;
+const COMPONENTS = [
+  'kda',
+  'damageToChamps',
+  'gold',
+  'visionScore',
+  'damageSelfMitigated',
+  'cs',
+  'damageToObjectives',
+] as const;
 
 type Component = (typeof COMPONENTS)[number];
 
 /**
  * One player's raw stat line for one game. Every field is optional-ish on purpose: these come
  * from nullable database columns (`vision_score` and `damage_self_mitigated` only exist from
- * M7.7 on) and a game that is missing any one of them for any player simply has no MVP.
+ * M7.7 on, `damage_to_objectives` from M7.14) and a game that is missing any one of them for any
+ * player simply has no MVP — whatever that player's weight on the missing one is.
  */
 export interface PerformanceStats {
   kills: number | null | undefined;
@@ -53,6 +67,7 @@ export interface PerformanceStats {
   visionScore: number | null | undefined;
   damageSelfMitigated: number | null | undefined;
   cs: number | null | undefined;
+  damageToObjectives: number | null | undefined;
 }
 
 /**
@@ -95,9 +110,17 @@ function present(value: number | null | undefined): number | null {
 }
 
 /**
- * The six component values for one player, or `null` if any of the eight numbers behind them
+ * The seven component values for one player, or `null` if any of the nine numbers behind them
  * is missing. Partial scoring would rank a player who has a vision score against one who does
  * not, so there is no partial path.
+ *
+ * **Every input is checked for every player, before any bucket is consulted**, so the rule is
+ * not scoped to where that player's weight happens to be above zero (M7.14). A carry with no
+ * objectives number takes the MVP off the game exactly as a jungler with none does: the
+ * component is normalised against the best of the ten, so a player dropping out of that maximum
+ * changes what everybody else's share is measured against, and a weight-scoped rule would let a
+ * `config.ts` nudge change which past games are scorable at all. A weight may change what a
+ * score is; it may never change whether a game has one.
  */
 function componentsOf(p: PerformanceStats): Record<Component, number> | null {
   const kills = present(p.kills);
@@ -108,6 +131,7 @@ function componentsOf(p: PerformanceStats): Record<Component, number> | null {
   const visionScore = present(p.visionScore);
   const damageSelfMitigated = present(p.damageSelfMitigated);
   const cs = present(p.cs);
+  const damageToObjectives = present(p.damageToObjectives);
   if (
     kills === null ||
     deaths === null ||
@@ -116,7 +140,8 @@ function componentsOf(p: PerformanceStats): Record<Component, number> | null {
     gold === null ||
     visionScore === null ||
     damageSelfMitigated === null ||
-    cs === null
+    cs === null ||
+    damageToObjectives === null
   ) {
     return null;
   }
@@ -127,6 +152,7 @@ function componentsOf(p: PerformanceStats): Record<Component, number> | null {
     visionScore,
     damageSelfMitigated,
     cs,
+    damageToObjectives,
   };
 }
 
@@ -143,11 +169,11 @@ function bucketOf(role: Role | null | undefined): PerformanceBucket | null {
 
 /**
  * Score one game's players against each other. Returns one score per player, in input order,
- * or `null` when any of the six components — or the role that picks the weights — is missing
+ * or `null` when any of the seven components — or the role that picks the weights — is missing
  * for any of them, in which case the game has no MVP and no ACE and is rated exactly as it
  * was before M7.8.
  *
- * Role is an input like the other eight numbers, so it declines the same way: per game, never
+ * Role is an input like the other nine numbers, so it declines the same way: per game, never
  * per player. Scoring the role-less player on somebody else's vector would be exactly the
  * partial answer that rule exists to refuse.
  *
@@ -208,9 +234,9 @@ function best(candidates: readonly PerformanceScore[]): string {
 
 /**
  * The MVP (best score on the winning side) and the ACE (best score on the losing side), or
- * `null` when the game cannot be scored — a game stored before M7.7, a blob that never carried
- * vision, a backfilled game that knows nobody's role. There is no partial answer and no MVP
- * without an ACE.
+ * `null` when the game cannot be scored — a game stored before M7.7 or M7.14, a blob that never
+ * carried vision, a backfilled game that knows nobody's role. There is no partial answer and no
+ * MVP without an ACE.
  *
  * Five and five or it throws, exactly like `rateGame`: a remake or a nine-player game is gated
  * out long before this.

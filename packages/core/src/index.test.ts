@@ -37,7 +37,7 @@ describe('core skeleton', () => {
       'mvpAce',
       'nextSplit',
       'ordinal',
-      // One game's six-component score per player (M7.8), normalised inside that game.
+      // One game's seven-component score per player (M7.8, M7.13, M7.14), normalised in-game.
       'performanceScores',
       'predictWin',
       'rateGame',

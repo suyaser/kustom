@@ -113,26 +113,35 @@ export const config = {
       support: 'support',
     } satisfies Record<Role, PerformanceBucket>,
     /**
-     * The performance score (M7.8, revised in place by M7.13): six weights that sum to 1.00,
-     * over components each normalised inside the game (a player's value divided by the best of
-     * the ten), so every term is in `[0, 1]` and gold cannot swamp KDA by being a four-digit
-     * number. KDA is `(kills + assists) / max(1, deaths)`. A component whose game-wide maximum
-     * is zero contributes zero to everybody instead of dividing by zero.
+     * The performance score (M7.8, revised in place by M7.13 and again by M7.14): seven weights
+     * that sum to 1.00, over components each normalised inside the game (a player's value
+     * divided by the best of the ten), so every term is in `[0, 1]` and gold cannot swamp KDA by
+     * being a four-digit number. KDA is `(kills + assists) / max(1, deaths)`. A component whose
+     * game-wide maximum is zero contributes zero to everybody instead of dividing by zero.
      *
      * **Three vectors, not one** (M7.13), keyed by the bucket `performanceBucket` puts the
-     * player's role in. M7.8 scored a support and an adc on the same six weights, which asked
-     * each of them to win MVP on the other's terms. Only *which* vector multiplies a player's
-     * six normalised components changed; the components, the normalisation and the bonus did
-     * not.
+     * player's role in. M7.8 scored a support and an adc on the same weights, which asked each of
+     * them to win MVP on the other's terms. Only *which* vector multiplies a player's normalised
+     * components changed; the components, the normalisation and the bonus did not.
      *
      * | component | `carry` | `jungle` | `support` |
      * |---|---|---|---|
-     * | KDA | 0.15 | 0.25 | 0.25 |
+     * | KDA | 0.15 | 0.20 | 0.25 |
      * | damage to champions | 0.30 | 0.20 | 0.05 |
-     * | gold | 0.20 | 0.15 | 0.05 |
+     * | gold | 0.20 | 0.10 | 0.05 |
      * | vision score | 0.05 | 0.15 | 0.40 |
      * | damage self-mitigated | 0.10 | 0.10 | 0.15 |
-     * | CS | 0.20 | 0.15 | 0.10 |
+     * | CS | 0.20 | 0.10 | 0.10 |
+     * | damage to objectives | 0.00 | 0.15 | 0.00 |
+     *
+     * **`damageToObjectives` is M7.14's seventh component** and the jungle row is the only row
+     * that moved for it: the 0.15 comes off gold, CS and KDA, 0.05 each — gold and CS because
+     * objective damage is a second reading of the same farming clock, KDA by one notch because a
+     * jungler taking objectives is doing the thing ganks were a proxy for. `carry` and `support`
+     * carry it at `0.00`, so their scores are bit-for-bit what M7.13 produced. A `0.00` weight
+     * does **not** make the number optional for those players: the missing-input rule in
+     * `rating/performance.ts` is per game and universal, because the normalisation denominator is
+     * the whole ten and because a weight nudge must never change which past games are scorable.
      *
      * op.gg's own formula is proprietary and unpublished; these are hand-reasoned from what
      * each role is actually for, fitted to nothing, and are tunables like every other number
@@ -146,14 +155,16 @@ export const config = {
         visionScore: 0.05,
         damageSelfMitigated: 0.1,
         cs: 0.2,
+        damageToObjectives: 0,
       },
       jungle: {
-        kda: 0.25,
+        kda: 0.2,
         damageToChamps: 0.2,
-        gold: 0.15,
+        gold: 0.1,
         visionScore: 0.15,
         damageSelfMitigated: 0.1,
-        cs: 0.15,
+        cs: 0.1,
+        damageToObjectives: 0.15,
       },
       support: {
         kda: 0.25,
@@ -162,6 +173,7 @@ export const config = {
         visionScore: 0.4,
         damageSelfMitigated: 0.15,
         cs: 0.1,
+        damageToObjectives: 0,
       },
     },
     /**
