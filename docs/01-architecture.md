@@ -163,6 +163,55 @@ OpenSkill, default Plackett-Luce model, two teams of five.
   `game_players`. Ratings are a pure fold over games ordered by `started_at`, so they can be rebuilt from scratch
   after a backfill or a model change (`pnpm --filter web rebuild-ratings`).
 
+### Two channels: all-time and weekly (M7.2)
+
+There are two folds of the same model and no more. `rateGame` is the all-time channel: it forms teams, it is what
+`game_players` stores, and its numbers are pinned byte for byte by a test — it passes OpenSkill no options, so a
+tuning change can never reach it by accident. `rateGameWeekly` is the weekly channel (M7.2): the same signature,
+five and five in and out, throwing on anything else, tuned by `config.rating.weekly` and used only by the
+`this-week` / `last-week` board, which folds it from scratch from the rank seed over that week's games (M7.3). It
+never forms teams, is never persisted, and nothing under `apps/web/lib/ingest/` may import it.
+
+| | `beta` (luck in one game) | `tau` (uncertainty added back per game) |
+| --- | --- | --- |
+| all-time (`rateGame`) | OpenSkill default `25 / 6` ≈ 4.17 | OpenSkill default `25 / 300` ≈ 0.083 |
+| weekly (`rateGameWeekly`) | **2.00** | **0.30** |
+
+**What the weekly channel is for is that it moves, not that it makes up its mind sooner.** The three measured
+numbers, all pinned in `rating/index.test.ts` so a later `openskill` patch that moves them fails loudly (M7.2
+acceptance 4):
+
+| | All-time channel | Weekly channel |
+| --- | --- | --- |
+| `sigma < 5.00` — what "settles" means everywhere in this product (decision, 2026-09-10) | game 36 | game 30 |
+| display points one game moves a **settled** player (`mu` 23, `sigma` 3.5, peers the same) | ~29 | ~32 |
+| display points one game moves a player folded from a fresh **Sunday seed** (`seedFromRank`, `sigma` 8.33) | ~77 | ~79 |
+
+Read the first row as "six games, which nobody would notice", not as good news: the weekly number is **not** a
+faster or more trustworthy verdict on a player, and no surface should say it is. It is the same model taking the
+same thirty-odd games to become confident. The row that matters is the third one: because M7.3 reseeds every
+player from rank at the Sunday boundary and folds only that week's games, a weekly rating spends the whole week in
+the fast part of the curve — about **three times** the movement per game of a settled all-time rating. That
+difference is almost entirely the reseed and hardly at all `beta` and `tau`; compare the second row, which is what
+the tuning alone buys.
+
+The settling row is measured on M1.3's convergence setup (`P0` seeded Iron IV among settled Gold IVs, one sitter
+per game, `P0`'s side wins every game); on that setup `mu` passes the field's 23.00 in game 4 on both channels
+(23.6639 all-time, 24.1102 weekly), which is the seed's sigma doing the work, not the tuning.
+
+**Why the constants stop here.** A player's `mu` step is `sigma^2 * (1 - p) / c` with
+`c = sqrt(sum of the ten sigmas squared + 2 * beta^2)`, so on the setup above `beta` accounts for about 35 of a
+`c^2` near 214 — the ten players' sigmas dominate it. Driving `beta` to zero moves `sigma < 5.00` only from game 36
+to game 23, and below 2.00 the curve is flat, so there is nothing left to buy. `tau` is the stronger lever and it
+pays for movement by refusing to converge: at `tau` 0.30 `sigma` reaches 5.00 in game 30, at 0.45 in game 59, and
+from about **0.46 upward it never reaches 5.00 at all** (measured to 500 games). 0.30 is a knee and not a ceiling —
+it keeps the week responsive while still settling inside a horizon a season can reach. Far past it the board stops
+being about the week: at `tau` 10 one game moves a settled player **100 display points** and, for a settled player
+trading wins and losses, `sigma` climbs instead of falling (10.5 after one game, 30.3 by game 10, about 74 by game
+200), which is a board about the last game.
+A skipped `TARGET` test in `rating/index.test.ts` records the original "settles in five games" target against the
+measured counts, so the gap stays visible instead of looking closed.
+
 ## Balancer (`packages/core/balance`)
 
 Input: ten players with `{ mu, mainRole, secondaryRole, roleOverride? }`, optional duo locks, the previous night's

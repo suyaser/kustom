@@ -1,10 +1,64 @@
 import { describe, expect, it } from 'vitest';
-import { config, displayRating, ordinal, predictWin, type Rating, rateGame, seedFromRank } from '../index';
+import {
+  config,
+  displayRating,
+  ordinal,
+  predictWin,
+  type Rating,
+  rateGame,
+  rateGameWeekly,
+  seedFromRank,
+} from '../index';
 
 const RANKED_SIGMA = 8.33;
 
 function team(rating: Rating, n = 5): Rating[] {
   return Array.from({ length: n }, () => ({ ...rating }));
+}
+
+/** One fold of a finished game: `rateGame` (all-time) or `rateGameWeekly`. */
+type Fold = typeof rateGame;
+
+/**
+ * The M1.3 brief's convergence setup: P0 seeded Iron IV (mu 14, sigma 8.33), ten settled
+ * Gold IVs (mu 23, sigma 3.5). In game k (0-indexed) P0's team is P0 plus players
+ * 1 + (k % 10) .. 1 + ((k + 3) % 10). The brief says "the remaining five are the opponents",
+ * but P0 plus ten others is eleven people, so the opponents are the next five in the same
+ * rotation and the tenth sits that game. P0's side wins every time.
+ *
+ * Returns P0's rating after each game, index 0 being after game 1. M7.2 runs the same setup
+ * through the weekly fold, so the two channels are compared on one setup and not two.
+ */
+function convergeMisSeeded(games: number, fold: Fold = rateGame): Rating[] {
+  const ratings: Rating[] = [
+    { mu: 14, sigma: 8.33 },
+    ...Array.from({ length: 10 }, () => ({ mu: 23, sigma: 3.5 })),
+  ];
+  const at = (i: number): Rating => {
+    const r = ratings[i];
+    if (r === undefined) throw new Error(`missing player ${i}`);
+    return r;
+  };
+  const history: Rating[] = [];
+  for (let k = 0; k < games; k += 1) {
+    const ownIds = [0, ...[0, 1, 2, 3].map((o) => 1 + ((k + o) % 10))];
+    const oppIds = [4, 5, 6, 7, 8].map((o) => 1 + ((k + o) % 10));
+    const { blue, red } = fold(ownIds.map(at), oppIds.map(at), 100);
+    ownIds.forEach((id, i) => {
+      ratings[id] = blue[i] ?? at(id);
+    });
+    oppIds.forEach((id, i) => {
+      ratings[id] = red[i] ?? at(id);
+    });
+    history.push(at(0));
+  }
+  return history;
+}
+
+/** First 1-based game at which `pred` holds, or `null` if it never does. */
+function firstGame(history: readonly Rating[], pred: (r: Rating) => boolean): number | null {
+  const i = history.findIndex(pred);
+  return i === -1 ? null : i + 1;
 }
 
 describe('seedFromRank', () => {
@@ -243,6 +297,27 @@ describe('rateGame', () => {
     expect(masterAfter.sigma).toBeCloseTo(3.4892, 4);
   });
 
+  /**
+   * M7.2 acceptance 2. The weekly track (`rateGameWeekly`) is a second fold beside this one
+   * and shares its internals; if its `beta` / `tau` ever leak into the all-time channel, every
+   * stored `mu_after` in the database becomes a number the fold no longer reproduces. These are
+   * the exact doubles `rateGame` returned before the weekly track existed, to full precision —
+   * not `toBeCloseTo`, on purpose.
+   */
+  it('is byte-identical to the all-time numbers it produced before M7.2', () => {
+    const blue = [{ mu: 18.5, sigma: 8.33 }, { mu: 35, sigma: 3.5 }, ...team(settled, 3)];
+    const after = rateGame(blue, team(settled), 100);
+
+    expect(after.blue).toEqual([
+      { mu: 20.259304125033786, sigma: 8.169721515273643 },
+      { mu: 35.31073464260074, sigma: 3.4891587353177975 },
+      { mu: 25.63396909235426, sigma: 4.966149215751575 },
+      { mu: 25.63396909235426, sigma: 4.966149215751575 },
+      { mu: 25.63396909235426, sigma: 4.966149215751575 },
+    ]);
+    expect(after.red).toEqual(team({ mu: 24.36603090764574, sigma: 4.969845202214524 }));
+  });
+
   it('a sequence of wins keeps moving the same way (rank direction is not inverted)', () => {
     let a = team(settled);
     let b = team(settled);
@@ -257,41 +332,6 @@ describe('rateGame', () => {
     ({ blue: b, red: a } = rateGame(b, a, 200));
     expect(predictWin(a, b)).toBeGreaterThan(lastProb);
   });
-
-  /**
-   * The M1.3 brief's convergence setup: P0 seeded Iron IV (mu 14, sigma 8.33), ten settled
-   * Gold IVs (mu 23, sigma 3.5). In game k (0-indexed) P0's team is P0 plus players
-   * 1 + (k % 10) .. 1 + ((k + 3) % 10). The brief says "the remaining five are the opponents",
-   * but P0 plus ten others is eleven people, so the opponents are the next five in the same
-   * rotation and the tenth sits that game. P0's side wins every time.
-   *
-   * Returns P0's rating after each game, index 0 being after game 1.
-   */
-  function convergeMisSeeded(games: number): Rating[] {
-    const ratings: Rating[] = [
-      { mu: 14, sigma: 8.33 },
-      ...Array.from({ length: 10 }, () => ({ mu: 23, sigma: 3.5 })),
-    ];
-    const at = (i: number): Rating => {
-      const r = ratings[i];
-      if (r === undefined) throw new Error(`missing player ${i}`);
-      return r;
-    };
-    const history: Rating[] = [];
-    for (let k = 0; k < games; k += 1) {
-      const ownIds = [0, ...[0, 1, 2, 3].map((o) => 1 + ((k + o) % 10))];
-      const oppIds = [4, 5, 6, 7, 8].map((o) => 1 + ((k + o) % 10));
-      const { blue, red } = rateGame(ownIds.map(at), oppIds.map(at), 100);
-      ownIds.forEach((id, i) => {
-        ratings[id] = blue[i] ?? at(id);
-      });
-      oppIds.forEach((id, i) => {
-        ratings[id] = red[i] ?? at(id);
-      });
-      history.push(at(0));
-    }
-    return history;
-  }
 
   it('ten games converge a mis-seeded player: mu rises and sigma falls every game', () => {
     const history = convergeMisSeeded(10);
@@ -319,5 +359,228 @@ describe('rateGame', () => {
     const history = convergeMisSeeded(36);
     expect(history[34]?.sigma).toBeGreaterThanOrEqual(5);
     expect(history[35]?.sigma).toBeLessThan(5);
+  });
+});
+
+/**
+ * M7.2. The weekly track: the same OpenSkill model, its own `beta` and `tau`, its own fold.
+ * It never forms teams and it never touches the all-time numbers (`rateGame` above).
+ */
+describe('rateGameWeekly', () => {
+  const settled = { mu: 25, sigma: 5 };
+
+  it('reads its tuning from config.rating.weekly and nothing else', () => {
+    expect(config.rating.weekly).toEqual({ beta: 2, tau: 0.3 });
+  });
+
+  it('moves the winners up and the losers down, for either winning side', () => {
+    const blue = team(settled);
+    const red = team(settled);
+
+    const blueWins = rateGameWeekly(blue, red, 100);
+    for (const r of blueWins.blue) expect(r.mu).toBeGreaterThan(25);
+    for (const r of blueWins.red) expect(r.mu).toBeLessThan(25);
+
+    const redWins = rateGameWeekly(blue, red, 200);
+    for (const r of redWins.blue) expect(r.mu).toBeLessThan(25);
+    for (const r of redWins.red) expect(r.mu).toBeGreaterThan(25);
+  });
+
+  it('is symmetric in side colour', () => {
+    const a = [...team(settled, 4), { mu: 18.5, sigma: 8.33 }];
+    const b = [...team(settled, 3), { mu: 35, sigma: 3.5 }, { mu: 22, sigma: 6 }];
+    const aOnBlue = rateGameWeekly(a, b, 100);
+    const aOnRed = rateGameWeekly(b, a, 200);
+    expect(aOnBlue.blue).toEqual(aOnRed.red);
+    expect(aOnBlue.red).toEqual(aOnRed.blue);
+  });
+
+  it('keeps input order and returns plain { mu, sigma } objects', () => {
+    const blue = [
+      { mu: 20, sigma: 8.33 },
+      { mu: 22, sigma: 7 },
+      { mu: 24, sigma: 6 },
+      { mu: 26, sigma: 5 },
+      { mu: 28, sigma: 4 },
+    ];
+    const { blue: after } = rateGameWeekly(blue, team(settled), 100);
+    expect(after).toHaveLength(5);
+    const deltas = after.map((r, i) => r.mu - (blue[i]?.mu ?? Number.NaN));
+    for (let i = 1; i < deltas.length; i += 1) {
+      expect(deltas[i]).toBeLessThan(deltas[i - 1] ?? Number.NaN);
+    }
+    for (const r of after) expect(Object.keys(r).sort()).toEqual(['mu', 'sigma']);
+  });
+
+  it('does not mutate its inputs and is deterministic', () => {
+    const blue = team({ mu: 18.5, sigma: 8.33 });
+    const red = team(settled);
+    const snapshotBlue = structuredClone(blue);
+    const snapshotRed = structuredClone(red);
+    const first = rateGameWeekly(blue, red, 100);
+    const second = rateGameWeekly(blue, red, 100);
+    expect(blue).toEqual(snapshotBlue);
+    expect(red).toEqual(snapshotRed);
+    expect(first).toEqual(second);
+  });
+
+  // Acceptance 5: the caller (M7.3) never hands this function a player with no games in the
+  // week, and a week with nine players on it is a caller bug, not a rating to guess at.
+  it('throws unless both teams have exactly five ratings, naming itself', () => {
+    expect(() => rateGameWeekly(team(settled, 4), team(settled), 100)).toThrow(/five/);
+    expect(() => rateGameWeekly(team(settled), team(settled, 6), 100)).toThrow(/five/);
+    expect(() => rateGameWeekly([], [], 100)).toThrow(/five/);
+    expect(() => rateGameWeekly([], [], 100)).toThrow(/rateGameWeekly/);
+  });
+
+  it('a sequence of wins keeps moving the same way (rank direction is not inverted)', () => {
+    let a = team(settled);
+    let b = team(settled);
+    let lastProb = 0.5;
+    for (let i = 0; i < 3; i += 1) {
+      ({ blue: a, red: b } = rateGameWeekly(a, b, 100));
+      const p = predictWin(a, b);
+      expect(p).toBeGreaterThan(lastProb);
+      lastProb = p;
+    }
+    // Same team, red side: the trend must continue.
+    ({ blue: b, red: a } = rateGameWeekly(b, a, 200));
+    expect(predictWin(a, b)).toBeGreaterThan(lastProb);
+  });
+
+  it('is a different, faster number than the all-time fold on the same game', () => {
+    const blue = [{ mu: 18.5, sigma: 8.33 }, { mu: 35, sigma: 3.5 }, ...team(settled, 3)];
+    const red = team(settled);
+    const weekly = rateGameWeekly(blue, red, 100);
+    const allTime = rateGame(blue, red, 100);
+
+    // Every winner gains more and every loser loses more than in the all-time channel.
+    weekly.blue.forEach((r, i) => {
+      expect(r.mu).toBeGreaterThan(allTime.blue[i]?.mu ?? Number.NaN);
+    });
+    weekly.red.forEach((r, i) => {
+      expect(r.mu).toBeLessThan(allTime.red[i]?.mu ?? Number.NaN);
+    });
+
+    // Exact, so a tuning change is a one-line diff plus this update, never a silent drift.
+    expect(weekly.blue).toEqual([
+      { mu: 20.329564309459684, sigma: 8.152089685981457 },
+      { mu: 35.32494503480528, sigma: 3.4992373192743904 },
+      { mu: 25.660686460556278, sigma: 4.969494085719049 },
+      { mu: 25.660686460556278, sigma: 4.969494085719049 },
+      { mu: 25.660686460556278, sigma: 4.969494085719049 },
+    ]);
+    expect(weekly.red).toEqual(team({ mu: 24.339313539443722, sigma: 4.973709982692458 }));
+  });
+
+  it('converges a mis-seeded player faster than the all-time fold, game for game', () => {
+    const weekly = convergeMisSeeded(10, rateGameWeekly);
+    const allTime = convergeMisSeeded(10);
+    weekly.forEach((r, i) => {
+      expect(r.mu).toBeGreaterThan(allTime[i]?.mu ?? Number.NaN);
+      expect(r.sigma).toBeLessThan(allTime[i]?.sigma ?? Number.NaN);
+    });
+  });
+
+  /**
+   * M7.2 acceptance 4, and the number the whole weekly track is for: how far **one game**
+   * moves a player, in the display points a player actually reads.
+   *
+   *                                    all-time    weekly
+   *   folded from a fresh Sunday seed    ~77         ~79     (seedFromRank, sigma 8.33)
+   *   a settled player                   ~29         ~32     (mu 23, sigma 3.5)
+   *
+   * The week moves about three times as far per game as the all-time number does, and the
+   * reseed (M7.3), not `beta` and `tau`, is nearly all of it — the two columns are six display
+   * points apart on the same row. M7.3's copy is written off these numbers, so if an
+   * `openskill` patch moves them, this test says so and product re-reads the copy.
+   */
+  it('one game from a fresh seed moves ~79 display points, against ~29 for a settled all-time player', () => {
+    const seed = seedFromRank('GOLD', 'IV');
+    const settledPlayer = { mu: 23, sigma: 3.5 };
+
+    const moved = (me: Rating, peerSigma: number, fold: Fold): number => {
+      const peers = Array.from({ length: 9 }, () => ({ mu: 23, sigma: peerSigma }));
+      const { blue } = fold([me, ...peers.slice(0, 4)], peers.slice(4), 100);
+      const after = blue[0];
+      if (after === undefined) throw new Error('missing rating');
+      return displayRating(after.mu) - displayRating(me.mu);
+    };
+
+    // A fresh seed, the state every player is in on Sunday and all week.
+    expect(moved(seed, 8.33, rateGameWeekly)).toBe(79);
+    expect(moved(seed, 8.33, rateGame)).toBe(77);
+    // A settled player, the state the all-time number is in most of the time.
+    expect(moved(settledPlayer, 3.5, rateGameWeekly)).toBe(32);
+    expect(moved(settledPlayer, 3.5, rateGame)).toBe(29);
+
+    // Exact, and symmetric: a loss moves the same distance the other way.
+    const { blue } = rateGameWeekly(
+      [seed, ...team({ mu: 23, sigma: 8.33 }, 4)],
+      team({ mu: 23, sigma: 8.33 }),
+      100,
+    );
+    expect(blue[0]).toEqual({ mu: 24.31041984277893, sigma: 8.262662216277045 });
+    const lost = rateGameWeekly(
+      [seed, ...team({ mu: 23, sigma: 8.33 }, 4)],
+      team({ mu: 23, sigma: 8.33 }),
+      200,
+    );
+    expect((blue[0]?.mu ?? Number.NaN) - 23).toBeCloseTo(23 - (lost.blue[0]?.mu ?? Number.NaN), 12);
+  });
+
+  /**
+   * The measured settling numbers on M1.3's setup (P0 seeded Iron IV among settled Gold IVs,
+   * one sitter, P0's side wins every game). Six games is not a difference anybody notices and
+   * is not why the weekly track exists — the movement test above is. The architecture doc
+   * carries the same table.
+   *
+   *                       mu passes the field (23)   sigma below 5.00
+   *   all-time             game 4 (23.6639)           game 36
+   *   weekly               game 4 (24.1102)           game 30
+   */
+  it('mis-seeded player, weekly: mu passes the field in game 4 and sigma drops below 5.00 in game 30', () => {
+    const history = convergeMisSeeded(30, rateGameWeekly);
+    expect(firstGame(history, (r) => r.mu > 23)).toBe(4);
+    expect(history[0]?.mu).toBeCloseTo(17.3307, 4);
+    expect(history[3]?.mu).toBeCloseTo(24.1102, 4);
+    expect(history[4]?.mu).toBeCloseTo(26.1387, 4);
+    expect(history[4]?.sigma).toBeCloseTo(7.0716, 4);
+    expect(history[9]?.mu).toBeCloseTo(34.6025, 4);
+    expect(history[9]?.sigma).toBeCloseTo(6.2187, 4);
+    expect(firstGame(history, (r) => r.sigma < 5)).toBe(30);
+  });
+
+  /**
+   * SKIPPED, ON PURPOSE — M1.3's rule, which M7.2's brief repeats: do not soften a number to
+   * make a test pass, record the one the model really produces.
+   *
+   * The brief's target is that the weekly number settles inside about **five** games against
+   * thirty-six for the all-time channel. On M1.3's setup the real numbers are:
+   *
+   * - `mu` passes the field's 23.00 in **game 4** on the weekly track — and in game 4 on the
+   *   all-time track too, because a rank seed carries sigma 8.33 and the first games move fast
+   *   either way. By that reading five games is already met, by both channels, untuned.
+   * - `sigma` below 5.00 — the sense in which this project says a rating "settles after about
+   *   30 games" (`04-decisions.md`, 2026-09-10) and the only measure that produces the brief's
+   *   thirty-six — takes **game 30** weekly against game 36 all-time. That is the assertion
+   *   below, and it fails at five.
+   *
+   * Five is not reachable with `beta` and `tau`, measured, not guessed: a player's `mu` step is
+   * `sigma^2 * (1 - p) / c` with `c = sqrt(sum of all ten sigmas squared + 2 * beta^2)`, so beta
+   * accounts for about 35 of a c^2 near 214 and driving it to zero only moves sigma below 5.00
+   * from game 36 to game 23. `tau` is the stronger lever and it buys movement by refusing to
+   * converge: sigma still reaches 5.00 at tau 0.45 (game 59) but from about 0.46 up it never
+   * reaches it at all, measured to 500 games — and far past that, at tau 10, one game moves a
+   * settled player 100 display points while sigma climbs instead of falling (10.5 after one
+   * game, 30.3 by game 10, about 74 by game 200). That is a board about the last game, which is
+   * the coin flip the brief forbids. What actually makes the week move is M7.3 reseeding every
+   * player from rank at the Sunday boundary (sigma 8.33, about 79 display points a game) instead
+   * of carrying an all-time sigma near 3.5 (about 29) — see the movement test above. Reported to
+   * the lead as a finding; product amended the target rather than the number.
+   */
+  it.skip('TARGET: a mis-seeded weekly player settles (sigma < 5.00) inside five games', () => {
+    const history = convergeMisSeeded(5, rateGameWeekly);
+    expect(history[4]?.sigma).toBeLessThan(5); // really 7.0716; sigma first drops below 5.00 in game 30
   });
 });

@@ -10,10 +10,12 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M0 Spike: verify the client | done | Verified on 16.17 (2026-09-08) with fixtures and schemas. Still open: switch-side path and invite body (M4), Windows run (M2.11). Spectator shape captured 2026-09-08 (M2.13). |
 | M1 Foundation | done | M1.1 to M1.10 done; M1.1 to M1.11 done (M1.11 landed 2026-09-09; the wildcard allow-list entry can be removed). Hosted Supabase project linked and migrated (0001, 0002); Discord OAuth app not yet created. Can run in parallel with M0. |
 | M2 Companion v1: roster and results | in progress | M2.1 to M2.5, M2.7 to M2.10, M2.13 to M2.15, M2.18 to M2.20 done; M2.6 built as Kustom.exe 0.1.3 (apps/companion/dist, sha256 ffe6345e…), publish (v0.1.3, plus the kustom-releases README rename) and the Windows run pending on the user; **a 0.1.5 bump and publish is owed by M4.1's gate flip** — 0.1.4 has `verified: false` baked in and nacks every queued lobby write; M2 ticks after Session 2 of docs/06-test-night.md. |
-| M3 Teams in Discord and on the web | in progress | M3.0 to M3.5, M3.7, M3.8, M3.10 to M3.24 done; the whole web is Floodlit as of 2026-09-10 (shell, tonight page, leaderboard, player page, rail). M3.6 (migration 0009), M3.25, M3.27, M3.28, M3.29 landed. M3.26 and M3.30 landed 2026-09-11. Nothing open. Nothing calls `/api/cron/leaderboard` yet. |
+| M3 Teams in Discord and on the web | in progress | M3.0 to M3.5, M3.7, M3.8, M3.10 to M3.24 done; the whole web is Floodlit as of 2026-09-10 (shell, tonight page, leaderboard, player page, rail). M3.6 (migration 0009), M3.25, M3.27, M3.28, M3.29 landed. M3.26 and M3.30 landed 2026-09-11. Nothing calls `/api/cron/leaderboard` yet. **Reopened 2026-09-15 by M3.31** (how even the teams are, as a percentage): it is one more line in the explanation under the teams, computed from the `blue_win_prob` the split already stores, so it belongs here and not in M8. Sequenced after M7.2 and M7.8, which are editing the same core file. |
 | M4 Lobby automation, voice split, presence | in progress | **M4.1 done 2026-09-12**: companion and server halves landed (migration 0006 on kustom); the first live verify-commands (16.17, 2026-09-09) got 500 INVALID_LOBBY with the community body, so 0.1.4 carried a corrected probe built from the client's own lobby UI code, and the rerun on 16.18 (2026-09-12) had all three writes accepted first try (200/200/204) — both gates and the three reference rows are green. M4.2 server side and M4.9 lock index landed 2026-09-10 (migrations 0006 and 0008 on kustom; page control pending on the web engineer). Next: M4.3. Needs M3. M4.7a control and M4.10 lobby line landed 2026-09-11. M4.7 both halves landed 2026-09-11. M4.12 landed 2026-09-11. **The flip is not live for the group yet**: the exe the group runs is 0.1.4 (the probe build, cut before the flip) with `LOBBY_WRITE_VERIFICATION.verified: false` compiled in, so it nacks `endpoint_unverified` for every command the now-open server queues — a companion version bump and `pnpm --filter companion release` are owed first (tracked on M2.6). Remaining: the companion rebuild, M4.8 and M4.11 (and M4.3's acceptance 7, which is M4.11). |
 | M5 Backfill, windows, stats | in progress | M5.1, M5.2, M5.11 landed (backfill walker, scan route, approval toggle, rebuild-ratings, dropped lobby status); migrations 0004 and 0005 pushed to kustom. **Reshaped 2026-09-10**: seasons are gone (M5.3 dropped, ratings never reset) and the board is read through time windows instead — M5.9 boundaries, M5.12 picker, M5.10 + M5.13 the automatic weekly and monthly Discord post, M5.14 removes season creation. Roles become inferred from play (M5.16 to M5.18) and `/p/[puuid]` explains a rating (M5.15). M5.4 to M5.7 need M3. Independent of M4. M5.17 inferred roles stored (migration 0010 on kustom) and M5.18 mechanism landed 2026-09-10; M5.9/M5.12/M5.14 windows in progress. M5.5 missed-game report landed 2026-09-10. M5.9, M5.12, M5.14 windows landed 2026-09-10; M5.13 and M5.10 landed 2026-09-11 (migration 0011 on kustom, Vercel Cron daily 04:30 UTC); M5.15 and M4.7 in progress; next M5.4, M5.8. M5.4 /stats and M5.8 landed 2026-09-11. M5.7 stored seed landed 2026-09-11 (migration 0012 on kustom). M5.20 and M5.22 landed 2026-09-11. M5.21 and M5.23 landed 2026-09-11. M5.24 `/fun` landed 2026-09-12. M5.25 `/games` landed 2026-09-12. M5.26 Rift/ARAM split on `/games` and `/fun` landed 2026-09-12. M5.27 `/fun` first blood, deaths, steals and fear bans from `games.raw` landed 2026-09-12. M5.28 `/fun` This game expand landed 2026-09-12. M5.29 `/fun` museum groups, steal names, champion tables and display roles on the open scoreboard landed 2026-09-12. M5.30 `/leaderboard` per-game expand landed 2026-09-13. M5.31 `/fun` OTP vs variety pools landed 2026-09-13. M5.32 Daily Mystery landed 2026-09-13 (migration 0013; `/` card + `/mystery`; civil midnight in `CUSTOMS_NIGHT_TZ`; Vercel Cron `0 21,22 * * *` plus lazy create on first GET). M5.33 `/fun` lucky trash vs most robbed landed 2026-09-13. **M5.34 opened 2026-09-15: the week starts on Sunday, not Monday** (the user; Egypt's week) — a `weekStart` anchor change with no schema, no rating and no cron-schedule change, and it **runs before M7.3**, which reseeds the weekly rating on that boundary. Open: M5.6 (needs a client), M5.18 table (needs a capture night), M5.34. |
 | M7 Ratings that are fair | in progress | Opened 2026-09-15 from the user's four settled decisions after a week of customs left the group calling the ratings unfair. Eleven tasks: **M7.1** ARAM never rates (the bug; land it first), **M7.2** to **M7.4** a second weekly rating track that never forms teams, **M7.5** and **M7.6** decaying fill protection, **M7.7** to **M7.9** the MVP / ACE bonus (M7.7 is the blocking persist), **M7.10** the post and the player page name the MVP and the ACE, **M7.11** the single `rebuild-ratings` run that closes the milestone. Three later resolutions, 2026-09-15: **one rebuild at the end and none per fix**, **no monthly track** (the month windows keep the all-time number, decided, not deferred), and **the bonus is surfaced, not silent**. Every task changes the rating model, which is why none of them is an M5 task. **Runs before M6**, which is still waiting on a month of M2. **M5.34 (the week starts on Sunday) lands before M7.3**: M7.2 to M7.4's briefs were amended 2026-09-15 to say Sunday wherever they named the week's reset day. **M7.1 landed 2026-09-15.** M7.7's verification half landed the same day (vision score / damage-mitigated corroborated for real ten-player customs; no companion release owed). M7.2 (the weekly rating fold) is built and reviewed, in final review. Next: land M7.2, then M5.34, then M7.5/M7.8 (`packages/core`) and M7.7's platform half (migration/ingest) can proceed in parallel. |
+| M8 The day after: rivals, awards, a second guessing game | not started | Opened 2026-09-15 from four ideas of the user's, all four settled with them the same day. **M8.1** nemesis and best duo on `/fun`; **M8.2** won against the odds — the honest "best comeback", read from the stored `blue_win_prob` so a rebuild cannot move it (**confirmed by the user over the literal biggest-`mu`-swing version**); **M8.3** the existing awards as badges on `/leaderboard`'s closed windows, placement only, because most improved and longest streak already shipped in M5.4; **M8.4** Guess the Award, and **the two games alternate civil days** (the user, 2026-09-15) — one challenge per day as today, so `daily_mysteries.day` keeps its unique and the only migration is additive (`kind`, a widened `category` check, `(kind, challenge_number)`). The fourth idea, the balance percentage, is **M3.31** and not here. Every task is a read over stored games; none touches the rating model. **Starts after M7 clears `apps/web`** (M8.1 to M8.3 after M7.4; M8.4 after M7.9). Nothing in M8 is waiting on an answer. |
+| M9 Does coming back after a break break the rating? | not started | The user asked on 2026-09-15 for `sigma` decay after a layoff and settled the same day that **the measurement comes first**. **M9.1** is that measurement and is a real task: a read-only script over the hosted project that counts 14-day-plus returns and compares the first game back against ordinary games **at the same `sigma`**, run **after M7.11** so it measures the model the group is actually on. It changes nothing and decides nothing. **M9.2**, the decay function itself, has no brief and is not to be picked up until the user has read M9.1's numbers — it would move Proven and the balancer's inputs, the one thing all four of M7's changes avoided, and it would want a second rebuild after M7.11 was meant to be the only one. Paste M9.1's numbers into this row when it lands. |
 | M6 Tray app and polish | not started | Needs M2 stable for a month. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
@@ -4742,7 +4744,7 @@ visible on no page.
     > game, a short game and a duplicate player are already gated and their rules do not change). Any change to
     > what the pages list.
 
-- [ ] **M7.2** The weekly rating, in `packages/core`: a second, tuned OpenSkill fold beside `rateGame` that moves a week's games several times further than the all-time channel moves a settled player. `rateGame`'s behaviour for the all-time channel is not touched. *(owner: `core-engineer`; no dependencies, parallel with M7.1)*
+- [x] **M7.2** (landed 2026-09-15: `rateGameWeekly` beside the byte-pinned, untouched `rateGame`, tuned via `config.rating.weekly = { beta: 2.00, tau: 0.30 }`. Five games is not reachable without a coin-flip board — measured `sigma < 5.00` at game 30 weekly vs 36 all-time — so the target is the per-game movement instead: ~79 display points from a fresh Sunday seed vs ~29 for a settled all-time player, about three times the movement, almost all of it M7.3's reseed and not this tuning. Every number independently re-derived twice in review.) The weekly rating, in `packages/core`: a second, tuned OpenSkill fold beside `rateGame` that moves a week's games several times further than the all-time channel moves a settled player. `rateGame`'s behaviour for the all-time channel is not touched. *(owner: `core-engineer`; no dependencies, parallel with M7.1)*
 
     > **Brief (product, 2026-09-15)**
     >
@@ -5430,6 +5432,534 @@ when there is nobody else; the person who carried the game keeps a little more o
 they were; every rating moved exactly once, on the night M7.11 ran, and the group heard it from us first; and
 the all-time rating has still never been reset.
 
+## M8 The day after: rivals, the awards where people look, and a second guessing game (1 to 2 days, needs M5; M8.4 needs M7)
+
+Goal: more to read and one more thing to play on the morning after a night of customs. Opened 2026-09-15 from
+four ideas the user asked for that evening. **Three of them are here and one is not**, and the honest reason is
+worth writing down, because these three do not share a subject the way M7's four did.
+
+What makes M8 one milestone is not a theme, it is a **class of change**: every task here is a **read over games
+that are already stored**. No task adds a capture, an LCU call, a companion release, or a step in the nightly
+loop, and no task touches the rating model — each one carries the same sentence M5.24 to M5.33 carry,
+`does not change /stats, the awards, or the rating model`, and a diff that touches `packages/core/src/rating`,
+`lib/ingest/` or `lib/board/load.ts`'s ordering is a diff that went wrong. (M8.4 owes one additive migration for
+the second game's `kind`; nothing in it reads or writes a rating.) That is a weaker unit than M7's and it is
+deliberately named as one: this is the museum getting bigger, not a change to how the referee works.
+
+**The fourth idea is not in M8.** "How even are the teams, as a percentage" is **M3.31**, in the milestone that
+owns the tonight page and the sentence under the teams, because that is what it is — one more line in the
+explanation M3.11 already writes, computed from a column that is already stored. Parking it here to make a round
+number of four would have put a one-line display transform behind a migration and a guessing game.
+
+**A fifth idea — widening `sigma` for players who have been away — is not in M8 either, and is not built yet.**
+It is **M9**, which opens with a **read**: M9.1 asks the database whether a comeback game really does move
+somebody harder than anybody else at the same uncertainty, and the decay function itself (M9.2) has no brief
+until that answer exists. It is a rating-model change that reaches team-forming, and it arrived in a batch with
+three stats ideas; scoping it as though it were one of them is how a referee stops being one.
+
+**Sequencing: M8 starts after M7 clears.** Nothing in M8 is urgent and two of its tasks queue behind M7's own
+contention, exactly as M7 itself was queued behind M5:
+
+- `apps/web` is M7's busiest thread — `M7.1 → M7.7 → M7.3 → M7.4 → M7.9 → M7.10 → M7.11`. M8.1, M8.2 and M8.3
+  all edit `apps/web/lib/stats/*` and `apps/web/lib/board/*`, and M8.3 reads `awardsView`, which **M7.4 is
+  rewriting**. Start M8.1 and M8.2 no earlier than M7.4; start M8.3 after it.
+- `packages/core` is M7.2 → M7.5 → M7.8. M8 adds nothing to core, so it never contends there — but **M8.4 needs
+  M7.8's `performanceScores` and M7.9's stored answer** and cannot start before both.
+- **M7.11 is the one rebuild and M8 must not bring a second.** M8.2 was defined against a stored number on
+  purpose so that no M8 surface changes when M7.11 runs.
+
+- [ ] **M8.1** Nemesis and best duo on `/fun`. Who beats you, and who you win with. Query-only, over counted games in the open window. **Does not change `/stats`, the awards, or the rating model.** *(owner: `web-engineer`; after M7.4)*
+
+    > **Brief (product, 2026-09-15)**
+    >
+    > ### What a player sees
+    >
+    > A new group on `/fun`, in the museum register the page already speaks: two ranked lists, each row a person,
+    > each row expandable into the customs behind it with the same `See games` `<details>` M5.33's Luck uses.
+    >
+    > - **Nemesis** — the person who has beaten them most, with the count and the denominator: `Lost 7 of 9 to Lena.`
+    > - **Best duo** — the pair with the best record on the same side: the list `/p/[puuid]`'s `Partners` block
+    >   already draws, finally visible on the page where the lobby reads about itself rather than only on one
+    >   person's page.
+    >
+    > ### Best duo is not new maths, and must not become any
+    >
+    > `duoRecords` in `apps/web/lib/stats/fold.ts` already folds every pair with at least `MIN_DUO_GAMES` (5)
+    > games on the same side, and `compareDuos` already fixes the order (rate, then games, then both names). It is
+    > what `/p/[puuid]`'s three best and three worst partners are, and what the `cursed duo` award reads. **Call
+    > it.** A second pair fold in `fun.ts` would be two answers to one question and the first night they disagreed
+    > would be the last night anybody believed either.
+    >
+    > ### Nemesis is new, and it is the mirror of that file's own note
+    >
+    > `duoRecords`' comment says it out loud: "a game they played against each other counts for neither the
+    > numerator nor the denominator. Rivalries are a different question and are not in this milestone." This is
+    > that question. A new fold beside it — **opposing sides**, in a counted game, both rows readable:
+    >
+    > - It is **per player and asymmetric**. Yuki's nemesis is Lena; Lena's nemesis is somebody else. That is the
+    >   point of the word and it is why this is not a pair table.
+    > - Ranked by **losses against**, tie-broken by the worse record against them, then by more games against,
+    >   then by name. Same shape as every other tie rule in the file.
+    > - Minimum **`MIN_DUO_GAMES` games against that person**, reusing the constant rather than inventing a second
+    >   floor. Nobody gets a nemesis off one bad night.
+    >
+    > **The count alone would be an attendance award.** In a group of ten who play the same ten, whoever turns up
+    > most is everybody's nemesis by raw losses. That is why the row prints `7 of 9` and not `7`: the denominator
+    > is the honest half of the sentence, and a reader can see for themselves whether it is a rivalry or a rota.
+    >
+    > ### Copy (product; the designer places it, the group's ear overrules the Arabic)
+    >
+    > `/fun`'s convention since M5.29 is an English title and an Egyptian 3ameya roast beside it, in
+    > `lib/stats/funCopy.ts`. Product's proposals, to be read out to the group before merge and changed on the
+    > spot if they land badly:
+    >
+    > - Group heading: **Friends and enemies** / `صحابه وخصومه`
+    > - **Nemesis** / `اللي دايما بيكسبه` — row: `Lost 7 of 9 to Lena.`
+    > - **Best duo** / `التنائي اللي مبيخسرش` — row: the existing pair line, `8W 2L · 80%`, unchanged from the
+    >   partners block so the two pages read the same.
+    > - Empty states use the existing sentences (`NO_DUOS`, and a nemesis twin of it), not new ones.
+    >
+    > ### Edge cases
+    >
+    > - **Fewer than five games against anybody**: no nemesis row for that person. The section still prints with
+    >   its empty sentence, the way every museum does.
+    > - **A perfect record against somebody** (0 losses) is never a nemesis; the list is about losses.
+    > - **A tie at the top of somebody's own list** — two people have each beaten them 5 of 7 — resolves on the
+    >   rules above and is deterministic, pinned in a test.
+    > - **A player who has left the group** is still somebody's nemesis; rows are keyed by PUUID and read the
+    >   roster for names, so a renamed or departed player behaves exactly as they do everywhere else.
+    > - **A nameless player** uses the same `NAMELESS_PLAYER` word every other surface uses.
+    > - **ARAM**: both lists respect the `?queue=` split (M5.26) like the rest of the page, and read the same
+    >   Rift-by-default universe.
+    > - **A window with no games**: the page's existing capped/empty handling, untouched.
+    >
+    > ### Acceptance
+    >
+    > 1. Pure functions in `lib/stats/`, tested: a fixture where A beat B six times out of ten names B's nemesis
+    >    as A and does **not** name A's nemesis as B.
+    > 2. Best duo on `/fun` and `Partners` on `/p/[puuid]` are the same call — a test asserts the top pair on the
+    >    page equals `duoRecords(...)[0]` for the same window.
+    > 3. Nobody appears with fewer than `MIN_DUO_GAMES` games against their nemesis (test), and `grep` finds no
+    >    second minimum constant.
+    > 4. Every row expands into the customs it was folded from, newest first, in the M5.28 `<details>` pattern.
+    > 5. `/stats`, the three awards, the board and the rating model are untouched (test + a read of the diff).
+    > 6. `pnpm -r typecheck`, `pnpm -r test` and `pnpm --filter web build` pass; the status table is updated; the
+    >    copy rows are in `05-design.md`.
+    >
+    > ### Out of scope
+    >
+    > A nemesis line on `/p/[puuid]` — the player page has `Partners` already and a second rivalry block there is
+    > its own task if the group asks twice. A head-to-head page. Champion-level rivalries. Any change to
+    > `duoRecords`, `compareDuos` or `compareDuosWorst`. A fourth award (M8.3).
+
+- [ ] **M8.2** Won against the odds: the honest version of "best comeback", from the win chance the balancer already stored. **The user confirmed this definition over the literal biggest-`mu`-swing one on 2026-09-15.** **Does not change `/stats`, the awards, or the rating model.** *(owner: `web-engineer`; after M7.4)*
+
+    > **Brief (product, 2026-09-15)**
+    >
+    > ### The idea, and why it is not the idea as asked for
+    >
+    > The ask was "best comeback: the largest single-game rating swing upward". **That award would name the
+    > newest player in the group every time, for ever.** Movement scales with `sigma` — the product doc says so in
+    > as many words ("five players it barely knows move further than five it has watched for a month") — so the
+    > biggest single-game climb is a measurement of who the model knows least, not of who came back. After M7.9 it
+    > gets worse: the MVP bonus multiplies the winner's delta by 1.25, so the award becomes "the newest player,
+    > on a night they farmed vision". And it would move under **M7.11** and under every future rebuild, so the
+    > answer to "who had the best comeback in September" would change in October.
+    >
+    > There is a number already stored that means what the ask meant. `splits.blue_win_prob` is the chance the
+    > balancer gave blue on the night, written when the teams were posted (`lib/ingest/balance.ts`), publicly
+    > readable, and **never rewritten by a rebuild**. Winning a game your side was given 31% in is a comeback in
+    > the only sense a friend means it: the bot said you would lose and you did not.
+    >
+    > ### What a player sees
+    >
+    > A new group on `/fun`: **Won against the odds**.
+    >
+    > - A ranked list, one row a person: how many customs they won where their own side's posted chance was
+    >   **under 45%**, with a `See games` expander listing them (`31% · Won · Tuesday`).
+    > - Under it, the one-game record: the single least-likely win in the window, naming the five who did it and
+    >   the number they beat.
+    >
+    > ### The rule
+    >
+    > - The odds come from the **chosen** split's `blue_win_prob` for the game's lobby — the same `oddsByLobby`
+    >   read `lib/board/load.ts` already makes for the per-game expand (M5.30). Do not add a column and do not
+    >   recompute a probability from today's ratings: the number on this page has to be the number the group was
+    >   shown that night.
+    > - A player's own chance is `side === 100 ? p : 1 - p`.
+    > - The threshold is **one constant** beside the other `/fun` minimums, default `0.45`, with the ranked list
+    >   requiring at least two such wins so a single fluke is not a trophy — the same instinct as every other
+    >   floor on the page.
+    >
+    > ### Edge cases
+    >
+    > - **A backfilled game has no lobby and no split**, so it has no odds and is in neither list. Most of the
+    >   group's history is backfilled; the section will be thin for a while and must say so with its empty
+    >   sentence rather than looking broken.
+    > - **A rerolled lobby** stored the chosen split's probability, which is the one the group played. Nothing
+    >   special to do; check it, do not special-case it.
+    > - **A 50% game** is not against the odds. The threshold is a strict `<`.
+    > - **An ARAM night** has a lobby and a split like any other and is on the ARAM tab like everything else on
+    >   this page (M5.26). It is not rated, which this section does not care about — it reads results, not ratings.
+    > - **A tie in the ranked list** breaks on the longest odds beaten, then more games, then name.
+    >
+    > ### Copy (product; the group's ear overrules the Arabic)
+    >
+    > - Group heading: **Won against the odds** / `كسبوا وهما خسرانين`
+    > - The record line: `Blue won at 31%.` — the posted number, the side, nothing else.
+    > - No "upset", no "miracle", no exclamation mark. The bot was wrong and it says so plainly.
+    >
+    > ### Acceptance
+    >
+    > 1. A fixture where a side won at 31% puts all five on the list and names that game as the record.
+    > 2. A game whose lobby has no split appears in neither list and breaks nothing.
+    > 3. Nothing in this task reads `mu_before` or `mu_after` — a `grep` over the new code returns neither.
+    > 4. Running `rebuild-ratings` against the local stack does not change one row of this section (test or a
+    >    recorded manual check): that is the property the mu-swing version could not have had.
+    > 5. The threshold and the minimum are one constant each, in `lib/stats/copy.ts` with the others.
+    > 6. `/stats`, the awards and the rating model are untouched; `pnpm -r typecheck`, `pnpm -r test` and
+    >    `pnpm --filter web build` pass; the status table is updated; the copy rows are in `05-design.md`.
+    >
+    > ### Out of scope
+    >
+    > A largest-mu-swing record anywhere, under any name — if the group wants it after reading this, it needs a
+    > decision row that answers the "it always names the newest player" objection. A per-side or per-role cut.
+    > Showing the odds on `/games`. Any new column.
+
+- [ ] **M8.3** The awards, on the page where people already look. Placement only: the existing three awards as labelled badges on `/leaderboard` rows, from `awardsView` and nothing new. **Does not change what an award means, its minimum, or the rating model.** *(owner: `designer` then `web-engineer`; after M7.4, which rewrites `mostImproved` for week windows)*
+
+    > **Brief (product, 2026-09-15)**
+    >
+    > ### Read this before scoping anything: two thirds of the ask already shipped
+    >
+    > The ask was "surface most improved, longest win streak and best comeback as labelled award badges". Against
+    > what is in the repo today:
+    >
+    > | Asked for | Where it already is |
+    > |---|---|
+    > | Most improved | An award since **M5.4** (`mostImproved` in `lib/stats/awards.ts`), on `/stats`, in the weekly and monthly Discord post, and as the `Most improved, September.` line on `/p/[puuid]` (**M5.20**). **M7.4 is changing what it reads on a week window.** |
+    > | Longest win streak | On `/stats` since **M5.4** (`longestStreak(streaks, 'W')`), folded over the same window as the player page since **M5.21**. |
+    > | Best comeback | Genuinely new, and it is **M8.2**, under a definition that survives a rebuild. |
+    >
+    > So there is no new statistic in this task. What is left is **placement**, and that is worth one small task
+    > because it is true that nobody visits `/stats` to find out they won something.
+    >
+    > ### The collision to settle first — and it settles in favour of the existing rule
+    >
+    > Awards only exist on a **closed** window. `awardPeriod` returns `closed: false` for `this-week` and
+    > `this-month`, and M5.4's reason is quoted in the file: "an award that changes every night is a statistic,
+    > not an award". `/leaderboard`'s default window is `this-week`. **So on the board as a player usually opens
+    > it, there are no awards to badge, and this task does not invent any.** A badge on an open window would
+    > un-decide M5.4 to win a placement argument.
+    >
+    > The result is honest and small: on `Last week` and `Last month`, the winners' rows carry a badge. On
+    > `This week`, `This month` and `All time`, nothing changes at all.
+    >
+    > ### What a player sees
+    >
+    > They tap `Last week` on the leaderboard. Three rows carry a small label — `Most improved`, `Best off-role`,
+    > `Cursed duo` (both halves of the pair get it) — in the row's own size, in the board's own dim, no colour of
+    > its own, no icon, no trophy, no `#1`. Tapping the row still opens the per-game expand (M5.30); the badge is
+    > not a control.
+    >
+    > ### The rule
+    >
+    > - **No new computation and no new read.** The board loader calls `awardsView(kind, games, players)` with the
+    >   window it already loaded, or takes the answer `/stats` computes, and matches winners to rows by PUUID. If
+    >   it turns out the board's loader cannot reach the awards' game list without a second query, **stop and say
+    >   so** rather than folding a second copy of `climbs()` into `lib/board/`.
+    > - The three awards, their minimums, their tie rules, their "nobody won it" sentences and the Discord post
+    >   are **untouched**.
+    > - A row can carry two badges (most improved and cursed duo); they print in the awards' own order and wrap.
+    >
+    > ### The word `season` does not appear
+    >
+    > The ask said "named season awards". There are no seasons (**M5.14**, 2026-09-10; the one `season` row is a
+    > container whose name is never printed). These are the **window's** awards and they are named after the
+    > window the picker is on: `Last week`, `Last month`. No badge, no heading and no tooltip may say `season`.
+    >
+    > ### Edge cases
+    >
+    > - **Nobody won an award** (no player cleared the minimum): no badges, and the board is byte-identical to
+    >   today's.
+    > - **Two winners tie** and both are named today; both rows get the badge.
+    > - **A cursed-duo winner who is not on the board** (fewer games than the board's own floor, or missing from
+    >   the window's rows) is simply not badged. No ghost row is added.
+    > - **The tonight rail** does not badge: it is a five-row snapshot of tonight, not a window's story.
+    > - **The Discord post** is unchanged; it already prints the same three lines from the same function.
+    >
+    > ### Acceptance
+    >
+    > 1. On `Last week` and `Last month`, the winners' rows carry the label; the strings come from
+    >    `lib/stats/copy.ts`'s existing award titles and no new copy constant is introduced.
+    > 2. On `This week`, `This month` and `All time`, `/leaderboard` is byte-identical to today's output (test).
+    > 3. The awards' own numbers, minimums and lines on `/stats` and in the Discord post are unchanged (test).
+    > 4. No second implementation of any award: `grep` for `climbs(` outside `lib/stats/` returns nothing.
+    > 5. `grep -ri season apps/web/app/_leaderboard apps/web/lib/board` finds no new occurrence.
+    > 6. Floodlit: no emoji, no icon, no award colour, no `#1`; the designer signs the row off at 390 and 1280.
+    > 7. `pnpm -r typecheck`, `pnpm -r test` and `pnpm --filter web build` pass; the status table is updated; the
+    >    badge row is in `05-design.md`.
+    >
+    > ### Out of scope
+    >
+    > A fourth award. Awards on an open window. Changing a minimum so somebody qualifies. A badge on
+    > `/p/[puuid]` — **M5.20** already prints the award line there and a second treatment of the same fact on one
+    > page is clutter. An all-time award. Storing awards.
+
+- [ ] **M8.4** Guess the Award: a second daily game on the Daily Mystery engine, where the clues describe a standout stat line and the answer is who it belongs to. **The two games alternate days** (the user, 2026-09-15). Needs M7.7, M7.8 and M7.9. *(owner: `platform-engineer` for the service and the migration, `web-engineer` for the view; last in M8)*
+
+    > **Brief (product, 2026-09-15; the rotation settled by the user the same day)**
+    >
+    > ### The rotation, settled
+    >
+    > **Daily Mystery and Guess the Award alternate civil days.** One game a day, never two, decided by the parity
+    > of the civil date in `CUSTOMS_NIGHT_TZ` — the same `dayKey` the selector and the cron already agree on, so
+    > the lazy create on first GET and the Vercel Cron cannot disagree about which game today is. Two cards on `/`
+    > was rejected: it halves the attention each game gets, doubles the chance of an empty one, and makes the top
+    > of the home page two guessing games above the thing the page is actually about.
+    >
+    > ### What that does and does not do to the schema
+    >
+    > It removes the **reshape**. `daily_mysteries.day` stays unique exactly as migration 0013 wrote it, because
+    > there is still one challenge per civil day, and no table is duplicated. What is still owed is one small
+    > **additive** migration (the next free number — 0014 is M7.7's):
+    >
+    > - `kind text not null default 'mystery'` with a check over the two values, and the existing rows take the
+    >   default. **The kind is stored, not derived from the date's parity at read time**: a stored challenge has to
+    >   keep meaning what it meant, and a rule that reinterprets last month's rows the day somebody changes the
+    >   rotation is not a rule.
+    > - The `category` check constraint widened (or replaced with a per-kind one) — today it allows only the five
+    >   Daily Mystery categories, and the award game's categories are not among them.
+    > - `challenge_number`'s unique becomes **`(kind, challenge_number)`**, and `ensure` takes the next number
+    >   within the kind. `Daily Mystery #41` is printed in the heading and in the share string; under one shared
+    >   counter it would become `#41`, `#43`, `#45` and a friend who plays every day would be counting cases that
+    >   never existed. Each game counts its own.
+    >
+    > That is the whole of it: one column, one constraint, one unique. No second table, no second service.
+    >
+    > ### What a player sees
+    >
+    > On a Mystery day, exactly what they see now. On an Award day, the same card in the same place with a
+    > different question: instead of "who played like this", the hook is a stat line that stood out — the most
+    > damage in a custom, the most deaths, the widest KDA — and the six suspects are the six who could plausibly
+    > own it. Progressive clues, one locked guess per anonymous visitor, `who did everyone blame` after lock-in,
+    > rotation at civil midnight in `CUSTOMS_NIGHT_TZ`, no accounts and no named leaderboard. Every constraint
+    > M5.32 wrote applies here word for word and none of them is renegotiated by this task.
+    >
+    > ### Copy (product; the designer adds the rows to `05-design.md`)
+    >
+    > - The award game's title is **Guess the Award**, headed `Guess the Award #7` in the shape
+    >   `mysteryHeading` already prints. `MYSTERY_TITLE` is not edited; a second title constant sits beside it.
+    > - `shareMissed` today ends `Tomorrow's another case.` **That sentence stops being true** under alternation —
+    >   tomorrow is the other game. Both games' missed-share line says `There's another one tomorrow.` instead:
+    >   true on either day, and it does not promise a case.
+    > - Nothing anywhere names the rotation, prints "today is award day", or explains the parity rule. The card is
+    >   whatever it is; a page that explains its own schedule is a page apologising for it.
+    >
+    > ### There is already a "standout stat line" function, and it is not in `/fun`
+    >
+    > The idea arrived paired with M8.3 on the assumption that the awards work would produce the scoring. It does
+    > not: M8.3 is placement and M8.1 and M8.2 are counts. **M7.8's `performanceScores` and `mvpAce` are exactly
+    > this function** — an op.gg-shaped six-component score over one game's own numbers, pure, tested, in
+    > `packages/core`, already the thing that decides who carried a game. Use it. A second definition of
+    > "standout" in `lib/mystery/` would be a second answer to the question this project spent M7 making
+    > trustworthy.
+    >
+    > That is why this task's real dependency is **M7**, not M8: `performanceScores` needs the six components,
+    > two of which (`vision_score`, `damage_self_mitigated`) only exist after **M7.7**, and the stored answer to
+    > "who was the MVP" only exists after **M7.9**. Starting this before M7.9 means computing the score at read
+    > time in the web app, which **M7.10's brief already forbids**.
+    >
+    > ### Reuse, do not fork
+    >
+    > - `select.ts` and `score.ts` gain a **second candidate strategy**, not a second file tree: `pickMystery`,
+    >   `shuffleSuspects`, `dayIndex`, the recent-game and recent-player avoidance, the session and attempt
+    >   tables, `ensureTodayMystery` and the service-role-only write all stay one implementation.
+    > - The view: try the copy/label swap in `MysteryView.tsx` / `MysteryLive.tsx` first. If the two games need
+    >   more than labels to diverge, duplicating the small view layer is the cheaper answer and is allowed —
+    >   **but the service, the selection and the tables are not duplicated under any circumstances.** Say which
+    >   way it went in the decision row.
+    > - The clue ladder is per-kind: the award game's clues walk from the vaguest fact about the game to the
+    >   narrowest fact about the player, the same shape `clues.ts` already builds.
+    >
+    > ### Edge cases
+    >
+    > - **No game in the window has all six components** (everything before M7.7), so today's Award day cannot be
+    >   built: **fall back to a Daily Mystery for that day** rather than showing an empty card. The rotation is a
+    >   schedule, not a promise, and a card that says "nothing to expose" on a morning when there was plenty to
+    >   expose reads as broken. Only when *neither* game can be built does the card say there is nothing to
+    >   expose, exactly as M5.32's empty state does, and `/` still loads.
+    > - **The fallback does not shift the rotation.** Tomorrow is whatever the parity says tomorrow is; a
+    >   fallback day does not "owe" an award day back. Two rules about which game it is would be one too many.
+    > - **The answer is obvious** — the standout is the only jungler, or the clue names a champion only one person
+    >   plays. The suspect pool is drawn from the same game's ten where possible, which is what keeps it a guess.
+    > - **A player who has been the answer recently** is avoided by the existing `MYSTERY_RECENT_PLAYER_DAYS`
+    >   rule, and **the two games share that memory**: being yesterday's Daily Mystery answer must exclude you
+    >   from today's Guess the Award, or the pair of games leaks its own answer.
+    > - **An ARAM custom** is fine as a subject — this reads a scoreboard, not a rating — but it is the one place
+    >   a vision-weighted score means nothing, so the selector excludes ARAM and the decision row says why.
+    > - **A visitor on two consecutive days** gets one locked guess on each day, in whichever game that day is.
+    >   The session and attempt rows are per challenge id and already behave this way; check it, do not build it.
+    > - **The rotation flips at civil midnight**, with the challenge, and not at the night's 06:00 boundary. The
+    >   two games rotate on the same clock Daily Mystery already rotates on (M5.32), which is not the clock a
+    >   *night* uses — that is a known and deliberate difference and it is not reopened here.
+    > - **The answer never ships in the first GET**, the M5.32 rule and the reason 0013 is service-role only.
+    >
+    > ### Acceptance
+    >
+    > 1. One challenge exists per civil day, never two, and which game it is follows the date's parity: a test
+    >    walks fourteen consecutive days and asserts the alternation and that `kind` is **stored**, not inferred.
+    > 2. One service, one selection module, one set of tables, one additive migration (`kind`, the widened
+    >    `category` check, the `(kind, challenge_number)` unique). `grep` finds no second `ensureToday*` and no
+    >    second challenge table.
+    > 3. `Daily Mystery #N` does not skip a number when an Award day passes (test), and neither does the award
+    >    game's own count.
+    > 4. The standout is scored by `performanceScores` from `packages/core` — no scoring function is added to
+    >    `apps/web/lib/mystery/`.
+    > 5. `GET` never contains the answer, the unrevealed clues or the guess distribution; a second visitor on the
+    >    same civil day gets the same challenge id; a second guess from one visitor is refused and writes one row.
+    > 6. Yesterday's answer in either game cannot be today's answer in either game (test).
+    > 7. An Award day with no scorable game falls back to a Daily Mystery and the next day's kind is unchanged
+    >    (test). Only an empty database gives the "nothing to expose" card, and `/` still loads.
+    > 8. Floodlit: no emoji, no named leaderboard, no accounts; no surface names or explains the rotation.
+    > 9. `pnpm -r typecheck`, `pnpm -r test` and `pnpm --filter web build` pass; migration applied locally
+    >    (`pnpm db:reset`) and to the hosted project with `pnpm db:types` regenerated; the status table is updated;
+    >    a decision row records the migration's exact shape and whether the view was reused or duplicated.
+    >
+    > ### Out of scope
+    >
+    > Accounts, sign-in, or a named leaderboard — in either game, for ever. A third game. Changing Daily
+    > Mystery's selection, clues or copy beyond the one share sentence named above. Printing the performance
+    > score as a number anywhere (M7.8's rule). Scoring ARAM. A per-kind cron schedule — the existing one runs
+    > every day and builds whatever that day is.
+
+Acceptance: `/fun` tells a person who beats them and who they win with, and names the nights the bot said they
+would lose and they did not; last week's winners are labelled where the group actually looks; and every other
+morning the thing to guess is which of the ten owns a stat line, scored by the same function that decides who
+carried a game. Nothing in this milestone moved anybody's rating by one digit.
+
+## M9 Does coming back after a break actually break the rating? (half a day, needs M7.11)
+
+The user asked on 2026-09-15 for a pure `applyInactivityDecay(rating, daysSinceLastGame)` that widens `sigma` for
+a player who has been away, called from `rebuild-ratings` before folding each of their games, so that a comeback
+game cannot swing a rarely-played player too hard in either direction.
+
+**It is a rating-model change that reaches team-forming, and M7's four deliberately did not.** M7's preamble draws
+the line — "the all-time rating that forms teams is not reset by any of it" — and M7.8 refuses to touch `sigma` in
+as many words, because "certainty is not something you earn by farming vision". Widening `sigma` moves `ordinal`,
+which is **Proven**, which is what the leaderboard sorts on, and it changes what the balancer thinks it knows
+about a player who has not played a game. It would also want its own rebuild, the week after M7.11 was meant to be
+the only one.
+
+So the milestone opens with a **read, not a build** (the user, 2026-09-15). M9.1 asks the database whether the
+problem is real. What it finds is a finding for the lead and the user, and **M9.2 does not exist until they have
+read it**.
+
+- [ ] **M9.1** Measure it: how often does somebody come back after a long break, and does their next game move them harder than anyone else's? A query and a written report. **No behaviour changes and no rating moves.** *(owner: `platform-engineer`; after **M7.11**, because the numbers have to be read out of the model the group is actually on)*
+
+    > **Brief (product, 2026-09-15)**
+    >
+    > ### What this is
+    >
+    > A diagnostic. It produces **numbers and a paragraph**, and nothing else: no decay function, no config
+    > constant, no column, no migration, no change to the fold, the balancer or any page. A reader of the diff
+    > should be able to say "this cannot have changed what anybody sees" without thinking about it.
+    >
+    > ### Why it runs after M7.11 and not before
+    >
+    > M7 un-rates ARAM and adds the MVP / ACE bonus, and M7.11 refolds the whole history under both. Measuring how
+    > hard a comeback game swings somebody **before** that rebuild measures a model the group is about to stop
+    > being on — and the MVP bonus multiplies exactly the deltas this task is measuring. Run it on the numbers the
+    > group is living with.
+    >
+    > ### The question, in three parts
+    >
+    > Over every rated game in the database, per player, in `started_at` then `lcu_game_id` order — the rebuild's
+    > own order, so this and the history agree:
+    >
+    > 1. **How often does it happen?** Count the gaps: for each player, each pair of consecutive rated games more
+    >    than **14 days** apart. Report how many such returns there are, how many distinct players have one, and
+    >    the distribution of gap lengths (the median and the longest are enough; this is a group of twenty, not a
+    >    population study). If the honest answer is "three returns, two players", the rest of the report is short
+    >    and the milestone is probably over.
+    > 2. **How hard does the comeback game move them?** For each of those returns, the `|mu_after - mu_before|` of
+    >    the **first game back**, in display points (`displayRating(mu_after) - displayRating(mu_before)`, the
+    >    product's delta rule — the subtraction of two numbers the pages printed), alongside that player's
+    >    `sigma` going into it.
+    > 3. **Against what?** The same figure for games that are **not** a comeback: the median and the spread of
+    >    per-game display movement across all other rated games, split by how settled the player was
+    >    (`sigma >= 5.00` and `sigma < 5.00`, the product's own settled line). The comparison that matters is
+    >    "a returner's first game back moves them X, a comparable player's ordinary game moves them Y".
+    >
+    > ### The trap the report must not fall into
+    >
+    > **A returner probably does move more, and that may be correct rather than broken.** Movement scales with
+    > `sigma`, and somebody who has played four games in total and then vanished for a month has a high `sigma`
+    > because the model genuinely does not know them — not because they were away. The comparison in part 3 is
+    > therefore against players **at a similar `sigma`**, not against the group average. If returners move the same
+    > as everyone else at their own uncertainty, the finding is "there is nothing here", and that is a good result
+    > to come back with. The report says which of the two it is, in one sentence, at the top.
+    >
+    > ### Where it lives
+    >
+    > A script beside the two that exist (`apps/web/scripts/`), run the same way, reading the hosted project with
+    > the service role and **writing nothing**. `pnpm --filter web inactivity-report` (add the line to `CLAUDE.md`'s
+    > command list, the repo's rule for a new command). Printing to stdout is enough; the report goes in the task's
+    > report and into the status table row, not into a dashboard.
+    >
+    > ### Edge cases
+    >
+    > - **A player's first ever rated game** is not a return. There is no gap before it.
+    > - **A backfilled game** carries a real `started_at` and real `mu` columns after the rebuild, so it counts like
+    >   any other. A game still stored unrated has no `mu` at either end and is skipped — say how many were skipped.
+    > - **The whole group took a week off.** A gap everybody shares is not one person coming back; report those
+    >   returns separately (or note that the dates cluster), or the finding is about a holiday.
+    > - **ARAM games** are not rated after M7.1, so they are neither a return nor a gap-breaker: a person who played
+    >   ARAM every night for three weeks and no Rift customs **is** a returner by this measure. Note it where it
+    >   happens; it may be the most interesting row in the report.
+    > - **Fewer than five returns in the whole history**: report exactly that and stop. Do not widen the threshold
+    >   to find some.
+    >
+    > ### Acceptance
+    >
+    > 1. **Diagnostic only.** The diff adds one script and one command line and touches nothing under
+    >    `packages/core`, `apps/web/lib/`, `apps/web/app/` or `packages/db/supabase/migrations/`. No write of any
+    >    kind reaches the database — checked, not assumed.
+    > 2. The report answers all three questions above with real numbers from the hosted project, and names the date
+    >    it was run and that it was run **after** M7.11.
+    > 3. The comparison in part 3 is against players at a similar `sigma`, and the report's first sentence says
+    >    whether returners move more than that comparison or not.
+    > 4. The numbers and that sentence are pasted into the M9 status-table row, so the finding survives the session.
+    > 5. **The task ends with a recommendation and no decision.** It may say "this looks real" or "there is nothing
+    >    here"; it may not add a decision row that opens M9.2, and it may not write `applyInactivityDecay`.
+    > 6. `pnpm -r typecheck` and `pnpm lint` pass; the status table is updated.
+    >
+    > ### Out of scope
+    >
+    > The decay function, the threshold, the curve, the ceiling, the config block, the call site in
+    > `rebuild-ratings`, and any rebuild. Changing anybody's rating by one digit. A page, a chart or an admin
+    > screen. Deciding whether M9.2 happens — that is the user's, off this report.
+
+- [ ] **M9.2** Skill decay itself, if M9.1 says it is real. **Not scoped: no brief, and not to be picked up.** *(blocked on M9.1's finding and the user's call on it)*
+
+    > **Why there is nothing here yet (product, 2026-09-15)**
+    >
+    > M7 exists because the group spent a week saying the ratings were unfair. The way to not be back there is to
+    > change the model when there is a reason and not when there is an idea. M9.1 is the reason, or it is the end
+    > of it.
+    >
+    > If the user opens this after reading M9.1, it needs, before a line is written: the **threshold and the curve
+    > and its ceiling** as a decision row (14 days and a cap at some multiple of the seed `sigma` were the user's
+    > own starting suggestion, not a settled answer); the ask's own rules, which are already good ones — `mu` is
+    > never touched, `sigma` never decreases, a gap under the threshold is a no-op, and two `rebuild-ratings` runs
+    > back to back still produce identical output; whether it applies to the **weekly** track as well (M7.2's
+    > second channel reseeds from rank every Sunday, so almost certainly not — and "almost certainly" is not an
+    > answer that goes into a fold); and **its own rebuild, announced to the group first**, the way M7.11 was.
+
+Acceptance: we know, in numbers, how often somebody comes back after a fortnight away and whether their first
+game back moves them further than anyone else's game does at the same uncertainty — and nobody's rating, board
+position or team changed while we found out.
+
 ## M6 Tray app and polish (when M2 has run for a month)
 
 - [ ] **M6.1** Tauri v2 tray shell that runs the CLI as a sidecar: status icon (disconnected, watching, in game), open logs, edit token, start with Windows.
@@ -5443,11 +5973,29 @@ the all-time rating has still never been reset.
 ```
 M0 ----\
         >---- M2 ---- M3 ----+---- M4
-M1 ----/                     \--- M5 ---- M7 ---- M6
+M1 ----/                     \--- M5 ---- M7 ---- M8 ---- M6
 ```
 
 M0 and M1 can be worked by two agents at the same time. M4 and M5 can too. **M7 comes before M6** although its
-number is higher: M6 waits on a month of M2 and M7 is the night's complaint.
+number is higher: M6 waits on a month of M2 and M7 is the night's complaint. **M8 comes after M7** and not
+beside it: three of its four tasks edit `apps/web/lib/stats/*`, which is M7's busiest thread, and its fourth
+needs M7.8's score and M7.9's stored answer.
+
+```
+M7.4 (awards read the weekly rating) ---- M8.1 (nemesis + best duo) ----\
+                                     \--- M8.2 (won against the odds) ---->---- (M8.3 after M7.4)
+M7.9 (the bonus in the fold) ------------ M8.4 (Guess the Award; alternates days with Daily Mystery)
+M7.11 (the one rebuild) ----------------- M9.1 (measure the comeback swing; a read, nothing else)
+```
+
+**M3.31** (how even the teams are, as a percentage) is the fourth idea of 2026-09-15 and is not in M8: it is a
+line under the teams on the tonight page, so it sits in M3. It waits only on **M7.2** and **M7.8**, which are
+editing `packages/core/src/rating/index.ts` and `config.ts` beside where it adds two exports.
+
+**M9.1** (measure the comeback swing) runs **after M7.11**, because it has to read the model the group is
+actually on — M7 un-rates ARAM and adds the MVP bonus, and the rebuild refolds everything under both. It changes
+nothing and can be worked beside any M8 task. **M9.2** (the decay itself) is in no thread, has no brief on
+purpose, and does not open until the user has read M9.1's numbers.
 
 Inside M7 the four threads are independent and only join at the one rebuild:
 

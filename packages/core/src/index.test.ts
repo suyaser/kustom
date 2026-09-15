@@ -30,6 +30,9 @@ describe('core skeleton', () => {
       'ordinal',
       'predictWin',
       'rateGame',
+      // The weekly track's fold (M7.2): a second number, same shape, its own tuning. It never
+      // forms teams and nothing under `lib/ingest/` may import it.
+      'rateGameWeekly',
       // The resolver behind it, for the tonight page's `<override> · <old main>` row (M3.6).
       'resolveRoles',
       'seedFromRank',
