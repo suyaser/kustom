@@ -231,7 +231,7 @@ product rather than a document that happens to be dark.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  Mystery   Day Night │
+│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  1v1  Mystery   Day Night │
 ├───────────────────────────────────────────────────────────────┤
 │                                                               │
 │   … page content, on the paper or the ink, under the floodlight … │
@@ -269,8 +269,8 @@ the status strip.
   Kustom. Six letters at 800 weight is also a better wordmark than thirteen.
 - **Nav.** Tabs, mono `t-xs`, `0.08em`, lower case is wrong here — these are destinations, so Archivo `t-sm`
   500 in `dim`, the current one in `text` with a 2px `brand` underline. Order: `Tonight`, `Leaderboard`,
-  `Games`, `Stats`, `Fun`, `Mystery`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
-  `Games` with M5.25, `Stats` with M5.4, `Fun` with M5.24, `Mystery` with M5.32, `Companion` is external and always there. A nav item that 404s is worse than a missing
+  `Games`, `Stats`, `Fun`, `1v1`, `Mystery`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
+  `Games` with M5.25, `Stats` with M5.4, `Fun` with M5.24, `1v1` with M5.34, `Mystery` with M5.32, `Companion` is external and always there. A nav item that 404s is worse than a missing
   one. Keep the list in one exported array (`lib/nav.ts`) so no page hand-writes it.
 - **Phone.** Two rows: wordmark and the theme switch (44px), then the tab row (44px, tabs left aligned,
   horizontally scrollable with no scrollbar). Not sticky — a sticky bar costs 88px of a 700px screen on the
@@ -947,7 +947,7 @@ placement are the designer's and are untouched.
 | past the ten | *(shipped)* `Around` | shipped, kept |
 | nameless hint | *(shipped)* `Names fill in after someone's first game.` | shipped, kept |
 | no season | *(shipped, M3.17)* `No season is active, so tonight's games are not being saved. An admin can start one.` | shipped, kept |
-| nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `Mystery` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) |
+| nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `1v1` · `Mystery` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32); `1v1` added 2026-09-15 (M5.34) |
 | footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
 | how this works, line 2 | `The bot makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.` | product 2026-09-09 — **changed** |
@@ -2228,6 +2228,30 @@ backfilled null is filled for display only from `games.raw` (`detectedTeamPositi
 timeline pairs the fixtures did not refute, then the leftover unique lane on a five-seat Rift
 side). Never from the champion. ARAM does not invent lanes. `/stats` and role inference never
 see this fill.
+
+### One vs one (`/1v1`) — 2026-09-15
+
+Lane 1v1 and any two people head to head. Same shell, same window picker, default `All time`.
+Summoner's Rift only — the same `gateRatedGame` universe `/stats` uses. No ARAM chip: Howling
+Abyss has no lanes.
+
+A lane meeting is exactly one player on each side with that role. Two tops on one side, or a
+missing role, is not a 1v1 and does not count. Each lane prints the five series with the most
+meetings, past three. Winner's name first, `8W 2L · 80%`, both names links. A percentage waits
+for five meetings, the same bar `/stats` uses.
+
+Two spice lists sit above the lanes: **Lane bully** (highest win rate, five meetings, at least
+70%) and **Dead heat** (score within one game, five meetings, longest first).
+
+**Pick two** is a GET form, `?a=` and `?b=` puuids, so the URL is the argument in the chat.
+Two `<select>`s and a Compare button; `onChange` submits when JavaScript is on. Left is `a`,
+right is `b`. The series prints a verdict, a `12–7` score, a brand/line bar, last meeting,
+streak, last-five form as `W W L W L`, mean KDA into each other, the champion
+each locked, same-role rows, and the record when they queued together. Colour is never a side:
+the leader's number is `text` at 600, the trailer is `dim`. Brand is the lead share of the bar.
+
+Every English card title carries an Egyptian 3ameya roast on the right in brand, the same
+dress `/fun` uses.
 
 ### The player page (`/p/[puuid]`) — settled 2026-09-09
 

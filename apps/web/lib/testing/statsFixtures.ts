@@ -46,6 +46,8 @@ export interface GameSpec {
   unrated?: boolean;
   /** The client's `gameMode`. Absent is Rift (`/games` treats a missing mode as CLASSIC). */
   gameMode?: string | null;
+  /** Match-history `mapId`. 11 Rift, 12 Howling Abyss. */
+  mapId?: number | null;
   /** Parsed `games.raw` extras. Absent is a game whose blob named none of them. */
   rawFacts?: RawGameFacts | null;
 }
@@ -135,6 +137,7 @@ export function statsGame(spec: GameSpec): StatsGame {
     durationS: spec.durationS ?? 1_800,
     winningSide: spec.winner ?? 100,
     gameMode: spec.gameMode ?? null,
+    mapId: spec.mapId ?? null,
     rawFacts: spec.rawFacts ?? null,
     rows: [
       ...spec.blue.map((seat) => rowOf(seat, 100, unrated)),

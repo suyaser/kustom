@@ -162,7 +162,7 @@ describe('gamesHistoryView', () => {
       queue: 'aram',
     });
     expect(abyss.queue).toBe('aram');
-    expect(abyss.items.map((game) => game.id)).toEqual(['aram']);
+    expect(abyss.items.map((game) => game.id)).toEqual(['kiwi', 'aram']);
   });
 });
 

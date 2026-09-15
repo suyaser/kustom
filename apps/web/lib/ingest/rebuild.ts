@@ -1,7 +1,8 @@
 import type { Rating } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
+import { gameModeFromRaw, mapIdFromRaw } from '../games/queue';
 import type { ServiceClient } from '../supabase';
-import { type FoldPlayer, type FoldSkipReason, foldGame, gateGame } from './fold';
+import { type FoldPlayer, type FoldSkipReason, foldGame, gateRatedGame } from './fold';
 import { recomputeInferredRoles, selectAllPlayerIds } from './roles';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
@@ -162,6 +163,9 @@ interface SnapshotGame {
   durationS: number;
   winningSide: SideValue;
   source: string;
+  /** The client's `gameMode` off `games.raw`. Missing is Rift. */
+  gameMode: string | null;
+  mapId: number | null;
 }
 
 interface SnapshotRow extends FoldPlayer {
@@ -236,6 +240,7 @@ export async function rebuildRatings(
     'side-split': 0,
     duration: 0,
     'duplicate-player': 0,
+    'game-mode': 0,
   };
   const writes: WriteRow[] = [];
   let rated = 0;
@@ -258,7 +263,7 @@ export async function rebuildRatings(
 
   for (const game of games) {
     const players = byGame.get(game.id) ?? [];
-    const gate = gateGame(players, game.durationS);
+    const gate = gateRatedGame(players, game.durationS, game.gameMode, game.mapId);
 
     if (!gate.ok) {
       skipped[gate.reason] += 1;
@@ -504,7 +509,7 @@ async function selectSeasonGames(client: ServiceClient, seasonId: string): Promi
   const rows = await selectPaged('games select', (from, to) =>
     client
       .from('games')
-      .select('id, lcu_game_id, started_at, duration_s, winning_side, source')
+      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, raw')
       .eq('season_id', seasonId)
       .not('winning_side', 'is', null)
       .order('started_at', { ascending: true })
@@ -521,6 +526,8 @@ async function selectSeasonGames(client: ServiceClient, seasonId: string): Promi
       durationS: row.duration_s,
       winningSide: row.winning_side as SideValue,
       source: row.source,
+      gameMode: gameModeFromRaw(row.raw),
+      mapId: mapIdFromRaw(row.raw),
     }));
 }
 

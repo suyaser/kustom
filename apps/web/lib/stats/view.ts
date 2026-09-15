@@ -22,8 +22,8 @@ import type { StatsGame, StatsPlayer, StatsView } from './types';
  * a unit test with a hand-built fixture and not a seeded database (M5.4's acceptance).
  *
  * `load.ts` reads the rows and calls this; the component renders what comes back and decides
- * nothing. The one thing that is decided here and nowhere else is **the universe**: `gateGame`
- * is applied once, at the top, and every number below counts the same list.
+ * nothing. The one thing that is decided here and nowhere else is **the universe**:
+ * `gateRatedGame` is applied once, at the top, and every number below counts the same list.
  */
 
 export interface StatsInput {

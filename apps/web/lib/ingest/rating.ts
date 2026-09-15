@@ -1,8 +1,9 @@
 import { type Rating, type Role, seedFromRank } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
+import { gameModeFromRaw, mapIdFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
-import { type FoldSkipReason, foldGame, gateGame, mustGet } from './fold';
+import { type FoldSkipReason, foldGame, gateRatedGame, mustGet } from './fold';
 import { recomputeInferredRoles, roleInferenceFlags } from './roles';
 import { readSeed, type StoredSeed, seedColumns } from './seed';
 
@@ -50,15 +51,16 @@ export const BACKFILL_NOT_RATED: RatingFoldResult = { rated: false, reason: 'bac
  * Rate one stored game, once.
  *
  * The gate first (`fold.ts`): ten `game_players` rows, five a side, `duration_s` over 300
- * seconds. M1.5 stores *every* `CUSTOM_GAME` block — remakes and four-minute surrenders
- * included — so this is where a game nobody played stops. 300 exactly is not rated. The row is
- * kept either way; only `ratings` is left alone.
+ * seconds, and Summoner's Rift. M1.5 stores *every* `CUSTOM_GAME` block — remakes, four-minute
+ * surrenders and ARAM included — so this is where a game nobody played, or a game that is not
+ * the nightly 5v5, stops. 300 exactly is not rated. ARAM is stored and listed on `/games`, and
+ * it does not move ratings. The row is kept either way; only `ratings` is left alone.
  */
 export async function rateStoredGame(client: ServiceClient, gameId: string): Promise<RatingFoldResult> {
   const game = await selectGame(client, gameId);
   const rows = await selectGamePlayers(client, gameId);
 
-  const gate = gateGame(rows, game.durationS);
+  const gate = gateRatedGame(rows, game.durationS, game.gameMode, game.mapId);
   if (!gate.ok) {
     console.info(
       `rating: game ${gameId} not rated: ${gate.reason} (${rows.length} rows, ${game.durationS}s)`,
@@ -172,12 +174,15 @@ interface StoredGame {
   winningSide: SideValue;
   /** Null for a backfilled game and for a game played from no lobby: nobody was filled. */
   lobbyId: string | null;
+  /** The client's `gameMode` off `games.raw`. Missing is Rift. */
+  gameMode: string | null;
+  mapId: number | null;
 }
 
 async function selectGame(client: ServiceClient, gameId: string): Promise<StoredGame> {
   const { data, error } = await client
     .from('games')
-    .select('season_id, duration_s, winning_side, lobby_id')
+    .select('season_id, duration_s, winning_side, lobby_id, raw')
     .eq('id', gameId)
     .single();
   if (error) throw new Error(`rating: game select failed: ${error.message}`);
@@ -189,6 +194,8 @@ async function selectGame(client: ServiceClient, gameId: string): Promise<Stored
     durationS: data.duration_s,
     winningSide: data.winning_side,
     lobbyId: data.lobby_id,
+    gameMode: gameModeFromRaw(data.raw),
+    mapId: mapIdFromRaw(data.raw),
   };
 }
 

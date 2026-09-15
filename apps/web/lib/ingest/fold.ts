@@ -1,5 +1,6 @@
 import { type Rating, rateGame } from '@customs/core';
 import type { SideValue } from '@customs/db';
+import { isRatedGameMode } from '../games/queue';
 import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
 
 /**
@@ -35,7 +36,12 @@ export interface FoldPlayer {
  * the rebuild reads whatever is in the table, and a fold that averaged somebody against
  * themselves would be worse than a loud skip.
  */
-export type FoldSkipReason = 'participant-count' | 'side-split' | 'duration' | 'duplicate-player';
+export type FoldSkipReason =
+  | 'participant-count'
+  | 'side-split'
+  | 'duration'
+  | 'duplicate-player'
+  | 'game-mode';
 
 export type FoldGate =
   | { ok: true; blue: FoldPlayer[]; red: FoldPlayer[] }
@@ -65,6 +71,25 @@ export function gateGame(players: readonly FoldPlayer[], durationS: number): Fol
     return { ok: false, reason: 'duration' };
   }
   return { ok: true, blue, red };
+}
+
+/**
+ * The live fold and the rebuild: {@link gateGame}'s remake checks, then Summoner's Rift.
+ *
+ * ARAM, Kiwi and anything else stay stored. They are not a rated game — Howling Abyss is not
+ * the nightly 5v5 the leaderboard is for, and a custom that is not Rift must not move Proven.
+ * Shape is checked first so a four-minute ARAM remake is still `duration`, not `game-mode`.
+ */
+export function gateRatedGame(
+  players: readonly FoldPlayer[],
+  durationS: number,
+  gameMode: string | null | undefined,
+  mapId?: number | null,
+): FoldGate {
+  const gate = gateGame(players, durationS);
+  if (!gate.ok) return gate;
+  if (!isRatedGameMode(gameMode, mapId)) return { ok: false, reason: 'game-mode' };
+  return gate;
 }
 
 /**

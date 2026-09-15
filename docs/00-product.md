@@ -143,6 +143,7 @@ See `02-milestones.md` for the build order. In product terms:
 | This week / this month / all time on the board, awards, role and duo stats | M5 |
 | Game history with per-player KDA, damage, gold and CS (Summoner's Rift by default, ARAM toggle) | M5 |
 | Daily Mystery: one accountless "who was it?" guess per civil day | M5 |
+| One vs one: who wins each lane, and any two people head to head | M5 |
 | Tray app wrapper with auto-start | M6 |
 
 Backfill (M5) reads the client's own match history, and M0 confirmed it can: customs are in there

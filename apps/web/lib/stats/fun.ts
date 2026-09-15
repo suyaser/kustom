@@ -153,8 +153,10 @@ import type {
 /**
  * `/fun` (M5.24): single-game records from the scoreboard columns `/stats` does not fold.
  *
- * Pure. The universe is `countedGames` — the same `gateGame` `/stats` uses — so a remake that
- * is not a game on the board is not a record here either.
+ * Pure. The universe is `countedGames(..., { allMaps: true })` after the loader has already
+ * filtered by `?queue=` — the remake gate `/stats` uses, on whichever map this snapshot is
+ * of. A remake that is not a game on the board is not a record here either. ARAM records stay
+ * on the ARAM picker; they are not the rating fold's.
  *
  * First blood, steals and draft bans come from {@link StatsGame.rawFacts}, parsed out of
  * `games.raw`. The killer is stored; the victim and the in-game first-death clock are not.
@@ -537,7 +539,7 @@ export function funFactsView(
   players: readonly StatsPlayer[],
   timeZone?: string,
 ): Omit<FunFactsView, 'window' | 'queue' | 'range' | 'capped' | 'cap'> {
-  const counted = countedGames(games);
+  const counted = countedGames(games, { allMaps: true });
   const plays = playsOf(counted, players);
   const long = plays.filter((play) => play.game.durationS >= LONG_GAME_S);
   const rosterByPuuid = new Map(players.map((player) => [player.puuid, player]));

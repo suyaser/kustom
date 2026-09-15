@@ -1,6 +1,6 @@
 import type { RoleValue, SideValue } from '@customs/db';
 import { currentStreak } from '../board/streak';
-import { gateGame } from '../ingest/fold';
+import { gateGame, gateRatedGame } from '../ingest/fold';
 import { LANE_ORDER } from '../laneOrder';
 import { renderWebName } from '../tonight/copy';
 import { MIN_DUO_GAMES, MIN_RECORD_GAMES, ON_A_STREAK_GAMES } from './copy';
@@ -25,11 +25,12 @@ import type {
  *
  * Three rules the rest of the file exists to keep.
  *
- * - **The universe is the rating fold's.** A game counts here if and only if `gateGame` counts
- *   it — ten rows, five a side, over 300 seconds, nobody twice — imported from
- *   `lib/ingest/fold.ts` and never re-implemented in SQL or here. The reason is one product
- *   rule: the games number on `/stats` is the games number the fold used, so two pages can
- *   never print two different counts for the same player.
+ * - **The universe is the rating fold's.** A game counts here if and only if `gateRatedGame`
+ *   counts it — ten rows, five a side, over 300 seconds, nobody twice, Summoner's Rift —
+ *   imported from `lib/ingest/fold.ts` and never re-implemented in SQL or here. ARAM is stored
+ *   and listed on `/games` / `/fun`; it is not a number on this page or the leaderboard. The
+ *   reason is one product rule: the games number on `/stats` is the games number the fold used,
+ *   so two pages can never print two different counts for the same player.
  * - **The order is the rebuild's.** `started_at` ascending, `lcu_game_id` ascending as the
  *   tie-break, so a streak and a rating history tell the same story about the same night.
  * - **The tie rule is stated once and used everywhere**: win rate descending, then games
@@ -43,14 +44,26 @@ import type {
 /**
  * The games that count, oldest first.
  *
- * **`gateGame` decides, and nothing else.** An unrated game is *not* excluded here: a
- * backfilled ten-player game the rebuild has not folded yet has a scoreboard, a duration and a
- * winner, and every number on this page except a climb is answerable from it. What a game with
- * nine rows, a duplicate player or a five-minute duration cannot answer is anything at all,
- * which is exactly what the gate says.
+ * **`gateRatedGame` decides, and nothing else.** An unrated *Rift* game is *not* excluded here:
+ * a backfilled ten-player game the rebuild has not folded yet has a scoreboard, a duration and
+ * a winner, and every number on this page except a climb is answerable from it. What a game
+ * with nine rows, a duplicate player, a five-minute duration or an ARAM `gameMode` cannot
+ * answer is anything at all, which is exactly what the gate says.
+ *
+ * `/fun` passes `{ allMaps: true }` after it has already filtered by `?queue=`: Howling Abyss
+ * still has records, they just are not this page's.
  */
-export function countedGames(games: readonly StatsGame[]): StatsGame[] {
-  return games.filter((game) => gateGame(game.rows.map(toFoldPlayer), game.durationS).ok).sort(byStartedAt);
+export function countedGames(games: readonly StatsGame[], options?: { allMaps?: boolean }): StatsGame[] {
+  return games
+    .filter((game) => {
+      const players = game.rows.map(toFoldPlayer);
+      const gate =
+        options?.allMaps === true
+          ? gateGame(players, game.durationS)
+          : gateRatedGame(players, game.durationS, game.gameMode, game.mapId);
+      return gate.ok;
+    })
+    .sort(byStartedAt);
 }
 
 function toFoldPlayer(row: StatsRow) {

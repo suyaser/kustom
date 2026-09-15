@@ -48,6 +48,8 @@ describe('the top bar', () => {
     expect(screen.getByRole('link', { name: 'Stats' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: 'Fun' })).toHaveAttribute('href', '/fun');
     expect(screen.getByRole('link', { name: 'Fun' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: '1v1' })).toHaveAttribute('href', '/1v1');
+    expect(screen.getByRole('link', { name: '1v1' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: 'Mystery' })).toHaveAttribute('href', '/mystery');
     expect(screen.getByRole('link', { name: 'Mystery' })).not.toHaveAttribute('aria-current');
   });
@@ -71,6 +73,13 @@ describe('the top bar', () => {
 
     expect(screen.getByRole('link', { name: 'Fun' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Stats' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('underlines 1v1 on the 1v1 page', () => {
+    draw('/1v1');
+
+    expect(screen.getByRole('link', { name: '1v1' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Fun' })).not.toHaveAttribute('aria-current');
   });
 
   it('underlines Mystery on the mystery page', () => {

@@ -62,9 +62,11 @@ export interface StatsGame {
   winningSide: SideValue;
   /**
    * The client's `gameMode` (`CLASSIC`, `ARAM`, `KIWI`), or `null` when `games.raw` never
-   * named one. `/games` and `/fun` filter on this; `/stats` ignores it.
+   * named one. Howling Abyss customs in this group are `KIWI`, not `ARAM`.
    */
   gameMode?: string | null;
+  /** Match-history `mapId`. 11 is Rift, 12 is Howling Abyss. Absent on a live end-of-game block. */
+  mapId?: number | null;
   /**
    * First blood, steals, vision and draft bans parsed from `games.raw`. Absent when the
    * loader did not select `raw` (`/stats`) or when the blob named none of those keys.
@@ -191,7 +193,7 @@ export interface StatsView {
    * sentence and draws no section at all (M5.12's slot rule).
    */
   range: string | null;
-  /** Counted games in the window: the fold's universe, `gateGame`, and nothing else. */
+  /** Counted games in the window: the fold's universe, `gateRatedGame`, and nothing else. */
   games: number;
   /** How many people have a counted row in the window. */
   players: number;

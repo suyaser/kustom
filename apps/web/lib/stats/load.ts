@@ -1,10 +1,12 @@
 import type { RoleValue, SideValue } from '@customs/db';
 import { inChunks } from '../chunks';
-import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, type QueueKind } from '../games/queue';
+import { GAMES_QUEUE, gameModeFromRaw, mapIdFromRaw, matchesQueue, type QueueKind } from '../games/queue';
 import type { GamesHistoryView } from '../games/types';
 import { gamesHistoryView } from '../games/view';
 import { type WindowKind, type WindowRange, windowRange } from '../night';
 import type { PublicClient } from '../publicClient';
+import type { VersusView } from '../versus/types';
+import { versusView } from '../versus/view';
 import type { AwardRender } from './awards';
 import { countedGames, playerStreaks } from './fold';
 import { assembleFunFacts } from './funView';
@@ -71,13 +73,26 @@ export interface StatsOptions {
   focusPuuid?: string | null | undefined;
   /** `/games` and `/fun`: which map. Absent is Summoner's Rift. */
   queue?: QueueKind | undefined;
+  /** `/1v1?a=`: the left pick, a puuid. */
+  leftPuuid?: string | undefined;
+  /** `/1v1?b=`: the right pick, a puuid. */
+  rightPuuid?: string | undefined;
 }
 
 export async function loadFunFacts(client: PublicClient, options: StatsOptions): Promise<FunFactsView> {
   const queue = options.queue ?? GAMES_QUEUE;
   const read = await readWindow(client, options, { withGameMode: true });
-  const games = read.games.filter((game) => matchesQueue(game.gameMode, queue));
+  const games = read.games.filter((game) => matchesQueue(game.gameMode, queue, game.mapId));
   return assembleFunFacts({ ...read, games }, queue);
+}
+
+export async function loadVersus(client: PublicClient, options: StatsOptions): Promise<VersusView> {
+  const read = await readWindow(client, options, { withGameMode: true });
+  return versusView({
+    ...read,
+    ...(options.leftPuuid === undefined ? {} : { leftPuuid: options.leftPuuid }),
+    ...(options.rightPuuid === undefined ? {} : { rightPuuid: options.rightPuuid }),
+  });
 }
 
 export async function loadGamesHistory(
@@ -93,7 +108,7 @@ export async function loadGamesHistory(
 }
 
 export async function loadStats(client: PublicClient, options: StatsOptions): Promise<StatsView> {
-  const read = await readWindow(client, options);
+  const read = await readWindow(client, options, { withGameMode: true });
 
   /**
    * **The page itself is pure** (`view.ts`): everything from here down is arithmetic over the
@@ -120,7 +135,7 @@ export async function loadPlayerStats(
   puuid: string,
   options: StatsOptions,
 ): Promise<PlayerStatsView> {
-  const read = await readWindow(client, options);
+  const read = await readWindow(client, options, { withGameMode: true });
   return playerStatsView({ ...read, puuid });
 }
 
@@ -134,14 +149,14 @@ export async function loadPlayerStats(
  * sharing an instant could order differently in the two reads. One read, one order
  * (`started_at`, then `lcu_game_id`), one cap, one gate.
  *
- * **The universe is `gateGame`'s and not the fold's rated rows**, which is the seam this does
+ * **The universe is `gateRatedGame`'s and not the fold's rated rows**, which is the seam this does
  * not close: the row's `13W 15L` is counted off `ratings`, and a backfilled game the rebuild
  * has not folded yet is in the streak and not in the record. That is the pre-existing
  * rated-vs-counted seam (`04-decisions.md`, 2026-09-11), and closing it is a rebuild, not a
  * read.
  */
 export async function loadStreaks(client: PublicClient, options: StatsOptions): Promise<PlayerStreaks[]> {
-  const read = await readWindow(client, options);
+  const read = await readWindow(client, options, { withGameMode: true });
   return playerStreaks(countedGames(read.games), read.players);
 }
 
@@ -220,8 +235,9 @@ interface GameRow {
   lcuGameId: number | null;
   durationS: number;
   winningSide: SideValue;
-  /** Set only when `/games` or `/fun` asked for it. `/stats` never selects `raw`. */
+  /** Set when the caller asked for `raw` — `/games`, `/fun`, `/stats`, streaks. */
   gameMode?: string | null;
+  mapId?: number | null;
   rawFacts?: RawGameFacts | null;
 }
 
@@ -253,7 +269,9 @@ async function loadGames(
 
 /**
  * Two literal `select` strings so PostgREST's client can type the row. A concatenated
- * column list is a `ParserError` and `/stats` must not pull `raw`.
+ * column list is a `ParserError`. The `raw` path is what `/games`, `/fun` and `/stats`
+ * share: mode for the rating gate (and for the map picker), plus the museum fields `/fun`
+ * folds. There is no remaining caller that must stay off the blob.
  */
 async function loadGamePage(
   client: PublicClient,
@@ -307,7 +325,13 @@ function toGameRows(
       lcuGameId: row.lcu_game_id,
       durationS: row.duration_s,
       winningSide: row.winning_side,
-      ...(withGameMode ? { gameMode: gameModeFromRaw(row.raw), rawFacts: rawFactsFromUnknown(row.raw) } : {}),
+      ...(withGameMode
+        ? {
+            gameMode: gameModeFromRaw(row.raw),
+            mapId: mapIdFromRaw(row.raw),
+            rawFacts: rawFactsFromUnknown(row.raw),
+          }
+        : {}),
     });
   }
   return games;

@@ -13,7 +13,7 @@ import type { StatsInput } from './view';
  */
 
 export function assembleFunFacts(input: StatsInput, queue: QueueKind = GAMES_QUEUE): FunFactsView {
-  const counted = countedGames(input.games);
+  const counted = countedGames(input.games, { allMaps: true });
   const first = counted[0];
   const body = funFactsView(input.games, input.players, input.timeZone);
 

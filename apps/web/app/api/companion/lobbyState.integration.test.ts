@@ -580,6 +580,7 @@ if (stack === null) {
     it.each([
       ['300 seconds exactly is not a game', { durationS: 300 }, false],
       ['301 seconds is', { durationS: 301 }, true],
+      ['ARAM is stored and not rated', { durationS: 1_200, raw: { gameMode: 'ARAM' } }, false],
     ])('%s', async (_label, options, rated) => {
       const lcuGameId = gameNumber();
       const cast = Array.from({ length: 10 }, (_, i) => `it-${runId}-g${String(gameIds.size)}-${i}`);

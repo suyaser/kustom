@@ -26,7 +26,7 @@ import type { DuoRecord, PartnerRecord, PlayerStatsView, StatsGame, StatsPlayer,
  *
  * Three rules it inherits whole and may not restate:
  *
- * - **The universe is the rating fold's**, `gateGame`, applied once by `countedGames`. A page
+ * - **The universe is the rating fold's**, `gateRatedGame`, applied once by `countedGames`. A page
  *   that counted a remake would print a different game count from the row that linked to it.
  * - **The minimums are product's**: five rows for a percentage, five games together for a
  *   partner to appear at all.

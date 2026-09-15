@@ -457,6 +457,42 @@ if (stack === null) {
         expect(row.mu_after).toBeNull();
       }
     });
+
+    it('skips ARAM and nulls stale rating columns', async () => {
+      const aramGameId = base + 11;
+      const posted = await postGame(
+        post(
+          eogBody({
+            gameId: aramGameId,
+            puuids,
+            partyId: null,
+            durationS: 1_800,
+            startedAt: '2026-09-05T22:00:00.000Z',
+            raw: { gameMode: 'ARAM' },
+          }),
+        ),
+      );
+      expect(posted.status).toBe(200);
+
+      const { data: game } = await db.from('games').select('id').eq('lcu_game_id', aramGameId).single();
+      await db
+        .from('game_players')
+        .update({ mu_before: 1, sigma_before: 1, mu_after: 2, sigma_after: 2 })
+        .eq('game_id', game?.id ?? '');
+
+      const result = await rebuild();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.report.skipped['game-mode']).toBeGreaterThanOrEqual(1);
+
+      for (const row of await ratingColumns(aramGameId)) {
+        expect(row.mu_before).toBeNull();
+        expect(row.mu_after).toBeNull();
+      }
+
+      // Dropped so later cases in this file keep the considered counts they already pin.
+      await db.from('games').delete().eq('lcu_game_id', aramGameId);
+    });
   });
 
   describe('no lock', () => {

@@ -3,7 +3,7 @@ import { mysteryPublicHookSchema } from '@customs/db/schemas';
 import { championName } from '../champs/names';
 import { inChunks } from '../chunks';
 import { formatDuration } from '../discord/embeds';
-import { gameModeFromRaw, matchesQueue } from '../games/queue';
+import { gameModeFromRaw, mapIdFromRaw, matchesQueue } from '../games/queue';
 import { civilDayKey, civilDayStart, nextCivilMidnight } from '../night';
 import { rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
@@ -162,7 +162,7 @@ async function buildCandidate(
   for (const game of games) {
     const roster = seatsByGame.get(game.id) ?? [];
     const raw = rawFactsFromUnknown(game.raw);
-    const rift = matchesQueue(gameModeFromRaw(game.raw), 'sr');
+    const rift = matchesQueue(gameModeFromRaw(game.raw), 'sr', mapIdFromRaw(game.raw));
     for (const seat of roster) {
       const facts = raw.byPuuid[puuids.get(seat.player_id) ?? ''] ?? raw.byPuuid[seat.player_id];
       const damageTaken = facts?.damageTaken ?? null;

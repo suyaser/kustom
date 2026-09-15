@@ -41,7 +41,7 @@ export function gamesHistoryView(input: GamesHistoryInput): GamesHistoryView {
   const queue = input.queue ?? GAMES_QUEUE;
   const roster = new Map(input.players.map((player) => [player.puuid, player]));
   const listed = newestFirst(input.games).filter((game) => {
-    if (!matchesQueue(game.gameMode, queue)) return false;
+    if (!matchesQueue(game.gameMode, queue, game.mapId)) return false;
     return focusPuuid === null ? true : game.rows.some((row) => row.puuid === focusPuuid);
   });
   const oldest = listed.length === 0 ? undefined : listed[listed.length - 1];

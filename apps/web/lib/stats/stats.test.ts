@@ -52,7 +52,7 @@ function run(key: string, role: string, wins: number, losses: number, from = 1):
 
 describe('the universe: what counts as a game', () => {
   /**
-   * Acceptance 1. **`gateGame` decides and nothing else**, which is what makes the games number
+   * Acceptance 1. **`gateRatedGame` decides, and nothing else**, which is what makes the games number
    * here the games number the fold used. The backfilled ten-player game counts: it has a
    * scoreboard, a duration and a winner, and only its climb is missing.
    */
@@ -83,6 +83,16 @@ describe('the universe: what counts as a game', () => {
     });
 
     expect(countedGames([twice])).toHaveLength(0);
+  });
+
+  it('does not count ARAM, even with ten players over 300 seconds', () => {
+    const aram = tenPlayerGame({ at: '2026-09-01T19:00:00Z', gameMode: 'ARAM' });
+    const kiwi = tenPlayerGame({ at: '2026-09-01T19:30:00Z', gameMode: 'KIWI' });
+    const rift = tenPlayerGame({ at: '2026-09-01T21:00:00Z', gameMode: 'CLASSIC' });
+    const missing = tenPlayerGame({ at: '2026-09-01T22:00:00Z' });
+
+    expect(countedGames([aram, kiwi, rift, missing])).toHaveLength(2);
+    expect(countedGames([aram, kiwi], { allMaps: true })).toHaveLength(2);
   });
 
   /** Oldest first, `lcu_game_id` breaking a shared instant: the rebuild's own ordering. */

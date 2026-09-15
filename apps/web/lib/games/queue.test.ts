@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { gamesHref, gamesQuery } from './href';
-import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, parseQueue } from './queue';
+import {
+  GAMES_QUEUE,
+  gameModeFromRaw,
+  isRatedGameMode,
+  mapIdFromRaw,
+  matchesQueue,
+  parseQueue,
+} from './queue';
 
 describe('parseQueue', () => {
   it("treats a missing parameter as Summoner's Rift", () => {
@@ -33,6 +40,19 @@ describe('gameModeFromRaw', () => {
   });
 });
 
+describe('mapIdFromRaw', () => {
+  it('reads an integer mapId', () => {
+    expect(mapIdFromRaw({ mapId: 12 })).toBe(12);
+    expect(mapIdFromRaw({ mapId: 11 })).toBe(11);
+  });
+
+  it('returns null when the block never named one', () => {
+    expect(mapIdFromRaw(null)).toBeNull();
+    expect(mapIdFromRaw({})).toBeNull();
+    expect(mapIdFromRaw({ mapId: '12' })).toBeNull();
+  });
+});
+
 describe('matchesQueue', () => {
   it('puts CLASSIC and a missing mode on Rift', () => {
     expect(matchesQueue('CLASSIC', 'sr')).toBe(true);
@@ -42,12 +62,31 @@ describe('matchesQueue', () => {
     expect(matchesQueue('KIWI', 'sr')).toBe(false);
   });
 
-  it('puts only ARAM on the ARAM list', () => {
+  it('puts Howling Abyss customs on ARAM, including KIWI', () => {
     expect(matchesQueue('ARAM', 'aram')).toBe(true);
     expect(matchesQueue('aram', 'aram')).toBe(true);
+    expect(matchesQueue('KIWI', 'aram')).toBe(true);
     expect(matchesQueue('CLASSIC', 'aram')).toBe(false);
     expect(matchesQueue(null, 'aram')).toBe(false);
-    expect(matchesQueue('KIWI', 'aram')).toBe(false);
+  });
+
+  it('lets mapId win over a missing or mismatched mode', () => {
+    expect(matchesQueue('CLASSIC', 'aram', 12)).toBe(true);
+    expect(matchesQueue('KIWI', 'sr', 11)).toBe(true);
+    expect(matchesQueue(null, 'aram', 12)).toBe(true);
+    expect(matchesQueue(null, 'sr', 11)).toBe(true);
+  });
+});
+
+describe('isRatedGameMode', () => {
+  it('rates CLASSIC and a missing mode, and nothing else', () => {
+    expect(isRatedGameMode('CLASSIC')).toBe(true);
+    expect(isRatedGameMode(null)).toBe(true);
+    expect(isRatedGameMode(undefined)).toBe(true);
+    expect(isRatedGameMode('ARAM')).toBe(false);
+    expect(isRatedGameMode('KIWI')).toBe(false);
+    expect(isRatedGameMode('CLASSIC', 12)).toBe(false);
+    expect(isRatedGameMode(null, 11)).toBe(true);
   });
 });
 
