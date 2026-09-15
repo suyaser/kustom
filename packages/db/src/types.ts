@@ -372,6 +372,7 @@ export type Database = {
           cs: number
           damage_self_mitigated: number | null
           damage_to_champs: number
+          damage_to_objectives: number | null
           deaths: number
           game_id: string
           gold: number
@@ -392,6 +393,7 @@ export type Database = {
           cs?: number
           damage_self_mitigated?: number | null
           damage_to_champs?: number
+          damage_to_objectives?: number | null
           deaths?: number
           game_id: string
           gold?: number
@@ -412,6 +414,7 @@ export type Database = {
           cs?: number
           damage_self_mitigated?: number | null
           damage_to_champs?: number
+          damage_to_objectives?: number | null
           deaths?: number
           game_id?: string
           gold?: number

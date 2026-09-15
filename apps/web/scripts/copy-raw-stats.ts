@@ -4,12 +4,13 @@ import { createClient } from '@supabase/supabase-js';
 import { copyRawStats, formatCopyRawStatsReport } from '../lib/ingest/copyRawStats.ts';
 
 /**
- * `pnpm --filter web copy-raw-stats` (M7.7).
+ * `pnpm --filter web copy-raw-stats` (M7.7, extended by M7.14).
  *
- * A one-off, run-as-often-as-you-like pass that copies vision score and damage self-mitigated
- * out of `games.raw` onto the `game_players` rows written before migration `0014` added the
- * two columns. Without it the MVP / ACE bonus (M7.8, M7.9) would only apply to games played
- * after the migration and the next `rebuild-ratings` would fold one history under two models.
+ * A one-off, run-as-often-as-you-like pass that copies vision score, damage self-mitigated and
+ * damage to objectives out of `games.raw` onto the `game_players` rows written before
+ * migrations `0014` and `0015` added the three columns. Without it the MVP / ACE bonus (M7.8,
+ * M7.9, M7.14) would only apply to games played after the migration and the next
+ * `rebuild-ratings` would fold one history under two models.
  *
  *   pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
  *
@@ -19,7 +20,12 @@ import { copyRawStats, formatCopyRawStatsReport } from '../lib/ingest/copyRawSta
  * It only ever fills a null and never overwrites a stored number, so running it twice changes
  * nothing the second time and running it while games land is safe. A row whose blob does not
  * carry the numbers stays null on purpose — null means "this game never stored it", which is
- * not 0, and M7.8 skips such a game rather than scoring a tank at nothing.
+ * not 0, and the performance score skips such a game rather than scoring a tank at nothing.
+ *
+ * The report ends with "rows still short" and then a line per column. Read the per-column
+ * numbers, not only the combined one: M7.14's sequencing rule is that the core half may not
+ * merge until `damage to objectives` is **zero** rows short, and a combined count cannot say
+ * which column the shortfall is in.
  *
  * Everything except the argument parsing and the printing is `lib/ingest/copyRawStats.ts`,
  * which is what the integration test drives.

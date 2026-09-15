@@ -28,6 +28,14 @@ export interface RawPlayerFacts {
    * say — never 0, which is a real tank's worst game and not a missing key (M7.7).
    */
   damageSelfMitigated: number | null;
+  /**
+   * `TOTAL_DAMAGE_DEALT_TO_OBJECTIVES` / `damageDealtToObjectives` — towers, dragons,
+   * barons. Null when the blob did not say — never 0, which is a real jungler who never
+   * contested one (M7.14). Named after its sibling `damageToChamps`, not after the client
+   * key; the match-history detail carries the camelCase spelling only, so the fallback in
+   * `extrasFromStats` is what fills every backfilled game.
+   */
+  damageToObjectives: number | null;
   objectivesStolen: number;
   objectivesStolenAssists: number;
   baronKills: number;
@@ -82,6 +90,7 @@ export function playerFacts(partial: Partial<RawPlayerFacts> = {}): RawPlayerFac
     firstBloodDeath: false,
     visionScore: null,
     damageSelfMitigated: null,
+    damageToObjectives: null,
     objectivesStolen: 0,
     objectivesStolenAssists: 0,
     baronKills: 0,
@@ -282,6 +291,11 @@ function extrasFromStats(
     firstBloodDeath: flag(stats.firstBloodDeath) || flag(stats.FIRST_BLOOD_DEATH),
     visionScore: asInt(stats.VISION_SCORE) ?? asInt(stats.visionScore),
     damageSelfMitigated: asInt(stats.TOTAL_DAMAGE_SELF_MITIGATED) ?? asInt(stats.damageSelfMitigated),
+    // Uppercase first, then camelCase, like every other stat here — and the fallback is not
+    // decoration for this one: a match-history detail carries `damageDealtToObjectives` alone
+    // (`TOTAL_DAMAGE_DEALT_TO_OBJECTIVES` is null on every row of a backfilled game), so a
+    // reader that required the uppercase key would fill live games and leave backfill null.
+    damageToObjectives: asInt(stats.TOTAL_DAMAGE_DEALT_TO_OBJECTIVES) ?? asInt(stats.damageDealtToObjectives),
     objectivesStolen: asInt(stats.objectivesStolen) ?? 0,
     objectivesStolenAssists: asInt(stats.objectivesStolenAssists) ?? 0,
     baronKills: asInt(stats.baronKills) ?? 0,

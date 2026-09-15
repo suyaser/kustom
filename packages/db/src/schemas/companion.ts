@@ -197,20 +197,28 @@ export function roleFromDetectedTeamPosition(position: string | null | undefined
  * | `win` | `stats.WIN === 1` (a number, never `"Win"`/`"Fail"`) |
  * | `visionScore` | `stats.VISION_SCORE` (M7.7) |
  * | `damageSelfMitigated` | `stats.TOTAL_DAMAGE_SELF_MITIGATED` (M7.7) |
+ * | `damageToObjectives` | `stats.TOTAL_DAMAGE_DEALT_TO_OBJECTIVES` (M7.14) |
  * | `gameName` / `tagLine` | `riotIdGameName` / `riotIdTagLine` |
  * | `summonerId` | `players[].summonerId` |
  *
  * The Riot ID fields are optional and are how a player first seen in a lobby (where the client
  * reports no name at all) gets a name without waiting for the M2.4 sweep.
  *
- * `visionScore` and `damageSelfMitigated` are the two M7.7 added, and they are the only two
+ * `visionScore` and `damageSelfMitigated` (M7.7) and `damageToObjectives` (M7.14) are the three
  * stats here that default to **null** rather than 0 — null means "this block never said",
- * which is not the same fact as a game with no wards or a tank who mitigated nothing, and
- * M7.8 skips a game rather than scoring somebody at zero for a number nobody stored. **No
- * companion in the field fills them today and none has to**: ingest reads both off the posted
- * `raw` block, which every exe the group has ever run already carries
- * (`04-decisions.md`, 2026-09-15). They are named here so the boundary is honest about what
- * the server will accept, and a future mapper that fills them is believed when `raw` is silent.
+ * which is not the same fact as a game with no wards, a tank who mitigated nothing or a jungler
+ * who never contested a dragon, and the performance score skips a game rather than scoring
+ * somebody at zero for a number nobody stored. **No companion in the field fills them today and
+ * none has to**: ingest reads all three off the posted `raw` block, which every exe the group
+ * has ever run already carries (`04-decisions.md`, 2026-09-15). They are named here so the
+ * boundary is honest about what the server will accept, and a future mapper that fills them is
+ * believed when `raw` is silent.
+ *
+ * `damageToObjectives` is named after its sibling `damageToChamps` rather than after the client
+ * key, because the two are the same stat family read against different targets and may not
+ * carry two naming conventions into one weights table (M7.14). On a match-history detail the
+ * client spells it `stats.damageDealtToObjectives` and nothing else — the uppercase key is
+ * absent there — which is why the server's reader takes both spellings.
  */
 export const companionGameParticipantSchema = z.object({
   puuid: puuidSchema,
@@ -227,6 +235,8 @@ export const companionGameParticipantSchema = z.object({
   visionScore: z.number().int().nonnegative().nullish().default(null),
   /** M7.7. Null, not 0, when the block did not say — see the table above. */
   damageSelfMitigated: z.number().int().nonnegative().nullish().default(null),
+  /** M7.14. Null, not 0, when the block did not say — see the table above. */
+  damageToObjectives: z.number().int().nonnegative().nullish().default(null),
   /**
    * `stats.WIN === 1`. Informational and redundant: `winningSide` is the authority for rating
    * and for `games.winning_side`, and when this is absent it is filled in from `side`.

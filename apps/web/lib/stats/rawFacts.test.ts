@@ -206,6 +206,52 @@ describe('rawFactsFromUnknown', () => {
     expect(zeroed.byPuuid['u-aram']?.damageSelfMitigated).toBe(0);
   });
 
+  /**
+   * M7.14. The seventh component's input, and the one stat whose camelCase fallback is
+   * load-bearing rather than decorative: a match-history detail carries
+   * `damageDealtToObjectives` alone and no `TOTAL_DAMAGE_DEALT_TO_OBJECTIVES` at all
+   * (`03-lcu-reference.md`, M7.13 step 1), so a reader that insisted on the uppercase key
+   * would fill live games and leave every backfilled game silently null.
+   */
+  it('reads damage to objectives off both shapes, camelCase alone included', () => {
+    const eog = rawFactsFromUnknown({
+      teams: [
+        {
+          teamId: 100,
+          players: [
+            { puuid: 'u-rami', stats: { TOTAL_DAMAGE_DEALT_TO_OBJECTIVES: 61_152 } },
+            // The camelCase duplicate the live block carries beside the uppercase key.
+            { puuid: 'u-iris', stats: { damageDealtToObjectives: 12_356 } },
+            // Never said. Null, not zero — a jungler who never contested a dragon did 0.
+            { puuid: 'u-omar', stats: { CHAMPIONS_KILLED: 4 } },
+            // Uppercase wins when a block disagrees with itself (M2.10's rule).
+            {
+              puuid: 'u-hana',
+              stats: { TOTAL_DAMAGE_DEALT_TO_OBJECTIVES: 9_804, damageDealtToObjectives: 1 },
+            },
+            // A real zero: a 12-minute surrender with no plates taken.
+            { puuid: 'u-yuki', stats: { TOTAL_DAMAGE_DEALT_TO_OBJECTIVES: 0 } },
+          ],
+        },
+      ],
+    });
+
+    expect(eog.byPuuid['u-rami']?.damageToObjectives).toBe(61_152);
+    expect(eog.byPuuid['u-iris']?.damageToObjectives).toBe(12_356);
+    expect(eog.byPuuid['u-omar']?.damageToObjectives).toBeNull();
+    expect(eog.byPuuid['u-hana']?.damageToObjectives).toBe(9_804);
+    expect(eog.byPuuid['u-yuki']?.damageToObjectives).toBe(0);
+
+    const detail = rawFactsFromUnknown({
+      participantIdentities: [{ participantId: 1, player: { puuid: 'u-rami' } }],
+      participants: [
+        // Exactly what a backfilled row looks like: no uppercase key anywhere on it.
+        { participantId: 1, teamId: 100, stats: { damageDealtToObjectives: 81_582 } },
+      ],
+    });
+    expect(detail.byPuuid['u-rami']?.damageToObjectives).toBe(81_582);
+  });
+
   it('reads draft bans off match-history teams that have no players', () => {
     const facts = rawFactsFromUnknown({
       teams: [

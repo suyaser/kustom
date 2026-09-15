@@ -69,7 +69,8 @@ games          (id, lcu_game_id unique, lobby_id null, season_id, started_at, du
 game_players   (game_id, player_id, side, role null, champion_id, kills, deaths, assists, gold, damage_to_champs,
                 cs, mu_before null, sigma_before null, mu_after null, sigma_after null,
                 counts_for_role_inference,                      -- 0010, M5.17
-                vision_score null, damage_self_mitigated null)  -- 0014, M7.7
+                vision_score null, damage_self_mitigated null,  -- 0014, M7.7
+                damage_to_objectives null)                      -- 0015, M7.14
 companion_tokens (id, player_id, token_hash, label, last_seen_at, revoked_at null, created_at)
 companion_commands (id, target_player_id, kind, payload jsonb, status, created_at, acked_at,
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
@@ -118,19 +119,32 @@ Rules:
   `"[redacted]"` (M2.10). Every derived column can be recomputed from it.
 - `game_players` rating columns are nullable: the API inserts the game and its ten players, then rates, and a
   rebuild (M5.2) overwrites them.
-- `game_players.vision_score` and `damage_self_mitigated` are nullable **with no default** (0014, M7.7), and the
-  null is the point: it means "this game never stored it", which is a different fact from a game with no wards
-  or a tank who mitigated nothing, and the MVP / ACE bonus (M7.8) skips a game rather than scoring somebody at
-  zero for a number nobody kept. It skips a game with a null `game_players.role` the same way (M7.13). Ingest reads both off the posted `raw` block — uppercase key first
-  (`VISION_SCORE`, `TOTAL_DAMAGE_SELF_MITIGATED`), camelCase as the fallback (`visionScore`,
-  `damageSelfMitigated`), which covers the live end-of-game block and the backfilled match detail — so no
-  companion release is owed for them. Both writers pass every number through `storedStat`
+- `game_players.vision_score` and `damage_self_mitigated` (0014, M7.7) and `damage_to_objectives` (0015, M7.14)
+  are nullable **with no default**, and the
+  null is the point: it means "this game never stored it", which is a different fact from a game with no wards,
+  a tank who mitigated nothing or a jungler who never contested a dragon, and the MVP / ACE bonus (M7.8) skips a
+  game rather than scoring somebody at
+  zero for a number nobody kept. It skips a game with a null `game_players.role` the same way (M7.13). The
+  missing-input rule is **universal and not scoped to where a weight is above zero**: a null on a carry, whose
+  objectives weight is `0.00`, still takes the MVP off the game, because every component is normalised against
+  the best of the ten and a weight-scoped rule would let a `config.ts` nudge change which past games are
+  scorable at all (M7.14). Ingest reads all three off the posted `raw` block — uppercase key first
+  (`VISION_SCORE`, `TOTAL_DAMAGE_SELF_MITIGATED`, `TOTAL_DAMAGE_DEALT_TO_OBJECTIVES`), camelCase as the fallback
+  (`visionScore`, `damageSelfMitigated`, `damageDealtToObjectives`), which covers the live end-of-game block and
+  the backfilled match detail — so no
+  companion release is owed for them. The fallback is load-bearing for the third one: a match-history detail
+  carries only its camelCase spelling, so a reader that required the uppercase key would fill live games and
+  leave every backfilled game null. `damage_to_objectives` is named after its sibling `damage_to_champs` rather
+  than after the client key, which is the one deliberate exception to 0014's "names follow the client's words":
+  the two are the same stat family read against different targets and may not carry two conventions into one
+  weights table. Both writers — ingest and `copy-raw-stats` — pass all three numbers through `storedStat`
   (`apps/web/lib/ingest/statValue.ts`) first, and that is not belt and braces for the column's `>= 0` check: the
   `games` row is written before `game_players`, so a value Postgres refuses — a negative, or one past int4,
   which no check could see — 500s the request on every retry and leaves the game stored, unratable and stuck. A
   number we cannot store honestly becomes null, exactly like a key that was never there. `pnpm --filter web
-  copy-raw-stats` is the one-off that fills rows written before 0014 from the same blob; it only ever fills a
-  null, is safe to run twice, and reports how many rows still have a null in either column.
+  copy-raw-stats` is the one-off that fills rows written before 0014 and 0015 from the same blob; it only ever
+  fills a null, is safe to run twice, and reports how many rows still have a null — combined, and then one
+  count per column, so a single column's shortfall can be read on its own.
 - `splits` keeps the top three for every balance run so the explanation and reroll are reproducible. A rebalance
   appends a new set of three rather than replacing the old one, and a partial unique index allows at most one
   `is_chosen` split per lobby. `explanation` is the string core built; the embed and the tonight page render it,

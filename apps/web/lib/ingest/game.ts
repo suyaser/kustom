@@ -224,9 +224,10 @@ async function upsertGamePlayers(
     { fillOnly: backfill },
   );
 
-  // Vision score and damage mitigated come off the posted block, not off the mapped
-  // participant (M7.7, `04-decisions.md` 2026-09-15): every companion the group has ever run
-  // already carries both numbers in `raw` on both shapes, so no release is owed for them.
+  // Vision score, damage mitigated and damage to objectives come off the posted block, not off
+  // the mapped participant (M7.7 and M7.14, `04-decisions.md` 2026-09-15): every companion the
+  // group has ever run already carries all three numbers in `raw` on both shapes, so no
+  // release is owed for any of them.
   // `rawFactsFromUnknown` is the one reader of that column — the same one `/fun` uses and the
   // same one the backwards copy pass uses — so a live block and a backfilled detail land on
   // the identical pair of integers. A mapped value is honoured only when the blob is silent,
@@ -261,6 +262,9 @@ async function upsertGamePlayers(
       // cannot store honestly becomes null, exactly like a key that was never there.
       vision_score: storedStat(facts?.visionScore ?? participant.visionScore),
       damage_self_mitigated: storedStat(facts?.damageSelfMitigated ?? participant.damageSelfMitigated),
+      // The third of the same kind (M7.14), and the same gate. A backfilled detail only ever
+      // carries the camelCase spelling of this one, which the reader already handles.
+      damage_to_objectives: storedStat(facts?.damageToObjectives ?? participant.damageToObjectives),
     });
   }
   if (rows.length === 0) return;

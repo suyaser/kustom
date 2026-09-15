@@ -50,13 +50,16 @@ pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune]
                              # batch, so pass --force (or wait 15 minutes) then.
                              # Exit 2 means games landed mid-run, so run it again.
 pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
-                             # M7.7 one-off: copies vision score and damage self-mitigated out of
-                             # games.raw onto game_players rows written before migration 0014.
+                             # M7.7 one-off, extended by M7.14: copies vision score, damage
+                             # self-mitigated and damage to objectives out of games.raw onto
+                             # game_players rows written before migrations 0014 and 0015.
                              # Only ever fills a null, never overwrites, safe to run twice, and
-                             # reports rows filled plus rows that still have a null in either
-                             # column -- read that second number to know whether M7.8 can trust
-                             # the history. A blob that never carried the numbers, or carried
-                             # one no integer column can hold, leaves them null on purpose
+                             # reports rows filled plus rows still short -- three numbers now,
+                             # one per column, beside the combined count. Read the per-column
+                             # ones: the history is only trustworthy for a column at zero, and
+                             # M7.14's core half may not merge until damage to objectives is
+                             # zero. A blob that never carried the numbers, or carried one no
+                             # integer column can hold, leaves them null on purpose
                              # (null is not zero) and never aborts the run.
 pnpm --filter web m7-13-battle-test <path-to-rows.json> [--detail] [--quoted]
                              # M7.13: compares the retired flat M7.8 formula against the current

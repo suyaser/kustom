@@ -9,15 +9,22 @@ import { eogBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * M7.7: vision score and damage self-mitigated land in `game_players`, through the route a
- * companion actually posts to, and onto rows that were written before the columns existed.
+ * M7.7, extended by M7.14: vision score, damage self-mitigated and damage to objectives land in
+ * `game_players`, through the route a companion actually posts to, and onto rows that were
+ * written before the columns existed.
  *
- * The brief's acceptance, in order: a live end-of-game post fills both for all ten, a
- * backfilled match detail fills both, a block missing the keys writes null twice and the game
+ * The briefs' acceptance, in order: a live end-of-game post fills all three for all ten, a
+ * backfilled match detail fills them too, a block missing the keys writes null and the game
  * still stores and still rates, and the copy pass fills every stored row whose `games.raw`
- * holds the numbers, is safe to run twice and reports what it touched.
+ * holds the numbers, is safe to run twice and reports what it touched **per column**.
  *
- * Null is the load-bearing part. `0` would tell M7.8 that a tank mitigated nothing.
+ * Null is the load-bearing part. `0` would tell the performance score that a tank mitigated
+ * nothing and a jungler never touched a dragon.
+ *
+ * One asymmetry is pinned here on purpose: the backfilled shape carries objective damage under
+ * the camelCase key **only** (`03-lcu-reference.md`, M7.13 step 1), so `detailRaw` spells it
+ * that way and nothing else, and a reader that regressed to the uppercase key alone would fail
+ * these tests rather than quietly leaving the history null.
  *
  * Skipped, not failed, when the stack is not running (`pnpm db:start`).
  */
@@ -25,7 +32,7 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
 const stack = await resolveLocalStack();
 
 if (stack === null) {
-  describe.skip('vision score and damage mitigated against the local Supabase stack', () => {
+  describe.skip('vision, mitigation and objectives against the local Supabase stack', () => {
     it('needs the local stack: run `pnpm db:start`', () => {
       expect(true).toBe(true);
     });
@@ -53,9 +60,14 @@ if (stack === null) {
   const nonsenseGameId = base + 4;
   const allGameIds = [liveGameId, backfillGameId, silentGameId, nonsenseGameId];
 
-  /** The numbers the block says, by index. Real shapes: a support wards, a tank tanks. */
+  /**
+   * The numbers the block says, by index. Real shapes: a support wards, a tank tanks, a
+   * jungler takes the map. The `0` in the objectives row is a real zero, not a missing key —
+   * somebody in every game did nothing to a tower — and it must still store as `0`.
+   */
   const vision = [18, 29, 53, 8, 90, 18, 63, 24, 40, 110];
   const mitigation = [151_130, 111_916, 48_955, 51_175, 19_814, 199_376, 94_610, 42_904, 44_456, 30_154];
+  const objectives = [61_152, 12_356, 4_902, 0, 15_440, 28_713, 7_118, 33_207, 1_204, 81_582];
 
   let token = '';
 
@@ -83,6 +95,7 @@ if (stack === null) {
               CHAMPIONS_KILLED: index,
               VISION_SCORE: vision[index],
               TOTAL_DAMAGE_SELF_MITIGATED: mitigation[index],
+              TOTAL_DAMAGE_DEALT_TO_OBJECTIVES: objectives[index],
             },
           };
         }),
@@ -110,6 +123,7 @@ if (stack === null) {
             stats: {
               VISION_SCORE: index % 2 === 0 ? -3 : 4_000_000_000,
               TOTAL_DAMAGE_SELF_MITIGATED: index % 2 === 0 ? 9_999_999_999 : -1,
+              TOTAL_DAMAGE_DEALT_TO_OBJECTIVES: index % 2 === 0 ? -17 : 5_000_000_000,
             },
           };
         }),
@@ -128,7 +142,12 @@ if (stack === null) {
       participants: puuids.map((_puuid, index) => ({
         participantId: index + 1,
         teamId: index < 5 ? 100 : 200,
-        stats: { visionScore: vision[index], damageSelfMitigated: mitigation[index] },
+        stats: {
+          visionScore: vision[index],
+          damageSelfMitigated: mitigation[index],
+          // camelCase only, exactly as the client writes a match-history detail.
+          damageDealtToObjectives: objectives[index],
+        },
       })),
     };
   }
@@ -138,18 +157,25 @@ if (stack === null) {
     return data?.id ?? '';
   }
 
-  /** `puuid -> [vision, mitigation]` for a stored game. */
-  async function stored(lcuGameId: number): Promise<Map<string, [number | null, number | null]>> {
+  type StoredTriple = [number | null, number | null, number | null];
+
+  /** `puuid -> [vision, mitigation, objectives]` for a stored game. */
+  async function stored(lcuGameId: number): Promise<Map<string, StoredTriple>> {
     const { data, error } = await db
       .from('game_players')
-      .select('vision_score, damage_self_mitigated, players!inner(puuid)')
+      .select('vision_score, damage_self_mitigated, damage_to_objectives, players!inner(puuid)')
       .eq('game_id', await gameRowId(lcuGameId));
     if (error) throw new Error(error.message);
-    const out = new Map<string, [number | null, number | null]>();
+    const out = new Map<string, StoredTriple>();
     for (const row of data ?? []) {
-      out.set(row.players.puuid, [row.vision_score, row.damage_self_mitigated]);
+      out.set(row.players.puuid, [row.vision_score, row.damage_self_mitigated, row.damage_to_objectives]);
     }
     return out;
+  }
+
+  /** What the three columns should read for the player at `index` on a full block. */
+  function expected(index: number): StoredTriple {
+    return [vision[index] ?? null, mitigation[index] ?? null, objectives[index] ?? null];
   }
 
   beforeAll(async () => {
@@ -172,7 +198,7 @@ if (stack === null) {
   });
 
   describe('at ingest', () => {
-    it('fills both columns for all ten off a live end-of-game block', async () => {
+    it('fills all three columns for all ten off a live end-of-game block', async () => {
       const response = await postGame(
         post(
           eogBody({
@@ -190,11 +216,11 @@ if (stack === null) {
       const rows = await stored(liveGameId);
       expect(rows.size).toBe(10);
       for (const [index, puuid] of puuids.entries()) {
-        expect(rows.get(puuid)).toEqual([vision[index], mitigation[index]]);
+        expect(rows.get(puuid)).toEqual(expected(index));
       }
     });
 
-    it('fills both columns off a backfilled match detail, camelCase and all', async () => {
+    it('fills all three off a backfilled match detail, camelCase and all', async () => {
       const body = eogBody({
         gameId: backfillGameId,
         puuids,
@@ -215,16 +241,16 @@ if (stack === null) {
         }),
       );
       expect(response.status).toBe(200);
-      // Backfill is stored unrated as always; the two numbers do not change that.
+      // Backfill is stored unrated as always; the three numbers do not change that.
       expect(await response.json()).toMatchObject({ created: true, rated: false, reason: 'backfill' });
 
       const rows = await stored(backfillGameId);
       for (const [index, puuid] of puuids.entries()) {
-        expect(rows.get(puuid)).toEqual([vision[index], mitigation[index]]);
+        expect(rows.get(puuid)).toEqual(expected(index));
       }
     });
 
-    it('writes null twice for a block that never said, and the game still stores and rates', async () => {
+    it('writes null in all three for a block that never said, and the game still stores and rates', async () => {
       const response = await postGame(
         post(
           eogBody({
@@ -233,7 +259,7 @@ if (stack === null) {
             partyId: null,
             startedAt: '2026-09-15T22:00:00.000Z',
             // A blob with the players but neither key: the pre-16 blocks and any future
-            // rename. Null, never 0 — M7.8 skips this game rather than scoring it.
+            // rename. Null, never 0 — the performance score skips this game rather than scoring it.
             raw: {
               gameMode: 'CLASSIC',
               teams: [
@@ -255,7 +281,7 @@ if (stack === null) {
 
       const rows = await stored(silentGameId);
       expect(rows.size).toBe(10);
-      for (const pair of rows.values()) expect(pair).toEqual([null, null]);
+      for (const pair of rows.values()) expect(pair).toEqual([null, null, null]);
     });
 
     it('stores null for a number no integer column can hold, instead of 500ing for ever', async () => {
@@ -281,7 +307,7 @@ if (stack === null) {
       // Null, not 0 and not INT32_MAX: a made-up number would be scored by M7.8.
       const rows = await stored(nonsenseGameId);
       expect(rows.size).toBe(10);
-      for (const pair of rows.values()) expect(pair).toEqual([null, null]);
+      for (const pair of rows.values()) expect(pair).toEqual([null, null, null]);
 
       // And it really did rate, like any other Rift custom.
       const { data } = await db
@@ -311,16 +337,16 @@ if (stack === null) {
   });
 
   describe('the backwards copy pass', () => {
-    /** What a row written before migration 0014 looks like. */
+    /** What a row written before migrations 0014 and 0015 looks like. */
     async function blank(lcuGameId: number): Promise<void> {
       const { error } = await db
         .from('game_players')
-        .update({ vision_score: null, damage_self_mitigated: null })
+        .update({ vision_score: null, damage_self_mitigated: null, damage_to_objectives: null })
         .eq('game_id', await gameRowId(lcuGameId));
       if (error) throw new Error(error.message);
     }
 
-    it('fills pre-0014 rows from games.raw, counts them, and is safe to run twice', async () => {
+    it('fills pre-migration rows from games.raw, counts them, and is safe to run twice', async () => {
       await blank(liveGameId);
       const gameId = await gameRowId(liveGameId);
 
@@ -333,19 +359,23 @@ if (stack === null) {
         rowsFilled: 10,
         visionFilled: 10,
         mitigationFilled: 10,
+        // Including the player whose objective damage is a real 0: `storedStat` keeps a zero,
+        // so that row is filled, not left short.
+        objectivesFilled: 10,
         rowsStillMissing: 0,
         visionStillMissing: 0,
         mitigationStillMissing: 0,
+        objectivesStillMissing: 0,
         dryRun: true,
       });
-      for (const pair of (await stored(liveGameId)).values()) expect(pair).toEqual([null, null]);
+      for (const pair of (await stored(liveGameId)).values()) expect(pair).toEqual([null, null, null]);
 
       // The real run puts back exactly what ingest wrote.
       const first = await copyRawStats(db, { gameId, dryRun: false });
       expect(first).toMatchObject({ rowsFilled: 10, rowsStillMissing: 0 });
       const rows = await stored(liveGameId);
       for (const [index, puuid] of puuids.entries()) {
-        expect(rows.get(puuid)).toEqual([vision[index], mitigation[index]]);
+        expect(rows.get(puuid)).toEqual(expected(index));
       }
 
       // Twice changes nothing: it only ever fills a null.
@@ -353,14 +383,15 @@ if (stack === null) {
       expect(second).toMatchObject({ gamesWithGaps: 0, rowsWithGaps: 0, rowsFilled: 0 });
       const again = await stored(liveGameId);
       for (const [index, puuid] of puuids.entries()) {
-        expect(again.get(puuid)).toEqual([vision[index], mitigation[index]]);
+        expect(again.get(puuid)).toEqual(expected(index));
       }
     });
 
-    it('fills one column when the blob only has one, and leaves the other null', async () => {
+    it('fills the column the blob has and leaves the other two null', async () => {
       const gameId = await gameRowId(backfillGameId);
       await blank(backfillGameId);
-      // A blob that lost the mitigation key: vision comes back, mitigation stays null.
+      // A blob that lost the other two keys: vision comes back, mitigation and objectives stay
+      // null.
       const halved = detailRaw();
       halved.participants = (halved.participants as Record<string, unknown>[]).map((p) => ({
         ...p,
@@ -373,21 +404,61 @@ if (stack === null) {
       if (error) throw new Error(error.message);
 
       const report = await copyRawStats(db, { gameId, dryRun: false });
-      // Half-answered is not answered (M7.7 review): these ten rows are filled *and* still
-      // short, because M7.8 needs both numbers and the operator reads this count to decide
+      // Part-answered is not answered (M7.7 review): these ten rows are filled *and* still
+      // short, because the bonus needs every number and the operator reads this count to decide
       // whether the history can be trusted. A report that said "0 still null" here would be
-      // lying about ten rows with a null column.
+      // lying about ten rows with two null columns.
       expect(report).toMatchObject({
         rowsFilled: 10,
         visionFilled: 10,
         mitigationFilled: 0,
+        objectivesFilled: 0,
         rowsStillMissing: 10,
         visionStillMissing: 0,
         mitigationStillMissing: 10,
+        objectivesStillMissing: 10,
       });
       const rows = await stored(backfillGameId);
       for (const [index, puuid] of puuids.entries()) {
-        expect(rows.get(puuid)).toEqual([vision[index], null]);
+        expect(rows.get(puuid)).toEqual([vision[index], null, null]);
+      }
+    });
+
+    it('reports the objectives shortfall on its own when only that column is short', async () => {
+      // The exact shape M7.14's sequencing rule reads: M7.7's two columns already filled, the
+      // new one not. The combined `rowsStillMissing` cannot answer "is
+      // `damage_to_objectives` zero rows short?" — only the per-column count can, and the core
+      // half may not merge until it is zero.
+      // The previous test left this game's rows with vision filled and the other two null.
+      const gameId = await gameRowId(backfillGameId);
+      // Mitigation comes back from the full blob; objectives is knocked out of it.
+      const withoutObjectives = detailRaw();
+      withoutObjectives.participants = (withoutObjectives.participants as Record<string, unknown>[]).map(
+        (p) => {
+          const { damageDealtToObjectives: _gone, ...stats } = p.stats as Record<string, number>;
+          return { ...p, stats };
+        },
+      );
+      const { error } = await db
+        .from('games')
+        .update({ raw: withoutObjectives as Json })
+        .eq('id', gameId);
+      if (error) throw new Error(error.message);
+
+      const report = await copyRawStats(db, { gameId, dryRun: false });
+      expect(report).toMatchObject({
+        rowsFilled: 10,
+        visionFilled: 0,
+        mitigationFilled: 10,
+        objectivesFilled: 0,
+        rowsStillMissing: 10,
+        visionStillMissing: 0,
+        mitigationStillMissing: 0,
+        objectivesStillMissing: 10,
+      });
+      const rows = await stored(backfillGameId);
+      for (const [index, puuid] of puuids.entries()) {
+        expect(rows.get(puuid)).toEqual([vision[index], mitigation[index], null]);
       }
     });
 
@@ -405,8 +476,9 @@ if (stack === null) {
         rowsStillMissing: 10,
         visionStillMissing: 10,
         mitigationStillMissing: 10,
+        objectivesStillMissing: 10,
       });
-      for (const pair of (await stored(nonsenseGameId)).values()) expect(pair).toEqual([null, null]);
+      for (const pair of (await stored(nonsenseGameId)).values()) expect(pair).toEqual([null, null, null]);
     });
 
     it('leaves a game whose blob never said alone, and says how many rows it could not fill', async () => {
@@ -420,8 +492,9 @@ if (stack === null) {
         rowsStillMissing: 10,
         visionStillMissing: 10,
         mitigationStillMissing: 10,
+        objectivesStillMissing: 10,
       });
-      for (const pair of (await stored(silentGameId)).values()) expect(pair).toEqual([null, null]);
+      for (const pair of (await stored(silentGameId)).values()) expect(pair).toEqual([null, null, null]);
     });
 
     it('walks the whole history when given no game, and finds this one', async () => {
@@ -430,7 +503,7 @@ if (stack === null) {
       expect(report.rowsFilled).toBeGreaterThanOrEqual(10);
       const rows = await stored(liveGameId);
       for (const [index, puuid] of puuids.entries()) {
-        expect(rows.get(puuid)).toEqual([vision[index], mitigation[index]]);
+        expect(rows.get(puuid)).toEqual(expected(index));
       }
     });
   });
