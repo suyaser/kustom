@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  balanceScore,
   config,
   displayRating,
+  evenness,
   ordinal,
   predictWin,
   type Rating,
@@ -582,5 +584,131 @@ describe('rateGameWeekly', () => {
   it.skip('TARGET: a mis-seeded weekly player settles (sigma < 5.00) inside five games', () => {
     const history = convergeMisSeeded(5, rateGameWeekly);
     expect(history[4]?.sigma).toBeLessThan(5); // really 7.0716; sigma first drops below 5.00 in game 30
+  });
+});
+
+/**
+ * M3.31: how even the teams are, as a percentage. A display transform of `predictWin` and
+ * never a second opinion about the same split — every number below is arithmetic on a
+ * probability, so the line under the teams cannot disagree with the line above it.
+ */
+describe('evenness (M3.31)', () => {
+  const settled = { mu: 25, sigma: 5 };
+
+  it('is pinned at the brief’s four points', () => {
+    expect(evenness(0.5)).toBe(100);
+    expect(evenness(0.54)).toBe(92);
+    expect(evenness(0.7)).toBe(60);
+    expect(evenness(1)).toBe(0);
+  });
+
+  it('is 0 at a certain loss as well as at a certain win', () => {
+    expect(evenness(0)).toBe(0);
+  });
+
+  it('is about the gap, not about which side: evenness(p) === evenness(1 - p)', () => {
+    const table = [0, 0.01, 0.1, 0.2, 0.25, 0.3, 0.33, 0.4, 0.45, 0.46, 0.49, 0.499, 0.5];
+    for (const p of table) {
+      expect(evenness(p)).toBe(evenness(1 - p));
+    }
+  });
+
+  it('returns an integer in [0, 100] across the whole range', () => {
+    for (let i = 0; i <= 1000; i += 1) {
+      const score = evenness(i / 1000);
+      expect(Number.isInteger(score)).toBe(true);
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('never rises as blue’s probability walks away from a coin flip', () => {
+    let last = 101;
+    for (let i = 500; i <= 1000; i += 1) {
+      const score = evenness(i / 1000);
+      expect(score).toBeLessThanOrEqual(last);
+      last = score;
+    }
+    expect(last).toBe(0);
+  });
+
+  it('rounds half up, so 99.5 reads as 100', () => {
+    // |p - 0.5| * 200 is 0.5 exactly at 0.5025.
+    expect(evenness(0.5025)).toBe(100);
+    expect(evenness(0.4975)).toBe(100);
+    // ...and a little further out is not 100 any more.
+    expect(evenness(0.503)).toBe(99);
+  });
+
+  it('throws outside [0, 1], and on NaN', () => {
+    expect(() => evenness(-0.000001)).toThrow(/must be in \[0, 1\]/);
+    expect(() => evenness(1.000001)).toThrow(/must be in \[0, 1\]/);
+    expect(() => evenness(Number.NaN)).toThrow(/must be in \[0, 1\]/);
+    expect(() => evenness(Number.POSITIVE_INFINITY)).toThrow(/must be in \[0, 1\]/);
+  });
+
+  it('is the same number the page would get from the stored probability', () => {
+    const blue = [{ mu: 30, sigma: 5 }, ...team(settled, 4)];
+    const red = team(settled);
+    // The tonight page calls `evenness(splits.blue_win_prob)`; a caller holding ratings calls
+    // `balanceScore`. They are the same function of the same probability.
+    expect(evenness(predictWin(blue, red))).toBe(balanceScore(blue, red));
+  });
+});
+
+describe('balanceScore (M3.31)', () => {
+  const settled = { mu: 25, sigma: 5 };
+
+  it('scores two identical teams 100', () => {
+    expect(balanceScore(team(settled), team(settled))).toBe(100);
+  });
+
+  it('is exactly evenness(predictWin(blue, red)) and not a second model', () => {
+    const blue = [{ mu: 28, sigma: 4 }, { mu: 21, sigma: 6 }, ...team(settled, 3)];
+    const red = [{ mu: 26, sigma: 3.5 }, ...team(settled, 4)];
+    expect(balanceScore(blue, red)).toBe(evenness(predictWin(blue, red)));
+  });
+
+  it('does not care which side is the stronger one', () => {
+    const strong = team({ mu: 30, sigma: 5 });
+    const weak = team({ mu: 20, sigma: 5 });
+    expect(balanceScore(strong, weak)).toBe(balanceScore(weak, strong));
+  });
+
+  it('never rises as one side’s mu sum grows step by step', () => {
+    // One lobby, ten settled players, blue's first seat climbing one mu at a time.
+    const scores: number[] = [];
+    for (let bump = 0; bump <= 20; bump += 1) {
+      const blue = [{ mu: 25 + bump, sigma: 5 }, ...team(settled, 4)];
+      scores.push(balanceScore(blue, team(settled)));
+    }
+    expect(scores[0]).toBe(100);
+    for (let i = 1; i < scores.length; i += 1) {
+      expect(scores[i] as number).toBeLessThanOrEqual(scores[i - 1] as number);
+    }
+    expect(scores.at(-1) as number).toBeLessThan(scores[0] as number);
+  });
+
+  it('is not five-and-five bound: a 4v4 scores', () => {
+    const four = team(settled, 4);
+    expect(balanceScore(four, four)).toBe(100);
+    expect(balanceScore([{ mu: 32, sigma: 4 }, ...team(settled, 3)], four)).toBeLessThan(100);
+    // ...and so do a 1v1 and a lopsided 3v5.
+    expect(balanceScore([settled], [settled])).toBe(100);
+    expect(balanceScore(team(settled, 3), team(settled, 5))).toBeLessThan(100);
+  });
+
+  it('throws on an empty team, naming the side', () => {
+    expect(() => balanceScore([], team(settled))).toThrow(/blue must not be empty/);
+    expect(() => balanceScore(team(settled), [])).toThrow(/red must not be empty/);
+    expect(() => balanceScore([], [])).toThrow(/blue must not be empty/);
+  });
+
+  it('is pure: the same call twice is the same number and the inputs are untouched', () => {
+    const blue = [{ mu: 27, sigma: 4.5 }, ...team(settled, 4)];
+    const red = team(settled);
+    const snapshot = JSON.stringify([blue, red]);
+    expect(balanceScore(blue, red)).toBe(balanceScore(blue, red));
+    expect(JSON.stringify([blue, red])).toBe(snapshot);
   });
 });

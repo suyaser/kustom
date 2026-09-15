@@ -226,6 +226,26 @@ trading wins and losses, `sigma` climbs instead of falling (10.5 after one game,
 A skipped `TARGET` test in `rating/index.test.ts` records the original "settles in five games" target against the
 measured counts, so the gap stays visible instead of looking closed.
 
+### How even a split is, as a percentage (M3.31)
+
+`evenness(blueWinProb)` is `round(100 - abs(blueWinProb - 0.5) * 200)`: 50% is 100, 54% is 92, 70% is 60, a
+certainty either way is 0. `balanceScore(blue, red)` is `evenness(predictWin(blue, red))` and nothing else, for a
+caller holding ratings rather than a stored probability. Both live beside `predictWin` in `rating/index.ts`.
+
+**It is a display transform of a probability and never a second comparison of the two sides.** There is one
+win-probability model in this product, `predictWin` (M1.3), and this is arithmetic on its output, so the tonight
+page's `Teams are 92% even.` and `Blue favored 54%.` cannot disagree — they are one number read twice. If an
+implementation ever computes a second comparison of the two sides, it is wrong however good that comparison is.
+The score is symmetric (`evenness(p) === evenness(1 - p)`) because it is about the gap, not about who is ahead,
+and monotonic: one side's mu sum growing never raises it.
+
+Display surfaces call `evenness` on the chosen split's **stored** `splits.blue_win_prob`, not `balanceScore` on
+live ratings, so the percentage on the screen is the one the group was shown on the night even after somebody's
+rating has moved. No column stores the score and no API field carries it. `evenness` throws outside `[0, 1]`;
+`balanceScore` is not five-and-five bound (two non-empty teams of any size) and throws on an empty team — a guard
+of its own, since `predictWin` answers 0, 1 or 0.5 for an empty side (decision, 2026-09-15). Reading this score
+must never feed back into `score` or `compareSplits`: it does not change which split the balancer picks.
+
 ### The performance score and the MVP / ACE bonus (M7.8)
 
 `rating/performance.ts` is three pure functions — `performanceScores`, `mvpAce`, `applyMvpAceBonus` — over one

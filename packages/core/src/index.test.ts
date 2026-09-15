@@ -21,8 +21,13 @@ describe('core skeleton', () => {
       // The MVP / ACE adjustment (M7.8), applied to a fold's result and never inside the fold.
       'applyMvpAceBonus',
       'balance',
+      // How even a split is as a percentage (M3.31): `evenness(predictWin(...))` for a caller
+      // holding ratings. A display transform, never a second win-probability model.
+      'balanceScore',
       'config',
       'displayRating',
+      // The same transform over a stored `blue_win_prob` (M3.31) — what a display surface calls.
+      'evenness',
       'explain',
       // A player's main and backup read off their own games (M5.16); M5.17 stores the pair.
       'inferRoles',

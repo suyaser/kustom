@@ -28,7 +28,9 @@ export {
 
 export { type Config, config, type RankDivision, type RankTier } from './config';
 export {
+  balanceScore,
   displayRating,
+  evenness,
   ordinal,
   predictWin,
   rateGame,

@@ -151,3 +151,42 @@ export function predictWin(blue: readonly Rating[], red: readonly Rating[]): num
   }
   return blueProb;
 }
+
+/**
+ * How even a split is, as a whole percentage (M3.31): `100 - |blueWinProb - 0.5| * 200`,
+ * rounded. 50% is 100, 54% is 92, 70% is 60, a certainty either way is 0.
+ *
+ * It is a **display transform of a probability and never a second opinion** about the same
+ * split. The tonight page holds the chosen split's stored `blue_win_prob` and calls this, so
+ * `Teams are 92% even.` and `Blue favored 54%.` are one number read twice and can never
+ * disagree. It is symmetric on purpose — the score is about the gap, not about which side is
+ * ahead — so it says nothing `predictWin` did not already say.
+ *
+ * Throws outside `[0, 1]` (and on `NaN`), like every other guard in this file.
+ */
+export function evenness(blueWinProb: number): number {
+  if (!(blueWinProb >= 0 && blueWinProb <= 1)) {
+    throw new Error(`evenness: blueWinProb must be in [0, 1], got ${blueWinProb}`);
+  }
+  return Math.round(100 - Math.abs(blueWinProb - 0.5) * 200);
+}
+
+/**
+ * The same score for a caller holding ratings rather than a stored probability:
+ * `evenness(predictWin(blue, red))`, exactly, with no arithmetic of its own.
+ *
+ * Not five-and-five bound — two non-empty teams of any size, matching `predictWin` — because
+ * it compares two teams and does not fold a game. An empty team is a caller bug, not a 0% or
+ * 100% prediction, so it throws rather than passing OpenSkill a side with nobody on it.
+ * Display surfaces should prefer `evenness` on the split's stored probability: recomputing
+ * from live ratings makes the two lines disagree once somebody's rating has moved.
+ */
+export function balanceScore(blue: readonly Rating[], red: readonly Rating[]): number {
+  if (blue.length === 0) {
+    throw new Error('balanceScore: blue must not be empty');
+  }
+  if (red.length === 0) {
+    throw new Error('balanceScore: red must not be empty');
+  }
+  return evenness(predictWin(blue, red));
+}
