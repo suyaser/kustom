@@ -2,7 +2,7 @@ import type { Rating } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
 import { gameModeFromRaw } from '../games/queue';
 import type { ServiceClient } from '../supabase';
-import { type FoldPlayer, foldGame, gateRatedGame, type RatedSkipReason } from './fold';
+import { type FoldRatedPlayer, foldGame, gateRatedGame, type RatedSkipReason } from './fold';
 import { recomputeInferredRoles, selectAllPlayerIds } from './roles';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
@@ -178,7 +178,12 @@ interface SnapshotGame {
   raw: unknown;
 }
 
-interface SnapshotRow extends FoldPlayer {
+/**
+ * A `game_players` row as the rebuild reads it: the fold's shape — the gate's three fields and
+ * M7.9's stat line, so this replay names the same MVP the live fold did — plus the rank the
+ * seed is read from and the four rating columns this run is about to agree or disagree with.
+ */
+interface SnapshotRow extends FoldRatedPlayer {
   gameId: string;
   rankTier: string | null;
   rankDivision: string | null;
@@ -556,7 +561,10 @@ async function selectSeasonGamePlayers(client: ServiceClient, seasonId: string):
     client
       .from('game_players')
       .select(
-        'game_id, player_id, side, mu_before, sigma_before, mu_after, sigma_after, games!inner(season_id), players!inner(puuid, rank_tier, rank_division)',
+        // `role` and the nine stat columns are M7.9's, and are the same list `rating.ts`
+        // selects: the rebuild has to be able to name the same MVP the live fold named, or the
+        // two folds disagree about a game and one of them rewrites the other's numbers.
+        'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, games!inner(season_id), players!inner(puuid, rank_tier, rank_division)',
       )
       .eq('games.season_id', seasonId)
       .order('game_id', { ascending: true })
@@ -571,6 +579,16 @@ async function selectSeasonGamePlayers(client: ServiceClient, seasonId: string):
       playerId: row.player_id,
       puuid: row.players.puuid,
       side: row.side as SideValue,
+      role: row.role,
+      kills: row.kills,
+      deaths: row.deaths,
+      assists: row.assists,
+      damageToChamps: row.damage_to_champs,
+      gold: row.gold,
+      cs: row.cs,
+      visionScore: row.vision_score,
+      damageSelfMitigated: row.damage_self_mitigated,
+      damageToObjectives: row.damage_to_objectives,
       rankTier: row.players.rank_tier,
       rankDivision: row.players.rank_division,
       muBefore: row.mu_before,

@@ -1,4 +1,13 @@
-import { type Rating, rateGame } from '@customs/core';
+import {
+  applyMvpAceBonus,
+  type MvpAce,
+  mvpAce,
+  type PerformancePlayer,
+  type Rating,
+  type RatingChange,
+  type Role,
+  rateGame,
+} from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
@@ -29,19 +38,66 @@ import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
  * folds `countedGames` and *then* filters to ARAM — so the separation is the whole shape of the
  * fix, not a style choice.
  *
+ * **The MVP / ACE bonus is applied here and nowhere else** (M7.9). `rateGame` produces the ten
+ * deltas; `mvpAce` names the best player on each side from the stat line the game stored; and
+ * `applyMvpAceBonus` scales exactly two of those deltas. All three are `@customs/core`'s and
+ * none of the arithmetic is repeated here. It sits inside {@link foldGame} for the same reason
+ * the gate does: a game the live fold amplified and the rebuild did not would move numbers
+ * nobody played for, and the only defence against that is there being one implementation.
+ *
+ * A game missing any of the nine stored numbers for any of the ten — or any of the ten roles —
+ * gets **no MVP and no ACE** and is rated exactly as it was before M7.9. That rule lives in
+ * core (`performanceScores` returns `null`); this file only hands it the columns.
+ *
  * The maths itself is `rateGame` in `@customs/core` and is not repeated here (CLAUDE.md).
  */
 
 /** Five a side. Anything else is not a game we rate. */
 export const TEAM_SIZE = PLAYERS_PER_GAME / 2;
 
-/** One `game_players` row, reduced to what the fold reads. */
+/** One `game_players` row, reduced to what **the gate** reads. */
 export interface FoldPlayer {
   playerId: string;
   /** The tie-break for the order the two teams are handed to core. */
   puuid: string;
   side: SideValue;
 }
+
+/**
+ * The stat line one `game_players` row carries into the performance score (M7.9).
+ *
+ * Nine numbers and a role, spelled exactly as `PerformancePlayer` in `@customs/core` wants
+ * them, so {@link toPerformancePlayer} is a rename and never a computation. Every field is
+ * nullable because the columns are: `vision_score` and `damage_self_mitigated` only exist from
+ * migration `0014`, `damage_to_objectives` from `0015`, and `role` is null for every backfilled
+ * game. Core's rule — a game missing any one of them for any of the ten has no MVP — is what
+ * makes the nullability safe to pass straight through.
+ *
+ * `kills` through `cs` are `not null` in the schema and are typed nullable anyway: this is the
+ * shape core reads, and a column's default is not a promise the fold should be relying on.
+ */
+export interface FoldPerformance {
+  role: Role | null;
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  damageToChamps: number | null;
+  gold: number | null;
+  cs: number | null;
+  visionScore: number | null;
+  damageSelfMitigated: number | null;
+  damageToObjectives: number | null;
+}
+
+/**
+ * What {@link foldGame} needs: the gate's three fields and the stat line.
+ *
+ * The two rating callers — `rating.ts` and `rebuild.ts` — both select these columns and both
+ * hand their own row type straight through the gate, which is why the gates are generic in the
+ * row. Everything else that gates (`lib/stats/fold.ts`'s `countedGames`) asks only "did a game
+ * happen", never "what did it do to the rating", and keeps passing a plain {@link FoldPlayer}.
+ */
+export interface FoldRatedPlayer extends FoldPlayer, FoldPerformance {}
 
 /**
  * Why a stored game is not rated. `duplicate-player` cannot happen through the API — the
@@ -51,8 +107,13 @@ export interface FoldPlayer {
  */
 export type FoldSkipReason = 'participant-count' | 'side-split' | 'duration' | 'duplicate-player';
 
-export type FoldGate =
-  | { ok: true; blue: FoldPlayer[]; red: FoldPlayer[] }
+/**
+ * Generic in the row so a caller's own shape survives the gate: `rating.ts` and `rebuild.ts`
+ * put a {@link FoldRatedPlayer} in and need one back out, because {@link foldGame} reads the
+ * stat line off exactly these two arrays.
+ */
+export type FoldGate<T extends FoldPlayer = FoldPlayer> =
+  | { ok: true; blue: T[]; red: T[] }
   | { ok: false; reason: FoldSkipReason };
 
 /**
@@ -67,7 +128,7 @@ export type FoldGate =
  * we write do — the fold has to be reproducible from the table, not from the order a
  * PostgREST select happened to return.
  */
-export function gateGame(players: readonly FoldPlayer[], durationS: number): FoldGate {
+export function gateGame<T extends FoldPlayer>(players: readonly T[], durationS: number): FoldGate<T> {
   if (players.length !== PLAYERS_PER_GAME) {
     return { ok: false, reason: 'participant-count' };
   }
@@ -93,8 +154,8 @@ export function gateGame(players: readonly FoldPlayer[], durationS: number): Fol
  */
 export type RatedSkipReason = FoldSkipReason | 'game-mode';
 
-export type RatedGate =
-  | { ok: true; blue: FoldPlayer[]; red: FoldPlayer[] }
+export type RatedGate<T extends FoldPlayer = FoldPlayer> =
+  | { ok: true; blue: T[]; red: T[] }
   | { ok: false; reason: RatedSkipReason };
 
 /**
@@ -125,7 +186,11 @@ export function isRatedMode(raw: unknown): boolean {
  * "what counts as Rift" living in two places is how the live fold and the rebuild start
  * disagreeing.
  */
-export function gateRatedGame(players: readonly FoldPlayer[], durationS: number, raw: unknown): RatedGate {
+export function gateRatedGame<T extends FoldPlayer>(
+  players: readonly T[],
+  durationS: number,
+  raw: unknown,
+): RatedGate<T> {
   const gate = gateGame(players, durationS);
   if (!gate.ok) return gate;
   if (!isRatedMode(raw)) return { ok: false, reason: 'game-mode' };
@@ -135,10 +200,21 @@ export function gateRatedGame(players: readonly FoldPlayer[], durationS: number,
 /**
  * One game's new ratings, by player id. `before` must hold a rating for all ten — a seed, or
  * what the season has given them so far; whose job that is differs between the two callers.
+ *
+ * Three steps, and the second and third are M7.9:
+ *
+ * 1. `rateGame` — the base OpenSkill fold, untouched.
+ * 2. {@link gameAward} — who the MVP and the ACE were, or `null` when the game cannot be scored.
+ * 3. `applyMvpAceBonus` — the MVP's `mu` delta × 1.25 and the ACE's × 0.80, eight untouched and
+ *    every `sigma` copied through.
+ *
+ * With no award, step 3 hands back exactly what step 1 produced, so a game stored before the
+ * stat columns existed — or a backfilled one that knows nobody's role — rates digit for digit
+ * as it did before this function learned about the bonus.
  */
 export function foldGame(
-  blue: readonly FoldPlayer[],
-  red: readonly FoldPlayer[],
+  blue: readonly FoldRatedPlayer[],
+  red: readonly FoldRatedPlayer[],
   before: ReadonlyMap<string, Rating>,
   winningSide: SideValue,
 ): Map<string, Rating> {
@@ -148,14 +224,53 @@ export function foldGame(
     winningSide,
   );
 
+  // Blue then red, the order the two arrays were handed to core, so the index of a player in
+  // `ten` is the index of their rating in the matching half of `rated`.
+  const ten = [...blue, ...red];
+  const changes: RatingChange[] = ten.map((player, index) => ({
+    puuid: player.puuid,
+    before: mustGet(before, player.playerId),
+    after: index < blue.length ? mustIndex(rated.blue, index) : mustIndex(rated.red, index - blue.length),
+  }));
+
+  const adjusted = applyMvpAceBonus(changes, gameAward(ten, winningSide));
+
   const after = new Map<string, Rating>();
-  blue.forEach((player, index) => {
-    after.set(player.playerId, mustIndex(rated.blue, index));
-  });
-  red.forEach((player, index) => {
-    after.set(player.playerId, mustIndex(rated.red, index));
+  ten.forEach((player, index) => {
+    after.set(player.playerId, mustChange(adjusted, index).after);
   });
   return after;
+}
+
+/**
+ * Who carried each side (M7.9), or `null` for a game that cannot be scored: a stat column the
+ * row never stored, a role the client never detected, or anything else core's missing-input
+ * rule refuses. The whole of that judgement is `mvpAce`'s; this is the column-to-field rename
+ * in front of it.
+ *
+ * Exported because it is the only place in the app that names an MVP, and a surface that wants
+ * to print one (M7.10) has to read it here rather than fold a second copy of the formula.
+ */
+export function gameAward(players: readonly FoldRatedPlayer[], winningSide: SideValue): MvpAce | null {
+  return mvpAce(players.map(toPerformancePlayer), winningSide);
+}
+
+/** A rename, not a computation: the nine stored numbers and the role, under core's spellings. */
+function toPerformancePlayer(player: FoldRatedPlayer): PerformancePlayer {
+  return {
+    puuid: player.puuid,
+    side: player.side,
+    role: player.role,
+    kills: player.kills,
+    deaths: player.deaths,
+    assists: player.assists,
+    damageToChamps: player.damageToChamps,
+    gold: player.gold,
+    cs: player.cs,
+    visionScore: player.visionScore,
+    damageSelfMitigated: player.damageSelfMitigated,
+    damageToObjectives: player.damageToObjectives,
+  };
 }
 
 function byPuuid(a: FoldPlayer, b: FoldPlayer): number {
@@ -171,5 +286,11 @@ export function mustGet(map: ReadonlyMap<string, Rating>, key: string): Rating {
 function mustIndex(list: readonly Rating[], index: number): Rating {
   const value = list[index];
   if (value === undefined) throw new Error(`fold: core returned no rating at index ${index}`);
+  return value;
+}
+
+function mustChange(list: readonly RatingChange[], index: number): RatingChange {
+  const value = list[index];
+  if (value === undefined) throw new Error(`fold: core returned no rating change at index ${index}`);
   return value;
 }

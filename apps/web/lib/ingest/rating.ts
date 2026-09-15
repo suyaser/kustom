@@ -3,7 +3,7 @@ import type { RatingInsert, SideValue } from '@customs/db';
 import { gameModeFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
-import { foldGame, gateRatedGame, mustGet, type RatedSkipReason } from './fold';
+import { type FoldRatedPlayer, foldGame, gateRatedGame, mustGet, type RatedSkipReason } from './fold';
 import { recomputeInferredRoles, roleInferenceFlags } from './roles';
 import { readSeed, type StoredSeed, seedColumns } from './seed';
 
@@ -26,10 +26,14 @@ export interface RatingFoldResult {
   claimed: number;
 }
 
-interface GamePlayerRow {
-  playerId: string;
-  puuid: string;
-  side: SideValue;
+/**
+ * `FoldRatedPlayer` and the four columns only this file reads.
+ *
+ * The stat line and `game_players.role` come in through the interface (M7.9) and are read by
+ * `foldGame` alone: the MVP / ACE bonus is applied inside the shared fold, so this file selects
+ * the columns and nothing more.
+ */
+interface GamePlayerRow extends FoldRatedPlayer {
   muAfter: number | null;
   rankTier: string | null;
   rankDivision: string | null;
@@ -209,7 +213,9 @@ async function selectGamePlayers(client: ServiceClient, gameId: string): Promise
   const { data, error } = await client
     .from('game_players')
     .select(
-      'player_id, side, mu_after, players!inner(puuid, rank_tier, rank_division, main_role, secondary_role)',
+      // The nine stat columns and `role` are M7.9's: the performance score that names this
+      // game's MVP and ACE reads them, and the rebuild's select carries exactly the same list.
+      'player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_after, players!inner(puuid, rank_tier, rank_division, main_role, secondary_role)',
     )
     .eq('game_id', gameId);
   if (error) throw new Error(`rating: game_players select failed: ${error.message}`);
@@ -220,6 +226,16 @@ async function selectGamePlayers(client: ServiceClient, gameId: string): Promise
       playerId: row.player_id,
       puuid: row.players.puuid,
       side: row.side as SideValue,
+      role: row.role,
+      kills: row.kills,
+      deaths: row.deaths,
+      assists: row.assists,
+      damageToChamps: row.damage_to_champs,
+      gold: row.gold,
+      cs: row.cs,
+      visionScore: row.vision_score,
+      damageSelfMitigated: row.damage_self_mitigated,
+      damageToObjectives: row.damage_to_objectives,
       muAfter: row.mu_after,
       rankTier: row.players.rank_tier,
       rankDivision: row.players.rank_division,

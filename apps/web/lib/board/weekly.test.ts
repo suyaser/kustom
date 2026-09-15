@@ -194,4 +194,31 @@ describe('the weekly fold', () => {
       [...once].map(([id, held]) => [id, held.rating]),
     );
   });
+
+  /**
+   * The MVP / ACE bonus and this fold (M7.9, acceptance 6: confirm it, do not special-case it).
+   *
+   * **There is no special case here, and this pins that there is none.** What the check also
+   * records, because it is not what M7.9's brief assumed: the weekly track is a *second* fold,
+   * not a read of the first. It folds the same **games** — `load.ts` hands it only seats whose
+   * `mu_after` the all-time fold wrote, so the gate, the duration floor and M7.1's map all
+   * reach it — but its numbers are `rateGameWeekly`'s over a week's own seeds, and the MVP's
+   * amplified `mu` lives in `game_players`, which this file never reads. A `WeeklyPlayer`
+   * carries no stat line at all, so there is nothing here to score and nothing to scale.
+   *
+   * If the week is ever meant to carry the bonus too, it is a product decision and a new task:
+   * it would need the nine stat columns and the role added to the board's own select.
+   */
+  it('folds a week of the same games with no bonus of its own, and no special case either', () => {
+    // The game an all-time fold would have amplified one winner and reduced one loser in.
+    const folded = foldWeeklyRatings([game()], seeds());
+    const expected = rateGameWeekly(Array(5).fill(SEED), Array(5).fill(SEED), 100);
+
+    // All five winners moved by exactly the same amount, and so did all five losers: nothing
+    // here scaled one seat by 1.25 or another by 0.80.
+    for (const [index, id] of TEN.entries()) {
+      const side = index < 5 ? expected.blue : expected.red;
+      expect([id, folded.get(id)?.rating]).toEqual([id, side[0]]);
+    }
+  });
 });

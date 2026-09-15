@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { seedFromRank } from '@customs/core';
+import { config, rateGame, seedFromRank } from '@customs/core';
 import { type Database, SEASON_ONE_ID } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -31,11 +31,19 @@ if (stack === null) {
 } else {
   process.env.NEXT_PUBLIC_SUPABASE_URL = stack.url;
   process.env.SUPABASE_SERVICE_ROLE_KEY = stack.serviceRoleKey;
+  // The two public surfaces M7.9 has to reach without being touched (`/leaderboard`'s expand
+  // and `/p/[puuid]`'s recent games) read with the anon key, exactly as a phone does.
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = stack.anonKey;
   process.env.BOOTSTRAP_ADMIN_PUUID = '';
   process.env.DISCORD_WEBHOOK_URL = '';
 
   const { POST: postGame } = await import('@/app/api/companion/game/route');
   const { FENCE_MESSAGE, formatRebuildReport, GUARD_MESSAGE, rebuildRatings } = await import('./rebuild');
+  // The one place in the app that names an MVP (M7.9), imported here so the test asks the
+  // fold's own question rather than reimplementing the score.
+  const { gameAward } = await import('./fold');
+  const { loadBoard, loadPlayerBoard } = await import('@/lib/board/load');
+  const { createPublicClient } = await import('@/lib/publicClient');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -60,6 +68,10 @@ if (stack === null) {
   const afterTheClimbGameId = base + 10;
   /** A night on the Howling Abyss, which the fold walks past (M7.1). */
   const aramGameId = base + 11;
+  /** A game whose stat columns are all there, so it has an MVP and an ACE (M7.9). */
+  const bonusGameId = base + 12;
+  /** The same night with the three nullable columns empty: no MVP, the plain fold. */
+  const plainGameId = base + 13;
   const allGameIds = [
     ...liveGameIds,
     oldBackfillGameId,
@@ -70,6 +82,8 @@ if (stack === null) {
     tiedHighGameId,
     afterTheClimbGameId,
     aramGameId,
+    bonusGameId,
+    plainGameId,
   ];
 
   let token = '';
@@ -110,6 +124,25 @@ if (stack === null) {
     if (ratingsError) throw new Error(ratingsError.message);
 
     return JSON.stringify({ rows, ratings });
+  }
+
+  /**
+   * A dump with every number rounded to `RATING_EPSILON`'s nine decimals.
+   *
+   * **For the wipe-and-refold cases only**, and not for the idempotency ones. Those compare two
+   * runs of the same chain and are exact. These compare two *different* chains: the live fold
+   * folds each game from ratings it read back out of Postgres — which prints a `double
+   * precision` to fifteen significant digits and so hands back that double **rounded** — while
+   * a from-scratch rebuild folds the whole season in memory. `rebuild.ts`'s `RATING_EPSILON`
+   * says exactly this, and acts on it: rows inside the tolerance are deliberately left alone,
+   * which is why a dump taken after a rebuild still holds the live fold's last digit. The two
+   * chains agreeing to fifteen printed digits was luck, not a promise; nine decimals of `mu` is
+   * six ten-millionths of a display point and is the promise the command actually makes.
+   */
+  function within(dumped: string): string {
+    return JSON.stringify(
+      JSON.parse(dumped, (_key, value) => (typeof value === 'number' ? Number(value.toFixed(9)) : value)),
+    );
   }
 
   async function dumpSeasonOne(): Promise<string> {
@@ -263,6 +296,10 @@ if (stack === null) {
               winningSide: index % 2 === 0 ? 100 : 200,
               startedAt: `2026-09-0${index + 2}T20:00:00.000Z`,
               durationS: 1_500 + index,
+              // Every one of these three has an MVP and an ACE (M7.9), so every case in this
+              // file — the reorder, the tie-break, the wipe-and-refold — is measuring a fold
+              // that applied the bonus, not one that never met it.
+              performanceStats: true,
             }),
           ),
         );
@@ -406,7 +443,7 @@ if (stack === null) {
 
       const result = await rebuild();
       expect(result.ok).toBe(true);
-      expect(await dump()).toBe(ordered);
+      expect(within(await dump())).toBe(within(ordered));
     });
   });
 
@@ -555,7 +592,7 @@ if (stack === null) {
       }
       await db.from('ratings').delete().eq('season_id', seasonId);
       expect((await rebuild()).ok).toBe(true);
-      expect(await dump()).toBe(ordered);
+      expect(within(await dump())).toBe(within(ordered));
     });
   });
 
@@ -905,6 +942,232 @@ if (stack === null) {
       expect(second.report.gamePlayerRowsChanged).toBe(0);
       expect(second.report.ratingRowsChanged).toBe(0);
       expect(await dump()).toBe(afterFirst);
+    });
+  });
+
+  /**
+   * The MVP / ACE bonus, through both folds (M7.9).
+   *
+   * The unit tests in `fold.test.ts` pin the arithmetic. What can only be checked here is that
+   * the numbers the **live** route wrote and the numbers the **rebuild** computes are the same
+   * numbers — which is the whole reason the bonus lives inside `foldGame` — and that a stored
+   * game whose three nullable columns are empty still rates exactly as it did before.
+   *
+   * Last in the file, after the ARAM cases, for the same reason they are last: it adds games.
+   */
+  describe('the MVP / ACE bonus (M7.9)', () => {
+    /** Everything the fold reads off one stored game, ordered the way the fold orders it. */
+    async function foldRows(lcuGameId: number) {
+      const { data: game } = await db.from('games').select('id').eq('lcu_game_id', lcuGameId).single();
+      const { data, error } = await db
+        .from('game_players')
+        .select(
+          'side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, players!inner(puuid)',
+        )
+        .eq('game_id', game?.id ?? '');
+      if (error) throw new Error(error.message);
+      return (data ?? [])
+        .map((row) => ({
+          playerId: row.players.puuid,
+          puuid: row.players.puuid,
+          side: row.side as 100 | 200,
+          role: row.role,
+          kills: row.kills,
+          deaths: row.deaths,
+          assists: row.assists,
+          damageToChamps: row.damage_to_champs,
+          gold: row.gold,
+          cs: row.cs,
+          visionScore: row.vision_score,
+          damageSelfMitigated: row.damage_self_mitigated,
+          damageToObjectives: row.damage_to_objectives,
+          before: { mu: row.mu_before as number, sigma: row.sigma_before as number },
+          after: { mu: row.mu_after as number, sigma: row.sigma_after as number },
+        }))
+        .sort((a, b) => (a.puuid < b.puuid ? -1 : 1));
+    }
+
+    /** `rateGame` alone over the stored before-values: the answer without any bonus. */
+    function plainFold(rows: Awaited<ReturnType<typeof foldRows>>, winningSide: 100 | 200) {
+      const blue = rows.filter((row) => row.side === 100);
+      const red = rows.filter((row) => row.side === 200);
+      const rated = rateGame(
+        blue.map((row) => row.before),
+        red.map((row) => row.before),
+        winningSide,
+      );
+      const out = new Map<string, { mu: number; sigma: number }>();
+      blue.forEach((row, index) => {
+        out.set(row.puuid, rated.blue[index] as { mu: number; sigma: number });
+      });
+      red.forEach((row, index) => {
+        out.set(row.puuid, rated.red[index] as { mu: number; sigma: number });
+      });
+      return out;
+    }
+
+    it('writes one amplified winner and one reduced loser live, and the rebuild agrees digit for digit', async () => {
+      const response = await postGame(
+        post(
+          eogBody({
+            gameId: bonusGameId,
+            puuids,
+            partyId: null,
+            winningSide: 100,
+            startedAt: '2026-09-14T20:00:00.000Z',
+            durationS: 1_900,
+            performanceStats: true,
+          }),
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect((await response.json()).rated).toBe(true);
+
+      const rows = await foldRows(bonusGameId);
+      expect(rows).toHaveLength(10);
+
+      // The three columns really landed, or this case would be measuring the null path.
+      for (const row of rows) {
+        expect(row.visionScore).not.toBeNull();
+        expect(row.damageSelfMitigated).not.toBeNull();
+        expect(row.damageToObjectives).not.toBeNull();
+        expect(row.role).not.toBeNull();
+      }
+
+      const award = gameAward(rows, 100);
+      if (award === null) throw new Error('expected this game to have an MVP');
+      const plain = plainFold(rows, 100);
+
+      const moved: string[] = [];
+      for (const row of rows) {
+        const base = plain.get(row.puuid) as { mu: number; sigma: number };
+        // `sigma` is the plain fold's for all ten: the bonus never touches it.
+        expect(row.after.sigma).toBeCloseTo(base.sigma, 12);
+        const factor =
+          row.puuid === award.mvp
+            ? 1 + config.rating.mvp.bonusFraction
+            : row.puuid === award.ace
+              ? 1 - config.rating.mvp.aceReliefFraction
+              : null;
+        if (factor === null) {
+          expect(row.after.mu).toBeCloseTo(base.mu, 12);
+        } else {
+          // Read back off two stored doubles, so this is exact to ~1e-15 and no further
+          // (M7.8's own decision row says why).
+          expect(row.after.mu).toBeCloseTo(row.before.mu + (base.mu - row.before.mu) * factor, 12);
+          moved.push(row.puuid);
+        }
+      }
+      // Two moved, eight untouched — and the winner's side is the MVP's.
+      expect(moved.sort()).toEqual([award.ace, award.mvp].sort());
+      expect(rows.find((row) => row.puuid === award.mvp)?.side).toBe(100);
+      expect(rows.find((row) => row.puuid === award.ace)?.side).toBe(200);
+
+      // Acceptance 3: the rebuild replays the same season and writes nothing, because it
+      // reaches the same MVP from the same columns.
+      const before = await dump();
+      const result = await rebuild();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.report.gamePlayerRowsChanged).toBe(0);
+      expect(result.report.ratingRowsChanged).toBe(0);
+      expect(await dump()).toBe(before);
+
+      // Acceptance 4: and a second run is byte-identical with the bonus in the season.
+      expect((await rebuild()).ok).toBe(true);
+      expect(await dump()).toBe(before);
+    });
+
+    it('rates a game with the three columns empty exactly as the plain fold does', async () => {
+      // Acceptance 1: what every game stored before migrations 0014 and 0015 looks like.
+      const response = await postGame(
+        post(
+          eogBody({
+            gameId: plainGameId,
+            puuids,
+            partyId: null,
+            winningSide: 200,
+            startedAt: '2026-09-14T21:30:00.000Z',
+            durationS: 1_700,
+          }),
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect((await response.json()).rated).toBe(true);
+
+      const rows = await foldRows(plainGameId);
+      for (const row of rows) {
+        expect([row.visionScore, row.damageSelfMitigated, row.damageToObjectives]).toEqual([
+          null,
+          null,
+          null,
+        ]);
+      }
+      expect(gameAward(rows, 200)).toBeNull();
+
+      const plain = plainFold(rows, 200);
+      for (const row of rows) {
+        const base = plain.get(row.puuid) as { mu: number; sigma: number };
+        expect(row.after.mu).toBeCloseTo(base.mu, 12);
+        expect(row.after.sigma).toBeCloseTo(base.sigma, 12);
+      }
+
+      // And the rebuild still agrees about both games at once.
+      const before = await dump();
+      const result = await rebuild();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.report.gamePlayerRowsChanged).toBe(0);
+      expect(await dump()).toBe(before);
+    });
+
+    /**
+     * Acceptance 5, checked and not written: `/leaderboard`'s per-game expand (M5.30) and
+     * `/p/[puuid]`'s recent games print `mu_after - mu_before` off the stored row, so the
+     * adjusted delta reaches both surfaces with **no change to either page**. What this case
+     * pins is that the number they carry is the amplified one and not `rateGame`'s.
+     */
+    it('carries the adjusted delta onto the board expand and the player page, unchanged', async () => {
+      const anon = createPublicClient();
+      const rows = await foldRows(bonusGameId);
+      const award = gameAward(rows, 100);
+      if (award === null) throw new Error('expected this game to have an MVP');
+      const mvp = rows.find((row) => row.puuid === award.mvp) as (typeof rows)[number];
+      const plain = plainFold(rows, 100).get(award.mvp) as { mu: number };
+      const { data: game } = await db.from('games').select('id').eq('lcu_game_id', bonusGameId).single();
+
+      const board = await loadBoard(anon, { window: 'all-time', includeBreakdown: true });
+      const boardRow = board.rows.find((row) => row.puuid === award.mvp);
+      const expanded = boardRow?.breakdown.find((entry) => entry.gameId === (game?.id ?? ''));
+      expect([expanded?.muBefore, expanded?.muAfter]).toEqual([mvp.before.mu, mvp.after.mu]);
+
+      const page = await loadPlayerBoard(anon, award.mvp, { window: 'all-time' });
+      const recent = page?.recent.find((entry) => entry.gameId === (game?.id ?? ''));
+      expect([recent?.muBefore, recent?.muAfter]).toEqual([mvp.before.mu, mvp.after.mu]);
+
+      // And that shared pair is the amplified one: bigger than the gain `rateGame` alone gave.
+      const shown = (expanded?.muAfter as number) - (expanded?.muBefore as number);
+      expect(shown).toBeGreaterThan(plain.mu - mvp.before.mu);
+      expect(shown).toBeCloseTo((plain.mu - mvp.before.mu) * (1 + config.rating.mvp.bonusFraction), 12);
+    });
+
+    it('re-folds both games from scratch to the same numbers, in either arrival order', async () => {
+      // The strongest form of "the two folds cannot disagree": wipe every rating column in the
+      // season and let the rebuild alone produce them. The bonus has to come back on exactly
+      // the same two rows of exactly the same game.
+      const live = await dump();
+
+      const { data: games } = await db.from('games').select('id').eq('season_id', seasonId);
+      for (const game of games ?? []) {
+        await db
+          .from('game_players')
+          .update({ mu_before: null, sigma_before: null, mu_after: null, sigma_after: null })
+          .eq('game_id', game.id);
+      }
+      await db.from('ratings').delete().eq('season_id', seasonId);
+
+      expect((await rebuild()).ok).toBe(true);
+      expect(within(await dump())).toBe(within(live));
     });
   });
 }

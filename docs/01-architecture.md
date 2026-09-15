@@ -367,6 +367,21 @@ not the top; the test file also pins a hand-built ten where the support has the 
 and wins MVP under these weights, having lost it under M7.8's single vector, and a second one where a jungler
 who is exactly mid-table on the other six wins MVP on objective damage alone, having lost it under M7.13's six.
 
+**Where it is applied (M7.9): inside `foldGame` in `apps/web/lib/ingest/fold.ts`, once.** That function is the
+one implementation both rating callers share — `rating.ts` folds a game as it lands, `rebuild.ts` replays a whole
+season — so a game the live fold amplified and a rebuild did not is not a bug that can happen. It calls
+`performanceScores` → `mvpAce` → `applyMvpAceBonus` in that order and writes the adjusted `mu` into the same four
+`game_players` columns as before: **no new column, no stored marker, nothing about the award is written down**.
+Both callers select the nine stat columns and `role` for this and read them for nothing else; `lib/stats/fold.ts`
+still gates with the three-field `FoldPlayer`, because "did a game happen" never needed a stat line.
+
+Two consequences worth naming. **The surfaces needed no change**: `/leaderboard`'s expand and `/p/[puuid]`'s
+recent games print `mu_after - mu_before` off the stored row, so the adjusted delta reached them the day the fold
+started writing it. And **the weekly track (M7.3) does not carry the bonus**: `lib/board/weekly.ts` is a second,
+read-time fold over the same *games* — it only ever sees seats the all-time fold rated — but its numbers are
+`rateGameWeekly`'s over a week's own seeds, and a `WeeklyPlayer` carries no stat line to score. Giving the week
+the bonus too would mean selecting those ten columns on the board's own query, and is not something M7.9 did.
+
 ## Balancer (`packages/core/balance`)
 
 Input: ten players with `{ mu, mainRole, secondaryRole, roleOverride? }`, optional duo locks, the previous night's

@@ -1,7 +1,16 @@
+import { config, type Rating, rateGame } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { countedGames } from '../stats/fold';
 import { statsGame, tenPlayerGame } from '../testing/statsFixtures';
-import { type FoldPlayer, gateGame, gateRatedGame, isRatedMode } from './fold';
+import {
+  type FoldPlayer,
+  type FoldRatedPlayer,
+  foldGame,
+  gameAward,
+  gateGame,
+  gateRatedGame,
+  isRatedMode,
+} from './fold';
 
 /**
  * The two gates (M7.1).
@@ -134,5 +143,184 @@ describe('countedGames is unchanged', () => {
     // The page folds `countedGames` and *then* filters to ARAM. An empty answer here would be
     // an empty page.
     expect(countedGames([aram]).map((game) => game.id)).toEqual([aram.id]);
+  });
+});
+
+/**
+ * The MVP / ACE bonus inside the fold (M7.9).
+ *
+ * Everything here goes in through `gateRatedGame`, the way both real callers do, so the arrays
+ * `foldGame` reads are the arrays the live fold and the rebuild read: sorted by puuid, five a
+ * side, carrying the stat line off `game_players`.
+ */
+describe('foldGame and the MVP / ACE bonus', () => {
+  const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
+
+  /** Ten rated rows: five a side, every role once a side, a different stat line each. */
+  function tenRated(): FoldRatedPlayer[] {
+    return Array.from({ length: 10 }, (_, index) => ({
+      playerId: `p${index}`,
+      // Deliberately not in sorted order, so the gate's sort is part of what is tested.
+      puuid: `u${9 - index}`,
+      side: index < 5 ? (100 as const) : (200 as const),
+      role: ROLES[index % 5] ?? null,
+      kills: index,
+      deaths: 10 - index,
+      assists: index * 2,
+      damageToChamps: 20_000 + index * 2_500,
+      gold: 10_000 + index * 250,
+      cs: 150 + index * 3,
+      visionScore: 20 + index,
+      damageSelfMitigated: 8_000 + index * 400,
+      damageToObjectives: 3_000 + index * 600,
+    }));
+  }
+
+  /** Ten different ratings, so a swapped player would show up as a different answer. */
+  function ratingsBefore(players: readonly FoldRatedPlayer[]): Map<string, Rating> {
+    return new Map(
+      players.map((player, index) => [player.playerId, { mu: 25 + index * 0.5, sigma: 8 - index * 0.2 }]),
+    );
+  }
+
+  /** The gate both callers go through, and the two arrays it hands the fold. */
+  function gated(players: readonly FoldRatedPlayer[]) {
+    const gate = gateRatedGame(players, 1_800, raw('CLASSIC'));
+    if (!gate.ok) throw new Error(`expected a rated gate, got ${gate.reason}`);
+    return gate;
+  }
+
+  /** What `rateGame` alone says, keyed by player id: the answer before M7.9 existed. */
+  function unadjusted(
+    blue: readonly FoldRatedPlayer[],
+    red: readonly FoldRatedPlayer[],
+    ratings: ReadonlyMap<string, Rating>,
+  ): Map<string, Rating> {
+    const rated = rateGame(
+      blue.map((player) => ratings.get(player.playerId) as Rating),
+      red.map((player) => ratings.get(player.playerId) as Rating),
+      100,
+    );
+    const out = new Map<string, Rating>();
+    blue.forEach((player, index) => {
+      out.set(player.playerId, rated.blue[index] as Rating);
+    });
+    red.forEach((player, index) => {
+      out.set(player.playerId, rated.red[index] as Rating);
+    });
+    return out;
+  }
+
+  it('amplifies exactly one winner and reduces exactly one loser, and leaves eight alone', () => {
+    const players = tenRated();
+    const ratings = ratingsBefore(players);
+    const { blue, red } = gated(players);
+
+    const award = gameAward([...blue, ...red], 100);
+    if (award === null) throw new Error('expected a game with every component to have an MVP');
+
+    const plain = unadjusted(blue, red, ratings);
+    const after = foldGame(blue, red, ratings, 100);
+
+    // The MVP is on the winning side and the ACE on the losing one, and they are two people.
+    const sideOf = new Map(players.map((player) => [player.puuid, player.side]));
+    expect(sideOf.get(award.mvp)).toBe(100);
+    expect(sideOf.get(award.ace)).toBe(200);
+    expect(award.mvp).not.toBe(award.ace);
+
+    const moved: string[] = [];
+    for (const player of players) {
+      const was = ratings.get(player.playerId) as Rating;
+      const base = plain.get(player.playerId) as Rating;
+      const now = after.get(player.playerId) as Rating;
+      // `sigma` is never touched by the bonus, for anybody (M7.8).
+      expect(now.sigma).toBe(base.sigma);
+
+      const factor =
+        player.puuid === award.mvp
+          ? 1 + config.rating.mvp.bonusFraction
+          : player.puuid === award.ace
+            ? 1 - config.rating.mvp.aceReliefFraction
+            : null;
+      if (factor === null) {
+        expect(now.mu).toBe(base.mu);
+      } else {
+        expect(now.mu).toBe(was.mu + (base.mu - was.mu) * factor);
+        moved.push(player.puuid);
+      }
+    }
+    // Two moved, eight untouched.
+    expect(moved.sort()).toEqual([award.ace, award.mvp].sort());
+  });
+
+  it('keeps the MVP’s gain bigger and the ACE’s loss smaller than the plain fold', () => {
+    const players = tenRated();
+    const ratings = ratingsBefore(players);
+    const { blue, red } = gated(players);
+    const award = gameAward([...blue, ...red], 100) as { mvp: string; ace: string };
+
+    const plain = unadjusted(blue, red, ratings);
+    const after = foldGame(blue, red, ratings, 100);
+    const idOf = new Map(players.map((player) => [player.puuid, player.playerId]));
+
+    const mvpId = idOf.get(award.mvp) as string;
+    const aceId = idOf.get(award.ace) as string;
+    const mu = (map: Map<string, Rating>, id: string) => (map.get(id) as Rating).mu;
+
+    // The winner gained more than they would have; the loser gave back less. Neither sign flips.
+    expect(mu(after, mvpId) - mu(ratings, mvpId)).toBeGreaterThan(mu(plain, mvpId) - mu(ratings, mvpId));
+    expect(mu(plain, mvpId) - mu(ratings, mvpId)).toBeGreaterThan(0);
+    expect(mu(after, aceId) - mu(ratings, aceId)).toBeGreaterThan(mu(plain, aceId) - mu(ratings, aceId));
+    expect(mu(after, aceId) - mu(ratings, aceId)).toBeLessThan(0);
+  });
+
+  /**
+   * Acceptance 1: a game with a null in any required column rates **digit for digit** as it did
+   * before M7.9. The rule is core's and is per game, never per player — one missing number on
+   * one row takes the MVP off the whole game — so this walks every column that can be null.
+   */
+  it('rates a game with a missing column exactly as rateGame alone does', () => {
+    const holes: { what: string; hole: (player: FoldRatedPlayer) => FoldRatedPlayer }[] = [
+      { what: 'vision score', hole: (player) => ({ ...player, visionScore: null }) },
+      { what: 'damage self mitigated', hole: (player) => ({ ...player, damageSelfMitigated: null }) },
+      { what: 'damage to objectives', hole: (player) => ({ ...player, damageToObjectives: null }) },
+      { what: 'the role', hole: (player) => ({ ...player, role: null }) },
+      { what: 'cs', hole: (player) => ({ ...player, cs: null }) },
+    ];
+
+    for (const { what, hole } of holes) {
+      // The hole is on one player of ten, and on the *losing* side, where nothing about the
+      // winner's own numbers changed: the game still has no MVP.
+      const players = tenRated().map((player, index) => (index === 7 ? hole(player) : player));
+      const ratings = ratingsBefore(players);
+      const { blue, red } = gated(players);
+
+      expect(gameAward([...blue, ...red], 100), what).toBeNull();
+
+      const plain = unadjusted(blue, red, ratings);
+      const after = foldGame(blue, red, ratings, 100);
+      for (const player of players) {
+        expect([what, after.get(player.playerId)]).toEqual([what, plain.get(player.playerId)]);
+      }
+    }
+  });
+
+  it('rates a backfilled game — ten null roles — exactly as rateGame alone does', () => {
+    const players = tenRated().map((player) => ({ ...player, role: null }));
+    const ratings = ratingsBefore(players);
+    const { blue, red } = gated(players);
+
+    expect(gameAward([...blue, ...red], 100)).toBeNull();
+    expect(foldGame(blue, red, ratings, 100)).toEqual(unadjusted(blue, red, ratings));
+  });
+
+  it('gives the losing side’s winner the same answer whichever side won', () => {
+    // The award follows the result, not the colour: flip the winner and the two titles swap
+    // sides, with nothing else about the ten rows changing.
+    const players = tenRated();
+    const { blue, red } = gated(players);
+    const blueWon = gameAward([...blue, ...red], 100) as { mvp: string; ace: string };
+    const redWon = gameAward([...blue, ...red], 200) as { mvp: string; ace: string };
+    expect([redWon.mvp, redWon.ace]).toEqual([blueWon.ace, blueWon.mvp]);
   });
 });
