@@ -1,3 +1,4 @@
+import { evenness } from '@customs/core';
 import { NAMELESS_PLAYER, type PlayerName } from '../discord/embeds';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 
@@ -145,6 +146,38 @@ export const NAMELESS_HINT = "Names fill in after someone's first game.";
 
 /** `05-design.md`, "Explanation line": the ghost button on the strip. */
 export const REROLL_LABEL = 'Reroll';
+
+/**
+ * `100% even.` is a claim nobody believes, so the top of the scale gets its own sentence
+ * (product, 2026-09-15). It is also what the first night ever says, when nobody has a rating
+ * and the split is a flat 50% — which is true, and is the same thing `Neither side was
+ * favored.` already says in the stored explanation.
+ */
+export const EVENNESS_PERFECT = 'Teams are as even as they get.';
+
+/**
+ * `Teams are 92% even.` — M3.31, the one line under the balanced teams.
+ *
+ * **It is arithmetic on the number the page is already showing, never a second opinion.** The
+ * argument comes from `splits.blue_win_prob`, the chosen split's *stored* probability, and the
+ * transform is core's `evenness`. That is the whole of why this line can never disagree with
+ * the `Blue favored 54%.` in the explanation above it: one number, read twice, even after
+ * somebody's rating has moved the morning after. Recomputing it from the ratings on screen is
+ * the way to get this wrong.
+ *
+ * `null` — no line at all, not `—` and not `unknown` — for a split with no stored probability:
+ * a row written before the column, or a page rendering a lobby optimistically. The column is
+ * `not null` with a `[0, 1]` check today, so the guard is for a value that crossed a wire and
+ * lost its type, and it returns rather than throwing: `evenness` throws outside `[0, 1]`, and a
+ * throw here would take down the page twenty people are reading in the dark over one line.
+ */
+export function evennessLine(blueWinProb: number | null | undefined): string | null {
+  if (typeof blueWinProb !== 'number' || !Number.isFinite(blueWinProb)) return null;
+  if (blueWinProb < 0 || blueWinProb > 1) return null;
+
+  const score = evenness(blueWinProb);
+  return score === 100 ? EVENNESS_PERFECT : `Teams are ${score}% even.`;
+}
 
 /**
  * The sit-out strip (05-design.md, "Sit-out notice"; product, 2026-09-08 — final).

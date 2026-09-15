@@ -136,8 +136,20 @@
 .cn-side-line,
 .cn-sitout-text,
 .cn-explain-text,
+.cn-even,
 .cn-reroll-note {
   margin: 0;
+}
+
+/*
+ * `Teams are 92% even.` (M3.31), under the explanation strip: the page's own body size, `dim`,
+ * exactly the dress of the result card's `Blue was favored 54%.` — the other line that says a
+ * stored probability back in words. No bar, no meter, no colour scale, in either theme: it is a
+ * sentence, like every other number on this page, and both colours are tokens so the light
+ * theme follows for free.
+ */
+.cn-even {
+  color: var(--cn-dim);
 }
 
 /*
