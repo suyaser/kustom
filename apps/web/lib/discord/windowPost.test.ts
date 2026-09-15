@@ -33,6 +33,8 @@ const board: BoardView = {
       climb: null,
       settling: false,
       breakdown: [],
+      // M8.3 is a badge on a web row; the post prints the same three award lines it always has.
+      awards: [],
     },
   ],
   range: 'Sunday 6 Sep to Saturday 12 Sep',

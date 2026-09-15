@@ -24,6 +24,11 @@ import '../../board.css';
  * The one thing the session decides is which row gets the `brand` "you" rule. Nothing here
  * writes to the database. `includeBreakdown` is on so a row can open into the window's games
  * (M5.30); the tonight rail asks `loadBoard` without it.
+ *
+ * `includeAwards` is on for the same reason and with the same shape (M8.3): on `Last week` and
+ * `Last month` the winners' rows carry the award's own words, and on the three windows that hand
+ * nothing out it reads nothing and draws nothing. The rail asks without it — it is a snapshot of
+ * tonight, not a window's story.
  */
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +57,7 @@ export default async function LeaderboardPage({ searchParams }: LeaderboardPageP
       window: kind,
       timeZone: nightTimeZone(),
       includeBreakdown: true,
+      includeAwards: true,
     }),
     currentViewer(),
   ]);

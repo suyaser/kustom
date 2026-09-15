@@ -114,6 +114,16 @@ export interface BoardRow {
    * `All time`). Rated only: an unrated row does not move the number the expand is explaining.
    */
   breakdown: readonly BoardGame[];
+  /**
+   * The titles of the awards this player won in the window (M8.3), in the awards' own order:
+   * `Most improved`, `Best off-role`, `Cursed duo`. The strings are `lib/stats/copy.ts`'s, as
+   * `awardsView` labelled the blocks — the row prints them and formats nothing.
+   *
+   * **Empty on every window but `Last week` and `Last month`**, which are the only two that hand
+   * anything out (M5.4), empty when nobody cleared a minimum, and empty on the tonight rail,
+   * which asks the loader for a snapshot of tonight rather than a window's story.
+   */
+  awards: readonly string[];
 }
 
 /** One rated game on a board row, slim enough to sit under every name on `/leaderboard`. */

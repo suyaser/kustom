@@ -16,11 +16,14 @@ import { SettlingChip } from '../_board/parts';
  * leaderboard and the player page", item 5). Building it inline in the page would mean writing
  * it twice and having the two drift the first time a number moves.
  *
- * Two lines, each a pair of groups pinned to opposite edges:
+ * Two lines, each a pair of groups pinned to opposite edges, and a third only on a row that won
+ * one of the window's awards:
  *
  *   - Line 1: rank, name, **Proven** hard against the right edge.
  *   - Line 2: the meta under the name, and `Rating` under the Proven number, so the two numbers
  *     form one vertical pair per row rather than two competing columns.
+ *   - Line 3 (M8.3): the award badges, left-aligned under the name, on `Last week` and
+ *     `Last month` alone. The loader hands the row its list; see {@link AwardBadges}.
  *
  * `Proven` prints nowhere on the row — it is the unlabelled primary number, named once in the
  * card header's legend. It still carries visually-hidden text, the same way the team card's
@@ -160,7 +163,44 @@ function BoardRowLines({ row, rank, mark }: { row: BoardRowModel; rank: number; 
           </span>
         )}
       </div>
+      <AwardBadges awards={row.awards} />
     </>
+  );
+}
+
+/**
+ * Line 3: the awards this window handed this player (M8.3), and nothing else.
+ *
+ * **Its own run, under the meta, and inside the row's own structure** — after `.cn-row-bottom`
+ * and therefore inside the `<summary>` on a row that opens and inside the `<li>` on a row that
+ * does not, from one place. Outside the summary an open row would print its award under the list
+ * of games it won the award with, where it reads as a caption on the last one.
+ *
+ * Not the last item of line 2's middot run: that run is one window fact (`12 games · 8W 4L ·
+ * +153 · W3`) and an award is what came out of it, not another statistic in the same size and
+ * colour (M5.4, `05-design.md`). Not on line 1 either: the name, the triangle and the primary
+ * number own that line.
+ *
+ * **No `<a>`, no `<button>`, no `tabindex`.** The badge is a label, not a control: an
+ * interactive element inside a `<summary>` is a nested control, and a thumb landing near it
+ * either toggles nothing or navigates by accident. The whole row, badges included, stays one tap
+ * target for the expand. No colour, no icon, no trophy, no `#1`, no count and no tooltip — a
+ * screen reader hears the words as the last of the row, which is all they are.
+ *
+ * The titles are `lib/stats/copy.ts`'s, carried on the row exactly as `awardsView` labelled the
+ * blocks, in the awards' own order. This formats nothing and sorts nothing.
+ */
+function AwardBadges({ awards }: { awards: readonly string[] }) {
+  if (awards.length === 0) return null;
+
+  return (
+    <p className="cn-row-awards">
+      {awards.map((award) => (
+        <span className="cn-award" key={award}>
+          {award}
+        </span>
+      ))}
+    </p>
   );
 }
 

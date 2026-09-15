@@ -67,6 +67,7 @@ function row(overrides: Partial<BoardRow>): BoardRow {
     climb: null,
     settling: false,
     breakdown: [],
+    awards: [],
     ...overrides,
   };
 }

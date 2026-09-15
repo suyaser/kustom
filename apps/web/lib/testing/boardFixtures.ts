@@ -4,6 +4,7 @@ import { sortBoardRows } from '../board/order';
 import type { BoardGame, BoardRow, BoardView, PlayerBoardView, RecentGame } from '../board/types';
 import type { WindowKind } from '../night';
 import { provenRating, provenSortKey } from '../ratingDisplay';
+import { CURSED_DUO, MOST_IMPROVED } from '../stats/copy';
 import type { PartnerRecord, PlayerStatsView } from '../stats/types';
 import { WORKED_ROSTER, workedPuuid } from './workedExample';
 
@@ -60,6 +61,8 @@ export function workedBoardRows(): BoardRow[] {
         climb: null,
         settling: games < SETTLING_GAMES,
         breakdown: [],
+        // `All time` hands out no award (M5.4), so this board carries none.
+        awards: [],
       };
     }),
   );
@@ -111,9 +114,34 @@ export function workedWindowRows(window: WindowKind = 'this-week'): BoardRow[] {
         // No chip on a week, ever (M7.3); the all-time count still decides it on a month.
         settling: weekly ? false : (WORKED_GAMES[player.name] ?? 0) < SETTLING_GAMES,
         breakdown: [],
+        /**
+         * **No badge unless a test asks for one** (M8.3). Only a closed window hands an award
+         * out, and even there most rows win nothing: the default board is the board as it was
+         * before the badges existed, which is what the byte-identity tests read.
+         * {@link badgedWindowRows} is the fixture for the other case.
+         */
+        awards: [],
       };
     }),
   );
+}
+
+/**
+ * The same window's board with the awards handed out (M8.3): `Most improved` to one row and
+ * `Cursed duo` to both halves of a pair — so the fixture holds a row with two badges, a row with
+ * one, and eight with none, which is the shape of an ordinary closed week.
+ *
+ * The titles come from `lib/stats/copy.ts`, the same constants `awardsView` labels its blocks
+ * with; the awards themselves are not computed here, because a board fixture is what the page
+ * does with an answer and never how the answer was reached.
+ */
+export function badgedWindowRows(window: WindowKind = 'last-week'): BoardRow[] {
+  const won: Readonly<Record<string, readonly string[]>> = {
+    [workedPuuid('Nadia')]: [MOST_IMPROVED, CURSED_DUO],
+    [workedPuuid('Yuki')]: [CURSED_DUO],
+  };
+
+  return workedWindowRows(window).map((row) => ({ ...row, awards: won[row.puuid] ?? [] }));
 }
 
 export function workedWindowBoard(window: WindowKind = 'this-week'): BoardView {

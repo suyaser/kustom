@@ -7,7 +7,7 @@ import { gamesHistoryView } from '../games/view';
 import { readSeed, type StoredSeed, seedFor } from '../ingest/seed';
 import { type WindowKind, type WindowRange, windowRange } from '../night';
 import type { PublicClient } from '../publicClient';
-import type { AwardRender, WeeklySeeds } from './awards';
+import { type AwardRender, awardPeriod, awardsView, WEB_AWARD_RENDER, type WeeklySeeds } from './awards';
 import { countedGames, playerStreaks } from './fold';
 import { assembleFunFacts } from './funView';
 import { playerStatsView } from './player';
@@ -22,6 +22,7 @@ import type {
   StatsView,
 } from './types';
 import { type StatsInput, statsView } from './view';
+import { type AwardWinners, awardWinners, NO_AWARD_WINNERS } from './winners';
 
 /**
  * Everything `/stats` shows (M5.4), read with the **anon key** through RLS — the same client,
@@ -145,6 +146,37 @@ export async function loadPlayerStats(
 export async function loadStreaks(client: PublicClient, options: StatsOptions): Promise<PlayerStreaks[]> {
   const read = await readWindow(client, options);
   return playerStreaks(countedGames(read.games), read.players);
+}
+
+/**
+ * Who won the window's awards, by puuid (M8.3), for a caller that wants the winners and none of
+ * the rest of the page: `/leaderboard`'s badges.
+ *
+ * **The awards are `awardsView`'s, over this loader's own read.** Same window, same gate
+ * (`countedGames`), same week seeds, same three blocks — the ones `/stats` prints and the Sunday
+ * post carries — so a badge on a row can only ever name the person the award line names. Nothing
+ * about an award is decided here and no award is computed twice: the board asks this and matches
+ * puuids.
+ *
+ * **A window that hands nothing out makes no query at all.** `This week` and `This month` are
+ * still running and `All time` has no block (M5.4, `awardPeriod`), so those three return the
+ * empty map before the read — which is why the board they draw is the board they drew before
+ * this existed, down to the byte.
+ */
+export async function loadAwardWinners(client: PublicClient, options: StatsOptions): Promise<AwardWinners> {
+  const period = awardPeriod(options.window);
+  if (period === null || !period.closed) return NO_AWARD_WINNERS;
+
+  const read = await readWindow(client, options);
+  return awardWinners(
+    awardsView(
+      options.window,
+      countedGames(read.games),
+      read.players,
+      options.awardRender ?? WEB_AWARD_RENDER,
+      read.seeds,
+    ),
+  );
 }
 
 /**

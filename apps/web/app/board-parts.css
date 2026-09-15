@@ -285,6 +285,51 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Line 3: an award the window handed out (M8.3). A label, not a control and not
+ * a decoration. Drawn on `Last week` and `Last month` only, and never in the
+ * tonight rail — the loader decides that, and an empty list draws nothing here.
+ *
+ * It sits in the row's own rhythm, under line 2's `sp-2`, so a badged row grows
+ * from 56px to about 84px. **A badged row being taller than its neighbours is
+ * the point**: three rows in twenty carry more, which is how a label earns
+ * attention without taking a colour. Declared here rather than in `board.css`
+ * because the rail renders this row too and that file is not loaded there.
+ * ------------------------------------------------------------------------- */
+
+.cn-row-awards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cn-sp-2);
+  margin: 0;
+  padding-bottom: var(--cn-sp-2);
+}
+
+/*
+ * The settling chip's box in language's typeface: 1px `line`, `radius-chip`,
+ * `t-xs`, `dim` — and **Archivo, sentence case, not mono**, which is the one
+ * place it parts company with the chip it borrows the box from. The type rule
+ * is `number or role → mono`; `Most improved` is neither, and a capital on a
+ * mono micro-label is forbidden. The difference is also useful: a row can carry
+ * `settling` on line 2 and `Most improved` on line 3, and mono-lowercase versus
+ * Archivo-sentence-case is what stops two identical marks meaning two things.
+ *
+ * No colour of its own — not `brand`, which is spent on the chosen window chip
+ * and the viewer's own row, and never blue or red, which are sides. The run
+ * wraps between badges; a badge never breaks inside a label.
+ */
+.cn-award {
+  border: 1px solid var(--cn-line);
+  border-radius: var(--cn-radius-chip);
+  padding: 0 var(--cn-sp-2);
+  font-family: var(--cn-font-sans);
+  font-size: var(--cn-t-xs);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--cn-dim);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
  * The still-settling chip (M3.8). A label, not a warning.
  * ------------------------------------------------------------------------- */
 

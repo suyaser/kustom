@@ -7,7 +7,8 @@ import { inLaneOrder } from '../laneOrder';
 import { DEFAULT_NIGHT_TIME_ZONE, type WindowKind, type WindowRange, windowRange } from '../night';
 import type { PublicClient } from '../publicClient';
 import { provenRating, provenSortKey } from '../ratingDisplay';
-import { loadStreaks } from '../stats/load';
+import { loadAwardWinners, loadStreaks } from '../stats/load';
+import { type AwardWinners, NO_AWARD_WINNERS } from '../stats/winners';
 import type { PlayerName } from '../tonight/types';
 import { boardBreakdown } from './breakdown';
 import { rankLabel, SETTLING_GAMES } from './copy';
@@ -115,6 +116,15 @@ export interface BoardOptions {
    * the tonight rail serializes these rows and does not open them.
    */
   includeBreakdown?: boolean;
+  /**
+   * Badge the rows of a **closed** window with the awards it handed out (M8.3). Off by default,
+   * and off for the tonight rail for the reason the design gives: the rail is a five-row
+   * snapshot of tonight, not a window's story.
+   *
+   * On `This week`, `This month` and `All time` it changes nothing and reads nothing: those
+   * windows hand out no award (M5.4), which `lib/stats/load.ts` decides before it queries.
+   */
+  includeAwards?: boolean;
 }
 
 /**
@@ -153,7 +163,17 @@ export async function loadBoard(client: PublicClient, options: BoardOptions): Pr
   };
 
   if (window !== 'all-time') {
-    return { window, ...slot, rows: sortBoardRows(await windowRows(client, season, range, options)) };
+    /**
+     * **The window's rows and the window's awards, read side by side** (M8.3). The awards are
+     * `lib/stats`' — the same three blocks `/stats` prints and the Sunday post carries — asked
+     * for by puuid and matched to rows; nothing here computes one, and on the three windows that
+     * hand nothing out the lookup makes no query and comes back empty.
+     */
+    const [rows, winners] = await Promise.all([
+      windowRows(client, season, range, options),
+      rowAwards(client, options),
+    ]);
+    return { window, ...slot, rows: sortBoardRows(withAwards(rows, winners)) };
   }
 
   /**
@@ -199,6 +219,9 @@ export async function loadBoard(client: PublicClient, options: BoardOptions): Pr
       climb: null,
       settling: games < SETTLING_GAMES,
       breakdown: breakdowns.get(player.id) ?? [],
+      // `All time` hands out no award (M5.4): "most improved of all time" is a different
+      // question from the one the three ask, and a window that never closes has none.
+      awards: [],
     };
   });
 
@@ -392,8 +415,48 @@ async function windowRows(
         // week there is no chip at all (M7.3): every row would carry it, every week.
         settling: week === null && (ratings.get(playerId)?.games ?? played.length) < SETTLING_GAMES,
         breakdown: includeBreakdown ? playedBreakdown(played, timeZone, week) : [],
+        // Filled by {@link withAwards} on a closed window, from `lib/stats`' own answer. The
+        // row is built without one so that a caller that never asked cannot be given any.
+        awards: [],
       },
     ];
+  });
+}
+
+/**
+ * The closed window's awards, or nothing (M8.3).
+ *
+ * **Placement, not a second computation**: `loadAwardWinners` runs `awardsView` over the same
+ * window, so the badge on a row and the award line on `/stats` and in the Discord post are one
+ * answer. `lib/board` folds no award of its own and imports no part of one.
+ *
+ * A failed lookup is **no badges and one line in the log**, never a failed board: the badge is
+ * something the window handed out, and a page that 500s because it could not be drawn would
+ * trade the whole leaderboard for a label on three rows.
+ */
+async function rowAwards(client: PublicClient, options: BoardOptions): Promise<AwardWinners> {
+  if (options.includeAwards !== true) return NO_AWARD_WINNERS;
+  try {
+    return await loadAwardWinners(client, options);
+  } catch (error) {
+    console.error('board: reading the window awards failed', error);
+    return NO_AWARD_WINNERS;
+  }
+}
+
+/**
+ * The winners' titles, matched to rows by **puuid** — the identity both sides carry (CLAUDE.md).
+ *
+ * A winner the board does not list — a cursed-duo half below the window's own membership — is
+ * simply not badged and **no row is added for them**. With nobody to badge the rows are handed
+ * back untouched — which is every window but the two closed ones, and a closed one nobody
+ * qualified in: the board those draw is the board they drew before this existed.
+ */
+function withAwards(rows: BoardRow[], winners: AwardWinners): BoardRow[] {
+  if (winners.size === 0) return rows;
+  return rows.map((row) => {
+    const won = winners.get(row.puuid);
+    return won === undefined ? row : { ...row, awards: won };
   });
 }
 
