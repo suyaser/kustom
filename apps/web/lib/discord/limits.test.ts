@@ -289,13 +289,14 @@ describe('the board, ten long escaped names', () => {
   const entries: LeaderboardEntry[] = Array.from({ length: 10 }, (_, index) => ({
     puuid: `p-${index}`,
     name: ESCAPABLE_NAME,
-    proven: 1548 - index,
+    score: 1548 - index,
     games: 41,
   }));
 
   it('fits ten of them with no cut at all', () => {
     const embed = leaderboardEmbed({
       windowLabel: WINDOW_LABELS['this-week'],
+      track: 'weekly',
       entries,
       timestamp: TIMESTAMP,
     }).embeds[0];
@@ -333,7 +334,8 @@ describe('the awards field, a ten-way tie', () => {
   const embed = windowSummaryEmbed({
     windowLabel: WINDOW_LABELS['last-week'],
     description: 'Sunday 6 Sep to Saturday 12 Sep · 14 games',
-    entries: [{ puuid: 'p-1', name: 'Lena', proven: 1548, games: 41 }],
+    track: 'weekly',
+    entries: [{ puuid: 'p-1', name: 'Lena', score: 1548, games: 41 }],
     awards,
     timestamp: TIMESTAMP,
   }).embeds[0];

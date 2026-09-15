@@ -5,6 +5,7 @@ import {
   PROVEN_LABEL,
   SETTLING_CHIP,
   SETTLING_SENTENCE,
+  WEEK_BOARD_SENTENCE,
   WINDOW_EMPTY,
   WINDOW_LABELS,
 } from '@/lib/board/copy';
@@ -359,7 +360,7 @@ describe('the window picker', () => {
 
 /**
  * A window's row: `6 games · 4W 2L · +58` (M5.12). The counts are the window's, the climb is
- * computed at render from the two mu values, and the sort is untouched.
+ * computed at render from the two mu values, and the shape of line 2 is the same on both tracks.
  */
 describe('a row inside a window', () => {
   it('reads the window line, with the climb last and no streak', () => {
@@ -369,17 +370,72 @@ describe('a row inside a window', () => {
     expect(meta).toBe('6 games · 4W 2L · +58');
   });
 
-  it('keeps the two numbers and the order exactly as the board has them', () => {
-    draw(workedWindowBoard('this-week'));
+  it('keeps the two numbers and the order exactly as the board has them on a month', () => {
+    draw(workedWindowBoard('this-month'));
 
     const proven = rows().map((row) => Number(row.querySelector('.cn-proven')?.firstChild?.textContent));
     expect(proven).toEqual([1_548, 1_137, 1_062, 990, 987, 917, 882, 831, 654, 534]);
+    // And `Rating` is still under it on every row: a month is the board M5.12 shipped.
+    for (const row of rows()) {
+      expect(row.querySelector('.cn-row-rating')?.textContent).toMatch(/^Rating \d+$/);
+    }
   });
 
   it('is the same row it always was on `All time`: the streak, and no climb', () => {
     draw();
 
     expect(rows()[0]?.querySelector('.cn-row-meta')?.textContent).toBe('41 games · 21W 20L · L2');
+  });
+});
+
+/**
+ * **A week row has one number, and it is `Rating`** (M7.3). The week is folded from scratch
+ * every Sunday and sorts on the weekly Rating, so the board prints the number it sorted on and
+ * prints no Proven at all — not in the legend, not in small type, not as a hidden label.
+ */
+describe('a row inside a week', () => {
+  it('prints the weekly Rating in the primary slot, in descending order', () => {
+    draw(workedWindowBoard('this-week'));
+
+    const primary = rows().map((row) => Number(row.querySelector('.cn-proven')?.firstChild?.textContent));
+    // `round(mu * 60)` for the same ten, ordered by the weekly mu rather than by the ordinal.
+    expect(primary).toEqual([2_088, 1_713, 1_638, 1_578, 1_551, 1_469, 1_434, 1_419, 1_266, 1_134]);
+    for (const [index, value] of primary.entries()) {
+      expect(value).toBeLessThanOrEqual(primary[index - 1] ?? value);
+    }
+  });
+
+  it('prints no Proven anywhere: not the legend, not the row, not the hidden label', () => {
+    const { container } = draw(workedWindowBoard('this-week'));
+
+    expect(container.querySelector('.cn-legend')?.textContent).toBe('Rating');
+    expect(container.textContent).not.toContain(PROVEN_LABEL);
+    for (const row of rows()) {
+      // The one number carries `Rating` for a screen reader, and line 2 does not repeat it.
+      const hidden = [...row.querySelectorAll('.cn-sr')].map((node) => node.textContent?.trim());
+      expect(hidden).toContain('Rating');
+      expect(hidden).not.toContain(PROVEN_LABEL);
+      expect(row.querySelector('.cn-row-rating')).toBeNull();
+    }
+  });
+
+  it('carries no settling chip and says the week sentence once instead', () => {
+    for (const window of ['this-week', 'last-week'] as const) {
+      const { unmount } = draw(workedWindowBoard(window));
+
+      expect(screen.queryByText(SETTLING_CHIP)).not.toBeInTheDocument();
+      expect(screen.queryByText(SETTLING_SENTENCE)).not.toBeInTheDocument();
+      // Every week, under either heading, exactly once.
+      expect(screen.getAllByText(WEEK_BOARD_SENTENCE)).toHaveLength(1);
+      unmount();
+    }
+  });
+
+  it('says nothing under an empty week, because there is no board to explain', () => {
+    draw(emptyWindowBoard('this-week'));
+
+    expect(screen.queryByText(WEEK_BOARD_SENTENCE)).not.toBeInTheDocument();
+    expect(screen.getByText(WINDOW_EMPTY['this-week'])).toBeInTheDocument();
   });
 });
 

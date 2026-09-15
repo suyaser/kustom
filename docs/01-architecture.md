@@ -159,6 +159,10 @@ OpenSkill, default Plackett-Luce model, two teams of five.
   player's own `sigma^2`, so a settled player's rating is sticky and a new player's moves fast. Rank does not
   affect the size of a win — two players with the same sigma on the same winning team gain exactly the same amount.
 - Balance on `mu`. Leaderboard sorts on `ordinal = mu - 2 * sigma`. Display rating is `round(mu * 60)`.
+  **The two week windows are the one carve-out** (M7.3, user 2026-09-15): `This week` and `Last week` sort and
+  print the weekly channel's `Rating` (`round(mu * 60)`) and print no Proven at all, because a week is a handful
+  of games and the `- 2σ` subtraction would rank a 4W 4L week above a clean 2W 0L one. `All time`, `This month`
+  and `Last month` sort on `ordinal`, for ever.
 - A game is rated only when its stored row has ten `game_players`, five a side, `duration_s` over 300
   seconds, **and its `games.raw` names Summoner's Rift** — `CLASSIC` or no mode at all, since every night
   captured before the companion stored one was Rift (M5.26, M7.1). M1.5 stores every `CUSTOM_GAME` block,
@@ -456,7 +460,9 @@ watching: on lobby event -> POST /api/companion/lobby
 ## Web (`apps/web`)
 
 - `/` Tonight: live lobby, teams, result. Public read. Realtime subscription on `lobbies`, `splits`, `games`.
-- `/leaderboard` Season table by ordinal, wins, games, streak.
+- `/leaderboard` The board through one of five windows: by ordinal on `All time` and the two months, and by the
+  weekly `Rating` on `This week` (the default) and `Last week`, which are folded from the rank seed at read time
+  (M7.3). Wins, games, streak.
 - `/p/[puuid]` Player page: rating history chart, role record, recent games.
 - `/admin` Discord OAuth gated, `players.is_admin`. Link Discord IDs, see the inferred roles (M5.17), mint companion tokens, set Discord config, approve backfill.
 - `/api/companion/*` bearer token, zod-validated. The command queue is three of them (M4.1):

@@ -2,7 +2,7 @@ import { LEADERBOARD_LABEL, WINDOW_LABELS, windowSlotLine } from '@/lib/board/co
 import type { BoardView as BoardViewModel } from '@/lib/board/types';
 import { isNameless } from '@/lib/tonight/copy';
 import { BoardCard } from '../_leaderboard/BoardCard';
-import { NamelessHint, SettlingNote } from './parts';
+import { NamelessHint, SettlingNote, WeekBoardNote } from './parts';
 import { WindowPicker } from './WindowPicker';
 import { WindowSlot } from './WindowSlot';
 
@@ -27,9 +27,20 @@ export interface BoardViewProps {
 }
 
 export function BoardView({ board, viewerPuuid }: BoardViewProps) {
-  // Only about rows that are on the screen: with an empty window nothing is drawn for the
-  // sentence to explain, and it is a note under a column, not a note about the product.
-  const settling = board.range !== null && board.rows.some((row) => row.settling);
+  /**
+   * **Which sentence goes under the card.**
+   *
+   * On a week window it is the week's own (M7.3), printed whenever there is a board to explain:
+   * the column is the weekly `Rating`, which the Proven sentence does not describe, and the
+   * week's sentence is about every row rather than about the few the board is least sure of —
+   * on a week that is all of them.
+   *
+   * Everywhere else it is M3.8's, gated as it always was on a row that carries the chip. Only
+   * about rows that are on the screen: with an empty window nothing is drawn for the sentence
+   * to explain, and it is a note under a column, not a note about the product.
+   */
+  const weekly = board.rows[0]?.track === 'weekly';
+  const settling = !weekly && board.range !== null && board.rows.some((row) => row.settling);
   const nameless = board.rows.some((row) => isNameless(row.name));
   /**
    * **A window with nothing in it**, counted by the loader rather than guessed from the rows:
@@ -79,6 +90,7 @@ export function BoardView({ board, viewerPuuid }: BoardViewProps) {
          * by the designer 2026-09-10): it explains the column you have just read, and above the
          * card it separated the heading from the thing the heading names.
          */}
+        {weekly && !empty ? <WeekBoardNote /> : null}
         {settling ? <SettlingNote /> : null}
       </section>
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SETTLING_SENTENCE_SHORT, WEEK_BOARD_SENTENCE_SHORT } from '../board/copy';
 import type { BoardView } from '../board/types';
 import { closedWindow } from '../night';
 import type { ServiceClient } from '../supabase';
@@ -19,8 +20,11 @@ const board: BoardView = {
     {
       puuid: 'puuid-lena',
       name: 'Lena',
+      // `last-week` is the weekly track (M7.3): the row prints `Rating` and sorts on the raw
+      // weekly `mu`, and `proven` is on the row without being printed anywhere.
+      track: 'weekly',
       proven: 1_548,
-      sortKey: 25.8,
+      sortKey: 34.8,
       rating: 2_088,
       games: 4,
       wins: 3,
@@ -114,6 +118,27 @@ describe('the awards field', () => {
       '**Cursed duo** Yuki and Theo · 2W 9L · 18%',
       'Iris and Omar · 2W 9L · 18%',
     ]);
+  });
+
+  /**
+   * **The Sunday post prints the week's own number** (M7.3): `last-week` is the weekly track, so
+   * the line carries the row's `Rating` — never its `proven`, which is on the row and is printed
+   * on no week surface — and the footer is the week's sentence rather than Proven's.
+   */
+  it('prints the weekly Rating and the week footer, off the track the rows carry', async () => {
+    loadStats.mockResolvedValue({ awards: null });
+
+    await postClosedWindow(client, WINDOW, { now: new Date('2025-09-08T07:00:00Z') });
+
+    const embed = (
+      sent as unknown as {
+        embeds: { fields: { value: string }[]; footer: { text: string } }[];
+      }
+    ).embeds[0];
+    expect(embed?.fields[0]?.value).toBe('`1` Lena · 2088 · 4 games');
+    expect(embed?.fields[0]?.value).not.toContain('1548');
+    expect(embed?.footer.text).toBe(WEEK_BOARD_SENTENCE_SHORT);
+    expect(embed?.footer.text).not.toBe(SETTLING_SENTENCE_SHORT);
   });
 
   /**

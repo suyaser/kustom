@@ -1,5 +1,10 @@
 import type { RoleValue } from '@customs/db';
-import { SETTLING_CHIP, SETTLING_SENTENCE, SETTLING_SENTENCE_PLAYER } from '@/lib/board/copy';
+import {
+  SETTLING_CHIP,
+  SETTLING_SENTENCE,
+  SETTLING_SENTENCE_PLAYER,
+  WEEK_BOARD_SENTENCE,
+} from '@/lib/board/copy';
 import { NAMELESS_HINT } from '@/lib/tonight/copy';
 import { RoleIcon } from '../_icons/RoleIcon';
 
@@ -34,6 +39,19 @@ export function SettlingChip() {
  */
 export function SettlingNote({ person = 'you' }: { person?: 'you' | 'player' }) {
   return <p className="cn-settling">{person === 'player' ? SETTLING_SENTENCE_PLAYER : SETTLING_SENTENCE}</p>;
+}
+
+/**
+ * The week board's own sentence, in the same slot and the same type as {@link SettlingNote}
+ * (M7.3) — under the card, once per page, on `This week` and `Last week`.
+ *
+ * It **replaces** the Proven sentence rather than joining it: a week sorts on `Rating`, so the
+ * paragraph that explains Proven is explaining a column that is not on the screen. It is also
+ * not gated on any row, because it is not about the rows the board is least sure of — on a week
+ * the board is unsure of all of them, every week, which is the third of its four sentences.
+ */
+export function WeekBoardNote() {
+  return <p className="cn-settling">{WEEK_BOARD_SENTENCE}</p>;
 }
 
 /** M3.10's quiet line, once per page, while any row on it reads `Someone`. */

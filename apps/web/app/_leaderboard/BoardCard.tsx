@@ -1,4 +1,4 @@
-import { BOARD_LEGEND, TOP_OF_BOARD_TITLE } from '@/lib/board/copy';
+import { boardLegend, TOP_OF_BOARD_TITLE } from '@/lib/board/copy';
 import type { BoardRow as BoardRowModel } from '@/lib/board/types';
 import '../board-parts.css';
 import { BoardRow } from './BoardRow';
@@ -16,6 +16,13 @@ import { BoardRow } from './BoardRow';
  * header row: it does not stick, does not sort and is not tappable, because on a phone a
  * header row has scrolled away after four rows and every row below it is then two unexplained
  * numbers.
+ *
+ * **On a week board the word is `Rating`** (M7.3), because that is the number in the column
+ * under it — the legend names the number the board sorted on, whichever track that is, and a
+ * board whose rows are weekly ratings under a legend that says `Proven` would be the one thing
+ * this milestone exists to stop. The rows carry their own track, so the card reads it off them
+ * rather than being told the window: the tonight rail renders the same card from five rows and
+ * no window.
  */
 
 export interface BoardCardProps {
@@ -32,7 +39,7 @@ export function BoardCard({ rows, viewerPuuid, title, firstRank = 1 }: BoardCard
     <section className="cn-card cn-board-card">
       <header className="cn-card-head cn-board-head">
         {title === undefined ? null : <h2 className="cn-board-title">{title}</h2>}
-        <span className="cn-num cn-legend">{BOARD_LEGEND}</span>
+        <span className="cn-num cn-legend">{boardLegend(rows[0]?.track ?? 'all-time')}</span>
       </header>
       <ol className="cn-board">
         {rows.map((row, index) => (

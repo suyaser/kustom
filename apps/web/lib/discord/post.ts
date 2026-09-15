@@ -1,6 +1,6 @@
 import { WINDOW_LABELS, windowSlotLine } from '../board/copy';
 import { loadBoard } from '../board/load';
-import type { BoardView } from '../board/types';
+import type { BoardRow, BoardView, RatingTrack } from '../board/types';
 import { LEADERBOARD_WINDOW } from '../board/window';
 import { activeSeasonId, loadPool } from '../ingest/balance';
 import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook } from '../ingest/hooks';
@@ -158,17 +158,11 @@ export async function postNightlyLeaderboard(
   const skip = nightlyLeaderboardSkip(board);
   if (skip !== null) return SKIPPED(skip);
 
-  const entries: LeaderboardEntry[] = board.rows.slice(0, TOP_N).map((row) => ({
-    puuid: row.puuid,
-    name: row.name,
-    proven: row.proven,
-    // The window's games, like every other number on the row: `41 games` on a Tuesday would
-    // be a whole history printed under a heading that says this week.
-    games: row.games,
-  }));
+  const entries: LeaderboardEntry[] = board.rows.slice(0, TOP_N).map(boardEntry);
 
   const payload = leaderboardEmbed({
     windowLabel: WINDOW_LABELS[board.window],
+    track: boardTrack(board),
     entries,
     url: leaderboardPageUrl(options.requestOrigin, board.window),
     timestamp: (options.now ?? new Date()).toISOString(),
@@ -178,6 +172,32 @@ export async function postNightlyLeaderboard(
 
 /** The nightly post prints the board `/leaderboard` opens on, and follows it if it ever moves. */
 const NIGHTLY_WINDOW = LEADERBOARD_WINDOW;
+
+/**
+ * One board row as one line of a board post (M3.5, M5.10; the number chosen by M7.3).
+ *
+ * **The line prints the number the board sorted on**, which the row already carries: Proven on
+ * an all-time row and the weekly `Rating` on a weekly one. The post does not decide this and
+ * does not read a window to work it out — the loader put both numbers and the track on the row,
+ * and a post that picked a different one from the page would be the two surfaces disagreeing
+ * about who won the week.
+ *
+ * The count is **the window's** games, like every other number on the row: `41 games` on a
+ * Tuesday would be a whole history printed under a heading that says this week.
+ */
+function boardEntry(row: BoardRow): LeaderboardEntry {
+  return {
+    puuid: row.puuid,
+    name: row.name,
+    score: row.track === 'weekly' ? row.rating : row.proven,
+    games: row.games,
+  };
+}
+
+/** The track every row on this board came from; an empty board never reaches a post. */
+function boardTrack(board: BoardView): RatingTrack {
+  return board.rows[0]?.track ?? 'all-time';
+}
 
 /**
  * Why tonight's board is not worth posting, or `null` when it is. Pure, so the rules are a
@@ -242,15 +262,13 @@ export async function postClosedWindow(
     return SKIPPED(NO_GAMES_IN_WINDOW);
   }
 
-  const entries: LeaderboardEntry[] = board.rows.slice(0, TOP_N).map((row) => ({
-    puuid: row.puuid,
-    name: row.name,
-    proven: row.proven,
-    games: row.games,
-  }));
+  const entries: LeaderboardEntry[] = board.rows.slice(0, TOP_N).map(boardEntry);
 
   const payload = windowSummaryEmbed({
     windowLabel: WINDOW_LABELS[window.kind],
+    // `last-week` is the weekly track and `last-month` is the all-time one (M7.3), read off the
+    // rows rather than re-derived from `window.kind`.
+    track: boardTrack(board),
     awards: await loadWindowAwards(client, window, options),
     // **The page's line, not a second one** (M5.12, M5.10): the slot under the picker and this
     // description are the same words about the same window, so the tap out of the channel

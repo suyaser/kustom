@@ -7,6 +7,7 @@ import { workedBoardRows, workedWindowRows } from '../testing/boardFixtures';
 import { CHART_HEIGHT, CHART_WIDTH, chartGeometry } from './chart';
 import {
   BOARD_LEGEND,
+  boardLegend,
   gamesLabel,
   NOT_RATED,
   NOT_RATED_HINT,
@@ -14,11 +15,14 @@ import {
   RATING_LABEL,
   RECENT_RATING_LEGEND,
   SEED_LABEL,
+  SETTLING_CHIP,
   SETTLING_GAMES,
   SETTLING_SENTENCE,
   SETTLING_SENTENCE_PLAYER,
   SETTLING_SENTENCE_SHORT,
   START_LABEL,
+  WEEK_BOARD_SENTENCE,
+  WEEK_BOARD_SENTENCE_SHORT,
   WINDOW_EMPTY,
   WINDOW_LABELS,
   windowSlotLine,
@@ -52,6 +56,7 @@ function row(overrides: Partial<BoardRow>): BoardRow {
   return {
     puuid: 'puuid-a',
     name: 'A',
+    track: 'all-time',
     proven: 900,
     rating: 1_400,
     games: 40,
@@ -195,6 +200,81 @@ describe('the copy product owns', () => {
     expect(NOT_RATED_HINT).toBe(
       "Some games don't move ratings: too short, short a player, or added from match history and not counted yet.",
     );
+  });
+});
+
+/**
+ * **The week board's copy** (M7.3, product 2026-09-15): the sentence under a week board and the
+ * footer its posts carry, character for character, plus the three rules about them.
+ */
+describe('the copy a week board says instead', () => {
+  it('is the long sentence, word for word', () => {
+    expect(WEEK_BOARD_SENTENCE).toBe(
+      "Every week starts everyone back at their rank on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
+    );
+  });
+
+  it('is the short form the embed footer prints', () => {
+    expect(WEEK_BOARD_SENTENCE_SHORT).toBe(
+      'Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.',
+    );
+  });
+
+  /**
+   * **`Every week`, not `This week`.** `Last week` prints the same two strings, because it is
+   * the same track and the reader is asking the same question — and `This week` would read as a
+   * mistake under the other heading.
+   */
+  it('says `Every week` in both, so `Last week` can print them too', () => {
+    for (const sentence of [WEEK_BOARD_SENTENCE, WEEK_BOARD_SENTENCE_SHORT]) {
+      expect(sentence.startsWith('Every week')).toBe(true);
+      expect(sentence).not.toContain('This week');
+    }
+  });
+
+  /**
+   * **The week does not claim to settle, and interpolates no game count.** M7.2 measured the
+   * weekly track reaching `sigma < 5.00` at game 30 — a bar a week never clears — so the word
+   * and the number are both absent, and `SETTLING_GAMES` is not read anywhere near these.
+   */
+  it('promises no settling and counts no games', () => {
+    for (const sentence of [WEEK_BOARD_SENTENCE, WEEK_BOARD_SENTENCE_SHORT]) {
+      // The week never claims to settle — `All time is the settled one` is a sentence about
+      // the other board, which is the point of saying it here.
+      expect(sentence).not.toContain('settles after');
+      expect(sentence).toContain('All time is the settled one');
+      expect(sentence).not.toContain(String(SETTLING_GAMES));
+      expect(sentence).not.toMatch(/\d/);
+      // It names the column it sorts on, and never the one it does not print.
+      expect(sentence).not.toContain(PROVEN_LABEL);
+    }
+    expect(WEEK_BOARD_SENTENCE).toContain(`sorts on ${RATING_LABEL}`);
+  });
+
+  /**
+   * **Neither pair may be edited into the other** (the M3.26 rule). `All time`, the month
+   * windows and `/p/[puuid]` keep printing M3.8's three sentences byte for byte, and the chip
+   * and its threshold are untouched.
+   */
+  it('leaves the Proven sentences, the chip and the threshold exactly as they were', () => {
+    expect(SETTLING_GAMES).toBe(30);
+    expect(SETTLING_CHIP).toBe('settling');
+    expect(SETTLING_SENTENCE).toBe(
+      'The board sorts on Proven: your rating, minus how unsure the board still is about you. That gap shrinks as you play and settles after about 30 games.',
+    );
+    expect(SETTLING_SENTENCE_SHORT).toBe(
+      'Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.',
+    );
+    expect(SETTLING_SENTENCE_PLAYER).toBe(
+      "The board sorts on Proven: a player's rating, minus how unsure the board still is about them. That gap shrinks as they play and settles after about 30 games.",
+    );
+  });
+
+  /** The legend names the number in the column under it, and there are only two of them. */
+  it('puts `Rating` over a week board and `Proven` over every other one', () => {
+    expect(boardLegend('weekly')).toBe(RATING_LABEL);
+    expect(boardLegend('all-time')).toBe(BOARD_LEGEND);
+    expect(boardLegend('all-time')).toBe(PROVEN_LABEL);
   });
 });
 

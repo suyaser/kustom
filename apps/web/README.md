@@ -178,6 +178,14 @@ page has a client component, and only for the Realtime subscription.
   outweighs half their mu — an Iron IV seed is `-160` — so the printed number is floored and the raw ordinal
   (`provenSortKey`) rides along unprinted to keep rows that all display `0` in their true order. The floor is
   monotonic, so the printed column still never goes up as you read down it.
+- **A week is the other track** (M7.3). `This week` and `Last week` are folded from scratch at read time —
+  each player's stored seed, through that week's rated games, with `rateGameWeekly` (`lib/board/weekly.ts`) —
+  and they **sort and print `Rating`**, not Proven: a week is a handful of games, so `- 2σ` is enormous for
+  every row and largest for whoever played fewest, and Proven would rank a 4W 4L week above a clean 2W 0L one.
+  `sortKey` on a week row is the weekly `mu` itself, **no Proven is printed on a week surface at all**, no row
+  carries the `settling` chip, and the note under the board is `WEEK_BOARD_SENTENCE`. The row says which track
+  it came from in `BoardRow.track`; nothing is stored, and `lib/ingest/` never imports any of it. `All time`,
+  `This month` and `Last month` are the stored fold and are untouched.
 - **The `settling` chip (M3.8)** is on a player with fewer than `SETTLING_GAMES` (30) recorded games, and its
   sentence appears **once per page**, never per row. Both live in `lib/board/copy.ts`, and the 30 in the
   sentence is interpolated from the same constant the chip switches off at.

@@ -64,6 +64,14 @@ export function BoardRow({ row, rank, viewerPuuid }: BoardRowProps) {
 }
 
 function BoardRowLines({ row, rank, mark }: { row: BoardRowModel; rank: number; mark: boolean }) {
+  /**
+   * **A week row has one number and it is `Rating`** (M7.3). The primary slot carries it, line
+   * 2's small-type second number is dropped rather than replaced, and **no Proven is printed on
+   * a week board at all** — not in small type, not as a label, nothing. Every other window is
+   * exactly the row M3.5 shipped: Proven on the right edge, `Rating` under it.
+   */
+  const weekly = row.track === 'weekly';
+
   return (
     <>
       <div className="cn-row-top">
@@ -96,9 +104,16 @@ function BoardRowLines({ row, rank, mark }: { row: BoardRowModel; rank: number; 
          * nothing to open does not shift that column.
          */}
         <span className={mark ? 'cn-row-mark' : 'cn-row-mark cn-row-mark-empty'} aria-hidden="true" />
+        {/*
+         * **The number the board sorted on** — Proven off the stored fold, and on a week window
+         * the weekly `Rating` (M7.3). One slot, one number, and the visually-hidden noun beside
+         * it names whichever one it is, so a screen reader is never left with an integer that
+         * means something else on the tab next door. The class is the layout's, not a claim
+         * about which number is in it.
+         */}
         <span className="cn-num cn-proven">
-          {row.proven}
-          <span className="cn-sr"> {PROVEN_LABEL}</span>
+          {weekly ? row.rating : row.proven}
+          <span className="cn-sr"> {weekly ? RATING_LABEL : PROVEN_LABEL}</span>
         </span>
       </div>
       <div className="cn-row-bottom">
@@ -132,11 +147,18 @@ function BoardRowLines({ row, rank, mark }: { row: BoardRowModel; rank: number; 
             </>
           ) : null}
         </span>
-        {/* `Rating` prints inline on every line 2: it is the number people arrive knowing, so
-            it is the one whose name has to be where it appears. */}
-        <span className="cn-row-rating">
-          {RATING_LABEL} <span className="cn-num">{row.rating}</span>
-        </span>
+        {/*
+         * `Rating` prints inline on every line 2: it is the number people arrive knowing, so it
+         * is the one whose name has to be where it appears.
+         *
+         * **Except on a week row**, where it is already the big number on line 1 and printing
+         * it twice would make one row say one number in two type sizes (M7.3).
+         */}
+        {weekly ? null : (
+          <span className="cn-row-rating">
+            {RATING_LABEL} <span className="cn-num">{row.rating}</span>
+          </span>
+        )}
       </div>
     </>
   );

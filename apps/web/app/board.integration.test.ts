@@ -139,6 +139,17 @@ if (stack === null) {
   const fillerPuuids = Array.from({ length: 7 }, (_, index) => `it-${runId}-fil${index}`);
   const fillerIds: string[] = [];
 
+  /**
+   * Eight more seats for the **window** games below, so those are ten-row games too.
+   *
+   * Since M7.3 a week window is folded from scratch with `rateGameWeekly`, which takes five and
+   * five: a two-row fixture game would be skipped by that fold and the week's numbers would be
+   * ten seeds. These are Gold IV like the pair, rated flat at 24 by the stored fold, and nothing
+   * in this file asserts on them.
+   */
+  const weekFillerPuuids = Array.from({ length: 8 }, (_, index) => `it-${runId}-wfil${index}`);
+  const weekFillerIds: string[] = [];
+
   beforeAll(async () => {
     const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
     seasonId = season?.id ?? '';
@@ -159,6 +170,12 @@ if (stack === null) {
           rank_tier: 'GOLD',
           rank_division: 'IV',
         })),
+        ...weekFillerPuuids.map((id, index) => ({
+          puuid: id,
+          display_name: `Wil${index}`,
+          rank_tier: 'GOLD',
+          rank_division: 'IV',
+        })),
       ])
       .select('id, puuid');
     expect(error).toBeNull();
@@ -173,6 +190,10 @@ if (stack === null) {
     for (const id of fillerPuuids) {
       const row = (players ?? []).find((player) => player.puuid === id);
       fillerIds.push(row?.id ?? '');
+    }
+    for (const id of weekFillerPuuids) {
+      const row = (players ?? []).find((player) => player.puuid === id);
+      weekFillerIds.push(row?.id ?? '');
     }
 
     // Two of the three have a rating row; the nameless one is seeded from rank in memory, the
@@ -337,6 +358,22 @@ if (stack === null) {
           mu_after: game.otto[1] as number,
           sigma_after: 5,
         },
+        // Four each side, so the weekly fold (M7.3) has five and five to hand to core.
+        ...weekFillerIds.map((id, seat) => ({
+          game_id: gameId,
+          player_id: id,
+          side: seat < 4 ? 100 : 200,
+          role: ['top', 'jungle', 'adc', 'support'][seat % 4] as string as
+            | 'top'
+            | 'jungle'
+            | 'mid'
+            | 'adc'
+            | 'support',
+          mu_before: 24,
+          sigma_before: 5,
+          mu_after: 24,
+          sigma_after: 5,
+        })),
       ]);
     }
   });
@@ -345,7 +382,7 @@ if (stack === null) {
     if (gameIds.length > 0) await db.from('games').delete().in('id', gameIds);
     // The splits go with it: `splits.lobby_id` cascades.
     if (lobbyId !== '') await db.from('lobbies').delete().eq('id', lobbyId);
-    const ids = [...Object.values(playerIds), ...fillerIds].filter((id) => id !== '');
+    const ids = [...Object.values(playerIds), ...fillerIds, ...weekFillerIds].filter((id) => id !== '');
     if (ids.length > 0) {
       await db.from('ratings').delete().in('player_id', ids);
       await db.from('players').delete().in('id', ids);
@@ -426,89 +463,88 @@ if (stack === null) {
   });
 
   /**
-   * The windowed board (M5.12), against real rows and the anon key. Everything here is a fact
-   * about *which games are looked at*: the sort, the two numbers' definitions and the fold
-   * itself are untouched, which is what the `All time` block above still pins.
+   * The windowed board (M5.12), against real rows and the anon key.
+   *
+   * **The month windows are what this block pins**, and they are the stored fold exactly as
+   * M5.12 shipped it: a window changes which games are looked at, and nothing about the two
+   * numbers or the sort. The two **week** windows read the weekly track since M7.3 — their
+   * membership, their empty states and their dates are here, and everything the weekly fold
+   * computes is in `weekBoard.integration.test.ts`.
    */
   describe('the board through a window', () => {
     it('lists only the players who played inside it', async () => {
       const lastWeek = await loadBoard(anon, { window: 'last-week', ...WEEK });
       const thisWeek = await loadBoard(anon, { window: 'this-week', ...WEEK });
 
-      const puuids = (board: { rows: { puuid: string }[] }): string[] =>
-        board.rows.map((row) => row.puuid).filter((id) => id.startsWith(`it-${runId}-`));
+      // Membership, not order: a week is ordered by the weekly fold (M7.3), and who is on it
+      // is the question this test asks.
+      const pair = (board: { rows: { puuid: string }[] }): string[] =>
+        board.rows
+          .map((row) => row.puuid)
+          .filter((id) => id === puuid.weekly || id === puuid.other)
+          .sort();
 
-      expect(puuids(lastWeek)).toEqual([puuid.weekly, puuid.other]);
-      expect(puuids(thisWeek)).toEqual([puuid.weekly, puuid.other]);
+      expect(pair(lastWeek)).toEqual([puuid.weekly, puuid.other].sort());
+      expect(pair(thisWeek)).toEqual([puuid.weekly, puuid.other].sort());
       // The three players of the `All time` block played at the wall clock of the test run and
       // are in neither of these two fixed weeks: the board is who played *then*. The nameless
       // one has no rated row at all and is on no window's board at any time.
       for (const board of [lastWeek, thisWeek]) {
-        expect(puuids(board)).not.toContain(puuid.zoe);
-        expect(puuids(board)).not.toContain(puuid.nameless);
+        const puuids = board.rows.map((row) => row.puuid);
+        expect(puuids).not.toContain(puuid.zoe);
+        expect(puuids).not.toContain(puuid.nameless);
       }
     });
 
     /**
-     * **The board as it stood when the week closed.** Wren finished last week on `mu` 25.2 and
-     * has played since; `Last week` must still say 25.2, which is what makes the Sunday post
-     * reproducible on Tuesday and after a late backfill.
+     * **The board as it stood when the window closed**, on the windows that still read the
+     * stored fold. All three of the pair's games are in June, so `This month` is Wren as of the
+     * last of them — `mu` 25.8 — with the two numbers, the climb and the chip untouched by
+     * M7.3.
      */
     it('is each player as of their last counted game inside the window', async () => {
-      const board = await loadBoard(anon, { window: 'last-week', ...WEEK });
+      const board = await loadBoard(anon, { window: 'this-month', ...WEEK });
       const wren = board.rows.find((row) => row.puuid === puuid.weekly);
 
-      expect(wren?.rating).toBe(1_512);
-      // `mu - 2σ` as of that game: 25.2 - 10 = 15.2, times sixty.
-      expect(wren?.proven).toBe(912);
-      expect(wren).toMatchObject({ games: 2, wins: 1, losses: 1 });
-      // The climb is the two mu values, never a formatted delta: 25 in, 25.2 out.
-      expect(wren?.climb).toEqual({ muBefore: 25, muAfter: 25.2 });
+      expect(wren?.track).toBe('all-time');
+      expect(wren?.rating).toBe(1_548);
+      // `mu - 2σ` as of that game: 25.8 - 10 = 15.8, times sixty.
+      expect(wren?.proven).toBe(948);
+      expect(wren).toMatchObject({ games: 3, wins: 2, losses: 1 });
+      // The climb is the two mu values, never a formatted delta: 25 in, 25.8 out.
+      expect(wren?.climb).toEqual({ muBefore: 25, muAfter: 25.8 });
     });
 
-    it('opens last week into those two rated games when the board asks', async () => {
-      const board = await loadBoard(anon, { window: 'last-week', includeBreakdown: true, ...WEEK });
+    it('opens the month into those rated games when the board asks', async () => {
+      const board = await loadBoard(anon, { window: 'this-month', includeBreakdown: true, ...WEEK });
       const wren = board.rows.find((row) => row.puuid === puuid.weekly);
 
       expect(
         wren?.breakdown.map((game) => ({ won: game.won, muBefore: game.muBefore, muAfter: game.muAfter })),
       ).toEqual([
+        { won: true, muBefore: 25.2, muAfter: 25.8 },
         { won: false, muBefore: 25.6, muAfter: 25.2 },
         { won: true, muBefore: 25, muAfter: 25.6 },
       ]);
     });
 
-    it('is their current rating on the running week, because that game is their last', async () => {
-      const [board, all] = await Promise.all([
-        loadBoard(anon, { window: 'this-week', ...WEEK }),
-        loadBoard(anon, ALL_TIME),
-      ]);
+    it('sorts a month window on Proven, and never on who climbed most', async () => {
+      const board = await loadBoard(anon, { window: 'this-month', ...WEEK });
+      const mine = board.rows.filter((row) => row.puuid === puuid.weekly || row.puuid === puuid.other);
 
-      const inWeek = board.rows.find((row) => row.puuid === puuid.weekly);
-      const allTime = all.rows.find((row) => row.puuid === puuid.weekly);
-
-      expect(inWeek?.rating).toBe(1_548);
-      expect(inWeek?.rating).toBe(allTime?.rating);
-      expect(inWeek).toMatchObject({ games: 1, wins: 1, losses: 0 });
-      expect(inWeek?.climb).toEqual({ muBefore: 25.2, muAfter: 25.8 });
-    });
-
-    it('sorts every window on Proven, and never on who climbed most', async () => {
-      const board = await loadBoard(anon, { window: 'last-week', ...WEEK });
-      const mine = board.rows.filter((row) => row.puuid.startsWith(`it-${runId}-`));
-
-      // Otto climbed last week (21.4 → 21.9) and Wren lost ground (25.6 → 25.2); Wren is still
-      // first, because the board sorts on the number it prints.
+      // Otto climbed in June (22 → 21.3 is a loss, but he took the middle game) and Wren is
+      // still first, because the board sorts on the number it prints.
       expect(mine.map((row) => row.puuid)).toEqual([puuid.weekly, puuid.other]);
-      expect(mine.map((row) => row.proven)).toEqual([912, 714]);
+      expect(mine.map((row) => row.proven)).toEqual([948, 678]);
     });
 
     it('carries the whole history into the settling chip, not the window', async () => {
-      const board = await loadBoard(anon, { window: 'this-week', ...WEEK });
+      const board = await loadBoard(anon, { window: 'this-month', ...WEEK });
       const wren = board.rows.find((row) => row.puuid === puuid.weekly);
 
-      // One game this week, three in the `ratings` row: the chip is a fact about the rating.
-      expect(wren?.games).toBe(1);
+      // Three games in the month and three in the `ratings` row: the chip is a fact about the
+      // rating. (A week window carries no chip at all — M7.3.)
+      expect(wren?.games).toBe(3);
       expect(wren?.settling).toBe(true);
     });
 

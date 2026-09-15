@@ -49,6 +49,7 @@ export function workedBoardRows(): BoardRow[] {
       return {
         puuid: workedPuuid(player.name),
         name: player.name,
+        track: 'all-time' as const,
         proven: provenRating({ mu: player.mu, sigma: player.sigma }),
         sortKey: provenSortKey({ mu: player.mu, sigma: player.sigma }),
         rating: displayRating(player.mu),
@@ -81,25 +82,44 @@ export function workedBoard(overrides: Partial<BoardView> = {}): BoardView {
  * that is a real pair of mu values rather than a formatted number — the row computes the delta
  * at render, like every other delta in this product.
  *
- * The two numbers are untouched: a window changes who is on the board and what their week was,
- * never the sort or the numbers' meaning.
+ * **Two shapes, because there are two tracks** (M7.3). A month window is the stored fold, sorted
+ * and printed on Proven, byte-identical to what M5.12 shipped. A week window is the weekly
+ * track: the same ten `mu` values read as the week's own fold, so the row prints `Rating`,
+ * orders on the raw weekly `mu`, carries no `settling` chip, and climbs from its weekly seed.
  */
-export function workedWindowRows(): BoardRow[] {
-  return workedBoardRows().map((row) => ({
-    ...row,
-    games: 6,
-    wins: 4,
-    losses: 2,
-    streak: null,
-    // +58 at the display multiplier of 60: `mu` 23.9 to 24.87 is 1434 to 1492.
-    climb: { muBefore: 23.9, muAfter: 24.87 },
-  }));
+export function workedWindowRows(window: WindowKind = 'this-week'): BoardRow[] {
+  const weekly = window === 'this-week' || window === 'last-week';
+
+  return sortBoardRows(
+    WORKED_ROSTER.map((player) => {
+      const rating = { mu: player.mu, sigma: player.sigma };
+      return {
+        puuid: workedPuuid(player.name),
+        name: player.name,
+        track: weekly ? ('weekly' as const) : ('all-time' as const),
+        proven: provenRating(rating),
+        // The number the board sorted on, unrounded: the weekly `mu` on a week, the `ordinal`
+        // on a month.
+        sortKey: weekly ? rating.mu : provenSortKey(rating),
+        rating: displayRating(player.mu),
+        games: 6,
+        wins: 4,
+        losses: 2,
+        streak: null,
+        // +58 at the display multiplier of 60: `mu` 23.9 to 24.87 is 1434 to 1492.
+        climb: { muBefore: 23.9, muAfter: 24.87 },
+        // No chip on a week, ever (M7.3); the all-time count still decides it on a month.
+        settling: weekly ? false : (WORKED_GAMES[player.name] ?? 0) < SETTLING_GAMES,
+        breakdown: [],
+      };
+    }),
+  );
 }
 
 export function workedWindowBoard(window: WindowKind = 'this-week'): BoardView {
   return {
     window,
-    rows: workedWindowRows(),
+    rows: workedWindowRows(window),
     // The week `05-design.md`'s copy table prints, and the count the ten rows add up to.
     range:
       window === 'this-month' || window === 'last-month' ? 'September' : 'Sunday 6 Sep to Saturday 12 Sep',

@@ -25,15 +25,43 @@ import type { Streak } from './streak';
  * size they were and never grow a `<details>`.
  */
 
+/**
+ * Which rating track a row's numbers were read from (M7.3).
+ *
+ * - `all-time` — the stored fold: `ratings` on `All time`, and the `mu_after` of the last
+ *   counted game in the window on `This month` and `Last month`. Sorted and printed on Proven,
+ *   exactly as every board has been since M3.5.
+ * - `weekly` — the week folded from scratch from the player's seed with `rateGameWeekly`
+ *   (M7.2), on `This week` and `Last week` only. Sorted and printed on **Rating**.
+ *
+ * **One row never mixes tracks.** `rating`, `sortKey`, `proven` and `climb` all come from the
+ * one this field names, and the renderer reads it to decide which number is the row's primary —
+ * which is why it travels on the row rather than being inferred from a window the tonight
+ * rail's rows do not carry.
+ */
+export type RatingTrack = 'all-time' | 'weekly';
+
 /** One row of the board. `05-design.md`, "Leaderboard row", is the layout for exactly this. */
 export interface BoardRow {
   puuid: string;
   /** `null` for a player the database has no name for yet: rendered `Someone` (M3.10). */
   name: PlayerName;
-  /** `round(ordinal * 60)`, floored at zero. The primary number a reader sees. */
+  /** Which fold the four numbers below came from (M7.3). All four, or none: never a mix. */
+  track: RatingTrack;
+  /**
+   * `round(ordinal * 60)`, floored at zero. The primary number a reader sees — **except on a
+   * week row**, where the primary number is {@link BoardRow.rating} and this one is printed
+   * nowhere at all (M7.3): a week is a handful of games by design, so `- 2σ` is enormous for
+   * every row and largest for whoever played fewest. It is still computed, off the weekly
+   * track, so the row keeps one shape on every window.
+   */
   proven: number;
   /**
-   * The raw `ordinal` (`mu - 2σ`) this row is ordered by. **Never printed.**
+   * The raw number this row is ordered by. **Never printed.**
+   *
+   * The `ordinal` (`mu - 2σ`) on an `all-time` row, and the weekly `mu` itself on a `weekly`
+   * one — in both cases the unrounded form of the number the row prints, which is what keeps
+   * the printed column non-increasing as you read down it.
    *
    * `proven` is floored at zero, so everybody the board has not seen play yet displays `0`;
    * ordering on the displayed number would drop those rows onto the name tie-break and shuffle
@@ -41,7 +69,10 @@ export interface BoardRow {
    * non-increasing anyway.
    */
   sortKey: number;
-  /** `round(mu * 60)`. The number the embeds print beside a name. */
+  /**
+   * `round(mu * 60)`. The number the embeds print beside a name, and **the row's one number on
+   * a week window**, where it is the weekly track's `mu`.
+   */
   rating: number;
   /**
    * The **window's** counted games (M5.12), which on `All time` is the fold's own total and
@@ -61,12 +92,20 @@ export interface BoardRow {
    * What the window did to their rating: the two mu values it is computed from, never a
    * formatted delta (`-0` does not survive the `JSON.stringify` the rail's rows make). `null`
    * on `All time`, where the row is exactly today's row and gains nothing.
+   *
+   * On a `weekly` row it is the weekly seed to the weekly number at the end of the window —
+   * the same track as the rest of the row, so `6 games · 4W 2L · +58` adds up against the
+   * number printed beside it.
    */
   climb: Climb | null;
   /**
    * Fewer than 30 recorded games (M3.8) — **always the all-time count**, in every window. The
    * chip is a fact about the rating, not about the window: a player with one game this week
    * and two hundred behind them has not become unsettled by the calendar.
+   *
+   * **Always `false` on a `weekly` row** (M7.3): on a week that is every row, every week, and a
+   * marker on all ten rows marks nothing. `SETTLING_GAMES` and the chip are untouched on
+   * `All time` and the month windows.
    */
   settling: boolean;
   /**

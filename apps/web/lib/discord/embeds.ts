@@ -1,5 +1,11 @@
 import type { Role, Side } from '@customs/core';
-import { gamesLabel, LEADERBOARD_LABEL, SETTLING_SENTENCE_SHORT } from '../board/copy';
+import {
+  gamesLabel,
+  LEADERBOARD_LABEL,
+  SETTLING_SENTENCE_SHORT,
+  WEEK_BOARD_SENTENCE_SHORT,
+} from '../board/copy';
+import type { RatingTrack } from '../board/types';
 import { inLaneOrder } from '../laneOrder';
 import { type FieldLine, fieldValue, guardEmbed, KEEP_LAST_STANDING } from './limits';
 
@@ -202,12 +208,20 @@ export interface ResultEmbedInput {
   timestamp: string;
 }
 
-/** One line of the nightly board. Ordered by `proven` before it gets here, never after. */
+/** One line of the nightly board. Ordered before it gets here, never after. */
 export interface LeaderboardEntry {
   puuid: string;
   name: PlayerName;
-  /** `round(ordinal * 60)`: the number the list is ordered by and the only one it prints. */
-  proven: number;
+  /**
+   * **The number the board sorted on, which is the only one this line prints**: Proven
+   * (`round(ordinal * 60)`) on `All time` and the month windows, and the weekly `Rating`
+   * (`round(mu * 60)` off the week's own fold) on `This week` and `Last week` (M7.3).
+   *
+   * One field and not two, for the reason the web row has one big number: where only one
+   * number fits it is the one the order is made of, because a list ordered by a number it does
+   * not show is exactly the complaint this rule exists to prevent.
+   */
+  score: number;
   games: number;
 }
 
@@ -217,11 +231,26 @@ export interface LeaderboardEmbedInput {
    * `This week · leaderboard`, in the same five words the picker and the board heading use.
    */
   windowLabel: string;
-  /** Already ordered by Proven, descending. {@link TOP_N} is the most that will be printed. */
+  /**
+   * Which fold the entries' `score` came from (M7.3). It picks the footer and nothing else:
+   * a week post explains the week's restart, every other post explains Proven.
+   */
+  track: RatingTrack;
+  /** Already ordered, descending, by the number they carry. {@link TOP_N} is the most printed. */
   entries: readonly LeaderboardEntry[];
   /** The board, or `undefined` when there is no honest URL to post. */
   url?: string | undefined;
   timestamp: string;
+}
+
+/**
+ * The footer under a board post: Proven's sentence, or the week's (M7.3).
+ *
+ * Neither string is edited into the other and neither interpolates a game count — the week does
+ * not claim to settle, and `All time` and the month windows say exactly what they said before.
+ */
+export function boardFooter(track: RatingTrack): string {
+  return track === 'weekly' ? WEEK_BOARD_SENTENCE_SHORT : SETTLING_SENTENCE_SHORT;
 }
 
 /** `05-design.md`, "Nightly leaderboard embed": at most ten lines print. */
@@ -344,10 +373,12 @@ export function resultEmbed(input: ResultEmbedInput): WebhookPayload {
  * **One field, block, no columns.** A ranked list is a single column by nature and inline
  * fields would break it across a row.
  *
- * The number after the name is **Proven** (`round(ordinal * 60)`) and the list is ordered by
- * it: where only one number fits, it is the one the order is made of, because a list ordered
- * by a number it does not show is exactly the complaint this rule exists to prevent (M3.5
- * brief). `Rating` is on the web page, where there is a column for it.
+ * The number after the name is **the one the board is ordered by**, because where only one
+ * number fits it has to be the one the order is made of — a list ordered by a number it does
+ * not show is exactly the complaint this rule exists to prevent (M3.5 brief). That is Proven
+ * (`round(ordinal * 60)`) on `All time` and the month windows, and on the two week windows it
+ * is the weekly `Rating` (M7.3), which the nightly post prints because the nightly post reads
+ * `This week`.
  *
  * **The title names the window, not a season** (M5.12): `This week · leaderboard`, linking to
  * `?window=this-week`. A season name in a Discord title was always going to read as
@@ -355,10 +386,10 @@ export function resultEmbed(input: ResultEmbedInput): WebhookPayload {
  * longer a thing the product has. The field-name rule (M3.22) and the ten-line cap are
  * untouched.
  *
- * The footer is the short still-settling sentence, on **every** one of these posts and not
- * just the first: the reason Yuki is last by more than her rating suggests is her sigma, and a
- * post without the sentence is a post that invites the question again (M3.8). There is no
- * `settling` chip per line — it would double the length of the two lines that are already
+ * The footer is one short sentence, on **every** one of these posts and not just the first: a
+ * post without it is a post that invites the question again (M3.8). Which sentence follows the
+ * number above it — Proven's on an all-time board, the week's restart on a week one (M7.3). There
+ * is no `settling` chip per line — it would double the length of the two lines that are already
  * about the newest players.
  */
 export function leaderboardEmbed(input: LeaderboardEmbedInput): WebhookPayload {
@@ -369,7 +400,7 @@ export function leaderboardEmbed(input: LeaderboardEmbedInput): WebhookPayload {
     title: `${input.windowLabel} · ${LEADERBOARD_LABEL.toLowerCase()}`,
     ...(input.url === undefined ? {} : { url: input.url }),
     fields: [{ name: leaderboardFieldName(entries.length), value: boardValue(entries) }],
-    footer: { text: SETTLING_SENTENCE_SHORT },
+    footer: { text: boardFooter(input.track) },
     timestamp: input.timestamp,
   });
 }
@@ -388,7 +419,7 @@ function boardValue(entries: readonly LeaderboardEntry[]): string {
 
 /** `` `1` Lena · 1548 · 41 games ``. The rank is in code, like a role, so the column reads. */
 function leaderboardLine(entry: LeaderboardEntry, index: number): string {
-  return `\`${index + 1}\` ${renderName(entry.name)} · ${entry.proven} · ${gamesLabel(entry.games)}`;
+  return `\`${index + 1}\` ${renderName(entry.name)} · ${entry.score} · ${gamesLabel(entry.games)}`;
 }
 
 /**
@@ -419,7 +450,9 @@ export interface WindowSummaryEmbedInput {
   windowLabel: string;
   /** `Sunday 6 Sep to Saturday 12 Sep · 14 games` (`windowRange.ts`), the window's own dates. */
   description: string;
-  /** The window's board, ordered by Proven. {@link TOP_N} is the most that will print. */
+  /** Which fold the entries came from (M7.3): `weekly` on the Sunday post, `all-time` monthly. */
+  track: RatingTrack;
+  /** The window's board, in its own order. {@link TOP_N} is the most that will print. */
   entries: readonly LeaderboardEntry[];
   /** M5.4's three lines when they exist. Undefined or empty prints no field at all. */
   awards?: readonly WindowAward[] | undefined;
@@ -461,7 +494,7 @@ export function windowSummaryEmbed(input: WindowSummaryEmbedInput): WebhookPaylo
       { name: leaderboardFieldName(entries.length), value: boardValue(entries) },
       ...(awards.length === 0 ? [] : [{ name: AWARDS_FIELD, value: fieldValue(awards.flatMap(awardLines)) }]),
     ],
-    footer: { text: SETTLING_SENTENCE_SHORT },
+    footer: { text: boardFooter(input.track) },
     timestamp: input.timestamp,
   });
 }

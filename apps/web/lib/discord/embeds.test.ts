@@ -1,6 +1,6 @@
 import { displayRating, type Rating, rateGame } from '@customs/core';
 import { describe, expect, it } from 'vitest';
-import { WINDOW_LABELS } from '../board/copy';
+import { SETTLING_SENTENCE_SHORT, WEEK_BOARD_SENTENCE_SHORT, WINDOW_LABELS } from '../board/copy';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { displayDelta } from '../ratingDisplay';
 import { workedBoardRows } from '../testing/boardFixtures';
@@ -9,6 +9,7 @@ import { buildTeamsInput } from './assemble';
 import {
   ACCENT_COLOR,
   BLUE_COLOR,
+  boardFooter,
   formatDamage,
   formatDelta,
   formatDuration,
@@ -580,10 +581,17 @@ function workedLeaderboardInput(overrides: Partial<LeaderboardEmbedInput> = {}):
     // The **window's** name, never a season's (M5.12): the title, the board heading and the
     // picker's option are the same three words.
     windowLabel: WINDOW_LABELS['this-week'],
+    /**
+     * **The all-time track**, which is what pins `05-design.md`'s nightly post byte for byte
+     * (M3.5, M5.10). The nightly post itself reads `This week` and therefore the weekly track
+     * since M7.3 — that is the `the week's own board` block below, and `post.ts` is what
+     * chooses between them. This builder is pure and prints whichever it is given.
+     */
+    track: 'all-time',
     entries: workedBoardRows().map((row) => ({
       puuid: row.puuid,
       name: row.name,
-      proven: row.proven,
+      score: row.proven,
       games: row.games,
     })),
     url: `${SITE_URL}/leaderboard?window=this-week`,
@@ -687,7 +695,7 @@ describe('leaderboardEmbed, the worked example', () => {
     const entries = [...workedLeaderboardInput().entries];
     const value = leaderboardEmbed(
       workedLeaderboardInput({
-        entries: [...entries, { puuid: 'puuid-11', name: 'Eleventh', proven: 100, games: 3 }],
+        entries: [...entries, { puuid: 'puuid-11', name: 'Eleventh', score: 100, games: 3 }],
       }),
     ).embeds[0]?.fields[0]?.value;
 
@@ -698,7 +706,7 @@ describe('leaderboardEmbed, the worked example', () => {
   it('says `1 game` for the newest player, never `1 games`', () => {
     const value = leaderboardEmbed(
       workedLeaderboardInput({
-        entries: [{ puuid: 'puuid-new', name: 'New', proven: 0, games: 1 }],
+        entries: [{ puuid: 'puuid-new', name: 'New', score: 0, games: 1 }],
       }),
     ).embeds[0]?.fields[0]?.value;
 
@@ -708,11 +716,54 @@ describe('leaderboardEmbed, the worked example', () => {
   it('renders a nameless player as `Someone`, like every other surface (M3.10)', () => {
     const value = leaderboardEmbed(
       workedLeaderboardInput({
-        entries: [{ puuid: 'puuid-x', name: null, proven: 700, games: 12 }],
+        entries: [{ puuid: 'puuid-x', name: null, score: 700, games: 12 }],
       }),
     ).embeds[0]?.fields[0]?.value;
 
     expect(value).toBe('`1` Someone · 700 · 12 games');
+  });
+});
+
+/**
+ * **The week's own board post** (M7.3). The nightly post reads `This week` and the Sunday post
+ * reads `Last week`, so both print the weekly `Rating` as the line's one number and both carry
+ * the week's footer instead of Proven's. The builder is the same one; the track is what differs.
+ */
+describe('a board post on the weekly track', () => {
+  const weekly = () =>
+    workedLeaderboardInput({
+      track: 'weekly',
+      entries: workedBoardRows().map((row) => ({
+        puuid: row.puuid,
+        name: row.name,
+        // What a week row prints: `round(mu * 60)`, off the week's own fold.
+        score: row.rating,
+        games: 6,
+      })),
+    });
+
+  it('prints the weekly Rating and never a Proven number', () => {
+    const value = leaderboardEmbed(weekly()).embeds[0]?.fields[0]?.value ?? '';
+
+    expect(value.split('\n')[0]).toBe('`1` Lena · 2088 · 6 games');
+    // Lena's all-time Proven, the number an all-time post prints for her, is nowhere in it.
+    expect(value).not.toContain('1548');
+  });
+
+  it('carries the week footer, and the other windows keep Proven`s', () => {
+    expect(leaderboardEmbed(weekly()).embeds[0]?.footer.text).toBe(WEEK_BOARD_SENTENCE_SHORT);
+    expect(leaderboardEmbed(workedLeaderboardInput()).embeds[0]?.footer.text).toBe(SETTLING_SENTENCE_SHORT);
+    // The Sunday post is `last-week` and the monthly one is not: one helper, two answers.
+    expect(boardFooter('weekly')).toBe(WEEK_BOARD_SENTENCE_SHORT);
+    expect(boardFooter('all-time')).toBe(SETTLING_SENTENCE_SHORT);
+  });
+
+  it('interpolates no game count into either footer', () => {
+    expect(WEEK_BOARD_SENTENCE_SHORT).not.toMatch(/\d/);
+    expect(
+      windowSummaryEmbed(workedWindowInput({ track: 'weekly', entries: weekly().entries })).embeds[0]?.footer
+        .text,
+    ).toBe(WEEK_BOARD_SENTENCE_SHORT);
   });
 });
 
@@ -727,10 +778,11 @@ function workedWindowInput(overrides: Partial<WindowSummaryEmbedInput> = {}): Wi
   return {
     windowLabel: WINDOW_LABELS['last-week'],
     description: 'Sunday 6 Sep to Saturday 12 Sep · 14 games',
+    track: 'all-time',
     entries: workedBoardRows().map((row) => ({
       puuid: row.puuid,
       name: row.name,
-      proven: row.proven,
+      score: row.proven,
       games: row.games,
     })),
     url: `${SITE_URL}/leaderboard?window=last-week`,
@@ -820,7 +872,7 @@ describe('windowSummaryEmbed, the closed window', () => {
 
   it('caps the board at ten lines and renders a nameless player as `Someone`', () => {
     const value = windowSummaryEmbed(
-      workedWindowInput({ entries: [{ puuid: 'puuid-x', name: null, proven: 700, games: 1 }] }),
+      workedWindowInput({ entries: [{ puuid: 'puuid-x', name: null, score: 700, games: 1 }] }),
     ).embeds[0]?.fields[0]?.value;
 
     expect(value).toBe('`1` Someone · 700 · 1 game');

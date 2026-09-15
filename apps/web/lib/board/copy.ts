@@ -10,6 +10,7 @@
 
 import { config, seedFromRank } from '@customs/core';
 import type { WindowKind } from '../night';
+import type { RatingTrack } from './types';
 
 /** The primary number: `round(ordinal * 60)`. Named once per page, in the legend. */
 export const PROVEN_LABEL = 'Proven';
@@ -110,6 +111,49 @@ export const SETTLING_SENTENCE_PLAYER =
  */
 export const SETTLING_SENTENCE_SHORT =
   `${PROVEN_LABEL} is your rating minus how unsure the board still is about you, and it settles after about ${SETTLING_GAMES} games.` as const;
+
+/* ---------------------------------------------------------------------------
+ * The week board (M7.3). `This week` and `Last week` are folded from scratch
+ * every Sunday and **sort on Rating**, not on Proven, so they need their own
+ * sentence — not an edit of the three above, which keep printing byte for byte
+ * on `All time`, on the month windows and on `/p/[puuid]` (the M3.26 rule).
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The sentence under the board on a week window, once per page, where
+ * {@link SETTLING_SENTENCE} prints on every other one (product, 2026-09-15).
+ *
+ * **No game count is interpolated, and the name carries no `SETTLING`.** M7.2 measured the
+ * weekly track reaching `sigma < 5.00` at game 30 — a bar a group playing one to three games a
+ * night never clears inside a week — so the week does not claim to settle at all. What it says
+ * instead is what is true and measured: the Sunday restart, the column it sorts on, that the
+ * numbers swing, and where the settled number lives.
+ *
+ * **`Every week`, not `This week`**: `Last week` prints this same string, because it is the
+ * same track and the same question, and `This week` would read as a mistake under the other
+ * heading.
+ */
+export const WEEK_BOARD_SENTENCE =
+  `Every week starts everyone back at their rank on Sunday, so a good Tuesday shows up here straight away. The board sorts on ${RATING_LABEL} — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` as const;
+
+/**
+ * The same, for the embed footer where {@link SETTLING_SENTENCE_SHORT} prints on every other
+ * window: the nightly post reads `this-week` and the Sunday post reads `last-week`, so both say
+ * this one instead (product, 2026-09-15).
+ */
+export const WEEK_BOARD_SENTENCE_SHORT =
+  'Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.' as const;
+
+/**
+ * The legend over the board's one number, which is **the number the board sorted on**.
+ *
+ * `Proven` on `All time` and the month windows, `Rating` on a week — where the row prints the
+ * weekly Rating and no Proven at all (M7.3). One helper, because the legend and the row's own
+ * visually-hidden noun have to name the same number.
+ */
+export function boardLegend(track: RatingTrack): string {
+  return track === 'weekly' ? RATING_LABEL : BOARD_LEGEND;
+}
 
 /**
  * The five windows the board is read through (M5.12, `05-design.md`'s board copy table,

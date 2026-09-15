@@ -14,6 +14,13 @@ import { rankLabel, SETTLING_GAMES } from './copy';
 import { sortBoardRows } from './order';
 import { recentGames } from './recent';
 import type { BoardGame, BoardRow, BoardView, PlayerBoardView, RecentGame, RecentTeammate } from './types';
+import {
+  foldWeeklyRatings,
+  isWeekWindow,
+  type WeeklyGame,
+  type WeeklyPlayer,
+  type WeeklyPlayerRating,
+} from './weekly';
 import { windowRangeLabel } from './window';
 
 /**
@@ -54,6 +61,12 @@ const SEASON_GAME_LIMIT = 1_000;
 interface SeasonGame {
   id: string;
   startedAt: string;
+  /**
+   * The client's own game id, and **the tie-break the weekly fold orders on** (M7.3):
+   * `started_at` then `lcu_game_id` is the rebuild's order, so a week and a history folded from
+   * the same two games agree about which came first.
+   */
+  lcuGameId: number;
   durationS: number;
   winningSide: SideValue;
   /**
@@ -105,10 +118,13 @@ export interface BoardOptions {
 }
 
 /**
- * The board, read through one window (M3.5, windowed by M5.12). Ordered by Proven descending,
- * and **the window changes who is on the board, not how boards are sorted** — a weekly board
- * sorted by "who climbed most this week" would be a second ranking with a second meaning, and
- * the group already has one number to argue about.
+ * The board, read through one window (M3.5, windowed by M5.12, weekly since M7.3).
+ *
+ * **Ordered by the number it prints**, always — that rule has never moved. What M7.3 changed is
+ * *which* number that is on the two week windows: `All time`, `This month` and `Last month` sort
+ * and print Proven off the stored fold, and `This week` / `Last week` sort and print the weekly
+ * `Rating` off a from-scratch fold of that week's games (`weekly.ts`). Still not "who climbed
+ * most this week", which would be a second ranking with a second meaning.
  *
  * Two membership rules, and they are not the same rule:
  *
@@ -170,6 +186,9 @@ export async function loadBoard(client: PublicClient, options: BoardOptions): Pr
     return {
       puuid: player.puuid,
       name: player.name,
+      // `All time` is the stored fold and nothing else: the weekly track (M7.3) is read on the
+      // two week windows and never here.
+      track: 'all-time',
       proven: provenRating(rating),
       sortKey: provenSortKey(rating),
       rating: displayRating(rating.mu),
@@ -244,15 +263,22 @@ async function firstCountedGameAt(client: PublicClient, seasonId: string): Promi
 
 /**
  * One window's rows: the players who played inside it, with their numbers **as of their last
- * counted game in it** (M5.12).
+ * counted game in it** (M5.12) — or, on a week, **folded from scratch over the window** (M7.3).
  *
- * On `Last week` that is the board as it stood when the week closed, which is what makes the
- * Sunday post reproducible on Monday and after a late backfill. On `This week` it is also
- * their current rating, because their last game in the running week *is* their last game — one
- * rule, no special case.
+ * On `Last month` the first rule is the whole story: the board as it stood when the month
+ * closed, which is what makes the monthly post reproducible afterwards and after a late
+ * backfill.
+ *
+ * On `This week` and `Last week` the row's four rating numbers come from the weekly track
+ * instead — the player's seed, folded through this week's counted games with `rateGameWeekly`
+ * — because a week judged on a rating forty games of history are already in is a week that
+ * cannot show. **Membership, the counts and the order of the games are identical either way**;
+ * the difference is which number the row carries and, for a week, that the number it sorts and
+ * prints is `Rating` rather than Proven (`weekly.ts` says why).
  *
  * A counted game is one the fold counted, which on a stored row is `mu_after is not null`.
- * An unrated game in the window counts nowhere here, exactly as on `/leaderboard` today.
+ * An unrated game in the window counts nowhere here, exactly as on `/leaderboard` today — and
+ * it is not in the weekly fold either, so the two agree about what the week was.
  */
 async function windowRows(
   client: PublicClient,
@@ -295,6 +321,34 @@ async function windowRows(
   const timeZone = options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE;
   const includeBreakdown = options.includeBreakdown === true;
 
+  /**
+   * **The week's own fold** (M7.3), or `null` on the two month windows, where every number on
+   * the row is the stored one exactly as M5.12 shipped it.
+   *
+   * The seed is `lib/ingest/seed.ts`'s rule and not a second reading of it: the stored
+   * `ratings.seed_*` pair first, the player's current rank only for somebody who has never been
+   * rated. That is what makes `Last week` read the same on Tuesday as it did on Sunday, and the
+   * same again after a rank moves.
+   */
+  const weekly = isWeekWindow(options.window)
+    ? foldWeeklyRatings(
+        weeklyGames(games, rows, players),
+        new Map(
+          playerIds.map((playerId) => {
+            const player = players.get(playerId);
+            return [
+              playerId,
+              seedFor(
+                ratings.get(playerId)?.seed ?? null,
+                player?.rankTier ?? null,
+                player?.rankDivision ?? null,
+              ).rating,
+            ];
+          }),
+        ),
+      )
+    : null;
+
   return playerIds.flatMap((playerId) => {
     const player = players.get(playerId);
     const played = byPlayer.get(playerId) ?? [];
@@ -304,15 +358,23 @@ async function windowRows(
     // draw. The foreign key says it cannot happen.
     if (player === undefined || first === undefined || last === undefined) return [];
 
-    const rating: Rating = { mu: last.row.muAfter as number, sigma: last.row.sigmaAfter as number };
+    const stored: Rating = { mu: last.row.muAfter as number, sigma: last.row.sigmaAfter as number };
+    const week = weekly?.get(playerId) ?? null;
+    const rating: Rating = week === null ? stored : week.rating;
     const wins = played.filter(({ row, game }) => row.side === game.winningSide).length;
 
     return [
       {
         puuid: player.puuid,
         name: player.name,
+        track: week === null ? ('all-time' as const) : ('weekly' as const),
         proven: provenRating(rating),
-        sortKey: provenSortKey(rating),
+        /**
+         * **What the board sorted on, unrounded.** The `ordinal` on a month window, and on a
+         * week the weekly `mu` itself — the week prints `Rating`, and the rule that the order
+         * and the primary number are one number is what decides this (user, 2026-09-15).
+         */
+        sortKey: week === null ? provenSortKey(rating) : rating.mu,
         rating: displayRating(rating.mu),
         games: played.length,
         wins,
@@ -320,10 +382,60 @@ async function windowRows(
         // The window line replaces line 2's meta, and product fixed its shape without a
         // streak in it: `6 games · 4W 2L · +58`.
         streak: null,
-        climb: { muBefore: first.row.muBefore as number, muAfter: last.row.muAfter as number },
-        // **The all-time count**, not the window's: the chip is a fact about the rating.
-        settling: (ratings.get(playerId)?.games ?? played.length) < SETTLING_GAMES,
-        breakdown: includeBreakdown ? playedBreakdown(played, timeZone) : [],
+        climb:
+          week === null
+            ? { muBefore: first.row.muBefore as number, muAfter: last.row.muAfter as number }
+            : // The weekly seed to the weekly end: where Sunday put them, and where the week
+              // left them. Both ends on one track, like every other number on the row.
+              { muBefore: week.seed.mu, muAfter: week.rating.mu },
+        // **The all-time count**, not the window's: the chip is a fact about the rating. On a
+        // week there is no chip at all (M7.3): every row would carry it, every week.
+        settling: week === null && (ratings.get(playerId)?.games ?? played.length) < SETTLING_GAMES,
+        breakdown: includeBreakdown ? playedBreakdown(played, timeZone, week) : [],
+      },
+    ];
+  });
+}
+
+/**
+ * The window's **rated** games in the shape the weekly fold reads: the ten seats of each, from
+ * the rows already in memory, with the puuid the fold orders a side by.
+ *
+ * Every seat of a rated game is on the window's board by construction — the all-time fold wrote
+ * all ten `mu_after` columns together — so this never reaches for a player the board did not
+ * already load.
+ *
+ * **A game with no rated seat is dropped here rather than skipped downstream**, because that is
+ * not an anomaly: an ARAM night (M7.1) and a backfilled game the rebuild has not folded yet both
+ * look like this, they count nowhere else on the board either, and the fold's skip warning is
+ * for the shape that should not exist.
+ */
+function weeklyGames(
+  games: readonly SeasonGame[],
+  rows: readonly PlayerGameRow[],
+  players: ReadonlyMap<string, PlayerRow>,
+): WeeklyGame[] {
+  const seats = new Map<string, WeeklyPlayer[]>();
+  for (const row of rows) {
+    // Unrated rows are not part of the week: the board does not count them either.
+    if (row.muAfter === null) continue;
+    const player = players.get(row.playerId);
+    if (player === undefined) continue;
+    const list = seats.get(row.gameId) ?? [];
+    list.push({ playerId: row.playerId, puuid: player.puuid, side: row.side });
+    seats.set(row.gameId, list);
+  }
+
+  return games.flatMap((game) => {
+    const players = seats.get(game.id);
+    if (players === undefined) return [];
+    return [
+      {
+        gameId: game.id,
+        startedAt: game.startedAt,
+        lcuGameId: game.lcuGameId,
+        winningSide: game.winningSide,
+        players,
       },
     ];
   });
@@ -365,20 +477,40 @@ async function loadAllTimeBreakdowns(
   return out;
 }
 
+/**
+ * One player's games under their row (M5.30).
+ *
+ * `week` is their weekly fold on a week window and `null` everywhere else: the expand explains
+ * the number it sits under, so on `This week` each game's pair is the weekly track's — a row
+ * whose total is weekly and whose games were all-time would be a row that does not add up
+ * (M7.3). A game the weekly fold skipped has no pair and is not listed.
+ */
 function playedBreakdown(
   played: readonly { row: PlayerGameRow; game: SeasonGame }[],
   timeZone: string,
+  week: WeeklyPlayerRating | null = null,
 ): BoardGame[] {
+  const weekly = week === null ? null : new Map(week.games.map((game) => [game.gameId, game]));
+
   return boardBreakdown(
-    played.map(({ row, game }) => ({
-      gameId: game.id,
-      startedAt: game.startedAt,
-      durationS: game.durationS,
-      won: row.side === game.winningSide,
-      side: row.side,
-      muBefore: row.muBefore as number,
-      muAfter: row.muAfter as number,
-    })),
+    played.flatMap(({ row, game }) => {
+      const pair =
+        weekly === null
+          ? { muBefore: row.muBefore as number, muAfter: row.muAfter as number }
+          : weekly.get(game.id);
+      if (pair === undefined) return [];
+      return [
+        {
+          gameId: game.id,
+          startedAt: game.startedAt,
+          durationS: game.durationS,
+          won: row.side === game.winningSide,
+          side: row.side,
+          muBefore: pair.muBefore,
+          muAfter: pair.muAfter,
+        },
+      ];
+    }),
     timeZone,
   );
 }
@@ -849,7 +981,7 @@ async function loadSeasonGames(
 ): Promise<SeasonGame[]> {
   let query = client
     .from('games')
-    .select('id, started_at, duration_s, winning_side, lobby_id')
+    .select('id, lcu_game_id, started_at, duration_s, winning_side, lobby_id')
     .eq('season_id', seasonId);
   // **The window is a filter in the query, not a filter in memory** (M5.12): `Last month` on a
   // year of history would otherwise be read through the cap and come back empty.
@@ -863,6 +995,7 @@ async function loadSeasonGames(
       ? [
           {
             id: row.id,
+            lcuGameId: row.lcu_game_id,
             startedAt: row.started_at,
             durationS: row.duration_s,
             winningSide: row.winning_side as SideValue,
