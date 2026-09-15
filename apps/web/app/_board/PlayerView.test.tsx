@@ -1,6 +1,9 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
+  ACE_LABEL,
+  MVP_EXPLANATION,
+  MVP_LABEL,
   NOT_RATED,
   NOT_RATED_HINT,
   RATING_EXPLANATION,
@@ -673,10 +676,82 @@ describe('why each change is the size it is', () => {
       }),
     );
 
-    expect(screen.getAllByText(RATING_EXPLANATION)).toHaveLength(1);
+    // The strip is one paragraph of two sentences since M7.10: why a change is the size it is,
+    // and then what carrying a game is worth.
+    const strip = `${RATING_EXPLANATION} ${MVP_EXPLANATION}`;
+    expect(screen.getAllByText(strip)).toHaveLength(1);
     // In the tonight page's explanation-strip dress: the 3px `brand` rule that means "the bot
     // is explaining itself" (the designer, 2026-09-10).
-    expect(screen.getByText(RATING_EXPLANATION)).toHaveClass('cn-explain');
+    expect(screen.getByText(strip)).toHaveClass('cn-explain');
+  });
+});
+
+/**
+ * `MVP` and `ACE` on a game row (M7.10).
+ *
+ * The page never decides who they were — `lib/board/load.ts` asks `gameAward`, the fold's own
+ * call, and hands this component one of two words or nothing. What is tested here is the
+ * printing rule product wrote: the word, beside the delta, in the row's own size, and nothing
+ * else anywhere near it.
+ */
+describe('the MVP and the ACE on a game row', () => {
+  it('prints the word beside the delta on the row that won it', () => {
+    const { container } = draw(
+      workedPlayer('Hana', { recent: [workedRecentGame({ won: true, award: 'mvp' })] }),
+    );
+
+    const rating = container.querySelector('.cn-game-rating');
+    // In the same column as the number and the delta, after them, in one readable string.
+    expect(rating?.textContent).toContain(`) ${MVP_LABEL}`);
+    expect(container.querySelector('.cn-game-award')?.textContent?.trim()).toBe(MVP_LABEL);
+  });
+
+  it('prints ACE for the best player on the losing side', () => {
+    const { container } = draw(workedPlayer('Hana', { recent: [workedRecentGame({ award: 'ace' })] }));
+
+    expect(container.querySelector('.cn-game-award')?.textContent?.trim()).toBe(ACE_LABEL);
+    expect(container.querySelector('.cn-game-rating')?.textContent).not.toContain(MVP_LABEL);
+  });
+
+  /** Nine rows in ten. Absent, not empty: no placeholder, no dash, no "nearly MVP". */
+  it('prints nothing at all on a game that named neither', () => {
+    const { container } = draw(workedPlayer('Hana', { recent: [workedRecentGame({ award: null })] }));
+
+    expect(container.querySelector('.cn-game-award')).not.toBeInTheDocument();
+    expect(container.querySelector('.cn-game-head')?.textContent).not.toContain(MVP_LABEL);
+    expect(container.querySelector('.cn-game-head')?.textContent).not.toContain(ACE_LABEL);
+  });
+
+  /**
+   * Acceptance 6, Floodlit: **the word and nothing around it**. No emoji, no trophy, no `#1`,
+   * and no colour of its own — the class carries the delta's size and the page's own text
+   * colour, which is a rule a stylesheet can be read for and a test can pin the markup of.
+   */
+  it('is a word, not a badge: no emoji, no icon, no rank number', () => {
+    const { container } = draw(
+      workedPlayer('Hana', { recent: [workedRecentGame({ won: true, award: 'mvp' })] }),
+    );
+
+    const word = container.querySelector('.cn-game-award');
+    expect(word?.tagName).toBe('SPAN');
+    expect(word?.children).toHaveLength(0);
+    expect(word?.textContent).not.toMatch(/[#0-9]/u);
+    // Nothing outside the Basic Latin block: no 🏆, no ★, no medal.
+    expect(word?.textContent ?? '').toMatch(/^[ -~]+$/u);
+  });
+
+  /**
+   * The sentence is about the model, so it prints for a reader who has never been either one —
+   * which is most readers, most weeks.
+   */
+  it('explains the bonus even on a page where no row won anything', () => {
+    draw(
+      workedPlayer('Hana', {
+        recent: [workedRecentGame({ gameId: 'a' }), workedRecentGame({ gameId: 'b', award: null })],
+      }),
+    );
+
+    expect(screen.getByText(`${RATING_EXPLANATION} ${MVP_EXPLANATION}`)).toBeInTheDocument();
   });
 });
 

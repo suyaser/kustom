@@ -6,9 +6,12 @@ import { displayDelta, formatWebDelta, provenRating } from '../ratingDisplay';
 import { workedBoardRows, workedWindowRows } from '../testing/boardFixtures';
 import { CHART_HEIGHT, CHART_WIDTH, chartGeometry } from './chart';
 import {
+  ACE_LABEL,
   BOARD_LEGEND,
   boardLegend,
   gamesLabel,
+  MVP_EXPLANATION,
+  MVP_LABEL,
   NOT_RATED,
   NOT_RATED_HINT,
   PROVEN_LABEL,
@@ -201,6 +204,34 @@ describe('the copy product owns', () => {
     expect(NOT_RATED_HINT).toBe(
       "Some games don't move ratings: too short, short a player, or added from match history and not counted yet.",
     );
+  });
+
+  /**
+   * M7.10, acceptance 5: the three strings live here and not in a component, and they are
+   * product's own, pinned by code point.
+   */
+  it('names the MVP and the ACE in two words and explains them in one sentence', () => {
+    expect(MVP_LABEL).toBe('MVP');
+    expect(ACE_LABEL).toBe('ACE');
+    expect(MVP_EXPLANATION).toBe(
+      'The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.',
+    );
+  });
+
+  /**
+   * Acceptance 6, on the copy itself: no emoji, no trophy, no `#1`, no percentage and no score.
+   * The bonus is a fraction in `config.ts` and a reader never meets it as a number.
+   */
+  it('puts no trophy, no number and no score in any of the three', () => {
+    for (const word of [MVP_LABEL, ACE_LABEL, MVP_EXPLANATION]) {
+      // Basic Latin only, so nothing can smuggle in a medal.
+      expect(word).toMatch(/^[ -~]+$/u);
+      expect(word).not.toMatch(/[0-9#%]/u);
+    }
+    // The sentence says what happens, never by how much: `25%`, `1.25x` and `score` are out.
+    expect(MVP_EXPLANATION.toLowerCase()).not.toContain('score');
+    expect(MVP_EXPLANATION).not.toContain(MVP_LABEL);
+    expect(MVP_EXPLANATION).not.toContain(ACE_LABEL);
   });
 });
 

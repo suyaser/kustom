@@ -1,8 +1,11 @@
 import { displayRating } from '@customs/core';
 import Link from 'next/link';
 import {
+  ACE_LABEL,
   gamesLabel,
   LOST,
+  MVP_EXPLANATION,
+  MVP_LABEL,
   NOT_RATED,
   NOT_RATED_HINT,
   PROVEN_LABEL,
@@ -239,8 +242,17 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
            * In the tonight page's explanation-strip dress (the designer, 2026-09-10): the 3px
            * `brand` leading rule that means "the bot is explaining itself" on every other
            * surface it appears on.
+           *
+           * **Two sentences, one strip** (M7.10). The second says that the best player on the
+           * winning side keeps a little more and the best on the losing side gives a little
+           * less back — the other half of why a delta is the size it is, and therefore the same
+           * paragraph rather than a second leading rule under it. It is about the model, so it
+           * prints for every reader on every window, whether or not any row beside it says
+           * `MVP`.
            */}
-          <p className="cn-explain">{RATING_EXPLANATION}</p>
+          <p className="cn-explain">
+            {RATING_EXPLANATION} {MVP_EXPLANATION}
+          </p>
         </section>
       )}
 
@@ -309,6 +321,19 @@ function RecentGameView({
               <span className={isGain(delta) ? 'cn-delta cn-delta-up' : 'cn-delta'}>
                 {` (${formatWebDelta(delta)})`}
               </span>
+            )}
+            {/*
+             * **The word, beside the delta it explains** (M7.10): `1512 (+43) MVP`. One of two
+             * words or nothing at all — never a badge, never an icon, never a colour of its
+             * own — at the delta's own size, in the same column, so a reader scanning "what did
+             * this game do to me" finds it without a second place to look.
+             *
+             * Absent, not empty: the eight players who were neither, and every game the fold
+             * could not score, render no element here (`05-design.md`'s rule for the `not
+             * rated` row, and the same reason no page says "nearly MVP").
+             */}
+            {game.award === null ? null : (
+              <span className="cn-game-award">{` ${game.award === 'mvp' ? MVP_LABEL : ACE_LABEL}`}</span>
             )}
           </span>
         )}

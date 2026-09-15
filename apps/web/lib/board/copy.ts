@@ -390,3 +390,35 @@ export function gameExplanation(chance: number): string {
  */
 export const RATING_EXPLANATION =
   'Beating the favoured side moves you more than beating the underdog, and the board moves you more while it is still unsure about you.';
+
+/* ---------------------------------------------------------------------------
+ * The MVP and the ACE (M7.10). The bonus itself is M7.9's and lives in the
+ * fold; these are the only words any page says about it.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The word beside the delta on a `Recent games` row, for the best player on the **winning**
+ * side of that game (product, 2026-09-15).
+ *
+ * **The word, and nothing around it**: no badge, no icon, no trophy, no colour of its own and
+ * no "#1" (acceptance 6). op.gg's two words for op.gg's idea, upper case because that is how
+ * they are said — the scorer behind them is ours and is never printed.
+ */
+export const MVP_LABEL = 'MVP';
+
+/** The same word for the best player on the **losing** side. */
+export const ACE_LABEL = 'ACE';
+
+/**
+ * The second half of the explanation under `Recent games` (M7.10), directly after
+ * {@link RATING_EXPLANATION} and in the same strip.
+ *
+ * **It is about the model, not about a game.** It prints on every player's page whether or not
+ * they have ever been either one, for the same reason M5.15's sentence prints once per page and
+ * not once per row: the reader's question is "why is this number the size it is", and the answer
+ * does not change because tonight went badly. No maths, no percentage, no formula, and neither
+ * word is capitalised into the page — this sentence names the *positions*, and
+ * {@link MVP_LABEL} and {@link ACE_LABEL} name the players.
+ */
+export const MVP_EXPLANATION =
+  'The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.';

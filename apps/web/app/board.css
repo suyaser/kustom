@@ -487,6 +487,24 @@
 }
 
 /*
+ * `MVP` / `ACE` beside the delta (M7.10).
+ *
+ * **The word is the whole dress.** The delta's size and the row's own text colour, no weight of
+ * its own, no background, no border, no trophy and no gold — Floodlit has no award colour and
+ * this task is not the place to invent one (product: "not a badge, not an icon, not a colour of
+ * its own"). It reads as part of the same sentence as the number it follows, which is what it
+ * is: `1512 (+43) MVP`.
+ *
+ * `--cn-text` and `--cn-t-sm` are tokens, so the light theme and the gaming theme get it for
+ * free; nothing here is a literal colour.
+ */
+.cn-game-award {
+  font-size: var(--cn-t-sm);
+  color: var(--cn-text);
+  white-space: nowrap;
+}
+
+/*
  * "How you got here" (M5.15).
  *
  * Two quiet lines and no new furniture: the seed line above the chart, and one sentence per
