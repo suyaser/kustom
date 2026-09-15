@@ -33,7 +33,11 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 
 1. People gather in Discord voice as usual. (A "7 around" post was planned; it needed a bot process and the
    bot was dropped with the voice split on 2026-09-10, so the WhatsApp thread still answers that one itself.)
-2. Someone opens a custom lobby. Everyone joins. The lobby owner (or anyone in the lobby) runs the companion.
+2. The lobby opens. Somebody taps **Start a lobby** on the tonight page and a custom appears on whoever already
+   has the companion running — nobody picks the host, the name or the password — and an invite popup goes out to
+   everyone who has been around lately (M4.2). Opening one by hand in the client still works exactly as it
+   always did. Either way, somebody in that lobby is running the companion, because that is what the rest of the
+   night reads.
 3. When ten are in and stable, the companion sends the roster. The server balances and posts Blue and Red with
    roles, win chance, and a one-line why.
 4. Players switch to their side (companion can do it for them, see M4). Game starts.
@@ -44,11 +48,23 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    the post says as much — somebody has to be first — and from the second game on the rotation has real
    history to work from.
 
-## The two things a person can change
+## The three things a person can change
 
-Everything else happens without anybody touching it. These two exist because the docs already accepted them,
-and both are one tap:
+Everything else happens without anybody touching it. These three exist because the docs already accepted them,
+and each is one tap:
 
+- **Start a lobby** (M4.2, admins for now). The first tap of the night, and the only one that is optional:
+  whoever has the companion running can open a custom from their client the way they always have. Pressing the
+  button instead opens one on somebody's PC — the server picks whose, the most recently seen friend whose
+  companion has been up in the last ten minutes — with a name like `Customs 09 Sep #1` and a four-digit password
+  neither of them chose, and then sends an invite to everyone who has been around this week. The name and the
+  password are printed in the Discord post and on the page for anyone signed in, so whoever missed the popup
+  joins by hand. If
+  nobody's companion is running there is nothing to open and the page says exactly that. There are no fields on
+  it: no mode, no name, no password, because each of those is a step. Two people tapping at once get one lobby.
+  Today only an admin sees the button — widening it to any friend signed in with Discord is the piece of M4.2
+  that is still open — and the group has not yet started a night this way in front of anybody, so the first
+  real press is still ahead of us.
 - **Reroll** (M3.2, admins). Teams are posted and somebody wants a different night. One tap promotes the
   second split, one more promotes the third, and then it stops: three splits come out of the balancer and
   there is no fourth. A reroll posts a new message in Discord saying which reroll it is; it never edits the
