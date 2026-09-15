@@ -67,6 +67,66 @@ export const MYSTERY_SHARE = 'Copy result';
 export const MYSTERY_SHARE_DONE = 'Copied';
 
 /**
+ * Guess the Award's five divergent words (M8.4). Each one is the award day's reading of a
+ * sentence above it that names *the thing*: a crime, a case, a mystery, a blame. Nothing an
+ * award day shares with a mystery day is duplicated here — `Who was it?`, `Guess now`,
+ * `Reveal a clue`, `Locked in`, `Correct` / `Wrong`, `Your result`, `Today's community` and
+ * the empty state are true of both games and stay one constant each.
+ */
+export const AWARD_CRIME = 'The award';
+
+export const AWARD_CASE_CLOSED = 'Award settled';
+
+export const AWARD_TODAY_CLOSED = "Today's award is settled";
+
+export const AWARD_NEXT = 'Next award';
+
+export const AWARD_BLAME = 'Who did everyone pick?';
+
+/** The words that differ between the two games, for one day's card. */
+export interface GameCopy {
+  /** `Daily Mystery` / `Guess the Award`. */
+  title: string;
+  /** Above the stat line on the play card: `The crime` / `The award`. */
+  kicker: string;
+  /** Above the answer on the closed card: `Case closed` / `Award settled`. */
+  closedKicker: string;
+  /** The result row's label: `Today's case is closed` / `Today's award is settled`. */
+  todayClosed: string;
+  /** The countdown's label: `Next mystery` / `Next award`. */
+  next: string;
+  /** The distribution heading: `Who did everyone blame?` / `Who did everyone pick?`. */
+  blame: string;
+}
+
+const MYSTERY_COPY: GameCopy = {
+  title: MYSTERY_TITLE,
+  kicker: MYSTERY_CRIME,
+  closedKicker: MYSTERY_CASE_CLOSED,
+  todayClosed: MYSTERY_TODAY_CLOSED,
+  next: MYSTERY_NEXT,
+  blame: MYSTERY_BLAME,
+};
+
+const AWARD_COPY: GameCopy = {
+  title: AWARD_TITLE,
+  kicker: AWARD_CRIME,
+  closedKicker: AWARD_CASE_CLOSED,
+  todayClosed: AWARD_TODAY_CLOSED,
+  next: AWARD_NEXT,
+  blame: AWARD_BLAME,
+};
+
+/**
+ * Today's vocabulary, in one lookup, so the view reads `copy.kicker` once instead of carrying
+ * a ternary per sentence. The empty card has no kind and does not call this: nothing was
+ * built, so it keeps the neutral Daily Mystery wording rather than guessing a game.
+ */
+export function gameCopy(kind: MysteryKind): GameCopy {
+  return kind === 'award' ? AWARD_COPY : MYSTERY_COPY;
+}
+
+/**
  * `Daily Mystery #41` or `Guess the Award #7`. Each game counts its own cases, which is why
  * migration 0016 moved the unique to `(kind, challenge_number)`.
  */
@@ -205,8 +265,15 @@ export function cluesUsedShort(count: number): string {
   return count === 1 ? '1 clue' : `${count} clues`;
 }
 
-export function firstDetectiveYou(): string {
-  return 'You are the first person today to solve the mystery correctly.';
+/**
+ * `First detective` stays the badge's name on both days — it is what this site calls whoever
+ * gets the day right first, and the column behind it (`first_correct_at`) is one column. Only
+ * the sentence under it changes, because "solve the mystery" is not what an award day was.
+ */
+export function firstDetectiveYou(kind: MysteryKind): string {
+  return kind === 'award'
+    ? 'You are the first person today to name the right player.'
+    : 'You are the first person today to solve the mystery correctly.';
 }
 
 export function notAloneWrong(others: number): string {
@@ -219,8 +286,9 @@ export function fooledLine(wrongPercent: number): string {
   return `${wrongPercent.toFixed(1)}% of today's detectives were fooled.`;
 }
 
-export function mostAccusedLine(name: string): string {
-  return `Most falsely accused: ${name}`;
+/** Nobody is accused of winning an award, so the award day names them instead of blaming them. */
+export function mostAccusedLine(kind: MysteryKind, name: string): string {
+  return kind === 'award' ? `Most wrongly named: ${name}` : `Most falsely accused: ${name}`;
 }
 
 export function yourGuessLine(name: string): string {

@@ -1,10 +1,22 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { awardHookLines } from '@/lib/mystery/clues';
 import {
+  AWARD_BLAME,
+  AWARD_CASE_CLOSED,
+  AWARD_CRIME,
+  AWARD_NEXT,
+  AWARD_TODAY_CLOSED,
+  awardStatLabel,
+  categoryLabel,
   MYSTERY_BLAME,
+  MYSTERY_CASE_CLOSED,
   MYSTERY_COMMUNITY,
+  MYSTERY_CRIME,
   MYSTERY_EMPTY,
   MYSTERY_FIRST,
+  MYSTERY_NEXT,
+  MYSTERY_TODAY_CLOSED,
   MYSTERY_WHO,
 } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
@@ -97,12 +109,35 @@ const result: MysteryResultView = {
   },
 };
 
+/**
+ * The same day on the other game (M8.4). Everything but `kind`, `category` and the hook's own
+ * line is identical on purpose: the card is one component and the test is about which words
+ * it reaches for, not about a second layout.
+ */
+const awardPlay: MysteryPlayView = {
+  ...play,
+  kind: 'award',
+  category: 'mitigation',
+  hook: {
+    ...play.hook,
+    lines: awardHookLines({ category: 'mitigation', value: 41_200, durationS: 1902 }),
+  },
+};
+
+const awardResult: MysteryResultView = {
+  ...result,
+  kind: 'award',
+  category: 'mitigation',
+  hook: awardPlay.hook,
+};
+
 describe('MysteryView', () => {
   it('shows the crime and names, and hides community numbers before a guess', () => {
     const state: MysteryPageState = { kind: 'play', play };
     render(<MysteryView state={state} />);
 
     expect(screen.getByText('2 / 11 / 4')).toBeInTheDocument();
+    expect(screen.getByText(MYSTERY_CRIME)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ahmed' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: MYSTERY_WHO })).toBeInTheDocument();
     expect(screen.queryByText(MYSTERY_BLAME)).not.toBeInTheDocument();
@@ -121,6 +156,20 @@ describe('MysteryView', () => {
     expect(screen.getByText('Top 15%')).toBeInTheDocument();
   });
 
+  it('keeps the case vocabulary on a closed mystery', () => {
+    const state: MysteryPageState = { kind: 'closed', result };
+    render(<MysteryView state={state} />);
+
+    expect(screen.getByText(MYSTERY_CASE_CLOSED)).toBeInTheDocument();
+    expect(screen.getByText(MYSTERY_TODAY_CLOSED)).toBeInTheDocument();
+    expect(screen.getByText(MYSTERY_NEXT)).toBeInTheDocument();
+    expect(
+      screen.getByText('You are the first person today to solve the mystery correctly.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(AWARD_CASE_CLOSED)).not.toBeInTheDocument();
+    expect(screen.queryByText(AWARD_NEXT)).not.toBeInTheDocument();
+  });
+
   it('says when there is not yet a custom to expose', () => {
     const state: MysteryPageState = {
       kind: 'empty',
@@ -128,5 +177,53 @@ describe('MysteryView', () => {
     };
     render(<MysteryView state={state} />);
     expect(screen.getByText(MYSTERY_EMPTY)).toBeInTheDocument();
+    // Nothing was built, so the empty card names neither game's countdown.
+    expect(screen.getByText(MYSTERY_NEXT)).toBeInTheDocument();
+    expect(screen.queryByText(AWARD_NEXT)).not.toBeInTheDocument();
+  });
+});
+
+describe('MysteryView on an award day', () => {
+  it('asks about the award, not a crime, and prints the service label on the hook', () => {
+    const state: MysteryPageState = { kind: 'play', play: awardPlay };
+    render(<MysteryView state={state} />);
+
+    expect(screen.getByText(AWARD_CRIME)).toBeInTheDocument();
+    expect(screen.queryByText(MYSTERY_CRIME)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: categoryLabel('mitigation') })).toBeInTheDocument();
+    // `awardHookLines` already labelled the number; the view must not relabel it.
+    expect(screen.getByText(awardStatLabel('mitigation'))).toBeInTheDocument();
+    expect(screen.getByText('41.2k')).toBeInTheDocument();
+    // The question, the suspects and the guess flow are the same on both days.
+    expect(screen.getByRole('heading', { name: MYSTERY_WHO })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ahmed' })).toBeInTheDocument();
+  });
+
+  it('settles the award instead of closing a case', () => {
+    const state: MysteryPageState = { kind: 'closed', result: awardResult };
+    render(<MysteryView state={state} />);
+
+    expect(screen.getByText(AWARD_CASE_CLOSED)).toBeInTheDocument();
+    expect(screen.getByText(AWARD_TODAY_CLOSED)).toBeInTheDocument();
+    expect(screen.getByText(AWARD_BLAME)).toBeInTheDocument();
+    expect(screen.getByText(AWARD_NEXT)).toBeInTheDocument();
+    expect(screen.getByText('Most wrongly named: Omar')).toBeInTheDocument();
+    expect(screen.getByText('You are the first person today to name the right player.')).toBeInTheDocument();
+
+    expect(screen.queryByText(MYSTERY_CASE_CLOSED)).not.toBeInTheDocument();
+    expect(screen.queryByText(MYSTERY_TODAY_CLOSED)).not.toBeInTheDocument();
+    expect(screen.queryByText(MYSTERY_BLAME)).not.toBeInTheDocument();
+    expect(screen.queryByText(MYSTERY_NEXT)).not.toBeInTheDocument();
+    expect(screen.queryByText('Most falsely accused: Omar')).not.toBeInTheDocument();
+  });
+
+  it('keeps the shared verdict and panel words on both days', () => {
+    const state: MysteryPageState = { kind: 'closed', result: awardResult };
+    render(<MysteryView state={state} />);
+
+    expect(screen.getByText(MYSTERY_COMMUNITY)).toBeInTheDocument();
+    expect(screen.getByText('Your result')).toBeInTheDocument();
+    expect(screen.getByText('It was Ahmed')).toBeInTheDocument();
+    expect(screen.getByText(MYSTERY_FIRST, { exact: false })).toBeInTheDocument();
   });
 });
