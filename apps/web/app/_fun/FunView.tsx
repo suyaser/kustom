@@ -33,6 +33,9 @@ import type {
   FunFactsView,
   FunFearBan,
   FunHolder,
+  FunOdds,
+  FunOddsRecord,
+  FunOddsRow,
   FunOpening,
   FunPool,
   FunPoolRow,
@@ -106,6 +109,7 @@ export function FunView({ facts }: { facts: FunFactsView }) {
           <Pools pools={facts.pools} />
           <Records heading={FATES_HEADING} records={facts.fates} />
           <Rivals rivals={facts.rivals} />
+          <AgainstTheOdds odds={facts.odds} />
           {facts.queue === 'aram' ? null : <CsByRole pairs={facts.csByRole} />}
           <Records
             heading={RECORDS_HEADING}
@@ -623,5 +627,109 @@ function DuoRow({ row }: { row: FunDuoRow }) {
         </ol>
       </details>
     </li>
+  );
+}
+
+/**
+ * Won against the odds (M8.2): the ranked list, and the one-game record under it.
+ *
+ * Two blocks in one card, the same shape `Pools` already wears — a ranked list whose rows expand,
+ * and a subtitled block under it. It draws no new class: every row here is the page's own
+ * `cn-record cn-fun-holder`, so it inherits both themes and the phone layout from the section
+ * above it rather than carrying a second set of rules that can only be wrong in one of them.
+ *
+ * **The empty sentence belongs to the list and the fold picks which one it is**: a window where
+ * nobody beat the odds at all says so, and a window where somebody did it once but nobody did it
+ * twice says *that* instead — printing "nobody won from under 45%" directly above a record that
+ * names five people who did would be the card arguing with itself. The record block simply is not
+ * drawn when there is no record.
+ */
+function AgainstTheOdds({ odds }: { odds: FunOdds }) {
+  return (
+    <section className="cn-block">
+      <section className="cn-card cn-list-card">
+        <header className="cn-card-head cn-list-head cn-fun-head">
+          <FunHead title={odds.title} />
+        </header>
+        <div className="cn-role-block">
+          <p className="cn-stats-intro">{odds.intro}</p>
+          {odds.rows.length === 0 ? (
+            <p className="cn-stats-empty">{odds.empty}</p>
+          ) : (
+            <ol className="cn-fun-groups">
+              {odds.rows.map((row) => (
+                <OddsRow key={row.puuid} row={row} />
+              ))}
+            </ol>
+          )}
+          <p className="cn-award-rule">{odds.rule}</p>
+        </div>
+        {odds.record === null ? null : (
+          <div className="cn-role-block">
+            <FunHead title={odds.recordTitle} as="p" className="cn-stats-subtitle" />
+            <OddsRecordRow record={odds.record} />
+            <p className="cn-award-rule">{odds.recordRule}</p>
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+/** One person: how many times, and every one of them under `See games`. */
+function OddsRow({ row }: { row: FunOddsRow }) {
+  return (
+    <li className="cn-fun-group">
+      <details className="cn-fun-game">
+        <summary className="cn-record cn-fun-holder">
+          <PlayerName player={row} />
+          <span className="cn-fun-stat">
+            <span className="cn-num cn-record-wl">{row.valueLabel}</span>
+            <span className="cn-fun-toggle">{SEE_GAMES}</span>
+          </span>
+        </summary>
+        <ol className="cn-fun-openings">
+          {row.games.map((win) => (
+            <li key={win.game.id}>
+              <GameReveal game={win.game} focusPuuid={row.puuid} className="cn-fun-holder">
+                <span className="cn-stats-name">{win.line}</span>
+                <span className="cn-fun-stat">
+                  <span className="cn-fun-toggle">{THIS_GAME}</span>
+                </span>
+              </GameReveal>
+            </li>
+          ))}
+        </ol>
+      </details>
+    </li>
+  );
+}
+
+/**
+ * `Blue won at 31%.` and the five who did it, each a link to their own page.
+ *
+ * The names are a list and not a sentence: a Riot ID can be long enough to wrap on a phone, and
+ * five of them joined by commas in one paragraph is the one place this card could break the
+ * "name left, number right" rule the rest of the page keeps.
+ */
+function OddsRecordRow({ record }: { record: FunOddsRecord }) {
+  return (
+    <ul className="cn-records">
+      <li>
+        <GameReveal game={record.game} focusPuuid={record.players[0]?.puuid ?? ''} className="cn-fun-holder">
+          <span className="cn-stats-name">{record.line}</span>
+          <span className="cn-fun-stat">
+            {/* The percentage is already in the sentence; the right-hand cell is the night. */}
+            <span className="cn-fun-when">{record.when}</span>
+            <span className="cn-fun-toggle">{THIS_GAME}</span>
+          </span>
+        </GameReveal>
+      </li>
+      {record.players.map((player) => (
+        <li key={player.puuid} className="cn-record cn-fun-holder">
+          <PlayerName player={player} />
+        </li>
+      ))}
+    </ul>
   );
 }

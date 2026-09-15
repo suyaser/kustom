@@ -1,6 +1,12 @@
 import type { RoleValue } from '@customs/db';
 import { winLossLabel } from '../board/copy';
-import { MIN_DUO_GAMES, MIN_RECORD_GAMES, percentLabel } from './copy';
+import {
+  AGAINST_THE_ODDS_PERCENT,
+  MIN_AGAINST_THE_ODDS_WINS,
+  MIN_DUO_GAMES,
+  MIN_RECORD_GAMES,
+  percentLabel,
+} from './copy';
 
 /**
  * Every word `/fun` says (M5.24). The page and its tests read these strings; a component
@@ -227,6 +233,65 @@ export function duoRecordLine(wins: number, losses: number, winRate: number): st
   return `${winLossLabel(wins, losses)} · ${percentLabel(winRate)}`;
 }
 
+/* ---------------------------------------------------------------------------
+ * Won against the odds (M8.2).
+ *
+ * Product's words, and the section's whole vocabulary. It sits above {@link FUN_ROAST} rather
+ * than at the end of the file because the roast map reads {@link ODDS_TITLE} as a key, and a
+ * `const` declared under the map it keys is a temporal-dead-zone crash at import.
+ *
+ * **No "upset", no "miracle" and no exclamation mark** (product): the bot said one thing, the
+ * night said another, and the section reports that in the flattest sentence it can.
+ * ------------------------------------------------------------------------- */
+
+export const ODDS_TITLE = 'Won against the odds';
+
+/**
+ * What the number is and, in the same breath, where it came from — because the one thing a
+ * reader will not believe is that the percentage was not picked afterwards to fit the result.
+ */
+export const ODDS_INTRO =
+  'The chance the balancer posted for their side before the game, and they won anyway.';
+
+/** `Counted customs won when their own side was given under 45%, over at least 2 of them.` */
+export const ODDS_RULE = `Counted customs won when their own side was given under ${AGAINST_THE_ODDS_PERCENT}%, over at least ${MIN_AGAINST_THE_ODDS_WINS} of them.`;
+
+/**
+ * The thin-section sentence, and it is the honest one rather than a shrug: almost every custom
+ * in the history was backfilled out of somebody's match history, which carries a result and no
+ * lobby, so there is no posted chance to have beaten. This section fills in from the nights the
+ * bot actually made the teams and says so.
+ */
+export const ODDS_EMPTY =
+  `No counted custom in this window was won from under ${AGAINST_THE_ODDS_PERCENT}%. Backfilled games have no posted chance, so only nights the bot made the teams can be here.` as const;
+
+/**
+ * The other thin case, and it is not the same one: somebody **did** beat the odds — the record
+ * under the list names them — but nobody has done it twice, which is what the list asks for.
+ * Printing {@link ODDS_EMPTY} here would contradict the block directly under it.
+ */
+export const ODDS_NONE_TWICE =
+  `Nobody has done it ${MIN_AGAINST_THE_ODDS_WINS} times in this window yet.` as const;
+
+/** The one-game record under the list. */
+export const ODDS_RECORD_TITLE = 'The longest odds';
+export const ODDS_RECORD_RULE = 'The least likely win in the window, and the five who did it.';
+
+/** `Blue won at 31%.` — the posted number, the side, nothing else (product). */
+export function oddsRecordLine(side: string, percent: number): string {
+  return `${side} won at ${percent}%.`;
+}
+
+/** `31% · Won · Tuesday` — one row under `See games`. */
+export function oddsWinLine(percent: number, result: string, weekday: string): string {
+  return `${percent}% · ${result} · ${weekday}`;
+}
+
+/** `3 wins` — how many times one person did it, on their row. */
+export function oddsWinsLine(wins: number): string {
+  return wins === 1 ? '1 win' : `${wins} wins`;
+}
+
 /**
  * Egyptian 3ameya roast under each English `/fun` title. Not فصحى and not a
  * translation — the line a friend would shout after the custom. The English
@@ -273,6 +338,7 @@ export const FUN_ROAST: Readonly<Record<string, string>> = {
   [FATES_HEADING]: 'محظوظ ومظلوم',
   [LUCKY_TRASH]: 'المحظوظ طرش',
   [ROBBED]: 'المظلوم بزيادة',
+  [ODDS_TITLE]: 'كسبوا وهما خسرانين',
   [MOST_DEATHS]: 'أكتر واحد بيموت',
   [SHORTEST_LIFE]: 'نزل ومات',
   [DEATHLESS_STREAK]: 'ما بيموتش',

@@ -11,6 +11,11 @@ import {
   LUCKY_TRASH,
   MOST_BANNED_TITLE,
   MOST_PICKED_TITLE,
+  ODDS_EMPTY,
+  ODDS_NONE_TWICE,
+  ODDS_RECORD_TITLE,
+  ODDS_RULE,
+  ODDS_TITLE,
   OTP_TITLE,
   PENTA_EMPTY,
   PENTA_TITLE,
@@ -366,6 +371,85 @@ describe('FunView', () => {
     expect(screen.queryByText(MOST_BANNED_TITLE)).not.toBeInTheDocument();
     expect(screen.getByText(MOST_PICKED_TITLE)).toBeInTheDocument();
     expect(screen.getByText('Most kills')).toBeInTheDocument();
+  });
+
+  /* -------------------------------------------------------------------------
+   * Won against the odds (M8.2).
+   * ----------------------------------------------------------------------- */
+
+  it('ranks the wins from under the posted chance and names the record game', () => {
+    const games = ['2026-09-01T20:00:00Z', '2026-09-02T20:00:00Z'].map((at, index) =>
+      tenPlayerGame({
+        id: `odds-${index}`,
+        at,
+        durationS: 1_800,
+        winner: 100,
+        blueWinProb: index === 0 ? 0.31 : 0.4,
+        blue: [{ key: 'lena', role: 'adc', championId: 103, kills: 4, deaths: 1, assists: 2 }],
+      }),
+    );
+    const facts = assembleFunFacts({
+      window: 'this-month',
+      games,
+      players: rosterFor(games),
+      range: MONTH,
+      capped: false,
+      cap: 2_000,
+      timeZone: 'Africa/Cairo',
+    });
+    render(<FunView facts={facts} />);
+    const card = screen.getByText(ODDS_TITLE).closest('.cn-card') as HTMLElement;
+
+    expect(within(card).getByText('كسبوا وهما خسرانين')).toBeInTheDocument();
+    expect(within(card).getAllByText('2 wins').length).toBe(5);
+    expect(within(card).getAllByText(SEE_GAMES).length).toBe(5);
+    expect(within(card).getAllByText('31% · Won · Tuesday').length).toBe(5);
+    expect(within(card).getByText('Blue won at 31%.')).toBeInTheDocument();
+    expect(within(card).getByText(ODDS_RECORD_TITLE)).toBeInTheDocument();
+    expect(within(card).getAllByRole('link', { name: 'Lena' })[0]).toHaveAttribute('href', '/p/u-lena');
+    expect(within(card).queryByText(ODDS_EMPTY)).not.toBeInTheDocument();
+    // Collapsed on arrival, like every other expander on the page.
+    expect(card.querySelector('details')).not.toHaveAttribute('open');
+  });
+
+  it('says the section is thin rather than looking broken when no game has a posted chance', () => {
+    render(<FunView facts={view()} />);
+    const card = screen.getByText(ODDS_TITLE).closest('.cn-card') as HTMLElement;
+
+    expect(within(card).getByText(ODDS_EMPTY)).toBeInTheDocument();
+    expect(within(card).queryByText(ODDS_RECORD_TITLE)).not.toBeInTheDocument();
+    expect(within(card).getByText(ODDS_RULE)).toBeInTheDocument();
+  });
+
+  it('says nobody did it twice rather than contradicting the record under it', () => {
+    const game = tenPlayerGame({
+      id: 'odds-once',
+      at: '2026-09-02T20:00:00Z',
+      durationS: 1_800,
+      winner: 100,
+      blueWinProb: 0.31,
+      blue: [{ key: 'lena', role: 'adc', championId: 103, kills: 4, deaths: 1, assists: 2 }],
+    });
+    const facts = assembleFunFacts({
+      window: 'this-month',
+      games: [game],
+      players: rosterFor([game]),
+      range: MONTH,
+      capped: false,
+      cap: 2_000,
+      timeZone: 'Africa/Cairo',
+    });
+    render(<FunView facts={facts} />);
+    const card = screen.getByText(ODDS_TITLE).closest('.cn-card') as HTMLElement;
+
+    expect(within(card).getByText(ODDS_NONE_TWICE)).toBeInTheDocument();
+    expect(within(card).queryByText(ODDS_EMPTY)).not.toBeInTheDocument();
+    expect(within(card).getByText('Blue won at 31%.')).toBeInTheDocument();
+  });
+
+  it('keeps the section on ARAM: it reads results, not the map', () => {
+    render(<FunView facts={view({ queue: 'aram', gameMode: 'ARAM' })} />);
+    expect(screen.getByText(ODDS_TITLE)).toBeInTheDocument();
   });
 
   it('draws nothing under the strip on an empty window', () => {

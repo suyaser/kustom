@@ -407,3 +407,42 @@ export function cursedDuoLine(pair: string, wins: number, losses: number, percen
 export function cursedDuoNobody(minimum: number, period: AwardPeriod): string {
   return `No pair played ${minimum} games together this ${period}.`;
 }
+
+/* ---------------------------------------------------------------------------
+ * Won against the odds (M8.2) — the two numbers behind `/fun`'s newest section.
+ *
+ * They belong with "The minimums" at the top of this file and are written here, at the end,
+ * only so that two people adding a `/fun` section in the same week are not editing one
+ * paragraph. Nothing else about them is different: they are the section's whole arithmetic,
+ * the words that print them interpolate them (`lib/stats/funCopy.ts`), and the fold filters on
+ * them, so the rule a friend reads and the rule the page applied cannot drift.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The chance a side had to have been given for beating it to be "against the odds": **0.45**,
+ * product's number.
+ *
+ * It is a probability because `splits.blue_win_prob` is one. The comparison the fold makes is on
+ * the **whole percent** below, not on this — see {@link AGAINST_THE_ODDS_PERCENT}.
+ */
+export const AGAINST_THE_ODDS_MAX = 0.45;
+
+/**
+ * The same threshold as the number a friend actually saw: `45`.
+ *
+ * **The filter compares percents, not probabilities**, and that is deliberate. The chance the
+ * group was shown on the night — in the teams embed, in the result embed, on the tonight page and
+ * on the recent-games row — is `Math.round(p * 100)` with red as `100 − blue` (`sideWinChance`).
+ * A split stored at `0.449` was posted as `45%`, so counting it here would put a `45%` row under
+ * a heading that says "under 45%" and the page would be arguing with itself. The stored
+ * probability is still the only source; this is the rounding every surface already applies to it.
+ */
+export const AGAINST_THE_ODDS_PERCENT = Math.round(AGAINST_THE_ODDS_MAX * 100);
+
+/**
+ * How many such wins before somebody is on the ranked list: **two** (product).
+ *
+ * The same instinct as every other floor on `/fun` — one fluke is not a trophy. The one-game
+ * record under the list has no minimum, because it is about a game and not about a person.
+ */
+export const MIN_AGAINST_THE_ODDS_WINS = 2;

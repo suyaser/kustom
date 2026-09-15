@@ -70,6 +70,16 @@ export interface StatsGame {
    * loader did not select `raw` (`/stats`) or when the blob named none of those keys.
    */
   rawFacts?: RawGameFacts | null;
+  /**
+   * The chance the balancer gave **blue** on the night: the chosen split's `blue_win_prob`, as
+   * it was stored when the teams were posted (M8.2).
+   *
+   * `null` or absent is the normal case and not a gap to fill: a backfilled game has no lobby
+   * and no split, a lobby that was never balanced has no chosen row, and `/stats` and `/games`
+   * do not ask for it at all. **Never recomputed** — a rebuild moves every rating in the
+   * database and must not move this, which is the whole reason `/fun` reads it.
+   */
+  blueWinProb?: number | null;
   rows: readonly StatsRow[];
 }
 
@@ -379,7 +389,62 @@ export interface FunFactsView {
   records: FunRecord[];
   /** Nemesis and best duo (M8.1): who beats them, and who they win with. */
   rivals: FunRivalsView;
+  /** Wins from under the posted chance, ranked, with the one-game record under them (M8.2). */
+  odds: FunOdds;
   notes: string[];
+}
+
+/* ---------------------------------------------------------------------------
+ * Won against the odds (M8.2).
+ *
+ * The only section on `/fun` whose number was **written down before the game**: the chosen
+ * split's `blue_win_prob`, stored when the teams were posted. Nothing here reads `mu_before` or
+ * `mu_after`, which is the property the rejected "biggest rating swing" version could not have
+ * had — `rebuild-ratings` rewrites every rating in the database and cannot move one row of this.
+ * ------------------------------------------------------------------------- */
+
+/** One win from under the threshold, as a row under `See games`. */
+export interface FunOddsWin {
+  /** Their own side's posted chance, whole percent, the way every surface prints it. */
+  percent: number;
+  /** `31% · Won · Tuesday`. */
+  line: string;
+  game: HistoryGame;
+}
+
+/** One person on the ranked list, and every such win behind their count. */
+export interface FunOddsRow extends PlayerRef {
+  wins: number;
+  /** `3 wins`. */
+  valueLabel: string;
+  /** The longest odds they beat, whole percent — the list's first tie-break, printed nowhere. */
+  bestPercent: number;
+  games: FunOddsWin[];
+}
+
+/** The single least likely win in the window, and the five who did it. */
+export interface FunOddsRecord {
+  /** The winning side's own posted chance, whole percent. */
+  percent: number;
+  /** `Blue won at 31%.` */
+  line: string;
+  /** Everyone on the winning side the roster knows — five on a full custom. */
+  players: PlayerRef[];
+  when: string;
+  game: HistoryGame;
+}
+
+export interface FunOdds {
+  title: string;
+  intro: string;
+  rule: string;
+  rows: FunOddsRow[];
+  /** Printed when there is neither a list nor a record: no lobby in this window had a split. */
+  empty: string;
+  recordTitle: string;
+  recordRule: string;
+  /** `null` when no counted custom in the window was won from under the threshold. */
+  record: FunOddsRecord | null;
 }
 
 /* ---------------------------------------------------------------------------

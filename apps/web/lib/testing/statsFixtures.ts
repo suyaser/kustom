@@ -48,6 +48,11 @@ export interface GameSpec {
   gameMode?: string | null;
   /** Parsed `games.raw` extras. Absent is a game whose blob named none of them. */
   rawFacts?: RawGameFacts | null;
+  /**
+   * The chosen split's stored chance for blue (M8.2). Absent is a game with no lobby and no
+   * split — a backfilled custom, which is most of the history and is in none of that section.
+   */
+  blueWinProb?: number | null;
 }
 
 /** The rating every seat carries unless the spec names one: the middle of the seed range. */
@@ -136,6 +141,7 @@ export function statsGame(spec: GameSpec): StatsGame {
     winningSide: spec.winner ?? 100,
     gameMode: spec.gameMode ?? null,
     rawFacts: spec.rawFacts ?? null,
+    blueWinProb: spec.blueWinProb ?? null,
     rows: [
       ...spec.blue.map((seat) => rowOf(seat, 100, unrated)),
       ...spec.red.map((seat) => rowOf(seat, 200, unrated)),

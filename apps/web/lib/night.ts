@@ -88,6 +88,31 @@ export function formatNightLabel(
   return formatter.format(nightStartInstant);
 }
 
+const dayNameFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * `Tuesday`: the day of the week on its own, for a row that is about **which night** rather than
+ * which date (M8.2's `31% · Won · Tuesday`).
+ *
+ * `formatDayName` and not `formatWeekday`, which is taken further down by the week range's
+ * `Sunday 13 Sep` — two different strings and neither is the other's prefix by accident.
+ *
+ * Same locale and same configured timezone as {@link formatDayMonth} and {@link formatNightLabel},
+ * and rendered on the server for the same reason — a weekday the browser computed in its own zone
+ * would read `Wednesday` for a game that started at 01:00 and change under the reader.
+ *
+ * The instant is the game's `started_at`, not the night's 06:00 boundary, so a custom that began
+ * after midnight is dated the calendar day it began on. That is the same latitude every other
+ * per-game date on a public page already takes (`historyGameOf`'s `startedLabel`); the night
+ * boundary is a window rule, not a label rule.
+ */
+export function formatDayName(instant: Date, timeZone: string = DEFAULT_NIGHT_TIME_ZONE): string {
+  const cached = dayNameFormatters.get(timeZone);
+  const formatter = cached ?? new Intl.DateTimeFormat(DISPLAY_LOCALE, { timeZone, weekday: 'long' });
+  if (cached === undefined) dayNameFormatters.set(timeZone, formatter);
+  return formatter.format(instant);
+}
+
 /** Is this a timezone `Intl` knows? Used to validate `CUSTOMS_NIGHT_TZ` at the boundary. */
 export function isValidTimeZone(timeZone: string): boolean {
   try {

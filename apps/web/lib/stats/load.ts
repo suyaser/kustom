@@ -78,7 +78,13 @@ export interface StatsOptions {
 
 export async function loadFunFacts(client: PublicClient, options: StatsOptions): Promise<FunFactsView> {
   const queue = options.queue ?? GAMES_QUEUE;
-  const read = await readWindow(client, options, { withGameMode: true });
+  /**
+   * **`withOdds` is `/fun`'s alone** (M8.2): `Won against the odds` is the only surface that
+   * reads what the balancer posted before the game, so the one extra `splits` query happens on
+   * this page and on no other. `/stats`, `/games` and `/p/[puuid]` make exactly the reads they
+   * made before.
+   */
+  const read = await readWindow(client, options, { withGameMode: true, withOdds: true });
   const games = read.games.filter((game) => matchesQueue(game.gameMode, queue));
   return assembleFunFacts({ ...read, games }, queue);
 }
@@ -189,7 +195,7 @@ export async function loadAwardWinners(client: PublicClient, options: StatsOptio
 async function readWindow(
   client: PublicClient,
   options: StatsOptions,
-  extras: { withGameMode?: boolean } = {},
+  extras: { withGameMode?: boolean; withOdds?: boolean } = {},
 ): Promise<WindowRead> {
   const window = options.window;
   const cap = options.maxGames ?? STATS_MAX_GAMES;
@@ -225,6 +231,19 @@ async function readWindow(
    */
   const seeds = isWeekWindow(window) ? await loadWeeklySeeds(client, players, people.ranks) : undefined;
 
+  /**
+   * The chance the balancer posted on the night, per lobby (M8.2), and only for the page that
+   * prints it. A game with no `lobby_id` — every backfilled custom — asks for nothing and gets
+   * nothing; the map simply has no entry and the section counts one fewer game.
+   */
+  const odds =
+    extras.withOdds === true
+      ? await loadChosenWinProbs(
+          client,
+          newest.map((game) => game.lobbyId).filter((id): id is string => id !== null),
+        )
+      : new Map<string, number>();
+
   const byGame = new Map<string, StatsRow[]>();
   for (const row of rows) {
     const played = byGame.get(row.gameId) ?? [];
@@ -248,8 +267,12 @@ async function readWindow(
     byGame.set(row.gameId, played);
   }
 
-  const games: StatsGame[] = newest.map((game) => ({
+  const games: StatsGame[] = newest.map(({ lobbyId, ...game }) => ({
     ...game,
+    // Absent, not `null`, on every read that did not ask: `/stats` has no odds to be missing.
+    ...(extras.withOdds === true
+      ? { blueWinProb: lobbyId === null ? null : (odds.get(lobbyId) ?? null) }
+      : {}),
     rows: byGame.get(game.id) ?? [],
   }));
 
@@ -266,6 +289,12 @@ interface GameRow {
   lcuGameId: number | null;
   durationS: number;
   winningSide: SideValue;
+  /**
+   * The lobby the companion opened for this custom, or `null` for a backfilled game — which is
+   * most of the history. The only thing it is read for is the chosen split's posted win chance
+   * (M8.2); it never reaches {@link StatsGame}.
+   */
+  lobbyId: string | null;
   /** Set only when `/games` or `/fun` asked for it. `/stats` never selects `raw`. */
   gameMode?: string | null;
   rawFacts?: RawGameFacts | null;
@@ -311,7 +340,7 @@ async function loadGamePage(
   if (withGameMode) {
     let query = client
       .from('games')
-      .select('id, started_at, duration_s, winning_side, lcu_game_id, raw')
+      .select('id, started_at, duration_s, winning_side, lcu_game_id, lobby_id, raw')
       .order('started_at', { ascending: false })
       .order('lcu_game_id', { ascending: false })
       .range(from, to);
@@ -323,7 +352,7 @@ async function loadGamePage(
 
   let query = client
     .from('games')
-    .select('id, started_at, duration_s, winning_side, lcu_game_id')
+    .select('id, started_at, duration_s, winning_side, lcu_game_id, lobby_id')
     .order('started_at', { ascending: false })
     .order('lcu_game_id', { ascending: false })
     .range(from, to);
@@ -340,6 +369,7 @@ function toGameRows(
     lcu_game_id: number | null;
     duration_s: number;
     winning_side: number | null;
+    lobby_id: string | null;
     raw?: unknown;
   }[],
   withGameMode: boolean,
@@ -353,6 +383,7 @@ function toGameRows(
       lcuGameId: row.lcu_game_id,
       durationS: row.duration_s,
       winningSide: row.winning_side,
+      lobbyId: row.lobby_id,
       ...(withGameMode ? { gameMode: gameModeFromRaw(row.raw), rawFacts: rawFactsFromUnknown(row.raw) } : {}),
     });
   }
@@ -407,6 +438,44 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
     }
   }
   return rows;
+}
+
+/**
+ * The chance the balancer gave blue, per lobby: the **chosen** split's `blue_win_prob` (M8.2).
+ *
+ * The same read `lib/board/load.ts` makes for the per-game expand (M5.30), spelled again here
+ * rather than exported from it — the latitude {@link selectSeasonId} and {@link withRange} already
+ * take, and for the same reason: that file keeps its queries private and an export would be a seam
+ * between two loaders. What must not drift is the *rule*, and the rule is one line of SQL:
+ * `is_chosen`, `blue_win_prob`, and nothing derived.
+ *
+ * **Never a recompute.** A rebuild rewrites every `mu` in the database and does not touch
+ * `splits`, which is precisely why `Won against the odds` reads this column and not a rating.
+ *
+ * A lobby with no chosen split — balanced then rerolled into nothing, or never balanced — simply
+ * has no entry, and its games are in neither list on the page.
+ */
+async function loadChosenWinProbs(
+  client: PublicClient,
+  lobbyIds: readonly string[],
+): Promise<Map<string, number>> {
+  const odds = new Map<string, number>();
+  if (lobbyIds.length === 0) return odds;
+
+  for (const chunk of inChunks(lobbyIds)) {
+    const { data, error } = await client
+      .from('splits')
+      .select('lobby_id, blue_win_prob')
+      .in('lobby_id', chunk)
+      .eq('is_chosen', true);
+    if (error) throw new Error(`stats: split lookup failed: ${error.message}`);
+
+    for (const row of data ?? []) {
+      if (row.blue_win_prob === null) continue;
+      odds.set(row.lobby_id, row.blue_win_prob);
+    }
+  }
+  return odds;
 }
 
 /**

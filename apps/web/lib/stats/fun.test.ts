@@ -10,6 +10,9 @@ import {
   fearBanLine,
   funRoast,
   LUCKY_TRASH,
+  ODDS_EMPTY,
+  ODDS_NONE_TWICE,
+  ODDS_TITLE,
   OTP_TITLE,
   otpLine,
   PENTA_EMPTY,
@@ -584,3 +587,174 @@ function rawFacts(spec: {
   }
   return { byPuuid, bans: spec.bans ?? [] };
 }
+
+/* ---------------------------------------------------------------------------
+ * Won against the odds (M8.2).
+ *
+ * Every number here came out of `splits.blue_win_prob` on the night. Nothing in these tests sets
+ * a `mu`, and one of them proves that on purpose: change every rating in the fixture and the
+ * section comes back the same, which is the property the rejected "biggest rating swing" version
+ * could not have had.
+ * ------------------------------------------------------------------------- */
+
+/** One custom the balancer gave blue `prob`, won by `winner`. The same ten every time. */
+function oddsGame(spec: { id: string; at: string; winner?: 100 | 200; prob?: number | null }) {
+  return tenPlayerGame({
+    id: spec.id,
+    at: spec.at,
+    durationS: 1_800,
+    winner: spec.winner ?? 100,
+    ...(spec.prob === undefined ? {} : { blueWinProb: spec.prob }),
+    blue: ['lena:adc', 'iris:top', 'rami:jungle', 'omar:mid', 'theo:support'],
+    red: ['yuki:adc', 'nadia:top', 'karim:jungle', 'hana:mid', 'bilal:support'],
+  });
+}
+
+const FIVE_BLUE = ['Iris', 'Lena', 'Omar', 'Rami', 'Theo'];
+const FIVE_RED = ['Bilal', 'Hana', 'Karim', 'Nadia', 'Yuki'];
+
+describe('funFactsView: won against the odds', () => {
+  it('puts all five of a 31% winning side on the list and names that game as the record', () => {
+    const games = [
+      oddsGame({ id: 'odds-1', at: '2026-09-01T20:00:00Z', prob: 0.31 }),
+      oddsGame({ id: 'odds-2', at: '2026-09-02T20:00:00Z', prob: 0.4 }),
+    ];
+    const odds = funFactsView(games, rosterFor(games), 'Africa/Cairo').odds;
+
+    expect(odds.title).toBe(ODDS_TITLE);
+    expect(odds.rows.map((row) => row.name).sort()).toEqual(FIVE_BLUE);
+    expect(odds.rows.every((row) => row.wins === 2)).toBe(true);
+    expect(odds.rows[0]?.valueLabel).toBe('2 wins');
+    // Newest first, like every other `See games` list on the page.
+    expect(odds.rows[0]?.games.map((win) => win.percent)).toEqual([40, 31]);
+    expect(odds.rows[0]?.games[1]?.line).toBe('31% · Won · Tuesday');
+
+    expect(odds.record?.percent).toBe(31);
+    expect(odds.record?.line).toBe('Blue won at 31%.');
+    expect(odds.record?.players.map((player) => player.name).sort()).toEqual(FIVE_BLUE);
+    expect(odds.record?.game.id).toBe('odds-1');
+  });
+
+  it('reads the same number from the other end for red: blue at 0.72 is a 28% red win', () => {
+    const games = [oddsGame({ id: 'odds-red', at: '2026-09-01T20:00:00Z', winner: 200, prob: 0.72 })];
+    const odds = funFactsView(games, rosterFor(games)).odds;
+
+    expect(odds.record?.percent).toBe(28);
+    expect(odds.record?.line).toBe('Red won at 28%.');
+    expect(odds.record?.players.map((player) => player.name).sort()).toEqual(FIVE_RED);
+    // One win is a record and not a list: the list wants two, and says which thin window it is.
+    expect(odds.rows).toEqual([]);
+    expect(odds.empty).toBe(ODDS_NONE_TWICE);
+  });
+
+  it('leaves a backfilled game — no lobby, no split — out of both lists and breaks nothing', () => {
+    const games = [
+      oddsGame({ id: 'backfilled-1', at: '2026-09-01T20:00:00Z', prob: null }),
+      oddsGame({ id: 'backfilled-2', at: '2026-09-02T20:00:00Z' }),
+    ];
+    const odds = funFactsView(games, rosterFor(games)).odds;
+
+    expect(odds.rows).toEqual([]);
+    expect(odds.record).toBeNull();
+    expect(odds.empty).toBe(ODDS_EMPTY);
+  });
+
+  it('is a strict threshold: 50% and 45% are not against the odds, 44% is', () => {
+    const even = [oddsGame({ id: 'even', at: '2026-09-01T20:00:00Z', prob: 0.5 })];
+    expect(funFactsView(even, rosterFor(even)).odds.record).toBeNull();
+
+    const onTheLine = [oddsGame({ id: 'line', at: '2026-09-01T20:00:00Z', prob: 0.45 })];
+    expect(funFactsView(onTheLine, rosterFor(onTheLine)).odds.record).toBeNull();
+
+    const under = [oddsGame({ id: 'under', at: '2026-09-01T20:00:00Z', prob: 0.44 })];
+    expect(funFactsView(under, rosterFor(under)).odds.record?.percent).toBe(44);
+  });
+
+  it('counts the winners only — losing from 31% is not a row', () => {
+    const games = [oddsGame({ id: 'lost-it', at: '2026-09-01T20:00:00Z', winner: 200, prob: 0.31 })];
+    const odds = funFactsView(games, rosterFor(games)).odds;
+
+    // Blue was given 31% and lost; red won at 69% and beat no odds at all.
+    expect(odds.record).toBeNull();
+    expect(odds.rows).toEqual([]);
+  });
+
+  it('ranks on how often first', () => {
+    const games = [
+      oddsGame({ id: 'r1', at: '2026-09-01T20:00:00Z', prob: 0.4 }),
+      oddsGame({ id: 'r2', at: '2026-09-02T20:00:00Z', prob: 0.4 }),
+      oddsGame({ id: 'r3', at: '2026-09-03T20:00:00Z', prob: 0.42 }),
+      oddsGame({ id: 'r4', at: '2026-09-04T20:00:00Z', winner: 200, prob: 0.8 }),
+      oddsGame({ id: 'r5', at: '2026-09-05T20:00:00Z', winner: 200, prob: 0.8 }),
+    ];
+    const odds = funFactsView(games, rosterFor(games)).odds;
+
+    // Blue's five won three of them, red's five won two, and three beats a longer price.
+    expect(odds.rows.slice(0, 5).map((row) => row.name)).toEqual(FIVE_BLUE);
+    expect(odds.rows.slice(0, 5).every((row) => row.wins === 3)).toBe(true);
+    expect(odds.rows.slice(5).map((row) => row.name)).toEqual(FIVE_RED);
+    expect(odds.rows.find((row) => row.name === 'Lena')?.bestPercent).toBe(40);
+    expect(odds.rows.find((row) => row.name === 'Yuki')?.bestPercent).toBe(20);
+    // Twenty percent is the longest odds anybody beat, and the newest of the two games at it.
+    expect(odds.record?.percent).toBe(20);
+    expect(odds.record?.game.id).toBe('r5');
+  });
+
+  it('breaks a tie in the count on the longest odds beaten', () => {
+    const games = [
+      oddsGame({ id: 't1', at: '2026-09-01T20:00:00Z', prob: 0.4 }),
+      oddsGame({ id: 't2', at: '2026-09-02T20:00:00Z', prob: 0.4 }),
+      oddsGame({ id: 't3', at: '2026-09-03T20:00:00Z', winner: 200, prob: 0.8 }),
+      oddsGame({ id: 't4', at: '2026-09-04T20:00:00Z', winner: 200, prob: 0.8 }),
+    ];
+    const odds = funFactsView(games, rosterFor(games)).odds;
+
+    // Everybody has two. Red's came from 20% and blue's from 40%, so red's five are first.
+    expect(odds.rows.every((row) => row.wins === 2)).toBe(true);
+    expect(odds.rows.slice(0, 5).map((row) => row.name)).toEqual(FIVE_RED);
+    expect(odds.rows.slice(5).map((row) => row.name)).toEqual(FIVE_BLUE);
+  });
+
+  it('does not move when every rating in the window changes — the point of the section', () => {
+    const games = [
+      oddsGame({ id: 'reb-1', at: '2026-09-01T20:00:00Z', prob: 0.31 }),
+      oddsGame({ id: 'reb-2', at: '2026-09-02T20:00:00Z', prob: 0.4 }),
+    ];
+    const before = funFactsView(games, rosterFor(games), 'Africa/Cairo').odds;
+
+    // What `rebuild-ratings` does: every `mu` on every row replaced, results untouched.
+    const rebuilt = games.map((game) => ({
+      ...game,
+      rows: game.rows.map((row) => ({ ...row, muBefore: 41, muAfter: 7 })),
+    }));
+    const after = funFactsView(rebuilt, rosterFor(rebuilt), 'Africa/Cairo').odds;
+
+    expect(after.rows.map((row) => [row.name, row.wins, row.bestPercent])).toEqual(
+      before.rows.map((row) => [row.name, row.wins, row.bestPercent]),
+    );
+    expect(after.record?.line).toBe(before.record?.line);
+    expect(after.record?.percent).toBe(before.record?.percent);
+  });
+
+  it('counts an unrated custom like any other: it reads results, not ratings', () => {
+    const games = [
+      tenPlayerGame({
+        id: 'unrated',
+        at: '2026-09-01T20:00:00Z',
+        durationS: 1_800,
+        winner: 100,
+        unrated: true,
+        blueWinProb: 0.33,
+        blue: ['lena:adc'],
+      }),
+    ];
+    const odds = funFactsView(games, rosterFor(games)).odds;
+
+    expect(odds.record?.percent).toBe(33);
+    expect(odds.record?.players).toHaveLength(5);
+  });
+
+  it('roasts its own title in 3ameya', () => {
+    expect(funRoast(ODDS_TITLE)).toBe('كسبوا وهما خسرانين');
+  });
+});

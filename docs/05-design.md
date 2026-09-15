@@ -2316,7 +2316,7 @@ when the block named `firstBloodDeath` (hidden when empty — the live blob does
 died), Pentakill / Quadrakill / Triple / Double museums, First Turret, Death Hall of Fame,
 Objective Thief (Rift), Fear Ban, Most banned (Rift), Most picked, Who they lock (one-trick
 vs always a new champ), Luck (lowest KDA on a win / highest KDA on a loss), **Friends and enemies**
-(M8.1, nemesis and best duo), then CS by role, one-game records, habits. First blood and vision are no longer printed as missing notes; the killer
+(M8.1, nemesis and best duo), **Won against the odds** (M8.2), then CS by role, one-game records, habits. First blood and vision are no longer printed as missing notes; the killer
 museum is empty only when the stored block named no killer. Deaths and
 `longestTimeSpentLiving` are not a corpse. Multi-kill halls sum the stored count fields; a
 game with two triples is one opening labelled `2 triples`. First Turret is the
@@ -2341,6 +2341,21 @@ pair line, `Lena and Theo · 8W 2L · 80%`. Each row is a closed `<details>` tha
 customs it was folded from, newest first, each labelled `Won` / `Lost` with its scoreboard. Empty:
 `No pair has 5 games against each other yet.` and `No pair has 5 games together yet.` **Unlike CS by role and
 Objective Thief, this group is not hidden on ARAM** — both lists draw on whatever the `?queue=` read returned.
+
+**Won against the odds** (M8.2, `كسبوا وهما خسرانين`) is a ranked list and a one-game record, both read from
+`splits.blue_win_prob` — the chance the balancer posted for a side *before* the game, never a live recompute,
+so a rebuild cannot move either. The list counts counted customs won when the side's own posted chance was
+under 45%, floored at two such wins (`3 wins`, `See games` into `31% · Won · Tuesday`); the record under it is
+the single least likely win in the window, naming the five who did it (`Blue won at 31%.`). The comparison is
+on the rounded percent the group actually saw that night — the same rounding `sideWinChance` applies on the
+tonight page, the result embed and the recent-games row — not on the raw stored float, so a `0.449` game reads
+`45%` and does not sneak under a heading that says "under 45%". No "upset", no "miracle", no exclamation mark:
+the bot was wrong and the section says so plainly. A backfilled game has no lobby and no split and is in
+neither list — most of the history is backfilled, so this section is thin for a while and says so with its own
+empty sentence (`No counted custom in this window was won from under 45%. Backfilled games have no posted
+chance, so only nights the bot made the teams can be here.`) rather than looking broken; a window with exactly
+one qualifying win prints the record but the list's own second sentence (`Nobody has done it 2 times in this
+window yet.`), since the two thin cases are not the same one.
 
 One-game records include Longest killing spree from `largestKillingSpree`
 (at least three). Every English card title and record name carries an Egyptian 3ameya roast

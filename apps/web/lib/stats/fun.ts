@@ -1,10 +1,20 @@
 import { LOST, WON } from '../board/copy';
+import { sideWinChance } from '../board/explain';
 import { championName } from '../champs/names';
 import type { HistoryGame } from '../games/types';
 import { historyGameOf } from '../games/view';
 import { LANE_ORDER } from '../laneOrder';
+import { formatDayName } from '../night';
 import { renderWebName } from '../tonight/copy';
-import { MIN_DUO_GAMES, MIN_RECORD_GAMES, NO_DUOS, pairLabel } from './copy';
+import {
+  AGAINST_THE_ODDS_PERCENT,
+  MIN_AGAINST_THE_ODDS_WINS,
+  MIN_DUO_GAMES,
+  MIN_RECORD_GAMES,
+  NO_DUOS,
+  pairLabel,
+  SIDE_LABELS,
+} from './copy';
 import { countedGames, duoRecords } from './fold';
 import {
   BEST_DUO_INTRO,
@@ -94,9 +104,19 @@ import {
   NO_NEMESIS,
   NOBODY_THIS,
   nemesisLine,
+  ODDS_EMPTY,
+  ODDS_INTRO,
+  ODDS_NONE_TWICE,
+  ODDS_RECORD_RULE,
+  ODDS_RECORD_TITLE,
+  ODDS_RULE,
+  ODDS_TITLE,
   OTP_INTRO,
   OTP_RULE,
   OTP_TITLE,
+  oddsRecordLine,
+  oddsWinLine,
+  oddsWinsLine,
   ofGamesLine,
   otpLine,
   PAPER,
@@ -150,6 +170,9 @@ import type {
   FunFactsView,
   FunFearBan,
   FunHolder,
+  FunOdds,
+  FunOddsRecord,
+  FunOddsRow,
   FunOpening,
   FunPool,
   FunPoolRow,
@@ -827,6 +850,7 @@ export function funFactsView(
     records,
     rivals: rivalsView(counted, players, plays, bind),
     notes: [],
+    odds: againstTheOdds(counted, plays, bind, timeZone),
   };
 }
 
@@ -1259,6 +1283,132 @@ function mostPicked(plays: readonly Play[]): FunSection<FunChampRow> {
     intro: MOST_PICKED_INTRO,
     rows: rankChamps(counts, 'pick', 'picks'),
     empty: MOST_PICKED_EMPTY,
+  };
+}
+
+/* ---------------------------------------------------------------------------
+ * Won against the odds (M8.2).
+ *
+ * The one section here whose number is older than the game it is about. Everything else on
+ * `/fun` is read off the scoreboard afterwards; this is read off `splits.blue_win_prob` — the
+ * chance the balancer posted **before** anybody pressed play — and that is the whole point.
+ * The ask was "biggest rating swing upward", which would name the newest player in the group
+ * every time (movement scales with `sigma`) and would come out differently after every rebuild.
+ * A stored probability names the night instead, and `rebuild-ratings` cannot touch it.
+ *
+ * Nothing below reads `muBefore` or `muAfter`. It reads results, so an unrated game — an ARAM
+ * night, a backfilled custom the fold has not folded — is as eligible as any other, provided its
+ * lobby stored a chosen split. Most do not, which is why the section is thin and says so.
+ * ------------------------------------------------------------------------- */
+
+/** One win a side was not expected to get, with the seat that got it. */
+interface OddsWin {
+  play: Play;
+  percent: number;
+}
+
+/**
+ * This seat's own posted chance as a whole percent, or `null` when the game has no stored split.
+ *
+ * `sideWinChance` is `lib/board/explain.ts`'s, imported and not re-derived: blue is rounded and
+ * red is `100 − blue`, so the number here is byte for byte the one on the player page's recent
+ * game, in the result embed and on the tonight page. One game, one percentage, four surfaces.
+ */
+function ownChance(play: Play): number | null {
+  return sideWinChance(play.game.blueWinProb ?? null, play.row.side);
+}
+
+/**
+ * The page's answer to "who wins when the bot says they will not" — a ranked list and one record.
+ *
+ * The filter is on the **whole percent** and not on the stored float, for the reason
+ * {@link AGAINST_THE_ODDS_PERCENT} spells out: the group was shown a rounded number that night and
+ * this section is about that number.
+ */
+function againstTheOdds(
+  counted: readonly StatsGame[],
+  plays: readonly Play[],
+  bind: BindGame,
+  timeZone: string | undefined,
+): FunOdds {
+  const byGame = new Map<string, Play[]>();
+  const gamesPlayed = new Map<string, number>();
+  for (const play of plays) {
+    const list = byGame.get(play.game.id) ?? [];
+    list.push(play);
+    byGame.set(play.game.id, list);
+    gamesPlayed.set(play.player.playerId, (gamesPlayed.get(play.player.playerId) ?? 0) + 1);
+  }
+
+  const wins = new Map<string, { player: StatsPlayer; wins: OddsWin[] }>();
+  let record: FunOddsRecord | null = null;
+
+  // Newest first, like every other `See games` list on this page.
+  for (const game of [...counted].reverse()) {
+    const seats = (byGame.get(game.id) ?? []).filter((play) => won(play.row, game));
+    const beaten: OddsWin[] = [];
+    for (const play of seats) {
+      const percent = ownChance(play);
+      if (percent === null || percent >= AGAINST_THE_ODDS_PERCENT) continue;
+      beaten.push({ play, percent });
+      const slot = wins.get(play.player.playerId) ?? { player: play.player, wins: [] };
+      slot.wins.push({ play, percent });
+      wins.set(play.player.playerId, slot);
+    }
+
+    const first = beaten[0];
+    if (first === undefined) continue;
+    // Every seat on one side shares one chance, so the game's number is any of them.
+    if (record === null || first.percent < record.percent) {
+      record = {
+        percent: first.percent,
+        line: oddsRecordLine(SIDE_LABELS[game.winningSide], first.percent),
+        players: beaten.map((seat) => ref(seat.play.player)),
+        when: matchDetail(game.startedAt, game.durationS),
+        game: bind(game),
+      };
+    }
+  }
+
+  const rows: FunOddsRow[] = [...wins.values()]
+    .filter((slot) => slot.wins.length >= MIN_AGAINST_THE_ODDS_WINS)
+    .map((slot) => ({
+      slot,
+      /** The longest odds this person beat: the lowest chance they were given and won from. */
+      best: Math.min(...slot.wins.map((win) => win.percent)),
+      /** Their counted games in the window — the third key, so the rarer feat wins a tie. */
+      played: gamesPlayed.get(slot.player.playerId) ?? 0,
+    }))
+    // More of them, then the longest odds beaten, then more counted games, then name.
+    .sort(
+      (a, b) =>
+        b.slot.wins.length - a.slot.wins.length ||
+        a.best - b.best ||
+        b.played - a.played ||
+        renderWebName(a.slot.player.name).localeCompare(renderWebName(b.slot.player.name)),
+    )
+    .map(({ slot, best }) => ({
+      ...ref(slot.player),
+      wins: slot.wins.length,
+      valueLabel: oddsWinsLine(slot.wins.length),
+      bestPercent: best,
+      games: slot.wins.map((win) => ({
+        percent: win.percent,
+        line: oddsWinLine(win.percent, WON, formatDayName(new Date(win.play.game.startedAt), timeZone)),
+        game: bind(win.play.game),
+      })),
+    }));
+
+  return {
+    title: ODDS_TITLE,
+    intro: ODDS_INTRO,
+    rule: ODDS_RULE,
+    rows,
+    // Two different thin windows, two different sentences: nobody did it, or nobody did it twice.
+    empty: record === null ? ODDS_EMPTY : ODDS_NONE_TWICE,
+    recordTitle: ODDS_RECORD_TITLE,
+    recordRule: ODDS_RECORD_RULE,
+    record,
   };
 }
 
