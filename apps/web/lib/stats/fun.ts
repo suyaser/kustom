@@ -1,11 +1,15 @@
+import { LOST, WON } from '../board/copy';
 import { championName } from '../champs/names';
 import type { HistoryGame } from '../games/types';
 import { historyGameOf } from '../games/view';
 import { LANE_ORDER } from '../laneOrder';
 import { renderWebName } from '../tonight/copy';
-import { MIN_RECORD_GAMES } from './copy';
-import { countedGames } from './fold';
+import { MIN_DUO_GAMES, MIN_RECORD_GAMES, NO_DUOS, pairLabel } from './copy';
+import { countedGames, duoRecords } from './fold';
 import {
+  BEST_DUO_INTRO,
+  BEST_DUO_RULE,
+  BEST_DUO_TITLE,
   CLEAN_KDA,
   CLEAN_KDA_RULE,
   champTimesLine,
@@ -21,6 +25,7 @@ import {
   DOUBLE_ONE,
   DOUBLE_TITLE,
   damageLine,
+  duoRecordLine,
   FEAR_BAN_EMPTY,
   FEAR_BAN_INTRO,
   FEAR_BAN_TITLE,
@@ -81,12 +86,18 @@ import {
   MOST_STEALS_WINDOW_RULE,
   matchDetail,
   minutesLine,
+  NEMESIS_INTRO,
+  NEMESIS_RULE,
+  NEMESIS_TITLE,
   NEVER_MISSES,
   NEVER_MISSES_RULE,
+  NO_NEMESIS,
   NOBODY_THIS,
+  nemesisLine,
   OTP_INTRO,
   OTP_RULE,
   OTP_TITLE,
+  ofGamesLine,
   otpLine,
   PAPER,
   PAPER_RULE,
@@ -135,6 +146,7 @@ import type {
   FunBloodGroup,
   FunBloodRow,
   FunChampRow,
+  FunDuoRow,
   FunFactsView,
   FunFearBan,
   FunHolder,
@@ -142,6 +154,8 @@ import type {
   FunPool,
   FunPoolRow,
   FunRecord,
+  FunRivalRow,
+  FunRivalsView,
   FunSection,
   PlayerRef,
   RoleCsPair,
@@ -811,6 +825,7 @@ export function funFactsView(
     fates: fatesOf(counted, plays, bind),
     csByRole: csByRole(plays, bind),
     records,
+    rivals: rivalsView(counted, players, plays, bind),
     notes: [],
   };
 }
@@ -1258,4 +1273,195 @@ function rankChamps(counts: Map<number, number>, one: string, many: string): Fun
       count,
       valueLabel: count === 1 ? `1 ${one}` : `${count} ${many}`,
     }));
+}
+
+/* ---------------------------------------------------------------------------
+ * Friends and enemies (M8.1): nemesis, and best duo.
+ *
+ * **Best duo is not new maths.** It is {@link duoRecords} — the same call `/p/[puuid]`'s
+ * `Partners` block and the cursed-duo award make, with `compareDuos`' order already applied. A
+ * second pair fold here would be two answers to one question, and the first night they disagreed
+ * would be the last night anybody believed either. The only thing this file adds to a pair is
+ * the **list of customs behind it**, which is a read and not a number.
+ *
+ * **Nemesis is new**, and it is the mirror of `duoRecords`' own note: a pair fold counts the
+ * games two people played on the *same* side, and says in as many words that a game they played
+ * against each other counts for neither half of it. This is that game. It is **per player and
+ * asymmetric** — Yuki's nemesis is Lena, Lena's is somebody else — so it is a list of people,
+ * not a table of pairs.
+ * ------------------------------------------------------------------------- */
+
+/** How many rows either list prints: the page's own table size (OTP, Luck, most picked). */
+const RIVAL_TABLE_LIMIT = 10;
+
+/** One person's record against one opponent, and every custom it was folded from. */
+interface RivalTally {
+  opponent: StatsPlayer;
+  /** Counted customs the two were on opposite sides of. */
+  games: number;
+  /** How many of those the subject lost. */
+  losses: number;
+  /** Those customs, newest first, with whether the subject lost that one. */
+  met: { game: StatsGame; lost: boolean }[];
+}
+
+/**
+ * The tie rule for a rivalry: **more losses**, then a worse record against them, then more games
+ * against, then the opponent's name.
+ *
+ * The middle two keys can only separate two tallies that a later key would have separated
+ * anyway (equal losses at an equal rate is an equal count of games), and they are here because
+ * the order is stated the same way everywhere else in this file and a reader should not have to
+ * prove that to themselves.
+ */
+function worseRival(left: RivalTally, right: RivalTally): number {
+  return (
+    right.losses - left.losses ||
+    right.losses / right.games - left.losses / left.games ||
+    right.games - left.games ||
+    renderWebName(left.opponent.name).localeCompare(renderWebName(right.opponent.name))
+  );
+}
+
+/** `Won` / `Lost`, the board's own two words, on every custom either list reopens. */
+function metLabel(lost: boolean): string {
+  return lost ? LOST : WON;
+}
+
+function playsByGame(plays: readonly Play[]): Map<string, Play[]> {
+  const byGame = new Map<string, Play[]>();
+  for (const play of plays) {
+    const list = byGame.get(play.game.id) ?? [];
+    list.push(play);
+    byGame.set(play.game.id, list);
+  }
+  return byGame;
+}
+
+/**
+ * One row per person who has one: the opponent who has beaten them most.
+ *
+ * The minimum is {@link MIN_DUO_GAMES} — `duoRecords`' own, not a second floor — and a perfect
+ * record against somebody is never a nemesis, because the list is about losses.
+ */
+function nemesisRows(counted: readonly StatsGame[], plays: readonly Play[], bind: BindGame): FunRivalRow[] {
+  const byGame = playsByGame(plays);
+  const subjects = new Map<string, { player: StatsPlayer; foes: Map<string, RivalTally> }>();
+
+  // Newest first, so every row's openings come out in the order the page prints them.
+  for (const game of [...counted].reverse()) {
+    const seats = byGame.get(game.id) ?? [];
+    for (const seat of seats) {
+      const lost = !won(seat.row, game);
+      const subject = subjects.get(seat.player.playerId) ?? {
+        player: seat.player,
+        foes: new Map<string, RivalTally>(),
+      };
+      for (const foe of seats) {
+        if (foe.row.side === seat.row.side) continue;
+        const tally = subject.foes.get(foe.player.playerId) ?? {
+          opponent: foe.player,
+          games: 0,
+          losses: 0,
+          met: [],
+        };
+        tally.games += 1;
+        if (lost) tally.losses += 1;
+        tally.met.push({ game, lost });
+        subject.foes.set(foe.player.playerId, tally);
+      }
+      subjects.set(seat.player.playerId, subject);
+    }
+  }
+
+  const ranked: { row: FunRivalRow; tally: RivalTally }[] = [];
+  for (const subject of subjects.values()) {
+    const nemesis = [...subject.foes.values()]
+      .filter((tally) => tally.games >= MIN_DUO_GAMES && tally.losses > 0)
+      .sort(worseRival)[0];
+    if (nemesis === undefined) continue;
+    ranked.push({
+      tally: nemesis,
+      row: {
+        player: ref(subject.player),
+        rival: ref(nemesis.opponent),
+        games: nemesis.games,
+        losses: nemesis.losses,
+        countLabel: ofGamesLine(nemesis.losses, nemesis.games),
+        valueLabel: nemesisLine(renderWebName(nemesis.opponent.name), nemesis.losses, nemesis.games),
+        openings: nemesis.met.map((met) => openingOf(met.game, bind, metLabel(met.lost))),
+      },
+    });
+  }
+
+  return ranked
+    .sort(
+      (a, b) =>
+        worseRival(a.tally, b.tally) ||
+        renderWebName(a.row.player.name).localeCompare(renderWebName(b.row.player.name)),
+    )
+    .slice(0, RIVAL_TABLE_LIMIT)
+    .map((entry) => entry.row);
+}
+
+/**
+ * The customs a pair shared a side in, newest first.
+ *
+ * This is the `See games` list and **nothing else**: the record above it is `duoRecords`', and
+ * the two agree because they read the same universe (`counted`) under the same rule — both rows
+ * on one side.
+ */
+function duoOpenings(counted: readonly StatsGame[], pair: FunDuoRow['players'], bind: BindGame) {
+  const openings: FunOpening[] = [];
+  for (const game of [...counted].reverse()) {
+    const first = game.rows.find((row) => row.puuid === pair[0].puuid);
+    const second = game.rows.find((row) => row.puuid === pair[1].puuid);
+    if (first === undefined || second === undefined || first.side !== second.side) continue;
+    openings.push(openingOf(game, bind, metLabel(first.side !== game.winningSide)));
+  }
+  return openings;
+}
+
+/** `duoRecords`, already in `compareDuos`' order, with each pair's customs attached. */
+function bestDuoRows(
+  counted: readonly StatsGame[],
+  players: readonly StatsPlayer[],
+  bind: BindGame,
+): FunDuoRow[] {
+  return duoRecords(counted, players)
+    .slice(0, RIVAL_TABLE_LIMIT)
+    .map((duo) => ({
+      players: duo.players,
+      games: duo.games,
+      wins: duo.wins,
+      losses: duo.losses,
+      winRate: duo.winRate,
+      pairLabel: pairLabel(renderWebName(duo.players[0].name), renderWebName(duo.players[1].name)),
+      valueLabel: duoRecordLine(duo.wins, duo.losses, duo.winRate),
+      openings: duoOpenings(counted, duo.players, bind),
+    }));
+}
+
+function rivalsView(
+  counted: readonly StatsGame[],
+  players: readonly StatsPlayer[],
+  plays: readonly Play[],
+  bind: BindGame,
+): FunRivalsView {
+  return {
+    nemesis: {
+      title: NEMESIS_TITLE,
+      intro: NEMESIS_INTRO,
+      rule: NEMESIS_RULE,
+      rows: nemesisRows(counted, plays, bind),
+      empty: NO_NEMESIS,
+    },
+    duos: {
+      title: BEST_DUO_TITLE,
+      intro: BEST_DUO_INTRO,
+      rule: BEST_DUO_RULE,
+      rows: bestDuoRows(counted, players, bind),
+      empty: NO_DUOS,
+    },
+  };
 }

@@ -6232,7 +6232,7 @@ contention, exactly as M7 itself was queued behind M5:
 - **M7.11 is the one rebuild and M8 must not bring a second.** M8.2 was defined against a stored number on
   purpose so that no M8 surface changes when M7.11 runs.
 
-- [ ] **M8.1** Nemesis and best duo on `/fun`. Who beats you, and who you win with. Query-only, over counted games in the open window. **Does not change `/stats`, the awards, or the rating model.** *(owner: `web-engineer`; after M7.4)*
+- [x] **M8.1** (landed 2026-09-15: a new "Friends and enemies" group on `/fun`. `Best duo` calls `duoRecords` verbatim — no second pair fold. `Nemesis` is new: a per-player, asymmetric fold over opposing-side games, ranked by losses against then worse record then more games then name, floored at `MIN_DUO_GAMES` and reused, never a second minimum. Every row prints its denominator, `Lost 7 of 9 to Lena.`, so the count cannot read as an attendance award; a perfect record against somebody is never a nemesis. Both lists expand into their customs newest-first and respect the `?queue=` split. Review confirmed the asymmetry, the tie-break order, and that `/stats`, the awards, the board and `packages/core` are untouched.) Nemesis and best duo on `/fun`. Who beats you, and who you win with. Query-only, over counted games in the open window. **Does not change `/stats`, the awards, or the rating model.** *(owner: `web-engineer`; after M7.4)*
 
     > **Brief (product, 2026-09-15)**
     >

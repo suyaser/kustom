@@ -18,6 +18,7 @@ import {
   noCsAtRole,
   POOLS_HEADING,
   RECORDS_HEADING,
+  RIVALS_HEADING,
   SEE_CHAMPS,
   SEE_GAMES,
   THIEF_EMPTY,
@@ -28,6 +29,7 @@ import type {
   FunBloodGroup,
   FunBloodRow,
   FunChampRow,
+  FunDuoRow,
   FunFactsView,
   FunFearBan,
   FunHolder,
@@ -35,6 +37,8 @@ import type {
   FunPool,
   FunPoolRow,
   FunRecord,
+  FunRivalRow,
+  FunRivalsView,
   FunSection,
   PlayerRef,
   RoleCsPair,
@@ -53,8 +57,8 @@ import '../board-parts.css';
  * A pure function of one snapshot. The numbers live in `lib/stats/fun.ts`; this file decides
  * nothing except order: first blood, multi-kill halls, first turret, deaths, steals,
  * fear bans, most banned / picked, who they lock (OTP vs variety), luck (lowest
- * winning KDA / highest losing KDA), then CS by role, then one-game records, then
- * habits. The Rift / ARAM picker is the same chips `/games` wears.
+ * winning KDA / highest losing KDA), friends and enemies (nemesis, best duo),
+ * then CS by role, then one-game records, then habits. The Rift / ARAM picker is the same chips `/games` wears.
  * CS-by-role, objective steals and most banned are Rift only. Rows are labelled (name left,
  * number right) so a long Riot ID cannot wrap into the score.
  */
@@ -101,6 +105,7 @@ export function FunView({ facts }: { facts: FunFactsView }) {
           <ChampTable section={facts.mostPicked} rule={MOST_PICKED_RULE} />
           <Pools pools={facts.pools} />
           <Records heading={FATES_HEADING} records={facts.fates} />
+          <Rivals rivals={facts.rivals} />
           {facts.queue === 'aram' ? null : <CsByRole pairs={facts.csByRole} />}
           <Records
             heading={RECORDS_HEADING}
@@ -520,5 +525,103 @@ function PlayerName({ player }: { player: PlayerRef }) {
     <Link className="cn-stats-name" href={`/p/${player.puuid}`}>
       {renderWebName(player.name)}
     </Link>
+  );
+}
+
+/**
+ * Friends and enemies (M8.1): two ranked lists in one card, enemies first.
+ *
+ * The shape is `Pools`': one card, a titled block per list, each row a closed `<details>` that
+ * opens **See games** into the customs it was folded from — the same expander Luck uses (M5.33).
+ * Neither list is hidden on ARAM: both are records over whatever the `?queue=` read returned.
+ */
+function Rivals({ rivals }: { rivals: FunRivalsView }) {
+  return (
+    <section className="cn-block">
+      <section className="cn-card cn-list-card">
+        <header className="cn-card-head cn-list-head cn-fun-head">
+          <FunHead title={RIVALS_HEADING} />
+        </header>
+        <div className="cn-role-block">
+          <FunHead title={rivals.nemesis.title} as="p" className="cn-stats-subtitle" />
+          <p className="cn-stats-intro">{rivals.nemesis.intro}</p>
+          {rivals.nemesis.rows.length === 0 ? (
+            <p className="cn-stats-empty">{rivals.nemesis.empty}</p>
+          ) : (
+            <ol className="cn-fun-groups">
+              {rivals.nemesis.rows.map((row) => (
+                <NemesisRow key={row.player.puuid} row={row} />
+              ))}
+            </ol>
+          )}
+          <p className="cn-award-rule">{rivals.nemesis.rule}</p>
+        </div>
+        <div className="cn-role-block">
+          <FunHead title={rivals.duos.title} as="p" className="cn-stats-subtitle" />
+          <p className="cn-stats-intro">{rivals.duos.intro}</p>
+          {rivals.duos.rows.length === 0 ? (
+            <p className="cn-stats-empty">{rivals.duos.empty}</p>
+          ) : (
+            <ol className="cn-fun-groups">
+              {rivals.duos.rows.map((row) => (
+                <DuoRow key={`${row.players[0].puuid}|${row.players[1].puuid}`} row={row} />
+              ))}
+            </ol>
+          )}
+          <p className="cn-award-rule">{rivals.duos.rule}</p>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+/**
+ * `Yuki · 7 of 9 · Lost 7 of 9 to Lena.`
+ *
+ * The number is the nowrap cell and the sentence is the wrapping one under it — Fear Ban's
+ * recipe, for Fear Ban's reason: a whole sentence in the mono column pushes the name off a
+ * phone. The count carries its denominator in both, which is the point of the row.
+ */
+function NemesisRow({ row }: { row: FunRivalRow }) {
+  return (
+    <li className="cn-fun-group">
+      <details className="cn-fun-game">
+        <summary className="cn-record cn-fun-holder">
+          <PlayerName player={row.player} />
+          <span className="cn-fun-stat">
+            <span className="cn-num cn-record-wl">{row.countLabel}</span>
+            <span className="cn-fun-when cn-fun-fear">{row.valueLabel}</span>
+            <span className="cn-fun-toggle">{SEE_GAMES}</span>
+          </span>
+        </summary>
+        <ol className="cn-fun-openings">
+          {row.openings.map((opening) => (
+            <OpeningRow key={opening.game.id} opening={opening} focusPuuid={row.player.puuid} />
+          ))}
+        </ol>
+      </details>
+    </li>
+  );
+}
+
+/** `Yuki and Theo · 8W 2L · 80%` — the pair line `/stats` and `Partners` already print. */
+function DuoRow({ row }: { row: FunDuoRow }) {
+  return (
+    <li className="cn-fun-group">
+      <details className="cn-fun-game">
+        <summary className="cn-record cn-fun-holder">
+          <span className="cn-stats-pair">{row.pairLabel}</span>
+          <span className="cn-fun-stat">
+            <span className="cn-num cn-record-wl">{row.valueLabel}</span>
+            <span className="cn-fun-toggle">{SEE_GAMES}</span>
+          </span>
+        </summary>
+        <ol className="cn-fun-openings">
+          {row.openings.map((opening) => (
+            <OpeningRow key={opening.game.id} opening={opening} focusPuuid={row.players[0].puuid} />
+          ))}
+        </ol>
+      </details>
+    </li>
   );
 }

@@ -2315,7 +2315,8 @@ Order under the strip: First Blood Museum (killer, champion, night), First Blood
 when the block named `firstBloodDeath` (hidden when empty — the live blob does not name who
 died), Pentakill / Quadrakill / Triple / Double museums, First Turret, Death Hall of Fame,
 Objective Thief (Rift), Fear Ban, Most banned (Rift), Most picked, Who they lock (one-trick
-vs always a new champ), Luck (lowest KDA on a win / highest KDA on a loss), then CS by role, one-game records, habits. First blood and vision are no longer printed as missing notes; the killer
+vs always a new champ), Luck (lowest KDA on a win / highest KDA on a loss), **Friends and enemies**
+(M8.1, nemesis and best duo), then CS by role, one-game records, habits. First blood and vision are no longer printed as missing notes; the killer
 museum is empty only when the stored block named no killer. Deaths and
 `longestTimeSpentLiving` are not a corpse. Multi-kill halls sum the stored count fields; a
 game with two triples is one opening labelled `2 triples`. First Turret is the
@@ -2328,7 +2329,20 @@ champion: **One-trick** is the highest share on one champion (`Shaco · 100% of 
 is a closed `<details>` that opens **See champs** into `Ahri × 12`. Luck ranks how often
 someone was the lowest KDA on the winning side (**Lucky trash** / المحظوظ طرش) or the
 highest KDA on the losing side (**Most robbed** / المظلوم بزيادة): `2 times`, closed
-`<details>`, **See games** into `0/8/1 · Alistar`. One-game records include Longest killing spree from `largestKillingSpree`
+`<details>`, **See games** into `0/8/1 · Alistar`.
+
+**Friends and enemies** (M8.1, `صحابه وخصومه`) is two ranked lists in one card, ten rows each. **Nemesis**
+(`اللي دايما بيكسبه`) is per player and one-way — Yuki's nemesis is Lena, Lena's is somebody else: the person
+who has beaten them most, over at least five counted games on opposite sides. The row is `6 of 10` in the mono
+column with `Lost 6 of 10 to Lena.` wrapping under it; the count always carries its denominator, because the
+count alone would be an attendance award. A perfect record against somebody is never a nemesis. **Best duo**
+(`التنائي اللي مبيخسرش`) is `duoRecords` — the same call `Partners` on `/p/[puuid]` makes — printing the same
+pair line, `Lena and Theo · 8W 2L · 80%`. Each row is a closed `<details>` that opens **See games** into the
+customs it was folded from, newest first, each labelled `Won` / `Lost` with its scoreboard. Empty:
+`No pair has 5 games against each other yet.` and `No pair has 5 games together yet.` **Unlike CS by role and
+Objective Thief, this group is not hidden on ARAM** — both lists draw on whatever the `?queue=` read returned.
+
+One-game records include Longest killing spree from `largestKillingSpree`
 (at least three). Every English card title and record name carries an Egyptian 3ameya roast
 facing it on the right in brand (`مين فتحها`, `كنسهم كنس`, `كسب وهو زبالة`) — not فصحى and
 not a translation. Odd rows sit on `raise` so a long museum is a zebra.

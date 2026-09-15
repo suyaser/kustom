@@ -1,5 +1,6 @@
 import type { RoleValue } from '@customs/db';
-import { MIN_RECORD_GAMES } from './copy';
+import { winLossLabel } from '../board/copy';
+import { MIN_DUO_GAMES, MIN_RECORD_GAMES, percentLabel } from './copy';
 
 /**
  * Every word `/fun` says (M5.24). The page and its tests read these strings; a component
@@ -178,6 +179,54 @@ export const ROBBED_RULE = 'Highest KDA on the losing side of a counted custom. 
 
 export const NOBODY_THIS = 'Nobody qualifies.';
 
+/* ---------------------------------------------------------------------------
+ * Friends and enemies (M8.1): nemesis and best duo.
+ *
+ * Both minimums are {@link MIN_DUO_GAMES} — the one `duoRecords` already applies. There is no
+ * second floor on this page and there must not be one: a reader who meets the two lists meets
+ * one rule twice, not two rules.
+ *
+ * The lines below are declared above {@link FUN_ROAST} because that table keys on them.
+ * ------------------------------------------------------------------------- */
+
+export const RIVALS_HEADING = 'Friends and enemies';
+
+export const NEMESIS_TITLE = 'Nemesis';
+export const NEMESIS_INTRO = 'The person who has beaten them most, and how often the two have met.';
+/**
+ * **A nemesis is one-way.** Yuki's is Lena; Lena's is somebody else. The rule says so out loud
+ * because the row does not: a reader who takes the list for a table of pairs will look for the
+ * mirror row and not find it.
+ */
+export const NEMESIS_RULE = `Losses to one person, over at least ${MIN_DUO_GAMES} counted games on opposite sides. A nemesis is one-way.`;
+/** The twin of {@link NO_DUOS}, the same noun at the same bar, for the other side of the card. */
+export const NO_NEMESIS = `No pair has ${MIN_DUO_GAMES} games against each other yet.` as const;
+
+export const BEST_DUO_TITLE = 'Best duo';
+export const BEST_DUO_INTRO = 'The best record on the same side — the pairs Partners already draws.';
+export const BEST_DUO_RULE = `Wins on the same side, over at least ${MIN_DUO_GAMES} games together.`;
+
+/**
+ * `7 of 9` — a count and the denominator it was won over.
+ *
+ * **The count alone would be an attendance award**: in a group of ten who play the same ten,
+ * whoever turns up most is everybody's nemesis by raw losses. The denominator is the honest half
+ * of the sentence and a reader can see a rivalry from a rota with it.
+ */
+export function ofGamesLine(count: number, games: number): string {
+  return `${count} of ${games}`;
+}
+
+/** `Lost 7 of 9 to Lena.` */
+export function nemesisLine(name: string, losses: number, games: number): string {
+  return `Lost ${ofGamesLine(losses, games)} to ${name}.`;
+}
+
+/** `8W 2L · 80%` — the partners line, from the two helpers `/stats` already prints it with. */
+export function duoRecordLine(wins: number, losses: number, winRate: number): string {
+  return `${winLossLabel(wins, losses)} · ${percentLabel(winRate)}`;
+}
+
 /**
  * Egyptian 3ameya roast under each English `/fun` title. Not فصحى and not a
  * translation — the line a friend would shout after the custom. The English
@@ -234,6 +283,9 @@ export const FUN_ROAST: Readonly<Record<string, string>> = {
   [MOST_BARONS]: 'بياكل البارون',
   [CS_HIGH_LABEL]: 'مكينه فارم',
   [CS_LOW_LABEL]: 'جعان',
+  [RIVALS_HEADING]: 'صحابه وخصومه',
+  [NEMESIS_TITLE]: 'اللي دايما بيكسبه',
+  [BEST_DUO_TITLE]: 'التنائي اللي مبيخسرش',
 };
 
 export function funRoast(title: string): string | null {

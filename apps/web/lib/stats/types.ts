@@ -377,7 +377,62 @@ export interface FunFactsView {
   fates: FunRecord[];
   csByRole: RoleCsPair[];
   records: FunRecord[];
+  /** Nemesis and best duo (M8.1): who beats them, and who they win with. */
+  rivals: FunRivalsView;
   notes: string[];
+}
+
+/* ---------------------------------------------------------------------------
+ * `/fun` — Friends and enemies (M8.1).
+ *
+ * Two ranked lists in one card: **Nemesis**, a per-player asymmetric fold over the customs two
+ * people played on *opposite* sides, and **Best duo**, which is `duoRecords` and nothing else —
+ * the same call `/p/[puuid]`'s `Partners` block and the cursed-duo award already make.
+ * ------------------------------------------------------------------------- */
+
+/** A titled list on that card. The museum's `FunSection` plus the rule line under it. */
+export interface FunRivalSection<T> extends FunSection<T> {
+  rule: string;
+}
+
+/** One Nemesis row: whose list it is, who beats them, and every custom they met in. */
+export interface FunRivalRow {
+  /** The person the row is about — the one who has been losing. */
+  player: PlayerRef;
+  /** The one who has beaten them most. **Not symmetric**: their nemesis is somebody else. */
+  rival: PlayerRef;
+  /** Counted customs the two played on opposite sides. The honest denominator. */
+  games: number;
+  /** How many of those {@link player} lost. Never zero: the list is about losses. */
+  losses: number;
+  /** `7 of 9`. */
+  countLabel: string;
+  /** `Lost 7 of 9 to Lena.` */
+  valueLabel: string;
+  /** Those customs, newest first, labelled `Won` / `Lost` from {@link player}'s side. */
+  openings: FunOpening[];
+}
+
+/** One Best duo row: the pair, the record `duoRecords` folded, and the customs behind it. */
+export interface FunDuoRow {
+  /** Ordered by the same name-then-puuid rule `duoRecords` already applied. */
+  players: [PlayerRef, PlayerRef];
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  /** `Yuki and Theo`. */
+  pairLabel: string;
+  /** `8W 2L · 80%` — the partners line, unchanged, so the two pages read the same. */
+  valueLabel: string;
+  /** The customs they shared a side in, newest first, labelled `Won` / `Lost`. */
+  openings: FunOpening[];
+}
+
+/** The card: enemies first, then friends. */
+export interface FunRivalsView {
+  nemesis: FunRivalSection<FunRivalRow>;
+  duos: FunRivalSection<FunDuoRow>;
 }
 
 /* ---------------------------------------------------------------------------
