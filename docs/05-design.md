@@ -1334,6 +1334,20 @@ treatment and no new token: `border-inline-start: 3px solid var(--cn-brand)`, `p
 It is also now the only line on the page that explains the **size** of a change, since the per-game caption
 gave that job up — which is the argument for it being the loudest of the three and not the quietest.
 
+**It is two sentences in one paragraph since M7.10 (2026-09-16), not two strips.** The MVP / ACE sentence
+follows M5.15's inside the same `<p>` in the same rule: they answer the same question and splitting them would
+draw a second brand rule twenty pixels under the first, which reads as two arguments where there is one. The
+strip grows by a line on a phone and that is the whole visual change. **Both sentences always print** — this
+one is about the model, not about a game, so a player who has never been either one still reads it, and a page
+whose every row is `not rated` still reads it.
+
+**The `MVP` / `ACE` word on a row takes no dress of its own** (`.cn-game-award`): the delta's `t-sm`, the row's
+`--cn-text`, no weight, no background, no border, no icon, no gold. It follows the delta inside the same head,
+`1512 (+43) MVP`, so it is read as the end of that phrase rather than as a badge parked beside it, and it does
+not wrap away from its number. Floodlit has no award colour, and a task that prints two words per game is not
+the place to mint one. It is also the one thing on a game head that is about **who**, not about how much, which
+is exactly why it must not out-shout the number it qualifies.
+
 **The `not rated` footnote keeps `.cn-hint` and stays above it.** Two `dim` paragraphs stacked read as one grey
 block that nobody finishes; a footnote about three rows and the page's whole argument are not the same voice.
 One is `dim` prose, the other is a strip with a brand rule, and the difference is visible before either is
@@ -1465,6 +1479,9 @@ words below are fixed.
 | games are not being saved, tonight page | `Tonight's games are not being saved. Play on — they can be added back from match history later.` | **amended, product 2026-09-10 (M5.14)** — was `An admin can start one.`; backfill is true, and it is the only thing the twenty people holding the link can act on |
 | inferred roles on `/admin/players` (plain page, no dress) | `support · jungle · from 17 games` · `flexible · from 2 games` · `flexible · no games yet` | **new**, product 2026-09-10 (M5.17) — read-only text where two selects used to be |
 | award badge on a `/leaderboard` row, `Last week` and `Last month` only | `Most improved` · `Best off-role` · `Cursed duo` | **no new string, designer 2026-09-15 (M8.3)** — placement only. The three are **imported from `lib/stats/copy.ts`** (`MOST_IMPROVED`, `BEST_OFF_ROLE`, `CURSED_DUO`), never retyped and never re-cased, for the reason that file's own header gives: they are printed on a page *and* in a Discord post, and one surface saying `Cursed duo` while another says `Worst duo` is a bug nobody finds until somebody wins it. This is the second board-page string that lives in `lib/stats/copy.ts` rather than `lib/board/copy.ts`, and it stays there — a copy of an award's title in the board's own file is the drift this row exists to prevent. The badge is the title **alone**: no count, no delta, no partner name, no `#1`, no calendar — `/p/[puuid]`'s `Most improved, September.` carries the calendar because that page has no window heading, and `/leaderboard`'s `h1` already names the window. Nothing is drawn on `This week`, `This month` or `All time`. See "The award badge on a board row" |
+| result embed, the MVP / ACE line (its own last field) | `MVP Lena · ACE Rami` — and **no line and no field at all** for a game with no award | **new, product 2026-09-15 (M7.10)** — two names, a middle dot, and nothing else: no score, no percentage, no emoji, no trophy, no colour and no `#1` (acceptance 6). The score behind the pick is a number a reader can do nothing with and one more thing that can disagree with the post; the names are the whole point. **The MVP is named first because the winning side is.** Both words are upper case — they are op.gg's terms and this group reads them there every day, so never `Mvp`, never `mvp`. Names go through the same `renderName` as every other embed line, so a nameless player is `Someone` and a long Riot ID is truncated at 32 characters and escaped identically. Nothing prints for the other eight and no post says "nearly MVP". `MVP_LABEL` / `ACE_LABEL` / `awardLine` in `lib/discord/embeds.ts`, pinned by code point in `embeds.test.ts`; the field itself is specified in "Result embed" above |
+| a recent game on `/p/[puuid]`, when the reader's page owns the award | `MVP` · `ACE`, beside the delta the row already prints — `1512 (+43) MVP` | **new, product 2026-09-15 (M7.10)** — the word, and nothing around it: **not a badge, not an icon, not a colour of its own**, no trophy, no gold, no `#1`. It is the delta's own size (`--cn-t-sm`) and the row's own `--cn-text`, so it reads as part of the same sentence as the number it follows, which is what it is. Floodlit has no award colour and this is not the place to invent one. **One of two words or nothing**: absent for the other eight players of that game, absent for every game with no award, and absent on a `not rated` row — the same reason no page says "nearly MVP". Same two constants as the embed's labels, a second pair in `lib/board/copy.ts` (`MVP_LABEL`, `ACE_LABEL`); the dress is `.cn-game-award` |
+| the explanation line under `Recent games`, second sentence | `The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.` | **new, product 2026-09-15 (M7.10)** — it joins the row above **in the same paragraph**, directly after it, not as a second `.cn-explain` block: the reader's question is one question ("why is this number the size it is") and the answer is now two sentences long. **It is about the model, not about a game**, so it prints on every player's page whether or not they have ever been either one — the same rule that makes M5.15's sentence once-per-page rather than once-per-row, and the reason a game with no award still leaves it standing. No maths, no percentage, no formula, no `1.25×`, and **neither word is capitalised into it**: this sentence names the positions, the two labels above name the players. `MVP_EXPLANATION` in `lib/board/copy.ts` |
 
 **Why the three new ones stand.**
 
@@ -2730,9 +2747,28 @@ url          https://<tonight page>                          [same localhost rul
 description  Blue was favored 54%. Top damage: Lena, 47.3k.  [absent when it would be empty]
 field 1      name "Blue"   inline   five lines: new rating and delta
 field 2      name "Red"    inline   five lines: new rating and delta
+field 3      name "​"  (U+200B)      one line: MVP <name> · ACE <name>   [absent entirely when the game has none]
 footer       Kustom · game 47                                ["Kustom" alone if the game cannot be counted]
 timestamp    game end
 ```
+
+**Field 3 is the MVP / ACE line (M7.10, added 2026-09-16).** Three things about it are the design and not an
+implementation detail:
+
+- **Its name is a zero-width space (U+200B), not a heading.** Product wrote one line *under* the two columns
+  and wrote no heading for it; a field is the only place in an embed that is under two inline fields (the
+  description is above them, the footer is `Kustom · game 47`'s), and Discord rejects a field whose name is
+  the empty string. The name is therefore a character that takes no room and says nothing, and the line reads
+  as a line. Never a real heading — no `Award`, no `MVP`, no `Standouts`.
+- **It is not inline**, so it sits under the two columns rather than becoming a third one beside them.
+- **It is the last field, and that ordering is load-bearing.** `guardEmbed` sheds from the last field backwards
+  when a post is over Discord's 6000 characters (M4.12), so this is the first thing the post gives up and the
+  ten rating rows are never cut to make room for it.
+
+**Absent entirely, never empty.** A game with no MVP and no ACE — a component missing, a role the client never
+reported, a remake, an ARAM, anything the fold did not rate, any game played before M7.7 — adds **no field at
+all**, and the post is byte-identical to the two-field one this group has read since M3.3. Never an empty
+field, never a dash, never `unknown`, never a heading with nothing under it.
 
 **Amended 2026-09-10 (product, with M5.12): the footer is `Kustom · game 47`, not `Season 1 · game 47`.**
 Seasons are gone from everything a friend reads (`04-decisions.md`), so the left half becomes the product's
@@ -2780,12 +2816,19 @@ package, pinned as a snapshot in `apps/web/lib/discord/embeds.test.ts`):
 > | `adc` Bilal · 1668 (-45) | `adc` Lena · 2127 (+39) |
 > | `support` Theo · 1372 (-47) | `support` Yuki · 1182 (+48) |
 >
+> MVP Lena · ACE Iris
+>
 > Kustom · game 47
 
 The shape the hand version predicted survived contact with the package — Nadia at σ 5.10 moves most, Lena at
 σ 4.50 moves least — but every individual number moved by one or two points, which is why nothing here may be
 retyped by hand again. Duration and top damage are still invented; the docs pin no result for the worked
 example.
+
+**The award line on this roster is `MVP Lena · ACE Iris`**, pinned in `embeds.test.ts` against the same worked
+input. Red won, so the MVP is Red's `adc` and the ACE is Blue's `jungle`, and the MVP is named first because
+the winning side is — the same reason Blue's column is printed first whichever side won. Neither name carries
+its role, its score or its delta: the ten lines above already say all three.
 
 **On this roster the two columns do happen to cancel** (−223 and +223), which the hand-computed version did
 not (it had −228 and +231). They are not guaranteed to: movement scales with each player's own σ² and the two
