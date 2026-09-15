@@ -3,18 +3,20 @@ import { z } from 'zod';
 import { internalPathSchema } from '@/lib/admin/formValues';
 
 /**
- * `POST /api/admin/lobbies/start` (M4.2): open tonight's lobby on somebody's client.
+ * `POST /api/me/lobbies/start` (M4.2's press, moved onto the `/api/me/*` class by M4.13): open
+ * tonight's lobby on somebody's client.
  *
  * **The body decides nothing.** No lobby name, no password, no mode, no host: each one is a
  * step, and this product's claim is that there are none. The name and the password are
- * generated (`lib/admin/lobbyStart.ts`), the mode is the companion's own read of the client's
+ * generated (`lib/lobbyStart.ts`), the mode is the companion's own read of the client's
  * custom-queue list, and the host is picked from who has a companion up. The only field is
  * where a browser form goes back to.
  */
 export const startLobbyRequestSchema = z.object({
   /**
-   * Where an HTML form post is sent back to, when it is not `/admin` — the tonight page's
-   * no-JavaScript fallback names `/` (M3.4). Re-validated by `safeNextPath` before it is used,
+   * Where an HTML form post is sent back to, when it is not `/` — the tonight page's
+   * no-JavaScript fallback names `/` (M3.4) and `/admin`'s one button names `/admin`.
+   * Re-validated by `safeNextPath` before it is used,
    * so a body can never turn this route into an open redirect. A JSON caller may send it and it
    * changes nothing.
    */

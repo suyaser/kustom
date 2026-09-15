@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { LOBBY_WRITES_UNVERIFIED, openingOnPcLine } from './lobbyStart';
+import { LOBBY_WRITES_UNVERIFIED, openingOnPcLine } from '../lobbyStart';
 import { type AdminFormKind, adminError, adminNotice, mintedToken } from './notices';
 
 /**
@@ -16,11 +16,19 @@ import { type AdminFormKind, adminError, adminNotice, mintedToken } from './noti
 const handler = (path: string): string =>
   readFileSync(fileURLToPath(new URL(`../../app/api/admin/${path}`, import.meta.url)), 'utf8');
 
+/**
+ * The same read, one class over. `Start a lobby` is the one form on `/admin` whose route is
+ * **not** an admin route: M4.13 moved it onto `/api/me/*`, where every linked player may press
+ * it, and this page's button posts to that one path like everybody else's does.
+ */
+const meHandler = (path: string): string =>
+  readFileSync(fileURLToPath(new URL(`../../app/api/me/${path}`, import.meta.url)), 'utf8');
+
 const players = handler('players/handler.ts');
 const tokens = handler('tokens/handler.ts');
 const discord = handler('discord-config/handler.ts');
 const reroll = handler('lobbies/[lobbyId]/reroll/handler.ts');
-const start = handler('lobbies/start/handler.ts');
+const start = meHandler('lobbies/start/handler.ts');
 
 /** Every form kind the admin area still has. `seasons` left with M5.14's Start button. */
 const KINDS: AdminFormKind[] = ['players', 'tokens', 'discord', 'reroll', 'lobby-start'];

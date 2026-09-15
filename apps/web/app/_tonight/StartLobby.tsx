@@ -1,10 +1,10 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
-import { startLobbyResponseSchema } from '@/app/api/admin/lobbies/start/schema';
-import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/admin/lobbyStart';
+import { startLobbyResponseSchema } from '@/app/api/me/lobbies/start/schema';
+import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStart';
 import { PLAYERS_PER_GAME } from '@/lib/lobbyState';
-import { START_LOBBY_OFFLINE } from '@/lib/tonight/copy';
+import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 
 /**
@@ -14,7 +14,7 @@ import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
  * nobody had to decide whose — opens a custom with a name and a password neither of them chose,
  * and the invite popup appears for everyone who is around. **It is the one tap this product
  * has**, and everything it needs to decide is decided by the route: who hosts, the name, the
- * password, the four refusals (`lib/admin/lobbyStart.ts`).
+ * password, the four refusals (`lib/lobbyStart.ts`).
  *
  * **Every word here is imported, not retyped.** The button's label, the pending line and the
  * invited line are product's, and they live in one file with the rules that answer with them,
@@ -22,9 +22,9 @@ import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
  *
  * **Two shapes, one block** (the designer, 2026-09-10):
  *
- *   - **`idle`, for an admin: the button**, directly under the strip's sentence and *above* the
- *     rack. Ten empty seats are 480px, so a control below them is below the fold on a 390px
- *     phone — and this is the one thing on an idle page anybody can do.
+ *   - **`idle`, for a linked player: the button**, directly under the strip's sentence and
+ *     *above* the rack. Ten empty seats are 480px, so a control below them is below the fold on
+ *     a 390px phone — and this is the one thing on an idle page anybody can do.
  *   - **`filling`: a readout, with no button.** A lobby row exists, so the route can only answer
  *     `There is already a lobby open.`, and a control whose only outcome is a refusal is not a
  *     control. What is left is worth saying: how many were invited, or that the create failed.
@@ -32,11 +32,12 @@ import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
  * **No card and no mark.** It is a stack of lines under the strip; the 2px `brand` inset rule
  * means "this is about you" (the rack's row, `Your role tonight`) and this is about the night.
  *
- * **Drawn for an admin only, and being drawn is not permission.** The route is admin-gated
- * until M3.6's third route class exists (`04-decisions.md`, 2026-09-10) and re-checks the
- * session server-side before it writes; a non-admin who forged the markup gets a 403. An
- * anonymous visitor is shown nothing: product's `Sign in with Discord to start a lobby.` is
- * **suspended, not deleted**, and comes back when the press widens to linked players.
+ * **Drawn for a linked player, and being drawn is not permission** (M4.13). The route runs on
+ * M3.6's `/api/me/*` class and resolves the session again with the service-role client before it
+ * writes; somebody who forged the markup gets the 403 sentence, not a lobby. An anonymous
+ * visitor on the idle page gets {@link StartLobbySignIn} instead — product's
+ * `Sign in with Discord to start a lobby.`, suspended on 2026-09-10 and back now that there is
+ * a button behind it that they can really press once they are in.
  *
  * **In place, and never a toast** (M3.20). A real `<form>` with a real action, intercepted when
  * JavaScript is running and posted as JSON to the same route; the answer — the pending line or
@@ -45,7 +46,10 @@ import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
  * and the 303 brings the same sentence back in the query string.
  */
 
-const START_ACTION = '/api/admin/lobbies/start';
+const START_ACTION = '/api/me/lobbies/start';
+
+/** The OAuth round trip, the one thing on this page that navigates (`RoleTonight`'s own). */
+const SIGN_IN_ACTION = '/auth/signin';
 
 export interface StartLobbyProps {
   /**
@@ -120,7 +124,10 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
 
       if (!response.ok) {
         // One of the four sentences, in the route's own words: it owns the rule it refused.
-        setRefused(errorOf(body));
+        // **One exception, and it is the page's** (M4.13): a session that expired between the
+        // render and the press answers 401 `sign in required`, which is gate vocabulary. The
+        // fact is the same one the signed-out block states, so it is stated in the same words.
+        setRefused(response.status === 401 ? START_LOBBY_SIGN_IN : errorOf(body));
         return;
       }
       // **The route's own response schema**, not a hand-read of two fields: one shape,
@@ -174,6 +181,37 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
         </p>
       )}
       {invited === null ? null : <p className="cn-hint">{invited}</p>}
+    </div>
+  );
+}
+
+/**
+ * What a **signed-out** visitor gets where the button would be, on the `idle` page and nowhere
+ * else (M4.13, product).
+ *
+ * 21:40 and a friend whose session expired opens the WhatsApp link on the one night it matters.
+ * `RoleTonight` draws nothing at all for them — there is no live lobby to pick themselves out of
+ * — so without this there is no door into this site anywhere on the screen.
+ *
+ * **The role card's signed-out shape**: the sentence is the reason and the button is the label
+ * (the designer, 2026-09-10), and it is a real form posting to `/auth/signin` because an OAuth
+ * round trip cannot be done in place. **Never a disabled `Start a lobby`** — the M4.2 brief's
+ * "disabled with the sentence" was killed by M3.20 and the amber-control rules.
+ *
+ * In `filling` a signed-out visitor still sees nothing: that block is a readout, not a control,
+ * and there is nothing to sign in *for* while a lobby is already open.
+ */
+export function StartLobbySignIn() {
+  return (
+    <div className="cn-start">
+      <p className="cn-start-note">{START_LOBBY_SIGN_IN}</p>
+      <form method="post" action={SIGN_IN_ACTION} className="cn-signin">
+        {/* Back to the tonight page, not to `/admin`, which is where a sign-in defaults. */}
+        <input type="hidden" name="next" value="/" />
+        <button type="submit" className="cn-button">
+          {SIGN_IN_LABEL}
+        </button>
+      </form>
     </div>
   );
 }

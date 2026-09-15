@@ -1,27 +1,29 @@
 import { createLobbyCommandPayloadSchema } from '@customs/db/schemas';
-import type { CreateLobbyProgress } from '../admin/lobbyStart';
 import { type NameableRow, playerLabel } from '../admin/playerName';
 import { nightWindow } from '../commands';
+import type { CreateLobbyProgress } from '../lobbyStart';
 import { DEFAULT_NIGHT_TIME_ZONE } from '../night';
 import type { ServiceClient } from '../supabase';
 
 /**
  * Tonight's `create_lobby` command, as a page reads it (M4.2's control, M4.7's layout).
  *
- * The press itself is `POST /api/admin/lobbies/start`; this is the other half — what the two
- * surfaces show **afterwards**, on a reload, on a second device, and for the admin who did not
- * press it. One row, read once, turned into the sentence `startLobbySentence` already owns, so
- * the tonight page and `/admin` cannot end up saying two different things about one command.
+ * The press itself is `POST /api/me/lobbies/start`; this is the other half — what the two
+ * surfaces show **afterwards**, on a reload, on a second device, and for the linked player who
+ * did not press it. One row, read once, turned into the sentence `startLobbySentence` already
+ * owns, so the tonight page and `/admin` cannot end up saying two different things about one
+ * command.
  *
- * **Service role, and only for an admin.** `companion_commands` has no RLS policy at all — it
- * is service-role only (`0001_init.sql`) — so this read cannot be made with the anon key the
- * rest of the tonight page uses, and it is not in the `supabase_realtime` publication either.
- * Both facts point the same way: the page **polls** this while a command is live rather than
- * subscribing to it (`04-decisions.md`, 2026-09-10), and the read happens on the server, for a
- * viewer the session already said is an admin, exactly as `lib/viewer.ts` reads `players`.
+ * **Service role, and only for a linked viewer** (M4.13; an admin only until then).
+ * `companion_commands` has no RLS policy at all — it is service-role only (`0001_init.sql`) — so
+ * this read cannot be made with the anon key the rest of the tonight page uses, and it is not in
+ * the `supabase_realtime` publication either. Both facts point the same way: the page **polls**
+ * this while a command is live rather than subscribing to it (`04-decisions.md`, 2026-09-10),
+ * and the read happens on the server, for a viewer the session already matched to a player row,
+ * exactly as `lib/viewer.ts` reads `players`.
  *
  * **A page never writes.** This is a read and nothing else; every mutation goes through
- * `app/api/admin/lobbies/start`.
+ * `app/api/me/lobbies/start`.
  */
 
 /** What the two surfaces need to draw the state of one press. */

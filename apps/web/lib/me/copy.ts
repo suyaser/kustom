@@ -35,6 +35,22 @@ export const ROLE_TAP_NOT_IN_LOBBY = 'You are not in that lobby. Join it in Leag
 export const ROLE_TAP_NOT_LINKED = 'Pick yourself out of the list first, then you can set a role.';
 
 /* ---------------------------------------------------------------------------
+ * `POST /api/me/lobbies/start` (M4.13)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * A signed-in visitor with no player row pressing `Start a lobby` (403). Built on
+ * {@link ROLE_TAP_NOT_LINKED}'s shape on purpose — same first clause, same order, one verb
+ * changed — because it is the same fact about the same visitor said about a second control.
+ *
+ * The page cannot produce this request: the control is drawn for linked viewers only, and the
+ * signed-in-unlinked visitor is already told `Signed in. Open the page while the lobby is up and
+ * you can pick yourself out of it.` at the foot of the column. So this is the forged-post
+ * answer, and it is a sentence rather than the raw envelope of a gate that assumed a player row.
+ */
+export const START_LOBBY_NOT_LINKED = 'Pick yourself out of the list first, then you can start a lobby.';
+
+/* ---------------------------------------------------------------------------
  * `POST /api/me/link`
  * ------------------------------------------------------------------------- */
 

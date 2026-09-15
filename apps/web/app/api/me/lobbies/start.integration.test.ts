@@ -3,18 +3,7 @@ import type { Database } from '@customs/db';
 import { companionCommandPayloadSchemas } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import {
-  LOBBY_ALREADY_OPEN,
-  LOBBY_ALREADY_OPENING,
-  LOBBY_WRITES_UNVERIFIED,
-  NO_COMPANION_AROUND,
-} from '@/lib/admin/lobbyStart';
-import {
-  type AdminAuthResult,
-  authorizeAdmin,
-  type SessionUserLike,
-  supabaseAdminLookup,
-} from '@/lib/adminAuth';
+import type { SessionUserLike } from '@/lib/adminAuth';
 import {
   COMMAND_ERRORS,
   type CommandGate,
@@ -27,11 +16,26 @@ import {
 } from '@/lib/commands';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
+import {
+  LOBBY_ALREADY_OPEN,
+  LOBBY_ALREADY_OPENING,
+  LOBBY_WRITES_UNVERIFIED,
+  NO_COMPANION_AROUND,
+} from '@/lib/lobbyStart';
+import { START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
+import { authorizeMe, type MeAuthResult, supabaseMeLookup } from '@/lib/me/identity';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * Start a lobby, against the Supabase CLI local stack (M4.2): the real admin route, the real
- * queue, the real ack route, and the invite fan-out driven by an ack that came back through it.
+ * Start a lobby, against the Supabase CLI local stack (M4.2's rules, M4.13's gate): the real
+ * route, the real queue, the real ack route, and the invite fan-out driven by an ack that came
+ * back through it.
+ *
+ * **The gate is M3.6's third class since M4.13**, so the session step below is `authorizeMe`
+ * with only the Supabase user faked: `players.discord_id` is still looked up for real, which is
+ * what makes "the presser is the session" an assertion about a row rather than about a mock.
+ * There is no admin branch to test, because there is none in the handler — the admin here is
+ * simply a linked player who happens to carry the flag.
  *
  * **The clock is 2019 on purpose.** Every read the press makes is bounded by `now` at both ends
  * — the night's 06:00 and `now` itself — so a run at a fixed instant six years ago sees exactly
@@ -112,12 +116,16 @@ if (stack === null) {
     };
   }
 
-  /** The real gate with only the session injected: `players.is_admin` is still read for real. */
+  /**
+   * The real `/api/me/*` gate with only the Supabase user injected: the Discord id is still
+   * matched against `players` for real, so a session whose id nobody carries really does arrive
+   * at the handler with `me.player === null`.
+   */
   function authorizeAs(user: SessionUserLike | null) {
-    return async (_request: Request, client: typeof db): Promise<AdminAuthResult> =>
-      authorizeAdmin({
+    return async (_request: Request, client: typeof db): Promise<MeAuthResult> =>
+      authorizeMe({
         resolveSessionUser: async () => user,
-        lookupPlayerByDiscordId: supabaseAdminLookup(client),
+        lookupPlayerByDiscordId: supabaseMeLookup(client),
       });
   }
 
@@ -131,7 +139,7 @@ if (stack === null) {
   }
 
   function postStart(body: unknown = {}): Request {
-    return new Request('http://localhost/api/admin/lobbies/start', {
+    return new Request('http://localhost/api/me/lobbies/start', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -197,7 +205,8 @@ if (stack === null) {
       .eq('id', id('admin'));
     if (admin.error) throw new Error(admin.error.message);
 
-    // Somebody signed in who is not an admin. The route must refuse them too.
+    // Somebody signed in who is **not** an admin. Since M4.13 the route serves them too, and
+    // the press below proves it opens the lobby on their own PC.
     const member = await db
       .from('players')
       .update({ discord_id: memberDiscordId, is_admin: false })
@@ -248,7 +257,17 @@ if (stack === null) {
       );
   });
 
-  describe('who may press', () => {
+  describe('who may press (M4.13)', () => {
+    /** Every `create_lobby` this describe wrote, gone, so the rest of the file starts empty. */
+    async function clearCreates(): Promise<void> {
+      const { error } = await db
+        .from('companion_commands')
+        .delete()
+        .in('target_player_id', [...ids.values()])
+        .eq('kind', 'create_lobby');
+      if (error) throw new Error(`clearCreates: ${error.message}`);
+    }
+
     it('refuses an anonymous caller with 401 and writes nothing', async () => {
       const response = await startRouteExport(postStart());
 
@@ -257,12 +276,46 @@ if (stack === null) {
       expect(await commandsOf('create_lobby')).toHaveLength(0);
     });
 
-    it('refuses a signed-in visitor who is not an admin', async () => {
-      const response = await press({ user: sessionUser(memberDiscordId), gate: ON })(postStart());
+    it('answers a signed-in visitor with no player row in a sentence, never a 500', async () => {
+      // A Discord account nobody has picked themselves with: the page cannot make this request,
+      // so it is the forged post, and the honest answer to it is a sentence they can act on.
+      const response = await press({ user: sessionUser('9999999999999999'), gate: ON })(postStart());
 
       expect(response.status).toBe(403);
-      await expect(response.json()).resolves.toEqual({ ok: false, error: 'not an admin' });
+      await expect(response.json()).resolves.toEqual({ ok: false, error: START_LOBBY_NOT_LINKED });
       expect(await commandsOf('create_lobby')).toHaveLength(0);
+    });
+
+    it('lets a linked non-admin press it, and the presser is their own session', async () => {
+      // Their own companion is up, so `chooseHost` prefers them — which is the observable proof
+      // that `pressedByPlayerId` came from the session and not from the body or from the admin.
+      const seen = await db
+        .from('companion_tokens')
+        .update({ last_seen_at: minutesBefore(2) })
+        .eq('player_id', id('fresh'));
+      if (seen.error) throw new Error(seen.error.message);
+
+      try {
+        const response = await press({ user: sessionUser(memberDiscordId), gate: ON })(postStart());
+
+        expect(response.status).toBe(200);
+        const body = (await response.json()) as Record<string, unknown>;
+        // `fresh` is not an admin: `0001_init.sql` defaults `is_admin` to false and nothing in
+        // `beforeAll` set it. The lobby opens on their PC anyway.
+        expect(body).toMatchObject({ ok: true, host: { playerId: id('fresh') } });
+
+        const rows = await commandsOf('create_lobby');
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.target_player_id).toBe(id('fresh'));
+      } finally {
+        await clearCreates();
+        // Back outside the ten-minute host window and inside the hour: the fan-out's own
+        // around set, which the rest of this file is written against.
+        await db
+          .from('companion_tokens')
+          .update({ last_seen_at: minutesBefore(59) })
+          .eq('player_id', id('fresh'));
+      }
     });
   });
 
@@ -344,7 +397,7 @@ if (stack === null) {
     });
 
     it('sends a browser form back to the page it was pressed on, with the sentence', async () => {
-      const form = new Request('http://localhost/api/admin/lobbies/start', {
+      const form = new Request('http://localhost/api/me/lobbies/start', {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ redirectTo: '/' }).toString(),
@@ -356,6 +409,22 @@ if (stack === null) {
       const location = new URL(response.headers.get('location') ?? '');
       expect(location.pathname).toBe('/');
       expect(location.searchParams.get('error')).toBe(LOBBY_ALREADY_OPENING);
+      expect(await commandsOf('create_lobby')).toHaveLength(1);
+    });
+
+    it("sends /admin's own form back to /admin, on the same route (M4.13)", async () => {
+      // The one button on the dashboard names `/admin` in its body, because the route's default
+      // is the tonight page now. The no-JavaScript path is the only one that reads it.
+      const form = new Request('http://localhost/api/me/lobbies/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ redirectTo: '/admin' }).toString(),
+      });
+
+      const response = await press({ gate: ON })(form);
+
+      expect(response.status).toBe(303);
+      expect(new URL(response.headers.get('location') ?? '').pathname).toBe('/admin');
       expect(await commandsOf('create_lobby')).toHaveLength(1);
     });
 

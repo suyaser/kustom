@@ -1,3 +1,6 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
 import { describe, expect, it } from 'vitest';
 import {
@@ -8,13 +11,18 @@ import {
   ROLE_TAP_NOT_IN_LOBBY,
   ROLE_TAP_NOT_LINKED,
   ROLE_TAP_NOT_YOURS,
+  START_LOBBY_NOT_LINKED,
 } from '@/lib/me/copy';
 import type { MeAuthResult, MeIdentity } from '@/lib/me/identity';
 import type { RoleTonightStore } from '@/lib/me/roleTonight';
 import type { LinkWrite, SelfLinkStore } from '@/lib/me/selfLink';
 import type { ServiceClient } from '@/lib/supabase';
 import { selfLinkRoute } from './link/handler';
+import { startLobbyRoute } from './lobbies/start/handler';
 import { roleTonightRoute } from './role-tonight/handler';
+
+/** Assembled rather than spelled, so this file is not its own counter-example. */
+const OLD_START_PATH = ['/api', 'admin', 'lobbies', 'start'].join('/');
 
 /**
  * The two `/api/me/*` routes: the third route class (a session with a linked player and no
@@ -353,5 +361,65 @@ describe('POST /api/me/link', () => {
     )(form({ puuid: ME, redirectTo: 'https://evil.example' }, 'link'));
 
     expect(response.headers.get('location')).toMatch(/^http:\/\/localhost\/\?notice=/);
+  });
+});
+
+/**
+ * `Start a lobby`, the third route on this class (M4.13). The rules it enforces are M4.2's and
+ * are exercised against the local stack in `lobbies/start.integration.test.ts`; what is here is
+ * the part of the move that has to hold with **no stack at all** — the gate, its sentence, and
+ * the admin path being deleted rather than aliased.
+ */
+describe('POST /api/me/lobbies/start', () => {
+  /** No client: neither answer below gets as far as a read. */
+  const startRoute = (auth: MeAuthResult) =>
+    startLobbyRoute({ getClient: noClient, authorize: session(auth) });
+
+  it('answers a session with no player row in a sentence, and never a 500', async () => {
+    const response = await startRoute({ ok: true, me: identity({ player: null }) })(
+      post({}, 'lobbies/start'),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, error: START_LOBBY_NOT_LINKED });
+  });
+
+  it('is 401 without a session', async () => {
+    const response = await startRoute({ ok: false, status: 401, error: 'sign in required' })(
+      post({}, 'lobbies/start'),
+    );
+
+    expect(response.status).toBe(401);
+    // The **page** turns this one into `Sign in with Discord to start a lobby.`: `sign in
+    // required` is gate vocabulary and not a sentence for a friend on a phone (M4.13).
+    expect(await response.json()).toEqual({ ok: false, error: 'sign in required' });
+  });
+
+  /**
+   * **Deleted, not aliased** (M4.13, acceptance 5). Two paths for one command is the second copy
+   * that drifts, so this walks the app's own sources rather than trusting a grep somebody ran
+   * once: a route file, a form action or a `fetch` still naming the old path fails here.
+   */
+  it('has no admin path left anywhere in the app', () => {
+    const root = fileURLToPath(new URL('../../..', import.meta.url));
+    // Assembled, like {@link OLD_START_PATH}: spelled out, this line would be the one hit the
+    // walk below finds.
+    expect(existsSync(join(root, 'app', 'api', 'admin', 'lobbies', 'start'))).toBe(false);
+
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        // `.next` and friends are build output, which the acceptance check excludes by name.
+        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name) && readFileSync(path, 'utf8').includes(OLD_START_PATH)) {
+          offenders.push(path.slice(root.length));
+        }
+      }
+    };
+    for (const dir of ['app', 'lib', 'scripts']) walk(join(root, dir));
+
+    expect(offenders).toEqual([]);
   });
 });

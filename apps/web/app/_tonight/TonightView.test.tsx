@@ -1,10 +1,10 @@
 import { resolveRoles } from '@customs/core';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/admin/lobbyStart';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
 import type { BoardRow } from '@/lib/board/types';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
+import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/lobbyStart';
 import { MYSTERY_EMPTY, MYSTERY_TITLE } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { NO_ACTIVE_SEASON_MESSAGE, NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
@@ -26,6 +26,8 @@ import {
   NAMELESS_HINT,
   OFF_ROLE_LEGEND,
   OFF_ROLE_LEGEND_SUFFIX,
+  SIGN_IN_LABEL,
+  START_LOBBY_SIGN_IN,
   sideLine,
 } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
@@ -52,7 +54,7 @@ function draw(
     puuid?: string;
     isAdmin?: boolean;
     topPlayers?: readonly BoardRow[];
-    /** Tonight's `create_lobby`, which only an admin's render is ever given (M4.2). */
+    /** Tonight's `create_lobby`, which only a linked viewer's render is ever given (M4.13). */
     lobbyStart?: LobbyStartView | null;
     mystery?: MysteryPageState | null;
   } = {},
@@ -953,16 +955,74 @@ describe('the Start a lobby control', () => {
     expect(document.querySelector('.cn-start')).not.toBeInTheDocument();
   });
 
-  it('is drawn for nobody but an admin, and says nothing to an anonymous visitor', () => {
-    const { unmount } = draw(snapshot(null));
-    // **Not** `Sign in with Discord to start a lobby.`: nothing anonymous can press it, and
-    // the page's one sign-in is on the role card (M4.7).
+  /**
+   * M4.13's acceptance 7, both states and all four viewers, in one place. Who may press is the
+   * whole of what that task changed on this page, and it is four rows of a table.
+   */
+  const VIEWERS: Record<string, ViewerState> = {
+    anonymous: { kind: 'anonymous' },
+    unlinked: { kind: 'unlinked', claimable: [] },
+    linked: { kind: 'linked', puuid: 'puuid-not-in-this-lobby', isAdmin: false },
+    admin: { kind: 'linked', puuid: 'puuid-not-in-this-lobby', isAdmin: true },
+  };
+
+  function drawAs(viewer: ViewerState, state: TonightSnapshot, lobbyStart: LobbyStartView | null = null) {
+    return render(<TonightView snapshot={state} viewer={viewer} topPlayers={[]} lobbyStart={lobbyStart} />);
+  }
+
+  it('is drawn on the idle page for every linked player, admin or not', () => {
+    for (const kind of ['linked', 'admin'] as const) {
+      const { unmount } = drawAs(VIEWERS[kind] as ViewerState, snapshot(null));
+      expect(screen.getByRole('button', startButton)).toBeInTheDocument();
+      // And never the anonymous sentence beside it: they are signed in.
+      expect(document.body.textContent).not.toContain(START_LOBBY_SIGN_IN);
+      unmount();
+    }
+  });
+
+  it('gives a signed-out visitor the sentence and a sign-in button, in idle only', () => {
+    // Back from the 2026-09-10 suspension (M4.13): on an idle page `RoleTonight` draws nothing
+    // at all for this reader, so without it there is no door into the site on the screen.
+    const { unmount } = drawAs(VIEWERS.anonymous as ViewerState, snapshot(null));
+    expect(screen.getByText(START_LOBBY_SIGN_IN)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: SIGN_IN_LABEL })).toBeInTheDocument();
+    // **Never a disabled `Start a lobby`** (M3.20, and the designer's amber-control rules).
     expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toContain('to start a lobby');
     unmount();
 
-    draw(snapshot(null), { puuid: 'puuid-someone' });
+    // `filling` is a readout, not a control: there is nothing to sign in for.
+    drawAs(VIEWERS.anonymous as ViewerState, snapshot(lobbyView({ members: workedMembers(7) })));
+    expect(document.querySelector('.cn-start')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(START_LOBBY_SIGN_IN);
+  });
+
+  it('says nothing at all to a signed-in visitor with no player row, in either state', () => {
+    // They are signed in, so inviting them to sign in is noise; `SIGNED_IN_NO_LOBBY` at the
+    // foot of the column is the true sentence for them and it is already there (M3.6).
+    const { unmount } = drawAs(VIEWERS.unlinked as ViewerState, snapshot(null));
     expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(START_LOBBY_SIGN_IN);
+    unmount();
+
+    drawAs(
+      VIEWERS.unlinked as ViewerState,
+      snapshot(lobbyView({ members: workedMembers(7) })),
+      startRow({ status: 'acked', invited: 6 }),
+    );
+    expect(document.querySelector('.cn-start')).not.toBeInTheDocument();
+  });
+
+  it('gives both linked viewers the readout while the lobby fills, and nobody else', () => {
+    for (const kind of ['linked', 'admin'] as const) {
+      const { unmount } = drawAs(
+        VIEWERS[kind] as ViewerState,
+        snapshot(lobbyView({ members: workedMembers(7) })),
+        startRow({ status: 'acked', invited: 6 }),
+      );
+      expect(screen.getByText(invitedLine(6))).toBeInTheDocument();
+      expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it('prints what became of tonight’s press, for the admin who did not make it', () => {

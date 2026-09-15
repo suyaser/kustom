@@ -563,6 +563,14 @@ watching: on lobby event -> POST /api/companion/lobby
   - Which members may be claimed is decided **on the server** with the service role
     (`apps/web/lib/me/claimable.ts`): `discord_id` is not readable with the anon key, so the page is handed the
     PUUIDs of the unclaimed members only and never learns who is linked to what.
+  - `POST /api/me/lobbies/start` is `Start a lobby` (M4.2's rules, moved onto this class by M4.13): one
+    `create_lobby` command for the host the server picked, with the invites following off its ack. The presser
+    is `context.me.player.playerId` from the session and never the body, which carries nothing but a
+    `redirectTo` for the no-JavaScript path; a session with no player row is a 403 with
+    `START_LOBBY_NOT_LINKED` rather than a 500. **There is no admin branch**: `players.is_admin` can only be
+    true on a row that is already linked, so `/admin`'s one button posts here too and the old
+    `/api/admin/lobbies/start` was deleted rather than aliased. The rules and every string it answers with are
+    `apps/web/lib/lobbyStart.ts`, imported by both surfaces.
 
 ## Discord
 

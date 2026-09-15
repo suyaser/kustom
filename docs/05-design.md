@@ -709,10 +709,17 @@ black screen. v2:
 
 #### `Start a lobby`, and the lobby a latecomer can still join (M4.7 (a) and M4.10, designer 2026-09-10)
 
-The one tap this product has. 21:00, an admin opens the page from the same WhatsApp link everybody else has,
+The one tap this product has. 21:00, a friend opens the page from the same WhatsApp link everybody else has,
 and this is the only thing on it they can press. The words are settled in "Copy — `Start a lobby`"; this is
 where the control sits, what it is dressed in, and — the part the first build got wrong — **which states it is
 drawn in at all**.
+
+**Who sees it, from M4.13 (2026-09-15).** Any viewer the session has matched to a player row — that is the
+twenty people who play, admin or not, and nobody has to find out who the admins are to get the night started.
+A signed-out visitor gets the sign-in sentence and its button in `idle` instead (the copy table's own row); a
+signed-in visitor with no player row gets **no element at all**, because `SIGNED_IN_NO_LOBBY` at the foot of
+the column is already the true sentence for them. Being drawn is not permission: `POST /api/me/lobbies/start`
+resolves the session again before it writes.
 
 **It is drawn in `idle` only.** `filling` means a live `lobbies` row exists, and `decideStart` refuses on
 exactly that with `There is already a lobby open.` A control whose only possible answer is a refusal is not a
@@ -735,8 +742,8 @@ Precedent: the reroll button has no card either — it sits on the strip whose s
 **No mark.** Not the 2px `brand` inset rule, which means "this is about you" on the rack row and the role card;
 this is about the night, and a second meaning for one mark is worse than no mark. Not the 3px `brand` leading
 rule, which means "the bot's own sentence" on the explanation and sit-out strips. And not a mark meaning
-"admin": the route is admin-gated only until M3.6's third route class lands, and a mark that has to be removed
-in a month should not be drawn now.
+"admin": the route was admin-gated only until M3.6's third route class landed, a mark that would have had to be
+removed in a month was never drawn, and M4.13 removed the gate instead.
 
 **The button is the amber `.cn-button`, unchanged** — outline, `brand` text, `radius-row`, 44px, full width
 below 720px and its own width above. It is the amber control on this page, and it never competes with the other
@@ -1114,15 +1121,16 @@ changed what stands beside them — a card with one hint per state, and a button
 product changed its mind about what the control means. Nothing here promises more than the balancer does,
 which is the one rule the whole block exists to keep.
 
-#### Copy — `Start a lobby` (M4.2, product 2026-09-10)
+#### Copy — `Start a lobby` (M4.2, product 2026-09-10; widened by M4.13, 2026-09-15)
 
 Every word the one tap can produce, on either surface, in one table — the tonight page and `/admin` call the
 same route and may not end up saying two different things about one command. The control's own strings were
-settled in the M4.2 brief on 2026-09-09 and are quoted here unchanged; the rows marked **new** and
-**suspended** are what the 2026-09-10 pass ruled, where the brief had prose and no string. They live in
-`apps/web/lib/admin/lobbyStart.ts` (everything the route answers with, imported by both surfaces) and
-`apps/web/lib/tonight/copy.ts` (the one sentence only the browser can know). That is two files and one table;
-they may not drift.
+settled in the M4.2 brief on 2026-09-09 and are quoted here unchanged; the rows marked **new** are what the
+2026-09-10 and 2026-09-15 passes ruled, where the brief had prose and no string. They live in
+`apps/web/lib/lobbyStart.ts` (everything the route answers with, imported by both surfaces — it moved out of
+`lib/admin/` with the route in M4.13), `apps/web/lib/me/copy.ts` (the not-linked sentence, beside the other
+`/api/me/*` refusals) and `apps/web/lib/tonight/copy.ts` (the two sentences only the browser can know). That is
+three files and one table; they may not drift.
 
 **The rule for a refusal is the M3.6 block's**, unchanged: say what happened, then say who can undo it or what
 to do next. Never the queue's vocabulary — `wrong_phase` and `already_in_lobby` are words for a log, not for a
@@ -1141,7 +1149,9 @@ friend on a phone.
 | the host's client never answered and the command expired | `Nobody's client answered. Try again.` | product 2026-09-09 (brief) — kept, and it is the **only** failure sentence: from the friend holding the phone, a client in champion select and a client that refused the POST are one fact — nothing was created, press it again |
 | the host had made a lobby by hand a minute earlier (`already_in_lobby`) | `Hana already has a lobby open — everyone can join that one.` | product 2026-09-09 (brief) — kept |
 | the press never reached the server | `That did not reach the server. No lobby was opened — tap it again.` | **new**, product 2026-09-10 (M4.2) — the web engineer's sentence, confirmed byte for byte. It is the shape product fixed for `ROLE_TAP_OFFLINE` and `LINK_OFFLINE` — the fact, what is unchanged, then the whole fix — and `No lobby was opened` covers the invites too, because the fan-out only ever hangs off a lobby that exists. The page's own string, not the route's: the route never saw the request |
-| an anonymous visitor | `Sign in with Discord to start a lobby.` | **suspended**, product 2026-09-10 (M4.2) — the brief's string, **not rendered while the route is admin-gated**: it would promise a button a signed-in non-admin still could not press, and this page's one sign-in already lives on the role card forty pixels away. It returns, unchanged, the day the press widens to every linked player. Kept in this table rather than deleted so the widening does not have to invent it again |
+| an anonymous visitor, on the **idle** page | `Sign in with Discord to start a lobby.`, with a `Sign in with Discord` button under it | **live since M4.13** (2026-09-15); product 2026-09-09 (brief), suspended 2026-09-10 and back unchanged, which is what keeping it in this table was for. The press has widened to every linked player, so it no longer promises a button the reader cannot press; and the second ground for the suspension was false in the one state it exists in — `RoleTonight` draws **nothing** for a signed-out visitor with no live lobby, so on an idle page there is no other sign-in anywhere on the site. The sentence is the reason and the button is the label, the role card's own signed-out shape. **Never a disabled `Start a lobby`.** `idle` only: `filling` is a readout, not a control |
+| the session expired between the render and the press (401) | `Sign in with Discord to start a lobby.` | **new**, product 2026-09-15 (M4.13) — the one refusal on this control the **page** answers, in its own words. It is the same fact as the row above, so it is the same sentence; the route's own `sign in required` is gate vocabulary and never reaches a screen. Every other refusal still prints the route's words |
+| a signed-in visitor with no player row (403) | `Pick yourself out of the list first, then you can start a lobby.` | **new**, product 2026-09-15 (M4.13) — `START_LOBBY_NOT_LINKED`, in `apps/web/lib/me/copy.ts` beside `ROLE_TAP_NOT_LINKED`, whose shape it is built on: same first clause, one verb changed, because it is the same fact about the same visitor said about a second control. **The page cannot produce this request** — the control is drawn for linked viewers only — so it is the forged-post answer, and that visitor is shown no new copy at all: `SIGNED_IN_NO_LOBBY` at the foot of the column is already the true sentence for them |
 | tonight page, the lobby a friend can still join by hand — **signed-in linked viewers only** | `Missed the invite? The lobby is Customs 09 Sep #1, password 4821.` — without a stored password, `Missed the invite? The lobby is Customs 09 Sep #1.` — with no name, **no line** | **new**, product 2026-09-10 (**M4.10**; the gate is the lead's, after the designer's review) — the name and password in mono, the sentence in Archivo. Drawn in the `filling` and `balanced` states only, and gone from `in_game` on because by then there is nothing to join. **An anonymous visitor is shown nothing**, and so is a signed-in visitor with no player row — the `That's me` list two blocks up is the thing to do first, and it is already on their screen. The designer is right that a forwarded link with a live password on it is a credential, and the late friend is still served: he is one of the twenty, he has picked himself once, and the page has known him since. Placement is the designer's, with M4.7 |
 | `/admin`, under the button | `Customs 09 Sep #1 · password 4821` — the name alone when no password is stored | engineer 2026-09-10 (M4.2) — kept. The plain page reads the row itself, so an admin who reloads still sees what became of tonight's command. Same three shapes as the teams embed's `Lobby` field, minus its code spans |
 | `/admin`, nobody has pressed it tonight | `No lobby has been opened tonight.` | engineer 2026-09-10 (M4.2) — kept: the fact, with the button right above it, which is the admin area's whole voice |

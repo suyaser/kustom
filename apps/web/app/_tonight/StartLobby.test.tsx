@@ -9,10 +9,10 @@ import {
   NO_COMPANION_AROUND,
   openingOnPcLine,
   START_LOBBY_BUTTON,
-} from '@/lib/admin/lobbyStart';
-import { START_LOBBY_OFFLINE } from '@/lib/tonight/copy';
+} from '@/lib/lobbyStart';
+import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import { StartLobby } from './StartLobby';
+import { StartLobby, StartLobbySignIn } from './StartLobby';
 
 /**
  * `Start a lobby` (M4.2's control, M4.7's placement).
@@ -72,6 +72,14 @@ function answers(body: unknown, ok = true): void {
   );
 }
 
+/** The same, with a status on it: one refusal of the six is answered by its code (M4.13). */
+function refusesWith(status: number, body: unknown): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: false, status, json: async () => body }) as unknown as Response),
+  );
+}
+
 function press(): void {
   fireEvent.click(screen.getByRole('button', { name: START_LOBBY_BUTTON }));
 }
@@ -94,7 +102,7 @@ describe('idle: nobody has pressed it', () => {
     const form = container.querySelector('form');
 
     expect(form).toHaveAttribute('method', 'post');
-    expect(form).toHaveAttribute('action', '/api/admin/lobbies/start');
+    expect(form).toHaveAttribute('action', '/api/me/lobbies/start');
     // The 303 path comes back to the tonight page, not to `/admin`, which is the route's own
     // default (M3.4). The route re-validates it as a path on this site.
     expect(container.querySelector('input[name="redirectTo"]')).toHaveValue('/');
@@ -111,7 +119,7 @@ describe('the press', () => {
 
     await waitFor(() => expect(screen.getByText(openingOnPcLine(HOST))).toBeInTheDocument());
     const call = (fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0];
-    expect(call?.[0]).toBe('/api/admin/lobbies/start');
+    expect(call?.[0]).toBe('/api/me/lobbies/start');
     // The body decides nothing: no host, no name, no password, no mode (M4.2).
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({});
     // And the page asks the server for the row: this table emits no Realtime event.
@@ -151,6 +159,19 @@ describe('the press', () => {
       unmount();
       vi.unstubAllGlobals();
     }
+  });
+
+  it('prints the page’s own sentence for a 401, never the gate’s vocabulary', async () => {
+    // The session expired between the render and the press (M4.13). `sign in required` is what
+    // the gate says to a caller; a friend on a phone gets the same words the signed-out block
+    // uses, because it is the same fact.
+    refusesWith(401, { ok: false, error: 'sign in required' });
+    const { container } = draw();
+
+    press();
+
+    await waitFor(() => expect(screen.getByText(START_LOBBY_SIGN_IN)).toBeInTheDocument());
+    expect(container.textContent).not.toContain('sign in required');
   });
 
   it('names nobody when the answer is a 200 the schema does not recognise', async () => {
@@ -281,5 +302,34 @@ describe('what the row says afterwards', () => {
 
     await waitFor(() => expect(screen.getByText(LOBBY_ALREADY_OPEN)).toBeInTheDocument());
     expect(screen.queryByText(NO_CLIENT_ANSWERED)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The signed-out block (M4.13): product's sentence, back from its 2026-09-10 suspension, in the
+ * role card's own signed-out shape.
+ */
+describe('the signed-out block', () => {
+  it('is the sentence, then a sign-in button, and never a disabled Start a lobby', () => {
+    const { container } = render(<StartLobbySignIn />);
+
+    expect(screen.getByText(START_LOBBY_SIGN_IN)).toBeInTheDocument();
+    // The sentence is the reason and the button is the label (the designer, 2026-09-10).
+    const button = screen.getByRole('button', { name: SIGN_IN_LABEL });
+    expect(button).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: START_LOBBY_BUTTON })).not.toBeInTheDocument();
+    expect(button).not.toBeDisabled();
+    // The reason comes first in reading order.
+    expect(container.querySelector('.cn-start')?.firstElementChild?.textContent).toBe(START_LOBBY_SIGN_IN);
+  });
+
+  it('is a real form to the OAuth round trip, coming back to the tonight page', () => {
+    const { container } = render(<StartLobbySignIn />);
+    const form = container.querySelector('form');
+
+    expect(form).toHaveAttribute('method', 'post');
+    expect(form).toHaveAttribute('action', '/auth/signin');
+    // Back to `/`, not to `/admin`, which is where a sign-in defaults.
+    expect(container.querySelector('input[name="next"]')).toHaveValue('/');
   });
 });
