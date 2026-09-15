@@ -171,6 +171,16 @@ interface PlayerRow {
  * season, and `seedFromRank` in memory when there is none. That is what the balancer used and
  * what the Discord embed printed, and a page that disagreed with the embed by one point would
  * be a ten-minute argument in voice.
+ *
+ * **This is the one surface that still prints a rank estimate, and it is deliberate**
+ * (2026-09-16). Nothing stored is seeded from a League rank any more, and `/leaderboard` and
+ * `/p/[puuid]` now show `provisionalSeed()`'s 1200 for a player with no folded row. This page is
+ * not those pages: it renders tonight's lobby and tonight's split, seat by seat, and every seat
+ * number here is also in the Discord teams embed, which `buildTeamsInput` builds from the
+ * balancer's own pool. Changing this line would not make a never-rated player's number more
+ * honest — it would make the page and the message about the same ten people disagree, which is
+ * the bug this file's rule exists to prevent. The seam is one evening wide and closes the moment
+ * their first game is folded.
  */
 async function loadMembers(
   client: PublicClient,

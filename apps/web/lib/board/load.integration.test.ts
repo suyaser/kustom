@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { displayRating, seedFromRank } from '@customs/core';
+import { displayRating, provisionalSeed, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -90,7 +90,7 @@ if (stack === null) {
     expect(player?.rating).toBe(displayRating(27.4));
   });
 
-  it('falls back to the current rank on a row written before 0012', async () => {
+  it('falls back to the neutral seed on a row written before 0012', async () => {
     await db
       .from('ratings')
       .update({ seed_mu: null, seed_sigma: null, seed_rank_tier: null, seed_rank_division: null })
@@ -98,9 +98,15 @@ if (stack === null) {
       .eq('season_id', seasonId);
 
     const player = await loadPlayerBoard(anon, puuid, ALL_TIME);
-    // The pre-M5.7 reading, unchanged and still honest: the best estimate the database holds
-    // until the next `rebuild-ratings` fills the column in.
+    // With no stored seed there is nothing to read but the rule for a first one, and since
+    // 2026-09-16 that rule ignores the rank: 1200, not Diamond I's 1920. The rank strings still
+    // ride along, so the line above the chart still names the rank the client last reported
+    // beside a number that no longer came from it. The wording of that sentence is product's.
+    //
+    // Asserted against `provisionalSeed()` and not against `seedFromRank(null, null)`: the two
+    // share `unrankedMu`, so the old spelling passed whichever of the two the loader called and
+    // tested nothing. This one fails the moment the loader goes back to reading a rank.
     expect(player?.seedRank).toBe('Diamond I');
-    expect(player?.reference).toBe(displayRating(seedFromRank('DIAMOND', 'I').mu));
+    expect(player?.reference).toBe(displayRating(provisionalSeed().mu));
   });
 }

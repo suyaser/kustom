@@ -24,13 +24,23 @@ const TIERS_WITHOUT_DIVISIONS: readonly string[] = cfg.tiersWithoutDivisions;
 const TEAM_SIZE = 5;
 
 /**
- * Seed a rating from the ranked tier and division the client reports.
+ * Estimate a rating from the ranked tier and division the client reports.
  *
  * - Division IV is the tier base; each division above adds `config.rating.divisionStep`.
  * - Master, Grandmaster and Challenger are all 35 and ignore any division.
  * - Unranked, or any tier string we do not recognise, is 20 with sigma 10.
  * - Matching is case-insensitive. A missing or unrecognised division on a ranked tier
  *   counts as IV, the tier base.
+ *
+ * **This is a live guess and not where a rating starts** (2026-09-16). No stored rating — the
+ * all-time fold or the week — is seeded from a League rank any more: every player's first number
+ * is {@link provisionalSeed}, `{ mu: 20, sigma: 12 }`, because a customs board is supposed to
+ * measure customs. That is **not** any value this function returns: its `sigma` is
+ * `config.rating.provisionalSigma`, a third constant, larger than the `unrankedSigma` 10 an
+ * unrecognised rank gets here. The maths below is unchanged and still has one caller: the
+ * balancer needs *some* number for a brand-new face so tonight's split is not a coin flip, and
+ * their solo-queue rank is the only thing anybody knows about them. That guess lives for one
+ * evening and is never written down.
  *
  * Accepts loose strings because the client and the database are the callers and both can
  * hand us `null`, `'NONE'`, `'NA'` or something new after a patch. Typed callers can pass
@@ -50,6 +60,30 @@ export function seedFromRank(
   }
   const steps = DIVISION_STEPS[(division ?? '').trim().toUpperCase()] ?? 0;
   return { mu: base + steps * cfg.divisionStep, sigma: cfg.rankedSigma };
+}
+
+/**
+ * **Where every rating starts**: `{ mu: 20, sigma: 12 }`, the same for everybody (2026-09-16).
+ *
+ * The one first-seed value, for the all-time fold, for the rebuild and for the weekly track's
+ * Sunday reseed. It takes no arguments **on purpose** — there is nothing about a player that can
+ * change it, which is the whole decision in one signature. A caller that wants to seed from a
+ * League rank is asking the wrong question; `seedFromRank` is still there for the balancer's
+ * live guess, and nothing persists that.
+ *
+ * Two halves, and they are different claims:
+ *
+ * - `config.rating.unrankedMu` (20) — **we have no idea how good you are.** Not a low number and
+ *   not a high one: the number that says nothing, and the customs say the rest.
+ * - `config.rating.provisionalSigma` (12) — **and we are less sure of that than of anything we
+ *   say about a player we have watched.** Bigger than both `rankedSigma` and `unrankedSigma`,
+ *   because OpenSkill moves `mu` in proportion to a player's own `sigma^2`: a new player's first
+ *   few games move their rating hard, the movement shrinks as `sigma` does, and "provisional,
+ *   then settled" needs no phase, no branch and no second code path. See `config.ts` for the
+ *   measurement that picked 12 and for what happens either side of it.
+ */
+export function provisionalSeed(): Rating {
+  return { mu: cfg.unrankedMu, sigma: cfg.provisionalSigma };
 }
 
 /** Leaderboard sort key: `mu - 2 * sigma`. Conservative, so uncertain players rank lower. */

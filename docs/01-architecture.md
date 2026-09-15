@@ -110,11 +110,15 @@ Rules:
   stored generated column so the leaderboard sorts in one index scan and SQL cannot disagree with
   `packages/core` about the formula; `packages/core` stays the only place that computes a rating.
 - `ratings.seed_mu` / `seed_sigma` are the `{ mu, sigma }` the **first fold that rated this player** started
-  from, with `seed_rank_tier` / `seed_rank_division` the raw pair `seedFromRank` read to get them (0012, M5.7).
+  from, with `seed_rank_tier` / `seed_rank_division` the rank the client reported at that moment (0012, M5.7).
   Written once and never rewritten, by whichever fold creates the row; both folds read the stored pair in
-  preference to the player's current rank, so a rank that moves later does not move anybody's history. A null
-  `seed_mu` means "no seed stored yet" — a row written before 0012 — and the next `rebuild-ratings` fills it
-  with the seed it used.
+  preference to anything they could recompute, so a rank that moves later does not move anybody's history. A
+  null `seed_mu` means "no seed stored yet" — a row written before 0012 — and the next `rebuild-ratings` fills
+  it with the seed it used. Since 2026-09-16 that seed is `provisionalSeed()`, `20 / 12`, for everybody
+  (`lib/ingest/seed.ts`, one function, called by the live fold, the rebuild and the weekly fold alike), and the
+  two rank columns are **informational only**: they record what the client said that night and no number is
+  computed from them. Seeds already stored from the rank rule stay until a retroactive reset and a rebuild
+  replace them, so until then two players can still hold different seeds.
 - `games.raw` keeps the full end-of-game block, with `mucJwtDto` and `multiUserChatPassword` replaced by
   `"[redacted]"` (M2.10). Every derived column can be recomputed from it.
 - `game_players` rating columns are nullable: the API inserts the game and its ten players, then rates, and a
@@ -197,10 +201,37 @@ both agree because both ask `civilDayKey` for the same string.
 
 OpenSkill, default Plackett-Luce model, two teams of five.
 
-- Seed `mu` from the player's ranked tier at first sight:
-  Iron 14, Bronze 17, Silver 20, Gold 23, Platinum 26, Emerald 29, Diamond 32, Master and above 35.
-  Add 0.75 per division above IV. Unranked: 20.
-- Seed `sigma` to 8.33 (OpenSkill default) so the first few games move fast. Unranked: 10.
+- **Every rating starts at the same number: `provisionalSeed()`, `mu` 20 and `sigma` 12** (user, 2026-09-16).
+  A player's first rated game — all-time or weekly — is folded from it, and a League rank starts nothing that is
+  written down. Two halves, two different claims:
+  - `mu` 20 (`config.rating.unrankedMu`) is **"we have no idea how good you are"**. A weekly board is supposed
+    to measure the week, and there is no principled reason the all-time track's first number should come from a
+    different game either.
+  - `sigma` 12 (`config.rating.provisionalSigma`, a third constant, deliberately larger than both `rankedSigma`
+    8.33 and `unrankedSigma` 10) is **"and we are less sure of that than of anyone we have watched"**. OpenSkill
+    moves `mu` in proportion to a player's own `sigma^2`, and `sigma` shrinks fastest while it is large, so a
+    higher start is all it takes for a new player's first games to move hard and their tenth to move normally.
+    **No phase, no branch, no per-match special case**: `rateGame` still passes OpenSkill nothing, and a lobby
+    mixing a newcomer with nine veterans is rated by the same call as any other.
+  - 12 is measured, not guessed. A simulated newcomer of known true skill (Iron to Master) plays nine settled
+    opponents, wins at the rate their skill implies, and we score the **worst** mean `|mu − true mu|` after five
+    games: 7.92 from the old 8.33 seed, 6.08 at 10, **5.17 at 11**, 5.59 at 12, 6.68 at 14, 9.60 at 20 — the
+    curve has a bottom, and past it the extra step is spent on win/loss noise rather than on getting the number
+    right. Against a lobby that is itself unsettled (`sigma` 6) the bottom sits nearer 13. 12 is the round
+    number between the two, within 0.5 mu of the best of either. `rating/index.test.ts` keeps the simulation as
+    a guard and `04-decisions.md` keeps the full table.
+- `seedFromRank(tier, division)` still exists, still maps Iron 14, Bronze 17, Silver 20, Gold 23, Platinum 26,
+  Emerald 29, Diamond 32, Master and above 35, plus 0.75 per division above IV, `sigma` 8.33 — and has exactly
+  one caller left: `apps/web/lib/ingest/balance.ts`, which needs *some* estimate of a brand-new face to form
+  tonight's teams and has nothing else to go on. That guess lives for one evening, forms one split and is never
+  persisted.
+- **A rating surface shows what the model holds; a lobby surface shows what tonight's split was formed from.**
+  For a player with no `ratings` row the two differ by exactly one evening, so the line is drawn once, here:
+  `/leaderboard`'s rows and both numbers at the top of `/p/[puuid]` read `provisionalSeed()` — 1200, Proven 0,
+  `0 games`, the `settling` chip — which is the number their first fold will store and the number the seed line
+  under the chart already prints. `apps/web/lib/tonight/load.ts` keeps the rank estimate, because every seat
+  number on that page is also in the Discord teams embed and both are built from `loadPool`'s one pool; a page
+  that disagreed with the message about the same ten people would be the worse bug.
 - Rating movement is driven by uncertainty, not by rank: OpenSkill moves a player's `mu` in proportion to that
   player's own `sigma^2`, so a settled player's rating is sticky and a new player's moves fast. Rank does not
   affect the size of a win — two players with the same sigma on the same winning team gain exactly the same amount.
@@ -238,8 +269,10 @@ never forms teams, is never persisted, and nothing under `apps/web/lib/ingest/` 
 
 Two surfaces read that fold and they are the two halves of one Sunday post: the `this-week` / `last-week` board,
 and **`Most improved` on a week window** (M7.4) — the award is the player's weekly seed to where the week left
-them, which is "who beat their rank hardest this week" instead of a difference of two stored `mu` columns that a
-month of history barely moves. Both ends are `mu`-derived, so the award never reads `sigma` and a week's climb is
+them, which is "who climbed furthest from where everyone starts" instead of a difference of two stored `mu`
+columns that a month of history barely moves. (Before 2026-09-16 that seed came from the player's League rank
+and the line read "who beat their rank hardest this week"; it is one shared starting number now, which also
+means people with identical weeks tie and the block names all of them.) Both ends are `mu`-derived, so the award never reads `sigma` and a week's climb is
 still the subtraction of two printed numbers. Month windows keep the stored climb for ever, and the award's two
 neighbours (`Best off-role`, `cursed duo`) read games and roles and no rating at all.
 
@@ -256,15 +289,17 @@ acceptance 4):
 | --- | --- | --- |
 | `sigma < 5.00` — what "settles" means everywhere in this product (decision, 2026-09-10) | game 36 | game 30 |
 | display points one game moves a **settled** player (`mu` 23, `sigma` 3.5, peers the same) | ~29 | ~32 |
-| display points one game moves a player folded from a fresh **Sunday seed** (`seedFromRank`, `sigma` 8.33) | ~77 | ~79 |
+| display points one game moves a player folded from a fresh **Sunday seed**, `sigma` 8.33 (a seed stored under the pre-2026-09-16 rank rule) | ~77 | ~79 |
+| the same from the **provisional first seed**, `mu` 20 `sigma` 12, among nine of the same — what a fresh group's Sunday is now | 112 | 114 |
 
 Read the first row as "six games, which nobody would notice", not as good news: the weekly number is **not** a
 faster or more trustworthy verdict on a player, and no surface should say it is. It is the same model taking the
-same thirty-odd games to become confident. The row that matters is the third one: because M7.3 reseeds every
-player from rank at the Sunday boundary and folds only that week's games, a weekly rating spends the whole week in
-the fast part of the curve — about **three times** the movement per game of a settled all-time rating. That
+same thirty-odd games to become confident. The rows that matter are the last two: because M7.3 reseeds every
+player at the Sunday boundary and folds only that week's games, a weekly rating spends the whole week in
+the fast part of the curve — three times or more the movement per game of a settled all-time rating. That
 difference is almost entirely the reseed and hardly at all `beta` and `tau`; compare the second row, which is what
-the tuning alone buys.
+the tuning alone buys. The provisional seed's `sigma` 12 widens the gap again — 114 display points a game
+against the 79 M7.3's copy was written against — so a week swings more than that copy says, not less.
 
 The settling row is measured on M1.3's convergence setup (`P0` seeded Iron IV among settled Gold IVs, one sitter
 per game, `P0`'s side wins every game); on that setup `mu` passes the field's 23.00 in game 4 on both channels
@@ -598,8 +633,8 @@ watching: on lobby event -> POST /api/companion/lobby
 
 - `/` Tonight: live lobby, teams, result. Public read. Realtime subscription on `lobbies`, `splits`, `games`.
 - `/leaderboard` The board through one of five windows: by ordinal on `All time` and the two months, and by the
-  weekly `Rating` on `This week` (the default) and `Last week`, which are folded from the rank seed at read time
-  (M7.3). Wins, games, streak.
+  weekly `Rating` on `This week` (the default) and `Last week`, which are folded from each player's seed at read
+  time (M7.3) — the stored one, else `provisionalSeed()`, never their League rank. Wins, games, streak.
 - `/p/[puuid]` Player page: rating history chart, role record, recent games.
 - `/admin` Discord OAuth gated, `players.is_admin`. Link Discord IDs, see the inferred roles (M5.17), mint companion tokens, set Discord config, approve backfill.
 - `/api/companion/*` bearer token, zod-validated. The command queue is three of them (M4.1):

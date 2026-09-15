@@ -1,11 +1,11 @@
-import { type Rating, type Role, seedFromRank } from '@customs/core';
+import type { Rating, Role } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
 import { gameModeFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
 import { type FoldRatedPlayer, foldGame, gateRatedGame, mustGet, type RatedSkipReason } from './fold';
 import { recomputeInferredRoles, roleInferenceFlags } from './roles';
-import { readSeed, type StoredSeed, seedColumns } from './seed';
+import { readSeed, type StoredSeed, seedColumns, seedFor } from './seed';
 
 /**
  * The rating fold (M2.5): what an end-of-game block does to the leaderboard.
@@ -85,11 +85,14 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
     game.seasonId,
   );
 
+  // The stored rating, or — for somebody who has never been rated — their first seed, from
+  // `seed.ts`'s one rule and not a second copy of it. That rule is `provisionalSeed()` from 2026-09-16: a
+  // League rank no longer starts anybody's history, here or in the rebuild.
   const before = new Map<string, Rating>();
   for (const row of rows) {
     before.set(
       row.playerId,
-      stored.get(row.playerId)?.rating ?? seedFromRank(row.rankTier, row.rankDivision),
+      stored.get(row.playerId)?.rating ?? seedFor(null, row.rankTier, row.rankDivision).rating,
     );
   }
 
@@ -102,19 +105,16 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
    * before `0012` is filled by `rebuild-ratings`, which writes the seed *its own* fold used and
    * so cannot freeze a value the stored history disagrees with. Nothing here ever rewrites a
    * seed that is already there.
+   *
+   * `seedFor` is called with the same three arguments as the `before` map above, so the number
+   * folded and the number stored as the seed are one call twice and cannot drift apart.
    */
   const seeds = new Map<string, StoredSeed | null>();
   for (const row of rows) {
     const previous = stored.get(row.playerId);
     seeds.set(
       row.playerId,
-      previous === undefined
-        ? {
-            rating: mustGet(before, row.playerId),
-            rankTier: row.rankTier,
-            rankDivision: row.rankDivision,
-          }
-        : previous.seed,
+      previous === undefined ? seedFor(null, row.rankTier, row.rankDivision) : previous.seed,
     );
   }
 

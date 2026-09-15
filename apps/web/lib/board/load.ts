@@ -1,4 +1,4 @@
-import { displayRating, type Rating, seedFromRank } from '@customs/core';
+import { displayRating, provisionalSeed, type Rating } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
 import { inChunks } from '../chunks';
 import { type FoldAwardPlayer, type FoldPerformance, gatedGameAward } from '../ingest/fold';
@@ -43,10 +43,17 @@ import { windowRangeLabel } from './window';
  * Two rules the rest of the file exists to keep:
  *
  * - **One rule for a player's rating.** The `ratings` row for the active season, and
- *   `seedFromRank` in memory when there is none. That is what `loadPool` balances from and
- *   what the tonight page prints, so a seeded player who has not played yet appears on the
- *   board with the number the balancer would use rather than not appearing at all (M3.5's
- *   "zero games this season" edge case).
+ *   `provisionalSeed()` — `20 / 12`, 1200 displayed — in memory when there is none, so a player
+ *   who has not been folded yet appears on the board with `0 games` and the `settling` chip
+ *   rather than not appearing at all (M3.5's "zero games this season" edge case).
+ *   **Since 2026-09-16 that in-memory number is the seed the first fold will store and not a
+ *   rank estimate**: every page under `/leaderboard` and `/p/[puuid]` shows what the model
+ *   holds, which for somebody with no customs is 1200, the same as for everybody else. The
+ *   balancer's live guess for such a face still reads their rank (`lib/ingest/balance.ts`,
+ *   `seedFromRank`) and the tonight page still prints *that* number because it is the one the
+ *   Discord split embed printed — a lobby surface, not a rating surface. The two differ for
+ *   exactly one kind of player, on their first night, and the board's is the one that is about
+ *   to be true.
  * - **Proven is `provenRating`, once.** `ratings.ordinal` is a generated column and the index
  *   the season is sorted by, but the integer on the page comes through core, so SQL and core
  *   cannot disagree about a row's position.
@@ -208,7 +215,11 @@ export async function loadBoard(client: PublicClient, options: BoardOptions): Pr
 
   const rows: BoardRow[] = players.map((player) => {
     const stored = ratings.get(player.id);
-    const rating = stored?.rating ?? seedFromRank(player.rankTier, player.rankDivision);
+    // No `ratings` row means nothing has been folded, so the honest number is where the fold
+    // would begin: `provisionalSeed()`, the same 1200 for everybody, beside `0 games` and the
+    // `settling` chip (2026-09-16). It used to be this player's rank, which put a Challenger who
+    // had never turned up at 2100 on a board of people who had.
+    const rating = stored?.rating ?? provisionalSeed();
     const games = stored?.games ?? 0;
     const wins = stored?.wins ?? 0;
 
@@ -358,9 +369,9 @@ async function windowRows(
    * the row is the stored one exactly as M5.12 shipped it.
    *
    * The seed is `lib/ingest/seed.ts`'s rule and not a second reading of it: the stored
-   * `ratings.seed_*` pair first, the player's current rank only for somebody who has never been
-   * rated. That is what makes `Last week` read the same on Tuesday as it did on Sunday, and the
-   * same again after a rank moves.
+   * `ratings.seed_*` pair first, and `provisionalSeed()` — not a rank — for somebody who has
+   * never been rated (2026-09-16). That is what makes `Last week` read the same on Tuesday as it
+   * did on Sunday, and the same again after a rank moves.
    */
   const weekly = isWeekWindow(options.window)
     ? foldWeeklyRatings(
@@ -647,22 +658,26 @@ export async function loadPlayerBoard(
   // and the window's empty line. (Until 2026-09-10 this was a separate shape carrying one
   // sentence about starting a season; there is no such button now — M5.14.)
   if (season === null) {
-    const seeded = seedFromRank(player.rankTier, player.rankDivision);
+    // **One number, three times.** Nothing has been folded, so `Rating`, `Proven` and the
+    // chart's reference line are all the seed the first fold will store — `provisionalSeed()`,
+    // 1200 — and the page cannot contradict itself the way it did until 2026-09-16, when the two
+    // at the top came from this player's rank and the line under the chart came from the seed.
+    // The rank strings still ride along for M5.15's sentence; they name what the client last
+    // reported and no longer say where the number came from.
+    const seed = seedFor(null, player.rankTier, player.rankDivision);
     return {
       puuid: player.puuid,
       name: player.name,
       window,
       range: null,
-      rating: displayRating(seeded.mu),
-      proven: provenRating(seeded),
+      rating: displayRating(seed.rating.mu),
+      proven: provenRating(seed.rating),
       games: 0,
       wins: 0,
       losses: 0,
       settling: true,
-      // Nothing has been folded, so the seed is what their rank says today — and it is what
-      // the first fold will store.
-      seedRank: rankLabel(player.rankTier, player.rankDivision),
-      reference: displayRating(seeded.mu),
+      seedRank: rankLabel(seed.rankTier, seed.rankDivision),
+      reference: displayRating(seed.rating.mu),
       history: [],
       recent: [],
     };
@@ -693,19 +708,22 @@ export async function loadPlayerBoard(
   const played = all.filter(({ row }) => row.muAfter !== null);
 
   const stored = ratings.get(player.id);
-  const current = stored?.rating ?? seedFromRank(player.rankTier, player.rankDivision);
+  // Same rule as a board row, for the same reason: with no folded row the number this page
+  // shows is where the fold would start, not what solo queue says (2026-09-16).
+  const current = stored?.rating ?? provisionalSeed();
   const allTimeGames = stored?.games ?? 0;
 
   /**
    * **Where this page's history starts** (M5.7): the seed stored on the `ratings` row, and the
-   * player's current rank only when there is none — the same preference both folds apply, read
-   * from the same helper, so the line above the chart cannot name a number the fold did not
-   * use. A friend who was Gold when they started and is Platinum now reads
-   * `Seeded from Gold IV`, because that is the rank their history was built on; their rank
-   * today is on the client, not on this line.
+   * provisional first seed when there is none — the same preference both folds apply, read from the
+   * same helper, so the line above the chart cannot name a number the fold did not use. A friend
+   * whose row was written under the old rank rule still reads their stored `Gold IV` number,
+   * because that is what their history was folded from; their rank today is on the client, not
+   * on this line.
    *
-   * `seedRank` is those same two strings as words (M5.15), formatted from whichever pair the
-   * seed came from, so the sentence and the number can never disagree.
+   * `seedRank` is the seed's two rank strings as words (M5.15). Since 2026-09-16 the number
+   * beside them no longer comes from them — every new seed is the provisional one — so the *number*
+   * is still exactly the fold's, and it is the sentence's wording that product owns.
    */
   const seed = seedFor(stored?.seed ?? null, player.rankTier, player.rankDivision);
   const seedRating = displayRating(seed.rating.mu);

@@ -62,6 +62,43 @@ export const config = {
     /** Seed for unranked, or any tier string we do not recognise. */
     unrankedMu: 20,
     unrankedSigma: 10,
+    /**
+     * **The starting uncertainty of a customs history that does not exist yet** (2026-09-16), and
+     * the `sigma` half of `provisionalSeed` — the one seed every player's first stored rating
+     * begins at, on both tracks. `mu` is `unrankedMu`.
+     *
+     * A third number, not a reuse of the two above, because it answers a third question.
+     * `rankedSigma` and `unrankedSigma` say "how sure are we of what a *League rank* implies";
+     * this says "how sure are we of somebody we have never watched play a custom", and the honest
+     * answer is: less. It is deliberately the only place that starting uncertainty is written, so
+     * it can move without touching what `seedFromRank` hands the balancer.
+     *
+     * **Why a bigger number makes a new player settle sooner, with no special case anywhere.**
+     * OpenSkill moves a player's `mu` in proportion to their own `sigma^2` over the whole lobby's
+     * `sigma^2` — so a seed with a larger `sigma` takes a larger share of each result, and
+     * `sigma` itself shrinks fastest while it is large. "Swings hard at first, then settles" falls
+     * out of one number; there is no phase, no branch, no per-match tuning, and a lobby mixing a
+     * newcomer with nine veterans is rated by exactly the same call as any other.
+     *
+     * **Why 12 and not 25.** Bigger is not better, and the measurement says where it turns. A
+     * simulated newcomer of known true skill (14 to 35, the group's real range) plays nine settled
+     * opponents, wins at the rate their true skill implies, and we ask how far their `mu` is from
+     * the truth after five games — worst case over the skill range, averaged over 800 to 1500
+     * seeded runs each (`rating/index.test.ts` keeps the guard; `04-decisions.md` keeps the full
+     * table):
+     *
+     * | starting `sigma` | 8.33 | 10 | 11 | 12 | 13 | 14 | 16 | 20 |
+     * |---|---|---|---|---|---|---|---|---|
+     * | worst `\|error\|` at game 5, settled lobby (`sigma` 3.5) | 7.92 | 6.08 | **5.17** | 5.59 | 6.17 | 6.68 | 7.69 | 9.60 |
+     * | the same in a lobby that is itself unsettled (`sigma` 6) | 10.61 | 9.85 | 9.07 | 8.30 | 7.66 | 7.53 | **7.29** | — |
+     *
+     * The curve has a bottom: past it, the extra step size is spent on win/loss noise rather than
+     * on travel, and the newcomer's number gets *worse* — at 25 it is worse than never having
+     * raised it at all. The optimum is 11 against a settled lobby and 13 or so against a loose
+     * one, and 12 is the round number between them, within 0.5 mu of the best of both. Every game
+     * is about a third of a result of information, and no seeding choice buys past that.
+     */
+    provisionalSigma: 12,
     /** Leaderboard ordinal is `mu - ordinalSigmaWeight * sigma`. */
     ordinalSigmaWeight: 2,
     /** Display rating is `round(mu * displayMultiplier)`. Also the unit the balancer scores in. */

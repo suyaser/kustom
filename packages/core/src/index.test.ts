@@ -40,6 +40,9 @@ describe('core skeleton', () => {
       // One game's seven-component score per player (M7.8, M7.13, M7.14), normalised in-game.
       'performanceScores',
       'predictWin',
+      // Where every stored rating starts, on both tracks (2026-09-16). No arguments: nothing
+      // about a player changes it, and that is the decision.
+      'provisionalSeed',
       'rateGame',
       // The weekly track's fold (M7.2): a second number, same shape, its own tuning. It never
       // forms teams and nothing under `lib/ingest/` may import it.

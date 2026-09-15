@@ -38,13 +38,20 @@ import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './see
  * fold's claim serialises two companions posting the same game, and this is the one caller that
  * is entitled to say the claim was wrong.
  *
- * **Where a fold starts** (M5.7). Each player is seeded from `ratings.seed_mu` / `seed_sigma`
- * when their row has them, and from their *current* rank when it does not. The stored seed is
- * what makes this command safe to run twice a year apart: a rank that moved after somebody's
- * first rated game no longer shifts their whole history. A row with no stored seed is a row
- * written before `0012`, and this is what fills it — with the seed **this run actually folded
- * from**, so the number and the history under it agree by construction. Nothing rewrites a seed
- * that is already there.
+ * **Where a fold starts** (M5.7, amended 2026-09-16). Each player is seeded from
+ * `ratings.seed_mu` / `seed_sigma` when their row has them, and from `provisionalSeed()` —
+ * `{ mu: 20, sigma: 12 }`, the same for everybody — when it does not. Both come through
+ * `seedFor`, so this command and the live fold cannot disagree about a first number. The stored
+ * seed is what makes the command safe to run twice a year apart: a seed written once is never
+ * recomputed, so nothing that happens afterwards shifts somebody's whole history.
+ *
+ * A row with no stored seed is a row written before `0012`, and this is what fills it — with the
+ * seed **this run actually folded from**, so the number and the history under it agree by
+ * construction. Note what that write includes: `seedColumns` also stores `seed_rank_tier` /
+ * `seed_rank_division`, and for a freshly seeded row those strings are the player's rank *as it
+ * reads today*. They are informational and drive no number — but a maintenance plan that nulls
+ * `seed_mu` / `seed_sigma` to re-seed the group would also overwrite that record of what the
+ * client said the night a history started, so re-seed by setting the two numbers directly.
  */
 
 /** PostgREST's `max_rows`. Every select here pages, because a season outgrows one page. */
@@ -266,10 +273,13 @@ export async function rebuildRatings(
     puuids.set(row.playerId, row.puuid);
     if (!seeds.has(row.playerId)) {
       /**
-       * The seed (M5.7): the stored one, or this player's current rank when their row has
-       * none. Reading the stored pair first is what stops a rank that moved *after* somebody's
-       * first rated game rewriting their whole history the next time this command runs — the
-       * fold has to start where it started, not where the client last saw them.
+       * The seed (M5.7): the stored one, or `provisionalSeed()` — 20 / 12, the same for
+       * everybody — when their row has none (2026-09-16). Reading the stored pair first is what
+       * stops anything that happened *after* somebody's first rated game rewriting their whole
+       * history the next time this command runs: the fold has to start where it started.
+       *
+       * `rankTier` / `rankDivision` are still passed and still ride onto the stored seed, but
+       * they no longer choose a number — they are the record of what the client reported.
        */
       seeds.set(
         row.playerId,

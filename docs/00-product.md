@@ -98,7 +98,8 @@ The concrete version of "the bot is the referee", used as the pinned test case f
 (`docs/02-milestones.md`, M1.4, has the full arithmetic and the expected second and third splits).
 
 Ten friends are in the lobby on an ordinary Tuesday. They have been playing for a few weeks, so their ratings
-have drifted off the rank they were seeded from.
+have drifted well away from the one number everybody starts at. (Their League ranks are in the table because
+they are part of the picture of who these people are; since 2026-09-16 nobody's rating is seeded from one.)
 
 | Name | Rank | Rating | Main | Backup |
 |---|---|---|---|---|
@@ -147,6 +148,14 @@ the product:
   carries the biggest subtraction. That gap shrinks as you play and settles after about 30 games. It does
   not close — a settled player is still a few hundred points below their Rating, and is meant to be. The
   page says all of that in one sentence rather than leaving people to guess.
+
+**Everybody starts on the same number, and the first few nights move it fast** (2026-09-16). A new player's
+Rating begins at 1200 whether they are Iron or Challenger in solo queue — this board is about customs, and on
+your first night nobody here has any evidence about you, including your rank. What the model *does* say about
+a newcomer is that it is unsure, and it is more unsure of you than of anyone it has watched: that is why your
+first few games swing your number hard — roughly 110 points a game, against about 30 for someone thirty games
+in — and why it calms down by itself as the nights add up. There is no placement mode and nothing to finish;
+it is one number being uncertain and then getting less uncertain.
 
 **The two week windows are the one place that rule is different** (2026-09-15, M7.3). `This week` and `Last
 week` sort on **Rating** — the week's own Rating, from the week's own number — and print that as their one
@@ -259,8 +268,10 @@ would leave everyone permanently "settling", and a board where nobody has settle
 
 **The week has a number of its own** (M7.2 to M7.4). The group's objection was fair: a board headed *This
 week* that ordered people by where they stand after a year is not telling them about their week. So the two
-week windows are read through a second rating that starts everyone at their rank again every Sunday at
-06:00 and follows only that week's games. Starting over every Sunday is what makes it quick: a game moves
+week windows are read through a second rating that starts everyone at their seed again every Sunday at
+06:00 and follows only that week's games. (Until 2026-09-16 that seed was your League rank; it is the same
+starting number for everybody now, because a board about the week should not have a solo-queue rank
+in it.) Starting over every Sunday is what makes it quick: a game moves
 your week about three times as far as a game moves a settled all-time rating, so Tuesday night is still
 visible on Thursday's board. What it does **not** do is settle inside a week — a handful of games is not
 enough for any model to be sure of anybody. It is also why the two week windows **sort on Rating and not on

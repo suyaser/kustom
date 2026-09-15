@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { config, rateGame, seedFromRank } from '@customs/core';
+import { config, provisionalSeed, rateGame } from '@customs/core';
 import { type Database, SEASON_ONE_ID } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -311,14 +311,21 @@ if (stack === null) {
        * **The first fold that rated each of them wrote their seed** (M5.7). None of these ten
        * had a `ratings` row before the three games above; the live fold created it, and the
        * `{ mu, sigma }` it folded from is stored on it beside the rating it grew into, with the
-       * two rank strings it was read from.
+       * two rank strings that were on their `players` row at the time.
+       *
+       * **The pair is `provisionalSeed()` for all ten** (2026-09-16), whatever rank each of them
+       * wears: ten different ranks, one starting number, and a `sigma` of 12 that belongs to "we
+       * have never seen you play a custom" rather than to any tier. The rank strings are still
+       * stored, and still say what the client reported that night, but nothing computes a number
+       * from them.
        */
       const seeded = await seedRows();
       expect(seeded).toHaveLength(10);
+      const first = provisionalSeed();
+      expect(first).toEqual({ mu: 20, sigma: 12 });
       for (const row of seeded) {
         const rank = rankOf(row.player_id);
-        const seed = seedFromRank(rank.tier, rank.division);
-        expect([row.player_id, row.seed_mu, row.seed_sigma]).toEqual([row.player_id, seed.mu, seed.sigma]);
+        expect([row.player_id, row.seed_mu, row.seed_sigma]).toEqual([row.player_id, first.mu, first.sigma]);
         expect([row.seed_rank_tier, row.seed_rank_division]).toEqual([rank.tier, rank.division]);
       }
 

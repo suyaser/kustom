@@ -1,4 +1,4 @@
-import { type Rating, seedFromRank } from '@customs/core';
+import { provisionalSeed, type Rating } from '@customs/core';
 
 /**
  * Where a player's history starts (M5.7).
@@ -63,12 +63,34 @@ export function seedColumns(seed: StoredSeed | null): SeedColumns {
 }
 
 /**
- * What a fold starts this player from: **the stored seed if there is one**, and their current
- * rank if there is not.
+ * What a fold starts this player from: **the stored seed if there is one**, and **the neutral
+ * seed if there is not**.
  *
- * The preference is the whole of M5.7. A rank read from the client last night says where
- * somebody is now; it does not say where the fold that produced their stored history began, and
- * once a game has been rated only the second question matters.
+ * The preference for the stored pair is the whole of M5.7. A rank read from the client last
+ * night says where somebody is now; it does not say where the fold that produced their stored
+ * history began, and once a game has been rated only the second question matters.
+ *
+ * The fallback is 2026-09-16's decision, and it is core's `provisionalSeed()` — `{ mu: 20,
+ * sigma: 12 }`, the same for everybody. It used to be `seedFromRank(rankTier, rankDivision)`, so
+ * a first rated game started a Challenger at mu 35 and an Iron at mu 14 — a 1,260-point gap on
+ * the board between two people who had played the same zero customs. **Nothing persisted is
+ * seeded from a League rank any more**, and the customs decide the rest. The weekly track folds
+ * from this same rule (M7.3), which is the sharper half of the argument: a board that measures
+ * one week must not leak a solo-queue rank into it.
+ *
+ * The `sigma` is 12 and not the 10 an unranked player used to get, and that is the second half of
+ * the decision rather than a detail: a rating moves in proportion to its own `sigma^2`, so a
+ * larger starting uncertainty is what makes a newcomer's first few games move their number hard
+ * and their tenth move it normally, with no phase and no special case anywhere in this file.
+ * `config.rating.provisionalSigma` holds the measurement that picked it.
+ *
+ * `rankTier` / `rankDivision` are still carried onto the returned seed and still stored, because
+ * they are the record of what the client said about this player the night their history started.
+ * They are informational from here on and drive no number.
+ *
+ * `seedFromRank` is untouched and still reads a real rank: `lib/ingest/balance.ts` uses it as
+ * tonight's team-forming guess for somebody with no customs games at all, which is a live
+ * estimate that is thrown away at the end of the night and never stored.
  */
 export function seedFor(
   stored: StoredSeed | null,
@@ -76,7 +98,7 @@ export function seedFor(
   rankDivision: string | null,
 ): StoredSeed {
   if (stored !== null) return stored;
-  return { rating: seedFromRank(rankTier, rankDivision), rankTier, rankDivision };
+  return { rating: provisionalSeed(), rankTier, rankDivision };
 }
 
 /**

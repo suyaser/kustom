@@ -652,7 +652,7 @@ if (stack === null) {
       expect(data?.every((row) => row.mu_after !== null)).toBe(true);
     });
 
-    it('seeds an unrated player from their rank, and writes no ratings row before the fold', async () => {
+    it('seeds every unrated player at the same neutral number, whatever their rank', async () => {
       const lcuGameId = gameNumber();
       const cast = Array.from({ length: 10 }, (_, i) => `it-${runId}-s${i}`);
       for (const puuid of cast) allPuuids.add(puuid);
@@ -680,12 +680,15 @@ if (stack === null) {
         .eq('game_id', gameRowId);
       const seeded = new Map((data ?? []).map((row) => [row.players.puuid, row]));
 
-      // No rank at all: mu 20.00, sigma 10.00.
+      // No rank at all: the provisional seed, mu 20.00 and sigma 12.00 — the sigma of a customs
+      // history that does not exist yet, not of an unranked player (`provisionalSeed`).
       expect(seeded.get(unranked)?.mu_before).toBeCloseTo(20, 6);
-      expect(seeded.get(unranked)?.sigma_before).toBeCloseTo(10, 6);
-      // Platinum I: 26 + 3 * 0.75 = 28.25, sigma 8.33.
-      expect(seeded.get(platinum)?.mu_before).toBeCloseTo(28.25, 6);
-      expect(seeded.get(platinum)?.sigma_before).toBeCloseTo(8.33, 6);
+      expect(seeded.get(unranked)?.sigma_before).toBeCloseTo(12, 6);
+      // Platinum I, and the same two numbers (2026-09-16). This used to be 28.25 / 8.33 — a
+      // 495-point head start on the person beside them, bought by a solo-queue rank neither of
+      // them played a custom with. The rank is still on the `players` row; it starts nothing.
+      expect(seeded.get(platinum)?.mu_before).toBeCloseTo(20, 6);
+      expect(seeded.get(platinum)?.sigma_before).toBeCloseTo(12, 6);
     });
   });
 

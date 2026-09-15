@@ -39,6 +39,7 @@ export {
   evenness,
   ordinal,
   predictWin,
+  provisionalSeed,
   rateGame,
   rateGameWeekly,
   seedFromRank,

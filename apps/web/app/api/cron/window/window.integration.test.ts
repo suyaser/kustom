@@ -372,15 +372,17 @@ if (stack === null) {
 
       /**
        * **The weekly numbers, in the post** (M7.4). `Most improved` on a week is the weekly
-       * track: everybody starts the week at their seed — these ten are unranked, so `1200` —
-       * and `rateGameWeekly` folds the six games, which leaves `Window4` furthest above where
-       * their week began.
+       * track: everybody starts the week at their seed — `provisionalSeed()`, `1200`, for these
+       * ten, who have never been rated — and `rateGameWeekly` folds the six games, which leaves
+       * `Window4` furthest above where their week began. The climb is `+231` and not 2026-09-16's
+       * earlier `+192` because the first seed's `sigma` is 12 now: a week from a fresh seed swings
+       * further, which is the point of the number.
        *
        * The stored `mu` columns on those same rows say `Window0` went `1266 → 1478`, which is
        * the all-time track's answer and the one the month post prints. If that line ever comes
        * back on a Sunday, a week is being posted with an all-time number in it.
        */
-      expect(labelled[0]).toBe('**Most improved** Window4 · +192 · 1200 → 1392');
+      expect(labelled[0]).toBe('**Most improved** Window4 · +231 · 1200 → 1431');
       expect(fields[1]?.value).not.toContain('1266 → 1478');
       // Window1's main is top and they played jungle in all six.
       expect(labelled[1]).toMatch(/^\*\*Best off-role\*\* Window1 · \d+W \d+L · \d+% · their main is top$/);

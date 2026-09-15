@@ -9,17 +9,18 @@ import type { WindowKind } from '../night';
  * Why it exists. `This week` used to print the all-time rating as it stood at a player's last
  * game inside the week, so a week somebody had could barely move the number the week was
  * supposed to be about — 40 games of history against 4 games of Tuesday. The weekly track
- * starts everybody back at their rank seed every Sunday and folds only that week's games with
+ * starts everybody back at their seed every Sunday and folds only that week's games with
  * M7.2's `rateGameWeekly`, which is tuned to move sooner over the handful of games a week
  * holds.
  *
  * Three rules, and they are the whole contract:
  *
  * - **From scratch, from the stored seed.** The caller hands in the seed the all-time fold
- *   started this player's history from (`ratings.seed_mu` / `seed_sigma`, M5.7) and
- *   `seedFromRank` only for a player who has never been rated. A seed taken from the live
- *   `players.rank_*` columns would make `Last week` read differently the day somebody's rank
- *   moved, and the Sunday post has to stay checkable on Tuesday.
+ *   started this player's history from (`ratings.seed_mu` / `seed_sigma`, M5.7), and for
+ *   somebody who has never been rated, `lib/ingest/seed.ts`'s first-seed rule —
+ *   core's `provisionalSeed()` since 2026-09-16, and **not** their League rank: a week is supposed to measure the week. A seed
+ *   taken from the live `players.rank_*` columns would also make `Last week` read differently
+ *   the day somebody's rank moved, and the Sunday post has to stay checkable on Tuesday.
  * - **The rebuild's order.** `started_at`, then `lcu_game_id` — the second key is not
  *   decoration: a backfill can land two games with the same `gameCreation`, and without a
  *   tie-break two reads of one week could disagree about the numbers.

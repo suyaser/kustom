@@ -96,16 +96,23 @@ if (stack === null) {
     }
 
     /**
-     * **Where `St0`'s history began** (M5.7), and the one thing that makes this week's awards a
-     * question with an answer (M7.4).
+     * **Where `St0`'s history began** (M5.7).
      *
      * `Most improved` on a week is the weekly climb: everybody starts the week at their seed and
-     * `rateGameWeekly` folds the week's games. The other nine have no `ratings` row, so their
-     * week starts at the rank on their `players` row — Gold IV, `1380`. `St0`'s starts at the
-     * **stored** seed, which was taken when they were unranked and is not their rank today:
-     * `1200`, the number the fold actually built their history on. The extra uncertainty in that
-     * seed is why five people with one week's results have five different climbs and this award
-     * has a single winner.
+     * `rateGameWeekly` folds the week's games. `St0`'s seed is the **stored** one; the other nine
+     * have no `ratings` row, so theirs is the first-seed rule in `lib/ingest/seed.ts`.
+     *
+     * Since 2026-09-16 that rule is `provisionalSeed()` — `20 / 12` for everybody, and the Gold IV
+     * on these `players` rows buys nobody a head start. All ten therefore start the week on the
+     * same `1200`, and the four with no stored row have identical weeks and identical climbs: the
+     * award names all four, which is the tie rule working and the visible price of one shared
+     * starting number.
+     *
+     * **`St0` is the row that proves the stored seed still wins.** Their seed was written when the
+     * first seed was `20 / 10`, and nothing rewrites it (M5.7) — so they fold the same six games
+     * from a *less* uncertain start, climb `+32` display points less than the others, and drop out
+     * of the award. That is the difference between the two sigmas, visible on a page, and it is
+     * also what a retroactive reset of the stored seeds would erase.
      */
     const { error: ratingError } = await db.from('ratings').insert({
       player_id: playerIds.get('st0') as string,
@@ -227,11 +234,16 @@ if (stack === null) {
     /**
      * A closed week has its three awards, computed from the same rows the page counted.
      *
-     * **`Most improved` is the weekly climb** (M7.4): `St0`'s seed to where the week left them,
-     * `1200 → 1392`, folded from the six counted games with `rateGameWeekly`. The stored
-     * `mu_before` / `mu_after` columns on those rows say `1266 → 1478` and are the all-time
-     * track's answer — this award does not read them on a week, and a diff that brings `+212`
-     * back here is a diff that undid M7.4.
+     * **`Most improved` is the weekly climb** (M7.4): each seed to where the week left them,
+     * `1200 → 1378`, folded from the six counted games with `rateGameWeekly`. The stored
+     * `mu_before` / `mu_after` columns on those rows are the all-time track's answer — this award
+     * does not read them on a week, and a diff that brings the stored numbers back here is a diff
+     * that undid M7.4.
+     *
+     * **Four names, and `St0` is not one of them** (2026-09-16): the four seeded at the provisional
+     * `20 / 12` won the same five games and climbed the same `+178`, so the block lists them all;
+     * `St0`, folding from a stored `20 / 10`, climbed `+146` and is below them. One number in the
+     * seed, two visible consequences.
      */
     it('hands the closed week its three awards', async () => {
       const stats = await loadStats(anon, LAST_WEEK);
@@ -239,7 +251,12 @@ if (stack === null) {
       expect(stats.awards?.kind).toBe('closed');
       const blocks = stats.awards?.kind === 'closed' ? stats.awards.blocks : [];
       expect(blocks.map((block) => block.label)).toEqual(['Most improved', 'Best off-role', 'Cursed duo']);
-      expect(blocks[0]?.lines.map((line) => line.text)).toEqual(['St0 · +192 · 1200 → 1392']);
+      expect(blocks[0]?.lines.map((line) => line.text)).toEqual([
+        'St1 · +178 · 1200 → 1378',
+        'St2 · +178 · 1200 → 1378',
+        'St3 · +178 · 1200 → 1378',
+        'St4 · +178 · 1200 → 1378',
+      ]);
       // The rule line is M5.4's, unchanged by the track it is measured on (M7.4, acceptance 3).
       expect(blocks[0]?.rule).toBe(
         'Biggest climb in Rating from a first game to a last one, over at least 6 games.',
@@ -285,7 +302,7 @@ if (stack === null) {
       expect(text).toContain('Sunday 3 May to Saturday 9 May · 6 games');
       expect(text).toContain('Blue wins 83% of the time.');
       expect(text).toContain('Average game 30 min.');
-      expect(text).toContain('St0 · +192 · 1200 → 1392');
+      expect(text).toContain('St1 · +178 · 1200 → 1378');
       // The puuid is in the href of every name; nothing a reader reads carries one.
       expect(html).toContain(`/p/${puuidOf('st0')}`);
       expect(text).not.toContain(puuidOf('st0'));

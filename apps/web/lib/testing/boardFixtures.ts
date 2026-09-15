@@ -168,8 +168,12 @@ export function workedPlayer(name = 'Hana', overrides: Partial<PlayerBoardView> 
   const games = WORKED_GAMES[name] ?? 0;
   const wins = workedWins(games);
   const rating = displayRating(player.mu);
-  // One rank, read twice: the number the chart's hairline is drawn at and the words M5.15's
-  // seed line names it with come from the same pair, exactly as the loader reads them.
+  // A player seeded under the **old** rank rule, which is what every stored row in the hosted
+  // project still is until the retroactive reset runs (2026-09-16): the chart's hairline sits at
+  // the number that rank gave, and M5.15's seed line names the same pair in words. A row seeded
+  // from here on stores `provisionalSeed()`'s 1200 with its rank strings beside it, and the two
+  // are then free to disagree — `rankLabel` says so. This fixture keeps the older shape on
+  // purpose, because it is the one the copy tests are about and the one the group has.
   const seed = displayRating(seedFromRank(SEED_TIER, SEED_DIVISION).mu);
 
   return {

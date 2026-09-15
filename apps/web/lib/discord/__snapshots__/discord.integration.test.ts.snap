@@ -10,20 +10,20 @@ exports[`a night, from the tenth join to the result > posts one result embed whe
         {
           "inline": true,
           "name": "Blue",
-          "value": "\`top\` Player0 · 1107 (-93)
-\`jungle\` Player1 · 1107 (-93)
-\`mid\` Player2 · 1107 (-93)
-\`adc\` Player3 · 1107 (-93)
-\`support\` Player4 · 1107 (-93)",
+          "value": "\`top\` Player0 · 1088 (-112)
+\`jungle\` Player1 · 1088 (-112)
+\`mid\` Player2 · 1088 (-112)
+\`adc\` Player3 · 1088 (-112)
+\`support\` Player4 · 1088 (-112)",
         },
         {
           "inline": true,
           "name": "Red",
-          "value": "\`top\` Player5 · 1293 (+93)
-\`jungle\` Player6 · 1293 (+93)
-\`mid\` Player7 · 1293 (+93)
-\`adc\` Player8 · 1293 (+93)
-\`support\` Player9 · 1293 (+93)",
+          "value": "\`top\` Player5 · 1312 (+112)
+\`jungle\` Player6 · 1312 (+112)
+\`mid\` Player7 · 1312 (+112)
+\`adc\` Player8 · 1312 (+112)
+\`support\` Player9 · 1312 (+112)",
         },
       ],
       "footer": {

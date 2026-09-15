@@ -6,6 +6,7 @@ import {
   evenness,
   ordinal,
   predictWin,
+  provisionalSeed,
   type Rating,
   rateGame,
   rateGameWeekly,
@@ -115,6 +116,13 @@ describe('seedFromRank', () => {
     expect(seedFromRank('', '')).toEqual({ mu: 20, sigma: 10 });
   });
 
+  it('is the unranked pair when it is asked about no rank at all', () => {
+    expect(seedFromRank(null, null)).toEqual({
+      mu: config.rating.unrankedMu,
+      sigma: config.rating.unrankedSigma,
+    });
+  });
+
   it('treats a garbage tier string as unranked', () => {
     expect(seedFromRank('WOOD', 'II')).toEqual({ mu: 20, sigma: 10 });
     expect(seedFromRank('GOLDEN', 'I')).toEqual({ mu: 20, sigma: 10 });
@@ -158,6 +166,134 @@ describe('seedFromRank', () => {
     expect(config.rating.unrankedSigma).toBe(10);
     expect(config.rating.ordinalSigmaWeight).toBe(2);
     expect(config.rating.displayMultiplier).toBe(60);
+  });
+});
+
+/**
+ * **Where every stored rating starts** (2026-09-16): one value, no arguments, both tracks.
+ *
+ * Two claims are tested here and they are separate. The first is the decision — `mu` says
+ * nothing about you and the `sigma` is deliberately larger than anything a rank would give — and
+ * is a matter of constants. The second is the engineering: that the larger `sigma` is what makes
+ * a new player's number find its level in a handful of games, and that **12 is a measured choice
+ * rather than a bigger-is-better one**.
+ */
+describe('provisionalSeed', () => {
+  it('is mu 20, sigma 12, from the config and nowhere else', () => {
+    expect(provisionalSeed()).toEqual({ mu: 20, sigma: 12 });
+    expect(provisionalSeed()).toEqual({
+      mu: config.rating.unrankedMu,
+      sigma: config.rating.provisionalSigma,
+    });
+  });
+
+  it('is more uncertain than any rank-derived seed, which is the whole point of the third number', () => {
+    // A rank is a claim about a player; this is the absence of one. If these ever line up,
+    // somebody has quietly gone back to seeding a customs history from solo queue.
+    expect(config.rating.provisionalSigma).toBeGreaterThan(config.rating.rankedSigma);
+    expect(config.rating.provisionalSigma).toBeGreaterThan(config.rating.unrankedSigma);
+  });
+
+  it('returns a fresh object each call', () => {
+    const a = provisionalSeed();
+    expect(a).not.toBe(provisionalSeed());
+    a.mu = 0;
+    expect(provisionalSeed().mu).toBe(20);
+  });
+
+  it('takes no argument: nothing about a player may change where they start', () => {
+    expect(provisionalSeed.length).toBe(0);
+  });
+
+  /**
+   * **"Swings hard, then settles" is one number and no branching.** `sigma` shrinks on its own
+   * with every game, and OpenSkill's step is proportional to `sigma^2`, so the same untuned
+   * `rateGame` gives a newcomer a big first move and a smaller tenth one. Pinned against a
+   * settled field alternating loss / win, so the walk is about `sigma` and not about a streak.
+   */
+  it('shrinks its own sigma fast at first and slower later, with no phase anywhere', () => {
+    const settled = { mu: 23, sigma: 3.5 };
+    let me = provisionalSeed();
+    const sigmaAt: number[] = [];
+    for (let game = 1; game <= 12; game += 1) {
+      const { blue } = rateGame([me, ...team(settled, 4)], team(settled), game % 2 === 0 ? 100 : 200);
+      me = blue[0] as Rating;
+      sigmaAt.push(me.sigma);
+    }
+    expect(sigmaAt[0]).toBeCloseTo(11.378, 3);
+    expect(sigmaAt[4]).toBeCloseTo(9.529, 3);
+    expect(sigmaAt[9]).toBeCloseTo(8.039, 3);
+    // The first five games take 2.47 sigma out; the next five take 1.49 — a ratio of 1.66, the
+    // decay that makes a rating provisional and then settled without anything saying so.
+    const early = 12 - (sigmaAt[4] as number);
+    const late = (sigmaAt[4] as number) - (sigmaAt[9] as number);
+    expect(early / late).toBeGreaterThan(1.5);
+  });
+
+  /**
+   * **The measurement that chose 12** (2026-09-16), kept as a guard rather than as a comment.
+   *
+   * A newcomer of known true skill plays nine settled opponents (`mu` 23, `sigma` 3.5) and wins
+   * at the rate their true skill implies — `predictWin`'s own probability for a side with them on
+   * it — with a seeded LCG so the whole thing is deterministic. The score is the **worst** mean
+   * `|mu - true mu|` after five games across the group's real skill range (Iron to Master), which
+   * is the fairest single question to ask of a seed: how badly can we still be misjudging
+   * somebody after their first night, whoever they turned out to be.
+   *
+   * Measured **at this guard's own 200 runs per skill** (400 runs moves these by under 0.05).
+   * `config.ts` and `04-decisions.md` print the fuller sweep — eight starting sigmas, two lobby
+   * shapes, 800 to 1500 runs per skill — whose figures sit within 0.5 of these; the four below
+   * are the ones this test re-measures every time it runs, which is why they are quoted here and
+   * not copied from there:
+   *
+   * | starting `sigma` | 8.33 (the old rank seed) | 10 | **12** | 20 |
+   * |---|---|---|---|---|
+   * | worst mean error at game 5 | 7.96 | 6.14 | **5.60** | 9.56 |
+   *
+   * Both bounds matter. The ceiling says the seed does its job; the margin over 8.33 says the
+   * decision bought something real. And 20 being *worse than doing nothing* is why this is a
+   * measured constant: past the knee the extra step size is spent on win/loss noise, not on
+   * getting the number right.
+   */
+  it('puts a newcomer of any skill inside 6.00 mu of their true rating by game 5, beating the old rank seed by 1.5', () => {
+    const lcg = (seed: number): (() => number) => {
+      let s = seed >>> 0;
+      return () => {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    };
+    const settled = { mu: 23, sigma: 3.5 };
+    const RUNS = 200;
+
+    /** Worst mean `|error|` after five games, over the skill range, for one starting sigma. */
+    const worstErrorAtGame5 = (startSigma: number): number => {
+      let worst = 0;
+      for (const trueMu of [14, 17, 20, 23, 26, 29, 32, 35]) {
+        const p = predictWin([{ mu: trueMu, sigma: settled.sigma }, ...team(settled, 4)], team(settled));
+        let total = 0;
+        for (let run = 0; run < RUNS; run += 1) {
+          const roll = lcg(1000 + run * 7919 + trueMu);
+          let me: Rating = { mu: config.rating.unrankedMu, sigma: startSigma };
+          for (let game = 0; game < 5; game += 1) {
+            const { blue } = rateGame([me, ...team(settled, 4)], team(settled), roll() < p ? 100 : 200);
+            me = blue[0] as Rating;
+          }
+          total += Math.abs(me.mu - trueMu);
+        }
+        worst = Math.max(worst, total / RUNS);
+      }
+      return worst;
+    };
+
+    const provisional = worstErrorAtGame5(config.rating.provisionalSigma);
+    const oldRankSeed = worstErrorAtGame5(config.rating.rankedSigma);
+
+    expect(provisional).toBeLessThan(6);
+    expect(oldRankSeed - provisional).toBeGreaterThan(1.5);
+    // And the other direction, so nobody "improves" this by making the seed wilder: at 20 the
+    // newcomer is further from the truth after five games than they were under the old seed.
+    expect(worstErrorAtGame5(20)).toBeGreaterThan(oldRankSeed);
   });
 });
 
@@ -529,6 +665,32 @@ describe('rateGameWeekly', () => {
       200,
     );
     expect((blue[0]?.mu ?? Number.NaN) - 23).toBeCloseTo(23 - (lost.blue[0]?.mu ?? Number.NaN), 12);
+  });
+
+  /**
+   * **The same measurement on the seed everybody actually starts from now** (2026-09-16).
+   *
+   * Every first seed is `provisionalSeed()` — `20 / 12`, not a rank's `sigma` 8.33 — so a lobby
+   * of people nobody has rated yet is ten identical ratings, and one game moves each of them
+   * further than the row above because `mu` moves with `sigma^2`. The number the week's copy is
+   * written off is this one for a fresh group, not 79.
+   *
+   * It is pinned for the same reason its neighbour is: an `openskill` patch that moves it should
+   * fail here rather than quietly restate what a week is worth.
+   */
+  it('one game from the provisional first seed moves 114 display points, against 112 all-time', () => {
+    const seed = provisionalSeed();
+
+    const moved = (fold: Fold): number => {
+      const peers = team(seed, 9);
+      const { blue } = fold([seed, ...peers.slice(0, 4)], peers.slice(4), 100);
+      const after = blue[0];
+      if (after === undefined) throw new Error('missing rating');
+      return displayRating(after.mu) - displayRating(seed.mu);
+    };
+
+    expect(moved(rateGameWeekly)).toBe(114);
+    expect(moved(rateGame)).toBe(112);
   });
 
   /**

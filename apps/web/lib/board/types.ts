@@ -273,12 +273,16 @@ export interface PlayerBoardView {
   /** The 30-game rule, always on the all-time count (M3.8). Never a fact about the window. */
   settling: boolean;
   /**
-   * The rank the seed was computed from, as words: `Gold II`, `Master`, `Unranked` (M5.15).
+   * The rank on record when the seed was taken, as words: `Gold II`, `Master`, `Unranked`
+   * (M5.15).
    *
-   * Formatted in the loader by `rankLabel`, from the same `rank_tier` / `rank_division` pair
-   * `seedFromRank` read, so the seed line cannot name a rank the number did not come from.
-   * Carried on every window even though only `All time` prints it: the rank is a fact about
-   * the player, not about the calendar.
+   * Formatted in the loader by `rankLabel` from `ratings.seed_rank_tier` / `seed_rank_division`.
+   * Those two columns used to be what the seed's number was computed from; since 2026-09-16 a
+   * seed is the provisional `20 / 12` for everybody and they are the record of what the client
+   * reported that night and nothing more — so for a player seeded after that date this string
+   * names a rank the number did **not** come from, and the sentence built around it is product's
+   * to re-word. Carried on every window even though only `All time` prints it: the rank is a
+   * fact about the player, not about the calendar.
    */
   seedRank: string;
   /**

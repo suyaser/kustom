@@ -313,17 +313,28 @@ export const UNRANKED_LABEL = 'Unranked';
 /**
  * The rank the seed came from, as words: `Gold II`, `Master`, `Unranked`.
  *
- * The client sends the tier upper case (`GOLD`) and the division as a Roman numeral, and
- * `seedFromRank` reads exactly those two strings — so this formats the same pair the seed was
- * computed from and cannot name a rank the number did not come from. Master and above have no
- * division (`config.rating.tiersWithoutDivisions`), and a tier core does not recognise seeds as
- * unranked, so it is named that way here too: `Unranked` when the client reported none.
+ * The client sends the tier upper case (`GOLD`) and the division as a Roman numeral, and this
+ * formats exactly the pair stored beside the seed — `ratings.seed_rank_tier` /
+ * `seed_rank_division` — so the words always name the rank the client reported when that
+ * player's history began.
+ *
+ * **They no longer name where the number came from** (2026-09-16). Every seed written from that
+ * date is `provisionalSeed()`, 1200, whatever rank rode along with it, so `Seeded from Gold IV
+ * at 1200.` is now a true sentence about two independent facts rather than one about a lookup.
+ * The rank strings are informational; the re-wording of M5.15's sentence is product's, and until
+ * it lands this function's job is unchanged: say what the client said, in words.
+ *
+ * `seedFromRank` is still the test for "is this a rank at all", which is the one thing that has
+ * not moved: a tier core does not recognise seeds as unranked, and is named that way here too,
+ * as is a client that reported none. Master and above have no division
+ * (`config.rating.tiersWithoutDivisions`).
  */
 export function rankLabel(tier: string | null, division: string | null): string {
   const key = (tier ?? '').trim().toUpperCase();
-  // Exactly core's own test for "I do not know this tier": an unrecognised string seeds the
-  // unranked mu, and a page that printed `Gold` beside a number seeded from 20 would be lying
-  // about where the number came from.
+  // Exactly core's own test for "I do not know this tier": a string core cannot place comes back
+  // at the unranked pair, and printing `Golden III` for it would invent a rank the client never
+  // reported. This is a lookup on the *label*, not on the seed's number, which since 2026-09-16
+  // does not come from here at all.
   const seeded = seedFromRank(key, division);
   const unranked = seedFromRank(null, null);
   if (seeded.mu === unranked.mu && seeded.sigma === unranked.sigma) return UNRANKED_LABEL;

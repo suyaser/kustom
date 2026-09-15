@@ -1,4 +1,4 @@
-import { seedFromRank } from '@customs/core';
+import { provisionalSeed, seedFromRank } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
@@ -66,11 +66,42 @@ describe('seedFor', () => {
     expect(seed.rating).toEqual(seedFromRank('GOLD', 'II'));
   });
 
-  it('falls back to the current rank when nothing is stored, and says which rank that was', () => {
+  it('starts a player who has never been rated at the provisional seed, whatever their rank says', () => {
     expect(seedFor(null, 'SILVER', 'III')).toEqual({
-      rating: seedFromRank('SILVER', 'III'),
+      rating: provisionalSeed(),
       rankTier: 'SILVER',
       rankDivision: 'III',
+    });
+  });
+
+  it('gives the challenger and the iron player the same first number (2026-09-16)', () => {
+    const first = { mu: 20, sigma: 12 };
+    expect(seedFor(null, 'CHALLENGER', 'I').rating).toEqual(first);
+    expect(seedFor(null, 'IRON', 'IV').rating).toEqual(first);
+    expect(seedFor(null, null, null).rating).toEqual(first);
+    // Ranked or not, the rating is one number; the rank strings ride along as the record of what
+    // the client said that night and drive nothing.
+    expect(seedFor(null, 'CHALLENGER', 'I')).toEqual({
+      rating: first,
+      rankTier: 'CHALLENGER',
+      rankDivision: 'I',
+    });
+  });
+
+  it('is the seed a null `ratings` row recomputes to, which is what a retroactive reset relies on', () => {
+    // "Never rated" and "seed columns nulled out" are the same input to this function, so
+    // nulling every stored seed and re-running `rebuild-ratings` re-seeds the whole season here
+    // and needs no second code path to do it.
+    expect(
+      seedFor(
+        readSeed({ seed_mu: null, seed_sigma: null, seed_rank_tier: null, seed_rank_division: null }),
+        'MASTER',
+        null,
+      ),
+    ).toEqual({
+      rating: provisionalSeed(),
+      rankTier: 'MASTER',
+      rankDivision: null,
     });
   });
 

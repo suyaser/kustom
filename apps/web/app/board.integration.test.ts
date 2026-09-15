@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { displayRating, provisionalSeed, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
@@ -159,8 +160,11 @@ if (stack === null) {
       .from('players')
       .insert([
         { puuid: puuid.zoe, display_name: 'Zoe', rank_tier: 'GOLD', rank_division: 'IV' },
-        // The M3.10 case: the database has never been told this player's name.
-        { puuid: puuid.nameless, rank_tier: 'SILVER', rank_division: 'IV' },
+        // The M3.10 case: the database has never been told this player's name. Diamond I on
+        // purpose since 2026-09-16 — a rank whose seed (1920) is nowhere near the provisional
+        // one (1200), so the board reading the rank instead of the seed would fail loudly here
+        // and not hide behind `SILVER`'s mu happening to be `unrankedMu`.
+        { puuid: puuid.nameless, rank_tier: 'DIAMOND', rank_division: 'I' },
         { puuid: puuid.ali, display_name: 'Ali', rank_tier: 'GOLD', rank_division: 'IV' },
         { puuid: puuid.weekly, display_name: 'Wren', rank_tier: 'GOLD', rank_division: 'IV' },
         { puuid: puuid.other, display_name: 'Otto', rank_tier: 'GOLD', rank_division: 'IV' },
@@ -196,8 +200,11 @@ if (stack === null) {
       weekFillerIds.push(row?.id ?? '');
     }
 
-    // Two of the three have a rating row; the nameless one is seeded from rank in memory, the
-    // way `loadPool` seeds them, and must still appear on the board.
+    // Two of the three have a rating row; the nameless one has none and is seeded in memory at
+    // `provisionalSeed()` — 1200, Proven 0 — the way the first fold will seed them (2026-09-16),
+    // and must still appear on the board. Their `DIAMOND I` above is deliberately left in place:
+    // it is what the balancer would still guess for them tonight, and the board ignoring it is
+    // the point of the assertions below.
     await db.from('ratings').insert([
       { player_id: playerIds.zoe, season_id: seasonId, mu: 25.2, sigma: 5, games: 2, wins: 1 },
       { player_id: playerIds.ali, season_id: seasonId, mu: 22, sigma: 6, games: 2, wins: 1 },
@@ -395,8 +402,11 @@ if (stack === null) {
       const mine = board.rows.filter((row) => PINNED.includes(row.puuid));
 
       expect(mine.map((row) => row.puuid)).toEqual([puuid.zoe, puuid.ali, puuid.nameless]);
-      // `mu - 2 * sigma`, times sixty: 25.2 - 10 = 15.2, 22 - 12 = 10, and the seeded silver.
-      expect(mine.map((row) => row.proven)).toEqual([912, 600, 200]);
+      // `mu - 2 * sigma`, times sixty: 25.2 - 10 = 15.2, 22 - 12 = 10, and the un-folded seat at
+      // `provisionalSeed()`'s 20 - 24 = -4, floored to 0 by `provenRating` (2026-09-16). Under
+      // the old rule this seat read Diamond I's 1920 / 1520 and sorted *second*; a player with
+      // no customs is not placed by solo queue any more, they are simply unproven.
+      expect(mine.map((row) => row.proven)).toEqual([912, 600, 0]);
       // And the number people arrive knowing, which is `round(mu * 60)`.
       expect(mine.map((row) => row.rating)).toEqual([1_512, 1_320, 1_200]);
     });
@@ -417,6 +427,16 @@ if (stack === null) {
       const seeded = board.rows.find((row) => row.puuid === puuid.nameless);
 
       expect(seeded).toMatchObject({ name: null, games: 0, wins: 0, settling: true });
+      /**
+       * **And the number beside them is the seed, not their rank** (2026-09-16). This player
+       * wears `DIAMOND I` in `players`, which is still what `lib/ingest/balance.ts` would guess
+       * to form tonight's split — the board does not read it. The third line is what makes the
+       * first two a test rather than a coincidence: the rank estimate is a different number, so
+       * these assertions could not pass on either code path by accident.
+       */
+      expect(seeded?.rating).toBe(displayRating(provisionalSeed().mu));
+      expect(seeded?.proven).toBe(0);
+      expect(displayRating(seedFromRank('DIAMOND', 'I').mu)).not.toBe(displayRating(provisionalSeed().mu));
       /**
        * **The rated-vs-counted seam, pinned** (M5.21). This player sat on Zoe's side in both
        * games and the fold rated neither of their rows, so `ratings` says `0 games · 0W 0L`
@@ -610,8 +630,9 @@ if (stack === null) {
       // Dated from **their** first counted game, because the page is a person's history.
       expect(player.range).toBe('Since 3 Jun 2026');
       expect(player.rating).toBe(1_548);
-      // `seedFromRank('GOLD', 'IV')` is mu 23 — the seed, not the window's start.
-      expect(player.reference).toBe(1_380);
+      // The neutral first seed is mu 20 (2026-09-16), so 1200 — the seed, not the window's
+      // start, and no longer the Gold IV on this player's row.
+      expect(player.reference).toBe(1_200);
       expect(player.history).toEqual([1_500, 1_536, 1_512, 1_548]);
     });
 
@@ -635,9 +656,9 @@ if (stack === null) {
       expect(player.history).toEqual([1_500, 1_536, 1_512]);
       // `By role` moved to `lib/stats` with M5.20 and is read there — one fold of one record,
       // over the games the rating fold counted (`playerStats.integration.test.ts`).
-      // `seedFromRank('GOLD', 'IV')` is mu 23, so the reference line is 1380 — in the series'
-      // own units, never the seed's ordinal.
-      expect(player.reference).toBe(1_380);
+      // Nobody is seeded from their rank any more (2026-09-16): the neutral seed is mu 20, so
+      // the reference line is 1200 — in the series' own units, never the seed's ordinal.
+      expect(player.reference).toBe(1_200);
     });
 
     it('lists the recent games newest first, with the five of their own side', async () => {
