@@ -32,6 +32,13 @@ export interface PoolMember {
   gamesTonight: number;
   /** Epoch ms of the last game they were in the lobby for and did not play, or `null`. */
   lastSitOutAt: number | null;
+  /**
+   * Fill protection's input (M7.6), handed to `BalancePlayer` untouched: games since the
+   * balancer last filled this player off their role, `0` when their last game was one. `null`
+   * or absent is "no fill in the window we read", which is the flat off-role penalty. Nothing
+   * in the sit-out ordering reads it; it is the balancer's number, not the rotation's.
+   */
+  gamesSinceLastFill?: number | null;
 }
 
 /**

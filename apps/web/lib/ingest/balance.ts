@@ -1,4 +1,4 @@
-import { type BalancePlayer, balance, type Split, seedFromRank } from '@customs/core';
+import { type BalancePlayer, balance, config, type Split, seedFromRank } from '@customs/core';
 import { type Json, rosterKey, type SplitInsert } from '@customs/db';
 import { NAMELESS_PLAYER } from '../discord/embeds';
 import { nightStart } from '../night';
@@ -17,6 +17,18 @@ import { type PoolMember, planSeats, selectTen } from './selection';
 
 /** How far back the sit-out lookup reads. A player who has not sat out in this many games. */
 const SIT_OUT_HISTORY_GAMES = 400;
+
+/**
+ * How many of the group's most recent games the fill lookup reads, to find twenty of *one*
+ * player's inside them.
+ *
+ * It is a bound, not the window: the window is `config.roles.inferenceWindow` games **per
+ * player** (M7.6), counted inside this slice. Truncating here can only lose a fill older than
+ * this many group games, which reads as `null` — the flat penalty, the documented baseline —
+ * and can never move a player's distance to a wrong number, because the count runs newest
+ * first and only older rows fall off the end.
+ */
+const FILL_HISTORY_GAMES = 200;
 
 export interface BalanceOutcome extends LobbyBalancedEvent {
   /** All three splits, best first, as core returned them. `splits.rank` is the index plus one. */
@@ -68,7 +80,8 @@ export async function balanceLobby(
   };
 }
 
-function toBalancePlayer(member: PoolMember): BalancePlayer {
+/** Exported for the test that pins M1.4's worked example to this mapping, and nothing else. */
+export function toBalancePlayer(member: PoolMember): BalancePlayer {
   return {
     puuid: member.puuid,
     name: member.name,
@@ -77,6 +90,9 @@ function toBalancePlayer(member: PoolMember): BalancePlayer {
     mainRole: member.mainRole,
     secondaryRole: member.secondaryRole,
     roleOverride: member.roleOverride,
+    // M7.6: fill protection's one input. `null` — never filled, no history, or the read failed
+    // — is the flat `offRolePenalty`, which is M1.4's behaviour unchanged.
+    gamesSinceLastFill: member.gamesSinceLastFill ?? null,
   };
 }
 
@@ -123,7 +139,13 @@ export async function loadPool(
 
   const playerIds = rows.map((row) => row.player_id);
   const ratings = await selectRatings(client, playerIds, seasonId);
-  const rotation = await loadRotation(client, playerIds, now, timeZone);
+  // Two independent reads, in parallel, and note that only one of them has an early return:
+  // `loadRotation` skips its work at ten or fewer because nobody sits, but fill protection is
+  // exactly what matters at ten, where somebody has to take the empty seat (M7.6).
+  const [rotation, fills] = await Promise.all([
+    loadRotation(client, playerIds, now, timeZone),
+    loadFills(client, playerIds),
+  ]);
 
   return rows.map((row) => {
     const player = row.players;
@@ -147,6 +169,7 @@ export async function loadPool(
       sigma: seeded.sigma,
       gamesTonight: rotation.gamesTonight.get(row.player_id) ?? 0,
       lastSitOutAt: rotation.lastSitOutAt.get(row.player_id) ?? null,
+      gamesSinceLastFill: fills.get(row.player_id) ?? null,
     };
   });
 }
@@ -268,6 +291,93 @@ async function loadRotation(
   }
 
   return { gamesTonight, lastSitOutAt };
+}
+
+/** One player's row in one game, as the fill lookup reads it. */
+export interface FillGame {
+  playerId: string;
+  /** `game_players.counts_for_role_inference` (M5.17): `false` is "the balancer filled them". */
+  countsForRoleInference: boolean;
+}
+
+/**
+ * How many games ago each player was last filled, from their games **newest first**.
+ *
+ * `0` is "their last game was a fill". A player with no fill in the window is absent from the
+ * map, which the caller reads as `null`: never filled, as far as we can see, so the flat
+ * penalty. Pure, so the walk can be tested without a stack; the query is `loadFills`.
+ *
+ * Only the first `window` rows of each player are looked at — `config.roles.inferenceWindow`,
+ * the same number role inference uses, over the same rated universe, so the two numbers rest on
+ * the same kind of history. **Not literally the same twenty rows**: `inferRoles` drops filled
+ * and null-role games before it slices its twenty, while this walk has to keep the filled ones
+ * — they are the thing it is counting.
+ */
+export function fillDistances(
+  rows: readonly FillGame[],
+  window: number = config.roles.inferenceWindow,
+): Map<string, number> {
+  const distance = new Map<string, number>();
+  const seen = new Map<string, number>();
+
+  for (const row of rows) {
+    if (distance.has(row.playerId)) continue;
+    const behind = seen.get(row.playerId) ?? 0;
+    if (behind >= window) continue;
+    if (!row.countsForRoleInference) distance.set(row.playerId, behind);
+    seen.set(row.playerId, behind + 1);
+  }
+
+  return distance;
+}
+
+/**
+ * Fill protection's input (M7.6): `gamesSinceLastFill` per player, and no column anywhere —
+ * `game_players.counts_for_role_inference` already records exactly this, written at fold time
+ * for precisely the players the balancer put on a role that was neither their main nor
+ * tonight's tap (`roles.ts` says why that is the only moment it is knowable).
+ *
+ * **Rated games only** (`mu_after is not null`), which is both the fold's universe and role
+ * inference's. A remake or an ARAM (M7.1) never rated, so it never carried a flag, and it is
+ * neither a fill nor a step away from one: it is not in the window at all. A backfilled game
+ * and a game from a lobby whose split we could not read are `true` by the column's default —
+ * we did not choose those seats, so nobody was filled.
+ *
+ * **One read, for every lobby size.** Ordered newest first at the `games` level, because
+ * `game_players` carries no timestamp, and bounded by `FILL_HISTORY_GAMES`.
+ *
+ * **A failure is not an error.** The lobby still balances, with `null` for everybody: a
+ * balancer that refuses to split because it cannot remember last night is worse than a flat
+ * penalty.
+ */
+async function loadFills(client: ServiceClient, playerIds: readonly string[]): Promise<Map<string, number>> {
+  if (playerIds.length === 0) return new Map();
+
+  const { data, error } = await client
+    .from('games')
+    .select('id, started_at, game_players!inner(player_id, mu_after, counts_for_role_inference)')
+    .in('game_players.player_id', playerIds)
+    .not('game_players.mu_after', 'is', null)
+    .order('started_at', { ascending: false })
+    // A second key, so two games stamped the same instant are read in one fixed order.
+    .order('id', { ascending: false })
+    .limit(FILL_HISTORY_GAMES);
+
+  if (error) {
+    console.warn(`balanceLobby: fill history read failed, no protection this split: ${error.message}`);
+    return new Map();
+  }
+
+  const wanted = new Set(playerIds);
+  const rows: FillGame[] = [];
+  for (const game of data ?? []) {
+    for (const row of game.game_players) {
+      if (!wanted.has(row.player_id)) continue;
+      rows.push({ playerId: row.player_id, countsForRoleInference: row.counts_for_role_inference });
+    }
+  }
+
+  return fillDistances(rows);
 }
 
 /**

@@ -5115,7 +5115,7 @@ visible on no page.
     > filled into — this remembers that they were filled, nothing finer. Any new sentence on any surface; if the
     > group wants the explanation to say "we owed them a main", that is a copy task of its own.
 
-- [ ] **M7.6** Compute `gamesSinceLastFill` and pass it to the balancer. No column and no migration: `game_players.counts_for_role_inference` already records exactly this. *(owner: `platform-engineer`; after M7.5)*
+- [x] **M7.6** (landed 2026-09-15: `loadFills` in `apps/web/lib/ingest/balance.ts` reads each lobby member's last `config.roles.inferenceWindow` rated games — bounded by the group's last 200 games since `game_players` carries no timestamp — and `fillDistances` walks them newest-first to find `gamesSinceLastFill`; runs unconditionally alongside `loadRotation`, not gated behind its ten-or-fewer early return. Live in the balance path now: the next real lobby already prices fills with protection, and M7.11's rebuild does not touch this read.) Compute `gamesSinceLastFill` and pass it to the balancer. No column and no migration: `game_players.counts_for_role_inference` already records exactly this. *(owner: `platform-engineer`; after M7.5)*
 
     > **Brief (product, 2026-09-15)**
     >

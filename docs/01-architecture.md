@@ -318,7 +318,18 @@ split. Output: top three splits with role assignments and explanation.
   or no history to read — is the flat 120, which is M1.4's behaviour unchanged, and the worked example does not move.
   A negative number reads as 0, so the term is bounded by `1 + fillProtectionFactor` and 240 is the maximum.
   `packages/core` never reads a database: the caller computes the number from
-  `game_players.counts_for_role_inference = false` over the player's last twenty counted games (M7.6).
+  `game_players.counts_for_role_inference = false` over the player's last twenty **rated** games (M7.6).
+  Rated and not "counted": a fill *is* a `counts_for_role_inference = false` row, so a counted-games window could
+  never contain one.
+  That caller is `loadFills` in `apps/web/lib/ingest/balance.ts` (M7.6, landed 2026-09-15): **one** extra read per
+  balance, over the player's last `config.roles.inferenceWindow` rated games (`mu_after is not null`, the same
+  universe role inference folds), found inside the group's 200 most recent games because `game_players` carries no
+  timestamp of its own. Same count and same universe as role inference, **not the same twenty rows**: `inferRoles`
+  drops filled and null-role games before it slices, so for a player with a recent fill the two windows reach back
+  different distances. A remake or an ARAM never rated, so it is not in the window at all — neither a fill nor a
+  step away from one. The read is **not** behind `loadRotation`'s ten-or-fewer early return: sit-out order is
+  meaningless at ten, fill protection matters most there. A read that fails logs and hands `null` to all ten, and
+  the lobby still splits.
   **The price is charged in both places, from one per-player number**: `assignRoles`, which picks a team's role
   permutation, and the split score, which ranks partitions. Scaling one and not the other prices a seat one way
   and ranks the split another. A flexible player (`mainRole: null`) is never off-role, so protection never touches
