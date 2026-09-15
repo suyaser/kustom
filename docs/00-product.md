@@ -166,6 +166,14 @@ recorded like any other — they are on the game history, in the records, on a p
 never touch a rating. A mode with no lanes and no roles was never what the balancer is trying to measure,
 and until 2026-09-15 it was quietly counted, which is a bug and not a policy (M7.1).
 
+Two things follow from that, and they are what a person actually meets. **Discord posts no result for an ARAM
+night** — a result post is what a game did to ten ratings, and an ARAM does nothing to any of them — so the
+teams go up as usual and the channel is quiet afterwards. And **the leaderboard leaves those games out of its
+count and its record**, because it is a rating board and its record sits beside a climb those games did not
+move, while `/stats`, `/fun`, `/games` and the sections on a person's own page keep counting them, because they
+are about what the group played. Neither number is wrong. Until **M7.18** neither page says which one it is
+showing, which is the one part of this a friend can reasonably read as a mistake.
+
 **Carrying is worth a little more.** The best player on the winning side keeps about a quarter more of what
 they gained, and the best player on the losing side gives back about a fifth less. Best means the highest
 score on a seven-part reading of that game: kills and assists against deaths, damage to champions, gold,
@@ -179,6 +187,11 @@ read somewhere between the two, plus the one number nobody else is scored on: wh
 record does not reliably say which of top and mid somebody was. It is a small adjustment made after
 the model has rated the game, it never turns a win into a loss or the other way round, and it leaves Proven's
 "how sure are we" half alone: a good night is not the same thing as certainty (M7.8).
+
+**It moves the real rating and nothing else.** The two week windows are read through their own throwaway number,
+folded from the week's own games, and there is no bonus in that fold: carrying a game on Tuesday moves your real
+rating a little further and moves your week exactly as much as anybody else's win. One bonus, on the one number
+that forms teams (2026-09-15, M7.9; settled as a product decision on 2026-09-16 rather than left open).
 
 **A game where we do not know who played what has no best player.** The companion reads everybody's role off
 the end-of-game screen, so a night the companion watched has all ten. A game recovered from someone's match

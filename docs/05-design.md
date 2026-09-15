@@ -959,7 +959,7 @@ placement are the designer's and are untouched.
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
 | how this works, line 2 | `The bot makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.` | product 2026-09-09 — **changed** |
 | how this works, line 3 | `Results come off the end-of-game screen. Nobody reports a score.` | product 2026-09-09 |
-| how this works, line 4 | `Your rating starts from your rank and moves with every result. Proven is the board's careful version of it and catches up after about 30 games.` | product 2026-09-09 — **changed** |
+| how this works, line 4 | `Your rating starts from your rank and moves with every result. Proven is the board's careful version of it and catches up after about 30 games.` | product 2026-09-09 — **changed**. **Two defects, raised by the designer 2026-09-16 (M7 review), both product's to fix in `lib/shellCopy.ts`.** (1) **`moves with every result` is false since M7.1** — ARAM results move nothing, `00-product.md` says so in a paragraph of its own ("Only Summoner's Rift customs move the number"), and the group was told exactly that on 2026-09-16 when the rebuild ran. This line is in the footer of every page and in the rail card, so it is the product's most-printed claim about ratings and it is the one a player can now catch out. (2) **`catches up` is the word M3.19 ruled out** — `SETTLING_SENTENCE` was rewritten on 2026-09-10 precisely because the gap **settles** and never closes, and this line kept the retired verb, so the two sentences a reader meets on one visit disagree about what Proven does. Proposed, one string fixing both: `Your rating starts from your rank and moves with every Summoner's Rift result. Proven is the board's careful version of it and settles after about 30 games.` Nothing about MVP and ACE belongs in it — four lines are the whole system and `/p/[puuid]`'s own explanation carries that one |
 | companion card, title | `Run the companion` | product 2026-09-09 |
 | companion card, body | `Windows only. Install it once, paste in the token an admin gives you, and leave it running while you play.` | product 2026-09-09 — **changed** |
 | companion card, link | `Get the companion` → `https://github.com/suyaser/kustom-releases/releases/latest` | product 2026-09-09 |
@@ -1006,8 +1006,8 @@ placement are the designer's and are untouched.
 | An admin can step to the next one, nothing is random | M3.2: reroll is admin-only, promotes rank 2 then rank 3, never picks at random, and stops |
 | Results come off the end-of-game screen | M2.5's eog capture; no manual reporting anywhere in the product |
 | Rating starts from your rank | `seedFromRank`, seeded from the rank the client reads (M1.3, M2.2) |
-| Rating moves with every result | the fold on every rated game (M2.5, M5.2) |
-| Proven catches up after about 30 games | `ordinal = mu − 2σ`; `00-product.md`, "a new player sits below their Rating until the board has watched about 30 games" |
+| Rating moves with every result | ~~the fold on every rated game (M2.5, M5.2)~~ — **no longer true as written** (M7.1, 2026-09-15): the fold rates Summoner's Rift only, so an ARAM result moves nothing. The claim, not the code, is what is wrong; see the copy row above |
+| Proven catches up after about 30 games | `ordinal = mu − 2σ`; `00-product.md`, "a new player sits below their Rating until the board has watched about 30 games" — **but `catches up` is the verb M3.19 retired**: σ falls and does not reach zero, so the gap settles and never closes. The board's own sentence was fixed on 2026-09-10 and this one was not |
 
 Nothing in the four lines mentions "ten games" for Rating: the page has room for one number, and the number
 worth printing is the one that governs the board people argue about.
@@ -1432,8 +1432,8 @@ words below are fixed.
 
 | Where | String | Status |
 |---|---|---|
-| primary number, label | `Proven` — `round(ordinal * 60)`, the sort key | *(shipped, M3.5)* kept |
-| secondary number, label | `Rating` — `round(mu * 60)`, the number the embeds print | *(shipped, M3.5)* kept |
+| primary number, label | `Proven` — `round(ordinal * 60)`, the sort key — **on `All time`, `This month` and `Last month` only**; on `This week` and `Last week` the primary number is the weekly `Rating` and Proven is not printed at all | *(shipped, M3.5)*; **week carve-out, product 2026-09-15 (M7.3)** — whichever number decides the order is the number the row has to print, and a week window is ordered by the weekly `Rating` |
+| secondary number, label | `Rating` — `round(mu * 60)`, the number the embeds print — **line 2 on the three Proven windows**; on a week row it is gone from line 2, because it is already the big number on line 1 | *(shipped, M3.5)*; **week carve-out, product 2026-09-15 (M7.3)** — one row never says one number in two type sizes |
 | legend over the one unlabelled number | `Proven` | **amended, designer 2026-09-09** — was `Proven · Rating`; see "Leaderboard row". The code change lands with M3.18 |
 | board heading | the **window's** name (`This week`), with `Leaderboard` beside it in `dim` | **amended, product 2026-09-10 (M5.12)** — was the season's name; seasons are gone (`04-decisions.md`) and the season row's name is never printed to a friend again. `standings` → `Leaderboard` (designer 2026-09-09) is unchanged |
 | nightly embed title | `This week · leaderboard` | **amended, product 2026-09-10 (M5.12)** — the nightly post prints the week's board and links to `?window=this-week` |
@@ -1442,7 +1442,11 @@ words below are fixed.
 | still-settling chip | `settling` | *(shipped, M3.8)* kept |
 | still-settling sentence on `/leaderboard`, once per page | `The board sorts on Proven: your rating, minus how unsure the board still is about you. That gap shrinks as you play and settles after about 30 games.` | **amended, product 2026-09-10 (M3.19); scoped to `/leaderboard` and kept byte for byte, product 2026-09-10 (M3.26)** — the 2026-09-08 pair told a new player they begin at the bottom and rise, which is false on a season's first board, where every row is a rank seed and Proven orders exactly as rank does. The ruling is in `04-decisions.md`; "Still-settling marker (M3.8)" below quotes the same words. **`you` is right here and stays**: everyone reading this board is on it, and the sentence's grip is that the reader finds themselves in it. The player page prints the row below instead; the two are separate constants and neither may be edited into the other. `SETTLING_SENTENCE` keeps this string |
 | still-settling sentence on `/p/[puuid]`, once per page | `The board sorts on Proven: a player's rating, minus how unsure the board still is about them. That gap shrinks as they play and settles after about 30 games.` | **new, product 2026-09-10 (M3.26)** — on Yuki's page `your rating` names the number printed twenty pixels above it, and that number is Yuki's, not the reader's. Same two sentences, same shape, same two interpolations (`Proven` from `PROVEN_LABEL`, `30` from `SETTLING_GAMES`), one pronoun moved, so a reader arriving from the board meets the same explanation and not a second one. **No name is interpolated**: a nameless player is `Someone` (M3.10), and `Someone's rating, minus how unsure the board still is about Someone` is not a sentence a friend would say — nor is the possessive of every name in the group one rule (`Lucas's`). **The M5.15 strip does not replace it**: that strip says why a change is the *size* it is and names neither number, while this one is the only thing on the page that says why Proven sits below Rating and what the `settling` chip beside them means. Placement, and the `settling` gate on printing it at all, are unchanged. A second constant, `SETTLING_SENTENCE_PLAYER` |
-| still-settling sentence, embed footer | `Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.` | **amended, product 2026-09-10 (M3.19)** — `until … has seen about 30 games` said the gap closes then; it never closes. Same ruling row |
+| still-settling sentence, embed footer | `Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.` | **amended, product 2026-09-10 (M3.19)** — `until … has seen about 30 games` said the gap closes then; it never closes. Same ruling row. **Scoped by M7.3 to the windows that still sort on Proven**: the nightly post reads `this-week` and the Sunday post reads `last-week`, so neither of them prints this any more — the row below does. It survives on the monthly post alone |
+| the sentence under the board on a week window, once per page, **instead of** the three rows above | `Every week starts everyone back at their rank on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` | **new, product 2026-09-15 (M7.3)** — `This week` is the board's **default window**, so this is the sentence most readers meet and the `Proven` one is now the exception. Four sentences and each is load-bearing: the Sunday restart (why Tuesday is visible on Thursday), which column the order is made of and why it is not the cautious number every other tab shows, that a week is few games and the numbers move hard, and where the settled number lives. **`Every week`, not `This week`** — `Last week` prints the same string, because it is the same track and the same question. No game count is interpolated and the name carries no `SETTLING`: M7.2 measured the weekly track reaching `sigma < 5.00` at game 30, which a group playing one to three games a night never reaches inside a week, so **the week does not claim to settle at all**. `WEEK_BOARD_SENTENCE` in `lib/board/copy.ts`; `SETTLING_SENTENCE*` are untouched and neither may be edited into the other (the M3.26 rule) |
+| the same, embed footer, on the **nightly** post (`this-week`) and the **Sunday** post (`last-week`) | `Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.` | **new, product 2026-09-15 (M7.3)** — the short form, for the one-line footer. Both week posts say it; only the **monthly** post still carries the Proven footer. `WEEK_BOARD_SENTENCE_SHORT` |
+| legend over the board's one number | `Proven` on `All time`, `This month` and `Last month` · **`Rating`** on `This week` and `Last week` | **amended, designer 2026-09-16 (M7.3)** — the legend names **the number the board sorted on**, whichever track that is, and on a week that is the weekly `Rating` (`round(mu × 60)` off the week's own from-scratch fold). One helper, `boardLegend(track)`, because the legend and the row's own visually-hidden noun have to name the same number. The word `Proven` does not print anywhere on a week board — not in the legend, not on line 2, not in small type |
+| `settling` chip on a week window | *(none — no row carries it on `This week` or `Last week`)* | **new, product 2026-09-15 (M7.3)** — the chip marks the handful of rows the board is least sure of; on a week that is every row, every week, and a marker on all ten rows marks nothing. There is no `WEEK_SETTLING_GAMES` and no second chip. `SETTLING_GAMES` and the chip are byte-identical on the other three windows |
 | ~~season active, no games yet~~ | ~~`No games this season yet.`~~ | **deleted, product 2026-09-10 (M5.12)** — replaced by the five window lines below; the word *season* leaves the friend-facing vocabulary |
 | ~~no season is active, on both pages~~ | ~~`No season is active, so there is no board yet. An admin can start one.`~~ | **deleted, product 2026-09-10 (M5.14)** — there is no button behind it any more, and a deployment with no season row has no games either, so the empty-window line is true and enough |
 | a recent game's result, on `/p/[puuid]` | `Won` / `Lost` | **new**, product 2026-09-09 — kept as written |
@@ -1454,7 +1458,7 @@ words below are fixed.
 | a player with no name | `Someone` | *(shipped, M3.10)* kept |
 | nameless hint, once per page while any row reads `Someone` | `Names fill in after someone's first game.` | *(shipped, M3.10)* kept |
 | rating column, unrated game | `not rated` | **new**, product 2026-09-10 (M3.23) |
-| hint under Recent games, when any row is unrated | `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.` | **new**, product 2026-09-10 (M3.23) |
+| hint under Recent games, when any row is unrated | `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.` | **new**, product 2026-09-10 (M3.23). **Defect, raised by the designer 2026-09-16 (M7 review): the list is now short one reason.** Since M7.1 an ARAM is stored, listed and never rated, and M7.11's rebuild un-rated the four ARAM nights already in the history — so rows read `not rated` for a reason this sentence does not offer, on a page whose whole job is to explain why a number did or did not move. The sentence enumerates, so an unlisted reason reads as a bug rather than a rule. Proposed: `Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.` — the shortest honest repair, first because it is now the most common of the four. **Product's string and product's call**; `NOT_RATED_HINT` in `lib/board/copy.ts` and the prose under "Rating history" below both change or neither does |
 | nightly embed, field name | `Top ten` when ten lines print, `The board` when fewer | **amended, product 2026-09-10 (M3.22)** — was `Top ten` always; see "Nightly leaderboard embed" |
 | window picker, the five options | `This week` · `Last week` · `This month` · `Last month` · `All time` | **new**, product 2026-09-10 (M5.12) — the same five words are the option, the board heading and the post title |
 | window picker, accessible name (on screen nowhere) | `Time window` | **new**, product 2026-09-10 (M5.12) — the `<nav>`'s `aria-label`, so five links are not announced as a second unnamed "navigation" beside `Leaderboard`. Product's own noun, and true on all three pages; if **M5.8** gives the control a visible heading it is this string, verbatim |
@@ -1479,7 +1483,7 @@ words below are fixed.
 | games are not being saved, tonight page | `Tonight's games are not being saved. Play on — they can be added back from match history later.` | **amended, product 2026-09-10 (M5.14)** — was `An admin can start one.`; backfill is true, and it is the only thing the twenty people holding the link can act on |
 | inferred roles on `/admin/players` (plain page, no dress) | `support · jungle · from 17 games` · `flexible · from 2 games` · `flexible · no games yet` | **new**, product 2026-09-10 (M5.17) — read-only text where two selects used to be |
 | award badge on a `/leaderboard` row, `Last week` and `Last month` only | `Most improved` · `Best off-role` · `Cursed duo` | **no new string, designer 2026-09-15 (M8.3)** — placement only. The three are **imported from `lib/stats/copy.ts`** (`MOST_IMPROVED`, `BEST_OFF_ROLE`, `CURSED_DUO`), never retyped and never re-cased, for the reason that file's own header gives: they are printed on a page *and* in a Discord post, and one surface saying `Cursed duo` while another says `Worst duo` is a bug nobody finds until somebody wins it. This is the second board-page string that lives in `lib/stats/copy.ts` rather than `lib/board/copy.ts`, and it stays there — a copy of an award's title in the board's own file is the drift this row exists to prevent. The badge is the title **alone**: no count, no delta, no partner name, no `#1`, no calendar — `/p/[puuid]`'s `Most improved, September.` carries the calendar because that page has no window heading, and `/leaderboard`'s `h1` already names the window. Nothing is drawn on `This week`, `This month` or `All time`. See "The award badge on a board row" |
-| result embed, the MVP / ACE line (its own last field) | `MVP Lena · ACE Rami` — and **no line and no field at all** for a game with no award | **new, product 2026-09-15 (M7.10)** — two names, a middle dot, and nothing else: no score, no percentage, no emoji, no trophy, no colour and no `#1` (acceptance 6). The score behind the pick is a number a reader can do nothing with and one more thing that can disagree with the post; the names are the whole point. **The MVP is named first because the winning side is.** Both words are upper case — they are op.gg's terms and this group reads them there every day, so never `Mvp`, never `mvp`. Names go through the same `renderName` as every other embed line, so a nameless player is `Someone` and a long Riot ID is truncated at 32 characters and escaped identically. Nothing prints for the other eight and no post says "nearly MVP". `MVP_LABEL` / `ACE_LABEL` / `awardLine` in `lib/discord/embeds.ts`, pinned by code point in `embeds.test.ts`; the field itself is specified in "Result embed" above |
+| result embed, the MVP / ACE line (its own last field) | `MVP Lena · ACE Rami` — and **no line and no field at all** for a game with no award | **new, product 2026-09-15 (M7.10)** — two names, a middle dot, and nothing else: no score, no percentage, no emoji, no trophy, no colour and no `#1` (acceptance 6). The score behind the pick is a number a reader can do nothing with and one more thing that can disagree with the post; the names are the whole point. **The MVP is named first because the winning side is.** Both words are upper case — they are op.gg's terms and this group reads them there every day, so never `Mvp`, never `mvp`. Names go through the same `renderName` as every other embed line, so a nameless player is `Someone` and a long Riot ID is truncated at 32 characters and escaped identically. Nothing prints for the other eight and no post says "nearly MVP". `MVP_LABEL` / `ACE_LABEL` / `awardLine` in `lib/discord/embeds.ts`, pinned by code point in `embeds.test.ts`; the field itself is specified in "Result embed" below |
 | a recent game on `/p/[puuid]`, when the reader's page owns the award | `MVP` · `ACE`, beside the delta the row already prints — `1512 (+43) MVP` | **new, product 2026-09-15 (M7.10)** — the word, and nothing around it: **not a badge, not an icon, not a colour of its own**, no trophy, no gold, no `#1`. It is the delta's own size (`--cn-t-sm`) and the row's own `--cn-text`, so it reads as part of the same sentence as the number it follows, which is what it is. Floodlit has no award colour and this is not the place to invent one. **One of two words or nothing**: absent for the other eight players of that game, absent for every game with no award, and absent on a `not rated` row — the same reason no page says "nearly MVP". Same two constants as the embed's labels, a second pair in `lib/board/copy.ts` (`MVP_LABEL`, `ACE_LABEL`); the dress is `.cn-game-award` |
 | the explanation line under `Recent games`, second sentence | `The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.` | **new, product 2026-09-15 (M7.10)** — it joins the row above **in the same paragraph**, directly after it, not as a second `.cn-explain` block: the reader's question is one question ("why is this number the size it is") and the answer is now two sentences long. **It is about the model, not about a game**, so it prints on every player's page whether or not they have ever been either one — the same rule that makes M5.15's sentence once-per-page rather than once-per-row, and the reason a game with no award still leaves it standing. No maths, no percentage, no formula, no `1.25×`, and **neither word is capitalised into it**: this sentence names the positions, the two labels above name the players. `MVP_EXPLANATION` in `lib/board/copy.ts` |
 
@@ -2066,6 +2070,16 @@ and the group say them in lower case).
   when the lobby membership changes, and the friend reading it should be told which.)
 - After a reroll the strip re-renders with the promoted split's stored string (M3.7). Same element, opacity
   fade, no scroll.
+- **Fill protection has no surface, on purpose** (M7.5 / M7.6, checked by the designer 2026-09-16). Since
+  2026-09-15 an off-role seat costs the balancer more when the same person was filled recently — 240 display
+  points for somebody filled last game, decaying to the flat 120 — so *who* gets filled changes on the nights
+  it matters. Nothing about it prints anywhere: not in this sentence, not on a seat, not on a row, not in the
+  embed. The sentence keeps its shape and still names who is off-role and where (`4 off-role: Hana at support,
+  …`), which is the fact a player can act on; "we owed her a main" is a claim about a night that is not on the
+  screen, and a marker for it would be a second vocabulary on the one line the whole product argues from.
+  **Nothing in this file is owed for M7.5 or M7.6 beyond this paragraph**, and a future reviewer looking for
+  the missing surface should stop here rather than invent one. If the group ever asks why somebody keeps
+  getting support, the answer is a copy task of its own with product's words in it.
 
 ### Sit-out notice
 
@@ -2160,6 +2174,22 @@ and the group say them in lower case).
   `0` fall through to `Rating`, so the column is still non-increasing top to bottom. `0` is also the honest
   reading — the board has not credited you with anything yet — and the still-settling sentence is what
   explains it.
+- **A week row has one number, and it is `Rating`** (M7.3, product 2026-09-15; designer's note 2026-09-16).
+  Everything above describes the row on `All time`, `This month` and `Last month`. On `This week` and
+  `Last week` — and `This week` is the board's **default**, so this is the row most readers actually meet —
+  the primary slot on line 1 carries the weekly `Rating` (`round(mu × 60)` off that week's own from-scratch
+  fold), the legend above the column reads `Rating` rather than `Proven`, line 2's small-type `Rating 1266` is
+  **dropped rather than replaced**, and no row carries the `settling` chip. **Nothing on a week board prints
+  Proven in any size.** Three consequences worth stating, because each one is a rule this section otherwise
+  contradicts:
+  - The "two numbers, one problem" paragraph above is the *Proven* board's answer. A week board has no second
+    number to reconcile: it sorts on the number it prints, which is the same rule arrived at from the other end.
+  - The visually-hidden noun beside the primary number follows the legend (`Rating` on a week, `Proven`
+    elsewhere), so a listener is never handed an integer that means something else on the tab next door. The
+    class name `.cn-proven` is the layout's and is not a claim about which number is in it.
+  - **The tonight page's `Top of the board` rail inherits all of it**, because the rail is `LEADERBOARD_WINDOW`
+    — `this-week` — sliced to five. The rail's legend reads `Rating`, its rows carry no chip, and it never
+    badges (M8.3) and never opens (M5.30).
 - **There is a third line, and only on a row that won one of the window's awards** (M8.3, 2026-09-15). It holds
   labelled badges and nothing else, it is drawn on `Last week` and `Last month` only, and it is never drawn in
   the tonight rail. Everything about it — the dress, the order of two badges, the wrap — is its own section
@@ -2180,6 +2210,14 @@ already opens.
 - The side is the 3px leading rule, blue or red, never a wash behind `Won`.
 - The tonight rail never opens: `loadTopPlayers` does not attach the breakdown.
 - Rated games only. An unrated row does not move the number the expand is explaining.
+- **The games are on the row's own track** (M7.3). On a week window each game's `1512 (+43)` is that game's
+  movement in the *weekly* fold, not the stored all-time one, because the row's total is the weekly number and
+  a row whose total is one track and whose games are another does not add up. Two honest consequences to know
+  before somebody reports them: the same game shows a different delta here than on `/p/[puuid]`, which is the
+  all-time track; and the weekly track does not carry the **MVP / ACE** adjustment at all (M7.9, acceptance 6,
+  waived and tested), so a game somebody was MVP of moves them by the plain amount here. Neither is marked and
+  neither should be — the expand explains the number above it and nothing else. `MVP` stays the one word on
+  the one surface M7.10 put it on.
 
 ### The award badge on a board row (M8.3, designer 2026-09-15)
 
@@ -2421,7 +2459,21 @@ still-settling sentence · `By role` · `Recent games` · the nameless hint.
   `1392 (−42)` right. A list of results with no dates cannot answer the first question anybody asks of it. The
   section header carries a right-aligned `rating` legend and the number carries visually-hidden `Rating`, the
   same rule the board row's bare Proven already follows.
-- **Unrated games are listed, not hidden** (product, 2026-09-10, M3.23). `Recent games` is the last five games the player played, rated or not, in `started_at` order, and an unrated one counts toward the five. Its rating column reads `not rated` — mono `t-sm` `dim`, right-aligned where `1392 (−42)` sits, no delta, no em-dash, no visually-hidden `Rating` on that row — while `Won` / `Lost`, the date and the duration print as normal. A refused game (too short, nine players, a duplicate player) and a backfilled game that `rebuild-ratings` has not folded yet read the same two words; the backfill row gains its number when the rebuild runs. Everything else on the page stays rated-only: the two numbers, the chart, the seed line, `By role` and the `37 games · 20W 17L` record, which is why the record may count fewer games than the list shows. Once per page, only when at least one row reads `not rated`, directly under the list with the nameless hint's placement rule: `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.`
+- **Unrated games are listed, not hidden** (product, 2026-09-10, M3.23). `Recent games` is the last five games the player played, rated or not, in `started_at` order, and an unrated one counts toward the five. Its rating column reads `not rated` — mono `t-sm` `dim`, right-aligned where `1392 (−42)` sits, no delta, no em-dash, no visually-hidden `Rating` on that row — while `Won` / `Lost`, the date and the duration print as normal. A refused game (too short, nine players, a duplicate player) and a backfilled game that `rebuild-ratings` has not folded yet read the same two words; the backfill row gains its number when the rebuild runs. Everything else on the page stays rated-only: the two numbers, the chart, the seed line, `By role` and the `37 games · 20W 17L` record, which is why the record may count fewer games than the list shows. Once per page, only when at least one row reads `not rated`, directly under the list with the nameless hint's placement rule: `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.` **That list is one reason short since M7.1** — an ARAM is stored, listed and never rated, and the four ARAM nights already in the group's history became `not rated` rows when M7.11's rebuild ran. The copy table's own row carries the proposed repair and it is product's call.
+- **This page is the all-time track on every window, including the two week ones** (noted by the designer
+  2026-09-16; the gap is M7.3's own, recorded in its status row as an approved follow-up that is not yet
+  scheduled). `/leaderboard?window=this-week` prints a player's **weekly** Rating as their one number, off a
+  fold that starts from their rank seed every Sunday. `/p/<same puuid>?window=this-week` prints their
+  **all-time** Rating and Proven, the `settling` chip, an all-time chart and a `Started the week at …` seed
+  line off the all-time track — two different numbers for one person and one week, and **nothing on either
+  surface names which track it is showing**. The ordinary path is safe, because a board row links to
+  `/p/<puuid>` with no `?window=` and the player page defaults to `All time`, which is honestly labelled; the
+  collision needs a reader who switches this page to `This week` on purpose. It is still the one place M7's
+  weekly track can be caught contradicting itself, and it wants one of two fixes, not a third: either the page
+  reads the weekly fold on the two week windows (the follow-up), or its numbers carry the window's track in a
+  word the way the board's legend now does. **A design position, for whoever takes it:** prefer the first —
+  the board's rule is "the number you print is the number you sorted on", and a page that prints one track
+  under a heading that names another has the same defect from the other direction.
 - **The five are the player's own side, in lane order**, their own row marked with the `brand` inset rule.
   **Every other name is a link to that player's page**; the viewed player's own row is plain text. This is the
   one screen in the product that lists other people by name, and hopping between friends is what the board is
@@ -2790,9 +2842,12 @@ sentence explaining that something did not add up. Nobody reading a footer has a
 also the fallback the teams embed already has, so the two messages fail the same way.
 
 The embed exists only for a game the rating fold actually rated. A remake, a four-minute surrender, a
-scoreboard that is not five a side, the second companion's re-post: no message. There is no "no ratings this
-game" variant, because the whole message is what the game did to ten ratings and an embed that says nothing is
-worse than silence.
+scoreboard that is not five a side, **an ARAM** (M7.1, 2026-09-15: the Howling Abyss is recorded and never
+rated), the second companion's re-post: no message. There is no "no ratings this game" variant, because the
+whole message is what the game did to ten ratings and an embed that says nothing is worse than silence. **The
+teams post is unaffected**, so an ARAM night is a teams post followed by silence — which is the honest shape
+and is not a bug report: the game is on `/games`, on `/fun?queue=aram` and on everybody's own page, and the
+only thing that did not happen is the thing that did not happen to anybody's rating.
 
 Line format, deliberately the same shape as the teams embed so the two messages read as one scoreboard:
 
@@ -2888,8 +2943,18 @@ field 1 value  `1` Lena · 1548 · 41 games
                `2` Bilal · 1137 · 44 games
                ...
 timestamp    the moment the post is made, ISO 8601
-footer       Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.
+footer       Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean
+             wins can top a longer patchy week. All time is the settled one, and the one that makes teams.
 ```
+
+**The number in this post is the weekly `Rating`, not Proven** (M7.3, 2026-09-15). The nightly post reads
+`this-week` and the Sunday post reads `last-week`, so both are the weekly track: the figure after the name is
+`round(mu × 60)` off that week's from-scratch fold, the list is ordered by it, and the footer is the week's
+sentence and not Proven's. **Only the monthly post still prints Proven and Proven's footer.** The rule under
+all of it is unchanged and is the reason this section exists: a one-number list shows the number it is ordered
+by. What moved is which number that is, per window, and the two strings cannot be swapped by hand — one
+`boardFooter(track)` picks the footer and one `boardLegend(track)` names the column on the page, so the post
+and the page a tap later cannot disagree about which board the reader is on.
 
 The timestamp is what tells a reader scrolling back next week *which* night's board this was; both other
 embeds carry one. This block lists only the fields that carry a design decision — it omits `description` for
@@ -2905,14 +2970,19 @@ already print, and it stays lower case after `The` so it reads as a heading over
 name for `Leaderboard` (the one-thing-one-name rule the title follows). One constant in
 `apps/web/lib/discord/embeds.ts` (`leaderboardEmbed`).
 
-The number after the name is the **Proven** number (`round(ordinal × 60)`), and the list is ordered by it,
-descending. The embed prints Proven only: a one-number list must show the number it is ordered by, and a
-second number in a proportional font with no column to sit in is unreadable. `Rating` is on the web page.
+On a **Proven window** — which, since M7.3, means the monthly post and nothing else — the number after the
+name is the **Proven** number (`round(ordinal × 60)`) and the list is ordered by it, descending. The embed
+prints one number either way: a one-number list must show the number it is ordered by, and a second number in
+a proportional font with no column to sit in is unreadable. `Rating` is on the web page.
+
+The worked example below is that Proven shape, kept because the arithmetic under it is the thing worth
+keeping. **Read it as `Last month · leaderboard`**; a nightly or Sunday post has the same five parts with the
+weekly `Rating` in the number column and the week's footer under it.
 
 Filled in with the worked example's ten (`docs/02-milestones.md` M1.4 table — `ordinal = mu − 2σ`, then
 `× 60`, rounded once). Game counts are illustrative; the docs pin none:
 
-> **This week · leaderboard**
+> **Last month · leaderboard**
 >
 > **Top ten**
 > `1` Lena · 1548 · 41 games
@@ -2939,8 +3009,9 @@ on both, but Yuki at `1134` rating is last on Proven by a wider margin than her 
 ships with every one of these posts and not just the first.
 
 Nadia and Yuki are under 30 games in this example, so on the **web** leaderboard both carry the `settling`
-chip. The embed has no chip: the footer sentence covers the message, and a `(settling)` suffix per line would
-double the length of the two lines that are already about the newest players.
+chip — on a Proven window, which is the window this example is. A week board has no chip on any row (M7.3).
+The embed has no chip on any window: the footer sentence covers the message, and a `(settling)` suffix per
+line would double the length of the two lines that are already about the newest players.
 
 ## Implementation notes for the web engineer (v1 — token block superseded by Floodlit)
 
@@ -3049,9 +3120,16 @@ result card and, under it, the explanation line of the split they played — and
 second pair of team cards, before or after. The built page (M3.4) took this answer; this file now says the
 same thing in both places.
 
-A `finished` lobby whose game the rating fold did not rate — a remake, a four-minute surrender — has no result
-card to draw: the header reads `Final`, the teams block and the explanation line stay up as they were, and
-there are no deltas. No banner apologising for it; Discord stays silent about these games too.
+A `finished` lobby whose game the rating fold did not rate — a remake, a four-minute surrender, **and since
+M7.1 an ARAM** — has no result card to draw: the header reads `Final`, the teams block and the explanation
+line stay up as they were, the strip's sentence slot keeps its height and says nothing, and there are no
+deltas. No banner apologising for it; Discord stays silent about these games too. **This is the only place an
+ARAM night reaches the tonight page, and it is correct**: no headline in the winner's colour, no ratings, no
+`MVP` line, nothing that would read as a rated result. The one thing this state does not do is *say* which of
+the reasons it was, and product has ruled since 2026-09-09 that it should not — the page has no apology to
+make. The reason lives in `00-product.md` ("Only Summoner's Rift customs move the number") and, for a reader
+who goes looking, on `/p/[puuid]`'s `not rated` row — see the defect noted against that row's hint, which does
+not yet name ARAM among its reasons.
 
 Idle copy (product, 2026-09-08 — final), the same sentence the placeholder page already carries from M1.10 so
 the wording does not change under people when M3.4 lands: `When ten of you are in a custom lobby with the

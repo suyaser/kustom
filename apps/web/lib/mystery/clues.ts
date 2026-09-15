@@ -164,6 +164,47 @@ export function awardHookLines(input: {
   ];
 }
 
+/**
+ * A scoreboard row, as far as the award's own number is concerned. `MysteryPerformance` and
+ * `BuildSeat` both satisfy it, so the card's reveal and the day's hook read one function and
+ * cannot print two different numbers for one award.
+ */
+export interface AwardStatSource {
+  kills: number;
+  deaths: number;
+  assists: number;
+  damage: number;
+  gold: number;
+  cs: number;
+  visionScore: number | null;
+  damageSelfMitigated: number | null;
+  damageToObjectives: number | null;
+}
+
+/**
+ * The raw number an award was won on. **Null, never zero**, when the column behind it was not
+ * stored — vision score, damage mitigated and objective damage all arrived with migrations
+ * 0014 / 0015, and a game older than those has no number rather than a score of none.
+ */
+export function awardStatNumber(source: AwardStatSource, category: AwardCategory): number | null {
+  switch (category) {
+    case 'kda':
+      return (source.kills + source.assists) / Math.max(1, source.deaths);
+    case 'damage':
+      return source.damage;
+    case 'gold':
+      return source.gold;
+    case 'cs':
+      return source.cs;
+    case 'vision':
+      return source.visionScore;
+    case 'mitigation':
+      return source.damageSelfMitigated;
+    case 'objectives':
+      return source.damageToObjectives;
+  }
+}
+
 /** `41.2k`, `312`, `5.50` — the shape each award stat is read in. */
 export function awardStatValue(category: AwardCategory, value: number): string {
   switch (category) {

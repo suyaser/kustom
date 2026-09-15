@@ -16,7 +16,12 @@ import type {
  * `AWARD_TITLE` sits beside it.
  */
 
-export const MYSTERY_LABEL = 'Mystery';
+/**
+ * The nav tab's word (M8.4). **Kind-neutral on purpose**: the tab is on every page of the site
+ * and the shell does not know — and must not pay a query to learn — which of the two games
+ * today is. `Mystery` over an award day was the shell lying on six pages at once.
+ */
+export const DAILY_LABEL = 'Daily';
 
 export const MYSTERY_TITLE = 'Daily Mystery';
 
@@ -44,7 +49,12 @@ export const MYSTERY_CASE_CLOSED = 'Case closed';
 
 export const MYSTERY_TODAY_CLOSED = "Today's case is closed";
 
-export const MYSTERY_NEXT = 'Next mystery';
+/**
+ * The countdown's label, on both games and on the empty card (M8.4). It runs to civil
+ * midnight, which is when *the other game* starts — so it names neither. `Next mystery` on a
+ * mystery day and `Next award` on an award day were both wrong by exactly one day.
+ */
+export const DAILY_NEXT = 'Next game';
 
 export const MYSTERY_CORRECT = 'Correct';
 
@@ -58,6 +68,13 @@ export const MYSTERY_BLAME = 'Who did everyone blame?';
 
 export const MYSTERY_YOUR_RESULT = 'Your result';
 
+/**
+ * What a stat row says when the column behind it was never stored (vision score, damage
+ * mitigated and objective damage all arrived with migrations 0014 / 0015). Null is not zero,
+ * and the card says so rather than printing a number nobody scored.
+ */
+export const MYSTERY_NO_STAT = 'Not recorded';
+
 export const MYSTERY_COMMUNITY = "Today's community";
 
 export const MYSTERY_EMPTY = 'No customs to expose yet. Play a few and the first mystery writes itself.';
@@ -67,19 +84,17 @@ export const MYSTERY_SHARE = 'Copy result';
 export const MYSTERY_SHARE_DONE = 'Copied';
 
 /**
- * Guess the Award's five divergent words (M8.4). Each one is the award day's reading of a
- * sentence above it that names *the thing*: a crime, a case, a mystery, a blame. Nothing an
- * award day shares with a mystery day is duplicated here — `Who was it?`, `Guess now`,
- * `Reveal a clue`, `Locked in`, `Correct` / `Wrong`, `Your result`, `Today's community` and
- * the empty state are true of both games and stay one constant each.
+ * Guess the Award's four divergent words (M8.4). Each one is the award day's reading of a
+ * sentence above it that names *the thing*: a crime, a case, a blame. Nothing an award day
+ * shares with a mystery day is duplicated here — `Who was it?`, `Guess now`, `Reveal a clue`,
+ * `Locked in`, `Correct` / `Wrong`, `Your result`, `Today's community`, the countdown's label
+ * and the empty state are true of both games and stay one constant each.
  */
 export const AWARD_CRIME = 'The award';
 
 export const AWARD_CASE_CLOSED = 'Award settled';
 
 export const AWARD_TODAY_CLOSED = "Today's award is settled";
-
-export const AWARD_NEXT = 'Next award';
 
 export const AWARD_BLAME = 'Who did everyone pick?';
 
@@ -93,8 +108,6 @@ export interface GameCopy {
   closedKicker: string;
   /** The result row's label: `Today's case is closed` / `Today's award is settled`. */
   todayClosed: string;
-  /** The countdown's label: `Next mystery` / `Next award`. */
-  next: string;
   /** The distribution heading: `Who did everyone blame?` / `Who did everyone pick?`. */
   blame: string;
 }
@@ -104,7 +117,6 @@ const MYSTERY_COPY: GameCopy = {
   kicker: MYSTERY_CRIME,
   closedKicker: MYSTERY_CASE_CLOSED,
   todayClosed: MYSTERY_TODAY_CLOSED,
-  next: MYSTERY_NEXT,
   blame: MYSTERY_BLAME,
 };
 
@@ -113,7 +125,6 @@ const AWARD_COPY: GameCopy = {
   kicker: AWARD_CRIME,
   closedKicker: AWARD_CASE_CLOSED,
   todayClosed: AWARD_TODAY_CLOSED,
-  next: AWARD_NEXT,
   blame: AWARD_BLAME,
 };
 
@@ -282,13 +293,22 @@ export function notAloneWrong(others: number): string {
   return `You were not alone. ${others} other guesses were wrong today.`;
 }
 
+/**
+ * `detectives` is the site's word for a person playing either game, like `First detective`
+ * beside it and the one `first_correct_at` column behind both — it names the visitor, not the
+ * thing they were asked about, so it does not change on an award day (M8.4).
+ */
 export function fooledLine(wrongPercent: number): string {
   return `${wrongPercent.toFixed(1)}% of today's detectives were fooled.`;
 }
 
-/** Nobody is accused of winning an award, so the award day names them instead of blaming them. */
+/**
+ * Nobody is accused of winning an award, so the award day counts picks instead of blame.
+ * `Most wrongly named` read two ways (given the wrong name / named by the most wrong people),
+ * so M8.4's fix pass made it the plain one.
+ */
 export function mostAccusedLine(kind: MysteryKind, name: string): string {
-  return kind === 'award' ? `Most wrongly named: ${name}` : `Most falsely accused: ${name}`;
+  return kind === 'award' ? `Most wrong picks: ${name}` : `Most falsely accused: ${name}`;
 }
 
 export function yourGuessLine(name: string): string {

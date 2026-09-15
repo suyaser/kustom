@@ -5,22 +5,22 @@ import {
   AWARD_BLAME,
   AWARD_CASE_CLOSED,
   AWARD_CRIME,
-  AWARD_NEXT,
   AWARD_TODAY_CLOSED,
   awardStatLabel,
   categoryLabel,
+  DAILY_NEXT,
   MYSTERY_BLAME,
   MYSTERY_CASE_CLOSED,
   MYSTERY_COMMUNITY,
   MYSTERY_CRIME,
   MYSTERY_EMPTY,
   MYSTERY_FIRST,
-  MYSTERY_NEXT,
+  MYSTERY_NO_STAT,
   MYSTERY_TODAY_CLOSED,
   MYSTERY_WHO,
 } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
-import type { MysteryPlayView, MysteryResultView } from '@/lib/mystery/types';
+import type { AwardCategory, MysteryPlayView, MysteryResultView } from '@/lib/mystery/types';
 import { MysteryView } from './MysteryView';
 
 const AHMED = '22222222-2222-4222-8222-222222222222';
@@ -124,12 +124,44 @@ const awardPlay: MysteryPlayView = {
   },
 };
 
+/**
+ * A scoreboard with every award's number on it, and all seven distinct, so a row that reads
+ * the wrong field prints the wrong string instead of the right one by coincidence.
+ */
+const awardPerformance: MysteryResultView['performance'] = {
+  ...result.performance,
+  kills: 9,
+  deaths: 2,
+  assists: 8,
+  kda: '9 / 2 / 8',
+  damage: 18_420,
+  damageLabel: '18.4k',
+  cs: 241,
+  gold: 12_700,
+  goldLabel: '12.7k',
+  visionScore: 58,
+  damageSelfMitigated: 41_200,
+  damageToObjectives: 23_500,
+};
+
 const awardResult: MysteryResultView = {
   ...result,
   kind: 'award',
   category: 'mitigation',
   hook: awardPlay.hook,
+  performance: awardPerformance,
 };
+
+/** Label and value, per award, as the reveal must print them. `(9 + 8) / 2 = 8.50`. */
+const AWARD_REVEALS: readonly [AwardCategory, string][] = [
+  ['kda', '8.50'],
+  ['damage', '18.4k'],
+  ['gold', '12.7k'],
+  ['vision', '58'],
+  ['mitigation', '41.2k'],
+  ['cs', '241'],
+  ['objectives', '23.5k'],
+];
 
 describe('MysteryView', () => {
   it('shows the crime and names, and hides community numbers before a guess', () => {
@@ -162,12 +194,34 @@ describe('MysteryView', () => {
 
     expect(screen.getByText(MYSTERY_CASE_CLOSED)).toBeInTheDocument();
     expect(screen.getByText(MYSTERY_TODAY_CLOSED)).toBeInTheDocument();
-    expect(screen.getByText(MYSTERY_NEXT)).toBeInTheDocument();
+    // The closed card names what today asked, not just whether the guess was right.
+    expect(screen.getByText(categoryLabel('disaster'))).toBeInTheDocument();
     expect(
       screen.getByText('You are the first person today to solve the mystery correctly.'),
     ).toBeInTheDocument();
     expect(screen.queryByText(AWARD_CASE_CLOSED)).not.toBeInTheDocument();
-    expect(screen.queryByText(AWARD_NEXT)).not.toBeInTheDocument();
+  });
+
+  /**
+   * The countdown runs to civil midnight, which is when the *other* game starts. A label that
+   * names today's game is wrong by exactly one day, so the label names neither — on both
+   * cards and on the empty one.
+   */
+  it('counts down to the next game, never to another of today’s', () => {
+    for (const state of [
+      { kind: 'closed', result } as MysteryPageState,
+      { kind: 'closed', result: awardResult } as MysteryPageState,
+      {
+        kind: 'empty',
+        empty: { empty: true, expiresAt: '2026-09-13T21:00:00.000Z' },
+      } as MysteryPageState,
+    ]) {
+      const view = render(<MysteryView state={state} />);
+      expect(screen.getByText(DAILY_NEXT)).toBeInTheDocument();
+      expect(screen.queryByText('Next mystery')).not.toBeInTheDocument();
+      expect(screen.queryByText('Next award')).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it('says when there is not yet a custom to expose', () => {
@@ -178,8 +232,7 @@ describe('MysteryView', () => {
     render(<MysteryView state={state} />);
     expect(screen.getByText(MYSTERY_EMPTY)).toBeInTheDocument();
     // Nothing was built, so the empty card names neither game's countdown.
-    expect(screen.getByText(MYSTERY_NEXT)).toBeInTheDocument();
-    expect(screen.queryByText(AWARD_NEXT)).not.toBeInTheDocument();
+    expect(screen.getByText(DAILY_NEXT)).toBeInTheDocument();
   });
 });
 
@@ -206,14 +259,13 @@ describe('MysteryView on an award day', () => {
     expect(screen.getByText(AWARD_CASE_CLOSED)).toBeInTheDocument();
     expect(screen.getByText(AWARD_TODAY_CLOSED)).toBeInTheDocument();
     expect(screen.getByText(AWARD_BLAME)).toBeInTheDocument();
-    expect(screen.getByText(AWARD_NEXT)).toBeInTheDocument();
-    expect(screen.getByText('Most wrongly named: Omar')).toBeInTheDocument();
+    expect(screen.getByText(DAILY_NEXT)).toBeInTheDocument();
+    expect(screen.getByText('Most wrong picks: Omar')).toBeInTheDocument();
     expect(screen.getByText('You are the first person today to name the right player.')).toBeInTheDocument();
 
     expect(screen.queryByText(MYSTERY_CASE_CLOSED)).not.toBeInTheDocument();
     expect(screen.queryByText(MYSTERY_TODAY_CLOSED)).not.toBeInTheDocument();
     expect(screen.queryByText(MYSTERY_BLAME)).not.toBeInTheDocument();
-    expect(screen.queryByText(MYSTERY_NEXT)).not.toBeInTheDocument();
     expect(screen.queryByText('Most falsely accused: Omar')).not.toBeInTheDocument();
   });
 
@@ -225,5 +277,55 @@ describe('MysteryView on an award day', () => {
     expect(screen.getByText('Your result')).toBeInTheDocument();
     expect(screen.getByText('It was Ahmed')).toBeInTheDocument();
     expect(screen.getByText(MYSTERY_FIRST, { exact: false })).toBeInTheDocument();
+  });
+});
+
+/**
+ * The reveal, once per award. Four of the seven (gold, vision, mitigation, objectives) have no
+ * other row in the performance panel, so before M8.4's fix pass those four settled without
+ * ever showing the number the award was about — and without naming the award either.
+ */
+describe('MysteryView reveals the award it asked about', () => {
+  for (const [category, value] of AWARD_REVEALS) {
+    it(`prints ${category}'s own label and number on the closed card`, () => {
+      const state: MysteryPageState = {
+        kind: 'closed',
+        result: { ...awardResult, category, performance: awardPerformance },
+      };
+      render(<MysteryView state={state} />);
+
+      // The award is named, not just the verdict.
+      expect(screen.getByText(categoryLabel(category))).toBeInTheDocument();
+      // Exactly one row carries the number, under the hook's own label.
+      expect(screen.getByText(awardStatLabel(category))).toBeInTheDocument();
+      expect(screen.getByText(value)).toBeInTheDocument();
+      expect(screen.queryByText(MYSTERY_NO_STAT)).not.toBeInTheDocument();
+    });
+  }
+
+  it('says a column stored before M7.7 was not recorded, rather than calling it zero', () => {
+    const state: MysteryPageState = {
+      kind: 'closed',
+      result: {
+        ...awardResult,
+        category: 'vision',
+        performance: { ...awardPerformance, visionScore: null },
+      },
+    };
+    render(<MysteryView state={state} />);
+
+    expect(screen.getByText(awardStatLabel('vision'))).toBeInTheDocument();
+    expect(screen.getByText(MYSTERY_NO_STAT)).toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('leaves a mystery day with no award row at all', () => {
+    const state: MysteryPageState = { kind: 'closed', result };
+    render(<MysteryView state={state} />);
+
+    for (const [category] of AWARD_REVEALS) {
+      if (category === 'damage' || category === 'cs') continue; // panel rows of their own
+      expect(screen.queryByText(awardStatLabel(category))).not.toBeInTheDocument();
+    }
   });
 });

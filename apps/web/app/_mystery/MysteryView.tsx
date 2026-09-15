@@ -1,11 +1,14 @@
+import { awardStatNumber, awardStatValue } from '@/lib/mystery/clues';
 import {
   actualPlayerLine,
   attemptsSoFarLine,
+  awardStatLabel,
   categoryLabel,
   challengeHeading,
   cluesUsedLine,
   cluesUsedShort,
   communityAccuracyLine,
+  DAILY_NEXT,
   firstDetectiveYou,
   fooledLine,
   gameCopy,
@@ -19,7 +22,7 @@ import {
   MYSTERY_GUESS,
   MYSTERY_LOCKED,
   MYSTERY_NEED_HELP,
-  MYSTERY_NEXT,
+  MYSTERY_NO_STAT,
   MYSTERY_REVEAL,
   MYSTERY_REVEAL_FIRST,
   MYSTERY_SHARE,
@@ -39,7 +42,14 @@ import {
   yourGuessLine,
 } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
-import type { MysteryPlayView, MysteryResultView, MysterySuspect } from '@/lib/mystery/types';
+import type {
+  AwardCategory,
+  MysteryPerformance,
+  MysteryPlayView,
+  MysteryResultView,
+  MysterySuspect,
+} from '@/lib/mystery/types';
+import { AWARD_CATEGORIES } from '@/lib/mystery/types';
 
 /**
  * The daily game's markup (M5.32, extended by M8.4). A pure function of one page state so the
@@ -52,7 +62,10 @@ import type { MysteryPlayView, MysteryResultView, MysterySuspect } from '@/lib/m
  * the rotation exists and never names it, so tomorrow is never promised to be either game.
  *
  * The hook's own label is the service's (`awardHookLines` already writes `awardStatLabel`);
- * nothing here relabels a number.
+ * nothing here relabels a number. The closed card reads the award's number straight off the
+ * revealed scoreboard through the same `awardStatNumber` / `awardStatValue` the hook used, so
+ * the reveal always names the award and prints the number it was won on — including the four
+ * (gold, vision, mitigation, objectives) that are not otherwise rows in that panel.
  *
  * Community numbers, the answer, and guess distribution are only rendered on a closed
  * case. The play screen cannot leak them because they are not in the props.
@@ -258,6 +271,7 @@ function ClosedCase({
 }) {
   const { personal, community, performance } = result;
   const copy = gameCopy(result.kind);
+  const award = awardStatRow(result.kind, result.category, performance);
 
   return (
     <section className="cn-card cn-mystery cn-mystery-closed" aria-labelledby="cn-mystery-title">
@@ -268,7 +282,10 @@ function ClosedCase({
         </h2>
       </header>
 
-      <p className="cn-mystery-kicker">{copy.closedKicker}</p>
+      {/* Two elements, one line: what today asked, then what became of it. */}
+      <p className="cn-mystery-kicker">
+        <span>{categoryLabel(result.category)}</span> · <span>{copy.closedKicker}</span>
+      </p>
       <p className="cn-display cn-mystery-kda">{itWasLine(personal.actualName)}</p>
       {personal.correct ? null : <p className="cn-mystery-copy">{youGuessedLine(personal.guessedName)}</p>}
 
@@ -318,6 +335,16 @@ function ClosedCase({
       <section className="cn-mystery-panel">
         <h3 className="cn-mystery-who">{performance.kda}</h3>
         <ul className="cn-mystery-hooks">
+          {award === null ? null : (
+            <li>
+              <span className="cn-mystery-hook-label">{award.label}</span>
+              {award.value === null ? (
+                <span>{MYSTERY_NO_STAT}</span>
+              ) : (
+                <span className="cn-num">{award.value}</span>
+              )}
+            </li>
+          )}
           {performance.champion === null ? null : (
             <li>
               <span className="cn-mystery-hook-label">Champion</span>
@@ -330,14 +357,19 @@ function ClosedCase({
               <span>{performance.role.toUpperCase()}</span>
             </li>
           )}
-          <li>
-            <span className="cn-mystery-hook-label">Damage</span>
-            <span className="cn-num">{performance.damageLabel}</span>
-          </li>
-          <li>
-            <span className="cn-mystery-hook-label">CS</span>
-            <span className="cn-num">{performance.cs}</span>
-          </li>
+          {/* The award's own row already printed this number under this label. */}
+          {award?.category === 'damage' ? null : (
+            <li>
+              <span className="cn-mystery-hook-label">Damage</span>
+              <span className="cn-num">{performance.damageLabel}</span>
+            </li>
+          )}
+          {award?.category === 'cs' ? null : (
+            <li>
+              <span className="cn-mystery-hook-label">CS</span>
+              <span className="cn-num">{performance.cs}</span>
+            </li>
+          )}
           <li>
             <span className="cn-mystery-hook-label">Game</span>
             <span className="cn-num">
@@ -403,25 +435,39 @@ function ClosedCase({
           : shareMissed(result.kind, result.challengeNumber)}
       </span>
 
-      <Countdown expiresAt={result.expiresAt} now={now} label={copy.next} />
+      <Countdown expiresAt={result.expiresAt} now={now} />
     </section>
   );
 }
 
 /**
- * The clock to civil midnight. The label names today's game, never tomorrow's: `Next award`
- * over an award day is the honest reading of "this one ends here", and the empty card — which
- * has no kind — keeps the neutral default.
+ * The award's own number, off the reveal's scoreboard and under the same label the hook used
+ * (M8.4 fix pass). Without this the four awards whose stat is not already a panel row — gold,
+ * vision, mitigation, objectives — settled without ever showing the number they were about.
+ *
+ * `null` on a mystery day (there is no award), and `Not recorded` rather than a 0 when the
+ * column behind the award predates migrations 0014 / 0015.
  */
-function Countdown({
-  expiresAt,
-  now,
-  label = MYSTERY_NEXT,
-}: {
-  expiresAt: string;
-  now: Date;
-  label?: string;
-}) {
+function awardStatRow(
+  kind: MysteryResultView['kind'],
+  category: MysteryResultView['category'],
+  performance: MysteryPerformance,
+): { category: AwardCategory; label: string; value: string | null } | null {
+  if (kind !== 'award') return null;
+  // The row's own `kind` and `category` are checked against each other by migration 0016; a
+  // pair that got past it is a row this card has nothing to say about, not a crash.
+  const award = AWARD_CATEGORIES.find((known) => known === category);
+  if (award === undefined) return null;
+  const raw = awardStatNumber(performance, award);
+  return {
+    category: award,
+    label: awardStatLabel(award),
+    value: raw === null ? null : awardStatValue(award, raw),
+  };
+}
+
+/** The clock to civil midnight, when *the other* game starts. Its label names neither. */
+function Countdown({ expiresAt, now }: { expiresAt: string; now: Date }) {
   const remaining = Math.max(0, new Date(expiresAt).getTime() - now.getTime());
   const hours = Math.floor(remaining / 3_600_000);
   const minutes = Math.floor((remaining % 3_600_000) / 60_000);
@@ -430,7 +476,7 @@ function Countdown({
 
   return (
     <p className="cn-mystery-next">
-      <span className="cn-mystery-hook-label">{label}</span>
+      <span className="cn-mystery-hook-label">{DAILY_NEXT}</span>
       <span className="cn-num cn-mystery-count">
         {pad(hours)}:{pad(minutes)}:{pad(seconds)}
       </span>

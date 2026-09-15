@@ -7,7 +7,7 @@ import { isCurrentTab, NAV_ITEMS, RELEASE_EXE_URL, RELEASES_URL, WORDMARK } from
  */
 
 describe('the nav list', () => {
-  it('is the routes that exist, now that Mystery joined', () => {
+  it('is the routes that exist, with one kind-neutral word for the daily game', () => {
     // `Stats` joined with M5.4, which is the rule working: a tab appears the day its route does.
     expect(NAV_ITEMS.map((item) => item.label)).toEqual([
       'Tonight',
@@ -15,7 +15,9 @@ describe('the nav list', () => {
       'Games',
       'Stats',
       'Fun',
-      'Mystery',
+      // `Daily`, not `Mystery`: the shell renders on every page and does not know which of the
+      // two daily games today is (M8.4).
+      'Daily',
       'Companion ↗',
     ]);
   });
@@ -75,9 +77,9 @@ describe('which tab is current', () => {
     expect(isCurrentTab(tab('Stats'), '/fun')).toBe(false);
   });
 
-  it('underlines Mystery on its own page and never on Tonight', () => {
-    expect(isCurrentTab(tab('Mystery'), '/mystery')).toBe(true);
-    expect(isCurrentTab(tab('Mystery'), '/')).toBe(false);
+  it('underlines the daily game on its own page and never on Tonight', () => {
+    expect(isCurrentTab(tab('Daily'), '/mystery')).toBe(true);
+    expect(isCurrentTab(tab('Daily'), '/')).toBe(false);
     expect(isCurrentTab(tab('Tonight'), '/mystery')).toBe(false);
   });
 

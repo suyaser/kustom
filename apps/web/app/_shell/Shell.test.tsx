@@ -48,8 +48,8 @@ describe('the top bar', () => {
     expect(screen.getByRole('link', { name: 'Stats' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: 'Fun' })).toHaveAttribute('href', '/fun');
     expect(screen.getByRole('link', { name: 'Fun' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByRole('link', { name: 'Mystery' })).toHaveAttribute('href', '/mystery');
-    expect(screen.getByRole('link', { name: 'Mystery' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Daily' })).toHaveAttribute('href', '/mystery');
+    expect(screen.getByRole('link', { name: 'Daily' })).not.toHaveAttribute('aria-current');
   });
 
   it('underlines Games on the games page', () => {
@@ -73,10 +73,10 @@ describe('the top bar', () => {
     expect(screen.getByRole('link', { name: 'Stats' })).not.toHaveAttribute('aria-current');
   });
 
-  it('underlines Mystery on the mystery page', () => {
+  it('underlines the daily game on the mystery page', () => {
     draw('/mystery');
 
-    expect(screen.getByRole('link', { name: 'Mystery' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Daily' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Fun' })).not.toHaveAttribute('aria-current');
   });
 

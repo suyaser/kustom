@@ -2,7 +2,14 @@ import type { PerformancePlayer } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import { mysteryPublicHookSchema } from '@customs/db/schemas';
 import { formatDuration } from '../discord/embeds';
-import { awardHookLines, buildAwardClues, buildStoredClues, hookLines, type StoredClue } from './clues';
+import {
+  awardHookLines,
+  awardStatNumber,
+  buildAwardClues,
+  buildStoredClues,
+  hookLines,
+  type StoredClue,
+} from './clues';
 import { kdaLine } from './copy';
 import { MYSTERY_MIN_DURATION_S, scorePerformance } from './score';
 import {
@@ -287,24 +294,14 @@ function baseHook(game: BuildGame, seat: BuildSeat, lines: MysteryHookLine[]): M
   };
 }
 
-/** The raw number the award is about, off the same scoreboard the reveal prints. */
+/**
+ * The raw number the award is about, off the same scoreboard the reveal prints — one
+ * definition, in `clues.ts`, shared with the closed card so the hook and the reveal can never
+ * disagree. An unstored column is a 0 here only because the day's hook needs a number to
+ * print; the card keeps the null and says the number was not recorded.
+ */
 export function awardStatOf(seat: BuildSeat, category: AwardCategory): number {
-  switch (category) {
-    case 'kda':
-      return (seat.kills + seat.assists) / Math.max(1, seat.deaths);
-    case 'damage':
-      return seat.damageToChamps;
-    case 'gold':
-      return seat.gold;
-    case 'vision':
-      return seat.visionScore ?? 0;
-    case 'mitigation':
-      return seat.damageSelfMitigated ?? 0;
-    case 'cs':
-      return seat.cs;
-    case 'objectives':
-      return seat.damageToObjectives ?? 0;
-  }
+  return awardStatNumber({ ...seat, damage: seat.damageToChamps }, category) ?? 0;
 }
 
 function playerHistory(
