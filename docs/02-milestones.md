@@ -13,7 +13,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M3 Teams in Discord and on the web | in progress | M3.0 to M3.5, M3.7, M3.8, M3.10 to M3.24 done; the whole web is Floodlit as of 2026-09-10 (shell, tonight page, leaderboard, player page, rail). M3.6 (migration 0009), M3.25, M3.27, M3.28, M3.29 landed. M3.26 and M3.30 landed 2026-09-11. Nothing calls `/api/cron/leaderboard` yet. **M3.31 landed 2026-09-15**: `Teams are 92% even.` under the balanced teams' explanation, one more line computed from the `blue_win_prob` the split already stores — reopened M3 rather than belonging in M8, and it does not change the rating model, the balancer's choice of split, or the Discord embed. |
 | M4 Lobby automation, voice split, presence | in progress | **M4.1 done 2026-09-12**: companion and server halves landed (migration 0006 on kustom); the first live verify-commands (16.17, 2026-09-09) got 500 INVALID_LOBBY with the community body, so 0.1.4 carried a corrected probe built from the client's own lobby UI code, and the rerun on 16.18 (2026-09-12) had all three writes accepted first try (200/200/204) — both gates and the three reference rows are green. M4.2 server side and M4.9 lock index landed 2026-09-10 (migrations 0006 and 0008 on kustom; page control pending on the web engineer). Next: M4.3. Needs M3. M4.7a control and M4.10 lobby line landed 2026-09-11. M4.7 both halves landed 2026-09-11. M4.12 landed 2026-09-11. **The companion rebuild landed 2026-09-15**: 0.1.5 released (tracked on M2.6), carrying `LOBBY_WRITE_VERIFICATION.verified: true` for all three kinds instead of 0.1.4's stale `false` — the underlying writes were already verified by M4.1's probe on 16.18 (2026-09-12); this rebuild only ships that already-green flag to the group's own exe. **Not yet observed: an actual nightly session run end-to-end on 0.1.5** — nobody has watched the server queue a real command and the companion execute it outside the probe, which is a real-world confirmation worth having but not a named task blocking anything below. Remaining: M4.8 and M4.11, both independent of that observation (and M4.3's acceptance 7, which is M4.11). |
 | M5 Backfill, windows, stats | in progress | M5.1, M5.2, M5.11 landed (backfill walker, scan route, approval toggle, rebuild-ratings, dropped lobby status); migrations 0004 and 0005 pushed to kustom. **Reshaped 2026-09-10**: seasons are gone (M5.3 dropped, ratings never reset) and the board is read through time windows instead — M5.9 boundaries, M5.12 picker, M5.10 + M5.13 the automatic weekly and monthly Discord post, M5.14 removes season creation. Roles become inferred from play (M5.16 to M5.18) and `/p/[puuid]` explains a rating (M5.15). M5.4 to M5.7 need M3. Independent of M4. M5.17 inferred roles stored (migration 0010 on kustom) and M5.18 mechanism landed 2026-09-10; M5.9/M5.12/M5.14 windows in progress. M5.5 missed-game report landed 2026-09-10. M5.9, M5.12, M5.14 windows landed 2026-09-10; M5.13 and M5.10 landed 2026-09-11 (migration 0011 on kustom, Vercel Cron daily 04:30 UTC); M5.15 and M4.7 in progress; next M5.4, M5.8. M5.4 /stats and M5.8 landed 2026-09-11. M5.7 stored seed landed 2026-09-11 (migration 0012 on kustom). M5.20 and M5.22 landed 2026-09-11. M5.21 and M5.23 landed 2026-09-11. M5.24 `/fun` landed 2026-09-12. M5.25 `/games` landed 2026-09-12. M5.26 Rift/ARAM split on `/games` and `/fun` landed 2026-09-12. M5.27 `/fun` first blood, deaths, steals and fear bans from `games.raw` landed 2026-09-12. M5.28 `/fun` This game expand landed 2026-09-12. M5.29 `/fun` museum groups, steal names, champion tables and display roles on the open scoreboard landed 2026-09-12. M5.30 `/leaderboard` per-game expand landed 2026-09-13. M5.31 `/fun` OTP vs variety pools landed 2026-09-13. M5.32 Daily Mystery landed 2026-09-13 (migration 0013; `/` card + `/mystery`; civil midnight in `CUSTOMS_NIGHT_TZ`; Vercel Cron `0 21,22 * * *` plus lazy create on first GET). M5.33 `/fun` lucky trash vs most robbed landed 2026-09-13. **M5.34 landed 2026-09-15: the week starts on Sunday, not Monday** (the user; Egypt's week) — a `weekStart` anchor change with no schema, no rating and no cron-schedule change, landed before M7.3, which reseeds the weekly rating on that boundary; the hosted flip-day overlap was stamped so no duplicate board reached the channel. Open: M5.6 (needs a client), M5.18 table (needs a capture night). **M5.35 added 2026-09-15** (the user, off product's role-detection research): two extra lines to read off the M5.18 capture night — whether `gameData.teamOne[]/teamTwo[].selectedPosition` is a real per-player role at `GameStart` or leftover queue preference. It rides on that night, adds no endpoint, no companion behaviour and no release, and cannot be dispatched before the recording exists. It was paired with **M7.12** as an input to a possible future **M7.13** — **M7.12 landed and M7.13 is now scoped** (the role-bucketed performance weights, 2026-09-15), and it is scoped off `detectedTeamPosition` alone, so **M5.35 is not blocking it**. What M5.35 would still buy is a role for games the end-of-game block never covered; and note that until **M5.18** gives backfilled games a role at all, M7.13 gives those games no MVP, on purpose. |
-| M7 Ratings that are fair | in progress | Opened 2026-09-15 from the user's four settled decisions after a week of customs left the group calling the ratings unfair. Eleven tasks, plus **M7.12** appended the same day: **M7.1** ARAM never rates (the bug; land it first), **M7.2** to **M7.4** a second weekly rating track that never forms teams, **M7.5** and **M7.6** decaying fill protection, **M7.7** to **M7.9** the MVP / ACE bonus (M7.7 is the blocking persist), **M7.10** the post and the player page name the MVP and the ACE, **M7.11** the single `rebuild-ratings` run that closes the milestone. Three later resolutions, 2026-09-15: **one rebuild at the end and none per fix**, **no monthly track** (the month windows keep the all-time number, decided, not deferred), and **the bonus is surfaced, not silent**. Every task changes the rating model, which is why none of them is an M5 task. **Runs before M6**, which is still waiting on a month of M2. **M5.34 (the week starts on Sunday) lands before M7.3**: M7.2 to M7.4's briefs were amended 2026-09-15 to say Sunday wherever they named the week's reset day. **M7.1 landed 2026-09-15.** M7.7's verification half landed the same day (vision score / damage-mitigated corroborated for real ten-player customs; no companion release owed). M7.2 (the weekly rating fold) landed 2026-09-15. **M7.5 landed 2026-09-15**: fill protection in `packages/core`'s balancer, `config.balance.fillProtectionFactor` (1.0), charged once and read from both `assignRoles` and the split score so the two cannot drift. **M7.8 landed 2026-09-15**: `rating/performance.ts` — `performanceScores`, `mvpAce`, `applyMvpAceBonus`, `config.rating.performance` and `config.rating.mvp`; `rateGame` untouched, `sigma` untouched, no MVP at all for a game missing any component; wired into nothing until M7.9. **M7.7 landed 2026-09-15**, both halves: migration `0014` adds `vision_score` / `damage_self_mitigated` to `game_players` nullable with no default, ingest fills both off the posted `raw` block through the one existing reader, and the reviewer's blocking find — a negative or out-of-int4 number in a blob 500ing ingest for ever — is gated by `storedStat` with a regression test. Pushed to the hosted project the same day; `pnpm --filter web copy-raw-stats` ran against it (44 games with a gap, all 44 fillable, 436 rows filled, 0 rows still short) and a second run confirmed idempotent. **M5.34 (the week starts on Sunday) landed 2026-09-15**, including the hosted `window_posts` stamp that suppresses the overlapping Monday-anchored week. **M7.6 landed 2026-09-15**: `gamesSinceLastFill` computed in `apps/web/lib/ingest/balance.ts` and handed to the balancer, live in the balance path immediately — no rebuild needed, since it is a balancer input, not part of the fold. **M7.3 landed 2026-09-15**: the weekly board reads the weekly rating; see its own checkbox for detail. **M7.4 landed 2026-09-15**: `Most improved` on a week reads the weekly climb through M7.3's fold; see its own checkbox for detail. **M7.3's sort key was settled 2026-09-15 before dispatch: the two week windows sort on `Rating`, not on Proven** (the user; decision row, `00-product.md` carve-out, brief, copy and acceptance all rewritten the same day — M7.2's output is unaffected, this is only what M7.3's board sorts and prints). **M7.12 added 2026-09-15** (the user, off product's role-detection research): a read-only measurement of how good `detectedTeamPosition` actually is on ten-human customs. It changes nothing, owes no rebuild, does not wait on M7.11 — and **blocks every role-aware proposal** until it lands. **M7.12 landed 2026-09-15** and the answer was good enough: 23 real ten-human customs, five distinct roles on 46 of 46 sides, 0 nulls, Smite agreeing 46 of 46, with one recorded limit — nothing in the blob separates top from mid. **M7.13 was scoped the same day off it** (the design is the user's, approved after reading that answer): the performance score reads the role. M7.8's single flat weight vector becomes three, keyed by a role bucket — `carry` (top, mid, adc, lumped on purpose because that is the one distinction M7.12 could not make), `jungle`, `support` — with the same six components, the same within-game normalisation, the same 1.25× / 0.80×, and **no MVP at all for a game where any of the ten has no role**, which is M7.8's existing missing-input rule applied to a new input and not a second model. It **revises M7.8 in place rather than layering**, because nothing M7.8 produced has ever reached a player, and it therefore **lands before M7.9**. Two steps: the pure formula in `packages/core` (`core-engineer`), and a read-only battle test of the new picks against the old ones over the same 23 games (`platform-engineer`, no writes, no rebuild). One open sub-question it carries: whether `damageDealtToObjectives` is real in both stored shapes and worth a seventh component for the jungle row — verified first, and if it checks out it opens **M7.14** (the column, the copy and the reweighted jungle row, both pre-answered in M7.13's brief) rather than dragging a migration into a core task. **M5.35 is not a dependency of any of it.** **M7.13's core half landed 2026-09-15**: the three-vector formula, `config.rating.performanceBucket`'s role-to-bucket map, and the missing-role rule, all in `packages/core`; **M7.13 step 1 answered 2026-09-15**: a hosted-DB read (44 stored games, both shapes) confirms `damageDealtToObjectives` is real, non-zero on 98%+ of rows, and genuinely per-player (distinct-value count equals participant count on every game checked) — see `03-lcu-reference.md`. **M7.14 opens** with the jungle row pre-answered in M7.13's brief. The read-only battle test against M7.12's 23 games is still to be dispatched. Next: M7.14's full brief (product), then M7.14's build, then the battle test, then M7.9 (needs M7.7 ✓, M7.8 ✓ and M7.13 ✓), M7.10, M7.11. M7.12 already landed, independently. |
+| M7 Ratings that are fair | in progress | Opened 2026-09-15 from the user's four settled decisions after a week of customs left the group calling the ratings unfair. Eleven tasks at the start, grown to fourteen the same day as role-detection research (M7.12), the role-bucketed formula it unblocked (M7.13) and that formula's own seventh-component follow-up (M7.14) each turned into real tasks: **M7.1** ARAM never rates (the bug; land it first), **M7.2** to **M7.4** a second weekly rating track that never forms teams, **M7.5** and **M7.6** decaying fill protection, **M7.7** to **M7.9** the MVP / ACE bonus (M7.7 is the blocking persist), **M7.10** the post and the player page name the MVP and the ACE, **M7.11** the single `rebuild-ratings` run that closes the milestone. Three later resolutions, 2026-09-15: **one rebuild at the end and none per fix**, **no monthly track** (the month windows keep the all-time number, decided, not deferred), and **the bonus is surfaced, not silent**. Every task changes the rating model, which is why none of them is an M5 task. **Runs before M6**, which is still waiting on a month of M2. **M5.34 (the week starts on Sunday) lands before M7.3**: M7.2 to M7.4's briefs were amended 2026-09-15 to say Sunday wherever they named the week's reset day. **M7.1 landed 2026-09-15.** M7.7's verification half landed the same day (vision score / damage-mitigated corroborated for real ten-player customs; no companion release owed). M7.2 (the weekly rating fold) landed 2026-09-15. **M7.5 landed 2026-09-15**: fill protection in `packages/core`'s balancer, `config.balance.fillProtectionFactor` (1.0), charged once and read from both `assignRoles` and the split score so the two cannot drift. **M7.8 landed 2026-09-15**: `rating/performance.ts` — `performanceScores`, `mvpAce`, `applyMvpAceBonus`, `config.rating.performance` and `config.rating.mvp`; `rateGame` untouched, `sigma` untouched, no MVP at all for a game missing any component; wired into nothing until M7.9. **M7.7 landed 2026-09-15**, both halves: migration `0014` adds `vision_score` / `damage_self_mitigated` to `game_players` nullable with no default, ingest fills both off the posted `raw` block through the one existing reader, and the reviewer's blocking find — a negative or out-of-int4 number in a blob 500ing ingest for ever — is gated by `storedStat` with a regression test. Pushed to the hosted project the same day; `pnpm --filter web copy-raw-stats` ran against it (44 games with a gap, all 44 fillable, 436 rows filled, 0 rows still short) and a second run confirmed idempotent. **M5.34 (the week starts on Sunday) landed 2026-09-15**, including the hosted `window_posts` stamp that suppresses the overlapping Monday-anchored week. **M7.6 landed 2026-09-15**: `gamesSinceLastFill` computed in `apps/web/lib/ingest/balance.ts` and handed to the balancer, live in the balance path immediately — no rebuild needed, since it is a balancer input, not part of the fold. **M7.3 landed 2026-09-15**: the weekly board reads the weekly rating; see its own checkbox for detail. **M7.4 landed 2026-09-15**: `Most improved` on a week reads the weekly climb through M7.3's fold; see its own checkbox for detail. **M7.3's sort key was settled 2026-09-15 before dispatch: the two week windows sort on `Rating`, not on Proven** (the user; decision row, `00-product.md` carve-out, brief, copy and acceptance all rewritten the same day — M7.2's output is unaffected, this is only what M7.3's board sorts and prints). **M7.12 added 2026-09-15** (the user, off product's role-detection research): a read-only measurement of how good `detectedTeamPosition` actually is on ten-human customs. It changes nothing, owes no rebuild, does not wait on M7.11 — and **blocks every role-aware proposal** until it lands. **M7.12 landed 2026-09-15** and the answer was good enough: 23 real ten-human customs, five distinct roles on 46 of 46 sides, 0 nulls, Smite agreeing 46 of 46, with one recorded limit — nothing in the blob separates top from mid. **M7.13 was scoped the same day off it** (the design is the user's, approved after reading that answer): the performance score reads the role. M7.8's single flat weight vector becomes three, keyed by a role bucket — `carry` (top, mid, adc, lumped on purpose because that is the one distinction M7.12 could not make), `jungle`, `support` — with the same six components, the same within-game normalisation, the same 1.25× / 0.80×, and **no MVP at all for a game where any of the ten has no role**, which is M7.8's existing missing-input rule applied to a new input and not a second model. It **revises M7.8 in place rather than layering**, because nothing M7.8 produced has ever reached a player, and it therefore **lands before M7.9**. Two steps: the pure formula in `packages/core` (`core-engineer`), and a read-only battle test of the new picks against the old ones over the same 23 games (`platform-engineer`, no writes, no rebuild). One open sub-question it carries: whether `damageDealtToObjectives` is real in both stored shapes and worth a seventh component for the jungle row — verified first, and if it checks out it opens **M7.14** (the column, the copy and the reweighted jungle row, both pre-answered in M7.13's brief) rather than dragging a migration into a core task. **M5.35 is not a dependency of any of it.** **M7.13's core half landed 2026-09-15**: the three-vector formula, `config.rating.performanceBucket`'s role-to-bucket map, and the missing-role rule, all in `packages/core`; **M7.13 step 1 answered 2026-09-15**: a hosted-DB read (44 stored games, both shapes) confirms `damageDealtToObjectives` is real, non-zero on 98%+ of rows, and genuinely per-player (distinct-value count equals participant count on every game checked) — see `03-lcu-reference.md`. **M7.14 was scoped 2026-09-15** off that answer: damage to objectives as a seventh component, `0.15` in the jungle vector and `0.00` in `carry` and `support` (the user's pre-answered weights from M7.13's brief, repeated verbatim, not re-derived), which needs a nullable `damage_to_objectives integer` column on `game_players` at the next free migration number, an ingest fill off the posted `raw` block (no mapper change, no companion release — the 2026-09-15 decision stands), the existing `copy-raw-stats` extended to a third column, and then the core change. **Two product decisions in it**: the missing-input rule stays **universal** — a null on a *carry*, whose weight on it is 0.00, still means the game has no MVP, because the normalisation denominator is the whole game and because a weight-scoped rule would let a `config.ts` nudge change which past games are scorable; and **M7.14 does not gate M7.9 or M7.10** (M7.13 did, because it replaced the formula; this adds to a settled one) but **must land before M7.11**, or the milestone owes a second rebuild. Its halves are ordered: migration + ingest + copy first, core only once the copy reports **zero rows still short**, so no stored game is ever blanked. The read-only battle test against M7.12's 23 games is still to be dispatched, and M7.13's brief was amended the same day so it is run **once**: two columns if it goes before M7.14's core half, three (flat / six-component / seven-component) if after. Next: M7.14's build (`platform-engineer` half, then `core-engineer` half), the battle test, then M7.9 (needs M7.7 ✓, M7.8 ✓ and M7.13 ✓), M7.10, M7.11. M7.12 already landed, independently. |
 | M8 The day after: rivals, awards, a second guessing game | not started | Opened 2026-09-15 from four ideas of the user's, all four settled with them the same day. **M8.1** nemesis and best duo on `/fun`; **M8.2** won against the odds — the honest "best comeback", read from the stored `blue_win_prob` so a rebuild cannot move it (**confirmed by the user over the literal biggest-`mu`-swing version**); **M8.3** the existing awards as badges on `/leaderboard`'s closed windows, placement only, because most improved and longest streak already shipped in M5.4; **M8.4** Guess the Award, and **the two games alternate civil days** (the user, 2026-09-15) — one challenge per day as today, so `daily_mysteries.day` keeps its unique and the only migration is additive (`kind`, a widened `category` check, `(kind, challenge_number)`). The fourth idea, the balance percentage, is **M3.31** and not here. Every task is a read over stored games; none touches the rating model. **Starts after M7 clears `apps/web`** (M8.1 to M8.3 after M7.4; M8.4 after M7.9). Nothing in M8 is waiting on an answer. |
 | M9 Does coming back after a break break the rating? | not started | The user asked on 2026-09-15 for `sigma` decay after a layoff and settled the same day that **the measurement comes first**. **M9.1** is that measurement and is a real task: a read-only script over the hosted project that counts 14-day-plus returns and compares the first game back against ordinary games **at the same `sigma`**, run **after M7.11** so it measures the model the group is actually on. It changes nothing and decides nothing. **M9.2**, the decay function itself, has no brief and is not to be picked up until the user has read M9.1's numbers — it would move Proven and the balancer's inputs, the one thing all four of M7's changes avoided, and it would want a second rebuild after M7.11 was meant to be the only one. Paste M9.1's numbers into this row when it lands. |
 | M6 Tray app and polish | not started | Needs M2 stable for a month. |
@@ -4741,6 +4741,17 @@ same way a game missing a stat already gets none. It is revised rather than laye
 produced has ever reached a player** — M7.9 and M7.10 have not landed — so **M7.13 lands before M7.9** and the
 milestone still owes exactly one rebuild.
 
+**And M7.13's one open question came back yes, so there is a fourteenth** (scoped 2026-09-15, off the answer to
+M7.13's step 1). `damageDealtToObjectives` is real on both stored shapes, per-player and non-zero, so **M7.14**
+adds it as a seventh component weighted `0.15` in the **jungle** vector and `0.00` in the other two — the weights
+the user already set in M7.13's brief, repeated and not re-derived. It is a separate task because it needs a
+column, an ingest fill and a backwards copy out of `games.raw`, which is `platform-engineer` work with schema in
+it and was never going to fit inside a pure-core task. **It does not gate M7.9 or M7.10** — M7.13 did, because it
+replaced the formula M7.9 stores answers from; this adds to a settled one — but **it must land before M7.11**,
+or the milestone owes a second rebuild. Its own two halves are ordered strictly: the migration, the ingest and
+the copy run first, and the core change lands only once the copy reports no stored row still short, so no game
+ever loses its MVP to a column that has not been filled yet.
+
 - [x] **M7.1** (landed 2026-09-15: a second export `gateRatedGame` beside the untouched `gateGame` in `apps/web/lib/ingest/fold.ts` adds the queue check via the existing `matchesQueue`/`gameModeFromRaw`; `rating.ts` and `rebuild.ts` both pass it `games.raw`/`raw->gameMode`; a missing mode stays Rift; `gateGame` and `countedGames` are unchanged so `/stats`, `/fun` and the streak stay mixed as M5.26 requires. Entailed and documented: an ARAM no longer gets a Discord result embed, since only a rated game gets one — the teams post is unaffected. No rebuild run; that is M7.11's.) ARAM never rates. `gateGame` in `apps/web/lib/ingest/fold.ts` checks participant count, side split and duration and nothing else, so a long enough ARAM custom folds into OpenSkill today. Add the queue check, store every mode and rate only Summoner's Rift. *(owner: `platform-engineer`; `core-engineer` reviews, it is shared fold logic; no dependencies, land it first)*
 
     > **Brief (product, 2026-09-15)**
@@ -5613,7 +5624,7 @@ milestone still owes exactly one rebuild.
     >   feeds is **M7.13**, described in the status row and deliberately not scoped. *(It said "good enough",
     >   the user read it and approved a design the same day, and **M7.13 is scoped below**, 2026-09-15.)*
 
-- [ ] **M7.13** (core landed 2026-09-15: the three-vector formula, the role-to-bucket map and the missing-role rule, reviewed clean. Step 1 answered the same day — `damageDealtToObjectives` confirmed on both stored shapes, opening M7.14. Still open: the read-only battle test against M7.12's 23 games (acceptance 8), and the status-table close (acceptance 11).) The performance score reads the role: three weight vectors instead of one. A revision of
+- [ ] **M7.13** (core landed 2026-09-15: the three-vector formula, the role-to-bucket map and the missing-role rule, reviewed clean. Step 1 answered the same day — `damageDealtToObjectives` confirmed on both stored shapes, opening M7.14, which product scoped the same day. Still open: the read-only battle test against M7.12's 23 games (acceptance 8) — see the amendment at the end of this brief: it is run **once**, two columns if it goes before M7.14's core half and three if after — and the status-table close (acceptance 11).) The performance score reads the role: three weight vectors instead of one. A revision of
   **M7.8's own formula, in place** — same six components, same within-game normalisation, same bonus, same three
   exported functions — where which weights a player is scored on is picked by a role bucket: **carry** (top, mid,
   adc), **jungle**, **support**. A game where any of the ten has no role has no MVP and no ACE, exactly as a game
@@ -5868,6 +5879,310 @@ milestone still owes exactly one rebuild.
     > - **M8.4 is downstream and unaffected in shape.** It needs a stored MVP, not the formula, and its brief
     >   already handles "no game in the window can be scored". It should know that its pool is now live-eog
     >   games only.
+    >
+    > ### Amendment (product, 2026-09-15, after step 1 was answered): the battle test may be run once, not twice
+    >
+    > Step 1 came back real and **M7.14 is scoped below**, which changes the jungle row. Acceptance 8 is still
+    > open, so there is a choice about when the read happens, and there is one right answer either way:
+    >
+    > - **If the battle test is dispatched before M7.14's core half lands**, run it exactly as written above:
+    >   two columns, flat M7.8 against the six-component three-bucket formula. M7.14 then owes a short
+    >   jungle-only addendum of its own (its acceptance 10).
+    > - **If M7.14's core half has already landed**, run it once with **three** columns — flat M7.8, the
+    >   six-component three-bucket formula, and the seven-component one — over the same 23 games. That satisfies
+    >   this acceptance and M7.14's, and it is strictly better than two separate reads because the two changes
+    >   stay separately visible in one table instead of being conflated in either.
+    >
+    > What it may not become is one read that reports only "flat versus whatever is in core today". The point of
+    > acceptance 8 is to see what the bucketing did, and a table that folds the seventh component into that
+    > number cannot answer it.
+
+- [ ] **M7.14** Damage to objectives: the seventh component, and the one row that reads it. A migration, an
+  ingest fill, a backwards copy out of `games.raw`, and one more number in `packages/core`'s **jungle** vector —
+  the follow-up M7.13's step 1 opened when `damageDealtToObjectives` came back real, per-player and non-zero on
+  both stored shapes. **The weights are already set** (M7.13's brief pre-answered them and this brief repeats
+  them verbatim); nobody hand-sets a weight twice. `carry` and `support` carry the component at 0.00 and no
+  score in those two buckets moves by one digit. *(owner: `platform-engineer` for the migration, the boundary
+  field, the ingest and the copy; `core-engineer` for the component and the vector; after M7.7 ✓ and M7.13's
+  core ✓. **It does not gate M7.9 or M7.10. It must land before M7.11**, the one rebuild.)*
+
+    > **Brief (product, 2026-09-15)**
+    >
+    > ### Why this is its own task and not part of M7.13
+    >
+    > A jungler's job is objectives and **none of M7.8's six components reads one**. M7.13 found the number and
+    > deliberately did not take it: a seventh component needs a column, an ingest change and a backwards copy —
+    > schema work, in a task that had to stay pure and land before M7.9 — and, because the missing-input rule is
+    > all-or-nothing, a core change that lands before the column is filled takes the MVP off every stored game
+    > until the copy runs. So M7.13 shipped the six-component table unconditionally, wrote down the jungle row it
+    > would want if the number were real, and opened this.
+    >
+    > It is real. A hosted-DB read on 2026-09-15 across every stored game with either shape: present on 100% of
+    > rows on both, non-zero on 98.6% of live end-of-game rows and 96.3% of backfilled ones, the two key casings
+    > never disagreeing where both appear, and genuinely per-player — every game checked has as many distinct
+    > values as participants, so it is not a team total copied ten times. **One asymmetry, and it is the thing
+    > the reader has to respect:** the live end-of-game block carries both `TOTAL_DAMAGE_DEALT_TO_OBJECTIVES` and
+    > `damageDealtToObjectives`; the match-history detail carries **only** the camelCase one, and the uppercase
+    > key is null on every row of the backfilled game that was eyeballed. `03-lcu-reference.md` has all of it.
+    >
+    > This also makes M7's own acceptance sentence literally true. It already promises "the support who ran the
+    > map can win it on vision, **the jungler on objectives and fights**, the carry on damage". Until this lands,
+    > the jungler is read on fights and farm, and "objectives" in that sentence is a claim the numbers do not
+    > support.
+    >
+    > ### What a player sees
+    >
+    > Nothing until M7.10 prints a name, and then: a jungler who took the map — towers, dragons, barons — can win
+    > MVP for taking it, instead of having to out-KDA or out-farm a laner to be noticed for it. Nothing changes
+    > for a top, a mid, an adc or a support: their weights are untouched and their seventh weight is 0.00.
+    >
+    > ### The rule
+    >
+    > A seventh component, `damageToObjectives`, joins the six in `performanceScores`. It is read for all ten
+    > players, normalised inside the game like every other component — divided by the best of the ten, clamped
+    > into `[0, 1]` — and multiplied by the player's own bucket weight. Three vectors, still keyed by bucket,
+    > still summing to 1.00 each:
+    >
+    > | component | `carry` (top/mid/adc) | `jungle` | `support` |
+    > |---|---|---|---|
+    > | KDA | 0.15 | **0.20** | 0.25 |
+    > | damage to champions | 0.30 | 0.20 | 0.05 |
+    > | gold | 0.20 | **0.10** | 0.05 |
+    > | vision score | 0.05 | 0.15 | 0.40 |
+    > | damage self-mitigated | 0.10 | 0.10 | 0.15 |
+    > | CS | 0.20 | **0.10** | 0.10 |
+    > | **damage to objectives** | **0.00** | **0.15** | **0.00** |
+    >
+    > The jungle row is M7.13's pre-answered table, verbatim, and the reasoning is its reasoning: the 0.15 comes
+    > off gold, CS and KDA, 0.05 each — gold and CS because objective damage is a second reading of the same
+    > farming clock and would otherwise be counted three times, KDA by one notch because a jungler taking
+    > objectives is doing the thing ganks were a proxy for. **The `carry` and `support` rows do not move.** Their
+    > seventh weight is `0.00`, which multiplies out to nothing: every carry and support score is bit-for-bit
+    > what it was before this task, and a test should say so.
+    >
+    > These are tunables in `config.ts` like every other number in this project, not gospel — the same sentence
+    > M7.8's and M7.13's briefs carry — and this task may not tune them. They were set once, by the user, in
+    > M7.13's brief.
+    >
+    > ### The missing-input rule: universal, and not scoped to where the weight is above zero
+    >
+    > **If any of the ten is missing the objectives number, the game has no MVP and no ACE** — including when the
+    > player missing it is a carry or a support whose weight on it is 0.00.
+    >
+    > This is not a new rule and it is not a choice made here for tidiness. `componentsOf` in
+    > `packages/core/src/rating/performance.ts` already checks all eight of its inputs for every player before
+    > any bucket is consulted; the missing-stat rule was written per game and never per player, before roles
+    > existed, and M7.13 applied the same shape to the role. Three reasons it stays universal:
+    >
+    > 1. **The denominator is the whole game.** Every component is normalised against the best of the ten. A
+    >    carry with a null objectives number does not simply score zero on it — they drop out of the maximum, so
+    >    the jungler's share is measured against a field of nine. The jungler's score would then depend on
+    >    whether we happened to store a *laner's* number, which is exactly the kind of quiet arbitrariness the
+    >    all-or-nothing rule exists to refuse.
+    > 2. **A weight-scoped rule makes a tunable rewrite history.** If "missing" only counted where the weight is
+    >    above zero, then moving `carry`'s objectives weight from `0.00` to `0.02` one evening would silently
+    >    change *which past games are scorable at all* — a config nudge reaching back through the history. A
+    >    weight may change what a score is; it may never change whether a game has one.
+    > 3. **One rule is explainable and two are not.** "A game we cannot read completely has no best player" is a
+    >    sentence a friend accepts. "A game we cannot read completely has no best player unless the part we
+    >    cannot read did not count for that person anyway" is not.
+    >
+    > So `componentsOf` gains a ninth checked input and returns `null` if it is missing, exactly as it does for
+    > the other eight. Nothing about the shape of the rule changes.
+    >
+    > ### Does this blank every stored MVP? Only if the halves land in the wrong order
+    >
+    > This is the concern M7.13 raised, and the answer is sequencing inside this task, not a softer rule.
+    >
+    > **The platform half lands first and the copy runs before the core half is merged.** In order: the migration,
+    > the ingest fill, deployed; then `pnpm --filter web copy-raw-stats` against the hosted project until it
+    > reports **zero rows still short on `damage_to_objectives`**; then, and only then, the seventh component in
+    > `packages/core`. Done that way, no stored game ever passes through a state where core demands a number the
+    > database does not have, and no live night falls in a gap: from the deploy onward ingest fills it, and
+    > everything before the deploy is what the copy is for.
+    >
+    > **What is at stake if the order is reversed** is every game's MVP, for as long as it takes to run a script —
+    > today that is nothing, because M7.9 has not landed and no row stores an MVP anywhere; after M7.9 it is the
+    > stored answer on every game in the history until the copy finishes. There is no reason to find out.
+    >
+    > **If the copy cannot fill everything, stop and report before merging the core half.** A row that stays null
+    > is a game that has no MVP for ever. The verification says that should be zero rows — the stat is present on
+    > 100% of rows on both shapes — so a non-zero count means something was not understood, and the right move is
+    > a finding for the lead and the user, not a merge. (M7.7's own copy reported 0 rows still short on 44 games,
+    > so there is a precedent for what "fine" looks like.)
+    >
+    > ### The column
+    >
+    > The next free migration number, mirroring `0014_vision_and_mitigation.sql` in every respect:
+    >
+    > - `damage_to_objectives integer` on `game_players`, **nullable, no default**. `null` means "this game never
+    >   stored it", which is not the fact `0` states — a jungler who never touched a dragon really did do zero,
+    >   and the two must not read the same.
+    > - `check (damage_to_objectives >= 0)` as defence in depth only. **`storedStat` in
+    >   `apps/web/lib/ingest/statValue.ts` is the real gate**, for M7.7's reviewed reason: a negative or
+    >   out-of-int4 number reaching the insert 500s ingest *after* the `games` row is stored, so the companion
+    >   retries the same game into the same 500 for ever. Every write of this column goes through `storedStat`,
+    >   in ingest and in the copy, and a value it refuses is stored as `null` rather than clamped.
+    > - A `comment on column` in the house style of 0014's two, naming both client keys and what `null` means.
+    > - No RLS change, for 0014's reason: the column is publicly readable like every other column on the table,
+    >   and the identical number is already public inside `games.raw`.
+    >
+    > **The name is `damage_to_objectives`, and `damageToObjectives` everywhere in our own code** — the core
+    > component, `RawGameFacts`, the boundary field. 0014's migration says names follow the client's own words,
+    > and that is why it is `damage_self_mitigated`; this one has a sibling that outranks the rule. Damage to
+    > champions is already `damageToChamps` in core and `damageToChamps` on the boundary, from a client key
+    > called `TOTAL_DAMAGE_DEALT_TO_CHAMPIONS`. Damage to objectives is the same stat family read against a
+    > different target, and the two must not be named by two different conventions in the same weights table.
+    >
+    > ### Filling it
+    >
+    > - **The reader**: one more field on `RawGameFacts` in `apps/web/lib/stats/rawFacts.ts`, read as
+    >   `asInt(stats.TOTAL_DAMAGE_DEALT_TO_OBJECTIVES) ?? asInt(stats.damageDealtToObjectives)` — the same
+    >   uppercase-then-camelCase order M2.10 uses for every stat. The fallback is not decoration here: the
+    >   match-history detail carries **only** the camelCase key, so a reader that required the uppercase one
+    >   would fill live games and silently leave every backfilled game null.
+    > - **At ingest**: `apps/web/lib/ingest/game.ts` already reads the posted `raw` block once through
+    >   `rawFactsFromUnknown`. One more `storedStat(...)` beside `vision_score` and `damage_self_mitigated`.
+    > - **On the boundary**: one optional `damageToObjectives` field on `companionGameParticipantSchema`
+    >   (`packages/db/src/schemas/companion.ts`), `nullish().default(null)`, with the source table in the doc
+    >   comment extended — symmetric with M7.7's two, which exist as a fallback the mapper does not yet fill.
+    >   **No `packages/lcu` mapper change and no companion release is owed**: the decision of 2026-09-15 stands
+    >   unchanged, every exe the group has ever run already puts the whole scrubbed block into `games.raw`, and
+    >   `scrubValue` redacts nothing that looks like this key.
+    > - **Backwards**: extend the existing `copyRawStats.ts` / `pnpm --filter web copy-raw-stats` to the third
+    >   column rather than writing a second script. Same pattern, same `storedStat` gate, same "only ever fills a
+    >   null, never overwrites", same safe-to-run-twice, and the report gains a per-column count of rows still
+    >   short so the `damage_to_objectives` number can be read on its own. One command in CLAUDE.md, updated to
+    >   say three numbers instead of two, not a second one-off beside it.
+    >
+    > ### Sequencing: this does not gate M7.9, and it does gate M7.11
+    >
+    > M7.13 gated M7.9 and this does not, which is a real difference and not an oversight. M7.13 *replaced* the
+    > formula M7.9 was about to start storing answers from, and the whole argument for revising M7.8 in place
+    > rather than layering was that nothing had been applied yet. This task adds a component to a formula that is
+    > now settled, behind a hosted migration and a copy run the user has to trigger. Holding M7.9, M7.10 and the
+    > end of the milestone behind schema work would trade a real stall for a cost that is already paid for:
+    >
+    > - **Before M7.11**, hard. M7.11 is the one rebuild and it restates every stored MVP under whatever is in
+    >   core when it runs. If this lands after it, the milestone owes a second rebuild, which breaks the
+    >   one-rebuild resolution of 2026-09-15 — and at that point this stops being an M7 task and becomes
+    >   something the user has to agree to pay a second rebuild for.
+    > - **Before M7.10, strongly preferred.** M7.10 prints names into Discord, and a Discord post is never
+    >   rewritten. If a jungler-less MVP is posted on Tuesday and M7.11's rebuild later gives that game to the
+    >   jungler, `/p/[puuid]` and the post disagree for ever about one night. That is small and survivable —
+    >   the rebuild restating stored history is exactly what M7.9's brief already accepts — but it is free to
+    >   avoid by landing this first, and it is not free to undo.
+    > - **Beside M7.9 is fine.** M7.9 hands the scorer whatever columns exist; it needs no change for this, the
+    >   same way it needed none for M7.13.
+    >
+    > ### The battle test
+    >
+    > These weights get the same validation M7.13's got: inspection against this group's real games, read-only.
+    > M7.13's acceptance 8 is still open, so **do not run that read twice** — its brief was amended today with
+    > the rule:
+    >
+    > - If M7.13's battle test has **not** run when this task's core half lands, run it once with **three**
+    >   columns (flat M7.8, six-component three-bucket, seven-component) over M7.12's same 23 games, and it
+    >   satisfies both acceptances.
+    > - If it **has** already run, this task owes a **jungle-only addendum**: over the same 23 games, how many
+    >   MVPs and ACEs moved when the seventh component was added, listed game by game with the jungler's own
+    >   score before and after, plus the confirmation that no carry's or support's score changed at all.
+    >
+    > Either way: read-only, nothing written, no rebuild, appended as an indented block under this brief, and
+    > **if the new picks look worse the task stops and reports** rather than tuning the weights until the table
+    > looks nicer. Fitting on 23 games is the thing this design exists to avoid.
+    >
+    > ### Edge cases
+    >
+    > - **A backfilled game** has the camelCase key only, and the copy fills it. It still has no MVP, because all
+    >   ten of its roles are null (M7.13). Fill it anyway: the column is cheap, the copy should not carry a
+    >   special case, and M5.18 may one day give those games roles.
+    > - **A blob that never carried the number** leaves `null`, never `0`, and that game has no MVP for ever.
+    >   Expected count: zero. If it is not zero, see "stop and report" above.
+    > - **A negative or out-of-int4 value** becomes `null` through `storedStat`, ingest returns 200, the game
+    >   lands and rates. It is never clamped to `0` or `INT32_MAX`.
+    > - **An ARAM custom** stores the number like any other and is never rated (M7.1), so it never has an MVP.
+    > - **Every one of the ten did zero objective damage** — a 12-minute surrender with no plates: the component's
+    >   game-wide maximum is `0`, so it contributes zero to everybody, exactly as the existing `best <= 0` branch
+    >   already does for the other six. The jungle row's remaining weights then sum to 0.85 for everyone in that
+    >   bucket, which lowers junglers' scores uniformly and changes no ordering *within* the bucket; it can change
+    >   a jungler-versus-laner comparison, and that is the honest consequence of the game having no objectives in
+    >   it. No renormalisation — renormalising per game would mean the weights differ game to game, which is a
+    >   second model.
+    > - **A game with fewer than ten rows** never reaches the scorer; it is gated out before the fold.
+    > - **A second companion posting the same game** is the same `lcu_game_id` no-op it is today.
+    > - **A game ingested between the deploy and the copy run** is filled by ingest, not by the copy, and the copy
+    >   skips it because it only fills nulls.
+    >
+    > ### Acceptance
+    >
+    > 1. The migration applies locally (`pnpm db:reset`) and to the hosted project; `pnpm db:types` regenerated
+    >    and committed. The column is nullable with no default and a `>= 0` check, and carries a comment naming
+    >    both client keys.
+    > 2. A live end-of-game post fills the column for all ten; a backfilled match-history detail fills it too,
+    >    from the camelCase key alone.
+    > 3. A blob missing the key writes `null`, and a blob with a negative or out-of-int4 value writes `null`,
+    >    with a test — the game stores and rates in both cases, and ingest does not 500.
+    > 4. `pnpm --filter web copy-raw-stats` fills the new column on stored rows, is safe to run twice, and reports
+    >    rows filled and **rows still short per column**. The hosted run's numbers are written into the status row
+    >    and the checkbox, M7.7-style, and the `damage_to_objectives` shortfall is **zero** before the core half
+    >    merges.
+    > 5. `performanceScores` reads a seventh component. `PerformanceStats` gains `damageToObjectives`, and
+    >    `componentsOf` returns `null` when it is missing **for any player, whatever that player's bucket weight
+    >    is** — pinned by a test that gives a *carry* the null and asserts the whole game scores `null`.
+    > 6. The three vectors in `config.rating.performance` each have seven entries and each still sum to 1.00, the
+    >    existing sum test now covering the seventh. `carry` and `support` are `0.00` on it.
+    > 7. A test proves `carry` and `support` scores are unchanged to the last bit by this task: the same hand-built
+    >    ten scored with and without objectives values produces identical scores for every non-jungle player.
+    > 8. A test where the jungler has the game's best objective damage and is otherwise mid-table shows them
+    >    winning MVP under the seven-component weights and not under the six — the change doing its one job,
+    >    pinned so a later tune cannot silently undo it.
+    > 9. Every other property of M7.8 and M7.13 is unchanged and still tested: within-game normalisation, the
+    >    `[0, 1]` range, five-a-side, ties by puuid ascending, 1.25× / 0.80×, `sigma` untouched, the missing-role
+    >    rule, and `rateGame` / `rateGameWeekly` untouched with M1.3's and M7.2's tests passing unmodified.
+    > 10. The battle test landed in one of its two shapes above, read-only, appended under a brief, with its
+    >     headline numbers in the status row.
+    > 11. `01-architecture.md`'s rating section carries the seven-component table, replacing M7.13's six-component
+    >     one rather than sitting beside it. `03-lcu-reference.md`'s objectives sentence names the column that now
+    >     stores the number. CLAUDE.md's `copy-raw-stats` entry says three numbers.
+    > 12. `00-product.md`'s "Carrying is worth a little more" paragraph is updated with the copy below, **in the
+    >     session this lands** and not before — the doc describes what is running.
+    > 13. A decision row records the universal missing-input rule and the sequencing; `pnpm -r typecheck`,
+    >     `pnpm -r test` and `pnpm lint` pass; the status table is updated.
+    >
+    > ### The player-facing copy, written here so nobody invents it
+    >
+    > In `00-product.md`, "Carrying is worth a little more". The sentence that begins `Best means the highest
+    > score on a six-part reading` becomes:
+    >
+    > > Best means the highest score on a seven-part reading of that game: kills and assists against deaths,
+    > > damage to champions, gold, vision, damage soaked, CS, and damage to towers, dragons and barons. The first
+    > > six count for everybody, near enough the shape op.gg's MVP and ACE use; the seventh counts for the jungler
+    > > and nobody else. Everyone is read against the other nine people who were actually in that game, never
+    > > against some average player somewhere else.
+    >
+    > and the role clause a few lines later gains one ending:
+    >
+    > > ...and a jungler is read somewhere between the two, plus the one number nobody else is scored on: what
+    > > they took off the map (M7.14).
+    >
+    > Nothing else in that paragraph moves. **No new clause about missing numbers is owed** as long as acceptance
+    > 4's shortfall is zero: the copy makes the history whole, so there is no class of game a friend could notice
+    > losing its MVP. If the shortfall is not zero, this brief's copy is incomplete and product owes one more
+    > sentence before it ships.
+    >
+    > ### Out of scope
+    >
+    > - **Tuning any weight**, including the jungle row. It was set in M7.13's brief and is repeated above
+    >   verbatim; a task that re-derives it has gone wrong.
+    > - **A five-role split**, now or later, unless something new tells top from mid.
+    > - **An eighth component.** Kill participation stays the candidate it has been since 2026-09-15.
+    > - **Showing the number anywhere.** Not on `/games`, not on `/fun`, not on the scoreboard, not on
+    >   `/p/[puuid]`, and the performance score itself is still never printed (M7.8's rule).
+    > - **A rebuild.** M7.11 is still the one run.
+    > - Any change to the balancer, off-role cost, `inferRoles`, `assignRoles`, or what the model thinks your main
+    >   is.
+    > - Any Riot public API call, any external baseline, any fitting.
 
 Acceptance: an ARAM night moves nobody's rating; `This week` on the leaderboard is the week the group actually
 had, and `All time` is still the one number the balancer uses; a player filled last night is filled again only
@@ -5877,8 +6192,9 @@ the all-time rating has still never been reset. And, separately from all of that
 know in a number how often the client's own `detectedTeamPosition` gets a ten-human custom's roles right —
 measured, not assumed, with nothing changed to find out. And because that number came back good, the person who
 carried is worked out against what their role was for: the support who ran the map can win it on vision, the
-jungler on objectives and fights, the carry on damage, and on a game where we do not know who played what,
-nobody wins it at all.
+jungler on objectives and fights (objectives from **M7.14**, which is what makes this clause literally true —
+M7.13's six components read fights and farm), the carry on damage, and on a game where we do not know who played
+what, nobody wins it at all.
 
 ## M8 The day after: rivals, the awards where people look, and a second guessing game (1 to 2 days, needs M5; M8.4 needs M7)
 
@@ -6453,7 +6769,8 @@ M7.2 (the tuned fold, core) -- M7.3 (the weekly board) -- M7.4 (awards + the wee
 M7.5 (fill protection, core) -- M7.6 (the input, at the balance call) ------------------ >-- M7.11 (the one rebuild)
 M7.7 (vision and mitigation stored) -----------\                                        /
                                                 >-- M7.9 (apply it) -- M7.10 (name it) /
-M7.8 (the score, core) -- M7.13 (three vectors) /
+M7.8 (the score, core) -- M7.13 (three vectors) /                                      /
+M7.14 (objectives: column, copy, 7th component) --------------------------------------/
 ```
 
 **M7.12** (how good is `detectedTeamPosition`) is in none of those four threads and joins nothing: it is a read
@@ -6461,11 +6778,18 @@ that changes no file the others touch, so it can be worked at any point, includi
 was everything role-aware, and the first of those is now scoped: **M7.13** revises M7.8's weights into three
 role-bucketed vectors, in place, in `packages/core`, and **lands before M7.9** so no stored MVP is ever picked by
 the flat formula. It owes no rebuild of its own — M7.11 is still the only run — and it adds no column, so it is
-on M7.8's thread and nowhere else. **M5.35** (does the client know the roles at `GameStart`?) is the other half
+on M7.8's thread and nowhere else. **M7.14** (damage to objectives) is the one M7 task that is on two threads at
+once: a migration, an ingest fill and a backwards copy on M7.7's thread, and a seventh component on M7.8's. It
+**joins only at M7.11**, which is a hard deadline for it — after the one rebuild it would owe a second — while
+M7.9 and M7.10 do not wait for it, since it adds to a formula M7.13 already settled rather than replacing one.
+Its two halves are ordered against each other and not against anything else: the copy must report no stored row
+still short before the core half merges, or every stored game loses its MVP until it does. **M5.35** (does the
+client know the roles at `GameStart`?) is the other half
 of the role question and is dispatched with the **M5.18** capture night, because the recording is its only input;
 it is not a dependency of M7.13, which reads the role the end-of-game block already stores.
 
-M7.1, M7.2, M7.5, M7.7 and M7.8 can be worked at the same time. M7.13 comes after M7.8 and before M7.9. M7.9
+M7.1, M7.2, M7.5, M7.7 and M7.8 can be worked at the same time. M7.13 comes after M7.8 and before M7.9. M7.14
+comes after M7.13's core half and before M7.11, beside M7.9 and M7.10 rather than in front of them. M7.9
 lands in the same session as M7.7's backwards copy. **M5.34 (the week starts on Sunday) lands before M7.3**: it is not a rating task and it is not
 in M7, but M7.3 reseeds the weekly rating on the week's own boundary and that boundary moves. **M7.11 is the
 last task that changes a number and is the only `rebuild-ratings` run in the milestone** — no task before it
