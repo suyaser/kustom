@@ -5539,7 +5539,7 @@ and M7.12 can be worked before it, after it, or beside any M8 task.
     > lead, and tuning after seeing the answer is how a referee stops being one. A second rebuild to "smooth"
     > anything.
 
-- [ ] **M7.12** How good is `detectedTeamPosition`, actually? A read-only measurement over the hosted project, no client, no code in `packages/` or `apps/`. **No formula, no column, no page and no rating moves.** *(owner: `platform-engineer`, half a day; **blocks every role-aware proposal**. No dependency on any other M7 task — it reads roles, not ratings, so it does not wait on M7.11 and owes no rebuild. Approved by the user 2026-09-15 off product's role-detection research; scoped the same day)*
+- [x] **M7.12** (landed 2026-09-15: 23 real ten-human Rift customs measured against the hosted project, 230 participants, 7 nights. Result: `detectedTeamPosition` is good enough to pair players by role — five distinct roles on 46 of 46 sides, 0 of 230 rows null, all 46 junglers independently confirmed by Smite, a 30-participant hand-read agreeing throughout. One recorded limit: nothing in the blob separates top from mid. Role-aware proposals are now unblocked; M7.13 stays unscoped until the user acts on this.) How good is `detectedTeamPosition`, actually? A read-only measurement over the hosted project, no client, no code in `packages/` or `apps/`. **No formula, no column, no page and no rating moves.** *(owner: `platform-engineer`, half a day; **blocks every role-aware proposal**. No dependency on any other M7 task — it reads roles, not ratings, so it does not wait on M7.11 and owes no rebuild. Approved by the user 2026-09-15 off product's role-detection research; scoped the same day)*
 
     > **Brief (product, 2026-09-15)**
     >
