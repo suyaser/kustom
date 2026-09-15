@@ -23,6 +23,11 @@ export interface RawPlayerFacts {
    */
   firstBloodDeath: boolean;
   visionScore: number | null;
+  /**
+   * `TOTAL_DAMAGE_SELF_MITIGATED` / `damageSelfMitigated`. Null when the blob did not
+   * say — never 0, which is a real tank's worst game and not a missing key (M7.7).
+   */
+  damageSelfMitigated: number | null;
   objectivesStolen: number;
   objectivesStolenAssists: number;
   baronKills: number;
@@ -76,6 +81,7 @@ export function playerFacts(partial: Partial<RawPlayerFacts> = {}): RawPlayerFac
     firstBloodAssist: false,
     firstBloodDeath: false,
     visionScore: null,
+    damageSelfMitigated: null,
     objectivesStolen: 0,
     objectivesStolenAssists: 0,
     baronKills: 0,
@@ -275,6 +281,7 @@ function extrasFromStats(
     firstBloodAssist: flag(stats.firstBloodAssist),
     firstBloodDeath: flag(stats.firstBloodDeath) || flag(stats.FIRST_BLOOD_DEATH),
     visionScore: asInt(stats.VISION_SCORE) ?? asInt(stats.visionScore),
+    damageSelfMitigated: asInt(stats.TOTAL_DAMAGE_SELF_MITIGATED) ?? asInt(stats.damageSelfMitigated),
     objectivesStolen: asInt(stats.objectivesStolen) ?? 0,
     objectivesStolenAssists: asInt(stats.objectivesStolenAssists) ?? 0,
     baronKills: asInt(stats.baronKills) ?? 0,

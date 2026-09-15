@@ -353,7 +353,7 @@ describe('a window on the player page', () => {
     games: 6,
     wins: 4,
     losses: 2,
-    range: 'Monday 1 Sep to Sunday 7 Sep',
+    range: 'Sunday 6 Sep to Saturday 12 Sep',
     reference: 1_376,
     history: [1_376, 1_402, 1_434],
   });
@@ -377,7 +377,7 @@ describe('a window on the player page', () => {
     const { container } = draw(week);
     const line = container.querySelector('.cn-window-line');
 
-    expect(line?.textContent).toBe('Monday 1 Sep to Sunday 7 Sep');
+    expect(line?.textContent).toBe('Sunday 6 Sep to Saturday 12 Sep');
     expect(line?.parentElement).toHaveClass('cn-strip');
     expect(line?.textContent).not.toContain('games');
   });

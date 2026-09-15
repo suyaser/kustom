@@ -129,11 +129,11 @@ export const WINDOW_LABELS: Readonly<Record<WindowKind, string>> = {
 };
 
 /**
- * `Monday 1 Sep to Sunday 7 Sep · 14 games`: the line under the picker (M5.12, the designer's
+ * `Sunday 6 Sep to Saturday 12 Sep · 14 games`: the line under the picker (M5.12, the designer's
  * slot; `05-design.md`'s copy table, product 2026-09-10).
  *
  * The range half is `lib/night.ts`'s — **and the week form is M5.10's post description byte for
- * byte**, so the Monday post and the page a tap later say the same words. The count is the
+ * byte**, so the Sunday post and the page a tap later say the same words. The count is the
  * window's counted games and goes through {@link gamesLabel}, so a one-game week never reads
  * `1 games`.
  *
@@ -213,7 +213,7 @@ export const SEED_LABEL = 'seed';
  * The same hairline, in a window: the rating the player carried **into** it (M5.12).
  *
  * `seed` is where the board started them from their rank and it is a fact about their whole
- * history; the line on `This week`'s chart is where Monday found them, which is not a seed and
+ * history; the line on `This week`'s chart is where Sunday found them, which is not a seed and
  * may not borrow the word. `All time` keeps {@link SEED_LABEL}, unchanged.
  */
 export const START_LABEL = 'start';

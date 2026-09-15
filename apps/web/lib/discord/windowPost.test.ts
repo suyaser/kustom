@@ -5,7 +5,7 @@ import type { ServiceClient } from '../supabase';
 import type { WebhookPayload } from './embeds';
 
 /**
- * The Monday post's **awards field**, at the seam where it can fail: `postClosedWindow` reads
+ * The Sunday post's **awards field**, at the seam where it can fail: `postClosedWindow` reads
  * the closed window twice — once for the board, once for M5.4's three award lines — and the
  * second read must never cost the group the first (M5.10, M5.4).
  *
@@ -31,7 +31,7 @@ const board: BoardView = {
       breakdown: [],
     },
   ],
-  range: 'Monday 1 Sep to Sunday 7 Sep',
+  range: 'Sunday 6 Sep to Saturday 12 Sep',
   games: 4,
 };
 
@@ -118,7 +118,7 @@ describe('the awards field', () => {
 
   /**
    * **A failed award read is not a failed post.** The board is the message and the awards are
-   * three lines under it, so a Monday with no post at all would be worse than a Monday without
+   * three lines under it, so a Sunday with no post at all would be worse than a Sunday without
    * `Cursed duo` — and the reason goes in the log, where somebody can find it.
    */
   it('posts the board alone when the stats read throws, and says so once', async () => {
@@ -130,7 +130,7 @@ describe('the awards field', () => {
     expect(outcome.status).toBe('sent');
     const embed = (sent as unknown as { embeds: { fields: unknown[]; description: string }[] }).embeds[0];
     expect(embed?.fields).toHaveLength(1);
-    expect(embed?.description).toBe('Monday 1 Sep to Sunday 7 Sep · 4 games');
+    expect(embed?.description).toBe('Sunday 6 Sep to Saturday 12 Sep · 4 games');
     expect(logged).toHaveBeenCalledTimes(1);
     expect(String(logged.mock.calls[0]?.[0])).toContain('last-week awards');
     logged.mockRestore();

@@ -18,6 +18,8 @@ describe('core skeleton', () => {
     expect(Object.keys(core).sort()).toEqual([
       'BalanceError',
       'ROLES',
+      // The MVP / ACE adjustment (M7.8), applied to a fold's result and never inside the fold.
+      'applyMvpAceBonus',
       'balance',
       'config',
       'displayRating',
@@ -26,8 +28,12 @@ describe('core skeleton', () => {
       'inferRoles',
       // The role model's one predicate, for the surfaces that mark an off-role line (M3.1).
       'isOffRole',
+      // Who carried each side (M7.8): the MVP won, the ACE did not.
+      'mvpAce',
       'nextSplit',
       'ordinal',
+      // One game's six-component score per player (M7.8), normalised inside that game.
+      'performanceScores',
       'predictWin',
       'rateGame',
       // The weekly track's fold (M7.2): a second number, same shape, its own tuning. It never

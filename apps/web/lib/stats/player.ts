@@ -192,7 +192,7 @@ function asPair(record: StatsRecord): DuoRecord {
 /**
  * The award lines: one per award **this player won**, on a window that has closed.
  *
- * The awards are `awardsView`'s — the same three blocks `/stats` prints and the Monday post
+ * The awards are `awardsView`'s — the same three blocks `/stats` prints and the Sunday post
  * carries — computed over the window's whole list, because an award is a fact about the group's
  * month and not about one page. This only reads whether the winner is the person whose page
  * this is: a most-improved line is keyed on their puuid, a cursed-duo line on both halves.
@@ -217,8 +217,8 @@ function awardsWon(input: PlayerStatsInput, counted: readonly StatsGame[]): stri
  * `September`, or `week of 1 Sep`: which calendar the award was won in.
  *
  * The month's name is the window slot's own (`formatMonthName`), so the line and the range half
- * above it name one month with one string; the week says which Monday it started on rather than
- * repeating the slot's `Monday 1 Sep to Sunday 7 Sep`, which is product's own form.
+ * above it name one month with one string; the week says which Sunday it started on rather than
+ * repeating the slot's `Sunday 6 Sep to Saturday 12 Sep`, which is product's own form.
  */
 function awardPeriodLabel(input: PlayerStatsInput): string {
   const period = awardPeriod(input.window);

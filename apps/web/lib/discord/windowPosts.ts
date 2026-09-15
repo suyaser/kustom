@@ -23,15 +23,18 @@ import type { ServiceClient } from '../supabase';
  * read, so two retriers cannot both win.
  *
  * The clock is the **route's**, injected, and never `now()` in the database: an integration
- * test drives this on a faked Monday, and a lease measured half in one clock and half in
+ * test drives this on a faked Sunday, and a lease measured half in one clock and half in
  * another is a lease that fires at the wrong time on exactly the day it matters.
+ *
+ * **Nothing here reads a calendar.** The key is `closedWindow`'s and the day a week closes on
+ * is `weekStart`'s, so M5.34 moved the post from Monday to Sunday without touching this file.
  */
 
 /**
  * How long a claim holds before another call may retry it.
  *
  * Ten minutes: long enough that no post is still in flight (the webhook client gives up after
- * two five-second attempts), short enough that a Discord outage at 06:00 on a Monday is
+ * two five-second attempts), short enough that a Discord outage at 06:00 on a Sunday is
  * recovered by the next hourly call rather than the next week.
  */
 export const WINDOW_POST_RETRY_MS = 10 * 60 * 1_000;

@@ -75,7 +75,7 @@ if (stack === null) {
   const gameId = Math.floor(Math.random() * 1_000_000_000) + 9_000_000_000;
   /**
    * A `window_posts` key of this run's own (M5.13). Deep in the past, because a real one is a
-   * Monday 06:00 the cron route computed and nothing here may collide with it.
+   * Sunday 06:00 the cron route computed and nothing here may collide with it.
    */
   const windowStart = new Date(
     Date.UTC(1990, 0, 1) + Math.floor(Math.random() * 1_000_000_000),
@@ -465,7 +465,7 @@ if (stack === null) {
       // same second posts nothing.
       expect(second.status).toBe(409);
 
-      // The same start under the other kind is a different window and is allowed: a Monday the
+      // The same start under the other kind is a different window and is allowed: a Sunday the
       // 1st claims a week and a month, and they are two rows.
       const month = await insert('window_posts', { kind: 'last-month', window_start: windowStart });
       expect(month.status).toBe(201);

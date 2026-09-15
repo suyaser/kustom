@@ -260,7 +260,7 @@ describe('GET /api/cron/window', () => {
     expect(stub.posts[0]?.timeZone).toBe(DEFAULT_NIGHT_TIME_ZONE);
   });
 
-  /** Week first: on a Monday the 1st the group gets two posts in the order they read in. */
+  /** Week first: on a Sunday the 1st the group gets two posts in the order they read in. */
   it('posts the week before the month on the 1st', async () => {
     process.env.CRON_SECRET = 'secret-value';
     process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
@@ -278,7 +278,7 @@ describe('GET /api/cron/window', () => {
 /**
  * **`last-week` always, `last-month` only on the 1st.** This is the rule that keeps the first
  * ever call — against a database with a year of history — from posting a month in the middle
- * of one, and keeps a deployment that was down all Monday posting last week on Tuesday.
+ * of one, and keeps a deployment that was down all Sunday posting last week on Monday.
  */
 describe('windowsToConsider', () => {
   const CAIRO = 'Africa/Cairo';
@@ -287,8 +287,10 @@ describe('windowsToConsider', () => {
     const windows = windowsToConsider(new Date('2025-09-09T12:00:00Z'), CAIRO);
 
     expect(windows.map((window) => window.kind)).toEqual(['last-week']);
-    // The one most recently closed week, and never a backlog of every week since March.
-    expect(windows[0]?.key).toBe('2025-09-01T03:00:00.000Z');
+    // The one most recently closed week, and never a backlog of every week since March. Tuesday
+    // the 9th sits in the week that opened on Sunday the 7th (M5.34), so the closed one opened
+    // on Sunday 31 August at 06:00 Cairo.
+    expect(windows[0]?.key).toBe('2025-08-31T03:00:00.000Z');
   });
 
   it('considers the month for the day that follows its close', () => {

@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "mint-token": "node --env-file-if-exists=.env.local scripts/mint-token.ts",
     "rebuild-ratings": "node --env-file-if-exists=.env.local --import tsx scripts/rebuild-ratings.ts",
+    "copy-raw-stats": "node --env-file-if-exists=.env.local --import tsx scripts/copy-raw-stats.ts",
     "clean": "rm -rf .next"
   },
   "dependencies": {

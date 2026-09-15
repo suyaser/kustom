@@ -87,6 +87,7 @@ describe('config.balance', () => {
     expect(config.balance.roleMultiplier).toEqual({ main: 1.0, secondary: 0.93, fill: 0.85 });
     expect(config.balance.offRolePenalty).toBe(120);
     expect(config.balance.repeatSplitPenalty).toBe(200);
+    expect(config.balance.fillProtectionFactor).toBe(1.0);
     expect(config.rating.displayMultiplier).toBe(60);
   });
 });
@@ -402,6 +403,264 @@ describe('balance: role edge cases', () => {
   });
 });
 
+/**
+ * M7.5 fill protection. `cost(player) = offRolePenalty * (1 + fillProtectionFactor /
+ * (gamesSinceLastFill + 1))`, factor 1.0: 240 for somebody filled last game, 180 one game
+ * later, 150 after three, 132 after nine, decaying to the flat 120. `null` is the baseline
+ * every other test in this file pins.
+ */
+describe('balance: fill protection', () => {
+  /** Set `gamesSinceLastFill` by name; everybody unnamed stays `null`. */
+  function withFill(
+    players: readonly BalancePlayer[],
+    fills: Readonly<Record<string, number | null>>,
+  ): BalancePlayer[] {
+    return players.map((p) => ({ ...p, gamesSinceLastFill: fills[p.name] ?? null }));
+  }
+
+  /** Ten identical top mains with no backup: every split is gap 0 with eight fills. */
+  const TOPS: BalancePlayer[] = ROSTER.map((p) => ({
+    ...p,
+    mu: 25,
+    sigma: 5,
+    mainRole: 'top' as const,
+    secondaryRole: null,
+  }));
+
+  /**
+   * Ten identical players, two mains per role except one mid and three supports. The cheapest
+   * splits put one fill on each side (a lone fill would hand its team a 0.85 player and a
+   * 225-point gap), so who gets filled is a free choice between equals.
+   */
+  const FILL_CHOICE: BalancePlayer[] = (
+    [
+      ['Bilal', 'top'],
+      ['Hana', 'top'],
+      ['Iris', 'jungle'],
+      ['Karim', 'jungle'],
+      ['Lena', 'mid'],
+      ['Nadia', 'adc'],
+      ['Omar', 'adc'],
+      ['Rami', 'support'],
+      ['Theo', 'support'],
+      ['Yuki', 'support'],
+    ] satisfies [string, Role][]
+  ).map(([name, role]) => player(name, 25, 5, role, null));
+
+  /**
+   * The worked example with Rami moved to mid, so Iris is the only jungle main in the lobby.
+   * Both teams need a jungler: Iris covers one and somebody has to be filled into the other,
+   * however recently they were filled. A soft cost, never a block.
+   */
+  const ONE_JUNGLE: BalancePlayer[] = withRoster({ Rami: { mainRole: 'mid' } });
+
+  /** `{ role: Name }` for both sides of a split, so two splits can be compared as rosters. */
+  const rosterOf = (split: Split | undefined): unknown => {
+    if (split === undefined) throw new Error('missing split');
+    return { blue: sideOf(split.blue), red: sideOf(split.red), gap: split.gap, off: split.offRoleCount };
+  };
+
+  const offRoleNames = (split: Split | undefined, players: readonly BalancePlayer[]): string[] => {
+    if (split === undefined) throw new Error('missing split');
+    return [...split.blue, ...split.red]
+      .filter(({ puuid, role }) => {
+        const p = players.find((x) => x.puuid === puuid);
+        return p !== undefined && p.mainRole !== null && p.mainRole !== role;
+      })
+      .map(({ puuid }) => players.find((x) => x.puuid === puuid)?.name ?? puuid)
+      .sort();
+  };
+
+  it('acceptance 1: null everywhere is the baseline, and the worked example does not move', () => {
+    const base = balance({ players: ROSTER });
+    const nulls = balance({ players: withFill(ROSTER, {}) });
+    expect(nulls).toEqual(base);
+    expect(nulls.splits.map((s) => s.gap)).toEqual([100, 170, 220]);
+    expect(nulls.splits.map((s) => s.offRoleCount)).toEqual([0, 0, 0]);
+    expect(nulls.splits[0]?.score).toBeCloseTo(99.6, 9);
+    expect(nulls.explanations).toEqual([
+      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
+      'Blue favored 57%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.',
+      'Blue favored 59%. Everyone on a main role. Gap 220.',
+    ]);
+    // Nobody is off-role in the worked example, so a filled player there costs nothing either.
+    expect(balance({ players: withFill(ROSTER, { Hana: 0, Yuki: 0 }) })).toEqual(base);
+  });
+
+  it('acceptance 3: one fill costs 240, then 180, 150, 132, decaying to the flat 120', () => {
+    // Ten identical top mains: gap 0, eight fills, so score / 8 is one seat's price.
+    const priceAt = (games: number | null): number => {
+      const players = TOPS.map((p) => ({ ...p, gamesSinceLastFill: games }));
+      const first = balance({ players }).splits[0];
+      if (first === undefined) throw new Error('missing split');
+      expect(first.gap).toBe(0);
+      expect(first.offRoleCount).toBe(8);
+      return first.score / 8;
+    };
+    expect(priceAt(0)).toBeCloseTo(240, 9);
+    expect(priceAt(1)).toBeCloseTo(180, 9);
+    expect(priceAt(3)).toBeCloseTo(150, 9);
+    expect(priceAt(9)).toBeCloseTo(132, 9);
+    expect(priceAt(null)).toBe(120);
+  });
+
+  it('acceptance 3: at a large gamesSinceLastFill the chosen splits equal the null case', () => {
+    const far = balance({ players: TOPS.map((p) => ({ ...p, gamesSinceLastFill: 1_000_000 })) });
+    const none = balance({ players: TOPS });
+    expect(far.splits.map(rosterOf)).toEqual(none.splits.map(rosterOf));
+    expect(far.explanations).toEqual(none.explanations);
+    expect(far.splits[0]?.score).toBeCloseTo(960, 2);
+  });
+
+  it('acceptance 2: fills the player who was not filled last game, given equal alternatives', () => {
+    const base = balance({ players: FILL_CHOICE });
+    const first = base.splits[0];
+    if (first === undefined) throw new Error('missing split');
+    expect(first.gap).toBe(0);
+    expect(first.score).toBe(240);
+    expect(offRoleNames(first, FILL_CHOICE)).toEqual(['Hana', 'Theo']);
+
+    // Hana was filled last night. Bilal, her equal, takes the seat instead, at the same price.
+    const protectedRun = balance({ players: withFill(FILL_CHOICE, { Hana: 0 }) });
+    const chosen = protectedRun.splits[0];
+    if (chosen === undefined) throw new Error('missing split');
+    expect(offRoleNames(chosen, FILL_CHOICE)).toEqual(['Bilal', 'Theo']);
+    expect(sideOf(chosen.blue)).toEqual({
+      top: 'Hana',
+      jungle: 'Iris',
+      mid: 'Bilal',
+      adc: 'Nadia',
+      support: 'Rami',
+    });
+    expect(sideOf(chosen.red)).toEqual({
+      top: 'Theo',
+      jungle: 'Karim',
+      mid: 'Lena',
+      adc: 'Omar',
+      support: 'Yuki',
+    });
+    expect(chosen.gap).toBe(0);
+    expect(chosen.offRoleCount).toBe(2);
+    expect(chosen.score).toBe(240);
+    expect(protectedRun.explanations[0]).toBe(
+      'Even 50%. 2 off-role: Bilal at mid, Theo at top. Gap 0. Next best: swap Rami and Theo, gap 0.',
+    );
+  });
+
+  it('scales both places: the seat price inside a team, not only the split score', () => {
+    // Duo locks leave exactly one partition, so the split score cannot choose anything — only
+    // `assignRoles` can. Ten identical top mains: one per side plays top, four are filled.
+    const chain = (ids: string[]): [string, string][] =>
+      ids.slice(1).map((p, i) => [ids[i] ?? p, p] as [string, string]);
+    const duos: [string, string][] = [
+      ...chain(['Bilal', 'Hana', 'Iris', 'Karim', 'Theo'].map(id)),
+      ...chain(['Lena', 'Nadia', 'Omar', 'Rami', 'Yuki'].map(id)),
+    ];
+    const base = balance({ players: TOPS, duos });
+    expect(base.splits).toHaveLength(1);
+    expect(sideOf(base.splits[0]?.blue ?? []).top).toBe('Bilal');
+    expect(sideOf(base.splits[0]?.red ?? []).top).toBe('Lena');
+
+    // Hana and Nadia were filled last game: each side's one main seat goes to them instead.
+    const run = balance({ players: withFill(TOPS, { Hana: 0, Nadia: 0 }), duos });
+    expect(run.splits).toHaveLength(1);
+    const only = run.splits[0];
+    if (only === undefined) throw new Error('missing split');
+    expect(sideOf(only.blue).top).toBe('Hana');
+    expect(sideOf(only.red).top).toBe('Nadia');
+    // Eight fills either way, none of them protected, so the split still scores 8 * 120.
+    expect(only.offRoleCount).toBe(8);
+    expect(only.score).toBe(960);
+    expect(only.gap).toBe(0);
+  });
+
+  it('acceptance 4: an unavoidable fill still happens, at maximum protection', () => {
+    const allFilled = ONE_JUNGLE.map((p) => ({ ...p, gamesSinceLastFill: 0 }));
+    const { splits, explanations } = balance({ players: allFilled });
+    expect(splits).toHaveLength(3);
+    for (const split of splits) {
+      // Iris keeps the jungle seat she mains; the other side's jungler is a fill, and counted.
+      const seats = [...split.blue, ...split.red];
+      expect(seats.find((a) => a.puuid === id('Iris'))?.role).toBe('jungle');
+      const otherJungler = seats.filter((a) => a.role === 'jungle').find((a) => a.puuid !== id('Iris'));
+      expect(otherJungler).toBeDefined();
+      const filled = offRoleNames(split, ONE_JUNGLE);
+      expect(split.offRoleCount).toBe(filled.length);
+      expect(split.offRoleCount).toBeGreaterThanOrEqual(1);
+      const name = ONE_JUNGLE.find((p) => p.puuid === otherJungler?.puuid)?.name ?? '';
+      expect(filled).toContain(name);
+    }
+    expect(explanations[0]).toMatch(/off-role at jungle\.|off-role: .*at jungle/);
+    // Exactly one fill, priced at the maximum: score is the gap plus 240.
+    const first = splits[0];
+    if (first === undefined) throw new Error('missing split');
+    expect(first.offRoleCount).toBe(1);
+    expect(Math.abs(first.score - 240 - first.gap)).toBeLessThanOrEqual(0.5);
+    // In *this* lobby protecting everybody moves nobody: one fill before, one fill after. That
+    // is a fact about these ten and not a guarantee of factor 1.0 — splits differ in raw gap as
+    // well as in fill cost, so protection can and does land on a split with a different
+    // offRoleCount in about 1.35% of random lobbies. Do not generalise this line.
+    expect(first.offRoleCount).toBe(balance({ players: ONE_JUNGLE }).splits[0]?.offRoleCount);
+  });
+
+  it('acceptance 5: a flexible player’s gamesSinceLastFill changes nothing', () => {
+    const flexible = withRoster({ Yuki: { mainRole: null, secondaryRole: null } });
+    const base = balance({ players: flexible });
+    for (const games of [0, 1, 7, null]) {
+      const run = balance({ players: withFill(flexible, { Yuki: games }) });
+      expect(run).toEqual(base);
+    }
+    // And in a lobby where the flexible player is the one holding the night together.
+    const nineSupports: BalancePlayer[] = ROSTER.map((p) => ({
+      ...p,
+      mainRole: p.name === 'Yuki' ? null : ('support' as const),
+      secondaryRole: null,
+    }));
+    expect(balance({ players: withFill(nineSupports, { Yuki: 0 }) })).toEqual(
+      balance({ players: nineSupports }),
+    );
+  });
+
+  it('acceptance 6: the explanation string keeps its shape and wording', () => {
+    const run = balance({ players: withFill(FILL_CHOICE, { Hana: 0 }) });
+    for (const line of run.explanations) {
+      expect(line).toMatch(/^Even 50%\. 2 off-role: \w+ at \w+, \w+ at \w+\. Gap 0\.( Next best: .+\.)?$/);
+    }
+    expect(run.explanations[0]).not.toContain('fill');
+    expect(run.explanations[0]).not.toContain('protect');
+  });
+
+  it('treats a negative gamesSinceLastFill as 0 and an unreadable one as no history', () => {
+    const maxProtection = balance({ players: TOPS.map((p) => ({ ...p, gamesSinceLastFill: 0 })) });
+    expect(balance({ players: TOPS.map((p) => ({ ...p, gamesSinceLastFill: -5 })) })).toEqual(maxProtection);
+    const baseline = balance({ players: TOPS });
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(balance({ players: TOPS.map((p) => ({ ...p, gamesSinceLastFill: bad })) })).toEqual(baseline);
+    }
+  });
+
+  it('stays deterministic: the same ten in another order give identical output', () => {
+    const players = withFill(FILL_CHOICE, { Hana: 0, Theo: 2, Yuki: 9 });
+    const once = balance({ players });
+    const again = balance({ players: [...players].reverse() });
+    expect(again).toEqual(once);
+    expect(JSON.stringify(again)).toBe(JSON.stringify(once));
+  });
+
+  it('prices the seat and the split the same way: the score is the sum of its fills', () => {
+    // Two fills, one protected at 0 (240) and one with no history (120), so the chosen split
+    // scores 360 and never the 240 an unscaled split score would report.
+    const run = balance({ players: withFill(FILL_CHOICE, { Hana: 0, Theo: 0, Yuki: 0, Rami: 0 }) });
+    const first = run.splits[0];
+    if (first === undefined) throw new Error('missing split');
+    const filled = offRoleNames(first, FILL_CHOICE);
+    const price = (name: string): number => (['Hana', 'Theo', 'Yuki', 'Rami'].includes(name) ? 240 : 120);
+    expect(first.score).toBeCloseTo(first.gap + filled.reduce((a, n) => a + price(n), 0), 6);
+    expect(filled).toEqual(['Bilal', 'Theo']);
+    expect(first.score).toBe(360);
+  });
+});
+
 describe('balance: ties', () => {
   it('breaks a full tie by the lexicographically smallest sorted blue puuids', () => {
     // Ten identical players: all 126 partitions score the same, so blue is the five lowest
@@ -530,6 +789,13 @@ describe('performance', () => {
   it('balances ten players in under 100 ms', () => {
     const start = performance.now();
     balance({ players: ROSTER, lastSplit: ['Hana', 'Iris', 'Karim', 'Bilal', 'Theo'].map(id) });
+    expect(performance.now() - start).toBeLessThan(100);
+  });
+
+  it('stays under 100 ms with fill protection on all ten', () => {
+    const players = ROSTER.map((p, i) => ({ ...p, gamesSinceLastFill: i % 4 }));
+    const start = performance.now();
+    balance({ players, lastSplit: ['Hana', 'Iris', 'Karim', 'Bilal', 'Theo'].map(id) });
     expect(performance.now() - start).toBeLessThan(100);
   });
 });

@@ -49,7 +49,7 @@ if (stack === null) {
   const runId = randomUUID().slice(0, 8);
 
   /**
-   * Wednesday 2026-05-13, 21:00 Cairo. **Last week** is then Monday 4 May to Monday 11 May: a
+   * Wednesday 2026-05-13, 21:00 Cairo. **Last week** is then Sunday 3 May to Sunday 10 May: a
    * week in the past, so it never contains "now" and the fixture is the same week whatever day
    * the suite runs on, and **a different week from the one `board.integration.test.ts` seeds**
    * (1 to 8 June), because these files share one database and both count games by window.
@@ -101,7 +101,7 @@ if (stack === null) {
         .insert({
           lcu_game_id: Number(`77${runIdNumber()}${index}`),
           season_id: seasonId,
-          // Monday the 4th through Thursday the 7th, inside last week's Monday-06:00 bounds.
+          // Monday the 4th through Thursday the 7th, inside last week's Sunday-06:00 bounds.
           started_at: `2026-05-0${4 + Math.floor(index / 2)}T${index % 2 === 0 ? '19' : '21'}:00:00Z`,
           // The seventh game is 300 seconds exactly, which the fold's gate refuses, so it is
           // in the database and in no number on the page.
@@ -165,7 +165,7 @@ if (stack === null) {
       // Eight games in the week, minus the 300-second one and the nine-player one.
       expect(stats.games).toBe(6);
       expect(stats.players).toBe(10);
-      expect(stats.range).toBe('Monday 4 May to Sunday 10 May');
+      expect(stats.range).toBe('Sunday 3 May to Saturday 9 May');
     });
 
     it('is the group s two numbers over exactly those games', async () => {
@@ -243,7 +243,7 @@ if (stack === null) {
       const html = renderToStaticMarkup(createElement(StatsView, { stats }));
       const text = html.replace(/<[^>]*>/g, ' ');
 
-      expect(text).toContain('Monday 4 May to Sunday 10 May · 6 games');
+      expect(text).toContain('Sunday 3 May to Saturday 9 May · 6 games');
       expect(text).toContain('Blue wins 83% of the time.');
       expect(text).toContain('Average game 30 min.');
       expect(text).toContain('St0 · +212 · 1266 → 1478');

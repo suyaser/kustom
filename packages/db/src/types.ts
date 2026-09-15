@@ -139,6 +139,198 @@ export type Database = {
           },
         ]
       }
+      daily_mysteries: {
+        Row: {
+          active_from: string
+          category: string
+          challenge_number: number
+          created_at: string
+          day: string
+          expires_at: string
+          first_correct_at: string | null
+          game_id: string
+          hook: Json
+          id: string
+          interesting_score: number
+          mystery_player_id: string
+          suspect_ids: string[]
+        }
+        Insert: {
+          active_from: string
+          category: string
+          challenge_number: number
+          created_at?: string
+          day: string
+          expires_at: string
+          first_correct_at?: string | null
+          game_id: string
+          hook: Json
+          id?: string
+          interesting_score: number
+          mystery_player_id: string
+          suspect_ids: string[]
+        }
+        Update: {
+          active_from?: string
+          category?: string
+          challenge_number?: number
+          created_at?: string
+          day?: string
+          expires_at?: string
+          first_correct_at?: string | null
+          game_id?: string
+          hook?: Json
+          id?: string
+          interesting_score?: number
+          mystery_player_id?: string
+          suspect_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_mysteries_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_mysteries_mystery_player_id_fkey"
+            columns: ["mystery_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_mysteries_mystery_player_id_fkey"
+            columns: ["mystery_player_id"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_mystery_attempts: {
+        Row: {
+          challenge_id: string
+          clues_used: number
+          completion_time_ms: number
+          correct: boolean
+          created_at: string
+          guessed_player_id: string
+          id: string
+          visitor_id: string
+        }
+        Insert: {
+          challenge_id: string
+          clues_used: number
+          completion_time_ms: number
+          correct: boolean
+          created_at?: string
+          guessed_player_id: string
+          id?: string
+          visitor_id: string
+        }
+        Update: {
+          challenge_id?: string
+          clues_used?: number
+          completion_time_ms?: number
+          correct?: boolean
+          created_at?: string
+          guessed_player_id?: string
+          id?: string
+          visitor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_mystery_attempts_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "daily_mysteries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_mystery_attempts_guessed_player_id_fkey"
+            columns: ["guessed_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_mystery_attempts_guessed_player_id_fkey"
+            columns: ["guessed_player_id"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_mystery_clues: {
+        Row: {
+          challenge_id: string
+          clue_type: string
+          clue_value: string
+          id: string
+          reveal_order: number
+        }
+        Insert: {
+          challenge_id: string
+          clue_type: string
+          clue_value: string
+          id?: string
+          reveal_order: number
+        }
+        Update: {
+          challenge_id?: string
+          clue_type?: string
+          clue_value?: string
+          id?: string
+          reveal_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_mystery_clues_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "daily_mysteries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_mystery_sessions: {
+        Row: {
+          challenge_id: string
+          clues_revealed: number
+          last_request_at: string
+          request_count: number
+          started_at: string
+          visitor_id: string
+        }
+        Insert: {
+          challenge_id: string
+          clues_revealed?: number
+          last_request_at: string
+          request_count?: number
+          started_at: string
+          visitor_id: string
+        }
+        Update: {
+          challenge_id?: string
+          clues_revealed?: number
+          last_request_at?: string
+          request_count?: number
+          started_at?: string
+          visitor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_mystery_sessions_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "daily_mysteries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discord_config: {
         Row: {
           blue_voice_channel_id: string | null
@@ -178,6 +370,7 @@ export type Database = {
           champion_id: number | null
           counts_for_role_inference: boolean
           cs: number
+          damage_self_mitigated: number | null
           damage_to_champs: number
           deaths: number
           game_id: string
@@ -190,12 +383,14 @@ export type Database = {
           side: number
           sigma_after: number | null
           sigma_before: number | null
+          vision_score: number | null
         }
         Insert: {
           assists?: number
           champion_id?: number | null
           counts_for_role_inference?: boolean
           cs?: number
+          damage_self_mitigated?: number | null
           damage_to_champs?: number
           deaths?: number
           game_id: string
@@ -208,12 +403,14 @@ export type Database = {
           side: number
           sigma_after?: number | null
           sigma_before?: number | null
+          vision_score?: number | null
         }
         Update: {
           assists?: number
           champion_id?: number | null
           counts_for_role_inference?: boolean
           cs?: number
+          damage_self_mitigated?: number | null
           damage_to_champs?: number
           deaths?: number
           game_id?: string
@@ -226,6 +423,7 @@ export type Database = {
           side?: number
           sigma_after?: number | null
           sigma_before?: number | null
+          vision_score?: number | null
         }
         Relationships: [
           {
@@ -653,184 +851,6 @@ export type Database = {
           window_start?: string
         }
         Relationships: []
-      }
-      daily_mysteries: {
-        Row: {
-          id: string
-          day: string
-          challenge_number: number
-          game_id: string
-          mystery_player_id: string
-          interesting_score: number
-          category: string
-          suspect_ids: string[]
-          hook: Json
-          active_from: string
-          expires_at: string
-          first_correct_at: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          day: string
-          challenge_number: number
-          game_id: string
-          mystery_player_id: string
-          interesting_score: number
-          category: string
-          suspect_ids: string[]
-          hook: Json
-          active_from: string
-          expires_at: string
-          first_correct_at?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          day?: string
-          challenge_number?: number
-          game_id?: string
-          mystery_player_id?: string
-          interesting_score?: number
-          category?: string
-          suspect_ids?: string[]
-          hook?: Json
-          active_from?: string
-          expires_at?: string
-          first_correct_at?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "daily_mysteries_game_id_fkey"
-            columns: ["game_id"]
-            isOneToOne: false
-            referencedRelation: "games"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "daily_mysteries_mystery_player_id_fkey"
-            columns: ["mystery_player_id"]
-            isOneToOne: false
-            referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      daily_mystery_clues: {
-        Row: {
-          id: string
-          challenge_id: string
-          clue_type: string
-          clue_value: string
-          reveal_order: number
-        }
-        Insert: {
-          id?: string
-          challenge_id: string
-          clue_type: string
-          clue_value: string
-          reveal_order: number
-        }
-        Update: {
-          id?: string
-          challenge_id?: string
-          clue_type?: string
-          clue_value?: string
-          reveal_order?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "daily_mystery_clues_challenge_id_fkey"
-            columns: ["challenge_id"]
-            isOneToOne: false
-            referencedRelation: "daily_mysteries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      daily_mystery_sessions: {
-        Row: {
-          challenge_id: string
-          visitor_id: string
-          clues_revealed: number
-          started_at: string
-          last_request_at: string
-          request_count: number
-        }
-        Insert: {
-          challenge_id: string
-          visitor_id: string
-          clues_revealed?: number
-          started_at: string
-          last_request_at: string
-          request_count?: number
-        }
-        Update: {
-          challenge_id?: string
-          visitor_id?: string
-          clues_revealed?: number
-          started_at?: string
-          last_request_at?: string
-          request_count?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "daily_mystery_sessions_challenge_id_fkey"
-            columns: ["challenge_id"]
-            isOneToOne: false
-            referencedRelation: "daily_mysteries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      daily_mystery_attempts: {
-        Row: {
-          id: string
-          challenge_id: string
-          visitor_id: string
-          guessed_player_id: string
-          correct: boolean
-          clues_used: number
-          completion_time_ms: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          challenge_id: string
-          visitor_id: string
-          guessed_player_id: string
-          correct: boolean
-          clues_used: number
-          completion_time_ms: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          challenge_id?: string
-          visitor_id?: string
-          guessed_player_id?: string
-          correct?: boolean
-          clues_used?: number
-          completion_time_ms?: number
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "daily_mystery_attempts_challenge_id_fkey"
-            columns: ["challenge_id"]
-            isOneToOne: false
-            referencedRelation: "daily_mysteries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "daily_mystery_attempts_guessed_player_id_fkey"
-            columns: ["guessed_player_id"]
-            isOneToOne: false
-            referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Views: {

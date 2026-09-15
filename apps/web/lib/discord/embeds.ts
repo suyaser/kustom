@@ -417,7 +417,7 @@ export const AWARDS_FIELD = 'Awards';
 export interface WindowSummaryEmbedInput {
   /** `Last week` or `Last month` — {@link WINDOW_LABELS}, the same words the picker uses. */
   windowLabel: string;
-  /** `Monday 1 Sep to Sunday 7 Sep · 14 games` (`windowRange.ts`), the window's own dates. */
+  /** `Sunday 6 Sep to Saturday 12 Sep · 14 games` (`windowRange.ts`), the window's own dates. */
   description: string;
   /** The window's board, ordered by Proven. {@link TOP_N} is the most that will print. */
   entries: readonly LeaderboardEntry[];
@@ -432,17 +432,17 @@ export interface WindowSummaryEmbedInput {
 /**
  * The post a closed week or month makes of itself (M5.10, fired by M5.13).
  *
- * Monday morning: nobody is in voice, nobody opened anything, and there is a post in the
+ * Sunday morning: nobody is in voice, nobody opened anything, and there is a post in the
  * channel that says who won the week. It is the nightly embed's twin and shares its rules on
  * purpose — the same colour, the same ten-line cap, the same field-name rule (M3.22), the same
  * footer — with two differences that are the whole task:
  *
- * - **the description**, which names the window's own days (`Monday 1 Sep to Sunday 7 Sep · 14
+ * - **the description**, which names the window's own days (`Sunday 6 Sep to Saturday 12 Sep · 14
  *   games`), because a post that arrives unasked has to say which seven days it is about;
  * - **the awards field**, when there are awards to print (see {@link WindowAward}).
  *
  * The board is the **window's** board (M5.12): the players who played inside it, each with
- * their rating as of their last counted game in it, which is what makes Monday's post
+ * their rating as of their last counted game in it, which is what makes Sunday's post
  * reproducible on Tuesday and after a late backfill.
  *
  * `week` and `month` appear nowhere in this function: the noun arrives in `windowLabel` and in

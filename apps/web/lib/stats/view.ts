@@ -37,7 +37,7 @@ export interface StatsInput {
   capped: boolean;
   cap: number;
   timeZone?: string | undefined;
-  /** The web's glyphs by default; the Monday post passes Discord's. */
+  /** The web's glyphs by default; the Sunday post passes Discord's. */
   awardRender?: AwardRender | undefined;
 }
 

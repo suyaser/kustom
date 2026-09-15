@@ -15,13 +15,13 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  *
  * What is only provable here, with a real `window_posts` table and a real webhook:
  *
- * - three calls across one Monday post one message and write one row;
+ * - three calls across one Sunday post one message and write one row;
  * - a window with no games is recorded and never posted, and never retried;
  * - a webhook that refuses leaves the row unposted, so a later call sends the week late.
  *
- * The clock is faked to a Monday in 2025 and every window this file touches is a week or a
- * month nothing else in the suite has games in. Only `Date` is faked: the sockets to Supabase
- * and to the webhook are real.
+ * The clock is faked to a Sunday in 2025 — the day a week closes on since M5.34 — and every
+ * window this file touches is a week or a month nothing else in the suite has games in. Only
+ * `Date` is faked: the sockets to Supabase and to the webhook are real.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -58,22 +58,26 @@ if (stack === null) {
   const puuids = Array.from({ length: 10 }, (_, index) => `it-${runId}-w${String(index).padStart(2, '0')}`);
 
   /**
-   * Four Mondays (and one 1st) in 2025, one per case, so no two cases share a window and
+   * Four Sundays (and one 1st) in 2025, one per case, so no two cases share a window and
    * nothing else in the suite has a game anywhere near them.
+   *
+   * **Sundays since M5.34**: a week closes at 06:00 on a Sunday, so the morning a post is due
+   * is a Sunday morning. Nothing in the route reads the day — these instants are simply the
+   * hours a real call would land in.
    */
-  const MONDAY = new Date('2025-09-08T07:00:00Z'); // 10:00 Cairo, Monday 8 September
-  const EMPTY_MONDAY = new Date('2025-07-14T07:00:00Z'); // 10:00 Cairo, Monday 14 July
-  const FLAKY_MONDAY = new Date('2025-05-12T07:00:00Z'); // 10:00 Cairo, Monday 12 May
+  const SUNDAY = new Date('2025-09-07T07:00:00Z'); // 10:00 Cairo, Sunday 7 September
+  const EMPTY_SUNDAY = new Date('2025-07-13T07:00:00Z'); // 10:00 Cairo, Sunday 13 July
+  const FLAKY_SUNDAY = new Date('2025-05-11T07:00:00Z'); // 10:00 Cairo, Sunday 11 May
   const FIRST_OF_MONTH = new Date('2025-11-01T12:00:00Z'); // Saturday 1 November, after 06:00
-  const AWARDS_MONDAY = new Date('2025-03-10T07:00:00Z'); // 09:00 Cairo, Monday 10 March
+  const AWARDS_SUNDAY = new Date('2025-03-09T07:00:00Z'); // 09:00 Cairo, Sunday 9 March
 
   const windowsTouched: ClosedWindow[] = [
-    closedWindow('last-week', MONDAY, TIME_ZONE),
-    closedWindow('last-week', EMPTY_MONDAY, TIME_ZONE),
-    closedWindow('last-week', FLAKY_MONDAY, TIME_ZONE),
+    closedWindow('last-week', SUNDAY, TIME_ZONE),
+    closedWindow('last-week', EMPTY_SUNDAY, TIME_ZONE),
+    closedWindow('last-week', FLAKY_SUNDAY, TIME_ZONE),
     closedWindow('last-week', FIRST_OF_MONTH, TIME_ZONE),
     closedWindow('last-month', FIRST_OF_MONTH, TIME_ZONE),
-    closedWindow('last-week', AWARDS_MONDAY, TIME_ZONE),
+    closedWindow('last-week', AWARDS_SUNDAY, TIME_ZONE),
   ];
 
   let playerIds: string[] = [];
@@ -256,16 +260,16 @@ if (stack === null) {
       await db.from('window_posts').delete().eq('kind', window.kind).eq('window_start', window.key);
     }
 
-    // Two games in the week that closed on `MONDAY`, one in the flaky week, and one that is in
+    // Two games in the week that closed on `SUNDAY`, one in the flaky week, and one that is in
     // both windows the 1st of November considers.
     await seedGame(new Date('2025-09-03T18:00:00Z'));
     await seedGame(new Date('2025-09-05T19:00:00Z'));
     await seedGame(new Date('2025-05-07T19:00:00Z'));
     await seedGame(new Date('2025-10-22T19:00:00Z'));
 
-    // Six games in the week that closed on `AWARDS_MONDAY`, Tuesday to Sunday.
+    // Six games in the week that closed on `AWARDS_SUNDAY`, Monday to Saturday.
     for (let index = 0; index < 6; index += 1) {
-      await seedAwardsGame(new Date(`2025-03-0${4 + index}T19:00:00Z`), index);
+      await seedAwardsGame(new Date(`2025-03-0${3 + index}T19:00:00Z`), index);
     }
     // One main role in that week, so the off-role award has somebody to consider.
     await db
@@ -296,16 +300,16 @@ if (stack === null) {
   describe('the week posts itself exactly once', () => {
     /**
      * The acceptance check the whole task is written for: **call it at any cadence.** Three
-     * calls across one Monday, and the group sees one message.
+     * calls across one Sunday, and the group sees one message.
      */
-    it('posts on the first call of a Monday and nothing on the next two', async () => {
-      const window = closedWindow('last-week', MONDAY, TIME_ZONE);
+    it('posts on the first call of a Sunday and nothing on the next two', async () => {
+      const window = closedWindow('last-week', SUNDAY, TIME_ZONE);
 
-      const first = await callAt(MONDAY);
+      const first = await callAt(SUNDAY);
       expect(first).toEqual({ ok: true, posted: ['last-week'], skipped: [] });
 
-      const second = await callAt(new Date(MONDAY.getTime() + 60 * 60 * 1_000));
-      const third = await callAt(new Date(MONDAY.getTime() + 5 * 60 * 60 * 1_000));
+      const second = await callAt(new Date(SUNDAY.getTime() + 60 * 60 * 1_000));
+      const third = await callAt(new Date(SUNDAY.getTime() + 5 * 60 * 60 * 1_000));
       expect(second).toEqual({
         ok: true,
         posted: [],
@@ -327,7 +331,7 @@ if (stack === null) {
        */
       const embed = embedOf(0);
       expect(embed?.title).toBe('Last week · leaderboard');
-      expect(embed?.description).toBe('Monday 1 Sep to Sunday 7 Sep · 2 games');
+      expect(embed?.description).toBe('Sunday 31 Aug to Saturday 6 Sep · 2 games');
       expect(String(embed?.url ?? '')).toContain('/leaderboard?window=last-week');
       // Ten players, five a side, two games each: the board is the window's, not all time.
       const fields = (embed?.fields ?? []) as { value: string }[];
@@ -339,17 +343,17 @@ if (stack === null) {
 
   /**
    * **The awards field is M5.4's three lines, quoted** (M5.10): the post the group reads on a
-   * Monday and the page they open a tap later are the same words, and an award nobody won still
+   * Sunday and the page they open a tap later are the same words, and an award nobody won still
    * prints its sentence, so the block always has three labels and the bar they missed is on
    * screen.
    */
   describe('the awards under the board', () => {
     it('prints all three, computed from the week it just posted', async () => {
-      const posted = await callAt(AWARDS_MONDAY);
+      const posted = await callAt(AWARDS_SUNDAY);
       expect(posted.posted).toEqual(['last-week']);
 
       const embed = embedOf(0);
-      expect(embed?.description).toBe('Monday 3 Mar to Sunday 9 Mar · 6 games');
+      expect(embed?.description).toBe('Sunday 2 Mar to Saturday 8 Mar · 6 games');
 
       const fields = (embed?.fields ?? []) as { name: string; value: string }[];
       expect(fields).toHaveLength(2);
@@ -383,9 +387,9 @@ if (stack === null) {
    */
   describe('a window with no games', () => {
     it('writes the row, posts nothing, and is not retried', async () => {
-      const window = closedWindow('last-week', EMPTY_MONDAY, TIME_ZONE);
+      const window = closedWindow('last-week', EMPTY_SUNDAY, TIME_ZONE);
 
-      const first = await callAt(EMPTY_MONDAY);
+      const first = await callAt(EMPTY_SUNDAY);
       expect(first).toEqual({
         ok: true,
         posted: [],
@@ -399,7 +403,7 @@ if (stack === null) {
       expect(rows[0]?.reason).toBe('no games in the window');
 
       // An hour later, and a day later: still nothing, and still one row.
-      const later = await callAt(new Date(EMPTY_MONDAY.getTime() + 60 * 60 * 1_000));
+      const later = await callAt(new Date(EMPTY_SUNDAY.getTime() + 60 * 60 * 1_000));
       expect(later.skipped).toEqual([{ kind: 'last-week', reason: 'already posted' }]);
       expect(posts).toHaveLength(0);
       expect(await rowsFor(window)).toHaveLength(1);
@@ -413,10 +417,10 @@ if (stack === null) {
    */
   describe('a webhook that would not take it', () => {
     it('leaves the week retryable, and a later call posts it', async () => {
-      const window = closedWindow('last-week', FLAKY_MONDAY, TIME_ZONE);
+      const window = closedWindow('last-week', FLAKY_SUNDAY, TIME_ZONE);
       answer = (response) => response.writeHead(500).end();
 
-      const failed = await callAt(FLAKY_MONDAY);
+      const failed = await callAt(FLAKY_SUNDAY);
       expect(failed.posted).toEqual([]);
       expect(failed.skipped[0]?.kind).toBe('last-week');
       expect(failed.skipped[0]?.reason).toBe('HTTP 500');
@@ -431,17 +435,17 @@ if (stack === null) {
       // A call a minute later must not race the one that may still be talking to Discord.
       answer = (response) => response.writeHead(204).end();
       posts = [];
-      const tooSoon = await callAt(new Date(FLAKY_MONDAY.getTime() + 60 * 1_000));
+      const tooSoon = await callAt(new Date(FLAKY_SUNDAY.getTime() + 60 * 1_000));
       expect(tooSoon.skipped).toEqual([
         { kind: 'last-week', reason: 'a post for this window is already in flight' },
       ]);
       expect(posts).toHaveLength(0);
 
       // The next hourly call, with Discord back: the week goes out late and correct.
-      const retried = await callAt(new Date(FLAKY_MONDAY.getTime() + 60 * 60 * 1_000));
+      const retried = await callAt(new Date(FLAKY_SUNDAY.getTime() + 60 * 60 * 1_000));
       expect(retried.posted).toEqual(['last-week']);
       expect(posts).toHaveLength(1);
-      expect(embedOf(0)?.description).toBe('Monday 5 May to Sunday 11 May · 1 game');
+      expect(embedOf(0)?.description).toBe('Sunday 4 May to Saturday 10 May · 1 game');
 
       const stamped = await rowsFor(window);
       expect(stamped).toHaveLength(1);
@@ -449,16 +453,16 @@ if (stack === null) {
       expect(stamped[0]?.attempts).toBe(2);
 
       // And it stays posted: the retry does not reopen the window.
-      const after = await callAt(new Date(FLAKY_MONDAY.getTime() + 2 * 60 * 60 * 1_000));
+      const after = await callAt(new Date(FLAKY_SUNDAY.getTime() + 2 * 60 * 60 * 1_000));
       expect(after.skipped).toEqual([{ kind: 'last-week', reason: 'already posted' }]);
       expect(posts).toHaveLength(1);
     });
   });
 
   /**
-   * **On the 1st, the week and the month, week first** (M5.13, acceptance 3): on a Monday the
+   * **On the 1st, the week and the month, week first** (M5.13, acceptance 3): on a Sunday the
    * 1st the group gets two posts in the order they read in. Here it is a Saturday the 1st, so
-   * the week is one that closed five days earlier and the month is the one that closed today —
+   * the week is one that closed six days earlier and the month is the one that closed today —
    * and, because Cairo left daylight saving between them, the two boundaries are at different
    * UTC offsets, which is exactly the case `lib/night.ts` owns and this must not re-solve.
    */
@@ -471,7 +475,7 @@ if (stack === null) {
       expect(first.posted).toEqual(['last-week', 'last-month']);
       expect(posts).toHaveLength(2);
       expect(embedOf(0)?.title).toBe('Last week · leaderboard');
-      expect(embedOf(0)?.description).toBe('Monday 20 Oct to Sunday 26 Oct · 1 game');
+      expect(embedOf(0)?.description).toBe('Sunday 19 Oct to Saturday 25 Oct · 1 game');
       expect(embedOf(1)?.title).toBe('Last month · leaderboard');
       expect(embedOf(1)?.description).toBe('October · 1 game');
 

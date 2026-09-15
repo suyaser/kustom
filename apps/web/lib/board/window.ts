@@ -91,7 +91,7 @@ export function windowHref(path: string, kind: WindowKind, query: Record<string,
 }
 
 /**
- * The slot's **range half**: `Monday 1 Sep to Sunday 7 Sep`, `September`, `Since 8 Sep 2025`
+ * The slot's **range half**: `Sunday 6 Sep to Saturday 12 Sep`, `September`, `Since 8 Sep 2025`
  * (M5.12, the designer's slot).
  *
  * `null` only for `All time` with nothing to date from — a database with no counted game in it,

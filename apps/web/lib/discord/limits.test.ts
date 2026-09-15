@@ -332,7 +332,7 @@ describe('the awards field, a ten-way tie', () => {
 
   const embed = windowSummaryEmbed({
     windowLabel: WINDOW_LABELS['last-week'],
-    description: 'Monday 1 Sep to Sunday 7 Sep · 14 games',
+    description: 'Sunday 6 Sep to Saturday 12 Sep · 14 games',
     entries: [{ puuid: 'p-1', name: 'Lena', proven: 1548, games: 41 }],
     awards,
     timestamp: TIMESTAMP,

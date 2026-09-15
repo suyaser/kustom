@@ -136,7 +136,7 @@ describe('GET /api/cron/leaderboard', () => {
 
     expect(outcome.options?.timeZone).toBe('America/New_York');
     // The same answer `/leaderboard` and `/p/[puuid]` build their range from, and the same
-    // range: 21:00 on a Sunday in New York is still the week that is ending.
+    // range: 21:00 on a Sunday in New York is already the week that has begun (M5.34).
     expect(outcome.options?.timeZone).toBe(nightTimeZone());
     const sundayNight = new Date('2026-09-07T01:00:00Z');
     expect(windowRange('this-week', sundayNight, outcome.options?.timeZone).start?.toISOString()).toBe(

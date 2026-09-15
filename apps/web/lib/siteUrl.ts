@@ -54,7 +54,7 @@ export function tonightPageUrl(origin: string | null | undefined): string | unde
  * in a channel than no link at all.
  *
  * **It carries the window the post printed** (M5.12): the nightly post links to
- * `?window=this-week`, and the Monday post (M5.10) to `?window=last-week`. A tap from the
+ * `?window=this-week`, and the Sunday post (M5.10) to `?window=last-week`. A tap from the
  * channel has to land on the board whose numbers are in the message above it, and the page's
  * own default would land on a different one every time the post is not about this week.
  */

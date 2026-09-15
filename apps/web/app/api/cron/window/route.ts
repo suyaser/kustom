@@ -19,9 +19,13 @@ export const dynamic = 'force-dynamic';
  * The week that posts itself, and on the 1st the month (M5.13; the words are M5.10's).
  *
  * **There is no button anywhere in this product that posts the week.** If a friend has to
- * remember to press something on a Monday it will be pressed twice one week and never again
- * after that. So: Monday morning, nobody opened anything, and there is a post in the channel
+ * remember to press something on a Sunday it will be pressed twice one week and never again
+ * after that. So: Sunday morning, nobody opened anything, and there is a post in the channel
  * that says who won the week.
+ *
+ * **Sunday, since M5.34** (2026-09-15), and with no change to this file: the schedule fires
+ * daily and the day a week closes on is `weekStart`'s answer alone (`lib/night.ts`). There is
+ * no day-of-week test anywhere in this route, which is why moving the anchor moved the post.
  *
  * **The door is the one that already exists** — the same bearer `CRON_SECRET`, compared in
  * full, the same 503 when the variable is unset, as `GET /api/cron/sweep` and
@@ -37,10 +41,10 @@ export const dynamic = 'force-dynamic';
  *
  * - **`last-week`, always.** The most recently closed week and only that one — never a backlog
  *   of every week since March, because the row for the week before it is already there or
- *   never will be. A deployment that was down all Monday posts last week on Tuesday, late and
+ *   never will be. A deployment that was down all Sunday posts last week on Monday, late and
  *   correct: the post's timestamp says when it was sent and its description says which week it
  *   covers.
- * - **`last-month`, on the 1st** — see {@link windowsToConsider}. Week first, so on a Monday
+ * - **`last-month`, on the 1st** — see {@link windowsToConsider}. Week first, so on a Sunday
  *   the 1st the group gets two posts in the order they read in.
  */
 export const responseSchema = z.object({
@@ -118,7 +122,7 @@ export async function GET(request: Request): Promise<Response> {
   /**
    * Typed as the **response's** kind and filled with the **window's**, which is the one place
    * the two lists are pinned together: a sixth window, or a renamed one, is a typecheck failure
-   * here and not a row `window_posts` quietly refuses at 06:00 on a Monday.
+   * here and not a row `window_posts` quietly refuses at 06:00 on a Sunday.
    */
   const posted: WindowPostKind[] = [];
   const skipped: { kind: WindowPostKind; reason: string }[] = [];

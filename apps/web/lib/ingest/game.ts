@@ -6,10 +6,11 @@ import {
   type Json,
   scrubRawEogBlock,
 } from '@customs/db';
-import { mergeDraftBans } from '../stats/rawFacts';
+import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
 import { selectLatestLobby } from './lobby';
 import { ensurePlayers } from './players';
+import { storedStat } from './statValue';
 
 /**
  * Game ingest from an end-of-game block, live (`source: 'eog'`) or walked out of match history
@@ -223,10 +224,20 @@ async function upsertGamePlayers(
     { fillOnly: backfill },
   );
 
+  // Vision score and damage mitigated come off the posted block, not off the mapped
+  // participant (M7.7, `04-decisions.md` 2026-09-15): every companion the group has ever run
+  // already carries both numbers in `raw` on both shapes, so no release is owed for them.
+  // `rawFactsFromUnknown` is the one reader of that column — the same one `/fun` uses and the
+  // same one the backwards copy pass uses — so a live block and a backfilled detail land on
+  // the identical pair of integers. A mapped value is honoured only when the blob is silent,
+  // which is what a future companion release would fill.
+  const rawStats = rawFactsFromUnknown(payload.raw).byPuuid;
+
   const rows: GamePlayerInsert[] = [];
   for (const participant of payload.participants) {
     const playerId = playerIds.get(participant.puuid);
     if (playerId === undefined) continue;
+    const facts = rawStats[participant.puuid];
     rows.push({
       game_id: gameId,
       player_id: playerId,
@@ -239,6 +250,17 @@ async function upsertGamePlayers(
       gold: participant.gold,
       damage_to_champs: participant.damageToChamps,
       cs: participant.cs,
+      // Null, never 0: "this game never stored it" is a different fact from a game with no
+      // wards, and M7.8 skips the game rather than scoring a real tank at nothing.
+      //
+      // `storedStat` is the gate, and it is not belt and braces for the column's check
+      // constraint — it is the only thing standing between a nonsense number in the blob and a
+      // game that is stored, unratable and permanently stuck. The `games` row is written
+      // first, so a `game_players` insert that Postgres refuses (a negative, or a value past
+      // int4, which the check cannot even see) 500s on every retry for ever. A number we
+      // cannot store honestly becomes null, exactly like a key that was never there.
+      vision_score: storedStat(facts?.visionScore ?? participant.visionScore),
+      damage_self_mitigated: storedStat(facts?.damageSelfMitigated ?? participant.damageSelfMitigated),
     });
   }
   if (rows.length === 0) return;

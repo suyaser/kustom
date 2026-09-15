@@ -339,7 +339,7 @@ describe('the minimums, and what they say when nobody clears them', () => {
 
 describe('the two renderings of one award', () => {
   /**
-   * The page and the Monday Discord post print the **same line** with two glyph sets: the web
+   * The page and the Sunday Discord post print the **same line** with two glyph sets: the web
    * gets U+2212 and `05-design.md`'s truncation, Discord gets an ASCII minus and its markdown
    * escaped (a name with a `_` in it must not italicise half the channel).
    */

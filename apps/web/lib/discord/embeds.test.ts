@@ -666,7 +666,7 @@ describe('leaderboardEmbed, the worked example', () => {
     expect(embed?.description).toBeUndefined();
   });
 
-  /** Every one of the five can title one of these posts: M5.10's Monday post is `Last week`. */
+  /** Every one of the five can title one of these posts: M5.10's Sunday post is `Last week`. */
   it('titles itself with whichever window it printed', () => {
     for (const [kind, label] of Object.entries(WINDOW_LABELS)) {
       const embed = leaderboardEmbed(workedLeaderboardInput({ windowLabel: label })).embeds[0];
@@ -726,7 +726,7 @@ describe('leaderboardEmbed, the worked example', () => {
 function workedWindowInput(overrides: Partial<WindowSummaryEmbedInput> = {}): WindowSummaryEmbedInput {
   return {
     windowLabel: WINDOW_LABELS['last-week'],
-    description: 'Monday 1 Sep to Sunday 7 Sep · 14 games',
+    description: 'Sunday 6 Sep to Saturday 12 Sep · 14 games',
     entries: workedBoardRows().map((row) => ({
       puuid: row.puuid,
       name: row.name,
@@ -755,7 +755,7 @@ describe('windowSummaryEmbed, the closed window', () => {
     expect(embed?.title).toBe('Last week · leaderboard');
     expect(embed?.url).toBe(`${SITE_URL}/leaderboard?window=last-week`);
     // Byte for byte the copy table's window slot (`05-design.md`).
-    expect(embed?.description).toBe('Monday 1 Sep to Sunday 7 Sep · 14 games');
+    expect(embed?.description).toBe('Sunday 6 Sep to Saturday 12 Sep · 14 games');
     expect(embed?.color).toBe(ACCENT_COLOR);
   });
 

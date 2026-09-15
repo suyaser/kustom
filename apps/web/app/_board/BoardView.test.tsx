@@ -329,7 +329,7 @@ describe('the window picker', () => {
     const { container } = draw(workedWindowBoard('last-week'));
     const line = container.querySelector('.cn-window-line');
 
-    expect(line?.textContent).toBe('Monday 1 Sep to Sunday 7 Sep · 6 games');
+    expect(line?.textContent).toBe('Sunday 6 Sep to Saturday 12 Sep · 6 games');
     // In the header, under the picker, and there is only one of it.
     expect(line?.parentElement).toHaveClass('cn-strip');
     expect(line?.previousElementSibling).toHaveClass('cn-windows');

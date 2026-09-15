@@ -11,7 +11,9 @@ import {
   isInWindow,
   isValidTimeZone,
   monthStart,
+  NIGHT_START_HOUR,
   nextCivilMidnight,
+  nightEnd,
   nightStart,
   type WindowKind,
   weekStart,
@@ -146,7 +148,7 @@ describe('isValidTimeZone', () => {
  * UTC form beside it, converted by hand: Cairo is UTC+3 in summer and UTC+2 in winter.
  *
  * Nobody reads this file's output, which is exactly why it is tested this hard — `This week`
- * on the leaderboard and the Monday post in Discord are only ever as right as it is.
+ * on the leaderboard and the Sunday post in Discord are only ever as right as it is.
  */
 
 /** The wall clock in Cairo, `YYYY-MM-DD HH:mm`, for asserting that a boundary reads 06:00. */
@@ -167,34 +169,82 @@ function wallClock(instant: Date, timeZone = CAIRO): string {
 }
 
 describe('the week a game belongs to', () => {
-  it('gives a Monday 05:59 game to the week that is ending, and 06:01 to the new one', () => {
-    // 2026-09-07 is a Monday. 05:59 Cairo (UTC+3) is 02:59Z; the week that is ending opened on
-    // Monday 2026-08-31 at 06:00 Cairo, which is 03:00Z.
-    expect(weekStart(new Date('2026-09-07T02:59:00Z'), CAIRO).toISOString()).toBe('2026-08-31T03:00:00.000Z');
-    expect(weekStart(new Date('2026-09-07T03:01:00Z'), CAIRO).toISOString()).toBe('2026-09-07T03:00:00.000Z');
+  it('gives a Sunday 05:59 game to the week that is ending, and 06:01 to the new one', () => {
+    // 2026-09-06 is a Sunday. 05:59 Cairo (UTC+3) is 02:59Z; the week that is ending opened on
+    // Sunday 2026-08-30 at 06:00 Cairo, which is 03:00Z.
+    expect(weekStart(new Date('2026-09-06T02:59:00Z'), CAIRO).toISOString()).toBe('2026-08-30T03:00:00.000Z');
+    expect(weekStart(new Date('2026-09-06T03:01:00Z'), CAIRO).toISOString()).toBe('2026-09-06T03:00:00.000Z');
     // And 06:00 exactly is the new week, not a second before it.
-    expect(weekStart(new Date('2026-09-07T03:00:00Z'), CAIRO).toISOString()).toBe('2026-09-07T03:00:00.000Z');
+    expect(weekStart(new Date('2026-09-06T03:00:00Z'), CAIRO).toISOString()).toBe('2026-09-06T03:00:00.000Z');
   });
 
-  it('keeps a Sunday night and the 01:40 that follows it in the same week', () => {
-    // Sunday 2026-09-06 23:30 Cairo = 20:30Z, and Monday 2026-09-07 01:40 Cairo = 22:40Z on
-    // the 6th. One night, one week — the week that is ending.
-    const sundayNight = weekStart(new Date('2026-09-06T20:30:00Z'), CAIRO);
-    const afterMidnight = weekStart(new Date('2026-09-06T22:40:00Z'), CAIRO);
+  it('keeps a Saturday night and the 01:40 that follows it in the same week', () => {
+    // Saturday 2026-09-05 23:30 Cairo = 20:30Z, and Sunday 2026-09-06 01:40 Cairo = 22:40Z on
+    // the 5th. One night, one week — the week that is ending.
+    const saturdayNight = weekStart(new Date('2026-09-05T20:30:00Z'), CAIRO);
+    const afterMidnight = weekStart(new Date('2026-09-05T22:40:00Z'), CAIRO);
 
-    expect(sundayNight.toISOString()).toBe('2026-08-31T03:00:00.000Z');
-    expect(afterMidnight.getTime()).toBe(sundayNight.getTime());
+    expect(saturdayNight.toISOString()).toBe('2026-08-30T03:00:00.000Z');
+    expect(afterMidnight.getTime()).toBe(saturdayNight.getTime());
   });
 
-  it('opens every week on a Monday at 06:00 local', () => {
+  it('opens every week on a Sunday at 06:00 local (M5.34)', () => {
     for (const instant of [
       '2026-01-14T20:00:00Z',
       '2026-06-30T11:00:00Z',
       '2026-09-06T22:40:00Z',
       '2026-12-31T23:00:00Z',
     ]) {
-      expect(wallClock(weekStart(new Date(instant), CAIRO))).toMatch(/^Mon .* 06:00$/);
+      expect(wallClock(weekStart(new Date(instant), CAIRO))).toMatch(/^Sun .* 06:00$/);
     }
+  });
+
+  /**
+   * Every weekday rolls back to the Sunday that opened its week, and the Sunday itself rolls
+   * back to itself — the whole of M5.34's rule, one day at a time, over the week of
+   * Sunday 2026-09-06.
+   */
+  it("rolls every day of a week back to that week's Sunday", () => {
+    const sunday = '2026-09-06T03:00:00.000Z';
+    // 21:00 Cairo (18:00Z) on Sunday the 6th through Saturday the 12th.
+    for (const day of [6, 7, 8, 9, 10, 11, 12]) {
+      const evening = new Date(`2026-09-${String(day).padStart(2, '0')}T18:00:00Z`);
+      expect(weekStart(evening, CAIRO).toISOString()).toBe(sunday);
+    }
+    // And the next evening is the next week, seven days later to the boundary.
+    expect(weekStart(new Date('2026-09-13T18:00:00Z'), CAIRO).toISOString()).toBe('2026-09-13T03:00:00.000Z');
+  });
+});
+
+/**
+ * **What M5.34 did not move.** The anchor day of the week changed and nothing else did, so
+ * these are the numbers this file asserted before the flip, pinned here in one block: a diff
+ * that moves any of them is a diff that went wrong (the brief's own list).
+ */
+describe("the boundaries the week's anchor did not move", () => {
+  const evening = new Date('2026-09-09T18:00:00Z'); // Wednesday 21:00 Cairo.
+
+  it('leaves the night where it was', () => {
+    expect(NIGHT_START_HOUR).toBe(6);
+    expect(nightStart(evening, CAIRO).toISOString()).toBe('2026-09-09T03:00:00.000Z');
+    expect(nightEnd(evening, CAIRO).toISOString()).toBe('2026-09-10T03:00:00.000Z');
+  });
+
+  it('leaves the civil day and the month where they were', () => {
+    expect(civilDayStart(evening, CAIRO).toISOString()).toBe('2026-09-08T21:00:00.000Z');
+    expect(monthStart(evening, CAIRO).toISOString()).toBe('2026-09-01T03:00:00.000Z');
+  });
+
+  it('leaves the month and all-time ranges byte-identical', () => {
+    expect(windowRange('this-month', evening, CAIRO)).toEqual({
+      start: new Date('2026-09-01T03:00:00.000Z'),
+      end: new Date('2026-10-01T03:00:00.000Z'),
+    });
+    expect(windowRange('last-month', evening, CAIRO)).toEqual({
+      start: new Date('2026-08-01T03:00:00.000Z'),
+      end: new Date('2026-09-01T03:00:00.000Z'),
+    });
+    expect(windowRange('all-time', evening, CAIRO)).toEqual({ start: null, end: null });
   });
 });
 
@@ -231,8 +281,8 @@ describe('windowRange', () => {
 
   it('ends this week and this month in the future, so a game tonight is inside them', () => {
     const week = windowRange('this-week', now, CAIRO);
-    expect(week.start?.toISOString()).toBe('2026-09-07T03:00:00.000Z');
-    expect(week.end?.toISOString()).toBe('2026-09-14T03:00:00.000Z');
+    expect(week.start?.toISOString()).toBe('2026-09-06T03:00:00.000Z');
+    expect(week.end?.toISOString()).toBe('2026-09-13T03:00:00.000Z');
     expect(isInWindow(now, week)).toBe(true);
 
     const month = windowRange('this-month', now, CAIRO);
@@ -246,7 +296,7 @@ describe('windowRange', () => {
     const current = windowRange('this-week', now, CAIRO);
 
     expect(last.end?.getTime()).toBe(current.start?.getTime());
-    expect(last.start?.toISOString()).toBe('2026-08-31T03:00:00.000Z');
+    expect(last.start?.toISOString()).toBe('2026-08-30T03:00:00.000Z');
     // The boundary instant itself belongs to the new week: half-open, `[start, end)`.
     const boundary = current.start as Date;
     expect(isInWindow(boundary, last)).toBe(false);
@@ -337,22 +387,22 @@ describe('daylight saving', () => {
 });
 
 describe('the window that just closed', () => {
-  /** Monday 2026-10-05, 09:00 Cairo (06:00Z): the hour after the week and the month turned. */
-  const mondayMorning = new Date('2026-10-05T06:00:00Z');
+  /** Sunday 2026-10-04, 09:00 Cairo (06:00Z): the hours after the week turned (M5.34). */
+  const sundayMorning = new Date('2026-10-04T06:00:00Z');
 
   it('is last week, its bounds, and the key its dedupe row is written under (M5.13)', () => {
-    const week = closedWindow('last-week', mondayMorning, CAIRO);
+    const week = closedWindow('last-week', sundayMorning, CAIRO);
 
     expect(week.kind).toBe('last-week');
-    expect(week.start.toISOString()).toBe('2026-09-28T03:00:00.000Z');
-    expect(week.end.toISOString()).toBe('2026-10-05T03:00:00.000Z');
-    expect(week.key).toBe('2026-09-28T03:00:00.000Z');
+    expect(week.start.toISOString()).toBe('2026-09-27T03:00:00.000Z');
+    expect(week.end.toISOString()).toBe('2026-10-04T03:00:00.000Z');
+    expect(week.key).toBe('2026-09-27T03:00:00.000Z');
     // The bounds are the same ones every page reads the window through.
-    expect(week.start.getTime()).toBe(windowRange('last-week', mondayMorning, CAIRO).start?.getTime());
+    expect(week.start.getTime()).toBe(windowRange('last-week', sundayMorning, CAIRO).start?.getTime());
   });
 
   it('is the one month that just closed, never a backlog of them', () => {
-    const month = closedWindow('last-month', mondayMorning, CAIRO);
+    const month = closedWindow('last-month', sundayMorning, CAIRO);
 
     expect(month.start.toISOString()).toBe('2026-09-01T03:00:00.000Z');
     expect(month.end.toISOString()).toBe('2026-10-01T03:00:00.000Z');
@@ -360,16 +410,16 @@ describe('the window that just closed', () => {
   });
 
   it('does not move while the window it names stays closed', () => {
-    // Called hourly all Monday and all Tuesday, it answers with the same key every time —
+    // Called hourly all Sunday and all Monday, it answers with the same key every time —
     // which is what makes an insert-then-post route post a week exactly once.
     const keys = new Set(
       [0, 3, 11, 26, 47].map(
         (hours) =>
-          closedWindow('last-week', new Date(mondayMorning.getTime() + hours * 3_600_000), CAIRO).key,
+          closedWindow('last-week', new Date(sundayMorning.getTime() + hours * 3_600_000), CAIRO).key,
       ),
     );
 
-    expect([...keys]).toEqual(['2026-09-28T03:00:00.000Z']);
+    expect([...keys]).toEqual(['2026-09-27T03:00:00.000Z']);
   });
 });
 
@@ -379,36 +429,36 @@ describe('the window that just closed', () => {
  * byte**, which is why it is one exported formatter and not two.
  */
 describe('what a window is called', () => {
-  /** Wednesday 2026-09-09, 21:00 Cairo: this week is Mon 7 Sep to Mon 14 Sep. */
+  /** Wednesday 2026-09-09, 21:00 Cairo: this week is Sun 6 Sep to Sun 13 Sep. */
   const now = new Date('2026-09-09T18:00:00Z');
   const range = (kind: WindowKind) => windowRange(kind, now, CAIRO);
 
   it('names a week by its first night and its last, month on both ends', () => {
     const week = range('this-week');
     expect(formatWeekRange(week.start as Date, week.end as Date, CAIRO)).toBe(
-      'Monday 7 Sep to Sunday 13 Sep',
+      'Sunday 6 Sep to Saturday 12 Sep',
     );
 
     const last = range('last-week');
     expect(formatWeekRange(last.start as Date, last.end as Date, CAIRO)).toBe(
-      'Monday 31 Aug to Sunday 6 Sep',
+      'Sunday 30 Aug to Saturday 5 Sep',
     );
   });
 
   /**
    * **The last day named is the last night of the window**, not the boundary. A window ends on
-   * a Monday at 06:00 and nobody played on that Monday morning; naming it would print a day the
+   * a Sunday at 06:00 and nobody played on that Sunday morning; naming it would print a day the
    * board has no games from.
    */
-  it('never names the Monday morning a window ends on', () => {
+  it('never names the Sunday morning a window ends on', () => {
     const week = range('this-week');
-    expect(formatWeekRange(week.start as Date, week.end as Date, CAIRO)).not.toContain('Monday 14');
+    expect(formatWeekRange(week.start as Date, week.end as Date, CAIRO)).not.toContain('Sunday 13');
   });
 
   it('carries the month on both ends when a week crosses one', () => {
     const across = windowRange('this-week', new Date('2026-10-01T18:00:00Z'), CAIRO);
     expect(formatWeekRange(across.start as Date, across.end as Date, CAIRO)).toBe(
-      'Monday 28 Sep to Sunday 4 Oct',
+      'Sunday 27 Sep to Saturday 3 Oct',
     );
   });
 

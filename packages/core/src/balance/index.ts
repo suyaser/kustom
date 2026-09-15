@@ -51,11 +51,19 @@ interface Prepared {
   readonly effective: readonly number[];
   /** Whether playing each role counts as off-role, indexed like `ROLES`. */
   readonly offRole: readonly boolean[];
+  /**
+   * What one off-role seat costs this player, display units: `offRolePenalty` at baseline,
+   * scaled up by fill protection for somebody filled recently. Read by `assignRoles` **and**
+   * by the split score, which is the point — see `offRoleCostOf`.
+   */
+  readonly offRoleCost: number;
 }
 
 interface TeamAssignment {
   readonly sum: number;
   readonly offRoleCount: number;
+  /** Sum of `offRoleCost` over this team's off-role seats, display units. */
+  readonly offRoleCost: number;
   /** Role index per team member, in team order. */
   readonly roles: readonly number[];
 }
@@ -84,6 +92,25 @@ const BLUE_COMPANIONS: readonly (readonly number[])[] = (() => {
   return out;
 })();
 
+/**
+ * What one off-role seat costs this player (M7.5):
+ * `offRolePenalty * (1 + fillProtectionFactor / (gamesSinceLastFill + 1))`.
+ *
+ * 240 for somebody filled in their last game, 180 one game later, 150 after three, 132 after
+ * nine, decaying to the flat 120. `null`, absent, or anything that is not a finite number is
+ * the flat 120 — no history to read is the baseline, not maximum protection. A negative count
+ * reads as 0, so the term is bounded by `1 + fillProtectionFactor` and can never blow up.
+ *
+ * Returned as one number per player so the two places that charge for a fill — `assignRoles`,
+ * which prices a team's 120 role permutations, and the split score — cannot disagree: the
+ * permutation search returns the cost it actually charged and the score adds up those.
+ */
+function offRoleCostOf(player: BalancePlayer): number {
+  const since = player.gamesSinceLastFill ?? null;
+  if (since === null || !Number.isFinite(since)) return cfg.offRolePenalty;
+  return cfg.offRolePenalty * (1 + cfg.fillProtectionFactor / (Math.max(0, since) + 1));
+}
+
 /** Price every role for a player, in display units, and mark which roles are off-role. */
 function prepare(player: BalancePlayer, index: number): Prepared {
   const base = player.mu * DISPLAY;
@@ -94,27 +121,39 @@ function prepare(player: BalancePlayer, index: number): Prepared {
     effective.push(base * cfg.roleMultiplier[tier]);
     offRole.push(tier !== 'main');
   }
-  return { index, puuid: player.puuid, mu: player.mu, sigma: player.sigma, effective, offRole };
+  return {
+    index,
+    puuid: player.puuid,
+    mu: player.mu,
+    sigma: player.sigma,
+    effective,
+    offRole,
+    offRoleCost: offRoleCostOf(player),
+  };
 }
 
-/** Best of the 120 role assignments for one team: max `sum(effective) - penalty * offRole`. */
+/** Best of the 120 role assignments for one team: max `sum(effective) - each fill's cost`. */
 function assignRoles(team: readonly Prepared[]): TeamAssignment {
   let best: TeamAssignment | null = null;
   let bestValue = Number.NEGATIVE_INFINITY;
   for (const perm of PERMUTATIONS) {
     let sum = 0;
     let off = 0;
+    let cost = 0;
     for (let i = 0; i < TEAM; i += 1) {
       const p = team[i];
       const r = perm[i];
       if (p === undefined || r === undefined) throw new Error('assignRoles: team must have five players');
       sum += p.effective[r] ?? 0;
-      if (p.offRole[r] === true) off += 1;
+      if (p.offRole[r] === true) {
+        off += 1;
+        cost += p.offRoleCost;
+      }
     }
-    const value = sum - cfg.offRolePenalty * off;
+    const value = sum - cost;
     if (value > bestValue + EPSILON) {
       bestValue = value;
-      best = { sum, offRoleCount: off, roles: perm };
+      best = { sum, offRoleCount: off, offRoleCost: cost, roles: perm };
     }
   }
   if (best === null) throw new Error('assignRoles: no permutation evaluated');
@@ -228,7 +267,10 @@ export function balance(input: BalanceInput): BalanceResult {
     const isRepeat =
       lastIndices !== null &&
       (blue.every((p) => lastIndices.has(p.index)) || red.every((p) => lastIndices.has(p.index)));
-    const score = rawGap + cfg.offRolePenalty * offRoleCount + (isRepeat ? cfg.repeatSplitPenalty : 0);
+    // The same per-player prices `assignRoles` charged, so a seat and the split that contains
+    // it are never valued differently (M7.5).
+    const score =
+      rawGap + blueRoles.offRoleCost + redRoles.offRoleCost + (isRepeat ? cfg.repeatSplitPenalty : 0);
     candidates.push({
       blue: toAssignments(blue, blueRoles.roles),
       red: toAssignments(red, redRoles.roles),

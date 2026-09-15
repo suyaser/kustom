@@ -85,6 +85,34 @@ export const config = {
        */
       tau: 0.3,
     },
+    /**
+     * The performance score (M7.8): six weights that sum to 1.00, over components each
+     * normalised inside the game (a player's value divided by the best of the ten), so every
+     * term is in `[0, 1]` and gold cannot swamp KDA by being a four-digit number. KDA is
+     * `(kills + assists) / max(1, deaths)`. A component whose game-wide maximum is zero
+     * contributes zero to everybody instead of dividing by zero.
+     *
+     * op.gg's own formula is proprietary and unpublished; this is a documented community
+     * approximation and a tunable like every other number here, not gospel.
+     */
+    performance: {
+      kda: 0.1,
+      damageToChamps: 0.2,
+      gold: 0.2,
+      visionScore: 0.25,
+      damageSelfMitigated: 0.15,
+      cs: 0.1,
+    },
+    /**
+     * The MVP / ACE adjustment (M7.8), applied after `rateGame` and never inside it. The MVP
+     * (best score on the winning side) keeps `1 + bonusFraction` of their `mu` delta, the ACE
+     * (best score on the losing side) `1 - aceReliefFraction` of theirs. Both factors are
+     * positive, so a winner always gains and a loser always loses; `sigma` is never touched.
+     */
+    mvp: {
+      bonusFraction: 0.25,
+      aceReliefFraction: 0.2,
+    },
   },
   balance: {
     /**
@@ -93,8 +121,29 @@ export const config = {
      * `secondary` their backup, `fill` anything else.
      */
     roleMultiplier: { main: 1.0, secondary: 0.93, fill: 0.85 },
-    /** Display points added to a split's score per player not on a main role. */
+    /**
+     * Display points added to a split's score per player not on a main role, before fill
+     * protection scales it: the price of one off-role seat for somebody with no fill history.
+     */
     offRolePenalty: 120,
+    /**
+     * Fill protection (M7.5). One off-role seat costs
+     * `offRolePenalty * (1 + fillProtectionFactor / (gamesSinceLastFill + 1))`, so a player
+     * filled in their last game costs 240, one game later 180, three games later 150, nine
+     * games later 132, decaying to the flat 120. A `gamesSinceLastFill` of `null` — never
+     * filled, or no history to read — is the flat 120 exactly.
+     *
+     * At 1.0 a fresh fill is worth twice a stale one, which is the whole rule in one sentence:
+     * "we just filled you, so somebody else goes first tonight". Two things bound it: the most
+     * protection ever adds to one seat is `offRolePenalty` itself, and a split-level tie still
+     * falls through to the lower `offRoleCount` in `compareSplits`. It does **not** follow that
+     * protection can only change who is filled and never how many are — splits differ in raw
+     * gap as well as in fill cost, and roughly 1% of random ten-player lobbies (1.35% and 1.07%
+     * in two sweeps of 4,000) land on a split with a different `offRoleCount` once somebody is
+     * protected, in both directions. Raising the factor buys more of that; 0 turns the feature
+     * off without removing the input.
+     */
+    fillProtectionFactor: 1.0,
     /** Display points added once when a split puts the same five together as `lastSplit`. */
     repeatSplitPenalty: 200,
     /** How many splits `balance` returns at most, best first. Reroll walks this list. */

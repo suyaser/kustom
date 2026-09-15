@@ -599,8 +599,8 @@ describe('the line under the picker', () => {
     windowRangeLabel(kind, windowRange(kind, now, CAIRO), firstCountedAt, CAIRO);
 
   it('names each of the five the way product spells it', () => {
-    expect(label('this-week')).toBe('Monday 7 Sep to Sunday 13 Sep');
-    expect(label('last-week')).toBe('Monday 31 Aug to Sunday 6 Sep');
+    expect(label('this-week')).toBe('Sunday 6 Sep to Saturday 12 Sep');
+    expect(label('last-week')).toBe('Sunday 30 Aug to Saturday 5 Sep');
     expect(label('this-month')).toBe('September');
     expect(label('last-month')).toBe('August');
     expect(label('all-time', new Date('2025-09-08T18:00:00Z'))).toBe('Since 8 Sep 2025');
@@ -613,16 +613,18 @@ describe('the line under the picker', () => {
   });
 
   it('assembles the range and the count, and never `1 games`', () => {
-    expect(windowSlotLine('Monday 1 Sep to Sunday 7 Sep', 14)).toBe(
-      'Monday 1 Sep to Sunday 7 Sep · 14 games',
+    expect(windowSlotLine('Sunday 6 Sep to Saturday 12 Sep', 14)).toBe(
+      'Sunday 6 Sep to Saturday 12 Sep · 14 games',
     );
     expect(windowSlotLine('September', 34)).toBe('September · 34 games');
     expect(windowSlotLine('Since 8 Sep 2025', 312)).toBe('Since 8 Sep 2025 · 312 games');
-    expect(windowSlotLine('Monday 1 Sep to Sunday 7 Sep', 1)).toBe('Monday 1 Sep to Sunday 7 Sep · 1 game');
+    expect(windowSlotLine('Sunday 6 Sep to Saturday 12 Sep', 1)).toBe(
+      'Sunday 6 Sep to Saturday 12 Sep · 1 game',
+    );
   });
 
   /**
-   * **The week form is M5.10's post description byte for byte.** The Monday post and the board
+   * **The week form is M5.10's post description byte for byte.** The Sunday post and the board
    * a tap later have to say the same words, so there is one formatter and this is the test that
    * says so.
    */

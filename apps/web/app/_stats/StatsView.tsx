@@ -126,7 +126,7 @@ export function StatsView({ stats }: StatsViewProps) {
            * **Three parallel stopped sentences, and the count is in none of them** (product,
            * 2026-09-11, M5.22): all three numbers on this band are one `countedGames` length, so
            * `· 32 games` beside two of them was the slot above retyped twice. The slot keeps it,
-           * byte for byte, because M5.10's Monday post is that same string.
+           * byte for byte, because M5.10's Sunday post is that same string.
            */}
           <section className="cn-block">
             <section className="cn-card cn-stats-lines">
@@ -158,7 +158,7 @@ export function StatsView({ stats }: StatsViewProps) {
  * nothing at all on `All time`.
  *
  * Every string here — the rule, the winner, the sentence nobody qualifying prints — is
- * `lib/stats/awards.ts`'s, and the **same strings go into the Monday Discord post**. The page
+ * `lib/stats/awards.ts`'s, and the **same strings go into the Sunday Discord post**. The page
  * adds the heading and the layout and not one word.
  */
 function Awards({ awards }: { awards: StatsViewModel['awards'] }) {

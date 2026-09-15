@@ -138,6 +138,74 @@ describe('rawFactsFromUnknown', () => {
     ]);
   });
 
+  /**
+   * M7.7. These two are the only stats here the MVP / ACE bonus cannot do without, and the
+   * only two whose absence has to stay distinguishable from a zero: a tank with no stored
+   * mitigation must not read as a tank who mitigated nothing.
+   */
+  it('reads vision score and damage mitigated off both shapes and both spellings', () => {
+    const eog = rawFactsFromUnknown({
+      teams: [
+        {
+          teamId: 100,
+          players: [
+            {
+              puuid: 'u-lena',
+              stats: { VISION_SCORE: 53, TOTAL_DAMAGE_SELF_MITIGATED: 48_955 },
+            },
+            // The camelCase duplicates the block carries beside the uppercase keys.
+            {
+              puuid: 'u-yuki',
+              stats: { visionScore: 18, damageSelfMitigated: 151_130 },
+            },
+            // A block that never said. Null, not zero.
+            { puuid: 'u-omar', stats: { CHAMPIONS_KILLED: 4 } },
+            // Uppercase wins when a block disagrees with itself (M2.10's rule for every stat).
+            {
+              puuid: 'u-hana',
+              stats: {
+                VISION_SCORE: 90,
+                visionScore: 1,
+                TOTAL_DAMAGE_SELF_MITIGATED: 19_814,
+                damageSelfMitigated: 2,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(eog.byPuuid['u-lena']?.visionScore).toBe(53);
+    expect(eog.byPuuid['u-lena']?.damageSelfMitigated).toBe(48_955);
+    expect(eog.byPuuid['u-yuki']?.visionScore).toBe(18);
+    expect(eog.byPuuid['u-yuki']?.damageSelfMitigated).toBe(151_130);
+    expect(eog.byPuuid['u-omar']?.visionScore).toBeNull();
+    expect(eog.byPuuid['u-omar']?.damageSelfMitigated).toBeNull();
+    expect(eog.byPuuid['u-hana']?.visionScore).toBe(90);
+    expect(eog.byPuuid['u-hana']?.damageSelfMitigated).toBe(19_814);
+
+    const detail = rawFactsFromUnknown({
+      participantIdentities: [{ participantId: 1, player: { puuid: 'u-omar' } }],
+      participants: [
+        { participantId: 1, teamId: 100, stats: { visionScore: 110, damageSelfMitigated: 30_154 } },
+      ],
+    });
+    expect(detail.byPuuid['u-omar']?.visionScore).toBe(110);
+    expect(detail.byPuuid['u-omar']?.damageSelfMitigated).toBe(30_154);
+
+    // A genuine zero is a zero, and is not the same fact as a missing key.
+    const zeroed = rawFactsFromUnknown({
+      teams: [
+        {
+          teamId: 100,
+          players: [{ puuid: 'u-aram', stats: { VISION_SCORE: 0, TOTAL_DAMAGE_SELF_MITIGATED: 0 } }],
+        },
+      ],
+    });
+    expect(zeroed.byPuuid['u-aram']?.visionScore).toBe(0);
+    expect(zeroed.byPuuid['u-aram']?.damageSelfMitigated).toBe(0);
+  });
+
   it('reads draft bans off match-history teams that have no players', () => {
     const facts = rawFactsFromUnknown({
       teams: [

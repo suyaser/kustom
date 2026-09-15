@@ -67,7 +67,7 @@ export async function GET(request: Request): Promise<Response> {
        * `CUSTOMS_NIGHT_TZ`; without this the post fell back to the built-in default while both
        * pages read the configured zone, so a deployment that set the variable would have got a
        * post naming a different week from the page it links to — most visibly in the six hours
-       * either side of a Monday morning. Read the same way `startLobby`'s handler reads it.
+       * either side of a Sunday morning. Read the same way `startLobby`'s handler reads it.
        */
       timeZone: nightTimeZone(),
     });

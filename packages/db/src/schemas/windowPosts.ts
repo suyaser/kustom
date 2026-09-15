@@ -8,7 +8,7 @@ import { z } from 'zod';
  * response, and two of the five `WindowKind`s the leaderboard is read through
  * (`apps/web/lib/board/window.ts`). The web app pins the third relationship with a
  * `satisfies`, so a sixth window or a renamed one is a typecheck failure and not a row this
- * table quietly refuses at 06:00 on a Monday.
+ * table quietly refuses at 06:00 on a Sunday.
  *
  * Only the closed pair is here. `this-week`, `this-month` and `all-time` are windows a page is
  * read through; they never close, so nothing can ever have posted them.

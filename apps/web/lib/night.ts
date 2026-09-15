@@ -222,13 +222,17 @@ export function nextCivilMidnight(now: Date, timeZone: string = DEFAULT_NIGHT_TI
 /* ---------------------------------------------------------------------------
  * Window boundaries (M5.9): which week and which month a game belongs to.
  *
- * Nobody sees this half of the file. They see `This week` on the leaderboard and the Monday
+ * Nobody sees this half of the file. They see `This week` on the leaderboard and the Sunday
  * post in Discord, and both are only ever as right as these twenty lines. It lives here rather
  * than in `packages/core` for the reason the top of the file already gives: the zone comes
  * from `CUSTOMS_NIGHT_TZ` and core takes no environment.
  *
+ * **The week opens on Sunday** (M5.34, 2026-09-15): the group's week runs Sunday to Thursday —
+ * Egypt's working week — and the ISO Monday this file cut on until then was a default nobody
+ * chose. The anchor day is the only thing that moved; the hour, the night and the month did not.
+ *
  * **A game belongs to the week and the month its `started_at` falls in, by the 06:00
- * boundary** — the night's own boundary (M2.5), for the night's own reason: a Sunday-night
+ * boundary** — the night's own boundary (M2.5), for the night's own reason: a Saturday-night
  * game that starts at 01:40 belongs to the week that is ending, with the rest of that night's
  * games. Windows are half-open, `[start, end)`, and every one of them starts at 06:00 local.
  *
@@ -273,9 +277,16 @@ function addDays(date: CivilDate, days: number): CivilDate {
   };
 }
 
-/** 1 for Monday … 7 for Sunday, of a civil date. No instant and no zone are involved. */
+/**
+ * 1 for Sunday … 7 for Saturday, of a civil date. No instant and no zone are involved.
+ *
+ * **Sunday-first, because the week is** (M5.34). The numbering is the week's anchor day written
+ * once: `weekStart` rolls back `weekdayOf - 1` days and there is no second place that knows
+ * which day opens a week. `getUTCDay()` is already Sunday-first, so this is `+ 1` and the ISO
+ * shuffle that used to be here is gone.
+ */
 function weekdayOf(date: CivilDate): number {
-  return ((new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay() + 6) % 7) + 1;
+  return new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay() + 1;
 }
 
 /** The instant at which the clock in `timeZone` reads 06:00 on this civil date. */
@@ -290,10 +301,10 @@ function dateOfBoundary(boundary: Date, timeZone: string): CivilDate {
 }
 
 /**
- * The Monday 06:00 that opens the week containing `instant`.
+ * The Sunday 06:00 that opens the week containing `instant` (M5.34; it was Monday until then).
  *
  * **One step off `nightStart`, deliberately.** It reads the weekday of the *night's* 06:00
- * boundary, not of the instant: taken from the instant directly, a 02:00 Monday game would
+ * boundary, not of the instant: taken from the instant directly, a 02:00 Sunday game would
  * open a new week six hours before the night it was played in had ended. Same reasoning as
  * M2.5's, for the two games a year somebody actually notices.
  */
@@ -367,7 +378,7 @@ export interface ClosedWindow {
   kind: ClosedWindowKind;
   start: Date;
   end: Date;
-  /** `2026-09-07T03:00:00.000Z` — the `window_start` of the dedupe row. */
+  /** `2026-09-06T03:00:00.000Z` — the `window_start` of the dedupe row. */
   key: string;
 }
 
@@ -394,7 +405,7 @@ export function closedWindow(
 const rangeDayFormatters = new Map<string, Intl.DateTimeFormat>();
 
 /**
- * `Monday 1 Sep`: one end of a week, in the fixed locale and the configured zone.
+ * `Sunday 13 Sep`: one end of a week, in the fixed locale and the configured zone.
  *
  * Same three-letter month cut as {@link formatDayMonth} and for the same reason — `en-GB`'s
  * short month is `Sept` on current ICU and three letters everywhere else, so one range a year
@@ -414,13 +425,13 @@ function formatWeekday(instant: Date, timeZone: string): string {
 }
 
 /**
- * `Monday 1 Sep to Sunday 7 Sep`: a week, named by its first and **last night**.
+ * `Sunday 13 Sep to Saturday 19 Sep`: a week, named by its first and **last night**.
  *
- * `end` is the window's exclusive boundary — the next Monday 06:00 — and the last day named is
- * the night before it, because that Sunday's games run past midnight into the Monday morning
- * this window ends on. Naming the boundary itself would print a Monday nobody played on.
+ * `end` is the window's exclusive boundary — the next Sunday 06:00 — and the last day named is
+ * the night before it, because that Saturday's games run past midnight into the Sunday morning
+ * this window ends on. Naming the boundary itself would print a Sunday nobody played on.
  *
- * The month prints on both ends (`Monday 29 Sep to Sunday 5 Oct`) rather than only when it
+ * The month prints on both ends (`Sunday 27 Sep to Saturday 3 Oct`) rather than only when it
  * changes: a range with one month in it reads as a range with a missing half.
  */
 export function formatWeekRange(start: Date, end: Date, timeZone: string = DEFAULT_NIGHT_TIME_ZONE): string {

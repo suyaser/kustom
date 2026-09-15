@@ -102,7 +102,7 @@ export interface BoardView {
   /** Ordered by `proven` descending. Reading the primary column top to bottom never goes up. */
   rows: BoardRow[];
   /**
-   * The header slot's **range half**, formatted on the server: `Monday 1 Sep to Sunday 7 Sep`,
+   * The header slot's **range half**, formatted on the server: `Sunday 6 Sep to Saturday 12 Sep`,
    * `September`, `Since 8 Sep 2025` (M5.12, the designer's slot).
    *
    * `null` when the window has no counted games, where the slot prints the window's empty

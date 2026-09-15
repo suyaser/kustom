@@ -35,5 +35,15 @@ export {
   rateGameWeekly,
   seedFromRank,
 } from './rating/index';
+export {
+  applyMvpAceBonus,
+  type MvpAce,
+  mvpAce,
+  type PerformancePlayer,
+  type PerformanceScore,
+  type PerformanceStats,
+  performanceScores,
+  type RatingChange,
+} from './rating/performance';
 export { type InferredRoles, inferRoles, type RoleGame } from './roles/infer';
 export { type LobbyStatus, type Rating, ROLES, type Role, type Side } from './types';

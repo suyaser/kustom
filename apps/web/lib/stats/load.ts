@@ -61,7 +61,7 @@ export interface StatsOptions {
   maxGames?: number;
   /**
    * How an award line renders a name and a delta. The page's default is the web's (`−212`,
-   * `05-design.md`'s truncation); the Monday Discord post passes its own, which escapes
+   * `05-design.md`'s truncation); the Sunday Discord post passes its own, which escapes
    * markdown and writes an ASCII minus into a message that gets copy-pasted.
    *
    * **The lines themselves are the same lines** — one renderer of an award, two glyph sets.

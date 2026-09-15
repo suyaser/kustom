@@ -5,7 +5,7 @@ import type { WindowKind } from '@/lib/night';
  * The line under the window picker, on all three pages that have one (M5.12, M5.23).
  *
  * **The slot holds exactly one of two things, never both and never neither** (`05-design.md`,
- * "The window picker"): the window's range and count — `Monday 1 Sep to Sunday 7 Sep · 14
+ * "The window picker"): the window's range and count — `Sunday 6 Sep to Saturday 12 Sep · 14
  * games`, and on `/p/[puuid]` the range half alone — or, when the window has no games, the
  * window's own empty sentence. `· 0 games` is a thing no reader needs told twice.
  *

@@ -15,7 +15,7 @@ function board(overrides: Partial<BoardView> = {}): BoardView {
   return {
     window: 'this-week',
     rows: workedWindowRows(),
-    range: 'Monday 1 Sep to Sunday 7 Sep',
+    range: 'Sunday 6 Sep to Saturday 12 Sep',
     games: 6,
     ...overrides,
   };

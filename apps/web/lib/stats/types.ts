@@ -142,7 +142,7 @@ export interface StreakHolders {
  * One award, rendered: its label, the rule it was won under, and the line — or the sentence
  * nobody qualifying prints.
  *
- * **The same object feeds the page and the Monday Discord post** (M5.10), which is the whole
+ * **The same object feeds the page and the Sunday Discord post** (M5.10), which is the whole
  * reason the awards are rendered in `lib/stats` rather than in a component: the group reads
  * these three lines in the channel and then opens the page to argue with them, and two
  * renderings of one award is a bug nobody would find until the argument.
@@ -186,7 +186,7 @@ export type AwardsView =
 export interface StatsView {
   window: WindowKind;
   /**
-   * The window slot's range half (`September`, `Monday 1 Sep to Sunday 7 Sep`), or `null` when
+   * The window slot's range half (`September`, `Sunday 6 Sep to Saturday 12 Sep`), or `null` when
    * the window holds no counted game — in which case the page prints the window's own empty
    * sentence and draws no section at all (M5.12's slot rule).
    */

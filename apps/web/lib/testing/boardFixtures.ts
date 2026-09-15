@@ -101,7 +101,8 @@ export function workedWindowBoard(window: WindowKind = 'this-week'): BoardView {
     window,
     rows: workedWindowRows(),
     // The week `05-design.md`'s copy table prints, and the count the ten rows add up to.
-    range: window === 'this-month' || window === 'last-month' ? 'September' : 'Monday 1 Sep to Sunday 7 Sep',
+    range:
+      window === 'this-month' || window === 'last-month' ? 'September' : 'Sunday 6 Sep to Saturday 12 Sep',
     games: 6,
   };
 }

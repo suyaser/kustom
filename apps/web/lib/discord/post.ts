@@ -278,7 +278,7 @@ export async function postClosedWindow(
  *
  * **A failed award read is not a failed post.** The board is the message; the awards are three
  * lines under it. If the second read throws, the post goes out as the board alone and the
- * reason is in the log — a Monday with no post at all would be worse than a Monday without
+ * reason is in the log — a Sunday with no post at all would be worse than a Sunday without
  * `Cursed duo`.
  */
 async function loadWindowAwards(

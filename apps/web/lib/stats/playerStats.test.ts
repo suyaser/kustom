@@ -404,7 +404,7 @@ describe('the award line', () => {
     expect(view(games, 'iris', august).awards).not.toContain('Most improved, August.');
   });
 
-  /** A week window says which Monday it was, in product's own form. */
+  /** A week window says which Sunday it was (M5.34), in product's own form. */
   it('says `week of 1 Sep` on a week', () => {
     const games: StatsGame[] = [];
     for (let index = 0; index < 7; index += 1) {
@@ -419,7 +419,7 @@ describe('the award line', () => {
     }
 
     const player = view(games, 'lena', { window: 'last-week', now: new Date('2026-09-10T18:00:00Z') });
-    expect(player.awards).toContain('Most improved, week of 31 Aug.');
+    expect(player.awards).toContain('Most improved, week of 30 Aug.');
   });
 
   /** A running window has handed nothing out, and `All time` never will. */

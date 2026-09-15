@@ -49,6 +49,15 @@ pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune]
                              # last 15 minutes -- which is exactly the case right after a backfill
                              # batch, so pass --force (or wait 15 minutes) then.
                              # Exit 2 means games landed mid-run, so run it again.
+pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
+                             # M7.7 one-off: copies vision score and damage self-mitigated out of
+                             # games.raw onto game_players rows written before migration 0014.
+                             # Only ever fills a null, never overwrites, safe to run twice, and
+                             # reports rows filled plus rows that still have a null in either
+                             # column -- read that second number to know whether M7.8 can trust
+                             # the history. A blob that never carried the numbers, or carried
+                             # one no integer column can hold, leaves them null on purpose
+                             # (null is not zero) and never aborts the run.
 pnpm --filter companion dev  # needs the League client running on this machine (M2.1)
 pnpm --filter companion build:win   # bundle + Node SEA -> apps/companion/dist/Kustom.exe + Kustom.exe.sha256 (from any host; build:exe is an alias)
 pnpm --filter companion build:host  # the same pipeline for this machine's platform, to check the exe before a Windows run

@@ -20,8 +20,8 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  *   read and this folds `lib/stats`'.
  *
  * Rows are namespaced by a run id and deleted afterwards (M3.27's rule). The week below —
- * Monday 6 July 2026 — is this file's alone: `board.integration.test.ts` seeds 1 to 8 June and
- * `stats.integration.test.ts` seeds 4 to 10 May, and all three share one database.
+ * Sunday 5 July 2026 — is this file's alone: `board.integration.test.ts` seeds 31 May to 7 June
+ * and `stats.integration.test.ts` seeds 3 to 9 May, and all three share one database.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -54,7 +54,7 @@ if (stack === null) {
 
   const runId = randomUUID().slice(0, 8);
 
-  /** Wednesday 15 July 2026: `Last week` is then Monday 6 July to Sunday 12 July. */
+  /** Wednesday 15 July 2026: `Last week` is then Sunday 5 July to Saturday 11 July (M5.34). */
   const NOW = new Date('2026-07-15T18:00:00Z');
   const LAST_WEEK = { window: 'last-week', now: NOW, timeZone: 'Africa/Cairo' } as const;
   const ALL_TIME = { window: 'all-time', now: NOW, timeZone: 'Africa/Cairo' } as const;
@@ -138,7 +138,7 @@ if (stack === null) {
         .insert({
           lcu_game_id: Number(`88${runIdNumber()}${index}`),
           season_id: seasonId,
-          // Monday the 6th through Thursday the 9th, inside last week's Monday-06:00 bounds.
+          // Monday the 6th through Thursday the 9th, inside last week's Sunday-06:00 bounds.
           started_at: `2026-07-0${6 + Math.floor(index / 2)}T${index % 2 === 0 ? '19' : '21'}:00:00Z`,
           duration_s: night.durationS,
           // `pn0` is always on blue, so their side won exactly when the fixture says they did.
@@ -308,8 +308,8 @@ if (stack === null) {
         loadPlayerStats(anon, puuidOf('pn1'), LAST_WEEK),
       ]);
 
-      expect(winner.awards).toContain('Most improved, week of 6 Jul.');
-      expect(other.awards).not.toContain('Most improved, week of 6 Jul.');
+      expect(winner.awards).toContain('Most improved, week of 5 Jul.');
+      expect(other.awards).not.toContain('Most improved, week of 5 Jul.');
     });
 
     it('is the mean of their own games, to the minute, and never zero', async () => {
@@ -400,9 +400,9 @@ if (stack === null) {
       /**
        * Acceptance 7 end to end: the week closed, `Pn0` climbed 212 and nobody else moved, so
        * their page — and nobody else's — carries the line. No badge, no icon, no rule: the
-       * award's own three-part line is on `/stats` and in the Monday post.
+       * award's own three-part line is on `/stats` and in the Sunday post.
        */
-      expect(text).toContain('Most improved, week of 6 Jul.');
+      expect(text).toContain('Most improved, week of 5 Jul.');
       expect(text).not.toContain('+212');
       // A partner's name is a link to their page; the puuid is in the href and nowhere a
       // reader reads.

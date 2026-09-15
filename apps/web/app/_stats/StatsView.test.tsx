@@ -161,7 +161,7 @@ describe('the group numbers', () => {
    * those numbers are one `countedGames` length passed from one field, so a count beside two of
    * the statements was the slot retyped a few lines under itself — the same thing this product
    * already refuses twice on `/p/[puuid]`. The slot keeps it byte for byte, because M5.10's
-   * Monday post is that same string.
+   * Sunday post is that same string.
    */
   it('prints the window s game count exactly once, in the slot', () => {
     const { container } = draw(view(busyMonth()));

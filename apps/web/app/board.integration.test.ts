@@ -92,7 +92,7 @@ if (stack === null) {
    * **`All time` is the window M3.5 shipped**, so every assertion pinned before M5.12 reads
    * the board through it and the numbers are byte-identical. The window cases below pass their
    * own `now`, because a board that depended on the wall clock of the machine running the
-   * suite would pass all week and fail on a Monday morning.
+   * suite would pass all week and fail on a Sunday morning.
    */
   const ALL_TIME = { window: 'all-time' } as const;
 
@@ -103,8 +103,8 @@ if (stack === null) {
   const PINNED = [puuid.zoe, puuid.nameless, puuid.ali];
 
   /**
-   * Wednesday 2026-06-10, 21:00 Cairo. This week is Monday the 8th 06:00 to Monday the 15th
-   * 06:00; last week is the 1st to the 8th of June (M5.9).
+   * Wednesday 2026-06-10, 21:00 Cairo. This week is Sunday the 7th 06:00 to Sunday the 14th
+   * 06:00; last week is 31 May to 7 June (M5.9, anchored on Sunday by M5.34).
    *
    * **Deliberately a pair of weeks in the past.** The `All time` block's games are inserted at
    * the wall clock of the run, so a fixture week that could contain "now" would put those
@@ -292,7 +292,7 @@ if (stack === null) {
     }
 
     /**
-     * The window pair's three games, at **fixed** instants either side of a Monday 06:00
+     * The window pair's three games, at **fixed** instants either side of a Sunday 06:00
      * boundary (M5.9): two last week and one this week, relative to {@link NOW}. Wren climbs
      * 25 → 25.6 → 25.2 → 25.8; Otto is on the other side of all three.
      */
@@ -451,7 +451,7 @@ if (stack === null) {
 
     /**
      * **The board as it stood when the week closed.** Wren finished last week on `mu` 25.2 and
-     * has played since; `Last week` must still say 25.2, which is what makes the Monday post
+     * has played since; `Last week` must still say 25.2, which is what makes the Sunday post
      * reproducible on Tuesday and after a late backfill.
      */
     it('is each player as of their last counted game inside the window', async () => {
@@ -519,7 +519,7 @@ if (stack === null) {
     it('names the window and counts its games', async () => {
       const week = await loadBoard(anon, { window: 'last-week', ...WEEK });
 
-      expect(week.range).toBe('Monday 1 Jun to Sunday 7 Jun');
+      expect(week.range).toBe('Sunday 31 May to Saturday 6 Jun');
       // Two games last week; the third is in the running one.
       expect(week.games).toBe(2);
 
@@ -558,7 +558,7 @@ if (stack === null) {
 
       expect(player).toMatchObject({ window: 'last-week', games: 2, wins: 1, losses: 1 });
       // The range half, alone: the record beside it already carries the count.
-      expect(player.range).toBe('Monday 1 Jun to Sunday 7 Jun');
+      expect(player.range).toBe('Sunday 31 May to Saturday 6 Jun');
       // As of their last game inside the week, not where they are today.
       expect(player.rating).toBe(1_512);
       // The rating carried **into** the window, labelled `start` on the chart.

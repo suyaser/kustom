@@ -275,7 +275,7 @@ export const CURRENT_STREAK = 'Current streak';
  * an award in a closed window (product, `05-design.md`'s copy table, 2026-09-10).
  *
  * **No badge and no icon**, and no rule, no delta and no percentage: the award's own line, with
- * all of that in it, is on `/stats` and in the Monday post. This says which award and which
+ * all of that in it, is on `/stats` and in the Sunday post. This says which award and which
  * calendar, and the reader taps through for the rest.
  *
  * The label is the award's own (`MOST_IMPROVED`, `BEST_OFF_ROLE`, `CURSED_DUO`), so the three
@@ -289,8 +289,8 @@ export function awardWonLine(label: string, period: string): string {
  * `week of 1 Sep` — the second half of that line on the two week windows (product's `week of 1
  * Sep`, from the copy table; the month form is `formatMonthName`'s `September`, unwrapped).
  *
- * The day is the window's own Monday, formatted on the server in the fixed locale and the
- * configured zone like every other date on a public page.
+ * The day is the window's own Sunday (M5.34), formatted on the server in the fixed locale and
+ * the configured zone like every other date on a public page.
  */
 export function weekOfLabel(day: string): string {
   return `week of ${day}`;

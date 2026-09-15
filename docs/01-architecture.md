@@ -68,7 +68,8 @@ games          (id, lcu_game_id unique, lobby_id null, season_id, started_at, du
                 source 'eog' | 'backfill', raw jsonb, created_at)
 game_players   (game_id, player_id, side, role null, champion_id, kills, deaths, assists, gold, damage_to_champs,
                 cs, mu_before null, sigma_before null, mu_after null, sigma_after null,
-                counts_for_role_inference)                      -- 0010, M5.17
+                counts_for_role_inference,                      -- 0010, M5.17
+                vision_score null, damage_self_mitigated null)  -- 0014, M7.7
 companion_tokens (id, player_id, token_hash, label, last_seen_at, revoked_at null, created_at)
 companion_commands (id, target_player_id, kind, payload jsonb, status, created_at, acked_at,
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
@@ -117,6 +118,19 @@ Rules:
   `"[redacted]"` (M2.10). Every derived column can be recomputed from it.
 - `game_players` rating columns are nullable: the API inserts the game and its ten players, then rates, and a
   rebuild (M5.2) overwrites them.
+- `game_players.vision_score` and `damage_self_mitigated` are nullable **with no default** (0014, M7.7), and the
+  null is the point: it means "this game never stored it", which is a different fact from a game with no wards
+  or a tank who mitigated nothing, and M7.8's MVP / ACE bonus skips a game rather than scoring somebody at
+  zero for a number nobody kept. Ingest reads both off the posted `raw` block — uppercase key first
+  (`VISION_SCORE`, `TOTAL_DAMAGE_SELF_MITIGATED`), camelCase as the fallback (`visionScore`,
+  `damageSelfMitigated`), which covers the live end-of-game block and the backfilled match detail — so no
+  companion release is owed for them. Both writers pass every number through `storedStat`
+  (`apps/web/lib/ingest/statValue.ts`) first, and that is not belt and braces for the column's `>= 0` check: the
+  `games` row is written before `game_players`, so a value Postgres refuses — a negative, or one past int4,
+  which no check could see — 500s the request on every retry and leaves the game stored, unratable and stuck. A
+  number we cannot store honestly becomes null, exactly like a key that was never there. `pnpm --filter web
+  copy-raw-stats` is the one-off that fills rows written before 0014 from the same blob; it only ever fills a
+  null, is safe to run twice, and reports how many rows still have a null in either column.
 - `splits` keeps the top three for every balance run so the explanation and reroll are reproducible. A rebalance
   appends a new set of three rather than replacing the old one, and a partial unique index allows at most one
   `is_chosen` split per lobby. `explanation` is the string core built; the embed and the tonight page render it,
@@ -212,6 +226,53 @@ trading wins and losses, `sigma` climbs instead of falling (10.5 after one game,
 A skipped `TARGET` test in `rating/index.test.ts` records the original "settles in five games" target against the
 measured counts, so the gap stays visible instead of looking closed.
 
+### The performance score and the MVP / ACE bonus (M7.8)
+
+`rating/performance.ts` is three pure functions — `performanceScores`, `mvpAce`, `applyMvpAceBonus` — over one
+game's own numbers. **MVP** is the highest-scoring player on the winning team, **ACE** the highest-scoring player
+on the losing team; those are op.gg's terms for op.gg's idea, whose formula is proprietary and unpublished, so
+this one is a documented community approximation and a tunable like every other number in `config.ts`.
+
+Six components, weighted, in `config.rating.performance`:
+
+| component | weight |
+|---|---|
+| KDA | 0.10 |
+| damage to champions | 0.20 |
+| gold | 0.20 |
+| vision score | 0.25 |
+| damage self-mitigated | 0.15 |
+| CS | 0.10 |
+
+They sum to 1.00. **Each component is normalised inside the game**: a player's value divided by the best of the
+ten for that component, so every term is in `[0, 1]` and gold does not swamp KDA by being a four-digit number.
+KDA is `(kills + assists) / max(1, deaths)`. A component whose game-wide maximum is zero contributes zero to
+everybody rather than dividing by zero. A score is therefore in `[0, 1]` and is comparable **only inside its own
+game**, which is all MVP and ACE need. The six are summed in the table's order, which is part of the pinned
+arithmetic. Ties go to the lower puuid, never to the array's order.
+
+The adjustment is applied **after** `rateGame` (or `rateGameWeekly`) and never inside it, so the base rating maths
+stays untouched and independently testable — `applyMvpAceBonus` takes the fold's `{ puuid, before, after }` and
+gives back the same ten. With `delta = after.mu - before.mu`:
+
+- MVP: `mu' = before.mu + delta * (1 + config.rating.mvp.bonusFraction)`, default **0.25**, so **1.25x**.
+- ACE: `mu' = before.mu + delta * (1 - config.rating.mvp.aceReliefFraction)`, default **0.20**, so **0.80x**. The
+  ACE's delta is negative, so this shrinks a loss and never turns one into a gain.
+- Everybody else is untouched, and **`sigma` is never touched by any of this** — Proven must keep meaning "how sure
+  the model is", and certainty is not something you earn by farming vision.
+
+The bound is the construction: both factors are positive and fixed, so the sign of a delta never flips and no term
+is unbounded. A winner always gains; a loser always loses.
+
+**If any of the six components is missing for any of the ten** — a game stored before M7.7, a blob that never
+carried vision, a `null`, a `NaN` — there is **no MVP and no ACE** (`mvpAce` returns `null`) and the game is rated
+exactly as it was before M7.8. There is no partial scoring: it would rank a player who has a vision score against
+one who does not.
+
+The worked example's ten (`docs/00-product.md`, blue winning) score Bilal 0.7000, Lena 0.5875, Hana 0.5625, Rami
+0.5500, Iris and Nadia 0.5000, Theo 0.4125, Omar 0.2750, Karim 0.2500, Yuki 0.0000 — so Bilal is the MVP and Lena
+the ACE, pinned in `rating/performance.test.ts`.
+
 ## Balancer (`packages/core/balance`)
 
 Input: ten players with `{ mu, mainRole, secondaryRole, roleOverride? }`, optional duo locks, the previous night's
@@ -221,9 +282,36 @@ split. Output: top three splits with role assignments and explanation.
   tonight counts as main for that role only.
 - Enumerate all 126 distinct 5/5 partitions. For each team, choose the role assignment (120 permutations) that
   maximizes effective skill minus off-role penalty. 126 x 2 x 120 evaluations, well under 100 ms.
-- `score = |sum(blueEff) - sum(redEff)| + 120 * offRoleCount + 200 * isRepeatOfLastSplit + inf * duoSeparated`
-  (in display-rating units, so divide `mu` sums by 1/60 or apply the weights in `mu` units, either is fine as long
-  as tests pin it).
+- `score = |sum(blueEff) - sum(redEff)| + sum(off-role cost of each filled seat) + 200 * isRepeatOfLastSplit +
+  inf * duoSeparated` (in display-rating units, so divide `mu` sums by 1/60 or apply the weights in `mu` units,
+  either is fine as long as tests pin it). One filled seat costs 120 unless fill protection scales it.
+- **Fill protection** (M7.5). One off-role seat is priced per player, from how recently the balancer last filled
+  them:
+
+  ```
+  cost(player) = config.balance.offRolePenalty * (1 + config.balance.fillProtectionFactor / (gamesSinceLastFill + 1))
+  ```
+
+  with `offRolePenalty` 120 and `fillProtectionFactor` **1.0**: 240 display points for somebody filled in their
+  last game, 180 one game later, 150 after three, 132 after nine, decaying back to the flat 120. `gamesSinceLastFill`
+  is a per-player input on `BalancePlayer` (`number | null`); `null`, absent, or not a finite number — never filled,
+  or no history to read — is the flat 120, which is M1.4's behaviour unchanged, and the worked example does not move.
+  A negative number reads as 0, so the term is bounded by `1 + fillProtectionFactor` and 240 is the maximum.
+  `packages/core` never reads a database: the caller computes the number from
+  `game_players.counts_for_role_inference = false` over the player's last twenty counted games (M7.6).
+  **The price is charged in both places, from one per-player number**: `assignRoles`, which picks a team's role
+  permutation, and the split score, which ranks partitions. Scaling one and not the other prices a seat one way
+  and ranks the split another. A flexible player (`mainRole: null`) is never off-role, so protection never touches
+  them. It is a soft cost and never a block: a lobby with one jungler still gets split, that player still takes the
+  seat, and `offRoleCount` still counts them. Two things bound it, and only these two: the most protection ever adds
+  to one seat is `offRolePenalty` (120, at `gamesSinceLastFill` 0), and a split-level **tie** still falls through to
+  the lower `offRoleCount` in `compareSplits`. It is **not** true that protection can only change *who* is filled
+  and never *how many* are. Splits differ in raw gap as well as in fill cost, so a protected player can tip the
+  ranking onto a split with a different `offRoleCount`: in one measured lobby, protecting a player moved the chosen
+  split from 2 fills at gap 83 to 3 fills at gap 23 — the balancer bought a fairer game with a third fill. Two
+  sweeps of 4,000 random ten-player lobbies put the rate at 1.35% and 1.07% (both directions counted; the exact
+  figure depends on how the lobbies are generated). Treat `offRoleCount` as free to move when reasoning about a
+  tuning change.
 - `blueWinProb` from OpenSkill `predictWin` on the actual `{ mu, sigma }` values.
 - Explanation string is built in core. Split 1 of the worked example (`00-product.md`, full arithmetic in
   `02-milestones.md` M1.4) reads: `"Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and

@@ -40,7 +40,7 @@ import type {
  *
  * **They are computed at request time and never stored.** A late backfill or a rebuild then
  * corrects an award instead of freezing a wrong one in a table forever — which is also what
- * makes the Monday Discord post and the page it links to agree a week later.
+ * makes the Sunday Discord post and the page it links to agree a week later.
  *
  * **They appear only on a window that has closed.** `Last week` and `Last month` have them;
  * `This week` and `This month` print one line instead, because an award that changes every

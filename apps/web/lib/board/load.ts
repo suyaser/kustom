@@ -247,7 +247,7 @@ async function firstCountedGameAt(client: PublicClient, seasonId: string): Promi
  * counted game in it** (M5.12).
  *
  * On `Last week` that is the board as it stood when the week closed, which is what makes the
- * Monday post reproducible on Tuesday and after a late backfill. On `This week` it is also
+ * Sunday post reproducible on Monday and after a late backfill. On `This week` it is also
  * their current rating, because their last game in the running week *is* their last game — one
  * rule, no special case.
  *
