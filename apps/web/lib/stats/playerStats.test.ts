@@ -404,7 +404,13 @@ describe('the award line', () => {
     expect(view(games, 'iris', august).awards).not.toContain('Most improved, August.');
   });
 
-  /** A week window says which Sunday it was (M5.34), in product's own form. */
+  /**
+   * A week window says which Sunday it was (M5.34), in product's own form.
+   *
+   * This fixture hands over no weekly seeds, so the climb under it is the stored one — which is
+   * the whole of what this test is about: the **line**, not the track. Who wins a week on the
+   * weekly track is M7.4's, in `awards.test.ts` and in the two integration files.
+   */
   it('says `week of 1 Sep` on a week', () => {
     const games: StatsGame[] = [];
     for (let index = 0; index < 7; index += 1) {

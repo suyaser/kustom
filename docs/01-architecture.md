@@ -186,9 +186,16 @@ OpenSkill, default Plackett-Luce model, two teams of five.
 There are two folds of the same model and no more. `rateGame` is the all-time channel: it forms teams, it is what
 `game_players` stores, and its numbers are pinned byte for byte by a test — it passes OpenSkill no options, so a
 tuning change can never reach it by accident. `rateGameWeekly` is the weekly channel (M7.2): the same signature,
-five and five in and out, throwing on anything else, tuned by `config.rating.weekly` and used only by the
-`this-week` / `last-week` board, which folds it from scratch from the rank seed over that week's games (M7.3). It
+five and five in and out, throwing on anything else, tuned by `config.rating.weekly` and read only through
+`apps/web/lib/board/weekly.ts`, which folds it from scratch from the seed over one week's games (M7.3). It
 never forms teams, is never persisted, and nothing under `apps/web/lib/ingest/` may import it.
+
+Two surfaces read that fold and they are the two halves of one Sunday post: the `this-week` / `last-week` board,
+and **`Most improved` on a week window** (M7.4) — the award is the player's weekly seed to where the week left
+them, which is "who beat their rank hardest this week" instead of a difference of two stored `mu` columns that a
+month of history barely moves. Both ends are `mu`-derived, so the award never reads `sigma` and a week's climb is
+still the subtraction of two printed numbers. Month windows keep the stored climb for ever, and the award's two
+neighbours (`Best off-role`, `cursed duo`) read games and roles and no rating at all.
 
 | | `beta` (luck in one game) | `tau` (uncertainty added back per game) |
 | --- | --- | --- |

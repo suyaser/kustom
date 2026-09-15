@@ -1,11 +1,13 @@
 import type { RoleValue, SideValue } from '@customs/db';
+import { isWeekWindow } from '../board/weekly';
 import { inChunks } from '../chunks';
 import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, type QueueKind } from '../games/queue';
 import type { GamesHistoryView } from '../games/types';
 import { gamesHistoryView } from '../games/view';
+import { readSeed, type StoredSeed, seedFor } from '../ingest/seed';
 import { type WindowKind, type WindowRange, windowRange } from '../night';
 import type { PublicClient } from '../publicClient';
-import type { AwardRender } from './awards';
+import type { AwardRender, WeeklySeeds } from './awards';
 import { countedGames, playerStreaks } from './fold';
 import { assembleFunFacts } from './funView';
 import { playerStatsView } from './player';
@@ -173,11 +175,23 @@ async function readWindow(
     client,
     newest.map((game) => game.id),
   );
-  const players = await loadPlayers(
+  const people = await loadPlayers(
     client,
     rows.map((row) => row.playerId),
   );
+  const players = people.players;
   const roster = new Map(players.map((player) => [player.playerId, player]));
+
+  /**
+   * **The week's starting line** (M7.4), read on the two week windows and on no other.
+   *
+   * `Most improved` measures a week on the weekly track, which begins at the seed the all-time
+   * fold started this player's history from — `lib/ingest/seed.ts`'s rule, the same one
+   * `lib/board/load.ts` applies to the week's board — so the award and the board half of one
+   * Sunday post start the week from one number. A month window reads none of this and makes no
+   * extra query.
+   */
+  const seeds = isWeekWindow(window) ? await loadWeeklySeeds(client, players, people.ranks) : undefined;
 
   const byGame = new Map<string, StatsRow[]>();
   for (const row of rows) {
@@ -207,7 +221,7 @@ async function readWindow(
     rows: byGame.get(game.id) ?? [],
   }));
 
-  return { window, games, players, range, capped, cap, timeZone: options.timeZone };
+  return { window, games, players, range, capped, cap, timeZone: options.timeZone, seeds };
 }
 
 /** What one window's read comes back with, before anything counts it. */
@@ -370,13 +384,14 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
  * Read **by the ids on the scoreboards**, never as "everybody": this page is about the people
  * who played in the window, and a player who has never played is in none of its numbers.
  */
-async function loadPlayers(client: PublicClient, playerIds: readonly string[]): Promise<StatsPlayer[]> {
+async function loadPlayers(client: PublicClient, playerIds: readonly string[]): Promise<RosterRead> {
   const players: StatsPlayer[] = [];
+  const ranks = new Map<string, RankPair>();
 
   for (const chunk of inChunks(playerIds)) {
     const { data, error } = await client
       .from('players_public')
-      .select('id, puuid, display_name, game_name, main_role')
+      .select('id, puuid, display_name, game_name, main_role, rank_tier, rank_division')
       .in('id', chunk);
     if (error) throw new Error(`stats: player lookup failed: ${error.message}`);
 
@@ -389,9 +404,109 @@ async function loadPlayers(client: PublicClient, playerIds: readonly string[]): 
         name: row.display_name ?? row.game_name ?? null,
         mainRole: row.main_role,
       });
+      ranks.set(row.id, { rankTier: row.rank_tier, rankDivision: row.rank_division });
     }
   }
-  return players;
+  return { players, ranks };
+}
+
+/** The rank the client last read for somebody. Both `null` is unranked, which is an answer. */
+interface RankPair {
+  rankTier: string | null;
+  rankDivision: string | null;
+}
+
+/**
+ * The roster, and the ranks beside it.
+ *
+ * The ranks stay **out of {@link StatsPlayer}** on purpose: nothing this page prints is a rank,
+ * and the one thing that reads them is the week's seed fallback below. Carrying them here keeps
+ * that one read from being a second trip to `players_public`.
+ */
+interface RosterRead {
+  players: StatsPlayer[];
+  ranks: Map<string, RankPair>;
+}
+
+/**
+ * Where each of the window's players started their week (M7.4), keyed by `players.id`.
+ *
+ * **The stored seed, and their current rank only when there is none** — `seedFor`, M5.7's rule,
+ * which is why `Last week` reads the same on Tuesday as it did on Sunday and reads the same again
+ * after somebody's rank moves. It is the rule `lib/board/load.ts` applies to the same week, so
+ * the award and the board cannot disagree about where a week began.
+ *
+ * A database with no season row has no games and therefore no week; the seeds are then every
+ * player's rank, which nothing will fold anything over.
+ */
+async function loadWeeklySeeds(
+  client: PublicClient,
+  players: readonly StatsPlayer[],
+  ranks: ReadonlyMap<string, RankPair>,
+): Promise<WeeklySeeds> {
+  const seasonId = await selectSeasonId(client);
+  const stored =
+    seasonId === null
+      ? new Map<string, StoredSeed>()
+      : await loadStoredSeeds(
+          client,
+          seasonId,
+          players.map((player) => player.playerId),
+        );
+
+  return new Map(
+    players.map((player) => {
+      const rank = ranks.get(player.playerId);
+      const seed = seedFor(
+        stored.get(player.playerId) ?? null,
+        rank?.rankTier ?? null,
+        rank?.rankDivision ?? null,
+      );
+      return [player.playerId, seed.rating];
+    }),
+  );
+}
+
+/**
+ * The one season row's id, or `null` for a database that is missing it.
+ *
+ * Spelled again here rather than exported from `lib/board/load.ts`, which keeps its queries
+ * private — the same latitude {@link withRange} takes, and for the same reason: two small reads
+ * of a table with one row in it cannot drift, and an export would be a seam between two loaders.
+ */
+async function selectSeasonId(client: PublicClient): Promise<string | null> {
+  const { data, error } = await client
+    .from('seasons')
+    .select('id')
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`stats: season lookup failed: ${error.message}`);
+  return data?.id ?? null;
+}
+
+/** The four seed columns of a set of `ratings` rows. A player with no row has no stored seed. */
+async function loadStoredSeeds(
+  client: PublicClient,
+  seasonId: string,
+  playerIds: readonly string[],
+): Promise<Map<string, StoredSeed>> {
+  const seeds = new Map<string, StoredSeed>();
+
+  for (const chunk of inChunks(playerIds)) {
+    const { data, error } = await client
+      .from('ratings')
+      .select('player_id, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
+      .eq('season_id', seasonId)
+      .in('player_id', chunk);
+    if (error) throw new Error(`stats: seed lookup failed: ${error.message}`);
+
+    for (const row of data ?? []) {
+      const seed = readSeed(row);
+      if (seed !== null) seeds.set(row.player_id, seed);
+    }
+  }
+  return seeds;
 }
 
 /**

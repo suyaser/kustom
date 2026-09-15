@@ -1,6 +1,6 @@
 import { windowRangeLabel } from '../board/window';
 import type { WindowKind, WindowRange } from '../night';
-import { type AwardRender, awardsView, WEB_AWARD_RENDER } from './awards';
+import { type AwardRender, awardsView, WEB_AWARD_RENDER, type WeeklySeeds } from './awards';
 import { DUOS_SHOWN } from './copy';
 import {
   averageGameMinutes,
@@ -39,6 +39,12 @@ export interface StatsInput {
   timeZone?: string | undefined;
   /** The web's glyphs by default; the Sunday post passes Discord's. */
   awardRender?: AwardRender | undefined;
+  /**
+   * Where each player's week started (M7.4), keyed by `players.id`. The loader reads it on the
+   * two week windows and on no other, because `Most improved` is the one number on this page
+   * that a week measures on the weekly track.
+   */
+  seeds?: WeeklySeeds | undefined;
 }
 
 export function statsView(input: StatsInput): StatsView {
@@ -83,6 +89,6 @@ export function statsView(input: StatsInput): StatsView {
     longestWin: longestStreak(streaks, 'W'),
     longestLoss: longestStreak(streaks, 'L'),
     onAStreak: onAStreak(streaks),
-    awards: awardsView(input.window, counted, players, input.awardRender ?? WEB_AWARD_RENDER),
+    awards: awardsView(input.window, counted, players, input.awardRender ?? WEB_AWARD_RENDER, input.seeds),
   };
 }

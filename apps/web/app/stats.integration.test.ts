@@ -95,6 +95,32 @@ if (stack === null) {
       playerIds.set(row.puuid.replace(`it-${runId}-`, ''), row.id);
     }
 
+    /**
+     * **Where `St0`'s history began** (M5.7), and the one thing that makes this week's awards a
+     * question with an answer (M7.4).
+     *
+     * `Most improved` on a week is the weekly climb: everybody starts the week at their seed and
+     * `rateGameWeekly` folds the week's games. The other nine have no `ratings` row, so their
+     * week starts at the rank on their `players` row — Gold IV, `1380`. `St0`'s starts at the
+     * **stored** seed, which was taken when they were unranked and is not their rank today:
+     * `1200`, the number the fold actually built their history on. The extra uncertainty in that
+     * seed is why five people with one week's results have five different climbs and this award
+     * has a single winner.
+     */
+    const { error: ratingError } = await db.from('ratings').insert({
+      player_id: playerIds.get('st0') as string,
+      season_id: seasonId,
+      mu: 24.6333333,
+      sigma: 5,
+      games: 6,
+      wins: 5,
+      seed_mu: 20,
+      seed_sigma: 10,
+      seed_rank_tier: null,
+      seed_rank_division: null,
+    });
+    expect(ratingError).toBeNull();
+
     for (let index = 0; index < GAMES; index += 1) {
       const { data: row } = await db
         .from('games')
@@ -127,8 +153,9 @@ if (stack === null) {
           player_id: playerIds.get(seat.key) as string,
           side: seat.side,
           role: seat.role,
-          // `St0` climbs 1266 → 1478 across the week; everybody else stands still, so the
-          // window has exactly one most improved.
+          // `St0` climbs 1266 → 1478 on the **stored** track across the week and everybody
+          // else stands still. Since M7.4 that is the month windows' number: a week's awards
+          // read the weekly track, which starts from the seed above.
           ...ratings(seat.key, index),
         })),
       );
@@ -197,14 +224,26 @@ if (stack === null) {
       expect(stats.longestLoss?.length).toBe(5);
     });
 
-    /** A closed week has its three awards, computed from the same rows the page counted. */
+    /**
+     * A closed week has its three awards, computed from the same rows the page counted.
+     *
+     * **`Most improved` is the weekly climb** (M7.4): `St0`'s seed to where the week left them,
+     * `1200 → 1392`, folded from the six counted games with `rateGameWeekly`. The stored
+     * `mu_before` / `mu_after` columns on those rows say `1266 → 1478` and are the all-time
+     * track's answer — this award does not read them on a week, and a diff that brings `+212`
+     * back here is a diff that undid M7.4.
+     */
     it('hands the closed week its three awards', async () => {
       const stats = await loadStats(anon, LAST_WEEK);
 
       expect(stats.awards?.kind).toBe('closed');
       const blocks = stats.awards?.kind === 'closed' ? stats.awards.blocks : [];
       expect(blocks.map((block) => block.label)).toEqual(['Most improved', 'Best off-role', 'Cursed duo']);
-      expect(blocks[0]?.lines.map((line) => line.text)).toEqual(['St0 · +212 · 1266 → 1478']);
+      expect(blocks[0]?.lines.map((line) => line.text)).toEqual(['St0 · +192 · 1200 → 1392']);
+      // The rule line is M5.4's, unchanged by the track it is measured on (M7.4, acceptance 3).
+      expect(blocks[0]?.rule).toBe(
+        'Biggest climb in Rating from a first game to a last one, over at least 6 games.',
+      );
       // `St6`'s main is top and they played jungle all week: six off-role games, one win.
       expect(blocks[1]?.lines.map((line) => line.text)).toEqual(['St6 · 1W 5L · 17% · their main is top']);
       expect(blocks[1]?.note).toBe('Players with no main role are not in this one — every role is theirs.');
@@ -246,7 +285,7 @@ if (stack === null) {
       expect(text).toContain('Sunday 3 May to Saturday 9 May · 6 games');
       expect(text).toContain('Blue wins 83% of the time.');
       expect(text).toContain('Average game 30 min.');
-      expect(text).toContain('St0 · +212 · 1266 → 1478');
+      expect(text).toContain('St0 · +192 · 1200 → 1392');
       // The puuid is in the href of every name; nothing a reader reads carries one.
       expect(html).toContain(`/p/${puuidOf('st0')}`);
       expect(text).not.toContain(puuidOf('st0'));

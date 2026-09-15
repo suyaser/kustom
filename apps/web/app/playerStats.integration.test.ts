@@ -301,11 +301,19 @@ if (stack === null) {
       expect(all).not.toContain('Pn9');
     });
 
-    /** Acceptance 7: the winner's page says so, and nobody else's does. */
+    /**
+     * Acceptance 7: the winner's page says so, and nobody else's does.
+     *
+     * **The winner is the week's own climb** (M7.4): `Pn4` spent four nights on blue and three
+     * on red and finished 6W 1L, which is the best week anybody had here, so the weekly fold
+     * puts them furthest above their seed. `Pn0`'s stored columns moved 1266 → 1478 in the same
+     * week and are not read on a week window at all — they are 3W 4L, and a week's award is
+     * about the week.
+     */
     it('gives the most improved line to the one who climbed, and to nobody else', async () => {
       const [winner, other] = await Promise.all([
+        loadPlayerStats(anon, puuidOf('pn4'), LAST_WEEK),
         loadPlayerStats(anon, puuidOf('pn0'), LAST_WEEK),
-        loadPlayerStats(anon, puuidOf('pn1'), LAST_WEEK),
       ]);
 
       expect(winner.awards).toContain('Most improved, week of 5 Jul.');
@@ -398,17 +406,38 @@ if (stack === null) {
       expect(text).toContain('L3');
       expect(text).toContain('Average game 31 min.');
       /**
-       * Acceptance 7 end to end: the week closed, `Pn0` climbed 212 and nobody else moved, so
-       * their page — and nobody else's — carries the line. No badge, no icon, no rule: the
-       * award's own three-part line is on `/stats` and in the Sunday post.
+       * **`Pn0` won nothing this week** (M7.4): they went 3W 4L, and the award a week hands out
+       * is the weekly climb. Their page draws no award line, which is the same rule read from
+       * the other end — this line is only ever on the page of somebody the group's award names.
        */
-      expect(text).toContain('Most improved, week of 5 Jul.');
+      expect(text).not.toContain('Most improved');
+      // And never the delta: the award's own three-part line is on `/stats` and in the post.
       expect(text).not.toContain('+212');
       // A partner's name is a link to their page; the puuid is in the href and nowhere a
       // reader reads.
       expect(html).toContain(`/p/${puuidOf('pn1')}`);
       expect(text).not.toContain(puuidOf('pn0'));
       expect(text).not.toContain('NaN');
+    });
+
+    /**
+     * Acceptance 7 end to end, on the page of the person who won it: one line, which award and
+     * which week, and nothing else about it. No badge, no icon, no rule and no delta — the
+     * award's own three-part line is on `/stats` and in the Sunday post (M5.20's copy table).
+     */
+    it('carries the award line on the page of whoever won the week', async () => {
+      const [board, stats] = await Promise.all([
+        loadPlayerBoard(anon, puuidOf('pn4'), LAST_WEEK),
+        loadPlayerStats(anon, puuidOf('pn4'), LAST_WEEK),
+      ]);
+      const player = found(board);
+      const text = renderToStaticMarkup(createElement(PlayerView, { player, stats })).replace(
+        /<[^>]*>/g,
+        ' ',
+      );
+
+      expect(text).toContain('Most improved, week of 5 Jul.');
+      expect(text).not.toContain('Biggest climb in Rating');
     });
 
     it('draws no section at all on a window this player did not play', async () => {

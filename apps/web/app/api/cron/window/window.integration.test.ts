@@ -167,9 +167,12 @@ if (stack === null) {
    * A week with enough in it to hand out awards (M5.4): six games, the same ten, the sides
    * rotating so the pairs and the roles vary the way a real week does.
    *
-   * `Window0` climbs `1266 → 1478` — `mu` 21.1 to 24.6333, the numbers the pages would have
-   * printed — and everybody else stands still, so most improved has exactly one winner.
-   * `Window1`'s main is top and they play jungle all week, which is the off-role award.
+   * `Window0` climbs `1266 → 1478` on the **stored** track — `mu` 21.1 to 24.6333, the numbers
+   * the pages would have printed — and everybody else stands still. Since M7.4 a week's
+   * `Most improved` is not read off those columns: the rotation is what decides it, because the
+   * weekly fold starts all ten at their seed and the winner is whoever the six games left
+   * furthest above it. `Window1`'s main is top and they play jungle all week, which is the
+   * off-role award.
    */
   async function seedAwardsGame(startedAt: Date, index: number): Promise<void> {
     const lcuGameId = Math.floor(Math.random() * 1_000_000_000) + 7_000_000_000;
@@ -367,8 +370,18 @@ if (stack === null) {
         '**Cursed duo**',
       ]);
 
-      // Window0 is the only player whose rating moved: `round(24.6333 * 60) - round(21.1 * 60)`.
-      expect(labelled[0]).toBe('**Most improved** Window0 · +212 · 1266 → 1478');
+      /**
+       * **The weekly numbers, in the post** (M7.4). `Most improved` on a week is the weekly
+       * track: everybody starts the week at their seed — these ten are unranked, so `1200` —
+       * and `rateGameWeekly` folds the six games, which leaves `Window4` furthest above where
+       * their week began.
+       *
+       * The stored `mu` columns on those same rows say `Window0` went `1266 → 1478`, which is
+       * the all-time track's answer and the one the month post prints. If that line ever comes
+       * back on a Sunday, a week is being posted with an all-time number in it.
+       */
+      expect(labelled[0]).toBe('**Most improved** Window4 · +192 · 1200 → 1392');
+      expect(fields[1]?.value).not.toContain('1266 → 1478');
       // Window1's main is top and they played jungle in all six.
       expect(labelled[1]).toMatch(/^\*\*Best off-role\*\* Window1 · \d+W \d+L · \d+% · their main is top$/);
       // Whoever it is, the pair line is a pair and a record — or the sentence nobody won it.
@@ -377,6 +390,23 @@ if (stack === null) {
       );
       // ASCII in a message that gets copy-pasted: U+2212 stays on the web (05-design.md).
       expect(fields[1]?.value).not.toContain('−');
+
+      /**
+       * **M7.4, acceptance 4**: replay the Sunday and the group still sees the week once.
+       *
+       * The weekly climb is folded at read time rather than stored, so the thing to be sure of
+       * is that a second call neither posts a second message nor writes a second row, and that
+       * the message standing in the channel still carries the numbers the first read produced.
+       */
+      const again = await callAt(new Date(AWARDS_SUNDAY.getTime() + 60 * 60 * 1_000));
+      expect(again).toEqual({
+        ok: true,
+        posted: [],
+        skipped: [{ kind: 'last-week', reason: 'already posted' }],
+      });
+      expect(posts).toHaveLength(1);
+      expect(await rowsFor(closedWindow('last-week', AWARDS_SUNDAY, TIME_ZONE))).toHaveLength(1);
+      expect(((embedOf(0)?.fields ?? []) as { value: string }[])[1]?.value).toBe(fields[1]?.value);
     });
   });
 

@@ -1,5 +1,5 @@
 import { formatDayMonth, formatMonthName, type WindowKind, type WindowRange } from '../night';
-import { awardPeriod, awardsView, WEB_AWARD_RENDER } from './awards';
+import { awardPeriod, awardsView, WEB_AWARD_RENDER, type WeeklySeeds } from './awards';
 import { awardWonLine, weekOfLabel } from './copy';
 import {
   averageGameMinutes,
@@ -49,6 +49,12 @@ export interface PlayerStatsInput {
   capped: boolean;
   cap: number;
   timeZone?: string | undefined;
+  /**
+   * The week's seeds (M7.4), straight from the same loader read. This page hands out no award of
+   * its own — it reads whether the group's award names this person — so the one thing it must not
+   * do is compute `Most improved` over a different track from `/stats` and name somebody else.
+   */
+  seeds?: WeeklySeeds | undefined;
 }
 
 export function playerStatsView(input: PlayerStatsInput): PlayerStatsView {
@@ -200,7 +206,7 @@ function asPair(record: StatsRecord): DuoRecord {
  * `This week`, `This month` and `All time` hand out nothing, so they print nothing here.
  */
 function awardsWon(input: PlayerStatsInput, counted: readonly StatsGame[]): string[] {
-  const awards = awardsView(input.window, counted, input.players, WEB_AWARD_RENDER);
+  const awards = awardsView(input.window, counted, input.players, WEB_AWARD_RENDER, input.seeds);
   if (awards === null || awards.kind !== 'closed') return [];
 
   const period = awardPeriodLabel(input);
