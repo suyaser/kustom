@@ -382,6 +382,26 @@ read-time fold over the same *games* — it only ever sees seats the all-time fo
 `rateGameWeekly`'s over a week's own seeds, and a `WeeklyPlayer` carries no stat line to score. Giving the week
 the bonus too would mean selecting those ten columns on the board's own query, and is not something M7.9 did.
 
+**Where it is named (M7.10): two surfaces, one function, at read time.** Nothing distinguishes an amplified
+`mu_after` from a plain one once it is stored — that was checked, and it is why `fold.ts` exports `gameAward` at
+all — so a surface that wants to print an MVP recomputes the *answer* by calling the fold's own function, never
+by folding a second copy of the formula. `gatedGameAward(players, durationS, winningSide)` is `gameAward` behind
+`gateGame`, because `mvpAce` **throws** on anything that is not five a side with ten distinct puuids and the
+rating callers are the only ones with a gate in front of them already. The Discord result post
+(`lib/discord/assemble.ts` → the last field of `resultEmbed`) and `/p/[puuid]`'s recent games
+(`lib/board/load.ts` → `RecentGame.award`) both call it, on the same columns of the same game, so the two cannot
+disagree about who carried a night.
+
+Three rules those two share, and they are the reason the surfaces stay honest rather than merely consistent.
+**"The fold rated this" is "all ten rows carry `mu_after`"** — the only signal there is, and the one that keeps a
+remake, a four-minute surrender and an ARAM (four null rating columns, for ever) from ever growing an MVP.
+**The award reads `game_players.role` and takes no fallback**, unlike the role the result embed's two columns
+print, which falls back to the stored split when the client reported no position: the fold read the column, so a
+game with no MVP in the fold must have none on a page, or a post would name a player whose delta was never
+amplified. And **the read is the same query, wider** — nine more integer columns on a select that was already
+being made — never a second round trip; the board's own season-wide read of `game_players` is left alone, because
+it prints no award and would be carrying those columns for a thousand games to say so.
+
 ## Balancer (`packages/core/balance`)
 
 Input: ten players with `{ mu, mainRole, secondaryRole, roleOverride? }`, optional duo locks, the previous night's

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
+import { type FoldPerformance, gatedGameAward } from '../ingest/fold';
 import type { PoolMember, SeatMove } from '../ingest/selection';
 import { workedBalance, workedNames, workedPool, workedPuuid } from '../testing/workedExample';
 import type { NameLookup } from './assemble';
@@ -206,6 +207,20 @@ describe('teamsPuuids', () => {
   });
 });
 
+/** A game with no roles and no stat line, so it has no MVP: core's rule, and the M7.10 default. */
+const NO_STATS: FoldPerformance = {
+  role: null,
+  kills: null,
+  deaths: null,
+  assists: null,
+  damageToChamps: null,
+  gold: null,
+  cs: null,
+  visionScore: null,
+  damageSelfMitigated: null,
+  damageToObjectives: null,
+};
+
 function resultSource(overrides: Partial<ResultSource> = {}): ResultSource {
   const players = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((letter, index) => ({
     puuid: `puuid-${letter}`,
@@ -215,6 +230,7 @@ function resultSource(overrides: Partial<ResultSource> = {}): ResultSource {
     damage: 1_000 * (index + 1),
     muBefore: 25,
     muAfter: index < 5 ? 24.5 : 25.5,
+    stats: NO_STATS,
   }));
 
   return {
@@ -264,6 +280,123 @@ describe('buildResultInput', () => {
   it('timestamps the game, not the post', () => {
     const input = buildResultInput(resultSource(), { ...CONTEXT, timestamp: '2026-09-08T21:00:00.000Z' });
     expect(input?.timestamp).toBe('2026-09-08T21:00:00.000Z');
+  });
+});
+
+/**
+ * The MVP and the ACE (M7.10).
+ *
+ * The rule the whole task hangs on is that the embed does **not** decide who carried a game:
+ * `gatedGameAward` does, which is `gameAward` behind `gateGame`, which is the function the fold
+ * itself called before it amplified one delta and softened another. So the pinned assertion is
+ * not a pair of names somebody typed — it is `gatedGameAward`'s own answer for the same ten rows
+ * (acceptance 3). If a later hand ever computes this line a second way, the names will still
+ * look plausible and this test will fail anyway, which is the point of writing it like this.
+ */
+describe('buildResultInput: the MVP and the ACE', () => {
+  /** A scorable ten: every role, every one of the nine numbers, no two players alike. */
+  function scorable(overrides: Partial<ResultSource> = {}): ResultSource {
+    const roles = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
+    const source = resultSource();
+    const players = source.players.map((player, index) => {
+      // Rising with the index, so `j` is the best of the ten and `e` the best of blue: two
+      // different players, on the two different sides, with nothing to tie-break.
+      const n = index + 1;
+      return {
+        ...player,
+        role: roles[index % 5] ?? null,
+        stats: {
+          role: roles[index % 5] ?? null,
+          kills: n,
+          deaths: 11 - n,
+          assists: n,
+          damageToChamps: 1_000 * n,
+          gold: 1_000 * n,
+          cs: 10 * n,
+          visionScore: n,
+          damageSelfMitigated: 1_000 * n,
+          damageToObjectives: 500 * n,
+        } satisfies FoldPerformance,
+      };
+    });
+    return { ...source, players, ...overrides };
+  }
+
+  /** The same question, asked of the one implementation, with no embed in the way. */
+  function expected(source: ResultSource) {
+    return gatedGameAward(
+      source.players.map((player) => ({ puuid: player.puuid, side: player.side, ...player.stats })),
+      source.durationS,
+      source.winningSide,
+    );
+  }
+
+  it('names the two `gatedGameAward` names, and nobody else', () => {
+    const source = scorable();
+    const award = expected(source);
+    expect(award).not.toBeNull();
+
+    const names = new Map(source.players.map((player) => [player.puuid, player.name]));
+    expect(buildResultInput(source, CONTEXT)?.award).toEqual({
+      mvp: names.get(award?.mvp ?? ''),
+      ace: names.get(award?.ace ?? ''),
+    });
+  });
+
+  it('takes the MVP from the winning side and the ACE from the losing one', () => {
+    const source = scorable();
+    const input = buildResultInput(source, CONTEXT);
+    // Red won and `j` is the best of the ten; `e` is the best of the five who lost.
+    expect(input?.award).toEqual({ mvp: 'J', ace: 'E' });
+
+    const swapped = buildResultInput(scorable({ winningSide: 100 }), CONTEXT);
+    expect(swapped?.award).toEqual({ mvp: 'E', ace: 'J' });
+  });
+
+  it('says nothing when one of the ten is missing one of the numbers', () => {
+    for (const hole of [
+      { visionScore: null },
+      { damageToObjectives: null },
+      { damageSelfMitigated: null },
+      { cs: null },
+      { role: null },
+    ]) {
+      const source = scorable();
+      const players = source.players.map((player, index) =>
+        index === 7 ? { ...player, stats: { ...player.stats, ...hole } } : player,
+      );
+      expect(buildResultInput({ ...source, players }, CONTEXT)?.award).toBeNull();
+    }
+  });
+
+  it('says nothing for a game with no roles at all, which is every backfilled one', () => {
+    expect(buildResultInput(resultSource(), CONTEXT)?.award).toBeNull();
+  });
+
+  it('reads the scoreboard role and never the split fallback the columns print', () => {
+    // `role` on the row is what the two columns print — the scoreboard's, or the stored
+    // split's when the client reported none. `stats.role` is the scoreboard column alone,
+    // because that is the column the fold read: a game the fold gave no MVP to must not grow
+    // one here, or the post would name somebody whose delta was never amplified.
+    const source = scorable();
+    const players = source.players.map((player) => ({
+      ...player,
+      stats: { ...player.stats, role: null },
+    }));
+    expect(players.every((player) => player.role !== null)).toBe(true);
+    expect(buildResultInput({ ...source, players }, CONTEXT)?.award).toBeNull();
+  });
+
+  it('does not throw on a scoreboard that is not five a side', () => {
+    // It cannot be reached — `buildResultInput` is null before this for anything the fold did
+    // not rate — but `mvpAce` *throws* rather than returning null, so the gate is the thing
+    // standing between a malformed row set and a 500 that costs the whole post.
+    const source = scorable();
+    const players = source.players.map((player, index) =>
+      index === 0 ? { ...player, side: 200 as const } : player,
+    );
+    expect(() => buildResultInput({ ...source, players }, CONTEXT)).not.toThrow();
+    expect(buildResultInput({ ...source, players }, CONTEXT)?.award).toBeNull();
   });
 });
 

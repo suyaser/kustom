@@ -269,12 +269,18 @@ describe('the result embed, ten markdown names', () => {
       red: LANES.map((role, index) => player('red', role, index)),
       blueWinProb: 0.54,
       topDamage: { name: ESCAPABLE_NAME, damage: 47_300 },
+      // Two more escapable names on the lowest-priority line of the post (M7.10).
+      award: { mvp: ESCAPABLE_NAME, ace: ESCAPABLE_NAME },
       gameNumber: 47,
       timestamp: TIMESTAMP,
     }).embeds[0];
 
     for (const field of fieldsOf(embed)) expect(field.value.length).toBeLessThanOrEqual(FIELD_VALUE_LIMIT);
     expect(escapesAreWhole(embed?.description ?? '')).toBe(true);
+    // The award field is last, so `guardEmbed` takes from it first if the post ever runs over
+    // 6000 — and with ten markdown names it has not: the line is whole and unescaped-through.
+    expect(escapesAreWhole(fieldsOf(embed)[2]?.value ?? '')).toBe(true);
+    expect(fieldsOf(embed)[2]?.value).toBe(`MVP ${RENDERED} · ACE ${RENDERED}`);
   });
 });
 
