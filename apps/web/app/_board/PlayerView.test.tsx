@@ -756,12 +756,16 @@ describe('the MVP and the ACE on a game row', () => {
 });
 
 describe('the seed line', () => {
-  it('names the rank, the displayed seed and the games since, above the chart', () => {
+  it('names the displayed seed and the games since, above the chart', () => {
     const player = workedPlayer();
     const { container } = draw(player);
 
     const line = container.querySelector('.cn-seed-line');
-    expect(line?.textContent).toBe(`Seeded from Silver II at ${player.reference}, 37 games since.`);
+    expect(line?.textContent).toBe(`Started at ${player.reference}, 37 games since.`);
+    // M7.19: the fixture is seeded `Silver II` and the page says so nowhere — the rank clause
+    // was dropped, not softened, because no rating starts from a rank any more.
+    expect(line?.textContent).not.toContain('Silver');
+    expect(line?.textContent).not.toContain('Seeded');
     // Above the chart, and it is the chart's own reference number: one value, read once, so
     // the hairline and the sentence cannot disagree (M5.15, acceptance check 4).
     expect(line?.nextElementSibling?.className).toContain('cn-chart');
@@ -779,9 +783,7 @@ describe('the seed line', () => {
     });
     const { container } = draw(player, emptyPlayerStats());
 
-    expect(container.querySelector('.cn-seed-line')?.textContent).toBe(
-      `Seeded from Silver II at ${player.reference}.`,
-    );
+    expect(container.querySelector('.cn-seed-line')?.textContent).toBe(`Started at ${player.reference}.`);
     expect(container.querySelector('.cn-chart')).not.toBeInTheDocument();
     expect(container.querySelector('.cn-games')).not.toBeInTheDocument();
     expect(container.querySelector('.cn-row-meta')).not.toBeInTheDocument();

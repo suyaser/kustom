@@ -55,8 +55,9 @@ export function explainGame(game: RecentGame): string | null {
 }
 
 /**
- * The line above the chart: `Seeded from Gold II at 1469, 37 games since.` on `All time`, and
- * `Started the week at 1469, 6 games since.` in a window (M5.12's four).
+ * The line above the chart: `Started at 1200, 37 games since.` on `All time` (M7.19 dropped the
+ * rank clause it carried until 2026-09-16), and `Started the week at 1469, 6 games since.` in a
+ * window (M5.12's four).
  *
  * The number is `player.reference` — **the value the chart's reference line is drawn from** —
  * read once so the hairline and the sentence cannot disagree, exactly as the chart's `seed` /
@@ -67,6 +68,6 @@ export function explainGame(game: RecentGame): string | null {
  * window's own empty sentence is already on the page and says the true thing.
  */
 export function explainRatingStart(player: PlayerBoardView): string | null {
-  if (player.window === 'all-time') return seededLine(player.seedRank, player.reference, player.games);
+  if (player.window === 'all-time') return seededLine(player.reference, player.games);
   return player.games === 0 ? null : startedLine(player.window, player.reference, player.games);
 }

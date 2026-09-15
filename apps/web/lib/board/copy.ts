@@ -256,9 +256,10 @@ export const SEED_LABEL = 'seed';
 /**
  * The same hairline, in a window: the rating the player carried **into** it (M5.12).
  *
- * `seed` is where the board started them from their rank and it is a fact about their whole
- * history; the line on `This week`'s chart is where Sunday found them, which is not a seed and
- * may not borrow the word. `All time` keeps {@link SEED_LABEL}, unchanged.
+ * `seed` is where the board started them — since M7.19 the same provisional number for everybody,
+ * and never their rank — and it is a fact about their whole history; the line on `This week`'s
+ * chart is where Sunday found them, which is not a seed and may not borrow the word. `All time`
+ * keeps {@link SEED_LABEL}, unchanged.
  */
 export const START_LABEL = 'start';
 
@@ -318,11 +319,12 @@ export const UNRANKED_LABEL = 'Unranked';
  * `seed_rank_division` — so the words always name the rank the client reported when that
  * player's history began.
  *
- * **They no longer name where the number came from** (2026-09-16). Every seed written from that
- * date is `provisionalSeed()`, 1200, whatever rank rode along with it, so `Seeded from Gold IV
- * at 1200.` is now a true sentence about two independent facts rather than one about a lookup.
- * The rank strings are informational; the re-wording of M5.15's sentence is product's, and until
- * it lands this function's job is unchanged: say what the client said, in words.
+ * **They no longer name where the number came from, and no page prints them** (2026-09-16).
+ * Every seed written from that date is `provisionalSeed()`, 1200, whatever rank rode along with
+ * it, so M7.19 dropped the rank from {@link seededLine} rather than re-phrase it. This function
+ * survives the re-word with its job unchanged — say what the client said, in words — but its only
+ * remaining callers are `lib/board/load.ts` and its own tests; whether it and
+ * `PlayerBoardView.seedRank` stay at all is M7.20's question.
  *
  * `seedFromRank` is still the test for "is this a rank at all", which is the one thing that has
  * not moved: a tier core does not recognise seeds as unranked, and is named that way here too,
@@ -346,17 +348,23 @@ export function rankLabel(tier: string | null, division: string | null): string 
 }
 
 /**
- * `Seeded from Gold II at 1469, 37 games since.` — once, above the chart (M5.15).
+ * `Started at 1200, 37 games since.` — once, above the chart (M5.15; re-worded by M7.19).
  *
  * The number is the **same value the chart's reference line draws**, passed in by the caller,
  * so the line and the sentence cannot disagree; the count is `ratings.games`.
  *
- * **At zero games the clause is dropped**: `Seeded from Gold II at 1469.` A brand-new player's
+ * **No rank, and not a softened one** (product, 2026-09-16). Since M7.19 every rating starts at
+ * `provisionalSeed()` — the same number for everybody — so a tier named on the one line that
+ * explains where a rating came from would be read as the reason for it whatever the preposition
+ * did. The clause is dropped, not reworded, and `All time` now rhymes with the windows under it:
+ * `Started at …` / `Started the week at …`.
+ *
+ * **At zero games the trailing clause is dropped**: `Started at 1200.` A brand-new player's
  * line would otherwise end `, 0 games since.`, and M5.15's acceptance says their page shows the
  * seed line and never a `0` (`04-decisions.md`, 2026-09-10).
  */
-export function seededLine(rank: string, rating: number, games: number): string {
-  return `Seeded from ${rank} at ${rating}${sinceClause(games)}`;
+export function seededLine(rating: number, games: number): string {
+  return `Started at ${rating}${sinceClause(games)}`;
 }
 
 /**

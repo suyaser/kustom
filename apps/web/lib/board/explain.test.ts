@@ -79,10 +79,27 @@ describe('one row of Recent games', () => {
 });
 
 describe('the seed line', () => {
-  it('names the rank as words and the displayed seed, with the games since', () => {
+  it('names the displayed seed and the games since', () => {
     const player = workedPlayer();
 
-    expect(explainRatingStart(player)).toBe(`Seeded from Silver II at ${player.reference}, 37 games since.`);
+    expect(explainRatingStart(player)).toBe(`Started at ${player.reference}, 37 games since.`);
+  });
+
+  /**
+   * **The rank clause is gone, not softened** (M7.19, product 2026-09-16). Every rating starts at
+   * `provisionalSeed()` now, the same number for everybody, so a tier on the one line that
+   * explains where a rating came from would be read as the reason for it whatever the preposition
+   * did. The fixture is still seeded `Silver II` — `player.seedRank` is loaded and simply has no
+   * reader here — which is exactly why this guard asserts on the rendered sentence.
+   */
+  it('never names a League rank, and never says `Seeded`', () => {
+    const player = workedPlayer();
+
+    expect(player.seedRank).toBe('Silver II');
+    const line = explainRatingStart(player) ?? '';
+    expect(line).not.toContain('Silver');
+    expect(line).not.toContain('Seeded');
+    expect(line).not.toMatch(/rank/i);
   });
 
   it('is drawn from the same number the chart draws its hairline at', () => {
@@ -95,7 +112,7 @@ describe('the seed line', () => {
   it('is the whole page for a player with no games, and never says `0 games`', () => {
     const player = workedPlayer('Hana', { games: 0, wins: 0, losses: 0, history: [], recent: [] });
 
-    expect(explainRatingStart(player)).toBe(`Seeded from Silver II at ${player.reference}.`);
+    expect(explainRatingStart(player)).toBe(`Started at ${player.reference}.`);
     expect(explainRatingStart(player)).not.toMatch(/\b0\b games/);
     expect(explainRatingStart(player)).not.toContain('NaN');
   });
@@ -103,7 +120,7 @@ describe('the seed line', () => {
   it('says one game, not `1 games`, for somebody one night in', () => {
     const player = workedPlayer('Hana', { games: 1 });
 
-    expect(explainRatingStart(player)).toBe(`Seeded from Silver II at ${player.reference}, 1 game since.`);
+    expect(explainRatingStart(player)).toBe(`Started at ${player.reference}, 1 game since.`);
   });
 
   it('becomes `Started the week` in a week window and `the month` in a month one', () => {
@@ -112,8 +129,10 @@ describe('the seed line', () => {
 
     expect(explainRatingStart(week)).toBe('Started the week at 1469, 6 games since.');
     expect(explainRatingStart(month)).toBe('Started the month at 1469, 14 games since.');
-    // A window never borrows the word `seed`: that hairline is a seed only on `All time`.
-    expect(explainRatingStart(week)).not.toContain('Seeded');
+    // A window names its own calendar and never the whole history: `Started at 1469` would be
+    // the all-time sentence, and the week's hairline is where Sunday found them, not a seed.
+    expect(explainRatingStart(week)).toContain('the week');
+    expect(explainRatingStart(week)).not.toBe('Started at 1469, 6 games since.');
   });
 
   it('says nothing in a window the player did not play: `reference` is only their seed there', () => {

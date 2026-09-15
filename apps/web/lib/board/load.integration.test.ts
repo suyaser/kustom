@@ -8,11 +8,14 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
 /**
  * The seed line's source, against the local stack (M5.7 for M5.15).
  *
- * `/p/[puuid]` says `Seeded from Gold II at 1470, 37 games since.` above the chart, and the
- * rank in it and the number in it have to be the ones the **fold actually started from** — not
- * the rank the player wears tonight. This file reads the loader through the anon key, the way
- * the page does, with a `ratings` row whose stored seed disagrees with the player's current
- * rank: exactly the shape a friend who climbed after their first custom leaves behind.
+ * `/p/[puuid]` says `Started at 1470, 37 games since.` above the chart, and the number in it has
+ * to be the one the **fold actually started from** — not one derived from the rank the player
+ * wears tonight. This file reads the loader through the anon key, the way the page does, with a
+ * `ratings` row whose stored seed disagrees with the player's current rank: exactly the shape a
+ * friend who climbed after their first custom leaves behind.
+ *
+ * The sentence stopped naming a rank at all on 2026-09-16 (M7.19). `seedRank` is still loaded and
+ * still asserted here because the loader still builds it; whether it survives is M7.20.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -83,7 +86,8 @@ if (stack === null) {
   it('reads the stored seed, not the rank the player wears now', async () => {
     const player = await loadPlayerBoard(anon, puuid, ALL_TIME);
     expect(player).not.toBeNull();
-    // `Seeded from Gold II at 1470.` — the rank the history was built on, and its number.
+    // `Started at 1470.` — the number the history was built on. The rank the seed was stored
+    // beside is loaded too, and since M7.19 no sentence prints it.
     expect(player?.seedRank).toBe('Gold II');
     expect(player?.reference).toBe(displayRating(SEED.mu));
     // And the two numbers at the top are still today's rating, which no part of this changes.
@@ -100,8 +104,7 @@ if (stack === null) {
     const player = await loadPlayerBoard(anon, puuid, ALL_TIME);
     // With no stored seed there is nothing to read but the rule for a first one, and since
     // 2026-09-16 that rule ignores the rank: 1200, not Diamond I's 1920. The rank strings still
-    // ride along, so the line above the chart still names the rank the client last reported
-    // beside a number that no longer came from it. The wording of that sentence is product's.
+    // ride along in the view, and since M7.19's re-word no sentence on the page prints them.
     //
     // Asserted against `provisionalSeed()` and not against `seedFromRank(null, null)`: the two
     // share `unrankedMu`, so the old spelling passed whichever of the two the loader called and

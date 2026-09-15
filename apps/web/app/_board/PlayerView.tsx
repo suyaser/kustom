@@ -152,8 +152,8 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
              */}
             {/*
              * **The record, minus the count the sentence under it already carries** (the
-             * designer, 2026-09-10). `37 games · 19W 18L` above `Seeded from Silver II at 1290,
-             * 37 games since.` prints 37 twice, forty pixels apart; the seed line is the one
+             * designer, 2026-09-10). `37 games · 19W 18L` above `Started at 1200, 37 games
+             * since.` prints 37 twice, forty pixels apart; the seed line is the one
              * that has to say it, because "since when" is what it is about. With no seed line —
              * a window this player did not play — nothing prints here either, because the count
              * is zero.
@@ -172,10 +172,12 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
           </div>
 
           {/*
-           * The seed line, once, above the chart (M5.15): `Seeded from Gold II at 1469, 37
-           * games since.` It is the first half of "how you got here" — where the board found
-           * this player before any of the games under it happened — and it prints for somebody
-           * with no games at all, where it is the only thing the page can honestly say.
+           * The seed line, once, above the chart (M5.15; re-worded by M7.19): `Started at 1200,
+           * 37 games since.` It is the first half of "how you got here" — where the board
+           * started this player before any of the games under it happened, which since
+           * 2026-09-16 is the same provisional number for everybody and never their League rank
+           * — and it prints for somebody with no games at all, where it is the only thing the
+           * page can honestly say.
            */}
           {start === null ? null : <p className="cn-seed-line">{start}</p>}
 

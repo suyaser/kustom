@@ -6,6 +6,12 @@
  * The four `How this works` lines are the whole explanation of the system to somebody who
  * joined the group last week, and each claim is true of what is shipped — the table under the
  * copy section names the code behind every one of them.
+ *
+ * The fourth was re-written by M7.19 (product, 2026-09-16) and fixes three things at once: no
+ * rating starts from a League rank any more (`provisionalSeed()`), only a Summoner's Rift result
+ * moves one (M7.1 took ARAM out of the fold), and the Proven gap **settles** — it never catches
+ * up, the verb M3.19 retired. `lib/board/board.test.ts`'s `promises a gap that settles` guard has
+ * a twin over this line in `app/_shell/Shell.test.tsx`.
  */
 
 /** The footer's `<details>`, closed by default. The one place on the page allowed to grow. */
@@ -15,7 +21,7 @@ export const HOW_THIS_WORKS_LINES = [
   "Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.",
   'The bot makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.',
   'Results come off the end-of-game screen. Nobody reports a score.',
-  "Your rating starts from your rank and moves with every result. Proven is the board's careful version of it and catches up after about 30 games.",
+  "Everybody starts on the same rating, and every Summoner's Rift result moves it. Proven is the board's careful version of it and settles after about 30 games.",
 ] as const;
 
 /** The rail's and the idle page's second card. */

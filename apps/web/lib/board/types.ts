@@ -279,10 +279,11 @@ export interface PlayerBoardView {
    * Formatted in the loader by `rankLabel` from `ratings.seed_rank_tier` / `seed_rank_division`.
    * Those two columns used to be what the seed's number was computed from; since 2026-09-16 a
    * seed is the provisional `20 / 12` for everybody and they are the record of what the client
-   * reported that night and nothing more — so for a player seeded after that date this string
-   * names a rank the number did **not** come from, and the sentence built around it is product's
-   * to re-word. Carried on every window even though only `All time` prints it: the rank is a
-   * fact about the player, not about the calendar.
+   * reported that night and nothing more. M7.19's re-word (2026-09-16) took the rank off the
+   * seed line rather than re-phrase it, so **no page reads this field any more**; the loader
+   * still builds it, and whether it and `rankLabel` survive is M7.20's question, not this
+   * pass's. It is still carried on every window, as it always was: the rank is a fact about the
+   * player, not about the calendar.
    */
   seedRank: string;
   /**

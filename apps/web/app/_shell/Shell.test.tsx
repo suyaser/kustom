@@ -117,6 +117,24 @@ describe('the footer', () => {
     expect(document.querySelector('details')?.hasAttribute('open')).toBe(false);
   });
 
+  /**
+   * The twin of `lib/board/board.test.ts`'s `promises a gap that settles` guard, over the one
+   * line that says the same thing to every visitor on every page (M7.19, product 2026-09-16).
+   *
+   * Three retired claims, one string: a rating **does not** start from a League rank
+   * (`provisionalSeed()` gives everybody the same one), only a **Summoner's Rift** result moves
+   * it (M7.1 took ARAM out of the fold), and the Proven gap **settles** — `catches up` is the
+   * verb M3.19 retired on 2026-09-10, because it promises a day that never comes.
+   */
+  it('starts everybody on the same rating, off Rift results, and promises a gap that settles', () => {
+    const line = HOW_THIS_WORKS_LINES[3];
+
+    expect(line).toContain("Summoner's Rift");
+    expect(line).toContain('settles');
+    expect(line).not.toContain('from your rank');
+    expect(line).not.toContain('catches up');
+  });
+
   it('sends Get the companion at the releases page', () => {
     draw('/');
 
