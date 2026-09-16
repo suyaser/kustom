@@ -25,11 +25,16 @@ import type {
  *
  * Three rules the rest of the file exists to keep.
  *
- * - **The universe is the rating fold's.** A game counts here if and only if `gateGame` counts
- *   it — ten rows, five a side, over 300 seconds, nobody twice — imported from
- *   `lib/ingest/fold.ts` and never re-implemented in SQL or here. The reason is one product
- *   rule: the games number on `/stats` is the games number the fold used, so two pages can
- *   never print two different counts for the same player.
+ * - **The universe is `gateGame`'s, and it is one of two.** A game counts here if and only if
+ *   `gateGame` counts it — ten rows, five a side, over 300 seconds, nobody twice — imported from
+ *   `lib/ingest/fold.ts` and never re-implemented in SQL or here. That is the *played* universe,
+ *   and an ARAM night is in it. The rating fold gates on `gateRatedGame` instead — everything
+ *   `gateGame` asks **and** the map — so the board's count, record and climb are a smaller set
+ *   than this one (M7.1). **Two pages can therefore print two different counts for the same
+ *   player, and both are right**: `/leaderboard` counts the games that moved a rating and
+ *   `/stats`, `/fun`, `/p/[puuid]`'s sections and the board's streak count the games the group
+ *   played. Neither gate may be edited into the other, and since M7.18 every count that can be
+ *   compared with the other one says in a word which it is (`lib/board/copy.ts`).
  * - **The order is the rebuild's.** `started_at` ascending, `lcu_game_id` ascending as the
  *   tie-break, so a streak and a rating history tell the same story about the same night.
  * - **The tie rule is stated once and used everywhere**: win rate descending, then games
@@ -43,11 +48,16 @@ import type {
 /**
  * The games that count, oldest first.
  *
- * **`gateGame` decides, and nothing else.** An unrated game is *not* excluded here: a
- * backfilled ten-player game the rebuild has not folded yet has a scoreboard, a duration and a
- * winner, and every number on this page except a climb is answerable from it. What a game with
- * nine rows, a duplicate player or a five-minute duration cannot answer is anything at all,
- * which is exactly what the gate says.
+ * **`gateGame` decides, and nothing else** — never `gateRatedGame`. An unrated game is *not*
+ * excluded here: a backfilled ten-player game the rebuild has not folded yet, and every ARAM the
+ * group has played since M7.1, has a scoreboard, a duration and a winner, and every number on
+ * this page except a climb is answerable from it. What a game with nine rows, a duplicate player
+ * or a five-minute duration cannot answer is anything at all, which is exactly what the gate
+ * says.
+ *
+ * So this length is the **played** count, and it is not the board's: `/leaderboard` counts the
+ * games that moved a rating. The two differ by every ARAM in the window, both are right, and the
+ * pages say which is which rather than agreeing on one (M7.18).
  */
 export function countedGames(games: readonly StatsGame[]): StatsGame[] {
   return games.filter((game) => gateGame(game.rows.map(toFoldPlayer), game.durationS).ok).sort(byStartedAt);

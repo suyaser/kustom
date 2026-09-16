@@ -2,12 +2,12 @@ import { displayRating } from '@customs/core';
 import Link from 'next/link';
 import {
   ACE_LABEL,
-  gamesLabel,
   LOST,
   MVP_EXPLANATION,
   MVP_LABEL,
   NOT_RATED,
   NOT_RATED_HINT,
+  PLAYER_COUNTS_SENTENCE,
   PROVEN_LABEL,
   RATING_EXPLANATION,
   RATING_LABEL,
@@ -93,7 +93,8 @@ export function PlayerView({ player, stats }: PlayerViewProps) {
          *
          * **The range half prints alone here** (product, 2026-09-10): the record under the two
          * numbers already says `6 games · 4W 2L`, and no page says one number twice — which is
-         * why this caller passes `player.range` and not a composed slot line.
+         * why this caller passes `player.range` and not a composed slot line. It is therefore the
+         * one header slot M7.18 left alone: there is no count in it to name.
          */}
         <WindowSlot window={player.window} line={player.range} />
       </header>
@@ -166,20 +167,27 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
              */}
             {/*
              * **The record, minus the count the sentence under it already carries** (the
-             * designer, 2026-09-10). `37 games · 19W 18L` above `Started at 1200, 37 games
+             * designer, 2026-09-10, M5.22). `37 games · 19W 18L` above `Started at 1200, 37 games
              * since.` prints 37 twice, forty pixels apart; the seed line is the one
              * that has to say it, because "since when" is what it is about. With no seed line —
              * a window this player did not play — nothing prints here either, because the count
              * is zero.
+             *
+             * **So this line carries no count at all, on any window, for any player**, and M7.18's
+             * `ratedGamesLabel` is therefore not here: M5.22's rule and the zero-games guard above
+             * leave no case where a count would print, and a branch for one is code no reader ever
+             * reaches. The rated wording lands on {@link PLAYER_COUNTS_SENTENCE} instead, once,
+             * where the two universes part.
+             *
+             * **The count a reader does see on this page is the seed line's, and it is still
+             * unlabelled** — `Started at 1200, 37 games since.` is `player.games`, the rated count,
+             * worded as plain `games` directly above sections that count every game played. That is
+             * the first clause of M7.18's acceptance 3 and **it is not met**; naming it means
+             * editing an M7.19-pinned string or inverting M5.22, which is product's and the
+             * designer's call and is open as **M7.22**.
              */}
             {player.games === 0 ? null : (
               <p className="cn-row-meta">
-                {start === null ? (
-                  <>
-                    <span className="cn-num">{gamesLabel(player.games)}</span>
-                    {' · '}
-                  </>
-                ) : null}
                 <span className="cn-num">{winLossLabel(player.wins, player.losses)}</span>
               </p>
             )}
@@ -230,7 +238,20 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
        * `lib/board/load.ts`, over the *rated* rows rather than the counted games, which is two
        * definitions of one record on one page the day a backfill lands unrated. The page reads
        * `lib/stats` for all of it, exactly as `/stats` does (`04-decisions.md`, 2026-09-11).
+       *
+       * **And this is where the two counts part, so this is where the page says so** (M7.18):
+       * everything above is folded over the games that moved a rating and everything below is
+       * folded over every game this player played, ARAM included. One sentence, once, at the
+       * seam — not a word on each of the five sections under it, and not a second sentence beside
+       * the streak, which stays the one mixed computation it has always been (M5.21).
+       *
+       * **Printed only when there is a record above it and sections below it.** `PlayerStats`
+       * draws nothing at all for a player with no counted game in the window, and the header
+       * prints no record for a player with no *rated* one — somebody whose whole window was ARAM.
+       * A sentence about a record that is not on the screen would be the page explaining a number
+       * it did not print.
        */}
+      {stats.games === 0 || player.games === 0 ? null : <p className="cn-hint">{PLAYER_COUNTS_SENTENCE}</p>}
       <PlayerStats stats={stats} />
 
       {player.recent.length === 0 ? null : (

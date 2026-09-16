@@ -797,6 +797,10 @@ describe('the id lists the board filters on', () => {
  * The header slot (M5.12, the designer's slot; `05-design.md`'s copy table). One line under the
  * picker: what the window covers and how many games are in it, or — when there are none — the
  * window's own empty sentence, never both.
+ *
+ * **Since M7.18 this block covers the *played*-count form only** — `windowSlotLine`, which
+ * `/stats`, `/fun` and `/games` print. The board's own `boardSlotLine` (`· 12 rated games`) is
+ * pinned in `lib/board/counts.test.ts` and in `app/_board/BoardView.test.tsx`, not here.
  */
 describe('the line under the picker', () => {
   /** Wednesday 2026-09-09, 21:00 Cairo. */

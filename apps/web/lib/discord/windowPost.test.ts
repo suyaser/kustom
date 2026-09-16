@@ -157,7 +157,9 @@ describe('the awards field', () => {
     expect(outcome.status).toBe('sent');
     const embed = (sent as unknown as { embeds: { fields: unknown[]; description: string }[] }).embeds[0];
     expect(embed?.fields).toHaveLength(1);
-    expect(embed?.description).toBe('Sunday 6 Sep to Saturday 12 Sep · 4 games');
+    // The board's own slot line, word for word (M5.12, named by M7.18): the post and the page
+    // it links to count the same games and say so in the same word.
+    expect(embed?.description).toBe('Sunday 6 Sep to Saturday 12 Sep · 4 rated games');
     expect(logged).toHaveBeenCalledTimes(1);
     expect(String(logged.mock.calls[0]?.[0])).toContain('last-week awards');
     logged.mockRestore();

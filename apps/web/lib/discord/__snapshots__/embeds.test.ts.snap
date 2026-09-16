@@ -142,7 +142,7 @@ exports[`windowSummaryEmbed, the closed window > is the milestone's weekly post 
   "embeds": [
     {
       "color": 14721854,
-      "description": "Sunday 6 Sep to Saturday 12 Sep · 14 games",
+      "description": "Sunday 6 Sep to Saturday 12 Sep · 14 rated games",
       "fields": [
         {
           "name": "Top ten",

@@ -6,8 +6,9 @@ import type { WindowKind } from '@/lib/night';
  *
  * **The slot holds exactly one of two things, never both and never neither** (`05-design.md`,
  * "The window picker"): the window's range and count — `Sunday 6 Sep to Saturday 12 Sep · 14
- * games`, and on `/p/[puuid]` the range half alone — or, when the window has no games, the
- * window's own empty sentence. `· 0 games` is a thing no reader needs told twice.
+ * rated games` on the board, `· 14 games` on `/stats`, and on `/p/[puuid]` the range half alone —
+ * or, when the window has no games, the window's own empty sentence. `· 0 games` is a thing no
+ * reader needs told twice, and neither is `· 0 rated games`.
  *
  * **One component, so the empty sentence has one home and one dress** (the designer, 2026-09-11,
  * M5.23). `/leaderboard` and `/p/[puuid]` printed it here in `dim`; `/stats` printed the same
@@ -24,9 +25,14 @@ import type { WindowKind } from '@/lib/night';
 export interface WindowSlotProps {
   window: WindowKind;
   /**
-   * The slot's line, already composed — `windowSlotLine(range, games)` on `/leaderboard` and
-   * `/stats`, the bare range on `/p/[puuid]` — or `null` for a window with nothing in it, which
-   * prints the sentence instead.
+   * The slot's line, already composed — `boardSlotLine(range, games)` on `/leaderboard`,
+   * `windowSlotLine(range, games)` on `/stats`, `/fun` and `/games`, the bare range on
+   * `/p/[puuid]` — or `null` for a window with nothing in it, which prints the sentence instead.
+   *
+   * **The two formatters are the two counts** (M7.18): the board counts the games that moved a
+   * rating and says `· 12 rated games`, the other three count the games the group played and say
+   * `· 14 games`. This component composes neither and dresses both the same, which is the point
+   * of it — the words are the caller's, the slot is one.
    */
   line: string | null;
 }

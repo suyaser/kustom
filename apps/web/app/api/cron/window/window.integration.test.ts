@@ -329,12 +329,13 @@ if (stack === null) {
 
       /**
        * And the one message names its own week: the description is the same line the page
-       * prints under its picker, and the count is the window's counted games — the two seeded
-       * inside it, never a lifetime total.
+       * prints under its picker, and the count is the window's rated games — the two seeded
+       * inside it, never a lifetime total. Since M7.18 the line says which count that is; the
+       * board rows under it are untouched and still read `· 2 games`.
        */
       const embed = embedOf(0);
       expect(embed?.title).toBe('Last week · leaderboard');
-      expect(embed?.description).toBe('Sunday 31 Aug to Saturday 6 Sep · 2 games');
+      expect(embed?.description).toBe('Sunday 31 Aug to Saturday 6 Sep · 2 rated games');
       expect(String(embed?.url ?? '')).toContain('/leaderboard?window=last-week');
       // Ten players, five a side, two games each: the board is the window's, not all time.
       const fields = (embed?.fields ?? []) as { value: string }[];
@@ -356,7 +357,7 @@ if (stack === null) {
       expect(posted.posted).toEqual(['last-week']);
 
       const embed = embedOf(0);
-      expect(embed?.description).toBe('Sunday 2 Mar to Saturday 8 Mar · 6 games');
+      expect(embed?.description).toBe('Sunday 2 Mar to Saturday 8 Mar · 6 rated games');
 
       const fields = (embed?.fields ?? []) as { name: string; value: string }[];
       expect(fields).toHaveLength(2);
@@ -477,7 +478,7 @@ if (stack === null) {
       const retried = await callAt(new Date(FLAKY_SUNDAY.getTime() + 60 * 60 * 1_000));
       expect(retried.posted).toEqual(['last-week']);
       expect(posts).toHaveLength(1);
-      expect(embedOf(0)?.description).toBe('Sunday 4 May to Saturday 10 May · 1 game');
+      expect(embedOf(0)?.description).toBe('Sunday 4 May to Saturday 10 May · 1 rated game');
 
       const stamped = await rowsFor(window);
       expect(stamped).toHaveLength(1);
@@ -507,9 +508,9 @@ if (stack === null) {
       expect(first.posted).toEqual(['last-week', 'last-month']);
       expect(posts).toHaveLength(2);
       expect(embedOf(0)?.title).toBe('Last week · leaderboard');
-      expect(embedOf(0)?.description).toBe('Sunday 19 Oct to Saturday 25 Oct · 1 game');
+      expect(embedOf(0)?.description).toBe('Sunday 19 Oct to Saturday 25 Oct · 1 rated game');
       expect(embedOf(1)?.title).toBe('Last month · leaderboard');
-      expect(embedOf(1)?.description).toBe('October · 1 game');
+      expect(embedOf(1)?.description).toBe('October · 1 rated game');
 
       expect(await rowsFor(week)).toHaveLength(1);
       expect(await rowsFor(month)).toHaveLength(1);

@@ -75,6 +75,10 @@ describe('the header', () => {
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('This month Stats');
     expect(container.querySelector('.cn-window-line')?.textContent).toBe('September · 7 games');
+    // **Byte for byte what it said before M7.18**, and never `rated games`: this page counts the
+    // games the group played, ARAM included (M5.26), and it is `/leaderboard` — whose count is
+    // the games that moved a rating — that took the word.
+    expect(container.querySelector('.cn-window-line')?.textContent).not.toContain('rated');
     expect(screen.getByText('10 players played.')).toBeInTheDocument();
   });
 

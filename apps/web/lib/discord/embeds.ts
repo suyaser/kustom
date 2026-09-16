@@ -516,7 +516,12 @@ export const AWARDS_FIELD = 'Awards';
 export interface WindowSummaryEmbedInput {
   /** `Last week` or `Last month` — {@link WINDOW_LABELS}, the same words the picker uses. */
   windowLabel: string;
-  /** `Sunday 6 Sep to Saturday 12 Sep · 14 games` (`windowRange.ts`), the window's own dates. */
+  /**
+   * `Sunday 6 Sep to Saturday 12 Sep · 14 rated games`: the window's own dates and the board's
+   * own count, composed by `boardSlotLine` in `post.ts` — the same formatter and therefore the
+   * same string as the slot under the picker on the page this post links to (M5.12, named by
+   * M7.18). The builder prints what it is given and knows nothing about either count.
+   */
   description: string;
   /** Which fold the entries came from (M7.3): `weekly` on the Sunday post, `all-time` monthly. */
   track: RatingTrack;
@@ -538,8 +543,10 @@ export interface WindowSummaryEmbedInput {
  * purpose — the same colour, the same ten-line cap, the same field-name rule (M3.22), the same
  * footer — with two differences that are the whole task:
  *
- * - **the description**, which names the window's own days (`Sunday 6 Sep to Saturday 12 Sep · 14
- *   games`), because a post that arrives unasked has to say which seven days it is about;
+ * - **the description**, which names the window's own days and the count it counted (`Sunday 6 Sep
+ *   to Saturday 12 Sep · 14 rated games`), because a post that arrives unasked has to say which
+ *   seven days it is about — and, since M7.18, which of the two counts the group can compare it
+ *   with is on it;
  * - **the awards field**, when there are awards to print (see {@link WindowAward}).
  *
  * The board is the **window's** board (M5.12): the players who played inside it, each with

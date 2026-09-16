@@ -325,12 +325,19 @@ describe('the window picker', () => {
   /**
    * The slot under the chips (the designer, 2026-09-10): what the window covers and how many
    * games are in it — **or** the window's empty sentence, never both and never `· 0 games`.
+   *
+   * **The count says what it counted** (M7.18): this board's number is the games that moved a
+   * rating, `/stats` prints the games the group played under the same dates, and since the two
+   * differ by every ARAM in the window the word is not optional. It is `boardSlotLine`'s, pinned
+   * by code point here and in `lib/board/counts.test.ts` — **not** in `lib/board/board.test.ts`,
+   * whose slot-line block pins the older `windowSlotLine` form that `/stats`, `/fun` and `/games`
+   * still print.
    */
-  it("prints the window's dates and its game count, inside the strip", () => {
+  it("prints the window's dates and its rated game count, inside the strip", () => {
     const { container } = draw(workedWindowBoard('last-week'));
     const line = container.querySelector('.cn-window-line');
 
-    expect(line?.textContent).toBe('Sunday 6 Sep to Saturday 12 Sep · 6 games');
+    expect(line?.textContent).toBe('Sunday 6 Sep to Saturday 12 Sep · 6 rated games');
     // In the header, under the picker, and there is only one of it.
     expect(line?.parentElement).toHaveClass('cn-strip');
     expect(line?.previousElementSibling).toHaveClass('cn-windows');

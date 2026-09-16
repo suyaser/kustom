@@ -1,4 +1,4 @@
-import { WINDOW_LABELS, windowSlotLine } from '../board/copy';
+import { boardSlotLine, WINDOW_LABELS } from '../board/copy';
 import { loadBoard } from '../board/load';
 import type { BoardRow, BoardView, RatingTrack } from '../board/types';
 import { LEADERBOARD_WINDOW } from '../board/window';
@@ -272,8 +272,10 @@ export async function postClosedWindow(
     awards: await loadWindowAwards(client, window, options),
     // **The page's line, not a second one** (M5.12, M5.10): the slot under the picker and this
     // description are the same words about the same window, so the tap out of the channel
-    // lands on a page that agrees with the post it came from.
-    description: windowSlotLine(board.range, board.games),
+    // lands on a page that agrees with the post it came from. Since M7.18 those words name the
+    // count — `Sunday 6 Sep to Saturday 12 Sep · 14 rated games` — and they still come from the
+    // board's one formatter, so the post cannot say a different thing from the page it links to.
+    description: boardSlotLine(board.range, board.games),
     entries,
     url: leaderboardPageUrl(options.requestOrigin, window.kind),
     // The moment the post is made, not the moment the window closed: Discord prints this as

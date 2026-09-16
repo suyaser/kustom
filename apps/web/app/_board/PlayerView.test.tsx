@@ -6,11 +6,13 @@ import {
   MVP_LABEL,
   NOT_RATED,
   NOT_RATED_HINT,
+  PLAYER_COUNTS_SENTENCE,
   PROVEN_LABEL,
   RATING_EXPLANATION,
   RATING_LABEL,
   RECENT_GAMES_HEADING,
   RECENT_RATING_LEGEND,
+  ROLE_RECORD_HEADING,
   SEED_LABEL,
   SETTLING_CHIP,
   SETTLING_SENTENCE,
@@ -71,6 +73,10 @@ describe('the two numbers', () => {
     // sentence forty pixels below (the designer, 2026-09-10) — one page, one count.
     expect(container.querySelector('.cn-row-meta')?.textContent).toBe('19W 18L');
     expect(container.querySelector('.cn-seed-line')?.textContent).toContain('37 games since.');
+    // **And no count, on any window, ever** (M5.22), which is why this line carries no `rated`
+    // wording either: M7.18 wrote a branch for the case and there is no case — see M7.22, where
+    // naming this page's rated count is decided.
+    expect(container.querySelector('.cn-row-meta')?.textContent).not.toContain('rated');
     // Directly under: the two are one block, not two blocks a gap apart.
     const summary = container.querySelector('.cn-summary');
     expect([...(summary?.children ?? [])].map((child) => child.className)).toEqual([
@@ -85,6 +91,67 @@ describe('the two numbers', () => {
     // The count is the seed line's now, and it is still `1 game`.
     expect(container.querySelector('.cn-row-meta')?.textContent).toBe('1W 0L');
     expect(container.querySelector('.cn-seed-line')?.textContent).toContain('1 game since.');
+  });
+});
+
+/**
+ * **One window, two counts, and the page says which** (M7.18, product 2026-09-16).
+ *
+ * The record in the header is folded over the games that moved a rating; `By role`, the sides,
+ * the partners and the streak under it are folded over every game this player played, ARAM
+ * included. Both are right. Before this sentence nothing on the page said so, and the two sat
+ * forty pixels apart.
+ */
+describe('the two counts, named', () => {
+  /** Where the two universes part, which is where the sentence goes. */
+  const sentenceNode = (container: HTMLElement) =>
+    [...container.querySelectorAll('p.cn-hint')].find((node) => node.textContent === PLAYER_COUNTS_SENTENCE);
+
+  it('prints the sentence once, where the stats sections begin', () => {
+    const { container } = draw();
+
+    expect(screen.getAllByText(PLAYER_COUNTS_SENTENCE)).toHaveLength(1);
+    // Above the first section under the chart, and below the rating card.
+    const heading = screen.getByText(ROLE_RECORD_HEADING);
+    const node = sentenceNode(container);
+    expect(node).toBeDefined();
+    expect(node?.compareDocumentPosition(heading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(container.querySelector('.cn-player-card')?.compareDocumentPosition(node as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  /**
+   * **Not conditional on the two numbers differing.** Hana's fixture has no ARAM in it — 37
+   * rated, 37 played — and she still reads it. A word that showed up only on the weeks the
+   * counts disagree would teach nobody anything and would read as an error.
+   */
+  it('prints it for a player whose two counts are equal', () => {
+    const { container } = draw(workedPlayer(), workedPlayerStats({ games: 37 }));
+
+    expect(sentenceNode(container)).toBeDefined();
+  });
+
+  /** A window this player did not play draws no sections, so there is nothing to explain. */
+  it('says nothing on a window with no sections under it', () => {
+    const { container } = draw(workedPlayer('Hana', { window: 'last-week' }), emptyPlayerStats('last-week'));
+
+    expect(sentenceNode(container)).toBeUndefined();
+  });
+
+  /**
+   * **And nothing when there is no record above it either**: a window somebody spent entirely on
+   * ARAM has sections under the chart and no `19W 18L` over it, and a sentence about a record the
+   * page did not print would be the page explaining a number that is not there.
+   */
+  it('says nothing for a player whose window was all ARAM', () => {
+    const { container } = draw(
+      workedPlayer('Hana', { games: 0, wins: 0, losses: 0 }),
+      workedPlayerStats({ games: 12 }),
+    );
+
+    expect(container.querySelector('.cn-row-meta')).not.toBeInTheDocument();
+    expect(sentenceNode(container)).toBeUndefined();
   });
 });
 

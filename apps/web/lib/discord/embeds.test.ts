@@ -786,7 +786,7 @@ describe('a board post on the weekly track', () => {
 function workedWindowInput(overrides: Partial<WindowSummaryEmbedInput> = {}): WindowSummaryEmbedInput {
   return {
     windowLabel: WINDOW_LABELS['last-week'],
-    description: 'Sunday 6 Sep to Saturday 12 Sep · 14 games',
+    description: 'Sunday 6 Sep to Saturday 12 Sep · 14 rated games',
     track: 'all-time',
     entries: workedBoardRows().map((row) => ({
       puuid: row.puuid,
@@ -815,8 +815,9 @@ describe('windowSummaryEmbed, the closed window', () => {
 
     expect(embed?.title).toBe('Last week · leaderboard');
     expect(embed?.url).toBe(`${SITE_URL}/leaderboard?window=last-week`);
-    // Byte for byte the copy table's window slot (`05-design.md`).
-    expect(embed?.description).toBe('Sunday 6 Sep to Saturday 12 Sep · 14 games');
+    // Byte for byte the board's own window slot (`05-design.md`), which since M7.18 names the
+    // count it counted: `post.ts` composes it with `boardSlotLine` and this builder prints it.
+    expect(embed?.description).toBe('Sunday 6 Sep to Saturday 12 Sep · 14 rated games');
     expect(embed?.color).toBe(ACCENT_COLOR);
   });
 
@@ -826,11 +827,14 @@ describe('windowSummaryEmbed, the closed window', () => {
    */
   it('is the same builder for the month', () => {
     const embed = windowSummaryEmbed(
-      workedWindowInput({ windowLabel: WINDOW_LABELS['last-month'], description: 'September · 34 games' }),
+      workedWindowInput({
+        windowLabel: WINDOW_LABELS['last-month'],
+        description: 'September · 34 rated games',
+      }),
     ).embeds[0];
 
     expect(embed?.title).toBe('Last month · leaderboard');
-    expect(embed?.description).toBe('September · 34 games');
+    expect(embed?.description).toBe('September · 34 rated games');
     // The board is untouched by which window it came from.
     expect(embed?.fields[0]?.value).toBe(windowSummaryEmbed(workedWindowInput()).embeds[0]?.fields[0]?.value);
   });

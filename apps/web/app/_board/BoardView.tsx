@@ -1,4 +1,4 @@
-import { LEADERBOARD_LABEL, WINDOW_LABELS, windowSlotLine } from '@/lib/board/copy';
+import { boardSlotLine, LEADERBOARD_LABEL, WINDOW_LABELS } from '@/lib/board/copy';
 import type { BoardView as BoardViewModel } from '@/lib/board/types';
 import { isNameless } from '@/lib/tonight/copy';
 import { BoardCard } from '../_leaderboard/BoardCard';
@@ -75,10 +75,16 @@ export function BoardView({ board, viewerPuuid }: BoardViewProps) {
          *
          * The slot itself is `WindowSlot`, shared with `/p/[puuid]` and `/stats` (M5.23): one
          * component, so three pages under one picker cannot dress one sentence three ways.
+         *
+         * **The count is the board's own, and the line says so** (M7.18): `· 12 rated games`,
+         * from `boardSlotLine`. `board.games` counts the games that moved a rating and `/stats`
+         * counts the games the group played, so the same dates under the same picker carry two
+         * numbers one tab apart — both right, and until this word neither page said which it
+         * was. `/stats`, `/fun` and `/games` keep `windowSlotLine` and their own count.
          */}
         <WindowSlot
           window={board.window}
-          line={empty ? null : windowSlotLine(board.range as string, board.games)}
+          line={empty ? null : boardSlotLine(board.range as string, board.games)}
         />
       </header>
 

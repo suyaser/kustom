@@ -220,9 +220,40 @@ export const WINDOW_LABELS: Readonly<Record<WindowKind, string>> = {
  *
  * Sentence case here; the stylesheet upper-cases it, exactly as the tonight page's slug line is
  * a readable date in the DOM and a `SLUG` on the screen.
+ *
+ * **This is the *played* count's form, and `/leaderboard` no longer calls it** (M7.18): the board
+ * counts the games that moved a rating and says so through {@link boardSlotLine}. The string here
+ * is unchanged and belongs to `/stats`, `/fun` and `/games`, which count what the group played.
+ * Neither formatter may be edited into the other.
  */
 export function windowSlotLine(range: string, games: number): string {
   return `${range} · ${gamesLabel(games)}`;
+}
+
+/**
+ * `Sunday 13 Sep to Saturday 19 Sep · 12 rated games`: **the board's** slot line (M7.18, product
+ * 2026-09-16).
+ *
+ * `/leaderboard` and `/stats` print the same dates under the same picker over two different
+ * counts, and since M7.1 those numbers differ by every ARAM the group played. Both are right —
+ * the board is a rating board and counts the games that moved a number, `/stats` counts what was
+ * played — and the bug was that neither said which. So the board's count says it, in one word,
+ * and {@link windowSlotLine} is left exactly as it is for `/stats`, `/fun` and `/games`, whose
+ * count is the played one.
+ *
+ * **A second formatter and not a flag**, because the two are not one string with a parameter:
+ * they are two sentences about two universes that happen to share a shape, and the day one of
+ * them moves the other must not.
+ *
+ * **The word is never conditional.** On a week with no ARAM in it — most weeks — the two counts
+ * are equal and this still reads `rated games`: a label that appeared only when the numbers
+ * differed would teach nobody anything and would read as an error on the weeks it showed up.
+ *
+ * An empty window prints its {@link WINDOW_EMPTY} sentence instead and never `· 0 rated games`,
+ * exactly as it does today; that rule is the slot's and is not restated here.
+ */
+export function boardSlotLine(range: string, games: number): string {
+  return `${range} · ${ratedGamesLabel(games)}`;
 }
 
 /**
@@ -337,6 +368,45 @@ export const TOP_OF_BOARD_TITLE = 'Top of the board';
 export function gamesLabel(games: number): string {
   return games === 1 ? '1 game' : `${games} games`;
 }
+
+/**
+ * `1 rated game`, `12 rated games`: the same count, named (M7.18).
+ *
+ * The one word that says this number counted the games that **moved a rating** — the board's
+ * universe, `gateRatedGame`'s — rather than the games the group played, which is what every
+ * `gamesLabel` on `/stats`, `/fun` and `/games` counts. Same singular rule, because a one-game
+ * week reads `1 rated game` on both pages or on neither.
+ *
+ * It is deliberately **not** built as `` `rated ${gamesLabel(games)}` ``: that reads `rated 1
+ * game` at one, and the adjective belongs to the noun and not to the count.
+ */
+export function ratedGamesLabel(games: number): string {
+  return games === 1 ? '1 rated game' : `${games} rated games`;
+}
+
+/**
+ * The one sentence on `/p/[puuid]` that says which count is which, where the stats sections
+ * begin (M7.18, product 2026-09-16).
+ *
+ * The header's record is folded over the games that moved a rating and every section under it —
+ * `By role`, the sides, the partners, the streaks, the mean game — is folded over every game the
+ * player played, ARAM included. Both are right, they are forty pixels apart, and until this
+ * sentence nothing on the page said so.
+ *
+ * **Second person, and one sentence.** The page is about a person and the reader is usually
+ * looking at their own, which is the one case M3.26's third-person rule does not cover: `you` here
+ * names the reader's games, not a number twenty pixels above. If it ever needs a third-person twin
+ * for somebody else's page, product writes it — this file does not grow one on its own.
+ *
+ * **Not conditional on a player having played an ARAM.** Somebody with none reads it and finds it
+ * true and dull, which is the correct outcome: a sentence that appeared only on the pages where
+ * the numbers differ would read as a warning about that person.
+ *
+ * The streak sits under it and is untouched (M5.21): one computation, mixed, the same fact on the
+ * board, on `/stats` and here — and covered by the second half of this sentence.
+ */
+export const PLAYER_COUNTS_SENTENCE =
+  'The record above counts games that moved a rating; everything below counts every game you played, ARAM included.';
 
 /** `13W 15L`, the same shape on a row, on the player page and in a role record. */
 export function winLossLabel(wins: number, losses: number): string {
