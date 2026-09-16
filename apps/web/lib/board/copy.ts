@@ -8,7 +8,6 @@
  * labels, lower case inside a sentence.
  */
 
-import { config, seedFromRank } from '@customs/core';
 import type { WindowKind } from '../night';
 import type { RatingTrack } from './types';
 
@@ -425,44 +424,20 @@ export function winLossLabel(wins: number, losses: number): string {
  * already-formatted string and never round anything themselves.
  * ------------------------------------------------------------------------- */
 
-/** No rank in `players.rank_tier`: the client never reported one, said in one word. */
-export const UNRANKED_LABEL = 'Unranked';
-
-/**
- * The rank the seed came from, as words: `Gold II`, `Master`, `Unranked`.
+/*
+ * **No rank formatter lives here any more** (M7.20, 2026-09-16). `UNRANKED_LABEL` and
+ * `rankLabel(tier, division)` — `Gold II`, `Master`, `Unranked` — formatted the pair stored beside
+ * a seed for M5.15's `Seeded from Gold II at 1469.`; M7.19 took the rank off that sentence, which
+ * left the function with no caller but the loader line that built `PlayerBoardView.seedRank`, and
+ * that field had no reader either. Both are deleted rather than kept with a note: the words were
+ * only ever a display of the seed's *reason*, and since 2026-09-16 a seed has no reason to show —
+ * every one of them is `provisionalSeed()`.
  *
- * The client sends the tier upper case (`GOLD`) and the division as a Roman numeral, and this
- * formats exactly the pair stored beside the seed — `ratings.seed_rank_tier` /
- * `seed_rank_division` — so the words always name the rank the client reported when that
- * player's history began.
- *
- * **They no longer name where the number came from, and no page prints them** (2026-09-16).
- * Every seed written from that date is `provisionalSeed()`, 1200, whatever rank rode along with
- * it, so M7.19 dropped the rank from {@link seededLine} rather than re-phrase it. This function
- * survives the re-word with its job unchanged — say what the client said, in words — but its only
- * remaining callers are `lib/board/load.ts` and its own tests; whether it and
- * `PlayerBoardView.seedRank` stay at all is M7.20's question.
- *
- * `seedFromRank` is still the test for "is this a rank at all", which is the one thing that has
- * not moved: a tier core does not recognise seeds as unranked, and is named that way here too,
- * as is a client that reported none. Master and above have no division
- * (`config.rating.tiersWithoutDivisions`).
+ * `ratings.seed_rank_tier` / `seed_rank_division` are untouched and still written on every new
+ * seed (`lib/ingest/seed.ts`): they are the record of what the client reported the night a history
+ * began, and nothing on a screen was ever their justification. A page that wants those words again
+ * writes the formatter it needs then, against whatever the sentence of the day is.
  */
-export function rankLabel(tier: string | null, division: string | null): string {
-  const key = (tier ?? '').trim().toUpperCase();
-  // Exactly core's own test for "I do not know this tier": a string core cannot place comes back
-  // at the unranked pair, and printing `Golden III` for it would invent a rank the client never
-  // reported. This is a lookup on the *label*, not on the seed's number, which since 2026-09-16
-  // does not come from here at all.
-  const seeded = seedFromRank(key, division);
-  const unranked = seedFromRank(null, null);
-  if (seeded.mu === unranked.mu && seeded.sigma === unranked.sigma) return UNRANKED_LABEL;
-
-  const titled = `${key.charAt(0)}${key.slice(1).toLowerCase()}`;
-  const numeral = (division ?? '').trim().toUpperCase();
-  const withoutDivisions: readonly string[] = config.rating.tiersWithoutDivisions;
-  return withoutDivisions.includes(key) || numeral.length === 0 ? titled : `${titled} ${numeral}`;
-}
 
 /**
  * `Started at 1200, 37 rated games since.` — once, above the chart (M5.15; re-worded by M7.19 and

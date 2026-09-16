@@ -14,8 +14,11 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  * `ratings` row whose stored seed disagrees with the player's current rank: exactly the shape a
  * friend who climbed after their first custom leaves behind.
  *
- * The sentence stopped naming a rank at all on 2026-09-16 (M7.19). `seedRank` is still loaded and
- * still asserted here because the loader still builds it; whether it survives is M7.20.
+ * The sentence stopped naming a rank at all on 2026-09-16 (M7.19), and M7.20 deleted the view field
+ * and the formatter that had gone on building it, so what this file asserts is the one thing that is
+ * still on a screen: the **number**. The stored rank columns are still written and are still set up
+ * below, because the row shape they make — a stored seed that disagrees with tonight's rank — is
+ * exactly what makes `reference` a real test of the 2026-09-11 decision rather than a tautology.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -86,10 +89,11 @@ if (stack === null) {
   it('reads the stored seed, not the rank the player wears now', async () => {
     const player = await loadPlayerBoard(anon, puuid, ALL_TIME);
     expect(player).not.toBeNull();
-    // `Started at 1470.` — the number the history was built on. The rank the seed was stored
-    // beside is loaded too, and since M7.19 no sentence prints it.
-    expect(player?.seedRank).toBe('Gold II');
+    // `Started at 1470.` — the number the history was built on, which is Gold II's and not the
+    // Diamond I this player wears now. Nothing formats the stored rank any more (M7.20); this
+    // assertion is the whole test, and it fails the day the loader reads `players.rank_tier`.
     expect(player?.reference).toBe(displayRating(SEED.mu));
+    expect(player?.reference).not.toBe(displayRating(seedFromRank('DIAMOND', 'I').mu));
     // And the two numbers at the top are still today's rating, which no part of this changes.
     expect(player?.rating).toBe(displayRating(27.4));
   });
@@ -103,13 +107,11 @@ if (stack === null) {
 
     const player = await loadPlayerBoard(anon, puuid, ALL_TIME);
     // With no stored seed there is nothing to read but the rule for a first one, and since
-    // 2026-09-16 that rule ignores the rank: 1200, not Diamond I's 1920. The rank strings still
-    // ride along in the view, and since M7.19's re-word no sentence on the page prints them.
+    // 2026-09-16 that rule ignores the rank: 1200, not Diamond I's 1920.
     //
     // Asserted against `provisionalSeed()` and not against `seedFromRank(null, null)`: the two
     // share `unrankedMu`, so the old spelling passed whichever of the two the loader called and
     // tested nothing. This one fails the moment the loader goes back to reading a rank.
-    expect(player?.seedRank).toBe('Diamond I');
     expect(player?.reference).toBe(displayRating(provisionalSeed().mu));
   });
 }

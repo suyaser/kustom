@@ -301,20 +301,17 @@ export interface PlayerBoardView {
    * and the chip are untouched on `All time`, `This month` and `Last month`.
    */
   settling: boolean;
-  /**
-   * The rank on record when the seed was taken, as words: `Gold II`, `Master`, `Unranked`
-   * (M5.15).
+  /*
+   * **There is no `seedRank` on this view** (M7.20, 2026-09-16), and this note is here so the next
+   * reader of M5.15's design does not go looking for one. It carried the rank the seed was taken
+   * at, as words, for the seed line's `Seeded from Gold II at 1469.`; M7.19 took the rank off that
+   * sentence, and a view field nothing renders is a promise to a page that does not exist — so it
+   * went with `rankLabel` rather than stay under a comment explaining its own silence.
    *
-   * Formatted in the loader by `rankLabel` from `ratings.seed_rank_tier` / `seed_rank_division`.
-   * Those two columns used to be what the seed's number was computed from; since 2026-09-16 a
-   * seed is the provisional `20 / 12` for everybody and they are the record of what the client
-   * reported that night and nothing more. M7.19's re-word (2026-09-16) took the rank off the
-   * seed line rather than re-phrase it, so **no page reads this field any more**; the loader
-   * still builds it, and whether it and `rankLabel` survive is M7.20's question, not this
-   * pass's. It is still carried on every window, as it always was: the rank is a fact about the
-   * player, not about the calendar.
+   * The two `ratings.seed_rank_*` columns are **not** gone: they are still written on every new
+   * seed and still say what the client reported the night a history began. What no longer exists
+   * is a formatted copy of them riding into a React tree nobody reads it from.
    */
-  seedRank: string;
   /**
    * The chart's reference line, in the series' own units: `round(seedMu * 60)` on `All time`,
    * and the rating carried **into** the window on the other four. {@link PlayerBoardView.window}

@@ -12,7 +12,7 @@ import { loadAwardWinners, loadStreaks } from '../stats/load';
 import { type AwardWinners, NO_AWARD_WINNERS } from '../stats/winners';
 import type { PlayerName } from '../tonight/types';
 import { boardBreakdown } from './breakdown';
-import { rankLabel, SETTLING_GAMES } from './copy';
+import { SETTLING_GAMES } from './copy';
 import { sortBoardRows } from './order';
 import { recentGames } from './recent';
 import type {
@@ -715,8 +715,8 @@ export async function loadPlayerBoard(
     // chart's reference line are all the seed the first fold will store — `provisionalSeed()`,
     // 1200 — and the page cannot contradict itself the way it did until 2026-09-16, when the two
     // at the top came from this player's rank and the line under the chart came from the seed.
-    // The rank strings still ride along for M5.15's sentence; they name what the client last
-    // reported and no longer say where the number came from.
+    // The rank strings still ride onto the seed `seedFor` returns, because that is the shape the
+    // ingest stores; since M7.20 nothing formats them for the view.
     const seed = seedFor(null, player.rankTier, player.rankDivision);
     return {
       puuid: player.puuid,
@@ -733,7 +733,6 @@ export async function loadPlayerBoard(
       wins: 0,
       losses: 0,
       settling: !isWeekWindow(window),
-      seedRank: rankLabel(seed.rankTier, seed.rankDivision),
       reference: displayRating(seed.rating.mu),
       history: [],
       recent: [],
@@ -778,13 +777,12 @@ export async function loadPlayerBoard(
    * because that is what their history was folded from; their rank today is on the client, not
    * on this line.
    *
-   * `seedRank` is the seed's two rank strings as words (M5.15). Since 2026-09-16 the number
-   * beside them no longer comes from them — every new seed is the provisional one — so the *number*
-   * is still exactly the fold's, and it is the sentence's wording that product owns.
+   * **One value comes out of it: the number** (M7.20). The stored seed's rank strings are read
+   * here, as part of the stored shape, and formatted nowhere — M7.19 took the rank off M5.15's
+   * sentence and M7.20 deleted the view field and the formatter that fed it.
    */
   const seed = seedFor(stored?.seed ?? null, player.rankTier, player.rankDivision);
   const seedRating = displayRating(seed.rating.mu);
-  const seedRank = rankLabel(seed.rankTier, seed.rankDivision);
 
   /**
    * **The last few games, and — on a week window — the week they sit in** (M7.16), read side by
@@ -868,7 +866,6 @@ export async function loadPlayerBoard(
     // The 30-game rule reads the whole history in every window (M3.8) — and never on a week,
     // where there is no Proven on the page for the chip and its sentence to explain (M7.16).
     settling: !onWeek && allTimeGames < SETTLING_GAMES,
-    seedRank,
     /**
      * The chart's hairline: the seed on `All time`, and in a window the rating carried
      * **into** it — the `mu_before` of the first counted game in it, which is where the week

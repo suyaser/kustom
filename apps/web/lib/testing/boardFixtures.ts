@@ -1,5 +1,5 @@
 import { displayRating, seedFromRank } from '@customs/core';
-import { rankLabel, SETTLING_GAMES } from '../board/copy';
+import { SETTLING_GAMES } from '../board/copy';
 import { sortBoardRows } from '../board/order';
 import type { BoardGame, BoardRow, BoardView, PlayerBoardView, RecentGame } from '../board/types';
 import type { WindowKind } from '../night';
@@ -168,12 +168,11 @@ export function workedPlayer(name = 'Hana', overrides: Partial<PlayerBoardView> 
   const games = WORKED_GAMES[name] ?? 0;
   const wins = workedWins(games);
   const rating = displayRating(player.mu);
-  // A player seeded under the **old** rank rule, which is what every stored row in the hosted
-  // project still is until the retroactive reset runs (2026-09-16): the chart's hairline sits at
-  // the number that rank gave, and M5.15's seed line names the same pair in words. A row seeded
-  // from here on stores `provisionalSeed()`'s 1200 with its rank strings beside it, and the two
-  // are then free to disagree — `rankLabel` says so. This fixture keeps the older shape on
-  // purpose, because it is the one the copy tests are about and the one the group has.
+  // A player seeded under the **old** rank rule, which is what a stored row folded before
+  // 2026-09-16's re-seed was: the chart's hairline sits at the number that rank gave. The fixture
+  // keeps that shape on purpose — a seed number that is *not* 1200 is what makes the copy tests
+  // prove the seed line interpolates the fold's own number rather than printing a constant. The
+  // rank itself is not a field on the view any more (M7.20); only the number it produced is here.
   const seed = displayRating(seedFromRank(SEED_TIER, SEED_DIVISION).mu);
 
   return {
@@ -190,7 +189,6 @@ export function workedPlayer(name = 'Hana', overrides: Partial<PlayerBoardView> 
     losses: games - wins,
     settling: games < SETTLING_GAMES,
     range: 'Since 8 Sep 2025',
-    seedRank: rankLabel(SEED_TIER, SEED_DIVISION),
     reference: seed,
     // A short walk that ends where the roster says they are, so the chart's last point and the
     // `Rating` beside it are the same number — and that starts above the seed, so the

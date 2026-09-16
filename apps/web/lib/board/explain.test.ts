@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { favoredClause } from '../discord/embeds';
 import type { WindowKind } from '../night';
 import { workedPlayer, workedRecentGame } from '../testing/boardFixtures';
-import { rankLabel, UNRANKED_LABEL } from './copy';
 import { explainGame, explainRatingStart, sideWinChance } from './explain';
 
 /**
@@ -106,13 +105,13 @@ describe('the seed line', () => {
    * **The rank clause is gone, not softened** (M7.19, product 2026-09-16). Every rating starts at
    * `provisionalSeed()` now, the same number for everybody, so a tier on the one line that
    * explains where a rating came from would be read as the reason for it whatever the preposition
-   * did. The fixture is still seeded `Silver II` — `player.seedRank` is loaded and simply has no
-   * reader here — which is exactly why this guard asserts on the rendered sentence.
+   * did. The fixture's seed number is still Silver II's — the rank itself stopped being a field on
+   * the view at all in M7.20 — which is why this guard asserts on the rendered sentence and on the
+   * tier's own word, the one thing that would come back if somebody re-added the clause.
    */
   it('never names a League rank, and never says `Seeded`', () => {
     const player = workedPlayer();
 
-    expect(player.seedRank).toBe('Silver II');
     const line = explainRatingStart(player) ?? '';
     expect(line).not.toContain('Silver');
     expect(line).not.toContain('Seeded');
@@ -164,22 +163,10 @@ describe('the seed line', () => {
   });
 });
 
-describe('the rank, as words', () => {
-  it('title-cases the tier and keeps the division numeral', () => {
-    expect(rankLabel('GOLD', 'II')).toBe('Gold II');
-    expect(rankLabel('emerald', 'iv')).toBe('Emerald IV');
-  });
-
-  it('drops the division for the three tiers that have none', () => {
-    expect(rankLabel('MASTER', 'I')).toBe('Master');
-    expect(rankLabel('GRANDMASTER', null)).toBe('Grandmaster');
-    expect(rankLabel('CHALLENGER', 'I')).toBe('Challenger');
-  });
-
-  it('says `Unranked` for a rank the client never reported, and for one core cannot read', () => {
-    expect(rankLabel(null, null)).toBe(UNRANKED_LABEL);
-    expect(rankLabel('', '')).toBe(UNRANKED_LABEL);
-    // The seed for this string is the unranked seed, so the words must be too.
-    expect(rankLabel('WOOD', 'IX')).toBe(UNRANKED_LABEL);
-  });
-});
+/*
+ * **`describe('the rank, as words')` is gone** (M7.20, 2026-09-16): seven cases over `rankLabel`,
+ * deleted with the function they covered. They pinned the format of a string that M7.19 took off
+ * the only sentence that printed it, so what they protected was a formatter with no surface. The
+ * guard above — the rendered seed line names no tier and never says `Seeded` — is the one that
+ * survives, because it is about what a player reads.
+ */
