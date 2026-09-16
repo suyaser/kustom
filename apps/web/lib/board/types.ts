@@ -252,13 +252,35 @@ export interface PlayerBoardView {
   /** Which of the five this page was read through. Its name is beside the picker. */
   window: WindowKind;
   /**
+   * Which fold every rating number below came from (M7.16), under exactly
+   * {@link BoardRow.track}'s rule: `weekly` on `This week` and `Last week`, `all-time` on the
+   * other three. **The page never mixes tracks** — `rating`, `proven`, `reference`, `history`
+   * and the per-game deltas in `recent` are all this one's.
+   *
+   * It exists so that the board row and the page it links to cannot say two numbers about one
+   * week (M7.3's own follow-up): `/leaderboard?window=this-week` sorts and prints the weekly
+   * `Rating`, and this page now prints the same digit.
+   */
+  track: RatingTrack;
+  /**
    * `round(mu * 60)` **as of their last counted game inside the window** — their current
-   * rating on `All time` and on `This week`, and where the week left them on `Last week`. With
+   * rating on `All time`, and where the month left them on `This month` / `Last month`. With
    * no counted game in the window it is their current rating: the page is a person, and the
    * empty line under it is what says the window has nothing in it.
+   *
+   * **On a week window it is the weekly track's** (M7.16): the player's seed folded through
+   * that week's counted games, equal to the digit on their board row, and their weekly **seed**
+   * when the week holds no counted game of theirs — where Sunday put them is the honest answer
+   * to "how was their week" when they did not play it.
    */
   rating: number;
-  /** `round(ordinal * 60)`, from the same game, under the same label the board uses. */
+  /**
+   * `round(ordinal * 60)`, from the same game, under the same label the board uses — **and
+   * printed nowhere at all on a week window** (M7.16), the same carve-out the board row has
+   * (M7.3): a week is a handful of games by design, so `- 2σ` is enormous on every page, every
+   * week. It is still computed, off the weekly track, so the view keeps one shape on every
+   * window and nothing here has to be nullable.
+   */
   proven: number;
   /** The window's counted games. `All time` is the fold's own total. */
   games: number;
@@ -270,7 +292,14 @@ export interface PlayerBoardView {
    * says one number twice. `null` when this player has nothing to date from.
    */
   range: string | null;
-  /** The 30-game rule, always on the all-time count (M3.8). Never a fact about the window. */
+  /**
+   * The 30-game rule, always on the all-time count (M3.8). Never a fact about the window.
+   *
+   * **Always `false` on a week window** (M7.16), exactly as on a week board row: the chip and
+   * its sentence explain Proven, which a week window does not print, and
+   * {@link WEEK_PLAYER_SENTENCE} is the paragraph that goes in their place. `SETTLING_GAMES`
+   * and the chip are untouched on `All time`, `This month` and `Last month`.
+   */
   settling: boolean;
   /**
    * The rank on record when the seed was taken, as words: `Gold II`, `Master`, `Unranked`
@@ -290,10 +319,27 @@ export interface PlayerBoardView {
    * The chart's reference line, in the series' own units: `round(seedMu * 60)` on `All time`,
    * and the rating carried **into** the window on the other four. {@link PlayerBoardView.window}
    * decides whether it is labelled `seed` or `start`.
+   *
+   * On a week window it is the **weekly seed** — where the from-scratch fold started this
+   * player on Sunday (M7.16) — under the same `start` label M5.12 gave the window charts. It is
+   * not called a `seed`: that word is a fact about a whole history and stays on `All time`.
    */
   reference: number;
-  /** The `Rating` series in `started_at` order, oldest first. Empty for no games. */
+  /**
+   * The `Rating` series in `started_at` order, oldest first. Empty for no games.
+   *
+   * **The weekly fold's own steps on a week window** (M7.16), so the line under the number ends
+   * where the number says. A game the weekly fold skipped is not a point on it, exactly as it is
+   * not a row in a board row's expand.
+   */
   history: number[];
-  /** The window's last few games, rated or not (M3.23). */
+  /**
+   * The window's last few games, rated or not (M3.23).
+   *
+   * **On a week window each game's two mu values are the weekly ones** (M7.16) — the same change
+   * M7.3 made to the board row's expand, for the same reason: a list whose deltas do not add up
+   * to the number above it is a page arguing with itself. The `award` on a row does not move
+   * with the track; it is a fact about who played the game (M7.10).
+   */
   recent: RecentGame[];
 }

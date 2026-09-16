@@ -367,30 +367,8 @@ async function windowRows(
   /**
    * **The week's own fold** (M7.3), or `null` on the two month windows, where every number on
    * the row is the stored one exactly as M5.12 shipped it.
-   *
-   * The seed is `lib/ingest/seed.ts`'s rule and not a second reading of it: the stored
-   * `ratings.seed_*` pair first, and `provisionalSeed()` — not a rank — for somebody who has
-   * never been rated (2026-09-16). That is what makes `Last week` read the same on Tuesday as it
-   * did on Sunday, and the same again after a rank moves.
    */
-  const weekly = isWeekWindow(options.window)
-    ? foldWeeklyRatings(
-        weeklyGames(games, rows, players),
-        new Map(
-          playerIds.map((playerId) => {
-            const player = players.get(playerId);
-            return [
-              playerId,
-              seedFor(
-                ratings.get(playerId)?.seed ?? null,
-                player?.rankTier ?? null,
-                player?.rankDivision ?? null,
-              ).rating,
-            ];
-          }),
-        ),
-      )
-    : null;
+  const weekly = isWeekWindow(options.window) ? weeklyFold(games, rows, players, ratings, playerIds) : null;
 
   return playerIds.flatMap((playerId) => {
     const player = players.get(playerId);
@@ -478,6 +456,75 @@ function withAwards(rows: BoardRow[], winners: AwardWinners): BoardRow[] {
     const won = winners.get(row.puuid);
     return won === undefined ? row : { ...row, awards: won };
   });
+}
+
+/**
+ * **The week, folded — and the only place in `apps/web` that folds one** (M7.3, M7.16).
+ *
+ * `/leaderboard`'s rows and `/p/[puuid]` both come through here, which is what makes the digit
+ * on a row and the digit on the page it links to one number rather than two computations that
+ * agree on a good day. The maths itself is `weekly.ts`'s and core's; this assembles its two
+ * inputs out of rows a caller has already read.
+ *
+ * The seed is `lib/ingest/seed.ts`'s rule and **not a second reading of it**: the stored
+ * `ratings.seed_*` pair first, and `provisionalSeed()` — not a rank — for somebody who has never
+ * been rated (2026-09-16). That is what makes `Last week` read the same on Tuesday as it did on
+ * Sunday, and the same again after a rank moves.
+ *
+ * `playerIds` is every player with a rated row in the window, which by construction is every
+ * seat of every game the fold will read.
+ */
+function weeklyFold(
+  games: readonly SeasonGame[],
+  rows: readonly PlayerGameRow[],
+  players: ReadonlyMap<string, PlayerRow>,
+  ratings: ReadonlyMap<string, RatingRow>,
+  playerIds: readonly string[],
+): Map<string, WeeklyPlayerRating> {
+  return foldWeeklyRatings(
+    weeklyGames(games, rows, players),
+    new Map(
+      playerIds.map((playerId) => {
+        const player = players.get(playerId);
+        return [
+          playerId,
+          seedFor(ratings.get(playerId)?.seed ?? null, player?.rankTier ?? null, player?.rankDivision ?? null)
+            .rating,
+        ];
+      }),
+    ),
+  );
+}
+
+/**
+ * The same fold for a page that started from **one** player (M7.16): `/p/[puuid]` reads its own
+ * scoreboard rows, and a week's numbers are a property of the ten seats of every game in it, so
+ * the week has to be read whole and the answer picked out of it.
+ *
+ * Two reads, on the two week windows only, after the games the page was loading anyway. The
+ * month windows and `All time` make neither.
+ */
+async function loadWeeklyFold(
+  client: PublicClient,
+  seasonId: string,
+  games: readonly SeasonGame[],
+): Promise<Map<string, WeeklyPlayerRating>> {
+  if (games.length === 0) return new Map();
+
+  const rows = await loadGameRows(
+    client,
+    games.map((game) => game.id),
+  );
+  // The window's rated seats, deduplicated: a week of ten-player games is the same twenty
+  // people over and over, and the seed lookup is one row each.
+  const playerIds = [...new Set(rows.flatMap((row) => (row.muAfter === null ? [] : [row.playerId])))];
+  if (playerIds.length === 0) return new Map();
+
+  const [players, ratings] = await Promise.all([
+    loadPlayersByIds(client, playerIds),
+    loadRatings(client, seasonId, playerIds),
+  ]);
+  return weeklyFold(games, rows, players, ratings, playerIds);
 }
 
 /**
@@ -641,6 +688,12 @@ export async function loadTopPlayersOrNone(
 /**
  * One player's page: the two numbers, the `Rating` history, the role record and the last few
  * games. `null` when no `players_public` row has that puuid, which the page turns into a 404.
+ *
+ * **On `This week` and `Last week` every rating number here is the weekly track's** (M7.16),
+ * through the same `weeklyFold` the board runs: the one number, the chart, the `start` hairline
+ * and each recent game's delta. It is M7.3's own follow-up — the board row said `1612` and the
+ * page a tap later said `1730`, both right, with nothing on either saying which question it was
+ * answering. `All time`, `This month` and `Last month` are untouched, down to the byte.
  */
 export async function loadPlayerBoard(
   client: PublicClient,
@@ -669,13 +722,17 @@ export async function loadPlayerBoard(
       puuid: player.puuid,
       name: player.name,
       window,
+      // A week with no database behind it is still a week (M7.16): the number on the screen is
+      // the seed the weekly fold would have started from, which is the same number, so the page
+      // says it under one label instead of two and carries no chip.
+      track: isWeekWindow(window) ? 'weekly' : 'all-time',
       range: null,
       rating: displayRating(seed.rating.mu),
       proven: provenRating(seed.rating),
       games: 0,
       wins: 0,
       losses: 0,
-      settling: true,
+      settling: !isWeekWindow(window),
       seedRank: rankLabel(seed.rankTier, seed.rankDivision),
       reference: displayRating(seed.rating.mu),
       history: [],
@@ -729,32 +786,57 @@ export async function loadPlayerBoard(
   const seedRating = displayRating(seed.rating.mu);
   const seedRank = rankLabel(seed.rankTier, seed.rankDivision);
 
-  const recent = await loadRecentGames(
-    client,
-    recentGames(
-      all.map(({ row, game }) => ({ row, game, startedAt: game.startedAt, muAfter: row.muAfter })),
-      RECENT_GAMES,
+  /**
+   * **The last few games, and — on a week window — the week they sit in** (M7.16), read side by
+   * side: the second is two queries this page would otherwise wait for after the first, and it
+   * is a phone on a link.
+   *
+   * `null` on the three windows that read the stored track, which make no extra query at all.
+   */
+  const [recent, weekly] = await Promise.all([
+    loadRecentGames(
+      client,
+      recentGames(
+        all.map(({ row, game }) => ({ row, game, startedAt: game.startedAt, muAfter: row.muAfter })),
+        RECENT_GAMES,
+      ),
     ),
-  );
+    isWeekWindow(window) ? loadWeeklyFold(client, season, games) : Promise.resolve(null),
+  ]);
 
   /**
-   * **The two numbers, and where they come from** (M5.12).
+   * **Which track this page is reading** (M7.16), and the player's own line through it.
+   *
+   * `week` is `null` on the three stored-track windows *and* for a player with no counted game
+   * inside the week — the second case reads as their weekly seed below, which is where Sunday
+   * put them and the honest answer to "how was their week" when they did not play it.
+   */
+  const onWeek = weekly !== null;
+  const week = weekly?.get(player.id) ?? null;
+
+  /**
+   * **The two numbers, and where they come from** (M5.12, M7.16).
    *
    * On `All time` they are the `ratings` row — the fold's own totals, byte-identical to what
-   * M3.5 shipped and to the row on `/leaderboard`. In a window they are this player as of
+   * M3.5 shipped and to the row on `/leaderboard`. On a month window they are this player as of
    * their last counted game inside it, from that game's `mu_after` / `sigma_after`, and the
    * record counts the window's games.
    *
-   * With no counted game in the window they fall back to the current rating: the page is a
-   * person, not a board row, and printing nothing where a number goes would say something the
-   * empty line under it already says better.
+   * **On a week window they are the weekly fold's**, so the digit here is the digit on that
+   * player's row on `/leaderboard?window=this-week` — the whole of M7.16. `Proven` is computed
+   * off the same pair and printed nowhere, exactly as on a week board row.
+   *
+   * With no counted game in the window they fall back to the current rating — or, on a week, to
+   * the weekly seed: the page is a person, not a board row, and printing nothing where a number
+   * goes would say something the empty line under it already says better.
    */
   const last = played[played.length - 1];
   const first = played[0];
   const windowed = window !== 'all-time' && last !== undefined;
-  const rating: Rating = windowed
+  const stayed: Rating = windowed
     ? { mu: last.row.muAfter as number, sigma: last.row.sigmaAfter as number }
     : current;
+  const rating: Rating = onWeek ? (week?.rating ?? seed.rating) : stayed;
   const windowWins = played.filter(({ row, game }) => row.side === game.winningSide).length;
   const counted = window === 'all-time' ? allTimeGames : played.length;
   const wins = window === 'all-time' ? (stored?.wins ?? 0) : windowWins;
@@ -763,6 +845,7 @@ export async function loadPlayerBoard(
     puuid: player.puuid,
     name: player.name,
     window,
+    track: onWeek ? 'weekly' : 'all-time',
     /**
      * **The window's range, dated from this player's own history on `All time`** — the page is
      * a person, and `Since 8 Sep 2025` there means since *their* first counted game, not the
@@ -782,18 +865,27 @@ export async function loadPlayerBoard(
     games: counted,
     wins,
     losses: counted - wins,
-    // The 30-game rule reads the whole history in every window (M3.8).
-    settling: allTimeGames < SETTLING_GAMES,
+    // The 30-game rule reads the whole history in every window (M3.8) — and never on a week,
+    // where there is no Proven on the page for the chip and its sentence to explain (M7.16).
+    settling: !onWeek && allTimeGames < SETTLING_GAMES,
     seedRank,
     /**
      * The chart's hairline: the seed on `All time`, and in a window the rating carried
      * **into** it — the `mu_before` of the first counted game in it, which is where the week
      * found them. That is not a seed and does not borrow the word (`start`, M5.12).
+     *
+     * **On a week window it is the weekly seed** (M7.16) — and that is `seedRating` itself,
+     * because the weekly fold starts from exactly the `seedFor` answer this page already read.
+     * One number, read once, so the hairline, M5.15's `Started the week at …` line and the first
+     * point of the series cannot disagree. It keeps the `start` label: a week's seed is not the
+     * seed of a history.
      */
     reference:
-      window === 'all-time' || first === undefined ? seedRating : displayRating(first.row.muBefore as number),
-    history: historySeries(played),
-    recent,
+      onWeek || window === 'all-time' || first === undefined
+        ? seedRating
+        : displayRating(first.row.muBefore as number),
+    history: onWeek ? weeklySeries(week) : historySeries(played),
+    recent: onWeek ? weeklyRecent(recent, week) : recent,
   };
 }
 
@@ -813,6 +905,47 @@ function historySeries(played: readonly { row: PlayerGameRow }[]): number[] {
     if (row.muAfter !== null) series.push(displayRating(row.muAfter));
   }
   return series;
+}
+
+/**
+ * The same series on a week window: **the weekly fold's own steps** (M7.16).
+ *
+ * Same shape as {@link historySeries} — the rating carried into the first game of the week,
+ * then the rating carried out of every game since — read off the pairs the fold produced rather
+ * than off the stored columns, so the line ends at the number printed above it. A player the
+ * week holds no counted game for has nothing to plot and no chart is drawn, which is what the
+ * window's empty line is already saying in words.
+ */
+function weeklySeries(week: WeeklyPlayerRating | null): number[] {
+  const first = week?.games[0];
+  if (week === null || first === undefined) return [];
+  return [displayRating(first.muBefore), ...week.games.map((game) => displayRating(game.muAfter))];
+}
+
+/**
+ * `Recent games` on a week window: the same games, with **the weekly deltas** (M7.16).
+ *
+ * The list itself does not change — M3.23 lists the games the player played, rated or not, and
+ * a week does not hide one. What changes is the pair each row's `1512 (+43)` is computed from,
+ * for the reason M7.3 gave the board row's expand: a list whose deltas do not add up to the
+ * number above it is a page arguing with itself.
+ *
+ * **A game the weekly fold did not rate reads `not rated`** — the same three words an unrated
+ * game already reads, because the reader's question ("why did this not move the number above")
+ * has the same answer. That is every ARAM and every unfolded backfill, which read that way on
+ * both tracks, and in principle a rated game the weekly fold skipped for not being five a side:
+ * the all-time fold refuses those, so it is the shape that should not exist rather than a case
+ * with a design. Nothing here touches `award`, which is a fact about who played the game and
+ * does not move with the track (M7.10).
+ */
+function weeklyRecent(recent: readonly RecentGame[], week: WeeklyPlayerRating | null): RecentGame[] {
+  const byGame = new Map((week?.games ?? []).map((game) => [game.gameId, game]));
+  return recent.map((game) => {
+    const pair = byGame.get(game.gameId);
+    return pair === undefined
+      ? { ...game, muBefore: null, muAfter: null }
+      : { ...game, muBefore: pair.muBefore, muAfter: pair.muAfter };
+  });
 }
 
 /*

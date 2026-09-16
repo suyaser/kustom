@@ -6,6 +6,7 @@ import {
   MVP_LABEL,
   NOT_RATED,
   NOT_RATED_HINT,
+  PROVEN_LABEL,
   RATING_EXPLANATION,
   RATING_LABEL,
   RECENT_GAMES_HEADING,
@@ -15,6 +16,8 @@ import {
   SETTLING_SENTENCE,
   SETTLING_SENTENCE_PLAYER,
   START_LABEL,
+  WEEK_BOARD_SENTENCE,
+  WEEK_PLAYER_SENTENCE,
   WINDOW_EMPTY,
 } from '@/lib/board/copy';
 import { explainGame } from '@/lib/board/explain';
@@ -211,7 +214,15 @@ describe('the sections under the chart (M5.20)', () => {
 
   it('draws none of them for a window this player has no counted game in', () => {
     const { container } = draw(
-      workedPlayer('Hana', { window: 'last-week', games: 0, wins: 0, losses: 0, range: null, recent: [] }),
+      workedPlayer('Hana', {
+        window: 'last-week',
+        track: 'weekly',
+        games: 0,
+        wins: 0,
+        losses: 0,
+        range: null,
+        recent: [],
+      }),
       emptyPlayerStats('last-week'),
     );
 
@@ -353,6 +364,9 @@ describe('a player with no name (M3.10)', () => {
 describe('a window on the player page', () => {
   const week = workedPlayer('Hana', {
     window: 'this-week',
+    // A week window is the weekly track since M7.16, and the page reads the track: a fixture
+    // that said `this-week` and carried the stored one would be a state the loader cannot make.
+    track: 'weekly',
     games: 6,
     wins: 4,
     losses: 2,
@@ -410,6 +424,7 @@ describe('a window on the player page', () => {
     draw(
       workedPlayer('Hana', {
         window: 'last-week',
+        track: 'weekly',
         games: 0,
         wins: 0,
         losses: 0,
@@ -431,6 +446,88 @@ describe('a window on the player page', () => {
 
     expect(document.body.textContent?.toLowerCase()).not.toContain('season');
     expect(document.body.textContent).not.toContain('Start a season on the Seasons page.');
+  });
+
+  /**
+   * **A week window reads the weekly track** (M7.16), and the page says so by printing one
+   * number instead of two. The loader's half is `board.integration.test.ts` and
+   * `weekBoard.integration.test.ts`; what this block owns is what a reader sees.
+   */
+  describe('on a week window (M7.16)', () => {
+    it('prints the weekly Rating as the one number and no Proven at all', () => {
+      const { container } = draw(week);
+
+      const numbers = [...container.querySelectorAll('.cn-number')].map((node) => node.textContent?.trim());
+      expect(numbers).toEqual(['Rating 1434']);
+      // Not as a label, not as a second number, not in small type, not visually hidden.
+      expect(document.body.textContent).not.toContain(PROVEN_LABEL);
+      // The one number takes the primary slot, which is the display cut.
+      expect(container.querySelector('.cn-number-primary')?.textContent?.trim()).toBe('Rating 1434');
+    });
+
+    it('says the week sentence in the third person, and never the Proven one', () => {
+      const { container } = draw({ ...week, settling: false });
+
+      const sentence = container.querySelector('.cn-settling')?.textContent ?? '';
+      expect(sentence).toBe(WEEK_PLAYER_SENTENCE);
+      // The board's own week sentence is second person and is not this page's (M3.26).
+      expect(sentence).not.toBe(WEEK_BOARD_SENTENCE);
+      expect(sentence).not.toContain(' you');
+      expect(sentence).not.toContain('your');
+      expect(screen.queryByText(SETTLING_SENTENCE_PLAYER)).not.toBeInTheDocument();
+      expect(screen.queryByText(SETTLING_SENTENCE)).not.toBeInTheDocument();
+    });
+
+    /**
+     * The chip is an all-time fact and a week window does not print the number it is about.
+     * The fixture is `Nadia`, whose all-time count is under the threshold: on `All time` she
+     * carries it, and the same player read through a week carries neither it nor its sentence.
+     */
+    it('carries no settling chip, on a week the same player would be chipped on', () => {
+      const { unmount } = draw(workedPlayer('Nadia'));
+      expect(screen.getByText(SETTLING_CHIP)).toBeInTheDocument();
+      unmount();
+
+      draw(workedPlayer('Nadia', { window: 'this-week', track: 'weekly', settling: false }));
+      expect(screen.queryByText(SETTLING_CHIP)).not.toBeInTheDocument();
+      expect(screen.getByText(WEEK_PLAYER_SENTENCE)).toBeInTheDocument();
+    });
+
+    /** Both, byte for byte, on the three windows that still read the stored track. */
+    it('keeps Proven and its own sentence on `All time` and the month windows', () => {
+      for (const window of ['all-time', 'this-month', 'last-month'] as const) {
+        const { container, unmount } = draw(workedPlayer('Nadia', { window }));
+
+        expect(container.querySelector('.cn-settling')?.textContent).toBe(SETTLING_SENTENCE_PLAYER);
+        expect([...container.querySelectorAll('.cn-number-label')].map((node) => node.textContent)).toEqual([
+          RATING_LABEL,
+          PROVEN_LABEL,
+        ]);
+        expect(screen.queryByText(WEEK_PLAYER_SENTENCE)).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    /** The empty week still explains the number it is showing: the seed is a weekly one. */
+    it('says the week sentence even on a week this player did not play', () => {
+      draw(
+        workedPlayer('Hana', {
+          window: 'this-week',
+          track: 'weekly',
+          games: 0,
+          wins: 0,
+          losses: 0,
+          range: null,
+          history: [],
+          recent: [],
+        }),
+        emptyPlayerStats('this-week'),
+      );
+
+      expect(screen.getByText(WINDOW_EMPTY['this-week'])).toBeInTheDocument();
+      expect(screen.getByText(WEEK_PLAYER_SENTENCE)).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain(PROVEN_LABEL);
+    });
   });
 
   it('says `Someone` for a nameless player, and explains it once', () => {
@@ -794,7 +891,14 @@ describe('the seed line', () => {
 
   it('says where the window found them, not where the board seeded them', () => {
     const { container } = draw(
-      workedPlayer('Hana', { window: 'this-week', games: 6, wins: 4, losses: 2, reference: 1469 }),
+      workedPlayer('Hana', {
+        window: 'this-week',
+        track: 'weekly',
+        games: 6,
+        wins: 4,
+        losses: 2,
+        reference: 1469,
+      }),
     );
 
     expect(container.querySelector('.cn-seed-line')?.textContent).toBe(

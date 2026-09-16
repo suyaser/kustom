@@ -145,6 +145,30 @@ export const WEEK_BOARD_SENTENCE_SHORT =
   'Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.' as const;
 
 /**
+ * The same fact on `/p/[puuid]`, on the two week windows, where
+ * {@link SETTLING_SENTENCE_PLAYER} prints on the other three (product, 2026-09-16, M7.16).
+ *
+ * **Third person, because the page may be somebody else's.** {@link WEEK_BOARD_SENTENCE}'s `you`
+ * is right on a board, where every reader is on it, and wrong twenty pixels under a number that
+ * belongs to whoever's page this is — the same M3.26 rule that gave the Proven sentence its own
+ * twin. It carries the board sentence's four load-bearing points and not its second clause about
+ * a sort order: this page sorts nothing.
+ *
+ * **It does not say "back at their rank".** M7.19 (2026-09-16) took the League rank out of every
+ * stored seed — `provisionalSeed()`, the same number for everybody — so a week now restarts
+ * everyone on one rating rather than on their own. The brief for this task was written before
+ * that landed and proposed the rank wording; it is corrected here rather than copied.
+ * {@link WEEK_BOARD_SENTENCE} and {@link WEEK_BOARD_SENTENCE_SHORT} still carry the retired
+ * wording and are product's to fix (logged 2026-09-16); neither may be edited into this one.
+ *
+ * **`Every week`, not `This week`**, for {@link WEEK_BOARD_SENTENCE}'s reason: `Last week` prints
+ * the same string. No game count is interpolated and the name carries no `SETTLING` — the weekly
+ * track does not claim to settle inside a week.
+ */
+export const WEEK_PLAYER_SENTENCE =
+  "Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. This is their rating after this week's games, with nothing taken off for playing only a few. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams." as const;
+
+/**
  * The legend over the board's one number, which is **the number the board sorted on**.
  *
  * `Proven` on `All time` and the month windows, `Rating` on a week — where the row prints the

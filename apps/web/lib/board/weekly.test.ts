@@ -185,6 +185,36 @@ describe('the weekly fold', () => {
     expect(offenders).toEqual([]);
   });
 
+  /**
+   * **One fold, not two** (M7.16's acceptance 6). `/leaderboard`'s rows, `/p/[puuid]` and
+   * `Most improved` all read the week through this file: a second walk of `rateGameWeekly`
+   * anywhere under `apps/web` would be two answers about one week, which is the defect M7.16
+   * was opened to close and not a way to close it. The check is a grep, so here is the grep.
+   */
+  it('is the only file in the app that folds a week', () => {
+    const roots = ['app', 'lib', 'scripts'].map((dir) => join(import.meta.dirname, '..', '..', dir));
+    const offenders: string[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(path);
+          // Tests may spell the expected numbers out; source may not.
+        } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+          // The **import**, not the word: `load.ts`, `types.ts` and `awards.ts` all name the
+          // function in a comment about this file, which is the opposite of a second fold.
+          if (/import\s*\{[^}]*\brateGameWeekly\b/.test(readFileSync(path, 'utf8'))) {
+            offenders.push(entry.name);
+          }
+        }
+      }
+    };
+    for (const root of roots) walk(root);
+
+    expect(offenders.sort()).toEqual(['weekly.ts']);
+  });
+
   /** Nothing is stored and nothing is shared: two folds of the same week are the same numbers. */
   it('is a pure function of its arguments', () => {
     const once = foldWeeklyRatings([game()], seeds());

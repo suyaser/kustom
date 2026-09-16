@@ -24,6 +24,11 @@ import '../../../board.css';
  * **Its default window is `All time`** (M5.12), unlike `/leaderboard`'s: the page is a person's
  * history, and one that opened on six days of games would answer a question nobody asked it.
  * The parameter is the same word on both pages, so a link keeps its meaning across them.
+ *
+ * **On `This week` and `Last week` every rating on it is the weekly track's** (M7.16), through
+ * `loadPlayerBoard` — the same `foldWeeklyRatings` and the same `seedFor` seed rule the board
+ * runs, so the number here is the digit on that player's board row. Nothing is folded in this
+ * file; the loader is the one place either page reads a week.
  */
 export const dynamic = 'force-dynamic';
 

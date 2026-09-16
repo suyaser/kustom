@@ -26,6 +26,7 @@ import {
   START_LABEL,
   WEEK_BOARD_SENTENCE,
   WEEK_BOARD_SENTENCE_SHORT,
+  WEEK_PLAYER_SENTENCE,
   WINDOW_EMPTY,
   WINDOW_LABELS,
   windowSlotLine,
@@ -334,6 +335,57 @@ describe('the copy a week board says instead', () => {
     expect(boardLegend('weekly')).toBe(RATING_LABEL);
     expect(boardLegend('all-time')).toBe(BOARD_LEGEND);
     expect(boardLegend('all-time')).toBe(PROVEN_LABEL);
+  });
+});
+
+/**
+ * **The same fact on `/p/[puuid]`** (M7.16, product 2026-09-16): the sentence a week window
+ * prints there instead of {@link SETTLING_SENTENCE_PLAYER}, character for character.
+ */
+describe('the copy a week player page says instead', () => {
+  it('is the sentence, word for word', () => {
+    expect(WEEK_PLAYER_SENTENCE).toBe(
+      "Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. This is their rating after this week's games, with nothing taken off for playing only a few. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
+    );
+  });
+
+  /**
+   * **Third person, the M3.26 rule.** The page may be somebody else's, so the board's `you`
+   * would name the wrong person under the number it explains — and neither constant may be
+   * edited into the other.
+   */
+  it('names no reader and is not the board sentence', () => {
+    expect(WEEK_PLAYER_SENTENCE).not.toBe(WEEK_BOARD_SENTENCE);
+    expect(WEEK_PLAYER_SENTENCE).not.toContain(' you');
+    expect(WEEK_PLAYER_SENTENCE).not.toContain('your');
+    // It carries the board sentence's last two sentences, which are about neither person.
+    expect(WEEK_PLAYER_SENTENCE).toContain(
+      'It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.',
+    );
+  });
+
+  /**
+   * **No rank, on either surface's business.** M7.19 (2026-09-16) took the League rank out of
+   * every stored seed, so a week restarts everyone on one rating and not on their own rank. The
+   * guard is one-sided on purpose: {@link WEEK_BOARD_SENTENCE} and its short form still carry
+   * the retired wording and are product's to fix, which is logged as its own defect rather than
+   * copied into a second sentence.
+   */
+  it('does not say a week starts anybody at their rank', () => {
+    expect(WEEK_PLAYER_SENTENCE.toLowerCase()).not.toContain('rank');
+    expect(WEEK_PLAYER_SENTENCE).toContain('starts everyone on the same rating');
+  });
+
+  /** The week's own three rules: `Every week`, no settling claim, no game count, no Proven. */
+  it('says `Every week`, promises no settling and counts no games', () => {
+    expect(WEEK_PLAYER_SENTENCE.startsWith('Every week')).toBe(true);
+    expect(WEEK_PLAYER_SENTENCE).not.toContain('This week');
+    expect(WEEK_PLAYER_SENTENCE).not.toContain('settles after');
+    expect(WEEK_PLAYER_SENTENCE).not.toContain(String(SETTLING_GAMES));
+    expect(WEEK_PLAYER_SENTENCE).not.toMatch(/\d/);
+    expect(WEEK_PLAYER_SENTENCE).not.toContain(PROVEN_LABEL);
+    // And the name carries no `SETTLING`: the week does not claim to settle at all.
+    expect(WEEK_PLAYER_SENTENCE).not.toContain('settling');
   });
 });
 

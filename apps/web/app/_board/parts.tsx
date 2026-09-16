@@ -4,6 +4,7 @@ import {
   SETTLING_SENTENCE,
   SETTLING_SENTENCE_PLAYER,
   WEEK_BOARD_SENTENCE,
+  WEEK_PLAYER_SENTENCE,
 } from '@/lib/board/copy';
 import { NAMELESS_HINT } from '@/lib/tonight/copy';
 import { RoleIcon } from '../_icons/RoleIcon';
@@ -52,6 +53,23 @@ export function SettlingNote({ person = 'you' }: { person?: 'you' | 'player' }) 
  */
 export function WeekBoardNote() {
   return <p className="cn-settling">{WEEK_BOARD_SENTENCE}</p>;
+}
+
+/**
+ * The same fact on `/p/[puuid]`, in the slot {@link SettlingNote} has under the chart (M7.16) —
+ * once per page, on `This week` and `Last week`.
+ *
+ * **The third-person twin**, for M3.26's reason: the page may be somebody else's, so the board's
+ * `you` would name the wrong person under the number it explains. Same element, same class, same
+ * placement as the other two notes; only the string differs.
+ *
+ * It **replaces** the Proven sentence rather than joining it — a week window prints no Proven at
+ * all — and it is not gated on the chip, which a week window does not carry either. Unlike the
+ * board's, it prints on an empty week too: the card is still drawn, with the weekly seed in it,
+ * and the first sentence is exactly what explains that number.
+ */
+export function WeekPlayerNote() {
+  return <p className="cn-settling">{WEEK_PLAYER_SENTENCE}</p>;
 }
 
 /** M3.10's quiet line, once per page, while any row on it reads `Someone`. */

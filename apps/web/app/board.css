@@ -280,9 +280,14 @@
 }
 
 /*
- * **Proven is the page's number.** It is the one the board sorts on, so it is the one in the
- * display size; `Rating` beside it is the number a reader arrives knowing, and the chart under
- * them both belongs to it.
+ * **The page's one number, in the display size.** Proven on `All time` and the month windows —
+ * the one the board sorts on — with `Rating` beside it at `t-md`, the number a reader arrives
+ * knowing, and the chart under them both belongs to it.
+ *
+ * **On a week window this class is on `Rating` instead** (M7.16): the page prints no Proven
+ * there at all, so the one number it does print is the one in the display cut. The rule is
+ * "whichever number the window is about is the big one", which is the same rule, not a second
+ * one — nothing here changes, only which span carries the class.
  */
 .cn-number-primary .cn-number-value {
   font-size: var(--cn-t-display);

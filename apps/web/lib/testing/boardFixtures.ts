@@ -180,6 +180,9 @@ export function workedPlayer(name = 'Hana', overrides: Partial<PlayerBoardView> 
     puuid: workedPuuid(name),
     name,
     window: 'all-time',
+    // The stored track, like the window above it. A week-window fixture overrides both — the
+    // page reads `track` and not `window` to decide which number it prints (M7.16).
+    track: 'all-time',
     rating,
     proven: provenRating({ mu: player.mu, sigma: player.sigma }),
     games,

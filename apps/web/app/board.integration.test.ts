@@ -609,18 +609,65 @@ if (stack === null) {
   });
 
   describe('the player page through a window', () => {
-    it('counts the window games, plots them, and starts the line where the week found them', async () => {
-      const player = found(await loadPlayerBoard(anon, puuid.weekly, { window: 'last-week', ...WEEK }));
+    /**
+     * **A month window is the stored track** (M5.12), and stays it: M7.16 moved the two *week*
+     * windows onto the weekly fold and left these three alone. This case was written against
+     * `Last week` and reads `This month` since 2026-09-16 — the same three games, the same
+     * assertions, the window that still answers them.
+     */
+    it('counts the window games, plots them, and starts the line where the month found them', async () => {
+      const player = found(await loadPlayerBoard(anon, puuid.weekly, { window: 'this-month', ...WEEK }));
 
-      expect(player).toMatchObject({ window: 'last-week', games: 2, wins: 1, losses: 1 });
+      expect(player).toMatchObject({ window: 'this-month', track: 'all-time', games: 3, wins: 2, losses: 1 });
       // The range half, alone: the record beside it already carries the count.
-      expect(player.range).toBe('Sunday 31 May to Saturday 6 Jun');
-      // As of their last game inside the week, not where they are today.
-      expect(player.rating).toBe(1_512);
+      expect(player.range).toBe('June');
+      // As of their last game inside the month, off the stored `mu_after`.
+      expect(player.rating).toBe(1_548);
       // The rating carried **into** the window, labelled `start` on the chart.
       expect(player.reference).toBe(1_500);
-      expect(player.history).toEqual([1_500, 1_536, 1_512]);
+      expect(player.history).toEqual([1_500, 1_536, 1_512, 1_548]);
+      expect(player.recent).toHaveLength(3);
+    });
+
+    /**
+     * **M7.16, acceptance 1 and 3.** The page a board row links to says the row's own number.
+     * Every rating on it is the weekly fold's: the one number, the `start` hairline at the
+     * weekly seed, the series, and each recent game's pair — none of them the stored 1512 this
+     * same fixture reads on the month window above.
+     */
+    it('reads a week window on the weekly track, to the digit on the board row', async () => {
+      const LAST_WEEK = { window: 'last-week', ...WEEK } as const;
+      const [player, board] = await Promise.all([
+        loadPlayerBoard(anon, puuid.weekly, LAST_WEEK).then(found),
+        loadBoard(anon, LAST_WEEK),
+      ]);
+      const row = board.rows.find((entry) => entry.puuid === puuid.weekly);
+
+      expect(player).toMatchObject({ window: 'last-week', track: 'weekly', games: 2, wins: 1, losses: 1 });
+      expect(player.range).toBe('Sunday 31 May to Saturday 6 Jun');
+      // The whole of this task, in one line.
+      expect(player.rating).toBe(row?.rating);
+      // Not the stored track's answer for the same week, which is what it used to print.
+      expect(player.rating).not.toBe(1_512);
+      // The hairline is the weekly seed — `seedFor`'s, so the neutral 1200 on a row with no
+      // stored seed — and the series starts there and ends at the number above it.
+      expect(player.reference).toBe(displayRating(provisionalSeed().mu));
+      expect(player.history).toHaveLength(3);
+      expect(player.history[0]).toBe(player.reference);
+      expect(player.history.at(-1)).toBe(player.rating);
+      // Both games are listed and both deltas are the weekly ones: the first starts at the
+      // weekly seed, and each picks up where the one before it left off.
       expect(player.recent).toHaveLength(2);
+      const [newest, oldest] = player.recent;
+      expect(oldest?.muBefore).toBe(provisionalSeed().mu);
+      expect(newest?.muBefore).toBe(oldest?.muAfter);
+      // And the row's own expand agrees with the page's list, game for game.
+      const expand = (await loadBoard(anon, { ...LAST_WEEK, includeBreakdown: true })).rows.find(
+        (entry) => entry.puuid === puuid.weekly,
+      );
+      expect(expand?.breakdown.map((game) => [game.muBefore, game.muAfter])).toEqual(
+        player.recent.map((game) => [game.muBefore, game.muAfter]),
+      );
     });
 
     it('is where they are today on `All time`, with the seed line back', async () => {

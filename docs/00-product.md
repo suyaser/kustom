@@ -164,8 +164,15 @@ subtraction there is enormous for everybody and biggest for whoever played least
 above a clean 2W 0L one for the sole reason that the longer week is "more proven", which is the same
 confusing kind of fairness that opened M7. Playing more still counts — each further game moves your weekly
 number less than the one before it, which is how the model works and is true whatever the board sorts on — it
-just is not charged twice. `All time`, `This month`, `Last month` and `/p/[puuid]` are unchanged: Proven is
-the number and the sort.
+just is not charged twice. `All time`, `This month` and `Last month` are unchanged: Proven is the number and
+the sort.
+
+**And a person's own page says the same thing the row said** (2026-09-16, M7.16). Tap a name on `This week`
+and the page opens on that same week: the one number it shows is the week's, to the digit, with the week's
+chart under it and the week's change on every game in the list — no Proven, because the board printed none
+either. Switch the page to `All time` and both numbers are back. Until that landed the row said one number
+and the page said another, both true and neither labelled, which is the same argument this whole milestone
+was opened to end.
 
 A printed change is always the difference of the two displayed numbers — `1469` becoming `1512` prints
 `(+43)`, never a separately rounded figure that makes the row fail to add up.

@@ -44,12 +44,21 @@ if (stack === null) {
   process.env.SUPABASE_SERVICE_ROLE_KEY = stack.serviceRoleKey;
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = stack.anonKey;
 
-  const { loadBoard } = await import('@/lib/board/load');
+  const { loadBoard, loadPlayerBoard } = await import('@/lib/board/load');
   const { createPublicClient } = await import('@/lib/publicClient');
   const { BoardView } = await import('./_board/BoardView');
-  const { PROVEN_LABEL, RATING_LABEL, SETTLING_CHIP, SETTLING_SENTENCE, WEEK_BOARD_SENTENCE } = await import(
-    '@/lib/board/copy'
-  );
+  const { PlayerView } = await import('./_board/PlayerView');
+  const { emptyPlayerStats } = await import('@/lib/testing/boardFixtures');
+  const {
+    PROVEN_LABEL,
+    RATING_LABEL,
+    SETTLING_CHIP,
+    SETTLING_SENTENCE,
+    SETTLING_SENTENCE_PLAYER,
+    WEEK_BOARD_SENTENCE,
+    WEEK_PLAYER_SENTENCE,
+    WINDOW_EMPTY,
+  } = await import('@/lib/board/copy');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -104,6 +113,16 @@ if (stack === null) {
     [ZOYA]: 'Zoya',
     [ADEL]: 'Adel',
   };
+
+  /**
+   * **Nadia, who did not play** (M7.16's fifth acceptance). She is not on either week's board —
+   * membership is the games — but her page exists, and on a week window it has to read the
+   * weekly seed her stored `ratings` row was folded from rather than the number that row holds
+   * now. The two are deliberately far apart: Gold IV's seed against a stored mu of 30.
+   */
+  const IDLE = id('idle');
+  const IDLE_SEED = seedFromRank('GOLD', 'IV');
+  const IDLE_STORED = { mu: 30, sigma: 4 } as const;
 
   /** Where the stored fold left them: **identical for Zoya and Adel**, which is the point. */
   const STORED = { mu: 27.5, sigma: 5.5 } as const;
@@ -229,6 +248,26 @@ if (stack === null) {
         };
       }),
     );
+
+    // Nadia: a roster row and a stored rating, and not one game in either week.
+    const { data: idle } = await db
+      .from('players')
+      .insert({ puuid: IDLE, display_name: 'Nadia', rank_tier: 'GOLD', rank_division: 'IV' })
+      .select('id')
+      .single();
+    ids.set(IDLE, idle?.id ?? '');
+    await db.from('ratings').insert({
+      player_id: idle?.id ?? '',
+      season_id: seasonId,
+      mu: IDLE_STORED.mu,
+      sigma: IDLE_STORED.sigma,
+      games: 40,
+      wins: 25,
+      seed_mu: IDLE_SEED.mu,
+      seed_sigma: IDLE_SEED.sigma,
+      seed_rank_tier: 'GOLD',
+      seed_rank_division: 'IV',
+    });
 
     /**
      * The stored `mu_after` is deliberately **flat and identical for everybody**: it is what
@@ -484,6 +523,132 @@ if (stack === null) {
       expect(html).toContain(PROVEN_LABEL);
       expect(html).toContain('cn-row-rating');
       expect(textOf(html)).not.toContain(WEEK_BOARD_SENTENCE);
+    });
+  });
+
+  /**
+   * **`/p/[puuid]` on the same week** (M7.16). The board row said `1612`, the page a tap later
+   * said `1730`, and a friend's only honest reading was that one of the two was a bug. Both
+   * surfaces read `foldWeeklyRatings` now, and this block is the claim that they agree — over
+   * this whole fixture week, not one lucky row.
+   */
+  describe('the player page on the same week', () => {
+    /** React escapes the apostrophe in the copy; a reader sees the sentence, so decode it. */
+    const textOf = (html: string): string => html.replace(/&#x27;|&#39;/g, "'").replace(/<[^>]*>/g, ' ');
+
+    const page = async (puuid: string, window: 'this-week' | 'last-week' | 'this-month' | 'all-time') =>
+      loadPlayerBoard(anon, puuid, window === 'all-time' ? ALL_TIME : { window, ...WEEK });
+
+    /**
+     * **Acceptance 1**, for every player on the week and both windows: the number on the page
+     * is the digit on the row, and so are the record and the end of the chart.
+     */
+    it('is the board row, to the digit, for every player on the week', async () => {
+      for (const window of ['this-week', 'last-week'] as const) {
+        const board = await loadBoard(anon, { window, ...WEEK });
+        const rows = mine(board.rows);
+        expect(rows).toHaveLength(EVERYONE.length);
+
+        const pages = await Promise.all(rows.map((row) => page(row.puuid, window)));
+        for (const [index, row] of rows.entries()) {
+          const player = pages[index];
+          expect(player?.track).toBe('weekly');
+          expect(player?.rating).toBe(row.rating);
+          expect(player?.games).toBe(row.games);
+          expect(player?.wins).toBe(row.wins);
+          expect(player?.losses).toBe(row.losses);
+          // The chart is the weekly fold's: it starts at the weekly seed and ends at the one
+          // number above it. No chip on a week, on either surface.
+          expect(player?.reference).toBe(displayRating(seedOf(row.puuid).mu));
+          expect(player?.history[0]).toBe(player?.reference);
+          expect(player?.history.at(-1)).toBe(row.rating);
+          expect(player?.settling).toBe(false);
+          // And it is nowhere near the stored number every one of these rows carries.
+          expect(player?.rating).not.toBe(displayRating(STORED.mu));
+        }
+      }
+    });
+
+    /** **Acceptance 3**: the deltas under the number are the weekly ones, and they add up. */
+    it('lists the week own deltas under it, not the stored ones', async () => {
+      const player = await page(ZOYA, 'this-week');
+      const games = player?.recent ?? [];
+
+      expect(games).toHaveLength(2);
+      const [newest, oldest] = games;
+      expect(oldest?.muBefore).toBe(seedOf(ZOYA).mu);
+      expect(newest?.muBefore).toBe(oldest?.muAfter);
+      expect(displayRating(newest?.muAfter as number)).toBe(player?.rating);
+      // The stored rows are all flat at `STORED.mu`, so a page reading them would print a
+      // column of zero deltas.
+      expect(newest?.muBefore).not.toBe(newest?.muAfter);
+    });
+
+    /**
+     * **Acceptance 5.** Nadia played neither week. Her page reads the seed her history was
+     * folded from — where Sunday put her — and the window's own empty line, not the 1800 her
+     * `ratings` row holds.
+     */
+    it('reads the weekly seed and the empty line for somebody who did not play', async () => {
+      const player = await page(IDLE, 'this-week');
+
+      expect(player).toMatchObject({ track: 'weekly', games: 0, wins: 0, losses: 0, range: null });
+      expect(player?.rating).toBe(displayRating(IDLE_SEED.mu));
+      expect(player?.rating).not.toBe(displayRating(IDLE_STORED.mu));
+      expect(player?.reference).toBe(displayRating(IDLE_SEED.mu));
+      expect(player?.history).toEqual([]);
+      expect(player?.recent).toEqual([]);
+
+      const html = renderToStaticMarkup(
+        createElement(PlayerView, {
+          player: player as NonNullable<typeof player>,
+          stats: emptyPlayerStats(),
+        }),
+      );
+      expect(textOf(html)).toContain(WINDOW_EMPTY['this-week']);
+      // Still the week's sentence: the number on the screen is a weekly one either way.
+      expect(textOf(html)).toContain(WEEK_PLAYER_SENTENCE);
+      // And on `All time` she is her stored rating again, with nothing about her week on it.
+      const allTime = await page(IDLE, 'all-time');
+      expect(allTime?.track).toBe('all-time');
+      expect(allTime?.rating).toBe(displayRating(IDLE_STORED.mu));
+    });
+
+    /**
+     * **Acceptance 2 and 4**, on the rendered page: no Proven anywhere on a week window, the
+     * week's own third-person sentence in its place, and the month window untouched.
+     */
+    it('prints one number and no Proven on a week, and the page M3.5 shipped on a month', async () => {
+      const draw = async (window: 'this-week' | 'last-week' | 'this-month') => {
+        const player = await page(ZOYA, window);
+        return renderToStaticMarkup(
+          createElement(PlayerView, {
+            player: player as NonNullable<typeof player>,
+            stats: emptyPlayerStats(),
+          }),
+        );
+      };
+
+      for (const window of ['this-week', 'last-week'] as const) {
+        const html = await draw(window);
+        const text = textOf(html);
+
+        // Not as a label, not as a second number, not in small type: nowhere.
+        expect(html).not.toContain(PROVEN_LABEL);
+        expect(text).not.toContain(SETTLING_CHIP);
+        expect(text).not.toContain(SETTLING_SENTENCE_PLAYER);
+        // The week's own sentence, character for character, exactly once — and in the third
+        // person, so it is not the board's.
+        expect(text.split(WEEK_PLAYER_SENTENCE)).toHaveLength(2);
+        expect(text).not.toContain(WEEK_BOARD_SENTENCE);
+        expect(text).not.toContain(SETTLING_SENTENCE);
+        // The one number, in the primary slot, under the label that names it.
+        expect(html).toContain('cn-number cn-number-primary');
+      }
+
+      const month = await draw('this-month');
+      expect(month).toContain(PROVEN_LABEL);
+      expect(textOf(month)).not.toContain(WEEK_PLAYER_SENTENCE);
     });
   });
 }

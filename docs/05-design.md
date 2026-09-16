@@ -1457,6 +1457,8 @@ words below are fixed.
 | the same, embed footer, on the **nightly** post (`this-week`) and the **Sunday** post (`last-week`) | `Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.` | **new, product 2026-09-15 (M7.3)** — the short form, for the one-line footer. Both week posts say it; only the **monthly** post still carries the Proven footer. `WEEK_BOARD_SENTENCE_SHORT` |
 | legend over the board's one number | `Proven` on `All time`, `This month` and `Last month` · **`Rating`** on `This week` and `Last week` | **amended, designer 2026-09-16 (M7.3)** — the legend names **the number the board sorted on**, whichever track that is, and on a week that is the weekly `Rating` (`round(mu × 60)` off the week's own from-scratch fold). One helper, `boardLegend(track)`, because the legend and the row's own visually-hidden noun have to name the same number. The word `Proven` does not print anywhere on a week board — not in the legend, not on line 2, not in small type |
 | `settling` chip on a week window | *(none — no row carries it on `This week` or `Last week`)* | **new, product 2026-09-15 (M7.3)** — the chip marks the handful of rows the board is least sure of; on a week that is every row, every week, and a marker on all ten rows marks nothing. There is no `WEEK_SETTLING_GAMES` and no second chip. `SETTLING_GAMES` and the chip are byte-identical on the other three windows |
+| the sentence under the chart on `/p/[puuid]` on a week window, once per page, **instead of** the third-person Proven sentence | `Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. This is their rating after this week's games, with nothing taken off for playing only a few. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` | **new, product 2026-09-16 (M7.16)** — the page joined the weekly track, so the paragraph that explains Proven was explaining a number no longer on the screen. **Third person**, because the page may be somebody else's: `WEEK_BOARD_SENTENCE`'s `you` is right on a board, where every reader is on it, and wrong twenty pixels under a number that belongs to whoever's page this is (the M3.26 rule). It carries the board sentence's four load-bearing points and drops its clause about a sort order, because this page sorts nothing. **It does not say `back at their rank`**: M7.19 (2026-09-16) took the League rank out of every stored seed, so a week restarts everyone on one rating — the two board rows above still carry the retired wording and are a known, unfixed defect as of 2026-09-16. Printed on an empty week too, where the number on screen is the weekly seed. `WEEK_PLAYER_SENTENCE` in `lib/board/copy.ts`; `SETTLING_SENTENCE_PLAYER` is untouched and prints byte for byte on `All time`, `This month` and `Last month` |
+| the two numbers on `/p/[puuid]` on a week window | `Rating <n>` alone, in the display cut — **no `Proven`, anywhere** | **new, product 2026-09-16 (M7.16)** — the board row's own carve-out, one tap later and for the same reason: a week is a handful of games by design, so `− 2σ` is enormous on every page every week. The one number is the weekly `Rating` and is the digit on that player's board row. The `settling` chip does not print on a week here either, and the chart's hairline is the weekly seed under the existing `start` label — never `seed`, which stays a fact about a whole history |
 | ~~season active, no games yet~~ | ~~`No games this season yet.`~~ | **deleted, product 2026-09-10 (M5.12)** — replaced by the five window lines below; the word *season* leaves the friend-facing vocabulary |
 | ~~no season is active, on both pages~~ | ~~`No season is active, so there is no board yet. An admin can start one.`~~ | **deleted, product 2026-09-10 (M5.14)** — there is no button behind it any more, and a deployment with no season row has no games either, so the empty-window line is true and enough |
 | a recent game's result, on `/p/[puuid]` | `Won` / `Lost` | **new**, product 2026-09-09 — kept as written |
@@ -2222,12 +2224,14 @@ already opens.
 - Rated games only. An unrated row does not move the number the expand is explaining.
 - **The games are on the row's own track** (M7.3). On a week window each game's `1512 (+43)` is that game's
   movement in the *weekly* fold, not the stored all-time one, because the row's total is the weekly number and
-  a row whose total is one track and whose games are another does not add up. Two honest consequences to know
-  before somebody reports them: the same game shows a different delta here than on `/p/[puuid]`, which is the
-  all-time track; and the weekly track does not carry the **MVP / ACE** adjustment at all (M7.9, acceptance 6,
-  waived and tested), so a game somebody was MVP of moves them by the plain amount here. Neither is marked and
-  neither should be — the expand explains the number above it and nothing else. `MVP` stays the one word on
-  the one surface M7.10 put it on.
+  a row whose total is one track and whose games are another does not add up. **Since M7.16 (2026-09-16) the
+  page agrees with it**: `/p/[puuid]` on a week window prints the same weekly delta for the same game, so the
+  expand and the list a tap later are one answer — the row that used to warn readers about that difference is
+  superseded. The other honest consequence stands: the weekly track does not carry the **MVP / ACE**
+  adjustment at all (M7.9, acceptance 6, waived, and settled as a product decision in M7's close-out audit),
+  so a game somebody was MVP of moves them by the plain amount on a week window, on both surfaces. It is not
+  marked and should not be — the expand explains the number above it and nothing else. `MVP` stays the one
+  word on the two surfaces M7.10 put it on, and it does not move with the track.
 
 ### The award badge on a board row (M8.3, designer 2026-09-15)
 
@@ -2457,6 +2461,9 @@ see this fill.
 Order down the page, and nothing else in it: name · record · the two numbers · the `Rating` chart · the
 still-settling sentence · `By role` · `Recent games` · the nameless hint.
 
+**On `This week` and `Last week` it is the same order with one number instead of two** and the week's own
+sentence where the still-settling one goes (M7.16, below).
+
 - **The record is on the page.** `37 games · 20W 17L`, `t-xs` `dim`, directly under the two numbers. The
   leaderboard row carries it and this page is about one person; a page that shows less about a player than
   the row that linked to it is a step backwards from the tap that got there.
@@ -2470,20 +2477,20 @@ still-settling sentence · `By role` · `Recent games` · the nameless hint.
   section header carries a right-aligned `rating` legend and the number carries visually-hidden `Rating`, the
   same rule the board row's bare Proven already follows.
 - **Unrated games are listed, not hidden** (product, 2026-09-10, M3.23). `Recent games` is the last five games the player played, rated or not, in `started_at` order, and an unrated one counts toward the five. Its rating column reads `not rated` — mono `t-sm` `dim`, right-aligned where `1392 (−42)` sits, no delta, no em-dash, no visually-hidden `Rating` on that row — while `Won` / `Lost`, the date and the duration print as normal. A refused game (too short, nine players, a duplicate player) and a backfilled game that `rebuild-ratings` has not folded yet read the same two words; the backfill row gains its number when the rebuild runs. Everything else on the page stays rated-only: the two numbers, the chart, the seed line, `By role` and the `37 games · 20W 17L` record, which is why the record may count fewer games than the list shows. Once per page, only when at least one row reads `not rated`, directly under the list with the nameless hint's placement rule: `Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.` **ARAM joined that list on 2026-09-16 (M7.17)** — since M7.1 an ARAM is stored, listed and never rated, and the four ARAM nights already in the group's history became `not rated` rows when M7.11's rebuild ran, which makes it the most common of the four reasons. The placement rule and the row's own two words are unchanged.
-- **This page is the all-time track on every window, including the two week ones** (noted by the designer
-  2026-09-16; the gap is M7.3's own, recorded in its status row as an approved follow-up that is not yet
-  scheduled). `/leaderboard?window=this-week` prints a player's **weekly** Rating as their one number, off a
-  fold that starts from their rank seed every Sunday. `/p/<same puuid>?window=this-week` prints their
-  **all-time** Rating and Proven, the `settling` chip, an all-time chart and a `Started the week at …` seed
-  line off the all-time track — two different numbers for one person and one week, and **nothing on either
-  surface names which track it is showing**. The ordinary path is safe, because a board row links to
-  `/p/<puuid>` with no `?window=` and the player page defaults to `All time`, which is honestly labelled; the
-  collision needs a reader who switches this page to `This week` on purpose. It is still the one place M7's
-  weekly track can be caught contradicting itself, and it wants one of two fixes, not a third: either the page
-  reads the weekly fold on the two week windows (the follow-up), or its numbers carry the window's track in a
-  word the way the board's legend now does. **A design position, for whoever takes it:** prefer the first —
-  the board's rule is "the number you print is the number you sorted on", and a page that prints one track
-  under a heading that names another has the same defect from the other direction.
+- **This page reads the weekly track on the two week windows, and the all-time one on the other three**
+  (**M7.16**, landed 2026-09-16; the defect was noted by the designer the same day and was M7.3's own flagged
+  follow-up). Until then `/leaderboard?window=this-week` printed a player's **weekly** Rating as their one
+  number while `/p/<same puuid>?window=this-week` printed their **all-time** Rating and Proven, the `settling`
+  chip and an all-time chart — two numbers for one person and one week, with nothing on either surface naming
+  which track it was showing. The fix is the first of the two the designer offered and the one this page took a
+  position on: **the page reads the same fold the board does**, rather than labelling the contradiction. On
+  `This week` and `Last week` it now shows one number — the weekly `Rating`, equal to the digit on that
+  player's row — **no Proven at all**, no `settling` chip, the weekly fold's chart with the weekly seed under
+  the `start` hairline, the weekly delta on every `Recent games` row inside the window, and
+  `WEEK_PLAYER_SENTENCE` where the Proven sentence would be. The record (`games` / `wins` / `losses`) and the
+  `MVP` / `ACE` word on a row are unchanged, because neither is a fact about a track. `All time`, `This month`
+  and `Last month` are byte-identical to what M5.12 shipped. There is **one weekly fold in the app** and both
+  surfaces call it, which is what makes "equal to the digit on the row" a property of the code.
 - **The five are the player's own side, in lane order**, their own row marked with the `brand` inset rule.
   **Every other name is a link to that player's page**; the viewed player's own row is plain text. This is the
   one screen in the product that lists other people by name, and hopping between friends is what the board is

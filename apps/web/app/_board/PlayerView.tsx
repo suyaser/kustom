@@ -29,7 +29,7 @@ import { nightTimeZone } from '@/lib/tonight/night';
 import '../board-parts.css';
 import '../stats.css';
 import { PlayerStats } from './PlayerStats';
-import { NamelessHint, RoleName, SettlingChip, SettlingNote } from './parts';
+import { NamelessHint, RoleName, SettlingChip, SettlingNote, WeekPlayerNote } from './parts';
 import { RatingChart } from './RatingChart';
 import { WindowPicker } from './WindowPicker';
 import { WindowSlot } from './WindowSlot';
@@ -115,6 +115,13 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
    * number read once and cannot disagree.
    */
   const start = explainRatingStart(player);
+  /**
+   * **A week window has one number and it is `Rating`** (M7.16), read off the track the loader
+   * says it read — the same field and the same rule as a week row on `/leaderboard` (M7.3).
+   * `Proven` is not printed anywhere on those two windows: not as a second number, not as a
+   * label, not in small type. Every other window is exactly the page M3.5 shipped.
+   */
+  const weekly = player.track === 'weekly';
 
   return (
     <>
@@ -129,14 +136,21 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
            */}
           <div className="cn-summary">
             <p className="cn-numbers">
-              <span className="cn-number">
+              {/*
+               * On a week window the `Rating` takes the primary slot and the Proven pair is
+               * dropped rather than replaced (M7.16): one number, in the display size, under
+               * the label that names it — the same shape a week row on the board has.
+               */}
+              <span className={weekly ? 'cn-number cn-number-primary' : 'cn-number'}>
                 <span className="cn-number-label">{RATING_LABEL}</span>{' '}
                 <span className="cn-num cn-number-value">{player.rating}</span>
               </span>
-              <span className="cn-number cn-number-primary">
-                <span className="cn-number-label">{PROVEN_LABEL}</span>{' '}
-                <span className="cn-num cn-number-value">{player.proven}</span>
-              </span>
+              {weekly ? null : (
+                <span className="cn-number cn-number-primary">
+                  <span className="cn-number-label">{PROVEN_LABEL}</span>{' '}
+                  <span className="cn-num cn-number-value">{player.proven}</span>
+                </span>
+              )}
               {player.settling ? <SettlingChip /> : null}
             </p>
 
@@ -197,8 +211,13 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
           {/*
            * Under the chart, once per page (M3.8), in the **third person** (M3.26): this page
            * is about one player and the sentence sits under their numbers, not the reader's.
+           *
+           * **On a week window it is the week's own sentence instead** (M7.16), printed whether
+           * or not they played: the number above it is a weekly one either way, and the
+           * paragraph that explains Proven would be explaining a number that is not on the
+           * screen. One or the other, never both.
            */}
-          {player.settling ? <SettlingNote person="player" /> : null}
+          {weekly ? <WeekPlayerNote /> : player.settling ? <SettlingNote person="player" /> : null}
         </div>
       </section>
 
