@@ -132,17 +132,28 @@ export const SETTLING_SENTENCE_SHORT =
  * **`Every week`, not `This week`**: `Last week` prints this same string, because it is the
  * same track and the same question, and `This week` would read as a mistake under the other
  * heading.
+ *
+ * **It does not say "back at their rank"** (M7.21, product 2026-09-16). M7.19 (2026-09-16) took
+ * the League rank out of every stored seed — `provisionalSeed()`, the same number for everybody —
+ * so a week restarts everyone on one rating rather than on their own. One clause changed and
+ * nothing else in the sentence did; the second person stays, because every reader of a board is
+ * in the group it describes.
  */
 export const WEEK_BOARD_SENTENCE =
-  `Every week starts everyone back at their rank on Sunday, so a good Tuesday shows up here straight away. The board sorts on ${RATING_LABEL} — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` as const;
+  `Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. The board sorts on ${RATING_LABEL} — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` as const;
 
 /**
  * The same, for the embed footer where {@link SETTLING_SENTENCE_SHORT} prints on every other
  * window: the nightly post reads `this-week` and the Sunday post reads `last-week`, so both say
  * this one instead (product, 2026-09-15).
+ *
+ * **It does not say "back at their rank"** (M7.21, product 2026-09-16). M7.19 (2026-09-16) took
+ * the League rank out of every stored seed — `provisionalSeed()`, the same number for everybody —
+ * so a week restarts everyone on one rating rather than on their own. A sent embed is a record of
+ * what was said and is not edited; the next post carries the new words.
  */
 export const WEEK_BOARD_SENTENCE_SHORT =
-  'Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.' as const;
+  'Every week starts everyone on the same rating on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.' as const;
 
 /**
  * The same fact on `/p/[puuid]`, on the two week windows, where
@@ -158,8 +169,10 @@ export const WEEK_BOARD_SENTENCE_SHORT =
  * stored seed — `provisionalSeed()`, the same number for everybody — so a week now restarts
  * everyone on one rating rather than on their own. The brief for this task was written before
  * that landed and proposed the rank wording; it is corrected here rather than copied.
- * {@link WEEK_BOARD_SENTENCE} and {@link WEEK_BOARD_SENTENCE_SHORT} still carry the retired
- * wording and are product's to fix (logged 2026-09-16); neither may be edited into this one.
+ * {@link WEEK_BOARD_SENTENCE} and {@link WEEK_BOARD_SENTENCE_SHORT} carried the retired wording
+ * until M7.21 corrected them the same day, so all three now say `starts everyone on the same
+ * rating`; none of them may be edited into another (the M3.26 rule), and the three still differ
+ * where they must — the sort clause, and the person.
  *
  * **`Every week`, not `This week`**, for {@link WEEK_BOARD_SENTENCE}'s reason: `Last week` prints
  * the same string. No game count is interpolated and the name carries no `SETTLING` — the weekly

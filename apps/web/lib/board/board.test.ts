@@ -270,12 +270,26 @@ describe('the copy product owns', () => {
 describe('the copy a week board says instead', () => {
   it('is the long sentence, word for word', () => {
     expect(WEEK_BOARD_SENTENCE).toBe(
-      "Every week starts everyone back at their rank on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
+      "Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
     );
   });
 
   it('is the short form the embed footer prints', () => {
     expect(WEEK_BOARD_SENTENCE_SHORT).toBe(
+      'Every week starts everyone on the same rating on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.',
+    );
+  });
+
+  /**
+   * **M7.21 was a correction, not a rewrite** (acceptance 2). Putting the retired clause back
+   * has to reproduce M7.3's string byte for byte: if any other word, comma or em dash moved
+   * while the rank came out, this fails and the diff is wrong.
+   */
+  it('changed exactly one clause out of each string and nothing else', () => {
+    expect(WEEK_BOARD_SENTENCE.replace('on the same rating', 'back at their rank')).toBe(
+      "Every week starts everyone back at their rank on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
+    );
+    expect(WEEK_BOARD_SENTENCE_SHORT.replace('on the same rating', 'back at their rank')).toBe(
       'Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.',
     );
   });
@@ -365,15 +379,16 @@ describe('the copy a week player page says instead', () => {
   });
 
   /**
-   * **No rank, on either surface's business.** M7.19 (2026-09-16) took the League rank out of
-   * every stored seed, so a week restarts everyone on one rating and not on their own rank. The
-   * guard is one-sided on purpose: {@link WEEK_BOARD_SENTENCE} and its short form still carry
-   * the retired wording and are product's to fix, which is logged as its own defect rather than
-   * copied into a second sentence.
+   * **No rank, on any of the three week surfaces.** M7.19 (2026-09-16) took the League rank out
+   * of every stored seed, so a week restarts everyone on one rating and not on their own rank.
+   * The guard was one-sided until M7.21 corrected the two board strings; it now covers all three,
+   * so neither the page, the board nor a post can say `rank` again.
    */
   it('does not say a week starts anybody at their rank', () => {
-    expect(WEEK_PLAYER_SENTENCE.toLowerCase()).not.toContain('rank');
-    expect(WEEK_PLAYER_SENTENCE).toContain('starts everyone on the same rating');
+    for (const sentence of [WEEK_BOARD_SENTENCE, WEEK_BOARD_SENTENCE_SHORT, WEEK_PLAYER_SENTENCE]) {
+      expect(sentence.toLowerCase()).not.toContain('rank');
+      expect(sentence).toContain('starts everyone on the same rating');
+    }
   });
 
   /** The week's own three rules: `Every week`, no settling claim, no game count, no Proven. */
