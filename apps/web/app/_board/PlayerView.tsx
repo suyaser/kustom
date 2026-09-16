@@ -167,8 +167,8 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
              */}
             {/*
              * **The record, minus the count the sentence under it already carries** (the
-             * designer, 2026-09-10, M5.22). `37 games · 19W 18L` above `Started at 1200, 37 games
-             * since.` prints 37 twice, forty pixels apart; the seed line is the one
+             * designer, 2026-09-10, M5.22). `37 games · 19W 18L` above `Started at 1200, 37 rated
+             * games since.` prints 37 twice, forty pixels apart; the seed line is the one
              * that has to say it, because "since when" is what it is about. With no seed line —
              * a window this player did not play — nothing prints here either, because the count
              * is zero.
@@ -179,12 +179,12 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
              * reaches. The rated wording lands on {@link PLAYER_COUNTS_SENTENCE} instead, once,
              * where the two universes part.
              *
-             * **The count a reader does see on this page is the seed line's, and it is still
-             * unlabelled** — `Started at 1200, 37 games since.` is `player.games`, the rated count,
-             * worded as plain `games` directly above sections that count every game played. That is
-             * the first clause of M7.18's acceptance 3 and **it is not met**; naming it means
-             * editing an M7.19-pinned string or inverting M5.22, which is product's and the
-             * designer's call and is open as **M7.22**.
+             * **The count a reader does see on this page is the seed line's, and since M7.22 it
+             * names its own universe** — `Started at 1200, 37 rated games since.`, `player.games`,
+             * worded through `ratedGamesLabel` inside `sinceClause` rather than moved up here.
+             * That closes M7.18's acceptance 3 with M5.22's placement kept exactly as written
+             * (product, 2026-09-16): the count stays on the line that says *since when*, and this
+             * line still carries no count on any window, for any player.
              */}
             {player.games === 0 ? null : (
               <p className="cn-row-meta">
@@ -194,8 +194,8 @@ function PlayerWindow({ player, stats }: PlayerViewProps) {
           </div>
 
           {/*
-           * The seed line, once, above the chart (M5.15; re-worded by M7.19): `Started at 1200,
-           * 37 games since.` It is the first half of "how you got here" — where the board
+           * The seed line, once, above the chart (M5.15; re-worded by M7.19 and M7.22): `Started
+           * at 1200, 37 rated games since.` It is the first half of "how you got here" — where the board
            * started this player before any of the games under it happened, which since
            * 2026-09-16 is the same provisional number for everybody and never their League rank
            * — and it prints for somebody with no games at all, where it is the only thing the

@@ -55,9 +55,13 @@ export function explainGame(game: RecentGame): string | null {
 }
 
 /**
- * The line above the chart: `Started at 1200, 37 games since.` on `All time` (M7.19 dropped the
- * rank clause it carried until 2026-09-16), and `Started the week at 1469, 6 games since.` in a
- * window (M5.12's four).
+ * The line above the chart: `Started at 1200, 37 rated games since.` on `All time` (M7.19 dropped
+ * the rank clause it carried until 2026-09-16; M7.22 named the count's universe the same day), and
+ * `Started the week at 1469, 6 rated games since.` in a window (M5.12's four).
+ *
+ * `player.games` is the rated count on every one of the five windows — `ratings.games` on
+ * `All time`, the window's folded rows elsewhere — which is why the clause can say `rated` without
+ * a branch.
  *
  * The number is `player.reference` — **the value the chart's reference line is drawn from** —
  * read once so the hairline and the sentence cannot disagree, exactly as the chart's `seed` /

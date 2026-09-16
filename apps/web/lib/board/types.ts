@@ -288,7 +288,7 @@ export interface PlayerBoardView {
   losses: number;
   /**
    * The header slot's range half, as on the board — **the range alone**, with no count beside
-   * it (product, 2026-09-10): M5.15's seed line already ends `, 6 games since.`, and no page
+   * it (product, 2026-09-10): M5.15's seed line already ends `, 6 rated games since.`, and no page
    * says one number twice. `null` when this player has nothing to date from.
    */
   range: string | null;

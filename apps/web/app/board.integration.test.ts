@@ -749,7 +749,7 @@ if (stack === null) {
       expect(text).toContain('1536');
       expect(text).not.toContain('As the 50% side.');
       // The seed line, from the same number the chart's hairline is drawn at.
-      expect(text).toContain(`Started at ${player.reference}, 2 games since.`);
+      expect(text).toContain(`Started at ${player.reference}, 2 rated games since.`);
       // And the one line under the list, exactly once.
       expect(text.split(RATING_EXPLANATION)).toHaveLength(2);
     });

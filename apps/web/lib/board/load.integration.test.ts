@@ -8,7 +8,7 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
 /**
  * The seed line's source, against the local stack (M5.7 for M5.15).
  *
- * `/p/[puuid]` says `Started at 1470, 37 games since.` above the chart, and the number in it has
+ * `/p/[puuid]` says `Started at 1470, 37 rated games since.` above the chart, and the number in it has
  * to be the one the **fold actually started from** — not one derived from the rank the player
  * wears tonight. This file reads the loader through the anon key, the way the page does, with a
  * `ratings` row whose stored seed disagrees with the player's current rank: exactly the shape a

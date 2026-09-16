@@ -1,6 +1,7 @@
 import { displayRating, seedFromRank } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { favoredClause } from '../discord/embeds';
+import type { WindowKind } from '../night';
 import { workedPlayer, workedRecentGame } from '../testing/boardFixtures';
 import { rankLabel, UNRANKED_LABEL } from './copy';
 import { explainGame, explainRatingStart, sideWinChance } from './explain';
@@ -79,10 +80,26 @@ describe('one row of Recent games', () => {
 });
 
 describe('the seed line', () => {
-  it('names the displayed seed and the games since', () => {
+  it('names the displayed seed and the rated games since', () => {
     const player = workedPlayer();
 
-    expect(explainRatingStart(player)).toBe(`Started at ${player.reference}, 37 games since.`);
+    expect(explainRatingStart(player)).toBe(`Started at ${player.reference}, 37 rated games since.`);
+  });
+
+  /**
+   * **The count says which universe it counted** (M7.22, product 2026-09-16). `player.games` is
+   * the rated count on every window, and this line sits directly above sections that count every
+   * game played — so the clause carries the adjective rather than leaving the reader to guess.
+   * Pinned against the retired wording, which is what the page said until 2026-09-16.
+   */
+  it('never says plain `games since` again, on any of the five windows', () => {
+    const windows: readonly WindowKind[] = ['all-time', 'this-week', 'last-week', 'this-month', 'last-month'];
+
+    for (const window of windows) {
+      const line = explainRatingStart(workedPlayer('Hana', { window, games: 6, reference: 1469 })) ?? '';
+      expect(line).toContain(', 6 rated games since.');
+      expect(line).not.toContain(', 6 games since.');
+    }
   });
 
   /**
@@ -109,30 +126,35 @@ describe('the seed line', () => {
     expect(explainRatingStart(player)).toContain(String(player.reference));
   });
 
-  it('is the whole page for a player with no games, and never says `0 games`', () => {
+  it('is the whole page for a player with no games, and never says `0 rated games`', () => {
     const player = workedPlayer('Hana', { games: 0, wins: 0, losses: 0, history: [], recent: [] });
 
+    // M7.22 left this arm byte for byte: at zero the clause is dropped whole, not worded, so the
+    // adjective never arrives attached to a zero either.
     expect(explainRatingStart(player)).toBe(`Started at ${player.reference}.`);
-    expect(explainRatingStart(player)).not.toMatch(/\b0\b games/);
+    expect(explainRatingStart(player)).not.toMatch(/\b0\b (rated )?games/);
+    expect(explainRatingStart(player)).not.toContain('rated');
     expect(explainRatingStart(player)).not.toContain('NaN');
   });
 
-  it('says one game, not `1 games`, for somebody one night in', () => {
+  it('says one rated game, not `1 rated games`, for somebody one night in', () => {
     const player = workedPlayer('Hana', { games: 1 });
 
-    expect(explainRatingStart(player)).toBe(`Started at ${player.reference}, 1 game since.`);
+    expect(explainRatingStart(player)).toBe(`Started at ${player.reference}, 1 rated game since.`);
+    // And never `rated 1 game`: the adjective belongs to the noun, not to the count.
+    expect(explainRatingStart(player)).not.toContain('rated 1 game');
   });
 
   it('becomes `Started the week` in a week window and `the month` in a month one', () => {
     const week = workedPlayer('Hana', { window: 'this-week', games: 6, reference: 1469 });
     const month = workedPlayer('Hana', { window: 'last-month', games: 14, reference: 1469 });
 
-    expect(explainRatingStart(week)).toBe('Started the week at 1469, 6 games since.');
-    expect(explainRatingStart(month)).toBe('Started the month at 1469, 14 games since.');
+    expect(explainRatingStart(week)).toBe('Started the week at 1469, 6 rated games since.');
+    expect(explainRatingStart(month)).toBe('Started the month at 1469, 14 rated games since.');
     // A window names its own calendar and never the whole history: `Started at 1469` would be
     // the all-time sentence, and the week's hairline is where Sunday found them, not a seed.
     expect(explainRatingStart(week)).toContain('the week');
-    expect(explainRatingStart(week)).not.toBe('Started at 1469, 6 games since.');
+    expect(explainRatingStart(week)).not.toBe('Started at 1469, 6 rated games since.');
   });
 
   it('says nothing in a window the player did not play: `reference` is only their seed there', () => {

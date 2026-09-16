@@ -379,6 +379,9 @@ export function gamesLabel(games: number): string {
  *
  * It is deliberately **not** built as `` `rated ${gamesLabel(games)}` ``: that reads `rated 1
  * game` at one, and the adjective belongs to the noun and not to the count.
+ *
+ * Two surfaces go through it and they cannot drift: `boardSlotLine` (the `/leaderboard` slot and
+ * both board posts) and {@link sinceClause} (the seed line on `/p/[puuid]`, M7.22).
  */
 export function ratedGamesLabel(games: number): string {
   return games === 1 ? '1 rated game' : `${games} rated games`;
@@ -462,10 +465,12 @@ export function rankLabel(tier: string | null, division: string | null): string 
 }
 
 /**
- * `Started at 1200, 37 games since.` — once, above the chart (M5.15; re-worded by M7.19).
+ * `Started at 1200, 37 rated games since.` — once, above the chart (M5.15; re-worded by M7.19 and
+ * again by M7.22).
  *
  * The number is the **same value the chart's reference line draws**, passed in by the caller,
- * so the line and the sentence cannot disagree; the count is `ratings.games`.
+ * so the line and the sentence cannot disagree; the count is `ratings.games`, and since M7.22 the
+ * clause says so in a word — see {@link sinceClause}.
  *
  * **No rank, and not a softened one** (product, 2026-09-16). Since M7.19 every rating starts at
  * `provisionalSeed()` — the same number for everybody — so a tier named on the one line that
@@ -474,15 +479,15 @@ export function rankLabel(tier: string | null, division: string | null): string 
  * `Started at …` / `Started the week at …`.
  *
  * **At zero games the trailing clause is dropped**: `Started at 1200.` A brand-new player's
- * line would otherwise end `, 0 games since.`, and M5.15's acceptance says their page shows the
- * seed line and never a `0` (`04-decisions.md`, 2026-09-10).
+ * line would otherwise end `, 0 rated games since.`, and M5.15's acceptance says their page shows
+ * the seed line and never a `0` (`04-decisions.md`, 2026-09-10).
  */
 export function seededLine(rating: number, games: number): string {
   return `Started at ${rating}${sinceClause(games)}`;
 }
 
 /**
- * The same line in a window: `Started the week at 1469, 6 games since.` The rating is the one
+ * The same line in a window: `Started the week at 1469, 6 rated games since.` The rating is the one
  * the player carried **into** the window — the chart's `start` hairline — and the count is the
  * window's counted games.
  *
@@ -494,9 +499,27 @@ export function startedLine(window: WindowKind, rating: number, games: number): 
   return `Started the ${period} at ${rating}${sinceClause(games)}`;
 }
 
-/** `, 37 games since.` — or nothing at all when there are none to count. */
+/**
+ * `, 37 rated games since.` — or nothing at all when there are none to count.
+ *
+ * **The clause names its own universe** (M7.22, product 2026-09-16). It goes through
+ * {@link ratedGamesLabel} and not {@link gamesLabel}, because the count both callers pass is
+ * `player.games` — the rated count on every one of the five windows, checked in `lib/board/load.ts`
+ * rather than assumed — and it prints forty pixels above `By role`, the streaks and the partners,
+ * all of which count every game played, ARAM included. Unlabelled, it was the one number on
+ * `/p/[puuid]` a reader could take for the other universe, which is the half of M7.18's acceptance
+ * 3 that did not land with it.
+ *
+ * **This is private to the seed line.** Its only callers are {@link seededLine} and
+ * {@link startedLine}, so no played-count context shares the wording and no second formatter is
+ * needed. `gamesLabel` is deliberately left alone: `windowSlotLine` still calls it for `/stats`,
+ * `/fun` and `/games`, which count played games and are pinned byte for byte.
+ *
+ * **The zero arm is unchanged**: at no games the clause is dropped whole rather than worded, so a
+ * brand-new player still reads `Started at 1200.` and never `0 rated games` (M5.15's acceptance 5).
+ */
 function sinceClause(games: number): string {
-  return games === 0 ? '.' : `, ${gamesLabel(games)} since.`;
+  return games === 0 ? '.' : `, ${ratedGamesLabel(games)} since.`;
 }
 
 /**

@@ -72,10 +72,10 @@ describe('the two numbers', () => {
     // Hana: 37 games in the fixture, half of them won. The `37 games` half moved into the seed
     // sentence forty pixels below (the designer, 2026-09-10) — one page, one count.
     expect(container.querySelector('.cn-row-meta')?.textContent).toBe('19W 18L');
-    expect(container.querySelector('.cn-seed-line')?.textContent).toContain('37 games since.');
+    expect(container.querySelector('.cn-seed-line')?.textContent).toContain('37 rated games since.');
     // **And no count, on any window, ever** (M5.22), which is why this line carries no `rated`
-    // wording either: M7.18 wrote a branch for the case and there is no case — see M7.22, where
-    // naming this page's rated count is decided.
+    // wording either: M7.18 wrote a branch for the case and there is no case. M7.22 settled it by
+    // naming the count where it actually prints — the seed line — and M5.22's placement is kept.
     expect(container.querySelector('.cn-row-meta')?.textContent).not.toContain('rated');
     // Directly under: the two are one block, not two blocks a gap apart.
     const summary = container.querySelector('.cn-summary');
@@ -85,12 +85,16 @@ describe('the two numbers', () => {
     ]);
   });
 
-  it('says `1 game` for somebody with one, never `1 games`', () => {
+  it('says `1 rated game` for somebody with one, never `1 rated games`', () => {
     const { container } = draw(workedPlayer('Hana', { games: 1, wins: 1, losses: 0 }));
 
-    // The count is the seed line's now, and it is still `1 game`.
+    // The count is the seed line's now, and since M7.22 it is `1 rated game` — never the plural
+    // at one, and never `rated 1 game`.
     expect(container.querySelector('.cn-row-meta')?.textContent).toBe('1W 0L');
-    expect(container.querySelector('.cn-seed-line')?.textContent).toContain('1 game since.');
+    const line = container.querySelector('.cn-seed-line')?.textContent ?? '';
+    expect(line).toContain('1 rated game since.');
+    expect(line).not.toContain('1 rated games');
+    expect(line).not.toContain('rated 1 game');
   });
 });
 
@@ -216,8 +220,8 @@ describe('the rating history chart', () => {
     expect(screen.queryByText(WINDOW_EMPTY['all-time'])).not.toBeInTheDocument();
     // Nothing to plot, so nothing is plotted — and nothing is claimed either.
     expect(container.querySelector('.cn-chart-svg')).not.toBeInTheDocument();
-    // The count is in the seed line now, and it still says forty games happened.
-    expect(container.querySelector('.cn-seed-line')?.textContent).toContain('37 games since.');
+    // The count is in the seed line now, and it still says thirty-seven rated games happened.
+    expect(container.querySelector('.cn-seed-line')?.textContent).toContain('37 rated games since.');
     expect(container.querySelector('.cn-row-meta')?.textContent).toBe('19W 18L');
   });
 });
@@ -470,8 +474,9 @@ describe('a window on the player page', () => {
     const { container } = draw(week);
 
     expect(container.querySelector('.cn-row-meta')?.textContent).toBe('4W 2L');
-    // The week's own count lives in the line that says what it is counted since.
-    expect(container.querySelector('.cn-seed-line')?.textContent).toContain('6 games since.');
+    // The week's own count lives in the line that says what it is counted since — and since M7.22
+    // that line says the count is the rated one, on a week as on all time.
+    expect(container.querySelector('.cn-seed-line')?.textContent).toContain('6 rated games since.');
   });
 
   /** `seed` is where the board started them; `start` is where the week found them. */
@@ -920,12 +925,12 @@ describe('the MVP and the ACE on a game row', () => {
 });
 
 describe('the seed line', () => {
-  it('names the displayed seed and the games since, above the chart', () => {
+  it('names the displayed seed and the rated games since, above the chart', () => {
     const player = workedPlayer();
     const { container } = draw(player);
 
     const line = container.querySelector('.cn-seed-line');
-    expect(line?.textContent).toBe(`Started at ${player.reference}, 37 games since.`);
+    expect(line?.textContent).toBe(`Started at ${player.reference}, 37 rated games since.`);
     // M7.19: the fixture is seeded `Silver II` and the page says so nowhere — the rank clause
     // was dropped, not softened, because no rating starts from a rank any more.
     expect(line?.textContent).not.toContain('Silver');
@@ -969,8 +974,58 @@ describe('the seed line', () => {
     );
 
     expect(container.querySelector('.cn-seed-line')?.textContent).toBe(
-      'Started the week at 1469, 6 games since.',
+      'Started the week at 1469, 6 rated games since.',
     );
     expect(screen.getByText(START_LABEL)).toBeInTheDocument();
+  });
+
+  /**
+   * **The one count a reader meets on this page says which games it counted** (M7.22, product
+   * 2026-09-16). `player.games` is the rated count on all five windows, and the sections under
+   * this line count every game played, ARAM included — so the clause carries the adjective.
+   *
+   * Pinned at component level as well as by code point in `lib/board/copy.ts`'s tests, because the
+   * point of the task is what is *rendered* forty pixels above `By role`.
+   */
+  it('names its count as rated on every window, and never prints the retired plain wording', () => {
+    const windows = [
+      { window: 'all-time' as const, expected: 'Started at 1469, 6 rated games since.' },
+      { window: 'this-week' as const, expected: 'Started the week at 1469, 6 rated games since.' },
+      { window: 'last-week' as const, expected: 'Started the week at 1469, 6 rated games since.' },
+      { window: 'this-month' as const, expected: 'Started the month at 1469, 6 rated games since.' },
+      { window: 'last-month' as const, expected: 'Started the month at 1469, 6 rated games since.' },
+    ];
+
+    for (const { window, expected } of windows) {
+      const { container, unmount } = draw(
+        workedPlayer('Hana', { window, games: 6, wins: 4, losses: 2, reference: 1469 }),
+      );
+
+      const line = container.querySelector('.cn-seed-line');
+      expect(line?.textContent).toBe(expected);
+      expect(line?.textContent).not.toContain(', 6 games since.');
+      unmount();
+    }
+  });
+
+  /**
+   * The zero-games arm is unchanged by M7.22: the clause is dropped whole, not worded, so nobody
+   * ever reads `0 rated games` (M5.15's acceptance 5).
+   */
+  it('drops the clause whole at zero games rather than naming an empty universe', () => {
+    const player = workedPlayer('Hana', {
+      games: 0,
+      wins: 0,
+      losses: 0,
+      history: [],
+      recent: [],
+      range: null,
+    });
+    const { container } = draw(player, emptyPlayerStats());
+
+    const line = container.querySelector('.cn-seed-line')?.textContent ?? '';
+    expect(line).toBe(`Started at ${player.reference}.`);
+    expect(line).not.toContain('rated');
+    expect(line).not.toMatch(/\b0\b/);
   });
 });

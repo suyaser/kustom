@@ -188,7 +188,11 @@ teams go up as usual and the channel is quiet afterwards. And **the leaderboard 
 count and its record**, because it is a rating board and its record sits beside a climb those games did not
 move, while `/stats`, `/fun`, `/games` and the sections on a person's own page keep counting them, because they
 are about what the group played. Neither number is wrong. Until **M7.18** neither page says which one it is
-showing, which is the one part of this a friend can reasonably read as a mistake.
+showing, which is the one part of this a friend can reasonably read as a mistake. Every count that can be
+compared with a different count on another screen now says `rated games` when that is what it counted — the
+board's slot line and both board posts from M7.18, and a person's own page from **M7.22** (decided 2026-09-16,
+one word, not yet on the site), where the line that says where their rating started reads `Started at 1200,
+37 rated games since.` directly above the sections that count everything they played.
 
 **Carrying is worth a little more.** The best player on the winning side keeps about a quarter more of what
 they gained, and the best player on the losing side gives back about a fifth less. Best means the highest
