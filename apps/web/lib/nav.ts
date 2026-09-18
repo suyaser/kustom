@@ -3,12 +3,13 @@ import { GAMES_LABEL } from './games/copy';
 import { DAILY_LABEL } from './mystery/copy';
 import { STATS_LABEL } from './stats/copy';
 import { FUN_LABEL } from './stats/funCopy';
+import { VERSUS_LABEL } from './versus/copy';
 
 /**
  * Where the shell can send you, in one list (05-design.md, "The app shell").
  *
  * **A tab is rendered only if its route exists.** `Tonight`, `Leaderboard`, `Games`, `Stats`,
- * `Fun` and — since M5.32 — `Daily` are routes in this app; `Companion ↗` is external and is
+ * `Fun`, `1v1` and — since M5.32 — `Daily` are routes in this app; `Companion ↗` is external and is
  * always there.
  * A nav item that 404s is worse than a missing one, and keeping the list here is what stops a
  * second page hand-writing a fifth answer.
@@ -67,6 +68,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
    */
   { label: STATS_LABEL, href: '/stats' },
   { label: FUN_LABEL, href: '/fun' },
+  /**
+   * `1v1` (M8.5), after `Fun` and before `Daily`: lane wars and any two people. Its label is
+   * `lib/versus/copy.ts`'s own word — the tab, the page heading and the `<title>` are one string.
+   */
+  { label: VERSUS_LABEL, href: '/1v1' },
   /**
    * `Daily` (M5.32, renamed by M8.4): today's one guessing game, whichever of the two it is.
    * The word is kind-neutral because this tab renders on every page and the shell does not

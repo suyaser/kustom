@@ -1,6 +1,7 @@
 import { displayRating, isOffRole, type Role, seedFromRank } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
 import { readAssignments } from '../discord/assemble';
+import { loadFearless } from '../fearless/load';
 import { inLaneOrder } from '../laneOrder';
 import { formatNightLabel } from '../night';
 import type { PublicClient } from '../publicClient';
@@ -26,8 +27,8 @@ import type {
  * and what a rating is, and the two would drift on the night nobody is watching.
  *
  * Every read here is public: `lobbies`, `lobby_members`, `splits`, `games`, `game_players`,
- * `ratings` and `seasons` carry a `for select to anon` policy, and names come from
- * `players_public`, which is `players` without `discord_id`. The base `players` table is not
+ * `ratings`, `seasons` and `fearless_state` carry a `for select to anon` policy, and names come
+ * from `players_public`, which is `players` without `discord_id`. The base `players` table is not
  * readable with this key at all, and nothing on this path tries.
  */
 
@@ -59,7 +60,11 @@ export async function loadTonight(
   options: LoadTonightOptions,
 ): Promise<TonightSnapshot> {
   const nightStart = options.nightStart.toISOString();
-  const [lobbyRow, season] = await Promise.all([selectLobby(client, nightStart), selectSeason(client)]);
+  const [lobbyRow, season, fearless] = await Promise.all([
+    selectLobby(client, nightStart),
+    selectSeason(client),
+    loadFearless(client),
+  ]);
   const seasonId = season?.id ?? null;
 
   return {
@@ -67,6 +72,7 @@ export async function loadTonight(
     nightLabel: options.nightLabel ?? formatNightLabel(options.nightStart, options.timeZone),
     seasonActive: seasonId !== null,
     lobby: lobbyRow === null ? null : await loadLobby(client, lobbyRow, seasonId),
+    fearless,
   };
 }
 

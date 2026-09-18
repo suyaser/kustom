@@ -27,6 +27,8 @@ export type GamePlayerRow = Tables<'game_players'>;
 export type CompanionTokenRow = Tables<'companion_tokens'>;
 export type CompanionCommandRow = Tables<'companion_commands'>;
 export type DiscordConfigRow = Tables<'discord_config'>;
+/** Singleton cursor for the fearless-draft pool (M10). The pool itself is derived. */
+export type FearlessStateRow = Tables<'fearless_state'>;
 /** One closed window the weekly/monthly Discord post has claimed (M5.13). */
 export type WindowPostRow = Tables<'window_posts'>;
 /** One Daily Mystery challenge (M5.32). Service-role only — the answer column is secret. */

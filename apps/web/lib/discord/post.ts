@@ -2,6 +2,7 @@ import { boardSlotLine, WINDOW_LABELS } from '../board/copy';
 import { loadBoard } from '../board/load';
 import type { BoardRow, BoardView, RatingTrack } from '../board/types';
 import { LEADERBOARD_WINDOW } from '../board/window';
+import { loadFearless } from '../fearless/load';
 import { activeSeasonId, loadPool } from '../ingest/balance';
 import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook } from '../ingest/hooks';
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
@@ -20,6 +21,8 @@ import {
   teamsPuuids,
 } from './assemble';
 import {
+  fearlessEmbed,
+  fearlessResetEmbed,
   formatDelta,
   type LeaderboardEntry,
   leaderboardEmbed,
@@ -125,6 +128,52 @@ export async function postResultForGame(
   if (input === null) return SKIPPED('game is not rated');
 
   return postToWebhook(client, resultEmbed(input), 'result embed', options);
+}
+
+/**
+ * The fearless list after a rated Rift custom (M10). A second message, after the result:
+ * the result is about what just happened to ten ratings, this is about what to ban next.
+ * `skipped` when the pool is empty — there is nothing to ban yet, and a message that says
+ * nothing is worse than silence.
+ */
+export async function postFearlessPool(
+  client: ServiceClient,
+  options: PostOptions = {},
+): Promise<WebhookOutcome> {
+  const pool = await loadFearless(client);
+  if (pool.champions.length === 0) return SKIPPED('fearless pool is empty');
+
+  const url = tonightPageUrl(options.requestOrigin);
+  return postToWebhook(
+    client,
+    fearlessEmbed({
+      champions: pool.champions.map((champion) => champion.name),
+      timestamp: (options.now ?? new Date()).toISOString(),
+      ...(url === undefined ? {} : { url }),
+    }),
+    'fearless embed',
+    options,
+  );
+}
+
+/**
+ * An admin just cleared the pool. Always posted (or skipped for no webhook): the squad
+ * needs to know the ban list is empty, which is a different fact from silence.
+ */
+export async function postFearlessReset(
+  client: ServiceClient,
+  options: PostOptions = {},
+): Promise<WebhookOutcome> {
+  const url = tonightPageUrl(options.requestOrigin);
+  return postToWebhook(
+    client,
+    fearlessResetEmbed({
+      timestamp: (options.now ?? new Date()).toISOString(),
+      ...(url === undefined ? {} : { url }),
+    }),
+    'fearless reset embed',
+    options,
+  );
 }
 
 /**
@@ -397,10 +446,12 @@ export const discordLobbyHook: LobbyHook = {
   },
   onFinished: async (event: GameFinishedEvent): Promise<void> => {
     // Only a game the fold actually rated. The route already narrows this to the post that
-    // changed something, so two companions in one game produce one message.
+    // changed something, so two companions in one game produce one message. Rated also means
+    // counted Rift, which is the only map Fearless reads.
     if (!event.rated) return;
-    await postResultForGame(getServiceClient(), event.gameId, {
-      requestOrigin: event.requestOrigin ?? null,
-    });
+    const client = getServiceClient();
+    const origin = { requestOrigin: event.requestOrigin ?? null };
+    await postResultForGame(client, event.gameId, origin);
+    await postFearlessPool(client, origin);
   },
 };

@@ -7,6 +7,8 @@ import { gamesHistoryView } from '../games/view';
 import { readSeed, type StoredSeed, seedFor } from '../ingest/seed';
 import { type WindowKind, type WindowRange, windowRange } from '../night';
 import type { PublicClient } from '../publicClient';
+import type { VersusView } from '../versus/types';
+import { versusView } from '../versus/view';
 import { type AwardRender, awardPeriod, awardsView, WEB_AWARD_RENDER, type WeeklySeeds } from './awards';
 import { countedGames, playerStreaks } from './fold';
 import { assembleFunFacts } from './funView';
@@ -74,6 +76,10 @@ export interface StatsOptions {
   focusPuuid?: string | null | undefined;
   /** `/games` and `/fun`: which map. Absent is Summoner's Rift. */
   queue?: QueueKind | undefined;
+  /** `/1v1?a=`: the left pick, a puuid. */
+  leftPuuid?: string | undefined;
+  /** `/1v1?b=`: the right pick, a puuid. */
+  rightPuuid?: string | undefined;
 }
 
 export async function loadFunFacts(client: PublicClient, options: StatsOptions): Promise<FunFactsView> {
@@ -87,6 +93,19 @@ export async function loadFunFacts(client: PublicClient, options: StatsOptions):
   const read = await readWindow(client, options, { withGameMode: true, withOdds: true });
   const games = read.games.filter((game) => matchesQueue(game.gameMode, queue));
   return assembleFunFacts({ ...read, games }, queue);
+}
+
+export async function loadVersus(client: PublicClient, options: StatsOptions): Promise<VersusView> {
+  /**
+   * `withGameMode` is required so {@link versusView} can drop ARAM / KIWI. A missing mode
+   * is Rift (`matchesQueue`); without the column every custom would count as a lane.
+   */
+  const read = await readWindow(client, options, { withGameMode: true });
+  return versusView({
+    ...read,
+    ...(options.leftPuuid === undefined ? {} : { leftPuuid: options.leftPuuid }),
+    ...(options.rightPuuid === undefined ? {} : { rightPuuid: options.rightPuuid }),
+  });
 }
 
 export async function loadGamesHistory(

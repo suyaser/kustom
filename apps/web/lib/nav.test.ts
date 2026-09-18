@@ -15,6 +15,7 @@ describe('the nav list', () => {
       'Games',
       'Stats',
       'Fun',
+      '1v1',
       // `Daily`, not `Mystery`: the shell renders on every page and does not know which of the
       // two daily games today is (M8.4).
       'Daily',
@@ -75,6 +76,12 @@ describe('which tab is current', () => {
     expect(isCurrentTab(tab('Fun'), '/fun')).toBe(true);
     expect(isCurrentTab(tab('Fun'), '/stats')).toBe(false);
     expect(isCurrentTab(tab('Stats'), '/fun')).toBe(false);
+  });
+
+  it('underlines 1v1 on its own page and never on Fun', () => {
+    expect(isCurrentTab(tab('1v1'), '/1v1')).toBe(true);
+    expect(isCurrentTab(tab('1v1'), '/fun')).toBe(false);
+    expect(isCurrentTab(tab('Fun'), '/1v1')).toBe(false);
   });
 
   it('underlines the daily game on its own page and never on Tonight', () => {

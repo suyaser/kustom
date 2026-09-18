@@ -4,12 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
 import type { BoardRow } from '@/lib/board/types';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
+import { FEARLESS_SENTENCE, FEARLESS_TITLE } from '@/lib/fearless/copy';
 import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/lobbyStart';
 import { MYSTERY_EMPTY, MYSTERY_TITLE } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { NO_ACTIVE_SEASON_MESSAGE, NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
 import {
   extraMember,
+  FIXTURE_NIGHT_START,
   lobbyView,
   offRoleFixture,
   seatedOnTheirSides,
@@ -1114,5 +1116,34 @@ describe('the lobby a latecomer can still join', () => {
       />,
     );
     expect(document.querySelector('.cn-missed')).not.toBeInTheDocument();
+  });
+});
+
+describe('fearless, the ban list', () => {
+  it('is absent while the pool is empty', () => {
+    draw(snapshot(null));
+    expect(document.body.textContent).not.toContain(FEARLESS_TITLE);
+    expect(document.body.textContent).not.toContain(FEARLESS_SENTENCE);
+  });
+
+  it('lists the champions and says to ban them next game', () => {
+    draw(
+      snapshot(null, {
+        fearless: {
+          resetAt: FIXTURE_NIGHT_START,
+          champions: [
+            { id: 103, name: 'Ahri' },
+            { id: 222, name: 'Jinx' },
+          ],
+        },
+      }),
+    );
+    const card = document.querySelector('.cn-fearless');
+    expect(card).not.toBeNull();
+    expect(card?.textContent).toContain(FEARLESS_TITLE);
+    expect(card?.textContent).toContain(FEARLESS_SENTENCE);
+    expect(card?.textContent).toContain('Ahri');
+    expect(card?.textContent).toContain('Jinx');
+    expect(card?.textContent).toContain('2 champions.');
   });
 });

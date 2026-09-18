@@ -3,6 +3,13 @@ import Link from 'next/link';
 import { getRerollableLobby, NO_MORE_SPLITS, type RerollableLobby } from '@/lib/admin/reroll';
 import { getActiveSeason } from '@/lib/admin/seasons';
 import { requireAdmin } from '@/lib/adminPage';
+import {
+  FEARLESS_EMPTY_ADMIN,
+  FEARLESS_RESET_BUTTON,
+  FEARLESS_TITLE,
+  fearlessCount,
+} from '@/lib/fearless/copy';
+import { loadFearless } from '@/lib/fearless/load';
 import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStart';
 import { NO_ACTIVE_SEASON_MESSAGE } from '@/lib/season';
 import { getServiceClient } from '@/lib/supabase';
@@ -23,12 +30,13 @@ export const metadata: Metadata = {
 export default async function AdminIndexPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, admin] = await Promise.all([searchParams, requireAdmin()]);
   const client = getServiceClient();
-  const [season, lobby, lobbyStart] = await Promise.all([
+  const [season, lobby, lobbyStart, fearless] = await Promise.all([
     getActiveSeason(client),
     getRerollableLobby(client),
     // The same read the tonight page's control makes, so the two surfaces say one thing about
     // one command (M4.2). This page is behind the session check already.
     loadLobbyStartOrNone(client, { timeZone: nightTimeZone() }),
+    loadFearless(client),
   ]);
 
   return (
@@ -44,6 +52,10 @@ export default async function AdminIndexPage({ searchParams }: { searchParams: P
       <h2>Tonight</h2>
       <StartLobby start={lobbyStart} />
       <Reroll lobby={lobby} />
+      <FearlessReset
+        names={fearless.champions.map((champion) => champion.name)}
+        count={fearless.champions.length}
+      />
 
       <h2>You</h2>
       <dl>
@@ -206,6 +218,30 @@ function Reroll({ lobby }: { lobby: RerollableLobby | null }) {
             </AdminForm>
           ))}
       </AdminAnswerGroup>
+    </>
+  );
+}
+
+/**
+ * Clear the fearless-draft pool (M10). The list itself is derived from games since the
+ * cursor, so this write is only the cursor: everything already played drops off the tonight
+ * page and the next Discord post.
+ */
+function FearlessReset({ names, count }: { names: readonly string[]; count: number }) {
+  return (
+    <>
+      <h2>{FEARLESS_TITLE}</h2>
+      {count === 0 ? (
+        <Empty>{FEARLESS_EMPTY_ADMIN}</Empty>
+      ) : (
+        <p>
+          {fearlessCount(count)} {names.join(', ')}
+        </p>
+      )}
+      <AdminForm action="/api/admin/fearless/reset" kind="fearless">
+        <input type="hidden" name="redirectTo" value="/admin" />
+        <button type="submit">{FEARLESS_RESET_BUTTON}</button>
+      </AdminForm>
     </>
   );
 }

@@ -566,6 +566,24 @@ if (stack === null) {
     });
   });
 
+  describe('fearless_state', () => {
+    it('has exactly one row, readable by anon, not writable by anon', async () => {
+      const listed = await rest('anon', 'fearless_state?select=id,reset_at');
+      expect(listed.ok).toBe(true);
+      expect(rows(listed.body)).toHaveLength(1);
+      expect(rows(listed.body)[0]?.id).toBe(1);
+
+      const write = await rest('anon', 'fearless_state?id=eq.1', {
+        method: 'PATCH',
+        body: JSON.stringify({ reset_at: '2000-01-01T00:00:00.000Z' }),
+      });
+      expect(write.ok).toBe(false);
+
+      const extra = await insert('fearless_state', { id: 2, reset_at: new Date().toISOString() });
+      expect(extra.ok).toBe(false);
+    });
+  });
+
   describe('bootstrap_admin', () => {
     it('promotes an existing player and is idempotent', async () => {
       const first = await rest('service', 'rpc/bootstrap_admin', {

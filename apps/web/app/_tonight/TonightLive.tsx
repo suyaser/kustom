@@ -16,8 +16,8 @@ import { TonightView } from './TonightView';
  * The live half of the tonight page (M3.4).
  *
  * The server rendered the first paint with real content, so the WhatsApp link never opens on a
- * spinner. This attaches after hydration, subscribes to `postgres_changes` on the six
- * published tables, and re-reads the same snapshot the server built whenever one of them
+ * spinner. This attaches after hydration, subscribes to `postgres_changes` on the published
+ * tables, and re-reads the same snapshot the server built whenever one of them
  * moves. React then replaces the primary block in place: no append, no scroll, no refetch of
  * anything the reader is not looking at.
  *
@@ -32,7 +32,15 @@ import { TonightView } from './TonightView';
  */
 
 /** Published in migration 0001, and publicly readable. `players` is in neither list. */
-const LIVE_TABLES = ['lobbies', 'lobby_members', 'splits', 'games', 'game_players', 'ratings'] as const;
+const LIVE_TABLES = [
+  'lobbies',
+  'lobby_members',
+  'splits',
+  'games',
+  'game_players',
+  'ratings',
+  'fearless_state',
+] as const;
 
 /** Ten members joining at once is one re-read, not ten. */
 const COALESCE_MS = 120;

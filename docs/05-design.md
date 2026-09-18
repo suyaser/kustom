@@ -231,7 +231,7 @@ product rather than a document that happens to be dark.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  Daily   Day Night │
+│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  1v1  Daily   Day Night │
 ├───────────────────────────────────────────────────────────────┤
 │                                                               │
 │   … page content, on the paper or the ink, under the floodlight … │
@@ -269,8 +269,8 @@ the status strip.
   Kustom. Six letters at 800 weight is also a better wordmark than thirteen.
 - **Nav.** Tabs, mono `t-xs`, `0.08em`, lower case is wrong here — these are destinations, so Archivo `t-sm`
   500 in `dim`, the current one in `text` with a 2px `brand` underline. Order: `Tonight`, `Leaderboard`,
-  `Games`, `Stats`, `Fun`, `Daily`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
-  `Games` with M5.25, `Stats` with M5.4, `Fun` with M5.24, `Daily` with M5.32, `Companion` is external and always there. A nav item that 404s is worse than a missing
+  `Games`, `Stats`, `Fun`, `1v1`, `Daily`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
+  `Games` with M5.25, `Stats` with M5.4, `Fun` with M5.24, `1v1` with M8.5, `Daily` with M5.32, `Companion` is external and always there. A nav item that 404s is worse than a missing
   one. Keep the list in one exported array (`lib/nav.ts`) so no page hand-writes it.
 - **The daily tab is `Daily`, not the name of either game** (renamed 2026-09-16 by M8.4, from `Mystery`).
   Two games now alternate civil days behind `/mystery` (Daily Mystery and Guess the Award), and this tab is
@@ -964,7 +964,10 @@ placement are the designer's and are untouched.
 | past the ten | *(shipped)* `Around` | shipped, kept |
 | nameless hint | *(shipped)* `Names fill in after someone's first game.` | shipped, kept |
 | no season | *(shipped, M3.17)* `No season is active, so tonight's games are not being saved. An admin can start one.` | shipped, kept |
-| nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is |
+| fearless, title | `Fearless` | product 2026-09-18 (M10) |
+| fearless, sentence | `Ban these next game.` | product 2026-09-18 (M10) |
+| fearless, count | `10 champions.` / `1 champion.` | product 2026-09-18 (M10) |
+| nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `1v1` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is; **`1v1` added 2026-09-18 (M8.5)** after `Fun` |
 | footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
 | how this works, line 2 | `The bot makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.` | product 2026-09-09 — **changed** |
@@ -2477,6 +2480,40 @@ timeline pairs the fixtures did not refute, then the leftover unique lane on a f
 side). Never from the champion. ARAM does not invent lanes. `/stats` and role inference never
 see this fill.
 
+### One vs one (`/1v1`) — 2026-09-18 (M8.5)
+
+Lane 1v1 and any two people head to head. Same shell, same window picker, default `All time`.
+Summoner's Rift only — `countedGames` then `matchesQueue(..., 'sr')`. No ARAM chip: Howling
+Abyss has no lanes.
+
+A lane meeting is exactly one player on each side with that role. Two tops on one side, or a
+missing role, is not a 1v1 and does not count. Each lane prints the five series with the most
+meetings, past three. Winner's name first, `8W 2L · 80%`, both names links. A percentage waits
+for five meetings, the same bar `/stats` uses.
+
+Two spice lists sit above the lanes: **Lane bully** (highest win rate, five meetings, at least
+70%) and **Dead heat** (score within one game, five meetings, longest first).
+
+**Pick two** is a GET form, `?a=` and `?b=` puuids, so the URL is the argument in the chat.
+Two `<select>`s and a Compare button; `onChange` submits when JavaScript is on. Left is `a`,
+right is `b`. The series prints a verdict, a `12–7` score, a brand/line bar, last meeting,
+streak, last-five form as `W W L W L`, mean KDA into each other, the champion
+each locked, same-role rows, and the record when they queued together. Colour is never a side:
+the leader's number is `text` at 600, the trailer is `dim`. Brand is the lead share of the bar.
+
+Every English card title carries an Egyptian 3ameya roast on the right in brand, the same
+dress `/fun` uses.
+
+### Fearless (tonight page, M10) — 2026-09-18
+
+A card on `/`, under Daily Mystery, not in the rail: the list is tonight's constraint, not a
+sidebar fact. Hidden while the pool is empty so an idle night is not a card that says nothing.
+
+- Title `Fearless`, `cn-card-title`. Count on the right in `dim` (`10 champions.`).
+- Sentence `Ban these next game.` in `text`.
+- Names as wrap chips on `raise` with a `line` hairline. **No champion art** — Floodlit forbids it.
+- First-appearance order, unique ids. The companion does not auto-ban; this is a list for humans.
+
 ### The player page (`/p/[puuid]`) — settled 2026-09-09
 
 Order down the page, and nothing else in it: name · record · the two numbers · the `Rating` chart · the
@@ -2966,6 +3003,23 @@ fields full-width block fields — `Blue` above `Red`, five clean lines each —
 the role, the name, the new rating and the delta are the entire content. The teams embed's lines are six to
 eight characters shorter and are expected to survive; if they do not, they take the same treatment. Decide this
 by looking at one real post on one real phone, not from the JSON.
+
+### Fearless embed (M10)
+
+A second message after the result, never a field on it. Accent bar — the list is neither side's.
+
+```
+color        accent (14721854)
+title        Fearless
+url          https://<tonight page>          [dropped when the only honest origin is localhost]
+description  Ban these next game. 10 champions.
+field 1      name "Champions"   block   value: one name per line, first-appearance order
+footer       Kustom · more on the tonight page
+timestamp    now
+```
+
+Empty pool is not posted. An admin reset posts the same title with description
+`Pool cleared. Ban list is empty.` and no fields.
 
 ### Nightly leaderboard embed (M3.5)
 

@@ -13,7 +13,8 @@ import { sinceLabel } from './copy';
  * own default.
  *
  * **The parameter is the same word on every windowed page** — `?window=this-week` on
- * `/leaderboard`, on `/p/[puuid]`, on `/stats` (M5.4) and on `/games` (M5.25) — so a link
+ * `/leaderboard`, on `/p/[puuid]`, on `/stats` (M5.4), on `/games` (M5.25) and on `/1v1`
+ * (M8.5) — so a link
  * pasted from one lands on the same window in another. The boundaries themselves are `lib/night.ts` (M5.9); this file
  * is the reading of a URL and nothing else, which is why it is pure and has no client.
  */
@@ -57,6 +58,12 @@ export const PLAYER_WINDOW: WindowKind = 'all-time';
  * gets to the week.
  */
 export const STATS_WINDOW: WindowKind = 'this-month';
+
+/**
+ * `/1v1` opens on `All time` (M8.5): a lane series is rarer than a person's games at a
+ * role, and a week of customs prints empty boards. One tap gets to the month.
+ */
+export const VERSUS_WINDOW: WindowKind = 'all-time';
 
 /**
  * The `?window=` value, or `null` for anything that is not one of the five.
