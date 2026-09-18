@@ -12,10 +12,18 @@ import {
   verdictTogetherCursed,
   verdictTogetherHot,
 } from './copy';
-import { countedGames, headToHead, laneBoards, laneHeats, lanePair, laneTyrants } from './fold';
+import {
+  countedGames,
+  headToHead,
+  laneBoards,
+  laneHeats,
+  lanePair,
+  laneTyrants,
+  versusGames,
+} from './fold';
 
 /**
- * `/1v1` arithmetic (M5.34): a lane meeting is one player a side at that role; a head-to-head
+ * `/1v1` arithmetic (M8.5): a lane meeting is one player a side at that role; a head-to-head
  * is every counted custom the two named people both played.
  */
 
@@ -133,7 +141,7 @@ describe('lane boards', () => {
     expect(top?.entries).toHaveLength(LANES_SHOWN);
   });
 
-  it('does not count ARAM, the way /stats does not', () => {
+  it('does not count ARAM or KIWI as a lane meeting', () => {
     const rift = runTop('omar', 'ahmed', 3, 0);
     const aram = tenPlayerGame({
       at: at(50),
@@ -141,7 +149,7 @@ describe('lane boards', () => {
       blue: ['omar:top'],
       red: ['ahmed:top'],
     });
-    const games = countedGames([...rift, aram]);
+    const games = versusGames([...rift, aram]);
     const top = laneBoards(games, rosterFor(games)).find((board) => board.role === 'top');
     expect(top?.entries[0]?.games).toBe(3);
   });
@@ -245,5 +253,33 @@ describe('head to head', () => {
     const games = countedGames(runTop('omar', 'ahmed', 1, 0));
     expect(headToHead(games, rosterFor(games), playerIdOf('omar'), playerIdOf('omar'))).toBeNull();
     expect(headToHead(games, rosterFor(games), playerIdOf('omar'), 'p-nobody')).toBeNull();
+  });
+});
+
+describe('versusGames', () => {
+  it('keeps Rift and a missing mode, and drops ARAM and KIWI', () => {
+    const rift = tenPlayerGame({ at: at(0), winner: 100, blue: ['omar:top'], red: ['ahmed:top'] });
+    const named = tenPlayerGame({
+      at: at(1),
+      winner: 100,
+      gameMode: 'CLASSIC',
+      blue: ['omar:top'],
+      red: ['ahmed:top'],
+    });
+    const aram = tenPlayerGame({
+      at: at(2),
+      winner: 100,
+      gameMode: 'ARAM',
+      blue: ['omar:top'],
+      red: ['ahmed:top'],
+    });
+    const kiwi = tenPlayerGame({
+      at: at(3),
+      winner: 100,
+      gameMode: 'KIWI',
+      blue: ['omar:top'],
+      red: ['ahmed:top'],
+    });
+    expect(versusGames([rift, named, aram, kiwi]).map((game) => game.id)).toEqual([rift.id, named.id]);
   });
 });

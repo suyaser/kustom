@@ -12,11 +12,12 @@ import '../../stats.css';
 import '../../versus.css';
 
 /**
- * `/1v1` (M5.34): who wins each lane, and any two people head to head.
+ * `/1v1` (M8.5): who wins each lane, and any two people head to head.
  *
- * Same window picker, same anon read, same `gateRatedGame` universe as `/stats`.
- * `?window=`, `?a=` and `?b=` are the whole of the page's state. Default window is
- * `All time`, because a lane series wants more than a week of customs.
+ * Same window picker, same anon read as `/stats`. The fold is Rift-only
+ * (`versusGames`): `/stats` still counts ARAM, this page cannot. `?window=`, `?a=`
+ * and `?b=` are the whole of the page's state. Default window is `All time`,
+ * because a lane series wants more than a week of customs.
  */
 
 export const dynamic = 'force-dynamic';

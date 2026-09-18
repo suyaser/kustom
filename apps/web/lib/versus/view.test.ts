@@ -44,4 +44,33 @@ describe('versusView', () => {
     expect(view.pick.series.aWins).toBe(1);
     expect(view.roster.map((player) => player.puuid)).toContain('u-omar');
   });
+
+  it('does not fold an ARAM custom into a lane series', () => {
+    const games = [
+      tenPlayerGame({
+        at: '2026-09-01T19:00:00Z',
+        winner: 100,
+        gameMode: 'ARAM',
+        blue: ['omar:top'],
+        red: ['ahmed:top'],
+      }),
+    ];
+    const view = versusView({
+      window: 'all-time',
+      games,
+      players: rosterFor(games),
+      range: RANGE,
+      capped: false,
+      cap: 2_000,
+      leftPuuid: puuidOf('omar'),
+      rightPuuid: puuidOf('ahmed'),
+    });
+    expect(view.games).toBe(0);
+    expect(view.roster).toEqual([]);
+    expect(view.lanes.every((board) => board.entries.length === 0)).toBe(true);
+    expect(view.pick.kind).toBe('ready');
+    if (view.pick.kind !== 'ready') return;
+    expect(view.pick.series.enemies).toBe(0);
+    expect(view.pick.series.allies).toBe(0);
+  });
 });

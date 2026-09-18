@@ -42,6 +42,7 @@ import {
   PLAYER_WINDOW,
   parseWindow,
   STATS_WINDOW,
+  VERSUS_WINDOW,
   WINDOW_ORDER,
   windowHref,
   windowRangeLabel,
@@ -680,10 +681,11 @@ describe('the rating chart', () => {
  * of a URL, the three defaults and the link behind an option.
  */
 describe('the window a page is read through', () => {
-  it('defaults per page: the board opens on the week, a person on all time, stats on the month', () => {
+  it('defaults per page: the board opens on the week, a person on all time, stats on the month, 1v1 on all time', () => {
     expect(LEADERBOARD_WINDOW).toBe('this-week');
     expect(PLAYER_WINDOW).toBe('all-time');
     expect(STATS_WINDOW).toBe('this-month');
+    expect(VERSUS_WINDOW).toBe('all-time');
   });
 
   it('takes the page default when the parameter is absent', () => {

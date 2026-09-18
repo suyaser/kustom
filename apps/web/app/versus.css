@@ -1,5 +1,5 @@
 /*
- * `/1v1` (M5.34). Loaded beside `board.css` and `stats.css`, which own the strip, the
+ * `/1v1` (M8.5). Loaded beside `board.css` and `stats.css`, which own the strip, the
  * picker, the card and the record row. Rules below are the duel, the two selects, and
  * the three-cell matchup row. No new colour: brand is the leader, dim is the trailer.
  */
@@ -40,6 +40,20 @@
 
 .cn-versus-go {
   grid-column: 1 / -1;
+  min-height: 44px;
+  width: 100%;
+  padding: 0 var(--cn-sp-4);
+  font: inherit;
+  color: var(--cn-brand);
+  background: transparent;
+  border: 1px solid var(--cn-brand);
+  border-radius: var(--cn-radius-row);
+  cursor: pointer;
+}
+
+.cn-versus-go:active {
+  background: var(--cn-pressed);
+  transform: scale(0.985);
 }
 
 .cn-versus-series {

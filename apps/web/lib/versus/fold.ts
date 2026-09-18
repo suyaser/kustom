@@ -1,5 +1,6 @@
 import type { RoleValue } from '@customs/db';
 import { championName } from '../champs/names';
+import { matchesQueue } from '../games/queue';
 import { LANE_ORDER } from '../laneOrder';
 import { MIN_RECORD_GAMES } from '../stats/copy';
 import { compareByName, countedGames, noRoleGames, playersWhoPlayed, winRate } from '../stats/fold';
@@ -28,12 +29,22 @@ import type {
 } from './types';
 
 /**
- * Lane 1v1 and head-to-head arithmetic for `/1v1` (M5.34).
+ * Lane 1v1 and head-to-head arithmetic for `/1v1` (M8.5).
  *
  * Pure: no client, no clock. A lane meeting is exactly one player on each side with that
  * role; two tops on one side, or a missing role, is not a 1v1 and does not count. The
- * universe is `countedGames` — the same Rift gate `/stats` uses.
+ * universe is {@link versusGames}: `countedGames` (the played ten) then Summoner's Rift
+ * only. `/stats` still counts ARAM; this page cannot, because Howling Abyss has no lanes.
  */
+
+/**
+ * The games `/1v1` folds. `countedGames` first — ten rows, five a side, over 300 seconds —
+ * then `matchesQueue(..., 'sr')`, the same Rift rule `/games` and the rating fold share
+ * (`CLASSIC` or a missing mode). ARAM and KIWI stay on `/fun` and never become a lane war.
+ */
+export function versusGames(games: readonly StatsGame[]): StatsGame[] {
+  return countedGames(games.filter((game) => matchesQueue(game.gameMode, 'sr')));
+}
 
 interface PairTally {
   role: RoleValue;

@@ -4,7 +4,7 @@ import { renderWebName } from '../tonight/copy';
 import type { PlayerName } from '../tonight/types';
 
 /**
- * Every word `/1v1` says (M5.34). The page and its tests read these strings; a component
+ * Every word `/1v1` says (M8.5). The page and its tests read these strings; a component
  * does not invent a second sentence for the same fact.
  */
 

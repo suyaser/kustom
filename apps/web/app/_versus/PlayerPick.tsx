@@ -54,7 +54,7 @@ export function PlayerPick({
           ))}
         </select>
       </label>
-      <button className="cn-button cn-versus-go" type="submit">
+      <button className="cn-versus-go" type="submit">
         {COMPARE}
       </button>
     </form>

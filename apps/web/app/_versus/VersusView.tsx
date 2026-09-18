@@ -61,7 +61,7 @@ import { PlayerPick } from './PlayerPick';
 import '../board-parts.css';
 
 /**
- * `/1v1` (M5.34): lane series for the window, then any two people the reader names.
+ * `/1v1` (M8.5): lane series for the window, then any two people the reader names.
  *
  * A pure function of one snapshot. The numbers live in `lib/versus`; this file decides
  * nothing except order: the pick, the series those two made, lane bullies, dead heats,

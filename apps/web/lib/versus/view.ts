@@ -1,22 +1,23 @@
 import { windowRangeLabel } from '../board/window';
 import type { StatsInput } from '../stats/view';
 import {
-  countedGames,
   headToHead,
   laneBoards,
   laneHeats,
   laneTyrants,
   noRoleGames,
   playersWhoPlayed,
+  versusGames,
   versusRoster,
 } from './fold';
 import type { VersusPick, VersusView } from './types';
 
 /**
- * The whole of `/1v1`, assembled from the same window read `/stats` makes (M5.34).
+ * The whole of `/1v1`, assembled from the same window read `/stats` makes (M8.5).
  *
  * Pure. `loadVersus` reads the rows and calls this; the component renders what comes back.
  * `leftPuuid` / `rightPuuid` are the two picks, keyed the way every other page keys a person.
+ * The list that actually folds is {@link versusGames}: played customs on Summoner's Rift.
  */
 
 export interface VersusInput extends StatsInput {
@@ -24,7 +25,7 @@ export interface VersusInput extends StatsInput {
   rightPuuid?: string | undefined;
 }
 
-function pickOf(input: VersusInput, counted: ReturnType<typeof countedGames>): VersusPick {
+function pickOf(input: VersusInput, counted: ReturnType<typeof versusGames>): VersusPick {
   const left = input.leftPuuid;
   const right = input.rightPuuid;
   if (left === undefined && right === undefined) return { kind: 'idle' };
@@ -42,7 +43,7 @@ function pickOf(input: VersusInput, counted: ReturnType<typeof countedGames>): V
 }
 
 export function versusView(input: VersusInput): VersusView {
-  const counted = countedGames(input.games);
+  const counted = versusGames(input.games);
   const first = counted[0];
 
   return {

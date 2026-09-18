@@ -3,7 +3,7 @@ import type { WindowKind } from '../night';
 import type { PlayerRef } from '../stats/types';
 
 /**
- * What `/1v1` is made of (M5.34): lane series and one optional head-to-head, computed
+ * What `/1v1` is made of (M8.5): lane series and one optional head-to-head, computed
  * on the server from the same window `/stats` reads.
  */
 
