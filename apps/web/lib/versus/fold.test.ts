@@ -12,15 +12,7 @@ import {
   verdictTogetherCursed,
   verdictTogetherHot,
 } from './copy';
-import {
-  countedGames,
-  headToHead,
-  laneBoards,
-  laneHeats,
-  lanePair,
-  laneTyrants,
-  versusGames,
-} from './fold';
+import { countedGames, headToHead, laneBoards, laneHeats, lanePair, laneTyrants, versusGames } from './fold';
 
 /**
  * `/1v1` arithmetic (M8.5): a lane meeting is one player a side at that role; a head-to-head
