@@ -367,6 +367,42 @@ export type Database = {
         }
         Relationships: []
       }
+      fearless_state: {
+        Row: {
+          id: number
+          reset_at: string
+          reset_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          reset_at?: string
+          reset_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          reset_at?: string
+          reset_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fearless_state_reset_by_fkey"
+            columns: ["reset_by"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fearless_state_reset_by_fkey"
+            columns: ["reset_by"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_players: {
         Row: {
           assists: number

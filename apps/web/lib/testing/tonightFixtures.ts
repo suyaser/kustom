@@ -1,4 +1,5 @@
 import { balance, displayRating, isOffRole, type Role, rateGame } from '@customs/core';
+import { EMPTY_FEARLESS } from '../fearless/types';
 import type {
   LobbyView,
   MemberView,
@@ -267,6 +268,7 @@ export function snapshot(lobby: LobbyView | null, overrides: Partial<TonightSnap
     // the slug is formatted on the server and travels in the snapshot (M3.18).
     nightLabel: 'Tuesday 8 September',
     seasonActive: true,
+    fearless: EMPTY_FEARLESS,
     ...overrides,
   };
 }

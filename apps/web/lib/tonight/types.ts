@@ -1,4 +1,5 @@
 import type { LobbyStatusValue, RoleValue, SideValue } from '@customs/db';
+import type { FearlessView } from '../fearless/types';
 
 /**
  * What the tonight page knows (M3.4). One snapshot, loaded on the server for the first paint
@@ -156,6 +157,12 @@ export interface TonightSnapshot {
    * this page reads a season's name and the snapshot no longer carries one.
    */
   seasonActive: boolean;
+  /**
+   * Champions this group has locked since an admin last cleared the fearless pool (M10).
+   * Empty until the next counted Rift custom lands after the cursor. Derived from
+   * `game_players.champion_id`; the snapshot just carries the folded list.
+   */
+  fearless: FearlessView;
 }
 
 /**

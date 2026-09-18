@@ -1057,3 +1057,54 @@
 .cn-missed-password {
   user-select: all;
 }
+
+/* ---------------------------------------------------------------------------
+ * Fearless (M10). A list of names, not a chip grid: names are language of
+ * varying length, and a grid of them is a wall of unequal words. Same raise
+ * row as a role chip, wrap, no champion art.
+ * ------------------------------------------------------------------------- */
+
+.cn-fearless {
+  gap: var(--cn-sp-3);
+  padding: var(--cn-sp-4);
+  background: var(--cn-surface);
+  border: 1px solid var(--cn-line);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cn-text) 6%, transparent);
+}
+
+.cn-fearless-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cn-sp-3);
+}
+
+.cn-fearless-count,
+.cn-fearless-copy {
+  margin: 0;
+  color: var(--cn-dim);
+  font-size: var(--cn-t-sm);
+}
+
+.cn-fearless-copy {
+  color: var(--cn-text);
+}
+
+.cn-fearless-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cn-sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cn-fearless-list li {
+  padding: 0.25rem 0.55rem;
+  background: var(--cn-raise);
+  border: 1px solid var(--cn-line);
+  border-radius: var(--cn-radius-row, 4px);
+  font-size: var(--cn-t-sm);
+  font-weight: 600;
+  color: var(--cn-text);
+}

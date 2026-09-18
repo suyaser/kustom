@@ -13,6 +13,8 @@ import {
   awardLine,
   BLUE_COLOR,
   boardFooter,
+  fearlessEmbed,
+  fearlessResetEmbed,
   formatDamage,
   formatDelta,
   formatDuration,
@@ -955,5 +957,44 @@ describe('the MVP / ACE line', () => {
     expect(embed?.fields.map((field) => field.name)).toEqual(['Blue', 'Red']);
     expect(embed?.fields).toEqual(before?.fields.slice(0, 2));
     expect({ ...embed, fields: [] }).toEqual({ ...before, fields: [] });
+  });
+});
+
+describe('fearlessEmbed', () => {
+  it('lists the champions, one per line, under an accent bar', () => {
+    const payload = fearlessEmbed({
+      champions: ['Ahri', 'Jinx', 'Orianna'],
+      timestamp: TIMESTAMP,
+      url: SITE_URL,
+    });
+    const embed = payload.embeds[0];
+    expect(embed?.color).toBe(ACCENT_COLOR);
+    expect(embed?.title).toBe('Fearless');
+    expect(embed?.description).toBe('Ban these next game. 3 champions.');
+    expect(embed?.fields[0]?.name).toBe('Champions');
+    expect(embed?.fields[0]?.value).toBe('Ahri\nJinx\nOrianna');
+    expect(embed?.footer?.text).toBe('Kustom · more on the tonight page');
+    expect(embed?.url).toBe(SITE_URL);
+  });
+
+  it('is a second message, never stuffed into the result', () => {
+    const result = resultEmbed(workedResultInput()).embeds[0];
+    const fearless = fearlessEmbed({
+      champions: ['Ahri'],
+      timestamp: TIMESTAMP,
+    }).embeds[0];
+    expect(result?.title).not.toContain('Fearless');
+    expect(fearless?.title).toBe('Fearless');
+    expect(fearless?.fields.map((field) => field.name)).toEqual(['Champions']);
+  });
+});
+
+describe('fearlessResetEmbed', () => {
+  it('says the ban list is empty', () => {
+    const embed = fearlessResetEmbed({ timestamp: TIMESTAMP }).embeds[0];
+    expect(embed?.title).toBe('Fearless');
+    expect(embed?.description).toBe('Pool cleared. Ban list is empty.');
+    expect(embed?.fields).toEqual([]);
+    expect(embed?.footer?.text).toBe('Kustom');
   });
 });

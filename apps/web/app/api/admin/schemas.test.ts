@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { internalPathSchema } from '@/lib/admin/formValues';
 import { discordConfigRequestSchema } from './discord-config/schema';
+import { fearlessResetRequestSchema } from './fearless/reset/schema';
 import { adminPlayersRequestSchema } from './players/schema';
 import { adminTokensRequestSchema } from './tokens/schema';
 
@@ -149,5 +150,14 @@ describe('internalPathSchema', () => {
     for (const value of ['//evil.example', 'https://evil.example', '/\\evil.example', 'admin']) {
       expect(internalPathSchema.safeParse(value).success).toBe(false);
     }
+  });
+});
+
+describe('fearlessResetRequestSchema', () => {
+  it('accepts an empty body and a path on this site', () => {
+    expect(fearlessResetRequestSchema.parse({})).toEqual({});
+    expect(fearlessResetRequestSchema.parse({ redirectTo: '/admin' })).toEqual({
+      redirectTo: '/admin',
+    });
   });
 });

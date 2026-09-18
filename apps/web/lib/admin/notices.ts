@@ -14,9 +14,10 @@
  */
 
 import { startLobbyResponseSchema } from '@/app/api/me/lobbies/start/schema';
+import { FEARLESS_RESET_FAILED, FEARLESS_RESET_POSTED, FEARLESS_RESET_SKIPPED } from '../fearless/copy';
 import { openingOnPcLine } from '../lobbyStart';
 
-export type AdminFormKind = 'players' | 'tokens' | 'discord' | 'reroll' | 'lobby-start';
+export type AdminFormKind = 'players' | 'tokens' | 'discord' | 'reroll' | 'lobby-start' | 'fearless';
 
 /** What a form posted: every value is a string, exactly as the no-JS form post sends it. */
 export type SubmittedValues = Record<string, string>;
@@ -33,6 +34,8 @@ export function adminNotice(kind: AdminFormKind, values: SubmittedValues, body: 
       return rerollNotice(body);
     case 'lobby-start':
       return lobbyStartNotice(body);
+    case 'fearless':
+      return fearlessNotice(body);
   }
 }
 
@@ -53,6 +56,18 @@ function lobbyStartNotice(body: unknown): string {
     : // A 200 in a shape the schema does not allow. The row is written either way, and the
       // page re-reads it a moment later.
       'the lobby is being opened';
+}
+
+/** `app/api/admin/fearless/reset/handler.ts`, `notice`. */
+function fearlessNotice(body: unknown): string {
+  switch (readField(body, 'post')) {
+    case 'posted':
+      return FEARLESS_RESET_POSTED;
+    case 'skipped':
+      return FEARLESS_RESET_SKIPPED;
+    default:
+      return FEARLESS_RESET_FAILED;
+  }
 }
 
 /** `app/api/admin/players/handler.ts`, `noticeFor`. */

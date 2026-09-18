@@ -6,6 +6,12 @@ import {
   WEEK_BOARD_SENTENCE_SHORT,
 } from '../board/copy';
 import type { RatingTrack } from '../board/types';
+import {
+  FEARLESS_FIELD,
+  FEARLESS_RESET_DESCRIPTION,
+  FEARLESS_TITLE,
+  fearlessDescription,
+} from '../fearless/copy';
 import { inLaneOrder } from '../laneOrder';
 import { type FieldLine, fieldValue, guardEmbed, KEEP_LAST_STANDING } from './limits';
 
@@ -688,6 +694,49 @@ function escapeMarkdown(value: string): string {
  */
 function resultFooter(gameNumber: number | null): string {
   return gameNumber === null ? 'Kustom' : `Kustom · game ${gameNumber}`;
+}
+
+/**
+ * The fearless-draft list (M10): unique champions since the last admin reset, banned from
+ * the next custom. A second message after the result, never stuffed into it — the result is
+ * about ratings and this is about tomorrow's bans.
+ *
+ * Accent bar, same as teams: the list is neither side's. Empty pool is not posted; the
+ * reset path has its own embed.
+ */
+export interface FearlessEmbedInput {
+  champions: readonly string[];
+  timestamp: string;
+  url?: string;
+}
+
+export function fearlessEmbed(input: FearlessEmbedInput): WebhookPayload {
+  return payload({
+    color: ACCENT_COLOR,
+    title: FEARLESS_TITLE,
+    ...(input.url === undefined ? {} : { url: input.url }),
+    description: fearlessDescription(input.champions.length),
+    fields: [{ name: FEARLESS_FIELD, value: fieldValue(input.champions) }],
+    footer: { text: teamsFooter(input.url) },
+    timestamp: input.timestamp,
+  });
+}
+
+export interface FearlessResetEmbedInput {
+  timestamp: string;
+  url?: string;
+}
+
+export function fearlessResetEmbed(input: FearlessResetEmbedInput): WebhookPayload {
+  return payload({
+    color: ACCENT_COLOR,
+    title: FEARLESS_TITLE,
+    ...(input.url === undefined ? {} : { url: input.url }),
+    description: FEARLESS_RESET_DESCRIPTION,
+    fields: [],
+    footer: { text: teamsFooter(input.url) },
+    timestamp: input.timestamp,
+  });
 }
 
 /**

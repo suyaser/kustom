@@ -42,15 +42,17 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    roles, win chance, and a one-line why.
 4. Players switch to their side (companion can do it for them, see M4). Game starts.
 5. At end of game the companion captures the full stats block. Ratings move. Leaderboard updates. What each
-   person plays is counted too, so their main and backup follow the games they actually play.
+   person plays is counted too, so their main and backup follow the games they actually play. The ten
+   champions they locked are added to the **fearless** list on the tonight page and posted to Discord —
+   those champs are banned from the next custom, and the list keeps growing until an admin resets it.
 6. If more than ten showed up, the server posts who sits: whoever has played most tonight, and between
    equals whoever has gone longest without sitting. On the first game of a night nobody has done either, so
    the post says as much — somebody has to be first — and from the second game on the rotation has real
    history to work from.
 
-## The three things a person can change
+## The things a person can change
 
-Everything else happens without anybody touching it. These three exist because the docs already accepted them,
+Everything else happens without anybody touching it. These exist because the docs already accepted them,
 and each is one tap:
 
 - **Start a lobby** (M4.2, every linked player since M4.13). The first tap of the night, and the only one that is optional:
@@ -79,6 +81,10 @@ and each is one tap:
   teams can still put them somewhere else and the explanation line says so when they do. A tap after teams
   are already posted is kept for the next game rather than redoing the teams people have already moved for —
   the referee does not reopen a decision because one player changed their mind.
+- **Reset fearless** (M10, admins). The ban list is zero-input: every counted Rift custom appends its ten
+  champs, Discord gets the list, nobody types a name. Clearing it is the one tap, on `/admin`, because
+  "the pool starts over" is a night-level call the same way reroll is. The companion never auto-bans;
+  Riot's line is that we do not touch champion select. Humans ban from the list.
 
 ## Being filled
 
@@ -254,6 +260,8 @@ See `02-milestones.md` for the build order. In product terms:
 | The nights the bot said you would lose and you did not | M8 |
 | Last week's award winners labelled on the board | M8 |
 | Guess the Award: a second daily guess, alternating days with Daily Mystery | M8 |
+| One vs one: who wins each lane, and any two people head to head | M8.5 |
+| Fearless draft: champs played since the last reset are banned next game | M10 |
 | Asking the database whether coming back after a break really breaks the rating | M9.1 |
 | Widening the model's doubt about a player who has been away | M9.2, not scoped: it waits on M9.1's numbers |
 | Tray app wrapper with auto-start | M6 |
@@ -319,7 +327,7 @@ that makes a second one.
 - Manual result reporting. If the companion misses a game, backfill (M5) recovers it.
 - WhatsApp bot. There is no legitimate group-bot API. The tonight page link is the WhatsApp integration.
 - Slack. Not until someone asks twice. It would be a single webhook.
-- Anything touching champion select or gameplay.
+- Anything touching champion select or gameplay. The fearless list is for humans to ban; the companion never auto-bans.
 
 ## Success
 

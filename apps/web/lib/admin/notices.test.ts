@@ -29,9 +29,10 @@ const tokens = handler('tokens/handler.ts');
 const discord = handler('discord-config/handler.ts');
 const reroll = handler('lobbies/[lobbyId]/reroll/handler.ts');
 const start = meHandler('lobbies/start/handler.ts');
+const fearless = handler('fearless/reset/handler.ts');
 
 /** Every form kind the admin area still has. `seasons` left with M5.14's Start button. */
-const KINDS: AdminFormKind[] = ['players', 'tokens', 'discord', 'reroll', 'lobby-start'];
+const KINDS: AdminFormKind[] = ['players', 'tokens', 'discord', 'reroll', 'lobby-start', 'fearless'];
 
 describe('players', () => {
   const notice = (values: Record<string, string>) => adminNotice('players', values, { ok: true });
@@ -186,5 +187,22 @@ describe('a refusal', () => {
   it('falls back only when the answer carries no sentence at all', () => {
     expect(adminError(null, 'that did not save')).toBe('that did not save');
     expect(adminError({ ok: false }, 'that did not save')).toBe('that did not save');
+  });
+});
+
+describe('fearless reset', () => {
+  it("says the pool is empty and what Discord did, in the route's words", () => {
+    expect(adminNotice('fearless', {}, { ok: true, post: 'posted' })).toBe(
+      'Fearless pool cleared. Posted to Discord.',
+    );
+    expect(adminNotice('fearless', {}, { ok: true, post: 'skipped' })).toBe(
+      'Fearless pool cleared. No webhook is configured, so nothing was posted.',
+    );
+    expect(adminNotice('fearless', {}, { ok: true, post: 'failed' })).toBe(
+      'Fearless pool cleared. Discord did not take the post, but the pool is empty.',
+    );
+    expect(fearless).toContain('FEARLESS_RESET_POSTED');
+    expect(fearless).toContain('FEARLESS_RESET_SKIPPED');
+    expect(fearless).toContain('FEARLESS_RESET_FAILED');
   });
 });

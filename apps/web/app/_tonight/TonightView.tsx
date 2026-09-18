@@ -2,6 +2,8 @@ import { displayRating } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import type { BoardRow } from '@/lib/board/types';
 import { favoredClause, formatDamage, formatDuration } from '@/lib/discord/embeds';
+import { FEARLESS_SENTENCE, FEARLESS_TITLE, fearlessCount } from '@/lib/fearless/copy';
+import type { FearlessView } from '@/lib/fearless/types';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { displayDelta, formatWebDelta, isGain } from '@/lib/ratingDisplay';
 import { NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
@@ -187,6 +189,7 @@ export function TonightView({
          */}
         {state.kind === 'idle' ? (startLobby ?? startSignIn) : null}
         {idle ? <MysteryHome mystery={mystery} /> : null}
+        {idle ? <FearlessCard fearless={snapshot.fearless} /> : null}
         {state.kind === 'idle' ? <Idle /> : null}
         {state.kind === 'filling' ? (
           <section className="cn-block">
@@ -208,6 +211,7 @@ export function TonightView({
         {hasNamelessRow(state) ? <p className="cn-hint">{NAMELESS_HINT}</p> : null}
 
         {idle ? null : <MysteryHome mystery={mystery} />}
+        {idle ? null : <FearlessCard fearless={snapshot.fearless} />}
 
         {/*
          * `Your role tonight`, and the `That's me` list behind it (M3.6). **Last in the
@@ -300,6 +304,31 @@ function MysteryHome({ mystery }: { mystery: MysteryPageState | null }) {
   return (
     <section className="cn-block cn-mystery-home">
       <MysteryLive initial={mystery} />
+    </section>
+  );
+}
+
+/**
+ * Champions to ban next game (M10). Hidden while the pool is empty so an idle night is not
+ * a card that says nothing. Live nights keep the primary block first; this sits with Daily
+ * Mystery, under the teams or the result.
+ */
+function FearlessCard({ fearless }: { fearless: FearlessView }) {
+  if (fearless.champions.length === 0) return null;
+  return (
+    <section className="cn-block cn-fearless" aria-labelledby="cn-fearless-title">
+      <div className="cn-fearless-head">
+        <h2 className="cn-card-title" id="cn-fearless-title">
+          {FEARLESS_TITLE}
+        </h2>
+        <p className="cn-fearless-count">{fearlessCount(fearless.champions.length)}</p>
+      </div>
+      <p className="cn-fearless-copy">{FEARLESS_SENTENCE}</p>
+      <ul className="cn-fearless-list">
+        {fearless.champions.map((champion) => (
+          <li key={champion.id}>{champion.name}</li>
+        ))}
+      </ul>
     </section>
   );
 }
