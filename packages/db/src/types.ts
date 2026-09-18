@@ -375,7 +375,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          id?: number
+          id: number
           reset_at?: string
           reset_by?: string | null
           updated_at?: string
