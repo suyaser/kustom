@@ -147,7 +147,7 @@ export async function postFearlessPool(
   return postToWebhook(
     client,
     fearlessEmbed({
-      champions: pool.champions.map((champion) => champion.name),
+      champions: pool.champions,
       timestamp: (options.now ?? new Date()).toISOString(),
       ...(url === undefined ? {} : { url }),
     }),

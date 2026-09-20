@@ -44,7 +44,9 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 5. At end of game the companion captures the full stats block. Ratings move. Leaderboard updates. What each
    person plays is counted too, so their main and backup follow the games they actually play. The ten
    champions they locked are added to the **fearless** list on the tonight page and posted to Discord —
-   those champs are banned from the next custom, and the list keeps growing until an admin resets it.
+   those champs are banned from the next custom, grouped by the lane they first locked, A–Z inside
+   the lane. The tonight page has a find box so a pick can be checked without scrolling. The list
+   keeps growing until an admin resets it.
 6. If more than ten showed up, the server posts who sits: whoever has played most tonight, and between
    equals whoever has gone longest without sitting. On the first game of a night nobody has done either, so
    the post says as much — somebody has to be first — and from the second game on the rotation has real

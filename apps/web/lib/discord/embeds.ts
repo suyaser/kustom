@@ -7,11 +7,13 @@ import {
 } from '../board/copy';
 import type { RatingTrack } from '../board/types';
 import {
-  FEARLESS_FIELD,
   FEARLESS_RESET_DESCRIPTION,
   FEARLESS_TITLE,
   fearlessDescription,
+  fearlessLaneTitle,
 } from '../fearless/copy';
+import { groupFearless } from '../fearless/present';
+import type { FearlessChampion } from '../fearless/types';
 import { inLaneOrder } from '../laneOrder';
 import { type FieldLine, fieldValue, guardEmbed, KEEP_LAST_STANDING } from './limits';
 
@@ -705,7 +707,7 @@ function resultFooter(gameNumber: number | null): string {
  * reset path has its own embed.
  */
 export interface FearlessEmbedInput {
-  champions: readonly string[];
+  champions: readonly FearlessChampion[];
   timestamp: string;
   url?: string;
 }
@@ -716,7 +718,10 @@ export function fearlessEmbed(input: FearlessEmbedInput): WebhookPayload {
     title: FEARLESS_TITLE,
     ...(input.url === undefined ? {} : { url: input.url }),
     description: fearlessDescription(input.champions.length),
-    fields: [{ name: FEARLESS_FIELD, value: fieldValue(input.champions) }],
+    fields: groupFearless(input.champions).map((group) => ({
+      name: fearlessLaneTitle(group.role),
+      value: fieldValue(group.champions.map((champion) => champion.name)),
+    })),
     footer: { text: teamsFooter(input.url) },
     timestamp: input.timestamp,
   });

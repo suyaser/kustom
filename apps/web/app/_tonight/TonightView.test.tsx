@@ -1,10 +1,16 @@
 import { resolveRoles } from '@customs/core';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
 import type { BoardRow } from '@/lib/board/types';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
-import { FEARLESS_SENTENCE, FEARLESS_TITLE } from '@/lib/fearless/copy';
+import {
+  FEARLESS_SEARCH,
+  FEARLESS_SEARCH_EMPTY,
+  FEARLESS_SENTENCE,
+  FEARLESS_TITLE,
+  fearlessBanned,
+} from '@/lib/fearless/copy';
 import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/lobbyStart';
 import { MYSTERY_EMPTY, MYSTERY_TITLE } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
@@ -1132,8 +1138,8 @@ describe('fearless, the ban list', () => {
         fearless: {
           resetAt: FIXTURE_NIGHT_START,
           champions: [
-            { id: 103, name: 'Ahri' },
-            { id: 222, name: 'Jinx' },
+            { id: 103, name: 'Ahri', role: 'mid' },
+            { id: 222, name: 'Jinx', role: 'adc' },
           ],
         },
       }),
@@ -1144,6 +1150,30 @@ describe('fearless, the ban list', () => {
     expect(card?.textContent).toContain(FEARLESS_SENTENCE);
     expect(card?.textContent).toContain('Ahri');
     expect(card?.textContent).toContain('Jinx');
+    expect(card?.textContent).toContain('mid');
+    expect(card?.textContent).toContain('adc');
     expect(card?.textContent).toContain('2 champions.');
+  });
+
+  it('finds a name instantly and says when it is on the list', () => {
+    draw(
+      snapshot(null, {
+        fearless: {
+          resetAt: FIXTURE_NIGHT_START,
+          champions: [
+            { id: 103, name: 'Ahri', role: 'mid' },
+            { id: 222, name: 'Jinx', role: 'adc' },
+          ],
+        },
+      }),
+    );
+    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
+    fireEvent.change(box, { target: { value: 'jinx' } });
+    const card = document.querySelector('.cn-fearless');
+    expect(card?.textContent).toContain(fearlessBanned('Jinx'));
+    expect(card?.textContent).toContain('Jinx');
+    expect(card?.textContent).not.toContain('Ahri');
+    fireEvent.change(box, { target: { value: 'zzz' } });
+    expect(card?.textContent).toContain(FEARLESS_SEARCH_EMPTY);
   });
 });
