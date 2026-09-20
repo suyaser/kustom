@@ -1059,9 +1059,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Fearless (M10). A list of names, not a chip grid: names are language of
- * varying length, and a grid of them is a wall of unequal words. Same raise
- * row as a role chip, wrap, no champion art.
+ * Fearless (M10 / M10.2). Names grouped by the lane they were first locked
+ * on, A–Z inside the lane, plus a find box. No champion art.
  * ------------------------------------------------------------------------- */
 
 .cn-fearless {
@@ -1080,7 +1079,9 @@
 }
 
 .cn-fearless-count,
-.cn-fearless-copy {
+.cn-fearless-copy,
+.cn-fearless-empty,
+.cn-fearless-hit-copy {
   margin: 0;
   color: var(--cn-dim);
   font-size: var(--cn-t-sm);
@@ -1088,6 +1089,45 @@
 
 .cn-fearless-copy {
   color: var(--cn-text);
+}
+
+.cn-fearless-hit-copy {
+  color: var(--cn-brand);
+  font-weight: 600;
+}
+
+.cn-fearless-search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--cn-sp-3);
+  font-family: var(--cn-font-sans);
+  font-size: var(--cn-t-sm);
+  font-weight: 500;
+  color: var(--cn-text);
+  background: var(--cn-raise);
+  border: 1px solid var(--cn-line);
+  border-radius: var(--cn-radius-row, 4px);
+}
+
+.cn-fearless-search input:focus-visible {
+  outline: none;
+  border-color: var(--cn-brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cn-brand) 14%, transparent);
+}
+
+.cn-fearless-lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cn-sp-2);
+}
+
+.cn-fearless-lane-title {
+  margin: 0;
+  color: var(--cn-dim);
+  font-size: var(--cn-t-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
 }
 
 .cn-fearless-list {
@@ -1107,4 +1147,23 @@
   font-size: var(--cn-t-sm);
   font-weight: 600;
   color: var(--cn-text);
+}
+
+.cn-fearless-list li.cn-fearless-hit {
+  color: var(--cn-brand);
+  background: var(--cn-brand-tint);
+  border-color: var(--cn-brand);
+  box-shadow: inset 0 0 0 1px var(--cn-brand);
+}
+
+.cn-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

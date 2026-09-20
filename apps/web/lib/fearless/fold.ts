@@ -1,4 +1,4 @@
-import type { SideValue } from '@customs/db';
+import type { RoleValue, SideValue } from '@customs/db';
 import { NO_BAN } from '../champs/names';
 import { matchesQueue } from '../games/queue';
 import { gateGame } from '../ingest/fold';
@@ -8,7 +8,8 @@ import { gateGame } from '../ingest/fold';
  *
  * No I/O, no clock: the loader walks `started_at > reset_at` and hands this the rows. ARAM
  * is dropped here (`matchesQueue(..., 'sr')`), remakes and short games by {@link gateGame}.
- * A missing `champion_id` is a skipped seat, not a skipped game.
+ * A missing `champion_id` is a skipped seat, not a skipped game. The role on the first
+ * lock is what M10.2 groups by; a later game on a different lane does not move the chip.
  *
  * The companion never writes this list. Nothing here touches champion select.
  */
@@ -18,6 +19,13 @@ export interface FearlessSeat {
   puuid: string;
   side: SideValue;
   championId: number | null;
+  /** `game_players.role` at that seat. Null stays null — never inferred from the champ. */
+  role: RoleValue | null;
+}
+
+export interface FearlessPick {
+  id: number;
+  role: RoleValue | null;
 }
 
 export interface FearlessGame {
@@ -27,9 +35,9 @@ export interface FearlessGame {
   players: readonly FearlessSeat[];
 }
 
-export function foldFearless(games: readonly FearlessGame[]): number[] {
+export function foldFearless(games: readonly FearlessGame[]): FearlessPick[] {
   const seen = new Set<number>();
-  const ids: number[] = [];
+  const picks: FearlessPick[] = [];
 
   for (const game of games) {
     if (!matchesQueue(game.gameMode, 'sr')) continue;
@@ -40,9 +48,9 @@ export function foldFearless(games: readonly FearlessGame[]): number[] {
       if (id === null || id === NO_BAN) continue;
       if (seen.has(id)) continue;
       seen.add(id);
-      ids.push(id);
+      picks.push({ id, role: player.role });
     }
   }
 
-  return ids;
+  return picks;
 }
