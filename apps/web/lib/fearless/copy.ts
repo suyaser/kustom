@@ -5,11 +5,17 @@
  * client will lock anything.
  */
 
+import type { RoleValue } from '@customs/db';
+
 export const FEARLESS_TITLE = 'Fearless';
 
 export const FEARLESS_SENTENCE = 'Ban these next game.';
 
-export const FEARLESS_FIELD = 'Champions';
+export const FEARLESS_OTHER = 'other';
+
+export const FEARLESS_SEARCH = 'Find a champion';
+
+export const FEARLESS_SEARCH_EMPTY = 'No champion matches.';
 
 export const FEARLESS_RESET_DESCRIPTION = 'Pool cleared. Ban list is empty.';
 
@@ -33,4 +39,12 @@ export function fearlessCount(n: number): string {
 
 export function fearlessDescription(n: number): string {
   return `${FEARLESS_SENTENCE} ${fearlessCount(n)}`;
+}
+
+export function fearlessLaneTitle(role: RoleValue | null): string {
+  return role === null ? FEARLESS_OTHER : role;
+}
+
+export function fearlessBanned(name: string): string {
+  return `${name} is on the ban list.`;
 }

@@ -967,6 +967,10 @@ placement are the designer's and are untouched.
 | fearless, title | `Fearless` | product 2026-09-18 (M10) |
 | fearless, sentence | `Ban these next game.` | product 2026-09-18 (M10) |
 | fearless, count | `10 champions.` / `1 champion.` | product 2026-09-18 (M10) |
+| fearless, search | `Find a champion` | product 2026-09-20 (M10.2) |
+| fearless, search empty | `No champion matches.` | product 2026-09-20 (M10.2) |
+| fearless, banned | `Ahri is on the ban list.` | product 2026-09-20 (M10.2) |
+| fearless, lane | `top` / `jungle` / `mid` / `adc` / `support` / `other` | product 2026-09-20 (M10.2) — the app's own lowercase role words |
 | nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `1v1` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is; **`1v1` added 2026-09-18 (M8.5)** after `Fun` |
 | footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
@@ -2504,15 +2508,22 @@ the leader's number is `text` at 600, the trailer is `dim`. Brand is the lead sh
 Every English card title carries an Egyptian 3ameya roast on the right in brand, the same
 dress `/fun` uses.
 
-### Fearless (tonight page, M10) — 2026-09-18
+### Fearless (tonight page, M10) — 2026-09-18, M10.2 2026-09-20
 
 A card on `/`, under Daily Mystery, not in the rail: the list is tonight's constraint, not a
 sidebar fact. Hidden while the pool is empty so an idle night is not a card that says nothing.
 
 - Title `Fearless`, `cn-card-title`. Count on the right in `dim` (`10 champions.`).
 - Sentence `Ban these next game.` in `text`.
+- Find box, 44px, `Find a champion`. Matching names stay; the rest drop. An exact name
+  prints `Ahri is on the ban list.` in brand and paints that chip like a pressed role
+  (`brand` / `brand-tint`). That is the pick-phase check. The companion does not read
+  champion select.
+- Names grouped under lowercase lane words (`top` `jungle` `mid` `adc` `support`), A–Z
+  inside the group. A first lock with no stored role sits under `other`.
 - Names as wrap chips on `raise` with a `line` hairline. **No champion art** — Floodlit forbids it.
-- First-appearance order, unique ids. The companion does not auto-ban; this is a list for humans.
+- Unique ids. First-appearance decides membership and the lane heading; display order is
+  lane then name. The companion does not auto-ban; this is a list for humans.
 
 ### The player page (`/p/[puuid]`) — settled 2026-09-09
 
@@ -3013,7 +3024,9 @@ color        accent (14721854)
 title        Fearless
 url          https://<tonight page>          [dropped when the only honest origin is localhost]
 description  Ban these next game. 10 champions.
-field 1      name "Champions"   block   value: one name per line, first-appearance order
+fields       one block field per non-empty lane, names `top` / `jungle` / `mid` /
+             `adc` / `support` / `other`, value: one name per line, A–Z inside the lane
+             (M10.2; was one `Champions` field in lock order)
 footer       Kustom · more on the tonight page
 timestamp    now
 ```

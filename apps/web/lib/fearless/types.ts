@@ -4,14 +4,18 @@
  * second table of names.
  */
 
+import type { RoleValue } from '@customs/db';
+
 export interface FearlessChampion {
   id: number;
   /** Display name from `lib/champs/names.ts`. A missing id prints `Champion ${id}`. */
   name: string;
+  /** Role on the seat that first locked this id. Null is an `other` group, never a guess. */
+  role: RoleValue | null;
 }
 
 export interface FearlessView {
-  /** First-appearance order. Empty until a counted Rift custom lands after the cursor. */
+  /** Lane then A–Z (M10.2). Empty until a counted Rift custom lands after the cursor. */
   champions: readonly FearlessChampion[];
   /** ISO 8601. Null only when the singleton row is missing, which is a failed read. */
   resetAt: string | null;

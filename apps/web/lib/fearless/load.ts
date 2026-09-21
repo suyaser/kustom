@@ -1,8 +1,9 @@
-import type { SideValue } from '@customs/db';
+import type { RoleValue, SideValue } from '@customs/db';
 import { championName } from '../champs/names';
 import { gameModeFromRaw } from '../games/queue';
 import type { PublicClient } from '../publicClient';
 import { foldFearless } from './fold';
+import { presentFearless } from './present';
 import { EMPTY_FEARLESS, FEARLESS_MAX_GAMES, FEARLESS_STATE_ID, type FearlessView } from './types';
 
 /**
@@ -22,6 +23,7 @@ interface PlayerRow {
   player_id: string;
   side: SideValue;
   champion_id: number | null;
+  role: RoleValue | null;
 }
 
 interface GameRow {
@@ -49,7 +51,7 @@ export async function loadFearless(client: PublicClient): Promise<FearlessView> 
 
   const { data: rows, error: gamesError } = await client
     .from('games')
-    .select('id, started_at, duration_s, raw, game_players(player_id, side, champion_id)')
+    .select('id, started_at, duration_s, raw, game_players(player_id, side, champion_id, role)')
     .gt('started_at', resetAt)
     .order('started_at', { ascending: true })
     .order('id', { ascending: true })
@@ -60,7 +62,7 @@ export async function loadFearless(client: PublicClient): Promise<FearlessView> 
     return { champions: [], resetAt };
   }
 
-  const ids = foldFearless(
+  const picks = foldFearless(
     ((rows ?? []) as GameRow[]).map((row) => ({
       durationS: row.duration_s,
       gameMode: gameModeFromRaw(row.raw),
@@ -68,13 +70,14 @@ export async function loadFearless(client: PublicClient): Promise<FearlessView> 
         puuid: player.player_id,
         side: player.side,
         championId: player.champion_id,
+        role: player.role,
       })),
     })),
   );
 
   return {
     resetAt,
-    champions: ids.map((id) => ({ id, name: championName(id) })),
+    champions: presentFearless(picks, championName),
   };
 }
 

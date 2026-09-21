@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FEARLESS_OTHER,
   FEARLESS_RESET_DESCRIPTION,
   FEARLESS_RESET_FAILED,
   FEARLESS_RESET_NOTICE,
   FEARLESS_RESET_POSTED,
   FEARLESS_RESET_SKIPPED,
+  FEARLESS_SEARCH,
+  FEARLESS_SEARCH_EMPTY,
   FEARLESS_SENTENCE,
   FEARLESS_TITLE,
+  fearlessBanned,
   fearlessCount,
   fearlessDescription,
+  fearlessLaneTitle,
 } from './copy';
 
 describe('fearless copy', () => {
@@ -18,6 +23,11 @@ describe('fearless copy', () => {
     expect(fearlessDescription(10)).toBe('Ban these next game. 10 champions.');
     expect(fearlessCount(1)).toBe('1 champion.');
     expect(fearlessCount(0)).toBe('0 champions.');
+    expect(fearlessLaneTitle('jungle')).toBe('jungle');
+    expect(fearlessLaneTitle(null)).toBe(FEARLESS_OTHER);
+    expect(fearlessBanned('Ahri')).toBe('Ahri is on the ban list.');
+    expect(FEARLESS_SEARCH).toBe('Find a champion');
+    expect(FEARLESS_SEARCH_EMPTY).toBe('No champion matches.');
   });
 
   it('names the reset outcomes the admin route greps for', () => {
@@ -32,9 +42,13 @@ describe('fearless copy', () => {
     const all = [
       FEARLESS_TITLE,
       FEARLESS_SENTENCE,
+      FEARLESS_SEARCH,
+      FEARLESS_SEARCH_EMPTY,
+      FEARLESS_OTHER,
       FEARLESS_RESET_DESCRIPTION,
       FEARLESS_RESET_NOTICE,
       FEARLESS_RESET_POSTED,
+      fearlessBanned('Ahri'),
       fearlessDescription(10),
     ].join(' ');
     expect(/^[ -~]+$/u.test(all)).toBe(true);

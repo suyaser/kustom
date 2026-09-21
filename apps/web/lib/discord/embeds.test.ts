@@ -961,9 +961,13 @@ describe('the MVP / ACE line', () => {
 });
 
 describe('fearlessEmbed', () => {
-  it('lists the champions, one per line, under an accent bar', () => {
+  it('lists the champions by lane, A-Z inside each, under an accent bar', () => {
     const payload = fearlessEmbed({
-      champions: ['Ahri', 'Jinx', 'Orianna'],
+      champions: [
+        { id: 222, name: 'Jinx', role: 'adc' },
+        { id: 61, name: 'Orianna', role: 'mid' },
+        { id: 103, name: 'Ahri', role: 'mid' },
+      ],
       timestamp: TIMESTAMP,
       url: SITE_URL,
     });
@@ -971,8 +975,9 @@ describe('fearlessEmbed', () => {
     expect(embed?.color).toBe(ACCENT_COLOR);
     expect(embed?.title).toBe('Fearless');
     expect(embed?.description).toBe('Ban these next game. 3 champions.');
-    expect(embed?.fields[0]?.name).toBe('Champions');
-    expect(embed?.fields[0]?.value).toBe('Ahri\nJinx\nOrianna');
+    expect(embed?.fields.map((field) => field.name)).toEqual(['mid', 'adc']);
+    expect(embed?.fields[0]?.value).toBe('Ahri\nOrianna');
+    expect(embed?.fields[1]?.value).toBe('Jinx');
     expect(embed?.footer?.text).toBe('Kustom · more on the tonight page');
     expect(embed?.url).toBe(SITE_URL);
   });
@@ -980,12 +985,12 @@ describe('fearlessEmbed', () => {
   it('is a second message, never stuffed into the result', () => {
     const result = resultEmbed(workedResultInput()).embeds[0];
     const fearless = fearlessEmbed({
-      champions: ['Ahri'],
+      champions: [{ id: 103, name: 'Ahri', role: 'mid' }],
       timestamp: TIMESTAMP,
     }).embeds[0];
     expect(result?.title).not.toContain('Fearless');
     expect(fearless?.title).toBe('Fearless');
-    expect(fearless?.fields.map((field) => field.name)).toEqual(['Champions']);
+    expect(fearless?.fields.map((field) => field.name)).toEqual(['mid']);
   });
 });
 
