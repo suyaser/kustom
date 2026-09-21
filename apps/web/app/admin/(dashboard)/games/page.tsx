@@ -10,7 +10,7 @@ import {
 import { requireAdmin } from '@/lib/adminPage';
 import { getServiceClient } from '@/lib/supabase';
 import { nightTimeZone } from '@/lib/tonight/night';
-import { Empty } from '../../_components/ui';
+import { Card, Empty, PageHeader, Status } from '../../_components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,73 +44,77 @@ export default async function AdminGamesPage() {
 
   return (
     <main>
-      <h1>{GAMES_COPY.heading}</h1>
+      <PageHeader title={GAMES_COPY.heading} />
 
-      <h2>{GAMES_COPY.missed}</h2>
-      <p className="admin-muted">{GAMES_COPY.missedIntro}</p>
+      <div className="admin-grid">
+        <Card title={GAMES_COPY.missed} wide>
+          <p className="admin-muted">{GAMES_COPY.missedIntro}</p>
 
-      {missed.rows.length === 0 ? (
-        <Empty>{GAMES_COPY.missedEmpty}</Empty>
-      ) : (
-        <>
-          <div className="admin-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Night</th>
-                  <th>In game at</th>
-                  <th>Reported by</th>
-                  <th>Party</th>
-                  <th>Roster</th>
-                  <th>State</th>
-                </tr>
-              </thead>
-              <tbody>
-                {missed.rows.map((row) => (
-                  <MissedRow key={row.id} row={row} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {/* The cap, and how far past it the list goes. If this number is ever above ten the
-              news is not the list, it is that the companion rule is not being followed. */}
-          {missed.total > missed.rows.length ? (
-            <p className="admin-muted">
-              Showing the newest {missed.rows.length} of {missed.total}.
-            </p>
-          ) : null}
-          {anyLobbyNeverClosed ? <p className="admin-muted">{GAMES_COPY.lobbyNeverClosed}</p> : null}
-        </>
-      )}
+          {missed.rows.length === 0 ? (
+            <Empty>{GAMES_COPY.missedEmpty}</Empty>
+          ) : (
+            <>
+              <div className="admin-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Night</th>
+                      <th>In game at</th>
+                      <th>Reported by</th>
+                      <th>Party</th>
+                      <th>Roster</th>
+                      <th>State</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {missed.rows.map((row) => (
+                      <MissedRow key={row.id} row={row} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* The cap, and how far past it the list goes. If this number is ever above ten the
+                  news is not the list, it is that the companion rule is not being followed. */}
+              {missed.total > missed.rows.length ? (
+                <p className="admin-muted">
+                  Showing the newest {missed.rows.length} of {missed.total}.
+                </p>
+              ) : null}
+              {anyLobbyNeverClosed ? <p className="admin-muted">{GAMES_COPY.lobbyNeverClosed}</p> : null}
+            </>
+          )}
+        </Card>
 
-      <h2>{GAMES_COPY.captured}</h2>
-      <p className="admin-muted">{GAMES_COPY.capturedIntro}</p>
+        <Card title={GAMES_COPY.captured} wide>
+          <p className="admin-muted">{GAMES_COPY.capturedIntro}</p>
 
-      {captured.length === 0 ? (
-        <Empty>{GAMES_COPY.capturedEmpty}</Empty>
-      ) : (
-        <div className="admin-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Night</th>
-                <th>Start</th>
-                <th>Length</th>
-                <th>Source</th>
-                <th>Players</th>
-                <th>Rated</th>
-                <th>Season</th>
-                <th>Lobby</th>
-              </tr>
-            </thead>
-            <tbody>
-              {captured.map((row) => (
-                <CapturedRow key={row.id} row={row} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+          {captured.length === 0 ? (
+            <Empty>{GAMES_COPY.capturedEmpty}</Empty>
+          ) : (
+            <div className="admin-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Night</th>
+                    <th>Start</th>
+                    <th>Length</th>
+                    <th>Source</th>
+                    <th>Players</th>
+                    <th>Rated</th>
+                    <th>Season</th>
+                    <th>Lobby</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {captured.map((row) => (
+                    <CapturedRow key={row.id} row={row} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
     </main>
   );
 }
@@ -128,7 +132,7 @@ function MissedRow({ row }: { row: MissedLobbyRow }) {
         )}
       </td>
       <td className="admin-mono">{row.partyId}</td>
-      <td>
+      <td className="admin-wrap">
         {/* The count first, because a roster of three is worse news than one of ten and the
             names below it are what an admin reads next (M2.9 froze whatever was on the row). */}
         <div>
@@ -145,7 +149,9 @@ function MissedRow({ row }: { row: MissedLobbyRow }) {
               ))}
         </div>
       </td>
-      <td>{row.state}</td>
+      <td>
+        <Status tone={row.state === 'game landed, lobby never closed' ? 'warn' : 'live'}>{row.state}</Status>
+      </td>
     </tr>
   );
 }
@@ -159,7 +165,9 @@ function CapturedRow({ row }: { row: CapturedGameRow }) {
       <td>{row.source}</td>
       {/* Ten is the shape of this product. Anything else is why the row below reads `no`. */}
       <td className={row.participants === 10 ? undefined : 'admin-error'}>{row.participants}</td>
-      <td>{row.rated ? 'yes' : 'no'}</td>
+      <td>
+        <Status tone={row.rated ? 'on' : 'off'}>{row.rated ? 'yes' : 'no'}</Status>
+      </td>
       <td>{row.seasonName}</td>
       <td className="admin-mono">{row.partyId ?? '—'}</td>
     </tr>

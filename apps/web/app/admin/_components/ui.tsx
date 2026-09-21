@@ -1,9 +1,54 @@
 import type { ReactNode } from 'react';
 
 /**
- * The handful of pieces every admin page repeats. Plain server components: the admin area has
- * no client JavaScript at all, so every interaction is a form post to `/api/admin/*`.
+ * The handful of pieces every admin page repeats. Server components: writes still go through
+ * a real `<form>` to `/api/admin/*`; JavaScript only intercepts the submit (M3.20).
  */
+
+export function PageHeader({ title, children }: { title: string; children?: ReactNode }): ReactNode {
+  return (
+    <header className="admin-pagehead">
+      <p className="admin-kicker">Admin</p>
+      <h1>{title}</h1>
+      {children}
+    </header>
+  );
+}
+
+export function Card({
+  title,
+  children,
+  className,
+  wide,
+}: {
+  title?: string;
+  children: ReactNode;
+  className?: string;
+  wide?: boolean;
+}): ReactNode {
+  const names = ['admin-card', wide ? 'admin-grid-wide' : null, className].filter(Boolean).join(' ');
+  return (
+    <section className={names}>
+      {title === undefined ? null : (
+        <header className="admin-card-head">
+          <h2>{title}</h2>
+        </header>
+      )}
+      <div className="admin-card-body">{children}</div>
+    </section>
+  );
+}
+
+export function Status({
+  tone = 'off',
+  children,
+}: {
+  tone?: 'off' | 'on' | 'live' | 'warn';
+  children: ReactNode;
+}): ReactNode {
+  const extra = tone === 'off' ? '' : ` admin-status-${tone}`;
+  return <span className={`admin-status${extra}`}>{children}</span>;
+}
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 

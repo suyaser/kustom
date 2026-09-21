@@ -8,7 +8,7 @@ import { TopBar } from './TopBar';
  * the tonight page a page of a product rather than a document that happens to be dark.
  *
  * Mounted by `app/(site)/layout.tsx` rather than by the root layout, which is how `/admin` opts
- * out: the admin area is deliberately plain (05-design.md, "The admin area stays plain") and a
+ * out: the admin area has its own Floodlit shell (05-design.md, "The admin area") and a
  * route group leaves every URL exactly where it was.
  *
  * The ≥1080px two-column grid and its rail are `shell.css`'s (`.cn-grid`, `.cn-rail`), used by

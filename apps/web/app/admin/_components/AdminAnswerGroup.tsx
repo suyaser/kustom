@@ -96,7 +96,7 @@ export function AdminAnswerGroup({ children, className }: { children: ReactNode;
  */
 export function MintedToken({ token }: { token: string }) {
   return (
-    <span className="admin-mono">
+    <span className="admin-mono admin-token">
       <strong>Copy it now.</strong> This is the only time it is shown — we only keep a scrambled copy, so we
       cannot show it to you again. Lost it? Mint another and revoke this one. {token}
     </span>

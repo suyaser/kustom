@@ -215,9 +215,8 @@ trusted for identity — a signed-in user can write it themselves with `auth.upd
 Pages read and write through the service-role client, so nothing in the browser holds anything
 but the anon key and the session cookie.
 
-The pages are deliberately unstyled beyond `app/admin/admin.css` (system colours, a scrolling
-table). M3.0 brings the design system; this area is five people on a laptop and should not
-pre-empt it.
+The pages share Floodlit tokens with the rest of the site and keep their own sidebar shell
+(`app/admin/admin.css`). Writes are still real `<form>` posts to `/api/admin/*`.
 
 ## Setting up Discord sign-in
 

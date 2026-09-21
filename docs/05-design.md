@@ -254,7 +254,7 @@ A leftover stored `current` becomes Night.
 | **Day** | `[data-theme=day]` plus the same file | The same system on cool paper. Same Archivo + Plex Mono, same chips and cards. |
 
 Colour is still a team, a state, or nothing. Day and Night do not add a fourth colour, champion art, glass,
-or a second font. Admin is untouched.
+or a second font. Admin adopts the same tokens and keeps its own shell.
 
 The theme control is one switch in the top bar (`Day` / `Night`), dressed like the nav tabs: Archivo,
 the same size and tracking, the active word underlined in `brand`. One tap flips. Phone: wordmark and
@@ -822,9 +822,9 @@ The words are product's; the gate is the lead's; this is the slot and the dress.
 - **Never a card, never the display cut, never amber.** It is a sentence, not a headline and not a control; the
   amber on this screen belongs to the reroll button or to nothing.
 
-**`/admin` renders the control and its own lobby line with the same words and none of the dress rules in this
-section** — the admin area stays plain, and there the name and password are ungated, because that page is
-already behind a session and an admin check.
+**`/admin` renders the control and its own lobby line with the same words** — the name and password are
+ungated there, because that page is already behind a session and an admin check. The Floodlit dress of
+the admin area does not rewrite those sentences.
 
 #### `Your role tonight`, and picking yourself (M3.6, designer 2026-09-10)
 
@@ -3121,8 +3121,9 @@ line would double the length of the two lines that are already about the newest 
 ## Implementation notes for the web engineer (v1 — token block superseded by Floodlit)
 
 > The `tokens.css` block below is the **v1** file. The shipped file matches it; Floodlit replaces it. "The
-> admin area stays plain", "The tonight page's three states — one rule" and the state table underneath are
-> current and are not superseded.
+> admin area", "The tonight page's three states — one rule" and the state table underneath are
+> current and are not superseded. The 2026-09-08 "stays plain" rule is superseded: admin now adopts
+> the tokens and keeps its own shell.
 
 ### Tokens as CSS custom properties
 
@@ -3191,17 +3192,25 @@ every rating, delta, gap, percentage, duration, rank number and role label. Fall
 section; put them in the CSS variable, not only in the `next/font` fallback array, so a blocked Google Fonts
 request still lands on Helvetica/Menlo rather than Times.
 
-### The admin area stays plain
+### The admin area
 
-`apps/web/app/admin/admin.css` **does not adopt these tokens.** It keeps `color-scheme: light dark` and the
-browser's own colours and controls, exactly as its header comment says. Reasons: it is five people on a
-laptop, it has no client JavaScript, every control is a native form control, and skinning them would mean
-maintaining a second set of button/input/select styles for an audience that is already inside the building.
+`/admin` adopts the same nine tokens, type, cards and Day/Night as the rest of the product
+**(2026-09-21; supersedes "The admin area stays plain")**. It keeps its own shell — a sidebar of
+destinations, not the friend-facing top bar — because it is an ops surface for five people on a
+laptop, not a WhatsApp link. Native `<form>` controls stay native; they are dressed with the
+tokens rather than replaced.
 
-One thing to protect: `.admin` sets `font-family: system-ui, sans-serif`, which must **stay**, because the
-root layout will set `body { font-family: var(--cn-font-sans) }` and the admin pages are inside that body.
-Keep the `.admin` rule and the admin area keeps system fonts. If the admin ever gets a real UI, that is a task
-and a decision row, not a drive-by.
+Rules that stay:
+
+- No client JavaScript beyond `AdminForm`, `AdminAnswerGroup`, `AdminNav` and the theme switch.
+  Every write is still a real `<form>` posting to `/api/admin/*` (or `/api/me/lobbies/start`).
+- Copy is unchanged. A redesign does not rewrite a sentence an admin has already learned.
+- Colour is still a team, a state, or nothing. Destructive writes (revoke, remove admin, reset
+  fearless) outline in `red`; primary writes (start a lobby, mint, sign in, save) outline in
+  `brand`. Never a filled red block.
+- The public shell stays off this route: `/admin` is still outside `(site)`.
+- `.admin` uses `--cn-font-sans` / `--cn-font-mono`, not `system-ui`. The old system-font rule
+  existed only to keep the area plain after the root layout set Archivo on `body`.
 
 ### The tonight page's three states — one rule
 

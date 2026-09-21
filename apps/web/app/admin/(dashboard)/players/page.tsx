@@ -13,7 +13,17 @@ import { getActiveSeason } from '@/lib/admin/seasons';
 import { requireAdmin } from '@/lib/adminPage';
 import { getServiceClient } from '@/lib/supabase';
 import { AdminForm } from '../../_components/AdminForm';
-import { Empty, formatDay, InferredRoles, Notices, readParam, type SearchParams } from '../../_components/ui';
+import {
+  Card,
+  Empty,
+  formatDay,
+  InferredRoles,
+  Notices,
+  PageHeader,
+  readParam,
+  type SearchParams,
+  Status,
+} from '../../_components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,63 +55,66 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
 
   return (
     <main>
-      <h1>Players</h1>
-      <p className="admin-muted">
-        {page.total} player{page.total === 1 ? '' : 's'}
-        {page.search === null ? '' : ` matching "${page.search}"`}. Ratings are the active season
-        {season === null ? ' (none active)' : ` (${season.name})`}. A row appears on its own the first time a
-        PUUID shows up in a lobby, a game or a rank report — there is no "add player". A name follows the Riot
-        ID until you set one here; clear the field to put it back on automatic. Roles are worked out from the
-        games each player has played and cannot be set by hand.
-      </p>
-      {/* Product's copy, verbatim (M5.1): the decision an admin is being asked to make is
-          "whose PC is this", and nothing else on this page says it. */}
-      <p className="admin-muted">
-        Backfill lets a player&apos;s companion send past customs from their client&apos;s match history. Turn
-        it on once you know whose PC it is.
-      </p>
+      <PageHeader title="Players">
+        <p className="admin-muted">
+          {page.total} player{page.total === 1 ? '' : 's'}
+          {page.search === null ? '' : ` matching "${page.search}"`}. Ratings are the active season
+          {season === null ? ' (none active)' : ` (${season.name})`}. A row appears on its own the first time
+          a PUUID shows up in a lobby, a game or a rank report — there is no "add player". A name follows the
+          Riot ID until you set one here; clear the field to put it back on automatic. Roles are worked out
+          from the games each player has played and cannot be set by hand.
+        </p>
+        {/* Product's copy, verbatim (M5.1): the decision an admin is being asked to make is
+            "whose PC is this", and nothing else on this page says it. */}
+        <p className="admin-muted">
+          Backfill lets a player&apos;s companion send past customs from their client&apos;s match history.
+          Turn it on once you know whose PC it is.
+        </p>
+      </PageHeader>
 
       <Notices params={params} />
 
-      <PlayerSearch search={page.search} />
+      <Card>
+        <PlayerSearch search={page.search} />
 
-      {players.length === 0 ? (
-        page.search === null ? (
-          <Empty>
-            No players yet. Run the companion once, or post a lobby to{' '}
-            <span className="admin-mono">/api/companion/lobby</span>, and the rows appear here.
-          </Empty>
+        {players.length === 0 ? (
+          page.search === null ? (
+            <Empty>
+              No players yet. Run the companion once, or post a lobby to{' '}
+              <span className="admin-mono">/api/companion/lobby</span>, and the rows appear here.
+            </Empty>
+          ) : (
+            <Empty>
+              No player has that name or starts with that PUUID. <Link href="/admin/players">Show all</Link>.
+            </Empty>
+          )
         ) : (
-          <Empty>
-            No player has that name or starts with that PUUID. <Link href="/admin/players">Show all</Link>.
-          </Empty>
-        )
-      ) : (
-        <div className="admin-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>PUUID</th>
-                <th>Name</th>
-                <th>Riot ID</th>
-                <th>Rank</th>
-                <th>Rating</th>
-                <th>Roles</th>
-                <th>Discord</th>
-                <th>Admin</th>
-                <th>Backfill</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((player) => (
-                <PlayerRow key={player.id} player={player} actingPlayerId={admin.playerId} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+          <div className="admin-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>PUUID</th>
+                  <th>Name</th>
+                  <th>Riot ID</th>
+                  <th>Rank</th>
+                  <th>Rating</th>
+                  <th>Roles</th>
+                  <th>Discord</th>
+                  <th>Admin</th>
+                  <th>Backfill</th>
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((player) => (
+                  <PlayerRow key={player.id} player={player} actingPlayerId={admin.playerId} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      <Pager page={page} />
+        <Pager page={page} />
+      </Card>
     </main>
   );
 }
@@ -186,7 +199,7 @@ function PlayerRow({ player, actingPlayerId }: { player: AdminPlayerRow; actingP
       <td className="admin-mono" title={player.puuid}>
         {shortPuuid(player.puuid)}
       </td>
-      <td>
+      <td className="admin-wrap">
         {/* The readable name first, then the field that overrides it: an admin has to see what
             the group currently reads before deciding to change it, and on a row that is still on
             automatic the field is empty while this line already says a name. */}
@@ -214,7 +227,7 @@ function PlayerRow({ player, actingPlayerId }: { player: AdminPlayerRow; actingP
             games this player has played, recomputed after every rated game and every rebuild. */}
         <InferredRoles pair={formatInferredRoles(player)} inferredAt={player.rolesInferredAt} />
       </td>
-      <td>
+      <td className="admin-wrap">
         <AdminForm action="/api/admin/players" kind="players">
           <input type="hidden" name="action" value="set-discord" />
           <input type="hidden" name="playerId" value={player.id} />
@@ -235,9 +248,13 @@ function PlayerRow({ player, actingPlayerId }: { player: AdminPlayerRow; actingP
           <input type="hidden" name="action" value="set-admin" />
           <input type="hidden" name="playerId" value={player.id} />
           <input type="hidden" name="isAdmin" value={player.isAdmin ? 'false' : 'true'} />
-          <span>{player.isAdmin ? 'yes' : 'no'}</span>
+          <Status tone={player.isAdmin ? 'on' : 'off'}>{player.isAdmin ? 'yes' : 'no'}</Status>
           {/* An admin may not remove their own flag: the last one out would lock everyone out. */}
-          <button type="submit" disabled={isSelf && player.isAdmin}>
+          <button
+            type="submit"
+            disabled={isSelf && player.isAdmin}
+            className={player.isAdmin ? 'admin-danger' : undefined}
+          >
             {player.isAdmin ? 'Remove' : 'Make admin'}
           </button>
         </AdminForm>
@@ -254,8 +271,16 @@ function PlayerRow({ player, actingPlayerId }: { player: AdminPlayerRow; actingP
             name="approved"
             value={player.backfillApprovedAt === null ? 'true' : 'false'}
           />
-          <span>{formatBackfill(player)}</span>{' '}
-          <button type="submit">{player.backfillApprovedAt === null ? 'Allow' : 'Revoke'}</button>
+          <Status
+            tone={
+              player.backfillApprovedAt !== null ? 'on' : player.backfillRequestedAt !== null ? 'live' : 'off'
+            }
+          >
+            {formatBackfill(player)}
+          </Status>
+          <button type="submit" className={player.backfillApprovedAt === null ? undefined : 'admin-danger'}>
+            {player.backfillApprovedAt === null ? 'Allow' : 'Revoke'}
+          </button>
         </AdminForm>
       </td>
     </tr>
