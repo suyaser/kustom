@@ -180,6 +180,13 @@ const CHAMPIONS: Record<number, string> = {
   950: 'Naafiri',
 };
 
+/** Every id this table names, ascending. Fearless uses it for who is still open. */
+export function listChampions(): readonly { id: number; name: string }[] {
+  return Object.entries(CHAMPIONS)
+    .map(([id, name]) => ({ id: Number(id), name }))
+    .sort((a, b) => a.id - b.id);
+}
+
 /** A skipped draft slot. Match history stores this as `championId: -1`. */
 export const NO_BAN = -1;
 

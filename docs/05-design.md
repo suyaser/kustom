@@ -971,6 +971,8 @@ placement are the designer's and are untouched.
 | fearless, search empty | `No champion matches.` | product 2026-09-20 (M10.2) |
 | fearless, banned | `Ahri is on the ban list.` | product 2026-09-20 (M10.2) |
 | fearless, lane | `top` / `jungle` / `mid` / `adc` / `support` / `other` | product 2026-09-20 (M10.2) — the app's own lowercase role words |
+| fearless, still open | `still open` | product 2026-09-22 (M10.3) — the label under a lane, after the ban chips, before the champions that lane can still lock |
+| fearless, available | `Garen is still available.` | product 2026-09-22 (M10.3) — the find box, when the exact name is not on the ban list. Open chips are dim and dashed; a search hit paints brand the same way a ban hit does. Discord does not print this list |
 | nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `1v1` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is; **`1v1` added 2026-09-18 (M8.5)** after `Fun` |
 | footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |

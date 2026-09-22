@@ -5,10 +5,12 @@ import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
 import type { BoardRow } from '@/lib/board/types';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
 import {
+  FEARLESS_OPEN,
   FEARLESS_SEARCH,
   FEARLESS_SEARCH_EMPTY,
   FEARLESS_SENTENCE,
   FEARLESS_TITLE,
+  fearlessAvailable,
   fearlessBanned,
 } from '@/lib/fearless/copy';
 import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/lobbyStart';
@@ -1175,5 +1177,42 @@ describe('fearless, the ban list', () => {
     expect(card?.textContent).not.toContain('Ahri');
     fireEvent.change(box, { target: { value: 'zzz' } });
     expect(card?.textContent).toContain(FEARLESS_SEARCH_EMPTY);
+  });
+
+  it('lists who is still open at the end of each lane, and says so when the name is exact', () => {
+    draw(
+      snapshot(null, {
+        fearless: {
+          resetAt: FIXTURE_NIGHT_START,
+          champions: [
+            { id: 103, name: 'Ahri', role: 'mid' },
+            { id: 222, name: 'Jinx', role: 'adc' },
+          ],
+        },
+      }),
+    );
+    const card = document.querySelector('.cn-fearless');
+    const open = [...document.querySelectorAll('.cn-fearless-open-chip')].map((chip) => chip.textContent);
+    expect(card?.textContent).toContain(FEARLESS_OPEN);
+    expect(open).toContain('Garen');
+    expect(open).toContain('Annie');
+    expect(open).not.toContain('Ahri');
+    expect(open).not.toContain('Jinx');
+
+    const mid = [...(card?.querySelectorAll('.cn-fearless-lane') ?? [])].find((lane) =>
+      lane.querySelector('h3')?.textContent?.includes('mid'),
+    );
+    const midOpen = [...(mid?.querySelectorAll('.cn-fearless-open-chip') ?? [])].map(
+      (chip) => chip.textContent,
+    );
+    expect(mid?.textContent).toContain('Ahri');
+    expect(midOpen).toContain('Annie');
+    expect(midOpen).not.toContain('Garen');
+
+    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
+    fireEvent.change(box, { target: { value: 'garen' } });
+    expect(card?.textContent).toContain(fearlessAvailable('Garen'));
+    expect(card?.textContent).not.toContain('Ahri');
+    expect(card?.textContent).not.toContain(fearlessBanned('Garen'));
   });
 });

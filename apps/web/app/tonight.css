@@ -1059,8 +1059,9 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Fearless (M10 / M10.2). Names grouped by the lane they were first locked
- * on, A–Z inside the lane, plus a find box. No champion art.
+ * Fearless (M10 / M10.2 / M10.3). Bans grouped by the lane they were first
+ * locked on, A–Z inside the lane, then who is still open in that lane.
+ * Plus a find box. No champion art.
  * ------------------------------------------------------------------------- */
 
 .cn-fearless {
@@ -1149,10 +1150,33 @@
   color: var(--cn-text);
 }
 
+.cn-fearless-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cn-sp-2);
+}
+
+.cn-fearless-open-label {
+  margin: 0;
+  color: var(--cn-dim);
+  font-size: var(--cn-t-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+}
+
+.cn-fearless-list li.cn-fearless-open-chip {
+  font-weight: 500;
+  color: var(--cn-dim);
+  background: transparent;
+  border-style: dashed;
+}
+
 .cn-fearless-list li.cn-fearless-hit {
   color: var(--cn-brand);
   background: var(--cn-brand-tint);
   border-color: var(--cn-brand);
+  border-style: solid;
   box-shadow: inset 0 0 0 1px var(--cn-brand);
 }
 
