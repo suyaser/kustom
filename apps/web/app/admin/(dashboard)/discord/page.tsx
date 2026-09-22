@@ -3,7 +3,7 @@ import { listDiscordConfigs, maskSecret } from '@/lib/admin/discordConfig';
 import { requireAdmin } from '@/lib/adminPage';
 import { getServiceClient } from '@/lib/supabase';
 import { AdminForm } from '../../_components/AdminForm';
-import { Notices, type SearchParams } from '../../_components/ui';
+import { Card, Notices, PageHeader, type SearchParams } from '../../_components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +27,12 @@ export default async function AdminDiscordPage({ searchParams }: { searchParams:
 
   return (
     <main>
-      <h1>Discord</h1>
-      <p className="admin-muted">
-        One guild, one row. The browser can never read this table on its own — the server reads it and sends
-        out only what you see here.
-      </p>
+      <PageHeader title="Discord">
+        <p className="admin-muted">
+          One guild, one row. The browser can never read this table on its own — the server reads it and sends
+          out only what you see here.
+        </p>
+      </PageHeader>
 
       <Notices params={params} />
 
@@ -43,95 +44,99 @@ export default async function AdminDiscordPage({ searchParams }: { searchParams:
         </p>
       ) : null}
 
-      {config === null ? (
-        <p className="admin-empty">
-          Discord is not configured yet. Fill this in now and the team posts and the voice split will have
-          somewhere to go when they are built.
-        </p>
-      ) : (
-        <p className="admin-muted">Last saved {config.updatedAt.slice(0, 19).replace('T', ' ')} UTC.</p>
-      )}
+      <Card title="Config">
+        {config === null ? (
+          <p className="admin-empty">
+            Discord is not configured yet. Fill this in now and the team posts and the voice split will have
+            somewhere to go when they are built.
+          </p>
+        ) : (
+          <p className="admin-muted">Last saved {config.updatedAt.slice(0, 19).replace('T', ' ')} UTC.</p>
+        )}
 
-      <AdminForm action="/api/admin/discord-config" kind="discord" className="admin-stacked">
-        <label className="admin-field">
-          <span>Guild id</span>
-          <input
-            type="text"
-            name="guildId"
-            inputMode="numeric"
-            required
-            defaultValue={config?.guildId ?? ''}
-            size={24}
-          />
-        </label>
+        <AdminForm action="/api/admin/discord-config" kind="discord" className="admin-stacked">
+          <label className="admin-field">
+            <span>Guild id</span>
+            <input
+              type="text"
+              name="guildId"
+              inputMode="numeric"
+              required
+              defaultValue={config?.guildId ?? ''}
+              size={24}
+            />
+          </label>
 
-        <label className="admin-field">
-          <span>
-            Results webhook{' '}
-            <span className="admin-muted">
-              {config?.webhookUrl ? `stored: ${maskSecret(config.webhookUrl)}` : 'none stored'} — leave empty
-              to keep it
+          <label className="admin-field">
+            <span>
+              Results webhook{' '}
+              <span className="admin-muted">
+                {config?.webhookUrl ? `stored: ${maskSecret(config.webhookUrl)}` : 'none stored'} — leave
+                empty to keep it
+              </span>
             </span>
-          </span>
-          <input
-            type="url"
-            name="webhookUrl"
-            placeholder="https://discord.com/api/webhooks/..."
-            size={40}
-            autoComplete="off"
-          />
-        </label>
+            <input
+              type="url"
+              name="webhookUrl"
+              placeholder="https://discord.com/api/webhooks/..."
+              size={40}
+              autoComplete="off"
+            />
+          </label>
 
-        <label className="admin-field">
-          <input type="checkbox" name="clearWebhook" value="true" /> <span>Clear the stored webhook</span>
-        </label>
+          <label className="admin-field admin-field-check">
+            <input type="checkbox" name="clearWebhook" value="true" /> <span>Clear the stored webhook</span>
+          </label>
 
-        <label className="admin-field">
-          <span>Results channel id</span>
-          <input
-            type="text"
-            name="resultsChannelId"
-            inputMode="numeric"
-            defaultValue={config?.resultsChannelId ?? ''}
-            size={24}
-          />
-        </label>
+          <label className="admin-field">
+            <span>Results channel id</span>
+            <input
+              type="text"
+              name="resultsChannelId"
+              inputMode="numeric"
+              defaultValue={config?.resultsChannelId ?? ''}
+              size={24}
+            />
+          </label>
 
-        <label className="admin-field">
-          <span>Lobby voice channel id</span>
-          <input
-            type="text"
-            name="lobbyVoiceChannelId"
-            inputMode="numeric"
-            defaultValue={config?.lobbyVoiceChannelId ?? ''}
-            size={24}
-          />
-        </label>
+          <label className="admin-field">
+            <span>Lobby voice channel id</span>
+            <input
+              type="text"
+              name="lobbyVoiceChannelId"
+              inputMode="numeric"
+              defaultValue={config?.lobbyVoiceChannelId ?? ''}
+              size={24}
+            />
+          </label>
 
-        <label className="admin-field">
-          <span>Blue voice channel id</span>
-          <input
-            type="text"
-            name="blueVoiceChannelId"
-            inputMode="numeric"
-            defaultValue={config?.blueVoiceChannelId ?? ''}
-            size={24}
-          />
-        </label>
+          <label className="admin-field">
+            <span>Blue voice channel id</span>
+            <input
+              type="text"
+              name="blueVoiceChannelId"
+              inputMode="numeric"
+              defaultValue={config?.blueVoiceChannelId ?? ''}
+              size={24}
+            />
+          </label>
 
-        <label className="admin-field">
-          <span>Red voice channel id</span>
-          <input
-            type="text"
-            name="redVoiceChannelId"
-            inputMode="numeric"
-            defaultValue={config?.redVoiceChannelId ?? ''}
-            size={24}
-          />
-        </label>
+          <label className="admin-field">
+            <span>Red voice channel id</span>
+            <input
+              type="text"
+              name="redVoiceChannelId"
+              inputMode="numeric"
+              defaultValue={config?.redVoiceChannelId ?? ''}
+              size={24}
+            />
+          </label>
 
-        <button type="submit">Save</button>
-      </AdminForm>
+          <button type="submit" className="admin-primary">
+            Save
+          </button>
+        </AdminForm>
+      </Card>
     </main>
   );
 }

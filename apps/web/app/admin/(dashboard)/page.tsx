@@ -17,7 +17,7 @@ import { type LobbyStartView, loadLobbyStartOrNone } from '@/lib/tonight/lobbySt
 import { nightTimeZone } from '@/lib/tonight/night';
 import { AdminAnswerGroup } from '../_components/AdminAnswerGroup';
 import { AdminForm } from '../_components/AdminForm';
-import { Empty, formatTimestamp, Notices, type SearchParams } from '../_components/ui';
+import { Card, Empty, formatTimestamp, Notices, PageHeader, type SearchParams } from '../_components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,63 +41,78 @@ export default async function AdminIndexPage({ searchParams }: { searchParams: P
 
   return (
     <main>
-      <h1>Admin</h1>
-      <p className="admin-muted">
-        Everything here writes through <span className="admin-mono">/api/admin/*</span>, which checks the
-        session on the server. The rest of the site is public and needs no account.
-      </p>
+      <PageHeader title="Admin">
+        <p className="admin-muted">
+          Everything here writes through <span className="admin-mono">/api/admin/*</span>, which checks the
+          session on the server. The rest of the site is public and needs no account.
+        </p>
+      </PageHeader>
 
       <Notices params={params} />
 
-      <h2>Tonight</h2>
-      <StartLobby start={lobbyStart} />
-      <Reroll lobby={lobby} />
-      <FearlessReset
-        names={fearless.champions.map((champion) => champion.name)}
-        count={fearless.champions.length}
-      />
+      <div className="admin-grid">
+        <Card title="Tonight">
+          <StartLobby start={lobbyStart} />
+        </Card>
+        <Card title="Reroll">
+          <Reroll lobby={lobby} />
+        </Card>
+        <FearlessReset
+          names={fearless.champions.map((champion) => champion.name)}
+          count={fearless.champions.length}
+        />
 
-      <h2>You</h2>
-      <dl>
-        <dt>Discord</dt>
-        <dd>
-          {admin.discordName ?? 'unknown name'} <span className="admin-mono">{admin.discordId}</span>
-        </dd>
-        <dt>Player</dt>
-        <dd>
-          {admin.displayName ?? 'no display name yet'} <span className="admin-mono">{admin.puuid}</span>
-        </dd>
-        <dt>Email</dt>
-        <dd>{admin.email ?? '—'}</dd>
-      </dl>
+        <Card title="You">
+          <dl className="admin-dl">
+            <div>
+              <dt>Discord</dt>
+              <dd>
+                {admin.discordName ?? 'unknown name'} <span className="admin-mono">{admin.discordId}</span>
+              </dd>
+            </div>
+            <div>
+              <dt>Player</dt>
+              <dd>
+                {admin.displayName ?? 'no display name yet'} <span className="admin-mono">{admin.puuid}</span>
+              </dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{admin.email ?? '—'}</dd>
+            </div>
+          </dl>
+        </Card>
 
-      <h2>Active season</h2>
-      {season === null ? (
-        // The same sentence the companion API answers with when it refuses a game (M2.18).
-        // Whoever opens this page after a failed night should read the words they were sent.
-        <p className="admin-error" role="alert">
-          {NO_ACTIVE_SEASON_MESSAGE}
-        </p>
-      ) : (
-        <p>{season.name}</p>
-      )}
+        <Card title="Active season">
+          {season === null ? (
+            // The same sentence the companion API answers with when it refuses a game (M2.18).
+            // Whoever opens this page after a failed night should read the words they were sent.
+            <p className="admin-error" role="alert">
+              {NO_ACTIVE_SEASON_MESSAGE}
+            </p>
+          ) : (
+            <p>{season.name}</p>
+          )}
+        </Card>
 
-      <h2>Pages</h2>
-      <ul>
-        <li>
-          <Link href="/admin/players">Players</Link> — names, Discord links, admin flags, backfill approval.
-          Roles are read-only: they are worked out from the games people play
-        </li>
-        <li>
-          <Link href="/admin/tokens">Companion tokens</Link> — mint and revoke
-        </li>
-        <li>
-          <Link href="/admin/discord">Discord config</Link> — webhook and channel ids
-        </li>
-        <li>
-          <Link href="/admin/seasons">Seasons</Link> — the one season row, read-only
-        </li>
-      </ul>
+        <Card title="Pages" wide>
+          <ul className="admin-destinations">
+            <li>
+              <Link href="/admin/players">Players</Link> — names, Discord links, admin flags, backfill
+              approval. Roles are read-only: they are worked out from the games people play
+            </li>
+            <li>
+              <Link href="/admin/tokens">Companion tokens</Link> — mint and revoke
+            </li>
+            <li>
+              <Link href="/admin/discord">Discord config</Link> — webhook and channel ids
+            </li>
+            <li>
+              <Link href="/admin/seasons">Seasons</Link> — the one season row, read-only
+            </li>
+          </ul>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -126,7 +141,9 @@ function StartLobby({ start }: { start: LobbyStartView | null }) {
         {/* The route's own default is the tonight page, which is where its other surface
             lives. Only the no-JavaScript path reads this; the route re-validates it. */}
         <input type="hidden" name="redirectTo" value="/admin" />
-        <button type="submit">{START_LOBBY_BUTTON}</button>
+        <button type="submit" className="admin-primary">
+          {START_LOBBY_BUTTON}
+        </button>
       </AdminForm>
       {start === null ? <Empty>{NO_LOBBY_STARTED}</Empty> : null}
       {/* An acked create says nothing (product): the line under it is the lobby itself. */}
@@ -210,7 +227,7 @@ function Reroll({ lobby }: { lobby: RerollableLobby | null }) {
               <p className="admin-muted">
                 Split {split.rank} · gap {split.gap} · {split.explanation}
               </p>
-              <button type="submit">
+              <button type="submit" className="admin-primary">
                 {split.rank === 1
                   ? 'Put split 1 back'
                   : `Promote split ${split.rank} · reroll ${split.rank - 1} of ${rerolls}`}
@@ -229,8 +246,7 @@ function Reroll({ lobby }: { lobby: RerollableLobby | null }) {
  */
 function FearlessReset({ names, count }: { names: readonly string[]; count: number }) {
   return (
-    <>
-      <h2>{FEARLESS_TITLE}</h2>
+    <Card title={FEARLESS_TITLE}>
       {count === 0 ? (
         <Empty>{FEARLESS_EMPTY_ADMIN}</Empty>
       ) : (
@@ -240,8 +256,10 @@ function FearlessReset({ names, count }: { names: readonly string[]; count: numb
       )}
       <AdminForm action="/api/admin/fearless/reset" kind="fearless">
         <input type="hidden" name="redirectTo" value="/admin" />
-        <button type="submit">{FEARLESS_RESET_BUTTON}</button>
+        <button type="submit" className="admin-danger">
+          {FEARLESS_RESET_BUTTON}
+        </button>
       </AdminForm>
-    </>
+    </Card>
   );
 }

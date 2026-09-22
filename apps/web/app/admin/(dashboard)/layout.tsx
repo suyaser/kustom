@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { requireAdmin } from '@/lib/adminPage';
+import { WORDMARK } from '@/lib/nav';
+import { ThemeToggle } from '../../_shell/ThemeToggle';
+import { AdminNav } from '../_components/AdminNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,30 +17,32 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AdminDashboardLayout({ children }: { children: ReactNode }) {
   const admin = await requireAdmin();
+  const who = admin.discordName ?? admin.displayName ?? admin.puuid;
 
   return (
-    <>
-      <nav className="admin-nav">
-        <Link href="/admin">Admin</Link>
-        <Link href="/admin/players">Players</Link>
-        <Link href="/admin/tokens">Tokens</Link>
-        <Link href="/admin/games">Games</Link>
-        <Link href="/admin/discord">Discord</Link>
-        <Link href="/admin/seasons">Seasons</Link>
-        <Link href="/">Tonight</Link>
-      </nav>
+    <div className="admin-app">
+      <aside className="admin-sidebar">
+        <Link href="/admin" className="admin-brand">
+          <span className="cn-wordmark-bar" aria-hidden="true" />
+          <span className="cn-display admin-brand-mark">{WORDMARK}</span>
+          <span className="admin-brand-chip">admin</span>
+        </Link>
 
-      <div className="admin-identity">
-        <span>
-          signed in as {admin.discordName ?? admin.displayName ?? admin.puuid}{' '}
-          <span className="admin-muted">(discord {admin.discordId})</span>
-        </span>
-        <form method="post" action="/auth/signout">
-          <button type="submit">Sign out</button>
-        </form>
-      </div>
+        <AdminNav />
 
-      {children}
-    </>
+        <div className="admin-identity">
+          <p className="admin-identity-name">signed in as {who}</p>
+          <p className="admin-muted admin-identity-meta">(discord {admin.discordId})</p>
+          <div className="admin-identity-actions">
+            <ThemeToggle />
+            <form method="post" action="/auth/signout">
+              <button type="submit">Sign out</button>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      <div className="admin-content">{children}</div>
+    </div>
   );
 }

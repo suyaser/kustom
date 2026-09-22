@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  availableFearless,
   fearlessExact,
+  fearlessLanes,
   fearlessMatches,
   groupFearless,
   normalizeFearlessQuery,
@@ -57,6 +59,42 @@ describe('groupFearless', () => {
       ['adc', ['Jinx']],
       [null, ["Cho'Gath"]],
     ]);
+  });
+});
+
+describe('fearlessLanes', () => {
+  it('puts who is still open after that lane, and skips a lane with neither', () => {
+    expect(
+      fearlessLanes(
+        [{ id: 103, name: 'Ahri', role: 'mid' }],
+        [
+          { id: 1, name: 'Annie', role: 'mid' },
+          { id: 86, name: 'Garen', role: 'top' },
+        ],
+      ).map((lane) => [lane.role, lane.banned.map((row) => row.name), lane.open.map((row) => row.name)]),
+    ).toEqual([
+      ['top', [], ['Garen']],
+      ['mid', ['Ahri'], ['Annie']],
+    ]);
+  });
+
+  it('keeps a role-less ban under other and does not invent an open list there', () => {
+    expect(
+      fearlessLanes([{ id: 31, name: "Cho'Gath", role: null }], []).map((lane) => [
+        lane.role,
+        lane.banned.map((row) => row.name),
+        lane.open,
+      ]),
+    ).toEqual([[null, ["Cho'Gath"], []]]);
+  });
+});
+
+describe('availableFearless', () => {
+  it('drops a locked id from the lane it is filed under', () => {
+    const open = availableFearless([{ id: 103 }]);
+    expect(open.find((champion) => champion.name === 'Ahri')).toBeUndefined();
+    expect(open.find((champion) => champion.name === 'Garen')).toMatchObject({ role: 'top' });
+    expect(open.find((champion) => champion.name === 'Annie')).toMatchObject({ role: 'mid' });
   });
 });
 

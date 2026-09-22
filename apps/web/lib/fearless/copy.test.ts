@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FEARLESS_OPEN,
   FEARLESS_OTHER,
   FEARLESS_RESET_DESCRIPTION,
   FEARLESS_RESET_FAILED,
@@ -10,6 +11,7 @@ import {
   FEARLESS_SEARCH_EMPTY,
   FEARLESS_SENTENCE,
   FEARLESS_TITLE,
+  fearlessAvailable,
   fearlessBanned,
   fearlessCount,
   fearlessDescription,
@@ -26,6 +28,8 @@ describe('fearless copy', () => {
     expect(fearlessLaneTitle('jungle')).toBe('jungle');
     expect(fearlessLaneTitle(null)).toBe(FEARLESS_OTHER);
     expect(fearlessBanned('Ahri')).toBe('Ahri is on the ban list.');
+    expect(FEARLESS_OPEN).toBe('still open');
+    expect(fearlessAvailable('Garen')).toBe('Garen is still available.');
     expect(FEARLESS_SEARCH).toBe('Find a champion');
     expect(FEARLESS_SEARCH_EMPTY).toBe('No champion matches.');
   });
@@ -44,11 +48,13 @@ describe('fearless copy', () => {
       FEARLESS_SENTENCE,
       FEARLESS_SEARCH,
       FEARLESS_SEARCH_EMPTY,
+      FEARLESS_OPEN,
       FEARLESS_OTHER,
       FEARLESS_RESET_DESCRIPTION,
       FEARLESS_RESET_NOTICE,
       FEARLESS_RESET_POSTED,
       fearlessBanned('Ahri'),
+      fearlessAvailable('Garen'),
       fearlessDescription(10),
     ].join(' ');
     expect(/^[ -~]+$/u.test(all)).toBe(true);

@@ -17,6 +17,9 @@ export const FEARLESS_SEARCH = 'Find a champion';
 
 export const FEARLESS_SEARCH_EMPTY = 'No champion matches.';
 
+/** The tail under a lane: champions in that lane the pool has not locked. */
+export const FEARLESS_OPEN = 'still open';
+
 export const FEARLESS_RESET_DESCRIPTION = 'Pool cleared. Ban list is empty.';
 
 export const FEARLESS_RESET_BUTTON = 'Reset fearless';
@@ -47,4 +50,8 @@ export function fearlessLaneTitle(role: RoleValue | null): string {
 
 export function fearlessBanned(name: string): string {
   return `${name} is on the ban list.`;
+}
+
+export function fearlessAvailable(name: string): string {
+  return `${name} is still available.`;
 }

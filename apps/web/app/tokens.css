@@ -5,9 +5,9 @@
  * no tenth colour to keep in step. `data-theme` is the whole switch. A beforeInteractive
  * script writes it from localStorage so the first paint is already the stored theme.
  *
- * The admin area deliberately does NOT adopt these (05-design.md, "The admin area stays
- * plain"): `app/admin/admin.css` keeps `color-scheme: light dark` and `.admin { font-family:
- * system-ui }`, which is what stops the `body` rule below reaching it.
+ * Admin adopts the same tokens (05-design.md, "The admin area"): it keeps its own shell
+ * and styles native controls in `app/admin/admin.css`, but Day/Night and the nine colours
+ * are this file's.
  */
 
 :root,
@@ -109,13 +109,6 @@ body {
   font-size: var(--cn-t-base);
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
-}
-
-/* Admin keeps the browser's canvas (05-design.md, "The admin area stays plain"). */
-body:has(.admin) {
-  background: canvas;
-  color: canvastext;
-  font-family: system-ui, sans-serif;
 }
 
 /*
