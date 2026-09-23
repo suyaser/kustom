@@ -43,6 +43,7 @@ if (stack === null) {
   const { loadTonight } = await import('@/lib/tonight/load');
   const { tonightStart } = await import('@/lib/tonight/night');
   const { createPublicClient } = await import('@/lib/publicClient');
+  const { buildResultInput, loadResultSource } = await import('@/lib/discord/assemble');
   const { TonightView } = await import('./_tonight/TonightView');
   const { POST: postLobby } = await import('./api/companion/lobby/route');
   const { POST: postGame } = await import('./api/companion/game/route');
@@ -57,6 +58,8 @@ if (stack === null) {
   const runId = randomUUID().slice(0, 8);
   const ten = Array.from({ length: 10 }, (_, index) => `it-${runId}-tn${String(index).padStart(2, '0')}`);
   const partyId = `tn-${runId}`;
+  /** The next game's lobby, which turns the first one into a tape row (M11.2). */
+  const nextPartyId = `tn-${runId}-2`;
   const gameId = Number(`9${Date.now() % 1_000_000_000}`);
 
   let token = '';
@@ -128,7 +131,10 @@ if (stack === null) {
     const { error: gameError } = await db.from('games').delete().eq('lcu_game_id', gameId);
     if (gameError) throw new Error(`cleanup: deleting the test game failed: ${gameError.message}`);
 
-    const { error: lobbyError } = await db.from('lobbies').delete().eq('lcu_party_id', partyId);
+    const { error: lobbyError } = await db
+      .from('lobbies')
+      .delete()
+      .in('lcu_party_id', [partyId, nextPartyId]);
     if (lobbyError) throw new Error(`cleanup: deleting the test lobby failed: ${lobbyError.message}`);
 
     const { error: playerError } = await db.from('players').delete().in('puuid', ten);
@@ -353,6 +359,17 @@ if (stack === null) {
       expect(html).toMatch(/\((\+|−)\d+\)/);
     });
 
+    it('names the same MVP and ACE as the result post, through the anon key (M11.3)', async () => {
+      const { data: game, error } = await db.from('games').select('id').eq('lcu_game_id', gameId).single();
+      if (error) throw new Error(error.message);
+      const source = await loadResultSource(db, game.id);
+      if (source === null) throw new Error('no result source');
+      const posted = buildResultInput(source, { timestamp: new Date().toISOString() });
+
+      const snapshot = await loadTonight(anon, { nightStart: tonightStart() });
+      expect(snapshot.lobby?.result?.award).toEqual(posted?.award ?? null);
+    });
+
     it('names a player on the scoreboard who has no lobby_members row', async () => {
       // `game_players` and `lobby_members` are not the same ten: `findLobbyId`'s clock and
       // late-report fallbacks can attach a game to a lobby whose roster was frozen at
@@ -381,6 +398,37 @@ if (stack === null) {
       // The same row carries the top damage in this fixture: `Player9` deals the most.
       expect(snapshot.lobby?.result?.topDamage?.name).toBe(player?.display_name);
       expect(await firstPaint()).not.toContain('Someone');
+    });
+
+    it('puts the finished game on the tape once the next lobby opens, through the anon key (M11.2)', async () => {
+      const before = await loadTonight(anon, { nightStart: tonightStart() });
+      // The poster is on screen: the finished lobby is primary and not a tape row.
+      expect(before.lobby?.id).toBe(lobbyId);
+      expect(before.tape.some((row) => row.lobbyId === lobbyId)).toBe(false);
+
+      const response = await postLobby(
+        companionRequest('lobby', lobbyBody({ partyId: nextPartyId, members: members(3) })),
+      );
+      expect(response.status).toBe(200);
+
+      const after = await loadTonight(anon, { nightStart: tonightStart() });
+      expect(after.lobby?.id).not.toBe(lobbyId);
+      expect(after.lobby?.status).toBe('open');
+      const rows = after.tape.filter((row) => row.lobbyId === lobbyId);
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(row?.status).toBe('finished');
+      expect(row?.result).toMatchObject({ durationS: 2_052, aram: false, rated: true });
+      expect(row?.clock).toMatch(/^\d{2}:\d{2}$/);
+      expect(typeof row?.blueWinProb).toBe('number');
+      // Exactly ten were around, so nobody sat.
+      expect(row?.sitters).toEqual([]);
+      // Oldest first, and never the lobby the page is drawing.
+      const times = after.tape.map((entry) => Date.parse(entry.createdAt));
+      expect([...times].sort((a, b) => a - b)).toEqual(times);
+      expect(after.tape.some((entry) => entry.lobbyId === after.lobby?.id)).toBe(false);
+
+      expect(await firstPaint()).toContain('Earlier tonight');
     });
 
     it('never puts a Discord id on the wire, and the anon key cannot ask for one', async () => {

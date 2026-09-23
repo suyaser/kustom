@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { championLabel, championName, NO_BAN } from './names';
+import { championIconUrl, championLabel, championName, NO_BAN } from './names';
+
+describe('championIconUrl', () => {
+  it('is the Community Dragon icon by numeric id for a champion the table names', () => {
+    expect(championIconUrl(1)).toBe(
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/1.png',
+    );
+    expect(championIconUrl(62)).toMatch(/\/62\.png$/);
+  });
+
+  it('is null for an id the table does not know', () => {
+    expect(championIconUrl(12_345)).toBeNull();
+    expect(championIconUrl(NO_BAN)).toBeNull();
+    expect(championIconUrl(0)).toBeNull();
+    expect(championIconUrl(1.5)).toBeNull();
+  });
+});
 
 describe('championName', () => {
   it('names a stored id', () => {

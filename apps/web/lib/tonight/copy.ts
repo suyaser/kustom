@@ -1,5 +1,5 @@
 import { evenness } from '@customs/core';
-import { NAMELESS_PLAYER, type PlayerName } from '../discord/embeds';
+import { ACE_LABEL, MVP_LABEL, NAMELESS_PLAYER, type PlayerName } from '../discord/embeds';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 
 /**
@@ -215,11 +215,56 @@ export function isNameless(name: PlayerName): boolean {
   return (name ?? '').trim().length === 0;
 }
 
+/**
+ * `MVP Lena · ACE Rami` on the result poster (M11.3): `awardLine`'s labels, separator and order
+ * from `lib/discord/embeds.ts`, with the names through {@link renderWebName} rather than
+ * `renderName` for the reason above. For any name with no markdown character in it the two
+ * strings are byte for byte the same, and `copy.test.ts` pins that against `awardLine` itself.
+ */
+export function webAwardLine(award: { mvp: PlayerName; ace: PlayerName }): string {
+  return `${MVP_LABEL} ${renderWebName(award.mvp)} · ${ACE_LABEL} ${renderWebName(award.ace)}`;
+}
+
 /** `Sara and Deniz`, `Sara, Deniz and Ali` (05-design.md, "Sit-out notice"). */
 export function joinWebNames(names: readonly PlayerName[]): string {
   const rendered = names.map(renderWebName);
   if (rendered.length <= 1) return rendered[0] ?? '';
   return `${rendered.slice(0, -1).join(', ')} and ${rendered[rendered.length - 1]}`;
+}
+
+/* ---------------------------------------------------------------------------
+ * The night tape (M11.2, product 2026-09-23): tonight's earlier games, oldest first.
+ *
+ * The odds line is `underdogClause` from `lib/discord/embeds.ts` and the evenness line is
+ * {@link evennessLine}; neither is re-derived here.
+ * ------------------------------------------------------------------------- */
+
+/** The card's title. Product's word, not the design mock's `Tonight so far`. */
+export const TAPE_TITLE = 'Earlier tonight';
+
+/** `GAME 2`: the row's 1-based place in the tape. The clock beside it is its own cell. */
+export function tapeGameLabel(index: number): string {
+  return `GAME ${index}`;
+}
+
+/** After `BLUE` / `RED`, which is coloured on its own. */
+export const TAPE_WINS = 'WINS';
+
+/** A dropped lobby: no winner and no duration. */
+export const TAPE_NO_RESULT = 'NO RESULT';
+
+export const TAPE_NOT_RATED = 'not rated';
+
+/** After the duration: `ARAM · not rated` on ARAM, `not rated` on a remake, nothing on a rated game. */
+export function tapeRatedNote(result: { aram: boolean; rated: boolean }): string | null {
+  if (result.aram) return `ARAM ${HEAD_SEPARATOR} ${TAPE_NOT_RATED}`;
+  return result.rated ? null : TAPE_NOT_RATED;
+}
+
+/** `Sat out: Yuki, Omar.`, in join order. `null` when nobody sat. */
+export function tapeSatOut(names: readonly PlayerName[]): string | null {
+  if (names.length === 0) return null;
+  return `Sat out: ${names.map(renderWebName).join(', ')}.`;
 }
 
 /* ---------------------------------------------------------------------------

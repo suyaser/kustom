@@ -58,8 +58,12 @@ Five rules fall straight out of it, and every visual decision in this section is
 4. **Dense, like a stats site.** Rows are tight, numbers are tabular, labels are small and always present. A
    card that shows five facts is better than a card that shows one fact large. The only large type in the
    product is a result and a count.
-5. **Structure over ornament.** Rules, tints, rings and one gradient. No glass blur, no neon, no champion art,
-   no crest, no emoji, no purple.
+5. **Structure over ornament.** Rules, tints, rings and one gradient. No glass blur, no neon, no crest, no
+   emoji, no purple. **No splash art, no loading-screen art, no portrait crop, no decorative champion art —
+   anywhere.** The single exception is a 24×24 square champion icon leading the name on a fearless chip on `/`
+   (M11, "The fearless icon exception" below). Any other surface that wants a champion icon needs its own named
+   exception written into this file by the designer before code. "The fearless card has them" is not a
+   precedent.
 
 ### Palette
 
@@ -120,7 +124,9 @@ background:
 
 5% amber over 65% of the fold. It is felt, not seen, and it is what stops a 1400px desktop viewport from
 being a flat black field. It is fixed to the shell, does not scroll, and is the only `linear`/`radial-gradient`
-allowed anywhere in `apps/web`. No purple, no teal, no two-stop brand ramp behind a hero.
+allowed anywhere in `apps/web`. No purple, no teal, no two-stop brand ramp behind a hero. The M11 share cards
+paint this same amber floodlight into their PNG ("Share cards" below). That is the same light drawn in a
+second medium, not a second gradient. Nothing else gets a gradient: not a chip, not a tape, not a poster.
 
 **Colour rules that survive v1 unchanged, and are still the ones people break:**
 
@@ -223,6 +229,76 @@ in the display cut. There is no asset pipeline in this project and there should 
 
 The only other glyph in the product is the live dot: an 8px circle, `brand`, inside a `raise` pill with the
 word `live` in mono `t-xs`. The pill carries the `glow` shadow. That is the one glow.
+
+#### The fearless icon exception (M11, designer 2026-09-23)
+
+The one place in the product where a champion is drawn. Why this place: the fearless find box is used during
+pick, and in champion select people recognise a face faster than they read a name. Everywhere else a champion
+is a word: Discord, `/fun`, `/games`, the player page, the result poster, the night tape and the share cards.
+None of those gets an icon in M11, and none gets one later without a new exception written here.
+
+**The object.** A square champion icon, shown as the source delivers it. There is no zoom, no face crop, no
+mask and no frame, because a portrait crop is the "no portrait crop" rule above. Keyed by the numeric
+`FearlessChampion.id`, the same id the name comes from.
+
+| Property | Value |
+|---|---|
+| Rendered size | **24 × 24 CSS px, at every width.** It does not grow on desktop. Ask for a 48px source for 2× screens if the source offers one. `width="24" height="24"` on the element, so the box is reserved before the bytes arrive. |
+| Shape | Square, `border-radius: 4px`. **Never a circle.** A round champion face reads as a ranked emblem or a crest, and crests are banned. |
+| Fit | `object-fit: cover`, `flex: none`, `display: block`. No `transform: scale()` to trim a baked-in border. |
+| Placement | First child of the chip, before the name. Gap `sp-2` (8px). |
+| Loading | `loading="lazy"`, `decoding="async"`. **It does not fade in**: no opacity transition on load, no placeholder fill and no shimmer. The reserved 24px box is empty until the image paints. |
+| `alt` | `alt=""`. The name beside it is the accessible text, and a screen reader must not say "Ahri Ahri". |
+| Glow, ring, shadow | None. Icons do not glow. The live pill is still the only lamp. |
+| Theme | Identical in Day and Night. No filter per theme. |
+
+**The chip, restated for M11.** The markup stays `ul.cn-fearless-list > li`, and the `img` goes inside the
+`li` ahead of the text node. Today's chip is about 31px tall (14px × 1.5 line height, 4px padding, 1px
+border), so a 32px floor changes nothing that already renders:
+
+```css
+.cn-fearless-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cn-sp-2);
+  min-height: 32px;
+  padding: 3px 10px;                 /* no icon: the chip as it is today */
+  /* background, border, radius, type: unchanged */
+}
+.cn-fearless-list li:has(> .cn-fearless-icon) {
+  padding-inline-start: 3px;         /* 3 + 1 border + 24 + 3 + 1 = 32px square lead */
+}
+.cn-fearless-icon {
+  width: 24px; height: 24px;
+  flex: none; display: block;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.cn-fearless-open-chip .cn-fearless-icon { opacity: 0.55; }
+.cn-fearless-hit .cn-fearless-icon { opacity: 1; }
+```
+
+(If `:has()` is unwelcome, put a `cn-fearless-chip-icon` class on the `li` when an image is rendered. Both
+produce the same box.)
+
+| Chip | Icon | Name | Chip dress |
+|---|---|---|---|
+| **Banned** | Full opacity | `text`, 600, as today | `raise` fill, `line` hairline, as today |
+| **Open** (`cn-fearless-open-chip`) | **`opacity: 0.55` on the `img` and nothing else.** No `filter: grayscale()`, no desaturate, no tinted overlay: a grey champion is a fourth colour. | `dim`, 500, as today | Transparent fill, dashed `line` border, as today |
+| **Find hit** (`cn-fearless-hit`) | **Full opacity, never recoloured**, even when the hit is an open chip. An icon tinted amber looks like a rendering bug. | `brand`, as today | `brand-tint` fill, `brand` border plus inset ring, as today |
+| **Unknown id** (name falls back to `Champion ${id}`) | **No `img` element.** | As its row | Unchanged, and no reserved blank square |
+| **Image fails to load** | Remove the `img` (`onError` drops it). The chip reflows to name-only once, at load time. Never a broken-image glyph, never alt text in the chip. | As its row | Unchanged |
+
+**Height, and the 44px rule.** The chips are not controls: they are list items with no handler, and nothing
+on this card is tappable except the find box, which is already 44px. So the 44px floor does not apply. **Every
+chip, including the find hit, is 32px.** Growing the hit chip to 44px would reflow every wrapped row below it
+on each keystroke, in the one box people type into while pick is running. That is a layout shift under a
+thumb, which "The tonight page v2" forbids. If a chip ever becomes tappable, every chip goes to 44px at once,
+not just one state.
+
+**What does not change.** The lane words, the `open` label, the find box, the count, the sentence and the
+A–Z order stay as they are. No gradient or tint sits behind an icon. An icon never appears without its name
+(same rule as `RoleIcon`). No champion appears outside this card.
 
 ### The app shell
 
@@ -701,6 +777,120 @@ deltas never coloured by sign. What v2 changes is only dress:
 - **The header does not repeat the winner.** The strip says `FINAL`; the card says `RED WINS` in 44px forty
   pixels below it. Two winners on one screen is the same redundancy M3.16 removed for ratings. If product
   wants the winner in the strip instead, then the card headline drops to `t-lg` — one of the two, never both.
+
+##### The result poster (M11, designer 2026-09-23)
+
+The headline card becomes a scoreboard lockup: **the winner line is the fold**. Today it reads as a small
+header over two tables because the duration shares the winner's row and the facts sit at the same weight as
+the verdict. M11 separates the verdict from the footnotes. It does not add a single new colour, size or
+ornament.
+
+```
+┌▌─────────────────────────────────────────────┐  headline card: cn-card + 4px rule in the WINNER's side colour
+│▌ 34:12                                        │  duration: mono t-xs, dim, 0.08em, tabular. Its own line.
+│▌ RED WINS                                     │  cn-display t-display, winner colour, upper case, full row
+│▌ Red won as the underdog.                     │  underdog line (product copy, only when true): t-base, text, 600
+│▌ ─────────────────────────────────────────── │  1px line hairline, sp-3 above and below
+│▌ Blue was favored 54%.                        │  t-sm dim
+│▌ Top damage: Lena, 47.3k                      │  t-sm text, number mono brand (unchanged)
+│▌                                   Copy link  │  optional footer, see below
+└──────────────────────────────────────────────┘
+┏━ winning team card: 4px side rule + 1px brand ring (unchanged) ━┓
+┗━ losing team card: rule drops to 1px line (unchanged)          ━┛
+explanation line (unchanged)
+```
+
+- **The winner's side rule on the headline card.** A 4px `blue` or `red` rule on the card's leading edge,
+  drawn exactly like a team card's (`inset 4px 0 0` in Night's `theme-gaming.css`, the leading border
+  elsewhere). That rule is what turns the card into that side's scoreboard. The headline card gets **no
+  brand ring**: the ring belongs to the winning five, because the celebration is on the people.
+- **The duration moves above the winner** as a mono slug (`t-xs`, `dim`, `0.08em`). That gives `BLUE WINS`
+  the whole row. At 390px, `BLUE WINS` at 44px in the wide cut uses about 280px, so it never wraps and never
+  fights a right-aligned number. `cn-result-head` stops being a space-between row and becomes a column.
+- **`cn-display` stays the only large type** besides the lobby count. `t-display` does not grow for M11.
+- **Underdog line.** Only when product writes one and the data says so. `t-base`, `text`, 600: the same
+  weight as an explanation sentence. **Not a badge, not `brand`, not gold, not upper case, not `UPSET`.** The
+  sentence itself is the whole treatment.
+- **The hairline** separates the verdict from the footnotes. The prediction drops from `t-base` to `t-sm`, and
+  top damage keeps its dress. Both sit under the rule, so nothing below the rule competes with the verdict.
+- **Five versus five: unchanged.** Two team cards with after ratings and deltas. The winner's 4px rule plus
+  brand ring and the loser's 1px `line` are the whole celebration. No trophy, no crown, no confetti, no
+  `VICTORY`, no side sum of deltas, no team total, no delta coloured by sign.
+- **No champion icons on the poster**, not even beside the top-damage name.
+- **Phone fold.** At 390 × 700, the top bar (88px), the strip (about 150px) and the headline card through its
+  underdog line (about 130px) finish near 370px. The ten names may scroll, and that is accepted.
+- **Motion.** None beyond what the block already does on a state change. No staged reveal and no count-up
+  on the duration.
+- **A copy-link control, if product ships one**, is a text link, not a button. It sits in the headline
+  card's footer, right-aligned, `t-sm` `dim` with the standard underline, and has a 44 × 44 hit area
+  (padding, not a box). It has no fill, no icon and no `brand`. It is never placed in the strip, the rack or
+  the teams state: the nightly loop has one tap (`Start a lobby`), and a share control dressed as a call to
+  action would become a second one.
+
+#### The night tape (M11, designer 2026-09-23)
+
+A quiet log of tonight's finished beats, newest last. It is not a second scoreboard, not a fourth lobby
+state and not a feed. It answers question 3 ("what happened?") for the whole night rather than the last game.
+
+```
+┌ Tonight so far ────────────────────────────────┐  cn-card; title = product's word (see OPEN)
+│ ▪  21:04  Lobby opened.                         │
+│ │                                               │
+│ ▪  21:12  Teams posted.                         │
+│ │                                               │
+│ ▪  21:48  Red won in 34:12.                     │  "Red" in red, 600 — a word, never a block
+│ │                                               │
+│ ▪  22:05  Lobby opened.                         │
+│ │                                               │
+│ ▪  23:40  Lobby dropped.                        │  the whole sentence dim: a non-event
+└────────────────────────────────────────────────┘
+```
+
+- **One card, one column, nothing nested.** `cn-card`, padding `sp-4`, a `cn-card-title` heading, then an
+  `ol.cn-tape`. No card inside it, no chips, no avatars, **no champion icons**, no second colour field. A bare
+  list on the ink breaks the tone amendment, and a card holding cards is a dashboard.
+- **Row.** A grid of `5ch` for the time and `1fr` for the sentence, gap `sp-3`, `align-items: baseline`,
+  `padding-block: sp-1` (a row is about 28px). Rows are not tappable, so no 44px floor applies.
+  - Time: mono `t-xs`, `dim`, tabular, `HH:mm` h23 in `CUSTOMS_NIGHT_TZ`. **Formatted on the server into
+    the snapshot**, exactly like the slug, so the hydrated render cannot disagree with the server render.
+    After midnight it just reads `00:40`. The night's 06:00 boundary already orders the rows.
+  - Sentence: Archivo `t-sm`, `text`, 400. The copy is product's.
+  - **Result beat:** the side word (`Blue` / `Red`) in the side colour at 600, with the rest in `text`. A
+    number in the sentence (a duration) is mono. This is how the rest of the product colours a side in
+    prose: a word, never a filled block, and never both side colours in one row.
+  - **Dropped beat:** the whole sentence in `dim`. It is the one beat the eye should skip.
+  - No row is highlighted as "latest". Nothing in the tape is `brand`.
+- **The spine and the ticks** are drawn in `line` and nothing else, so the live pill stays the only lamp.
+  A 2px spine on the start edge, with a 6px square tick (radius 0) centred on it at each row's first line.
+  The spine is drawn **per row, tick to tick**, so it never overhangs the first or the last tick:
+
+```css
+.cn-tape { list-style: none; margin: 0; padding: 0 0 0 var(--cn-sp-5); }
+.cn-tape li { position: relative; display: grid; grid-template-columns: 5ch 1fr;
+  gap: var(--cn-sp-3); align-items: baseline; padding-block: var(--cn-sp-1);
+  font-size: var(--cn-t-sm); line-height: 1.4; }
+/* T = the tick's centre from the row top = sp-1 + half a t-sm line */
+.cn-tape li::before { content: ""; position: absolute; width: 6px; height: 6px;
+  background: var(--cn-line);
+  inset-inline-start: calc(-1 * var(--cn-sp-5) + 4px);
+  top: calc(var(--cn-sp-1) + 0.7 * var(--cn-t-sm) - 3px); }
+.cn-tape li:not(:last-child)::after { content: ""; position: absolute; width: 2px;
+  background: var(--cn-line);
+  inset-inline-start: calc(-1 * var(--cn-sp-5) + 6px);
+  top: calc(var(--cn-sp-1) + 0.7 * var(--cn-t-sm));
+  bottom: calc(-1 * (var(--cn-sp-1) + 0.7 * var(--cn-t-sm))); }
+```
+
+- **A new row fades in** with `opacity 150ms ease`. It reuses the existing appear transition (`cn-new`) and
+  adds no new keyframes. `prefers-reduced-motion: reduce` drops it. Rows never slide or stagger, and the
+  list never auto-scrolls.
+- **Hidden when there is nothing to log.** No beats means no card, no heading and no empty sentence, the
+  same rule as fearless.
+- **Placement: after Fearless, directly before `Your role tonight`, in every state.** The fearless find box
+  is a live tool used during pick. By the third game the tape is 10 or more rows (about 300px), and history
+  must not push a live tool below the fold. `Your role tonight` stays last, per M3.6. The tape grows only
+  when a beat lands, and every beat is also a state change that already replaces the primary block, so a new
+  row never moves a pixel on its own. **Desktop:** main column, never the rail. The rail never carries state.
 
 #### Idle
 
@@ -1750,6 +1940,142 @@ drawn on the one screen with the least to say.
 **What does not change:** the 44rem column with no rail (this page has nothing per-night to put in one), the
 picker and its slot, the order down the page, the 44px rows, and every word.
 
+### Share cards — Open Graph images (M11, designer 2026-09-23)
+
+1200 × 630 PNGs for WhatsApp and Discord unfurls. They are Floodlit painted into a picture: the same ink, the
+same one light and the same two faces. Nothing that reached a picture is also allowed back onto the site.
+
+**Always Night.** An unfurl has no theme preference and no `data-theme`, and Night is the default. There is no
+Day card.
+
+**The palette is fixed hex, because `ImageResponse` has no CSS variables and no `color-mix()`.** The card uses
+**the shipped Night values in `tokens.css` `[data-theme="night"]`**, not the Floodlit table above. As of
+2026-09-23 the two have drifted (`bg` `#05070C` against `#0B0E14`, `brand` `#FFC857` against `#FFB13C`, and
+others), and the lead has to settle which one is the record. Until then, the unfurl matches the page the tap
+opens. Keep them
+in one constants file (`app/_og/palette.ts`) whose header comment names `tokens.css` as the source. If the
+Night tokens change, this file changes in the same commit.
+
+| Card token | Hex | Use |
+|---|---|---|
+| `bg` | `#05070C` | Fill, the whole card |
+| `line` | `#2A3344` | The one hairline, the losing side's rule |
+| `text` | `#F4F7FC` | Names, headline, the player number |
+| `dim` | `#7D8A9E` | Slug, duration, sentence, labels. Never a name. |
+| `blue` | `#4EA3FF` | Side 100: the winner word, the side label, the winner's rule |
+| `red` | `#FF6F68` | Side 200: the same |
+| `brand` | `#FFC857` | **The wordmark bar only.** No live state exists in a PNG. |
+
+No `surface`, no `raise` and no cards inside the card. The picture is one plane of ink.
+
+**The one light.** A single amber radial at the top, the shell's floodlight at the same 5%, in pixels:
+
+```
+radial-gradient(ellipse 1440px 441px at 600px -95px, rgba(255,200,87,0.05), rgba(255,200,87,0) 65%)
+```
+
+Fade to the same amber at zero alpha, not to `transparent`: some renderers interpolate through black and draw
+a grey band. Shipped Night's second lamp (a blue corner radial) and the pitch grid are **not** painted. A
+blue wash in the corner of a `RED WINS` card is the page taking a side. If the renderer bands or cannot draw
+the ellipse, drop the light entirely. Flat ink is correct and a banded gradient is not.
+
+**Type.** `ImageResponse` (Satori) cannot read a variable font's `wdth` axis and does not take `woff2`. Commit
+static TTFs from Google Fonts (OFL, with `OFL.txt` beside them) under `app/_og/fonts/` and load them from disk.
+**Never fetch fonts from Google at render time**: an unfurl bot that times out on a font request gets no card.
+
+| Card role | Face | Size at 1200px | Notes |
+|---|---|---|---|
+| `og-display` | Archivo **Expanded ExtraBold** (static, `wdth` 125, the shipped Night display cut) | 112px, line height 1.0, `-0.02em`, UPPER | Winner word and tonight headline. Fallback: Archivo ExtraBold at normal width. That is the system's own stated fallback, and there is still no second family. |
+| `og-mark` | Archivo Expanded ExtraBold | 28px, `0.14em`, UPPER, `text` | `KUSTOM`, after a 6 × 28px `brand` bar, gap 12px. No glow on the bar. |
+| `og-side` | Archivo Expanded ExtraBold | 28px, `0.12em`, UPPER, side colour | `BLUE` / `RED` over each column |
+| `og-name` | Archivo SemiBold | 34px, `text` | One line. Ellipsis past the column. Never wrap a name. |
+| `og-sentence` | Archivo Medium | 36px, `dim`, line height 1.3 | At most two lines |
+| `og-slug` | IBM Plex Mono Medium | 20px, `0.08em`, UPPER, `dim` | The night's date, the same string as the strip's slug |
+| `og-num` | IBM Plex Mono Medium | 32px, `dim`, tabular | Duration |
+| `og-stat` | IBM Plex Mono SemiBold | 160px, `text`, tabular | The player card's one number |
+| `og-label` | IBM Plex Mono Medium | 24px, `0.08em`, lower case, `dim` | The label under that number, the page's own word |
+
+An unfurl is drawn at about a third of its size on a phone. So nothing that must be read goes below 28px
+(which becomes about 9px on screen). The slug and the wordmark are identifiers and may be 20–28px.
+
+**The frame, shared by every card.**
+
+```
+48px safe inset on all four sides. Content box x 48–1152, y 48–582.
+
+y 48   ▍KUSTOM                                        TUESDAY 22 SEPTEMBER
+y 104  ─────────────────────────────────────────────────────────────────   2px line, full content width
+y 112–582  the body, vertically centred in this band
+```
+
+**The centre third is sacred.** WhatsApp crops the preview to a centred square (x 285–915) in several of its
+layouts, and Discord scales the whole card to about 400px wide. **The words that carry the card sit inside
+x 400–800**: the winner word, the tonight headline and the player number. Everything else may be cropped
+away without the card lying.
+
+**Game card** (`/g/[gameId]`, a finished game):
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ▍KUSTOM                                        TUESDAY 22 SEPTEMBER  │
+│ ──────────────────────────────────────────────────────────────────── │
+│                                                                      │
+│ ▏ BLUE                       RED                             RED █   │   side labels, side colour
+│ ▏ Hana                       WINS                           Omar █   │   winner word 2 lines, red
+│ ▏ Yusuf                                                     Lena █   │
+│ ▏ Karim                      34:12                         Salma █   │   duration og-num dim
+│ ▏ Mo                                                       Tarek █   │
+│ ▏ Nour                                                      Dina █   │
+│   ▏ loser: 2px line                         winner: 8px red █        │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+ x 48–400 blue five     x 400–800 the verdict     x 800–1152 red five
+```
+
+- **Three columns.** Blue on the left, left-aligned. Red on the right, **right-aligned and mirrored**, so the
+  picture is symmetric around the verdict. This is the one place the mirror is allowed, because a poster
+  reads from the middle out and a page reads from the start edge.
+- Each side column carries a rule on its **outer** edge. The **winner's rule is 8px in its side colour**
+  and the **loser's rule is 2px `line`**. That is the site's 4px-versus-1px at poster scale, and it is the
+  whole celebration. Names start 24px in from the rule.
+- Side label (`og-side`), a 24px gap, then five names (`og-name`) on a 56px pitch, in lane order `top`
+  through `support`. **No role words** (the card is read at a third of its size and five mono labels are
+  noise), no ratings, no deltas, no champion.
+- **The verdict:** `BLUE` / `WINS` or `RED` / `WINS` on **two lines**, centred, in the winner's colour at
+  `og-display`. Then a 24px gap and the duration (`og-num`) centred. At 112px the word `WINS` in the wide
+  cut must fit 360px. If the fallback face or a longer word ever breaks that, step the size down to a 96px
+  floor. Never fit the width by condensing.
+- Names in `text` on **both** sides. `dim` is never a player's name, including the losers' names.
+- An **underdog sentence** does not go on the card. It belongs on the page, where it is a sentence with a
+  context.
+
+**Tonight card** (`/`):
+
+- Body: the strip's **headline** (`og-display`, `text`, centred, max-width 720px so it breaks onto two
+  lines, for example `9 IN THE` / `LOBBY`), then a 24px gap, then the strip's **sentence** (`og-sentence`,
+  centred, max-width 880px). Not a screenshot, not the rack, not ten names.
+- **The count is `text`, not `brand`.** On the site the count is amber because it is live. A PNG is a
+  photograph of a moment that the unfurl cache will keep showing after it stops being true, and a stale
+  number must not wear the live colour. No live pill, no dot.
+- Idle night: `NOTHING TONIGHT` and the idle sentence. That is fine, and it is honest.
+
+**Player card** (`/p/[puuid]`):
+
+- Body, centred: the player's name (`og-name` scaled to 72px Archivo SemiBold, one line, ellipsis at
+  1000px), a 16px gap, **the one all-time number the page leads with** (`og-stat`, `text`), then the
+  page's own label for it under it (`og-label`). Nothing else: no record, no chart, no rank, no avatar.
+- The number is never coloured and never signed unless the page signs it.
+
+**Every other route:** the frame with the wordmark alone, centred, at 56px with a 10 × 56px bar. It has no
+slug, because the route is not about a night.
+
+**Never on a card:** champion icons, emoji, QR codes, a URL or a `kustom…` domain line, avatars, rank
+emblems, crests, `VS`, trophies, a second gradient, a drop shadow, a border around the whole card or a
+rounded card inside the card. The small wordmark is the only identity.
+
+**Alt text** (`alt` export per route) is a sentence, and product writes it in the M11 copy table. The
+layout above uses no new chrome words. Every string on a card is one the page already prints.
+
 ### `tokens.css`, v2 — the file to write
 
 ```css
@@ -2523,7 +2849,9 @@ sidebar fact. Hidden while the pool is empty so an idle night is not a card that
   champion select.
 - Names grouped under lowercase lane words (`top` `jungle` `mid` `adc` `support`), A–Z
   inside the group. A first lock with no stored role sits under `other`.
-- Names as wrap chips on `raise` with a `line` hairline. **No champion art** — Floodlit forbids it.
+- Names as wrap chips on `raise` with a `line` hairline. **M11: each chip leads with a 24×24 square champion
+  icon.** This is the one exception to "no champion art". Size, opacity, the unknown-id case and the 32px chip
+  height are in "The fearless icon exception" under Iconography, and nothing here overrides it.
 - Unique ids. First-appearance decides membership and the lane heading; display order is
   lane then name. The companion does not auto-ban; this is a list for humans.
 
@@ -3294,7 +3622,8 @@ Listed because each one is a thing a page like this drifts into:
 - No cream backgrounds, no serif display face, no purple or teal gradient, no acid green on black, no glass
   blur, no neon glow, no dark-mode-with-a-single-saturated-accent-everywhere.
 - No champion art, avatars, crests, "VS" badges, or animated win banners. There is no asset pipeline and there
-  should not be one.
+  should not be one. **One exception, M11:** a 24×24 square champion icon on fearless chips on `/`, loaded by
+  champion id at runtime with no pipeline ("The fearless icon exception"). It covers no other surface.
 - No skeleton shimmer. A dark room does not want a moving grey rectangle; empty states are one sentence.
 - No toasts. Realtime already changes the thing you are looking at.
 - No numbers rendered in a proportional font, ever.

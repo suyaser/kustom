@@ -4,6 +4,7 @@ import {
   civilDayStart,
   closedWindow,
   DEFAULT_NIGHT_TIME_ZONE,
+  formatClock,
   formatDayMonthYear,
   formatMonthName,
   formatNightLabel,
@@ -13,6 +14,7 @@ import {
   monthStart,
   NIGHT_START_HOUR,
   nextCivilMidnight,
+  nightClock,
   nightEnd,
   nightStart,
   type WindowKind,
@@ -131,6 +133,57 @@ describe('formatNightLabel', () => {
     // 01:00 on Thursday in Cairo belongs to the night that started 06:00 on Wednesday.
     const late = new Date('2026-09-09T22:00:00.000Z');
     expect(formatNightLabel(nightStart(late, CAIRO), CAIRO)).toBe('Wednesday 9 September');
+  });
+});
+
+describe('the night clock (M11.2)', () => {
+  /** What the server's `Intl` says, which the arithmetic in `formatClock` must reproduce. */
+  const intl = (instant: Date, timeZone: string) =>
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      hourCycle: 'h23',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(instant);
+
+  const everyFewMinutes = (start: Date, timeZone: string): Date[] => {
+    const end = nightEnd(start, timeZone).getTime();
+    const out: Date[] = [];
+    for (let at = start.getTime(); at < end; at += 7 * 60 * 1000) out.push(new Date(at));
+    return out;
+  };
+
+  it('prints 22:41 and, after midnight, 00:40', () => {
+    const start = nightStart(new Date('2026-09-08T18:00:00Z'), CAIRO);
+    const clock = nightClock(start, CAIRO);
+    expect(clock.shift).toBeNull();
+    expect(formatClock(new Date('2026-09-08T19:41:00Z'), clock)).toBe('22:41');
+    expect(formatClock(new Date('2026-09-08T21:40:00Z'), clock)).toBe('00:40');
+  });
+
+  it.each([
+    // Cairo springs forward at midnight on Friday 2026-04-24, and back at midnight after Thursday 2026-10-29.
+    ['Africa/Cairo', '2026-04-23T18:00:00Z'],
+    ['Africa/Cairo', '2026-10-29T18:00:00Z'],
+    ['Africa/Cairo', '2026-09-08T18:00:00Z'],
+    // New York shifts at 02:00, inside a late night.
+    ['America/New_York', '2026-03-07T23:00:00Z'],
+    ['America/New_York', '2026-10-31T23:00:00Z'],
+    ['UTC', '2026-09-08T18:00:00Z'],
+  ])('agrees with Intl across the whole night in %s from %s', (timeZone, during) => {
+    const start = nightStart(new Date(during), timeZone);
+    const clock = nightClock(start, timeZone);
+    for (const instant of everyFewMinutes(start, timeZone)) {
+      expect(formatClock(instant, clock)).toBe(intl(instant, timeZone));
+    }
+  });
+
+  it('finds the shift on a night that has one', () => {
+    const start = nightStart(new Date('2026-03-07T23:00:00Z'), 'America/New_York');
+    const clock = nightClock(start, 'America/New_York');
+    // 02:00 EST on 8 March 2026 is 07:00Z.
+    expect(clock.shift?.at).toBe('2026-03-08T07:00:00.000Z');
+    expect(JSON.parse(JSON.stringify(clock))).toEqual(clock);
   });
 });
 

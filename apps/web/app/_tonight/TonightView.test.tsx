@@ -24,6 +24,7 @@ import {
   offRoleFixture,
   seatedOnTheirSides,
   snapshot,
+  tapeEntry,
   workedMembers,
   workedResult,
   workedTeams,
@@ -39,6 +40,7 @@ import {
   SIGN_IN_LABEL,
   START_LOBBY_SIGN_IN,
   sideLine,
+  TAPE_TITLE,
 } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import type { SeatView, TonightSnapshot } from '@/lib/tonight/types';
@@ -763,17 +765,20 @@ describe('the sit-out strip', () => {
 describe('result: the game is over', () => {
   const finished = snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() }));
 
-  it('leads with the winner, the duration, the prediction and the top damage, in one card', () => {
+  it('leads with the duration, the winner, the odds line and the top damage, in one card', () => {
     const { container } = draw(finished);
 
     expect(strip(container)[1]).toBe('GAME OVER');
     expect(strip(container)[2]).toBe('Ratings are updated. The leaderboard has the rest.');
 
     const card = container.querySelector('.cn-result');
-    expect(card).toHaveTextContent('RED WINS');
-    expect(card).toHaveTextContent('34:12');
-    expect(card).toHaveTextContent('Blue was favored 54%.');
-    expect(card).toHaveTextContent('Top damage: Lena, 47.3k');
+    expect([...(card?.querySelectorAll('p') ?? [])].map((line) => line.textContent)).toEqual([
+      '34:12',
+      'RED WINS',
+      // Blue was favored 54% and red won: the underdog's line, in place of the favourite's.
+      'Red was 46%. Red won.',
+      'Top damage: Lena, 47.3k',
+    ]);
   });
 
   it('prints one rating per player: the after number and its delta, and no second pair of cards', () => {
@@ -1214,5 +1219,136 @@ describe('fearless, the ban list', () => {
     expect(card?.textContent).toContain(fearlessAvailable('Garen'));
     expect(card?.textContent).not.toContain('Ahri');
     expect(card?.textContent).not.toContain(fearlessBanned('Garen'));
+  });
+});
+
+describe('the night tape (M11.2)', () => {
+  const pool = { resetAt: FIXTURE_NIGHT_START, champions: [{ id: 103, name: 'Ahri', role: 'mid' as const }] };
+  const mainClasses = (container: HTMLElement) =>
+    [...(container.querySelector('main')?.children ?? [])].map((child) => child.className);
+
+  it('two finished and one filling: the rack is primary and the tape has GAME 1 then GAME 2', () => {
+    const { container } = draw(
+      snapshot(lobbyView({ members: workedMembers(3) }), {
+        tape: [tapeEntry({ lobbyId: 'a', clock: '20:10' }), tapeEntry({ lobbyId: 'b', clock: '21:40' })],
+      }),
+    );
+    expect(strip(container)[1]).toBe('3 IN THE LOBBY live');
+    const rows = [...container.querySelectorAll('.cn-tape > li')];
+    expect(rows.map((row) => row.querySelector('.cn-tape-game')?.textContent)).toEqual(['GAME 1', 'GAME 2']);
+  });
+
+  it('one finished and nothing newer: the poster, and no tape', () => {
+    const { container } = draw(
+      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
+    );
+    expect(container.querySelector('.cn-result')).not.toBeNull();
+    expect(container.querySelector('.cn-tape-card')).toBeNull();
+    expect(screen.queryByText(TAPE_TITLE)).not.toBeInTheDocument();
+  });
+
+  it('a newest dropped lobby: the page is idle and the dropped one is the last row', () => {
+    const { container } = draw(
+      snapshot(lobbyView({ status: 'dropped', teams: workedTeams() }), {
+        tape: [
+          tapeEntry({ lobbyId: 'a' }),
+          tapeEntry({ lobbyId: 'b' }),
+          tapeEntry({ lobbyId: 'c', status: 'dropped', result: null }),
+        ],
+      }),
+    );
+    expect(strip(container)[1]).toBe('NOBODY IN YET');
+    const rows = [...container.querySelectorAll('.cn-tape > li')];
+    expect(rows).toHaveLength(3);
+    expect(rows[2]?.querySelector('.cn-tape-result')).toHaveTextContent('NO RESULT');
+  });
+
+  it('sits after Fearless and directly before Your role tonight while a lobby is live', () => {
+    const { container } = draw(
+      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() }), {
+        fearless: pool,
+        tape: [tapeEntry()],
+      }),
+    );
+    expect(mainClasses(container).slice(-3)).toEqual([
+      'cn-block cn-fearless',
+      'cn-card cn-tape-card',
+      'cn-card cn-role-card',
+    ]);
+  });
+
+  it('sits after Fearless on the idle page too, in the main column and never the rail', () => {
+    const { container } = draw(snapshot(null, { fearless: pool, tape: [tapeEntry()] }));
+    const classes = mainClasses(container);
+    expect(classes.indexOf('cn-card cn-tape-card')).toBeGreaterThan(classes.indexOf('cn-block cn-fearless'));
+    expect(classes.at(-1)).toBe('cn-card cn-tape-card');
+    expect(container.querySelector('.cn-rail .cn-tape-card')).toBeNull();
+  });
+
+  it('turns on the nameless hint for a Someone on the tape alone', () => {
+    draw(snapshot(null, { tape: [tapeEntry({ sitters: [null] })] }));
+    expect(screen.getByText(NAMELESS_HINT)).toBeInTheDocument();
+    expect(document.querySelector('.cn-tape')).toHaveTextContent('Sat out: Someone.');
+  });
+});
+
+describe('fearless champion icons (M11.1)', () => {
+  function chipNamed(name: string, selector = '.cn-fearless-list li'): HTMLElement {
+    const chip = [...document.querySelectorAll<HTMLElement>(selector)].find((li) => li.textContent === name);
+    if (chip === undefined) throw new Error(`no chip ${name}`);
+    return chip;
+  }
+
+  function drawPool(champions: { id: number; name: string; role: 'mid' | 'adc' | null }[]) {
+    draw(snapshot(null, { fearless: { resetAt: FIXTURE_NIGHT_START, champions } }));
+  }
+
+  it('leads a known banned chip with a decorative 24px icon; the name is the text', () => {
+    drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
+    const chip = chipNamed('Annie', '.cn-fearless-list li:not(.cn-fearless-open-chip)');
+    const img = chip.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toContain('/1.png');
+    expect(img?.getAttribute('alt')).toBe('');
+    expect(img?.getAttribute('width')).toBe('24');
+    expect(img?.getAttribute('height')).toBe('24');
+    expect(img?.getAttribute('loading')).toBe('lazy');
+    expect(img).toHaveClass('cn-fearless-icon');
+    expect(chip.firstChild).toBe(img);
+    expect(chip.textContent).toBe('Annie');
+  });
+
+  it('gives open chips the same icon', () => {
+    drawPool([{ id: 103, name: 'Ahri', role: 'mid' }]);
+    const garen = chipNamed('Garen', '.cn-fearless-open-chip');
+    expect(garen.querySelector('img')?.getAttribute('src')).toContain('/86.png');
+  });
+
+  it('draws no icon for an id the name table does not know', () => {
+    drawPool([{ id: 99_999, name: 'Champion 99999', role: null }]);
+    const chip = chipNamed('Champion 99999');
+    expect(chip.querySelector('img')).toBeNull();
+  });
+
+  it('drops an icon that fails to load and keeps the name', () => {
+    drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
+    const selector = '.cn-fearless-list li:not(.cn-fearless-open-chip)';
+    const img = chipNamed('Annie', selector).querySelector('img');
+    expect(img).not.toBeNull();
+    fireEvent.error(img as HTMLImageElement);
+    const chip = chipNamed('Annie', selector);
+    expect(chip.querySelector('img')).toBeNull();
+    expect(chip.textContent).toBe('Annie');
+  });
+
+  it('keeps the find-box sentence text only', () => {
+    drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
+    fireEvent.change(screen.getByRole('searchbox', { name: FEARLESS_SEARCH }), {
+      target: { value: 'annie' },
+    });
+    const status = document.querySelector('.cn-fearless-hit-copy');
+    expect(status?.textContent).toBe(fearlessBanned('Annie'));
+    expect(status?.querySelector('img')).toBeNull();
+    expect(chipNamed('Annie', '.cn-fearless-hit').querySelector('img')).not.toBeNull();
   });
 });

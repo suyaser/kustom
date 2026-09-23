@@ -7,7 +7,7 @@ import { activeSeasonId, loadPool } from '../ingest/balance';
 import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook } from '../ingest/hooks';
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
 import { type ClosedWindow, DEFAULT_NIGHT_TIME_ZONE } from '../night';
-import { leaderboardPageUrl, tonightPageUrl } from '../siteUrl';
+import { gamePageUrl, leaderboardPageUrl, tonightPageUrl } from '../siteUrl';
 import type { AwardRender } from '../stats/awards';
 import { loadStats } from '../stats/load';
 import { getServiceClient, type ServiceClient } from '../supabase';
@@ -16,6 +16,7 @@ import {
   buildTeamsInput,
   loadNames,
   loadResultSource,
+  type ResultSource,
   readAssignments,
   type TeamsSource,
   teamsPuuids,
@@ -30,6 +31,7 @@ import {
   resultEmbed,
   TOP_N,
   teamsEmbed,
+  type WebhookPayload,
   type WindowAward,
   windowSummaryEmbed,
 } from './embeds';
@@ -120,14 +122,28 @@ export async function postResultForGame(
   const source = await loadResultSource(client, gameId);
   if (source === null) return SKIPPED('no such game');
 
+  const payload = resultPayload(source, gameId, options.requestOrigin);
+  if (payload === null) return SKIPPED('game is not rated');
+
+  return postToWebhook(client, payload, 'result embed', options);
+}
+
+/**
+ * The result embed for one loaded game, or `null` when it is not rated. Its title links to that
+ * game's own page (M11.4), not to `/`, which shows the next lobby minutes later; nothing
+ * printed depends on the link.
+ */
+export function resultPayload(
+  source: ResultSource,
+  gameId: string,
+  requestOrigin: string | null | undefined,
+): WebhookPayload | null {
   const input = buildResultInput(source, {
-    url: tonightPageUrl(options.requestOrigin),
+    url: gamePageUrl(requestOrigin, gameId),
     // The game's own end, not now: the embed is a record of something that happened.
     timestamp: source.endedAt,
   });
-  if (input === null) return SKIPPED('game is not rated');
-
-  return postToWebhook(client, resultEmbed(input), 'result embed', options);
+  return input === null ? null : resultEmbed(input);
 }
 
 /**

@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Independent read-only reviewer for Customs Night. Verifies an engineer's report against the actual diff and the project's hard rules, runs the checks, and returns pass or a list of concrete defects. Use on every task before it is marked done.
-model: opus
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 

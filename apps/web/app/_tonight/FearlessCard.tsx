@@ -1,6 +1,7 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { championIconUrl } from '@/lib/champs/names';
 import {
   FEARLESS_OPEN,
   FEARLESS_SEARCH,
@@ -25,6 +26,10 @@ import type { FearlessChampion, FearlessView } from '@/lib/fearless/types';
  *
  * M10.3: under each lane, after the bans, the roster champions still open in that lane.
  * A locked id leaves every lane. Discord keeps posting bans only.
+ *
+ * M11.1: every chip leads with a 24px champion icon, the one place in the product a
+ * champion is drawn ("The fearless icon exception" in docs/05-design.md). The name is the
+ * accessible text; the icon is `alt=""`. An unknown id or a failed load is name-only.
  */
 export function FearlessCard({ fearless }: { fearless: FearlessView }) {
   const searchId = useId();
@@ -136,10 +141,37 @@ function FearlessNames({
           .join(' ');
         return (
           <li key={champion.id} className={className.length > 0 ? className : undefined}>
+            <FearlessIcon id={champion.id} />
             {champion.name}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function FearlessIcon({ id }: { id: number }) {
+  const [failed, setFailed] = useState(false);
+  const ref = useRef<HTMLImageElement>(null);
+  const src = championIconUrl(id);
+  useEffect(() => {
+    const img = ref.current;
+    // A load that failed before hydration never reaches onError.
+    if (img?.complete && img.naturalWidth === 0 && img.currentSrc !== '') setFailed(true);
+  }, []);
+  if (src === null || failed) return null;
+  return (
+    // biome-ignore lint/performance/noImgElement: a remote icon that must vanish on error; no optimiser, no build fetch.
+    <img
+      ref={ref}
+      className="cn-fearless-icon"
+      src={src}
+      alt=""
+      width={24}
+      height={24}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
   );
 }

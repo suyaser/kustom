@@ -1,5 +1,6 @@
 import type { LobbyStatusValue, RoleValue, SideValue } from '@customs/db';
 import type { FearlessView } from '../fearless/types';
+import type { NightClock } from '../night';
 
 /**
  * What the tonight page knows (M3.4). One snapshot, loaded on the server for the first paint
@@ -101,6 +102,12 @@ export interface ResultView {
   /** The chosen split's odds, or `null` when the game was played without a stored split. */
   blueWinProb: number | null;
   topDamage: { name: PlayerName; damage: number } | null;
+  /**
+   * The MVP and the ACE by name (M11.3): `gatedGameAward`'s answer, the function the Discord
+   * result post and `/p/[puuid]` call on the same columns. `null` for a game with no award, and
+   * the poster then prints no line at all.
+   */
+  award: { mvp: PlayerName; ace: PlayerName } | null;
   blue: ResultSeatView[];
   red: ResultSeatView[];
   /**
@@ -163,6 +170,41 @@ export interface TonightSnapshot {
    * `game_players.champion_id`; the snapshot just carries the folded list.
    */
   fearless: FearlessView;
+  /**
+   * The configured zone's offset for this night, from the server (`lib/night.ts`). It travels so
+   * the browser's re-read prints the tape's clocks the way the server did, without `Intl`.
+   */
+  nightClock: NightClock;
+  /**
+   * Tonight's earlier games, **oldest first** (M11.2): every `finished` or `dropped` lobby of
+   * the night except the one the primary block is drawing. Not a fourth state — the primary
+   * block is still {@link TonightState}. Empty on a night with nothing behind the current block.
+   */
+  tape: TapeEntry[];
+}
+
+/** One row of the night tape. Everything on it is decided on the server; nothing is a rating. */
+export interface TapeEntry {
+  lobbyId: string;
+  /** `lobbies.created_at`, ISO 8601, for `<time dateTime>`. */
+  createdAt: string;
+  /** `22:41`: `created_at` in `CUSTOMS_NIGHT_TZ`, h23, formatted by `formatClock`. */
+  clock: string;
+  status: 'finished' | 'dropped';
+  /** The lobby's newest game with a winner, or `null`: a dropped lobby, `NO RESULT`. */
+  result: {
+    gameId: string;
+    winningSide: SideValue;
+    durationS: number;
+    /** `matchesQueue(mode, 'aram')`, the rule `/games` lists by. */
+    aram: boolean;
+    /** Every scoreboard row carries both mu values: `loadResult`'s rule. */
+    rated: boolean;
+  } | null;
+  /** The chosen split's stored odds, or `null` with no split: no evenness line, no underdog line. */
+  blueWinProb: number | null;
+  /** Members who were not in the chosen split's ten, in join order. `TeamsView.sitters`' rule. */
+  sitters: PlayerName[];
 }
 
 /**
