@@ -4,12 +4,18 @@
  */
 
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { platform } from 'node:os';
 
 export interface WindowHandle {
   close(): void;
 }
 
+/**
+ * The first candidate that actually exists on disk, not just the first non-null path
+ * string. A guessed path that isn't there must never reach `spawn` (ENOENT there is fatal
+ * to the whole process, not just the overlay — see the `error` handler below).
+ */
 function findBrowser(): string | null {
   if (platform() !== 'win32') return null;
   const candidates = [
@@ -18,7 +24,7 @@ function findBrowser(): string | null {
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     process.env.PROGRAMFILES ? `${process.env.PROGRAMFILES}\\Google\\Chrome\\Application\\chrome.exe` : null,
   ];
-  return candidates.find((path) => path !== null) ?? null;
+  return candidates.find((path): path is string => path !== null && existsSync(path)) ?? null;
 }
 
 function pinTopmost(titleHint: string): void {
@@ -72,6 +78,14 @@ export function openOverlayWindow(url: string, position: { x: number; y: number 
     detached: true,
     stdio: 'ignore',
     windowsHide: false,
+  });
+  // A spawn failure fires 'error' asynchronously, after this function has already returned a
+  // handle. With no listener, Node treats it as an uncaught exception and kills the whole
+  // companion process -- lobby automation included, not just this cosmetic panel. `findBrowser`
+  // checking the file exists first should make this unreachable, but the panel opening must
+  // never be what takes down a real night regardless.
+  child.on('error', (error) => {
+    console.info(`Kustom panel: could not open ${browser}: ${error.message}`);
   });
   child.unref();
   pinTopmost('127.0.0.1');
