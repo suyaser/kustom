@@ -11,7 +11,9 @@ work queue and its status table is the source of truth for what is done.
 
 ```
 apps/web         Next.js app: the API (route handlers), tonight page, leaderboard, admin. Deployed on Vercel.
-apps/companion   Node CLI that talks to the local League client and pushes to the API. Packaged as a Windows exe.
+apps/companion   Desktop app: Host mode (token, lobby/game watchers) and Overlay mode (champ-select panel, no token).
+                 Node engine + Tauri tray shell (`Kustom.exe`). Packaged as a Windows exe.
+apps/overlay     Retired as a product (M12 folded into companion Host/Overlay). Source kept for reference; do not ship.
 apps/discord     discord.js bot. Only job: voice channel split and presence. Not needed until M4.
 packages/core    Pure TypeScript: balancer, rating, role model. No I/O. 100% unit-tested.
 packages/lcu     League client bridge: lockfile discovery, HTTPS client, WebSocket events, typed endpoints.
@@ -73,13 +75,15 @@ pnpm --filter web m7-13-battle-test <path-to-rows.json> [--detail] [--quoted] [-
                              # the retired six-component bucket weights against the current
                              # seven-component export, every jungler's score before and after, and
                              # a check that no carry or support seat moved (exit 1 if one did).
-pnpm --filter companion dev  # needs the League client running on this machine (M2.1)
+pnpm --filter companion dev         # needs the League client (M2.1); Host by default, `--mode overlay` for panel-only
 pnpm --filter companion build:win   # bundle + Node SEA -> apps/companion/dist/Kustom.exe + Kustom.exe.sha256 (from any host; build:exe is an alias)
 pnpm --filter companion build:host  # the same pipeline for this machine's platform, to check the exe before a Windows run
 pnpm --filter companion publish:gh  # GitHub release v<version> on suyaser/kustom-releases via the gh CLI (gh auth login first)
 pnpm --filter companion release     # build:win + publish:gh
-pnpm --filter @customs/lcu smoke      # hit every LCU endpoint we use, save fixtures; --diff after a patch. Needs the client.
-pnpm --filter @customs/lcu record-ws  # append every LCU WebSocket event to fixtures/<patch>/ws-events.ndjson until Ctrl-C
+pnpm --filter companion tauri:dev   # M6 tray shell (Host/Overlay setup); spawns Node engine with CUSTOMS_NIGHT_TAURI=1
+pnpm --filter companion tauri:build # NSIS installer for the Tauri shell
+pnpm --filter companion build:desktop # Node SEA engine + Tauri NSIS (needs Rust + kustom-engine.exe)
+pnpm --filter @customs/lcu smoke      # hit every LCU endpoint we use, save fixtures; --diff after a patch. Needs the client.pnpm --filter @customs/lcu record-ws  # append every LCU WebSocket event to fixtures/<patch>/ws-events.ndjson until Ctrl-C
 pnpm --filter @customs/lcu timeline-roles  # M5.18: print the match-history timeline.lane/role confusion table from the fixtures; no client needed; exit 1 on a contradicted mapped pair
 pnpm --filter companion verify-commands  # M4.1: probe the three lobby writes against the live client, one prompt each, report + fixtures to paste back. Needs the client and a friend; no API, no token.
 pnpm db:start                # supabase start: local stack, needs Docker (see packages/db/README.md)

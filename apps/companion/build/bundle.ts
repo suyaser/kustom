@@ -14,6 +14,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { build } from 'esbuild';
 import {
   apiBaseForBuild,
@@ -43,6 +44,10 @@ export async function bundle(options: BundleOptions = {}): Promise<BundleResult>
   const apiBase = options.apiBase ?? apiBaseForBuild();
   const version = options.version ?? companionVersion();
   const riotRootCa = readFileSync(RIOT_ROOT_CA_FILE, 'utf8');
+  const uiDir = join(COMPANION_DIR, 'desktop', 'overlay');
+  const uiHtml = readFileSync(join(uiDir, 'index.html'), 'utf8');
+  const uiCss = readFileSync(join(uiDir, 'app.css'), 'utf8');
+  const uiJs = readFileSync(join(uiDir, 'app.js'), 'utf8');
 
   const result = await build({
     absWorkingDir: COMPANION_DIR,
@@ -61,6 +66,9 @@ export async function bundle(options: BundleOptions = {}): Promise<BundleResult>
       __CUSTOMS_NIGHT_API_BASE__: JSON.stringify(apiBase),
       __CUSTOMS_NIGHT_VERSION__: JSON.stringify(version),
       __CUSTOMS_NIGHT_RIOT_ROOT_CA__: JSON.stringify(riotRootCa),
+      __OVERLAY_UI_HTML__: JSON.stringify(uiHtml),
+      __OVERLAY_UI_CSS__: JSON.stringify(uiCss),
+      __OVERLAY_UI_JS__: JSON.stringify(uiJs),
       'import.meta.url': IMPORT_META_URL_SHIM,
     },
     banner: {

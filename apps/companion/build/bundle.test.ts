@@ -48,7 +48,7 @@ describe('bundle', () => {
   it('answers --help and exits 0 without writing anything', () => {
     const { status, stdout } = run('--help');
     expect(status).toBe(0);
-    expect(stdout).toContain('Kustom companion 9.9.9');
+    expect(stdout).toContain('Kustom 9.9.9');
     expect(stdout).toContain('--version');
     expect(() => readFileSync(join(dir, 'config', 'config.json'))).toThrow();
   });

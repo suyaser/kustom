@@ -6,9 +6,10 @@
  * Not Data Dragon and not an asset pipeline. A missing id prints `Champion ${id}`
  * until the next roster pass adds it.
  *
- * `championIconUrl` (M11.1) reads the same ids: a Community Dragon URL for an id this
- * table names, fetched by the browser at runtime. Still no asset pipeline, no vendored
- * PNGs, no proxy. Only the fearless card on `/` draws it.
+ * `championIconUrl` (M11.1, M12) reads the same ids: a Community Dragon URL for an id this
+ * table names, fetched by the browser (or the overlay panel) at runtime. Still no asset
+ * pipeline, no vendored PNGs, no proxy. Drawn on the fearless card on `/` and the overlay's
+ * fearless block only.
  */
 
 const CHAMPIONS: Record<number, string> = {
