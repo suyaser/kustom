@@ -45,13 +45,18 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    person plays is counted too, so their main and backup follow the games they actually play. The ten
    champions they locked are added to the **fearless** list on the tonight page and posted to Discord —
    those champs are banned from the next custom, grouped by the lane they first locked, A–Z inside
-   the lane. Under each lane the tonight page also lists who is still open in that lane. The find box
+   the lane, each with its champion's small square icon beside the name (M11.1; the name is still the
+   text, and a missing icon just leaves the name). Under each lane the tonight page also lists who is still open in that lane. The find box
    checks a pick without scrolling: a banned name says it is on the ban list, an open name says it is
    still available. Discord keeps posting the bans. The list keeps growing until an admin resets it.
 6. If more than ten showed up, the server posts who sits: whoever has played most tonight, and between
    equals whoever has gone longest without sitting. On the first game of a night nobody has done either, so
    the post says as much — somebody has to be first — and from the second game on the rotation has real
    history to work from.
+7. The tonight page keeps the night (M11). The finished game stays up as a poster — who won, and when the
+   underdog won, by how much the numbers had them down — until the next lobby opens; then it moves into a
+   short log of tonight's earlier games under whatever is happening now. A link to tonight, to one game, or
+   to a person's page unfurls as a picture wherever it is pasted. Nobody presses Share; there is no Share.
 
 ## The things a person can change
 
@@ -265,6 +270,9 @@ See `02-milestones.md` for the build order. In product terms:
 | Guess the Award: a second daily guess, alternating days with Daily Mystery | M8 |
 | One vs one: who wins each lane, and any two people head to head | M8.5 |
 | Fearless draft: champs played since the last reset are banned next game | M10 |
+| Champion icons on the fearless card, and only there | M11 |
+| The result as a poster; tonight's earlier games kept on the page | M11 |
+| A picture when a link to tonight, a game or a player is pasted | M11 |
 | Asking the database whether coming back after a break really breaks the rating | M9.1 |
 | Widening the model's doubt about a player who has been away | M9.2, not scoped: it waits on M9.1's numbers |
 | Tray app wrapper with auto-start | M6 |
@@ -327,6 +335,10 @@ that makes a second one.
 ## Explicitly out of scope
 
 - Any Riot public API usage. Custom match data is not available there and we do not need ranked data from it.
+  Champion icons are not that API: they are the game's own static images from Community Dragon, looked up by
+  the champion id we already store, with no key and no player data (2026-09-23).
+- Everyone installing something. The overlay client idea (M12) would change that and is parked until the
+  group decides it wants it.
 - Manual result reporting. If the companion misses a game, backfill (M5) recovers it.
 - WhatsApp bot. There is no legitimate group-bot API. The tonight page link is the WhatsApp integration.
 - Slack. Not until someone asks twice. It would be a single webhook.

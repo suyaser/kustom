@@ -297,6 +297,10 @@ describe('FunView', () => {
     expect(within(otp).getByText('× 5')).toBeInTheDocument();
     expect(within(variety).getByText('Ahri')).toBeInTheDocument();
     expect(within(variety).getAllByText('× 1').length).toBe(5);
+    // M11.1: champion icons are the fearless card's alone.
+    expect(otp.querySelector('img')).toBeNull();
+    expect(variety.querySelector('img')).toBeNull();
+    expect(document.body.innerHTML).not.toContain('communitydragon');
   });
 
   it('opens collapsed lucky-trash and robbed games under the count', () => {

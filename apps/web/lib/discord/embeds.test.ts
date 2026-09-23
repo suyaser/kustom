@@ -13,6 +13,7 @@ import {
   awardLine,
   BLUE_COLOR,
   boardFooter,
+  favoredClause,
   fearlessEmbed,
   fearlessResetEmbed,
   formatDamage,
@@ -33,6 +34,7 @@ import {
   type TeamsEmbedInput,
   teamsEmbed,
   teamsTitle,
+  underdogClause,
   type WindowSummaryEmbedInput,
   windowSummaryEmbed,
 } from './embeds';
@@ -991,6 +993,58 @@ describe('fearlessEmbed', () => {
     expect(result?.title).not.toContain('Fearless');
     expect(fearless?.title).toBe('Fearless');
     expect(fearless?.fields.map((field) => field.name)).toEqual(['mid']);
+  });
+
+  it('carries no champion icon: the icon lives on the fearless card only (M11.1)', () => {
+    const payload = fearlessEmbed({
+      champions: [
+        { id: 1, name: 'Annie', role: 'mid' },
+        { id: 103, name: 'Ahri', role: 'mid' },
+      ],
+      timestamp: TIMESTAMP,
+      url: SITE_URL,
+    });
+    const text = JSON.stringify(payload);
+    expect(text).not.toContain('communitydragon');
+    expect(text).not.toContain('champion-icons');
+    expect(text).not.toMatch(/\.png/);
+    const embed = payload.embeds[0] as Record<string, unknown> | undefined;
+    expect(embed?.thumbnail).toBeUndefined();
+    expect(embed?.image).toBeUndefined();
+  });
+});
+
+/**
+ * The result poster's underdog line (M11.3). It lives beside `favoredClause` so the two round
+ * the same stored number the same way; the embed itself does not print it.
+ */
+describe('underdogClause', () => {
+  it("is the underdog winner's rounded share, in product's words", () => {
+    expect(underdogClause(0.62, 200)).toBe('Red was 38%. Red won.');
+    expect(underdogClause(0.41, 100)).toBe('Blue was 41%. Blue won.');
+  });
+
+  it('is null when the favourite won, so the caller keeps `favoredClause`', () => {
+    expect(underdogClause(0.62, 100)).toBeNull();
+    expect(favoredClause(0.62)).toBe('Blue was favored 62%.');
+    expect(underdogClause(0.38, 200)).toBeNull();
+  });
+
+  it('is null on a coin flip, whoever won', () => {
+    expect(underdogClause(0.5, 100)).toBeNull();
+    expect(underdogClause(0.5, 200)).toBeNull();
+    // 0.496 rounds to 50: the rounded share decides, not the raw probability.
+    expect(underdogClause(0.496, 100)).toBeNull();
+    expect(favoredClause(0.5)).toBe('Neither side was favored.');
+  });
+
+  it('is null with no stored split', () => {
+    expect(underdogClause(null, 200)).toBeNull();
+  });
+
+  it('never embeds in the result post', () => {
+    const embed = resultEmbed(workedResultInput({ winningSide: 200, blueWinProb: 0.62 })).embeds[0];
+    expect(JSON.stringify(embed)).not.toContain('won.');
   });
 });
 

@@ -113,6 +113,50 @@ export function formatDayName(instant: Date, timeZone: string = DEFAULT_NIGHT_TI
   return formatter.format(instant);
 }
 
+/**
+ * The configured zone's offset across one night, computed **on the server** so a browser can
+ * turn an instant into `22:41` with arithmetic alone (M11.2, the night tape).
+ *
+ * The tonight snapshot is re-read in the browser on every Realtime event, and the browser has
+ * no `CUSTOMS_NIGHT_TZ`. Carrying the offset — and the one instant it changes, on the two nights
+ * a year daylight saving does (Africa/Cairo shifts at midnight, mid-session) — means the clock
+ * the browser prints is the one the server printed, from the server's tzdata, with no `Intl`.
+ */
+export interface NightClock {
+  /** Milliseconds to add to UTC for local time at the night's start. */
+  offsetMs: number;
+  /** When the offset changes inside this night, and what it changes to. `null` on 363 nights. */
+  shift: { at: string; offsetMs: number } | null;
+}
+
+export function nightClock(nightStartInstant: Date, timeZone: string = DEFAULT_NIGHT_TIME_ZONE): NightClock {
+  const start = nightStartInstant.getTime();
+  const end = nightEnd(nightStartInstant, timeZone).getTime() - 1_000;
+  const before = offsetMsAt(new Date(start), timeZone);
+  const after = offsetMsAt(new Date(end), timeZone);
+  if (before === after) return { offsetMs: before, shift: null };
+
+  // A night holds at most one transition. Find its first second.
+  let lo = start;
+  let hi = end;
+  while (hi - lo > 1_000) {
+    const mid = lo + Math.floor((hi - lo) / 2_000) * 1_000;
+    if (offsetMsAt(new Date(mid), timeZone) === before) lo = mid;
+    else hi = mid;
+  }
+  return { offsetMs: before, shift: { at: new Date(hi).toISOString(), offsetMs: after } };
+}
+
+/** `22:41`, h23, from a {@link NightClock}. After midnight it reads `00:40`. */
+export function formatClock(instant: Date, clock: NightClock): string {
+  const at = instant.getTime();
+  const offset =
+    clock.shift !== null && at >= Date.parse(clock.shift.at) ? clock.shift.offsetMs : clock.offsetMs;
+  const local = new Date(at + offset);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
+}
+
 /** Is this a timezone `Intl` knows? Used to validate `CUSTOMS_NIGHT_TZ` at the boundary. */
 export function isValidTimeZone(timeZone: string): boolean {
   try {

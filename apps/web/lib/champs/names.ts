@@ -5,6 +5,10 @@
  *
  * Not Data Dragon and not an asset pipeline. A missing id prints `Champion ${id}`
  * until the next roster pass adds it.
+ *
+ * `championIconUrl` (M11.1) reads the same ids: a Community Dragon URL for an id this
+ * table names, fetched by the browser at runtime. Still no asset pipeline, no vendored
+ * PNGs, no proxy. Only the fearless card on `/` draws it.
  */
 
 const CHAMPIONS: Record<number, string> = {
@@ -185,6 +189,15 @@ export function listChampions(): readonly { id: number; name: string }[] {
   return Object.entries(CHAMPIONS)
     .map(([id, name]) => ({ id: Number(id), name }))
     .sort((a, b) => a.id - b.id);
+}
+
+const CHAMPION_ICON_BASE =
+  'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons';
+
+/** Square icon for a named champion, or `null` for an id this table does not know. */
+export function championIconUrl(id: number): string | null {
+  if (!Number.isInteger(id) || CHAMPIONS[id] === undefined) return null;
+  return `${CHAMPION_ICON_BASE}/${id}.png`;
 }
 
 /** A skipped draft slot. Match history stores this as `championId: -1`. */

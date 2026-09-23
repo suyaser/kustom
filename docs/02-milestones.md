@@ -16,6 +16,8 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M7 Ratings that are fair | in progress | Opened 2026-09-15 from the user's four settled decisions after a week of customs left the group calling the ratings unfair. Eleven tasks at the start, grown to fourteen the same day as role-detection research (M7.12), the role-bucketed formula it unblocked (M7.13) and that formula's own seventh-component follow-up (M7.14) each turned into real tasks: **M7.1** ARAM never rates (the bug; land it first), **M7.2** to **M7.4** a second weekly rating track that never forms teams, **M7.5** and **M7.6** decaying fill protection, **M7.7** to **M7.9** the MVP / ACE bonus (M7.7 is the blocking persist), **M7.10** the post and the player page name the MVP and the ACE, **M7.11** the single `rebuild-ratings` run that closes the milestone. Three later resolutions, 2026-09-15: **one rebuild at the end and none per fix**, **no monthly track** (the month windows keep the all-time number, decided, not deferred), and **the bonus is surfaced, not silent**. Every task changes the rating model, which is why none of them is an M5 task. **Runs before M6**, which is still waiting on a month of M2. **M5.34 (the week starts on Sunday) lands before M7.3**: M7.2 to M7.4's briefs were amended 2026-09-15 to say Sunday wherever they named the week's reset day. **M7.1 landed 2026-09-15.** M7.7's verification half landed the same day (vision score / damage-mitigated corroborated for real ten-player customs; no companion release owed). M7.2 (the weekly rating fold) landed 2026-09-15. **M7.5 landed 2026-09-15**: fill protection in `packages/core`'s balancer, `config.balance.fillProtectionFactor` (1.0), charged once and read from both `assignRoles` and the split score so the two cannot drift. **M7.8 landed 2026-09-15**: `rating/performance.ts` — `performanceScores`, `mvpAce`, `applyMvpAceBonus`, `config.rating.performance` and `config.rating.mvp`; `rateGame` untouched, `sigma` untouched, no MVP at all for a game missing any component; wired into nothing until M7.9. **M7.7 landed 2026-09-15**, both halves: migration `0014` adds `vision_score` / `damage_self_mitigated` to `game_players` nullable with no default, ingest fills both off the posted `raw` block through the one existing reader, and the reviewer's blocking find — a negative or out-of-int4 number in a blob 500ing ingest for ever — is gated by `storedStat` with a regression test. Pushed to the hosted project the same day; `pnpm --filter web copy-raw-stats` ran against it (44 games with a gap, all 44 fillable, 436 rows filled, 0 rows still short) and a second run confirmed idempotent. **M5.34 (the week starts on Sunday) landed 2026-09-15**, including the hosted `window_posts` stamp that suppresses the overlapping Monday-anchored week. **M7.6 landed 2026-09-15**: `gamesSinceLastFill` computed in `apps/web/lib/ingest/balance.ts` and handed to the balancer, live in the balance path immediately — no rebuild needed, since it is a balancer input, not part of the fold. **M7.3 landed 2026-09-15**: the weekly board reads the weekly rating; see its own checkbox for detail. **M7.4 landed 2026-09-15**: `Most improved` on a week reads the weekly climb through M7.3's fold; see its own checkbox for detail. **M7.3's sort key was settled 2026-09-15 before dispatch: the two week windows sort on `Rating`, not on Proven** (the user; decision row, `00-product.md` carve-out, brief, copy and acceptance all rewritten the same day — M7.2's output is unaffected, this is only what M7.3's board sorts and prints). **M7.12 added 2026-09-15** (the user, off product's role-detection research): a read-only measurement of how good `detectedTeamPosition` actually is on ten-human customs. It changes nothing, owes no rebuild, does not wait on M7.11 — and **blocks every role-aware proposal** until it lands. **M7.12 landed 2026-09-15** and the answer was good enough: 23 real ten-human customs, five distinct roles on 46 of 46 sides, 0 nulls, Smite agreeing 46 of 46, with one recorded limit — nothing in the blob separates top from mid. **M7.13 was scoped the same day off it** (the design is the user's, approved after reading that answer): the performance score reads the role. M7.8's single flat weight vector becomes three, keyed by a role bucket — `carry` (top, mid, adc, lumped on purpose because that is the one distinction M7.12 could not make), `jungle`, `support` — with the same six components, the same within-game normalisation, the same 1.25× / 0.80×, and **no MVP at all for a game where any of the ten has no role**, which is M7.8's existing missing-input rule applied to a new input and not a second model. It **revises M7.8 in place rather than layering**, because nothing M7.8 produced has ever reached a player, and it therefore **lands before M7.9**. Two steps: the pure formula in `packages/core` (`core-engineer`), and a read-only battle test of the new picks against the old ones over the same 23 games (`platform-engineer`, no writes, no rebuild). One open sub-question it carries: whether `damageDealtToObjectives` is real in both stored shapes and worth a seventh component for the jungle row — verified first, and if it checks out it opens **M7.14** (the column, the copy and the reweighted jungle row, both pre-answered in M7.13's brief) rather than dragging a migration into a core task. **M5.35 is not a dependency of any of it.** **M7.13 landed 2026-09-15**: the three-vector formula, `config.rating.performanceBucket`'s role-to-bucket map, and the missing-role rule, all in `packages/core`, reviewed clean; step 1 answered the same day — a hosted-DB read (44 stored games, both shapes) confirms `damageDealtToObjectives` is real, non-zero on 98%+ of rows, and genuinely per-player (distinct-value count equals participant count on every game checked) — see `03-lcu-reference.md`; and the read-only battle test against M7.12's 23 games closed the same day (6 of 23 MVPs moved, 7 of 23 ACEs moved, recommendation to proceed). **M7.14 was scoped 2026-09-15** off the step-1 answer: damage to objectives as a seventh component, `0.15` in the jungle vector and `0.00` in `carry` and `support` (the user's pre-answered weights from M7.13's brief, repeated verbatim, not re-derived), which needs a nullable `damage_to_objectives integer` column on `game_players` at the next free migration number, an ingest fill off the posted `raw` block (no mapper change, no companion release — the 2026-09-15 decision stands), the existing `copy-raw-stats` extended to a third column, and then the core change. **Two product decisions in it**: the missing-input rule stays **universal** — a null on a *carry*, whose weight on it is 0.00, still means the game has no MVP, because the normalisation denominator is the whole game and because a weight-scoped rule would let a `config.ts` nudge change which past games are scorable; and **M7.14 does not gate M7.9 or M7.10** (M7.13 did, because it replaced the formula; this adds to a settled one) but **must land before M7.11**, or the milestone owes a second rebuild. Its halves are ordered: migration + ingest + copy first, core only once the copy reports **zero rows still short**, so no stored game is ever blanked. **M7.14 landed and closed 2026-09-15**, including the jungle-only addendum M7.13's amendment owed: run against a fresh hosted extraction, 0 of 23 MVPs moved, 0 of 23 ACEs moved, all 184 carry/support seats bit-for-bit identical on real data, and every jungle score's movement tracked its own objective share — see M7.14's own checkbox. **All fourteen M7 tasks are now landed. M7.11 landed 2026-09-16**: the one rebuild ran clean against hosted, confirmed idempotent on a third run, and the group was told. **The fourteen scoped tasks are closed.** M7.12 (a read, no rebuild owed) had already landed independently. **The milestone owed no further rebuild until 2026-09-16, when M7.19 re-opened one**: the user settled that no rating is ever seeded from a League rank again and every stored rating starts at `provisionalSeed()` = `{ mu: 20, sigma: 12 }`, which is a model change to the one thing M7.11's fold started from, so the milestone now owes exactly one more `rebuild-ratings` run — after a direct `update ratings set seed_mu = 20, seed_sigma = 12`, **not** a nulling of the seed columns; see M7.19 and the decision row of 2026-09-16 for why the difference destroys data. M9.1's own blocker (this task) has cleared, but M9.1 remains deferred to next release per the user's 2026-09-15 call — see M9's row. **Product's close-out audit, 2026-09-16, walked the shipped behaviour against what the milestone was opened to fix and found the four things it set out to fix are all really there** — ARAM is out of the fold and out of the board, the week has a number of its own that never forms teams, fill protection is priced on every lobby size, and both surfaces name the MVP and the ACE off one function. It also found **four loose ends, now open as M7.15 to M7.18**, which is why this row is not `done`: **M7.15** the group was told half of it (M7.11's message named the two rating changes and not the two screen changes), **M7.16** M7.3's own flagged-and-never-scheduled follow-up (`/p/[puuid]` still prints the all-time number on a week window, so the board and the page it links to disagree by hundreds of points), **M7.17** the `not rated` hint lists three reasons and ARAM is not one of them, **M7.18** `/leaderboard` counts rated games and `/stats` counts played games under the same heading over the same dates with nothing saying which — and one board row takes its record from one universe and its streak from the other. **None of the four changes a rating, a gate or a weight; none owes a rebuild; three are words.** **M7.17 landed 2026-09-16**: `NOT_RATED_HINT` names ARAM first of its four reasons, one word added and the per-row `not rated` label untouched — copy only, no rebuild. **M7.18 landed 2026-09-16**: the two counts are both right and are now named rather than merged — `/leaderboard`'s slot line and both board posts read `· 12 rated games` off a second formatter (`boardSlotLine`), `windowSlotLine` is unedited and keeps `/stats`, `/fun` and `/games` on the played count, `/p/[puuid]` prints one sentence where the stats sections begin, and `countedGames`' header comment stops promising one universe and names both gates. No number, query, gate or loader moved and no rebuild is owed. **Its acceptance 3 landed half-met**: the player page's header record has printed no count since M5.22, so there is nothing on that line to name — the first pass wrote a branch for the case anyway and the reviewer found it unreachable for every window, every player and every dataset, so it was deleted 2026-09-16 with `PlayerView.tsx`'s `ratedGamesLabel` import. The one count a reader still sees above the played-count sections is the seed line's plain `, 37 games since.`, which is the ambiguity the task was opened to fix; naming it touches an M7.19-pinned string or inverts M5.22 and is therefore product's and the designer's, **open as M7.22**. **M7.16 landed 2026-09-16**: `/p/[puuid]` reads the weekly track on the two week windows — one number, equal to the digit on that player's board row, no Proven and no `settling` chip, the weekly fold's chart and `start` hairline, and the weekly per-game deltas — through **the same `foldWeeklyRatings` the board runs**, with one shared `weeklyFold` helper in `lib/board/load.ts` and no second fold anywhere under `apps/web`. Its new `WEEK_PLAYER_SENTENCE` corrected the brief's own pre-M7.19 rank wording, and it logged **one defect it did not fix**: `/leaderboard`'s `WEEK_BOARD_SENTENCE` and both week posts' `WEEK_BOARD_SENTENCE_SHORT` still say a week starts everyone back at their rank, which M7.19 made false — copy only, product's, and a task nobody has opened yet. **M7.19 was added 2026-09-16, after and independently of that audit, and landed the same day** (the user, not the auditor): the seed every rating starts from stops being the player's League rank — `provisionalSeed()`, `{ mu: 20, sigma: 12 }`, the sigma measured by simulation rather than guessed. **Product wrote the two sentences that used to say a rating comes from a rank** — `Started at 1200, 37 games since.` and `Everybody starts on the same rating, and every Summoner's Rift result moves it. Proven is the board's careful version of it and settles after about 30 games.`, the second fixing M7.1's and M3.19's defects in the same string — and the `web-engineer` pass that renders them landed the same day, spelled out line by line in M7.19's "Step 3 settled": `seededLine` lost its `rank` parameter, the shell's fourth line is the new two-sentence string, and each has a guard that fails if the retired words come back. **The hosted re-seed and second `rebuild-ratings` run also landed 2026-09-16** — a direct `update ratings set seed_mu = 20, seed_sigma = 12`, not a null-and-refold, so the historical rank record on every row survived untouched — dry run, real run and a confirming idempotent third run, all clean. **M7.19 is fully landed. M7 is closed a second time, and this is the last rebuild the milestone owes.** **M7.20 was opened by the same decision** (words only, no rating): with the rank off the seed line, `PlayerBoardView.seedRank` has no reader and somebody has to say whether the field and `rankLabel` stay. **M7.20 landed 2026-09-16 and the answer was delete**: a repo-wide grep found `rankLabel`'s only production callers were the two loader lines building the unread field, and `UNRANKED_LABEL`'s only reader was `rankLabel` itself, so the field, both formatters and the seven `rankLabel` unit tests are gone, with comment blocks left where each was; **the two `ratings.seed_rank_*` columns, `seedFor` and every ingest and rebuild path are untouched**, so a new seed still records the rank the client reported. Nothing renders differently — no player-facing string moved — and `load.integration.test.ts` still pins the 2026-09-11 stored-seed decision, now through `reference` alone plus a new negative assertion that fails if the loader ever reads tonight's rank. **M7.21 was opened 2026-09-16** for the defect M7.16 logged and did not fix: `/leaderboard`'s week sentence and both week posts' footer still said a week starts everyone *back at their rank*, which M7.19 made false on three live surfaces. Product wrote both corrected strings into M7.21's brief the same day — one clause each, `back at their rank` becoming `on the same rating`, the substitution `WEEK_PLAYER_SENTENCE` already settled, with the second person kept because a board and a Discord post address the group directly — and `05-design.md`'s copy table, its embed mock and `04-decisions.md` carry them. **M7.21 landed 2026-09-16**: the `web-engineer` pass over the two constants, their doc comments and the pinned tests — one clause out of each string, a diff-shaped assertion that putting the retired clause back reproduces M7.3's string byte for byte, and `board.test.ts`'s deliberately one-sided `rank` guard turned into a loop over all three week strings. No live surface says `rank` on a week any more. **M7.22 was opened 2026-09-16** for the half of M7.18's acceptance 3 that did not land: `/p/[puuid]` still prints its rated count as plain `games`, in the seed line, directly above sections that count every game played, and the two ways to name it — word the seed line's clause, or invert M5.22 so the meta line carries the count instead — are a product word choice over an M7.19-pinned string and a designer placement call, not an engineering one. **Product picked option (b) on 2026-09-16**: the seed line's own clause names its universe (`, 37 rated games since.`, `Started the week at 1469, 6 rated games since.`, `, 1 rated game since.` at one, the zero-games drop unchanged), which is `sinceClause` calling `ratedGamesLabel` instead of `gamesLabel` and nothing else — M5.22's placement is kept, so **no designer sign-off is owed** and the task is now the `web-engineer`'s; the exact strings are in M7.22's decision block and in `05-design.md`'s copy table. **M7.22 landed 2026-09-16**: one line — `sinceClause` calls `ratedGamesLabel` — so the seed line names its universe on all five windows, the zero-games drop and `gamesLabel` and `PlayerView.tsx`'s logic are untouched, and the five forms are pinned by code point in `explain.test.ts` and at component level in `PlayerView.test.tsx`. **With it, M7.18's acceptance 3 is fully met** — the rated count on `/p/[puuid]` is named, once, in the one place it prints — and the two counts are now named on every surface that shows both. **M7.15's group message has not been sent yet** — its drafted text named the old rank-based weekly reseed and is stale after M7.19; a corrected, combined message covering both M7.15's content and M7.19's change is written and waiting on the user to send it. The audit also closed one open item as a decision rather than a task: the weekly track does not carry the MVP / ACE bonus (the lead waived M7.9's acceptance 6 on 2026-09-15 and left it "open a new one if the group wants it"; product settled it — it stays out, and `00-product.md` now says so). |
 | M8 The day after: rivals, awards, a second guessing game | in progress | Opened 2026-09-15 from four ideas of the user's, all four settled with them the same day. **M8.1** nemesis and best duo on `/fun`; **M8.2** won against the odds — the honest "best comeback", read from the stored `blue_win_prob` so a rebuild cannot move it (**confirmed by the user over the literal biggest-`mu`-swing version**); **M8.3** the existing awards as badges on `/leaderboard`'s closed windows, placement only, because most improved and longest streak already shipped in M5.4; **M8.4** Guess the Award, and **the two games alternate civil days** (the user, 2026-09-15) — one challenge per day as today, so `daily_mysteries.day` keeps its unique and the only migration is additive (`kind`, a widened `category` check, `(kind, challenge_number)`). The fourth idea, the balance percentage, is **M3.31** and not here. Every task is a read over stored games; none touches the rating model. **Starts after M7 clears `apps/web`** (M8.1 to M8.3 after M7.4; M8.4 after M7.9). **M8.1 landed 2026-09-15.** **M8.2 landed 2026-09-15**: "Won against the odds" on `/fun`, read from the chosen split's stored win chance, never a live recompute. **M8.3 landed 2026-09-15**: badges on `Last week`/`Last month` board rows via a second, parallel award read (see its own checkbox and the decision row for why). **M8.4 landed 2026-09-16**: both halves reviewed and fixed, migration `0016` pushed to hosted, `05-design.md` caught up on the whole of the daily-game section. **M8.1 to M8.4 landed.** **M8.5 landed 2026-09-18**: `/1v1` lane wars and head-to-head, the page M8.1 deferred until the group asked twice. **Does not change `/stats`, Nemesis, the awards, or the rating model.** |
 | M10 Fearless draft | in progress | Opened 2026-09-18 from the user: after each Rift custom, the ten champions locked that game are banned from the next one, the list keeps growing until an admin resets it, and Discord gets the list. **M10.1** is the whole feature: singleton `fearless_state.reset_at` (migration `0017`, seeded to `now()` so history does not flood the first list), pool derived from `game_players.champion_id`, tonight card, Discord embed after the result, admin reset on `/admin`. Companion never auto-bans. **M10.1 landed 2026-09-18** (merged directly via GitHub PR #13, outside the usual dispatch loop) and reviewed the same day: migration is purely additive, the singleton check genuinely prevents a second row, RLS matches the doc comment, and `reset_at default now()` correctly seeds an empty pool rather than flooding it with history. Six non-blocking follow-ups found (a same-lane double-count edge case in `/1v1`'s head-to-head, missing deterministic ordering on the fearless champion list, a silent-truncation risk past 500 games, a missing 401 test on the reset route, a sequential-await hazard between the result and fearless Discord posts, and an untested reset-row-missing race) — none blocking, tracked for a follow-up pass. **Migration `0017` pushed to hosted 2026-09-18**, confirmed applied (`supabase migration list --linked` shows 0001-0017 on both sides), `pnpm db:types` regenerated (one real fix: `fearless_state.id` has no default in the migration, so `Insert.id` is required, not optional — the checked-in type was wrong until this). **M10.2** (2026-09-20): lane groups, A–Z inside each lane, and a find box on `/` so five games are searchable. Companion never auto-bans and still does not read champion select — typing a name is the pick-phase check. **M10.3 landed 2026-09-22**: each lane on `/` ends with who is still open in that lane. A locked champion leaves every lane. Discord stays the ban list. |
+| M11 The night as a broadcast | in progress | Opened 2026-09-23 from the user, who asked to start three of the lead's proposals plus champion icons on the fearless card and nowhere else. **M11.1 landed 2026-09-23**. **M11.3 landed 2026-09-23**: reusable `ResultPoster`, underdog line, `webAwardLine` (Discord markdown escape stays off the page); reviewed clean. **M11.2 landed 2026-09-23**. **M11.4 landed 2026-09-23**: `/og/*` cards, `/g/[gameId]`, Discord + tape links; reviewed clean after the decision row. The four tasks are closed. Product alt strings and a real-data unfurl are leftovers, not a fifth task. **M11.3** was: the underdog line off the stored `blue_win_prob` and the `MVP · ACE` line Discord already posts, reusable on a page of its own. **M11.2** the night tape: tonight's earlier finished and dropped games under the primary block, oldest first, a read of stored rows. **M11.4** share cards: 1200×630 unfurl images for `/`, a new `/g/[gameId]` (no single-game URL exists today) and `/p/[puuid]`, with no Share button. Order M11.1 → M11.3 → M11.2 → M11.4, because the last three all edit the tonight view and loader. No rating, balancer, ingest or schema change in any of them. Icons appear on the fearless card only — not `/fun`, `/games`, `/p`, Discord, share cards or the poster. |
+| M12 Overlay client | not started | Parked 2026-09-23. A small desktop app every friend installs, for a fearless overlay and live in-game team stats. It changes the install story (`00-product.md`: "one or two people are willing to run a small desktop app") and waits on the user's answer to that. **M11.1 (icons) has landed**; briefs still wait on the install-story answer. |
 | M9 Does coming back after a break break the rating? | **deferred to next release** | **Deferred by the user, 2026-09-15**: the whole milestone waits, not picked up even once M7.11 lands. The user asked on 2026-09-15 for `sigma` decay after a layoff and settled the same day that **the measurement comes first**. **M9.1** is that measurement and is a real task: a read-only script over the hosted project that counts 14-day-plus returns and compares the first game back against ordinary games **at the same `sigma`**, run **after M7.11** so it measures the model the group is actually on. It changes nothing and decides nothing. **M9.2**, the decay function itself, has no brief and is not to be picked up until the user has read M9.1's numbers — it would move Proven and the balancer's inputs, the one thing all four of M7's changes avoided, and it would want a second rebuild after M7.11 was meant to be the only one. Paste M9.1's numbers into this row when it lands. |
 | M6 Tray app and polish | **deferred to next release** | Needs M2 stable for a month. **Also explicitly deferred by the user, 2026-09-15**, independent of that gate — not to be picked up for this release even if the month passes first. |
 
@@ -8009,6 +8011,317 @@ Acceptance: after a Rift custom the tonight page and Discord both name the champ
 each lane on the tonight page also names who is still open, the list grows until an admin resets it,
 and nothing in the companion touches champion select.
 
+## M11 The night as a broadcast (1 to 2 days, needs M10.3 and M3.31)
+
+The user, 2026-09-23: start three of the lead's proposals — share cards when a link is pasted, a tape of the
+night on the tonight page, the result as a poster — and put champion icons on the fearless card, only there.
+
+Everything here is a read of rows we already store. Nobody types anything to make a card or a tape entry, and
+nobody taps anything new in the nightly loop. The companion still never reads or writes `/lol-champ-select/*`.
+No rating, balancer, ingest or schema change. Champion icons are Community Dragon's static client assets keyed
+by the `champion_id` we already store; that is a CDN of game files, not the Riot match API this product
+refuses (decision row 2026-09-23).
+
+Order: **M11.1 → M11.3 → M11.2 → M11.4**. M11.1 is the smallest and touches only the fearless card. The other
+three all edit `TonightView` and `lib/tonight/load.ts`, so they go one at a time. M11.4 comes last because its
+game page renders M11.3's poster and its links are added to M11.2's tape rows.
+
+- [x] **M11.1** Champion icons on the fearless card on `/`, and nowhere else. *(owner: `web-engineer`; landed
+  2026-09-23, reviewed clean: plain `<img>` from `championIconUrl`, onError drops a miss, Discord/`/fun` stay
+  names)*
+
+    > **Brief (product, 2026-09-23)**
+    >
+    > ### What a player sees
+    >
+    > Every chip on the fearless card on `/` — the bans and each lane's `still open` tail — carries a 24px
+    > square champion icon beside the name it already prints. Open chips get the same icon, quieter; the
+    > designer says how. The name stays on every chip and is the accessible text: the icon is decoration
+    > (`alt=""`), so a screen reader reads `Ahri`, not `Ahri Ahri`.
+    >
+    > ### Where the icon comes from
+    >
+    > - Community Dragon's champion icon by **numeric id** —
+    >   `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/<id>.png`
+    >   — the same number `FearlessChampion.id` already is. Not Data Dragon (its keys are name slugs, and
+    >   Wukong is `MonkeyKing`), not a vendored folder of 170 PNGs, not a proxy route of our own.
+    > - One helper, `championIconUrl(id)`, lives next to the table in `apps/web/lib/champs/names.ts` and
+    >   returns a URL **only for an id that table names**, `null` otherwise. No second list of champions
+    >   anywhere. The file's header comment ("Not Data Dragon and not an asset pipeline") is amended to say
+    >   the icon helper reads the same ids and that there is still no asset pipeline.
+    > - `next/image` with a `remotePatterns` entry for that host, or a plain `<img>` — engineer's call. The
+    >   product rule is how it fails: **a CDN miss shows the name alone and the page still works.** No
+    >   broken-image glyph, no alt text doubled into the chip, no layout that depends on the icon arriving.
+    >   The build and CI never fetch from the CDN.
+    >
+    > ### Edges
+    >
+    > - An id the name table does not know (a champion newer than our last roster pass) already prints
+    >   `Champion 950`. It gets no icon and no `<img>`.
+    > - The CDN is down or slow: every chip is name-only, exactly as today.
+    > - The find box's two strings (`<Name> is on the ban list.`, `<Name> is still available.`) are
+    >   unchanged: text only, no icon.
+    >
+    > ### Acceptance
+    >
+    > 1. A fearless card with a known id (Annie, `1`) renders an `<img>` whose `src` contains `/1.png` and
+    >    whose chip text is `Annie` (test).
+    > 2. An id missing from the name table renders `Champion <id>` and no `<img>` in that chip (test).
+    > 3. An `<img>` that errors is removed or hidden and leaves the name (test, by firing `error`).
+    > 4. The fearless Discord embed contains no icon URL and no `communitydragon` string anywhere in its
+    >    payload (test on the existing embed tests).
+    > 5. `/fun`'s champion tables, `/games` and `/p/[puuid]` render no champion `<img>` (test on one
+    >    `/fun` champion table; grep for `championIconUrl` finds only the fearless card and its test).
+    > 6. The find-box strings are byte for byte the M10.2 and M10.3 strings (existing tests still pass).
+    > 7. The companion has no champion-select path. `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint`,
+    >    `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > Icons anywhere but the fearless card on `/`: not `/fun`, `/games`, `/p/[puuid]`, the result block or
+    > poster, the tape, share cards, or Discord. Splash art, skins, role icons. Caching icons ourselves.
+    > Anything that reads champion select.
+
+- [x] **M11.3** The result block as a poster: winner first, the honest underdog line, the MVP and the ACE.
+  *(owner: `web-engineer`; landed 2026-09-23, reviewed clean: `ResultPoster` + `underdogClause` +
+  `webAwardLine` so Discord markdown escapes never print on the page)*
+
+    > **Brief (product, 2026-09-23)**
+    >
+    > ### What a player sees
+    >
+    > The rated result block on `/` already opens with `BLUE WINS` in display type and the duration, then
+    > `Blue was favored 54%.`, then `Top damage`, then the two sides with deltas, then the explanation.
+    > It becomes the page's fold: on a phone the lockup and the ten names are the first screen. From the
+    > top:
+    >
+    > 1. `BLUE WINS` / `RED WINS` and the duration — unchanged.
+    > 2. The odds line. **When the winner was the underdog** it reads `Red was 38%. Red won.` (or
+    >    `Blue was 41%. Blue won.`) in place of `Blue was favored 62%.` — the same stored number said the
+    >    way it turned out, not a second line saying it twice. When the favourite won, or neither side
+    >    was favoured, the existing `favoredClause` line stays as it is.
+    > 3. `MVP Lena · ACE Rami` — the Discord result post's line (M7.10), from the same string function,
+    >    when the game has an MVP and an ACE. No line at all when it has none.
+    > 4. `Top damage` — unchanged.
+    > 5. Five against five with deltas — unchanged.
+    > 6. The explanation — unchanged.
+    >
+    > ### The numbers
+    >
+    > - The percentage is `Math.round(blueWinProb * 100)` off the chosen split's stored `blue_win_prob`,
+    >   the rounding `favoredClause` and M3.31 already use. **Never recomputed** from current ratings.
+    >   Underdog means the winner's rounded share is below 50. This is not `/fun`'s `under 45%` record
+    >   (M8.2): that is a threshold for a list of wins, this is the plain fact about one game.
+    > - The MVP and the ACE come from `gatedGameAward` in `lib/ingest/fold.ts`, the function
+    >   `lib/board/load.ts` already calls with the anon client. The tonight snapshot does not carry them
+    >   today, so `ResultView` gains one nullable field and `lib/tonight/load.ts` fills it. No column, no
+    >   migration, no second MVP rule.
+    >
+    > ### Edges
+    >
+    > - No stored split (`blueWinProb` null): no odds line, as today.
+    > - A game with no MVP (a backfilled game with no roles, a missing stat): no MVP line, no placeholder.
+    > - Unrated games (remake, ARAM) never reach this block — they stay on the `GAME OVER` teams block
+    >   exactly as today (M3.4, M7.1).
+    >
+    > ### Reuse
+    >
+    > The poster is one component taking a `ResultView` (and its teams), with nothing tonight-specific in
+    > it, because M11.4's `/g/[gameId]` renders the same poster for any stored game.
+    >
+    > ### Acceptance
+    >
+    > 1. Red wins with `blueWinProb` 0.62: the block prints `Red was 38%. Red won.` and not
+    >    `Blue was favored 62%.` (test).
+    > 2. Blue wins with 0.62: `Blue was favored 62%.`, no underdog line (test). 0.50 prints
+    >    `Neither side was favored.` whoever won (test).
+    > 3. A game with an award prints `MVP <name> · ACE <name>` byte for byte what the Discord result embed
+    >    prints for the same game; a game without one prints no `MVP` anywhere (test).
+    > 4. No team total of rating deltas appears anywhere in the block (test: no sum of the five deltas is
+    >    printed). No trophy, no emoji, no champion icon (test).
+    > 5. `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > A trophy or any celebratory art. Champion icons. Team totals of rating deltas (`00-product.md`
+    > forbids them). Recomputing odds. Changing the Discord result embed. The unrated `GAME OVER` block.
+
+- [x] **M11.2** The night tape: tonight's earlier games under the primary block, oldest first. *(owner:
+  `web-engineer`; landed 2026-09-23, reviewed clean: `NightTape` after Fearless, NightClock, no links yet)*
+
+    > **Brief (product, 2026-09-23)**
+    >
+    > ### Why
+    >
+    > The tonight snapshot is the newest non-abandoned lobby and nothing else (decision row 2026-09-09).
+    > A night of three customs forgets games one and two the moment game three opens. The tape is how the
+    > night got here. The primary block is still where we are now, and it is still the only primary block:
+    > **the tape is not a fourth lobby state.**
+    >
+    > ### What a player sees
+    >
+    > Below the primary block (and above the fearless card), under the hairline label `Earlier tonight`,
+    > one row per completed game of tonight, **oldest first, newest last**, like a log. Each row:
+    >
+    > ```
+    > GAME 2 · 22:41
+    > RED WINS · 31:04
+    > Red was 38%. Red won.
+    > Teams are 92% even.
+    > Sat out: Yuki, Omar.
+    > ```
+    >
+    > - `GAME n · HH:MM`: the row's place in the tape, counting from 1, and the lobby's `created_at` in
+    >   `CUSTOMS_NIGHT_TZ`, 24-hour, formatted on the server by `lib/night.ts`.
+    > - The result: `BLUE WINS` / `RED WINS` and the duration. A dropped lobby prints `NO RESULT` and
+    >   no duration.
+    > - The underdog line exactly as M11.3 prints it, only when the winner was the underdog.
+    > - `Teams are 92% even.` — M3.31's line off the same stored `blue_win_prob`. Absent with no split.
+    > - `Sat out: <names>.` when anybody sat, in join order, the names the page already renders; absent
+    >   when nobody sat.
+    > - No ratings, no deltas, no MVP, no champion icons, no explanation paragraph on a tape row. The
+    >   poster has those; the tape is a line per game.
+    >
+    > ### Which lobbies are in it
+    >
+    > Every lobby of tonight (06:00 to 06:00, `lib/night.ts`) whose status is `finished` or `dropped`,
+    > **except the one the primary block is drawing.** So:
+    >
+    > - A live lobby (filling, teams, in game) is the primary block and is never also a tape row.
+    > - A finished game is the primary block (the M11.3 poster) until the next lobby opens; then it moves
+    >   to the bottom of the tape and the new lobby becomes the primary block.
+    > - When the newest lobby is `dropped` the page is idle (`tonightState`) — nothing draws it, so it is
+    >   the tape's last row.
+    > - `open`, `balanced`, `in_game` and `abandoned` lobbies older than the newest are never rows.
+    >
+    > ### Games that are not rated
+    >
+    > They are games the group played, so they are rows. An ARAM prints `ARAM · not rated` after the
+    > duration; a Rift game the fold did not rate (remake, short surrender) prints `not rated`. Neither
+    > can be read as a rated result.
+    >
+    > ### Edges
+    >
+    > - Empty night, or a night whose only lobby is the primary block: no tape and no label, the same way
+    >   an empty pool has no fearless card.
+    > - A dropped lobby that a late end-of-game block finishes turns into a normal result row on the next
+    >   read. Nothing to do: the tape reads status every time.
+    > - A second companion in the same game: still one game row (idempotent ingest), still one tape row.
+    > - A name the database has never been told: `Someone`, as everywhere on the page, and the page's
+    >   existing re-read-on-a-timer rule counts tape names too.
+    >
+    > ### Shape
+    >
+    > `TonightSnapshot` gains `tape: TapeEntry[]`, filled by `lib/tonight/load.ts` — the one loader the
+    > server render and every Realtime re-read share (decision row 2026-09-09), so the tape has no second
+    > code path. Query-only. No change to the lobby status machine, `tonightState`, ingest or the schema.
+    > If a row the tape needs (lobby, split, game, members) is not readable by the anon client, stop and
+    > report it to the lead as a `platform-engineer` task; do not switch the page to the service role.
+    >
+    > ### Acceptance (fixtures in `lib/testing/tonightFixtures.ts`)
+    >
+    > 1. Two finished games and one filling lobby: two tape rows, `GAME 1` then `GAME 2`, oldest first,
+    >    and the primary block is the filling lobby (test).
+    > 2. One finished game and nothing newer: the primary block is its poster and there is no tape (test).
+    > 3. Two finished games and a newest `dropped` lobby: the page is idle and the tape has three rows,
+    >    the last `NO RESULT` (test).
+    > 4. A finished ARAM prints `ARAM · not rated`; an unrated Rift game prints `not rated` (test).
+    > 5. An underdog win prints the M11.3 line; a favourite's win prints none (test).
+    > 6. A row with sitters prints `Sat out:` with their names in join order; a row without prints no
+    >    `Sat out` (test).
+    > 7. An `abandoned` lobby never appears; a lobby from before 06:00 today never appears (test).
+    > 8. `tonightState`'s tests are unchanged and pass. `pnpm -r typecheck`, `pnpm -r test`,
+    >    `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > Rerolls as tape beats. MVP, deltas or icons on a row. Earlier nights (that is `/games`). A tape in
+    > Discord. Any change to lobby statuses. Links from rows (M11.4 adds them).
+
+- [x] **M11.4** Share cards: an unfurl image when someone pastes a link they already paste. *(owners:
+  `web-engineer`; Discord url change landed in the same pass; reviewed 2026-09-23)*
+
+    > **Brief (product, 2026-09-23)**
+    >
+    > ### What a player sees
+    >
+    > Somebody pastes the tonight link in WhatsApp, or a game link, or a player's page, and the chat shows
+    > a picture of it. Nobody presses Share — there is no Share button — and nothing new happens in the
+    > night. A discreet copy-link on the poster is allowed; nothing may require it.
+    >
+    > ### The three cards
+    >
+    > All 1200×630 PNG from Next.js `ImageResponse`, Floodlit tokens, Archivo and Plex Mono, the `KUSTOM`
+    > wordmark. No champion art or icons, no emoji. The designer lays them out in `05-design.md`.
+    >
+    > - **Tonight (`/`)**: the night slug (`TUESDAY 9 SEPTEMBER`) and the strip's headline for the state at
+    >   render time (`NOBODY IN YET`, `9 IN THE LOBBY`, `TEAMS ARE SET`, `IN GAME`), except that while a
+    >   rated result is up the card says `BLUE WINS` / `RED WINS` rather than `GAME OVER`.
+    >   WhatsApp caches a card per URL, so a card can be a night old; the slug is always on it so a stale
+    >   card says which night it was. That is accepted, not fixed.
+    > - **A game (`/g/[gameId]`)**: `BLUE WINS` / `RED WINS`, the duration, five names a side, then the
+    >   underdog line (M11.3) or `Teams are 92% even.` when there is a stored split. ARAM and unrated Rift
+    >   games say `not rated` on the card.
+    > - **A player (`/p/[puuid]`)**: the name, **Proven** and **Rating** labelled as the `All time` board
+    >   prints them, and `main · backup` when both are known (`main` alone when there is no backup, nothing
+    >   when neither). Always all-time: an image route does not see `?window=`, and the week and all-time
+    >   numbers disagree on purpose, so the card never guesses which one the sender meant.
+    >
+    > ### Why `/g/[gameId]` exists
+    >
+    > There is no URL for one game today. `/games` has no per-game link, and the Discord result post links
+    > to `/`, which shows the next lobby within minutes. So this task adds `/g/[gameId]` (`games.id`, the
+    > uuid): a public page, anon read, rendering M11.3's poster for that game with the same odds, MVP and
+    > deltas it had, and the game card as its `og:image`. The link reaches people through places they
+    > already are:
+    >
+    > - the Discord result embed's title link points at `/g/<id>` instead of `/` — the URL only, nothing
+    >   printed changes (`platform-engineer`, `lib/discord/post.ts`);
+    > - each M11.2 tape row links to its game's `/g/<id>`.
+    >
+    > ### Edges
+    >
+    > - An unknown or malformed game id: the page 404s and the image route 404s. **Never a blank card that
+    >   looks like a result.**
+    > - A puuid `/p/[puuid]` 404s: the image 404s too.
+    > - A dropped lobby has no game row, so it has no `/g` link and its tape row is not a link.
+    > - `og:image` URLs are absolute, off `NEXT_PUBLIC_SITE_URL` (`metadataBase`), because WhatsApp and
+    >   Discord will not resolve a relative one. Keep each PNG under 300 KB so WhatsApp shows it.
+    >
+    > ### Acceptance
+    >
+    > 1. The game image route returns 200 `image/png` for a fixture game, and the card's text model (a pure
+    >    function the route renders) contains `BLUE WINS` or `RED WINS` matching the stored winner and all
+    >    ten names (test).
+    > 2. A missing game id returns 404 from both `/g/[gameId]` and its image route (test).
+    > 3. `/`, `/g/[gameId]` and `/p/[puuid]` each emit `og:image` (absolute URL, 1200×630) and
+    >    `twitter:card` `summary_large_image` in their metadata (test).
+    > 4. The player card's model prints Proven and Rating equal to that player's `All time` board row
+    >    (test).
+    > 5. No card model contains a champion name, icon URL or emoji; the ARAM card says `not rated` (test).
+    > 6. The Discord result embed's `url` is `/g/<id>` for that game and every printed field is unchanged
+    >    (test). Tape rows with a game link to `/g/<id>`; a dropped row has no link (test).
+    > 7. No new button is required anywhere in the nightly loop. `pnpm -r typecheck`, `pnpm -r test`,
+    >    `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > A Share button or share sheet. Cards for `/leaderboard`, `/fun`, `/stats` or `/games`. Champion art.
+    > A WhatsApp bot (`00-product.md` rules it out). Busting WhatsApp's cache. Any schema change.
+
+Acceptance: a fearless chip on `/` shows its champion's face and still works without it; the result reads
+like a poster and says honestly when the underdog won; tonight's earlier games stay on the page after the
+next lobby opens; and a pasted link to tonight, a game or a player unfurls as a picture — with nobody
+typing or tapping anything new, and no icon anywhere but the fearless card.
+
+## M12 Overlay client (not started)
+
+A small desktop app every friend installs, showing the fearless list over the client and live in-game team
+stats. **Parked 2026-09-23 and not briefed.** It changes the install story — today one or two people run
+`Kustom.exe` and nobody else installs anything — and that is the user's call, which the lead is asking.
+It also waits on **M11.1**, whose icons it would reuse. Whatever it becomes, the champion-select line
+stands: it would read and display, never act. No tasks until both answers are in.
+
 ## M9 Does coming back after a break actually break the rating? (half a day, needs M7.11)
 
 The user asked on 2026-09-15 for a pure `applyInactivityDecay(rating, daysSinceLastGame)` that widens `sigma` for
@@ -8161,6 +8474,8 @@ M7.11 (the one rebuild) ----------------- M9.1 (measure the comeback swing; a re
 M3 + M2 ingest -------------------------- M10.1 (fearless draft: tonight + Discord + admin reset)
 M10.1 ----------------------------------- M10.2 (lane groups, A–Z, find box)
 M10.2 ----------------------------------- M10.3 (still open, per lane, tonight only)
+M10.3 ----------------------------------- M11.1 (champion icons, fearless card only) ---- (M12 parked)
+M11.1 -- M11.3 (result poster) -- M11.2 (night tape) -- M11.4 (share cards, /g/[gameId])
 ```
 
 **M3.31** (how even the teams are, as a percentage) is the fourth idea of 2026-09-15 and is not in M8: it is a

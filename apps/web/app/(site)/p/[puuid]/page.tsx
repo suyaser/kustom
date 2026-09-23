@@ -3,6 +3,7 @@ import { cache } from 'react';
 import { loadPlayerBoard } from '@/lib/board/load';
 import { PLAYER_WINDOW, parseWindow } from '@/lib/board/window';
 import type { WindowKind } from '@/lib/night';
+import { playerImagePath, shareMetadata } from '@/lib/og/meta';
 import { createPublicClient } from '@/lib/publicClient';
 import { loadPlayerStats } from '@/lib/stats/load';
 import { renderWebName } from '@/lib/tonight/copy';
@@ -67,7 +68,10 @@ export async function generateMetadata({ params, searchParams }: PlayerPageProps
   // An unknown window is the page's 404, not the title's problem: it renders `Kustom` and the
   // component below refuses the request.
   const player = window === null ? null : await loadPlayer(puuid, window);
-  return { title: player === null ? 'Kustom' : `${renderWebName(player.name)} · Kustom` };
+  if (player === null) return { title: 'Kustom' };
+  const name = renderWebName(player.name);
+  // The card is always the all-time pair (M11.4), whatever window this page was opened on.
+  return { title: `${name} · Kustom`, ...shareMetadata(playerImagePath(player.puuid), `${name} · Kustom`) };
 }
 
 export default async function PlayerPage({ params, searchParams }: PlayerPageProps) {

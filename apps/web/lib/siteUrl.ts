@@ -49,6 +49,16 @@ export function tonightPageUrl(origin: string | null | undefined): string | unde
 }
 
 /**
+ * One game's page, `/g/<games.id>` (M11.4), for the result embed's title link, under the same
+ * localhost rule as {@link tonightPageUrl}. `/` moves on to the next lobby within minutes of a
+ * result; this address keeps showing the game the message is about.
+ */
+export function gamePageUrl(origin: string | null | undefined, gameId: string): string | undefined {
+  const base = tonightPageUrl(origin);
+  return base === undefined ? undefined : `${base}/g/${encodeURIComponent(gameId)}`;
+}
+
+/**
  * The board's link for a Discord embed (M3.5), or `undefined` under the same localhost rule as
  * {@link tonightPageUrl}: no domain exists yet, and a link that works for one person is worse
  * in a channel than no link at all.

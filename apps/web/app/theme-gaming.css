@@ -157,13 +157,21 @@ html:not([data-theme="current"]) .cn-live {
 }
 
 html:not([data-theme="current"]) .cn-team-blue,
-html:not([data-theme="current"]) .cn-sheet-blue {
+html:not([data-theme="current"]) .cn-sheet-blue,
+html:not([data-theme="current"]) .cn-result-blue {
   box-shadow: inset 4px 0 0 var(--cn-blue);
 }
 
 html:not([data-theme="current"]) .cn-team-red,
-html:not([data-theme="current"]) .cn-sheet-red {
+html:not([data-theme="current"]) .cn-sheet-red,
+html:not([data-theme="current"]) .cn-result-red {
   box-shadow: inset 4px 0 0 var(--cn-red);
+}
+
+/* The result poster's side rule is the inset above here, so its leading border is the card's. */
+html:not([data-theme="current"]) .cn-result-blue,
+html:not([data-theme="current"]) .cn-result-red {
+  border-inline-start: 1px solid color-mix(in srgb, var(--cn-line) 80%, var(--cn-brand));
 }
 
 html:not([data-theme="current"]) .cn-team-head,

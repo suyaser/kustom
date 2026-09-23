@@ -128,6 +128,8 @@ export function TonightLive({
    * change the weekday under the reader a second after the first paint (M3.18, reviewer).
    */
   const nightLabel = initial.nightLabel;
+  /** The zone's offset for the night, for the tape's clocks, by the same rule (M11.2). */
+  const [nightClock] = useState(initial.nightClock);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,7 +155,7 @@ export function TonightLive({
       }
       inFlight = true;
       try {
-        const next = await loadTonight(client, { nightStart: new Date(nightStart), nightLabel });
+        const next = await loadTonight(client, { nightStart: new Date(nightStart), nightLabel, nightClock });
         if (!cancelled) setSnapshot(next);
       } catch (error) {
         // The last snapshot stays on the screen. A failed read is not something to announce.
@@ -183,9 +185,9 @@ export function TonightLive({
       if (timer !== null) clearTimeout(timer);
       void client.removeChannel(channel);
     };
-  }, [nightStart, nightLabel]);
+  }, [nightStart, nightLabel, nightClock]);
 
-  const nameless = hasNamelessRow(tonightState(snapshot));
+  const nameless = hasNamelessRow(tonightState(snapshot), snapshot.tape);
 
   useEffect(() => {
     if (!nameless) return;

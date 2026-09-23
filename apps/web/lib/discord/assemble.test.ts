@@ -12,6 +12,8 @@ import {
   type TeamsSource,
   teamsPuuids,
 } from './assemble';
+import { resultEmbed } from './embeds';
+import { resultPayload } from './post';
 
 /**
  * The assembler: rows and events in, embed inputs out. Everything here is the pure half —
@@ -280,6 +282,29 @@ describe('buildResultInput', () => {
   it('timestamps the game, not the post', () => {
     const input = buildResultInput(resultSource(), { ...CONTEXT, timestamp: '2026-09-08T21:00:00.000Z' });
     expect(input?.timestamp).toBe('2026-09-08T21:00:00.000Z');
+  });
+});
+
+describe('resultPayload (M11.4)', () => {
+  const GAME_ID = '0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12';
+
+  it("links the title to the game's own page and prints exactly what the old post printed", () => {
+    const embed = resultPayload(resultSource(), GAME_ID, 'https://customs.example')?.embeds[0];
+    expect(embed?.url).toBe(`https://customs.example/g/${GAME_ID}`);
+
+    const input = buildResultInput(resultSource(), { url: 'https://customs.example', timestamp: '' });
+    if (input === null) throw new Error('fixture');
+    const before = resultEmbed({ ...input, timestamp: resultSource().endedAt }).embeds[0];
+    const { url: _new, ...printed } = embed ?? {};
+    const { url: _old, ...printedBefore } = before ?? {};
+    expect(printed).toEqual(printedBefore);
+  });
+
+  it('carries no link from a localhost origin, and nothing for an unrated game', () => {
+    expect(resultPayload(resultSource(), GAME_ID, 'http://localhost:3000')?.embeds[0]?.url).toBeUndefined();
+    const source = resultSource();
+    const players = source.players.map((player) => ({ ...player, muAfter: null }));
+    expect(resultPayload({ ...source, players }, GAME_ID, 'https://customs.example')).toBeNull();
   });
 });
 

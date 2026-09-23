@@ -710,12 +710,34 @@
   padding: var(--cn-sp-4);
 }
 
+/*
+ * The poster (M11.3, "The result poster"): the headline card carries the **winner's** 4px side
+ * rule on its leading edge, drawn like a team card's, and no brand ring — the ring belongs to
+ * the winning five.
+ */
+.cn-result-blue {
+  border-inline-start: 4px solid var(--cn-blue);
+}
+
+.cn-result-red {
+  border-inline-start: 4px solid var(--cn-red);
+}
+
+/* The verdict: duration slug, then `BLUE WINS` on a row of its own, then the underdog line. */
 .cn-result-head {
-  margin: 0;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--cn-sp-3);
+  flex-direction: column;
+  gap: var(--cn-sp-1);
+}
+
+.cn-result-head p {
+  margin: 0;
+}
+
+.cn-result-duration {
+  font-size: var(--cn-t-xs);
+  letter-spacing: 0.08em;
+  color: var(--cn-dim);
 }
 
 .cn-win {
@@ -730,13 +752,33 @@
   color: var(--cn-red);
 }
 
-.cn-duration {
+/* A sentence, dressed like an explanation sentence: not a badge, not `brand`, not upper case. */
+.cn-underdog {
+  font-size: var(--cn-t-base);
+  font-weight: 600;
+  color: var(--cn-text);
+}
+
+/* The footnotes, under a 1px hairline: nothing below it competes with the verdict. */
+.cn-result-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cn-sp-2);
+  margin-block-start: var(--cn-sp-1);
+  padding-block-start: var(--cn-sp-3);
+  border-block-start: 1px solid var(--cn-line);
+}
+
+.cn-prediction {
   font-size: var(--cn-t-sm);
   color: var(--cn-dim);
 }
 
-.cn-prediction {
-  color: var(--cn-dim);
+.cn-result-award {
+  margin: 0;
+  font-size: var(--cn-t-sm);
+  font-weight: 600;
+  color: var(--cn-text);
 }
 
 .cn-damage {
@@ -1061,7 +1103,9 @@
 /* ---------------------------------------------------------------------------
  * Fearless (M10 / M10.2 / M10.3). Bans grouped by the lane they were first
  * locked on, A–Z inside the lane, then who is still open in that lane.
- * Plus a find box. No champion art.
+ * Plus a find box. M11.1: each chip leads with a 24px square champion icon,
+ * the one champion art in the product ("The fearless icon exception" in
+ * docs/05-design.md). No other surface draws one.
  * ------------------------------------------------------------------------- */
 
 .cn-fearless {
@@ -1141,7 +1185,11 @@
 }
 
 .cn-fearless-list li {
-  padding: 0.25rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cn-sp-2);
+  min-height: 32px;
+  padding: 3px 10px;
   background: var(--cn-raise);
   border: 1px solid var(--cn-line);
   border-radius: var(--cn-radius-row, 4px);
@@ -1180,6 +1228,27 @@
   box-shadow: inset 0 0 0 1px var(--cn-brand);
 }
 
+.cn-fearless-list li:has(> .cn-fearless-icon) {
+  padding-inline-start: 3px;
+}
+
+.cn-fearless-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: block;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.cn-fearless-open-chip .cn-fearless-icon {
+  opacity: 0.55;
+}
+
+.cn-fearless-hit .cn-fearless-icon {
+  opacity: 1;
+}
+
 .cn-sr-only {
   position: absolute;
   width: 1px;
@@ -1190,4 +1259,107 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * The night tape (M11.2, 05-design.md "The night tape"). One card, one `ol`, a
+ * spine and ticks in `line` only. Nothing here is `brand`.
+ * ------------------------------------------------------------------------- */
+
+.cn-tape-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cn-sp-3);
+  padding: var(--cn-sp-4);
+}
+
+.cn-tape {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--cn-sp-5);
+}
+
+.cn-tape > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5ch 1fr;
+  gap: var(--cn-sp-3);
+  align-items: baseline;
+  padding-block: var(--cn-sp-1);
+  font-size: var(--cn-t-sm);
+  line-height: 1.4;
+  animation: cn-fade 150ms ease;
+}
+
+/* T = the tick's centre from the row top = sp-1 + half a t-sm line */
+.cn-tape > li::before {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--cn-line);
+  inset-inline-start: calc(-1 * var(--cn-sp-5) + 4px);
+  top: calc(var(--cn-sp-1) + 0.7 * var(--cn-t-sm) - 3px);
+}
+
+.cn-tape > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  background: var(--cn-line);
+  inset-inline-start: calc(-1 * var(--cn-sp-5) + 6px);
+  top: calc(var(--cn-sp-1) + 0.7 * var(--cn-t-sm));
+  bottom: calc(-1 * (var(--cn-sp-1) + 0.7 * var(--cn-t-sm)));
+}
+
+/* The two mono cells keep a full t-sm line box, so the tick stays centred on the first line. */
+.cn-tape-time,
+.cn-tape-game {
+  font-size: var(--cn-t-xs);
+  line-height: calc(1.4 * var(--cn-t-sm));
+  color: var(--cn-dim);
+}
+
+.cn-tape-body {
+  min-width: 0;
+}
+
+.cn-tape-body p {
+  margin: 0;
+  font-weight: 400;
+  color: var(--cn-text);
+}
+
+.cn-tape-body p.cn-tape-game {
+  color: var(--cn-dim);
+}
+
+.cn-tape-side {
+  font-weight: 600;
+}
+
+.cn-tape-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--cn-line);
+  text-underline-offset: 3px;
+}
+
+.cn-tape-blue {
+  color: var(--cn-blue);
+}
+
+.cn-tape-red {
+  color: var(--cn-red);
+}
+
+/* A dropped lobby is the one row the eye should skip: the whole row dim. */
+.cn-tape-dropped .cn-tape-body p {
+  color: var(--cn-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cn-tape > li {
+    animation: none;
+  }
 }

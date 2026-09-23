@@ -1,6 +1,8 @@
+import type { Metadata } from 'next';
 import { loadTopPlayersOrNone } from '@/lib/board/load';
 import { LEADERBOARD_WINDOW } from '@/lib/board/window';
 import { loadMysteryOrNone } from '@/lib/mystery/load';
+import { shareMetadata, tonightImagePath } from '@/lib/og/meta';
 import { createPublicClient } from '@/lib/publicClient';
 import { getServiceClient } from '@/lib/supabase';
 import { loadTonight } from '@/lib/tonight/load';
@@ -26,6 +28,11 @@ import '../tonight.css';
  * there logs and keeps the empty card so this page still answers "am I in".
  */
 export const dynamic = 'force-dynamic';
+
+/** The WhatsApp link's picture (M11.4): the strip as it was when the unfurl bot asked. */
+export function generateMetadata(): Metadata {
+  return shareMetadata(tonightImagePath(), 'Kustom');
+}
 
 /** The rail's `Top of the board` (`05-design.md`, "Breakpoints and the desktop grid"). */
 const RAIL_BOARD_ROWS = 5;

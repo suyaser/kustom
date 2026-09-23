@@ -7,6 +7,7 @@ import type {
   ResultView,
   SeatView,
   SplitChoice,
+  TapeEntry,
   TeamsView,
   TonightSnapshot,
 } from '../tonight/types';
@@ -169,6 +170,8 @@ export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
     durationS: 2_052,
     blueWinProb: teams.blueWinProb,
     topDamage: { name: 'Lena', damage: 47_300 },
+    // No stat lines in this fixture, so no award: a test that wants one passes it.
+    award: null,
     blue: seatsOf(teams.blue, 100),
     red: seatsOf(teams.red, 200),
     rated: true,
@@ -269,6 +272,25 @@ export function snapshot(lobby: LobbyView | null, overrides: Partial<TonightSnap
     nightLabel: 'Tuesday 8 September',
     seasonActive: true,
     fearless: EMPTY_FEARLESS,
+    nightClock: FIXTURE_NIGHT_CLOCK,
+    tape: [],
+    ...overrides,
+  };
+}
+
+/** Cairo in September: UTC+3 all night, no shift. What `nightClock` answers for the fixture night. */
+export const FIXTURE_NIGHT_CLOCK = { offsetMs: 3 * 60 * 60 * 1000, shift: null };
+
+/** One tape row: a rated Rift game red won as the favourite, nobody sat out. */
+export function tapeEntry(overrides: Partial<TapeEntry> = {}): TapeEntry {
+  return {
+    lobbyId: 'tape-lobby-1',
+    createdAt: '2026-09-08T19:41:00.000Z',
+    clock: '22:41',
+    status: 'finished',
+    result: { gameId: 'tape-game-1', winningSide: 200, durationS: 1_864, aram: false, rated: true },
+    blueWinProb: 0.46,
+    sitters: [],
     ...overrides,
   };
 }

@@ -5,12 +5,13 @@ import {
   lobbyView,
   seatedOnTheirSides,
   snapshot,
+  tapeEntry,
   workedMembers,
   workedResult,
   workedTeams,
 } from '../testing/tonightFixtures';
 import { fillingSentence } from './copy';
-import { anySeatOnTheWrongSide, tonightHeader, tonightState } from './state';
+import { anySeatOnTheWrongSide, hasNamelessRow, tonightHeader, tonightState } from './state';
 
 /**
  * The status strip, state by state (M3.18, `05-design.md`, "Copy — final (product
@@ -188,5 +189,22 @@ describe('the sentence while the lobby fills', () => {
 
     expect(strip.count).toBe(11);
     expect(strip.sentence).toBe('Ten play, the rest sit out this game.');
+  });
+});
+
+describe('the name re-read timer sees the tape (M11.2)', () => {
+  it('fires on an idle page whose only Someone is a tape sitter', () => {
+    const idle = tonightState(snapshot(lobbyView({ status: 'dropped', teams: workedTeams() })));
+    expect(idle.kind).toBe('idle');
+    expect(hasNamelessRow(idle, [])).toBe(false);
+    expect(hasNamelessRow(idle, [tapeEntry({ sitters: ['Yuki', null] })])).toBe(true);
+    expect(hasNamelessRow(idle, [tapeEntry({ sitters: ['Yuki', 'Omar'] })])).toBe(false);
+  });
+
+  it('still fires for the primary block alone', () => {
+    const filling = tonightState(
+      snapshot(lobbyView({ members: [...workedMembers(9), extraMember({ name: null })] })),
+    );
+    expect(hasNamelessRow(filling, [])).toBe(true);
   });
 });

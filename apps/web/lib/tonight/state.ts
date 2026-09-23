@@ -11,7 +11,15 @@ import {
   IN_GAME_SENTENCE,
   isNameless,
 } from './copy';
-import type { LobbyView, PlayerName, SplitChoice, TeamsView, TonightSnapshot, TonightState } from './types';
+import type {
+  LobbyView,
+  PlayerName,
+  SplitChoice,
+  TapeEntry,
+  TeamsView,
+  TonightSnapshot,
+  TonightState,
+} from './types';
 
 /**
  * Snapshot in, one primary block out (05-design.md, "The tonight page's three states — one
@@ -110,9 +118,12 @@ export function tonightHeader(state: TonightState): HeaderView {
  * re-reads the name map on a timer: `players` is service-role only and is in no Realtime
  * publication, so a name arriving is the one change that will never turn up as an event
  * (M3.4, "`Someone`, and names that arrive late").
+ *
+ * The tape is on screen in every state, the idle page included, so its sitters count too
+ * (M11.2): a newest dropped lobby is an idle primary block with names only on the tape.
  */
-export function hasNamelessRow(state: TonightState): boolean {
-  return namesOnScreen(state).some(isNameless);
+export function hasNamelessRow(state: TonightState, tape: readonly TapeEntry[]): boolean {
+  return [...namesOnScreen(state), ...tape.flatMap((entry) => entry.sitters)].some(isNameless);
 }
 
 function namesOnScreen(state: TonightState): PlayerName[] {

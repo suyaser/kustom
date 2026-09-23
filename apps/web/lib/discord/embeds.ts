@@ -818,6 +818,25 @@ export function favoredClause(blueWinProb: number | null): string | null {
   return 'Neither side was favored.';
 }
 
+/**
+ * `Red was 38%. Red won.` — the result poster's odds line when the winner was the underdog
+ * (M11.3, product's copy), and `null` when it was not, which is the caller's cue to print
+ * {@link favoredClause} instead. One line or the other, never both: the same stored number said
+ * about the side that won.
+ *
+ * **Underdog is the winner's rounded share below 50**, rounded exactly as `favoredClause`
+ * rounds, so the two lines can never disagree about which side was favoured. A coin flip is not
+ * an upset and keeps `Neither side was favored.`
+ */
+export function underdogClause(blueWinProb: number | null, winningSide: Side): string | null {
+  if (blueWinProb === null) return null;
+  const blue = Math.round(blueWinProb * 100);
+  const share = winningSide === 100 ? blue : 100 - blue;
+  if (share >= 50) return null;
+  const name = winningSide === 100 ? 'Blue' : 'Red';
+  return `${name} was ${share}%. ${name} won.`;
+}
+
 function topDamageClause(top: { name: PlayerName; damage: number } | null): string | null {
   if (top === null) return null;
   return `Top damage: ${renderName(top.name)}, ${formatDamage(top.damage)}.`;

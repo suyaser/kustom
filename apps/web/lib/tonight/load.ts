@@ -2,8 +2,10 @@ import { displayRating, isOffRole, type Role, seedFromRank } from '@customs/core
 import type { RoleValue, SideValue } from '@customs/db';
 import { readAssignments } from '../discord/assemble';
 import { loadFearless } from '../fearless/load';
+import { gameModeFromRaw, matchesQueue } from '../games/queue';
+import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
-import { formatNightLabel } from '../night';
+import { formatClock, formatNightLabel, type NightClock, nightClock } from '../night';
 import type { PublicClient } from '../publicClient';
 import { renderWebName } from './copy';
 import type {
@@ -14,6 +16,7 @@ import type {
   ResultView,
   SeatView,
   SplitChoice,
+  TapeEntry,
   TeamsView,
   TonightSnapshot,
 } from './types';
@@ -53,6 +56,11 @@ export interface LoadTonightOptions {
    * any deployment that overrides `CUSTOMS_NIGHT_TZ` (05-design.md, "The status strip").
    */
   nightLabel?: string;
+  /**
+   * The zone's offset for the night, carried through the browser's re-read like
+   * {@link nightLabel}, so the tape's clocks are the server's (`lib/night.ts`, `NightClock`).
+   */
+  nightClock?: NightClock;
 }
 
 export async function loadTonight(
@@ -60,19 +68,29 @@ export async function loadTonight(
   options: LoadTonightOptions,
 ): Promise<TonightSnapshot> {
   const nightStart = options.nightStart.toISOString();
-  const [lobbyRow, season, fearless] = await Promise.all([
+  const clock = options.nightClock ?? nightClock(options.nightStart, options.timeZone);
+  const [lobbyRow, season, fearless, tapeRows] = await Promise.all([
     selectLobby(client, nightStart),
     selectSeason(client),
     loadFearless(client),
+    selectTapeLobbies(client, nightStart),
   ]);
   const seasonId = season?.id ?? null;
+  const tapeLobbies = pickTapeLobbies(tapeRows, nightStart, drawnLobbyId(lobbyRow));
+
+  const [lobby, tape] = await Promise.all([
+    lobbyRow === null ? Promise.resolve(null) : loadLobby(client, lobbyRow, seasonId),
+    loadTape(client, tapeLobbies, clock),
+  ]);
 
   return {
     nightStart,
     nightLabel: options.nightLabel ?? formatNightLabel(options.nightStart, options.timeZone),
+    nightClock: clock,
     seasonActive: seasonId !== null,
-    lobby: lobbyRow === null ? null : await loadLobby(client, lobbyRow, seasonId),
+    lobby,
     fearless,
+    tape,
   };
 }
 
@@ -425,11 +443,27 @@ async function loadResult(
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`tonight: game lookup failed: ${error.message}`);
-  if (!game || (game.winning_side !== 100 && game.winning_side !== 200)) return null;
+  if (!game) return null;
+  return (await resultOfGame(client, game, lobbyId, byPuuid))?.result ?? null;
+}
+
+/**
+ * One stored game as the poster draws it, plus the chosen split's stored explanation: the
+ * tonight page's result block and `/g/[gameId]` (M11.4) both come through here, so a game's
+ * odds, MVP and deltas are one computation on both. `null` for a game with no winner or no
+ * scoreboard rows.
+ */
+export async function resultOfGame(
+  client: PublicClient,
+  game: { id: string; duration_s: number; winning_side: number | null },
+  lobbyId: string | null,
+  byPuuid: ReadonlyMap<string, MemberView> = new Map(),
+): Promise<{ result: ResultView; explanation: string | null } | null> {
+  if (game.winning_side !== 100 && game.winning_side !== 200) return null;
 
   const [rows, splitRoles] = await Promise.all([
     loadGamePlayers(client, game.id),
-    loadChosenSplit(client, lobbyId),
+    lobbyId === null ? Promise.resolve(NO_SPLIT) : loadChosenSplit(client, lobbyId),
   ]);
   if (rows.length === 0) return null;
 
@@ -439,11 +473,31 @@ async function loadResult(
   );
 
   const seats: ResultSeatView[] = [];
+  const ten: FoldAwardPlayer[] = [];
   let topDamage: { name: PlayerName; damage: number } | null = null;
   for (const row of rows) {
     const player = scoreboard.get(row.player_id);
     if (player === undefined) continue;
     const puuid = player.puuid;
+    // The award's stat line is the scoreboard's alone, `role` included, with no fallback to the
+    // split: the same rule `resultAward` in `lib/discord/assemble.ts` keeps, so a game the fold
+    // gave no MVP to because a position was missing does not grow one on this page.
+    if (row.side === 100 || row.side === 200) {
+      ten.push({
+        puuid,
+        side: row.side,
+        role: row.role,
+        kills: row.kills,
+        deaths: row.deaths,
+        assists: row.assists,
+        damageToChamps: row.damage_to_champs,
+        gold: row.gold,
+        cs: row.cs,
+        visionScore: row.vision_score,
+        damageSelfMitigated: row.damage_self_mitigated,
+        damageToObjectives: row.damage_to_objectives,
+      });
+    }
     // **The scoreboard's own name, not the lobby's.** `game_players` and `lobby_members` are
     // not the same ten: `findLobbyId`'s clock and late-report fallbacks can attach a game to a
     // lobby whose roster was frozen at `in_game`, so a player on the scoreboard need not have
@@ -468,24 +522,53 @@ async function loadResult(
     }
   }
 
-  return {
-    winningSide: game.winning_side as SideValue,
+  const winningSide = game.winning_side as SideValue;
+  const rated = seats.length > 0 && seats.every((seat) => seat.muBefore !== null && seat.muAfter !== null);
+
+  const result: ResultView = {
+    winningSide,
     durationS: game.duration_s,
     blueWinProb: splitRoles.blueWinProb,
     topDamage,
+    award: rated && ten.length === rows.length ? resultAward(ten, seats, game.duration_s, winningSide) : null,
     // Lane order, the same five positions as the teams block: `game_players` comes back in
     // whatever order Postgres feels like, and "my row" has to be where it was twenty minutes
     // ago. The result embed sorts with this same function (05-design.md, "Result card").
     blue: inLaneOrder(seats.filter((seat) => seat.side === 100)),
     red: inLaneOrder(seats.filter((seat) => seat.side === 200)),
-    rated: seats.length > 0 && seats.every((seat) => seat.muBefore !== null && seat.muAfter !== null),
+    rated,
   };
+  return { result, explanation: splitRoles.explanation };
+}
+
+/**
+ * The MVP and the ACE by name, or `null` (M11.3). `gatedGameAward` is the one function in the
+ * app that names an MVP; this maps its two puuids onto the names the cards are printing, the
+ * same mapping `resultAward` in `lib/discord/assemble.ts` does for the post.
+ *
+ * Reached only for a rated game whose every scoreboard row mapped to a puuid: anything that is
+ * still not a clean ten is `gateGame`'s to refuse, and it refuses with `null`, not a throw.
+ */
+function resultAward(
+  ten: readonly FoldAwardPlayer[],
+  seats: readonly ResultSeatView[],
+  durationS: number,
+  winningSide: SideValue,
+): ResultView['award'] {
+  const award = gatedGameAward(ten, durationS, winningSide);
+  if (award === null) return null;
+  const names = new Map(seats.map((seat) => [seat.puuid, seat.name]));
+  return { mvp: names.get(award.mvp) ?? null, ace: names.get(award.ace) ?? null };
 }
 
 async function loadGamePlayers(client: PublicClient, gameId: string) {
   const { data, error } = await client
     .from('game_players')
-    .select('player_id, side, role, damage_to_champs, mu_before, mu_after')
+    // The stat line is the award's input (M11.3): the columns the result post reads, all of
+    // them publicly readable on the rows this key already sees.
+    .select(
+      'player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after',
+    )
     .eq('game_id', gameId);
   if (error) throw new Error(`tonight: game player lookup failed: ${error.message}`);
   return data ?? [];
@@ -516,23 +599,240 @@ async function scoreboardPlayers(
   return players;
 }
 
-/** The chosen split's roles and odds: the fallback role, and the prediction line's number. */
-async function loadChosenSplit(
-  client: PublicClient,
-  lobbyId: string,
-): Promise<{ roles: Map<string, RoleValue>; blueWinProb: number | null }> {
+interface ChosenSplit {
+  roles: Map<string, RoleValue>;
+  blueWinProb: number | null;
+  explanation: string | null;
+}
+
+const NO_SPLIT: ChosenSplit = { roles: new Map(), blueWinProb: null, explanation: null };
+
+/** The chosen split's roles, odds and stored explanation: the fallback role, the prediction line's number. */
+async function loadChosenSplit(client: PublicClient, lobbyId: string): Promise<ChosenSplit> {
   const { data, error } = await client
     .from('splits')
-    .select('blue, red, blue_win_prob')
+    .select('blue, red, blue_win_prob, explanation')
     .eq('lobby_id', lobbyId)
     .eq('is_chosen', true)
     .maybeSingle();
   if (error) throw new Error(`tonight: chosen split lookup failed: ${error.message}`);
-  if (!data) return { roles: new Map(), blueWinProb: null };
+  if (!data) return NO_SPLIT;
 
   const roles = new Map<string, RoleValue>();
   for (const side of [data.blue, data.red]) {
     for (const assignment of readAssignments(side)) roles.set(assignment.puuid, assignment.role);
   }
-  return { roles, blueWinProb: data.blue_win_prob };
+  return { roles, blueWinProb: data.blue_win_prob, explanation: data.explanation };
+}
+
+/* ---------------------------------------------------------------------------
+ * The night tape (M11.2): tonight's earlier games, oldest first.
+ *
+ * Query-only and read with the same anon key: `lobbies`, `lobby_members`, `splits`, `games`,
+ * `game_players` and `players_public` are all already on this page's path. One read of the
+ * night's candidate lobbies runs beside `selectLobby`; the rest is four batched reads over
+ * those ids, beside `loadLobby`, so the tape adds one round trip to the page and not one per row.
+ * ------------------------------------------------------------------------- */
+
+export interface TapeLobbyRow {
+  id: string;
+  status: LobbyView['status'];
+  created_at: string;
+}
+
+const TAPE_STATUSES = ['finished', 'dropped'] as const;
+
+async function selectTapeLobbies(client: PublicClient, nightStart: string): Promise<TapeLobbyRow[]> {
+  const { data, error } = await client
+    .from('lobbies')
+    .select('id, status, created_at')
+    .gte('created_at', nightStart)
+    .in('status', [...TAPE_STATUSES])
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (error) throw new Error(`tonight: tape lobby lookup failed: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * The lobby the primary block is drawing, or `null` when it draws none.
+ *
+ * `tonightState` draws every status the loader returns except `dropped`, which falls to its
+ * default branch and is the idle page — so a newest dropped lobby is not on screen anywhere and
+ * belongs on the tape (`load.test.ts` pins this against `tonightState` itself, status by status).
+ */
+export function drawnLobbyId(lobby: { id: string; status: LobbyView['status'] } | null): string | null {
+  if (lobby === null || lobby.status === 'dropped' || lobby.status === 'abandoned') return null;
+  return lobby.id;
+}
+
+/** Tonight's `finished` and `dropped` lobbies, oldest first, minus the one on screen. */
+export function pickTapeLobbies(
+  rows: readonly TapeLobbyRow[],
+  nightStart: string,
+  drawnId: string | null,
+): TapeLobbyRow[] {
+  const from = Date.parse(nightStart);
+  return rows
+    .filter(
+      (row) =>
+        row.id !== drawnId &&
+        (TAPE_STATUSES as readonly string[]).includes(row.status) &&
+        Date.parse(row.created_at) >= from,
+    )
+    .sort(
+      (a, b) =>
+        Date.parse(a.created_at) - Date.parse(b.created_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
+}
+
+/** Everything {@link assembleTape} reads, as the queries return it. */
+export interface TapeSource {
+  lobbies: readonly TapeLobbyRow[];
+  games: readonly {
+    id: string;
+    lobby_id: string | null;
+    duration_s: number;
+    winning_side: number | null;
+    started_at: string;
+    gameMode: unknown;
+  }[];
+  gamePlayers: readonly { game_id: string; mu_before: number | null; mu_after: number | null }[];
+  splits: readonly { lobby_id: string; blue: unknown; red: unknown; blue_win_prob: number | null }[];
+  members: readonly { lobby_id: string; player_id: string; created_at: string }[];
+  players: ReadonlyMap<string, { puuid: string; name: PlayerName }>;
+}
+
+async function loadTape(
+  client: PublicClient,
+  lobbies: readonly TapeLobbyRow[],
+  clock: NightClock,
+): Promise<TapeEntry[]> {
+  if (lobbies.length === 0) return [];
+  const ids = lobbies.map((lobby) => lobby.id);
+
+  const [games, splits, members] = await Promise.all([
+    client
+      .from('games')
+      // The mode alone, not the end-of-game blob (`selectSeasonGames` in `lib/ingest/rebuild.ts`).
+      .select('id, lobby_id, duration_s, winning_side, started_at, raw->gameMode')
+      .in('lobby_id', ids),
+    client
+      .from('splits')
+      .select('lobby_id, blue, red, blue_win_prob')
+      .in('lobby_id', ids)
+      .eq('is_chosen', true),
+    client
+      .from('lobby_members')
+      .select('lobby_id, player_id, created_at')
+      .in('lobby_id', ids)
+      .order('created_at', { ascending: true }),
+  ]);
+  if (games.error) throw new Error(`tonight: tape game lookup failed: ${games.error.message}`);
+  if (splits.error) throw new Error(`tonight: tape split lookup failed: ${splits.error.message}`);
+  if (members.error) throw new Error(`tonight: tape member lookup failed: ${members.error.message}`);
+
+  const gameIds = (games.data ?? []).map((game) => game.id);
+  const playerIds = [...new Set((members.data ?? []).map((member) => member.player_id))];
+  const [gamePlayers, players] = await Promise.all([
+    gameIds.length === 0
+      ? Promise.resolve([])
+      : client
+          .from('game_players')
+          .select('game_id, mu_before, mu_after')
+          .in('game_id', gameIds)
+          .then(({ data, error }) => {
+            if (error) throw new Error(`tonight: tape game player lookup failed: ${error.message}`);
+            return data ?? [];
+          }),
+    playerIds.length === 0 ? Promise.resolve(new Map()) : scoreboardPlayers(client, playerIds),
+  ]);
+
+  return assembleTape(
+    {
+      lobbies,
+      games: games.data ?? [],
+      gamePlayers,
+      splits: splits.data ?? [],
+      members: members.data ?? [],
+      players,
+    },
+    clock,
+  );
+}
+
+/**
+ * The tape's rows from its rows. Pure, so the acceptance fixtures are unit tests.
+ *
+ * - **Result** is the lobby's newest game with a winner — `loadResult`'s pick — and `rated` is
+ *   its rule, every scoreboard row carrying both mu values.
+ * - **Odds** are the chosen split's stored `blue_win_prob`, the number the poster read.
+ * - **Sitters** are `loadTeams`' rule: the lobby's members who are not one of the chosen
+ *   split's ten, in join order (and by name inside one post, as `loadMembers` sorts). With no
+ *   chosen split nobody is known to have sat, and there is no line.
+ */
+export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[] {
+  const gamesByLobby = new Map<string, TapeSource['games'][number]>();
+  for (const game of source.games) {
+    if (game.lobby_id === null || (game.winning_side !== 100 && game.winning_side !== 200)) continue;
+    const held = gamesByLobby.get(game.lobby_id);
+    if (held === undefined || Date.parse(game.started_at) > Date.parse(held.started_at)) {
+      gamesByLobby.set(game.lobby_id, game);
+    }
+  }
+
+  const rowsByGame = new Map<string, { mu_before: number | null; mu_after: number | null }[]>();
+  for (const row of source.gamePlayers) {
+    const rows = rowsByGame.get(row.game_id) ?? [];
+    rows.push(row);
+    rowsByGame.set(row.game_id, rows);
+  }
+
+  const splitByLobby = new Map(source.splits.map((split) => [split.lobby_id, split]));
+
+  return source.lobbies.map((lobby) => {
+    const game = gamesByLobby.get(lobby.id);
+    const split = splitByLobby.get(lobby.id);
+    const rows = game === undefined ? [] : (rowsByGame.get(game.id) ?? []);
+
+    return {
+      lobbyId: lobby.id,
+      createdAt: lobby.created_at,
+      clock: formatClock(new Date(lobby.created_at), clock),
+      status: lobby.status === 'dropped' ? 'dropped' : 'finished',
+      result:
+        game === undefined
+          ? null
+          : {
+              gameId: game.id,
+              winningSide: game.winning_side as SideValue,
+              durationS: game.duration_s,
+              aram: matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram'),
+              rated: rows.length > 0 && rows.every((row) => row.mu_before !== null && row.mu_after !== null),
+            },
+      blueWinProb: split?.blue_win_prob ?? null,
+      sitters: split === undefined ? [] : tapeSitters(lobby.id, split, source),
+    };
+  });
+}
+
+function tapeSitters(lobbyId: string, split: TapeSource['splits'][number], source: TapeSource): PlayerName[] {
+  const playing = new Set(
+    [...readAssignments(split.blue), ...readAssignments(split.red)].map((seat) => seat.puuid),
+  );
+  const sat: { puuid: string; name: PlayerName; joinedAt: string }[] = [];
+  for (const member of source.members) {
+    if (member.lobby_id !== lobbyId) continue;
+    const player = source.players.get(member.player_id);
+    if (player === undefined || playing.has(player.puuid)) continue;
+    sat.push({ puuid: player.puuid, name: player.name, joinedAt: member.created_at });
+  }
+  return sat
+    .sort(
+      (a, b) =>
+        Date.parse(a.joinedAt) - Date.parse(b.joinedAt) ||
+        renderWebName(a.name).localeCompare(renderWebName(b.name)) ||
+        (a.puuid < b.puuid ? -1 : a.puuid > b.puuid ? 1 : 0),
+    )
+    .map((member) => member.name);
 }

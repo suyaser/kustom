@@ -1,6 +1,7 @@
 import { Archivo, IBM_Plex_Mono } from 'next/font/google';
 import Script from 'next/script';
 import type { ReactNode } from 'react';
+import { siteMetadataBase } from '@/lib/og/meta';
 import { THEME_BOOTSTRAP, THEME_COLOR, THEME_DEFAULT } from '@/lib/theme';
 import './tokens.css';
 import './theme-gaming.css';
@@ -39,6 +40,8 @@ const plexMono = IBM_Plex_Mono({
  * names, and appears nowhere under `apps/web`.
  */
 export const metadata = {
+  // WhatsApp and Discord do not resolve a relative `og:image` (M11.4).
+  metadataBase: siteMetadataBase(),
   title: 'Kustom',
   description: 'Team balancer and stats tracker for nightly League customs.',
 };
