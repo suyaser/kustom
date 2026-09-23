@@ -6,8 +6,8 @@
  * needs no `ui/` directory beside it.
  */
 
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -46,7 +46,6 @@ function readUi(name: 'index.html' | 'app.css' | 'app.js'): Buffer {
   if (fromBake !== null) return Buffer.from(fromBake, 'utf8');
   return readFileSync(join(resolveUiDir(), name));
 }
-
 
 export class OverlayServer {
   private server: Server | null = null;

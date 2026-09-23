@@ -17,8 +17,9 @@ import { ApiClient, healthCheck } from './api.js';
 import {
   type AppMode,
   type CompanionConfig,
-  type HostConfig,
   configDir,
+  DEFAULT_API_BASE,
+  type HostConfig,
   isHostConfig,
   loadConfig,
   logsDir,
@@ -26,7 +27,6 @@ import {
   saveConfig,
   saveOverlayModeConfig,
   stdioPrompt,
-  DEFAULT_API_BASE,
 } from './config.js';
 import { startHost } from './host.js';
 import { type CompanionLogger, createFileLogger, errorFields, isLogLevel } from './log.js';
@@ -112,7 +112,11 @@ async function resolveConfig(
           ...(loaded.partial.lockfilePath ? { lockfilePath: loaded.partial.lockfilePath } : {}),
         });
         logger.info('overlay config saved', { path, apiBase });
-        return { mode: 'overlay', apiBase, ...(loaded.partial.lockfilePath ? { lockfilePath: loaded.partial.lockfilePath } : {}) };
+        return {
+          mode: 'overlay',
+          apiBase,
+          ...(loaded.partial.lockfilePath ? { lockfilePath: loaded.partial.lockfilePath } : {}),
+        };
       }
       if (loaded.reason === 'bad_token') {
         logger.warn('the saved companion token cannot be a token from the admin page; asking again', {

@@ -264,9 +264,7 @@ export function saveConfig(dir: string, config: CompanionConfig | HostConfigInpu
           mode: 'host',
           apiBase: config.apiBase,
           companionToken: (config as HostConfigInput).companionToken,
-          ...('lockfilePath' in config && config.lockfilePath
-            ? { lockfilePath: config.lockfilePath }
-            : {}),
+          ...('lockfilePath' in config && config.lockfilePath ? { lockfilePath: config.lockfilePath } : {}),
         });
   const body = `${JSON.stringify(normalized, null, 2)}\n`;
   writeFileSync(path, body, { mode: 0o600 });

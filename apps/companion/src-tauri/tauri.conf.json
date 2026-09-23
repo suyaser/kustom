@@ -36,9 +36,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "icon": [
-      "icons/icon.png"
-    ],
+    "icon": ["icons/icon.png"],
     "resources": {
       "../dist/kustom-engine.exe": "kustom-engine.exe"
     }

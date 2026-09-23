@@ -18,10 +18,7 @@ export interface LoadOverlayOptions {
   now?: Date;
 }
 
-export async function loadOverlay(
-  client: PublicClient,
-  options: LoadOverlayOptions,
-): Promise<OverlayView> {
+export async function loadOverlay(client: PublicClient, options: LoadOverlayOptions): Promise<OverlayView> {
   const now = options.now ?? new Date();
   const nightStart = tonightStart(now);
   const timeZone = nightTimeZone();

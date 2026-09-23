@@ -353,10 +353,7 @@ describe('loadConfig / saveConfig', () => {
   });
   it('loads an explicit overlay config with no token', () => {
     const dir = tempDir();
-    writeFileSync(
-      configPath(dir),
-      JSON.stringify({ mode: 'overlay', apiBase: 'https://kustom.example' }),
-    );
+    writeFileSync(configPath(dir), JSON.stringify({ mode: 'overlay', apiBase: 'https://kustom.example' }));
     expect(loadConfig(dir)).toEqual({
       status: 'ok',
       path: configPath(dir),

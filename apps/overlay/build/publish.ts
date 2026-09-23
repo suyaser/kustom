@@ -51,9 +51,7 @@ export async function publish(options: { version?: string; gh?: string } = {}): 
     { stdio: 'inherit' },
   );
   if (result.status !== 0) {
-    throw new Error(
-      `gh release create failed. Run: gh auth login, then pnpm --filter overlay publish:gh`,
-    );
+    throw new Error(`gh release create failed. Run: gh auth login, then pnpm --filter overlay publish:gh`);
   }
 }
 

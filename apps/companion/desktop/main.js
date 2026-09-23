@@ -63,7 +63,7 @@ async function boot() {
   }
   try {
     const existing = await invoke('load_app_config');
-    if (existing && existing.configured) {
+    if (existing?.configured) {
       setMode(existing.mode);
       if (existing.apiBase) apiInput.value = existing.apiBase;
       showRunning();

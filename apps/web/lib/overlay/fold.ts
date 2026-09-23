@@ -8,8 +8,8 @@
 
 import type { RoleValue, SideValue } from '@customs/db';
 import { championIconUrl } from '../champs/names';
-import type { FearlessChampion } from '../fearless/types';
 import { groupFearless } from '../fearless/present';
+import type { FearlessChampion } from '../fearless/types';
 import { MIN_DUO_GAMES } from '../stats/copy';
 import type { StatsGame, StatsPlayer } from '../stats/types';
 import type { SeatView } from '../tonight/types';
@@ -78,12 +78,8 @@ export function overlayView(input: OverlayFoldInput): OverlayView {
       : null;
 
   const teams: OverlayTeams = {
-    blue: input.lobby.blue.map((seat) =>
-      seatRow(seat, viewer, counted, input.players, laneOpponentPuuid),
-    ),
-    red: input.lobby.red.map((seat) =>
-      seatRow(seat, viewer, counted, input.players, laneOpponentPuuid),
-    ),
+    blue: input.lobby.blue.map((seat) => seatRow(seat, viewer, counted, input.players, laneOpponentPuuid)),
+    red: input.lobby.red.map((seat) => seatRow(seat, viewer, counted, input.players, laneOpponentPuuid)),
   };
 
   return {
@@ -94,9 +90,7 @@ export function overlayView(input: OverlayFoldInput): OverlayView {
 }
 
 /** Lane then A–Z, with icon URLs for the panel. */
-export function presentOverlayFearless(
-  champions: readonly FearlessChampion[],
-): OverlayFearlessChampion[] {
+export function presentOverlayFearless(champions: readonly FearlessChampion[]): OverlayFearlessChampion[] {
   const out: OverlayFearlessChampion[] = [];
   for (const group of groupFearless(champions)) {
     for (const champion of group.champions) {
@@ -111,7 +105,10 @@ export function presentOverlayFearless(
   return out;
 }
 
-export function seatsFromTonight(blue: readonly SeatView[], red: readonly SeatView[]): {
+export function seatsFromTonight(
+  blue: readonly SeatView[],
+  red: readonly SeatView[],
+): {
   blue: OverlaySeatInput[];
   red: OverlaySeatInput[];
 } {

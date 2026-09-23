@@ -2,18 +2,18 @@
 
 :root {
   color-scheme: dark;
-  
+
   /* Palette */
-  --cn-bg: #0B0E14;
+  --cn-bg: #0b0e14;
   --cn-surface: #141923;
-  --cn-raise: #1D2431;
-  --cn-line: #2A3140;
-  --cn-text: #EEF2F8;
-  --cn-dim: #94A0B2;
-  --cn-blue: #4C9AFF;
-  --cn-red: #FF6B63;
-  --cn-brand: #FFB13C;
-  
+  --cn-raise: #1d2431;
+  --cn-line: #2a3140;
+  --cn-text: #eef2f8;
+  --cn-dim: #94a0b2;
+  --cn-blue: #4c9aff;
+  --cn-red: #ff6b63;
+  --cn-brand: #ffb13c;
+
   /* Derived */
   --cn-blue-tint: color-mix(in srgb, var(--cn-blue) 10%, var(--cn-surface));
   --cn-red-tint: color-mix(in srgb, var(--cn-red) 10%, var(--cn-surface));
@@ -22,18 +22,18 @@
   --cn-red-line: color-mix(in srgb, var(--cn-red) 55%, var(--cn-line));
   --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
   --cn-glow: 0 0 0 4px color-mix(in srgb, var(--cn-brand) 14%, transparent);
-  
+
   /* Space */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 24px;
-  
+
   /* Type */
-  --font-sans: 'Archivo', 'Helvetica Neue', Arial, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  
+  --font-sans: "Archivo", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.4;
@@ -48,8 +48,12 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: 
-    radial-gradient(120% 70% at 50% -15%, color-mix(in srgb, var(--cn-brand) 5%, transparent), transparent 65%),
+  background:
+    radial-gradient(
+      120% 70% at 50% -15%,
+      color-mix(in srgb, var(--cn-brand) 5%, transparent),
+      transparent 65%
+    ),
     var(--cn-bg);
   overflow-x: hidden;
 }
@@ -119,13 +123,22 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Main content */
@@ -238,7 +251,7 @@ section h2 {
 }
 
 .side-label::before {
-  content: '';
+  content: "";
   width: 4px;
   height: 16px;
   border-radius: 2px;

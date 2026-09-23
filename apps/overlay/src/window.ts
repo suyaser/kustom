@@ -4,7 +4,7 @@
  * When CUSTOMS_NIGHT_TAURI=1, this module is a no-op: Tauri manages the window.
  */
 
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { platform } from 'node:os';
 
 export interface WindowHandle {
@@ -14,14 +14,10 @@ export interface WindowHandle {
 function findBrowser(): string | null {
   if (platform() !== 'win32') return null;
   const candidates = [
-    process.env.LOCALAPPDATA
-      ? `${process.env.LOCALAPPDATA}\\Microsoft\\Edge\\Application\\msedge.exe`
-      : null,
+    process.env.LOCALAPPDATA ? `${process.env.LOCALAPPDATA}\\Microsoft\\Edge\\Application\\msedge.exe` : null,
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    process.env.PROGRAMFILES
-      ? `${process.env.PROGRAMFILES}\\Google\\Chrome\\Application\\chrome.exe`
-      : null,
+    process.env.PROGRAMFILES ? `${process.env.PROGRAMFILES}\\Google\\Chrome\\Application\\chrome.exe` : null,
   ];
   return candidates.find((path) => path !== null) ?? null;
 }
@@ -73,12 +69,7 @@ export function openOverlayWindow(url: string, position: { x: number; y: number 
     return { close: () => undefined };
   }
 
-  const args = [
-    `--app=${url}`,
-    '--new-window',
-    '--disable-features=TranslateUI',
-    '--no-first-run',
-  ];
+  const args = [`--app=${url}`, '--new-window', '--disable-features=TranslateUI', '--no-first-run'];
   if (position !== null) {
     args.push(`--window-position=${Math.round(position.x)},${Math.round(position.y)}`);
   }

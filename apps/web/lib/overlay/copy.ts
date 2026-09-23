@@ -2,8 +2,8 @@
  * Every sentence the champ-select overlay says (M12), matching `05-design.md`.
  */
 
-import { MIN_DUO_GAMES } from '../stats/copy';
 import { FEARLESS_SENTENCE, FEARLESS_TITLE } from '../fearless/copy';
+import { MIN_DUO_GAMES } from '../stats/copy';
 
 export const OVERLAY_FEARLESS_TITLE = FEARLESS_TITLE;
 export const OVERLAY_FEARLESS_SENTENCE = FEARLESS_SENTENCE;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MIN_DUO_GAMES } from '../stats/copy';
 import { puuidOf, rosterFor, statsGame } from '../testing/statsFixtures';
-import { overlayView, presentOverlayFearless, type OverlaySeatInput } from './fold';
+import { type OverlaySeatInput, overlayView, presentOverlayFearless } from './fold';
 
 /**
  * Overlay fold (M12): with/against from headToHead, lane opponent from the posted split.
@@ -28,12 +28,7 @@ function allyGames(n: number) {
   );
 }
 
-function seat(
-  key: string,
-  role: OverlaySeatInput['role'],
-  side: 100 | 200,
-  rating = 1400,
-): OverlaySeatInput {
+function seat(key: string, role: OverlaySeatInput['role'], side: 100 | 200, rating = 1400): OverlaySeatInput {
   return {
     puuid: puuidOf(key),
     name: key,
@@ -139,12 +134,8 @@ describe('overlayView', () => {
       games,
       players: rosterFor(games),
     });
-    expect(view.lobby?.teams?.red.find((row) => row.puuid === puuidOf('hana'))?.isLaneOpponent).toBe(
-      true,
-    );
-    expect(view.lobby?.teams?.red.find((row) => row.puuid === puuidOf('lena'))?.isLaneOpponent).toBe(
-      false,
-    );
+    expect(view.lobby?.teams?.red.find((row) => row.puuid === puuidOf('hana'))?.isLaneOpponent).toBe(true);
+    expect(view.lobby?.teams?.red.find((row) => row.puuid === puuidOf('lena'))?.isLaneOpponent).toBe(false);
   });
 });
 

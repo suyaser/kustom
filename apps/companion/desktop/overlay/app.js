@@ -38,21 +38,21 @@ function renderFearless(fearless) {
   if (!fearless || fearless.champions.length === 0) {
     return `<section><h2>${COPY.fearlessTitle}</h2><p class="sentence">${COPY.fearlessEmpty}</p></section>`;
   }
-  
+
   const byLane = new Map();
   for (const champ of fearless.champions) {
     const lane = champ.role ?? 'other';
     if (!byLane.has(lane)) byLane.set(lane, []);
     byLane.get(lane).push(champ);
   }
-  
+
   const order = ['top', 'jungle', 'mid', 'adc', 'support', 'other'];
   let html = `<section><h2>${COPY.fearlessTitle}</h2><p class="sentence">${COPY.fearlessSentence}</p>`;
-  
+
   for (const lane of order) {
     const list = byLane.get(lane);
     if (!list) continue;
-    
+
     html += `<div class="lane-group"><p class="lane-label">${esc(lane)}</p><ul class="chips">`;
     for (const champ of list) {
       const icon = champ.iconUrl
@@ -62,32 +62,30 @@ function renderFearless(fearless) {
     }
     html += '</ul></div>';
   }
-  
+
   html += '</section>';
   return html;
 }
 
 function renderSide(label, color, seats, viewerPuuid) {
   if (!seats || seats.length === 0) return '';
-  
+
   let html = `<div class="side"><div class="side-label ${color}">${esc(label)}</div><div class="seats">`;
-  
+
   for (const seat of seats) {
     const you = seat.puuid === viewerPuuid ? ' you' : '';
     const youMark = seat.puuid === viewerPuuid ? ` <span class="you-mark">· ${COPY.you}</span>` : '';
-    const lane = seat.isLaneOpponent
-      ? `<span class="lane-mark">${COPY.lane}</span>`
-      : '';
+    const lane = seat.isLaneOpponent ? `<span class="lane-mark">${COPY.lane}</span>` : '';
     const role = seat.role ?? '—';
     const records = seat.puuid === viewerPuuid ? '' : esc(recordLine(seat));
-    
+
     html += `<div class="seat${you}">
       <div class="name">${esc(seat.name ?? 'Unknown')}${youMark}${lane}</div>
       <div class="meta">${esc(role)} · ${seat.rating}</div>
       ${records ? `<div class="records">${records}</div>` : ''}
     </div>`;
   }
-  
+
   html += '</div></div>';
   return html;
 }
@@ -99,7 +97,7 @@ function renderLobby(payload) {
   if (!payload.lobby.teams) {
     return `<section><h2>${COPY.lobbyTitle}</h2><p class="empty">${COPY.noLobby}</p></section>`;
   }
-  
+
   const { blue, red } = payload.lobby.teams;
   return `<section><h2>${COPY.lobbyTitle}</h2>
     ${renderSide('Blue', 'blue', blue, payload.viewerPuuid)}
@@ -114,31 +112,31 @@ function render(state) {
   } else {
     livePill.style.display = 'none';
   }
-  
+
   if (!state.connected) {
     statusEl.textContent = COPY.waiting;
     root.innerHTML = '';
     return;
   }
-  
+
   if (!state.visible) {
     statusEl.textContent = state.phase ? `Client: ${state.phase}` : COPY.waiting;
     root.innerHTML = '<p class="empty">Panel hides outside lobby and champion select.</p>';
     return;
   }
-  
+
   statusEl.textContent = state.phase ?? 'Lobby';
-  
+
   if (state.error) {
     root.innerHTML = `<p class="empty">${esc(state.error)}</p>`;
     return;
   }
-  
+
   if (!state.payload) {
     root.innerHTML = '<p class="empty">Loading…</p>';
     return;
   }
-  
+
   root.innerHTML = renderFearless(state.payload.fearless) + renderLobby(state.payload);
 }
 
