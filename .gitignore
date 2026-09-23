@@ -9,6 +9,8 @@ dist/
 packages/db/supabase/.temp/
 # Downloaded Node binaries for the companion exe build (apps/companion/build/sea.ts)
 apps/companion/build/cache/
+apps/companion/src-tauri/target/
+apps/companion/desktop/dist/
 .DS_Store
 coverage/
 *.tsbuildinfo

@@ -275,7 +275,7 @@ See `02-milestones.md` for the build order. In product terms:
 | A picture when a link to tonight, a game or a player is pasted | M11 |
 | Asking the database whether coming back after a break really breaks the rating | M9.1 |
 | Widening the model's doubt about a player who has been away | M9.2, not scoped: it waits on M9.1's numbers |
-| Tray app wrapper with auto-start | M6 |
+| Tray app + optional overlay in one Kustom.exe (Host / Overlay modes) | M6 + M12 |
 
 Backfill (M5) reads the client's own match history, and M0 confirmed it can: customs are in there
 (17 of 21 games in the first capture). Two details shape it. The history *list* names only the person whose
@@ -337,8 +337,9 @@ that makes a second one.
 - Any Riot public API usage. Custom match data is not available there and we do not need ranked data from it.
   Champion icons are not that API: they are the game's own static images from Community Dragon, looked up by
   the champion id we already store, with no key and no player data (2026-09-23).
-- Everyone installing something. The overlay client idea (M12) would change that and is parked until the
-  group decides it wants it.
+- Asking every friend to run a **host** companion. Host mode still needs a token and opens lobbies;
+  one or two people keep that. Everyone else installs the **same** `Kustom.exe` in Overlay mode
+  (no token) for the fearless panel during lobby and champion select.
 - Manual result reporting. If the companion misses a game, backfill (M5) recovers it.
 - WhatsApp bot. There is no legitimate group-bot API. The tonight page link is the WhatsApp integration.
 - Slack. Not until someone asks twice. It would be a single webhook.

@@ -38,7 +38,8 @@ never holds a database credential; it holds a per-player companion token.
 |---|---|
 | Supabase | Hosted Postgres plus auth, realtime, and generated types. Discord OAuth for the web is a checkbox. Realtime drives the tonight page and the bot without polling. |
 | API in Next.js route handlers, not edge functions | One runtime, one deploy, one place for `packages/core`. Edge functions would add Deno as a second toolchain for no gain at this scale. |
-| Companion as a Node CLI first, tray app later | Keeps the whole project TypeScript. `packages/lcu` is shared with any future shell. Packaged with Node single-executable or `pkg`. A Tauri tray wrapper with the CLI as a sidecar is M6. |
+| Companion as a Node engine + Tauri tray (M6) | TypeScript engine in `apps/companion`; Tauri shell for Host/Overlay setup and tray. Node SEA still packs the engine for CLI/`build:win`. |
+
 | OpenSkill (`openskill` npm) | TrueSkill-family rating with team support, MIT licensed, has `predictWin`. Elo cannot model 5v5 with per-player uncertainty. |
 | No Riot public API | The client exposes rank and match history for the logged-in player and rank lookups for others. Removes key approval and rate limits from the project entirely. |
 | Discord webhook before bot | Posting messages needs no long-running process. The bot process exists only for voice moves and presence (M4). |
@@ -603,9 +604,18 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   a side from a split the group has moved on from. `create_lobby` and `invite` are never queued by a transition
   (they are M4.2's button) and never superseded by one; they expire on their own TTL.
 
+## Overlay panel (inside `apps/companion`)
+
+Champ-select panel is a mode of `Kustom.exe`, not a second product (M6 / M12, 2026-09-23). Overlay mode
+needs no companion token. Polls `current-summoner` and `gameflow-phase` only; on `Lobby` / `ChampSelect`
+fetches `GET /api/overlay?puuid=` and shows the fearless pool plus with/against records for the posted
+teams. Hides at `GameStart`. Host mode runs the same panel beside the companion watchers. Config:
+`%APPDATA%/customs-night/config.json` with `{ mode: 'host' | 'overlay', apiBase, companionToken? }`.
+Write powers require a token — Overlay mode never stores one. `apps/overlay/` is retired as a ship target.
+
 ## Companion (`apps/companion`)
 
-Long-running process. State machine:
+Long-running process (Node engine) plus optional Tauri tray shell (M6). State machine (Host mode):
 
 ```
 disconnected --(lockfile found)--> connected --(ws open)--> watching
@@ -616,8 +626,9 @@ watching: on lobby event -> POST /api/companion/lobby
           every 5s -> GET /api/companion/commands -> execute (create lobby, invite, switch side) -> ack
 ```
 
-- Config in `%APPDATA%/customs-night/config.json`: `{ apiBase, companionToken }`. First run prompts for a token
-  minted on the web admin page.
+- Config in `%APPDATA%/customs-night/config.json`: `{ mode, apiBase, companionToken? }`. Host pastes a token
+  minted on the web admin page; Overlay writes `mode: 'overlay'` with no token. Pre-M6 files with a token and
+  no `mode` are treated as host.
 - Reconnects forever with backoff. The client restarts between patches; the companion must not.
 - Every LCU response is parsed with zod. Unknown shapes are logged with the endpoint and dropped.
 - Logs to `%APPDATA%/customs-night/logs/` with daily rotation, and queues captured end-of-game payloads in

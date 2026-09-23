@@ -14,7 +14,12 @@
     "build:exe": "tsx build/sea.ts --target win-x64",
     "build:host": "tsx build/sea.ts --target host",
     "publish:gh": "tsx build/publish.ts",
-    "release": "tsx build/release.ts"
+    "release": "tsx build/release.ts",
+    "tauri": "node build/with-cargo.mjs tauri",
+    "tauri:dev": "node build/with-cargo.mjs tauri dev",
+    "tauri:build": "node build/with-cargo.mjs tauri build",
+    "build:desktop": "tsx build/sea.ts --target win-x64 && node -e \"require('fs').copyFileSync('dist/Kustom.exe','dist/kustom-engine.exe')\" && node build/with-cargo.mjs tauri build",
+    "desktop:sync": "node -e \"const fs=require('fs');const p=require('path');const d=p.join('desktop','dist');fs.mkdirSync(d,{recursive:true});for (const f of ['index.html','main.js']) fs.copyFileSync(p.join('desktop',f), p.join(d,f));\""
   },
   "dependencies": {
     "@customs/db": "workspace:*",
@@ -22,6 +27,8 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/cli": "^2.2.0",
     "@types/node": "26.5.0",
     "esbuild": "0.28.2",
     "postject": "1.0.0-alpha.6",

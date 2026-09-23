@@ -1,95 +1,98 @@
 /**
  * `pnpm --filter companion dev` (and, packaged, the exe a friend leaves running).
  *
- * Startup: resolve the config directory, load or prompt for the config, open the log, ping the API, say who
- * the token is (`GET /api/companion/me`), replay the end-of-game queue, then hand over to the connection state
- * machine, which runs until SIGINT/SIGTERM. Nothing after startup exits the process on an error: uncaught
- * exceptions and unhandled rejections are logged and the loop goes on.
+ * One app, two modes (M6):
+ *  - **Host** — companion token; lobby/game watchers plus the champ-select panel.
+ *  - **Overlay** — no token; fearless + lobby synergy panel only.
  *
- * Flags: `--version` / `-v` prints the version and exits 0; `--help` / `-h` prints the usage and exits 0.
- * Both are answered before anything is read or written, so the build's smoke test can run the bundle on any
- * machine. `--show-token` makes the first-run token prompt echo what is typed (M2.19). `--verify-commands`
- * runs the M4.1 live verification of the three lobby writes against the client (`verifyCommands.ts`) and
- * exits; it makes no API call and needs no token.
+ * Startup: resolve the config directory, load or prompt for host config (CLI), open the log, then
+ * start the panel (always) and host watchers (host mode only). Tauri sets `CUSTOMS_NIGHT_TAURI=1`
+ * so the panel skips Edge and the shell opens its own overlay window from `status.json`.
  *
- * Environment:
- *  - `CUSTOMS_NIGHT_CONFIG_DIR` overrides the config directory (config.json, logs/, queue/, backfill.json,
- *    commands-done.json and the verify-commands reports).
- *  - `CUSTOMS_NIGHT_LOG_LEVEL` sets the console level (`debug`, `info`, `warn`, `error`; default `info`).
- *    The file always gets `debug`.
- *  - `CUSTOMS_NIGHT_SHOW_TOKEN=1` is `--show-token` for a shortcut that cannot pass flags.
- *  - `CUSTOMS_NIGHT_VERIFY_COMMANDS=1` is `--verify-commands` for the same reason.
- *  - `LCU_LOCKFILE_CANDIDATES` (from `@customs/lcu`) replaces the default lockfile paths.
+ * Flags: `--version` / `-v`, `--help` / `-h`, `--show-token`, `--verify-commands`,
+ * `--mode host|overlay` (forces mode for this run when config is missing / for overlay first write).
  */
 
 import { ApiClient, healthCheck } from './api.js';
-import { Backfill } from './backfill.js';
-import { CommandRunner } from './commandRunner.js';
 import {
+  type AppMode,
   type CompanionConfig,
   configDir,
+  DEFAULT_API_BASE,
+  type HostConfig,
+  isHostConfig,
   loadConfig,
   logsDir,
   promptFirstRun,
   saveConfig,
+  saveOverlayModeConfig,
   stdioPrompt,
 } from './config.js';
-import { ConnectionMachine } from './connection.js';
-import { GameWatcher } from './gameWatcher.js';
-import { composeHooks, loggingHooks } from './hooks.js';
-import { announceIdentity, checkIdentity } from './identity.js';
-import { LobbyWatcher } from './lobbyWatcher.js';
+import { startHost } from './host.js';
 import { type CompanionLogger, createFileLogger, errorFields, isLogLevel } from './log.js';
-import { RankSync } from './rankSync.js';
+import { startPanel } from './panel/run.js';
+import { writeStatus } from './status.js';
 import { runVerifyCommands } from './verifyCommands.js';
 import { COMPANION_VERSION } from './version.js';
 
-export const APP_NAME = 'Kustom companion';
+export const APP_NAME = 'Kustom';
 
 export function usage(): string {
   return [
     `${APP_NAME} ${COMPANION_VERSION}`,
     '',
-    'Watches the League client and reports lobbies and results to Kustom, so nobody picks teams or reports scores.',
-    'Double-click it (or run it with no arguments) and leave it running.',
+    'One app for Customs Night. Host mode watches the League client and reports lobbies and results.',
+    'Overlay mode only shows fearless bans and lobby synergy during champ select (no token).',
     '',
     'Flags:',
     '  --version, -v   print the version and exit',
     '  --help, -h      print this text and exit',
-    '  --show-token    show the token as you type it at the first-run prompt (for a terminal that',
-    '                  cannot paste into a hidden prompt); it is still never written to the log',
+    '  --mode host|overlay',
+    '                  pick a mode when no config exists yet (overlay writes a token-free config)',
+    '  --show-token    show the token as you type it at the first-run prompt (host mode)',
     '  --verify-commands',
-    '                  verify the lobby writes (create, invite, switch side) against the running client,',
-    '                  one prompt per probe, and write a report to paste back; no API call, no token needed',
+    '                  verify the lobby writes against the running client; no API call, no token needed',
     '',
     'Environment:',
-    '  CUSTOMS_NIGHT_CONFIG_DIR   config directory (config.json, logs/, queue/, backfill.json,',
-    '                             commands-done.json, verify-commands reports)',
+    '  CUSTOMS_NIGHT_CONFIG_DIR   config directory (config.json, logs/, queue/, status.json, …)',
     '  CUSTOMS_NIGHT_LOG_LEVEL    console level: debug | info | warn | error (default info)',
     '  CUSTOMS_NIGHT_SHOW_TOKEN   1 is the same as --show-token',
     '  CUSTOMS_NIGHT_VERIFY_COMMANDS',
     '                             1 is the same as --verify-commands',
+    '  CUSTOMS_NIGHT_TAURI        1: panel window is owned by the Tauri shell',
     '',
     `Config: ${configDir()}`,
   ].join('\n');
 }
 
-/**
- * A double-clicked exe whose process exits closes its console window with it, so the one sentence that
- * says why is gone before anyone reads it. On a TTY, wait for Enter first. Never on a pipe (tests, CI).
- */
 async function holdWindowOpen(): Promise<void> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return;
+  }
+  if (process.env.CUSTOMS_NIGHT_TAURI === '1') {
     return;
   }
   const io = stdioPrompt();
   await io.ask('Press Enter to close this window. ');
 }
 
+function flagValue(args: readonly string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index < 0) return undefined;
+  return args[index + 1];
+}
+
+function parseModeFlag(args: readonly string[]): AppMode | undefined {
+  const raw = flagValue(args, '--mode');
+  if (raw === 'host' || raw === 'overlay') return raw;
+  return undefined;
+}
+
 async function resolveConfig(
   dir: string,
   logger: CompanionLogger,
   showToken: boolean,
+  modeFlag: AppMode | undefined,
 ): Promise<CompanionConfig | null> {
   const loaded = loadConfig(dir);
   switch (loaded.status) {
@@ -102,8 +105,20 @@ async function resolveConfig(
       });
       return null;
     case 'missing': {
+      if (modeFlag === 'overlay' || loaded.partial.mode === 'overlay') {
+        const apiBase = loaded.partial.apiBase ?? DEFAULT_API_BASE;
+        const path = saveOverlayModeConfig(dir, {
+          apiBase,
+          ...(loaded.partial.lockfilePath ? { lockfilePath: loaded.partial.lockfilePath } : {}),
+        });
+        logger.info('overlay config saved', { path, apiBase });
+        return {
+          mode: 'overlay',
+          apiBase,
+          ...(loaded.partial.lockfilePath ? { lockfilePath: loaded.partial.lockfilePath } : {}),
+        };
+      }
       if (loaded.reason === 'bad_token') {
-        // Never the value: the file is where the token lives, and the log is what gets sent around.
         logger.warn('the saved companion token cannot be a token from the admin page; asking again', {
           path: loaded.path,
         });
@@ -133,8 +148,6 @@ async function main(): Promise<number> {
   }
   const dir = configDir();
   if (args.includes('--verify-commands') || process.env.CUSTOMS_NIGHT_VERIFY_COMMANDS === '1') {
-    // The live verification of the lobby writes (M4.1). No API, no token: the config is read only for a
-    // `lockfilePath`, and a missing config is fine.
     const loaded = loadConfig(dir);
     const lockfilePath =
       loaded.status === 'ok'
@@ -150,71 +163,93 @@ async function main(): Promise<number> {
     await holdWindowOpen();
     return code;
   }
+
   const consoleLevelRaw = process.env.CUSTOMS_NIGHT_LOG_LEVEL ?? 'info';
   const consoleLevel = isLogLevel(consoleLevelRaw) ? consoleLevelRaw : 'info';
   const logger = createFileLogger({ dir: logsDir(dir), consoleLevel, fileLevel: 'debug' });
+  const modeFlag = parseModeFlag(args);
   logger.info(`${APP_NAME} ${COMPANION_VERSION} starting`, {
     node: process.version,
     platform: process.platform,
     configDir: dir,
     logDir: logsDir(dir),
+    tauri: process.env.CUSTOMS_NIGHT_TAURI === '1',
   });
 
   const showToken = args.includes('--show-token') || process.env.CUSTOMS_NIGHT_SHOW_TOKEN === '1';
-  const config = await resolveConfig(dir, logger, showToken);
+  const config = await resolveConfig(dir, logger, showToken, modeFlag);
   if (config === null) {
     await holdWindowOpen();
     return 1;
   }
-  logger.addSecret(config.companionToken);
 
-  const api = new ApiClient({
-    apiBase: config.apiBase,
-    token: config.companionToken,
-    logger: logger.child({ component: 'api' }),
+  writeStatus(dir, {
+    mode: config.mode,
+    state: 'starting',
+    phase: null,
+    playerName: null,
+    overlayUrl: null,
+    overlayVisible: false,
+    error: null,
   });
-  const health = await api.health();
-  if (health === null) {
-    logger.info('api reachable', { apiBase: config.apiBase });
+
+  let overlayUrl: string | null = null;
+  const panel = await startPanel(
+    dir,
+    {
+      apiBase: config.apiBase,
+      ...(config.lockfilePath ? { lockfilePath: config.lockfilePath } : {}),
+    },
+    {
+      openWindow: true,
+      log: (message, fields) => {
+        logger.warn(message, fields ?? {});
+      },
+      onState: (state) => {
+        writeStatus(dir, {
+          mode: config.mode,
+          state: state.connected ? (state.visible ? 'watching' : 'waiting') : 'disconnected',
+          phase: state.phase,
+          playerName: null,
+          overlayUrl,
+          overlayVisible: state.visible,
+          error: null,
+        });
+      },
+    },
+  );
+  overlayUrl = panel.url;
+
+  writeStatus(dir, {
+    mode: config.mode,
+    state: 'waiting',
+    phase: null,
+    playerName: null,
+    overlayUrl: panel.url,
+    overlayVisible: false,
+    error: null,
+  });
+  // Tauri watches stdout for this line to open the overlay webview.
+  console.info(`OVERLAY_READY ${panel.url}`);
+
+  let host: ReturnType<typeof startHost> | null = null;
+  if (isHostConfig(config)) {
+    logger.addSecret(config.companionToken);
+    const api = new ApiClient({
+      apiBase: config.apiBase,
+      token: config.companionToken,
+      logger: logger.child({ component: 'api' }),
+    });
+    const health = await api.health();
+    if (health === null) {
+      logger.info('api reachable', { apiBase: config.apiBase });
+    } else {
+      logger.warn('api not reachable now; calls will retry', { apiBase: config.apiBase, reason: health });
+    }
+    host = startHost(config as HostConfig, dir, logger);
   } else {
-    logger.warn('api not reachable now; calls will retry', { apiBase: config.apiBase, reason: health });
+    logger.info('overlay mode: panel only (no companion token)');
   }
-
-  // The queue needs the API, not League: replay it before anything else, so an API that is slow to answer
-  // the identity check below never delays a queued game.
-  const gameWatcher = new GameWatcher({ api, logger, configDir: dir });
-  gameWatcher.start();
-
-  // Who this token is, on every start and right after the first-run prompt. One attempt; never blocks.
-  announceIdentity(await checkIdentity(api), logger);
-
-  // The command queue (M4.1): polls the API, runs create-lobby / invite / switch-side through packages/lcu,
-  // acks or nacks. Each kind is gated on its reference row being verified; see commandRunner.ts.
-  const commandRunner = new CommandRunner({ api, logger, configDir: dir });
-  const lobbyWatcher = new LobbyWatcher({
-    api,
-    logger,
-    onResponse: (response) => rankSync.needed(response.ranksNeeded),
-    passwordFor: (partyId) => commandRunner.passwordFor(partyId),
-  });
-  const rankSync = new RankSync({ api, logger, names: lobbyWatcher.knownNames });
-  // Past customs from match history (M5.1): 60 s after the first connect, then every 6 h, only while the
-  // client is idle. Its games go through the game watcher's queue like any end-of-game block.
-  const backfill = new Backfill({ api, logger, configDir: dir, sink: gameWatcher });
-  const machine = new ConnectionMachine({
-    logger,
-    hooks: composeHooks(
-      logger,
-      loggingHooks(logger),
-      lobbyWatcher.hooks(),
-      gameWatcher.hooks(),
-      rankSync.hooks(),
-      backfill.hooks(),
-      commandRunner.hooks(),
-    ),
-    lockfile: config.lockfilePath ? { overridePath: config.lockfilePath } : {},
-  });
-  commandRunner.start();
 
   let signals = 0;
   const onSignal = (signal: NodeJS.Signals): void => {
@@ -224,7 +259,10 @@ async function main(): Promise<number> {
       process.exit(130);
     }
     logger.info('shutting down', { signal });
-    machine.stop();
+    host?.stop();
+    void panel.stop().then(() => {
+      process.exit(0);
+    });
   };
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
@@ -235,12 +273,14 @@ async function main(): Promise<number> {
     logger.error('unhandled rejection (continuing)', errorFields(reason));
   });
 
-  await machine.run();
-  commandRunner.stop();
-  lobbyWatcher.stop();
-  rankSync.stop();
-  backfill.stop();
-  gameWatcher.stop();
+  if (host !== null) {
+    await host.run;
+  } else {
+    // Overlay-only: stay alive until signal.
+    await new Promise<void>(() => undefined);
+  }
+
+  await panel.stop();
   logger.info('stopped');
   return 0;
 }
@@ -250,8 +290,7 @@ main().then(
     process.exit(code);
   },
   async (error) => {
-    // Only startup can get here (the loop never rejects). Say why, then exit non-zero.
-    console.error('companion failed to start:', error instanceof Error ? error.message : String(error));
+    console.error('kustom failed to start:', error instanceof Error ? error.message : String(error));
     await holdWindowOpen();
     process.exit(1);
   },

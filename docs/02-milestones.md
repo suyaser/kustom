@@ -17,9 +17,8 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M8 The day after: rivals, awards, a second guessing game | in progress | Opened 2026-09-15 from four ideas of the user's, all four settled with them the same day. **M8.1** nemesis and best duo on `/fun`; **M8.2** won against the odds — the honest "best comeback", read from the stored `blue_win_prob` so a rebuild cannot move it (**confirmed by the user over the literal biggest-`mu`-swing version**); **M8.3** the existing awards as badges on `/leaderboard`'s closed windows, placement only, because most improved and longest streak already shipped in M5.4; **M8.4** Guess the Award, and **the two games alternate civil days** (the user, 2026-09-15) — one challenge per day as today, so `daily_mysteries.day` keeps its unique and the only migration is additive (`kind`, a widened `category` check, `(kind, challenge_number)`). The fourth idea, the balance percentage, is **M3.31** and not here. Every task is a read over stored games; none touches the rating model. **Starts after M7 clears `apps/web`** (M8.1 to M8.3 after M7.4; M8.4 after M7.9). **M8.1 landed 2026-09-15.** **M8.2 landed 2026-09-15**: "Won against the odds" on `/fun`, read from the chosen split's stored win chance, never a live recompute. **M8.3 landed 2026-09-15**: badges on `Last week`/`Last month` board rows via a second, parallel award read (see its own checkbox and the decision row for why). **M8.4 landed 2026-09-16**: both halves reviewed and fixed, migration `0016` pushed to hosted, `05-design.md` caught up on the whole of the daily-game section. **M8.1 to M8.4 landed.** **M8.5 landed 2026-09-18**: `/1v1` lane wars and head-to-head, the page M8.1 deferred until the group asked twice. **Does not change `/stats`, Nemesis, the awards, or the rating model.** |
 | M10 Fearless draft | in progress | Opened 2026-09-18 from the user: after each Rift custom, the ten champions locked that game are banned from the next one, the list keeps growing until an admin resets it, and Discord gets the list. **M10.1** is the whole feature: singleton `fearless_state.reset_at` (migration `0017`, seeded to `now()` so history does not flood the first list), pool derived from `game_players.champion_id`, tonight card, Discord embed after the result, admin reset on `/admin`. Companion never auto-bans. **M10.1 landed 2026-09-18** (merged directly via GitHub PR #13, outside the usual dispatch loop) and reviewed the same day: migration is purely additive, the singleton check genuinely prevents a second row, RLS matches the doc comment, and `reset_at default now()` correctly seeds an empty pool rather than flooding it with history. Six non-blocking follow-ups found (a same-lane double-count edge case in `/1v1`'s head-to-head, missing deterministic ordering on the fearless champion list, a silent-truncation risk past 500 games, a missing 401 test on the reset route, a sequential-await hazard between the result and fearless Discord posts, and an untested reset-row-missing race) — none blocking, tracked for a follow-up pass. **Migration `0017` pushed to hosted 2026-09-18**, confirmed applied (`supabase migration list --linked` shows 0001-0017 on both sides), `pnpm db:types` regenerated (one real fix: `fearless_state.id` has no default in the migration, so `Insert.id` is required, not optional — the checked-in type was wrong until this). **M10.2** (2026-09-20): lane groups, A–Z inside each lane, and a find box on `/` so five games are searchable. Companion never auto-bans and still does not read champion select — typing a name is the pick-phase check. **M10.3 landed 2026-09-22**: each lane on `/` ends with who is still open in that lane. A locked champion leaves every lane. Discord stays the ban list. |
 | M11 The night as a broadcast | in progress | Opened 2026-09-23 from the user, who asked to start three of the lead's proposals plus champion icons on the fearless card and nowhere else. **M11.1 landed 2026-09-23**. **M11.3 landed 2026-09-23**: reusable `ResultPoster`, underdog line, `webAwardLine` (Discord markdown escape stays off the page); reviewed clean. **M11.2 landed 2026-09-23**. **M11.4 landed 2026-09-23**: `/og/*` cards, `/g/[gameId]`, Discord + tape links; reviewed clean after the decision row. The four tasks are closed. Product alt strings and a real-data unfurl are leftovers, not a fifth task. **M11.3** was: the underdog line off the stored `blue_win_prob` and the `MVP · ACE` line Discord already posts, reusable on a page of its own. **M11.2** the night tape: tonight's earlier finished and dropped games under the primary block, oldest first, a read of stored rows. **M11.4** share cards: 1200×630 unfurl images for `/`, a new `/g/[gameId]` (no single-game URL exists today) and `/p/[puuid]`, with no Share button. Order M11.1 → M11.3 → M11.2 → M11.4, because the last three all edit the tonight view and loader. No rating, balancer, ingest or schema change in any of them. Icons appear on the fearless card only — not `/fun`, `/games`, `/p`, Discord, share cards or the poster. |
-| M12 Overlay client | not started | Parked 2026-09-23. A small desktop app every friend installs, for a fearless overlay and live in-game team stats. It changes the install story (`00-product.md`: "one or two people are willing to run a small desktop app") and waits on the user's answer to that. **M11.1 (icons) has landed**; briefs still wait on the install-story answer. |
-| M9 Does coming back after a break break the rating? | **deferred to next release** | **Deferred by the user, 2026-09-15**: the whole milestone waits, not picked up even once M7.11 lands. The user asked on 2026-09-15 for `sigma` decay after a layoff and settled the same day that **the measurement comes first**. **M9.1** is that measurement and is a real task: a read-only script over the hosted project that counts 14-day-plus returns and compares the first game back against ordinary games **at the same `sigma`**, run **after M7.11** so it measures the model the group is actually on. It changes nothing and decides nothing. **M9.2**, the decay function itself, has no brief and is not to be picked up until the user has read M9.1's numbers — it would move Proven and the balancer's inputs, the one thing all four of M7's changes avoided, and it would want a second rebuild after M7.11 was meant to be the only one. Paste M9.1's numbers into this row when it lands. |
-| M6 Tray app and polish | **deferred to next release** | Needs M2 stable for a month. **Also explicitly deferred by the user, 2026-09-15**, independent of that gate — not to be picked up for this release even if the month passes first. |
+| M12 Overlay client | in progress | Folded into M6 one-app (2026-09-23): Overlay mode on `Kustom.exe`, not a second product. `GET /api/overlay` stays. Separate `KustomOverlay.exe` retired as a product. |
+| M6 Tray app and polish | in progress | Un-deferred 2026-09-23: one Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes, tray, Floodlit UI. M6.1 absorbs the M12 panel. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -8314,13 +8313,25 @@ like a poster and says honestly when the underdog won; tonight's earlier games s
 next lobby opens; and a pasted link to tonight, a game or a player unfurls as a picture — with nobody
 typing or tapping anything new, and no icon anywhere but the fearless card.
 
-## M12 Overlay client (not started)
+## M12 Overlay client (in progress)
 
-A small desktop app every friend installs, showing the fearless list over the client and live in-game team
-stats. **Parked 2026-09-23 and not briefed.** It changes the install story — today one or two people run
-`Kustom.exe` and nobody else installs anything — and that is the user's call, which the lead is asking.
-It also waits on **M11.1**, whose icons it would reuse. Whatever it becomes, the champion-select line
-stands: it would read and display, never act. No tasks until both answers are in.
+A second, optional Windows exe every friend *may* install. During the lobby and champion select it shows
+the fearless ban list and how you do with and against the other nine on the **posted** teams, then hides
+at `GameStart`. It never bans, never clicks, never reads `/lol-champ-select/*`, and never holds a
+companion token. Live in-game gold/kills/timers are out of this milestone.
+
+Unparked 2026-09-23 when the user accepted the install story: two programs on purpose. `Kustom.exe`
+stays the one or two hosts with a token; `KustomOverlay.exe` is display-only for whoever wants the
+panel. M11.1's icons are reused on the fearless block only.
+
+- [x] **M12.1** Product, decision, and design: unpark the milestone, record the two-exe install story, and name the overlay icon exception plus copy. *(owner: `product` + `designer`; landed 2026-09-23)*
+- [x] **M12.2** `GET /api/overlay?puuid=`: fearless pool plus live lobby with same-side and against records from the existing folds, zod in and out, no new tables. *(owner: `platform-engineer`; landed 2026-09-23)*
+- [x] **M12.3** `apps/overlay`: panel that reads `current-summoner` and `gameflow-phase` via `packages/lcu`, fetches the API on `Lobby`/`ChampSelect`, hides at `GameStart`. Node SEA + Edge app-mode window; Tauri scaffold in `src-tauri/` for the M6 Rust shell. *(owner: `companion-engineer`; landed 2026-09-23)*
+- [x] **M12.4** Package `KustomOverlay.exe` + sha256 beside the companion release; no companion token in config. *(owner: `companion-engineer`; landed 2026-09-23)*
+
+Acceptance: a friend with League open sees the ban list and their posted teammates' records during pick
+without alt-tabbing; the window is gone once the game starts; nobody's client is written to; and the
+companion install story is unchanged.
 
 ## M9 Does coming back after a break actually break the rating? (half a day, needs M7.11)
 
@@ -8444,9 +8455,14 @@ Acceptance: we know, in numbers, how often somebody comes back after a fortnight
 game back moves them further than anyone else's game does at the same uncertainty — and nobody's rating, board
 position or team changed while we found out.
 
-## M6 Tray app and polish (when M2 has run for a month)
+## M6 Tray app and polish (in progress — un-deferred 2026-09-23)
 
-- [ ] **M6.1** Tauri v2 tray shell that runs the CLI as a sidecar: status icon (disconnected, watching, in game), open logs, edit token, start with Windows.
+One Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes. M12's panel lives here.
+
+- [ ] **M6.1** Tauri v2 tray shell + Node engine: mode picker (Host / Overlay), status in tray, open logs, edit
+  token/mode, champ-select panel in both modes. *(in progress 2026-09-23: config `mode`, panel under
+  `apps/companion/src/panel`, Floodlit setup UI, Tauri commands for config/engine/overlay window; auto-start
+  with Windows and polished status icons still open)*
 - [ ] **M6.2** Code signing or a clear "unsigned, built from this repo" note on the download page.
 - [ ] **M6.3** Post-patch checklist automation: `smoke` runs on companion start after a client version change and reports shape diffs to the admin.
 
@@ -8474,8 +8490,9 @@ M7.11 (the one rebuild) ----------------- M9.1 (measure the comeback swing; a re
 M3 + M2 ingest -------------------------- M10.1 (fearless draft: tonight + Discord + admin reset)
 M10.1 ----------------------------------- M10.2 (lane groups, A–Z, find box)
 M10.2 ----------------------------------- M10.3 (still open, per lane, tonight only)
-M10.3 ----------------------------------- M11.1 (champion icons, fearless card only) ---- (M12 parked)
+M10.3 ----------------------------------- M11.1 (champion icons, fearless card only) ---- M12 (overlay)
 M11.1 -- M11.3 (result poster) -- M11.2 (night tape) -- M11.4 (share cards, /g/[gameId])
+M11.1 ----------------------------------- M12.1 (decision) -- M12.2 (API) -- M12.3 (app) -- M12.4 (ship)
 ```
 
 **M3.31** (how even the teams are, as a percentage) is the fourth idea of 2026-09-15 and is not in M8: it is a

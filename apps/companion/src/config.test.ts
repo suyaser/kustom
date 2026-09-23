@@ -255,13 +255,14 @@ describe('loadConfig / saveConfig', () => {
       expect(statSync(dir).mode & 0o077).toBe(0);
     }
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+      mode: 'host',
       apiBase: 'https://customs.example',
       companionToken: TOKEN,
     });
     expect(loadConfig(dir)).toEqual({
       status: 'ok',
       path,
-      config: { apiBase: 'https://customs.example', companionToken: TOKEN },
+      config: { mode: 'host', apiBase: 'https://customs.example', companionToken: TOKEN },
     });
   });
 
@@ -304,7 +305,7 @@ describe('loadConfig / saveConfig', () => {
     );
     const result = loadConfig(dir);
     expect(result.status).toBe('ok');
-    if (result.status === 'ok') {
+    if (result.status === 'ok' && result.config.mode === 'host') {
       expect(result.config.companionToken).toBe(TOKEN);
     }
   });
@@ -350,6 +351,32 @@ describe('loadConfig / saveConfig', () => {
     );
     expect(loadConfig(dir).status).toBe('missing');
   });
+  it('loads an explicit overlay config with no token', () => {
+    const dir = tempDir();
+    writeFileSync(configPath(dir), JSON.stringify({ mode: 'overlay', apiBase: 'https://kustom.example' }));
+    expect(loadConfig(dir)).toEqual({
+      status: 'ok',
+      path: configPath(dir),
+      config: { mode: 'overlay', apiBase: 'https://kustom.example' },
+    });
+  });
+
+  it('infers host mode from a pre-M6 file that has a token and no mode', () => {
+    const dir = tempDir();
+    writeFileSync(
+      configPath(dir),
+      JSON.stringify({ apiBase: 'https://kustom.example', companionToken: TOKEN }),
+    );
+    const result = loadConfig(dir);
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(result.config).toEqual({
+        mode: 'host',
+        apiBase: 'https://kustom.example',
+        companionToken: TOKEN,
+      });
+    }
+  });
 });
 
 describe('promptFirstRun', () => {
@@ -364,7 +391,7 @@ describe('promptFirstRun', () => {
         return null;
       },
     });
-    expect(config).toEqual({ apiBase: DEFAULT_API_BASE, companionToken: TOKEN });
+    expect(config).toEqual({ mode: 'host', apiBase: DEFAULT_API_BASE, companionToken: TOKEN });
     expect(checked).toEqual([DEFAULT_API_BASE]);
     // One question, and it is the hidden one.
     expect(asked).toHaveLength(1);
@@ -446,7 +473,7 @@ describe('promptFirstRun', () => {
       io,
       checkApiBase: async (apiBase) => (apiBase === DEFAULT_API_BASE ? 'ECONNREFUSED' : null),
     });
-    expect(config).toEqual({ apiBase: 'https://other.example', companionToken: TOKEN });
+    expect(config).toEqual({ mode: 'host', apiBase: 'https://other.example', companionToken: TOKEN });
     expect(asked[0]).toContain(`[${DEFAULT_API_BASE}]`);
     expect(said.some((line) => line.includes('ECONNREFUSED'))).toBe(true);
   });
@@ -481,6 +508,7 @@ describe('promptFirstRun', () => {
     const { io, said } = scriptedIo(['not a url', 'http://localhost:3000'], ['', TOKEN]);
     const config = await promptFirstRun({ io, partial: { lockfilePath: '/x/lockfile' } });
     expect(config).toEqual({
+      mode: 'host',
       apiBase: 'http://localhost:3000',
       companionToken: TOKEN,
       lockfilePath: '/x/lockfile',

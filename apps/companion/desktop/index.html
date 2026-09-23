@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kustom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --cn-bg: #0B0E14;
+      --cn-surface: #141923;
+      --cn-raise: #1D2431;
+      --cn-line: #2A3140;
+      --cn-text: #EEF2F8;
+      --cn-dim: #94A0B2;
+      --cn-blue: #4C9AFF;
+      --cn-red: #FF6B63;
+      --cn-brand: #FFB13C;
+      --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
+      --sp-2: 8px;
+      --sp-3: 12px;
+      --sp-4: 16px;
+      --sp-5: 24px;
+      --font-sans: 'Archivo', 'Helvetica Neue', Arial, system-ui, sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      background: var(--cn-bg);
+      color: var(--cn-text);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(120% 70% at 50% -15%, color-mix(in srgb, var(--cn-brand) 5%, transparent), transparent 65%),
+        var(--cn-bg);
+    }
+    header {
+      padding: var(--sp-5) var(--sp-5) var(--sp-4);
+      border-bottom: 1px solid var(--cn-line);
+    }
+    .wordmark {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: var(--sp-2);
+    }
+    .wordmark::first-letter { color: var(--cn-brand); }
+    .subtitle { font-size: 13px; color: var(--cn-dim); }
+    main { flex: 1; padding: var(--sp-5); overflow-y: auto; }
+    .form-group { margin-bottom: var(--sp-5); }
+    label {
+      display: block;
+      margin-bottom: var(--sp-2);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .mode-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--sp-3);
+    }
+    .mode-card {
+      text-align: left;
+      padding: var(--sp-4);
+      background: var(--cn-surface);
+      border: 1px solid var(--cn-line);
+      border-radius: 10px;
+      box-shadow: var(--cn-lit);
+      color: var(--cn-text);
+      cursor: pointer;
+      width: 100%;
+    }
+    .mode-card[aria-pressed="true"] {
+      border-color: var(--cn-brand);
+      background: color-mix(in srgb, var(--cn-brand) 8%, var(--cn-surface));
+    }
+    .mode-card strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+    .mode-card span {
+      font-size: 12px;
+      color: var(--cn-dim);
+      line-height: 1.35;
+    }
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--cn-surface);
+      border: 1px solid var(--cn-line);
+      border-radius: 8px;
+      box-shadow: var(--cn-lit);
+      color: var(--cn-text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+    input:focus { outline: none; border-color: var(--cn-brand); }
+    .help-text {
+      margin-top: var(--sp-2);
+      font-size: 12px;
+      color: var(--cn-dim);
+      line-height: 1.4;
+    }
+    button.primary, button.secondary-button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 120ms, opacity 120ms;
+    }
+    button.primary {
+      background: var(--cn-brand);
+      color: var(--cn-bg);
+    }
+    button.primary:hover, button.secondary-button:hover { opacity: 0.9; }
+    button.primary:active, button.secondary-button:active { transform: scale(0.985); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .status-card {
+      padding: var(--sp-4);
+      background: var(--cn-surface);
+      border: 1px solid var(--cn-line);
+      border-radius: 10px;
+      box-shadow: var(--cn-lit);
+      margin-bottom: var(--sp-4);
+    }
+    .status-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--cn-dim);
+      margin-bottom: var(--sp-2);
+    }
+    .status-value { font-size: 17px; font-weight: 600; }
+    .status-value.state { font-family: var(--font-mono); font-size: 16px; }
+    .actions { display: flex; flex-direction: column; gap: var(--sp-3); }
+    .secondary-button {
+      background: var(--cn-raise);
+      color: var(--cn-text);
+      border: 1px solid var(--cn-line);
+    }
+    .error {
+      padding: var(--sp-3);
+      background: color-mix(in srgb, var(--cn-red) 10%, var(--cn-surface));
+      border: 1px solid color-mix(in srgb, var(--cn-red) 55%, var(--cn-line));
+      border-radius: 8px;
+      color: var(--cn-text);
+      font-size: 13px;
+      margin-bottom: var(--sp-4);
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 class="wordmark">Kustom</h1>
+    <p class="subtitle" id="subtitle">Pick how this PC runs</p>
+  </header>
+
+  <main>
+    <div id="setup-screen">
+      <div class="form-group">
+        <fieldset class="mode-fieldset">
+          <legend>Mode</legend>
+        <div class="mode-row">
+          <button type="button" class="mode-card" id="mode-host" aria-pressed="true">
+            <strong>Host</strong>
+            <span>Paste a token. Opens lobbies, posts results, and shows the panel.</span>
+          </button>
+          <button type="button" class="mode-card" id="mode-overlay" aria-pressed="false">
+            <strong>Overlay</strong>
+            <span>No token. Fearless bans and lobby synergy during champ select.</span>
+          </button>
+        </div>
+        </fieldset>
+      </div>
+
+      <div class="form-group" id="token-group">
+        <label for="token-input">Companion token</label>
+        <input type="password" id="token-input" placeholder="Paste from /admin" autocomplete="off" />
+        <p class="help-text">Admins mint one token per host PC. Never share it.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="api-input">API address</label>
+        <input type="text" id="api-input" value="https://kustom-delta.vercel.app" placeholder="https://kustom-delta.vercel.app" />
+      </div>
+
+      <div id="error-message" class="error hidden"></div>
+      <button type="button" class="primary" id="save-button">Save and start</button>
+    </div>
+
+    <div id="running-screen" class="hidden">
+      <div class="status-card">
+        <div class="status-label">Mode</div>
+        <div class="status-value" id="status-mode">—</div>
+      </div>
+      <div class="status-card">
+        <div class="status-label">Status</div>
+        <div class="status-value state" id="status-state">Starting</div>
+      </div>
+      <div class="status-card">
+        <div class="status-label">Phase</div>
+        <div class="status-value" id="status-phase">—</div>
+      </div>
+      <div class="actions">
+        <button type="button" id="logs-button" class="secondary-button">Open logs</button>
+        <button type="button" id="edit-button" class="secondary-button">Change mode / token</button>
+        <button type="button" id="quit-button" class="secondary-button">Quit</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="./main.js"></script>
+</body>
+</html>

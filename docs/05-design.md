@@ -230,12 +230,17 @@ in the display cut. There is no asset pipeline in this project and there should 
 The only other glyph in the product is the live dot: an 8px circle, `brand`, inside a `raise` pill with the
 word `live` in mono `t-xs`. The pill carries the `glow` shadow. That is the one glow.
 
-#### The fearless icon exception (M11, designer 2026-09-23)
+#### The fearless icon exception (M11, designer 2026-09-23; extended to the overlay by M12)
 
-The one place in the product where a champion is drawn. Why this place: the fearless find box is used during
-pick, and in champion select people recognise a face faster than they read a name. Everywhere else a champion
-is a word: Discord, `/fun`, `/games`, the player page, the result poster, the night tape and the share cards.
-None of those gets an icon in M11, and none gets one later without a new exception written here.
+The places in the product where a champion is drawn: the fearless card on `/`, and the fearless block of the
+optional overlay (M12). Why these places: both are used during pick, and in champion select people recognise
+a face faster than they read a name. Everywhere else a champion is a word: Discord, `/fun`, `/games`, the
+player page, the result poster, the night tape and the share cards. None of those gets an icon, and none gets
+one later without a new exception written here.
+
+**The overlay reuses this exception byte for byte.** Same 24×24 square, same Community Dragon URL from
+`championIconUrl`, same `alt=""`, same opacity rules for banned chips. The overlay does not draw open-lane
+tails and does not have a find box; its fearless block is the ban list alone.
 
 **The object.** A square champion icon, shown as the source delivers it. There is no zoom, no face crop, no
 mask and no frame, because a portrait crop is the "no portrait crop" rule above. Keyed by the numeric
@@ -1163,6 +1168,16 @@ placement are the designer's and are untouched.
 | fearless, lane | `top` / `jungle` / `mid` / `adc` / `support` / `other` | product 2026-09-20 (M10.2) — the app's own lowercase role words |
 | fearless, still open | `still open` | product 2026-09-22 (M10.3) — the label under a lane, after the ban chips, before the champions that lane can still lock |
 | fearless, available | `Garen is still available.` | product 2026-09-22 (M10.3) — the find box, when the exact name is not on the ban list. Open chips are dim and dashed; a search hit paints brand the same way a ban hit does. Discord does not print this list |
+| overlay, fearless title | `Fearless` | product 2026-09-23 (M12) — same word as the tonight card |
+| overlay, fearless sentence | `Ban these next game.` | product 2026-09-23 (M12) — same sentence as the tonight card |
+| overlay, fearless empty | `No champions banned yet.` | product 2026-09-23 (M12) — empty pool; the tonight card's empty state is silent until the first lock |
+| overlay, lobby title | `This lobby` | product 2026-09-23 (M12) |
+| overlay, with | `With 7–2` | product 2026-09-23 (M12) — same-side record past `MIN_DUO_GAMES`; wins–losses |
+| overlay, against | `Against 3–5` | product 2026-09-23 (M12) — opposite-side record past the same floor |
+| overlay, thin record | `Under 5 games together.` | product 2026-09-23 (M12) — below `MIN_DUO_GAMES` for both with and against; one sentence, not two |
+| overlay, lane mark | `lane` | product 2026-09-23 (M12) — mono chip on the posted lane opponent |
+| overlay, waiting | `Waiting for the League client…` | product 2026-09-23 (M12) — lockfile missing |
+| overlay, no lobby | `No lobby yet.` | product 2026-09-23 (M12) — fearless still shows; the roster block is this line |
 | nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `1v1` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is; **`1v1` added 2026-09-18 (M8.5)** after `Fun` |
 | footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
@@ -3622,8 +3637,9 @@ Listed because each one is a thing a page like this drifts into:
 - No cream backgrounds, no serif display face, no purple or teal gradient, no acid green on black, no glass
   blur, no neon glow, no dark-mode-with-a-single-saturated-accent-everywhere.
 - No champion art, avatars, crests, "VS" badges, or animated win banners. There is no asset pipeline and there
-  should not be one. **One exception, M11:** a 24×24 square champion icon on fearless chips on `/`, loaded by
-  champion id at runtime with no pipeline ("The fearless icon exception"). It covers no other surface.
+  should not be one. **Two surfaces, one exception (M11 + M12):** a 24×24 square champion icon on fearless
+  chips on `/` and on the optional overlay's fearless block, loaded by champion id at runtime with no
+  pipeline ("The fearless icon exception"). It covers no other surface.
 - No skeleton shimmer. A dark room does not want a moving grey rectangle; empty states are one sentence.
 - No toasts. Realtime already changes the thing you are looking at.
 - No numbers rendered in a proportional font, ever.

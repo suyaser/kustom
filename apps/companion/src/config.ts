@@ -7,9 +7,11 @@
  *  - Linux:   `$XDG_CONFIG_HOME/customs-night/config.json` (default `~/.config`)
  *  - any:     `CUSTOMS_NIGHT_CONFIG_DIR` overrides the directory.
  *
- * Shape: `{ apiBase, companionToken }`, plus an optional `lockfilePath` for a non-default League install.
+ * Shape (M6 one-app): `{ mode: 'host' | 'overlay', apiBase, companionToken? }`, plus an optional
+ * `lockfilePath` for a non-default League install. Host mode requires a companion token (lobby writes).
+ * Overlay mode needs no token. A file with a token and no `mode` is treated as host (0.1.x upgrade).
  * The file is written with mode 0600 (owner only; Windows ignores the mode). Nothing else is ever written to
- * the config directory except `logs/`.
+ * the config directory except `logs/` and `status.json`.
  *
  * The token is never printed or logged; the hidden prompt masks it, and `--show-token` only ever echoes it to
  * the console of the person typing it.
@@ -95,14 +97,58 @@ export const companionTokenSchema = z
   .transform(cleanTokenInput)
   .refine(looksLikeCompanionToken, { message: TOKEN_SHAPE_MESSAGE });
 
-export const configSchema = z.object({
+export const appModeSchema = z.enum(['host', 'overlay']);
+export type AppMode = z.infer<typeof appModeSchema>;
+
+const lockfilePathSchema = z.string().trim().min(1).optional();
+
+/** Host mode: token required. Writes to the client and the API. */
+export const hostConfigSchema = z.object({
+  mode: z.literal('host'),
   apiBase: apiBaseSchema,
   companionToken: companionTokenSchema,
   /** A non-default League install. Tried before the platform default lockfile paths. */
-  lockfilePath: z.string().trim().min(1).optional(),
+  lockfilePath: lockfilePathSchema,
 });
 
+/** Overlay mode: no token. Fearless + lobby synergy panel only. */
+export const overlayModeConfigSchema = z.object({
+  mode: z.literal('overlay'),
+  apiBase: apiBaseSchema,
+  lockfilePath: lockfilePathSchema,
+});
+
+export const configSchema = z.discriminatedUnion('mode', [hostConfigSchema, overlayModeConfigSchema]);
+
+export type HostConfig = z.infer<typeof hostConfigSchema>;
+export type OverlayModeConfig = z.infer<typeof overlayModeConfigSchema>;
 export type CompanionConfig = z.infer<typeof configSchema>;
+
+/** Host-shaped input for `saveConfig` / first-run; `mode` defaults to host. */
+export type HostConfigInput = {
+  apiBase: string;
+  companionToken: string;
+  lockfilePath?: string;
+  mode?: AppMode;
+};
+
+export function isHostConfig(config: CompanionConfig): config is HostConfig {
+  return config.mode === 'host';
+}
+
+/**
+ * Files written before M6 have no `mode`. A present token means host; overlay is only explicit.
+ * Never invent overlay from a token-less file — that is still the CLI first-run prompt.
+ */
+function withInferredMode(raw: unknown): unknown {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const record = raw as Record<string, unknown>;
+  if (record.mode !== undefined) return raw;
+  if (typeof record.companionToken === 'string' && record.companionToken.trim().length > 0) {
+    return { ...record, mode: 'host' };
+  }
+  return raw;
+}
 
 export interface ConfigEnv {
   readonly platform?: NodeJS.Platform;
@@ -154,7 +200,7 @@ export type LoadConfigResult =
   | {
       readonly status: 'missing';
       readonly path: string;
-      readonly partial: Partial<CompanionConfig>;
+      readonly partial: Partial<HostConfigInput>;
       readonly reason: MissingConfigReason;
     }
   /** A file that exists but is not JSON. Refuse to overwrite it silently. */
@@ -181,12 +227,12 @@ export function loadConfig(dir: string): LoadConfigResult {
     const position = error instanceof Error ? /position (\d+)/.exec(error.message)?.[1] : undefined;
     return { status: 'invalid', path, reason: position ? `not JSON (at position ${position})` : 'not JSON' };
   }
-  const parsed = configSchema.safeParse(raw);
+  const parsed = configSchema.safeParse(withInferredMode(raw));
   if (parsed.success) {
     return { status: 'ok', config: parsed.data, path };
   }
   // Keep whatever fields are usable so the prompt can offer them as defaults.
-  const partial: Partial<CompanionConfig> = {};
+  const partial: Partial<HostConfigInput> = {};
   let reason: MissingConfigReason = 'no_token';
   if (raw && typeof raw === 'object') {
     const record = raw as Record<string, unknown>;
@@ -197,6 +243,9 @@ export function loadConfig(dir: string): LoadConfigResult {
     if (typeof record.lockfilePath === 'string' && record.lockfilePath.trim().length > 0) {
       partial.lockfilePath = record.lockfilePath.trim();
     }
+    if (record.mode === 'overlay' || record.mode === 'host') {
+      partial.mode = record.mode;
+    }
     if (typeof record.companionToken === 'string' && record.companionToken.trim().length > 0) {
       reason = 'bad_token';
     }
@@ -205,10 +254,19 @@ export function loadConfig(dir: string): LoadConfigResult {
 }
 
 /** Writes the config with owner-only permissions. Creates the directory. Throws on I/O failure. */
-export function saveConfig(dir: string, config: CompanionConfig): string {
+export function saveConfig(dir: string, config: CompanionConfig | HostConfigInput): string {
   const path = configPath(dir);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const body = `${JSON.stringify(configSchema.parse(config), null, 2)}\n`;
+  const normalized: CompanionConfig =
+    'mode' in config && config.mode === 'overlay'
+      ? overlayModeConfigSchema.parse(config)
+      : hostConfigSchema.parse({
+          mode: 'host',
+          apiBase: config.apiBase,
+          companionToken: (config as HostConfigInput).companionToken,
+          ...('lockfilePath' in config && config.lockfilePath ? { lockfilePath: config.lockfilePath } : {}),
+        });
+  const body = `${JSON.stringify(normalized, null, 2)}\n`;
   writeFileSync(path, body, { mode: 0o600 });
   // `mode` only applies when the file is created; a pre-existing file (the partial-config first-run path)
   // keeps whatever mode it had, so tighten it explicitly. Windows has no POSIX modes; ignore failure there.
@@ -220,6 +278,11 @@ export function saveConfig(dir: string, config: CompanionConfig): string {
     }
   }
   return path;
+}
+
+/** Overlay-mode save used by the Tauri setup UI (no token ever written). */
+export function saveOverlayModeConfig(dir: string, config: Omit<OverlayModeConfig, 'mode'>): string {
+  return saveConfig(dir, { mode: 'overlay', ...config });
 }
 
 /** How the first-run prompt talks to a person. Injected so tests can script it. */
@@ -237,7 +300,7 @@ export type ApiBaseCheck = (apiBase: string) => Promise<string | null>;
 
 export interface FirstRunOptions {
   readonly io: PromptIo;
-  readonly partial?: Partial<CompanionConfig>;
+  readonly partial?: Partial<HostConfigInput>;
   readonly checkApiBase?: ApiBaseCheck;
   /** Why the prompt is running; words the first line. Default `no_file`. */
   readonly reason?: MissingConfigReason;
@@ -253,7 +316,7 @@ export const NO_TOKEN_MESSAGE =
  * checks it, and lets the person keep an unreachable one (the API may simply be down right now; the client
  * retries forever). A partial config that already names an `apiBase` is offered as the default and confirmed.
  */
-export async function promptFirstRun(options: FirstRunOptions): Promise<CompanionConfig> {
+export async function promptFirstRun(options: FirstRunOptions): Promise<HostConfig> {
   const { io } = options;
   const partial = options.partial ?? {};
   io.say(
@@ -313,7 +376,7 @@ export async function promptFirstRun(options: FirstRunOptions): Promise<Companio
     throw new Error(NO_TOKEN_MESSAGE);
   }
 
-  const config: CompanionConfig = { apiBase, companionToken };
+  const config: HostConfig = { mode: 'host', apiBase, companionToken };
   if (partial.lockfilePath) {
     config.lockfilePath = partial.lockfilePath;
   }

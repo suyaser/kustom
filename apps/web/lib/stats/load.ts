@@ -132,6 +132,20 @@ export async function loadStats(client: PublicClient, options: StatsOptions): Pr
 }
 
 /**
+ * The games and people of one window, with no page fold on top (M12).
+ *
+ * The overlay composes same-side and against records for the live lobby's ten; it needs the
+ * raw list `headToHead` and `duoRecords` already fold, not a rendered `/stats` view.
+ */
+export async function loadWindowGames(
+  client: PublicClient,
+  options: StatsOptions,
+): Promise<{ games: readonly StatsGame[]; players: readonly StatsPlayer[] }> {
+  const read = await readWindow(client, options);
+  return { games: read.games, players: read.players };
+}
+
+/**
  * The same window, the same read, one player picked out of it (M5.20).
  *
  * **`/p/[puuid]` calls this and there is no second query path**: the brief's rule is that the
