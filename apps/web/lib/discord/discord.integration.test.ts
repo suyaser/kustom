@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { mintCompanionToken } from '../companionAuth';
+import { FEARLESS_TITLE } from '../fearless/copy';
 import { ensurePlayers } from '../ingest/players';
 import { ROSTER_STABLE_MS } from '../lobbyState';
 import { nightStart } from '../night';
@@ -522,12 +523,21 @@ if (stack === null) {
       expect(played.status).toBe(200);
       expect(lobbyId).toBeTruthy();
 
+      // The result post is followed by the fearless-pool embed (M10.1), whenever the pool is
+      // non-empty — a real Rift game with real champions always is. That is a second post the
+      // hook makes after every rated game, so index 2 here is the fearless embed, not the next
+      // lobby's balanced post. Asserted explicitly, by name, so the next post this hook grows
+      // moves this index loudly rather than turning `fieldsOf(2)['Sitting out']` into a silent
+      // `undefined` again.
+      expect(((posts[2]?.body.embeds ?? []) as Record<string, unknown>[])[0]?.title).toBe(FEARLESS_TITLE);
+
       // Same eleven, next lobby of the night. They are no longer tied on games, so the clause
       // is the plain one and the person sitting is somebody who has just played.
       const second = party('eleven-night-2');
       await driveToBalanced(second, members, elevenToken);
 
-      const fields = fieldsOf(2);
+      expect(posts).toHaveLength(4);
+      const fields = fieldsOf(3);
       expect(fields['Sitting out']).toBe('Sitting out: Player1 — most games tonight.');
       expect(fields.Seats).toBe(`Swap: Player1 out, Player10 in.\n${sideLine(SWITCH_SIDE_ENABLED)}`);
     });
