@@ -37,6 +37,7 @@ if (stack === null) {
   const { createPublicClient } = await import('@/lib/publicClient');
   const { buildResultInput, loadResultSource } = await import('@/lib/discord/assemble');
   const { resultEmbed } = await import('@/lib/discord/embeds');
+  const { loadGamesHistory } = await import('@/lib/stats/load');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -202,6 +203,34 @@ if (stack === null) {
     expect(game).toBeDefined();
     return game;
   }
+
+  /**
+   * `/games`' seats for one stored game (M7.23), through the page's own loader and the anon key —
+   * the widened `lib/stats/load.ts` select against the real schema. Focused on one of the ten so
+   * the list is this run's games and not whatever else the local stack holds.
+   */
+  async function historySeatsOf(wanted: string) {
+    const history = await loadGamesHistory(anon, { window: 'all-time', focusPuuid: puuidOf('red-adc') });
+    const game = history.items.find((item) => item.id === wanted);
+    expect(game).toBeDefined();
+    return [...(game?.blue.seats ?? []), ...(game?.red.seats ?? [])];
+  }
+
+  describe('one game, three surfaces', () => {
+    it('names the same two people on /games (M7.23), and nobody else', async () => {
+      const named = (await historySeatsOf(gameId))
+        .filter((seat) => seat.award !== null)
+        .map((seat) => [seat.puuid, seat.award]);
+      expect(named).toEqual(
+        expect.arrayContaining([
+          [puuidOf('red-adc'), 'mvp'],
+          [puuidOf('blue-jungle'), 'ace'],
+        ]),
+      );
+      expect(named).toHaveLength(2);
+      expect((await historySeatsOf(holedGameId)).every((seat) => seat.award === null)).toBe(true);
+    });
+  });
 
   describe('one game, two surfaces', () => {
     it('names the same two people in the post and on the page', async () => {

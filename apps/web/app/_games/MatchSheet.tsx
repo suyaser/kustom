@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ACE_LABEL, MVP_LABEL } from '@/lib/board/copy';
 import { COL_CS, COL_DAMAGE, COL_GOLD, COL_KDA, SCOREBOARD_LABEL } from '@/lib/games/copy';
 import type { HistoryGame, HistorySeat, HistoryTeam } from '@/lib/games/types';
 import { renderWebName } from '@/lib/tonight/copy';
@@ -7,6 +8,10 @@ import { RoleName } from '../_board/parts';
 /**
  * Both scoreboards of one custom, the same sheet `/games` opens inside a match card.
  * `/fun` reuses it under a record so the night that set the number is still visible.
+ *
+ * `MVP` / `ACE` (M7.23) follows the name of the seat `gatedGameAward` named, in M7.10's dress —
+ * `.cn-game-award`, the word and nothing else. A seat with no award renders exactly the markup it
+ * did before the word existed, which is every seat on `/fun` (it never asks for awards).
  */
 
 export function MatchSheet({ game, focusPuuid }: { game: HistoryGame; focusPuuid: string | null }) {
@@ -41,7 +46,14 @@ function TeamSheet({ team, focusPuuid }: { team: HistoryTeam; focusPuuid: string
           <li key={seat.puuid} className={seat.puuid === focusPuuid ? 'cn-sheet-row cn-you' : 'cn-sheet-row'}>
             {seat.role === null ? <span className="cn-num cn-lineup-role" /> : <RoleName role={seat.role} />}
             <span className="cn-sheet-who">
-              <SeatName seat={seat} viewed={seat.puuid === focusPuuid} />
+              {seat.award === null ? (
+                <SeatName seat={seat} viewed={seat.puuid === focusPuuid} />
+              ) : (
+                <span className="cn-sheet-name">
+                  <SeatName seat={seat} viewed={seat.puuid === focusPuuid} />
+                  <span className="cn-game-award">{` ${seat.award === 'mvp' ? MVP_LABEL : ACE_LABEL}`}</span>
+                </span>
+              )}
               {seat.champion === null ? null : <span className="cn-sheet-champ">{seat.champion}</span>}
               <span className="cn-num cn-sheet-sub">
                 {seat.csLabel}

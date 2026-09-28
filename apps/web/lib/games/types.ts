@@ -1,4 +1,5 @@
 import type { RoleValue, SideValue } from '@customs/db';
+import type { RecentAward } from '../board/types';
 import type { WindowKind } from '../night';
 import type { PlayerName } from '../tonight/types';
 import type { QueueKind } from './queue';
@@ -33,6 +34,13 @@ export interface HistorySeat {
   csLabel: string;
   /** 0–100, share of the lobby's highest damage. The bar reads this and nothing else. */
   damageShare: number;
+  /**
+   * `mvp` / `ace` when this seat is the one `gatedGameAward` named (M7.23), `null` for the other
+   * eight and for every seat of a game with no award — a remake, a nine-player custom, an unrated
+   * game, a game missing a stat column or a role. Always `null` on `/fun`'s one-game records:
+   * only `/games` asks for it.
+   */
+  award: RecentAward | null;
 }
 
 export interface HistoryTeam {

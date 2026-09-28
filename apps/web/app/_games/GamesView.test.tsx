@@ -1,10 +1,18 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { WINDOW_EMPTY } from '@/lib/board/copy';
+import { ACE_LABEL, MVP_LABEL, WINDOW_EMPTY } from '@/lib/board/copy';
 import { GAMES_LABEL } from '@/lib/games/copy';
 import type { GamesHistoryView } from '@/lib/games/types';
 import { gamesHistoryView } from '@/lib/games/view';
-import { rosterFor, tenPlayerGame } from '@/lib/testing/statsFixtures';
+import { gatedGameAward } from '@/lib/ingest/fold';
+import type { StatsGame } from '@/lib/stats/types';
+import {
+  rosterFor,
+  scoredSeats,
+  statsGame,
+  tenPlayerGame,
+  withoutAwardColumns,
+} from '@/lib/testing/statsFixtures';
 import { GamesView } from './GamesView';
 
 const WEEK = { start: new Date('2026-09-07T03:00:00Z'), end: new Date('2026-09-14T03:00:00Z') };
@@ -138,5 +146,80 @@ describe('GamesView', () => {
       'href',
       '/games?window=last-week&p=u-hana&queue=aram',
     );
+  });
+});
+
+/**
+ * M7.23: the word beside the name in the opened scoreboard, M7.10's dress, and nothing else.
+ */
+describe('GamesView MVP / ACE (M7.23)', () => {
+  function page(game: StatsGame, focusPuuid: string | null = null) {
+    return render(
+      <GamesView
+        history={gamesHistoryView({
+          window: 'this-week',
+          games: [game],
+          players: rosterFor([game]),
+          range: WEEK,
+          capped: false,
+          cap: 2_000,
+          timeZone: 'Africa/Cairo',
+          focusPuuid,
+        })}
+      />,
+    );
+  }
+
+  const scored = () =>
+    statsGame({ id: 'g-scored', at: '2026-09-09T20:00:00Z', winner: 100, ...scoredSeats() });
+
+  it('prints MVP beside the named winner and ACE beside the named loser, once each', () => {
+    const game = scored();
+    const answer = gatedGameAward(game.rows, game.durationS, game.winningSide);
+    const { container } = page(game);
+
+    const words = [...container.querySelectorAll('.cn-game-award')];
+    expect(words.map((word) => word.textContent)).toEqual([` ${MVP_LABEL}`, ` ${ACE_LABEL}`]);
+    const rowOf = (label: string) =>
+      words.find((word) => word.textContent?.trim() === label)?.closest('.cn-sheet-row') as HTMLElement;
+    const nameOf = (puuid: string | undefined) =>
+      rosterFor([game]).find((p) => p.puuid === puuid)?.name ?? '';
+    expect(within(rowOf(MVP_LABEL)).getByRole('link', { name: nameOf(answer?.mvp) })).toBeInTheDocument();
+    expect(within(rowOf(ACE_LABEL)).getByRole('link', { name: nameOf(answer?.ace) })).toBeInTheDocument();
+    expect(rowOf(MVP_LABEL).closest('.cn-sheet-blue')).not.toBeNull();
+    expect(rowOf(ACE_LABEL).closest('.cn-sheet-red')).not.toBeNull();
+  });
+
+  it('dresses the word as the word: no icon, no badge, no trophy, no "#1"', () => {
+    const { container } = page(scored());
+    for (const word of container.querySelectorAll('.cn-game-award')) {
+      expect(word.children).toHaveLength(0);
+      expect(word.getAttribute('style')).toBeNull();
+      expect(word.className).toBe('cn-game-award');
+      expect(word.textContent).toMatch(/^ (MVP|ACE)$/);
+    }
+    expect(container.textContent).not.toMatch(/#1|\u{1F3C6}|\u{2B50}/u);
+  });
+
+  it("keeps the word on the focused player's own row as plain text", () => {
+    const game = scored();
+    const answer = gatedGameAward(game.rows, game.durationS, game.winningSide);
+    const { container } = page(game, answer?.mvp ?? null);
+    const you = container.querySelector('.cn-sheet-row.cn-you') as HTMLElement;
+    expect(you.querySelector('.cn-game-award')?.textContent?.trim()).toBe(MVP_LABEL);
+  });
+
+  it('prints neither word on a game with no award, and leaves its markup as it was', () => {
+    for (const game of [
+      statsGame({ id: 'g-x', at: '2026-09-09T20:00:00Z', ...scoredSeats(), unrated: true }),
+      statsGame({ id: 'g-x', at: '2026-09-09T20:00:00Z', ...scoredSeats(), durationS: 200 }),
+      withoutAwardColumns(scored()),
+    ]) {
+      const { container, unmount } = page(game);
+      expect(container.querySelector('.cn-game-award')).toBeNull();
+      expect(container.querySelector('.cn-sheet-name')).toBeNull();
+      expect(container.textContent).not.toMatch(/\b(MVP|ACE)\b/);
+      unmount();
+    }
   });
 });

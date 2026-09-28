@@ -296,6 +296,9 @@ async function readWindow(
       gold: row.gold,
       damageToChamps: row.damageToChamps,
       cs: row.cs,
+      visionScore: row.visionScore,
+      damageSelfMitigated: row.damageSelfMitigated,
+      damageToObjectives: row.damageToObjectives,
     });
     byGame.set(row.gameId, played);
   }
@@ -437,6 +440,9 @@ interface ScoreboardRow {
   gold: number;
   damageToChamps: number;
   cs: number;
+  visionScore: number | null;
+  damageSelfMitigated: number | null;
+  damageToObjectives: number | null;
 }
 
 /** `game_players` for a set of games, in chunks, so no response is silently truncated. */
@@ -447,7 +453,7 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
     const { data, error } = await client
       .from('game_players')
       .select(
-        'game_id, player_id, side, role, mu_before, mu_after, champion_id, kills, deaths, assists, gold, damage_to_champs, cs',
+        'game_id, player_id, side, role, mu_before, mu_after, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives',
       )
       .in('game_id', chunk);
     if (error) throw new Error(`stats: game player lookup failed: ${error.message}`);
@@ -467,6 +473,9 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
         gold: row.gold,
         damageToChamps: row.damage_to_champs,
         cs: row.cs,
+        visionScore: row.vision_score,
+        damageSelfMitigated: row.damage_self_mitigated,
+        damageToObjectives: row.damage_to_objectives,
       });
     }
   }

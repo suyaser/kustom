@@ -232,3 +232,21 @@
     font-size: var(--cn-t-sm);
   }
 }
+
+/*
+ * The name line when it carries `MVP` / `ACE` (M7.23). Layout only: the name keeps its own
+ * ellipsis and the word never wraps away from it or gets cut. The word's dress is M7.10's
+ * `.cn-game-award` (board.css) — the text colour, `t-sm` like the KDA beside it, no weight, badge,
+ * icon or colour of its own. Only rendered for the two named seats, so every other row's markup
+ * is unchanged.
+ */
+.cn-sheet-name {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.cn-sheet-name .cn-game-award {
+  flex: none;
+  white-space: pre;
+}

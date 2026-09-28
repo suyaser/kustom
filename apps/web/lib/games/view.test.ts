@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { LOST, WON } from '../board/copy';
-import { rosterFor, tenPlayerGame } from '../testing/statsFixtures';
+import { gatedGameAward } from '../ingest/fold';
+import type { StatsGame } from '../stats/types';
+import {
+  rosterFor,
+  scoredSeats,
+  statsGame,
+  tenPlayerGame,
+  withoutAwardColumns,
+} from '../testing/statsFixtures';
 import { blueWon, redWon } from './copy';
 import { parseFocusPuuid } from './params';
-import { gamesHistoryView } from './view';
+import type { HistoryGame, HistorySeat } from './types';
+import { gamesHistoryView, historyGameOf } from './view';
 
 const WEEK = { start: new Date('2026-09-07T03:00:00Z'), end: new Date('2026-09-14T03:00:00Z') };
 
@@ -178,5 +187,132 @@ describe('parseFocusPuuid', () => {
 
   it('keeps a real puuid', () => {
     expect(parseFocusPuuid('u-lena')).toBe('u-lena');
+  });
+});
+
+/**
+ * M7.23: `/games` names the MVP and the ACE, and only through `gatedGameAward`.
+ *
+ * This page lists every captured game — remakes, nine-player customs, unrated games — so most of
+ * these cases are the ones where nothing may be printed, and none of them may throw.
+ */
+describe('gamesHistoryView MVP / ACE (M7.23)', () => {
+  function scored(spec: Partial<Parameters<typeof statsGame>[0]> = {}): StatsGame {
+    return statsGame({ id: 'scored', at: '2026-09-09T20:00:00Z', winner: 100, ...scoredSeats(), ...spec });
+  }
+
+  function seats(game: HistoryGame | undefined): HistorySeat[] {
+    return game === undefined ? [] : [...game.blue.seats, ...game.red.seats];
+  }
+
+  function awarded(game: StatsGame, players = rosterFor([game])): HistorySeat[] {
+    const view = gamesHistoryView({
+      window: 'this-week',
+      games: [game],
+      players,
+      range: WEEK,
+      capped: false,
+      cap: 2_000,
+      timeZone: 'Africa/Cairo',
+    });
+    return seats(view.items[0]).filter((seat) => seat.award !== null);
+  }
+
+  it('names exactly two on a clean rated five a side, and they are `gatedGameAward`s two', () => {
+    for (const winner of [100, 200] as const) {
+      const game = scored({ winner });
+      const answer = gatedGameAward(game.rows, game.durationS, game.winningSide);
+      expect(answer).not.toBeNull();
+
+      const named = awarded(game);
+      expect(named).toHaveLength(2);
+      const mvp = named.find((seat) => seat.award === 'mvp');
+      const ace = named.find((seat) => seat.award === 'ace');
+      expect(mvp?.puuid).toBe(answer?.mvp);
+      expect(ace?.puuid).toBe(answer?.ace);
+      const sideOf = (puuid: string | undefined) => game.rows.find((row) => row.puuid === puuid)?.side;
+      expect(sideOf(mvp?.puuid)).toBe(winner);
+      expect(sideOf(ace?.puuid)).toBe(winner === 100 ? 200 : 100);
+    }
+  });
+
+  it('carries the same word on the focused view, the focus row and the teammates', () => {
+    const game = scored();
+    const answer = gatedGameAward(game.rows, game.durationS, game.winningSide);
+    const view = gamesHistoryView({
+      window: 'this-week',
+      games: [game],
+      players: rosterFor([game]),
+      range: WEEK,
+      capped: false,
+      cap: 2_000,
+      focusPuuid: answer?.mvp ?? null,
+    });
+    expect(view.items[0]?.focus?.award).toBe('mvp');
+    expect(view.items[0]?.teammates.filter((seat) => seat.award !== null)).toHaveLength(1);
+  });
+
+  it('names nobody on an unrated game', () => {
+    expect(awarded(scored({ unrated: true }))).toEqual([]);
+  });
+
+  it('names nobody on a remake, at 300 seconds exactly and below', () => {
+    expect(awarded(scored({ durationS: 300 }))).toEqual([]);
+    expect(awarded(scored({ durationS: 180 }))).toEqual([]);
+  });
+
+  it('names nobody on a nine-player custom, and does not throw on it', () => {
+    const { blue, red } = scoredSeats();
+    const nine = scored({ blue, red: red.slice(0, 4) });
+    expect(nine.rows).toHaveLength(9);
+    expect(() => awarded(nine)).not.toThrow();
+    expect(awarded(nine)).toEqual([]);
+  });
+
+  it('names nobody on a six-four split, and does not throw on it', () => {
+    const { blue, red } = scoredSeats();
+    const lopsided = scored({ blue: [...blue, red[4] as (typeof red)[number]], red: red.slice(0, 4) });
+    expect(() => awarded(lopsided)).not.toThrow();
+    expect(awarded(lopsided)).toEqual([]);
+  });
+
+  it('names nobody when any one of the seven components is missing for any one of the ten', () => {
+    const columns = ['visionScore', 'damageSelfMitigated', 'damageToObjectives'] as const;
+    for (const column of columns) {
+      const game = scored();
+      const rows = game.rows.map((row, index) => (index === 7 ? { ...row, [column]: null } : row));
+      expect(awarded({ ...game, rows })).toEqual([]);
+    }
+    expect(awarded(withoutAwardColumns(scored()))).toEqual([]);
+  });
+
+  it('names nobody when any one of the ten has no stored role, even where the page paints one', () => {
+    const game = scored();
+    // The blue support: `withDisplayRoles` recovers `support` for this seat off its CS, so the
+    // scoreboard still prints a role — but the fold never saw one, and neither does the award.
+    const rows = game.rows.map((row) => (row.puuid === 'u-theo' ? { ...row, role: null } : row));
+    const view = gamesHistoryView({
+      window: 'this-week',
+      games: [{ ...game, rows }],
+      players: rosterFor([game]),
+      range: WEEK,
+      capped: false,
+      cap: 2_000,
+    });
+    expect(view.items[0]?.blue.seats.find((seat) => seat.puuid === 'u-theo')?.role).toBe('support');
+    expect(seats(view.items[0]).filter((seat) => seat.award !== null)).toEqual([]);
+  });
+
+  it('names nobody when one of the ten could not be read from the roster', () => {
+    const game = scored();
+    const players = rosterFor([game]).filter((player) => player.puuid !== 'u-noor');
+    expect(awarded(game, players)).toEqual([]);
+  });
+
+  it('never names anyone on `/fun`s one-game record, which does not ask', () => {
+    const game = scored();
+    const roster = new Map(rosterFor([game]).map((player) => [player.puuid, player]));
+    const record = historyGameOf(game, roster, null, 'Africa/Cairo');
+    expect(seats(record).every((seat) => seat.award === null)).toBe(true);
   });
 });

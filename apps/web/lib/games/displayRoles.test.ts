@@ -97,6 +97,9 @@ describe('withDisplayRoles', () => {
       gold: 0,
       damageToChamps: 0,
       cs: seat.cs,
+      visionScore: null,
+      damageSelfMitigated: null,
+      damageToObjectives: null,
     }));
 
     const roles = displayRolesForSide(seats, null, 'CLASSIC');

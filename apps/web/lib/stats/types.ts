@@ -41,6 +41,16 @@ export interface StatsRow {
   gold: number;
   damageToChamps: number;
   cs: number;
+  /**
+   * The three stat columns only the MVP / ACE score reads (M7.23): `vision_score` and
+   * `damage_self_mitigated` from migration `0014`, `damage_to_objectives` from `0015`. `null` on
+   * any row stored before those — and null is not zero, so a game with one of them null has no
+   * award. Same `game_players` read as every other column here, wider select. `/games` hands
+   * them to `gatedGameAward`; `/stats` and `/fun` carry them and never read them.
+   */
+  visionScore: number | null;
+  damageSelfMitigated: number | null;
+  damageToObjectives: number | null;
 }
 
 /** One `games` row and its scoreboard. */

@@ -27,6 +27,10 @@ export type Seat =
       damageToChamps?: number | undefined;
       cs?: number | undefined;
       championId?: number | null | undefined;
+      /** M7.23's three award-only columns. Absent is `null`: a row stored before `0014`/`0015`. */
+      visionScore?: number | null | undefined;
+      damageSelfMitigated?: number | null | undefined;
+      damageToObjectives?: number | null | undefined;
     };
 
 export interface GameSpec {
@@ -69,6 +73,9 @@ function seatOf(seat: Seat): {
   damageToChamps: number;
   cs: number;
   championId: number | null;
+  visionScore: number | null;
+  damageSelfMitigated: number | null;
+  damageToObjectives: number | null;
 } {
   if (typeof seat !== 'string') {
     return {
@@ -82,6 +89,9 @@ function seatOf(seat: Seat): {
       damageToChamps: seat.damageToChamps ?? 0,
       cs: seat.cs ?? 0,
       championId: seat.championId ?? null,
+      visionScore: seat.visionScore ?? null,
+      damageSelfMitigated: seat.damageSelfMitigated ?? null,
+      damageToObjectives: seat.damageToObjectives ?? null,
     };
   }
   const [key, role] = seat.split(':');
@@ -96,6 +106,9 @@ function seatOf(seat: Seat): {
     damageToChamps: 0,
     cs: 0,
     championId: null,
+    visionScore: null,
+    damageSelfMitigated: null,
+    damageToObjectives: null,
   };
 }
 
@@ -116,6 +129,9 @@ function rowOf(seat: Seat, side: SideValue, unrated: boolean): StatsRow {
     gold: parsed.gold,
     damageToChamps: parsed.damageToChamps,
     cs: parsed.cs,
+    visionScore: parsed.visionScore,
+    damageSelfMitigated: parsed.damageSelfMitigated,
+    damageToObjectives: parsed.damageToObjectives,
   };
 }
 
@@ -198,4 +214,47 @@ export function rosterFor(games: readonly StatsGame[], mains: readonly string[] 
   }
   for (const spec of mains) keys.add(spec.split(':')[0] as string);
   return [...keys].map((key) => statsPlayer(byMain.get(key) ?? key));
+}
+
+const SCORED_ROLES: readonly RoleValue[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+
+/**
+ * Ten seats carrying **every** input the MVP / ACE score reads (M7.23): five distinct roles a
+ * side and all nine stat columns, each seat's line different so the score has a clear answer.
+ * Blue is `hana iris omar lena theo`, red `yuki mira rami sara noor`, top to support.
+ */
+export function scoredSeats(): { blue: Seat[]; red: Seat[] } {
+  const line = (key: string, index: number, side: 0 | 1): Seat => {
+    const n = index + 1 + side * 5;
+    return {
+      key,
+      role: SCORED_ROLES[index] as RoleValue,
+      kills: (n * 7) % 13,
+      deaths: 1 + ((n * 5) % 9),
+      assists: (n * 11) % 17,
+      gold: 8_000 + n * 731,
+      damageToChamps: 9_000 + ((n * 3_947) % 21_000),
+      cs: index === 4 ? 25 + n : 120 + ((n * 37) % 110),
+      visionScore: 10 + ((n * 13) % 50),
+      damageSelfMitigated: 5_000 + ((n * 4_111) % 25_000),
+      damageToObjectives: 1_000 + ((n * 2_333) % 15_000),
+    };
+  };
+  return {
+    blue: ['hana', 'iris', 'omar', 'lena', 'theo'].map((key, index) => line(key, index, 0)),
+    red: ['yuki', 'mira', 'rami', 'sara', 'noor'].map((key, index) => line(key, index, 1)),
+  };
+}
+
+/** The same game with M7.23's three award-only columns blanked, as a row stored before `0014`. */
+export function withoutAwardColumns(game: StatsGame): StatsGame {
+  return {
+    ...game,
+    rows: game.rows.map((row) => ({
+      ...row,
+      visionScore: null,
+      damageSelfMitigated: null,
+      damageToObjectives: null,
+    })),
+  };
 }
