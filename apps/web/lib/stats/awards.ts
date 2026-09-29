@@ -216,6 +216,11 @@ export function climbs(games: readonly StatsGame[], players: readonly StatsPlaye
  * **Both ends are `mu`-derived**, exactly as they were, so nothing here reads `sigma` and the
  * printed delta is still the subtraction of two numbers the board printed.
  *
+ * **The climb carries the MVP / ACE bonus** (M7.24, user 2026-09-29): the weekly fold scales the
+ * MVP's delta by 1.25 and the ACE's by 0.80 in every game it can score, so a week of carrying
+ * climbs further here too. That is intended — one fold, not two, and the award has to be the
+ * difference between two numbers the board printed — not a side effect.
+ *
  * **The fold is M7.3's and is not repeated**: this maps the page's games into the shape
  * `foldWeeklyRatings` reads and asks it. The minimum still counts *counted* games — an unrated
  * backfilled game is on this page and in nobody's rating — and a player the week folded no game
@@ -260,7 +265,24 @@ function weeklyGames(games: readonly StatsGame[]): WeeklyGame[] {
   return games.flatMap((game) => {
     const players = game.rows
       .filter((row) => row.muAfter !== null)
-      .map((row) => ({ playerId: row.playerId, puuid: row.puuid, side: row.side }));
+      // The role and the nine stored numbers ride along (M7.24): the weekly fold carries the
+      // MVP / ACE bonus now, so the climb this award reads is the week's adjusted one — the
+      // same number the board row prints. `/stats`' own read already selects every column.
+      .map((row) => ({
+        playerId: row.playerId,
+        puuid: row.puuid,
+        side: row.side,
+        role: row.role,
+        kills: row.kills,
+        deaths: row.deaths,
+        assists: row.assists,
+        damageToChamps: row.damageToChamps,
+        gold: row.gold,
+        cs: row.cs,
+        visionScore: row.visionScore,
+        damageSelfMitigated: row.damageSelfMitigated,
+        damageToObjectives: row.damageToObjectives,
+      }));
     if (players.length === 0) return [];
     return [
       {

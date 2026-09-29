@@ -1,5 +1,6 @@
-import { type Rating, rateGameWeekly } from '@customs/core';
+import { applyMvpAceBonus, type MvpAce, type Rating, type RatingChange, rateGameWeekly } from '@customs/core';
 import type { SideValue } from '@customs/db';
+import { type FoldPerformance, type FoldPlayer, gameAward } from '../ingest/fold';
 import type { WindowKind } from '../night';
 
 /**
@@ -31,6 +32,12 @@ import type { WindowKind } from '../night';
  * **It never forms teams.** `lib/ingest/` does not import this file and must not: the balancer,
  * `ratings`, `/p/[puuid]` and every embed that prints a change read the all-time track. The
  * maths is `@customs/core`'s and is not repeated here (CLAUDE.md).
+ *
+ * **It carries the MVP / ACE bonus, the same one the all-time fold carries** (M7.24, user
+ * 2026-09-29, reversing the 2026-09-16 close-out ruling that the week never would). The import
+ * runs one way only — this file reads `lib/ingest/fold.ts`'s `gameAward`, the same wrapper
+ * `foldGame` calls, and nothing under `lib/ingest/` reads this file back — so there is still
+ * exactly one scorer and one place the award is named.
  */
 
 /** The two windows the weekly track is read through. Nothing else gets a from-scratch fold. */
@@ -48,13 +55,20 @@ export function isWeekWindow(kind: WindowKind): boolean {
   return (WEEK_WINDOWS as readonly WindowKind[]).includes(kind);
 }
 
-/** One player's seat in one game, reduced to what the fold reads. */
-export interface WeeklyPlayer {
-  playerId: string;
-  /** The tie-break for the order the two teams are handed to core, as in `gateGame`. */
-  puuid: string;
-  side: SideValue;
-}
+/**
+ * One player's seat in one game, reduced to what the fold reads: who, which side, and — since
+ * M7.24 — the role and the nine stored numbers the MVP / ACE score is computed from.
+ *
+ * `FoldPlayer` and `FoldPerformance` spelled together, which is `lib/ingest/fold.ts`'s own
+ * `FoldRatedPlayer`: the week's seat and the all-time fold's seat are the same shape, so the one
+ * `gameAward` reads both. `puuid` is still the tie-break for the order the two teams are handed
+ * to core, as in `gateGame`.
+ *
+ * Every stat field is nullable because the columns are. A caller that has no stat line for a row
+ * hands in nulls, and core's missing-input rule (`performanceScores` returns `null`) then gives
+ * that game no award — the plain `rateGameWeekly` answer, exactly as before M7.24.
+ */
+export interface WeeklyPlayer extends FoldPlayer, FoldPerformance {}
 
 /** One rated game of the week, with its ten seats. */
 export interface WeeklyGame {
@@ -99,6 +113,14 @@ const TEAM_SIZE = 5;
  * ten rated rows — but this file reads whatever the table holds, and `rateGameWeekly` throws on
  * anything that is not five and five. A skipped game is a logged line and not an exception: a
  * board that 500s because one old row is odd is worse than a board that is one game stale.
+ *
+ * **Each game it does read is `foldGame`'s three steps with the weekly fold in the first** (M7.24):
+ * `rateGameWeekly` for the ten raw deltas, `gameAward` for the MVP and the ACE, and
+ * `applyMvpAceBonus` to scale exactly those two — 1.25x and 0.80x, eight untouched, every
+ * `sigma` copied through. A skipped game never reaches the award, so the bonus adds no failure
+ * mode of its own; a game with a hole in its stat line or a seat with no role gets no award by
+ * core's universal missing-input rule, the one the all-time fold obeys, and folds exactly as it
+ * did before this task.
  */
 export function foldWeeklyRatings(
   games: readonly WeeklyGame[],
@@ -129,31 +151,50 @@ export function foldWeeklyRatings(
       game.winningSide,
     );
 
-    applySide(out, blue, rated.blue, before, game.gameId);
-    applySide(out, red, rated.red, before, game.gameId);
+    // Blue then red, the order the two arrays were handed to core — `foldGame`'s own layout, so
+    // the index of a seat in `ten` is the index of its rating in the matching half of `rated`.
+    const changes: RatingChange[] = ten.map((player, index) => ({
+      puuid: player.puuid,
+      before: mustGet(before, player.playerId),
+      after: mustIndex(index < TEAM_SIZE ? rated.blue : rated.red, index % TEAM_SIZE),
+    }));
+
+    // The MVP / ACE bonus (M7.24): `gameAward` and `applyMvpAceBonus`, the two calls `foldGame`
+    // makes, in the same order and on the same layout. No award — a missing stat column, a seat
+    // with no role — and `applyMvpAceBonus` hands back exactly what `rateGameWeekly` produced.
+    const adjusted = applyMvpAceBonus(changes, weeklyAward(ten, game));
+
+    ten.forEach((player, index) => {
+      const change = adjusted[index];
+      if (change === undefined) throw new Error(`board: the weekly fold got no rating at index ${index}`);
+      const held = out.get(player.playerId) as WeeklyPlayerRating;
+      out.set(player.playerId, {
+        seed: held.seed,
+        rating: change.after,
+        games: [...held.games, { gameId: game.gameId, muBefore: change.before.mu, muAfter: change.after.mu }],
+      });
+    });
   }
 
   return out;
 }
 
-function applySide(
-  out: Map<string, WeeklyPlayerRating>,
-  side: readonly WeeklyPlayer[],
-  after: readonly Rating[],
-  before: ReadonlyMap<string, Rating>,
-  gameId: string,
-): void {
-  side.forEach((player, index) => {
-    const next = after[index];
-    if (next === undefined) throw new Error(`board: the weekly fold got no rating at index ${index}`);
-    const previous = mustGet(before, player.playerId);
-    const held = out.get(player.playerId) as WeeklyPlayerRating;
-    out.set(player.playerId, {
-      seed: held.seed,
-      rating: next,
-      games: [...held.games, { gameId, muBefore: previous.mu, muAfter: next.mu }],
-    });
-  });
+/**
+ * Who carried each side of one week's game, by `lib/ingest/fold.ts`'s `gameAward` — the call
+ * `foldGame` makes — or `null` when the game cannot be scored.
+ *
+ * The one thing added in front of it is the distinct-puuid half of `gateGame`, and only because
+ * core's `mvpAce` *throws* on a repeated puuid where the plain weekly fold never did. A game that
+ * shape reaches here only past the all-time gate refusing it, so it is the case that should not
+ * exist; if it ever does, it gets no award and is rated as it was before M7.24 rather than
+ * turning a stale board into a 500. The five-a-side half is already the skip above.
+ */
+function weeklyAward(ten: readonly WeeklyPlayer[], game: WeeklyGame): MvpAce | null {
+  if (new Set(ten.map((player) => player.puuid)).size !== ten.length) {
+    console.warn(`board: the weekly fold named no MVP for game ${game.gameId}: a puuid appears twice`);
+    return null;
+  }
+  return gameAward(ten, game.winningSide);
 }
 
 /** `started_at`, then `lcu_game_id`: the rebuild's order, so the week and the history agree. */
@@ -169,6 +210,12 @@ function mustCurrent(held: ReadonlyMap<string, WeeklyPlayerRating>, playerId: st
   const value = held.get(playerId);
   if (value === undefined) throw new Error(`board: the weekly fold has no rating for player ${playerId}`);
   return value.rating;
+}
+
+function mustIndex(list: readonly Rating[], index: number): Rating {
+  const value = list[index];
+  if (value === undefined) throw new Error(`board: the weekly fold got no rating at index ${index}`);
+  return value;
 }
 
 function mustGet(map: ReadonlyMap<string, Rating>, playerId: string): Rating {

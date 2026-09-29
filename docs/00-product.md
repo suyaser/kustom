@@ -222,10 +222,13 @@ record does not reliably say which of top and mid somebody was. It is a small ad
 the model has rated the game, it never turns a win into a loss or the other way round, and it leaves Proven's
 "how sure are we" half alone: a good night is not the same thing as certainty (M7.8).
 
-**It moves the real rating and nothing else.** The two week windows are read through their own throwaway number,
-folded from the week's own games, and there is no bonus in that fold: carrying a game on Tuesday moves your real
-rating a little further and moves your week exactly as much as anybody else's win. One bonus, on the one number
-that forms teams (2026-09-15, M7.9; settled as a product decision on 2026-09-16 rather than left open).
+**It moves your week too.** The two week windows are read through their own throwaway number, folded from the
+week's own games, and that fold keeps the same bonus the real rating does: carrying a game on Tuesday moves your
+real rating a little further and moves your week a little further too, by the same quarter, and the same fifth
+back for the best player on the losing side. It is the same reading of the same game, not a second opinion, so
+the `MVP` beside a game on your page is always the game that moved your week further. The week's `Most improved`
+counts it too, because it is measured on that same weekly number. Teams are still formed from the real rating
+alone (M7.24, 2026-09-29, reversing the 2026-09-16 decision that the week would never carry it).
 
 **A game where we do not know who played what has no best player.** The companion reads everybody's role off
 the end-of-game screen, so a night the companion watched has all ten. A game recovered from someone's match

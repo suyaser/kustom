@@ -2599,11 +2599,15 @@ already opens.
   a row whose total is one track and whose games are another does not add up. **Since M7.16 (2026-09-16) the
   page agrees with it**: `/p/[puuid]` on a week window prints the same weekly delta for the same game, so the
   expand and the list a tap later are one answer — the row that used to warn readers about that difference is
-  superseded. The other honest consequence stands: the weekly track does not carry the **MVP / ACE**
+  superseded. ~~The other honest consequence stands: the weekly track does not carry the **MVP / ACE**
   adjustment at all (M7.9, acceptance 6, waived, and settled as a product decision in M7's close-out audit),
-  so a game somebody was MVP of moves them by the plain amount on a week window, on both surfaces. It is not
-  marked and should not be — the expand explains the number above it and nothing else. `MVP` stays the one
-  word on the two surfaces M7.10 put it on, and it does not move with the track.
+  so a game somebody was MVP of moves them by the plain amount on a week window, on both surfaces.~~
+  **Superseded 2026-09-29 (M7.24, the user's decision):** the weekly fold carries the same MVP / ACE
+  adjustment the all-time one does, so a game somebody was MVP of moves them 1.25× the plain weekly amount on
+  a week window, on both surfaces, and the `MVP` beside that game on `/p/[puuid]` is always the seat whose
+  weekly delta was amplified. Nothing about the dress changes: it is not marked and should not be — the expand
+  explains the number above it and nothing else. `MVP` stays the one word on the surfaces M7.10 and M7.23 put
+  it on, and it does not move with the track.
 
 ### The award badge on a board row (M8.3, designer 2026-09-15)
 

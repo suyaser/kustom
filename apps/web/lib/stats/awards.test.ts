@@ -1,7 +1,15 @@
-import { type Rating, seedFromRank } from '@customs/core';
+import { config, displayRating, type Rating, rateGameWeekly, seedFromRank } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { formatDelta, renderName } from '../discord/embeds';
-import { playerIdOf, rosterFor, statsGame, tenPlayerGame } from '../testing/statsFixtures';
+import { gameAward } from '../ingest/fold';
+import {
+  playerIdOf,
+  rosterFor,
+  scoredSeats,
+  statsGame,
+  tenPlayerGame,
+  withoutAwardColumns,
+} from '../testing/statsFixtures';
 import { awardBlocks, awardPeriod, awardsView, climbs, type WeeklySeeds, weeklyClimbs } from './awards';
 import { countedGames } from './fold';
 import type { AwardBlock, StatsGame, StatsPlayer } from './types';
@@ -588,5 +596,69 @@ describe('a climb', () => {
     ]);
 
     expect(climbs(games, rosterFor(games))).toEqual([]);
+  });
+});
+
+/**
+ * **Most improved carries the MVP / ACE bonus on a week** (M7.24, acceptance 7). `weeklyClimbs`
+ * reads `foldWeeklyRatings`, and the weekly fold scales the MVP's and the ACE's deltas, so the
+ * climb this award prints is the adjusted one — the same number the board row prints. That is the
+ * intended consequence of "one fold, not two", written down in `04-decisions.md`, not a side
+ * effect nobody noticed.
+ */
+describe('most improved and the MVP / ACE bonus', () => {
+  const SEED = seedFromRank('GOLD', 'IV');
+
+  function scored(): StatsGame {
+    return countedGames([
+      statsGame({ id: 'scored', at: '2026-09-01T20:00:00Z', winner: 100, ...scoredSeats() }),
+    ])[0] as StatsGame;
+  }
+
+  /** The MVP and the ACE of the game, by the scorer the fold calls, and each seat's raw weekly delta. */
+  function answer(game: StatsGame) {
+    const award = gameAward(game.rows, game.winningSide);
+    if (award === null) throw new Error('expected the scored fixture to have an MVP');
+    const raw = rateGameWeekly(Array(5).fill(SEED), Array(5).fill(SEED), game.winningSide);
+    const rawMu = (puuid: string) => {
+      const side = game.rows.find((row) => row.puuid === puuid)?.side;
+      return ((side === 100 ? raw.blue[0] : raw.red[0]) as Rating).mu;
+    };
+    return { award, rawMu };
+  }
+
+  it('climbs the MVP 1.25x and the ACE 0.80x of their raw weekly delta', () => {
+    const game = scored();
+    const players = rosterFor([game]);
+    const seeds: WeeklySeeds = new Map(players.map((player) => [player.playerId, SEED]));
+    const { award, rawMu } = answer(game);
+
+    const climbed = new Map(weeklyClimbs([game], players, seeds).map((climb) => [climb.puuid, climb]));
+    const bonus = (puuid: string, factor: number) =>
+      displayRating(SEED.mu + (rawMu(puuid) - SEED.mu) * factor) - displayRating(SEED.mu);
+
+    expect(climbed.get(award.mvp)?.delta).toBe(bonus(award.mvp, 1 + config.rating.mvp.bonusFraction));
+    expect(climbed.get(award.ace)?.delta).toBe(bonus(award.ace, 1 - config.rating.mvp.aceReliefFraction));
+    // Everybody else climbs exactly what `rateGameWeekly` alone gave them.
+    for (const row of game.rows) {
+      if (row.puuid === award.mvp || row.puuid === award.ace) continue;
+      expect([row.puuid, climbed.get(row.puuid)?.delta]).toEqual([row.puuid, bonus(row.puuid, 1)]);
+    }
+  });
+
+  it('is the plain weekly climb for the same game stored before the award columns existed', () => {
+    const game = scored();
+    const players = rosterFor([game]);
+    const seeds: WeeklySeeds = new Map(players.map((player) => [player.playerId, SEED]));
+    const { award } = answer(game);
+
+    const withBonus = weeklyClimbs([game], players, seeds);
+    const without = weeklyClimbs([withoutAwardColumns(game)], players, seeds);
+    const delta = (list: typeof withBonus, puuid: string) =>
+      list.find((climb) => climb.puuid === puuid)?.delta;
+
+    // The MVP climbs further with the award than without it, and the ACE drops less.
+    expect(delta(withBonus, award.mvp) as number).toBeGreaterThan(delta(without, award.mvp) as number);
+    expect(delta(withBonus, award.ace) as number).toBeGreaterThan(delta(without, award.ace) as number);
   });
 });

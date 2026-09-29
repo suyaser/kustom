@@ -333,9 +333,13 @@ async function windowRows(
   if (games.length === 0) return [];
 
   const byGame = new Map(games.map((game) => [game.id, game]));
+  // Nine columns wider on the two week windows only (M7.24): the weekly fold names the MVP and
+  // the ACE from them. Same query, and scoped to the window's own games — a week is a handful of
+  // nights, not the season. `All time` and both months stay narrow, byte for byte.
   const rows = await loadGameRows(
     client,
     games.map((game) => game.id),
+    { withStats: isWeekWindow(options.window) },
   );
 
   // Oldest first, per player: the climb is the first game's `mu_before` and the last one's
@@ -511,9 +515,12 @@ async function loadWeeklyFold(
 ): Promise<Map<string, WeeklyPlayerRating>> {
   if (games.length === 0) return new Map();
 
+  // Always wide (M7.24): this read only happens on a week window, and the weekly fold names the
+  // MVP and the ACE from the nine stat columns — the same select the board's week read makes.
   const rows = await loadGameRows(
     client,
     games.map((game) => game.id),
+    { withStats: true },
   );
   // The window's rated seats, deduplicated: a week of ten-player games is the same twenty
   // people over and over, and the seed lookup is one row each.
@@ -552,7 +559,15 @@ function weeklyGames(
     const player = players.get(row.playerId);
     if (player === undefined) continue;
     const list = seats.get(row.gameId) ?? [];
-    list.push({ playerId: row.playerId, puuid: player.puuid, side: row.side });
+    // The stat line rides along for the MVP / ACE bonus (M7.24). A row read narrow — or a game
+    // stored before migrations 0014/0015 — carries nulls here, and core's missing-input rule
+    // then gives that game no award rather than anything here throwing or guessing.
+    list.push({
+      playerId: row.playerId,
+      puuid: player.puuid,
+      side: row.side,
+      ...(row.stats ?? noStats(row.role)),
+    });
     seats.set(row.gameId, list);
   }
 
@@ -569,6 +584,22 @@ function weeklyGames(
       },
     ];
   });
+}
+
+/** A stat line with nothing in it: what a row read without the nine columns carries. */
+function noStats(role: RoleValue | null): FoldPerformance {
+  return {
+    role,
+    kills: null,
+    deaths: null,
+    assists: null,
+    damageToChamps: null,
+    gold: null,
+    cs: null,
+    visionScore: null,
+    damageSelfMitigated: null,
+    damageToObjectives: null,
+  };
 }
 
 /**
@@ -1283,9 +1314,11 @@ interface PlayerGameRow {
    * The stat line the performance score is computed from (M7.10), or `null` on a read that did
    * not ask for it.
    *
-   * Only the recent-games read asks: it is nine integers on at most fifty rows, where the
-   * board's read is the same shape over a thousand games and prints no award. The one place
-   * that wants an MVP pays for it.
+   * Three reads ask: the recent games (nine integers on at most fifty rows) and, since M7.24,
+   * the two week-window reads the weekly fold runs over (`windowRows` on a week, and
+   * `loadWeeklyFold`), because the week now carries the MVP / ACE bonus and names it from these.
+   * Those are scoped to one week's games. The season-wide reads — `All time`, both months, the
+   * all-time expand — stay narrow: they print no award and fold none.
    */
   stats: FoldPerformance | null;
 }
@@ -1358,8 +1391,10 @@ function withRange<Q extends { gte(column: string, value: string): Q; lt(column:
  * `game_players` for a set of games, in chunks, so no response is silently truncated.
  *
  * `withStats` is **the same query, nine columns wider** (M7.10, acceptance 4) and not a second
- * read. It is on for the five rows `Recent games` draws and off for the season-wide read behind
- * the board, which prints no award and would be carrying ninety thousand integers to say so.
+ * read. It is on for the five rows `Recent games` draws and for the two week windows' reads,
+ * whose fold carries the MVP / ACE bonus (M7.24), and off for the season-wide reads behind
+ * `All time` and the months, which fold no award and would be carrying ninety thousand integers
+ * to say so.
  */
 async function loadGameRows(
   client: PublicClient,

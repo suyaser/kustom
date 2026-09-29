@@ -1,8 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { type Rating, rateGameWeekly, seedFromRank } from '@customs/core';
+import { config, type Rating, rateGameWeekly, seedFromRank } from '@customs/core';
 import { describe, expect, it, vi } from 'vitest';
-import { foldWeeklyRatings, isWeekWindow, type WeeklyGame } from './weekly';
+import { type FoldPerformance, gameAward, gatedGameAward } from '../ingest/fold';
+import { foldWeeklyRatings, isWeekWindow, type WeeklyGame, type WeeklyPlayer } from './weekly';
 
 /**
  * The weekly fold (M7.3), on its own: seeds in, one week's games in, a rating per player out.
@@ -16,15 +17,66 @@ const SEED: Rating = seedFromRank('GOLD', 'IV');
 const TEN = Array.from({ length: 10 }, (_, index) => `p${index}`);
 const seeds = (): Map<string, Rating> => new Map(TEN.map((id) => [id, SEED]));
 
+/**
+ * A seat with **no stat line**: every column null, the shape a row read without the nine stat
+ * columns — or stored before migrations 0014/0015 — arrives in. Core's missing-input rule gives
+ * such a game no MVP, so every test written before M7.24 still reads the plain weekly fold.
+ */
+const NO_STATS: FoldPerformance = {
+  role: null,
+  kills: null,
+  deaths: null,
+  assists: null,
+  damageToChamps: null,
+  gold: null,
+  cs: null,
+  visionScore: null,
+  damageSelfMitigated: null,
+  damageToObjectives: null,
+};
+
+function seat(id: string, index: number): WeeklyPlayer {
+  return { playerId: id, puuid: `puuid-${id}`, side: index < 5 ? 100 : 200, ...NO_STATS };
+}
+
 function game(overrides: Partial<WeeklyGame> = {}): WeeklyGame {
   return {
     gameId: 'game-1',
     startedAt: '2026-03-09T19:00:00Z',
     lcuGameId: 1,
     winningSide: 100,
-    players: TEN.map((id, seat) => ({ playerId: id, puuid: `puuid-${id}`, side: seat < 5 ? 100 : 200 })),
+    players: TEN.map(seat),
     ...overrides,
   };
+}
+
+const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
+
+/**
+ * Ten seats carrying **every** input the score reads (M7.24): a role each, five distinct a side,
+ * and all nine stat columns, each line different so the award has one clear answer. The same
+ * spread `lib/ingest/fold.test.ts` gives `foldGame`.
+ */
+function scoredSeats(): WeeklyPlayer[] {
+  return TEN.map((id, index) => ({
+    playerId: id,
+    puuid: `puuid-${id}`,
+    side: index < 5 ? (100 as const) : (200 as const),
+    role: ROLES[index % 5] ?? null,
+    kills: index,
+    deaths: 10 - index,
+    assists: index * 2,
+    damageToChamps: 20_000 + index * 2_500,
+    gold: 10_000 + index * 250,
+    cs: 150 + index * 3,
+    visionScore: 20 + index,
+    damageSelfMitigated: 8_000 + index * 400,
+    damageToObjectives: 3_000 + index * 600,
+  }));
+}
+
+function scoredGame(overrides: Partial<WeeklyGame> = {}): WeeklyGame {
+  return game({ players: scoredSeats(), ...overrides });
 }
 
 describe('isWeekWindow', () => {
@@ -113,11 +165,7 @@ describe('the weekly fold', () => {
     const odd = game({
       gameId: 'odd',
       lcuGameId: 1,
-      players: TEN.slice(0, 9).map((id, seat) => ({
-        playerId: id,
-        puuid: `puuid-${id}`,
-        side: seat < 5 ? 100 : 200,
-      })),
+      players: TEN.slice(0, 9).map(seat),
     });
 
     const folded = foldWeeklyRatings([odd, game({ gameId: 'good', lcuGameId: 2 })], seeds());
@@ -226,29 +274,191 @@ describe('the weekly fold', () => {
   });
 
   /**
-   * The MVP / ACE bonus and this fold (M7.9, acceptance 6: confirm it, do not special-case it).
-   *
-   * **There is no special case here, and this pins that there is none.** What the check also
-   * records, because it is not what M7.9's brief assumed: the weekly track is a *second* fold,
-   * not a read of the first. It folds the same **games** — `load.ts` hands it only seats whose
-   * `mu_after` the all-time fold wrote, so the gate, the duration floor and M7.1's map all
-   * reach it — but its numbers are `rateGameWeekly`'s over a week's own seeds, and the MVP's
-   * amplified `mu` lives in `game_players`, which this file never reads. A `WeeklyPlayer`
-   * carries no stat line at all, so there is nothing here to score and nothing to scale.
-   *
-   * If the week is ever meant to carry the bonus too, it is a product decision and a new task:
-   * it would need the nine stat columns and the role added to the board's own select.
+   * **One fold, and the award is inside it** (M7.24). `foldWeeklyRatings` names the MVP and the
+   * ACE with `lib/ingest/fold.ts`'s `gameAward` and scales them with core's `applyMvpAceBonus`
+   * — the two calls `foldGame` makes. A second scorer anywhere in the app would be two answers
+   * about one game; the check is a grep, so here is the grep.
    */
-  it('folds a week of the same games with no bonus of its own, and no special case either', () => {
-    // The game an all-time fold would have amplified one winner and reduced one loser in.
+  it('calls the scorer the all-time fold calls, and no other', () => {
+    const source = readFileSync(join(import.meta.dirname, 'weekly.ts'), 'utf8');
+
+    expect(source).toMatch(/import\s*\{[^}]*\bgameAward\b[^}]*\}\s*from\s*'\.\.\/ingest\/fold'/);
+    expect(source).toMatch(/import\s*\{[^}]*\bapplyMvpAceBonus\b[^}]*\}\s*from\s*'@customs\/core'/);
+    // Not core's `mvpAce` or `performanceScores` directly: the rename in front of the scorer is
+    // `gameAward`'s, and a week that spelled its own would be the second copy.
+    expect(source).not.toMatch(/import\s*\{[^}]*\b(mvpAce|performanceScores)\b/);
+    expect(source).not.toMatch(/\bmvpAce\(|\bperformanceScores\(/);
+  });
+});
+
+/**
+ * **The MVP / ACE bonus on the weekly track** (M7.24, user 2026-09-29 — reversing M7.9's
+ * close-out ruling that the week never carries it). Every number is checked against
+ * `rateGameWeekly` alone and the award `gameAward` names, the way `lib/ingest/fold.test.ts`
+ * checks `foldGame` against `rateGame`.
+ */
+describe('the weekly fold and the MVP / ACE bonus', () => {
+  const byPuuid = (a: WeeklyPlayer, b: WeeklyPlayer): number =>
+    a.puuid < b.puuid ? -1 : a.puuid > b.puuid ? 1 : 0;
+
+  /** What `rateGameWeekly` alone gives each seat of one game from the seeds, keyed by player id. */
+  function plain(played: WeeklyGame): Map<string, Rating> {
+    const blue = played.players.filter((p) => p.side === 100).sort(byPuuid);
+    const red = played.players.filter((p) => p.side === 200).sort(byPuuid);
+    const raw = rateGameWeekly(
+      blue.map(() => SEED),
+      red.map(() => SEED),
+      played.winningSide,
+    );
+    const out = new Map<string, Rating>();
+    blue.forEach((player, index) => {
+      out.set(player.playerId, raw.blue[index] as Rating);
+    });
+    red.forEach((player, index) => {
+      out.set(player.playerId, raw.red[index] as Rating);
+    });
+    return out;
+  }
+
+  /** **Acceptance 2**: MVP 1.25x, ACE 0.80x, eight untouched, `sigma` never moved. */
+  it('scales the MVP by 1.25 and the ACE by 0.80 of their raw weekly delta, and leaves eight alone', () => {
+    const played = scoredGame();
+    const award = gameAward(played.players, played.winningSide);
+    if (award === null) throw new Error('expected a game with every input to have an MVP');
+
+    const base = plain(played);
+    const folded = foldWeeklyRatings([played], seeds());
+
+    const moved: string[] = [];
+    for (const player of played.players) {
+      const raw = base.get(player.playerId) as Rating;
+      const now = folded.get(player.playerId)?.rating as Rating;
+      expect(now.sigma).toBe(raw.sigma);
+      const factor =
+        player.puuid === award.mvp
+          ? 1 + config.rating.mvp.bonusFraction
+          : player.puuid === award.ace
+            ? 1 - config.rating.mvp.aceReliefFraction
+            : null;
+      if (factor === null) {
+        expect([player.playerId, now.mu]).toEqual([player.playerId, raw.mu]);
+      } else {
+        expect(now.mu).toBe(SEED.mu + (raw.mu - SEED.mu) * factor);
+        moved.push(player.puuid);
+      }
+    }
+    expect(moved.sort()).toEqual([award.mvp, award.ace].sort());
+    // The constants are the ones the brief names, not whatever config happens to hold.
+    expect(1 + config.rating.mvp.bonusFraction).toBe(1.25);
+    expect(1 - config.rating.mvp.aceReliefFraction).toBe(0.8);
+  });
+
+  it('keeps the MVP s weekly gain bigger and the ACE s weekly loss smaller, and neither sign flips', () => {
+    const played = scoredGame();
+    const award = gameAward(played.players, played.winningSide) as { mvp: string; ace: string };
+    const idOf = new Map(played.players.map((player) => [player.puuid, player.playerId]));
+    const mvp = idOf.get(award.mvp) as string;
+    const ace = idOf.get(award.ace) as string;
+    const base = plain(played);
+    const folded = foldWeeklyRatings([played], seeds());
+    const gained = (id: string) => (folded.get(id)?.rating.mu as number) - SEED.mu;
+    const plainGained = (id: string) => (base.get(id) as Rating).mu - SEED.mu;
+
+    expect(plainGained(mvp)).toBeGreaterThan(0);
+    expect(gained(mvp)).toBeGreaterThan(plainGained(mvp));
+    expect(gained(ace)).toBeLessThan(0);
+    expect(gained(ace)).toBeGreaterThan(plainGained(ace));
+    // The step the row's expand and `/p/[puuid]` print is the adjusted one.
+    expect(folded.get(mvp)?.games).toEqual([
+      { gameId: 'game-1', muBefore: SEED.mu, muAfter: folded.get(mvp)?.rating.mu },
+    ]);
+  });
+
+  /**
+   * **Acceptance 3**: a hole in any column on any one seat — or a seat with no role — and the
+   * game has no award, by core's universal rule, and folds exactly as `rateGameWeekly` alone.
+   */
+  it('folds a game with a missing stat column or a missing role exactly as rateGameWeekly alone does', () => {
+    const holes: { what: string; hole: (player: WeeklyPlayer) => WeeklyPlayer }[] = [
+      { what: 'kills', hole: (player) => ({ ...player, kills: null }) },
+      { what: 'deaths', hole: (player) => ({ ...player, deaths: null }) },
+      { what: 'assists', hole: (player) => ({ ...player, assists: null }) },
+      { what: 'damage to champions', hole: (player) => ({ ...player, damageToChamps: null }) },
+      { what: 'gold', hole: (player) => ({ ...player, gold: null }) },
+      { what: 'cs', hole: (player) => ({ ...player, cs: null }) },
+      { what: 'vision score', hole: (player) => ({ ...player, visionScore: null }) },
+      { what: 'damage self mitigated', hole: (player) => ({ ...player, damageSelfMitigated: null }) },
+      { what: 'damage to objectives', hole: (player) => ({ ...player, damageToObjectives: null }) },
+      { what: 'the role', hole: (player) => ({ ...player, role: null }) },
+    ];
+
+    for (const { what, hole } of holes) {
+      // On one seat of ten, on the losing side, where nothing about the winners changed.
+      const played = scoredGame({ players: scoredSeats().map((p, index) => (index === 7 ? hole(p) : p)) });
+      expect(gameAward(played.players, played.winningSide), what).toBeNull();
+
+      const base = plain(played);
+      const folded = foldWeeklyRatings([played], seeds());
+      for (const player of played.players) {
+        expect([what, folded.get(player.playerId)?.rating]).toEqual([what, base.get(player.playerId)]);
+      }
+    }
+  });
+
+  it('folds a week of rows read with no stat line exactly as it did before M7.24', () => {
     const folded = foldWeeklyRatings([game()], seeds());
     const expected = rateGameWeekly(Array(5).fill(SEED), Array(5).fill(SEED), 100);
-
-    // All five winners moved by exactly the same amount, and so did all five losers: nothing
-    // here scaled one seat by 1.25 or another by 0.80.
     for (const [index, id] of TEN.entries()) {
       const side = index < 5 ? expected.blue : expected.red;
       expect([id, folded.get(id)?.rating]).toEqual([id, side[0]]);
+    }
+  });
+
+  /**
+   * A skipped game never reaches the award (no new failure mode), and a game the plain weekly
+   * fold could read but core's scorer would throw on — a puuid twice — gets no award rather than
+   * a 500.
+   */
+  it('adds no failure mode: a skipped game stays skipped, and a repeated puuid gets no award', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const nine = scoredGame({ gameId: 'nine', players: scoredSeats().slice(0, 9) });
+    const twice = scoredGame({
+      gameId: 'twice',
+      lcuGameId: 2,
+      players: scoredSeats().map((p, index) => (index === 9 ? { ...p, puuid: 'puuid-p0' } : p)),
+    });
+
+    expect(() => foldWeeklyRatings([nine, twice], seeds())).not.toThrow();
+    const folded = foldWeeklyRatings([nine], seeds());
+    expect(folded.get('p0')?.games).toEqual([]);
+    warn.mockRestore();
+  });
+
+  /**
+   * **Acceptance 6**: the MVP / ACE `/p/[puuid]` names on a week window (M7.10's `recentAward`,
+   * through `gatedGameAward`) is the seat whose weekly delta the fold amplified — so the word on
+   * the row and the number beside it cannot disagree. Both winners of the result, across both
+   * possible results, so neither side's answer is a coincidence.
+   */
+  it('amplifies exactly the seats the recent-games row names, whichever side won', () => {
+    for (const winningSide of [100, 200] as const) {
+      const played = scoredGame({ winningSide });
+      const named = gatedGameAward(played.players, 1_800, winningSide);
+      if (named === null) throw new Error('expected the printing surface to name an MVP');
+
+      const base = plain(played);
+      const folded = foldWeeklyRatings([played], seeds());
+      const amplified = played.players
+        .filter((p) => (folded.get(p.playerId)?.rating.mu as number) !== (base.get(p.playerId) as Rating).mu)
+        .map((p) => {
+          const gain = (folded.get(p.playerId)?.rating.mu as number) - SEED.mu;
+          const raw = (base.get(p.playerId) as Rating).mu - SEED.mu;
+          return { puuid: p.puuid, amplified: Math.abs(gain) > Math.abs(raw) };
+        });
+
+      expect(amplified).toHaveLength(2);
+      expect(amplified.find((seat) => seat.amplified)?.puuid).toBe(named.mvp);
+      expect(amplified.find((seat) => !seat.amplified)?.puuid).toBe(named.ace);
     }
   });
 });
