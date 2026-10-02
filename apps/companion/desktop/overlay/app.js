@@ -11,7 +11,6 @@ const COPY = {
   fearlessSentence: 'Ban these next game.',
   fearlessEmpty: 'No champions banned yet.',
   lobbyTitle: 'This lobby',
-  thin: 'Under 5 games together.',
   lane: 'lane',
   you: 'you',
 };
@@ -24,14 +23,21 @@ function esc(text) {
     .replace(/"/g, '&quot;');
 }
 
-function recordLine(seat) {
-  if (seat.with === null && seat.against === null) {
-    return COPY.thin;
-  }
-  const parts = [];
-  if (seat.with) parts.push(`With ${seat.with.wins}–${seat.with.losses}`);
-  if (seat.against) parts.push(`Against ${seat.against.wins}–${seat.against.losses}`);
-  return parts.join(' · ');
+// A single count, not a with/against sentence: whichever record applies to this
+// seat (teammate or opponent) relative to the viewer. Null (too little history)
+// renders nothing.
+function recordNote(seat) {
+  const record = seat.with ?? seat.against;
+  if (!record) return null;
+  return `${record.games} game${record.games === 1 ? '' : 's'}`;
+}
+
+// Lobby-fill readiness cue, e.g. "Blue 3/5 · Red 2/5". Pure: just counts the
+// rosters already in the payload against 5 a side (see src/panel/overlayUi.test.ts).
+function fillReadiness(teams) {
+  const blue = Math.min((teams?.blue ?? []).length, 5);
+  const red = Math.min((teams?.red ?? []).length, 5);
+  return `Blue ${blue}/5 · Red ${red}/5`;
 }
 
 function renderFearless(fearless) {
@@ -77,7 +83,8 @@ function renderSide(label, color, seats, viewerPuuid) {
     const youMark = seat.puuid === viewerPuuid ? ` <span class="you-mark">· ${COPY.you}</span>` : '';
     const lane = seat.isLaneOpponent ? `<span class="lane-mark">${COPY.lane}</span>` : '';
     const role = seat.role ?? '—';
-    const records = seat.puuid === viewerPuuid ? '' : esc(recordLine(seat));
+    const note = seat.puuid === viewerPuuid ? null : recordNote(seat);
+    const records = note ? esc(note) : '';
 
     html += `<div class="seat${you}">
       <div class="name">${esc(seat.name ?? 'Unknown')}${youMark}${lane}</div>
@@ -100,6 +107,7 @@ function renderLobby(payload) {
 
   const { blue, red } = payload.lobby.teams;
   return `<section><h2>${COPY.lobbyTitle}</h2>
+    <p class="fill">${esc(fillReadiness({ blue, red }))}</p>
     ${renderSide('Blue', 'blue', blue, payload.viewerPuuid)}
     ${renderSide('Red', 'red', red, payload.viewerPuuid)}
   </section>`;

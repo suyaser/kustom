@@ -177,6 +177,13 @@ section h2 {
   padding: var(--sp-3) 0;
 }
 
+.fill {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--cn-dim);
+}
+
 /* Fearless chips */
 .lane-group {
   margin-bottom: var(--sp-3);
