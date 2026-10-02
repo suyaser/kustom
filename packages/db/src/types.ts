@@ -41,6 +41,7 @@ export type Database = {
           created_at: string
           error: string | null
           expires_at: string
+          group_id: string
           id: string
           kind: Database["public"]["Enums"]["companion_command_kind"]
           payload: Json
@@ -55,6 +56,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           expires_at?: string
+          group_id?: string
           id?: string
           kind: Database["public"]["Enums"]["companion_command_kind"]
           payload?: Json
@@ -69,6 +71,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           expires_at?: string
+          group_id?: string
           id?: string
           kind?: Database["public"]["Enums"]["companion_command_kind"]
           payload?: Json
@@ -78,6 +81,20 @@ export type Database = {
           target_player_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "companion_commands_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "companion_commands_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "companion_commands_target_player_id_fkey"
             columns: ["target_player_id"]
@@ -97,6 +114,7 @@ export type Database = {
       companion_tokens: {
         Row: {
           created_at: string
+          group_id: string
           id: string
           label: string | null
           last_seen_at: string | null
@@ -106,6 +124,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          group_id?: string
           id?: string
           label?: string | null
           last_seen_at?: string | null
@@ -115,6 +134,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          group_id?: string
           id?: string
           label?: string | null
           last_seen_at?: string | null
@@ -123,6 +143,20 @@ export type Database = {
           token_hash?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "companion_tokens_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "companion_tokens_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "companion_tokens_player_id_fkey"
             columns: ["player_id"]
@@ -149,6 +183,7 @@ export type Database = {
           expires_at: string
           first_correct_at: string | null
           game_id: string
+          group_id: string
           hook: Json
           id: string
           interesting_score: number
@@ -165,6 +200,7 @@ export type Database = {
           expires_at: string
           first_correct_at?: string | null
           game_id: string
+          group_id?: string
           hook: Json
           id?: string
           interesting_score: number
@@ -181,6 +217,7 @@ export type Database = {
           expires_at?: string
           first_correct_at?: string | null
           game_id?: string
+          group_id?: string
           hook?: Json
           id?: string
           interesting_score?: number
@@ -194,6 +231,20 @@ export type Database = {
             columns: ["game_id"]
             isOneToOne: false
             referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_mysteries_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_mysteries_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
             referencedColumns: ["id"]
           },
           {
@@ -338,6 +389,7 @@ export type Database = {
         Row: {
           blue_voice_channel_id: string | null
           created_at: string
+          group_id: string
           guild_id: string
           lobby_voice_channel_id: string | null
           red_voice_channel_id: string | null
@@ -348,6 +400,7 @@ export type Database = {
         Insert: {
           blue_voice_channel_id?: string | null
           created_at?: string
+          group_id?: string
           guild_id: string
           lobby_voice_channel_id?: string | null
           red_voice_channel_id?: string | null
@@ -358,6 +411,7 @@ export type Database = {
         Update: {
           blue_voice_channel_id?: string | null
           created_at?: string
+          group_id?: string
           guild_id?: string
           lobby_voice_channel_id?: string | null
           red_voice_channel_id?: string | null
@@ -365,28 +419,60 @@ export type Database = {
           updated_at?: string
           webhook_url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "discord_config_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discord_config_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       fearless_state: {
         Row: {
+          group_id: string
           id: number
           reset_at: string
           reset_by: string | null
           updated_at: string
         }
         Insert: {
+          group_id?: string
           id: number
           reset_at?: string
           reset_by?: string | null
           updated_at?: string
         }
         Update: {
+          group_id?: string
           id?: number
           reset_at?: string
           reset_by?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fearless_state_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fearless_state_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fearless_state_reset_by_fkey"
             columns: ["reset_by"]
@@ -415,6 +501,7 @@ export type Database = {
           deaths: number
           game_id: string
           gold: number
+          group_id: string
           kills: number
           mu_after: number | null
           mu_before: number | null
@@ -436,6 +523,7 @@ export type Database = {
           deaths?: number
           game_id: string
           gold?: number
+          group_id?: string
           kills?: number
           mu_after?: number | null
           mu_before?: number | null
@@ -457,6 +545,7 @@ export type Database = {
           deaths?: number
           game_id?: string
           gold?: number
+          group_id?: string
           kills?: number
           mu_after?: number | null
           mu_before?: number | null
@@ -469,10 +558,24 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "game_players_game_id_fkey"
-            columns: ["game_id"]
+            foreignKeyName: "game_players_game_group_fkey"
+            columns: ["game_id", "group_id"]
             isOneToOne: false
             referencedRelation: "games"
+            referencedColumns: ["id", "group_id"]
+          },
+          {
+            foreignKeyName: "game_players_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_players_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
             referencedColumns: ["id"]
           },
           {
@@ -495,6 +598,7 @@ export type Database = {
         Row: {
           created_at: string
           duration_s: number
+          group_id: string
           id: string
           lcu_game_id: number
           lobby_id: string | null
@@ -507,6 +611,7 @@ export type Database = {
         Insert: {
           created_at?: string
           duration_s: number
+          group_id?: string
           id?: string
           lcu_game_id: number
           lobby_id?: string | null
@@ -519,6 +624,7 @@ export type Database = {
         Update: {
           created_at?: string
           duration_s?: number
+          group_id?: string
           id?: string
           lcu_game_id?: number
           lobby_id?: string | null
@@ -529,6 +635,20 @@ export type Database = {
           winning_side?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "games_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "games_lobby_id_fkey"
             columns: ["lobby_id"]
@@ -545,9 +665,90 @@ export type Database = {
           },
         ]
       }
+      group_memberships: {
+        Row: {
+          backfill_approved_at: string | null
+          backfill_requested_at: string | null
+          created_at: string
+          group_id: string
+          player_id: string
+          role: string
+        }
+        Insert: {
+          backfill_approved_at?: string | null
+          backfill_requested_at?: string | null
+          created_at?: string
+          group_id: string
+          player_id: string
+          role?: string
+        }
+        Update: {
+          backfill_approved_at?: string | null
+          backfill_requested_at?: string | null
+          created_at?: string
+          group_id?: string
+          player_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_memberships_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_memberships_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_memberships_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_memberships_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       lobbies: {
         Row: {
           created_at: string
+          group_id: string
           id: string
           lcu_party_id: string
           lobby_name: string | null
@@ -558,6 +759,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          group_id?: string
           id?: string
           lcu_party_id: string
           lobby_name?: string | null
@@ -568,6 +770,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          group_id?: string
           id?: string
           lcu_party_id?: string
           lobby_name?: string | null
@@ -577,6 +780,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lobbies_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobbies_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lobbies_reported_by_player_id_fkey"
             columns: ["reported_by_player_id"]
@@ -720,6 +937,7 @@ export type Database = {
       ratings: {
         Row: {
           games: number
+          group_id: string
           mu: number
           ordinal: number | null
           player_id: string
@@ -734,6 +952,7 @@ export type Database = {
         }
         Insert: {
           games?: number
+          group_id?: string
           mu: number
           ordinal?: number | null
           player_id: string
@@ -748,6 +967,7 @@ export type Database = {
         }
         Update: {
           games?: number
+          group_id?: string
           mu?: number
           ordinal?: number | null
           player_id?: string
@@ -761,6 +981,20 @@ export type Database = {
           wins?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "ratings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ratings_player_id_fkey"
             columns: ["player_id"]
@@ -871,6 +1105,7 @@ export type Database = {
         Row: {
           attempts: number
           claimed_at: string
+          group_id: string
           kind: string
           posted_at: string | null
           reason: string | null
@@ -879,6 +1114,7 @@ export type Database = {
         Insert: {
           attempts?: number
           claimed_at?: string
+          group_id?: string
           kind: string
           posted_at?: string | null
           reason?: string | null
@@ -887,15 +1123,93 @@ export type Database = {
         Update: {
           attempts?: number
           claimed_at?: string
+          group_id?: string
           kind?: string
           posted_at?: string | null
           reason?: string | null
           window_start?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "window_posts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "window_posts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
+      group_members_public: {
+        Row: {
+          group_id: string | null
+          player_id: string | null
+        }
+        Insert: {
+          group_id?: string | null
+          player_id?: string | null
+        }
+        Update: {
+          group_id?: string | null
+          player_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_memberships_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_memberships_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_memberships_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_memberships_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups_public: {
+        Row: {
+          id: string | null
+          name: string | null
+          slug: string | null
+        }
+        Insert: {
+          id?: string | null
+          name?: string | null
+          slug?: string | null
+        }
+        Update: {
+          id?: string | null
+          name?: string | null
+          slug?: string | null
+        }
+        Relationships: []
+      }
       players_public: {
         Row: {
           created_at: string | null

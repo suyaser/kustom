@@ -6,6 +6,7 @@
 export * from './common';
 export * from './companion';
 export * from './companionResponses';
+export * from './groups';
 export * from './me';
 export * from './mystery';
 export * from './windowPosts';
