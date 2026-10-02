@@ -58,15 +58,14 @@ export const companionLobbyResponseSchema = z.object({
    */
   rosterFrozen: z.boolean(),
   /**
-   * **Knock again in this many milliseconds** (M2.5). Vercel gives the API no timer, so
-   * "the roster has not changed for ten seconds" is measured on the posts we already get:
-   * when the lobby is still `open` and holds ten or more people around — spectators included,
-   * because the eleventh friend has nowhere else to stand — the server answers with the
-   * milliseconds left on the stability clock (at least 1000, the full window when the roster
-   * just changed) and the companion re-posts the *identical* payload after that delay unless a
-   * real lobby event has produced a newer one first (M2.2).
+   * **Knock again in this many milliseconds** (M2.5), or `null` for do nothing.
    *
-   * `null` means do nothing: fewer than ten, already `balanced`, or any other state.
+   * Since 2026-10-03 the server always answers `null`. The knock existed to measure "the
+   * roster has not changed for ten seconds" on a server with no timers, and nothing balances
+   * on that any more: an admin's roll (`POST /api/admin/lobbies/[lobbyId]/roll`) is the only
+   * way to `balanced`. The field stays, nullable and required, because every installed
+   * companion parses it and re-posts the identical payload after a number (M2.2); a server
+   * that ever needs a knock again can send one without a companion release.
    */
   recheckInMs: z.number().int().nonnegative().nullable(),
   /**

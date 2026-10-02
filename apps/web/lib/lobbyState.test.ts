@@ -5,18 +5,15 @@ import {
   IDLE_ABANDON_MS,
   IllegalLobbyTransitionError,
   isLegalTransition,
-  isRosterStable,
   isTerminalLobbyStatus,
   LOBBY_TRANSITIONS,
   MIN_RATED_DURATION_S,
-  MIN_RECHECK_MS,
-  ROSTER_STABLE_MS,
-  recheckInMs,
+  PLAYERS_PER_GAME,
 } from './lobbyState';
 
 /**
- * The state machine's table and its two derived numbers. No database: the compare-and-set
- * halves are exercised in `companion.integration.test.ts`.
+ * The state machine's table and its numbers. No database: the compare-and-set halves are
+ * exercised in `lobbyState.integration.test.ts` and `roll.integration.test.ts`.
  */
 
 const STATUSES: LobbyStatusValue[] = ['open', 'balanced', 'in_game', 'dropped', 'finished', 'abandoned'];
@@ -90,50 +87,10 @@ describe('the transition table', () => {
   });
 });
 
-describe('the three numbers', () => {
-  it('are ten seconds, two hours and five minutes', () => {
-    expect(ROSTER_STABLE_MS).toBe(10_000);
+describe('the numbers', () => {
+  it('are two hours, five minutes and ten players', () => {
     expect(IDLE_ABANDON_MS).toBe(2 * 60 * 60 * 1000);
     expect(MIN_RATED_DURATION_S).toBe(300);
-  });
-});
-
-describe('isRosterStable', () => {
-  it('is the ten-second mark exactly, not a millisecond later', () => {
-    expect(isRosterStable(9_999)).toBe(false);
-    expect(isRosterStable(10_000)).toBe(true);
-  });
-});
-
-describe('recheckInMs', () => {
-  const ten = { status: 'open' as LobbyStatusValue, around: 10, rosterChanged: false };
-
-  it('is the full window when this post changed the roster', () => {
-    expect(recheckInMs({ ...ten, elapsedMs: 12, rosterChanged: true })).toBe(ROSTER_STABLE_MS);
-  });
-
-  it('counts down on an unchanged repost', () => {
-    expect(recheckInMs({ ...ten, elapsedMs: 3_000 })).toBe(7_000);
-  });
-
-  it('never asks for a knock sooner than a second', () => {
-    expect(recheckInMs({ ...ten, elapsedMs: 9_800 })).toBe(MIN_RECHECK_MS);
-    // Past the window and still open: the balance failed, so keep knocking.
-    expect(recheckInMs({ ...ten, elapsedMs: 60_000 })).toBe(MIN_RECHECK_MS);
-  });
-
-  it('is null with fewer than ten around, however long they have sat there', () => {
-    expect(recheckInMs({ ...ten, around: 9, elapsedMs: 30_000 })).toBeNull();
-  });
-
-  it('is null once the lobby is balanced or beyond', () => {
-    for (const status of ['balanced', 'in_game', 'dropped', 'finished', 'abandoned'] as LobbyStatusValue[]) {
-      expect(recheckInMs({ ...ten, status, elapsedMs: 30_000 })).toBeNull();
-    }
-  });
-
-  it('counts a spectator as one of the people who are here', () => {
-    // "Around" is every member, spectators included: nine on teams plus one watching is ten.
-    expect(recheckInMs({ ...ten, around: 10, elapsedMs: 0, rosterChanged: true })).toBe(ROSTER_STABLE_MS);
+    expect(PLAYERS_PER_GAME).toBe(10);
   });
 });

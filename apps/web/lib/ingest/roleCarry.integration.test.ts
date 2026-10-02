@@ -90,7 +90,7 @@ if (stack === null) {
         isSpectator: false,
       })),
     });
-    return ingestLobby(db, payload, ownerPlayerId, { now, timeZone: TIME_ZONE });
+    return ingestLobby(db, payload, ownerPlayerId, { now });
   }
 
   async function playerIdOf(puuid: string): Promise<string> {

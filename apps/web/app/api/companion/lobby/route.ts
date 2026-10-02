@@ -1,18 +1,8 @@
 import { companionLobbyPayloadSchema, companionLobbyResponseSchema } from '@customs/db/schemas';
-// Registers the command queue's `balanced` listener on `hooks.ts` at module load (M4.1).
-// Another side-effect import: with this line removed, a balance queues nothing and every M2.5
-// check still passes. Since the gate in `lib/commands/gate.ts` went green (16.18, 2026-09-12)
-// that is a real difference: this line is what puts `switch_side` rows on the queue.
-import '@/lib/commands/register';
 import { withCompanionAuth } from '@/lib/companionRoute';
-import { readServerEnv } from '@/lib/env';
 import { jsonError, jsonOk } from '@/lib/http';
-// Registers the Discord listeners on `hooks.ts` at module load (M3.1, M3.3). Import for the
-// side effect: with this line removed, everything below behaves identically and nothing posts.
-import '@/lib/ingest/discord';
 import { ingestLobby, mayReportLobby } from '@/lib/ingest/lobby';
 import { sweepIdleLobbies } from '@/lib/lobbyState';
-import { siteOrigin } from '@/lib/siteUrl';
 
 // node:crypto hashes the bearer token, so this route is not edge-compatible.
 export const runtime = 'nodejs';
@@ -34,60 +24,46 @@ export const dynamic = 'force-dynamic';
  * Once the row is `dropped`, `finished` or `abandoned` the next post starts the night's next
  * cycle (M2.14, M5.11).
  *
- * The state machine turns in `ingestLobby` (M2.5): ten or more people around, unchanged for
- * ten seconds, and the lobby balances — three `splits` rows, one of them chosen. The answer
- * carries `recheckInMs`, which is how those ten seconds are measured on a server with no
- * timers, and `ranksNeeded`, the PUUIDs on this list whose rank is missing or over a week
- * old (M2.4).
+ * This route never balances (2026-10-03): `open` -> `balanced` is an admin's press,
+ * `POST /api/admin/lobbies/[lobbyId]/roll`. A roster change still sends a `balanced` lobby back
+ * to `open`. The answer carries `ranksNeeded`, the PUUIDs on this list whose rank is missing or
+ * over a week old (M2.4), and `recheckInMs`, which is always `null` now and stays on the wire
+ * for the companions already installed. The Discord and command-queue listeners are therefore
+ * registered by the roll route, not here.
  *
  * Bot and placeholder entries are dropped by the payload schema before any of this, so an old
  * companion that posts a bot loses the bot and keeps its nine friends (M2.10, point 4). The
  * M1.8 caller check below therefore runs on the filtered list, which is the order the brief
  * asks for.
  */
-export const POST = withCompanionAuth(
-  companionLobbyPayloadSchema,
-  async (payload, { client, identity, request }) => {
-    if (payload.droppedMembers > 0) {
-      console.warn(
-        `companion lobby ${payload.partyId}: dropped ${payload.droppedMembers} bot or placeholder member(s)`,
-      );
-    }
+export const POST = withCompanionAuth(companionLobbyPayloadSchema, async (payload, { client, identity }) => {
+  if (payload.droppedMembers > 0) {
+    console.warn(
+      `companion lobby ${payload.partyId}: dropped ${payload.droppedMembers} bot or placeholder member(s)`,
+    );
+  }
 
-    // Two statements at the start of every companion post: a lobby nobody has mentioned for
-    // two hours is given up on (M2.5) — `abandoned` if it never started, `dropped` if it did
-    // and no result ever came (M5.11). The second is what lets this very post open the
-    // night's next cycle for a party whose last game was never closed.
-    const now = new Date();
-    await sweepIdleLobbies(client, now);
+  // Two statements at the start of every companion post: a lobby nobody has mentioned for
+  // two hours is given up on (M2.5) — `abandoned` if it never started, `dropped` if it did
+  // and no result ever came (M5.11). The second is what lets this very post open the
+  // night's next cycle for a party whose last game was never closed.
+  const now = new Date();
+  await sweepIdleLobbies(client, now);
 
-    if (!(await mayReportLobby(client, payload, identity))) {
-      return jsonError(403, 'a companion may only report a lobby it is in');
-    }
+  if (!(await mayReportLobby(client, payload, identity))) {
+    return jsonError(403, 'a companion may only report a lobby it is in');
+  }
 
-    const { CUSTOMS_NIGHT_TZ } = readServerEnv();
-    const result = await ingestLobby(client, payload, identity.playerId, {
-      now,
-      timeZone: CUSTOMS_NIGHT_TZ,
-      // Only used for the teams embed's `url` (M3.1). Nothing is written from it.
-      requestOrigin: siteOrigin(request),
-    });
+  const result = await ingestLobby(client, payload, identity.playerId, { now });
 
-    if (result.balanced !== null) {
-      console.info(
-        `lobby ${result.lobbyId} balanced: ${result.balanced.explanation} (${result.balanced.sitters.length} sitting out)`,
-      );
-    }
-
-    return jsonOk(companionLobbyResponseSchema, {
-      ok: true,
-      lobbyId: result.lobbyId,
-      status: result.status,
-      created: result.created,
-      memberCount: result.memberCount,
-      rosterFrozen: result.rosterFrozen,
-      recheckInMs: result.recheckInMs,
-      ranksNeeded: result.ranksNeeded,
-    });
-  },
-);
+  return jsonOk(companionLobbyResponseSchema, {
+    ok: true,
+    lobbyId: result.lobbyId,
+    status: result.status,
+    created: result.created,
+    memberCount: result.memberCount,
+    rosterFrozen: result.rosterFrozen,
+    recheckInMs: result.recheckInMs,
+    ranksNeeded: result.ranksNeeded,
+  });
+});

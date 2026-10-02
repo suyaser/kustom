@@ -8,16 +8,17 @@ import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { mintCompanionToken } from '../companionAuth';
 import { FEARLESS_TITLE } from '../fearless/copy';
 import { ensurePlayers } from '../ingest/players';
-import { ROSTER_STABLE_MS } from '../lobbyState';
 import { nightStart } from '../night';
+import { siteOrigin } from '../siteUrl';
 import { eogBody, testGameId } from '../testing/fixtures';
 import { resolveLocalStack } from '../testing/localStack';
+import { rollForTest } from '../testing/roll';
 import { sideLine } from './embeds';
 
 /**
- * M3.1 and M3.3 end to end: the companion posts a lobby through the real route, the state
- * machine balances, and one teams embed lands on a webhook that is a real HTTP server in this
- * process. Then the end-of-game block, and the result embed.
+ * M3.1 and M3.3 end to end: the companion posts a lobby through the real route, an admin rolls
+ * it (2026-10-03; ingest no longer balances by itself), and one teams embed lands on a webhook
+ * that is a real HTTP server in this process. Then the end-of-game block, and the result embed.
  *
  * What it is here to prove, beyond "a message arrives":
  *
@@ -42,7 +43,8 @@ if (stack === null) {
   process.env.BOOTSTRAP_ADMIN_PUUID = '';
   process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
 
-  // Importing the routes is what registers the Discord hooks (`lib/ingest/discord.ts`).
+  // Importing the game route is what registers the Discord hooks (`lib/ingest/discord.ts`); the
+  // roll route registers the same object, so the roll below is heard either way.
   const { POST: postLobby } = await import('@/app/api/companion/lobby/route');
   const { POST: postGame } = await import('@/app/api/companion/game/route');
   const { resetWebhookWarning } = await import('./webhook');
@@ -123,17 +125,6 @@ if (stack === null) {
   }
 
   /**
-   * The stability clock is the lobby row's own `updated_at`, written by Postgres, so every
-   * "ten seconds later" is measured from that column rather than from the test's wall clock.
-   * Only `Date` is faked: the sockets to Supabase and to the webhook are real.
-   */
-  async function clockAt(lobbyId: string, offsetMs: number): Promise<number> {
-    const { data, error } = await db.from('lobbies').select('updated_at').eq('id', lobbyId).single();
-    if (error) throw new Error(error.message);
-    return Date.parse(data.updated_at) + offsetMs;
-  }
-
-  /**
    * An instant that is inside **tonight**, whatever o'clock it is when the suite runs (M3.24).
    *
    * A night runs 06:00 to 06:00 in `CUSTOMS_NIGHT_TZ` (`night.ts`), and "games tonight" is
@@ -176,22 +167,34 @@ if (stack === null) {
     return body.lobbyId;
   }
 
-  /** The two posts a lobby needs: one to open it, one ten seconds later to balance it. */
+  /**
+   * What a lobby needs for teams: one companion post to open it, and an admin's roll. Answers
+   * a 200 carrying the lobby as the companion would now see it, so each case reads it the way
+   * it read the second companion post back when that post was what balanced.
+   */
   async function driveToBalanced(
     partyId: string,
     members: readonly (string | MemberSpec)[] = puuids,
     bearer: string = token,
   ): Promise<Response> {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    try {
-      const first = await postLobby(request(lobbyBody(partyId, members), bearer));
-      expect(first.status).toBe(200);
+    const first = await postLobby(request(lobbyBody(partyId, members), bearer));
+    expect(first.status).toBe(200);
+    const opened = (await first.json()) as { lobbyId: string; status: string; memberCount: number };
+    expect(opened.status).toBe('open');
 
-      vi.setSystemTime(await clockAt(await lobbyIdOf(first), ROSTER_STABLE_MS + 1_000));
-      return await postLobby(request(lobbyBody(partyId, members), bearer));
-    } finally {
-      vi.useRealTimers();
-    }
+    const rolled = await rollForTest(db, opened.lobbyId, {
+      timeZone: TIME_ZONE,
+      requestOrigin: siteOrigin(request({}, bearer)),
+    });
+    expect(rolled.outcome).toBe('rolled');
+    const { data, error } = await db.from('lobbies').select('status').eq('id', opened.lobbyId).single();
+    if (error) throw new Error(error.message);
+    return Response.json({
+      ok: true,
+      lobbyId: opened.lobbyId,
+      status: data.status,
+      memberCount: opened.memberCount,
+    });
   }
 
   /** The fields of the single embed of a post, by name. */
@@ -377,20 +380,15 @@ if (stack === null) {
   describe('the cases that must not post', () => {
     it('posts nothing for nine around: no balance, no splits, and the companion still gets 200', async () => {
       const id = party('nine');
-      vi.useFakeTimers({ toFake: ['Date'] });
-      let lobbyId = '';
-      try {
-        const first = await postLobby(request(lobbyBody(id, puuids.slice(0, 9))));
-        expect(first.status).toBe(200);
-        lobbyId = await lobbyIdOf(first);
+      const first = await postLobby(request(lobbyBody(id, puuids.slice(0, 9))));
+      expect(first.status).toBe(200);
+      const lobbyId = await lobbyIdOf(first);
 
-        vi.setSystemTime(await clockAt(lobbyId, ROSTER_STABLE_MS + 60_000));
-        const later = await postLobby(request(lobbyBody(id, puuids.slice(0, 9))));
-        expect(later.status).toBe(200);
-        expect(await later.json()).toMatchObject({ status: 'open', memberCount: 9 });
-      } finally {
-        vi.useRealTimers();
-      }
+      const later = await postLobby(request(lobbyBody(id, puuids.slice(0, 9))));
+      expect(later.status).toBe(200);
+      expect(await later.json()).toMatchObject({ status: 'open', memberCount: 9 });
+      // A press with nine is refused, and still nothing posts.
+      await expect(rollForTest(db, lobbyId, { timeZone: TIME_ZONE })).rejects.toThrow('roll refused: 409');
 
       expect(posts).toHaveLength(0);
       const { count } = await db
@@ -416,30 +414,33 @@ if (stack === null) {
   });
 
   describe('the cases that post more than once', () => {
-    it('posts a second embed when somebody leaves and the lobby rebalances', async () => {
+    it('posts nothing for ten around and still until somebody rolls', async () => {
+      const id = party('ten-still');
+      const first = await postLobby(request(lobbyBody(id, puuids)));
+      expect(await first.json()).toMatchObject({ status: 'open', memberCount: 10, recheckInMs: null });
+      const again = await postLobby(request(lobbyBody(id, puuids)));
+      expect(await again.json()).toMatchObject({ status: 'open', memberCount: 10, recheckInMs: null });
+      expect(posts).toHaveLength(0);
+    });
+
+    it('posts a second embed when somebody leaves and an admin rolls again', async () => {
       const id = party('rebalance');
       const balanced = await driveToBalanced(id);
       expect(await lobbyIdOf(balanced)).toBeTruthy();
       expect(posts).toHaveLength(1);
 
       const lobbyId = await lobbyIdOf(balanced);
-      vi.useFakeTimers({ toFake: ['Date'] });
-      try {
-        // One leaves: the roster's identity changed, so the lobby is `open` and the clock restarts.
-        const left = await postLobby(request(lobbyBody(id, puuids.slice(0, 9))));
-        expect(await left.json()).toMatchObject({ status: 'open', memberCount: 9 });
-        expect(posts).toHaveLength(1);
+      // One leaves: the roster's identity changed, so the lobby is `open` again.
+      const left = await postLobby(request(lobbyBody(id, puuids.slice(0, 9))));
+      expect(await left.json()).toMatchObject({ status: 'open', memberCount: 9 });
+      expect(posts).toHaveLength(1);
 
-        // They come back, and ten seconds later there are teams again.
-        const rejoined = await postLobby(request(lobbyBody(id, puuids)));
-        expect(await rejoined.json()).toMatchObject({ status: 'open', memberCount: 10 });
+      // They come back. Ten again, and no teams until somebody presses.
+      const rejoined = await postLobby(request(lobbyBody(id, puuids)));
+      expect(await rejoined.json()).toMatchObject({ status: 'open', memberCount: 10 });
+      expect(posts).toHaveLength(1);
 
-        vi.setSystemTime(await clockAt(lobbyId, ROSTER_STABLE_MS + 1_000));
-        const again = await postLobby(request(lobbyBody(id, puuids)));
-        expect(await again.json()).toMatchObject({ status: 'balanced' });
-      } finally {
-        vi.useRealTimers();
-      }
+      expect((await rollForTest(db, lobbyId, { timeZone: TIME_ZONE })).outcome).toBe('rolled');
 
       // Two messages in the channel is the honest record: M3.1 edits and deletes nothing.
       expect(posts).toHaveLength(2);

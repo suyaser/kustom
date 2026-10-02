@@ -461,14 +461,3 @@ async function storeSplits(
   if (!chosen) throw new Error('balanceLobby: the chosen split did not come back from the insert');
   return chosen.id;
 }
-
-/** Does this lobby have a chosen split? The self-healing check after a failed split insert. */
-export async function hasChosenSplit(client: ServiceClient, lobbyId: string): Promise<boolean> {
-  const { count, error } = await client
-    .from('splits')
-    .select('id', { count: 'exact', head: true })
-    .eq('lobby_id', lobbyId)
-    .eq('is_chosen', true);
-  if (error) throw new Error(`balanceLobby: chosen split count failed: ${error.message}`);
-  return (count ?? 0) > 0;
-}

@@ -104,16 +104,15 @@ function dropNonPlayerMembers(value: unknown): unknown {
 }
 
 /**
- * The full member list, posted every time it changes. The server debounces and decides when
- * the lobby is stable enough to balance; the companion just reports.
+ * The full member list, posted every time it changes. The companion just reports; the server
+ * never balances off a post (2026-10-03) — an admin's roll does that.
  *
  * `partyId` is `lobby.partyId`, which is stable across invites, joins and someone moving to
  * the spectator slot (16.17, three captures), so it is a sound dedupe key for `lcu_party_id`.
  *
  * The answer (`companionLobbyResponseSchema`) carries `ranksNeeded` — whose rank to fetch next
- * (M2.4) — and `recheckInMs`, the knock that measures the ten-second stability window on the
- * posts themselves (M2.2/M2.5). A companion that ignores either one still works today and
- * stops working the night M2.5 lands, so read both.
+ * (M2.4) — and `recheckInMs`, which since 2026-10-03 is always `null` (see the response
+ * schema). Read `ranksNeeded`; obeying a `null` knock is doing nothing.
  */
 export const companionLobbyPayloadSchema = z.preprocess(
   dropNonPlayerMembers,

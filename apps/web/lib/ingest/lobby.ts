@@ -8,23 +8,10 @@ import {
 } from '@customs/db';
 import { supersedeLobbyCommands } from '../commands/queue';
 import type { CompanionIdentity } from '../companionAuth';
-import {
-  ACTIVE_LOBBY_STATUSES,
-  assertLegalTransition,
-  isActiveLobbyStatus,
-  isRosterStable,
-  moveLobby,
-  PLAYERS_PER_GAME,
-  readLobbyStatus,
-  recheckInMs,
-} from '../lobbyState';
-import { DEFAULT_NIGHT_TIME_ZONE } from '../night';
+import { ACTIVE_LOBBY_STATUSES, assertLegalTransition, isActiveLobbyStatus } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
-import { type BalanceOutcome, balanceLobby, hasChosenSplit } from './balance';
-import { emitLobbyBalanced } from './hooks';
 import { ensurePlayers } from './players';
 import { carryRoleOverrides } from './roleCarry';
-import { SelectionError } from './selection';
 
 /**
  * Lobby ingest: the companion posts the whole member list every time it changes and this
@@ -37,22 +24,22 @@ import { SelectionError } from './selection';
  * Migration `0003` is the other half: the partial unique index that allows exactly one live
  * row per party and any number of closed ones.
  *
- * It is also where the lobby state machine turns (M2.5). The whole of "the roster has not
- * changed for ten seconds" is measured on the posts themselves:
+ * **Ingest never balances** (2026-10-03, `04-decisions.md`). Until then ten people around and
+ * ten still seconds balanced the lobby from here; people join, leave and spectate in the
+ * middle of that, so it fired on the wrong roster. `open` -> `balanced` is now an admin's
+ * press (`lib/admin/roll.ts`) and nothing else. What ingest still does to the status:
  *
- * 1. the roster's **identity** is `rosterKey()` over the puuids of everyone around,
+ * 1. the roster's **identity** is {@link lobbyRosterKey} over the puuids of everyone around,
  *    spectators included — sides, the spectator flag, names and the lobby name are not part
- *    of it, so a friend swapping from blue to red does not restart the clock;
- * 2. the **clock** is the lobby row's own `updated_at`, which moves only when we write the
- *    `lobbies` row, and we write it only when that identity changed. `lobby_members` and
- *    `players` are written on every post — sides, the spectator flag and Riot IDs stay
- *    current — and neither touches the clock;
- * 3. the **knock** is `recheckInMs` in the answer: the companion re-posts the identical
- *    payload after that many milliseconds, so the rule lives on the server and the companion
- *    has no rule to get wrong, only a number to obey.
+ *    of it, so a friend swapping from blue to red is not a roster change;
+ * 2. when that identity changes, the `lobbies` row is written (`restartClock`): `balanced`
+ *    goes back to `open`, because the teams on the board were made for people who are no
+ *    longer the people here, and `updated_at` moves either way — which is what lets a roll
+ *    that checked the old roster lose its compare-and-set instead of balancing the new one.
+ *    `lobby_members` and `players` are written on every post and neither touches the row.
  *
- * Balancing itself is `balance.ts` and the maths is `@customs/core`. Discord is M3.1 and
- * hears about it through `hooks.ts`, never from here.
+ * `recheckInMs` is still in the answer, for the companions already installed, and is always
+ * `null`: it only ever existed to measure the ten seconds.
  */
 
 export interface LobbyIngestResult {
@@ -65,10 +52,11 @@ export interface LobbyIngestResult {
   rosterFrozen: boolean;
   /** PUUIDs among the posted members whose rank is missing or over a week old (M2.4). */
   ranksNeeded: string[];
-  /** Knock again in this many milliseconds, or `null` for "do nothing" (M2.5). */
-  recheckInMs: number | null;
-  /** Set only by the post that moved this lobby to `balanced`. What M3.1 will render. */
-  balanced: BalanceOutcome | null;
+  /**
+   * Always `null` since 2026-10-03: there is no stability window left to knock for. Kept on
+   * the wire because every installed companion parses it (M2.5).
+   */
+  recheckInMs: null;
 }
 
 /**
@@ -180,15 +168,8 @@ export async function isLobbyMemberOfGame(
 }
 
 export interface LobbyIngestOptions {
-  /** Injected in tests so the ten-second window does not have to be waited out. */
+  /** Injected in tests: the rank staleness check (M2.4) and the role carry (M3.6) read it. */
   now?: Date;
-  /** IANA name for "tonight" (M2.5). `CUSTOMS_NIGHT_TZ` in the route. */
-  timeZone?: string;
-  /**
-   * The posting request's origin, carried to the `balanced` hook for the Discord embed's
-   * `url` (M3.1). Ingest neither reads it nor writes it anywhere; it is passed through.
-   */
-  requestOrigin?: string | null;
 }
 
 export async function ingestLobby(
@@ -198,7 +179,6 @@ export async function ingestLobby(
   options: LobbyIngestOptions = {},
 ): Promise<LobbyIngestResult> {
   const now = options.now ?? new Date();
-  const timeZone = options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE;
   const { lobby, created } = await upsertLobby(client, payload, reportedByPlayerId);
 
   // Frozen (M2.9): the lobby is in a game or done, so the roster is a record of what
@@ -214,7 +194,6 @@ export async function ingestLobby(
       // worth asking about, and the game that froze the roster does not change that.
       ranksNeeded: await selectRanksNeeded(client, payload, now),
       recheckInMs: null,
-      balanced: null,
     };
   }
 
@@ -237,32 +216,13 @@ export async function ingestLobby(
     await carryRoleOverrides(client, { lobbyId: lobby.id, inserted: diff.inserted, now });
   }
 
-  let row = lobby;
+  let status = lobby.status;
   if (rosterChanged && !created) {
-    // Writing the lobby row is what restarts the ten seconds: `lobbies_set_updated_at` does
-    // the rest. A freshly inserted row already has `updated_at = now`, so it is left alone.
-    row = await restartClock(client, lobby);
+    // Writing the lobby row is what moves `updated_at` (`lobbies_set_updated_at`), and from
+    // `balanced` it is the "someone left, roll again" transition. A freshly inserted row is
+    // already `open` with `updated_at = now`, so it is left alone.
+    status = (await restartClock(client, lobby)).status;
   }
-
-  const elapsedMs = now.getTime() - Date.parse(row.updatedAt);
-  const attempt = await maybeBalance(client, {
-    lobby: row,
-    around: memberCount,
-    rosterChanged,
-    elapsedMs,
-    now,
-    timeZone,
-    requestOrigin: options.requestOrigin ?? null,
-  });
-  const balanced = attempt.kind === 'balanced' ? attempt.outcome : null;
-  // A request that lost the race writes nothing and answers with the status the winner left
-  // behind, because a companion that is told `open` would knock again for no reason.
-  const status =
-    attempt.kind === 'balanced'
-      ? 'balanced'
-      : attempt.kind === 'lost'
-        ? ((await readLobbyStatus(client, lobby.id)) ?? row.status)
-        : row.status;
 
   return {
     lobbyId: lobby.id,
@@ -271,8 +231,7 @@ export async function ingestLobby(
     memberCount,
     rosterFrozen: false,
     ranksNeeded: await selectRanksNeeded(client, payload, now),
-    recheckInMs: recheckInMs({ status, around: memberCount, elapsedMs, rosterChanged }),
-    balanced,
+    recheckInMs: null,
   };
 }
 
@@ -281,14 +240,24 @@ export async function ingestLobby(
  * mistaken for a change. Sides, the `isSpectator` flag, names, `role_override`, the lobby
  * name and the password are deliberately not in it — the balancer assigns sides itself and
  * the rotation treats a spectator as one of the people who are here.
+ *
+ * Exported as {@link lobbyRosterKey}: it is also the `rosterKey` a roll must send
+ * (`lib/admin/roll.ts`), computed by the presser's page over the members it was showing.
  */
 function rosterIdentity(puuids: readonly string[]): string {
   const unique = [...new Set(puuids)];
   return unique.length === 0 ? '' : rosterKey(unique);
 }
 
+/**
+ * The key a roll is pressed against: `rosterKey()` from `@customs/db` over the puuid of every
+ * `lobby_members` row, spectators included, duplicates dropped. `''` for an empty lobby.
+ * The page computes the same string from the members it rendered.
+ */
+export const lobbyRosterKey = rosterIdentity;
+
 /** The puuids currently stored for this lobby, in no particular order. */
-async function selectMemberPuuids(client: ServiceClient, lobbyId: string): Promise<string[]> {
+export async function selectMemberPuuids(client: ServiceClient, lobbyId: string): Promise<string[]> {
   const { data, error } = await client
     .from('lobby_members')
     .select('players!inner(puuid)')
@@ -298,9 +267,10 @@ async function selectMemberPuuids(client: ServiceClient, lobbyId: string): Promi
 }
 
 /**
- * The roster changed, so the ten seconds start again and the lobby is `open` — from
- * `balanced` that is the "someone left" transition, and the earlier splits stay where they
- * are as history.
+ * The roster changed, so the lobby is `open` — from `balanced` that is the "someone left"
+ * transition: the earlier splits stay where they are as history and the next teams need
+ * another roll. From `open` the write changes no status and only moves `updated_at`, which is
+ * what makes a roll pressed against the old roster lose its compare-and-set.
  */
 async function restartClock(client: ServiceClient, lobby: ExistingLobby): Promise<ExistingLobby> {
   // Through the table like every other move, even though this one writes the row back.
@@ -328,73 +298,6 @@ async function restartClock(client: ServiceClient, lobby: ExistingLobby): Promis
   // No row back means another request moved the lobby out from under us (to `in_game`, say).
   // Its status wins; this post has already replaced the members and there is nothing to undo.
   return data ? toExistingLobby(data) : lobby;
-}
-
-interface MaybeBalanceInput {
-  lobby: ExistingLobby;
-  around: number;
-  rosterChanged: boolean;
-  elapsedMs: number;
-  now: Date;
-  timeZone: string;
-  /** Passed straight to the `balanced` hook for the embed's `url` (M3.1). */
-  requestOrigin: string | null;
-}
-
-/**
- * Balance, if this post is the one that should.
- *
- * The transition is claimed with a compare-and-set (`moveLobby`), so two companions posting
- * the same lobby at the ten-second mark produce one balance and three splits: the loser's
- * update returns no row, it writes nothing and it answers 200.
- *
- * The second branch is the self-healing path, not a bug: if the split insert failed after the
- * status moved, the lobby sits at `balanced` with no chosen split, and the next post (or the
- * next recheck) balances again.
- */
-type BalanceAttempt =
-  /** Not this post's business: too few around, the clock is still running, or already done. */
-  | { kind: 'none' }
-  | { kind: 'balanced'; outcome: BalanceOutcome }
-  /** Another request claimed the transition first. This one writes nothing. */
-  | { kind: 'lost' }
-  /** The ten could not be made or could not be split. The lobby is back at `open`. */
-  | { kind: 'failed' };
-
-async function maybeBalance(client: ServiceClient, input: MaybeBalanceInput): Promise<BalanceAttempt> {
-  const { lobby, around, rosterChanged, elapsedMs } = input;
-  if (around < PLAYERS_PER_GAME) return { kind: 'none' };
-
-  if (lobby.status === 'open') {
-    if (rosterChanged || !isRosterStable(elapsedMs)) return { kind: 'none' };
-    if (!(await moveLobby(client, { lobbyId: lobby.id, from: ['open'], to: 'balanced' }))) {
-      return { kind: 'lost' };
-    }
-  } else if (lobby.status === 'balanced') {
-    if (rosterChanged || (await hasChosenSplit(client, lobby.id))) return { kind: 'none' };
-    console.warn(`lobby ${lobby.id}: balanced with no chosen split; balancing again`);
-  } else {
-    return { kind: 'none' };
-  }
-
-  try {
-    const outcome = await balanceLobby(client, lobby, input.now, input.timeZone);
-    // Discord is M3.1 and hears about it here. Every acceptance check passes with no listener
-    // registered at all, which is the point of the seam.
-    await emitLobbyBalanced({ ...outcome, requestOrigin: input.requestOrigin });
-    return { kind: 'balanced', outcome };
-  } catch (error) {
-    // A balance that cannot happen must never reach the companion: one line, the lobby back
-    // where it was, and the next post tries again. A wrong ten is worse than no teams.
-    // `SelectionError` (a pool that cannot make ten) and core's `BalanceError` (ten that
-    // cannot be split) both land here, and both mean nothing was written.
-    console.error(
-      `lobby ${lobby.id}: balancing failed`,
-      error instanceof SelectionError ? error.message : error,
-    );
-    await moveLobby(client, { lobbyId: lobby.id, from: ['balanced'], to: 'open' });
-    return { kind: 'failed' };
-  }
 }
 
 /**
@@ -484,9 +387,8 @@ async function upsertLobby(
   }
 
   if (Object.keys(patch).length > 0) {
-    // This fires `lobbies_set_updated_at`, so a renamed lobby costs one more recheck before
-    // it balances (M2.5, "How unchanged for 10 seconds is measured"). Read the row back so
-    // the clock the caller measures against is the one the database just wrote.
+    // This fires `lobbies_set_updated_at`. Read the row back so the caller sees what the
+    // database just wrote; a roll racing a rename loses its compare-and-set and retries.
     const { data, error } = await client
       .from('lobbies')
       .update(patch)
@@ -507,7 +409,7 @@ export interface ExistingLobby {
   reportedByPlayerId: string | null;
   lobbyName: string | null;
   lobbyPassword: string | null;
-  /** The stability clock (M2.5): moved by every write to the row, by the `updated_at` trigger. */
+  /** Moved by every write to the row, by the `updated_at` trigger. The roll's CAS guard. */
   updatedAt: string;
   createdAt: string;
 }

@@ -18,8 +18,9 @@ import { queueSwitchSideForBalance } from './switchSide';
  *
  * Same seam and same rule as `lib/ingest/discord.ts`: `lobby.ts` announces that a lobby
  * balanced and never imports a queue writer; importing *this* module is what makes anybody
- * listen. The companion lobby route does it. With this import removed, every M2.5 acceptance
- * check still passes and nothing is queued — which is the property the seam exists to protect.
+ * listen. The roll route does it (`app/api/admin/lobbies/[lobbyId]/roll/handler.ts`), because
+ * since 2026-10-03 the admin's roll is the only thing that fires `balanced`. With this import
+ * removed, the roll still balances and nothing is queued — the property the seam exists for.
  *
  * The other direction (a lobby *leaving* `balanced` supersedes what it queued) is not a hook:
  * it is in `moveLobby` itself, because there is exactly one function that moves a lobby and a

@@ -354,8 +354,9 @@ describe('companionLobbyResponseSchema', () => {
   };
 
   it('carries the two fields the companion acts on, and neither is optional', () => {
-    // A companion that cannot see `recheckInMs` never knocks again and the ten-second
-    // stability window is never observed (M2.2/M2.5); one that cannot see `ranksNeeded` never
+    // Every installed companion parses `recheckInMs` (M2.2/M2.5). The server answers `null`
+    // since the roll replaced the ten-second window (2026-10-03), but the key stays required
+    // so an installed companion's parse never breaks. One that cannot see `ranksNeeded` never
     // fetches a rank (M2.4). Both are required so a route cannot forget them.
     expect(companionLobbyResponseSchema.parse(answer)).toEqual(answer);
 

@@ -6,9 +6,9 @@ import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
-import { ROSTER_STABLE_MS } from '@/lib/lobbyState';
 import { eogBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+import { rollForTest } from '@/lib/testing/roll';
 
 /**
  * `gamesSinceLastFill` (M7.6) against the Supabase CLI local stack, end to end: a real lobby,
@@ -104,13 +104,7 @@ if (stack === null) {
         isSpectator: false,
       })),
     });
-    return ingestLobby(db, payload, ownerPlayerId, { now, timeZone: TIME_ZONE });
-  }
-
-  async function lobbyUpdatedAt(id: string): Promise<Date> {
-    const { data, error } = await db.from('lobbies').select('updated_at').eq('id', id).single();
-    if (error) throw new Error(error.message);
-    return new Date(data.updated_at);
+    return ingestLobby(db, payload, ownerPlayerId, { now });
   }
 
   /**
@@ -182,11 +176,10 @@ if (stack === null) {
       expect(opened.status).toBe('open');
       lobbyId = opened.lobbyId;
 
-      const settled = new Date((await lobbyUpdatedAt(lobbyId)).getTime() + ROSTER_STABLE_MS);
-      const balanced = await lobbyPost(settled);
-      expect(balanced.status).toBe('balanced');
-      const split = balanced.balanced?.split;
-      if (split === undefined) throw new Error('the lobby did not balance');
+      // Ingest never balances (2026-10-03): the admin's roll does.
+      const rolled = await rollForTest(db, lobbyId, { timeZone: TIME_ZONE });
+      if (rolled.outcome !== 'rolled') throw new Error('the lobby did not balance');
+      const split = rolled.balance.split;
 
       const seats = [...split.blue, ...split.red];
       onRole = seats.filter((seat) => seat.role === 'mid').map((seat) => seat.puuid);

@@ -558,20 +558,22 @@ pair into the same `players.main_role` / `secondary_role` the balancer already r
 ## Lobby lifecycle (server side)
 
 ```
-open ---(10 stable members reported)---> balanced ---(gameflow InProgress)---> in_game ---(eog captured)---> finished
+open ---(admin roll, >= 10 around)---> balanced ---(gameflow InProgress)---> in_game ---(eog captured)---> finished
   \                                          |
-   \---(members change)---> open <-----------+ (rebalance, previous split kept as history)
+   \---(members change)---> open <-----------+ (next teams need another roll; previous split kept as history)
    \---(lobby dissolved / 2h idle)---> abandoned
 
 in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
 ```
 
-- The companion posts the full member list every time it changes. The API debounces: a lobby is balanced when
-  ten or more people around — spectators included — are unchanged for 10 seconds. There is no timer on the
-  server: the roster's identity is `rosterKey()` over everyone around, the clock is the lobby row's own
-  `updated_at`, and the answer carries `recheckInMs` telling the companion when to re-post the identical
-  payload (M2.5). The transition itself is claimed with a compare-and-set on `status`, so two companions in one
-  lobby produce one balance and one set of three splits.
+- The companion posts the full member list every time it changes; ingest never balances (2026-10-03, see
+  `04-decisions.md`). `open -> balanced` is an admin's press, `POST /api/admin/lobbies/[lobbyId]/roll` with
+  `{ rosterKey }` — `rosterKey()` over every member puuid, spectators included, as the presser's page saw it.
+  The route refuses (409, nothing written) a key that is not the stored roster, fewer than ten around, or a
+  lobby past `balanced`, and a repeat press on a `balanced` lobby answers the split already chosen. The claim is
+  a compare-and-set on `status` and on the row's `updated_at`, which ingest moves on every roster-identity
+  change, so two presses produce one balance and one set of three splits, and a press that raced a leave loses.
+  The lobby answer still carries `recheckInMs` for installed companions; it is always `null`.
 - A companion may only post a lobby it is in (see "Security"), and the member list is frozen from `in_game` on
   and stays frozen in `dropped` and `finished`: a later post for that party is still accepted and still
   refreshes the lobby's name and password, but no member row is added, changed or removed and the response says
@@ -597,7 +599,7 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   lobby had the same ten players as tonight's; if there is no such split, `lastSplit` is null.
 - Discord posting happens from the API on state transitions, through the webhook stored in `discord_config`.
 - A split going on the board is what queues `switch_side` commands for the chosen ten whose client has them on
-  the other side (M4.1/M4.3), and that happens in two places: reaching `balanced`, and a **reroll**, which
+  the other side (M4.1/M4.3), and that happens in two places: reaching `balanced` (the roll), and a **reroll**, which
   promotes another split without the lobby ever leaving `balanced` (`promoteSplit` supersedes the old split's
   rows and queues the new ones in the same write). **Leaving** `balanced` — to `open`, `in_game`, `finished`,
   `abandoned` — fails the ones still pending with `superseded`, inside `moveLobby` itself. Nobody is dragged to

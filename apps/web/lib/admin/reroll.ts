@@ -64,7 +64,7 @@ export interface RerollOutcome {
  * check happened to run first:
  *
  * 1. the lobby must be `balanced` — once the game has started, the teams on the rift are the
- *    teams, and an `open` lobby is about to balance itself and post new ones;
+ *    teams, and an `open` lobby has no teams until an admin rolls it (`roll.ts`);
  * 2. the split must belong to this lobby;
  * 3. already chosen is a success that changes nothing;
  * 4. there is no third reroll: with the last split already up, the only promotion left is back
@@ -123,7 +123,7 @@ export async function promoteSplit(
   if (sides === null || !(await tenAreStillHere(client, input.lobbyId, sides))) {
     return writeFailed(
       409,
-      'the ten in that split are not all in the lobby any more, so nothing was promoted; the next balance posts new teams',
+      'the ten in that split are not all in the lobby any more, so nothing was promoted; roll the lobby again for new teams',
     );
   }
 
@@ -191,7 +191,7 @@ async function readSeatedMembers(client: ServiceClient, lobbyId: string): Promis
 function notBalancedMessage(status: LobbyStatusValue): string {
   switch (status) {
     case 'open':
-      return 'that lobby has no teams yet; it balances by itself once the roster holds still';
+      return 'that lobby has no teams yet; an admin rolls them once the right ten are in';
     case 'in_game':
     // A `dropped` lobby is one whose game started and whose result never arrived (M5.11).
     // The same sentence is still the true one, and the admin page gains no new word for it.

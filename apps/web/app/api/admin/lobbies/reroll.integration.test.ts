@@ -3,7 +3,7 @@ import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { NO_MORE_SPLITS, NO_SUCH_LOBBY } from '@/lib/admin/reroll';
 import {
   type AdminAuthResult,
@@ -13,16 +13,16 @@ import {
 } from '@/lib/adminAuth';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
-import { ROSTER_STABLE_MS } from '@/lib/lobbyState';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+import { storedRosterKey } from '@/lib/testing/roll';
 
 /**
  * Reroll (M3.2) against the Supabase CLI local stack, with a webhook that is a real HTTP
  * server in this process.
  *
- * The lobby gets to `balanced` the way it really does — the companion posts it twice through
- * the real route and the state machine balances it — so the three splits under test are core's
- * own, ranked and stored by `storeSplits`. Then the real reroll route promotes them.
+ * The lobby gets to `balanced` the way it really does — the companion posts it through the real
+ * route and an admin presses the real roll route (2026-10-03) — so the three splits under test
+ * are core's own, ranked and stored by `storeSplits`. Then the real reroll route promotes them.
  *
  * What it is here to prove: two presses put two messages in the channel with the right titles
  * and the right chosen row, a third one is refused with the sentence the group reads on the
@@ -49,8 +49,9 @@ if (stack === null) {
   const { rerollRoute } = await import('./[lobbyId]/reroll/handler');
   // The real export, environment and all: this is what answers an anonymous request.
   const { POST: rerollRouteExport } = await import('./[lobbyId]/reroll/route');
-  // Importing the companion route is also what registers the Discord hooks.
   const { POST: postLobby } = await import('../../companion/lobby/route');
+  // Importing the roll handler is also what registers the Discord hooks.
+  const { rollRoute } = await import('./[lobbyId]/roll/handler');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -135,24 +136,25 @@ if (stack === null) {
     return ((posts[index]?.body.embeds ?? []) as Record<string, unknown>[])[0];
   }
 
-  /** The two posts a lobby needs: one to open it, one ten seconds later to balance it. */
+  /** What a lobby needs: one companion post to open it, and an admin's roll to balance it. */
   async function driveToBalanced(partyId: string, members: readonly string[], bearer: string) {
     partyIds.add(partyId);
-    vi.useFakeTimers({ toFake: ['Date'] });
-    try {
-      const first = await postLobby(companionRequest(lobbyBody(partyId, members), bearer));
-      expect(first.status).toBe(200);
-      const { lobbyId: id } = (await first.json()) as { lobbyId: string };
+    const first = await postLobby(companionRequest(lobbyBody(partyId, members), bearer));
+    expect(first.status).toBe(200);
+    const { lobbyId: id } = (await first.json()) as { lobbyId: string };
 
-      const { data } = await db.from('lobbies').select('updated_at').eq('id', id).single();
-      vi.setSystemTime(Date.parse(data?.updated_at ?? '') + ROSTER_STABLE_MS + 1_000);
-
-      const second = await postLobby(companionRequest(lobbyBody(partyId, members), bearer));
-      expect(await second.json()).toMatchObject({ status: 'balanced' });
-      return id;
-    } finally {
-      vi.useRealTimers();
-    }
+    const rolled = await rollRoute(id, {
+      getClient: () => db,
+      authorize: authorizeAs(sessionUser(adminDiscordId)),
+    })(
+      new Request(`http://localhost/api/admin/lobbies/${id}/roll`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rosterKey: await storedRosterKey(db, id) }),
+      }),
+    );
+    expect(await rolled.json()).toMatchObject({ status: 'balanced', outcome: 'rolled' });
+    return id;
   }
 
   async function chosenRows(id: string): Promise<{ rank: number }[]> {
@@ -411,7 +413,7 @@ if (stack === null) {
       await expect(response.json()).resolves.toEqual({
         ok: false,
         error:
-          'the ten in that split are not all in the lobby any more, so nothing was promoted; the next balance posts new teams',
+          'the ten in that split are not all in the lobby any more, so nothing was promoted; roll the lobby again for new teams',
       });
       // Nothing moved: the lobby still has the split it was balanced with.
       expect(await chosenRows(otherLobbyId)).toEqual([{ rank: 1 }]);

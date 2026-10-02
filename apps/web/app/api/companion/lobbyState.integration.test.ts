@@ -3,22 +3,25 @@ import { type Database, rosterKey } from '@customs/db';
 import { companionLobbyPayloadSchema } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { rollLobby } from '@/lib/admin/roll';
 import { mintCompanionToken } from '@/lib/companionAuth';
-import { selectLastSplit } from '@/lib/ingest/balance';
+import { type BalanceOutcome, selectLastSplit } from '@/lib/ingest/balance';
 import { clearLobbyHooks, registerLobbyHook } from '@/lib/ingest/hooks';
 import { ingestLobby } from '@/lib/ingest/lobby';
 import { ensurePlayers } from '@/lib/ingest/players';
-import { IDLE_ABANDON_MS, ROSTER_STABLE_MS, sweepIdleLobbies } from '@/lib/lobbyState';
+import { IDLE_ABANDON_MS, sweepIdleLobbies } from '@/lib/lobbyState';
 import { nightStart } from '@/lib/night';
 import { eogBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+import { rollForTest, storedRosterKey } from '@/lib/testing/roll';
 
 /**
  * The lobby state machine and the rating fold (M2.5) against the Supabase CLI local stack:
  * the same ingest the route handlers call, the same service-role client, the same SQL.
  *
- * The clock is injected, so the ten-second window and the two-hour sweep are not waited out.
- * `ingestLobby` takes `now`; the sweep takes `now`; and the one case that has to prove the
+ * Ingest never balances (2026-10-03): every case that needs teams posts the lobby and then
+ * rolls it, the way an admin's press does. The clock is injected, so the two-hour sweep is not
+ * waited out. `ingestLobby` takes `now`; the sweep takes `now`; and the one case that has to prove the
  * route runs the sweep inserts a lobby row with an old `updated_at` (the `updated_at` trigger
  * is `before update`, so an insert may set it).
  *
@@ -102,7 +105,14 @@ if (stack === null) {
   /** The ingest the route calls, with the clock the test wants. */
   function ingest(partyId: string, members: readonly MemberSpec[], now: Date) {
     const payload = companionLobbyPayloadSchema.parse(body(partyId, members));
-    return ingestLobby(db, payload, ownerPlayerId, { now, timeZone: TIME_ZONE });
+    return ingestLobby(db, payload, ownerPlayerId, { now });
+  }
+
+  /** An admin's roll against the stored roster, and what the listeners were told. */
+  async function roll(lobbyId: string, now: Date = new Date()): Promise<BalanceOutcome> {
+    const rolled = await rollForTest(db, lobbyId, { now, timeZone: TIME_ZONE });
+    if (rolled.outcome !== 'rolled') throw new Error(`lobby ${lobbyId} was already rolled`);
+    return rolled.balance;
   }
 
   function request(json: unknown, token: string): Request {
@@ -122,16 +132,6 @@ if (stack === null) {
       .order('rank', { ascending: true });
     if (error) throw new Error(error.message);
     return data ?? [];
-  }
-
-  /**
-   * The lobby's own `updated_at`, plus an offset. The stability clock is that column, not the
-   * test's wall clock, so every injected "ten seconds later" is measured from it.
-   */
-  async function clockAt(lobbyId: string, offsetMs: number): Promise<Date> {
-    const { data, error } = await db.from('lobbies').select('updated_at').eq('id', lobbyId).single();
-    if (error) throw new Error(error.message);
-    return new Date(Date.parse(data.updated_at) + offsetMs);
   }
 
   async function lobbyStatus(lobbyId: string): Promise<string> {
@@ -279,7 +279,7 @@ if (stack === null) {
       .in('puuid', [...allPuuids]);
   });
 
-  describe('the ten-second stability rule', () => {
+  describe('no auto-balance: an admin rolls (2026-10-03)', () => {
     it('leaves nine people open forever, with nothing to knock about', async () => {
       const id = party('nine');
       const start = new Date();
@@ -292,21 +292,39 @@ if (stack === null) {
       expect(await splitRows(first.lobbyId)).toHaveLength(0);
     });
 
+    it('leaves ten still people open, however long they sit there, until somebody rolls', async () => {
+      const id = party('ten-still');
+      const start = new Date();
+
+      const first = await ingest(id, onTeams(puuids), start);
+      expect(first).toMatchObject({ status: 'open', memberCount: 10, recheckInMs: null });
+
+      // What used to be the ten-second mark, and well past it: still open, no splits, no knock.
+      for (const offset of [10_001, 60_000, 30 * 60_000]) {
+        const again = await ingest(id, onTeams(puuids), new Date(start.getTime() + offset));
+        expect(again).toMatchObject({ status: 'open', memberCount: 10, recheckInMs: null });
+      }
+      expect(await splitRows(first.lobbyId)).toHaveLength(0);
+
+      // The press is what balances.
+      await roll(first.lobbyId);
+      expect(await lobbyStatus(first.lobbyId)).toBe('balanced');
+    });
+
     it('balances nine on teams plus one spectator: a spectator is one of the people here', async () => {
       const id = party('nine-plus-watcher');
-      const start = new Date();
       const members: MemberSpec[] = [
         ...onTeams(puuids.slice(0, 9)),
         { puuid: watcher, side: null, isSpectator: true },
       ];
 
-      const first = await ingest(id, members, start);
-      expect(first).toMatchObject({ status: 'open', memberCount: 10, recheckInMs: ROSTER_STABLE_MS });
+      const first = await ingest(id, members, new Date());
+      expect(first).toMatchObject({ status: 'open', memberCount: 10, recheckInMs: null });
 
-      const balanced = await ingest(id, members, await clockAt(first.lobbyId, ROSTER_STABLE_MS));
-      expect(balanced).toMatchObject({ status: 'balanced', recheckInMs: null });
+      await roll(first.lobbyId);
+      expect(await lobbyStatus(first.lobbyId)).toBe('balanced');
 
-      const rows = await splitRows(balanced.lobbyId);
+      const rows = await splitRows(first.lobbyId);
       expect(rows).toHaveLength(3);
       const chosen = rows.find((row) => row.is_chosen === true);
       const blue = chosen?.blue as { puuid: string }[];
@@ -314,23 +332,15 @@ if (stack === null) {
       expect([...blue, ...red].map((entry) => entry.puuid)).toContain(watcher);
     });
 
-    it('counts down, then balances into exactly three splits with one chosen', async () => {
+    it('rolls into exactly three splits with one chosen', async () => {
       const id = party('ten');
-      const start = new Date();
 
-      const first = await ingest(id, onTeams(puuids), start);
-      expect(first).toMatchObject({ status: 'open', memberCount: 10, recheckInMs: ROSTER_STABLE_MS });
+      const first = await ingest(id, onTeams(puuids), new Date());
       expect(await splitRows(first.lobbyId)).toHaveLength(0);
 
-      // Half way there: still open, and the answer says how long is left.
-      const halfway = await ingest(id, onTeams(puuids), await clockAt(first.lobbyId, 4_000));
-      expect(halfway.status).toBe('open');
-      expect(halfway.recheckInMs).toBe(6_000);
+      await roll(first.lobbyId);
 
-      const balanced = await ingest(id, onTeams(puuids), await clockAt(first.lobbyId, ROSTER_STABLE_MS));
-      expect(balanced).toMatchObject({ status: 'balanced', recheckInMs: null });
-
-      const rows = await splitRows(balanced.lobbyId);
+      const rows = await splitRows(first.lobbyId);
       expect(rows).toHaveLength(3);
       expect(rows.map((row) => row.rank)).toEqual([1, 2, 3]);
       expect(rows.filter((row) => row.is_chosen === true)).toHaveLength(1);
@@ -341,13 +351,13 @@ if (stack === null) {
       );
     });
 
-    it('does nothing at all on a third identical post', async () => {
+    it('does nothing at all on an identical post after the roll', async () => {
       const id = party('ten');
       const now = new Date(Date.now() + 60_000);
       const before = await splitRows((await ingest(id, onTeams(puuids), now)).lobbyId);
 
       const again = await ingest(id, onTeams(puuids), now);
-      expect(again.status).toBe('balanced');
+      expect(again).toMatchObject({ status: 'balanced', recheckInMs: null });
 
       const after = await splitRows(again.lobbyId);
       expect(after).toHaveLength(3);
@@ -356,26 +366,27 @@ if (stack === null) {
       );
     });
 
-    it('goes back to open when someone is swapped, and rebalances into a second set of three', async () => {
+    it('goes back to open when someone is swapped, and stays there until the next roll', async () => {
       const id = party('swap');
 
       const first = await ingest(id, onTeams(puuids), new Date());
-      const balanced = await ingest(id, onTeams(puuids), await clockAt(first.lobbyId, ROSTER_STABLE_MS));
-      expect(balanced.status).toBe('balanced');
+      await roll(first.lobbyId);
+      expect(await lobbyStatus(first.lobbyId)).toBe('balanced');
 
       const swapped = [...puuids.slice(0, 9), spare];
       const reopened = await ingest(id, onTeams(swapped), new Date());
-      expect(reopened).toMatchObject({ status: 'open', recheckInMs: ROSTER_STABLE_MS });
+      expect(reopened).toMatchObject({ status: 'open', recheckInMs: null });
       expect(await splitRows(reopened.lobbyId)).toHaveLength(3);
 
-      const rebalanced = await ingest(
-        id,
-        onTeams(swapped),
-        await clockAt(reopened.lobbyId, ROSTER_STABLE_MS),
-      );
-      expect(rebalanced.status).toBe('balanced');
+      // Sitting there does not rebalance: the leave-after-a-roll needs another press.
+      const later = await ingest(id, onTeams(swapped), new Date(Date.now() + 60_000));
+      expect(later.status).toBe('open');
+      expect(await splitRows(reopened.lobbyId)).toHaveLength(3);
 
-      const rows = await splitRows(rebalanced.lobbyId);
+      await roll(reopened.lobbyId);
+      expect(await lobbyStatus(reopened.lobbyId)).toBe('balanced');
+
+      const rows = await splitRows(reopened.lobbyId);
       expect(rows).toHaveLength(6);
       const chosen = rows.filter((row) => row.is_chosen === true);
       expect(chosen).toHaveLength(1);
@@ -383,17 +394,30 @@ if (stack === null) {
       expect(chosen[0]?.roster_key).toBe(rosterKey(swapped));
     });
 
-    it('produces one balance and three splits when two companions post at the same moment', async () => {
+    it('produces one balance and three splits when two admins press at the same moment', async () => {
       const id = party('race');
 
       const created = await ingest(id, onTeams(puuids), new Date());
-      const stable = await clockAt(created.lobbyId, ROSTER_STABLE_MS);
-      const [a, b] = await Promise.all([
-        ingest(id, onTeams(puuids), stable),
-        ingest(id, onTeams(puuids), stable),
-      ]);
+      const key = await storedRosterKey(db, created.lobbyId);
+      const press = () =>
+        rollLobby(db, {
+          lobbyId: created.lobbyId,
+          rosterKey: key,
+          now: new Date(),
+          timeZone: TIME_ZONE,
+          requestOrigin: null,
+        });
+      const answers = await Promise.all([press(), press()]);
 
-      expect([a.status, b.status]).toEqual(['balanced', 'balanced']);
+      // Exactly one press balanced. The other either saw the teams already up, or caught the
+      // first one between its claim and its splits and was told to wait; never a second balance.
+      const rolled = answers.filter((answer) => answer.ok && answer.value.outcome === 'rolled');
+      expect(rolled).toHaveLength(1);
+      for (const answer of answers) {
+        if (answer.ok) continue;
+        expect(answer.status).toBe(409);
+      }
+      expect(await lobbyStatus(created.lobbyId)).toBe('balanced');
       const rows = await splitRows(created.lobbyId);
       expect(rows).toHaveLength(3);
       expect(rows.filter((row) => row.is_chosen === true)).toHaveLength(1);
@@ -412,12 +436,10 @@ if (stack === null) {
 
       const members: MemberSpec[] = [...onTeams(puuids), { puuid: watcher, side: null, isSpectator: true }];
       const first = await ingest(id, members, new Date());
-      const balanced = await ingest(id, members, await clockAt(first.lobbyId, ROSTER_STABLE_MS));
+      const outcome = await roll(first.lobbyId);
 
-      expect(balanced.status).toBe('balanced');
-      const outcome = balanced.balanced;
-      expect(outcome).not.toBeNull();
-      const chosen = [...(outcome?.split.blue ?? []), ...(outcome?.split.red ?? [])].map((a) => a.puuid);
+      expect(await lobbyStatus(first.lobbyId)).toBe('balanced');
+      const chosen = [...outcome.split.blue, ...outcome.split.red].map((a) => a.puuid);
 
       expect(chosen).toHaveLength(10);
       expect(chosen).not.toContain(busy);
@@ -432,7 +454,7 @@ if (stack === null) {
       const { count } = await db
         .from('lobby_members')
         .select('player_id', { count: 'exact', head: true })
-        .eq('lobby_id', balanced.lobbyId);
+        .eq('lobby_id', first.lobbyId);
       expect(count).toBe(11);
     });
 
@@ -445,8 +467,7 @@ if (stack === null) {
         cast.map((puuid) => ({ puuid })),
       );
 
-      // A month out, so the injected clock is always well past the row's own `updated_at` and
-      // the ten seconds are never the thing under test here.
+      // A month out, so "tonight" is a night of the test's choosing.
       const hour = 60 * 60 * 1000;
       const nightA = nightStart(new Date(Date.now() + 30 * 24 * hour), TIME_ZONE);
       const at0200 = new Date(nightA.getTime() + 20 * hour);
@@ -465,24 +486,24 @@ if (stack === null) {
 
       const members = onTeams(cast);
       const sameNight = party('night-inside');
-      await ingest(sameNight, members, at0300);
-      const inside = await ingest(sameNight, members, at0300);
-      expect(inside.balanced?.sitters.map((member) => member.puuid)).toEqual([late]);
+      const insideLobby = await ingest(sameNight, members, at0300);
+      const inside = await roll(insideLobby.lobbyId, at0300);
+      expect(inside.sitters.map((member) => member.puuid)).toEqual([late]);
 
       const nextNight = party('night-outside');
-      await ingest(nextNight, members, at0700);
-      const outside = await ingest(nextNight, members, at0700);
-      expect(outside.balanced?.sitters.map((member) => member.puuid)).not.toContain(late);
-      expect(outside.balanced?.tiedOnGames).toBe(true);
+      const outsideLobby = await ingest(nextNight, members, at0700);
+      const outside = await roll(outsideLobby.lobbyId, at0700);
+      expect(outside.sitters.map((member) => member.puuid)).not.toContain(late);
+      expect(outside.tiedOnGames).toBe(true);
     });
   });
 
   describe('in_game and the freeze', () => {
     it('moves to in_game on the in_progress post and stops moving the roster', async () => {
       const id = party('in-progress');
-      const first = await ingest(id, onTeams(puuids), new Date());
-      const balanced = await ingest(id, onTeams(puuids), await clockAt(first.lobbyId, ROSTER_STABLE_MS));
-      expect(balanced.status).toBe('balanced');
+      const balanced = await ingest(id, onTeams(puuids), new Date());
+      await roll(balanced.lobbyId);
+      expect(await lobbyStatus(balanced.lobbyId)).toBe('balanced');
 
       const response = await postGame(
         request({ phase: 'in_progress', gameId: gameNumber(), partyId: id }, ownerToken),
@@ -506,8 +527,8 @@ if (stack === null) {
     it('rates a real game once, however many companions post it', async () => {
       const id = party('rated');
       const lcuGameId = gameNumber();
-      const opened = await ingest(id, onTeams(puuids), new Date());
-      const balanced = await ingest(id, onTeams(puuids), await clockAt(opened.lobbyId, ROSTER_STABLE_MS));
+      const balanced = await ingest(id, onTeams(puuids), new Date());
+      await roll(balanced.lobbyId);
       await postGame(request({ phase: 'in_progress', gameId: lcuGameId, partyId: id }, ownerToken));
 
       const eog = eogBody({ gameId: lcuGameId, puuids, partyId: id, durationS: 900, winningSide: 100 });
@@ -699,10 +720,7 @@ if (stack === null) {
 
       // Night's first game for these ten.
       const openedA = await ingest(id, onTeams(cast), new Date());
-      const balancedA = await ingest(id, onTeams(cast), await clockAt(openedA.lobbyId, ROSTER_STABLE_MS));
-      expect(balancedA.status).toBe('balanced');
-      const chosenA = balancedA.balanced;
-      if (chosenA === null || chosenA === undefined) throw new Error('the first lobby did not balance');
+      const chosenA = await roll(openedA.lobbyId);
 
       const blueA = sideOf(chosenA.split.blue);
       const redA = sideOf(chosenA.split.red);
@@ -718,9 +736,7 @@ if (stack === null) {
       expect(openedB.created).toBe(true);
       expect(openedB.lobbyId).not.toBe(openedA.lobbyId);
 
-      const balancedB = await ingest(id, onTeams(cast), await clockAt(openedB.lobbyId, ROSTER_STABLE_MS));
-      const chosenB = balancedB.balanced;
-      if (chosenB === null || chosenB === undefined) throw new Error('the second lobby did not balance');
+      const chosenB = await roll(openedB.lobbyId);
 
       // Same ten, so the same key finds the history; a different five, because the repeat
       // carries core's penalty.
@@ -737,16 +753,12 @@ if (stack === null) {
       const id = party('last-split-swap');
 
       const opened = await ingest(id, onTeams(cast), new Date());
-      const balanced = await ingest(id, onTeams(cast), await clockAt(opened.lobbyId, ROSTER_STABLE_MS));
-      const chosen = balanced.balanced;
-      if (chosen === null || chosen === undefined) throw new Error('the lobby did not balance');
+      const chosen = await roll(opened.lobbyId);
 
       // Change one player and the key changes with them: nothing to repeat, nothing to avoid.
       const changed = await ingest(id, onTeams(swapped), new Date());
       expect(changed.status).toBe('open');
-      const rebalanced = await ingest(id, onTeams(swapped), await clockAt(changed.lobbyId, ROSTER_STABLE_MS));
-      const chosenAgain = rebalanced.balanced;
-      if (chosenAgain === null || chosenAgain === undefined) throw new Error('the swap did not balance');
+      const chosenAgain = await roll(changed.lobbyId);
 
       expect(chosenAgain.rosterKey).not.toBe(chosen.rosterKey);
       // Before this balance stored its own row there was no chosen split for these ten at all,
@@ -781,31 +793,41 @@ if (stack === null) {
       });
 
       const opened = await ingest(id, onTeams(cast), new Date());
-      const balanced = await ingest(id, onTeams(cast), await clockAt(opened.lobbyId, ROSTER_STABLE_MS));
+      const balanced = await roll(opened.lobbyId);
 
-      expect(balanced.status).toBe('balanced');
-      expect(balanced.recheckInMs).toBeNull();
-      const rows = await splitRows(balanced.lobbyId);
+      expect(await lobbyStatus(opened.lobbyId)).toBe('balanced');
+      const rows = await splitRows(opened.lobbyId);
       expect(rows).toHaveLength(3);
       expect(rows.filter((row) => row.is_chosen === true)).toHaveLength(1);
       // The listener did run, and its throw cost the lobby nothing.
-      expect(seen).toEqual([balanced.balanced?.splitId]);
+      expect(seen).toEqual([balanced.splitId]);
     });
 
-    it('answers 200 through the route with a listener that throws', async () => {
+    it('answers 200 through the companion route with a listener registered, and never calls it', async () => {
       const cast = await freshCast('hk2');
       const id = party('hook-throws-route');
+      const seen: string[] = [];
       registerLobbyHook({
-        onBalanced: () => {
+        onBalanced: (event) => {
+          seen.push(event.splitId);
           throw new Error('discord is down');
         },
       });
 
       const token = await mintToken(cast[0] ?? '');
       const response = await postLobby(request(body(id, onTeams(cast)), token));
-
       expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ ok: true, status: 'open', memberCount: 10 });
+      expect(await response.json()).toMatchObject({
+        ok: true,
+        status: 'open',
+        memberCount: 10,
+        recheckInMs: null,
+      });
+
+      // The same ten again: a companion post never balances, so the hook never hears a thing.
+      const again = await postLobby(request(body(id, onTeams(cast)), token));
+      expect(await again.json()).toMatchObject({ status: 'open', recheckInMs: null });
+      expect(seen).toEqual([]);
     });
   });
 
@@ -931,7 +953,7 @@ if (stack === null) {
    * M5.11. The client keeps one party id all night (M2.14) and
    * `lobbies_active_party_idx` allows one live row per party, so an `in_game` row that never
    * got its end-of-game block used to answer every later post of that night with
-   * `rosterFrozen: true`, `balanced: null`, `recheckInMs: null` — no teams, no split, and
+   * `rosterFrozen: true` and no way to roll — no teams, no split, and
    * nothing to see from inside Discord. `dropped` is the door out.
    */
   describe('a lobby stuck at in_game (M5.11)', () => {
@@ -955,9 +977,9 @@ if (stack === null) {
       expect(await memberPuuids(stuckId)).toEqual([...cast].sort());
       expect(await splitRows(stuckId)).toHaveLength(0);
 
-      // And the new cycle behaves like any other: ten stable members, three splits, one chosen.
-      const balanced = await ingest(id, onTeams(cast), await clockAt(opened.lobbyId, ROSTER_STABLE_MS));
-      expect(balanced).toMatchObject({ lobbyId: opened.lobbyId, status: 'balanced', memberCount: 10 });
+      // And the new cycle behaves like any other: ten members, a roll, three splits, one chosen.
+      await roll(opened.lobbyId);
+      expect(await lobbyStatus(opened.lobbyId)).toBe('balanced');
       const splits = await splitRows(opened.lobbyId);
       expect(splits).toHaveLength(3);
       expect(splits.filter((row) => row.is_chosen === true)).toHaveLength(1);

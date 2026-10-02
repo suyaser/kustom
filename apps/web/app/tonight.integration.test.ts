@@ -3,11 +3,11 @@ import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
-import { ROSTER_STABLE_MS } from '@/lib/lobbyState';
 import { eogBody, lobbyBody } from '@/lib/testing/fixtures';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+import { rollForTest } from '@/lib/testing/roll';
 import { sideLine } from '@/lib/tonight/copy';
 
 /**
@@ -187,21 +187,11 @@ if (stack === null) {
     });
 
     it('follows the lobby to teams and carries the promoted split verbatim', async () => {
-      vi.useFakeTimers({ toFake: ['Date'] });
-      try {
-        const first = await postLobby(
-          companionRequest('lobby', lobbyBody({ partyId, members: members(10) })),
-        );
-        expect(first.status).toBe(200);
-        const { data } = await db.from('lobbies').select('updated_at').eq('id', lobbyId).single();
-        vi.setSystemTime(Date.parse(data?.updated_at ?? '') + ROSTER_STABLE_MS + 1_000);
-        const second = await postLobby(
-          companionRequest('lobby', lobbyBody({ partyId, members: members(10) })),
-        );
-        expect(await second.json()).toMatchObject({ status: 'balanced' });
-      } finally {
-        vi.useRealTimers();
-      }
+      const first = await postLobby(companionRequest('lobby', lobbyBody({ partyId, members: members(10) })));
+      expect(first.status).toBe(200);
+      // Ten in, and the lobby waits for an admin's press (2026-10-03).
+      expect(await first.json()).toMatchObject({ status: 'open', memberCount: 10 });
+      expect((await rollForTest(db, lobbyId)).outcome).toBe('rolled');
 
       const filled = await loadTonight(anon, { nightStart: tonightStart() });
       // Nothing above the newest row moved: the seven who joined later are appended.

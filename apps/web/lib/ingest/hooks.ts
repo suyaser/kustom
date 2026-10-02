@@ -4,7 +4,8 @@ import type { PoolMember, SeatMove } from './selection';
 /**
  * The seam M3.1 fills (Discord), and nothing else.
  *
- * Ingest decides what happened; something else decides who is told. The state machine must
+ * Ingest and the admin's roll (`lib/admin/roll.ts`, the only thing that fires `balanced` since
+ * 2026-10-03) decide what happened; something else decides who is told. The state machine must
  * pass every acceptance check with the webhook switched off, so posting is not allowed to be
  * inline: a hook that throws, or a webhook that is down, must not cost the group its teams.
  *

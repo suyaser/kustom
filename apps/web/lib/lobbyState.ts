@@ -3,14 +3,14 @@ import { supersedeLobbyCommands } from './commands/queue';
 import type { ServiceClient } from './supabase';
 
 /**
- * The lobby state machine (M2.5): which moves are legal, how "unchanged for ten seconds" is
- * measured with no timers, and the two-hour idle sweep.
+ * The lobby state machine (M2.5): which moves are legal and the two-hour idle sweep.
  *
- * The three numbers live here and nowhere else.
+ * Since 2026-10-03 nothing here balances a lobby by itself: `open` -> `balanced` is an admin's
+ * press (`lib/admin/roll.ts`, `POST /api/admin/lobbies/[lobbyId]/roll`), not ten seconds of a
+ * still roster. `04-decisions.md` has the row and the reason.
+ *
+ * The numbers live here and nowhere else.
  */
-
-/** How long the roster must not change before the lobby balances. */
-export const ROSTER_STABLE_MS = 10_000;
 
 /**
  * How long a lobby may go unmentioned before the sweep gives up on it: two hours for an
@@ -23,10 +23,10 @@ export const IDLE_ABANDON_MS = 7_200_000;
 /** A game shorter than this is a remake or a four-minute surrender, and is never rated. */
 export const MIN_RATED_DURATION_S = 300;
 
-/** The floor on `recheckInMs`: never ask a companion to knock again in under a second. */
-export const MIN_RECHECK_MS = 1_000;
-
-/** Ten play; everyone else around sits out (M2.5, "Choosing the ten"). */
+/**
+ * Ten play; everyone else around sits out (M2.5, "Choosing the ten"). Also the floor on a
+ * roll: an admin cannot roll a lobby with fewer than this many around.
+ */
 export const PLAYERS_PER_GAME = 10;
 
 /**
@@ -35,10 +35,10 @@ export const PLAYERS_PER_GAME = 10;
  * | From | To | Signal |
  * |---|---|---|
  * | — | `open` | the first lobby post for a party with no live row (M2.14) |
- * | `open` | `open` | a post whose roster differs: members replaced, the clock restarts |
- * | `open` | `balanced` | a post with an identical roster, ten or more around, ten seconds on the clock |
- * | `balanced` | `open` | a post whose roster differs |
- * | `balanced` | `balanced` | a post with an identical roster: nothing at all, unless the splits went missing |
+ * | `open` | `open` | a post whose roster differs: members replaced, `updated_at` moves |
+ * | `open` | `balanced` | an admin's roll: ten or more around, and the roster the admin saw is the one stored |
+ * | `balanced` | `open` | a post whose roster differs: the next teams need another roll |
+ * | `balanced` | `balanced` | a roll that re-makes the splits of a lobby whose earlier roll died before writing them |
  * | `open`/`balanced` | `in_game` | a game post with `phase: 'in_progress'` for this lobby |
  * | `in_game` | `finished` | the `eog` post for this lobby |
  * | `open`/`balanced` | `finished` | the same eog, when the `in_progress` post never arrived |
@@ -127,6 +127,12 @@ export interface MoveLobbyInput {
   /** The statuses this move is allowed to start from. Every one is checked against the table. */
   from: readonly LobbyStatusValue[];
   to: LobbyStatusValue;
+  /**
+   * The row's `updated_at` as the caller read it. When set, the move also refuses if the row
+   * has been written since — a roster change, a rename, another roll's claim. The roll uses it
+   * so that "the roster I checked" and "the roster I claimed" are the same roster.
+   */
+  unchangedSince?: string;
 }
 
 /**
@@ -142,12 +148,13 @@ export interface MoveLobbyInput {
 export async function moveLobby(client: ServiceClient, input: MoveLobbyInput): Promise<boolean> {
   for (const from of input.from) assertLegalTransition(from, input.to);
 
-  const { data, error } = await client
+  let update = client
     .from('lobbies')
     .update({ status: input.to })
     .eq('id', input.lobbyId)
-    .in('status', input.from)
-    .select('id');
+    .in('status', input.from);
+  if (input.unchangedSince !== undefined) update = update.eq('updated_at', input.unchangedSince);
+  const { data, error } = await update.select('id');
   if (error) throw new Error(`moveLobby: ${input.to} failed: ${error.message}`);
   if ((data ?? []).length === 0) return false;
 
@@ -278,37 +285,4 @@ async function supersedeCommandsQuietly(
   } catch (error) {
     console.error(`lobby sweep: superseding commands for lobby ${lobbyId} failed`, error);
   }
-}
-
-export interface RecheckInput {
-  /** The lobby's status after this post has been processed. */
-  status: LobbyStatusValue;
-  /** Everyone around: every non-bot member, spectators included. */
-  around: number;
-  /** Milliseconds since the roster last changed, measured on the lobby's `updated_at`. */
-  elapsedMs: number;
-  /** True when this very post changed the roster, so the clock started over just now. */
-  rosterChanged: boolean;
-}
-
-/**
- * **Knock again in this many milliseconds** — how the ten-second rule is measured on a server
- * with no timers (M2.5, point 3).
- *
- * The number is only ever sent while the lobby is `open` with ten or more people around: that
- * is the one state where doing nothing would leave a full lobby unbalanced forever. Anything
- * else is `null`, which means the companion does nothing until a real lobby event arrives.
- */
-export function recheckInMs({ status, around, elapsedMs, rosterChanged }: RecheckInput): number | null {
-  if (status !== 'open' || around < PLAYERS_PER_GAME) return null;
-  // The full window when the clock just restarted, so the answer does not depend on how many
-  // milliseconds the write itself took.
-  if (rosterChanged) return ROSTER_STABLE_MS;
-  const remaining = ROSTER_STABLE_MS - elapsedMs;
-  return Math.max(MIN_RECHECK_MS, Math.min(ROSTER_STABLE_MS, Math.ceil(remaining)));
-}
-
-/** Has the roster been still long enough to balance? */
-export function isRosterStable(elapsedMs: number): boolean {
-  return elapsedMs >= ROSTER_STABLE_MS;
 }

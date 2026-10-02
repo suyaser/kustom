@@ -5,9 +5,9 @@ import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
-import { ROSTER_STABLE_MS } from '@/lib/lobbyState';
 import { eogBody, ROLES_IN_ORDER, testGameId, testPuuids } from '@/lib/testing/fixtures';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+import { rollForTest } from '@/lib/testing/roll';
 
 /**
  * Inferred roles (M5.17) against the Supabase CLI local stack, driven through the real ingest:
@@ -122,13 +122,7 @@ if (stack === null) {
         isSpectator: false,
       })),
     });
-    return ingestLobby(db, payload, ownerPlayerId, { now, timeZone: TIME_ZONE });
-  }
-
-  async function lobbyUpdatedAt(lobbyId: string): Promise<Date> {
-    const { data, error } = await db.from('lobbies').select('updated_at').eq('id', lobbyId).single();
-    if (error) throw new Error(error.message);
-    return new Date(data.updated_at);
+    return ingestLobby(db, payload, ownerPlayerId, { now });
   }
 
   beforeAll(async () => {
@@ -219,11 +213,11 @@ if (stack === null) {
 
       const opened = await lobbyPost(new Date());
       expect(opened.status).toBe('open');
-      const settled = new Date((await lobbyUpdatedAt(opened.lobbyId)).getTime() + ROSTER_STABLE_MS);
-      const balanced = await lobbyPost(settled);
-      expect(balanced.status).toBe('balanced');
-      const split = balanced.balanced?.split;
-      if (split === undefined) throw new Error('the lobby did not balance');
+      // Ingest never balances (2026-10-03): the admin's roll does.
+      const rolled = await rollForTest(db, opened.lobbyId, { timeZone: TIME_ZONE });
+      if (rolled.outcome !== 'rolled') throw new Error('the lobby did not balance');
+      const balanced = opened;
+      const split = rolled.balance.split;
 
       // The game as it would really be played: the ten in the split's own order, each on the
       // seat the balancer gave them.
