@@ -1121,8 +1121,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Fearless (M10 / M10.2 / M10.3). Bans grouped by the lane they were first
- * locked on, A–Z inside the lane, then who is still open in that lane.
+ * Fearless (M10 / M10.2 / M10.3; open first since 2026-10-03). Per lane, A–Z:
+ * who is still open, then the bans folded under `banned`.
  * Plus a find box. M11.1: each chip leads with a 24px square champion icon,
  * the one champion art in the product ("The fearless icon exception" in
  * docs/05-design.md). No other surface draws one.
@@ -1143,22 +1143,18 @@
 }
 
 /*
- * Lanes in a grid: one column on a phone, then as many 16rem columns as fit — two in the
- * 44rem column, three in the wide main column beside the rail. Each lane is outlined in
- * `line` with no fill — the banned chips are `raise`, and a `raise` lane would swallow them —
- * so five lanes read as five groups and not as one wall of chips.
+ * One lane per row, at every width (designer, 2026-10-03). A lane holds forty-odd champions
+ * across the night, open plus banned; in a 16rem column that is two chips a row and twenty
+ * rows, five columns of unequal height and a 3 + 2 grid with a hole in it. Full width is six
+ * or seven chips a row on a desktop and the same two-or-three on a phone, and the lanes read
+ * top to support in the order the team cards list them.
+ *
+ * No box per lane: card, lane box and chip box was three nested borders. A lane is separated
+ * from the one above it by a `line` hairline, like rows in a card.
  */
 .cn-fearless-lanes {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--cn-sp-3);
-  align-items: start;
-}
-
-@media (min-width: 720px) {
-  .cn-fearless-lanes {
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  }
+  display: flex;
+  flex-direction: column;
 }
 
 .cn-fearless-head {
@@ -1191,7 +1187,9 @@
   min-height: 44px;
   padding: 0 var(--cn-sp-3);
   font-family: var(--cn-font-sans);
-  font-size: var(--cn-t-sm);
+  /* `t-base`: 16px or more, or iOS zooms the page on focus — in the box people type into
+     while pick is running. */
+  font-size: var(--cn-t-base);
   font-weight: 500;
   color: var(--cn-text);
   background: var(--cn-raise);
@@ -1209,27 +1207,58 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--cn-sp-2);
-  padding: var(--cn-sp-3);
-  border: 1px solid var(--cn-line);
-  border-radius: var(--cn-radius-row);
+  gap: var(--cn-sp-3);
+  padding-block: var(--cn-sp-4);
+  border-top: 1px solid var(--cn-line);
 }
 
-/* The lane word with its 14px role mark beside it, `dim`, same as a role cell in a row. */
+/* A closed `banned` row is 44px with its word centred in it: that is already the air under
+   the lane, so the lane's own bottom padding steps back. */
+.cn-fearless-lane:has(> .cn-fearless-banned) {
+  padding-block-end: var(--cn-sp-1);
+}
+
+.cn-fearless-lane:last-child {
+  padding-block-end: 0;
+}
+
+/*
+ * The lane head: the lane word, the heading of everything under it, and how many are still
+ * open on the right. The word was `t-xs` `dim` — the quietest text on the card, under content
+ * set at `t-sm` 600 — so the card read as one flat wall of chips. Now it is a role word set as
+ * a heading: mono (role → mono), `t-base`, 600, `text`, with its 16px role mark. One step above
+ * the chips and one step below a player's name in a team row (`t-md`): Fearless is the
+ * evening's constraint, not the teams.
+ */
+.cn-fearless-lane-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cn-sp-3);
+}
+
 .cn-fearless-lane-title {
   display: flex;
   align-items: center;
   gap: var(--cn-sp-2);
   margin: 0;
-  color: var(--cn-dim);
-  font-size: var(--cn-t-xs);
+  color: var(--cn-text);
+  font-size: var(--cn-t-base);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-transform: lowercase;
 }
 
 .cn-fearless-lane-title .cn-role-icon {
   flex: none;
+}
+
+.cn-fearless-lane-count {
+  margin: 0;
+  color: var(--cn-dim);
+  font-size: var(--cn-t-xs);
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
 }
 
 .cn-fearless-list {
@@ -1241,6 +1270,10 @@
   list-style: none;
 }
 
+/*
+ * The base chip is the **open** chip: `raise` fill, `line` hairline, `text` 600, icon at full
+ * opacity. Open champions are what the card is read for, so they wear the full dress.
+ */
 .cn-fearless-list li {
   display: inline-flex;
   align-items: center;
@@ -1256,23 +1289,22 @@
 }
 
 /*
- * `still open` is a disclosure (2026-10-03). Closed, it is one 44px row — the label, the count
- * on the right and a chevron — so a lane costs one line until somebody asks. The summary is
- * the one tappable thing on the card besides the find box, so it takes the 44px floor; the
- * chips inside stay 32px list items.
+ * `banned` is a disclosure (2026-10-03), closed by default. Closed, it is one 44px row — the
+ * word, the count on the right and a chevron — so the bans cost a lane one line until somebody
+ * asks. The summary is tappable, so it takes the 44px floor; the chips inside stay 32px.
  */
-.cn-fearless-open {
+.cn-fearless-banned {
   display: flex;
   flex-direction: column;
   gap: var(--cn-sp-2);
 }
 
-.cn-fearless-open-label {
+.cn-fearless-banned-label {
   display: flex;
   align-items: center;
   gap: var(--cn-sp-2);
   min-height: 44px;
-  margin: 0 calc(-1 * var(--cn-sp-2));
+  margin: calc(-1 * var(--cn-sp-2)) calc(-1 * var(--cn-sp-2)) 0;
   padding: 0 var(--cn-sp-2);
   border-radius: var(--cn-radius-row);
   color: var(--cn-dim);
@@ -1286,26 +1318,26 @@
   transition: background-color 120ms;
 }
 
-.cn-fearless-open-label::-webkit-details-marker {
+.cn-fearless-banned-label::-webkit-details-marker {
   display: none;
 }
 
-.cn-fearless-open-label:hover {
+.cn-fearless-banned-label:hover {
   background: color-mix(in srgb, var(--cn-text) 4%, transparent);
 }
 
-.cn-fearless-open-label:focus-visible {
+.cn-fearless-banned-label:focus-visible {
   outline: 2px solid var(--cn-brand);
   outline-offset: -2px;
 }
 
-.cn-fearless-open-count {
+.cn-fearless-banned-count {
   margin-inline-start: auto;
   letter-spacing: 0;
 }
 
 /* A chevron drawn with two borders: no glyph, no asset, `currentColor`. */
-.cn-fearless-open-label::after {
+.cn-fearless-banned-label::after {
   content: "";
   flex: none;
   width: 6px;
@@ -1315,28 +1347,28 @@
   transform: rotate(45deg) translateY(-2px);
 }
 
-.cn-fearless-open[open] > .cn-fearless-open-label::after {
+.cn-fearless-banned[open] > .cn-fearless-banned-label::after {
   transform: rotate(-135deg) translateY(-1px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cn-fearless-open-label {
+  .cn-fearless-banned-label {
     transition: none;
   }
 }
 
-.cn-fearless-list li.cn-fearless-open-chip {
+/* A ban is reference: no fill, `dim` 500, the icon at 55%. Still a solid hairline — the dashed
+   border means an empty seat elsewhere on this page, and a ban is not one. */
+.cn-fearless-list li.cn-fearless-banned-chip {
   font-weight: 500;
   color: var(--cn-dim);
   background: transparent;
-  border-style: dashed;
 }
 
 .cn-fearless-list li.cn-fearless-hit {
   color: var(--cn-brand);
   background: var(--cn-brand-tint);
   border-color: var(--cn-brand);
-  border-style: solid;
   box-shadow: inset 0 0 0 1px var(--cn-brand);
 }
 
@@ -1353,7 +1385,7 @@
   border-radius: 4px;
 }
 
-.cn-fearless-open-chip .cn-fearless-icon {
+.cn-fearless-banned-chip .cn-fearless-icon {
   opacity: 0.55;
 }
 

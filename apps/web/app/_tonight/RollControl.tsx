@@ -39,6 +39,7 @@ export function RollControl({
   const [failed, setFailed] = useState<string | null>(null);
   const rosterKey = rollRosterKey(members);
   const action = `/api/admin/lobbies/${lobbyId}/roll`;
+  const quiet = pending || rosterKey === '';
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -71,7 +72,13 @@ export function RollControl({
       {/* Only the form path reads this. The route re-validates it as a path on this site. */}
       <input type="hidden" name="redirectTo" value="/" />
       <p className="cn-roll-note">{ROLL_ADMIN_HINT}</p>
-      <button className="cn-button" type="submit" disabled={pending || rosterKey === ''}>
+      {/* Quiet while a press is in flight, **never `disabled`**: a disabled control drops the
+          focus to `<body>` (M3.20). `submit` already short-circuits a second press. */}
+      <button
+        className={quiet ? 'cn-button cn-button-quiet' : 'cn-button'}
+        type="submit"
+        aria-disabled={quiet || undefined}
+      >
         {ROLL_LABEL}
       </button>
       {failed === null ? null : (

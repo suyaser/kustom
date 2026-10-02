@@ -174,11 +174,13 @@ describe('the roll control', () => {
 
     const button = screen.getByRole('button', { name: ROLL_LABEL });
     fireEvent.click(button);
-    await waitFor(() => expect(button).toBeDisabled());
+    await waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'));
+    // Never the attribute: a disabled control drops the focus to `<body>` (M3.20).
+    expect(button).not.toBeDisabled();
     fireEvent.click(button);
     expect(fetch).toHaveBeenCalledTimes(1);
 
     release({ ok: true, status: 200, json: async () => rolled() } as unknown as Response);
-    await waitFor(() => expect(button).toBeEnabled());
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
   });
 });

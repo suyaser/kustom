@@ -17,8 +17,28 @@ export const FEARLESS_SEARCH = 'Find a champion';
 
 export const FEARLESS_SEARCH_EMPTY = 'No champion matches.';
 
-/** The tail under a lane: champions in that lane the pool has not locked. */
+/**
+ * The tonight card's sentence (designer, 2026-10-03). The card leads with who is still open,
+ * so `Ban these next game.` above a list of open champions would say the opposite of what is
+ * under it. Discord posts the ban list alone and keeps {@link FEARLESS_SENTENCE}.
+ */
+export const FEARLESS_CARD_SENTENCE = 'Still open, by lane. Played champions are banned next game.';
+
+/** Champions in a lane the pool has not locked. */
 export const FEARLESS_OPEN = 'still open';
+
+/** The fold under each lane: the champions in it already on the ban list. */
+export const FEARLESS_BANNED_LABEL = 'banned';
+
+/** The card's head count on the tonight page: the bans, named as bans. */
+export function fearlessBannedCount(n: number): string {
+  return `${n} banned.`;
+}
+
+/** Beside each lane word: how many are still open in it. */
+export function fearlessLaneOpen(n: number): string {
+  return n === 0 ? 'none open' : `${n} open`;
+}
 
 export const FEARLESS_RESET_DESCRIPTION = 'Pool cleared. Ban list is empty.';
 

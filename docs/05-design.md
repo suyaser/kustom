@@ -279,7 +279,7 @@ border), so a 32px floor changes nothing that already renders:
   object-fit: cover;
   border-radius: 4px;
 }
-.cn-fearless-open-chip .cn-fearless-icon { opacity: 0.55; }
+.cn-fearless-banned-chip .cn-fearless-icon { opacity: 0.55; }   /* was the open chip until 2026-10-03 */
 .cn-fearless-hit .cn-fearless-icon { opacity: 1; }
 ```
 
@@ -288,8 +288,8 @@ produce the same box.)
 
 | Chip | Icon | Name | Chip dress |
 |---|---|---|---|
-| **Banned** | Full opacity | `text`, 600, as today | `raise` fill, `line` hairline, as today |
-| **Open** (`cn-fearless-open-chip`) | **`opacity: 0.55` on the `img` and nothing else.** No `filter: grayscale()`, no desaturate, no tinted overlay: a grey champion is a fourth colour. | `dim`, 500, as today | Transparent fill, dashed `line` border, as today |
+| **Open** (`cn-fearless-open-chip`) — the primary chip since 2026-10-03 | Full opacity | `text`, 600 | `raise` fill, `line` hairline |
+| **Banned** (`cn-fearless-banned-chip`) — reference, inside the closed `banned` fold since 2026-10-03 | **`opacity: 0.55` on the `img` and nothing else.** No `filter: grayscale()`, no desaturate, no tinted overlay: a grey champion is a fourth colour. | `dim`, 500 | Transparent fill, **solid** `line` hairline (dashed means an empty seat on this page) |
 | **Find hit** (`cn-fearless-hit`) | **Full opacity, never recoloured**, even when the hit is an open chip. An icon tinted amber looks like a rendering bug. | `brand`, as today | `brand-tint` fill, `brand` border plus inset ring, as today |
 | **Unknown id** (name falls back to `Champion ${id}`) | **No `img` element.** | As its row | Unchanged, and no reserved blank square |
 | **Image fails to load** | Remove the `img` (`onError` drops it). The chip reflows to name-only once, at load time. Never a broken-image glyph, never alt text in the chip. | As its row | Unchanged |
@@ -301,8 +301,8 @@ on each keystroke, in the one box people type into while pick is running. That i
 thumb, which "The tonight page v2" forbids. If a chip ever becomes tappable, every chip goes to 44px at once,
 not just one state.
 
-**What does not change.** The lane words, the `open` label, the find box, the count, the sentence and the
-A–Z order stay as they are. No gradient or tint sits behind an icon. An icon never appears without its name
+**What does not change.** The A–Z order stays as it is. (The lane words, the fold, the find box's size, the
+count and the sentence were reworked on 2026-10-03: see "Open first, one lane per row" under Fearless.) No gradient or tint sits behind an icon. An icon never appears without its name
 (same rule as `RoleIcon`). No champion appears outside this card.
 
 ### The app shell
@@ -975,6 +975,33 @@ palette.
   press.
 - **Success prints nothing.** The lobby appearing is the answer.
 
+##### `Roll teams` — the admin's press in `filling` (designer review, 2026-10-03)
+
+Built in a hurry with the admin roll trigger (commit cd9fe02), reviewed afterwards. It is this block's twin, and
+the review found one real defect. Everything else follows from rules already on this page.
+
+- **Where: under the rack, never above it.** This is the opposite of `Start a lobby`, and on purpose. In `idle`
+  the rack is a picture and the button is the point, so the button goes first. In `filling` the ten names are
+  what the admin has to check before pressing (`Check these are the right people, then roll.`): read, then
+  press. The rack is ten rows at every count, so the hint appearing, and the button replacing it at ten, moves
+  nothing above it.
+- **Who sees what.** Everybody gets `ROLL_HINT` (`Once the right ten are in, an admin rolls the teams.`) in the
+  `.cn-hint` dress, Archivo `t-sm` `dim`: it is an aside about somebody else's press. An admin, once there is a
+  roll to make, gets the instruction and the button **in its place**, never both. The instruction is `t-sm` 400
+  **`text`**, not `dim`, because it is the one line the admin is meant to act on (the `Missed the invite?`
+  rule).
+- **Order inside the form:** instruction, button, then the one refusal slot. The instruction goes **above** the
+  button here, unlike `Start a lobby`'s progress line, because it is read before the press and not after it.
+- **The button is the amber `.cn-button`**, the same outline and the same widths. The three amber controls are
+  still disjoint by state: `Start a lobby` in `idle`, `Roll teams` in `filling`, `Reroll` in `balanced`.
+- **In flight it is quiet, never `disabled`** (fixed 2026-10-03; the first build set `disabled`). The rule is
+  the same as `Start a lobby`'s pending row: `aria-disabled="true"` plus `.cn-button-quiet` plus the submit
+  short-circuit. A disabled button drops focus to `<body>` at the moment the admin is waiting for the answer,
+  which is what M3.20 forbids. An empty roster key (no members drawn) gets the same quiet dress.
+- **Refusal:** the route's own sentence, given a capital and a full stop, `t-sm` **600** `text`, with
+  `role="alert"`. The button stays amber, because a 409 usually means the roster moved and the next press is
+  the right one. **Success prints nothing.** The teams block replacing the rack is the answer.
+
 ##### The number-in-a-sentence rule, and the one thing that breaks it
 
 **A quantity inside a sentence stays in the sentence's family.** The `7` in `Invited 7 friends`, the `1290` and
@@ -1143,7 +1170,7 @@ placement are the designer's and are untouched.
 | sentence, idle | *(shipped)* `When ten of you are in a custom lobby with the companion running, the teams show up here.` | shipped, kept |
 | sentence, 0 in | *(shipped)* `Nobody in the lobby yet.` — in the strip, and **not repeated under the rack** | product 2026-09-09 — **changed** |
 | sentence, 1–9 in | `One more to go.` … `Nine more to go.` (word, not digit — the digit is already 44px above it) | product 2026-09-09 |
-| sentence, 10 in | `Teams in a moment.` | product 2026-09-09 — **changed** |
+| sentence, 10 in | `Waiting on an admin to roll the teams.` | **re-worded 2026-10-03** with the admin roll trigger — was `Teams in a moment.` (product 2026-09-09), which became false once ingest stopped balancing by itself: teams appear only when an admin presses `Roll teams`. Kept as a strip sentence rather than removed: the strip is the page's live line and must hold one at ten, while the roll hint under the rack is not live and is replaced by the button for an admin |
 | sentence, 11+ in | `Ten play, the rest sit out this game.` | product 2026-09-09 |
 | sentence, balanced | `Split by rating and role. Nobody picked the teams.` | product 2026-09-09 — **changed** |
 | sentence, in game | `Ratings move when it ends.` | product 2026-09-09 — **changed** |
@@ -1199,7 +1226,9 @@ placement are the designer's and are untouched.
   into the strip.
 - **The sentence never repeats the headline.** `Ten in. Teams in a moment.` under a 44px `10 IN THE LOBBY`,
   and `They are in.` under `IN GAME`, spend the page's one live line saying what the biggest type already
-  said. Both drop their first clause.
+  said. Both drop their first clause. (The ten-in line was re-worded again on 2026-10-03, to
+  `Waiting on an admin to roll the teams.`, when teams stopped appearing on their own; it still never repeats
+  the headline.)
 - **`Same ten, split by rating and role.` → `Split by rating and role. Nobody picked the teams.`** With eleven
   around it is not the same ten, so the old line is wrong on exactly the nights the sit-out strip appears. The
   new second half is the product's promise (principle 1, "the bot is the referee") in four words, and it is the
@@ -2861,19 +2890,95 @@ dress `/fun` uses.
 A card on `/`, under Daily Mystery, not in the rail: the list is tonight's constraint, not a
 sidebar fact. Hidden while the pool is empty so an idle night is not a card that says nothing.
 
-- Title `Fearless`, `cn-card-title`. Count on the right in `dim` (`10 champions.`).
-- Sentence `Ban these next game.` in `text`.
+- Title `Fearless`, `cn-card-title`. Count on the right in `dim` (`10 banned.` since 2026-10-03; was `10 champions.`).
+- Sentence in `text`: `Still open, by lane. Played champions are banned next game.` since 2026-10-03 (was
+  `Ban these next game.`, which Discord still posts).
 - Find box, 44px, `Find a champion`. Matching names stay; the rest drop. An exact name
   prints `Ahri is on the ban list.` in brand and paints that chip like a pressed role
   (`brand` / `brand-tint`). That is the pick-phase check. The companion does not read
   champion select.
 - Names grouped under lowercase lane words (`top` `jungle` `mid` `adc` `support`), A–Z
   inside the group. A first lock with no stored role sits under `other`.
-- Names as wrap chips on `raise` with a `line` hairline. **M11: each chip leads with a 24×24 square champion
+- Names as wrap chips (open chips on `raise` with a `line` hairline; bans quieter, see "Open first" below). **M11: each chip leads with a 24×24 square champion
   icon.** This is the one exception to "no champion art". Size, opacity, the unknown-id case and the 32px chip
   height are in "The fearless icon exception" under Iconography, and nothing here overrides it.
 - Unique ids. First-appearance decides membership and the lane heading; display order is
   lane then name. The companion does not auto-ban; this is a list for humans.
+
+#### Open first, one lane per row (designer, 2026-10-03; supersedes the M10.3 order and the 2026-10-03 grid)
+
+Product owner's read, confirmed: people open this card to see **who they can still pick**, not who is gone.
+Until now the card did the reverse. Bans were the full chips and always shown, and `still open` was a dim,
+dashed tail behind a closed disclosure. That is flipped:
+
+```
+Fearless                                         79 banned.
+Still open, by lane. Played champions are banned next game.
+[ Find a champion                                          ]
+─────────────────────────────────────────────────────────────
+[top]  top                                          24 open
+ [Aatrox] [Ambessa] [Camille] [Cho'Gath] [Gangplank] ...      <- open chips, full dress
+ banned                                                15  v  <- closed fold, 44px
+─────────────────────────────────────────────────────────────
+[jg]   jungle                                       24 open
+ ...
+```
+
+**Emphasis.**
+
+| | Open chip (`cn-fearless-open-chip`) | Banned chip (`cn-fearless-banned-chip`) |
+|---|---|---|
+| Where | Directly under the lane head, always shown | Inside the lane's `banned` `<details>`, **closed by default** |
+| Dress | `raise` fill, `line` hairline, `text` **600** | Transparent, solid `line` hairline, `dim` 500 |
+| Icon | Full opacity | `opacity: 0.55` |
+
+- **Why the bans fold instead of just going dim.** By the end of a night a lane holds about 16 bans and 24 open,
+  so 40 chips. Bans shown dim but unfolded would still be 40% of the card's height. Folded, they cost one 44px
+  row per lane, and the count in that row (`banned  15`) carries what most readers want from it anyway.
+- **The find box still opens every fold**, because a typed exact name has to be found wherever it is. The
+  closed fold stays in the DOM, so find-in-page reaches it as well. A hit chip is the `brand` dress whichever
+  list it sits in.
+- **The banned chip's hairline is solid, not dashed.** On this page a dashed edge means an empty seat. A ban is
+  not an empty seat.
+- **Card copy.** `Ban these next game.` above a list of open champions says the opposite of what sits under it,
+  so the card now says `Still open, by lane. Played champions are banned next game.` (`FEARLESS_CARD_SENTENCE`).
+  The head count reads `79 banned.` in Archivo `dim`. **Discord is unchanged:** its post is still the ban list
+  alone, with `Ban these next game. 79 champions.`
+
+**Hierarchy inside the card. This is the rule; do not re-derive it.** Before, the lane word was `t-xs` `dim`,
+which made it the quietest text on the card, sitting above chips set at `t-sm` 600. The card title was the same
+size as the chips. Nothing read as a heading, which is the "too flat" the product owner saw.
+
+| Level | Element | Type |
+|---|---|---|
+| Card label | `Fearless` | `cn-card-title`: Archivo `t-sm` 600 `text`. **Shared with every card on the page and not changed here.** It labels the card, the same way `Your role tonight` and `Earlier tonight` do. |
+| **Heading** | the lane word (`top` … `support`, `other`) | **IBM Plex Mono `t-base` 600 `text`**, `0.02em`, lower case, with a 16px `RoleIcon`. It is mono because it is a role word (role → mono). |
+| Primary content | open chip names | Archivo `t-sm` 600 `text` on `raise` |
+| Metadata | `24 open` beside the lane word | Mono `t-xs` `dim` `0.06em`, right-aligned, baseline-aligned |
+| Metadata | the `banned` fold row, its count | Archivo `t-xs` 600 `dim` (the micro-label dress), 44px |
+| Reference | banned chip names | Archivo `t-sm` 500 `dim`, no fill |
+| Sentence | card sentence, head count, hit line | `t-sm`: `text` for the sentence, `dim` for the count, `brand` 600 for the hit |
+
+**Why `t-base` and not bigger.** Across the page, a team card's side name is `t-lg` display and a player name
+in a row is `t-md`. Fearless is the evening's constraint, not the teams, so the biggest text inside it sits one
+step below a player's name and one step above its own chips. The find box is `t-base` too, which is also the
+16px floor that stops iOS zooming the page when the box gets focus mid-pick.
+
+**One lane per row, at every width. No grid.** We measured on the live pool (79 bans, 2026-10-03). In the
+16rem grid at 1280px, the main column took three lanes in its first row and two in its second, with an empty
+cell. Each lane had 2 chips per row and up to 20 rows, so the columns ended at different heights. At full width
+(about 800px) a lane is 6 to 7 chips per row, and 24 open fits in 4 rows. On a 390px phone the grid was already
+a single column, so nothing is lost there. Full width also reads `top` to `support` in the same order as the
+team cards, which a reader can follow without reading across columns. **Do not bring the grid back** unless a
+lane routinely holds under about 8 chips.
+
+**No box per lane.** Card, lane box and chip box was three nested borders ("One card, one column, nothing
+nested"). Each lane is separated from the one above it by a 1px `line` top border, padding `sp-4` above it,
+and `sp-1` below when a `banned` fold ends the lane, because the 44px fold row is already that air.
+
+**Known cost.** On a phone, with open always shown, the card is long: about 400px per lane at 24 open. The find
+box is first in the card for exactly that reason. If length becomes a complaint, the next step is a lane filter
+at the top of the card (the five role words as 44px toggles), **not** folding the open lists again.
 
 ### The player page (`/p/[puuid]`) — settled 2026-09-09
 

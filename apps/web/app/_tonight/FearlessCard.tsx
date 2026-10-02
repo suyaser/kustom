@@ -2,14 +2,15 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  FEARLESS_OPEN,
+  FEARLESS_BANNED_LABEL,
+  FEARLESS_CARD_SENTENCE,
   FEARLESS_SEARCH,
   FEARLESS_SEARCH_EMPTY,
-  FEARLESS_SENTENCE,
   FEARLESS_TITLE,
   fearlessAvailable,
   fearlessBanned,
-  fearlessCount,
+  fearlessBannedCount,
+  fearlessLaneOpen,
   fearlessLaneTitle,
 } from '@/lib/fearless/copy';
 import {
@@ -31,18 +32,20 @@ import { RoleIcon } from '../_icons/RoleIcon';
  * pick — the companion does not read champion select.
  *
  * M10.3: under each lane, after the bans, the roster champions still open in that lane.
- * A locked id leaves every lane. Discord keeps posting bans only.
+ * A locked id leaves every lane. Discord keeps posting bans only. (The order and the weight
+ * flipped on 2026-10-03: open first, bans folded. See below.)
  *
  * M11.1: every chip leads with a 24px champion icon, the one place in the product a
  * champion is drawn ("The fearless icon exception" in docs/05-design.md). The name is the
  * accessible text; the icon is `alt=""`. An unknown id or a failed load is name-only.
  *
- * Sizing (2026-10-03): the lanes sit in a grid — one column on a phone, as many 16rem
- * columns as fit above that — and each lane's `still open` tail is a disclosure, closed by
- * default, so the card is the bans plus five one-line summaries instead of the whole roster.
- * Typing in the find box opens every tail, because the box is how a pick is checked and a
- * match hidden behind a closed summary would read as "no champion matches". The closed tail
- * stays in the DOM, so the browser's own find-in-page still reaches it.
+ * Open first (designer, 2026-10-03, "Fearless" in docs/05-design.md): one lane per row at
+ * every width. Each lane is its heading — the lane word at `t-base` with how many are still
+ * open beside it — then the open champions as the full chips, then the lane's bans folded into
+ * a `banned` disclosure, closed by default. People read this card for what they can still
+ * pick; the bans are reference. Typing in the find box opens every fold, because the box is
+ * how a pick is checked and a match hidden behind a closed summary would read as "no champion
+ * matches". The closed fold stays in the DOM, so the browser's own find-in-page reaches it.
  */
 export function FearlessCard({ fearless }: { fearless: FearlessView }) {
   const searchId = useId();
@@ -69,9 +72,9 @@ export function FearlessCard({ fearless }: { fearless: FearlessView }) {
         <h2 className="cn-card-title" id="cn-fearless-title">
           {FEARLESS_TITLE}
         </h2>
-        <p className="cn-fearless-count">{fearlessCount(fearless.champions.length)}</p>
+        <p className="cn-fearless-count">{fearlessBannedCount(fearless.champions.length)}</p>
       </div>
-      <p className="cn-fearless-copy">{FEARLESS_SENTENCE}</p>
+      <p className="cn-fearless-copy">{FEARLESS_CARD_SENTENCE}</p>
       <label className="cn-fearless-search" htmlFor={searchId}>
         <span className="cn-sr-only">{FEARLESS_SEARCH}</span>
         <input
@@ -127,20 +130,26 @@ function FearlessLane({
   const searching = query.trim().length > 0;
   return (
     <div className="cn-fearless-lane">
-      <h3 className="cn-fearless-lane-title">
-        {role === null ? null : <RoleIcon role={role} />}
-        <span>{title}</span>
-      </h3>
-      {banned.length > 0 ? <FearlessNames champions={banned} query={query} /> : null}
-      {open.length > 0 ? (
+      <div className="cn-fearless-lane-head">
+        <h3 className="cn-num cn-fearless-lane-title">
+          {role === null ? null : <RoleIcon role={role} size={16} />}
+          <span>{title}</span>
+        </h3>
+        {/* `other` holds first locks with no stored lane; nothing is ever open in it. */}
+        {role === null ? null : (
+          <p className="cn-num cn-fearless-lane-count">{fearlessLaneOpen(open.length)}</p>
+        )}
+      </div>
+      {open.length > 0 ? <FearlessNames champions={open} query={query} kind="open" /> : null}
+      {banned.length > 0 ? (
         // `open` is only ever driven by the find box: React writes the attribute when
         // `searching` flips and leaves a reader's own tap alone in between.
-        <details className="cn-fearless-open" open={searching}>
-          <summary className="cn-fearless-open-label">
-            <span>{FEARLESS_OPEN}</span>
-            <span className="cn-num cn-fearless-open-count">{open.length}</span>
+        <details className="cn-fearless-banned" open={searching}>
+          <summary className="cn-fearless-banned-label">
+            <span>{FEARLESS_BANNED_LABEL}</span>
+            <span className="cn-num cn-fearless-banned-count">{banned.length}</span>
           </summary>
-          <FearlessNames champions={open} query={query} open />
+          <FearlessNames champions={banned} query={query} kind="banned" />
         </details>
       ) : null}
     </div>
@@ -150,21 +159,24 @@ function FearlessLane({
 function FearlessNames({
   champions,
   query,
-  open = false,
+  kind,
 }: {
   champions: readonly FearlessChampion[];
   query: string;
-  open?: boolean;
+  kind: 'open' | 'banned';
 }) {
   return (
     <ul className="cn-fearless-list">
       {champions.map((champion) => {
         const exact = fearlessExact(champion.name, query);
-        const className = [open ? 'cn-fearless-open-chip' : '', exact ? 'cn-fearless-hit' : '']
+        const className = [
+          kind === 'open' ? 'cn-fearless-open-chip' : 'cn-fearless-banned-chip',
+          exact ? 'cn-fearless-hit' : '',
+        ]
           .filter((token) => token.length > 0)
           .join(' ');
         return (
-          <li key={champion.id} className={className.length > 0 ? className : undefined}>
+          <li key={champion.id} className={className}>
             <FearlessIcon src={fearlessIconUrl(champion)} />
             {champion.name}
           </li>

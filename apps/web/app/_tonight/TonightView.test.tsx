@@ -5,13 +5,14 @@ import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
 import type { BoardRow } from '@/lib/board/types';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
 import {
-  FEARLESS_OPEN,
+  FEARLESS_BANNED_LABEL,
+  FEARLESS_CARD_SENTENCE,
   FEARLESS_SEARCH,
   FEARLESS_SEARCH_EMPTY,
-  FEARLESS_SENTENCE,
   FEARLESS_TITLE,
   fearlessAvailable,
   fearlessBanned,
+  fearlessLaneOpen,
 } from '@/lib/fearless/copy';
 import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/lobbyStart';
 import { MYSTERY_EMPTY, MYSTERY_GUESS, MYSTERY_TITLE } from '@/lib/mystery/copy';
@@ -1297,10 +1298,10 @@ describe('fearless, the ban list', () => {
   it('is absent while the pool is empty', () => {
     draw(snapshot(null));
     expect(document.body.textContent).not.toContain(FEARLESS_TITLE);
-    expect(document.body.textContent).not.toContain(FEARLESS_SENTENCE);
+    expect(document.body.textContent).not.toContain(FEARLESS_CARD_SENTENCE);
   });
 
-  it('lists the champions and says to ban them next game', () => {
+  it('lists the champions under their lanes, with the card sentence and the ban count', () => {
     draw(
       snapshot(null, {
         fearless: {
@@ -1315,12 +1316,12 @@ describe('fearless, the ban list', () => {
     const card = document.querySelector('.cn-fearless');
     expect(card).not.toBeNull();
     expect(card?.textContent).toContain(FEARLESS_TITLE);
-    expect(card?.textContent).toContain(FEARLESS_SENTENCE);
+    expect(card?.textContent).toContain(FEARLESS_CARD_SENTENCE);
     expect(card?.textContent).toContain('Ahri');
     expect(card?.textContent).toContain('Jinx');
     expect(card?.textContent).toContain('mid');
     expect(card?.textContent).toContain('adc');
-    expect(card?.textContent).toContain('2 champions.');
+    expect(card?.textContent).toContain('2 banned.');
   });
 
   it('finds a name instantly and says when it is on the list', () => {
@@ -1345,7 +1346,7 @@ describe('fearless, the ban list', () => {
     expect(card?.textContent).toContain(FEARLESS_SEARCH_EMPTY);
   });
 
-  it('lists who is still open at the end of each lane, and says so when the name is exact', () => {
+  it('lists who is still open in each lane, and says so when the name is exact', () => {
     draw(
       snapshot(null, {
         fearless: {
@@ -1359,7 +1360,7 @@ describe('fearless, the ban list', () => {
     );
     const card = document.querySelector('.cn-fearless');
     const open = [...document.querySelectorAll('.cn-fearless-open-chip')].map((chip) => chip.textContent);
-    expect(card?.textContent).toContain(FEARLESS_OPEN);
+    expect(card?.textContent).toContain(FEARLESS_BANNED_LABEL);
     expect(open).toContain('Garen');
     expect(open).toContain('Annie');
     expect(open).not.toContain('Ahri');
@@ -1383,7 +1384,7 @@ describe('fearless, the ban list', () => {
   });
 });
 
-describe('fearless, sizing (2026-10-03)', () => {
+describe('fearless, open first (2026-10-03)', () => {
   const pool = {
     resetAt: FIXTURE_NIGHT_START,
     champions: [
@@ -1392,11 +1393,11 @@ describe('fearless, sizing (2026-10-03)', () => {
     ],
   };
 
-  it('puts the lanes in one grid, each with its role mark beside the word', () => {
+  it('stacks the lanes one per row, each headed by its word, role mark and open count', () => {
     draw(snapshot(null, { fearless: pool }));
-    const grid = document.querySelector('.cn-fearless .cn-fearless-lanes');
-    expect(grid).not.toBeNull();
-    const lanes = [...(grid?.querySelectorAll(':scope > .cn-fearless-lane') ?? [])];
+    const column = document.querySelector('.cn-fearless .cn-fearless-lanes');
+    expect(column).not.toBeNull();
+    const lanes = [...(column?.querySelectorAll(':scope > .cn-fearless-lane') ?? [])];
     expect(lanes.map((lane) => lane.querySelector('h3')?.textContent)).toEqual([
       'top',
       'jungle',
@@ -1405,35 +1406,47 @@ describe('fearless, sizing (2026-10-03)', () => {
       'support',
     ]);
     expect(lanes[2]?.querySelector('h3 svg')).toHaveAttribute('aria-hidden', 'true');
+    for (const lane of lanes) {
+      const openChips = lane.querySelectorAll('.cn-fearless-open-chip').length;
+      expect(lane.querySelector('.cn-fearless-lane-count')?.textContent).toBe(fearlessLaneOpen(openChips));
+    }
   });
 
-  it("folds each lane's still-open tail shut, with its count, until somebody types", () => {
+  it("shows the open champions first and folds each lane's bans shut until somebody types", () => {
     draw(snapshot(null, { fearless: pool }));
-    const tails = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-open')];
-    expect(tails).toHaveLength(5);
-    for (const tail of tails) {
-      expect(tail.open).toBe(false);
-      const count = Number(tail.querySelector('.cn-fearless-open-count')?.textContent);
-      expect(count).toBe(tail.querySelectorAll('.cn-fearless-open-chip').length);
-      expect(tail.querySelector('summary')?.textContent).toContain(FEARLESS_OPEN);
-    }
-    // The bans are never behind the fold.
+    // Open champions are the content: never behind a fold, and before the bans in the lane.
     const mid = document.querySelectorAll('.cn-fearless-lane')[2];
-    const ahri = [...(mid?.querySelectorAll('.cn-fearless-list li') ?? [])].find(
-      (chip) => chip.textContent === 'Ahri',
+    const annie = [...(mid?.querySelectorAll('.cn-fearless-open-chip') ?? [])].find(
+      (chip) => chip.textContent === 'Annie',
     );
-    expect(ahri?.closest('details')).toBeNull();
+    expect(annie).toBeDefined();
+    expect(annie?.closest('details')).toBeNull();
+    const fold = mid?.querySelector('details.cn-fearless-banned');
+    expect(
+      annie && fold && annie.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const folds = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-banned')];
+    // Ahri in mid, Jinx in adc: only lanes with a ban carry the fold.
+    expect(folds).toHaveLength(2);
+    for (const banned of folds) {
+      expect(banned.open).toBe(false);
+      const count = Number(banned.querySelector('.cn-fearless-banned-count')?.textContent);
+      expect(count).toBe(banned.querySelectorAll('.cn-fearless-banned-chip').length);
+      expect(banned.querySelector('summary')?.textContent).toContain(FEARLESS_BANNED_LABEL);
+    }
+    expect(fold?.textContent).toContain('Ahri');
 
     const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
-    fireEvent.change(box, { target: { value: 'gar' } });
-    const open = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-open')];
-    expect(open.length).toBeGreaterThan(0);
-    expect(open.every((tail) => tail.open)).toBe(true);
+    fireEvent.change(box, { target: { value: 'ahr' } });
+    const opened = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-banned')];
+    expect(opened.length).toBeGreaterThan(0);
+    expect(opened.every((banned) => banned.open)).toBe(true);
 
     fireEvent.change(box, { target: { value: '' } });
     expect(
-      [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-open')].every(
-        (tail) => !tail.open,
+      [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-banned')].every(
+        (banned) => !banned.open,
       ),
     ).toBe(true);
   });
@@ -1539,7 +1552,7 @@ describe('fearless champion icons (M11.1)', () => {
 
   it('leads a known banned chip with a decorative 24px icon; the name is the text', () => {
     drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
-    const chip = chipNamed('Annie', '.cn-fearless-list li:not(.cn-fearless-open-chip)');
+    const chip = chipNamed('Annie', '.cn-fearless-banned-chip');
     const img = chip.querySelector('img');
     expect(img).not.toBeNull();
     expect(img?.getAttribute('src')).toContain('/1.png');
@@ -1566,7 +1579,7 @@ describe('fearless champion icons (M11.1)', () => {
 
   it('drops an icon that fails to load and keeps the name', () => {
     drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
-    const selector = '.cn-fearless-list li:not(.cn-fearless-open-chip)';
+    const selector = '.cn-fearless-banned-chip';
     const img = chipNamed('Annie', selector).querySelector('img');
     expect(img).not.toBeNull();
     fireEvent.error(img as HTMLImageElement);
