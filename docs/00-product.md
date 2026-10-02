@@ -13,6 +13,11 @@ Ten to twenty friends, rotating roster, ranks from Bronze to Master, some people
 comms, WhatsApp for "are we playing tonight". No organizer wants a job. One or two people are willing to run a
 small desktop app.
 
+It was built for one such group and since 2026-10-03 (M13) any other group can have their own: somebody signs
+in, names it, and sends one link. Every group is its own world — its own ratings, board, fearless list, daily
+guess, Discord channel and admins — and nothing in one leaks into another. The rest of this document describes
+one group's night, because that is still what every group's night is.
+
 ## The problem
 
 The ten to twenty minutes between "who's in?" and "lobby's up" is where arguments live. Whoever picks teams is
@@ -23,6 +28,9 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 1. **The bot is the referee.** No human picks teams. Ever.
 2. **Zero input.** Nobody checks in, nobody reports results. The client already knows who is in the lobby and
    who won; the companion reads it. Any manual step will be skipped by someone, and skipped steps corrupt ratings.
+   The one deliberate exception is **when** to balance (2026-10-03): an admin taps Roll teams once the right ten
+   are in. A skipped roll costs nothing but a wait — no teams, no game, nothing to corrupt — and who plays with
+   whom is still the bot's call, never the admin's.
 3. **Fair by numbers, but explained.** Every split posts its predicted win chance, the rating gap, whether anyone
    is off-role, and the next-best alternative. "The bot is rigged" needs a number to argue with.
 4. **Discord is a display, not a form.** Teams, results, and leaderboards appear where people already look, and
@@ -38,8 +46,12 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    everyone who has been around lately (M4.2). Opening one by hand in the client still works exactly as it
    always did. Either way, somebody in that lobby is running the companion, because that is what the rest of the
    night reads.
-3. When ten are in and stable, the companion sends the roster. The server balances and posts Blue and Red with
-   roles, win chance, and a one-line why.
+3. The companion keeps the roster current as people join, leave and step into the spectator slot. When the
+   right ten are in, an admin taps **Roll teams** on the tonight page; the server balances exactly the roster
+   that admin was looking at and posts Blue and Red with roles, win chance, and a one-line why. Nothing
+   balances by itself any more (2026-10-03): the automatic version fired the moment ten were present and still,
+   and on a real night that was too often the wrong ten. If somebody leaves after the roll, the teams come down
+   and the next game needs another tap.
 4. Players switch to their side (companion can do it for them, see M4). Game starts.
 5. At end of game the companion captures the full stats block. Ratings move. Leaderboard updates. What each
    person plays is counted too, so their main and backup follow the games they actually play. The ten
@@ -60,8 +72,8 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 
 ## The things a person can change
 
-Everything else happens without anybody touching it. These exist because the docs already accepted them,
-and each is one tap:
+Everything else happens without anybody touching it. These exist because the docs accepted them (Roll teams
+since 2026-10-03), and each is one tap:
 
 - **Start a lobby** (M4.2, every linked player since M4.13). The first tap of the night, and the only one that is optional:
   whoever has the companion running can open a custom from their client the way they always have. Pressing the
@@ -76,11 +88,16 @@ and each is one tap:
   and nobody has to find out who the admins are to get the night started. A visitor who is not signed in is
   offered the sign-in instead; whoever the link was forwarded to gets neither. The group has not yet started a
   night this way in front of anybody, so the first real press is still ahead of us.
+- **Roll teams** (admins, 2026-10-03). The lobby has the right ten in it and an admin taps once; the server
+  balances that roster and posts the teams. The tap names the roster the admin saw, so if somebody joined or
+  left in the second before it, nothing is rolled and the page shows the new roster to tap again. Tapping twice
+  posts once. With fewer than ten there is nothing to roll. Somebody leaving after the roll takes the teams
+  down, and the next game is another tap.
 - **Reroll** (M3.2, admins). Teams are posted and somebody wants a different night. One tap promotes the
   second split, one more promotes the third, and then it stops: three splits come out of the balancer and
   there is no fourth. A reroll posts a new message in Discord saying which reroll it is; it never edits the
   old one, never changes who is playing, and never picks at random. When the list runs out, the way to get
-  different teams is to change who is in the lobby, which rebalances by itself.
+  different teams is to change who is in the lobby and roll again.
 - **Role for tonight** (M3.6). A friend taps a role on the tonight page and the balancer treats it as their
   main for the rest of the night, with their usual main as the backup. Nobody sets their roles anywhere else:
   their main and backup are read from what they actually play (M5.16, M5.17), so this tap is also how a person
@@ -93,6 +110,33 @@ and each is one tap:
   champs, Discord gets the list, nobody types a name. Clearing it is the one tap, on `/admin`, because
   "the pool starts over" is a night-level call the same way reroll is. The companion never auto-bans;
   Riot's line is that we do not touch champion select. Humans ban from the list.
+
+## More than one group
+
+Decided 2026-10-03 (M13). None of this adds a step to anybody's night; it adds two one-time steps to the
+start of a group's life.
+
+- **Starting a group.** Anyone signed in types a name and a link (`/g/<link>`) once. They are the group's
+  first admin. The link never changes, because people paste it.
+- **Joining.** The group's admins share one invite link. Somebody the site already knows taps `Join`.
+  Somebody it does not gets a six-letter code to type into Kustom once, so the site learns which League
+  account is theirs from the client itself and never from typing a name. And somebody who never opens the
+  link at all still becomes part of the group by playing a game with it, exactly as a new face in the lobby
+  always has: **playing is joining.** The link is how a person gets the web taps (Start a lobby, Role for
+  tonight) and how a brand-new group gets its first people before its first game.
+- **One person, one identity, one rating per group.** Your League account is you everywhere. Your rating is
+  not: a group is a pool of people, and how you do against these friends says nothing about how you do
+  against those. A person new to a second group starts there at 1200 like anybody else, and their number in
+  the first group does not move. Your main and backup roles are about what you play, so they follow you.
+- **A game belongs to one group.** If two groups' hosts are in the same custom, the group whose companion saw
+  the lobby first gets it; the other companion does nothing. Nobody's game is counted twice.
+- **Kustom asks which group only when there is a choice.** One group: nothing changes. More than one: the
+  panel says `Posting tonight to:` (or `Tonight's group:` when it is not hosting) with the last one picked.
+- **Admins are per group.** An admin of one group has no view of another. The person who runs the deployment
+  can look at any group to help it and change nothing.
+- **Every group's pages are under its own link**, public by link the way the original group's always were.
+  There is no list of groups anywhere. The original group is `/g/customs`, and every link it ever pasted
+  still lands where it used to.
 
 ## Being filled
 
@@ -147,8 +191,8 @@ teams instead, and then one more after that. There is no fourth.
 
 ## The numbers on the screen
 
-The model keeps one rating per player, `{ mu, sigma }` — `mu` is what it thinks you are, `sigma` is how sure
-it is. It is the only rating that forms teams, and it is never reset. (The two week windows on the
+The model keeps one rating per player in each group, `{ mu, sigma }` — `mu` is what it thinks you are,
+`sigma` is how sure it is. (A person in two groups has two, and they never touch; see "More than one group".) It is the only rating that forms teams, and it is never reset. (The two week windows on the
 leaderboard are read through a second, throwaway number that starts over every Sunday; that is further down,
 and it touches nothing here.) Two numbers come out of the real one, and they have fixed names everywhere in
 the product:
@@ -279,6 +323,7 @@ See `02-milestones.md` for the build order. In product terms:
 | Asking the database whether coming back after a break really breaks the rating | M9.1 |
 | Widening the model's doubt about a player who has been away | M9.2, not scoped: it waits on M9.1's numbers |
 | Tray app + optional overlay in one Kustom.exe (Host / Overlay modes) | M6 + M12 |
+| More than one group: start one, invite with a link, ratings per group, `/g/<link>` pages | M13 |
 
 Backfill (M5) reads the client's own match history, and M0 confirmed it can: customs are in there
 (17 of 21 games in the first capture). Two details shape it. The history *list* names only the person whose
@@ -288,8 +333,8 @@ history of someone who runs the companion".
 
 ## The week, the month, and all time
 
-Ratings never reset. There is one number per player, folded game by game from the first custom this group ever
-captured to the one they played last night, and nothing a person or an admin can press starts it over.
+Ratings never reset. There is one number per player per group, folded game by game from the first custom this
+group ever captured to the one they played last night, and nothing a person or an admin can press starts it over.
 
 What used to be a season is now a **window the same board is read through**. The leaderboard opens on **This
 week** — Sunday 06:00 to Sunday 06:00, the same 06:00 boundary that decides which night a game belongs to,
@@ -347,6 +392,9 @@ that makes a second one.
 - WhatsApp bot. There is no legitimate group-bot API. The tonight page link is the WhatsApp integration.
 - Slack. Not until someone asks twice. It would be a single webhook.
 - Anything touching champion select or gameplay. The fearless list is for humans to ban; the companion never auto-bans.
+- Counting one game for two groups, moving a game between groups, merging groups, renaming a group's link, a
+  public list of groups, and a group in another timezone (every group's night and week run on the same clock
+  for now). M13 reserved all of these on 2026-10-03.
 
 ## Success
 

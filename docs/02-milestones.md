@@ -19,6 +19,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M11 The night as a broadcast | in progress | Opened 2026-09-23 from the user, who asked to start three of the lead's proposals plus champion icons on the fearless card and nowhere else. **M11.1 landed 2026-09-23**. **M11.3 landed 2026-09-23**: reusable `ResultPoster`, underdog line, `webAwardLine` (Discord markdown escape stays off the page); reviewed clean. **M11.2 landed 2026-09-23**. **M11.4 landed 2026-09-23**: `/og/*` cards, `/g/[gameId]`, Discord + tape links; reviewed clean after the decision row. The four tasks are closed. Product alt strings and a real-data unfurl are leftovers, not a fifth task. **M11.3** was: the underdog line off the stored `blue_win_prob` and the `MVP · ACE` line Discord already posts, reusable on a page of its own. **M11.2** the night tape: tonight's earlier finished and dropped games under the primary block, oldest first, a read of stored rows. **M11.4** share cards: 1200×630 unfurl images for `/`, a new `/g/[gameId]` (no single-game URL exists today) and `/p/[puuid]`, with no Share button. Order M11.1 → M11.3 → M11.2 → M11.4, because the last three all edit the tonight view and loader. No rating, balancer, ingest or schema change in any of them. Icons appear on the fearless card only — not `/fun`, `/games`, `/p`, Discord, share cards or the poster. |
 | M12 Overlay client | in progress | Folded into M6 one-app (2026-09-23): Overlay mode on `Kustom.exe`, not a second product. `GET /api/overlay` stays. Separate `KustomOverlay.exe` retired as a product. |
 | M6 Tray app and polish | in progress | Un-deferred 2026-09-23: one Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes, tray, Floodlit UI. M6.1 absorbs the M12 panel. |
+| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product) done. Next: **M13.2** schema and the one backfill migration (`0018`, slug `customs`, temporary defaults so nothing moves). Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -8605,6 +8606,614 @@ One Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes. M
 - [ ] **M6.2** Code signing or a clear "unsigned, built from this repo" note on the download page.
 - [ ] **M6.3** Post-patch checklist automation: `smoke` runs on companion start after a client version change and reports shape diffs to the admin.
 
+## M13 More than one group (4 to 6 days, needs M11.4 and M6.1's config shape)
+
+Settled with the user 2026-10-03 (lead's design chat, product scoped it the same day; decision rows 2026-10-03).
+Kustom stops assuming one friend group. A **group** is its own world: its own lobbies, games, ratings,
+fearless list, daily guess, Discord channel and admins. A **person** is still one `players` row keyed by
+PUUID, whichever groups they are in, and that table does not change.
+
+The scene does not change for anybody already in it. The group that exists today wakes up the morning after
+M13.2 with every number where it was, its old links still working, and nobody re-installing or re-pasting
+anything. A new group is somebody signing in and typing a name once. That is the only new typing in the
+product, and it happens once per group, never in a night.
+
+**Hard rules this milestone keeps on purpose.** Players stay keyed by PUUID: membership points at
+`players.id`, never a Riot ID or a Discord id. **Ingest stays globally idempotent:** `games.lcu_game_id` and
+`lobbies.lcu_party_id` keep their global unique, so a game belongs to exactly one group and a second companion
+in the same game is a no-op even when it is posting for a different group — whichever group's companion
+posted the lobby first owns the lobby and the game that comes out of it. Cross-posting one game to two groups
+is out of scope (decision row 2026-10-03).
+
+**What stays global.** `players` (identity, rank, inferred `main_role` / `secondary_role`, stored seed),
+`seasons` (one row, never printed), `CUSTOMS_NIGHT_TZ` and the Sunday-06:00 week. Roles are about what a
+person plays, not which group they played it with. A second group in another timezone is a later decision,
+not this milestone.
+
+**Reserved for v1, out of every task below:** cross-posting a game to two groups; moving a game between
+groups; merging groups; renaming a slug; a public directory or search of groups; deleting a group;
+removing a member; per-group timezone or week start; billing or quotas.
+
+Order: **M13.2 → M13.3 → M13.4 → M13.5 → M13.6**, the server, one at a time, all `platform-engineer`. M13.7
+(design) runs beside any of them. **M13.8** (companion) after M13.5 and M13.7. **M13.9** (the `/g/<slug>`
+shell and tonight) after M13.4 and M13.7. **M13.10, M13.11, M13.12** after M13.9 and can run beside each other
+in worktrees (separate pages, shared nav already done by M13.9). **M13.13** (create and join pages) after
+M13.5 and M13.9. **M13.14** (group admin and the operator's view) last, after M13.6 and M13.9.
+
+Why the lead's order grew two tasks at the front: M13.2 adds the columns with a temporary default so the app
+keeps running unchanged; M13.3 and M13.4 are what make a second group mean anything — until every read and
+write is filtered by group, a second group's games would land in the first group's ratings. Creation (M13.5)
+before scoping would let the first stranger who signs up corrupt the original group's board.
+
+- [x] **M13.1** Product: scope the milestone, update `00-product.md`, decision rows. *(owner: `product`;
+  landed 2026-10-03)*
+
+- [ ] **M13.2** Groups schema and the one backfill migration. *(owner: `platform-engineer`; first, everything
+  depends on it)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### What a player sees
+    >
+    > Nothing. That is the acceptance. Every page, post and number is identical the day after this lands.
+    >
+    > ### Shape (migration `0018_groups.sql`)
+    >
+    > - `groups (id uuid pk, slug text unique not null, name text not null, created_by uuid null references
+    >   auth.users(id) on delete set null, created_at)`. `slug` check: `^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$`
+    >   (3 to 32 characters) and not one of `new`, `join`, `admin`, `api`, `og`, `auth`, `ops`, `g`. The
+    >   32-character cap is load-bearing: a games uuid is 36, so a slug can never look like the `/g/<uuid>`
+    >   links M11.4 already put in Discord (M13.9 redirects those).
+    > - The original group: fixed id `00000000-0000-0000-0000-000000000001`, slug **`customs`**, name
+    >   **`Customs Night`**, `created_by` null. (The repo's codename is this group's own name for the night;
+    >   the slug is one literal in this migration and the user may change it **before** it is applied.)
+    > - `group_memberships (group_id, player_id, role text check in ('member','admin'), created_at,
+    >   backfill_requested_at, backfill_approved_at, primary key (group_id, player_id))`. Role is the
+    >   discriminated union, not a boolean. The two backfill columns move M5.1's per-player approval to
+    >   per-group-per-player, because approving somebody's history is a group admin's call about their group.
+    > - `group_id uuid not null references groups(id)` on `ratings`, `lobbies`, `games`, `game_players`,
+    >   `companion_tokens`, `companion_commands`, `fearless_state`, `daily_mysteries`, `window_posts`,
+    >   `discord_config`. Each gets a **temporary column default of the original group's id**, so every
+    >   insert the app does today keeps working without passing it. M13.4's migration drops those defaults.
+    >   `lobby_members`, `splits`, `daily_mystery_clues/sessions/attempts` reach their group through their
+    >   parent and get no column.
+    > - Keys, **added here, old ones kept until the code stops using them**: `ratings` unique `(group_id,
+    >   player_id, season_id)` — **one rating per person per group**; `fearless_state` unique `group_id` (one
+    >   row per group, inserted when the group is); `daily_mysteries` unique `(group_id, day)` and `(group_id,
+    >   kind, challenge_number)` (each group counts its own `#41`); `window_posts` unique `(group_id, kind,
+    >   window_start)`; `discord_config` unique `group_id` (two groups may share a Discord server with
+    >   different channels). Today's `on conflict` targets — `(player_id, season_id)`, `id = 1`, `day`,
+    >   `(kind, window_start)`, `guild_id` — stay valid because only one group exists, which is what lets this
+    >   land with no app change. **M13.3's migration `0019` drops the old `ratings` and `fearless_state` keys**
+    >   with the code that switches to the new ones; **M13.4's `0020` drops the rest** and the temporary
+    >   defaults.
+    > - `game_players.group_id` must equal its game's: a composite foreign key `(game_id, group_id) →
+    >   games(id, group_id)`, not a trigger.
+    > - **Unchanged on purpose:** `games.lcu_game_id` and `lobbies.lcu_party_id` stay globally unique.
+    >   `players` gets no column and loses none; `players.is_admin` and the two `players.backfill_*` columns
+    >   are copied (below) and left in place, unread from M13.4 on, dropped by a later cleanup migration that
+    >   is not this milestone.
+    > - Backfill, in the same migration: every existing row in the ten tables gets the original group's id.
+    >   Every player who appears in `lobby_members` or `game_players` gets a `member` row in the original
+    >   group; every `players.is_admin = true` gets `admin`; `backfill_requested_at` / `backfill_approved_at`
+    >   are copied onto their membership. Then the columns go `not null`.
+    > - RLS: `groups` public read through a `groups_public` view of `id, slug, name` (`created_by` is an auth
+    >   id, not a public fact). `group_memberships` service-role only, plus `group_members_public (group_id,
+    >   player_id)` — who is in a group is the leaderboard, who is its admin is not. Public-read tables stay
+    >   public-read; Realtime publications unchanged (filtering by group is M13.9's).
+    > - `pnpm db:types` regenerated; zod: `groupRoleSchema = z.enum(['member','admin'])`, `groupSlugSchema`
+    >   with the same regex and reserved list as the check, in `packages/db`.
+    >
+    > ### Edges
+    >
+    > - A player who was only ever in a lobby, never a game: still a member (they were in the group's night).
+    > - A player row with no lobby and no game (minted by `mint-token` and never played): member if they hold
+    >   a companion token, otherwise no membership; the lazy rule in M13.3 picks them up on first sight.
+    > - `BOOTSTRAP_ADMIN_PUUID` keeps working: `bootstrap_admin(puuid)` now also upserts an `admin` membership
+    >   in the original group (new function body in this migration, not an edit to the old one).
+    >
+    > ### Acceptance
+    >
+    > 1. `pnpm db:reset` replays 0001 to 0018 clean; `pnpm -r test` passes **with no test changed** (the
+    >    temporary defaults are why).
+    > 2. Integration test: after the migration, every row of the ten tables has the original group's id, and
+    >    the membership count equals the distinct players across `lobby_members ∪ game_players` (plus token
+    >    holders); every former `is_admin` is `admin`.
+    > 3. Integration test: a `game_players` row whose `group_id` differs from its game's is rejected; a second
+    >    `games` row with an existing `lcu_game_id` in a **different** group is rejected (global dedupe kept).
+    >    (Two `ratings` rows for one player is M13.3's check, after `0019` drops the old key.)
+    > 4. `groupSlugSchema` and the SQL check agree on a shared table of cases: `customs`, `abc`, a 32-char
+    >    slug pass; `ab`, a 33-char slug, `-abc`, `Abc`, `new`, and a uuid fail (test).
+    > 5. Before the hosted push the engineer writes down, from the hosted project, the row count of each of
+    >    the ten tables and `sum(mu)`, `sum(sigma)` over `ratings`; after the push the same numbers match
+    >    exactly, pasted into the task report. **No `rebuild-ratings` run** — the history is already one
+    >    group's, so no number has a reason to move.
+    > 6. `pnpm -r typecheck`, `pnpm lint`, `pnpm --filter web build` pass; status table updated.
+    >
+    > ### Out of scope
+    >
+    > Any app code reading `group_id` (M13.3, M13.4). Invites and pairing (M13.5's migration). Dropping the
+    > old `players` columns.
+
+- [ ] **M13.3** Every companion-facing route and the ingest fold work inside one group. *(owner:
+  `platform-engineer`; after M13.2)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### Where the group comes from
+    >
+    > **The companion token.** `companion_tokens.group_id` (M13.2) is the group that token posts to. Token and
+    > PUUID linking is unchanged: one token, one player, and now one group. A host in two groups holds two
+    > tokens (M13.8 stores both). Kustom 0.2.x already on people's PCs keeps working untouched, because its
+    > token now simply resolves to the original group. `lib/companionAuth.ts` returns `{ player, groupId }`
+    > and every companion handler takes the group from there, never from the body.
+    >
+    > A token is only good while its player is a member of its group. A token whose membership is gone is 403.
+    >
+    > ### What follows the group
+    >
+    > - **Lobbies:** a new lobby is created in the token's group. An existing `lcu_party_id` keeps its group:
+    >   a second companion from another group posting the same party is a no-op that answers like today's
+    >   duplicate post. That second companion's roster post never moves the lobby.
+    > - **Lazy membership:** every PUUID in a lobby roster or an end-of-game block posted to group G gets a
+    >   `member` row in G if it has none (`on conflict do nothing`; never touches `role`). This is what keeps
+    >   zero input true: the friend who has never heard of invites becomes part of the group by playing in it,
+    >   exactly the way a `players` row is created today.
+    > - **Games:** a game takes its lobby's group. A game with no lobby takes the token's group.
+    > - **Ratings:** the live fold (`lib/ingest/rating.ts`, `fold.ts`) reads and writes `ratings` where
+    >   `group_id = G`. A player with no row in G starts at the stored seed (`players.seed_mu/seed_sigma`, the
+    >   same 1200 everyone has had since 2026-09-16), so a person new to a second group starts there at 1200
+    >   and their first group's number is untouched.
+    > - **Balance:** the balancer is fed G's ratings, and `lastSplit` is looked up among G's lobbies only.
+    > - **Fearless:** the pool is G's games after G's `fearless_state.reset_at`. A new group's row is inserted
+    >   with the group (M13.5).
+    > - **Discord:** teams, result and fearless posts go to G's `discord_config`. A group with no webhook
+    >   configured posts nothing and logs once, as today with no webhook.
+    > - **Start a lobby (M4.2) and commands:** the target is the most recently seen **token of group G**
+    >   (`companion_tokens.last_seen_at` on a token whose `group_id = G`), not the most recently seen person.
+    >   `companion_commands.group_id` is the target token's group. The invite list is people around in G's
+    >   games this week.
+    > - **Backfill (M5.1):** the scan answers `approved` from the token's membership row
+    >   (`group_memberships.backfill_approved_at`), not `players`. A backfilled game is stored in the token's
+    >   group **only if at least six of its ten players are already members of that group**; otherwise it is
+    >   skipped, counted in the response as `skippedNotThisGroup`, and offered again by the next daily scan
+    >   (so a new group's history comes in as its members join). An `lcu_game_id` already stored anywhere is
+    >   the usual no-op.
+    > - **Overlay (no token):** `GET /api/overlay?puuid=&group=<groupId>` answers only when that PUUID is a
+    >   member of that group; otherwise the same empty answer an unknown PUUID gets today. New `GET
+    >   /api/overlay/groups?puuid=` returns `[{ id, slug, name }]` of that PUUID's memberships, oldest first,
+    >   zod out. (Anyone who knows a PUUID can learn its groups' names; PUUIDs are already in `/p/<puuid>`
+    >   URLs, so this reveals nothing a link does not.) `group` missing: answered for the PUUID's only group,
+    >   or empty when they have several — the 0.2.x panel then shows nothing rather than the wrong group.
+    > - `rebuild-ratings` folds **each group independently**, every group by default, `--group <slug>` for
+    >   one. Its live-lobby / 15-minute refusal is per group. Re-running it on the single existing group must
+    >   produce byte-identical `ratings` (the M13.2 numbers).
+    > - `mint-token <puuid> [label]` gains `--group <slug>` (default `customs`), adds a `member` row if there is
+    >   none, and mints a token scoped to that group. CLAUDE.md's command line updated per the repo rule.
+    > - Migration `0019_group_keys_companion.sql`: drops the old `ratings (player_id, season_id)` key and
+    >   `fearless_state`'s `id = 1` singleton (M13.2 added the per-group replacements), in the same commit as
+    >   the code that upserts on the new ones.
+    >
+    > ### Acceptance
+    >
+    > 1. Two groups A and B in an integration test, one player P in both. A game posted with A's token moves
+    >    P's A rating and leaves P's B rating byte-identical; a game posted with B's token the other way round
+    >    (test).
+    > 2. A lobby posted by A's token then the same `lcu_party_id` posted by B's token: one lobby, group A, and
+    >    B's post is a no-op (test). Same for an end-of-game block with the same `lcu_game_id` (test).
+    > 3. A roster with a PUUID that has never been seen creates the player **and** a `member` row in the
+    >    posting group; a PUUID already `admin` stays `admin` (test).
+    > 4. Start a lobby in B never targets a token of A, even one seen more recently (test).
+    > 5. A backfilled game with five members of the token's group is skipped and counted; with six it is
+    >    stored in that group (test). Approval read from the membership, not `players` (test).
+    > 6. Overlay: a PUUID asking for a group it is not in gets the empty answer; `/api/overlay/groups` lists
+    >    exactly its memberships (test). Fearless and Discord posts read the posting group's rows (tests on
+    >    the existing suites with a second group added).
+    > 7. A token whose membership row is deleted gets 403 (test). Every existing companion test passes.
+    > 8. `rebuild-ratings --dry-run` on the hosted project after deploy reports no change for `customs`.
+    >    `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > Session and admin routes, crons (M13.4). The companion storing more than one token (M13.8). Any page.
+
+- [ ] **M13.4** Session routes, admin routes, crons and scripts work inside one group; group admin replaces
+  `players.is_admin`; drop the temporary defaults. *(owner: `platform-engineer`; after M13.3)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### Where the group comes from
+    >
+    > A signed-in person can be in several groups, so a session alone does not name one. Every `/api/me/*`
+    > and `/api/admin/*` request carries `groupId` (body for writes, query for reads, in each route's zod
+    > schema) and the server checks it against `group_memberships` for the session's player. The pages send
+    > the group they are showing. Public reads (`/api/daily-mystery/*`) take `group` the same way and need no
+    > membership, like the pages they serve.
+    >
+    > ### Group admin
+    >
+    > `lib/adminAuth.ts` / `adminRoute.ts` / `adminPage.ts`: an admin route passes when the session's player
+    > has `role = 'admin'` in **the request's group**. Admin of A asking about B is 403, with the same
+    > reason-string style as today. `players.is_admin` is no longer read anywhere (grep proves it).
+    > `/api/me/lobbies/start` requires membership in the group (M4.13's "every linked player", now "every
+    > linked member of this group"). `/api/me/role-tonight` writes to the group's live lobby. `/api/me/link`
+    > (M3.6's pick-yourself) claims among the group's tonight lobby, unchanged otherwise.
+    >
+    > New, admin-only: `POST /api/admin/members/role { groupId, playerId, role }` makes a member an admin or
+    > back. **A group can never be left with no admin**: demoting the last one is 409 `This group needs at
+    > least one admin.` (Creation and an unmanned group need this; there is no other way to hand a group on.)
+    >
+    > `POST /api/admin/tokens` mints for a member of the request's group, scoped to it. `discord-config`,
+    > `fearless/reset`, `players`, `lobbies/[id]/reroll` all act on the request's group and refuse a lobby or
+    > player outside it (404, not 403: an admin of A does not learn B's lobby ids exist).
+    >
+    > ### Crons
+    >
+    > `cron/leaderboard`, `cron/window` and `cron/mystery` loop over groups. Each group is independent: one
+    > group's webhook failing does not stop the next, and `window_posts` claims per `(group_id, kind,
+    > window_start)`. A group with no webhook gets no post and no claim row. Daily mystery picks one challenge
+    > per group per day from that group's games; a group with too few games for a mystery gets none that day,
+    > the way the original group did in its first week. `cron/sweep` stays global (lobby status has no group
+    > logic).
+    >
+    > ### Migration `0020_group_keys_web_and_defaults_off.sql`
+    >
+    > Drops the old `daily_mysteries (day)` / `(kind, challenge_number)`, `window_posts (kind, window_start)`
+    > and `discord_config (guild_id)` keys, and the ten temporary defaults M13.2 added. From here an insert
+    > that forgets `group_id` fails loudly. It lands in this task because this is the last writer that did not
+    > pass a group; the engineer greps every insert into the ten tables to prove it.
+    >
+    > ### Acceptance
+    >
+    > 1. Admin of A: every `/api/admin/*` route with `groupId = B` is 403; with a B lobby id under `groupId = A`
+    >    is 404 (tests). A member of A who is not admin is 403 on every admin route (test).
+    > 2. Demoting the last admin is 409 with the sentence; with two admins it succeeds (test).
+    > 3. `grep -rn "is_admin" apps/web --include=*.ts` finds no reader outside migrations and tests asserting
+    >    it is unread.
+    > 4. Two groups with webhooks: the window cron posts each once; a failing webhook for A still posts B and
+    >    leaves A's claim retryable (test). A group with no webhook gets no `window_posts` row (test).
+    > 5. Daily mystery: two groups get two challenges on the same day, each numbering from its own `#1`, each
+    >    drawn only from its own games (test).
+    > 6. After `0020`, an insert into `games` without `group_id` fails (integration test).
+    > 7. `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > Pages (they keep passing the original group's id until M13.9 to M13.14 move them). Super-admin (M13.6).
+    > Creating groups (M13.5).
+
+- [ ] **M13.5** Creating a group, the invite link, and pairing a PUUID. *(owner: `platform-engineer`; after
+  M13.4)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### What a person does
+    >
+    > **Create.** Anyone signed in (Discord, as today) types a name and a link, once. The group exists, its
+    > `fearless_state` row exists, and they are its first admin — a group admin, nothing more.
+    >
+    > **Invite.** The group has one invite link, `/join/<code>`, that its admins share wherever they already
+    > talk. Opening it signed in does one of two things:
+    >
+    > - The person is already linked (their Discord account is on a `players` row — they play in another
+    >   group, or they picked themselves in this one): one tap, `Join <Group>`, and they are a member.
+    > - They are not linked yet: the page shows a six-character **pairing code** and says to type it into
+    >   Kustom. Kustom reads who is signed into League on that PC (it already does, for the panel) and sends
+    >   the code with that PUUID. The server links the Discord account to that PUUID, adds the membership, and
+    >   the page notices. This is the only way a brand-new person can tell the site who they are in League
+    >   without a lobby to pick themselves out of; the PUUID always comes from the client, never typed.
+    >
+    > **The creator** goes through the same pairing if they are not linked, and their membership is `admin`
+    > because the group's `created_by` is them.
+    >
+    > Joining does **not** mint a companion token. Host tokens stay something an admin mints for the one or
+    > two people who host (decision 2026-09-23); in a new group the creator is admin and mints their own.
+    >
+    > ### Shape (migration `0021_invites_and_pairing.sql`)
+    >
+    > - `group_invites (group_id pk, code text unique not null, rotated_at, rotated_by)`: one live code per
+    >   group, 22 random url-safe characters, stored as-is (it is meant to be pasted into a group chat; an admin
+    >   must be able to see it again), service-role only. Rotating replaces the code; the old link stops.
+    > - `pairing_codes (code_hash pk, group_id, auth_user_id, expires_at, used_at)`: six characters from
+    >   `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no `0 O 1 I`), stored hashed like a token, **15 minutes, single
+    >   use**, service-role only. A new code for the same session and group replaces the old one.
+    > - `POST /api/groups { name, slug }` (session). Name 1 to 40 characters after trim; slug per
+    >   `groupSlugSchema`. Inserts the group, its `fearless_state` row, its invite, and an `admin` membership
+    >   when the session already resolves to a player. 409 `That link is taken.` on a duplicate slug.
+    > - `GET /api/groups/mine` (session): `[{ id, slug, name, role }]`.
+    > - `POST /api/groups/join { code }` (session, linked): adds `member` (or keeps `admin`); 404 on a dead
+    >   code.
+    > - `POST /api/me/pairing { groupId | inviteCode }` (session): returns `{ code, expiresAt }`. Allowed for
+    >   the group's creator or a holder of the live invite code.
+    > - `POST /api/companion/pair { code, puuid }` (**no token**, the one companion route without one): rate
+    >   limited per IP (10 a minute); on a live code it upserts the `players` row for that PUUID, sets
+    >   `players.discord_id` from the code's session, adds the membership (`admin` if the session created the
+    >   group, else `member`), marks the code used, and answers `{ group: { id, slug, name } }`.
+    > - `GET /api/me/pairing/status?code=` lets the page see the code was used (poll every 3 s, no Realtime
+    >   needed).
+    > - `groups.created_by` is the auth user id; the admin path for an unlinked creator is the pairing above.
+    >
+    > ### Edges
+    >
+    > - **Discord already linked to a different PUUID** (pairing from a second League account): refused,
+    >   `This Discord account is already linked to <name>.` Never re-linked, never two PUUIDs for one Discord.
+    > - **PUUID already linked to a different Discord:** refused, `That League account is already linked to
+    >   someone else.` (M3.6's never-steal rule.)
+    > - **PUUID already a member**: the link and the session are attached, membership unchanged, success.
+    > - **Expired or used code:** 410, `That code ran out. Get a new one from the page.`
+    > - **Slug reserved, too short, uppercase:** 400 with `Use 3 to 32 lowercase letters, numbers or dashes.`
+    >   The page lowercases as you type; the server never silently rewrites.
+    > - **Signed out on `/join/<code>`:** the page offers sign-in and comes back to the same link after.
+    >
+    > ### Acceptance
+    >
+    > 1. Create with an unused slug: group, `fearless_state`, invite exist; a linked creator is `admin`
+    >    (test). Duplicate slug 409 with the sentence (test).
+    > 2. Unlinked creator: pairing code → `companion/pair` with a PUUID → that PUUID is the creator's player
+    >    and `admin` of the group (test).
+    > 3. Linked visitor + live invite → `member`; rotated invite → 404 (test).
+    > 4. Pairing refusals: the two "already linked" cases, expired, used — each with its exact sentence
+    >    (tests). An 11th pair attempt in a minute from one IP is 429 (test).
+    > 5. No route here creates a `companion_tokens` row (test).
+    > 6. Every new route has zod request and response schemas in `packages/db`. `pnpm -r typecheck`,
+    >    `pnpm -r test`, `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > Pages (M13.13, M13.14). The Kustom side of pairing (M13.8). Email invites, per-person invites, invite
+    > expiry. Group renames.
+
+- [ ] **M13.6** The operator: super-admin as an auth identity, with a read-only view across groups.
+  *(owner: `platform-engineer`; after M13.5)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### What it is
+    >
+    > The person who runs the deployment needs to see any group to help it. That is not "admin of every
+    > group", and it must not be data a group can see or a bug can grant. So it is **an env var of Supabase
+    > auth user ids**, `SUPER_ADMIN_USER_IDS` (comma-separated `auth.users.id`), checked server-side after
+    > `auth.getUser()` — not a `players` row, not a membership, not a table. Changing it is a deploy.
+    > `.env.example` lists it.
+    >
+    > ### What it can do
+    >
+    > **Read.** Every `/api/admin/*` **GET** and every admin page read passes for a super-admin in any group.
+    > New `GET /api/ops/groups`: every group with slug, name, created at, member count, admin count, last game
+    > at, whether a webhook is set. **No writes**: every admin POST stays group-admin only, and a super-admin
+    > who is also an admin of some group has exactly that group's write powers. Support that needs a write
+    > uses the scripts with the service role, as today.
+    >
+    > ### Acceptance
+    >
+    > 1. A session whose user id is in `SUPER_ADMIN_USER_IDS` and in no group reads B's admin GETs and
+    >    `/api/ops/groups` (test); every admin POST is 403 for it (test).
+    > 2. The env var empty or unset: `/api/ops/groups` is 403 for everyone (test).
+    > 3. No migration, no column, no row anywhere names the super-admin (grep).
+    > 4. `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > Impersonation. Super-admin writes. The `/ops` page (M13.14).
+
+- [ ] **M13.7** Design pass: the group name in the shell, the create and join pages, the Kustom picker and the
+  pairing screen. *(owner: `designer`; beside M13.2 to M13.6)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > In `05-design.md`, Floodlit, phone first: where the group's name sits in the site shell (it is now on
+    > every page and the `KUSTOM` wordmark is the product, not the group); `/new` (two fields, one button);
+    > `/join/<code>` in its three states (signed out, linked, pairing code waiting); the admin's invite card
+    > (the link, a copy affordance, `New link`); the Kustom setup screen's `Join a group` code field; the
+    > picker on the panel in both modes. No new visual language; reuse the admin form and the token page's
+    > shown-once treatment. Copy is fixed by the briefs (M13.8, M13.13, M13.14); propose changes back through
+    > product rather than in the doc.
+
+- [ ] **M13.8** Kustom knows its groups: pairing, one token per group, and the picker. *(owner:
+  `companion-engineer`; after M13.5 and M13.7)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### What a player sees
+    >
+    > - Nothing new if they are in one group. The 0.2.x config keeps working: a file with one
+    >   `companionToken` and no group list is read as that token's group, looked up once.
+    > - In Kustom's setup screen, a field **`Join a group`** with the hint `Type the code from the join page.`
+    >   Kustom sends it with the PUUID it reads from League, and says `You're in <Group>.` or the server's
+    >   sentence. League must be open; if not: `Open League first, then type the code.` Works in **both**
+    >   modes (Overlay is how most friends run it).
+    > - **When they are in more than one group**, the panel's header has a picker, defaulting to the last one
+    >   used: in Host mode it reads **`Posting tonight to: <Group>`**; in Overlay mode **`Tonight's group:
+    >   <Group>`** (Overlay posts nothing, so it must not say it does). One group per session: changing it in
+    >   Host mode restarts the watchers on the other group's token; it never posts one game to two groups.
+    >
+    > ### Config (`%APPDATA%/customs-night/config.json`)
+    >
+    > `{ mode, apiBase, groups: [{ groupId, slug, name, companionToken? }], lastGroupId }`. Tokens stay masked
+    > and are never logged (M2.19). Host mode needs a token on the **selected** group; a group without one is
+    > shown in the Host picker as `<Group> (no host token)` and cannot be picked for posting. Overlay mode
+    > refreshes the list from `GET /api/overlay/groups?puuid=` on start, so a friend who joined by playing
+    > (M13.3's lazy membership) sees the group with zero setup. Overlay calls send `group=<lastGroupId>`.
+    > Pasting a new token (the existing flow) asks the server which group it is for (`/api/companion/me`
+    > returns it) and files it under that group.
+    >
+    > ### Edges
+    >
+    > - Removed from a group server-side: the token 403s; Kustom says `This token no longer works for <Group>.
+    >   Ask an admin for a new one.` and drops back to the picker.
+    > - Different League account signed in than the token's PUUID: existing behaviour (M2), unchanged.
+    > - Overlay with zero memberships: the panel shows `Play a game with your group, or ask them for the join
+    >   link.` and nothing else.
+    >
+    > ### Acceptance
+    >
+    > 1. A 0.2.1 config file loads and posts to the original group with no prompt (test).
+    > 2. Pairing: code + current-summoner PUUID → `POST /api/companion/pair`; success adds the group to config;
+    >    each server refusal prints its sentence verbatim (tests with a fake API).
+    > 3. Picker appears only with two or more groups; the two labels by mode are exact (test). Switching in
+    >    Host mode stops the old watchers before the new token's first post (test).
+    > 4. No code path sends one end-of-game block with two tokens (test). No new `/lol-champ-select/*` read or
+    >    any write to the client; LCU calls stay in `packages/lcu`.
+    > 5. `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint` pass; version bumped; release left to the user.
+    >
+    > ### Out of scope
+    >
+    > Cross-posting. A `kustom://` deep link for the code. Showing two groups' panels at once.
+
+- [ ] **M13.9** The `/g/<slug>` shell and the tonight page; old links redirect. *(owner: `web-engineer`; after
+  M13.4 and M13.7)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### The URL scheme
+    >
+    > Every player-facing page lives under `/g/<slug>/`. The page resolves the group from the slug through
+    > `groups_public` and passes its id to every loader; an unknown slug is a 404, never another group's page.
+    > `lib/nav.ts` builds every in-app link from the current group, so a link on `/g/a/...` never lands on
+    > `/g/b/...`. Pages stay public by link exactly as today: anyone with a group's URL can read it, there is
+    > no list of groups anywhere public, and nothing on one group's page links to another's.
+    >
+    > ### This task
+    >
+    > - `app/(site)/g/[slug]/layout.tsx` (the shell, group name per M13.7) and `app/(site)/g/[slug]/page.tsx`
+    >   — the tonight page, every state, the tape, the poster, the fearless card, all filtered by group.
+    >   `lib/tonight/load.ts` takes `groupId`; Realtime subscriptions filter `group_id=eq.<id>` (lobbies,
+    >   games, fearless_state) so group A's page never re-reads on B's game.
+    > - **The existing `/g/[gameId]` route collides.** M11.4 put `/g/<games.id>` in Discord. In
+    >   `/g/[slug]`, a param shaped like a uuid that matches a game redirects (308) to
+    >   `/g/<that game's slug>/games/<id>`; a uuid that matches nothing is 404. Slugs cannot be uuids (M13.2),
+    >   so the two never meet. Until M13.11 moves the game page, the target is the old page's component
+    >   mounted at the new path.
+    > - **Legacy redirects (308), kept permanently:** `/` → `/g/customs` (or, for a signed-in member, the
+    >   last group they opened, from a `kustom_group` cookie set by the shell); `/og/tonight` →
+    >   `/og/g/customs/tonight`. Each later task adds the redirect for the page it moves, so an un-moved page
+    >   keeps working at its old path for the original group in between.
+    > - `/og/g/[slug]/tonight` share card (M11.4's, scoped); the page's `og:image` points at it.
+    > - Start a lobby, Role for tonight and Reroll send `groupId` (M13.4). The sign-in redirect returns to the
+    >   group page it started from.
+    >
+    > ### Acceptance
+    >
+    > 1. Two fixture groups: `/g/a` and `/g/b` each show only their own lobby, tape and fearless list (test).
+    >    `/g/nope` is 404 (test).
+    > 2. `/g/<existing game uuid>` 308s to `/g/<its slug>/games/<id>`; `/g/<unknown uuid>` 404s (test).
+    > 3. `/` redirects to `/g/customs` signed out, and to the cookie's group for a member of it; a cookie
+    >    naming a group the viewer is not in is ignored (test).
+    > 4. Every link rendered on `/g/a/*` starts with `/g/a/` or is external (test over the shell's nav).
+    > 5. A game landing in B triggers no re-read on A's page (test on the subscription filter).
+    > 6. `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > ### Out of scope
+    >
+    > The other pages (M13.10 to M13.12, M13.14). A group switcher in the shell (a member of two groups uses
+    > two links; revisit if asked twice).
+
+- [ ] **M13.10** `/g/<slug>/leaderboard` and `/g/<slug>/p/<puuid>`. *(owner: `web-engineer`; after M13.9)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > Both pages move under the prefix and read the group's ratings, games and weekly fold
+    > (`lib/board/*`, `lib/board/weekly.ts`) only. A person's page in group A shows their A rating, A games
+    > and A records and says nothing about B. A PUUID with no games and no rating in the group is a 404 in
+    > that group, even if they are in another. `Started at 1200, N rated games since.` counts the group's
+    > games. `/og/g/[slug]/p/[puuid]` replaces `/og/p/[puuid]`. Redirects (308): `/leaderboard[?window=]` →
+    > `/g/customs/leaderboard[?window=]`, `/p/<puuid>` → `/g/customs/p/<puuid>`, `/og/p/<puuid>` → its new
+    > path. Window query strings carry through.
+    >
+    > Acceptance: (1) P in A and B with different ratings: A's board row and A's page show A's numbers, B's
+    > show B's (test). (2) P only in A: `/g/b/p/<P>` 404s (test). (3) Each redirect, query string included
+    > (test). (4) The player card's numbers equal the group's `All time` row (M11.4's test, per group). (5)
+    > Typecheck, test, lint, build pass.
+
+- [ ] **M13.11** `/g/<slug>/games` and `/g/<slug>/games/<gameId>`; Discord links follow. *(owners:
+  `web-engineer` + `platform-engineer` for `lib/discord/*`; after M13.9)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > `/games` moves to `/g/<slug>/games` (the group's games only, ARAM toggle unchanged). M11.4's game page
+    > moves from `/g/[gameId]` to `/g/<slug>/games/<gameId>`; a game id from another group under this slug is
+    > 404, never a redirect across groups. Share card `/og/g/[slug]/games/[gameId]` replaces
+    > `/og/g/[gameId]`. Discord: the result embed's title link is `/g/<slug>/games/<id>`, every other link a
+    > post carries is the group's (`/g/<slug>`, `/g/<slug>/leaderboard`); nothing printed changes. Redirects
+    > (308): `/games` → `/g/customs/games`, `/og/g/<uuid>` → its new path (M13.9 already handles `/g/<uuid>`).
+    >
+    > Acceptance: (1) A game of B under `/g/a/games/<id>` 404s (test). (2) The result embed's `url` is the
+    > prefixed path and every printed field matches the existing snapshots (test). (3) `/g/a/games` lists
+    > only A's games (test). (4) Redirects (test). (5) Typecheck, test, lint, build pass.
+
+- [ ] **M13.12** `/g/<slug>/stats`, `/fun`, `/1v1`, `/mystery`. *(owner: `web-engineer`; after M13.9)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > Four pages move under the prefix and read only the group's games, players and challenges. Records,
+    > awards, nemesis and duo, lane wars, the daily guess (with `group` on `/api/daily-mystery/*`, M13.4) —
+    > every one computed inside the group, so `Best duo` in A is never a pair whose games were in B. A group
+    > with too few games shows each section's existing empty state. Redirects (308) from each old path to
+    > `/g/customs/...`. Acceptance: (1) one fixture per page with two groups proving no B game is counted on
+    > A's page (tests). (2) The daily guess in A and B on the same day are different challenges with their
+    > own numbers (test). (3) Redirects (test). (4) Typecheck, test, lint, build pass.
+
+- [ ] **M13.13** `/new` and `/join/<code>`. *(owner: `web-engineer`; after M13.5 and M13.9)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### `/new`
+    >
+    > Signed out: the sign-in, returning here. Signed in: heading `Start a group`, two fields — `Name` (hint
+    > `What your friends call it.`) and `Link` (prefix `…/g/`, lowercased as typed, hint `Letters, numbers and
+    > dashes. You can't change it later.`) — and one button, `Create`. Errors are the server's sentences,
+    > under the field they belong to. On success: if the creator is linked, straight to `/g/<slug>/admin`
+    > (M13.14's invite card is the next thing they need); if not, the pairing state below, then there.
+    >
+    > ### `/join/<code>`
+    >
+    > - Dead code: `This link doesn't work anymore. Ask your group for the new one.`
+    > - Signed out: `<Group> uses Kustom to pick fair teams for your customs.` and the sign-in, returning here.
+    > - Signed in and linked: `Join <Group>` button; already a member goes straight to `/g/<slug>`.
+    > - Signed in, not linked: `Open Kustom on your PC with League running, then type this code under Join a
+    >   group:` then the code large, then `It works for 15 minutes.` The page polls (M13.5) and moves to
+    >   `/g/<slug>` with `You're in.` when the code is used; on expiry, a `New code` button. A line under it:
+    >   `Don't have Kustom? Download it` linking the existing release page.
+    >
+    > Acceptance: (1) each state renders its exact copy from fixtures (tests). (2) Creating with a taken
+    > link shows `That link is taken.` under `Link` (test). (3) The pairing state moves on when status says
+    > used (test with a fake clock). (4) Neither page appears in any group's nav. (5) Typecheck, test, lint,
+    > build pass.
+    >
+    > Out of scope: a marketing landing page; inviting by email or Discord DM.
+
+- [ ] **M13.14** Group admin under `/g/<slug>/admin`, and the operator's `/ops`. *(owner: `web-engineer`;
+  after M13.6 and M13.9; last)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > - Every `/admin/*` page moves to `/g/<slug>/admin/*` and acts on that group (players, tokens, games,
+    >   Discord, seasons as today). The gate is the group-admin check (M13.4); a member is shown the existing
+    >   not-an-admin page; another group's admin the same. `/admin` → `/g/customs/admin` (308), and
+    >   `/admin/login` keeps working.
+    > - **Invite card** at the top of the group's admin home: `Invite your group` / the full link / a copy
+    >   affordance / `New link` with the confirm `The old link will stop working.`
+    > - **Players** gains `Make admin` / `Remove admin` per member; the last admin's button is absent, with
+    >   `This group needs at least one admin.` beside it.
+    > - **Backfill approval** reads and writes the membership columns (M13.3).
+    > - **Discord** configures this group's webhook only.
+    > - **`/ops`** (super-admin only, else 404): one table from `GET /api/ops/groups`, each row linking to that
+    >   group's admin pages, which render read-only for a super-admin who is not that group's admin — every
+    >   write control absent, a hairline line `Read only. You are not an admin of this group.`
+    >
+    > Acceptance: (1) an admin of A sees A's members and tokens and nothing of B; on `/g/b/admin` gets the
+    > not-an-admin page (test). (2) The invite card shows the live code; `New link` rotates it after the
+    > confirm (test). (3) The last admin has no `Remove admin` (test). (4) A super-admin on `/g/b/admin` sees
+    > B with no write control; `/ops` 404s for everyone else (test). (5) `/admin` redirects (test). (6)
+    > Typecheck, test, lint, build pass.
+
+Acceptance: the group that exists today plays a night after M13 and notices nothing — same numbers, same
+posts, old links land on the same pages. Somebody else signs in, names a group, sends one link, and their
+friends' games move only their own group's ratings, from 1200, with their own fearless list, daily guess and
+Discord channel. A person in both groups has two ratings that never touch, one League identity, and one
+Kustom that asks which group only when there is more than one. No game counts for two groups, and nobody
+types anything in a night.
+
 ---
 
 ## Sequencing summary
@@ -8632,6 +9241,14 @@ M10.2 ----------------------------------- M10.3 (still open, per lane, tonight o
 M10.3 ----------------------------------- M11.1 (champion icons, fearless card only) ---- M12 (overlay)
 M11.1 -- M11.3 (result poster) -- M11.2 (night tape) -- M11.4 (share cards, /g/[gameId])
 M11.1 ----------------------------------- M12.1 (decision) -- M12.2 (API) -- M12.3 (app) -- M12.4 (ship)
+M13.2 (schema) -- M13.3 (companion + ingest) -- M13.4 (session, admin, crons) -- M13.5 (create, invite, pair) -- M13.6 (super-admin)
+M13.7 (design, beside the server tasks)
+M13.5 + M13.7 --------------------------- M13.8 (Kustom: pairing, token per group, picker)
+M13.4 + M13.7 --------------------------- M13.9 (/g/<slug> shell + tonight) --+-- M13.10 (board, player)
+                                                                              +-- M13.11 (games, game page, Discord links)
+                                                                              +-- M13.12 (stats, fun, 1v1, mystery)
+M13.5 + M13.9 --------------------------- M13.13 (/new, /join)
+M13.6 + M13.9 --------------------------- M13.14 (group admin, /ops; last)
 ```
 
 **M3.31** (how even the teams are, as a percentage) is the fourth idea of 2026-09-15 and is not in M8: it is a
