@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getRerollableLobby, NO_MORE_SPLITS, type RerollableLobby } from '@/lib/admin/reroll';
+import { getRollableLobby } from '@/lib/admin/rollable';
 import { getActiveSeason } from '@/lib/admin/seasons';
 import { requireAdmin } from '@/lib/adminPage';
 import {
@@ -17,6 +18,7 @@ import { type LobbyStartView, loadLobbyStartOrNone } from '@/lib/tonight/lobbySt
 import { nightTimeZone } from '@/lib/tonight/night';
 import { AdminAnswerGroup } from '../_components/AdminAnswerGroup';
 import { AdminForm } from '../_components/AdminForm';
+import { AdminRoll } from '../_components/AdminRoll';
 import { Card, Empty, formatTimestamp, Notices, PageHeader, type SearchParams } from '../_components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -26,13 +28,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** The index: who you are, which season row is live, tonight's reroll, and where everything is. */
+/** The index: who you are, which season row is live, tonight's roll and reroll, and where everything is. */
 export default async function AdminIndexPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, admin] = await Promise.all([searchParams, requireAdmin()]);
   const client = getServiceClient();
-  const [season, lobby, lobbyStart, fearless] = await Promise.all([
+  const [season, lobby, rollable, lobbyStart, fearless] = await Promise.all([
     getActiveSeason(client),
     getRerollableLobby(client),
+    // The open lobby a `Roll teams` press would balance, keyed the way the route keys it.
+    getRollableLobby(client),
     // The same read the tonight page's control makes, so the two surfaces say one thing about
     // one command (M4.2). This page is behind the session check already.
     loadLobbyStartOrNone(client, { timeZone: nightTimeZone() }),
@@ -53,6 +57,9 @@ export default async function AdminIndexPage({ searchParams }: { searchParams: P
       <div className="admin-grid">
         <Card title="Tonight">
           <StartLobby start={lobbyStart} />
+        </Card>
+        <Card title="Roll teams">
+          <AdminRoll lobby={rollable} />
         </Card>
         <Card title="Reroll">
           <Reroll lobby={lobby} />
@@ -199,7 +206,7 @@ function Reroll({ lobby }: { lobby: RerollableLobby | null }) {
       </p>
       {chosen === null ? (
         <p className="admin-error" role="alert">
-          This lobby has no chosen split. Press Roll teams on the tonight page to make them again.
+          This lobby has no chosen split. Press Roll teams to make them again.
         </p>
       ) : (
         <p>

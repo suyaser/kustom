@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { LOBBY_WRITES_UNVERIFIED, openingOnPcLine } from '../lobbyStart';
-import { type AdminFormKind, adminError, adminNotice, mintedToken } from './notices';
+import {
+  type AdminFormKind,
+  adminError,
+  adminNotice,
+  mintedToken,
+  ROLL_NOTICE_ALREADY,
+  ROLL_NOTICE_ROLLED,
+} from './notices';
 
 /**
  * M3.20's in-place notices, and the guard that keeps them honest.
@@ -28,11 +35,12 @@ const players = handler('players/handler.ts');
 const tokens = handler('tokens/handler.ts');
 const discord = handler('discord-config/handler.ts');
 const reroll = handler('lobbies/[lobbyId]/reroll/handler.ts');
+const roll = handler('lobbies/[lobbyId]/roll/handler.ts');
 const start = meHandler('lobbies/start/handler.ts');
 const fearless = handler('fearless/reset/handler.ts');
 
 /** Every form kind the admin area still has. `seasons` left with M5.14's Start button. */
-const KINDS: AdminFormKind[] = ['players', 'tokens', 'discord', 'reroll', 'lobby-start', 'fearless'];
+const KINDS: AdminFormKind[] = ['players', 'tokens', 'discord', 'reroll', 'roll', 'lobby-start', 'fearless'];
 
 describe('players', () => {
   const notice = (values: Record<string, string>) => adminNotice('players', values, { ok: true });
@@ -137,6 +145,28 @@ describe('the reroll', () => {
     ]) {
       expect(reroll, fragment).toContain(fragment);
     }
+  });
+});
+
+describe('the roll (2026-10-03)', () => {
+  const body = (outcome: string) => ({
+    ok: true,
+    lobbyId: '6f0b8a7e-2b1c-4c8e-9f3a-1d2e3f4a5b6c',
+    status: 'balanced',
+    splitId: '0c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f',
+    outcome,
+  });
+
+  it('says the teams are up, and that nothing was posted again on a repeat press', () => {
+    expect(adminNotice('roll', {}, body('rolled'))).toBe(ROLL_NOTICE_ROLLED);
+    expect(adminNotice('roll', {}, body('already_rolled'))).toBe(ROLL_NOTICE_ALREADY);
+    // A 200 the schema does not allow is still a lobby with teams.
+    expect(adminNotice('roll', {}, { ok: true })).toBe(ROLL_NOTICE_ROLLED);
+  });
+
+  it('says the same words the route says', () => {
+    expect(roll).toContain(`'${ROLL_NOTICE_ROLLED}'`);
+    expect(roll).toContain(`'${ROLL_NOTICE_ALREADY}'`);
   });
 });
 

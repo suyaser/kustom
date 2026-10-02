@@ -186,7 +186,10 @@ describe('the sentence while the lobby fills', () => {
   });
 
   it('waits at ten and explains the eleventh', () => {
-    expect(fillingSentence(10)).toBe('Teams in a moment.');
+    // Not `Teams in a moment.`: since the 2026-10-03 roll trigger, ten in does not by itself
+    // produce teams, so the line names the press that does.
+    expect(fillingSentence(10)).toBe('Waiting on an admin to roll the teams.');
+    expect(fillingSentence(10)).not.toMatch(/in a moment/i);
     expect(fillingSentence(11)).toBe('Ten play, the rest sit out this game.');
     expect(fillingSentence(14)).toBe('Ten play, the rest sit out this game.');
   });

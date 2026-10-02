@@ -58,8 +58,14 @@ export const FINISHED_SENTENCE = 'Ratings are updated. The leaderboard has the r
 /** Eleven or more around: the ten play and the sit-out strip explains who is not in them. */
 export const OVERFULL_SENTENCE = 'Ten play, the rest sit out this game.';
 
-/** Ten in, nothing to do: the balancer runs on the companion's next post. */
-export const TEN_IN_SENTENCE = 'Teams in a moment.';
+/**
+ * Ten in. Since 2026-10-03 ingest no longer balances on its own — teams exist only once an admin
+ * presses `Roll teams` — so the old `Teams in a moment.` promised something that never happens by
+ * itself. This is the strip's live line, announced on the change to ten; {@link ROLL_HINT} under
+ * the rack is not live and an admin never sees it (the button takes its place), so the strip
+ * keeps a sentence of its own rather than going blank at the one count that matters.
+ */
+export const TEN_IN_SENTENCE = 'Waiting on an admin to roll the teams.';
 
 /**
  * How many are still missing, as a **word** — the digit is already 44px above it in the

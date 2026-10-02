@@ -13,11 +13,12 @@
  * page prints the route's own words.
  */
 
+import { rollResponseSchema } from '@/app/api/admin/lobbies/[lobbyId]/roll/schema';
 import { startLobbyResponseSchema } from '@/app/api/me/lobbies/start/schema';
 import { FEARLESS_RESET_FAILED, FEARLESS_RESET_POSTED, FEARLESS_RESET_SKIPPED } from '../fearless/copy';
 import { openingOnPcLine } from '../lobbyStart';
 
-export type AdminFormKind = 'players' | 'tokens' | 'discord' | 'reroll' | 'lobby-start' | 'fearless';
+export type AdminFormKind = 'players' | 'tokens' | 'discord' | 'reroll' | 'roll' | 'lobby-start' | 'fearless';
 
 /** What a form posted: every value is a string, exactly as the no-JS form post sends it. */
 export type SubmittedValues = Record<string, string>;
@@ -32,6 +33,8 @@ export function adminNotice(kind: AdminFormKind, values: SubmittedValues, body: 
       return 'Discord config saved';
     case 'reroll':
       return rerollNotice(body);
+    case 'roll':
+      return rollNotice(body);
     case 'lobby-start':
       return lobbyStartNotice(body);
     case 'fearless':
@@ -116,6 +119,22 @@ function rerollNotice(body: unknown): string {
     default:
       return `${which} Discord did not take the post, but the teams stand.`;
   }
+}
+
+/**
+ * `app/api/admin/lobbies/[lobbyId]/roll/handler.ts`, `notice` (2026-10-03). Read through the
+ * route's own response schema, like the lobby start's: a repeat press against the same roster
+ * answers `already_rolled` and says nothing was posted again.
+ */
+export const ROLL_NOTICE_ROLLED = 'Teams are up.';
+export const ROLL_NOTICE_ALREADY = 'Those teams were already up for this lobby. Nothing was posted.';
+
+function rollNotice(body: unknown): string {
+  const answer = rollResponseSchema.safeParse(body);
+  // A 200 is a lobby with teams either way; only a repeat press gets the second sentence.
+  return answer.success && answer.data.outcome === 'already_rolled'
+    ? ROLL_NOTICE_ALREADY
+    : ROLL_NOTICE_ROLLED;
 }
 
 /**
