@@ -19,7 +19,7 @@ import { anySeatOnTheWrongSide, hasNamelessRow, tonightHeader, tonightState } fr
 import type { LobbyView, MemberView, SeatView, TeamsView, TonightSnapshot } from '@/lib/tonight/types';
 import { type ViewerState, viewerIsAdmin, viewerPuuid } from '@/lib/tonight/viewer';
 import { TopOfBoard } from '../_leaderboard/BoardCard';
-import { MysteryLive } from '../_mystery/MysteryLive';
+import { MysteryTeaser } from '../_mystery/MysteryTeaser';
 import { CompanionCard, HowThisWorksCard } from '../_shell/HowThisWorks';
 import { FearlessCard } from './FearlessCard';
 import { NightTape } from './NightTape';
@@ -177,7 +177,7 @@ export function TonightView({
          * this page is designed for, and on an idle page it is the only thing to do.
          */}
         {state.kind === 'idle' ? (startLobby ?? startSignIn) : null}
-        {idle ? <MysteryHome mystery={mystery} /> : null}
+        {idle ? <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" /> : null}
         {idle ? <FearlessCard fearless={snapshot.fearless} /> : null}
         {state.kind === 'idle' ? <Idle /> : null}
         {state.kind === 'filling' ? (
@@ -203,7 +203,7 @@ export function TonightView({
         {/* M3.10's one quiet line, under the block and never per row. */}
         {hasNamelessRow(state, snapshot.tape) ? <p className="cn-hint">{NAMELESS_HINT}</p> : null}
 
-        {idle ? null : <MysteryHome mystery={mystery} />}
+        {idle ? null : <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />}
         {idle ? null : <FearlessCard fearless={snapshot.fearless} />}
 
         {/*
@@ -227,6 +227,9 @@ export function TonightView({
             sort: a rail that disagreed with the page it links to about who is first would be
             worse than a rail with two cards in it. */}
         <TopOfBoard rows={topPlayers} viewerPuuid={seatViewer.puuid} />
+        {/* The daily game's one-row pointer (2026-10-03). Static once rendered, so the rail
+            rule holds; below 1080px the same row sits inline in the column instead. */}
+        <MysteryTeaser mystery={mystery} />
         <HowThisWorksCard />
         <CompanionCard />
       </aside>
@@ -290,20 +293,6 @@ function LivePill() {
       <span className="cn-live-dot" aria-hidden="true" />
       <span className="cn-num cn-live-word">live</span>
     </span>
-  );
-}
-
-/**
- * Today's Daily Mystery on `/`. Idle nights put it above the empty rack: ten
- * seats are 480px, and a card under them is under the fold on the phone this
- * page is designed for. A live lobby keeps the primary block first.
- */
-function MysteryHome({ mystery }: { mystery: MysteryPageState | null }) {
-  if (mystery === null) return null;
-  return (
-    <section className="cn-block cn-mystery-home">
-      <MysteryLive initial={mystery} />
-    </section>
   );
 }
 

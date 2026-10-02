@@ -12,6 +12,13 @@ export interface FearlessChampion {
   name: string;
   /** Role on the seat that first locked this id. Null is an `other` group, never a guess. */
   role: RoleValue | null;
+  /**
+   * The 24px icon (`championIconUrl`), resolved where the client's stored name is still in
+   * hand, so a champion newer than `lib/champs/names.ts` keeps its face. `null` means nobody
+   * could name it: no icon. Absent means "derive it from the id table" — see
+   * {@link fearlessIconUrl} — which is every roster champion built in the browser.
+   */
+  iconUrl?: string | null;
 }
 
 export interface FearlessView {

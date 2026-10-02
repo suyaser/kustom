@@ -14,7 +14,7 @@ import {
   fearlessBanned,
 } from '@/lib/fearless/copy';
 import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/lobbyStart';
-import { MYSTERY_EMPTY, MYSTERY_TITLE } from '@/lib/mystery/copy';
+import { MYSTERY_EMPTY, MYSTERY_GUESS, MYSTERY_TITLE } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { NO_ACTIVE_SEASON_MESSAGE, NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
 import {
@@ -95,6 +95,33 @@ function draw(
   );
 }
 
+/** A play day for the daily pointer: everything `MysteryTeaser` reads, nothing it does not. */
+const PLAY_DAY: MysteryPageState = {
+  kind: 'play',
+  play: {
+    challengeId: '11111111-1111-4111-8111-111111111111',
+    challengeNumber: 184,
+    day: '2026-09-13',
+    kind: 'mystery',
+    category: 'disaster',
+    expiresAt: '2026-09-13T21:00:00.000Z',
+    hook: {
+      kills: 2,
+      deaths: 11,
+      assists: 4,
+      kda: '2 / 11 / 4',
+      durationS: 1902,
+      durationLabel: '31:42',
+      lines: [],
+    },
+    suspects: [],
+    cluesRevealed: 0,
+    revealedClues: [],
+    clueCount: 5,
+    completed: false,
+  },
+};
+
 /**
  * The strip's three lines, in order, as a reader sees them. A line's own parts are joined with
  * a space: the count, the headline and the live pill are three elements with no whitespace
@@ -157,15 +184,51 @@ describe('idle: no lobby tonight', () => {
     expect(screen.getAllByText('Run the companion').length).toBeGreaterThan(0);
   });
 
-  it('puts Daily Mystery above the empty rack, so the idle page still has something to play', () => {
+  /**
+   * The daily game is a one-row pointer to `/mystery` (2026-10-03), not the whole card: inline
+   * above the empty rack below 1080px, and in the rail from 1080px (`mystery.css` hides the
+   * inline copy there, as `tonight.css` does for the idle cards).
+   */
+  it('points at the daily game above the empty rack and in the rail, never the whole card', () => {
+    const { container } = draw(snapshot(null), { mystery: PLAY_DAY });
+
+    const inline = container.querySelector('.cn-col > .cn-mystery-teaser');
+    expect(inline).not.toBeNull();
+    expect(inline).toHaveClass('cn-mystery-teaser-inline');
+    expect(inline?.getAttribute('href')).toBe('/mystery');
+    expect(inline?.textContent).toContain('Daily Mystery #184');
+    expect(inline?.textContent).toContain(MYSTERY_GUESS);
+    const col = [...(container.querySelector('.cn-col')?.children ?? [])];
+    const rack = col.findIndex((child) => child.querySelector('.cn-rack-open') !== null);
+    expect(col.indexOf(inline as Element)).toBeLessThan(rack);
+
+    const rail = container.querySelector('.cn-rail .cn-mystery-teaser');
+    expect(rail).not.toBeNull();
+    expect(rail).not.toHaveClass('cn-mystery-teaser-inline');
+
+    // The play card's own parts are on `/mystery` only.
+    expect(container.querySelector('.cn-mystery')).toBeNull();
+    expect(container.querySelector('.cn-mystery-suspects')).toBeNull();
+  });
+
+  it('draws no pointer on a day with no game, and no empty card either', () => {
     const { container } = draw(snapshot(null), {
       mystery: { kind: 'empty', empty: { empty: true, expiresAt: '2026-09-14T21:00:00.000Z' } },
     });
+    expect(container.querySelector('.cn-mystery-teaser')).toBeNull();
+    expect(screen.queryByText(MYSTERY_EMPTY)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: MYSTERY_TITLE })).not.toBeInTheDocument();
+  });
 
-    expect(screen.getByRole('heading', { name: MYSTERY_TITLE })).toBeInTheDocument();
-    expect(screen.getByText(MYSTERY_EMPTY)).toBeInTheDocument();
-    const blocks = [...container.querySelectorAll('.cn-col > .cn-block')];
-    expect(blocks[0]?.classList.contains('cn-mystery-home')).toBe(true);
+  it('keeps the pointer under the primary block while a lobby is live', () => {
+    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })), {
+      mystery: PLAY_DAY,
+    });
+    const col = [...(container.querySelector('.cn-col')?.children ?? [])];
+    const teams = col.findIndex((child) => child.querySelector('.cn-team') !== null);
+    const pointer = col.findIndex((child) => child.classList.contains('cn-mystery-teaser'));
+    expect(teams).toBeGreaterThan(-1);
+    expect(pointer).toBeGreaterThan(teams);
   });
 
   /**
@@ -1219,6 +1282,79 @@ describe('fearless, the ban list', () => {
     expect(card?.textContent).toContain(fearlessAvailable('Garen'));
     expect(card?.textContent).not.toContain('Ahri');
     expect(card?.textContent).not.toContain(fearlessBanned('Garen'));
+  });
+});
+
+describe('fearless, sizing (2026-10-03)', () => {
+  const pool = {
+    resetAt: FIXTURE_NIGHT_START,
+    champions: [
+      { id: 103, name: 'Ahri', role: 'mid' as const },
+      { id: 222, name: 'Jinx', role: 'adc' as const },
+    ],
+  };
+
+  it('puts the lanes in one grid, each with its role mark beside the word', () => {
+    draw(snapshot(null, { fearless: pool }));
+    const grid = document.querySelector('.cn-fearless .cn-fearless-lanes');
+    expect(grid).not.toBeNull();
+    const lanes = [...(grid?.querySelectorAll(':scope > .cn-fearless-lane') ?? [])];
+    expect(lanes.map((lane) => lane.querySelector('h3')?.textContent)).toEqual([
+      'top',
+      'jungle',
+      'mid',
+      'adc',
+      'support',
+    ]);
+    expect(lanes[2]?.querySelector('h3 svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it("folds each lane's still-open tail shut, with its count, until somebody types", () => {
+    draw(snapshot(null, { fearless: pool }));
+    const tails = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-open')];
+    expect(tails).toHaveLength(5);
+    for (const tail of tails) {
+      expect(tail.open).toBe(false);
+      const count = Number(tail.querySelector('.cn-fearless-open-count')?.textContent);
+      expect(count).toBe(tail.querySelectorAll('.cn-fearless-open-chip').length);
+      expect(tail.querySelector('summary')?.textContent).toContain(FEARLESS_OPEN);
+    }
+    // The bans are never behind the fold.
+    const mid = document.querySelectorAll('.cn-fearless-lane')[2];
+    const ahri = [...(mid?.querySelectorAll('.cn-fearless-list li') ?? [])].find(
+      (chip) => chip.textContent === 'Ahri',
+    );
+    expect(ahri?.closest('details')).toBeNull();
+
+    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
+    fireEvent.change(box, { target: { value: 'gar' } });
+    const open = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-open')];
+    expect(open.length).toBeGreaterThan(0);
+    expect(open.every((tail) => tail.open)).toBe(true);
+
+    fireEvent.change(box, { target: { value: '' } });
+    expect(
+      [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-open')].every(
+        (tail) => !tail.open,
+      ),
+    ).toBe(true);
+  });
+
+  it('draws the icon of a champion the loader named from the client, not Champion 804', () => {
+    draw(
+      snapshot(null, {
+        fearless: {
+          resetAt: FIXTURE_NIGHT_START,
+          champions: [
+            { id: 12_345, name: 'Newchamp', role: 'adc', iconUrl: 'https://example.test/12345.png' },
+          ],
+        },
+      }),
+    );
+    const chip = [...document.querySelectorAll('.cn-fearless-list li')].find(
+      (li) => li.textContent === 'Newchamp',
+    );
+    expect(chip?.querySelector('img')?.getAttribute('src')).toBe('https://example.test/12345.png');
   });
 });
 

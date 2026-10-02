@@ -8,8 +8,8 @@ import '../../tonight.css';
 
 /**
  * `/mystery` (M5.32, M8.4): today's one accountless daily game — Daily Mystery or Guess the
- * Award, whichever civil day this is. The same card lives on `/` so the WhatsApp link opens
- * it without a second tap.
+ * Award, whichever civil day this is. Since 2026-10-03 this is the game's only full card: `/`
+ * carries a one-row pointer here (`MysteryTeaser`) instead of the whole card inline.
  */
 export const dynamic = 'force-dynamic';
 

@@ -1108,12 +1108,37 @@
  * docs/05-design.md). No other surface draws one.
  * ------------------------------------------------------------------------- */
 
+/*
+ * The card trio — `surface`, `line`, the lit top edge — and the card radius, like every other
+ * card on the page (2026-10-03: it had no radius and its own highlight, and read as a panel
+ * pasted in from somewhere else).
+ */
 .cn-fearless {
   gap: var(--cn-sp-3);
   padding: var(--cn-sp-4);
   background: var(--cn-surface);
   border: 1px solid var(--cn-line);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cn-text) 6%, transparent);
+  border-radius: var(--cn-radius);
+  box-shadow: var(--cn-lit);
+}
+
+/*
+ * Lanes in a grid: one column on a phone, then as many 16rem columns as fit — two in the
+ * 44rem column, three in the wide main column beside the rail. Each lane is outlined in
+ * `line` with no fill — the banned chips are `raise`, and a `raise` lane would swallow them —
+ * so five lanes read as five groups and not as one wall of chips.
+ */
+.cn-fearless-lanes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cn-sp-3);
+  align-items: start;
+}
+
+@media (min-width: 720px) {
+  .cn-fearless-lanes {
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  }
 }
 
 .cn-fearless-head {
@@ -1161,18 +1186,30 @@
 }
 
 .cn-fearless-lane {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--cn-sp-2);
+  padding: var(--cn-sp-3);
+  border: 1px solid var(--cn-line);
+  border-radius: var(--cn-radius-row);
 }
 
+/* The lane word with its 14px role mark beside it, `dim`, same as a role cell in a row. */
 .cn-fearless-lane-title {
+  display: flex;
+  align-items: center;
+  gap: var(--cn-sp-2);
   margin: 0;
   color: var(--cn-dim);
   font-size: var(--cn-t-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: lowercase;
+}
+
+.cn-fearless-lane-title .cn-role-icon {
+  flex: none;
 }
 
 .cn-fearless-list {
@@ -1198,6 +1235,12 @@
   color: var(--cn-text);
 }
 
+/*
+ * `still open` is a disclosure (2026-10-03). Closed, it is one 44px row — the label, the count
+ * on the right and a chevron — so a lane costs one line until somebody asks. The summary is
+ * the one tappable thing on the card besides the find box, so it takes the 44px floor; the
+ * chips inside stay 32px list items.
+ */
 .cn-fearless-open {
   display: flex;
   flex-direction: column;
@@ -1205,12 +1248,61 @@
 }
 
 .cn-fearless-open-label {
-  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cn-sp-2);
+  min-height: 44px;
+  margin: 0 calc(-1 * var(--cn-sp-2));
+  padding: 0 var(--cn-sp-2);
+  border-radius: var(--cn-radius-row);
   color: var(--cn-dim);
   font-size: var(--cn-t-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: lowercase;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: background-color 120ms;
+}
+
+.cn-fearless-open-label::-webkit-details-marker {
+  display: none;
+}
+
+.cn-fearless-open-label:hover {
+  background: color-mix(in srgb, var(--cn-text) 4%, transparent);
+}
+
+.cn-fearless-open-label:focus-visible {
+  outline: 2px solid var(--cn-brand);
+  outline-offset: -2px;
+}
+
+.cn-fearless-open-count {
+  margin-inline-start: auto;
+  letter-spacing: 0;
+}
+
+/* A chevron drawn with two borders: no glyph, no asset, `currentColor`. */
+.cn-fearless-open-label::after {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.cn-fearless-open[open] > .cn-fearless-open-label::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cn-fearless-open-label {
+    transition: none;
+  }
 }
 
 .cn-fearless-list li.cn-fearless-open-chip {

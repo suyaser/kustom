@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { championName } from '../champs/names';
 import {
   availableFearless,
   fearlessExact,
+  fearlessIconUrl,
   fearlessLanes,
   fearlessMatches,
   groupFearless,
   normalizeFearlessQuery,
   presentFearless,
+  storedChampionNames,
 } from './present';
 import type { FearlessChampion } from './types';
 
@@ -106,5 +109,106 @@ describe('fearless search', () => {
     expect(fearlessMatches('Ahri', 'jinx')).toBe(false);
     expect(fearlessExact("Cho'Gath", 'chogath')).toBe(true);
     expect(fearlessExact('Ahri', 'ahr')).toBe(false);
+  });
+});
+
+/** An end-of-game blob, the shape `rawFactsFromUnknown` reads `championName` from. */
+function eog(players: { puuid: string; championName?: string }[]): unknown {
+  return { teams: [{ teamId: 100, players: players.map((player) => ({ ...player, stats: {} })) }] };
+}
+
+describe('presentFearless, a champion newer than the name table', () => {
+  it('prints the client name and draws the icon by id, instead of Champion 12345', () => {
+    const [champion] = presentFearless(
+      [{ id: 12_345, role: 'adc' }],
+      championName,
+      new Map([[12_345, 'Newchamp']]),
+    );
+    expect(champion).toMatchObject({ id: 12_345, name: 'Newchamp', role: 'adc' });
+    expect(champion?.iconUrl).toMatch(/\/12345\.png$/);
+  });
+
+  it('keeps the table spelling for a roster id even when the client sent a different one', () => {
+    const [champion] = presentFearless([{ id: 103, role: 'mid' }], championName, new Map([[103, 'AHRI']]));
+    expect(champion?.name).toBe('Ahri');
+    expect(champion?.iconUrl).toMatch(/\/103\.png$/);
+  });
+
+  it('falls back to Champion id with no icon when nobody can name it', () => {
+    const [champion] = presentFearless([{ id: 12_345, role: null }], championName);
+    expect(champion?.name).toBe('Champion 12345');
+    expect(champion?.iconUrl).toBeNull();
+  });
+});
+
+describe('storedChampionNames', () => {
+  it('reads the client name per puuid off the end-of-game blob, only for wanted ids', () => {
+    const names = storedChampionNames(
+      [
+        {
+          raw: eog([
+            { puuid: 'p1', championName: 'Newchamp' },
+            { puuid: 'p2', championName: 'Ahri' },
+          ]),
+          seats: [
+            { puuid: 'p1', championId: 12_345 },
+            { puuid: 'p2', championId: 103 },
+          ],
+        },
+      ],
+      new Set([12_345]),
+    );
+    expect([...names]).toEqual([[12_345, 'Newchamp']]);
+  });
+
+  it('takes the first game that names the id and skips blobs with no name', () => {
+    const names = storedChampionNames(
+      [
+        {
+          raw: { participants: [], participantIdentities: [] },
+          seats: [{ puuid: 'p1', championId: 12_345 }],
+        },
+        { raw: eog([{ puuid: 'p1', championName: '  ' }]), seats: [{ puuid: 'p1', championId: 12_345 }] },
+        {
+          raw: eog([{ puuid: 'p3', championName: 'Newchamp' }]),
+          seats: [{ puuid: 'p3', championId: 12_345 }],
+        },
+        { raw: eog([{ puuid: 'p4', championName: 'Later' }]), seats: [{ puuid: 'p4', championId: 12_345 }] },
+      ],
+      new Set([12_345]),
+    );
+    expect(names.get(12_345)).toBe('Newchamp');
+  });
+
+  it('asks nothing when nothing is wanted, and survives a seat with no puuid or a malformed blob', () => {
+    expect(
+      storedChampionNames(
+        [{ raw: eog([{ puuid: 'p1', championName: 'X' }]), seats: [{ puuid: 'p1', championId: 1 }] }],
+        new Set(),
+      ).size,
+    ).toBe(0);
+    expect(
+      storedChampionNames(
+        [
+          { raw: 'not a blob', seats: [{ puuid: 'p1', championId: 12_345 }] },
+          {
+            raw: eog([{ puuid: 'p1', championName: 'Newchamp' }]),
+            seats: [{ puuid: null, championId: 12_345 }],
+          },
+        ],
+        new Set([12_345]),
+      ).size,
+    ).toBe(0);
+  });
+});
+
+describe('fearlessIconUrl', () => {
+  it('uses what the loader resolved, including an explicit null, else the id table', () => {
+    expect(fearlessIconUrl({ id: 12_345, iconUrl: 'https://example.test/12345.png' })).toBe(
+      'https://example.test/12345.png',
+    );
+    expect(fearlessIconUrl({ id: 103, iconUrl: null })).toBeNull();
+    expect(fearlessIconUrl({ id: 103 })).toMatch(/\/103\.png$/);
+    expect(fearlessIconUrl({ id: 12_345 })).toBeNull();
   });
 });

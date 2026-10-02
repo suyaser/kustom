@@ -176,3 +176,81 @@
     grid-template-columns: 1fr;
   }
 }
+
+/*
+ * The daily game's pointer on `/` (2026-10-03): one card-height row, the whole row a link to
+ * `/mystery`. The heading is the slug, the question is one line, and the action sits on the
+ * right — `brand` only when it is a control you may still press (`Guess now`), `dim` once the
+ * day is settled. At least 44px tall, like every tappable thing.
+ */
+.cn-mystery-teaser {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cn-sp-3);
+  min-height: 44px;
+  padding: var(--cn-sp-3) var(--cn-sp-4);
+  color: var(--cn-text);
+  text-decoration: none;
+  transition: background-color 120ms;
+}
+
+.cn-mystery-teaser:hover {
+  background: var(--cn-pressed);
+}
+
+.cn-mystery-teaser:active {
+  transform: scale(0.985);
+}
+
+.cn-mystery-teaser:focus-visible {
+  outline: 2px solid var(--cn-brand);
+  outline-offset: 2px;
+}
+
+.cn-mystery-teaser-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cn-mystery-teaser-line {
+  font-size: var(--cn-t-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cn-mystery-teaser-sep {
+  color: var(--cn-dim);
+}
+
+.cn-mystery-teaser-action {
+  flex: none;
+  font-size: var(--cn-t-sm);
+  font-weight: 600;
+  color: var(--cn-dim);
+}
+
+.cn-mystery-teaser-go {
+  color: var(--cn-brand);
+}
+
+/* The rail has the teaser from 1080px; the inline one is the same row a second time there. */
+@media (min-width: 1080px) {
+  .cn-grid-rail .cn-mystery-teaser-inline {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cn-mystery-teaser {
+    transition: none;
+  }
+
+  .cn-mystery-teaser:active {
+    transform: none;
+  }
+}

@@ -172,6 +172,7 @@ const CHAMPIONS: Record<number, string> = {
   777: 'Yone',
   799: 'Ambessa',
   800: 'Mel',
+  804: 'Yunara',
   875: 'Sett',
   876: 'Lillia',
   887: 'Gwen',
@@ -181,9 +182,15 @@ const CHAMPIONS: Record<number, string> = {
   897: "K'Sante",
   901: 'Smolder',
   902: 'Milio',
+  904: 'Zaahen',
   910: 'Hwei',
   950: 'Naafiri',
 };
+
+/** True when this table names the id. The fearless loader asks the client only about the rest. */
+export function isRosterChampion(id: number): boolean {
+  return Number.isInteger(id) && CHAMPIONS[id] !== undefined;
+}
 
 /** Every id this table names, ascending. Fearless uses it for who is still open. */
 export function listChampions(): readonly { id: number; name: string }[] {
@@ -195,10 +202,18 @@ export function listChampions(): readonly { id: number; name: string }[] {
 const CHAMPION_ICON_BASE =
   'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons';
 
-/** Square icon for a named champion, or `null` for an id this table does not know. */
-export function championIconUrl(id: number): string | null {
-  if (!Number.isInteger(id) || CHAMPIONS[id] === undefined) return null;
-  return `${CHAMPION_ICON_BASE}/${id}.png`;
+/**
+ * Square icon for a named champion, or `null` for an id nobody can name.
+ *
+ * "Named" is this table **or** the client's own `championName` for the id (`storedName`, off
+ * `games.raw`): Community Dragon serves every live champion by numeric id, so a champion newer
+ * than this table still has a face as long as the client told us who it is. With neither, the
+ * chip is `Champion ${id}` and draws no icon ("The fearless icon exception", unknown id).
+ */
+export function championIconUrl(id: number, storedName: string | null = null): string | null {
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const named = CHAMPIONS[id] !== undefined || (storedName?.trim() ?? '') !== '';
+  return named ? `${CHAMPION_ICON_BASE}/${id}.png` : null;
 }
 
 /** A skipped draft slot. Match history stores this as `championId: -1`. */

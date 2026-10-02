@@ -7,8 +7,7 @@
  */
 
 import type { RoleValue, SideValue } from '@customs/db';
-import { championIconUrl } from '../champs/names';
-import { groupFearless } from '../fearless/present';
+import { fearlessIconUrl, groupFearless } from '../fearless/present';
 import type { FearlessChampion } from '../fearless/types';
 import { MIN_DUO_GAMES } from '../stats/copy';
 import type { StatsGame, StatsPlayer } from '../stats/types';
@@ -98,7 +97,7 @@ export function presentOverlayFearless(champions: readonly FearlessChampion[]): 
         id: champion.id,
         name: champion.name,
         role: champion.role,
-        iconUrl: championIconUrl(champion.id),
+        iconUrl: fearlessIconUrl(champion),
       });
     }
   }

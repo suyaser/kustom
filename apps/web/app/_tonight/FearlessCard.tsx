@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { championIconUrl } from '@/lib/champs/names';
 import {
   FEARLESS_OPEN,
   FEARLESS_SEARCH,
@@ -13,8 +12,15 @@ import {
   fearlessCount,
   fearlessLaneTitle,
 } from '@/lib/fearless/copy';
-import { availableFearless, fearlessExact, fearlessLanes, fearlessMatches } from '@/lib/fearless/present';
+import {
+  availableFearless,
+  fearlessExact,
+  fearlessIconUrl,
+  fearlessLanes,
+  fearlessMatches,
+} from '@/lib/fearless/present';
 import type { FearlessChampion, FearlessView } from '@/lib/fearless/types';
+import { RoleIcon } from '../_icons/RoleIcon';
 
 /**
  * Champions to ban next game (M10). Hidden while the pool is empty so an idle night is not
@@ -30,6 +36,13 @@ import type { FearlessChampion, FearlessView } from '@/lib/fearless/types';
  * M11.1: every chip leads with a 24px champion icon, the one place in the product a
  * champion is drawn ("The fearless icon exception" in docs/05-design.md). The name is the
  * accessible text; the icon is `alt=""`. An unknown id or a failed load is name-only.
+ *
+ * Sizing (2026-10-03): the lanes sit in a grid — one column on a phone, as many 16rem
+ * columns as fit above that — and each lane's `still open` tail is a disclosure, closed by
+ * default, so the card is the bans plus five one-line summaries instead of the whole roster.
+ * Typing in the find box opens every tail, because the box is how a pick is checked and a
+ * match hidden behind a closed summary would read as "no champion matches". The closed tail
+ * stays in the DOM, so the browser's own find-in-page still reaches it.
  */
 export function FearlessCard({ fearless }: { fearless: FearlessView }) {
   const searchId = useId();
@@ -83,15 +96,17 @@ export function FearlessCard({ fearless }: { fearless: FearlessView }) {
       {lanes.length === 0 ? (
         <p className="cn-fearless-empty">{FEARLESS_SEARCH_EMPTY}</p>
       ) : (
-        lanes.map((lane) => (
-          <FearlessLane
-            key={lane.role ?? 'other'}
-            role={lane.role}
-            banned={lane.banned}
-            open={lane.open}
-            query={query}
-          />
-        ))
+        <div className="cn-fearless-lanes">
+          {lanes.map((lane) => (
+            <FearlessLane
+              key={lane.role ?? 'other'}
+              role={lane.role}
+              banned={lane.banned}
+              open={lane.open}
+              query={query}
+            />
+          ))}
+        </div>
       )}
     </section>
   );
@@ -109,15 +124,24 @@ function FearlessLane({
   query: string;
 }) {
   const title = fearlessLaneTitle(role);
+  const searching = query.trim().length > 0;
   return (
     <div className="cn-fearless-lane">
-      <h3 className="cn-fearless-lane-title">{title}</h3>
+      <h3 className="cn-fearless-lane-title">
+        {role === null ? null : <RoleIcon role={role} />}
+        <span>{title}</span>
+      </h3>
       {banned.length > 0 ? <FearlessNames champions={banned} query={query} /> : null}
       {open.length > 0 ? (
-        <div className="cn-fearless-open">
-          <p className="cn-fearless-open-label">{FEARLESS_OPEN}</p>
+        // `open` is only ever driven by the find box: React writes the attribute when
+        // `searching` flips and leaves a reader's own tap alone in between.
+        <details className="cn-fearless-open" open={searching}>
+          <summary className="cn-fearless-open-label">
+            <span>{FEARLESS_OPEN}</span>
+            <span className="cn-num cn-fearless-open-count">{open.length}</span>
+          </summary>
           <FearlessNames champions={open} query={query} open />
-        </div>
+        </details>
       ) : null}
     </div>
   );
@@ -141,7 +165,7 @@ function FearlessNames({
           .join(' ');
         return (
           <li key={champion.id} className={className.length > 0 ? className : undefined}>
-            <FearlessIcon id={champion.id} />
+            <FearlessIcon src={fearlessIconUrl(champion)} />
             {champion.name}
           </li>
         );
@@ -150,10 +174,9 @@ function FearlessNames({
   );
 }
 
-function FearlessIcon({ id }: { id: number }) {
+function FearlessIcon({ src }: { src: string | null }) {
   const [failed, setFailed] = useState(false);
   const ref = useRef<HTMLImageElement>(null);
-  const src = championIconUrl(id);
   useEffect(() => {
     const img = ref.current;
     // A load that failed before hydration never reaches onError.

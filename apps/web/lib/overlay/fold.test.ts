@@ -149,4 +149,11 @@ describe('presentOverlayFearless', () => {
     expect(presented.map((c) => c.name)).toEqual(['Garen', 'Ahri', 'Lux']);
     expect(presented[0]?.iconUrl).toContain('/86.png');
   });
+
+  it('keeps the icon the loader resolved from the client name for an id the table lacks', () => {
+    const [newer] = presentOverlayFearless([
+      { id: 12_345, name: 'Newchamp', role: 'adc', iconUrl: 'https://example.test/12345.png' },
+    ]);
+    expect(newer?.iconUrl).toBe('https://example.test/12345.png');
+  });
 });

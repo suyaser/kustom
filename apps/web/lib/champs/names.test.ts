@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { championIconUrl, championLabel, championName, NO_BAN } from './names';
+import { championIconUrl, championLabel, championName, isRosterChampion, NO_BAN } from './names';
 
 describe('championIconUrl', () => {
   it('is the Community Dragon icon by numeric id for a champion the table names', () => {
@@ -14,6 +14,23 @@ describe('championIconUrl', () => {
     expect(championIconUrl(NO_BAN)).toBeNull();
     expect(championIconUrl(0)).toBeNull();
     expect(championIconUrl(1.5)).toBeNull();
+  });
+
+  it('draws an id the table does not know when the client named it, and never a blank name', () => {
+    expect(championIconUrl(12_345, 'Newchamp')).toMatch(/\/12345\.png$/);
+    expect(championIconUrl(12_345, '   ')).toBeNull();
+    expect(championIconUrl(12_345, null)).toBeNull();
+    expect(championIconUrl(NO_BAN, 'Newchamp')).toBeNull();
+    expect(championIconUrl(0, 'Newchamp')).toBeNull();
+  });
+});
+
+describe('isRosterChampion', () => {
+  it('is true only for ids the table names', () => {
+    expect(isRosterChampion(103)).toBe(true);
+    expect(isRosterChampion(804)).toBe(true);
+    expect(isRosterChampion(12_345)).toBe(false);
+    expect(isRosterChampion(NO_BAN)).toBe(false);
   });
 });
 
