@@ -9000,8 +9000,12 @@ before scoping would let the first stranger who signs up corrupt the original gr
     >
     > Impersonation. Super-admin writes. The `/ops` page (M13.14).
 
-- [ ] **M13.7** Design pass: the group name in the shell, the create and join pages, the Kustom picker and the
-  pairing screen. *(owner: `designer`; beside M13.2 to M13.6)*
+- [x] **M13.7** Design pass: the group name in the shell, the create and join pages, the Kustom picker and the
+  pairing screen. *(owner: `designer`; beside M13.2 to M13.6)* Done 2026-10-03, spec in `05-design.md`. Seven
+  copy slots marked `[copy owed]` and eight open questions (invite-link visibility to a non-admin super-admin,
+  "You're in." placement, Kustom picker reachability outside setup, disabling the picker mid-game, and smaller
+  copy/metadata calls) are unresolved -- product/lead to settle before M13.8, M13.9, M13.13 or M13.14 implement
+  against this spec.
 
     > **Brief (product, 2026-10-03)**
     >
