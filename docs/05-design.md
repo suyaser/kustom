@@ -176,7 +176,7 @@ Root 16px. Body 17px — the page is read at arm's length. Nothing that carries 
 | `t-md` | 19px | 19px | 1.25 | player names in rows, ratings |
 | `t-lg` | 24px | 26px | 1.2 | side names, card and section headings |
 | `t-xl` | 32px | 36px | 1.1 | the wordmark's home for growth; secondary headlines |
-| `t-display` | 44px | 56px | 1.02 | **two things only**: the lobby count and the result headline |
+| `t-display` | 44px | 56px | 1.02 | **two things only**: the lobby count and the result headline. (The pairing code borrows the size, set in mono and not in the display cut. It is the one other large thing, and it is named in "The pairing code" under M13.) |
 
 Weights: 400 body, 500 labels, 600 names and numbers that matter, 800 display only. **No 300, ever.**
 
@@ -313,6 +313,7 @@ product rather than a document that happens to be dark.
 ```
 ┌───────────────────────────────────────────────────────────────┐
 │  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  1v1  Daily   Day Night │
+│   Customs Night        ← the group line, under the wordmark (M13.7, below)    │
 ├───────────────────────────────────────────────────────────────┤
 │                                                               │
 │   … page content, on the paper or the ink, under the floodlight … │
@@ -405,6 +406,66 @@ Shell CSS, in outline:
   .cn-footer-inner { padding-bottom: max(var(--cn-sp-5), env(safe-area-inset-bottom)); }
 }
 ```
+
+#### The group in the shell (M13.7, designer 2026-10-03)
+
+From M13.9 on, every page lives under `/g/<slug>/` and belongs to one group. The shell names that group on
+every page. `KUSTOM` is still the product and the wordmark does not change at all: not its size, its tracking,
+its bar or its theme overrides. The group is a **second line under the wordmark**, and the wordmark plus that
+line make up one lockup.
+
+```
+phone, 390px (first row of the top bar, 44px)
+┌──────────────────────────────────────────────┐
+│ ▍KUSTOM                           DAY  NIGHT │
+│  Customs Night                               │   ← group line, inside the same 44px row
+├──────────────────────────────────────────────┤
+│ TONIGHT  LEADERBOARD  GAMES  STATS  FUN  1V1 │   ← tab row, unchanged
+└──────────────────────────────────────────────┘
+
+desktop, ≥720px (one row, unchanged order)
+│ ▍KUSTOM          TONIGHT  LEADERBOARD  …  DAILY  COMPANION ↗     DAY  NIGHT │
+│  Customs Night                                                             │
+```
+
+The lockup has the same shape at every width. That is deliberate. An inline `KUSTOM │ Customs Night` was
+measured and rejected. On a 390px phone in Night, the wordmark (~135px), the theme switch (~98px) and the
+gaps leave about 96px. `Customs Night` at 14px/600 is about 99px, so the original group's own name would
+truncate. At 720px the tab row already scrolls, and an inline name would push it further off screen. Stacked,
+the name gets the whole width left of the theme switch: about 245px on a phone, which fits roughly 33
+characters before the ellipsis.
+
+| Property | Value |
+|---|---|
+| Element | One `<a>` wrapping both lines (`.cn-wordmark` becomes a two-row grid: bar + `KUSTOM` on row 1, the group line on row 2). One link, one tap target, the full lockup height. |
+| Link target | **`/g/<slug>`**, the group's tonight page. Not `/`: M13.9's acceptance 4 says every link on `/g/a/*` starts with `/g/a/`, and `/` would resolve through a cookie to whichever group was opened last. |
+| Group line type | Archivo, `t-sm`, 600, `text`, line-height 1.2, letter-spacing 0. **Never the display cut, never upper case.** The gaming layer's tracked upper case applies to `.cn-tab` and `.cn-theme-opt`. It must not reach this line. A group's name is a name somebody typed, with their own casing, so it is set the way a player's name is set. |
+| Group line alignment | Left edge aligned with the `K`, not with the bar. Indent by the bar's width plus the wordmark's gap (`calc(4px + 0.65rem)` in Night's gaming layer, `calc(3px + var(--cn-sp-2))` in Day). The lamp lights the product name. The group sits under the letters. |
+| Vertical fit | Night: 24px × 1.02 + 2px + 14px × 1.2 ≈ 44px. Day: 19px × 1.02 + 2px + 16.8px ≈ 38px. Both fit the existing 44px row. The row may grow by a pixel or two at most; it never adds a third row. |
+| Long names | One line, `overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0`. Names run up to 40 characters (M13.5), and the longest lose their tail on a phone. Do not set a `title` (it does nothing on touch). The full name stays in the DOM, so a screen reader reads all of it. |
+| Content | Printed as **text, never markup**, like a Riot ID. If somebody typed an emoji into their group's name, it renders. "No emoji" is a rule about our decoration, not about what friends call themselves. |
+| Accessible name | The link reads `KUSTOM Customs Night`. No `aria-label`. The visible text is the name. |
+| Hover/press | As the wordmark today. Nothing turns amber on hover. The bar is the only amber in the lockup. |
+
+**What the group line is not:**
+
+- **Not a switcher.** It has no chevron and no menu. M13.9 rules out a group switcher: a member of two groups
+  uses two links. A chevron on this line would promise a menu that does not exist.
+- **Not in the status strip.** The strip's slug line stays "the night's date, and nothing else". The group
+  is a fact about the page, and the date is a fact about the night.
+- **Not repeated in the footer.**
+
+**Pages that belong to no group** (`/new`, and `/join/<code>` in every state) get the **bare shell**: the top
+bar with the wordmark and the theme switch, **no group line and no tab row**, and the footer with
+`Get the companion` only. The wordmark there is a plain `<span>`, not a link. Every in-app destination is a
+group's, and a visitor creating or joining a group has no group to be sent to. `/join/<code>` prints the
+inviting group's name inside its card (below), never in the shell: the visitor is not a member yet, and the
+shell's group line means "you are on this group's pages".
+
+**The admin sidebar** (`/g/<slug>/admin/*`, M13.14) uses the same lockup. Row 1 is `▍KUSTOM` plus the `admin`
+chip, unchanged. Row 2 is the group line, same rules, aligned with the `K`. The link target is
+`/g/<slug>/admin`. The sidebar is narrower than the phone bar, so long names truncate sooner there. That is
+fine on a laptop page that already says the group in every heading it acts on.
 
 ### Breakpoints and the desktop grid
 
@@ -2120,6 +2181,307 @@ rounded card inside the card. The small wordmark is the only identity.
 
 **Alt text** (`alt` export per route) is a sentence, and product writes it in the M11 copy table. The
 layout above uses no new chrome words. Every string on a card is one the page already prints.
+
+### More than one group — create, join, invite, pair, pick (M13.7, designer 2026-10-03)
+
+The surfaces M13 adds, besides the group line in the shell (see "The group in the shell" above). Every one of
+them is a step somebody takes **once per group**, never during a night, so none of them earns a new visual
+idea. They are built from three existing things and nothing else:
+
+1. **The admin form** (`admin.css`, "Forms and buttons"): a label above the field in `t-sm` 500 `dim`, a 44px
+   field on `raise` with a `line` border and an 8px radius, a 2px `brand` focus outline offset 2px, a
+   primary write outlined in `brand`, a destructive write outlined in `red-line`, and the answer as an
+   `.admin-notice` / `.admin-error` box beside the control.
+2. **The shown-once box** (`.admin-token`, the minted token): `brand-tint` fill, a border at
+   `color-mix(brand 45%, line)`, the 8px row radius, mono, `word-break: break-all`. Here it carries **the
+   thing you take somewhere else**: the invite link to a group chat, and the pairing code to Kustom. It
+   brings the dress and **not** the "only time it is shown" sentence. The invite link can be seen again
+   (M13.5 stores it as is), and the pairing code is a 15-minute code, not a secret you lose.
+3. **The card**: `surface`, 1px `line`, `lit`, 10px radius, header bar on `raise`.
+
+**Shared CSS, so `/new` and `/join` do not grow a second form system.** `admin.css` scopes its form rules
+under `.admin`, and `/new` and `/join` live outside `/admin`. Lift those rules **verbatim** into
+`apps/web/app/forms.css` under `cn-` names, import it from both, and have `admin.css` use the lifted classes.
+Do not restyle anything while moving it: `cn-field`, `cn-field-label`, `cn-input`, `cn-hint`, `cn-btn`,
+`cn-btn-primary`, `cn-btn-danger`, `cn-answer-ok` (= `.admin-notice`), `cn-answer-err` (= `.admin-error`),
+`cn-once` (= `.admin-token`). If the web engineer prefers to duplicate the dozen rules instead, the result must
+be byte-identical to the admin dress. A page that looks almost like admin is the defect.
+
+**Copy.** Every string below is quoted from the M13.5, M13.8, M13.13 and M13.14 briefs, or is an existing
+product string named with its source. Where the briefs leave a slot with no words, this section marks it
+**`[copy owed]`**. A proposal for those slots has gone to the lead for product. Do not fill a `[copy owed]`
+slot from this file.
+
+#### The one-card page — `/new` and `/join/<code>`
+
+Both pages are the bare shell (no group line, no tabs) around **one card, centred, `width: min(28rem, 100%)`**
+inside the shell's `sp-4` gutters, `sp-6` below the top bar. Same box at every width. There is no rail and no
+second column: a page with one decision on it does not get a desktop layout. The floodlight sits behind it as
+on every page.
+
+```
+┌ card ─────────────────────────────────┐
+│ <card head>                    raise  │  t-lg, Archivo 600, text
+├───────────────────────────────────────┤
+│ <body>                       surface  │  padding sp-4; children stacked, gap sp-4
+└───────────────────────────────────────┘
+```
+
+- The card head is a heading (`h1`), `t-lg`, Archivo 600, `-0.01em`. **Not the display cut.** These pages
+  carry neither a count nor a result.
+- Every button in these cards is **full width**, 44px, `cn-btn-primary` unless stated. A one-card page on
+  a phone has one obvious thumb target.
+- Body copy is `t-base` `text`. Hints and the secondary lines are `t-sm` `dim`.
+- Pending: a pressed button keeps its label, gets `aria-busy="true"`, and a second press while in flight is
+  dropped, not disabled (`AdminForm`'s rule: a control that disables itself loses focus). No spinner, no
+  skeleton.
+- A failure the brief did not attach to a field (network, 500) is a `cn-answer-err` box **under the button**,
+  carrying the route's sentence when there is one.
+
+#### `/new`
+
+**Signed out.** Card head `Start a group`. Body: one `Sign in with Discord` button (the existing sign-in
+string from `/admin/login`), posting to `/auth/signin` with `next=/new`. Nothing else. *(The brief says "the
+sign-in, returning here" and does not say whether the heading shows before sign-in. This design shows it so
+the page says what it is for. Flagged to the lead.)*
+
+**Signed in.**
+
+```
+390px
+┌ Start a group ─────────────────────────┐
+│ Name                                   │  cn-field-label
+│ ┌────────────────────────────────────┐ │
+│ │ Thursday Flex                      │ │  cn-input, Archivo, 44px
+│ └────────────────────────────────────┘ │
+│ What your friends call it.             │  cn-hint
+│                                        │
+│ Link                                   │
+│ ┌──────┬─────────────────────────────┐ │
+│ │ …/g/ │ thursday-flex               │ │  prefix + input, one box, mono
+│ └──────┴─────────────────────────────┘ │
+│ Letters, numbers and dashes. You can't │
+│ change it later.                       │
+│                                        │
+│ ┌────────────────────────────────────┐ │
+│ │               Create               │ │  cn-btn-primary, full width
+│ └────────────────────────────────────┘ │
+└────────────────────────────────────────┘
+```
+
+| Part | Treatment |
+|---|---|
+| Field block | `label` → field → (error) → hint, gap 4px between label and field, `sp-1` between the field and what follows, `sp-5` between the two blocks. The input has `aria-describedby` pointing at its hint and, when present, its error. A field with an error gets `aria-invalid="true"`. |
+| `Name` | `cn-input`, **Archivo** (`t-base`, not the admin `t-sm`: a phone keyboard zooms below 16px on iOS, and this is a phone page). `maxlength="40"`, `autocomplete="off"`, `autocapitalize="words"`. Nothing is set on the value. It is sent as typed, and the server trims it. |
+| `Link` | **One box** in the `cn-input` dress (`raise` fill, `line` border, 8px radius, 44px), holding two children. First, the prefix `…/g/` in mono `t-sm` `dim`, padded `sp-3` on the left, not selectable (`user-select: none`), with no border between it and the input. Second, an `<input>` with no border or background of its own, mono `t-base`, `text`, `flex: 1`. **The focus outline goes on the box** (`:focus-within`), not on the inner input, so the prefix reads as part of the field. Attributes: `maxlength="32"`, `autocapitalize="none"`, `autocorrect="off"`, `spellcheck="false"`, `inputmode="url"` (a phone keyboard with `-` and no auto-capitals). The `label` targets the inner input, so the accessible name is `Link`. |
+| Lowercasing | **On the value**, on every `input` event, with the caret position kept. Not `text-transform: lowercase`: that would show lowercase while sending what was typed, and M13.5's server never rewrites. Lowercase only. Do not turn spaces into dashes or strip characters, because the brief only says "lowercased as typed". A space stays visible and the server's sentence explains it. |
+| Errors | The server's sentence, in a `cn-answer-err` box **directly under the field it belongs to, above that field's hint**. The hint stays, because `You can't change it later.` is still true while the field is wrong. `That link is taken.` and `Use 3 to 32 lowercase letters, numbers or dashes.` go under `Link`. A name-length refusal goes under `Name` *(its sentence is `[copy owed]`: M13.5 gives the 1-to-40 rule but no sentence)*. An error clears when its field is next edited, not on a timer. Focus moves to the first invalid field after the answer arrives. |
+| `Create` | `cn-btn-primary`, full width, `sp-5` above it. |
+
+**After `Create`.** Linked creator: navigate straight to `/g/<slug>/admin`. The invite card is the first thing
+there (below). Unlinked creator: the **same card** becomes the pairing state (next section). Its head becomes
+the group's name as just created, and when the code is used the page goes to `/g/<slug>/admin`, not
+`/g/<slug>`. The card's outer box does not move between the form and the pairing state. Only the body is
+replaced, with the 150ms opacity fade.
+
+#### `/join/<code>` — five renders, three of them states
+
+| Situation | Card head | Body |
+|---|---|---|
+| Dead code | **No head bar.** The card is body only. | `This link doesn't work anymore. Ask your group for the new one.` in `t-base` `text`. Nothing else: no button, no link. HTTP 404. |
+| Signed out | The group's name | `<Group> uses Kustom to pick fair teams for your customs.` (`t-base`), then the `Sign in with Discord` button, `next=/join/<code>`. |
+| Signed in, already a member | — | No render. Server redirect to `/g/<slug>`. |
+| **Signed in, linked** | The group's name | One button: `Join <Group>`. On success, navigate to `/g/<slug>`. A refusal from `/api/groups/join` (a code rotated while the page was open) replaces the card with the dead-code render. |
+| **Signed in, not linked** | The group's name | The pairing state, below. |
+
+The group's name in the card head is data, not copy: the same text, rules and truncation as the shell's group
+line, except that here it may **wrap to two lines**. It is the page's subject and has the room.
+
+`Join <Group>` with a 40-character name is a long button label. It wraps inside the button: `min-height: 44px`,
+`height: auto`, `padding-block: sp-2`, `text-wrap: balance`. Never truncate a button label.
+
+#### The pairing code — the waiting state
+
+Used by `/join/<code>` (not linked) and by `/new` (unlinked creator). This is the one place in the product
+where a person reads something off one screen (the phone, from WhatsApp) and types it into another (Kustom,
+on the PC). That is the whole justification for the only large non-count, non-result type in the product.
+
+```
+390px
+┌ Thursday Flex ─────────────────────────┐
+│ Open Kustom on your PC with League     │  t-base, text
+│ running, then type this code under     │
+│ Join a group:                          │
+│ ┌────────────────────────────────────┐ │
+│ │                                    │ │
+│ │             K7QM4X                 │ │  cn-once box; code mono 600, t-display size
+│ │                                    │ │
+│ └────────────────────────────────────┘ │
+│ It works for 15 minutes.               │  t-sm, dim   ← the status slot
+│                                        │
+│ Don't have Kustom? Download it         │  t-sm, dim; "Download it" is the link
+└────────────────────────────────────────┘
+```
+
+| Part | Treatment |
+|---|---|
+| Lead sentence | `Open Kustom on your PC with League running, then type this code under Join a group:` (`t-base`, `text`). `Join a group` is the name of a field in Kustom. Set it in 600 so the eye can find the same words on the PC, with no quotes and no colour. |
+| The code box | `cn-once` dress, `padding: sp-5 sp-4`, `text-align: center`. The code: **IBM Plex Mono 600**, `t-display` size (44px phone, 56px ≥720px), line-height 1, `letter-spacing: 0.12em` (the trailing tracking is trimmed with `margin-right: -0.12em` so it centres), `text` colour, not `brand`: the box is already amber, and the code needs the highest contrast on the page. Six characters at 44px mono are about 190px wide, which fits a 390px phone's 294px of box with room to spare. **One run with no space or dash in the middle.** A visual gap gets typed as a space. The alphabet has no `0 O 1 I`, so Plex Mono's glyphs cannot be misread. |
+| Selecting it | `user-select: all` on the code, so one tap or click selects all six characters. People who opened the link on the PC itself, from Discord, paste instead of type. **No copy button** (the brief gives the code no copy affordance, and a six-character code does not need one). |
+| Accessible text | The code is a `<p>` with `aria-label` spelling it with spaces (`K 7 Q M 4 X`), so a screen reader reads characters, not a word. The visible text stays unspaced. |
+| Status slot | `t-sm` `dim`, `role="status"`, `min-height` of one line, so its changes move nothing. While waiting: `It works for 15 minutes.` It is a fixed sentence. **There is no countdown**: nothing on this page ticks, and nothing pulses. The live dot is the only pulse in the product, and this is not live. |
+| Polling | Silent. Every 3 s (M13.5). There is no "waiting…" indicator, dot or spinner. The code on screen is the indicator. |
+| Expired | The code stays where it was, recoloured `dim`, with no strikethrough, so the box does not change size. The status slot holds the expired line *(`[copy owed]`: the brief gives only the `New code` button)*, and a full-width **`New code`** button (`cn-btn-primary`) appears **under the status slot, in space that was reserved for it** (`min-height: 44px + sp-3` kept empty while waiting), so the download line does not jump. Pressing it puts the new code in the same box at full `text`, restores `It works for 15 minutes.`, and empties the button's slot again. |
+| Used | Navigate (`router.replace`, so Back does not return to a dead code) to `/g/<slug>` from `/join`, or to `/g/<slug>/admin` from `/new`. Then `You're in.` (see "Arriving", next). |
+| Download line | `Don't have Kustom? ` in `dim` plus `Download it` as the link (`cn-link`, `brand`, underlined, offset 4px). It points at the **releases page** (`RELEASES_URL`), never the `.exe`: this card is read on a phone, the same rule as the footer's `Get the companion`. The tap target is padded to 44px tall. *(The brief puts the link on the line without saying which words carry it. This design links only `Download it`. Flagged.)* |
+
+A refusal the server gives to Kustom (Discord already linked elsewhere, League account linked to somebody else,
+expired) shows **in Kustom**, which is where the person is typing. The page keeps waiting and does not mirror
+those refusals.
+
+#### Arriving — `You're in.`
+
+M13.13 says the pairing state "moves to `/g/<slug>` with `You're in.`". The sentence belongs **where the person
+lands**, not on the page they leave. Shown on `/join` before a redirect it would last a frame or hold them on a
+timer, and nothing in this product waits on a timer. So:
+
+- The join page navigates to `/g/<slug>?joined=1`. The tonight page renders `You're in.` **server-side** in
+  the slot the no-season sentence uses: top of `main`, directly under the status strip, above the primary
+  block. It is in the first paint, so it shifts nothing.
+- Dress: a `cn-answer-ok` line (brand tint, brand-45% border, 8px radius, `t-sm` `text`, `padding: sp-3
+  sp-4`), `role="status"`. No close button, no timer. On mount the page removes `joined` from the URL with
+  `history.replaceState`, so a refresh, or the link copied from the address bar, does not say it again.
+- The same sentence on `/g/<slug>/admin` after `/new` → pairing.
+- *Whether the one-tap `Join <Group>` path also lands with `You're in.` is not in the brief. This design
+  says yes, the same `?joined=1`, because one way in should look like the other. Flagged to the lead. If
+  product says no, the tap path just navigates.*
+
+#### The invite card — top of `/g/<slug>/admin`
+
+The first card on the group's admin home, **full width** (`admin-grid-wide`), above every other card. After
+`/new` it is the only thing the creator needs next.
+
+```
+admin, ≥720px
+┌ Invite your group ───────────────────────────────────────────────┐
+│ ┌──────────────────────────────────────────────────────────────┐ │
+│ │ https://kustom.example/join/q3XbTaLm9VZpR2kYw8sNe-           │ │  cn-once box
+│ └──────────────────────────────────────────────────────────────┘ │
+│ [ [copy owed] ]   [ New link ]                                    │
+└──────────────────────────────────────────────────────────────────┘
+
+390px
+┌ Invite your group ─────────────────────┐
+│ ┌────────────────────────────────────┐ │
+│ │ https://kustom.example/join/       │ │  the code starts line 2
+│ │ q3XbTaLm9VZpR2kYw8sNe-             │ │
+│ └────────────────────────────────────┘ │
+│ [ [copy owed]  ] [ New link ]          │  two buttons, one row, wrap if needed
+└────────────────────────────────────────┘
+```
+
+| Part | Treatment |
+|---|---|
+| Card title | `Invite your group`, the admin card head (Archivo `t-sm` 600, the `raise` bar). |
+| The link | The **full absolute URL**, built from the request's origin: the thing that gets pasted has to work when pasted. It sits in the `cn-once` box, mono `t-sm`, with two spans. The origin plus `/join/` is in `dim`. The 22-character code is in `text` 600. A `<wbr>` goes after `/join/`, so on a phone the code starts its own line rather than breaking mid-code. The `dim`/`text` split is also how an admin sees that `New link` worked: the bright half changes. `user-select: all` on the box, so one tap selects the whole URL. That is also the fallback when the clipboard API is unavailable. |
+| Copy affordance | A button, `cn-btn-primary` (copying is the card's main action), **with a word, never an icon alone** (the icon rule). Label `[copy owed]`, and its confirmed state `[copy owed]`. It calls `navigator.clipboard.writeText(url)`. On success the label swaps to the confirmed word for 2 s, then swaps back. The button's `min-width` is set to the wider of the two labels so the swap moves nothing. A visually hidden `role="status"` beside it announces the confirmed word. **No toast** (no toasts in this product). If the clipboard call throws, select the box's text instead and leave the label alone: the selection is the feedback. |
+| `New link` | Destructive (the old link stops), so `cn-btn-danger`: `red-line` outline, never filled. **Confirm in place with a `<details>`**, the product's no-JS disclosure, the one `/games`, the board rows and the footer already use. The `<summary>` is dressed as the `New link` button. Opening it shows, under the button row, `The old link will stop working.` in `t-sm` `text`, then a `cn-btn-danger` submit inside an `AdminForm` posting the rotation. That submit's label is `[copy owed]`: the brief gives the confirm sentence but not the word on the confirming control. Until product rules, it repeats `New link`. Do **not** use `window.confirm()`: it is skipped without JavaScript, and an admin write here has always worked without it. After success `router.refresh()` repaints the box with the new code, and the `<details>` closes. The AdminForm answer line for this write is `[copy owed]` (it needs a `notices.ts` kind). |
+| Read only (super-admin, M13.14) | The card renders with **no `New link`**, the same "every write control absent" rule. *Whether a super-admin should see the live link at all is an open question to the lead: it is a read, but it is also the key to joining the group, which is a write by another door.* |
+
+#### Kustom's setup screen — `Join a group`
+
+`apps/companion/desktop/index.html`, the 480 × 620 setup window. It keeps that window's own token block (the
+same nine Floodlit values, already inlined). No new class family: the field reuses the window's `label`,
+input and `.help-text` rules, and its answers reuse `.error` plus one sibling, `.notice`. `.notice` is
+`.error` with `brand` in place of `red`: tint 12% on `surface`, border `color-mix(brand 45%, line)`. That is
+`.admin-notice`'s dress, so it is not a new one.
+
+**Placement: the first block on the setup screen, above `Mode`, in its own card.** Card = `surface`, `line`,
+`lit`, 10px radius, `padding: sp-4`, `sp-5` below it. Two reasons:
+
+- It acts **immediately** (below), not on `Save and start`. Everything under it waits for Save. A field mixed
+  in with those would look like it waits too. A separate card says "this one is its own action".
+- A brand-new friend opens Kustom **because** a join page told them to. The code is the reason they are
+  here, and it is only good for 15 minutes. Mode, token and address come after.
+
+```
+480px setup window
+┌──────────────────────────────────────────┐
+│ Kustom                                   │  existing header
+│ Pick how this PC runs                    │
+├──────────────────────────────────────────┤
+│ ┌ card ────────────────────────────────┐ │
+│ │ Join a group                         │ │  label (13px 600)
+│ │ ┌──────────────────────────────────┐ │ │
+│ │ │ K7QM4X                           │ │ │  mono 600 20px, tracked
+│ │ └──────────────────────────────────┘ │ │
+│ │ Type the code from the join page.    │ │  .help-text ← the answer slot
+│ └──────────────────────────────────────┘ │
+│ Mode                                     │
+│ [ Host ] [ Overlay ]                     │  existing, unchanged
+│ …                                        │
+└──────────────────────────────────────────┘
+```
+
+| Part | Treatment |
+|---|---|
+| Field | The window's `input[type=text]` dress, then: mono **600, 20px**, `letter-spacing: 0.2em`, `maxlength="6"`, `autocomplete="off"`, `spellcheck="false"`. **Uppercased on the value as typed**, and characters outside the code alphabet (spaces, dashes) dropped. Both are safe because the alphabet is fixed and upper case (M13.5). No placeholder (none is given, and a fake code reads like a real one). |
+| Sending | **Automatic on the sixth valid character**, and on Enter. There is no button: none is given, and a code field that fills and sends is the familiar shape (an SMS code). While in flight the field is `readOnly` and the slot below keeps its sentence. No spinner. |
+| The slot under the field | One slot, `min-height` of two lines of `.help-text`, so no answer moves `Mode`. In order of precedence: (1) an answer from the last send; (2) League not running: `Open League first, then type the code.` in `.help-text` dress, **shown before typing** (the sentence tells you what to do first). The field stays enabled; if a code is sent with League still closed, the same sentence comes back as the answer; (3) otherwise the hint, `Type the code from the join page.` |
+| Success | `.notice` box in the slot: `You're in <Group>.` The field is cleared. The group is now in the config. In Host mode it has no token yet, which is the picker's `(no host token)` (below). |
+| Refusal | `.error` box in the slot, the **server's sentence verbatim** (the two "already linked" sentences, `That code ran out. Get a new one from the page.`, and whatever the 429 and a never-issued code answer, which M13.5 does not word yet). The field keeps the code, fully selected, so typing replaces it. |
+| Clearing | The next keystroke in the field clears the answer, and the slot falls back to (2) or (3). Never cleared on a timer. |
+| Global error box | The existing `#error-message` above `Save and start` is **not** used for pairing. A pairing answer belongs beside the code that caused it. |
+
+#### The panel's group picker — Host and Overlay
+
+`apps/companion/desktop/overlay/`, the champ-select panel. **It appears only with two or more groups**
+(M13.8). With one group the header is exactly as it is today, and the group is not named, because "nothing
+new if they are in one group" is the acceptance.
+
+```
+panel header (.drag, raise), ≥2 groups
+┌──────────────────────────────────────────┐
+│ KUSTOM                                   │
+│ ChampSelect                     ● live   │  existing status row
+│ Posting tonight to: [Customs Night    ▾] │  ← Host
+│ Tonight's group:    [Customs Night    ▾] │  ← Overlay (one or the other, never both)
+└──────────────────────────────────────────┘
+```
+
+| Part | Treatment |
+|---|---|
+| Row | A third row in the header, `margin-top: sp-2`, `display: flex; align-items: center; gap: sp-2; flex-wrap: wrap`. At narrow panel widths the select wraps under its label rather than shrinking below 10rem. The row is **`-webkit-app-region: no-drag`** (the header is the window's drag handle, and a select inside a drag region cannot be opened). |
+| Label | A `<label for>` with the exact text by mode: Host **`Posting tonight to:`**, Overlay **`Tonight's group:`**. Archivo 12px 500 `dim`. Language, so **not mono and not upper case**, unlike the section `h2`s. The label is the accessible name of the select. |
+| The control | A **native `<select>`**, dressed like the admin select: `surface` fill (one layer below the `raise` header, so it reads as a control), 1px `line` border, 8px radius, Archivo 13px 600 `text`, `padding: 0 sp-3`, `min-height: 32px`, `flex: 1`, `min-width: 10rem`, focus `2px brand` outline offset 2px. Native, because the panel is a WebView2 window on Windows and the OS menu is the most legible and most keyboard-correct list there is. **32px, not 44px**: the panel is mouse-driven on a desktop and sits beside the client in champion select where height is scarce. It matches the fearless chips' 32px in the same window. This is the panel's rule, not the website's. |
+| Options | Group names as typed, oldest membership first (the server's order), selected = `lastGroupId`. **Host only:** a group with no token on this PC is listed as `<Group> (no host token)` and is a `disabled` option. It is visible, so the host knows why it cannot pick it, and it cannot be picked. Overlay lists every membership. |
+| Switching | **Host:** the select is `disabled` from the change until the new group's watchers report up, then re-enabled. The status row shows whatever the engine reports meanwhile. **Overlay:** the main area re-renders in place for the new group (fearless and lobby blocks swap with the 200ms fade the panel already uses). Nothing else on the header moves. |
+| Token refused | `This token no longer works for <Group>. Ask an admin for a new one.` in the window's `.error` box, **first child of `main`**, not in the header (the header is a drag region, and a sentence there would be hard to select or read). The select stays enabled, so the host picks another group. The box clears when a group is picked. |
+| Overlay, zero groups | No picker row. `main` holds only `Play a game with your group, or ask them for the join link.` in the panel's `.empty` dress. The fearless and lobby sections are not rendered, not even their headings. |
+
+#### Also in M13.14, briefly — they reuse admin patterns as they stand
+
+- **`Make admin` / `Remove admin`** on `/g/<slug>/admin/players`: a per-row `AdminForm`. `Make admin` is a
+  plain `button` (a write, not a primary one: a column of amber outlines down a table is noise). `Remove
+  admin` is `admin-danger` (the admin area's own list already names "remove admin" as destructive). For the
+  last admin the button is **absent**, not disabled, and `This group needs at least one admin.` sits in its
+  cell in `admin-muted`.
+- **Read-only line** (super-admin on a group they are not admin of): `Read only. You are not an admin of
+  this group.` as the first thing in `.admin-content`, above the page header. `t-sm` `dim`, a 1px `line`
+  bottom rule, `padding-block: sp-3`. A hairline and not a box: it is a fact about the view, not an error, and
+  red would claim something went wrong.
+- **`/ops`**: one admin `table` in one wide card, the existing table dress, each group's name linking to its
+  admin home. No new treatment.
+
+#### What these surfaces do not do
+
+- No group avatar, colour, crest or emblem. A group is a name. Blue and red still mean sides, and amber is
+  still the lamp. A per-group accent colour would be a fourth colour.
+- No onboarding carousel, no "step 1 of 3", no progress bar across `/new` → pairing → admin. Each screen says
+  its one thing.
+- No QR code for the invite link. The link goes into a group chat, and that is the whole distribution story.
+- No `navigator.share` button. The admin is on a laptop. Revisit if an admin asks for it from a phone.
+- No countdown, spinner or pulse anywhere in pairing.
 
 ### `tokens.css`, v2 — the file to write
 
