@@ -508,19 +508,40 @@ if (stack === null) {
       // 06:00:41 Cairo a game started at `now - 60_000` belongs to *last* night, nobody has
       // a game tonight, and the clause under test is never reached. Pinning it there rather
       // than avoiding it means the boundary is exercised on every run, at any hour.
-      const played = await withClockAt(nightStart(new Date(), TIME_ZONE).getTime() + 30_000, (now) =>
-        postGame(
-          request(
-            eogBody({
-              gameId: gameNumber(),
-              puuids: eleven.slice(1),
-              partyId: first,
-              startedAt: insideTonight(now),
-            }),
-            elevenToken,
+      //
+      // That pin puts `started_at` one second into tonight, and the fearless pool (M10) only
+      // reads games that started **after** `fearless_state.reset_at`. Migration 0017 seeds
+      // that cursor to `now()`, so on a stack reset (or a fearless reset) any time since 06:00
+      // this game predates the cursor, the pool is empty, the fearless post is skipped, and
+      // `posts[2]` below is `undefined` (2026-10-03: the stack was reset at 01:11 Cairo to
+      // apply 0018). The case owns its precondition: the cursor sits just before tonight for
+      // the duration of the post, and goes back to where it was afterwards.
+      const tonightStart = nightStart(new Date(), TIME_ZONE).getTime();
+      const cursor = await db.from('fearless_state').select('reset_at').eq('id', 1).single();
+      if (cursor.error) throw new Error(cursor.error.message);
+      const moved = await db
+        .from('fearless_state')
+        .update({ reset_at: new Date(tonightStart - 1_000).toISOString() })
+        .eq('id', 1);
+      if (moved.error) throw new Error(moved.error.message);
+      let played: Response;
+      try {
+        played = await withClockAt(tonightStart + 30_000, (now) =>
+          postGame(
+            request(
+              eogBody({
+                gameId: gameNumber(),
+                puuids: eleven.slice(1),
+                partyId: first,
+                startedAt: insideTonight(now),
+              }),
+              elevenToken,
+            ),
           ),
-        ),
-      );
+        );
+      } finally {
+        await db.from('fearless_state').update({ reset_at: cursor.data.reset_at }).eq('id', 1);
+      }
       expect(played.status).toBe(200);
       expect(lobbyId).toBeTruthy();
 
