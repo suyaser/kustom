@@ -19,7 +19,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M11 The night as a broadcast | in progress | Opened 2026-09-23 from the user, who asked to start three of the lead's proposals plus champion icons on the fearless card and nowhere else. **M11.1 landed 2026-09-23**. **M11.3 landed 2026-09-23**: reusable `ResultPoster`, underdog line, `webAwardLine` (Discord markdown escape stays off the page); reviewed clean. **M11.2 landed 2026-09-23**. **M11.4 landed 2026-09-23**: `/og/*` cards, `/g/[gameId]`, Discord + tape links; reviewed clean after the decision row. The four tasks are closed. Product alt strings and a real-data unfurl are leftovers, not a fifth task. **M11.3** was: the underdog line off the stored `blue_win_prob` and the `MVP · ACE` line Discord already posts, reusable on a page of its own. **M11.2** the night tape: tonight's earlier finished and dropped games under the primary block, oldest first, a read of stored rows. **M11.4** share cards: 1200×630 unfurl images for `/`, a new `/g/[gameId]` (no single-game URL exists today) and `/p/[puuid]`, with no Share button. Order M11.1 → M11.3 → M11.2 → M11.4, because the last three all edit the tonight view and loader. No rating, balancer, ingest or schema change in any of them. Icons appear on the fearless card only — not `/fun`, `/games`, `/p`, Discord, share cards or the poster. |
 | M12 Overlay client | in progress | Folded into M6 one-app (2026-09-23): Overlay mode on `Kustom.exe`, not a second product. `GET /api/overlay` stays. Separate `KustomOverlay.exe` retired as a product. |
 | M6 Tray app and polish | in progress | Un-deferred 2026-09-23: one Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes, tray, Floodlit UI. M6.1 absorbs the M12 panel. |
-| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product) done. Next: **M13.2** schema and the one backfill migration (`0018`, slug `customs`, temporary defaults so nothing moves). Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
+| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product) and **M13.2** (schema, `0018`, pushed to hosted) done. Nobody can create a second group yet -- that's M13.5, which needs M13.3 and M13.4 first so every read/write is group-aware before a second group can safely exist. Next: **M13.3**, every companion-facing route and the ingest fold. Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -8648,8 +8648,12 @@ before scoping would let the first stranger who signs up corrupt the original gr
 - [x] **M13.1** Product: scope the milestone, update `00-product.md`, decision rows. *(owner: `product`;
   landed 2026-10-03)*
 
-- [ ] **M13.2** Groups schema and the one backfill migration. *(owner: `platform-engineer`; first, everything
-  depends on it)*
+- [x] **M13.2** Groups schema and the one backfill migration. *(owner: `platform-engineer`; first, everything
+  depends on it)* Done 2026-10-03 (`0018_groups.sql`, commit `e3f4a8f`), pushed to hosted. Acceptance 1-4 and 6
+  verified; acceptance 5 (row counts and sum(mu)/sum(sigma) before/after the hosted push) was not captured --
+  the push happened before those numbers were taken. `supabase migration list --linked` confirms hosted matches
+  local exactly with no drift, and the migration's own design (every check and key behaviorally unchanged while
+  one group exists) and its local backfill test make this low-risk, but it's not the acceptance as written.
 
     > **Brief (product, 2026-10-03)**
     >
