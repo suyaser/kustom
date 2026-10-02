@@ -1,3 +1,5 @@
+import { rosterKey } from '@customs/db';
+import { PLAYERS_PER_GAME } from '../lobbyState';
 import {
   BALANCED_SENTENCE,
   FINISHED_SENTENCE,
@@ -13,6 +15,7 @@ import {
 } from './copy';
 import type {
   LobbyView,
+  MemberView,
   PlayerName,
   SplitChoice,
   TapeEntry,
@@ -37,8 +40,10 @@ export function tonightState(snapshot: TonightSnapshot): TonightState {
       return { kind: 'filling', lobby };
     case 'balanced':
     case 'in_game':
-      // Reachable only when a balanced lobby has **no split rows at all** — the split insert
-      // failed, and the next companion post rebalances it (`hasChosenSplit`). The narrower
+      // Reachable only when a balanced lobby has **no split rows at all** — a roll claimed the
+      // lobby and its split insert failed or has not landed yet. Nothing repairs it by itself:
+      // the next admin press after `ROLL_IN_FLIGHT_MS` (30s, `lib/admin/roll.ts`) makes the
+      // splits again, which is why `rollStage` offers the button here (`repair`). The narrower
       // case, rows with none flagged `is_chosen`, is handled in `loadTeams`: it falls back to
       // the newest run's rank 1 rather than dropping the teams for the instant that
       // `balanceLobby` and `promoteSplit` spend between their two statements.
@@ -145,6 +150,37 @@ function namesOnScreen(state: TonightState): PlayerName[] {
         ...(state.teams?.sitters ?? []).map((member) => member.name),
       ];
   }
+}
+
+/**
+ * Where the roll stands for a lobby on screen (2026-10-03):
+ *
+ * - `waiting`: `open` with fewer than ten around — nothing to press yet;
+ * - `ready`: `open` with ten or more — an admin's press makes the teams;
+ * - `repair`: `balanced` with no teams to draw — a roll that died between its claim and its
+ *   splits, which the next press after the in-flight window re-makes (`lib/admin/roll.ts`);
+ * - `none`: every other lobby, where the roll route would only refuse.
+ *
+ * The count is distinct puuids, the same count the route checks.
+ */
+export type RollStage = 'waiting' | 'ready' | 'repair' | 'none';
+
+export function rollStage(lobby: LobbyView): RollStage {
+  if (lobby.status === 'balanced') return lobby.teams === null ? 'repair' : 'none';
+  if (lobby.status !== 'open') return 'none';
+  return new Set(lobby.members.map((member) => member.puuid)).size >= PLAYERS_PER_GAME ? 'ready' : 'waiting';
+}
+
+/**
+ * The `rosterKey` a roll press sends: `rosterKey()` from `@customs/db` over the puuid of every
+ * member on screen, spectators included, duplicates dropped — `lobbyRosterKey` in
+ * `lib/ingest/lobby.ts`, which the route recomputes from `lobby_members`. Any difference
+ * between the two is a 409 on every press, so `state.test.ts` pins them against each other.
+ * `''` for an empty lobby (the route's schema refuses it; the button is not drawn then).
+ */
+export function rollRosterKey(members: readonly Pick<MemberView, 'puuid'>[]): string {
+  const unique = [...new Set(members.map((member) => member.puuid))];
+  return unique.length === 0 ? '' : rosterKey(unique);
 }
 
 /**

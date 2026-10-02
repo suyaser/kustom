@@ -25,7 +25,7 @@ import { type AdminWriteResult, writeFailed, writeOk } from './result';
  */
 
 /** The sentence for a third press. `05-design.md`, "The title on a reroll"; verbatim. */
-export const NO_MORE_SPLITS = 'No more splits. Change who is in the lobby to rebalance, or play these.';
+export const NO_MORE_SPLITS = 'No more splits. Change who is in the lobby and roll again, or play these.';
 
 /**
  * A lobby id that names nothing, whether it is a well-formed uuid we have no row for or a

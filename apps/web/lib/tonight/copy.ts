@@ -147,6 +147,29 @@ export const NAMELESS_HINT = "Names fill in after someone's first game.";
 /** `05-design.md`, "Explanation line": the ghost button on the strip. */
 export const REROLL_LABEL = 'Reroll';
 
+/* ---------------------------------------------------------------------------
+ * The roll (2026-10-03): an admin's press is the only way a lobby gets teams. Ingest no longer
+ * balances by itself, so the filling page has to say why nothing is happening.
+ * ------------------------------------------------------------------------- */
+
+/** The admin's button under the rack. */
+export const ROLL_LABEL = 'Roll teams';
+
+/**
+ * Under the rack while the lobby fills, for everybody who is not holding the button: the reason
+ * ten people in the lobby do not, by themselves, put teams on this page.
+ */
+export const ROLL_HINT = 'Once the right ten are in, an admin rolls the teams.';
+
+/** Beside the admin's button: the press names the roster on screen, so look before pressing. */
+export const ROLL_ADMIN_HINT = 'Check these are the right people, then roll.';
+
+/** The press never reached the route. */
+export const ROLL_UNREACHABLE = 'That did not reach the server. Nothing was rolled.';
+
+/** A refusal with no sentence of the route's own in it. */
+export const ROLL_FAILED = 'That roll did not go through. Nothing was rolled.';
+
 /**
  * `100% even.` is a claim nobody believes, so the top of the scale gets its own sentence
  * (product, 2026-09-15). It is also what the first night ever says, when nobody has a rating

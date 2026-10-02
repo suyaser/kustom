@@ -1,6 +1,6 @@
 import { resolveRoles } from '@customs/core';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
 import type { BoardRow } from '@/lib/board/types';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
@@ -37,6 +37,9 @@ import {
   NAMELESS_HINT,
   OFF_ROLE_LEGEND,
   OFF_ROLE_LEGEND_SUFFIX,
+  ROLL_ADMIN_HINT,
+  ROLL_HINT,
+  ROLL_LABEL,
   SIGN_IN_LABEL,
   START_LOBBY_SIGN_IN,
   sideLine,
@@ -964,6 +967,99 @@ describe('the reroll control', () => {
 });
 
 /**
+ * The roll (2026-10-03): where the button is drawn and for whom, and the line that tells
+ * everybody else why ten names do not turn into teams by themselves. The press itself is
+ * `RollControl.test.tsx`.
+ */
+describe('the roll', () => {
+  const roll = { name: ROLL_LABEL } as const;
+
+  it('tells a reader with no session why a full lobby has no teams yet', () => {
+    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })));
+
+    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
+    expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
+    // Under the rack, never above it: the rack is ten rows at every count.
+    const block = container.querySelector('.cn-block');
+    const children = [...(block?.children ?? [])].map((child) => child.className);
+    expect(children.indexOf('cn-roll')).toBe(children.indexOf('cn-card cn-rack') + 1);
+  });
+
+  it('says the same while the lobby fills, to an admin too: nothing to press yet', () => {
+    draw(snapshot(lobbyView({ members: workedMembers(7) })), { isAdmin: true });
+
+    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
+    expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
+  });
+
+  it('is not a button for a linked player who is not an admin', () => {
+    draw(snapshot(lobbyView({ members: workedMembers() })), { puuid: 'puuid-somebody' });
+
+    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
+    expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
+  });
+
+  it('is a button for an admin once ten are in, posting to this lobby', () => {
+    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })), { isAdmin: true });
+
+    expect(screen.getByRole('button', roll)).toBeEnabled();
+    expect(screen.getByText(ROLL_ADMIN_HINT)).toBeInTheDocument();
+    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
+    expect(container.querySelector('.cn-roll form')).toHaveAttribute(
+      'action',
+      '/api/admin/lobbies/lobby-1/roll',
+    );
+  });
+
+  it('is a button with more than ten too: the rotation picks who sits out', () => {
+    draw(snapshot(lobbyView({ members: [...workedMembers(), extraMember()] })), { isAdmin: true });
+    expect(screen.getByRole('button', roll)).toBeEnabled();
+  });
+
+  it('repairs a balanced lobby whose roll died before its splits', () => {
+    draw(snapshot(lobbyView({ status: 'balanced', teams: null })), { isAdmin: true });
+    expect(screen.getByRole('button', roll)).toBeEnabled();
+  });
+
+  it('is gone once the teams are up, and with no lobby at all', () => {
+    draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })), { isAdmin: true });
+    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
+    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
+  });
+
+  it('says nothing on the idle page', () => {
+    draw(snapshot(null), { isAdmin: true });
+    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
+    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
+  });
+
+  it('hands an answered press to the page to re-read', async () => {
+    const settled = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          ({ ok: false, status: 409, json: async () => ({ ok: false, error: 'x' }) }) as unknown as Response,
+      ),
+    );
+    try {
+      render(
+        <TonightView
+          snapshot={snapshot(lobbyView({ members: workedMembers() }))}
+          viewer={{ kind: 'linked', puuid: 'puuid-not-in-this-lobby', isAdmin: true }}
+          topPlayers={[]}
+          onRollSettled={settled}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', roll));
+      await waitFor(() => expect(settled).toHaveBeenCalledTimes(1));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+/**
  * `Start a lobby` (M4.2's control, M4.7's placement). Where it is drawn, and for whom — the
  * control's own behaviour is `StartLobby.test.tsx`.
  */
@@ -1012,6 +1108,8 @@ describe('the Start a lobby control', () => {
     const block = container.querySelector('.cn-block');
     expect([...(block?.children ?? [])].map((child) => child.className)).toEqual([
       'cn-card cn-rack',
+      // The roll's line (2026-10-03): seven in, nothing to press, so it says why.
+      'cn-roll',
       'cn-start',
       'cn-missed',
     ]);

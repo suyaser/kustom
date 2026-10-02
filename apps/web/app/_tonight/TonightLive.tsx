@@ -187,6 +187,9 @@ export function TonightLive({
     };
   }, [nightStart, nightLabel, nightClock]);
 
+  /** A roll press was answered: re-read the snapshot now (`TonightView`'s `onRollSettled`). */
+  const onRollSettled = useCallback(() => refresh.current(), []);
+
   const nameless = hasNamelessRow(tonightState(snapshot), snapshot.tape);
 
   useEffect(() => {
@@ -216,6 +219,7 @@ export function TonightLive({
       lobbyStart={lobbyStart}
       onViewerChanged={onViewerChanged}
       onLobbyStarted={refreshServer}
+      onRollSettled={onRollSettled}
       mystery={mystery}
     />
   );

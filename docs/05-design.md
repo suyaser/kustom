@@ -2448,7 +2448,7 @@ and the group say them in lower case).
 
 - The reroll control (M3.2, admins only) is a ghost button on the right of the strip on wide screens, and a
   full-width button under it on phone. Label `Reroll`. After the last split it is `disabled` and the strip
-  shows, in `dim` `t-sm`: `No more splits. Change who is in the lobby to rebalance, or play these.`
+  shows, in `dim` `t-sm`: `No more splits. Change who is in the lobby and roll again, or play these.`
   (Product copy, 2026-09-08. It is deliberately *not* core's `BalanceError` message
   `No more splits. Rebalance or play these.` — "rebalance" is not a button on this page, it is what happens
   when the lobby membership changes, and the friend reading it should be told which.)

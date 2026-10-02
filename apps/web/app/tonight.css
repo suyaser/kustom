@@ -1052,15 +1052,35 @@
  * caption grey under an amber control is a sentence nobody reads, and red here would read as
  * the red side. Nothing in either is mono; they are language.
  */
-.cn-start-note {
+.cn-start-note,
+.cn-roll-note {
   margin: 0;
   font-size: var(--cn-t-sm);
   font-weight: 400;
   color: var(--cn-text);
 }
 
-.cn-start-note-refused {
+.cn-start-note-refused,
+.cn-roll-note-refused {
   font-weight: 600;
+}
+
+/*
+ * The roll (2026-10-03) wears the start block's dress, declared once: a column under the rack,
+ * the `.cn-button` at full width on a phone and its own width from 720px, and one slot of
+ * `text` language beside it — 600 for a refusal. No card, no mark: it is about the night.
+ */
+.cn-roll,
+.cn-roll-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cn-sp-3);
+}
+
+@media (min-width: 720px) {
+  .cn-roll-form {
+    align-items: flex-start;
+  }
 }
 
 /*

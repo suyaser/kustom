@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { switchSideMoves } from '../commands/switchSide';
+import { lobbyRosterKey } from '../ingest/lobby';
 import {
   extraMember,
   lobbyView,
@@ -11,7 +12,14 @@ import {
   workedTeams,
 } from '../testing/tonightFixtures';
 import { fillingSentence } from './copy';
-import { anySeatOnTheWrongSide, hasNamelessRow, tonightHeader, tonightState } from './state';
+import {
+  anySeatOnTheWrongSide,
+  hasNamelessRow,
+  rollRosterKey,
+  rollStage,
+  tonightHeader,
+  tonightState,
+} from './state';
 
 /**
  * The status strip, state by state (M3.18, `05-design.md`, "Copy — final (product
@@ -206,5 +214,39 @@ describe('the name re-read timer sees the tape (M11.2)', () => {
       snapshot(lobbyView({ members: [...workedMembers(9), extraMember({ name: null })] })),
     );
     expect(hasNamelessRow(filling, [])).toBe(true);
+  });
+});
+
+describe('the roll (2026-10-03)', () => {
+  it('offers a press only where the route can do something', () => {
+    expect(rollStage(lobbyView({ members: [] }))).toBe('waiting');
+    expect(rollStage(lobbyView({ members: workedMembers(9) }))).toBe('waiting');
+    expect(rollStage(lobbyView({ members: workedMembers() }))).toBe('ready');
+    expect(rollStage(lobbyView({ members: [...workedMembers(), extraMember()] }))).toBe('ready');
+    // A roll that claimed the lobby and died before its splits: the next press repairs it.
+    expect(rollStage(lobbyView({ status: 'balanced', teams: null }))).toBe('repair');
+    expect(rollStage(lobbyView({ status: 'balanced', teams: workedTeams() }))).toBe('none');
+    expect(rollStage(lobbyView({ status: 'in_game', teams: null }))).toBe('none');
+    expect(rollStage(lobbyView({ status: 'finished', teams: null }))).toBe('none');
+  });
+
+  it('counts people, not rows: a duplicated member is still nine', () => {
+    const nine = workedMembers(9);
+    const first = nine[0];
+    if (first === undefined) throw new Error('fixture has no members');
+    expect(rollStage(lobbyView({ members: [...nine, { ...first }] }))).toBe('waiting');
+  });
+
+  it('sends the key the route recomputes, whatever order the page drew them in', () => {
+    const members = [...workedMembers(), extraMember()];
+    const puuids = members.map((member) => member.puuid);
+
+    expect(rollRosterKey(members)).toBe(lobbyRosterKey(puuids));
+    expect(rollRosterKey([...members].reverse())).toBe(lobbyRosterKey(puuids));
+    // Spectators are in it, duplicates are not.
+    expect(rollRosterKey(members)).toContain(extraMember().puuid);
+    expect(rollRosterKey([...members, ...members])).toBe(lobbyRosterKey(puuids));
+    expect(rollRosterKey([])).toBe(lobbyRosterKey([]));
+    expect(rollRosterKey([])).toBe('');
   });
 });

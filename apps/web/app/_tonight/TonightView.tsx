@@ -10,12 +10,19 @@ import {
   NAMELESS_HINT,
   OFF_ROLE_LEGEND,
   OFF_ROLE_LEGEND_SUFFIX,
+  ROLL_HINT,
   renderWebName,
   SIT_OUT_VIEWER,
   sitOutGeneral,
 } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import { anySeatOnTheWrongSide, hasNamelessRow, tonightHeader, tonightState } from '@/lib/tonight/state';
+import {
+  anySeatOnTheWrongSide,
+  hasNamelessRow,
+  rollStage,
+  tonightHeader,
+  tonightState,
+} from '@/lib/tonight/state';
 import type { LobbyView, MemberView, SeatView, TeamsView, TonightSnapshot } from '@/lib/tonight/types';
 import { type ViewerState, viewerIsAdmin, viewerPuuid } from '@/lib/tonight/viewer';
 import { TopOfBoard } from '../_leaderboard/BoardCard';
@@ -27,6 +34,7 @@ import { RerollControl } from './RerollControl';
 import { ResultPoster } from './ResultPoster';
 import { RoleCell } from './RoleCell';
 import { RoleTonight } from './RoleTonight';
+import { RollControl } from './RollControl';
 import { SeatRack } from './SeatRack';
 import { SideLine } from './SideLine';
 import { StartLobby, StartLobbySignIn } from './StartLobby';
@@ -90,6 +98,13 @@ export interface TonightViewProps {
    */
   onLobbyStarted?: (() => void) | undefined;
   /**
+   * Re-read the snapshot now, after an admin's roll press was answered (2026-10-03). A 409 is
+   * usually the roster having moved since the page drew it, and the admin must be looking at
+   * the new one before pressing again; a 200 puts the teams up without waiting on the socket.
+   * `TonightLive` supplies it; undefined where there is no live half.
+   */
+  onRollSettled?: (() => void) | undefined;
+  /**
    * Today's Daily Mystery (M5.32). Optional so the tonight fixture tests stay a
    * snapshot of the lobby. The live page always passes one.
    */
@@ -103,6 +118,7 @@ export function TonightView({
   lobbyStart = null,
   onViewerChanged,
   onLobbyStarted,
+  onRollSettled,
   mystery = null,
 }: TonightViewProps) {
   const state = tonightState(snapshot);
@@ -183,6 +199,7 @@ export function TonightView({
         {state.kind === 'filling' ? (
           <section className="cn-block">
             <SeatRack members={state.lobby.members} viewerPuuid={seatViewer.puuid} />
+            <Roll lobby={state.lobby} isAdmin={seatViewer.isAdmin} onSettled={onRollSettled} />
             {/* The readout, under the rack it is about: how many were invited, or a create
                 that failed. No button — there is a lobby already. */}
             {startLobby}
@@ -373,6 +390,39 @@ function TeamsBlock({
        */}
       {lobby.status === 'balanced' ? <MissedInvite lobby={lobby} linked={linked} /> : null}
     </section>
+  );
+}
+
+/**
+ * The roll, under the rack while the lobby fills (2026-10-03). Ingest no longer balances, so a
+ * full lobby sits at `open` until an admin presses — and a friend watching ten names and no
+ * teams is owed the reason. Everybody gets {@link ROLL_HINT}; an admin, once there are ten to
+ * roll (or a roll to repair), gets the button in its place.
+ *
+ * Under the rack, never above it: the rack is ten rows at every count, so the line appearing,
+ * and the button replacing it at ten, moves nothing a reader is looking at.
+ */
+function Roll({
+  lobby,
+  isAdmin,
+  onSettled,
+}: {
+  lobby: LobbyView;
+  isAdmin: boolean;
+  onSettled: (() => void) | undefined;
+}) {
+  const stage = rollStage(lobby);
+  if (stage === 'none') return null;
+  const press = isAdmin && (stage === 'ready' || stage === 'repair');
+
+  return (
+    <div className="cn-roll">
+      {press ? (
+        <RollControl lobbyId={lobby.id} members={lobby.members} onSettled={onSettled} />
+      ) : (
+        <p className="cn-hint">{ROLL_HINT}</p>
+      )}
+    </div>
   );
 }
 

@@ -199,7 +199,7 @@ function Reroll({ lobby }: { lobby: RerollableLobby | null }) {
       </p>
       {chosen === null ? (
         <p className="admin-error" role="alert">
-          This lobby has no chosen split. The next companion post rebalances it.
+          This lobby has no chosen split. Press Roll teams on the tonight page to make them again.
         </p>
       ) : (
         <p>
