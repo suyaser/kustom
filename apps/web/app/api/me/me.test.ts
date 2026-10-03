@@ -2,11 +2,14 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
+import type { GroupRole } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
+import type { GroupRoleLookup } from '@/lib/groups/membership';
 import {
   LINK_ALREADY_LINKED,
   LINK_NOT_IN_LOBBY,
   LINK_TAKEN,
+  NOT_IN_THIS_GROUP,
   ROLE_TAP_NO_LOBBY,
   ROLE_TAP_NOT_IN_LOBBY,
   ROLE_TAP_NOT_LINKED,
@@ -25,9 +28,9 @@ import { roleTonightRoute } from './role-tonight/handler';
 const OLD_START_PATH = ['/api', 'admin', 'lobbies', 'start'].join('/');
 
 /**
- * The two `/api/me/*` routes: the third route class (a session with a linked player and no
- * `is_admin`), end to end through the real zod schemas and the real rules, with the session
- * and the database faked (M3.6).
+ * The `/api/me/*` routes: the third route class (a session with a linked player, scoped to the
+ * body's group since M13.4), end to end through the real zod schemas and the real rules, with the
+ * session, the membership lookup and the database faked (M3.6).
  *
  * What this file is for is the sentence in the brief nobody can check by playing a night: **a
  * non-admin body that names another player is a 403, never a silent write to their own row.**
@@ -42,7 +45,7 @@ function identity(overrides: Partial<MeIdentity> = {}): MeIdentity {
   return {
     userId: 'user-1',
     discordId: 'discord-1',
-    player: { playerId: 'player-me', puuid: ME, isAdmin: false },
+    player: { playerId: 'player-me', puuid: ME },
     ...overrides,
   };
 }
@@ -54,11 +57,24 @@ function session(result: MeAuthResult): (request: Request, client: ServiceClient
 
 const noClient = (): ServiceClient => ({}) as ServiceClient;
 
-function post(body: unknown, path = 'role-tonight'): Request {
+/** The group every body below names unless a test says otherwise (M13.4). */
+const GROUP = '00000000-0000-4000-8000-00000000000a';
+
+/** The membership lookup, faked: the caller's role in whatever group the body named. */
+function roleIs(role: GroupRole | null): (client: ServiceClient) => GroupRoleLookup {
+  return () => async () => role;
+}
+
+/** Every `/api/me/*` body names its group; a test that wants none passes `groupId: undefined`. */
+function withGroup<T extends object>(body: T): T {
+  return 'groupId' in body ? body : { groupId: GROUP, ...body };
+}
+
+function post(body: object, path = 'role-tonight'): Request {
   return new Request(`http://localhost/api/me/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(withGroup(body)),
   });
 }
 
@@ -66,7 +82,7 @@ function form(body: Record<string, string>, path = 'role-tonight'): Request {
   return new Request(`http://localhost/api/me/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(body).toString(),
+    body: new URLSearchParams(withGroup(body)).toString(),
   });
 }
 
@@ -88,7 +104,9 @@ function roleStore(
     writes,
     preferences,
     findPlayerIdByPuuid: async (puuid) => players[puuid] ?? null,
-    findLobbyStatus: async () => (options.status === undefined ? 'open' : options.status),
+    // The lobby is GROUP's: asked about under any other group, it is not there (M13.4).
+    findLobbyStatus: async (_lobbyId, groupId) =>
+      groupId !== GROUP ? null : options.status === undefined ? 'open' : options.status,
     isMember: async (_lobbyId, playerId) => members.has(playerId),
     writePreference: async (playerId, role, until) => {
       preferences.push({ playerId, role, until: until?.toISOString() ?? null });
@@ -99,8 +117,13 @@ function roleStore(
   };
 }
 
-function roleRoute(me: MeAuthResult, store: RoleTonightStore) {
-  return roleTonightRoute({ authorize: session(me), getClient: noClient, store: () => store });
+function roleRoute(me: MeAuthResult, store: RoleTonightStore, role: GroupRole | null = 'member') {
+  return roleTonightRoute({
+    authorize: session(me),
+    getClient: noClient,
+    store: () => store,
+    groupRole: roleIs(role),
+  });
 }
 
 describe('POST /api/me/role-tonight', () => {
@@ -182,16 +205,51 @@ describe('POST /api/me/role-tonight', () => {
 
   it("lets an admin set somebody else's row", async () => {
     const store = roleStore();
-    const admin = identity({ player: { playerId: 'player-me', puuid: ME, isAdmin: true } });
     const response = await roleRoute(
-      { ok: true, me: admin },
+      { ok: true, me: identity() },
       store,
+      'admin',
     )(post({ lobbyId: LOBBY, role: 'support', puuid: SOMEBODY_ELSE }));
 
     expect(response.status).toBe(200);
     expect(store.writes).toEqual([{ lobbyId: LOBBY, playerId: 'player-else', role: 'support' }]);
     // The admin sets the other player's night, not their own.
     expect(store.preferences[0]).toMatchObject({ playerId: 'player-else', role: 'support' });
+  });
+
+  it("refuses a linked player who is not a member of the body's group, and writes nothing (M13.4)", async () => {
+    const store = roleStore();
+    const response = await roleRoute(
+      { ok: true, me: identity() },
+      store,
+      null,
+    )(post({ lobbyId: LOBBY, role: 'mid' }));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, error: NOT_IN_THIS_GROUP });
+    expect(store.writes).toEqual([]);
+    expect(store.preferences).toEqual([]);
+  });
+
+  it('treats a lobby of another group as no lobby at all (M13.4)', async () => {
+    const store = roleStore();
+    const other = '00000000-0000-4000-8000-00000000000b';
+    const response = await roleRoute(
+      { ok: true, me: identity() },
+      store,
+    )(post({ groupId: other, lobbyId: LOBBY, role: 'mid' }));
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ ok: false, error: ROLE_TAP_NO_LOBBY });
+    expect(store.writes).toEqual([]);
+  });
+
+  it('is 400 for a body that names no group (M13.4)', async () => {
+    const response = await roleRoute(
+      { ok: true, me: identity() },
+      roleStore(),
+    )(post({ groupId: undefined, lobbyId: LOBBY, role: 'mid' }));
+    expect(response.status).toBe(400);
   });
 
   it('refuses a lobby that is over, and one the player is not in', async () => {
@@ -271,7 +329,14 @@ function linkStore(
 }
 
 function linkRoute(me: MeAuthResult, store: SelfLinkStore) {
-  return selfLinkRoute({ authorize: session(me), getClient: noClient, store: () => store });
+  // No membership is asked of a visitor picking themselves: they have no player row to be a
+  // member with. The lookup answers null and the route must not care.
+  return selfLinkRoute({
+    authorize: session(me),
+    getClient: noClient,
+    store: () => store,
+    groupRole: roleIs(null),
+  });
 }
 
 describe('POST /api/me/link', () => {
@@ -372,8 +437,8 @@ describe('POST /api/me/link', () => {
  */
 describe('POST /api/me/lobbies/start', () => {
   /** No client: neither answer below gets as far as a read. */
-  const startRoute = (auth: MeAuthResult) =>
-    startLobbyRoute({ getClient: noClient, authorize: session(auth) });
+  const startRoute = (auth: MeAuthResult, role: GroupRole | null = 'member') =>
+    startLobbyRoute({ getClient: noClient, authorize: session(auth), groupRole: roleIs(role) });
 
   it('answers a session with no player row in a sentence, and never a 500', async () => {
     const response = await startRoute({ ok: true, me: identity({ player: null }) })(
@@ -382,6 +447,20 @@ describe('POST /api/me/lobbies/start', () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ ok: false, error: START_LOBBY_NOT_LINKED });
+  });
+
+  it("refuses a linked player who is not a member of the body's group (M13.4)", async () => {
+    const response = await startRoute({ ok: true, me: identity() }, null)(post({}, 'lobbies/start'));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, error: NOT_IN_THIS_GROUP });
+  });
+
+  it('is 400 for a body that names no group (M13.4)', async () => {
+    const response = await startRoute({ ok: true, me: identity() })(
+      post({ groupId: undefined }, 'lobbies/start'),
+    );
+    expect(response.status).toBe(400);
   });
 
   it('is 401 without a session', async () => {

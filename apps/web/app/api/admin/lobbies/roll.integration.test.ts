@@ -14,8 +14,10 @@ import {
 } from '@/lib/adminAuth';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
 import { mintCompanionToken } from '@/lib/companionAuth';
+import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { moveLobby } from '@/lib/lobbyState';
+import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { storedRosterKey } from '@/lib/testing/roll';
 
@@ -70,6 +72,8 @@ if (stack === null) {
   const memberDiscordId = `9${runId.replace(/\D/g, '') || '1'}00002`;
   const guildId = `it-${runId}-rl-guild`;
   const partyIds = new Set<string>();
+  /** The file's own group (M13.4): its lobbies, tokens and Discord row, and nobody else's. */
+  const groups = { a: '' };
 
   let token = '';
   let server: Server | null = null;
@@ -91,27 +95,30 @@ if (stack === null) {
     };
   }
 
-  /** The real gate with only the session injected: `players.is_admin` is still read for real. */
+  /** The real gate with only the session injected: the group membership is still read for real. */
   function authorizeAs(user: SessionUserLike | null) {
-    return async (_request: Request, client: typeof db): Promise<AdminAuthResult> =>
+    return async (_request: Request, client: typeof db, groupId: string | null): Promise<AdminAuthResult> =>
       authorizeAdmin({
         resolveSessionUser: async () => user,
         lookupPlayerByDiscordId: supabaseAdminLookup(client),
+        lookupGroupRole: supabaseGroupRole(client),
+        groupId,
       });
   }
 
-  function rollRequest(lobbyId: string, body: unknown): Request {
+  /** Every admin body names its group (M13.4): this file's, unless the body names one. */
+  function rollRequest(lobbyId: string, body: object): Request {
     return new Request(`http://localhost/api/admin/lobbies/${lobbyId}/roll`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify('groupId' in body ? body : { groupId: groups.a, ...body }),
     });
   }
 
   /** Press as `user` (the admin by default) with `body`, at `now` (the wall clock by default). */
   async function press(
     lobbyId: string,
-    body: unknown,
+    body: object,
     options: { user?: SessionUserLike | null; now?: Date } = {},
   ): Promise<{ status: number; json: Record<string, unknown> }> {
     const user = options.user === undefined ? sessionUser(adminDiscordId) : options.user;
@@ -204,7 +211,12 @@ if (stack === null) {
   ): Promise<string> {
     const { data, error } = await db
       .from('lobbies')
-      .insert({ lcu_party_id: partyId, status, updated_at: new Date(Date.now() - idleMs).toISOString() })
+      .insert({
+        group_id: groups.a,
+        lcu_party_id: partyId,
+        status,
+        updated_at: new Date(Date.now() - idleMs).toISOString(),
+      })
       .select('id')
       .single();
     if (error) throw new Error(error.message);
@@ -226,23 +238,27 @@ if (stack === null) {
       allPuuids.map((puuid) => ({ puuid })),
     );
     for (const [puuid, id] of ids) playerIds.set(puuid, id);
+    Object.assign(groups, await createTestGroups(db, runId, ['a'] as const));
 
     const { error: adminError } = await db
       .from('players')
-      .update({ discord_id: adminDiscordId, is_admin: true })
+      .update({ discord_id: adminDiscordId })
       .eq('id', ids.get(adminPuuid) ?? '');
     if (adminError) throw new Error(adminError.message);
     const { error: memberError } = await db
       .from('players')
-      .update({ discord_id: memberDiscordId, is_admin: false })
+      .update({ discord_id: memberDiscordId })
       .eq('id', ids.get(ten[0] ?? '') ?? '');
     if (memberError) throw new Error(memberError.message);
+    // The admin is an admin of the group; the ten become members through their tokens (`0019`).
+    await setTestMembership(db, groups.a, ids.get(adminPuuid) ?? '', 'admin');
 
     // A token each, seen just now, so every one of the ten counts as having a live companion
     // and the switch_side queue (M4.1) writes a row for everybody the split moves.
     const minted = ten.map((puuid) => ({ puuid, ...mintCompanionToken() }));
     const { error: tokenError } = await db.from('companion_tokens').insert(
       minted.map(({ puuid, tokenHash }) => ({
+        group_id: groups.a,
         player_id: ids.get(puuid) ?? '',
         token_hash: tokenHash,
         label: `rl-${runId}`,
@@ -264,10 +280,9 @@ if (stack === null) {
     await new Promise<void>((resolve) => listening.listen(0, '127.0.0.1', resolve));
     webhookUrl = `http://127.0.0.1:${(listening.address() as AddressInfo).port}/webhook`;
 
-    await db.from('discord_config').delete().like('guild_id', 'it-%');
     const { error: configError } = await db
       .from('discord_config')
-      .insert({ guild_id: guildId, webhook_url: webhookUrl });
+      .insert({ group_id: groups.a, guild_id: guildId, webhook_url: webhookUrl });
     if (configError) throw new Error(configError.message);
   });
 
@@ -276,11 +291,11 @@ if (stack === null) {
   });
 
   afterAll(async () => {
-    await db.from('discord_config').delete().eq('guild_id', guildId);
     await db
       .from('lobbies')
       .delete()
       .in('lcu_party_id', [...partyIds]);
+    await deleteTestGroups(db, Object.values(groups));
     await db.from('players').delete().in('puuid', allPuuids);
     await new Promise<void>((resolve) => {
       if (server === null) return resolve();

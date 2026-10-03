@@ -96,7 +96,7 @@ if (stack === null) {
     const { token, tokenHash } = mintCompanionToken();
     const { error } = await db
       .from('companion_tokens')
-      .insert({ player_id: playerId, token_hash: tokenHash, label });
+      .insert({ group_id: ORIGINAL_GROUP_ID, player_id: playerId, token_hash: tokenHash, label });
     if (error) throw new Error(`mintToken: ${error.message}`);
     return token;
   }
@@ -132,6 +132,7 @@ if (stack === null) {
         userId: randomUUID(),
         discordId: `it-${runId}-discord`,
         playerId: adminPlayerId,
+        groupId: ORIGINAL_GROUP_ID,
         puuid: adminPuuid,
         displayName: 'tester',
         email: null,
@@ -140,11 +141,11 @@ if (stack === null) {
     }),
   });
 
-  function adminPost(body: unknown): Request {
+  function adminPost(body: object): Request {
     return new Request('http://localhost/api/admin/players', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ groupId: ORIGINAL_GROUP_ID, ...body }),
     });
   }
 
@@ -153,7 +154,7 @@ if (stack === null) {
     return new Request('http://localhost/api/admin/players', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(body).toString(),
+      body: new URLSearchParams({ groupId: ORIGINAL_GROUP_ID, ...body }).toString(),
     });
   }
 
@@ -210,7 +211,6 @@ if (stack === null) {
     const ids = await ensurePlayers(db, [{ puuid: ownerPuuid }, { puuid: adminPuuid }]);
     ownerPlayerId = ids.get(ownerPuuid) ?? '';
     adminPlayerId = ids.get(adminPuuid) ?? '';
-    await db.from('players').update({ is_admin: true }).eq('id', adminPlayerId);
 
     // Only this file's listener, so "no Discord post" is an assertion about what ingest emitted
     // rather than about a webhook being unset.

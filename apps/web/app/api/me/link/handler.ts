@@ -10,8 +10,9 @@ import { nightTimeZone } from '@/lib/tonight/night';
  * tonight's lobby members as themselves, once, with no admin involved.
  *
  * It writes `players.discord_id` and nothing else. Which rows may be claimed is decided here
- * from tonight's lobby, never from the body, and a row that is already linked is refused with
- * product's sentence.
+ * from the body's group's tonight lobby (M13.4), never from anything else in the body, and a row
+ * that is already linked is refused with product's sentence. No membership is asked of the
+ * visitor — they have no player row yet — and `context.role` is not read.
  */
 
 export interface SelfLinkRouteOptions extends MeRouteOptions {
@@ -24,6 +25,7 @@ export function selfLinkRoute(options: SelfLinkRouteOptions = {}) {
     redirectTo: '/',
     getClient: options.getClient,
     authorize: options.authorize,
+    groupRole: options.groupRole,
   });
 }
 
@@ -34,7 +36,7 @@ async function handle(
 ): Promise<NextResponse> {
   const store = options.store
     ? options.store(context)
-    : supabaseSelfLinkStore(context.client, { timeZone: nightTimeZone() });
+    : supabaseSelfLinkStore(context.client, { timeZone: nightTimeZone(), groupId: context.groupId });
 
   const result = await linkSelf(store, context.me, input.puuid);
   if (!result.ok) return context.fail(result.status, result.error);

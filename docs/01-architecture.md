@@ -76,11 +76,25 @@ game_players   (game_id, player_id, side, role null, champion_id, kills, deaths,
 companion_tokens (id, player_id, token_hash, label, last_seen_at, revoked_at null, created_at)
 companion_commands (id, target_player_id, kind, payload jsonb, status, created_at, acked_at,
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
-discord_config (guild_id pk, webhook_url, results_channel_id, lobby_voice_channel_id,
-                blue_voice_channel_id, red_voice_channel_id, created_at, updated_at)
+discord_config (group_id pk, guild_id, webhook_url, results_channel_id,   -- pk group_id 0020, M13.4
+                lobby_voice_channel_id, blue_voice_channel_id, red_voice_channel_id,
+                created_at, updated_at)   -- one row per group; two groups may share a guild
+window_posts   (group_id, kind, window_start, claimed_at, posted_at, attempts, reason)
+                pk (group_id, kind, window_start)                 -- 0011, per group 0020
+daily_mysteries (id, group_id, day, kind, challenge_number, ...)  -- 0013/0016;
+                unique (group_id, day), unique (group_id, kind, challenge_number)   -- 0020
+groups         (id, slug unique, name, created_by null, created_at)                -- 0018, M13
+group_memberships (group_id, player_id, role 'member' | 'admin', created_at,
+                backfill_requested_at, backfill_approved_at)  pk (group_id, player_id)
 
-players_public view (players minus discord_id; keeps is_admin)
+players_public view (players minus discord_id; still carries the retired is_admin, unread since M13.4)
 ```
+
+**`group_id` on the ten tables** (`ratings`, `lobbies`, `games`, `game_players`, `companion_tokens`,
+`companion_commands`, `fearless_state`, `daily_mysteries`, `window_posts`, `discord_config`) is `not null` with
+**no default** since `0020` (M13.4): an insert that does not name its group fails, on purpose. `players.is_admin`
+and the two `players.backfill_*` columns are still in the table and read by nothing; admin is
+`group_memberships.role` and backfill approval is the membership's (M13.3, M13.4).
 
 Also in the schema:
 
@@ -651,23 +665,42 @@ watching: on lobby event -> POST /api/companion/lobby
   weekly `Rating` on `This week` (the default) and `Last week`, which are folded from each player's seed at read
   time (M7.3) — the stored one, else `provisionalSeed()`, never their League rank. Wins, games, streak.
 - `/p/[puuid]` Player page: rating history chart, role record, recent games.
-- `/admin` Discord OAuth gated, `players.is_admin`. Link Discord IDs, see the inferred roles (M5.17), mint companion tokens, set Discord config, approve backfill.
+- `/admin` Discord OAuth gated, admin membership (`group_memberships.role = 'admin'`) in the page's group — the
+  original group until M13.14 moves the pages under `/g/<slug>/admin`. Link Discord IDs, see the inferred roles (M5.17), mint companion tokens, set Discord config, approve backfill.
 - `/api/companion/*` bearer token, zod-validated. The command queue is three of them (M4.1):
   `GET /commands?clientConnected=`, `POST /commands/{id}/ack`, `POST /commands/{id}/nack`. The contract is one
   doc comment on `companionCommandsResponseSchema` in `packages/db/src/schemas/companionResponses.ts`; the
   rules are `apps/web/lib/commands/`. `clientConnected=false` is the one request in the whole API that does
   not write `companion_tokens.last_seen_at`, which is what makes that column mean "at their PC with League
   open".
-- `/api/admin/*` session-gated.
-- `/api/me/*` **the third route class** (M3.6): a Supabase session with a **linked player** and no
-  `players.is_admin`. The caller is resolved the one way this project resolves anybody — session → Discord
+- `/api/admin/*` session-gated, **per group** (M13.4). Every body names a `groupId` (`groupIdSchema`, a guid:
+  the original group's fixed id is not a v1-v8 uuid and `z.uuid()` refuses it). `lib/adminRoute.ts` reads the
+  body once, resolves the session (401 / 403 as before), checks that the session's player has `role = 'admin'`
+  in **that** group (400 without a `groupId`, 403 `not an admin of this group` otherwise — an admin of A naming
+  B, or a member who is not an admin), and only then runs the route's own schema. Handlers act on
+  `context.groupId` and nothing else: a lobby, player or token outside it is **404**, never 403, so an admin of
+  A does not learn which of B's ids exist. `POST /api/admin/members/role { groupId, playerId, role }` promotes
+  or demotes a member through `set_group_member_role` (`0020`), which locks the group's row and refuses to
+  demote the last admin (409 `This group needs at least one admin.`); `/admin/players`' `set-admin` is the same
+  write. `players.is_admin` is read by nothing (`lib/groups/isAdminUnread.test.ts` walks the sources).
+- **Crons loop over groups** (M13.4): `cron/leaderboard`, `cron/window` and `cron/mystery` serve every group,
+  oldest first, each on its own — one group's failure is its own line in the response and the next group
+  still runs. `window_posts` is claimed per `(group_id, kind, window_start)` and a group with no webhook gets
+  no claim row. The daily mystery is one challenge per group per day from that group's games, numbered per
+  group per kind; `GET /api/daily-mystery?group=<id>` is the group's (no membership; `group` is optional on
+  the challenge routes and a mismatch is 404). `cron/sweep` stays global.
+- `/api/me/*` **the third route class** (M3.6): a Supabase session with a **linked player**, scoped to the
+  body's `groupId` since M13.4 — after the parse, `lib/me/route.ts` hands the handler `context.role`, the
+  player's membership role in that group or `null`. `start` and `role-tonight` refuse a non-member (403
+  `NOT_IN_THIS_GROUP`); `link` asks nothing of a visitor who has no player row yet and only claims out of that
+  group's tonight lobby. The caller is resolved the one way this project resolves anybody — session → Discord
   identity → `players.discord_id` → the player row — and no request body is ever part of that chain
   (`apps/web/lib/me/identity.ts`, `lib/me/route.ts`, which is `withAdminAuth` with the admin step removed).
   401 without a session, 403 for a session with no Discord identity. An **unlinked** session is not a failure:
   it is handed to the handler as `player: null`, because `POST /api/me/link` exists for exactly that visitor.
   - `POST /api/me/role-tonight` writes `lobby_members.role_override` for one player in one live lobby
     (`open`, `balanced`, `in_game`; anything else is refused). `role: null` clears it. The body's optional
-    `puuid` names a **target** and is honoured **only for an admin** — 403 otherwise, decided before any read,
+    `puuid` names a **target** and is honoured **only for an admin of the body's group** — 403 otherwise, decided before any read,
     and never a silent write to the caller's own row. Nothing rebalances and nothing is posted to Discord: a
     tap while the teams are up is stored for the next game.
   - `POST /api/me/link` is the self-link ("picking yourself, once"): the visitor claims one of **tonight's**
@@ -684,8 +717,8 @@ watching: on lobby event -> POST /api/companion/lobby
     `create_lobby` command for the host the server picked, with the invites following off its ack. The presser
     is `context.me.player.playerId` from the session and never the body, which carries nothing but a
     `redirectTo` for the no-JavaScript path; a session with no player row is a 403 with
-    `START_LOBBY_NOT_LINKED` rather than a 500. **There is no admin branch**: `players.is_admin` can only be
-    true on a row that is already linked, so `/admin`'s one button posts here too and the old
+    `START_LOBBY_NOT_LINKED` rather than a 500. **There is no admin branch**: an admin of the group is a member
+    of it, so `/admin`'s one button posts here too and the old
     `/api/admin/lobbies/start` was deleted rather than aliased. The rules and every string it answers with are
     `apps/web/lib/lobbyStart.ts`, imported by both surfaces.
 
@@ -719,8 +752,10 @@ watching: on lobby event -> POST /api/companion/lobby
   and `game_players`, plus `players` through the `players_public` view. `companion_tokens`,
   `companion_commands` and `discord_config` have no read policy at all. Writes only through the service role
   used by the API.
-- Public reads of players go through the `players_public` view, which is `players` without `discord_id` and with
-  `is_admin` kept, so the tonight page can decide whether to draw the reroll button on the anon key. Anon and
+- Public reads of players go through the `players_public` view, which is `players` without `discord_id`. It
+  still carries the retired `is_admin`, which nothing reads since M13.4: the tonight page decides whether to draw
+  the roll and reroll controls on the server from the viewer's membership role, and names the group's admins
+  with a service-role read of `group_memberships` (only the names reach the page). Anon and
   authenticated have no read privilege on the `players` table itself and get a 401 from it. The web app and the
   bot read `players_public`.
 

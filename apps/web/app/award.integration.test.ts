@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -119,6 +120,7 @@ if (stack === null) {
     const { data: row, error } = await db
       .from('games')
       .insert({
+        group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: lcuGameId,
         season_id: seasonId,
         started_at: startedAt,
@@ -133,6 +135,7 @@ if (stack === null) {
 
     const { error: rowsError } = await db.from('game_players').insert(
       SEATS.map((seat, index) => ({
+        group_id: ORIGINAL_GROUP_ID,
         game_id: id,
         player_id: playerIds.get(seat.key) ?? '',
         side: seat.side,

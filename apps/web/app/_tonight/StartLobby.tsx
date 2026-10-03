@@ -1,11 +1,15 @@
 'use client';
 
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type FormEvent, useState } from 'react';
 import { startLobbyResponseSchema } from '@/app/api/me/lobbies/start/schema';
 import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStart';
 import { PLAYERS_PER_GAME } from '@/lib/lobbyState';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
+
+/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
+const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
 
 /**
  * `Start a lobby` on the tonight page (M4.2's control, M4.7 (a)'s layout).
@@ -118,7 +122,7 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
       const response = await fetch(START_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ groupId: PAGE_GROUP_ID }),
       });
       const body: unknown = await response.json().catch(() => null);
 
@@ -154,6 +158,7 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
       {press ? (
         <form className="cn-start-form" method="post" action={START_ACTION} onSubmit={submit}>
           {/* Only the no-JavaScript path reads this. The route re-validates it as a path. */}
+          <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
           <input type="hidden" name="redirectTo" value="/" />
           <button
             className={quiet ? 'cn-button cn-button-quiet' : 'cn-button'}

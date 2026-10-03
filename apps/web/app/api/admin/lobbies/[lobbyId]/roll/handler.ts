@@ -5,16 +5,19 @@ import type { NextResponse } from 'next/server';
 import '@/lib/commands/register';
 // Registers the Discord listeners on `hooks.ts` at module load (M3.1): the teams embed.
 import '@/lib/ingest/discord';
+import { NO_SUCH_LOBBY } from '@/lib/admin/reroll';
 import { rollLobby } from '@/lib/admin/roll';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { readServerEnv } from '@/lib/env';
+import { lobbyInGroup } from '@/lib/groups/membership';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type RollRequest, rollRequestSchema, rollResponseSchema } from './schema';
 
 /**
  * Roll (2026-10-03). Session-gated like every `/api/admin/*` route: 401 without a session, 403
- * for anyone who is not `players.is_admin`, then the zod parse, then `rollLobby`.
+ * for anyone who is not an admin of the body's `groupId` (M13.4), then the zod parse, then a 404
+ * for a lobby outside that group, then `rollLobby`.
  *
  * The lobby id is a path segment and `rollLobby` validates it first, so a non-uuid is a 404 —
  * and only after the session check, so an unauthenticated caller learns nothing.
@@ -26,6 +29,13 @@ export async function handleRoll(
   now: Date = new Date(),
 ): Promise<NextResponse> {
   const back = safeNextPath(input.redirectTo) ?? context.redirectTo;
+
+  // A lobby of another group answers exactly like one that does not exist (M13.4).
+  if (!(await lobbyInGroup(context.client, lobbyId, context.groupId))) {
+    return context.form
+      ? redirectBack(context.request, back, { error: NO_SUCH_LOBBY })
+      : context.fail(404, NO_SUCH_LOBBY);
+  }
 
   const result = await rollLobby(context.client, {
     lobbyId,

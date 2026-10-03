@@ -64,6 +64,7 @@ const { postClosedWindow } = await import('./post');
 
 const WINDOW = closedWindow('last-week', new Date('2025-09-08T07:00:00Z'), 'Africa/Cairo');
 const client = {} as ServiceClient;
+const GROUP_ID = '00000000-0000-4000-8000-00000000000a';
 
 beforeEach(() => {
   sent = null;
@@ -107,7 +108,7 @@ describe('the awards field', () => {
       },
     });
 
-    await postClosedWindow(client, WINDOW, { now: new Date('2025-09-08T07:00:00Z') });
+    await postClosedWindow(client, WINDOW, { now: new Date('2025-09-08T07:00:00Z'), groupId: GROUP_ID });
 
     const fields = (sent as unknown as { embeds: { fields: { name: string; value: string }[] }[] }).embeds[0]
       ?.fields;
@@ -130,7 +131,7 @@ describe('the awards field', () => {
   it('prints the weekly Rating and the week footer, off the track the rows carry', async () => {
     loadStats.mockResolvedValue({ awards: null });
 
-    await postClosedWindow(client, WINDOW, { now: new Date('2025-09-08T07:00:00Z') });
+    await postClosedWindow(client, WINDOW, { now: new Date('2025-09-08T07:00:00Z'), groupId: GROUP_ID });
 
     const embed = (
       sent as unknown as {
@@ -152,7 +153,10 @@ describe('the awards field', () => {
     loadStats.mockRejectedValue(new Error('PostgREST is having a day'));
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const outcome = await postClosedWindow(client, WINDOW, { now: new Date('2025-09-08T07:00:00Z') });
+    const outcome = await postClosedWindow(client, WINDOW, {
+      now: new Date('2025-09-08T07:00:00Z'),
+      groupId: GROUP_ID,
+    });
 
     expect(outcome.status).toBe('sent');
     const embed = (sent as unknown as { embeds: { fields: unknown[]; description: string }[] }).embeds[0];

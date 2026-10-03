@@ -19,7 +19,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M11 The night as a broadcast | in progress | Opened 2026-09-23 from the user, who asked to start three of the lead's proposals plus champion icons on the fearless card and nowhere else. **M11.1 landed 2026-09-23**. **M11.3 landed 2026-09-23**: reusable `ResultPoster`, underdog line, `webAwardLine` (Discord markdown escape stays off the page); reviewed clean. **M11.2 landed 2026-09-23**. **M11.4 landed 2026-09-23**: `/og/*` cards, `/g/[gameId]`, Discord + tape links; reviewed clean after the decision row. The four tasks are closed. Product alt strings and a real-data unfurl are leftovers, not a fifth task. **M11.3** was: the underdog line off the stored `blue_win_prob` and the `MVP · ACE` line Discord already posts, reusable on a page of its own. **M11.2** the night tape: tonight's earlier finished and dropped games under the primary block, oldest first, a read of stored rows. **M11.4** share cards: 1200×630 unfurl images for `/`, a new `/g/[gameId]` (no single-game URL exists today) and `/p/[puuid]`, with no Share button. Order M11.1 → M11.3 → M11.2 → M11.4, because the last three all edit the tonight view and loader. No rating, balancer, ingest or schema change in any of them. Icons appear on the fearless card only — not `/fun`, `/games`, `/p`, Discord, share cards or the poster. |
 | M12 Overlay client | in progress | Folded into M6 one-app (2026-09-23): Overlay mode on `Kustom.exe`, not a second product. `GET /api/overlay` stays. Separate `KustomOverlay.exe` retired as a product. |
 | M6 Tray app and polish | in progress | Un-deferred 2026-09-23: one Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes, tray, Floodlit UI. M6.1 absorbs the M12 panel. |
-| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product), **M13.2** (schema, `0018`, pushed to hosted) and **M13.3** (companion routes and the ingest fold per group, `0019`, local only until pushed) done. Nobody can create a second group yet -- that's M13.5, which needs M13.4 first so every read/write is group-aware before a second group can safely exist. Next: **M13.4**, session and admin routes, crons, `0020`. Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
+| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product), **M13.2** (schema, `0018`), **M13.3** (companion routes and the ingest fold per group, `0019`) and M13.7 (design) done and pushed; **M13.4** (session and admin routes, crons, group admin, `0020`) done locally, not yet pushed -- code first, then `0020` (see its entry). Nobody can create a second group yet -- that's M13.5. Next: **M13.5**, create, invite, pair. Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -8828,8 +8828,22 @@ before scoping would let the first stranger who signs up corrupt the original gr
     >
     > Session and admin routes, crons (M13.4). The companion storing more than one token (M13.8). Any page.
 
-- [ ] **M13.4** Session routes, admin routes, crons and scripts work inside one group; group admin replaces
-  `players.is_admin`; drop the temporary defaults. *(owner: `platform-engineer`; after M13.3)*
+- [x] **M13.4** Session routes, admin routes, crons and scripts work inside one group; group admin replaces
+  `players.is_admin`; drop the temporary defaults. *(owner: `platform-engineer`; after M13.3)* Done 2026-10-03
+  (`0020_group_keys_web_and_defaults_off.sql`), not yet pushed to hosted. Acceptance 1 and 2 verified by
+  `app/api/admin/groups.integration.test.ts` (every admin route 403 for A's admin naming B and for A's non-admin
+  member, 404 for B's lobby / player / token under A, the last-admin 409, two admins demoting each other leaving
+  one); 3 by `lib/groups/isAdminUnread.test.ts` (walks `apps/web`; the grep finds `is_admin` only in tests); 4 by
+  `app/api/cron/window/window.integration.test.ts` and `route.test.ts`; 5 by `lib/mystery/groups.integration.test.ts`;
+  6 by `packages/db/src/groups.keys.integration.test.ts` (a scratch database replayed to `0019`, data written, then
+  `0020`). Also fixed: M13.3's `/api/overlay?group=` and `/api/overlay/groups` validated group ids with
+  `z.uuid()`, which refuses the original group's fixed id -- every group id now goes through `groupIdSchema`
+  (`z.guid()`), decision row 2026-10-03. **Deploy order: code first, then `pnpm db:migrate`** -- the deployed M13.3
+  code writes `window_posts`, `daily_mysteries` and `discord_config` without `group_id` and upserts on the keys
+  `0020` drops, so migration-first breaks the window cron, the daily guess and `/admin/discord`; in the short
+  code-first gap only `/admin/discord` saves and the admin role toggle fail (they need `0020`'s key and function).
+  Unmoved pages send the original group's id (decision row 2026-10-03); `lib/board` takes an optional group for
+  the crons only (M13.10 owns the rest).
 
     > **Brief (product, 2026-10-03)**
     >

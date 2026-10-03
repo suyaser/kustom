@@ -40,8 +40,11 @@ export type RoleTonightResult =
 export interface RoleTonightStore {
   /** `players.id` for a PUUID, or `null` when we have never seen that player. */
   findPlayerIdByPuuid(puuid: string): Promise<string | null>;
-  /** The lobby's status, or `null` when there is no such row. */
-  findLobbyStatus(lobbyId: string): Promise<LobbyStatusValue | null>;
+  /**
+   * The lobby's status, or `null` when there is no such row **in this group** (M13.4): a lobby of
+   * another group is the same 404 as one that does not exist.
+   */
+  findLobbyStatus(lobbyId: string, groupId: string): Promise<LobbyStatusValue | null>;
   /** Is this player in that lobby? A sitter counts: they are in `lobby_members`. */
   isMember(lobbyId: string, playerId: string): Promise<boolean>;
   /** The night's preference. `null` clears it, and `until` goes with it. */
@@ -50,7 +53,17 @@ export interface RoleTonightStore {
   writeOverride(lobbyId: string, playerId: string, role: RoleValue | null): Promise<void>;
 }
 
+/**
+ * The player tapping, and whether they are an admin **of the request's group** (M13.4) — the one
+ * thing that lets a body name somebody else's PUUID.
+ */
+export interface RoleTonightActor extends MePlayer {
+  isAdmin: boolean;
+}
+
 export interface RoleTonightInput {
+  /** The group the request named, already checked: the actor is a member of it. */
+  groupId: string;
   lobbyId: string;
   role: RoleValue | null;
   /** From the body. `undefined` — the ordinary case — means the caller's own row. */
@@ -65,7 +78,7 @@ export interface RoleTonightOptions {
 
 export async function setRoleTonight(
   store: RoleTonightStore,
-  actor: MePlayer,
+  actor: RoleTonightActor,
   input: RoleTonightInput,
   options: RoleTonightOptions = {},
 ): Promise<RoleTonightResult> {
@@ -77,7 +90,7 @@ export async function setRoleTonight(
     return { ok: false, status: 403, error: ROLE_TAP_NOT_YOURS };
   }
 
-  const status = await store.findLobbyStatus(input.lobbyId);
+  const status = await store.findLobbyStatus(input.lobbyId, input.groupId);
   if (status === null) return { ok: false, status: 404, error: ROLE_TAP_NO_LOBBY };
   // `finished`, `dropped` and `abandoned` are records of what happened. The control is not
   // drawn for them, and a post that arrives anyway changes nothing.
@@ -118,8 +131,13 @@ export function supabaseRoleTonightStore(client: ServiceClient): RoleTonightStor
       return data?.id ?? null;
     },
 
-    async findLobbyStatus(lobbyId) {
-      const { data, error } = await client.from('lobbies').select('status').eq('id', lobbyId).maybeSingle();
+    async findLobbyStatus(lobbyId, groupId) {
+      const { data, error } = await client
+        .from('lobbies')
+        .select('status')
+        .eq('id', lobbyId)
+        .eq('group_id', groupId)
+        .maybeSingle();
       if (error) throw new Error(`role tonight: lobby lookup failed: ${error.message}`);
       return data?.status ?? null;
     },

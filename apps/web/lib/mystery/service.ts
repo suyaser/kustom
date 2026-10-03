@@ -58,9 +58,10 @@ export function emptyMysteryPage(now: Date, timeZone: string): MysteryPageState 
 
 export async function loadMysteryPage(
   client: ServiceClient,
-  options: { now: Date; timeZone: string; visitorId: string | null },
+  options: { now: Date; timeZone: string; visitorId: string | null; groupId: string },
 ): Promise<MysteryPageState> {
-  const row = await ensureTodayMystery(client, options.now, options.timeZone);
+  // Today's challenge **of this group** (M13.4): each group has its own, from its own games.
+  const row = await ensureTodayMystery(client, options.now, options.timeZone, options.groupId);
   if (row === null) return emptyMysteryPage(options.now, options.timeZone);
   if (options.visitorId !== null) {
     const attempt = await loadAttempt(client, row.id, options.visitorId);
@@ -77,12 +78,12 @@ export async function loadMysteryPage(
 
 export async function revealNextClue(
   client: ServiceClient,
-  options: { challengeId: string; visitorId: string; now: Date },
+  options: { challengeId: string; visitorId: string; now: Date; groupId?: string | undefined },
 ): Promise<
   | { clue: MysteryClueView | null; cluesRevealed: number; clueCount: number }
   | { error: string; status: number }
 > {
-  const row = await loadChallenge(client, options.challengeId);
+  const row = inGroup(await loadChallenge(client, options.challengeId), options.groupId);
   if (row === null) return { error: 'challenge not found', status: 404 };
   if (new Date(row.expires_at).getTime() <= options.now.getTime()) {
     return { error: "today's mystery has expired", status: 410 };
@@ -116,9 +117,10 @@ export async function submitGuess(
     playerId: string;
     now: Date;
     timeZone: string;
+    groupId?: string | undefined;
   },
 ): Promise<{ result: MysteryResultView } | { error: string; status: number }> {
-  const row = await loadChallenge(client, options.challengeId);
+  const row = inGroup(await loadChallenge(client, options.challengeId), options.groupId);
   if (row === null) return { error: 'challenge not found', status: 404 };
   if (new Date(row.expires_at).getTime() <= options.now.getTime()) {
     return { error: "today's mystery has expired", status: 410 };
@@ -182,13 +184,22 @@ export async function submitGuess(
 
 export async function loadResultForVisitor(
   client: ServiceClient,
-  options: { challengeId: string; visitorId: string; timeZone: string },
+  options: { challengeId: string; visitorId: string; timeZone: string; groupId?: string | undefined },
 ): Promise<{ result: MysteryResultView } | { error: string; status: number }> {
-  const row = await loadChallenge(client, options.challengeId);
+  const row = inGroup(await loadChallenge(client, options.challengeId), options.groupId);
   if (row === null) return { error: 'challenge not found', status: 404 };
   const attempt = await loadAttempt(client, row.id, options.visitorId);
   if (attempt === null) return { error: 'this visitor has not locked a guess', status: 403 };
   return { result: await buildResult(client, row, attempt, options.visitorId, options.timeZone) };
+}
+
+/**
+ * A challenge the request asked for **under a group** that is another group's reads as no
+ * challenge at all (M13.4). Without a group the id alone decides: it is already one group's.
+ */
+function inGroup(row: DailyMysteryRow | null, groupId: string | undefined): DailyMysteryRow | null {
+  if (row === null || groupId === undefined) return row;
+  return row.group_id === groupId ? row : null;
 }
 
 async function loadChallenge(client: ServiceClient, id: string): Promise<DailyMysteryRow | null> {

@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROLL_NOTICE_ALREADY, ROLL_NOTICE_ROLLED } from '@/lib/admin/notices';
@@ -85,7 +86,11 @@ describe('the press', () => {
     const [url, init] =
       (fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0] ?? [];
     expect(url).toBe(`/api/admin/lobbies/${LOBBY_ID}/roll`);
-    expect(JSON.parse(String(init?.body))).toEqual({ rosterKey: eleven.rosterKey, redirectTo: '/admin' });
+    expect(JSON.parse(String(init?.body))).toEqual({
+      groupId: ORIGINAL_GROUP_ID,
+      rosterKey: eleven.rosterKey,
+      redirectTo: '/admin',
+    });
     // The key is the route's own function over the same puuids, not a page-side format.
     expect(eleven.rosterKey).toBe(lobbyRosterKey(eleven.members.map((member) => member.puuid)));
 

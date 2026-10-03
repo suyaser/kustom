@@ -97,6 +97,7 @@ if (stack === null) {
     const { data, error } = await db
       .from('companion_tokens')
       .insert({
+        group_id: ORIGINAL_GROUP_ID,
         player_id: playerId,
         token_hash: tokenHash,
         label: `commands ${name}`,
@@ -626,6 +627,7 @@ if (stack === null) {
       const { data, error } = await db
         .from('lobbies')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_party_id: `cq-${runId}-${randomUUID().slice(0, 8)}`,
           status,
           reported_by_player_id: seats[0]?.playerId ?? null,

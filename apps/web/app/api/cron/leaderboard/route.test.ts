@@ -14,18 +14,45 @@ import { GET } from './route';
 const outcome = vi.hoisted(() => ({
   value: { status: 'posted', httpStatus: 204, reason: null, attempts: 1 } as WebhookOutcome,
   /** What the route asked the post for, so the window it prints can be asserted here. */
-  options: undefined as { timeZone?: string; now?: Date } | undefined,
+  options: undefined as { timeZone?: string; now?: Date; groupId?: string } | undefined,
+  /** Every group the route posted for, in order (M13.4). */
+  groupIds: [] as string[],
+  /** A group whose post throws, to prove the next one still goes out. */
+  throwFor: null as string | null,
+}));
+
+const GROUP_A = '00000000-0000-4000-8000-00000000000a';
+const GROUP_B = '00000000-0000-4000-8000-00000000000b';
+
+vi.mock('@/lib/groups/list', () => ({
+  listGroups: async () => [
+    { id: '00000000-0000-4000-8000-00000000000a', slug: 'a' },
+    { id: '00000000-0000-4000-8000-00000000000b', slug: 'b' },
+  ],
 }));
 
 vi.mock('@/lib/discord/post', () => ({
   postNightlyLeaderboard: async (
     _client: unknown,
-    options: { timeZone?: string; now?: Date },
+    options: { timeZone?: string; now?: Date; groupId?: string },
   ): Promise<WebhookOutcome> => {
     outcome.options = options;
+    outcome.groupIds.push(options.groupId ?? '');
+    if (options.groupId === outcome.throwFor) throw new Error('boom');
     return outcome.value;
   },
 }));
+
+/** The same line for both groups: the mocked post answers each the same way. */
+function both(line: { status: string; reason: string | null }) {
+  return {
+    ok: true,
+    groups: [
+      { groupId: GROUP_A, ...line },
+      { groupId: GROUP_B, ...line },
+    ],
+  };
+}
 
 /**
  * The nightly post's door (M3.5) and the answer it gives a scheduler. Deliberately the same
@@ -45,6 +72,8 @@ describe('GET /api/cron/leaderboard', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
     process.env.CRON_SECRET = '';
+    outcome.groupIds = [];
+    outcome.throwFor = null;
   });
 
   afterEach(() => {
@@ -97,7 +126,28 @@ describe('GET /api/cron/leaderboard', () => {
     const response = await GET(get('Bearer secret-value'));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, status: 'posted', reason: null });
+    expect(await response.json()).toEqual(both({ status: 'posted', reason: null }));
+    // Every group, oldest first, each to its own channel (M13.4).
+    expect(outcome.groupIds).toEqual([GROUP_A, GROUP_B]);
+  });
+
+  it("posts the next group's board when one group's read throws (M13.4)", async () => {
+    process.env.CRON_SECRET = 'secret-value';
+    outcome.value = { status: 'posted', httpStatus: 204, reason: null, attempts: 1 };
+    outcome.throwFor = GROUP_A;
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await GET(get('Bearer secret-value'));
+    spy.mockRestore();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      groups: [
+        { groupId: GROUP_A, status: 'failed', reason: 'internal error' },
+        { groupId: GROUP_B, status: 'posted', reason: null },
+      ],
+    });
   });
 
   it('reports the silence on a week nobody has played, and why', async () => {
@@ -114,11 +164,9 @@ describe('GET /api/cron/leaderboard', () => {
     // 200: nothing went wrong. A scheduler is told what happened rather than left to guess
     // from a bare `ok`.
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      ok: true,
-      status: 'skipped',
-      reason: 'nobody has played in this window',
-    });
+    expect(await response.json()).toEqual(
+      both({ status: 'skipped', reason: 'nobody has played in this window' }),
+    );
   });
 
   /**
@@ -161,7 +209,7 @@ describe('GET /api/cron/leaderboard', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toEqual({ ok: true, status: 'failed', reason: 'HTTP 500' });
+    expect(body).toEqual(both({ status: 'failed', reason: 'HTTP 500' }));
     expect(JSON.stringify(body)).not.toContain('http');
   });
 });

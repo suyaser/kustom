@@ -232,9 +232,12 @@ if (stack === null) {
     async function mintFor(puuid: string): Promise<string> {
       const { data } = await db.from('players').select('id').eq('puuid', puuid).single();
       const { token: raw, tokenHash } = mintCompanionToken();
-      const { error } = await db
-        .from('companion_tokens')
-        .insert({ player_id: data?.id ?? '', token_hash: tokenHash, label: `dc-${runId}` });
+      const { error } = await db.from('companion_tokens').insert({
+        group_id: ORIGINAL_GROUP_ID,
+        player_id: data?.id ?? '',
+        token_hash: tokenHash,
+        label: `dc-${runId}`,
+      });
       if (error) throw new Error(error.message);
       return raw;
     }
@@ -272,7 +275,7 @@ if (stack === null) {
 
     const { error: configError } = await db
       .from('discord_config')
-      .insert({ guild_id: guildId, webhook_url: webhookUrl });
+      .insert({ group_id: ORIGINAL_GROUP_ID, guild_id: guildId, webhook_url: webhookUrl });
     if (configError) throw new Error(configError.message);
   });
 

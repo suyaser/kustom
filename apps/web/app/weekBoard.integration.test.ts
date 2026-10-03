@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { displayRating, ordinal, type Rating, rateGameWeekly, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -235,6 +236,7 @@ if (stack === null) {
         const seed = seedOf(puuid);
         const rank = RANK[puuid] as readonly [string, string];
         return {
+          group_id: ORIGINAL_GROUP_ID,
           player_id: ids.get(puuid) as string,
           season_id: seasonId,
           mu: STORED.mu,
@@ -257,6 +259,7 @@ if (stack === null) {
       .single();
     ids.set(IDLE, idle?.id ?? '');
     await db.from('ratings').insert({
+      group_id: ORIGINAL_GROUP_ID,
       player_id: idle?.id ?? '',
       season_id: seasonId,
       mu: IDLE_STORED.mu,
@@ -278,6 +281,7 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`7${stamp}${String(index).padStart(2, '0')}`),
           season_id: seasonId,
           started_at: fixture.startedAt,
@@ -292,6 +296,7 @@ if (stack === null) {
 
       await db.from('game_players').insert(
         [...fixture.blue, ...fixture.red].map((puuid, seat) => ({
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: ids.get(puuid) as string,
           side: seat < 5 ? 100 : 200,

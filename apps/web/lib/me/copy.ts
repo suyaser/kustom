@@ -68,6 +68,17 @@ export const LINK_ALREADY_LINKED =
 export const LINK_NOT_IN_LOBBY = "You can only pick somebody who is in tonight's lobby.";
 
 /* ---------------------------------------------------------------------------
+ * Every group-scoped route (M13.4)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * A linked player tapping a control on a group they are not in (403). The pages only draw these
+ * controls for a group's own members, so this is the forged-or-stale-post answer. Playing in the
+ * group's lobby is what makes somebody a member (M13.3), so that is what it says to do.
+ */
+export const NOT_IN_THIS_GROUP = 'You are not in this group yet. Play a game in its lobby and you will be.';
+
+/* ---------------------------------------------------------------------------
  * Both routes
  * ------------------------------------------------------------------------- */
 

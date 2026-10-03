@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type Database, SEASON_ONE_ID } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
@@ -104,6 +105,7 @@ if (stack === null) {
 
     const { token, tokenHash } = mintCompanionToken();
     const { error } = await db.from('companion_tokens').insert({
+      group_id: ORIGINAL_GROUP_ID,
       player_id: playerId,
       token_hash: tokenHash,
       label,
@@ -562,11 +564,13 @@ if (stack === null) {
         .from('lobbies')
         .insert([
           {
+            group_id: ORIGINAL_GROUP_ID,
             lcu_party_id: oldCyclePartyId,
             status: 'finished',
             created_at: new Date(now - 2 * hour).toISOString(),
           },
           {
+            group_id: ORIGINAL_GROUP_ID,
             lcu_party_id: oldCyclePartyId,
             status: 'open',
             created_at: new Date(now - hour).toISOString(),

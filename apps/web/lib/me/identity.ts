@@ -6,8 +6,9 @@ import { type CookieJar, createAuthClient } from '../supabaseAuth';
  * Who a **friend** is, for the two writes on the tonight page (M3.6).
  *
  * This is the third route class in the product, and the first of its kind: `/api/companion/*`
- * is a bearer token, `/api/admin/*` is a session plus `players.is_admin`, and `/api/me/*` is a
- * session with a linked player and no admin flag. The chain is the only chain this project
+ * is a bearer token, `/api/admin/*` is a session plus an admin membership in the request's group,
+ * and `/api/me/*` is a session with a linked player. Which group, and what the player is in it,
+ * is `lib/me/route.ts`'s step after this one (M13.4). The chain is the only chain this project
  * knows — session → Discord identity → `players.discord_id` → the player row — and no request
  * body is ever part of it.
  *
@@ -20,12 +21,14 @@ import { type CookieJar, createAuthClient } from '../supabaseAuth';
  * that use this are opened by whoever is holding the WhatsApp link.
  */
 
-/** The player row behind a signed-in friend, when their Discord account is linked to one. */
+/**
+ * The player row behind a signed-in friend, when their Discord account is linked to one. No
+ * admin flag: what a player may do depends on the group, and the group is the request's
+ * (`MeContext.role`, M13.4).
+ */
 export interface MePlayer {
   playerId: string;
   puuid: string;
-  /** Decides one thing only: whether a body may name somebody else's PUUID. */
-  isAdmin: boolean;
 }
 
 export interface MeIdentity {
@@ -74,14 +77,14 @@ export function supabaseMeLookup(client: ServiceClient): PlayerByDiscordId {
   return async (discordId) => {
     const { data, error } = await client
       .from('players')
-      .select('id, puuid, is_admin')
+      .select('id, puuid')
       .eq('discord_id', discordId)
       .maybeSingle();
 
     if (error) throw new Error(`me: player lookup failed: ${error.message}`);
     if (!data) return null;
 
-    return { playerId: data.id, puuid: data.puuid, isAdmin: data.is_admin };
+    return { playerId: data.id, puuid: data.puuid };
   };
 }
 

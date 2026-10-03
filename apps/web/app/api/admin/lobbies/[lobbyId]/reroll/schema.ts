@@ -1,3 +1,4 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { idSchema, internalPathSchema } from '@/lib/admin/formValues';
 
@@ -11,6 +12,11 @@ import { idSchema, internalPathSchema } from '@/lib/admin/formValues';
  * ranked splits and an admin promotes one of them.
  */
 export const rerollRequestSchema = z.object({
+  /**
+   * The group the lobby belongs to (M13.4). The caller must be an admin of it, and a lobby of any
+   * other group is the same 404 as a lobby that does not exist.
+   */
+  groupId: groupIdSchema,
   /** `splits.id`. The lobby comes from the path, so a split of another lobby is a 404. */
   splitId: idSchema,
   /**

@@ -1,16 +1,20 @@
 import { z } from 'zod';
 import { lobbyStatusSchema, puuidSchema, roleSchema } from './common';
+import { groupIdSchema } from './groups';
 
 /**
  * `/api/me/*`: the two writes a **friend** can make, as opposed to the companion (a bearer
- * token) or an admin (`players.is_admin`). This is the third route class M3.6 introduces — a
- * Supabase session with a linked player and no admin flag — and these are its only payloads.
+ * token) or an admin (an admin membership in the request's group, M13.4). This is the third route
+ * class M3.6 introduces — a Supabase session with a linked player — and these are its payloads.
  *
  * Both routes identify the caller the one way this project identifies anybody: session →
  * Discord identity → `players.discord_id` → the player row. **No body ever says who the
  * caller is.** `roleTonightRequestSchema.puuid` names a *target*, and naming somebody other
- * than yourself is honoured only for an admin (403 otherwise, never a silent write to your own
+ * than yourself is honoured only for an admin of the body's group (403 otherwise, never a silent write to your own
  * row).
+ *
+ * **Every body names its group** (M13.4): a session can be in several, so `groupId` says which
+ * group's lobby the write is about, and the route checks it against `group_memberships`.
  */
 
 /**
@@ -25,6 +29,11 @@ export const roleForTonightSchema = z
   .transform((value) => (value === '' || value === 'none' || value === null ? null : value));
 
 export const roleTonightRequestSchema = z.object({
+  /**
+   * The group the page is showing (M13.4). The caller must be a member of it, and the lobby must
+   * be one of its lobbies -- a lobby of another group is the same 404 as one that does not exist.
+   */
+  groupId: groupIdSchema,
   /** `lobbies.id`. The row written is `lobby_members(lobby_id, player_id)`. */
   lobbyId: z.uuid(),
   role: roleForTonightSchema,
@@ -71,6 +80,12 @@ export type RoleTonightResponse = z.infer<typeof roleTonightResponseSchema>;
  * the route offers only tonight's lobby members and refuses anybody else.
  */
 export const selfLinkRequestSchema = z.object({
+  /**
+   * The group whose tonight lobby the visitor is picking themselves out of (M13.4). No membership
+   * is required -- the visitor has no player row yet, so they cannot have one -- and the member
+   * they claim already is one, because playing in a group's lobby is joining it (M13.3).
+   */
+  groupId: groupIdSchema,
   puuid: puuidSchema,
   redirectTo: z.string().optional(),
 });

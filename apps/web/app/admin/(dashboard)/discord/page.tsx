@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { Metadata } from 'next';
 import { listDiscordConfigs, maskSecret } from '@/lib/admin/discordConfig';
 import { requireAdmin } from '@/lib/adminPage';
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
  */
 export default async function AdminDiscordPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params] = await Promise.all([searchParams, requireAdmin()]);
-  const configs = await listDiscordConfigs(getServiceClient());
+  const configs = await listDiscordConfigs(getServiceClient(), ORIGINAL_GROUP_ID);
   const config = configs[0] ?? null;
 
   return (

@@ -168,6 +168,7 @@ if (stack === null) {
     const { data, error } = await db
       .from('lobbies')
       .insert({
+        group_id: ORIGINAL_GROUP_ID,
         lcu_party_id: partyId,
         status: 'in_game',
         reported_by_player_id: ownerPlayerId,
@@ -202,9 +203,12 @@ if (stack === null) {
   async function mintToken(puuid: string): Promise<string> {
     const playerId = await playerIdOf(puuid);
     const { token, tokenHash } = mintCompanionToken();
-    const { error } = await db
-      .from('companion_tokens')
-      .insert({ player_id: playerId, token_hash: tokenHash, label: `st-${runId}` });
+    const { error } = await db.from('companion_tokens').insert({
+      group_id: ORIGINAL_GROUP_ID,
+      player_id: playerId,
+      token_hash: tokenHash,
+      label: `st-${runId}`,
+    });
     if (error) throw new Error(error.message);
     return token;
   }
@@ -215,6 +219,7 @@ if (stack === null) {
     const { data, error } = await db
       .from('games')
       .insert({
+        group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: lcuGameId,
         started_at: startedAt.toISOString(),
         duration_s: 1_800,
@@ -225,9 +230,12 @@ if (stack === null) {
       .single();
     if (error) throw new Error(error.message);
 
-    const { error: playerError } = await db
-      .from('game_players')
-      .insert({ game_id: data.id, player_id: await playerIdOf(puuid), side: 100 });
+    const { error: playerError } = await db.from('game_players').insert({
+      group_id: ORIGINAL_GROUP_ID,
+      game_id: data.id,
+      player_id: await playerIdOf(puuid),
+      side: 100,
+    });
     if (playerError) throw new Error(playerError.message);
   }
 
@@ -914,16 +922,19 @@ if (stack === null) {
         .from('lobbies')
         .insert([
           {
+            group_id: ORIGINAL_GROUP_ID,
             lcu_party_id: stale,
             status: 'open',
             updated_at: new Date(now - (2 * 60 * 60 * 1000 + 60_000)).toISOString(),
           },
           {
+            group_id: ORIGINAL_GROUP_ID,
             lcu_party_id: fresh,
             status: 'balanced',
             updated_at: new Date(now - (60 * 60 * 1000 + 59 * 60_000)).toISOString(),
           },
           {
+            group_id: ORIGINAL_GROUP_ID,
             lcu_party_id: playing,
             status: 'in_game',
             updated_at: new Date(now - 3 * 60 * 60 * 1000).toISOString(),

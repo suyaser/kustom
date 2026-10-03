@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -121,7 +122,7 @@ describe('the press', () => {
     const call = (fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0];
     expect(call?.[0]).toBe('/api/me/lobbies/start');
     // The body decides nothing: no host, no name, no password, no mode (M4.2).
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({});
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ groupId: ORIGINAL_GROUP_ID });
     // And the page asks the server for the row: this table emits no Realtime event.
     expect(refresh).toHaveBeenCalledTimes(1);
   });

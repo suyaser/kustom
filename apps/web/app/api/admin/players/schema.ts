@@ -1,3 +1,4 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { booleanFieldSchema, idSchema, nullableRoleSchema, nullableTextSchema } from '@/lib/admin/formValues';
 
@@ -8,6 +9,9 @@ import { booleanFieldSchema, idSchema, nullableRoleSchema, nullableTextSchema } 
  *
  * Every field that can be cleared accepts `""` (what a browser sends for the empty option) as
  * well as `null`.
+ *
+ * **Every variant names its group** (M13.4): the caller must be an admin of it, and the player
+ * must be a member of it — a player outside the group is a 404.
  */
 
 /**
@@ -21,6 +25,7 @@ import { booleanFieldSchema, idSchema, nullableRoleSchema, nullableTextSchema } 
  */
 export const setRolesRequestSchema = z.object({
   action: z.literal('set-roles'),
+  groupId: groupIdSchema,
   playerId: idSchema,
   mainRole: nullableRoleSchema.optional(),
   secondaryRole: nullableRoleSchema.optional(),
@@ -33,6 +38,7 @@ export const setRolesRequestSchema = z.object({
  */
 export const setNameRequestSchema = z.object({
   action: z.literal('set-name'),
+  groupId: groupIdSchema,
   playerId: idSchema,
   displayName: nullableTextSchema,
 });
@@ -40,16 +46,19 @@ export const setNameRequestSchema = z.object({
 /** `discordId: null` (or "") unlinks. */
 export const setDiscordRequestSchema = z.object({
   action: z.literal('set-discord'),
+  groupId: groupIdSchema,
   playerId: idSchema,
   discordId: nullableTextSchema,
 });
 
 /**
  * The target state, not a toggle: a form that says "make this false" cannot race another tab
- * into flipping the wrong way.
+ * into flipping the wrong way. Since M13.4 it is the member's role in `groupId`, the same write
+ * as `POST /api/admin/members/role`.
  */
 export const setAdminRequestSchema = z.object({
   action: z.literal('set-admin'),
+  groupId: groupIdSchema,
   playerId: idSchema,
   isAdmin: booleanFieldSchema,
 });
@@ -60,6 +69,7 @@ export const setAdminRequestSchema = z.object({
  */
 export const setBackfillRequestSchema = z.object({
   action: z.literal('set-backfill'),
+  groupId: groupIdSchema,
   playerId: idSchema,
   approved: booleanFieldSchema,
 });

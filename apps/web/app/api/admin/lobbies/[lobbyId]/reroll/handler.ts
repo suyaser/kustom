@@ -1,8 +1,9 @@
 import type { NextResponse } from 'next/server';
-import { promoteSplit } from '@/lib/admin/reroll';
+import { NO_SUCH_LOBBY, promoteSplit } from '@/lib/admin/reroll';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { postTeamsForSplit } from '@/lib/discord/post';
+import { lobbyInGroup } from '@/lib/groups/membership';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type RerollRequest, rerollRequestSchema, rerollResponseSchema } from './schema';
 
@@ -33,6 +34,10 @@ export async function handleReroll(
   const back = safeNextPath(input.redirectTo) ?? context.redirectTo;
   const fail = (status: number, error: string): NextResponse =>
     context.form ? redirectBack(context.request, back, { error }) : context.fail(status, error);
+
+  // A lobby of another group answers exactly like one that does not exist (M13.4): an admin of A
+  // does not learn which of B's lobby ids are real. Checked before anything is read or written.
+  if (!(await lobbyInGroup(context.client, lobbyId, context.groupId))) return fail(404, NO_SUCH_LOBBY);
 
   const result = await promoteSplit(context.client, { lobbyId, splitId: input.splitId });
   // A lobby that is not `balanced`, a split of another lobby, or a third press: the envelope

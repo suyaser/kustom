@@ -18,6 +18,8 @@ import type { ServiceClient } from '../supabase';
 export interface ClaimableOptions {
   now?: Date;
   timeZone: string;
+  /** The group whose tonight lobby the page shows (M13.4). */
+  groupId: string;
 }
 
 export async function claimablePuuids(client: ServiceClient, options: ClaimableOptions): Promise<string[]> {
@@ -26,6 +28,7 @@ export async function claimablePuuids(client: ServiceClient, options: ClaimableO
   const { data: lobby, error: lobbyError } = await client
     .from('lobbies')
     .select('id')
+    .eq('group_id', options.groupId)
     .gte('created_at', since)
     .neq('status', 'abandoned')
     .order('created_at', { ascending: false })

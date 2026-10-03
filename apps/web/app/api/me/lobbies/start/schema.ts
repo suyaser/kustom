@@ -1,4 +1,4 @@
-import { puuidSchema } from '@customs/db/schemas';
+import { groupIdSchema, puuidSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { internalPathSchema } from '@/lib/admin/formValues';
 
@@ -9,10 +9,15 @@ import { internalPathSchema } from '@/lib/admin/formValues';
  * **The body decides nothing.** No lobby name, no password, no mode, no host: each one is a
  * step, and this product's claim is that there are none. The name and the password are
  * generated (`lib/lobbyStart.ts`), the mode is the companion's own read of the client's
- * custom-queue list, and the host is picked from who has a companion up. The only field is
- * where a browser form goes back to.
+ * custom-queue list, and the host is picked from who has a companion up. The fields are which
+ * group (M13.4) and where a browser form goes back to.
  */
 export const startLobbyRequestSchema = z.object({
+  /**
+   * The group the page is showing (M13.4). The presser must be a member of it; the host is picked
+   * among that group's companion tokens only.
+   */
+  groupId: groupIdSchema,
   /**
    * Where an HTML form post is sent back to, when it is not `/` — the tonight page's
    * no-JavaScript fallback names `/` (M3.4) and `/admin`'s one button names `/admin`.

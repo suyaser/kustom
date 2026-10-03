@@ -1,6 +1,6 @@
 import { type RoleTonightRequest, roleTonightRequestSchema, roleTonightResponseSchema } from '@customs/db';
 import type { NextResponse } from 'next/server';
-import { ROLE_TAP_NOT_LINKED } from '@/lib/me/copy';
+import { NOT_IN_THIS_GROUP, ROLE_TAP_NOT_LINKED } from '@/lib/me/copy';
 import {
   type RoleTonightStore,
   savedForNextGame,
@@ -16,8 +16,9 @@ import { nightTimeZone } from '@/lib/tonight/night';
  * only export HTTP verbs, and the tests need the handler with a fake session and a fake store
  * around it — there is no way to drive a real Discord OAuth flow from vitest.
  *
- * The caller is the session. The body carries the lobby, the role, and — for an admin only —
- * whose row to write. Nothing rebalances and nothing is posted to Discord: a tap on a lobby
+ * The caller is the session. The body carries the group, the lobby, the role, and — for an admin
+ * of that group only — whose row to write. The caller must be a member of the group (M13.4), and
+ * the lobby must be the group's. Nothing rebalances and nothing is posted to Discord: a tap on a lobby
  * whose teams are up is stored and answered with `savedForNextGame`, which is the sentence the
  * control prints.
  */
@@ -32,6 +33,7 @@ export function roleTonightRoute(options: RoleTonightRouteOptions = {}) {
     redirectTo: '/',
     getClient: options.getClient,
     authorize: options.authorize,
+    groupRole: options.groupRole,
   });
 }
 
@@ -40,14 +42,16 @@ async function handle(
   context: MeContext,
   options: RoleTonightRouteOptions,
 ): Promise<NextResponse> {
-  const actor = context.me.player;
-  if (actor === null) return context.fail(403, ROLE_TAP_NOT_LINKED);
+  const player = context.me.player;
+  if (player === null) return context.fail(403, ROLE_TAP_NOT_LINKED);
+  if (context.role === null) return context.fail(403, NOT_IN_THIS_GROUP);
 
   const store = options.store ? options.store(context) : supabaseRoleTonightStore(context.client);
   const result = await setRoleTonight(
     store,
-    actor,
-    { lobbyId: input.lobbyId, role: input.role, puuid: input.puuid },
+    // Admin of **this** group (M13.4): an admin of another group is a member here, nothing more.
+    { ...player, isAdmin: context.role === 'admin' },
+    { groupId: context.groupId, lobbyId: input.lobbyId, role: input.role, puuid: input.puuid },
     // The night this preference belongs to ends at 06:00 in the deployment's zone, and the
     // route is the only place that knows which zone that is.
     { timeZone: nightTimeZone() },

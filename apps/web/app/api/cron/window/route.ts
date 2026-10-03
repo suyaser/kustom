@@ -1,13 +1,15 @@
 import { type WindowPostKind, windowPostKindSchema } from '@customs/db';
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { NO_GAMES_IN_WINDOW, postClosedWindow } from '@/lib/discord/post';
 import { selectWebhookUrl } from '@/lib/discord/webhook';
 import { claimWindowPost, markWindowPosted, recordWindowPostFailure } from '@/lib/discord/windowPosts';
 import { readServerEnv, ServerEnvError } from '@/lib/env';
+import { type GroupRef, listGroups } from '@/lib/groups/list';
 import { jsonError, jsonOk } from '@/lib/http';
 import { type ClosedWindow, closedWindow } from '@/lib/night';
 import { siteOrigin } from '@/lib/siteUrl';
-import { getServiceClient } from '@/lib/supabase';
+import { getServiceClient, type ServiceClient } from '@/lib/supabase';
 import { nightTimeZone } from '@/lib/tonight/night';
 
 // The Supabase service-role client, a shared secret and an outbound POST: never edge, never
@@ -33,9 +35,14 @@ export const dynamic = 'force-dynamic';
  * route is written so the schedule cannot get it wrong: **call it hourly, daily or twice a
  * minute and it posts each window exactly once.**
  *
- * How once is guaranteed: `window_posts`, `(kind, window_start)` primary key, **claimed before
- * the post and stamped after it** (`lib/discord/windowPosts.ts`). A duplicate post is a thing
- * ten friends see; a missed one is a thing they ask about once and the next call fixes.
+ * How once is guaranteed: `window_posts`, `(group_id, kind, window_start)` primary key, **claimed
+ * before the post and stamped after it** (`lib/discord/windowPosts.ts`). A duplicate post is a
+ * thing ten friends see; a missed one is a thing they ask about once and the next call fixes.
+ *
+ * **Every group, independently** (M13.4). The route loops over `groups`; each gets its own board,
+ * its own channel and its own claim rows. One group's webhook failing, or its read throwing, is
+ * recorded on that group's line and the loop moves on to the next. A group with no webhook gets
+ * no post and **no claim row**, exactly as the single-group deployment did.
  *
  * What it considers, every call:
  *
@@ -47,12 +54,20 @@ export const dynamic = 'force-dynamic';
  * - **`last-month`, on the 1st** — see {@link windowsToConsider}. Week first, so on a Sunday
  *   the 1st the group gets two posts in the order they read in.
  */
-export const responseSchema = z.object({
-  ok: z.literal(true),
-  /** The windows that reached the channel on this call. Usually empty; once a week, one. */
+export const groupResultSchema = z.object({
+  groupId: groupIdSchema,
+  /** The windows that reached this group's channel on this call. Usually empty; once a week, one. */
   posted: z.array(windowPostKindSchema),
   /** The ones that did not, and why. Never contains the webhook URL. */
   skipped: z.array(z.object({ kind: windowPostKindSchema, reason: z.string() })),
+});
+
+export type GroupWindowResult = z.infer<typeof groupResultSchema>;
+
+export const responseSchema = z.object({
+  ok: z.literal(true),
+  /** One line per group, oldest group first (M13.4). */
+  groups: z.array(groupResultSchema),
 });
 
 /**
@@ -115,10 +130,39 @@ export async function GET(request: Request): Promise<Response> {
    * **The zone decides which week this is** (M5.9, M5.12): a window is a pair of 06:00
    * boundaries in `CUSTOMS_NIGHT_TZ`, and a route that let the post fall back to the built-in
    * default would claim one week in `window_posts`, print another on the board and link to a
-   * third. Read the same way the nightly post and `startLobby`'s handler read it.
+   * third. Read the same way the nightly post and `startLobby`'s handler read it. Global: every
+   * group shares the zone and the Sunday week (M13, "What stays global").
    */
   const timeZone = nightTimeZone();
   const windows = windowsToConsider(now, timeZone);
+
+  try {
+    const client = getServiceClient();
+    const groups = await listGroups(client);
+    const results: GroupWindowResult[] = [];
+    // One group at a time, in order: each is a handful of reads and at most two posts, and a
+    // serial loop keeps Discord's per-webhook rate limit and the log readable.
+    for (const group of groups) {
+      results.push(await postGroupWindows(client, group, windows, { now, timeZone, request }));
+    }
+    return jsonOk(responseSchema, { ok: true, groups: results });
+  } catch (error) {
+    console.error('cron window failed', error);
+    return jsonError(500, 'internal error');
+  }
+}
+
+/**
+ * One group's windows: claim, post, stamp. **Never throws**: a group whose read or write fails
+ * gets the failure on its own line, its claim (if one was taken) stays unstamped and retryable,
+ * and the caller moves on to the next group (M13.4).
+ */
+export async function postGroupWindows(
+  client: ServiceClient,
+  group: GroupRef,
+  windows: readonly ClosedWindow[],
+  context: { now: Date; timeZone: string; request: Request },
+): Promise<GroupWindowResult> {
   /**
    * Typed as the **response's** kind and filled with the **window's**, which is the one place
    * the two lists are pinned together: a sixth window, or a renamed one, is a typecheck failure
@@ -126,23 +170,22 @@ export async function GET(request: Request): Promise<Response> {
    */
   const posted: WindowPostKind[] = [];
   const skipped: { kind: WindowPostKind; reason: string }[] = [];
+  const { now, timeZone, request } = context;
 
   try {
-    const client = getServiceClient();
-
-    // Nothing is claimed on a deployment that has no webhook: a row here says "the group has
-    // been told", and with nowhere to tell them, writing one would silently eat the first week
-    // after somebody finally configures Discord (M5.13, edge case 5).
-    if ((await selectWebhookUrl(client)) === null) {
-      return jsonOk(responseSchema, {
-        ok: true,
+    // Nothing is claimed for a group that has no webhook: a row here says "the group has been
+    // told", and with nowhere to tell them, writing one would silently eat the first week after
+    // somebody finally configures Discord (M5.13, edge case 5).
+    if ((await selectWebhookUrl(client, group.id)) === null) {
+      return {
+        groupId: group.id,
         posted: [],
         skipped: windows.map((window) => ({ kind: window.kind, reason: 'no webhook configured' })),
-      });
+      };
     }
 
     for (const window of windows) {
-      const claim = await claimWindowPost(client, window, now);
+      const claim = await claimWindowPost(client, group.id, window, now);
       if (!claim.ok) {
         skipped.push({ kind: window.kind, reason: claim.reason });
         continue;
@@ -152,10 +195,11 @@ export async function GET(request: Request): Promise<Response> {
         now,
         timeZone,
         requestOrigin: siteOrigin(request),
+        groupId: group.id,
       });
 
       if (outcome.status === 'posted') {
-        await markWindowPosted(client, window, now);
+        await markWindowPosted(client, group.id, window, now);
         posted.push(window.kind);
         continue;
       }
@@ -164,19 +208,25 @@ export async function GET(request: Request): Promise<Response> {
       if (outcome.status === 'skipped' && reason === NO_GAMES_IN_WINDOW) {
         // Nothing happened in this window and nothing ever will: stamp it posted so it is not
         // retried every hour for the next seven days.
-        await markWindowPosted(client, window, now, reason);
+        await markWindowPosted(client, group.id, window, now, reason);
       } else {
         // A webhook that would not take it is not a posted week. The row keeps `posted_at`
         // null and a later call retries it.
-        await recordWindowPostFailure(client, window, reason);
-        console.error(`cron window: ${window.kind} did not post: ${reason}`);
+        await recordWindowPostFailure(client, group.id, window, reason);
+        console.error(`cron window: group ${group.slug}: ${window.kind} did not post: ${reason}`);
       }
       skipped.push({ kind: window.kind, reason });
     }
-
-    return jsonOk(responseSchema, { ok: true, posted, skipped });
   } catch (error) {
-    console.error('cron window failed', error);
-    return jsonError(500, 'internal error');
+    // This group's read or write failed. The windows not yet handled are reported as such; a
+    // claim already taken stays unstamped, which is what makes the next call retry it.
+    console.error(`cron window: group ${group.slug} failed`, error);
+    for (const window of windows) {
+      if (!posted.includes(window.kind) && !skipped.some((entry) => entry.kind === window.kind)) {
+        skipped.push({ kind: window.kind, reason: 'internal error' });
+      }
+    }
   }
+
+  return { groupId: group.id, posted, skipped };
 }

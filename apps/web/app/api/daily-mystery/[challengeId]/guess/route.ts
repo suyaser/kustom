@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Lock one guess. After this the visitor sees the answer, the full performance, and
- * today's anonymous community numbers. A second post returns the same locked result.
+ * today's anonymous community numbers. A second post returns the same locked result. An optional
+ * `group` (M13.4) that is not the challenge's group is the same 404 as no challenge.
  */
 export async function POST(
   request: Request,
@@ -28,6 +29,7 @@ export async function POST(
     playerId: parsed.data.playerId,
     now: new Date(),
     timeZone: nightTimeZone(),
+    groupId: parsed.data.group,
   });
   if ('error' in result) return jsonError(result.status, result.error);
   return withMysteryCookie(

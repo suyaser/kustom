@@ -1,3 +1,4 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { internalPathSchema } from '@/lib/admin/formValues';
 
@@ -8,6 +9,11 @@ import { internalPathSchema } from '@/lib/admin/formValues';
  * The rules are `lib/admin/roll.ts`.
  */
 export const rollRequestSchema = z.object({
+  /**
+   * The group the lobby belongs to (M13.4). The caller must be an admin of it, and a lobby of any
+   * other group is the same 404 as a lobby that does not exist.
+   */
+  groupId: groupIdSchema,
   /**
    * The roster the presser saw: `rosterKey()` from `@customs/db` over the puuid of every member
    * the page was showing, spectators included, sorted and comma-joined (`lobbyRosterKey` in

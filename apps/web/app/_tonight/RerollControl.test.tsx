@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
@@ -40,7 +41,7 @@ describe('the reroll control', () => {
     const [url, init] =
       (fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0] ?? [];
     expect(url).toBe(`/api/admin/lobbies/${LOBBY_ID}/reroll`);
-    expect(JSON.parse(String(init?.body))).toEqual({ splitId: 'split-2' });
+    expect(JSON.parse(String(init?.body))).toEqual({ groupId: ORIGINAL_GROUP_ID, splitId: 'split-2' });
   });
 
   it('goes quiet while a press is in flight, keeps the focus, and sends one press', async () => {

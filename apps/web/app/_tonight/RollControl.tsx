@@ -1,9 +1,13 @@
 'use client';
 
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type FormEvent, useState } from 'react';
 import { asSentence, ROLL_ADMIN_HINT, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { rollRosterKey } from '@/lib/tonight/state';
 import type { MemberView } from '@/lib/tonight/types';
+
+/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
+const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
 
 /**
  * The admin's `Roll teams` button under the rack (2026-10-03): the only way an `open` lobby
@@ -16,7 +20,7 @@ import type { MemberView } from '@/lib/tonight/types';
  * `already_rolled` and nothing is posted again.
  *
  * **The page does not write.** This posts to `/api/admin/lobbies/[lobbyId]/roll`, which
- * re-checks the session and `players.is_admin` before anything moves. Being drawn is not
+ * re-checks the session and the group admin membership before anything moves. Being drawn is not
  * permission.
  *
  * The same shape as `RerollControl`: a real `<form>` (the no-JavaScript path carries
@@ -50,7 +54,7 @@ export function RollControl({
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rosterKey }),
+        body: JSON.stringify({ groupId: PAGE_GROUP_ID, rosterKey }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -70,6 +74,7 @@ export function RollControl({
     <form className="cn-roll-form" method="post" action={action} onSubmit={submit}>
       <input type="hidden" name="rosterKey" value={rosterKey} />
       {/* Only the form path reads this. The route re-validates it as a path on this site. */}
+      <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
       <input type="hidden" name="redirectTo" value="/" />
       <p className="cn-roll-note">{ROLL_ADMIN_HINT}</p>
       {/* Quiet while a press is in flight, **never `disabled`**: a disabled control drops the

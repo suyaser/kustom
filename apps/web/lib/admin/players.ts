@@ -1,6 +1,7 @@
 import type { Role } from '@customs/core';
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
+import { isGroupMember } from '../groups/membership';
 import type { ServiceClient } from '../supabase';
+import { NO_SUCH_MEMBER, setMemberRole } from './members';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
 /**
@@ -12,6 +13,11 @@ import { type AdminWriteResult, writeFailed, writeOk } from './result';
  *
  * These read `players`, not `players_public`, because `discord_id` is the whole point of the
  * page and only the service role can see it (`0001_init.sql`).
+ *
+ * **Everything is one group's** (M13.4): the list is the group's members, the rating and the
+ * backfill state are the group's, admin is the member's role in the group, and every write
+ * refuses a player who is not a member of it with the same 404 as a player who does not exist —
+ * an admin of one group does not learn which ids another group's members have.
  */
 
 export interface AdminRating {
@@ -28,6 +34,7 @@ export interface AdminPlayerRow {
   gameName: string | null;
   tagLine: string | null;
   discordId: string | null;
+  /** `group_memberships.role = 'admin'` in the listed group (M13.4). */
   isAdmin: boolean;
   /**
    * Inferred from play (M5.17), never set here: the most and second-most frequent role over
@@ -176,6 +183,7 @@ export function parsePageParam(raw: string | null | undefined): number {
  */
 export async function listAdminPlayers(
   client: ServiceClient,
+  groupId: string,
   seasonId: string | null,
   { search, page = 1, pageSize = ADMIN_PLAYERS_PAGE_SIZE }: AdminPlayersQuery = {},
 ): Promise<AdminPlayersPage> {
@@ -187,14 +195,13 @@ export async function listAdminPlayers(
     let query = client
       .from('players')
       .select(
-        'id, puuid, display_name, game_name, tag_line, discord_id, is_admin, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, ratings(season_id, group_id, mu, sigma, games, wins), group_memberships(group_id, backfill_requested_at, backfill_approved_at)',
+        'id, puuid, display_name, game_name, tag_line, discord_id, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, ratings(season_id, group_id, mu, sigma, games, wins), group_memberships!inner(group_id, role, backfill_requested_at, backfill_approved_at)',
         { count: 'exact' },
       )
-      // The original group's rating and backfill state (M13.3: both are per group now, and the
-      // companion's scan reads the membership). This page is the original group's until M13.4
-      // scopes `/admin` to the request's group.
-      .eq('ratings.group_id', ORIGINAL_GROUP_ID)
-      .eq('group_memberships.group_id', ORIGINAL_GROUP_ID)
+      // The group's members only (`!inner`), with the group's rating, role and backfill state
+      // (M13.3, M13.4: all three are per group).
+      .eq('ratings.group_id', groupId)
+      .eq('group_memberships.group_id', groupId)
       .order('display_name', { ascending: true, nullsFirst: false })
       .order('puuid', { ascending: true })
       .range(from, from + size - 1);
@@ -215,7 +222,10 @@ export async function listAdminPlayers(
 
   /** How many players match, with no rows read: only used to work out where the end is. */
   const countMatching = async (): Promise<number> => {
-    let query = client.from('players').select('id', { count: 'exact', head: true });
+    let query = client
+      .from('players')
+      .select('id, group_memberships!inner(group_id)', { count: 'exact', head: true })
+      .eq('group_memberships.group_id', groupId);
     if (cleanedSearch !== null) query = query.or(playerSearchFilter(cleanedSearch));
     const { count, error } = await query;
     if (error) throw new Error(`listAdminPlayers count failed: ${error.message}`);
@@ -257,7 +267,6 @@ function toAdminPlayerRow(seasonId: string | null) {
     game_name: string | null;
     tag_line: string | null;
     discord_id: string | null;
-    is_admin: boolean;
     main_role: Role | null;
     secondary_role: Role | null;
     roles_counted: number;
@@ -267,6 +276,7 @@ function toAdminPlayerRow(seasonId: string | null) {
     rank_lp: number | null;
     ratings: { season_id: string; mu: number; sigma: number; games: number; wins: number }[];
     group_memberships: {
+      role: string;
       backfill_requested_at: string | null;
       backfill_approved_at: string | null;
     }[];
@@ -280,7 +290,7 @@ function toAdminPlayerRow(seasonId: string | null) {
       gameName: row.game_name,
       tagLine: row.tag_line,
       discordId: row.discord_id,
-      isAdmin: row.is_admin,
+      isAdmin: membership?.role === 'admin',
       mainRole: row.main_role,
       secondaryRole: row.secondary_role,
       rolesCounted: row.roles_counted,
@@ -328,6 +338,8 @@ export function formatInferredRoles(
 }
 
 export interface SetPlayerDisplayNameInput {
+  /** The request's group: a player who is not a member of it is a 404 (M13.4). */
+  groupId: string;
   playerId: string;
   /** `null` (the form posts `""`) puts the row back on automatic. */
   displayName: string | null;
@@ -352,6 +364,9 @@ export async function setPlayerDisplayName(
   if (input.displayName !== null && input.displayName.length > 40) {
     return writeFailed(400, 'that name is too long for a team sheet; keep it under 40 characters');
   }
+  if (!(await isGroupMember(client, input.groupId, input.playerId))) {
+    return writeFailed(404, NO_SUCH_MEMBER);
+  }
 
   const { data, error } = await client
     .from('players')
@@ -366,6 +381,8 @@ export async function setPlayerDisplayName(
 }
 
 export interface SetPlayerDiscordIdInput {
+  /** The request's group: a player who is not a member of it is a 404 (M13.4). */
+  groupId: string;
   playerId: string;
   /** `null` unlinks. */
   discordId: string | null;
@@ -380,6 +397,9 @@ export async function setPlayerDiscordId(
   client: ServiceClient,
   input: SetPlayerDiscordIdInput,
 ): Promise<AdminWriteResult<string>> {
+  if (!(await isGroupMember(client, input.groupId, input.playerId))) {
+    return writeFailed(404, NO_SUCH_MEMBER);
+  }
   if (input.discordId !== null) {
     const { data: holder, error: holderError } = await client
       .from('players')
@@ -405,47 +425,32 @@ export async function setPlayerDiscordId(
 }
 
 export interface SetPlayerAdminInput {
+  groupId: string;
   playerId: string;
   isAdmin: boolean;
-  /** The admin making the change, from the session. Never from the request body. */
-  actingPlayerId: string;
 }
 
 /**
- * An admin may promote or demote anyone except themselves.
- *
- * Pure, so the rule is a unit test rather than an integration test: the last admin demoting
- * themselves would lock everyone out of `/admin`, and the only way back would be redeploying
- * with `BOOTSTRAP_ADMIN_PUUID` set.
+ * `/admin/players`' admin toggle (M1.6), which since M13.4 is the member's role **in the request's
+ * group** and nothing else — the same write, and the same rules, as `POST /api/admin/members/role`
+ * (`./members.ts`): a non-member is a 404 and demoting the group's last admin is a 409.
  */
-export function isSelfDemotion(input: SetPlayerAdminInput): boolean {
-  return !input.isAdmin && input.playerId === input.actingPlayerId;
-}
-
 export async function setPlayerAdmin(
   client: ServiceClient,
   input: SetPlayerAdminInput,
 ): Promise<AdminWriteResult<string>> {
-  if (isSelfDemotion(input)) {
-    return writeFailed(403, 'you cannot remove your own admin flag; ask another admin');
-  }
-
-  const { data, error } = await client
-    .from('players')
-    .update({ is_admin: input.isAdmin })
-    .eq('id', input.playerId)
-    .select('id')
-    .maybeSingle();
-
-  if (error) throw new Error(`setPlayerAdmin failed: ${error.message}`);
-  if (data === null) return writeFailed(404, 'no such player');
-  return writeOk(data.id);
+  const result = await setMemberRole(client, {
+    groupId: input.groupId,
+    playerId: input.playerId,
+    role: input.isAdmin ? 'admin' : 'member',
+  });
+  return result.ok ? writeOk(result.value.playerId) : result;
 }
 
 export interface SetPlayerBackfillInput {
   playerId: string;
-  /** The group whose approval this is (M13.3). The original group until M13.4. */
-  groupId?: string;
+  /** The group whose approval this is (M13.3): the request's (M13.4). */
+  groupId: string;
   /** The target state, not a toggle: two tabs cannot flip each other's answer. */
   approved: boolean;
   /** Injected so the integration tests can pin the timestamp. */
@@ -457,9 +462,8 @@ export interface SetPlayerBackfillInput {
  *
  * The approval lives on the membership (`group_memberships.backfill_approved_at`), because
  * approving somebody's history is a group admin's call about their group and the companion's
- * scan reads it from there. The group is the original one until M13.4 passes the request's.
- * Approving a player who is not yet a member makes them one (an admin naming them is enough);
- * revoking a non-member writes nothing.
+ * scan reads it from there. The group is the request's (M13.4), and a player who is not a member
+ * of it is a 404 either way: an admin approves history for their own group's people.
  *
  * Approving stamps `backfill_approved_at`; revoking sets it back to null and the next
  * `POST /api/companion/backfill/scan` answers `approved: false`. The request timestamp is
@@ -473,25 +477,17 @@ export async function setPlayerBackfill(
   client: ServiceClient,
   input: SetPlayerBackfillInput,
 ): Promise<AdminWriteResult<string>> {
-  const groupId = input.groupId ?? ORIGINAL_GROUP_ID;
-  const { data, error } = await client.from('players').select('id').eq('id', input.playerId).maybeSingle();
-  if (error) throw new Error(`setPlayerBackfill failed: ${error.message}`);
-  if (data === null) return writeFailed(404, 'no such player');
-
   const approvedAt = input.approved ? (input.now ?? new Date()).toISOString() : null;
-  // `role` is not in the payload, so an existing membership keeps its role; a new one is `member`.
-  const { error: writeError } = input.approved
-    ? await client
-        .from('group_memberships')
-        .upsert(
-          { group_id: groupId, player_id: data.id, backfill_approved_at: approvedAt },
-          { onConflict: 'group_id,player_id' },
-        )
-    : await client
-        .from('group_memberships')
-        .update({ backfill_approved_at: null })
-        .eq('group_id', groupId)
-        .eq('player_id', data.id);
-  if (writeError) throw new Error(`setPlayerBackfill failed: ${writeError.message}`);
-  return writeOk(data.id);
+  // An update, never an upsert: approving names a member, it does not make one. `role` is not in
+  // the payload, so the membership keeps its role.
+  const { data, error } = await client
+    .from('group_memberships')
+    .update({ backfill_approved_at: approvedAt })
+    .eq('group_id', input.groupId)
+    .eq('player_id', input.playerId)
+    .select('player_id');
+  if (error) throw new Error(`setPlayerBackfill failed: ${error.message}`);
+  const row = data?.[0];
+  if (row === undefined) return writeFailed(404, NO_SUCH_MEMBER);
+  return writeOk(row.player_id);
 }

@@ -1,4 +1,6 @@
-import type { PublicClient } from '../publicClient';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
+import { groupAdminNames } from '../groups/membership';
+import { getServiceClient, type ServiceClient } from '../supabase';
 import type { PlayerName } from './types';
 
 /**
@@ -6,31 +8,27 @@ import type { PlayerName } from './types';
  * (2026-10-03). A night with no admin online stalls at ten; naming who can roll is the fix that
  * was chosen, and it changes nobody's permissions.
  *
- * Today's `players.is_admin` and nothing else — the per-group admin model is M13's and is not
- * live. Read through `players_public` with the anon key, like every other name on this page:
- * the view carries `is_admin` already, and who the admins are is not a secret among the people
- * who play. Oldest row first, so the order is the same on every load.
+ * **The group's admins** (M13.4): `group_memberships.role = 'admin'` in the page's group, oldest
+ * player first. Read with the service role on the server — the role column is not public — and
+ * only the names reach the page, which is the same fact the strip has always printed.
  *
- * Read **once with the page** and never on a Realtime event: `players` is in no publication, and
- * who the admins are does not change during a night.
+ * Read **once with the page** and never on a Realtime event: who the admins are does not change
+ * during a night.
  */
-export async function loadAdminNames(client: PublicClient): Promise<PlayerName[]> {
-  const { data, error } = await client
-    .from('players_public')
-    .select('display_name, game_name, created_at')
-    .eq('is_admin', true)
-    .order('created_at', { ascending: true });
-  if (error) throw new Error(`tonight: admin lookup failed: ${error.message}`);
-  return (data ?? []).map((row) => row.display_name ?? row.game_name ?? null);
+export async function loadAdminNames(client: ServiceClient, groupId: string): Promise<PlayerName[]> {
+  return groupAdminNames(client, groupId);
 }
 
 /**
  * The same, and an empty list on any failure: the page's answer to "is the night happening" may
  * not depend on a sentence that names admins, and with none the strip says `an admin`.
+ *
+ * The group defaults to the original one: the tonight page is the original group's until M13.9
+ * moves it under `/g/<slug>` and passes the slug's group.
  */
-export async function loadAdminNamesOrNone(client: PublicClient): Promise<PlayerName[]> {
+export async function loadAdminNamesOrNone(groupId: string = ORIGINAL_GROUP_ID): Promise<PlayerName[]> {
   try {
-    return await loadAdminNames(client);
+    return await loadAdminNames(getServiceClient(), groupId);
   } catch (error) {
     console.error('tonight: reading the admins failed', error);
     return [];

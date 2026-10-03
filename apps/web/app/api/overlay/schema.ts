@@ -1,3 +1,4 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 
 /**
@@ -14,9 +15,10 @@ export const overlayQuerySchema = z.object({
   /**
    * The group to answer for (M13.3): `groups.id`. Answered only when the PUUID is a member of it.
    * Missing: the PUUID's only group, or the empty answer when they have several (the 0.2.x panel
-   * sends none). `GET /api/overlay/groups` lists the choices.
+   * sends none). `GET /api/overlay/groups` lists the choices. `groupIdSchema` (a guid), not
+   * `z.uuid()`, which refuses the original group's fixed id (M13.4 fix).
    */
-  group: z.uuid().optional(),
+  group: groupIdSchema.optional(),
 });
 
 const recordSchema = z.object({

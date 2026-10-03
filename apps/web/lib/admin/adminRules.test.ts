@@ -3,7 +3,6 @@ import { maskSecret } from './discordConfig';
 import { playerLabel, shortPuuid } from './playerName';
 import {
   ADMIN_PLAYERS_PAGE_SIZE,
-  isSelfDemotion,
   normalizeSearch,
   pageCountFor,
   parsePageParam,
@@ -13,23 +12,12 @@ import { escapeHtml, renderMintedTokenPage } from './tokenPage';
 
 /** The rules the admin pages enforce that are not the database's to enforce. */
 
-const HANA = '11111111-1111-4111-8111-111111111111';
-const OMAR = '22222222-2222-4222-8222-222222222222';
-
-describe('isSelfDemotion', () => {
-  it('blocks an admin removing their own flag', () => {
-    expect(isSelfDemotion({ playerId: HANA, isAdmin: false, actingPlayerId: HANA })).toBe(true);
-  });
-
-  it('allows demoting someone else', () => {
-    expect(isSelfDemotion({ playerId: OMAR, isAdmin: false, actingPlayerId: HANA })).toBe(false);
-  });
-
-  it('allows promoting anyone, including yourself', () => {
-    expect(isSelfDemotion({ playerId: HANA, isAdmin: true, actingPlayerId: HANA })).toBe(false);
-    expect(isSelfDemotion({ playerId: OMAR, isAdmin: true, actingPlayerId: HANA })).toBe(false);
-  });
-});
+/*
+ * `isSelfDemotion` (M1.6's "you cannot remove your own admin flag") is gone with M13.4: admin is a
+ * membership role per group, and the rule that keeps a group from locking itself out is now "never
+ * the last admin", enforced by `set_group_member_role` and tested against the local stack in
+ * `app/api/admin/members.integration.test.ts`.
+ */
 
 describe('playerLabel', () => {
   const PUUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';

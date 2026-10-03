@@ -1,5 +1,5 @@
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { mintCompanionToken } from '../companionAuth';
+import { isGroupMember } from '../groups/membership';
 import type { ServiceClient } from '../supabase';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
@@ -10,7 +10,14 @@ import { type AdminWriteResult, writeFailed, writeOk } from './result';
  * Minting goes through `mintCompanionToken()` so the admin page and the companion auth path
  * cannot disagree about how a token is hashed. The raw token exists for exactly the length of
  * {@link mintTokenForPlayer}'s return value; only the SHA-256 hash is stored.
+ *
+ * **One group's tokens** (M13.4): the list is the tokens that post to the request's group, a mint
+ * is for a member of it and posts to it, and a revoke of another group's token is the same 404 as
+ * a token that does not exist.
  */
+
+/** The 404 for a token outside the request's group or nowhere at all. */
+export const NO_SUCH_TOKEN = 'no such token';
 
 export interface AdminTokenRow {
   id: string;
@@ -27,12 +34,13 @@ export interface AdminTokenRow {
   revokedAt: string | null;
 }
 
-export async function listAdminTokens(client: ServiceClient): Promise<AdminTokenRow[]> {
+export async function listAdminTokens(client: ServiceClient, groupId: string): Promise<AdminTokenRow[]> {
   const { data, error } = await client
     .from('companion_tokens')
     .select(
       'id, player_id, label, created_at, last_seen_at, revoked_at, players!inner(puuid, display_name, game_name, tag_line)',
     )
+    .eq('group_id', groupId)
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(`listAdminTokens failed: ${error.message}`);
@@ -64,12 +72,11 @@ export interface MintTokenInput {
   playerId: string;
   label: string | null;
   /**
-   * The group the token posts to (M13.3). The original group until `/api/admin/tokens` carries
-   * the request's group (M13.4). Inserting the token makes its player a member of the group if
-   * they were not (`0019`'s `companion_tokens_add_membership`), because a token whose player is
-   * not a member is refused.
+   * The group the token posts to (M13.3): the request's (M13.4). The player must already be a
+   * member of it — an admin mints hosts for their own group's people — so `0019`'s
+   * `companion_tokens_add_membership` trigger finds the row there already when this path inserts.
    */
-  groupId?: string;
+  groupId: string;
 }
 
 export async function mintTokenForPlayer(
@@ -82,7 +89,10 @@ export async function mintTokenForPlayer(
     .eq('id', input.playerId)
     .maybeSingle();
   if (playerError) throw new Error(`mintTokenForPlayer lookup failed: ${playerError.message}`);
-  if (player === null) return writeFailed(404, 'no such player');
+  // Not a member of this group and not a player at all are one answer (M13.4).
+  if (player === null || !(await isGroupMember(client, input.groupId, player.id))) {
+    return writeFailed(404, 'no such player');
+  }
 
   const { token, tokenHash } = mintCompanionToken();
   const { data, error } = await client
@@ -91,7 +101,7 @@ export async function mintTokenForPlayer(
       player_id: player.id,
       token_hash: tokenHash,
       label: input.label,
-      group_id: input.groupId ?? ORIGINAL_GROUP_ID,
+      group_id: input.groupId,
     })
     .select('id, label')
     .single();
@@ -114,16 +124,18 @@ export async function mintTokenForPlayer(
  */
 export async function revokeToken(
   client: ServiceClient,
-  tokenId: string,
+  input: { tokenId: string; groupId: string },
   now: Date = new Date(),
 ): Promise<AdminWriteResult<{ tokenId: string; revokedAt: string }>> {
+  const tokenId = input.tokenId;
   const { data: existing, error: readError } = await client
     .from('companion_tokens')
     .select('id, revoked_at')
     .eq('id', tokenId)
+    .eq('group_id', input.groupId)
     .maybeSingle();
   if (readError) throw new Error(`revokeToken lookup failed: ${readError.message}`);
-  if (existing === null) return writeFailed(404, 'no such token');
+  if (existing === null) return writeFailed(404, NO_SUCH_TOKEN);
   if (existing.revoked_at !== null) {
     return writeOk({ tokenId: existing.id, revokedAt: existing.revoked_at });
   }
@@ -132,6 +144,7 @@ export async function revokeToken(
     .from('companion_tokens')
     .update({ revoked_at: now.toISOString() })
     .eq('id', tokenId)
+    .eq('group_id', input.groupId)
     .select('id, revoked_at')
     .single();
 

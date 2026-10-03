@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -102,6 +103,7 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`8${stamp}${String(index).padStart(2, '0')}`),
           season_id: containerId,
           started_at: startedAt,
@@ -121,6 +123,7 @@ if (stack === null) {
        */
       await db.from('game_players').insert(
         [...LOSERS, ...WINNERS].map((puuid, seat) => ({
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: ids.get(puuid) as string,
           side: seat < 5 ? 100 : 200,

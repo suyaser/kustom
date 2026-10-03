@@ -1,5 +1,6 @@
 'use client';
 
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, type ReactNode, useState, useTransition } from 'react';
 import { type AdminFormKind, adminError, adminNotice, mintedToken } from '@/lib/admin/notices';
@@ -34,12 +35,25 @@ export interface AdminFormProps {
   className?: string;
   /** The sentence for a network failure, where the route never answered. */
   fallbackError?: string;
+  /**
+   * The group every `/api/admin/*` and `/api/me/*` body names (M13.4), sent as a hidden field so
+   * the JSON path and the no-JS form path carry it alike. The original group until M13.14 moves
+   * the admin pages under `/g/<slug>/admin` and passes the slug's group.
+   */
+  groupId?: string;
 }
 
 /** The same shape the group holds, so a form can hand its answer up unchanged. */
 type Answer = GroupAnswer;
 
-export function AdminForm({ action, kind, children, className, fallbackError }: AdminFormProps) {
+export function AdminForm({
+  action,
+  kind,
+  children,
+  className,
+  fallbackError,
+  groupId = ORIGINAL_GROUP_ID,
+}: AdminFormProps) {
   const router = useRouter();
   const sink = useAnswerSink();
   const [inlineAnswer, setInlineAnswer] = useState<Answer | null>(null);
@@ -97,6 +111,7 @@ export function AdminForm({ action, kind, children, className, fallbackError }: 
 
   return (
     <form method="post" action={action} onSubmit={submit} className={className}>
+      <input type="hidden" name="groupId" value={groupId} />
       {children}
       {/* With a group above, the sentence is the group's: this form may not survive its own
           success (`AdminAnswerGroup`). Without one, the control is still here afterwards and

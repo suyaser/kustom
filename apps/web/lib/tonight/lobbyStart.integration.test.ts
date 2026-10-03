@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -67,6 +68,7 @@ if (stack === null) {
     const { data, error } = await db
       .from('companion_commands')
       .insert({
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: hostId,
         kind,
         created_at: CREATED_AT,

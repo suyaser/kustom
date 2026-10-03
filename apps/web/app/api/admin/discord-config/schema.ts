@@ -1,8 +1,10 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { booleanFieldSchema, nullableTextSchema, requiredTextSchema } from '@/lib/admin/formValues';
 
 /**
- * `POST /api/admin/discord-config`: the single `discord_config` row.
+ * `POST /api/admin/discord-config`: the body's group's `discord_config` row (one per group since
+ * M13.4's `0020`).
  *
  * `webhookUrl` is three-valued on purpose. The page shows the stored URL masked, and a masked
  * value cannot be posted back, so an empty field must mean "leave it alone" — clearing needs
@@ -10,6 +12,8 @@ import { booleanFieldSchema, nullableTextSchema, requiredTextSchema } from '@/li
  */
 export const discordConfigRequestSchema = z
   .object({
+    /** The group whose channels these are (M13.4). The caller must be an admin of it. */
+    groupId: groupIdSchema,
     guildId: requiredTextSchema,
     /** Empty keeps the stored one. */
     webhookUrl: nullableTextSchema,

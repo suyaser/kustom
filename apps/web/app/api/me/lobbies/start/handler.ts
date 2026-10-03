@@ -1,11 +1,10 @@
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
 // Registers the `onAcked` listener that fans the invites out (M4.2) and the `balanced` listener
 // that queues `switch_side` (M4.1). A side-effect import, exactly as on the companion routes:
 // with this line removed the press still queues its `create_lobby` and nothing else happens.
 import '@/lib/commands/register';
 import { openingOnPcLine, type StartLobbyOptions, startLobby } from '@/lib/lobbyStart';
-import { START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
+import { NOT_IN_THIS_GROUP, START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
 import { type MeContext, type MeRouteOptions, withViewerAuth } from '@/lib/me/route';
 import { nightTimeZone } from '@/lib/tonight/night';
 import { type StartLobbyRequest, startLobbyRequestSchema, startLobbyResponseSchema } from './schema';
@@ -14,16 +13,18 @@ import { type StartLobbyRequest, startLobbyRequestSchema, startLobbyResponseSche
  * Start a lobby (M4.2's rules, M4.13's gate). The rules — who hosts, the name, the password, the
  * four refusals — are `lib/lobbyStart.ts`; this is the boundary and nothing else.
  *
- * **Every linked player may press it** (M4.13). This route lives on M3.6's third class
+ * **Every linked member of the request's group may press it** (M4.13, scoped by M13.4: the body
+ * names the group, the presser must be a member of it, and the host is picked among that group's
+ * tokens only). This route lives on M3.6's third class
  * (`lib/me/route.ts`'s `withViewerAuth`, `lib/me/identity.ts`'s `resolveMe`), the same wrapper
  * `/api/me/role-tonight` and `/api/me/link` run on: a session, a `players` row, and no admin
  * flag anywhere in the decision. The 2026-09-10 decision row called the widening "an auth swap
  * and a moved file" in advance, and that is exactly what it was — the admin path is deleted
  * rather than aliased, because two paths for one command is the second copy that drifts.
  *
- * **Admins need no branch.** `authorizeAdmin` can only return true for a session whose Discord
- * id matched a `players` row, so every admin is a linked player and passes the gate below on
- * the same line everybody else does. `me.player.isAdmin` is read by nothing in this file.
+ * **Admins need no branch.** An admin of the group is a member of it, so they pass the gate below
+ * on the same line everybody else does. `context.role` is read only as "member of the group or
+ * not".
  *
  * Both shapes, like every other write on this class: the envelope for a JSON caller, a 303 back
  * to the page carrying the sentence for a browser form, and authentication failures always the
@@ -42,6 +43,8 @@ export async function handleStartLobby(
    */
   const presser = context.me.player;
   if (presser === null) return context.fail(403, START_LOBBY_NOT_LINKED);
+  // A linked player who is not in this group (M13.4). Never a press on another group's PCs.
+  if (context.role === null) return context.fail(403, NOT_IN_THIS_GROUP);
 
   const result = await startLobby(
     context.client,
@@ -49,9 +52,9 @@ export async function handleStartLobby(
     // a real decision, and a body that could name someone else would be a request to open a
     // lobby on a stranger's PC.
     //
-    // The group is the original one until M13.4 makes every `/api/me/*` request carry a checked
-    // `groupId`; `startLobby` itself already picks only that group's tokens (M13.3).
-    { pressedByPlayerId: presser.playerId, groupId: ORIGINAL_GROUP_ID },
+    // The group is the body's, checked above against the presser's membership (M13.4);
+    // `startLobby` picks only that group's tokens (M13.3).
+    { pressedByPlayerId: presser.playerId, groupId: context.groupId },
     { timeZone: nightTimeZone(), ...options },
   );
 
@@ -98,6 +101,7 @@ export function startLobbyRoute(
       redirectTo: options.redirectTo ?? '/',
       getClient: options.getClient,
       authorize: options.authorize,
+      groupRole: options.groupRole,
     },
   );
 }

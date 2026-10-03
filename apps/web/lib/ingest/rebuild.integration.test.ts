@@ -213,6 +213,7 @@ if (stack === null) {
 
     const { token: raw, tokenHash } = mintCompanionToken();
     await db.from('companion_tokens').insert({
+      group_id: ORIGINAL_GROUP_ID,
       player_id: ids.get(ownerPuuid) ?? '',
       token_hash: tokenHash,
       label: `it-${runId}-rebuild`,
@@ -523,7 +524,7 @@ if (stack === null) {
       const partyId = `it-party-${runId}-guard`;
       const { data: lobby } = await db
         .from('lobbies')
-        .insert({ lcu_party_id: partyId, status: 'balanced' })
+        .insert({ group_id: ORIGINAL_GROUP_ID, lcu_party_id: partyId, status: 'balanced' })
         .select('id')
         .single();
 
@@ -549,6 +550,7 @@ if (stack === null) {
       const result = await rebuild({
         afterSnapshot: async () => {
           const { error } = await db.from('games').insert({
+            group_id: ORIGINAL_GROUP_ID,
             lcu_game_id: fenceGameId,
             season_id: seasonId,
             started_at: '2026-09-08T20:00:00.000Z',
@@ -615,7 +617,9 @@ if (stack === null) {
       const strayPuuid = `it-${runId}-stray`;
       const ids = await ensurePlayers(db, [{ puuid: strayPuuid }]);
       const strayId = ids.get(strayPuuid) as string;
-      await db.from('ratings').insert({ player_id: strayId, season_id: seasonId, mu: 25, sigma: 8 });
+      await db
+        .from('ratings')
+        .insert({ group_id: ORIGINAL_GROUP_ID, player_id: strayId, season_id: seasonId, mu: 25, sigma: 8 });
 
       const reported = await rebuild();
       expect(reported.ok).toBe(true);

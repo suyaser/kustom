@@ -63,7 +63,7 @@ export default async function TonightPage() {
     loadMysteryOrNone(),
     // Who can roll, named in the strip at ten or more (2026-10-03). Read once, like the rail,
     // and empty on any failure: the strip then says `an admin`.
-    loadAdminNamesOrNone(client),
+    loadAdminNamesOrNone(),
   ]);
 
   /**

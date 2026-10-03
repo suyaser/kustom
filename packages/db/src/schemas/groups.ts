@@ -14,9 +14,24 @@ import { z } from 'zod';
  * The group everything that existed before M13 belongs to, with the fixed id `0018_groups.sql`
  * gives it. Its slug is `customs` and its name `Customs Night`.
  *
- * Until M13.4's `0020` this id is also the temporary column default of every `group_id`.
+ * It was the temporary column default of every `group_id` until M13.4's `0020` dropped them; it
+ * is still what the pages that have not moved under `/g/<slug>` yet (M13.9 to M13.14) send as
+ * their `groupId`.
  */
 export const ORIGINAL_GROUP_ID = '00000000-0000-0000-0000-000000000001';
+
+/**
+ * A `groups.id` in a request (M13.4). Every `/api/me/*` and `/api/admin/*` request carries one
+ * -- in the body for a write, in the query for a read -- because a signed-in person can be in
+ * several groups and a session alone does not name one. The server checks it against
+ * `group_memberships` for the session's player; the id itself grants nothing.
+ *
+ * **`z.guid()`, not `z.uuid()`.** zod's `uuid()` checks the RFC 9562 version and variant nibbles,
+ * and the original group's fixed id `00000000-0000-0000-0000-000000000001` has neither (version
+ * 0): `z.uuid()` refuses the one group that exists. `guid()` is the 8-4-4-4-12 hex shape Postgres's
+ * `uuid` type itself accepts. Every schema that carries a group id uses this one.
+ */
+export const groupIdSchema = z.guid();
 
 /** `group_memberships.role`: the discriminated union, never a boolean. */
 export const GROUP_ROLES = ['member', 'admin'] as const;
@@ -64,7 +79,8 @@ export const overlayGroupsQuerySchema = z.object({
 });
 
 export const overlayGroupSchema = z.object({
-  id: z.uuid(),
+  /** `groupIdSchema`, not `z.uuid()`: the original group's fixed id is not a v1-v8 uuid. */
+  id: groupIdSchema,
   slug: z.string(),
   name: z.string(),
 });

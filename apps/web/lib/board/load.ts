@@ -141,6 +141,13 @@ export interface BoardOptions {
    * windows hand out no award (M5.4), which `lib/stats/load.ts` decides before it queries.
    */
   includeAwards?: boolean;
+  /**
+   * Only this group's games and ratings (M13.4). The crons pass it so each group's channel gets
+   * that group's board. Absent reads every group, which is what `/leaderboard` and the tonight
+   * rail still do until M13.9 and M13.10 pass their group; scoping who an `All time` row is for
+   * (the group's members rather than every player) is M13.10's.
+   */
+  groupId?: string | undefined;
 }
 
 /**
@@ -170,7 +177,7 @@ export async function loadBoard(client: PublicClient, options: BoardOptions): Pr
   if (season === null) return { window, rows: [], range: null, games: 0 };
 
   const range = windowRange(window, options.now ?? new Date(), options.timeZone);
-  const facts = await loadWindowFacts(client, season, window, range);
+  const facts = await loadWindowFacts(client, season, window, range, options.groupId);
   // The slot: the range and the count, or the window's empty sentence when there is nothing to
   // count. `range` is `null` for the empty case, which is what the view branches on.
   const slot = {
@@ -205,7 +212,7 @@ export async function loadBoard(client: PublicClient, options: BoardOptions): Pr
   const timeZone = options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE;
   const [players, ratings, streaks, breakdowns] = await Promise.all([
     loadAllPlayers(client),
-    loadRatings(client, season),
+    loadRatings(client, season, undefined, options.groupId),
     loadStreaks(client, options),
     options.includeBreakdown === true
       ? loadAllTimeBreakdowns(client, season, timeZone)
@@ -266,16 +273,18 @@ async function loadWindowFacts(
   seasonId: string,
   window: WindowKind,
   range: WindowRange,
+  groupId: string | undefined,
 ): Promise<{ games: number; firstCountedAt: Date | null }> {
-  const games = await countCountedGames(client, seasonId, range);
+  const games = await countCountedGames(client, seasonId, range, groupId);
   if (games === 0 || window !== 'all-time') return { games, firstCountedAt: null };
-  return { games, firstCountedAt: await firstCountedGameAt(client, seasonId) };
+  return { games, firstCountedAt: await firstCountedGameAt(client, seasonId, groupId) };
 }
 
 async function countCountedGames(
   client: PublicClient,
   seasonId: string,
   range: WindowRange,
+  groupId: string | undefined,
 ): Promise<number> {
   let query = client
     .from('games')
@@ -283,6 +292,7 @@ async function countCountedGames(
     .eq('season_id', seasonId)
     .not('game_players.mu_after', 'is', null);
   query = withRange(query, 'started_at', range);
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
 
   const { count, error } = await query;
   if (error) throw new Error(`board: counting the window's games failed: ${error.message}`);
@@ -290,14 +300,18 @@ async function countCountedGames(
 }
 
 /** The oldest counted game there is: `All time`'s `Since 8 Sep 2025`. */
-async function firstCountedGameAt(client: PublicClient, seasonId: string): Promise<Date | null> {
-  const { data, error } = await client
+async function firstCountedGameAt(
+  client: PublicClient,
+  seasonId: string,
+  groupId: string | undefined,
+): Promise<Date | null> {
+  let query = client
     .from('games')
     .select('started_at, game_players!inner(mu_after)')
     .eq('season_id', seasonId)
-    .not('game_players.mu_after', 'is', null)
-    .order('started_at', { ascending: true })
-    .limit(1);
+    .not('game_players.mu_after', 'is', null);
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
+  const { data, error } = await query.order('started_at', { ascending: true }).limit(1);
   if (error) throw new Error(`board: first game lookup failed: ${error.message}`);
 
   const startedAt = data?.[0]?.started_at;
@@ -329,7 +343,11 @@ async function windowRows(
   range: WindowRange,
   options: BoardOptions,
 ): Promise<BoardRow[]> {
-  const games = await loadSeasonGames(client, seasonId, { limit: SEASON_GAME_LIMIT, range });
+  const games = await loadSeasonGames(client, seasonId, {
+    limit: SEASON_GAME_LIMIT,
+    range,
+    groupId: options.groupId,
+  });
   if (games.length === 0) return [];
 
   const byGame = new Map(games.map((game) => [game.id, game]));
@@ -363,7 +381,7 @@ async function windowRows(
   const playerIds = [...byPlayer.keys()];
   const [players, ratings] = await Promise.all([
     loadPlayersByIds(client, playerIds),
-    loadRatings(client, seasonId, playerIds),
+    loadRatings(client, seasonId, playerIds, options.groupId),
   ]);
   const timeZone = options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE;
   const includeBreakdown = options.includeBreakdown === true;
@@ -1232,6 +1250,7 @@ async function loadRatings(
   client: PublicClient,
   seasonId: string,
   playerIds?: readonly string[],
+  groupId?: string | undefined,
 ): Promise<Map<string, RatingRow>> {
   const ratings = new Map<string, RatingRow>();
   // `undefined` is "everybody" and `[]` is "nobody": one is a board, the other is a no-op.
@@ -1243,6 +1262,9 @@ async function loadRatings(
       .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
       .eq('season_id', seasonId);
     if (chunk !== null) query = query.in('player_id', chunk);
+    // One group's rows (M13.4). Without it a player in two groups has two rows and the later one
+    // read wins the map, which is why every group-aware caller passes it.
+    if (groupId !== undefined) query = query.eq('group_id', groupId);
 
     const { data, error } = await query;
     if (error) throw new Error(`board: rating lookup failed: ${error.message}`);
@@ -1272,12 +1294,13 @@ async function loadRatings(
 async function loadSeasonGames(
   client: PublicClient,
   seasonId: string,
-  options: { limit: number; range?: WindowRange },
+  options: { limit: number; range?: WindowRange; groupId?: string | undefined },
 ): Promise<SeasonGame[]> {
   let query = client
     .from('games')
     .select('id, lcu_game_id, started_at, duration_s, winning_side, lobby_id')
     .eq('season_id', seasonId);
+  if (options.groupId !== undefined) query = query.eq('group_id', options.groupId);
   // **The window is a filter in the query, not a filter in memory** (M5.12): `Last month` on a
   // year of history would otherwise be read through the cap and come back empty.
   query = withRange(query, 'started_at', options.range);

@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { playerLabel } from '@/lib/admin/playerName';
@@ -39,8 +40,8 @@ export default async function AdminTokensPage({ searchParams }: { searchParams: 
   // size `/admin/players` uses — but it asks with an explicit range all the same (M3.25), so
   // "the list stops here" is this number's doing and not PostgREST truncating in silence.
   const [tokens, playerPage] = await Promise.all([
-    listAdminTokens(client),
-    listAdminPlayers(client, null, { pageSize: ADMIN_PLAYERS_MAX_PAGE_SIZE }),
+    listAdminTokens(client, ORIGINAL_GROUP_ID),
+    listAdminPlayers(client, ORIGINAL_GROUP_ID, null, { pageSize: ADMIN_PLAYERS_MAX_PAGE_SIZE }),
   ]);
   const players = playerPage.rows;
 

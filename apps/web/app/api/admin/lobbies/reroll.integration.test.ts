@@ -8,11 +8,14 @@ import { NO_MORE_SPLITS, NO_SUCH_LOBBY } from '@/lib/admin/reroll';
 import {
   type AdminAuthResult,
   authorizeAdmin,
+  NOT_A_GROUP_ADMIN,
   type SessionUserLike,
   supabaseAdminLookup,
 } from '@/lib/adminAuth';
 import { mintCompanionToken } from '@/lib/companionAuth';
+import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ensurePlayers } from '@/lib/ingest/players';
+import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { storedRosterKey } from '@/lib/testing/roll';
 
@@ -67,6 +70,8 @@ if (stack === null) {
   const memberDiscordId = `8${runId.replace(/\D/g, '') || '1'}00002`;
   const guildId = `it-${runId}-rr-guild`;
   const partyIds = new Set<string>();
+  /** The file's own group (M13.4): its lobbies, tokens and Discord row, and nobody else's. */
+  const groups = { a: '' };
 
   let token = '';
   let otherToken = '';
@@ -87,12 +92,14 @@ if (stack === null) {
     };
   }
 
-  /** The real gate with only the session injected: `players.is_admin` is still read for real. */
+  /** The real gate with only the session injected: the group membership is still read for real. */
   function authorizeAs(user: SessionUserLike | null) {
-    return async (_request: Request, client: typeof db): Promise<AdminAuthResult> =>
+    return async (_request: Request, client: typeof db, groupId: string | null): Promise<AdminAuthResult> =>
       authorizeAdmin({
         resolveSessionUser: async () => user,
         lookupPlayerByDiscordId: supabaseAdminLookup(client),
+        lookupGroupRole: supabaseGroupRole(client),
+        groupId,
       });
   }
 
@@ -100,11 +107,12 @@ if (stack === null) {
     return rerollRoute(id, { getClient: () => db, authorize: authorizeAs(user) });
   }
 
-  function post(id: string, body: unknown): Request {
+  /** Every admin body names its group (M13.4): this file's, unless the body names one. */
+  function post(id: string, body: object): Request {
     return new Request(`http://localhost/api/admin/lobbies/${id}/reroll`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify('groupId' in body ? body : { groupId: groups.a, ...body }),
     });
   }
 
@@ -150,7 +158,7 @@ if (stack === null) {
       new Request(`http://localhost/api/admin/lobbies/${id}/roll`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rosterKey: await storedRosterKey(db, id) }),
+        body: JSON.stringify({ groupId: groups.a, rosterKey: await storedRosterKey(db, id) }),
       }),
     );
     expect(await rolled.json()).toMatchObject({ status: 'balanced', outcome: 'rolled' });
@@ -173,26 +181,31 @@ if (stack === null) {
       db,
       allPuuids.map((puuid) => ({ puuid })),
     );
+    Object.assign(groups, await createTestGroups(db, runId, ['a'] as const));
 
     const { error: adminError } = await db
       .from('players')
-      .update({ discord_id: adminDiscordId, is_admin: true })
+      .update({ discord_id: adminDiscordId })
       .eq('id', ids.get(adminPuuid) ?? '');
     if (adminError) throw new Error(adminError.message);
+    await setTestMembership(db, groups.a, ids.get(adminPuuid) ?? '', 'admin');
 
     // Somebody signed in who is not an admin: the button is never rendered for them and the
     // route must refuse them too.
     const { error: memberError } = await db
       .from('players')
-      .update({ discord_id: memberDiscordId, is_admin: false })
+      .update({ discord_id: memberDiscordId })
       .eq('id', ids.get(ten[0] ?? '') ?? '');
     if (memberError) throw new Error(memberError.message);
 
     async function mintFor(puuid: string): Promise<string> {
       const { token: raw, tokenHash } = mintCompanionToken();
-      const { error } = await db
-        .from('companion_tokens')
-        .insert({ player_id: ids.get(puuid) ?? '', token_hash: tokenHash, label: `rr-${runId}` });
+      const { error } = await db.from('companion_tokens').insert({
+        group_id: groups.a,
+        player_id: ids.get(puuid) ?? '',
+        token_hash: tokenHash,
+        label: `rr-${runId}`,
+      });
       if (error) throw new Error(error.message);
       return raw;
     }
@@ -211,11 +224,9 @@ if (stack === null) {
     await new Promise<void>((resolve) => listening.listen(0, '127.0.0.1', resolve));
     webhookUrl = `http://127.0.0.1:${(listening.address() as AddressInfo).port}/webhook`;
 
-    // Leftovers from an interrupted run would win the "oldest row with a webhook" rule.
-    await db.from('discord_config').delete().like('guild_id', 'it-%');
     const { error: configError } = await db
       .from('discord_config')
-      .insert({ guild_id: guildId, webhook_url: webhookUrl });
+      .insert({ group_id: groups.a, guild_id: guildId, webhook_url: webhookUrl });
     if (configError) throw new Error(configError.message);
 
     lobbyId = await driveToBalanced(`rr-${runId}`, ten, token);
@@ -246,11 +257,11 @@ if (stack === null) {
   });
 
   afterAll(async () => {
-    await db.from('discord_config').delete().eq('guild_id', guildId);
     await db
       .from('lobbies')
       .delete()
       .in('lcu_party_id', [...partyIds]);
+    await deleteTestGroups(db, Object.values(groups));
     await db.from('players').delete().in('puuid', allPuuids);
     await new Promise<void>((resolve) => {
       if (server === null) return resolve();
@@ -439,7 +450,7 @@ if (stack === null) {
         sessionUser(memberDiscordId),
       )(post(lobbyId, { splitId: splitOfRank(2).id }));
       expect(response.status).toBe(403);
-      await expect(response.json()).resolves.toEqual({ ok: false, error: 'not an admin' });
+      await expect(response.json()).resolves.toEqual({ ok: false, error: NOT_A_GROUP_ADMIN });
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 1 }]);
       expect(posts).toHaveLength(0);
     });
@@ -451,7 +462,7 @@ if (stack === null) {
       const request = new Request(`http://localhost/api/admin/lobbies/${lobbyId}/reroll`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ splitId: target.id }).toString(),
+        body: new URLSearchParams({ groupId: groups.a, splitId: target.id }).toString(),
       });
 
       const response = await reroll(lobbyId)(request);
@@ -471,7 +482,7 @@ if (stack === null) {
       const request = new Request(`http://localhost/api/admin/lobbies/${lobbyId}/reroll`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ splitId: target.id, redirectTo: '/' }).toString(),
+        body: new URLSearchParams({ groupId: groups.a, splitId: target.id, redirectTo: '/' }).toString(),
       });
 
       const response = await reroll(lobbyId)(request);
@@ -488,7 +499,7 @@ if (stack === null) {
         new Request(`http://localhost/api/admin/lobbies/${lobbyId}/reroll`, {
           method: 'POST',
           headers: { 'content-type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ splitId: target.id, redirectTo }).toString(),
+          body: new URLSearchParams({ groupId: groups.a, splitId: target.id, redirectTo }).toString(),
         });
 
       // `//evil.example` is protocol-relative: a browser reads it as another origin. The

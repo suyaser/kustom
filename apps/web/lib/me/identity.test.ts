@@ -8,7 +8,7 @@ import { authorizeMe, type MePlayer } from './identity';
  * here and is the whole reason this is not `authorizeAdmin`.
  */
 
-const PLAYER: MePlayer = { playerId: 'player-1', puuid: 'puuid-1', isAdmin: false };
+const PLAYER: MePlayer = { playerId: 'player-1', puuid: 'puuid-1' };
 
 function user(overrides: Partial<SessionUserLike> = {}): SessionUserLike {
   return {

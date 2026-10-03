@@ -7,6 +7,7 @@ import {
   companionCommandResultSchemas,
   companionCommandStatusSchema,
 } from './schemas';
+import { ORIGINAL_GROUP_ID } from './schemas/groups';
 
 /**
  * `companion_commands` after `0006_command_queue.sql`, exercised through PostgREST the way the
@@ -122,6 +123,7 @@ if (stack === null) {
     it('accepts every kind the wire schema names', async () => {
       for (const kind of companionCommandKindSchema.options) {
         const created = await insert('companion_commands', {
+          group_id: ORIGINAL_GROUP_ID,
           target_player_id: playerId,
           kind,
           payload: PAYLOADS[kind],
@@ -134,6 +136,7 @@ if (stack === null) {
 
     it('refuses a kind the wire schema does not name', async () => {
       const created = await insert('companion_commands', {
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: playerId,
         kind: 'start_champ_select',
         payload: {},
@@ -163,6 +166,7 @@ if (stack === null) {
 
     beforeAll(async () => {
       const created = await insert('companion_commands', {
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: playerId,
         kind: 'switch_side',
         payload: PAYLOADS.switch_side,
@@ -195,6 +199,7 @@ if (stack === null) {
   describe('the columns 0006 adds', () => {
     it('defaults a new row to pending, zero attempts, nothing sent and nothing back', async () => {
       const created = await insert('companion_commands', {
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: playerId,
         kind: 'invite',
         payload: PAYLOADS.invite,
@@ -219,6 +224,7 @@ if (stack === null) {
       const ttl = COMPANION_COMMAND_TTL_MS.create_lobby;
       const now = Date.now();
       const created = await insert('companion_commands', {
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: playerId,
         kind: 'create_lobby',
         payload: PAYLOADS.create_lobby,
@@ -251,6 +257,7 @@ if (stack === null) {
 
     it('stores a nack error verbatim, however long the detail is', async () => {
       const created = await insert('companion_commands', {
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: playerId,
         kind: 'switch_side',
         payload: PAYLOADS.switch_side,
@@ -271,6 +278,7 @@ if (stack === null) {
     /** A live `create_lobby`, or the refusal Postgres gave for trying to make a second one. */
     function createLobby(): Promise<RestResult> {
       return insert('companion_commands', {
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: playerId,
         kind: 'create_lobby',
         payload: PAYLOADS.create_lobby,
@@ -330,11 +338,13 @@ if (stack === null) {
     it('locks nothing but create_lobby', async () => {
       for (const kind of ['invite', 'switch_side'] as const) {
         const first = await insert('companion_commands', {
+          group_id: ORIGINAL_GROUP_ID,
           target_player_id: playerId,
           kind,
           payload: PAYLOADS[kind],
         });
         const second = await insert('companion_commands', {
+          group_id: ORIGINAL_GROUP_ID,
           target_player_id: playerId,
           kind,
           payload: PAYLOADS[kind],

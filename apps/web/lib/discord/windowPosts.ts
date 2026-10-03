@@ -6,9 +6,11 @@ import type { ServiceClient } from '../supabase';
  *
  * `GET /api/cron/window` is called by something outside the app on a schedule nobody in this
  * repo controls, so it is written to be safe at any cadence: hourly, daily or twice a minute,
- * each window posts **exactly once**. Everything that makes that true is here and in
- * `window_posts` (migration `0011`), whose primary key `(kind, window_start)` is the actual
- * decider — two calls in the same second race on one insert and Postgres picks the winner.
+ * each window posts **exactly once per group**. Everything that makes that true is here and in
+ * `window_posts` (migration `0011`), whose primary key `(group_id, kind, window_start)` (since
+ * `0020`, M13.4) is the actual decider — two calls in the same second race on one insert and
+ * Postgres picks the winner. Each group's claim is its own row: one group's failed post never
+ * holds up, or is mistaken for, another's.
  *
  * **Claim first, post second.** A duplicate post is a thing ten friends see in the channel; a
  * missed one is a thing they ask about once and a later call fixes. So the route claims a
@@ -54,6 +56,7 @@ export type WindowClaim =
  */
 export async function claimWindowPost(
   client: ServiceClient,
+  groupId: string,
   window: ClosedWindow,
   now: Date,
 ): Promise<WindowClaim> {
@@ -62,8 +65,8 @@ export async function claimWindowPost(
   const { data: inserted, error } = await client
     .from('window_posts')
     .upsert(
-      { kind: window.kind, window_start: window.key, claimed_at: claimedAt, attempts: 1 },
-      { onConflict: 'kind,window_start', ignoreDuplicates: true },
+      { group_id: groupId, kind: window.kind, window_start: window.key, claimed_at: claimedAt, attempts: 1 },
+      { onConflict: 'group_id,kind,window_start', ignoreDuplicates: true },
     )
     .select('attempts');
   if (error) throw new Error(`window post: claiming ${window.kind} failed: ${error.message}`);
@@ -72,6 +75,7 @@ export async function claimWindowPost(
   const { data: existing, error: readError } = await client
     .from('window_posts')
     .select('claimed_at, posted_at, attempts')
+    .eq('group_id', groupId)
     .eq('kind', window.kind)
     .eq('window_start', window.key)
     .maybeSingle();
@@ -90,6 +94,7 @@ export async function claimWindowPost(
   const { data: won, error: casError } = await client
     .from('window_posts')
     .update({ claimed_at: claimedAt, attempts })
+    .eq('group_id', groupId)
     .eq('kind', window.kind)
     .eq('window_start', window.key)
     .is('posted_at', null)
@@ -113,6 +118,7 @@ export async function claimWindowPost(
  */
 export async function markWindowPosted(
   client: ServiceClient,
+  groupId: string,
   window: ClosedWindow,
   now: Date,
   reason: string | null = null,
@@ -120,6 +126,7 @@ export async function markWindowPosted(
   const { error } = await client
     .from('window_posts')
     .update({ posted_at: now.toISOString(), reason })
+    .eq('group_id', groupId)
     .eq('kind', window.kind)
     .eq('window_start', window.key);
   if (error) throw new Error(`window post: stamping ${window.kind} failed: ${error.message}`);
@@ -134,12 +141,14 @@ export async function markWindowPosted(
  */
 export async function recordWindowPostFailure(
   client: ServiceClient,
+  groupId: string,
   window: ClosedWindow,
   reason: string,
 ): Promise<void> {
   const { error } = await client
     .from('window_posts')
     .update({ reason })
+    .eq('group_id', groupId)
     .eq('kind', window.kind)
     .eq('window_start', window.key)
     .is('posted_at', null);

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eogBody, lobbyBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
@@ -133,9 +134,12 @@ if (stack === null) {
       ten.map((puuid) => ({ puuid })),
     );
     const { token: raw, tokenHash } = mintCompanionToken();
-    const { error } = await db
-      .from('companion_tokens')
-      .insert({ player_id: ids.get(ownerPuuid) ?? '', token_hash: tokenHash, label: `gm-${runId}` });
+    const { error } = await db.from('companion_tokens').insert({
+      group_id: ORIGINAL_GROUP_ID,
+      player_id: ids.get(ownerPuuid) ?? '',
+      token_hash: tokenHash,
+      label: `gm-${runId}`,
+    });
     if (error) throw new Error(error.message);
     token = raw;
   });

@@ -7,8 +7,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Set a player's roles, link or unlink their Discord id, or change their admin flag.
- * Session-gated: 401 without a session, 403 for anyone who is not `players.is_admin`.
+ * Rename a member, link or unlink their Discord id, make them an admin of the group or back, or
+ * approve their backfill. Session-gated: 401 without a session, 403 for anyone who is not an admin
+ * of the body's `groupId` (M13.4), 404 for a player who is not a member of that group.
  */
 export const POST = withAdminAuth(adminPlayersRequestSchema, handleAdminPlayers, {
   redirectTo: '/admin/players',

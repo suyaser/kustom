@@ -66,6 +66,61 @@ export type ParsedRequestBody<T> =
   | { ok: true; form: boolean; data: T }
   | { ok: false; form: boolean; response: NextResponse };
 
+export type RawRequestBody =
+  | { ok: true; form: boolean; raw: unknown }
+  | { ok: false; form: boolean; response: NextResponse };
+
+/**
+ * Reads a request body that may be JSON (the API, and the tests) or a URL-encoded HTML form
+ * (the admin pages, which ship no client JavaScript at all), **without validating it**.
+ *
+ * Split from {@link parseFormOrJsonBody} for the session routes (M13.4): they read the body
+ * once, look at its `groupId` to decide whether the caller may act in that group at all, and only
+ * then run the route's full schema -- so a caller who is not an admin of the group still learns
+ * nothing about the payload beyond the one field every one of them carries.
+ */
+export async function readFormOrJsonBody(request: Request): Promise<RawRequestBody> {
+  const contentType = request.headers.get('content-type') ?? '';
+  const form =
+    contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data');
+
+  if (form) {
+    try {
+      const data = await request.formData();
+      const entries: Record<string, string> = {};
+      for (const [key, value] of data.entries()) {
+        if (typeof value === 'string') entries[key] = value;
+      }
+      return { ok: true, form, raw: entries };
+    } catch {
+      return { ok: false, form, response: jsonError(400, 'request body is not a valid form') };
+    }
+  }
+
+  try {
+    return { ok: true, form, raw: await request.json() };
+  } catch {
+    return { ok: false, form, response: jsonError(400, 'request body is not valid JSON') };
+  }
+}
+
+/** The zod half of {@link parseFormOrJsonBody}, over a body {@link readFormOrJsonBody} already read. */
+export function validateBody<S extends z.ZodType>(
+  schema: S,
+  raw: unknown,
+  form: boolean,
+): ParsedRequestBody<z.output<S>> {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message,
+    }));
+    return { ok: false, form, response: jsonError(400, 'request body failed validation', issues) };
+  }
+  return { ok: true, form, data: parsed.data };
+}
+
 /**
  * Reads a request body that may be JSON (the API, and the tests) or a URL-encoded HTML form
  * (the admin pages, which ship no client JavaScript at all).
@@ -79,38 +134,7 @@ export async function parseFormOrJsonBody<S extends z.ZodType>(
   request: Request,
   schema: S,
 ): Promise<ParsedRequestBody<z.output<S>>> {
-  const contentType = request.headers.get('content-type') ?? '';
-  const form =
-    contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data');
-
-  let raw: unknown;
-  if (form) {
-    try {
-      const data = await request.formData();
-      const entries: Record<string, string> = {};
-      for (const [key, value] of data.entries()) {
-        if (typeof value === 'string') entries[key] = value;
-      }
-      raw = entries;
-    } catch {
-      return { ok: false, form, response: jsonError(400, 'request body is not a valid form') };
-    }
-  } else {
-    try {
-      raw = await request.json();
-    } catch {
-      return { ok: false, form, response: jsonError(400, 'request body is not valid JSON') };
-    }
-  }
-
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((issue) => ({
-      path: issue.path.join('.'),
-      message: issue.message,
-    }));
-    return { ok: false, form, response: jsonError(400, 'request body failed validation', issues) };
-  }
-
-  return { ok: true, form, data: parsed.data };
+  const body = await readFormOrJsonBody(request);
+  if (!body.ok) return body;
+  return validateBody(schema, body.raw, body.form);
 }

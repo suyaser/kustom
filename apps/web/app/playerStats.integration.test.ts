@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -136,6 +137,7 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`88${runIdNumber()}${index}`),
           season_id: seasonId,
           // Monday the 6th through Thursday the 9th, inside last week's Sunday-06:00 bounds.
@@ -158,6 +160,7 @@ if (stack === null) {
           ...blue.map((key, seat) => ({ key, side: 100, seat })),
           ...red.map((key, seat) => ({ key, side: 200, seat })),
         ].map(({ key, side, seat }) => ({
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: playerIds.get(key) as string,
           side,
@@ -183,6 +186,7 @@ if (stack === null) {
       .from('games')
       .insert(
         Array.from({ length: FILLER_GAMES }, (_, index) => ({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`77${runIdNumber()}${index}`),
           season_id: seasonId,
           started_at: new Date(START + index * 5 * 60_000).toISOString(),
@@ -196,6 +200,7 @@ if (stack === null) {
 
     const seats = (gameId: string) =>
       FILLER_KEYS.map((key, seat) => ({
+        group_id: ORIGINAL_GROUP_ID,
         game_id: gameId,
         player_id: playerIds.get(key) as string,
         side: seat < 5 ? 100 : 200,

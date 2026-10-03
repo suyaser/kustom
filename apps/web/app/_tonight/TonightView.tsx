@@ -156,8 +156,8 @@ export function TonightView({
    * the invited count, or the sentence for a create that failed.
    *
    * **Every linked player, not only an admin** (M4.13): nobody in voice should have to find out
-   * who is an admin to get the night started. `players.is_admin` can only be true on a row that
-   * is already linked, so an admin keeps it with no special case. Being drawn is still not
+   * who is an admin to get the night started. A group admin membership can only belong to a row
+   * that is already linked, so an admin keeps it with no special case. Being drawn is still not
    * permission — the route resolves the session again before it writes, and a forged press gets
    * the 403 sentence.
    */

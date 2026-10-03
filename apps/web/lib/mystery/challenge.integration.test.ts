@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
-import { AWARD_CATEGORIES, MYSTERY_CATEGORIES } from '@customs/db/schemas';
+import { AWARD_CATEGORIES, MYSTERY_CATEGORIES, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -107,6 +107,7 @@ if (stack === null) {
       const { data: row, error: gameError } = await db
         .from('games')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`9${stamp}${String(index).padStart(2, '0')}`),
           season_id: seasonId,
           // Inside the walk's own window, newest first.
@@ -127,6 +128,7 @@ if (stack === null) {
       const hero = index % 10;
       await db.from('game_players').insert(
         puuids.map((puuid, seat) => ({
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: playerIds.get(puuid) as string,
           side: seat < 5 ? 100 : 200,
@@ -162,9 +164,9 @@ if (stack === null) {
   describe('fourteen consecutive civil days', () => {
     beforeAll(async () => {
       for (const day of dayKeys) {
-        await ensureTodayMystery(db, noonOf(day), ZONE);
+        await ensureTodayMystery(db, noonOf(day), ZONE, ORIGINAL_GROUP_ID);
         // A second call on the same day is a no-op, not a second challenge.
-        await ensureTodayMystery(db, noonOf(day), ZONE);
+        await ensureTodayMystery(db, noonOf(day), ZONE, ORIGINAL_GROUP_ID);
       }
     });
 
@@ -220,8 +222,18 @@ if (stack === null) {
     const other = `visitor-${runId}-b`;
 
     it('gets the same challenge as everybody else, with no answer in it', async () => {
-      const mine = await loadMysteryPage(db, { now: noonOf(day), timeZone: ZONE, visitorId: visitor });
-      const theirs = await loadMysteryPage(db, { now: noonOf(day), timeZone: ZONE, visitorId: other });
+      const mine = await loadMysteryPage(db, {
+        now: noonOf(day),
+        timeZone: ZONE,
+        visitorId: visitor,
+        groupId: ORIGINAL_GROUP_ID,
+      });
+      const theirs = await loadMysteryPage(db, {
+        now: noonOf(day),
+        timeZone: ZONE,
+        visitorId: other,
+        groupId: ORIGINAL_GROUP_ID,
+      });
       expect(mine.kind).toBe('play');
       expect(theirs.kind).toBe('play');
       if (mine.kind !== 'play' || theirs.kind !== 'play') return;
@@ -241,7 +253,12 @@ if (stack === null) {
     });
 
     it('locks one guess and writes one row, on the second post as on the first', async () => {
-      const page = await loadMysteryPage(db, { now: noonOf(day), timeZone: ZONE, visitorId: visitor });
+      const page = await loadMysteryPage(db, {
+        now: noonOf(day),
+        timeZone: ZONE,
+        visitorId: visitor,
+        groupId: ORIGINAL_GROUP_ID,
+      });
       if (page.kind !== 'play') throw new Error('expected a playable card');
       const challengeId = page.play.challengeId;
       const guess = page.play.suspects[0]?.playerId as string;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { groupIdSchema } from './groups';
 
 /**
  * The daily game (M5.32, second kind added by M8.4) request and response envelopes.
@@ -109,17 +110,34 @@ export const mysteryTodayResponseSchema = z.object({
   emptyView: mysteryEmptyViewSchema.optional(),
 });
 
+/**
+ * `GET /api/daily-mystery?group=<groupId>` (M13.4): today's challenge **of that group**. Public,
+ * no membership, like the page it serves. Each group has its own challenge per day and numbers
+ * its own `#1`.
+ */
+export const mysteryTodayQuerySchema = z.object({
+  group: groupIdSchema,
+});
+
+/**
+ * `group` on the three challenge routes is optional (M13.4): the challenge id already belongs to
+ * exactly one group. When it is sent and names another group, the challenge is the same 404 as one
+ * that does not exist.
+ */
 export const mysteryGuessRequestSchema = z.object({
   playerId: z.string().uuid(),
   anonymousVisitorId: mysteryVisitorIdSchema,
+  group: groupIdSchema.optional(),
 });
 
 export const mysteryClueRequestSchema = z.object({
   anonymousVisitorId: mysteryVisitorIdSchema,
+  group: groupIdSchema.optional(),
 });
 
 export const mysteryResultRequestQuerySchema = z.object({
   anonymousVisitorId: mysteryVisitorIdSchema,
+  group: groupIdSchema.optional(),
 });
 
 export const mysteryPercentileBucketSchema = z.enum(['top-5', 'top-10', 'top-15', 'top-25', 'top-50']);
@@ -216,13 +234,22 @@ export const mysteryClueResponseSchema = z.object({
   clueCount: z.number().int().nonnegative(),
 });
 
-export const mysteryCronResponseSchema = z.object({
-  ok: z.literal(true),
-  status: z.enum(['created', 'exists', 'empty']),
+/**
+ * One group's line of `GET /api/cron/mystery` (M13.4: the cron loops over every group, and each
+ * gets its own challenge from its own games, or none on a day it has too few).
+ */
+export const mysteryCronGroupSchema = z.object({
+  groupId: groupIdSchema,
+  status: z.enum(['created', 'exists', 'empty', 'failed']),
   challengeId: z.string().uuid().nullable(),
   // Which game today turned out to be, for the operator reading the cron log. Null when
   // neither game could be built. An award day that fell back reads `mystery`, because that
   // is what was stored (M8.4).
   kind: mysteryKindSchema.nullable(),
+});
+
+export const mysteryCronResponseSchema = z.object({
+  ok: z.literal(true),
   day: z.string(),
+  groups: z.array(mysteryCronGroupSchema),
 });

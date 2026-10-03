@@ -1,4 +1,3 @@
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
 
 /**
@@ -6,16 +5,15 @@ import type { ServiceClient } from '../supabase';
  * so this is the whole write: every counted Rift custom of the group whose `started_at` is after
  * this instant is in, and everything before is out. Idempotent. Does not touch `games`.
  *
- * `groupId` defaults to the original group until the admin route passes the request's group
- * (M13.4).
+ * `groupId` is the admin request's group (M13.4); there is no default.
  */
 
 export async function resetFearless(
   client: ServiceClient,
-  input: { playerId: string; now?: Date; groupId?: string },
+  input: { playerId: string; now?: Date; groupId: string },
 ): Promise<{ resetAt: string }> {
   const resetAt = (input.now ?? new Date()).toISOString();
-  const groupId = input.groupId ?? ORIGINAL_GROUP_ID;
+  const groupId = input.groupId;
 
   const { data, error } = await client
     .from('fearless_state')

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
@@ -116,6 +117,7 @@ if (stack === null) {
     );
     const { token: raw, tokenHash } = mintCompanionToken();
     await db.from('companion_tokens').insert({
+      group_id: ORIGINAL_GROUP_ID,
       player_id: ids.get(ownerPuuid) ?? '',
       token_hash: tokenHash,
       label: `it-${runId}-aram`,
@@ -164,7 +166,7 @@ if (stack === null) {
     it('finishes the lobby it was played from: rating is not what ends a lobby', async () => {
       const { data: lobby } = await db
         .from('lobbies')
-        .insert({ lcu_party_id: partyId, status: 'in_game' })
+        .insert({ group_id: ORIGINAL_GROUP_ID, lcu_party_id: partyId, status: 'in_game' })
         .select('id')
         .single();
 

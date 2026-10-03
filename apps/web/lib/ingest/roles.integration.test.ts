@@ -144,9 +144,12 @@ if (stack === null) {
       .in('id', playerIds.slice(5));
 
     const { token: raw, tokenHash } = mintCompanionToken();
-    await db
-      .from('companion_tokens')
-      .insert({ player_id: ownerPlayerId, token_hash: tokenHash, label: `it-${runId}-roles` });
+    await db.from('companion_tokens').insert({
+      group_id: ORIGINAL_GROUP_ID,
+      player_id: ownerPlayerId,
+      token_hash: tokenHash,
+      label: `it-${runId}-roles`,
+    });
     token = raw;
   });
 

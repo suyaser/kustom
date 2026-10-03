@@ -10,7 +10,7 @@ export async function handleAdminTokens(
   context: AdminContext,
 ): Promise<NextResponse> {
   if (input.action === 'revoke') {
-    const result = await revokeToken(context.client, input.tokenId);
+    const result = await revokeToken(context.client, { tokenId: input.tokenId, groupId: context.groupId });
     if (!result.ok) return context.fail(result.status, result.error);
 
     return context.respond(
@@ -23,6 +23,8 @@ export async function handleAdminTokens(
   const result = await mintTokenForPlayer(context.client, {
     playerId: input.playerId,
     label: input.label,
+    // The request's group, already checked: the session is an admin of it (M13.4).
+    groupId: context.groupId,
   });
   if (!result.ok) return context.fail(result.status, result.error);
 

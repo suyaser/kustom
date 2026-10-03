@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SEASON_ONE_ID } from './index';
 import { resolveLocalStack } from './localStack';
 import { rosterKey } from './rosterKey';
+import { ORIGINAL_GROUP_ID } from './schemas/groups';
 
 /**
  * What `0001_init.sql` actually enforces, exercised through PostgREST exactly the way the
@@ -96,6 +97,7 @@ if (stack === null) {
     playerBId = String(rows(players.body)[1]?.id ?? '');
 
     const lobby = await insert('lobbies', {
+      group_id: ORIGINAL_GROUP_ID,
       lcu_party_id: partyId,
       reported_by_player_id: playerAId,
       lobby_name: 'customs night',
@@ -138,6 +140,7 @@ if (stack === null) {
 
     it('inserts a game and defaults it to the active season', async () => {
       const game = await insert('games', {
+        group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: gameId,
         lobby_id: lobbyId,
         started_at: '2026-09-08T20:00:00.000Z',
@@ -151,6 +154,7 @@ if (stack === null) {
       expect(row?.source).toBe('eog');
 
       const gamePlayer = await insert('game_players', {
+        group_id: ORIGINAL_GROUP_ID,
         game_id: row?.id,
         player_id: playerAId,
         side: 100,
@@ -163,6 +167,7 @@ if (stack === null) {
 
     it('generates ratings.ordinal from mu and sigma', async () => {
       const rating = await insert('ratings', {
+        group_id: ORIGINAL_GROUP_ID,
         player_id: playerAId,
         season_id: SEASON_ONE_ID,
         mu: 25,
@@ -181,6 +186,7 @@ if (stack === null) {
      */
     it('stores a seed as a pair, with the rank it was read from, and refuses half of one', async () => {
       const seeded = await insert('ratings', {
+        group_id: ORIGINAL_GROUP_ID,
         player_id: playerBId,
         season_id: SEASON_ONE_ID,
         mu: 24.1,
@@ -209,7 +215,7 @@ if (stack === null) {
   describe('idempotency keys', () => {
     it('rejects a second live lobby for the same lcu_party_id and changes no rows', async () => {
       const before = await rest('service', `lobbies?lcu_party_id=eq.${partyId}&select=id`);
-      const duplicate = await insert('lobbies', { lcu_party_id: partyId });
+      const duplicate = await insert('lobbies', { group_id: ORIGINAL_GROUP_ID, lcu_party_id: partyId });
       expect(duplicate.status).toBe(409);
       expect((duplicate.body as { code?: string }).code).toBe('23505');
 
@@ -222,10 +228,10 @@ if (stack === null) {
       'rejects a second live lobby while the first is %s',
       async (status) => {
         const party = `${runId}-cycle-${status}`;
-        const first = await insert('lobbies', { lcu_party_id: party, status });
+        const first = await insert('lobbies', { group_id: ORIGINAL_GROUP_ID, lcu_party_id: party, status });
         expect(first.status).toBe(201);
 
-        const second = await insert('lobbies', { lcu_party_id: party });
+        const second = await insert('lobbies', { group_id: ORIGINAL_GROUP_ID, lcu_party_id: party });
         expect(second.status).toBe(409);
         expect((second.body as { code?: string }).code).toBe('23505');
       },
@@ -239,11 +245,11 @@ if (stack === null) {
         // (`0005_lobby_dropped.sql`) is in that list because a game whose result never landed
         // must not swallow the rest of the night's posts (M5.11).
         const party = `${runId}-cycle-next-${status}`;
-        const first = await insert('lobbies', { lcu_party_id: party, status });
+        const first = await insert('lobbies', { group_id: ORIGINAL_GROUP_ID, lcu_party_id: party, status });
         expect(first.status).toBe(201);
         const firstId = String(rows(first.body)[0]?.id ?? '');
 
-        const second = await insert('lobbies', { lcu_party_id: party });
+        const second = await insert('lobbies', { group_id: ORIGINAL_GROUP_ID, lcu_party_id: party });
         expect(second.status).toBe(201);
         const secondId = String(rows(second.body)[0]?.id ?? '');
         expect(secondId).not.toBe(firstId);
@@ -255,7 +261,7 @@ if (stack === null) {
         expect(rows(all.body).find((row) => row.id === firstId)?.status).toBe(status);
 
         // And a third live row is still refused while that second one is open.
-        const third = await insert('lobbies', { lcu_party_id: party });
+        const third = await insert('lobbies', { group_id: ORIGINAL_GROUP_ID, lcu_party_id: party });
         expect(third.status).toBe(409);
       },
     );
@@ -263,6 +269,7 @@ if (stack === null) {
     it('rejects a second game with the same lcu_game_id and changes no rows', async () => {
       const before = await rest('service', `games?lcu_game_id=eq.${gameId}&select=id`);
       const duplicate = await insert('games', {
+        group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: gameId,
         started_at: '2026-09-08T21:00:00.000Z',
         duration_s: 100,
@@ -285,7 +292,11 @@ if (stack === null) {
 
   describe('constraints', () => {
     it('rejects a lobby status that is not in the union', async () => {
-      const result = await insert('lobbies', { lcu_party_id: `${runId}-bad`, status: 'inGame' });
+      const result = await insert('lobbies', {
+        group_id: ORIGINAL_GROUP_ID,
+        lcu_party_id: `${runId}-bad`,
+        status: 'inGame',
+      });
       expect(result.ok).toBe(false);
     });
 
@@ -430,7 +441,11 @@ if (stack === null) {
     });
 
     it('does not let anon write anywhere', async () => {
-      const inserted = await insert('lobbies', { lcu_party_id: `${runId}-anon` }, 'anon');
+      const inserted = await insert(
+        'lobbies',
+        { group_id: ORIGINAL_GROUP_ID, lcu_party_id: `${runId}-anon` },
+        'anon',
+      );
       expect(inserted.ok).toBe(false);
 
       const patched = await rest('anon', `lobbies?id=eq.${lobbyId}`, {
@@ -454,12 +469,20 @@ if (stack === null) {
    */
   describe('window_posts', () => {
     it('takes one claim per (kind, window_start) and refuses the second', async () => {
-      const first = await insert('window_posts', { kind: 'last-week', window_start: windowStart });
+      const first = await insert('window_posts', {
+        group_id: ORIGINAL_GROUP_ID,
+        kind: 'last-week',
+        window_start: windowStart,
+      });
       expect(first.status).toBe(201);
       expect(rows(first.body)[0]?.posted_at).toBeNull();
       expect(rows(first.body)[0]?.attempts).toBe(1);
 
-      const second = await insert('window_posts', { kind: 'last-week', window_start: windowStart });
+      const second = await insert('window_posts', {
+        group_id: ORIGINAL_GROUP_ID,
+        kind: 'last-week',
+        window_start: windowStart,
+      });
       expect(second.ok).toBe(false);
       // 23505, the unique violation PostgREST answers 409 for: the loser of two calls in the
       // same second posts nothing.
@@ -467,7 +490,11 @@ if (stack === null) {
 
       // The same start under the other kind is a different window and is allowed: a Sunday the
       // 1st claims a week and a month, and they are two rows.
-      const month = await insert('window_posts', { kind: 'last-month', window_start: windowStart });
+      const month = await insert('window_posts', {
+        group_id: ORIGINAL_GROUP_ID,
+        kind: 'last-month',
+        window_start: windowStart,
+      });
       expect(month.status).toBe(201);
 
       const all = await rest(
@@ -479,7 +506,11 @@ if (stack === null) {
 
     it('refuses a kind that is not one of the two closed windows', async () => {
       // `this-week` never closes, so nothing can have posted it.
-      const result = await insert('window_posts', { kind: 'this-week', window_start: windowStart });
+      const result = await insert('window_posts', {
+        group_id: ORIGINAL_GROUP_ID,
+        kind: 'this-week',
+        window_start: windowStart,
+      });
       expect(result.ok).toBe(false);
     });
   });
@@ -494,6 +525,7 @@ if (stack === null) {
 
     async function challenge(day: string, extra: Record<string, unknown> = {}): Promise<RestResult> {
       return insert('daily_mysteries', {
+        group_id: ORIGINAL_GROUP_ID,
         day,
         challenge_number: 1,
         game_id: challengeGameId,
@@ -579,7 +611,11 @@ if (stack === null) {
       });
       expect(write.ok).toBe(false);
 
-      const extra = await insert('fearless_state', { id: 2, reset_at: new Date().toISOString() });
+      const extra = await insert('fearless_state', {
+        group_id: ORIGINAL_GROUP_ID,
+        id: 2,
+        reset_at: new Date().toISOString(),
+      });
       expect(extra.ok).toBe(false);
     });
   });

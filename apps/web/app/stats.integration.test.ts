@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -115,6 +116,7 @@ if (stack === null) {
      * also what a retroactive reset of the stored seeds would erase.
      */
     const { error: ratingError } = await db.from('ratings').insert({
+      group_id: ORIGINAL_GROUP_ID,
       player_id: playerIds.get('st0') as string,
       season_id: seasonId,
       mu: 24.6333333,
@@ -132,6 +134,7 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`77${runIdNumber()}${index}`),
           season_id: seasonId,
           // Monday the 4th through Thursday the 7th, inside last week's Sunday-06:00 bounds.
@@ -156,6 +159,7 @@ if (stack === null) {
 
       await db.from('game_players').insert(
         seats.map((seat) => ({
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: playerIds.get(seat.key) as string,
           side: seat.side,

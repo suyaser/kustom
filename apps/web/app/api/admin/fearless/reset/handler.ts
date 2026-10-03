@@ -8,17 +8,22 @@ import { siteOrigin } from '@/lib/siteUrl';
 import { type FearlessResetRequest, fearlessResetRequestSchema, fearlessResetResponseSchema } from './schema';
 
 /**
- * Clear the fearless pool (M10). Cursor first, post second: the empty list is what the
- * group agreed to and it stands whatever Discord answers.
+ * Clear the fearless pool (M10) of the body's group (M13.4). Cursor first, post second: the empty
+ * list is what the group agreed to and it stands whatever Discord answers. The post goes to that
+ * group's channel.
  */
 export async function handleFearlessReset(
   input: FearlessResetRequest,
   context: AdminContext,
 ): Promise<NextResponse> {
   const back = safeNextPath(input.redirectTo) ?? context.redirectTo;
-  const { resetAt } = await resetFearless(context.client, { playerId: context.admin.playerId });
+  const { resetAt } = await resetFearless(context.client, {
+    playerId: context.admin.playerId,
+    groupId: context.groupId,
+  });
   const outcome = await postFearlessReset(context.client, {
     requestOrigin: siteOrigin(context.request),
+    groupId: context.groupId,
   });
   const message = notice(outcome.status);
 

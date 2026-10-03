@@ -71,6 +71,12 @@ export async function linkSelf(store: SelfLinkStore, me: MeIdentity, puuid: stri
 export interface SupabaseSelfLinkOptions {
   now?: Date;
   timeZone: string;
+  /**
+   * The group whose tonight lobby may be claimed out of (M13.4): the body's `groupId`. Only that
+   * group's lobbies are considered, so a visitor on group A's page can never claim somebody out of
+   * group B's lobby.
+   */
+  groupId: string;
 }
 
 export function supabaseSelfLinkStore(
@@ -86,6 +92,7 @@ export function supabaseSelfLinkStore(
       const { data: lobby, error: lobbyError } = await client
         .from('lobbies')
         .select('id')
+        .eq('group_id', options.groupId)
         .gte('created_at', since)
         .neq('status', 'abandoned')
         .order('created_at', { ascending: false })

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { displayRating, provisionalSeed, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -68,6 +69,7 @@ if (stack === null) {
     playerId = player?.id ?? '';
 
     await db.from('ratings').insert({
+      group_id: ORIGINAL_GROUP_ID,
       player_id: playerId,
       season_id: seasonId,
       mu: 27.4,

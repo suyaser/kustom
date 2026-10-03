@@ -16,34 +16,53 @@ import { GET, responseSchema, windowsToConsider } from './route';
  */
 
 const stub = vi.hoisted(() => ({
+  /** The groups the route loops over (M13.4); one unless a test adds a second. */
+  groups: [{ id: '00000000-0000-4000-8000-00000000000a', slug: 'a' }] as { id: string; slug: string }[],
+  /** A group with no webhook, beside the default answer. */
+  noWebhookFor: null as string | null,
+  /** A group whose post fails, beside the default outcome. */
+  failFor: null as string | null,
   webhook: 'https://discord.example/webhook' as string | null,
   claim: { ok: true, attempts: 1 } as WindowClaim,
   outcome: { status: 'posted', httpStatus: 204, reason: null, attempts: 1 } as WebhookOutcome,
   /** What the route asked for, so the window and the zone it posts can be asserted here. */
-  posts: [] as { window: ClosedWindow; timeZone?: string; now?: Date }[],
+  posts: [] as { window: ClosedWindow; timeZone?: string; now?: Date; groupId?: string }[],
   claims: [] as ClosedWindow[],
+  claimGroups: [] as string[],
   marked: [] as { window: ClosedWindow; reason: string | null }[],
   failures: [] as { window: ClosedWindow; reason: string }[],
 }));
 
+vi.mock('@/lib/groups/list', () => ({
+  listGroups: async () => stub.groups,
+}));
+
 vi.mock('@/lib/discord/webhook', () => ({
-  selectWebhookUrl: async (): Promise<string | null> => stub.webhook,
+  selectWebhookUrl: async (_client: unknown, groupId: string): Promise<string | null> =>
+    groupId === stub.noWebhookFor ? null : stub.webhook,
 }));
 
 vi.mock('@/lib/discord/windowPosts', () => ({
-  claimWindowPost: async (_client: unknown, window: ClosedWindow): Promise<WindowClaim> => {
+  claimWindowPost: async (_client: unknown, groupId: string, window: ClosedWindow): Promise<WindowClaim> => {
     stub.claims.push(window);
+    stub.claimGroups.push(groupId);
     return stub.claim;
   },
   markWindowPosted: async (
     _client: unknown,
+    _groupId: string,
     window: ClosedWindow,
     _now: Date,
     reason: string | null = null,
   ): Promise<void> => {
     stub.marked.push({ window, reason });
   },
-  recordWindowPostFailure: async (_client: unknown, window: ClosedWindow, reason: string): Promise<void> => {
+  recordWindowPostFailure: async (
+    _client: unknown,
+    _groupId: string,
+    window: ClosedWindow,
+    reason: string,
+  ): Promise<void> => {
     stub.failures.push({ window, reason });
   },
 }));
@@ -55,13 +74,24 @@ vi.mock('@/lib/discord/post', async (importOriginal) => {
     postClosedWindow: async (
       _client: unknown,
       window: ClosedWindow,
-      options: { timeZone?: string; now?: Date },
+      options: { timeZone?: string; now?: Date; groupId?: string },
     ): Promise<WebhookOutcome> => {
       stub.posts.push({ window, ...options });
+      if (options.groupId === stub.failFor) {
+        return { status: 'failed', httpStatus: 500, reason: 'HTTP 500', attempts: 2 };
+      }
       return stub.outcome;
     },
   };
 });
+
+const GROUP_A = '00000000-0000-4000-8000-00000000000a';
+const GROUP_B = '00000000-0000-4000-8000-00000000000b';
+
+/** The body for the one default group. */
+function one(posted: string[], skipped: { kind: string; reason: string }[]) {
+  return { ok: true, groups: [{ groupId: GROUP_A, posted, skipped }] };
+}
 
 function get(authorization?: string): Request {
   return new Request('http://localhost/api/cron/window', {
@@ -76,6 +106,10 @@ describe('GET /api/cron/window', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
     process.env.CRON_SECRET = '';
+    stub.groups = [{ id: GROUP_A, slug: 'a' }];
+    stub.noWebhookFor = null;
+    stub.failFor = null;
+    stub.claimGroups = [];
     stub.webhook = 'https://discord.example/webhook';
     stub.claim = { ok: true, attempts: 1 };
     stub.outcome = { status: 'posted', httpStatus: 204, reason: null, attempts: 1 };
@@ -141,7 +175,7 @@ describe('GET /api/cron/window', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toEqual({ ok: true, posted: ['last-week'], skipped: [] });
+    expect(body).toEqual(one(['last-week'], []));
     expect(responseSchema.safeParse(body).success).toBe(true);
     expect(stub.marked.map((mark) => mark.reason)).toEqual([null]);
   });
@@ -153,11 +187,7 @@ describe('GET /api/cron/window', () => {
     const response = await GET(get('Bearer secret-value'));
     const body = await response.json();
 
-    expect(body).toEqual({
-      ok: true,
-      posted: [],
-      skipped: [{ kind: 'last-week', reason: 'already posted' }],
-    });
+    expect(body).toEqual(one([], [{ kind: 'last-week', reason: 'already posted' }]));
     expect(stub.posts).toHaveLength(0);
     expect(JSON.stringify(body)).not.toContain('http');
   });
@@ -173,11 +203,7 @@ describe('GET /api/cron/window', () => {
 
     const body = await (await GET(get('Bearer secret-value'))).json();
 
-    expect(body).toEqual({
-      ok: true,
-      posted: [],
-      skipped: [{ kind: 'last-week', reason: 'HTTP 500' }],
-    });
+    expect(body).toEqual(one([], [{ kind: 'last-week', reason: 'HTTP 500' }]));
     expect(stub.marked).toHaveLength(0);
     expect(stub.failures.map((failure) => failure.reason)).toEqual(['HTTP 500']);
   });
@@ -197,11 +223,7 @@ describe('GET /api/cron/window', () => {
 
     const body = await (await GET(get('Bearer secret-value'))).json();
 
-    expect(body).toEqual({
-      ok: true,
-      posted: [],
-      skipped: [{ kind: 'last-week', reason: 'no games in the window' }],
-    });
+    expect(body).toEqual(one([], [{ kind: 'last-week', reason: 'no games in the window' }]));
     expect(stub.marked.map((mark) => mark.reason)).toEqual(['no games in the window']);
     expect(stub.failures).toHaveLength(0);
   });
@@ -218,13 +240,44 @@ describe('GET /api/cron/window', () => {
     const response = await GET(get('Bearer secret-value'));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      ok: true,
-      posted: [],
-      skipped: [{ kind: 'last-week', reason: 'no webhook configured' }],
-    });
+    expect(await response.json()).toEqual(one([], [{ kind: 'last-week', reason: 'no webhook configured' }]));
     expect(stub.claims).toHaveLength(0);
     expect(stub.posts).toHaveLength(0);
+  });
+
+  /**
+   * **Every group, independently** (M13.4): a group with no webhook is skipped with no claim, a
+   * group whose webhook fails keeps its claim retryable, and neither stops the next group.
+   */
+  it('posts each group on its own: no webhook and a failing webhook do not stop the next group', async () => {
+    process.env.CRON_SECRET = 'secret-value';
+    const GROUP_C = '00000000-0000-4000-8000-00000000000c';
+    stub.groups = [
+      { id: GROUP_A, slug: 'a' },
+      { id: GROUP_B, slug: 'b' },
+      { id: GROUP_C, slug: 'c' },
+    ];
+    stub.noWebhookFor = GROUP_A;
+    stub.failFor = GROUP_B;
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const body = await (await GET(get('Bearer secret-value'))).json();
+    spy.mockRestore();
+
+    expect(body).toEqual({
+      ok: true,
+      groups: [
+        { groupId: GROUP_A, posted: [], skipped: [{ kind: 'last-week', reason: 'no webhook configured' }] },
+        { groupId: GROUP_B, posted: [], skipped: [{ kind: 'last-week', reason: 'HTTP 500' }] },
+        { groupId: GROUP_C, posted: ['last-week'], skipped: [] },
+      ],
+    });
+    expect(responseSchema.safeParse(body).success).toBe(true);
+    // No claim for the group with nowhere to post; B's claim is left for a retry, C's stamped.
+    expect(stub.claimGroups).toEqual([GROUP_B, GROUP_C]);
+    expect(stub.failures.map((failure) => failure.reason)).toEqual(['HTTP 500']);
+    expect(stub.marked).toHaveLength(1);
+    expect(stub.posts.map((post) => post.groupId)).toEqual([GROUP_B, GROUP_C]);
   });
 
   /**
@@ -270,7 +323,7 @@ describe('GET /api/cron/window', () => {
 
     const body = await (await GET(get('Bearer secret-value'))).json();
 
-    expect(body.posted).toEqual(['last-week', 'last-month']);
+    expect(body.groups[0].posted).toEqual(['last-week', 'last-month']);
     expect(stub.posts.map((post) => post.window.kind)).toEqual(['last-week', 'last-month']);
   });
 });

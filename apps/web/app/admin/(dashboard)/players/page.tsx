@@ -1,4 +1,5 @@
 import { displayRating, ordinal } from '@customs/core';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { Metadata, Route } from 'next';
 import Link from 'next/link';
 import { playerLabel, shortPuuid } from '@/lib/admin/playerName';
@@ -47,7 +48,7 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
   const [params, admin] = await Promise.all([searchParams, requireAdmin()]);
   const client = getServiceClient();
   const season = await getActiveSeason(client);
-  const page = await listAdminPlayers(client, season?.id ?? null, {
+  const page = await listAdminPlayers(client, ORIGINAL_GROUP_ID, season?.id ?? null, {
     search: readParam(params, 'q'),
     page: parsePageParam(readParam(params, 'page')),
   });

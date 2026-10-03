@@ -1,8 +1,10 @@
+import type { GroupRole } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
 import type { z } from 'zod';
 import { redirectBack } from '../adminRoute';
 import { safeNextPath } from '../authNext';
 import { ServerEnvError } from '../env';
+import { type GroupRoleLookup, supabaseGroupRole } from '../groups/membership';
 import { jsonError, jsonOk, parseFormOrJsonBody } from '../http';
 import { getServiceClient, type ServiceClient } from '../supabase';
 import { requestCookieJar } from '../supabaseAuth';
@@ -22,6 +24,13 @@ import { type MeAuthResult, type MeIdentity, resolveMe } from './identity';
  * never navigates) and a 303 back to the page for a plain HTML form, which is the degraded
  * no-JavaScript path and the only reason `redirectTo` exists.
  *
+ * **The group is the body's `groupId`** (M13.4; every `/api/me/*` schema carries it). A session
+ * can be in several groups, so after the parse the wrapper looks up the session player's
+ * membership in that group and hands the handler `context.role` — `admin`, `member`, or `null`
+ * for a linked player who is not in the group (and for an unlinked visitor, who has no row to be
+ * in). Each handler decides what `null` means: `/api/me/lobbies/start` and `/api/me/role-tonight`
+ * refuse it, `/api/me/link` — the route for a visitor with no player yet — does not ask.
+ *
  * Cross-site forgery: the session cookies `@supabase/ssr` writes are `SameSite=Lax`, which a
  * browser does not attach to a cross-site POST, so a form on someone else's page arrives here
  * with no session and gets a 401 — the same reasoning as `/api/admin/*`.
@@ -31,6 +40,13 @@ export interface MeContext {
   client: ServiceClient;
   /** Who the session says this is. Never a puuid out of the request body. */
   me: MeIdentity;
+  /** The group the body named (M13.4). Not a grant on its own: see {@link role}. */
+  groupId: string;
+  /**
+   * The session player's role in {@link groupId}, or `null` when they are not a member of it —
+   * or have no player row at all. The only thing in this class that can make an admin.
+   */
+  role: GroupRole | null;
   request: Request;
   /** True when the body came from an HTML form rather than JSON. */
   form: boolean;
@@ -49,6 +65,8 @@ export interface MeRouteOptions {
   getClient?: (() => ServiceClient) | undefined;
   /** Injection point for tests: the whole session step. */
   authorize?: ((request: Request, client: ServiceClient) => Promise<MeAuthResult>) | undefined;
+  /** Injection point for tests: the membership lookup. Defaults to `group_memberships`. */
+  groupRole?: ((client: ServiceClient) => GroupRoleLookup) | undefined;
 }
 
 /** A body that may carry the no-JavaScript path's destination. */
@@ -56,7 +74,12 @@ interface MaybeRedirect {
   redirectTo?: string | undefined;
 }
 
-export function withViewerAuth<S extends z.ZodType>(
+/** Every `/api/me/*` body names its group (M13.4). */
+interface WithGroup {
+  groupId: string;
+}
+
+export function withViewerAuth<S extends z.ZodType<WithGroup>>(
   schema: S,
   handle: MeHandler<z.output<S>>,
   options: MeRouteOptions = {},
@@ -91,9 +114,15 @@ export function withViewerAuth<S extends z.ZodType>(
       // sign-in round trip uses, and a body must never be able to redirect a friend off-site.
       const redirectTo = safeNextPath((body.data as MaybeRedirect).redirectTo) ?? fallback;
 
+      const groupId = (body.data as WithGroup).groupId;
+      const lookupRole = (options.groupRole ?? supabaseGroupRole)(client);
+      const role = auth.me.player === null ? null : await lookupRole(auth.me.player.playerId, groupId);
+
       const context: MeContext = {
         client,
         me: auth.me,
+        groupId,
+        role,
         request,
         form: body.form,
         redirectTo,

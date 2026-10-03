@@ -1,6 +1,8 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { postNightlyLeaderboard } from '@/lib/discord/post';
 import { readServerEnv, ServerEnvError } from '@/lib/env';
+import { listGroups } from '@/lib/groups/list';
 import { jsonError, jsonOk } from '@/lib/http';
 import { siteOrigin } from '@/lib/siteUrl';
 import { getServiceClient } from '@/lib/supabase';
@@ -23,13 +25,22 @@ export const dynamic = 'force-dynamic';
  *
  * Calling it twice posts twice: there is no dedupe and there should not be one here. The route
  * does exactly what it is asked, which is the property a scheduler needs to be debuggable.
+ *
+ * **Every group, independently** (M13.4): each group's board goes to that group's channel, and a
+ * group whose post fails or whose read throws is a `failed` line while the loop moves on.
  */
-export const responseSchema = z.object({
-  ok: z.literal(true),
+export const groupResultSchema = z.object({
+  groupId: groupIdSchema,
   /** `posted`, `skipped` (nobody on the board, nobody played, no webhook), or `failed`. */
   status: z.enum(['posted', 'skipped', 'failed']),
   /** Why it did not land, when it did not. Never contains the webhook URL. */
   reason: z.string().nullable(),
+});
+
+export const responseSchema = z.object({
+  ok: z.literal(true),
+  /** One line per group, oldest group first. */
+  groups: z.array(groupResultSchema),
 });
 
 export async function GET(request: Request): Promise<Response> {
@@ -59,23 +70,30 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const outcome = await postNightlyLeaderboard(getServiceClient(), {
-      requestOrigin: siteOrigin(request),
-      /**
-       * **The zone decides which week the post prints** (M5.12, the reviewer 2026-09-10). The
-       * board is read through `This week` now, and a week is a pair of 06:00 boundaries in
-       * `CUSTOMS_NIGHT_TZ`; without this the post fell back to the built-in default while both
-       * pages read the configured zone, so a deployment that set the variable would have got a
-       * post naming a different week from the page it links to — most visibly in the six hours
-       * either side of a Sunday morning. Read the same way `startLobby`'s handler reads it.
-       */
-      timeZone: nightTimeZone(),
-    });
-    return jsonOk(responseSchema, {
-      ok: true,
-      status: outcome.status,
-      reason: outcome.reason,
-    });
+    const client = getServiceClient();
+    const groups = await listGroups(client);
+    const results: z.infer<typeof groupResultSchema>[] = [];
+    for (const group of groups) {
+      try {
+        const outcome = await postNightlyLeaderboard(client, {
+          requestOrigin: siteOrigin(request),
+          /**
+           * **The zone decides which week the post prints** (M5.12, the reviewer 2026-09-10). The
+           * board is read through `This week` now, and a week is a pair of 06:00 boundaries in
+           * `CUSTOMS_NIGHT_TZ`; without this the post fell back to the built-in default while both
+           * pages read the configured zone. Read the same way `startLobby`'s handler reads it.
+           */
+          timeZone: nightTimeZone(),
+          groupId: group.id,
+        });
+        results.push({ groupId: group.id, status: outcome.status, reason: outcome.reason });
+      } catch (error) {
+        // This group's read failed; the next group still gets its post.
+        console.error(`cron leaderboard: group ${group.slug} failed`, error);
+        results.push({ groupId: group.id, status: 'failed', reason: 'internal error' });
+      }
+    }
+    return jsonOk(responseSchema, { ok: true, groups: results });
   } catch (error) {
     console.error('cron leaderboard failed', error);
     return jsonError(500, 'internal error');

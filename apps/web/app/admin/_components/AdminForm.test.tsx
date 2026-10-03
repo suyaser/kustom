@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,6 +59,7 @@ describe('a save', () => {
     expect(url).toBe('/api/admin/players');
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({
+      groupId: ORIGINAL_GROUP_ID,
       action: 'set-name',
       playerId: 'player-1',
       displayName: 'Hana',

@@ -108,7 +108,7 @@ if (stack === null) {
     const result = await setRoleTonight(
       supabaseRoleTonightStore(db),
       { playerId: await playerIdOf(puuid), puuid, isAdmin: false },
-      { lobbyId, role },
+      { groupId: ORIGINAL_GROUP_ID, lobbyId, role },
       { now, timeZone: TIME_ZONE },
     );
     if (!result.ok) throw new Error(`tap refused: ${result.error}`);

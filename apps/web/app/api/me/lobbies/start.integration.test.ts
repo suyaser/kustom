@@ -24,6 +24,7 @@ import {
 } from '@/lib/lobbyStart';
 import { START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
 import { authorizeMe, type MeAuthResult, supabaseMeLookup } from '@/lib/me/identity';
+import { setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -138,11 +139,12 @@ if (stack === null) {
     });
   }
 
-  function postStart(body: unknown = {}): Request {
+  /** Every `/api/me/*` body names its group (M13.4): the original one, unless a test says. */
+  function postStart(body: object = {}): Request {
     return new Request('http://localhost/api/me/lobbies/start', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify('groupId' in body ? body : { groupId: ORIGINAL_GROUP_ID, ...body }),
     });
   }
 
@@ -170,6 +172,7 @@ if (stack === null) {
     const { data, error } = await db
       .from('games')
       .insert({
+        group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: lcuGameId,
         // Explicit, never the active season: another file's run may have made its own active.
         season_id: SEASON_ONE,
@@ -184,7 +187,7 @@ if (stack === null) {
 
     const { error: playerError } = await db
       .from('game_players')
-      .insert({ game_id: data.id, player_id: playerId, side: 100, role: 'mid' });
+      .insert({ group_id: ORIGINAL_GROUP_ID, game_id: data.id, player_id: playerId, side: 100, role: 'mid' });
     if (playerError) throw new Error(`seedGame: ${playerError.message}`);
   }
 
@@ -199,18 +202,14 @@ if (stack === null) {
       ids.set(name, playerId);
     }
 
-    const admin = await db
-      .from('players')
-      .update({ discord_id: adminDiscordId, is_admin: true })
-      .eq('id', id('admin'));
+    const admin = await db.from('players').update({ discord_id: adminDiscordId }).eq('id', id('admin'));
     if (admin.error) throw new Error(admin.error.message);
+    // An admin of the group (M13.4), so a member of it: the press only asks for membership.
+    await setTestMembership(db, ORIGINAL_GROUP_ID, id('admin'), 'admin');
 
     // Somebody signed in who is **not** an admin. Since M4.13 the route serves them too, and
     // the press below proves it opens the lobby on their own PC.
-    const member = await db
-      .from('players')
-      .update({ discord_id: memberDiscordId, is_admin: false })
-      .eq('id', id('fresh'));
+    const member = await db.from('players').update({ discord_id: memberDiscordId }).eq('id', id('fresh'));
     if (member.error) throw new Error(member.error.message);
 
     // A summoner id on one invitee only: the payload carries it when we have it and null when
@@ -221,6 +220,7 @@ if (stack === null) {
     async function mint(name: Name, lastSeenAt: string): Promise<string> {
       const { token, tokenHash } = mintCompanionToken();
       const { error } = await db.from('companion_tokens').insert({
+        group_id: ORIGINAL_GROUP_ID,
         player_id: id(name),
         token_hash: tokenHash,
         label: `start ${runId} ${name}`,
@@ -300,8 +300,8 @@ if (stack === null) {
 
         expect(response.status).toBe(200);
         const body = (await response.json()) as Record<string, unknown>;
-        // `fresh` is not an admin: `0001_init.sql` defaults `is_admin` to false and nothing in
-        // `beforeAll` set it. The lobby opens on their PC anyway.
+        // `fresh` is not an admin: their token made them a plain `member` of the group (`0019`)
+        // and nothing in `beforeAll` promoted them. The lobby opens on their PC anyway.
         expect(body).toMatchObject({ ok: true, host: { playerId: id('fresh') } });
 
         const rows = await commandsOf('create_lobby');
@@ -400,7 +400,7 @@ if (stack === null) {
       const form = new Request('http://localhost/api/me/lobbies/start', {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ redirectTo: '/' }).toString(),
+        body: new URLSearchParams({ groupId: ORIGINAL_GROUP_ID, redirectTo: '/' }).toString(),
       });
 
       const response = await press({ gate: ON })(form);
@@ -418,7 +418,7 @@ if (stack === null) {
       const form = new Request('http://localhost/api/me/lobbies/start', {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ redirectTo: '/admin' }).toString(),
+        body: new URLSearchParams({ groupId: ORIGINAL_GROUP_ID, redirectTo: '/admin' }).toString(),
       });
 
       const response = await press({ gate: ON })(form);
@@ -433,6 +433,7 @@ if (stack === null) {
       const { data, error } = await db
         .from('lobbies')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_party_id: partyId,
           status: 'open',
           lobby_name: 'Customs 09 Jun #1',
@@ -626,6 +627,7 @@ if (stack === null) {
       // row the read cannot see — its `expires_at` is two TTLs out, and the read's window is
       // exactly one — so `decideStart` passes and only the index can refuse.
       const { error } = await db.from('companion_commands').insert({
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: id('inlobby'),
         kind: 'create_lobby',
         payload: createPayload(9),
@@ -731,6 +733,7 @@ if (stack === null) {
       const { data, error } = await db
         .from('companion_commands')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           target_player_id: id('host'),
           kind: 'create_lobby',
           payload: createPayload(6),
@@ -779,6 +782,7 @@ if (stack === null) {
 
     it('sweeps a stale pending create out of the way of a real press', async () => {
       const { error } = await db.from('companion_commands').insert({
+        group_id: ORIGINAL_GROUP_ID,
         target_player_id: id('host'),
         kind: 'create_lobby',
         payload: createPayload(8),

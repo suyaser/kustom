@@ -2,15 +2,22 @@ import { NextResponse } from 'next/server';
 import type { z } from 'zod';
 import { type AdminAuthResult, type AdminIdentity, resolveAdmin } from './adminAuth';
 import { ServerEnvError } from './env';
-import { jsonError, jsonOk, parseFormOrJsonBody } from './http';
+import { jsonError, jsonOk, readFormOrJsonBody, validateBody } from './http';
 import { siteOrigin } from './siteUrl';
 import { getServiceClient, type ServiceClient } from './supabase';
 import { requestCookieJar } from './supabaseAuth';
 
 /**
  * Everything `/api/admin/*` has in common, mirroring `lib/companionRoute.ts`: the service-role
- * client, the session check, then the zod parse of the body — in that order, so an
- * unauthenticated caller learns nothing about the payload we expect.
+ * client, the session check, the group check, then the zod parse of the body — in that order, so
+ * an unauthenticated caller learns nothing about the payload we expect, and a caller who is not an
+ * admin of the group learns only that every admin body names a `groupId` (M13.4).
+ *
+ * **The group is the body's `groupId`** (M13.4): a session can be in several groups, so it alone
+ * never names one. The body is read once, its `groupId` is checked against the session player's
+ * `group_memberships` row (`role = 'admin'`), and only then is the route's own schema — which
+ * carries the same `groupId` field — run over it. The handler gets the checked group as
+ * `context.groupId` and scopes everything to it.
  *
  * Authentication failures are always the JSON envelope, never a redirect, so "401 without a
  * session, 403 for a non-admin" is one assertion whichever way the request arrived.
@@ -28,6 +35,12 @@ export interface AdminContext {
   client: ServiceClient;
   /** Who the session says this is. Never a player id out of the request body. */
   admin: AdminIdentity;
+  /**
+   * The group this request acts on: the body's `groupId`, already checked — the session's player
+   * is an admin of it. Equal to `admin.groupId`. Anything a handler reads or writes is scoped to
+   * it, and an id (lobby, player, token) outside it is a 404.
+   */
+  groupId: string;
   request: Request;
   /** True when the body came from an HTML form rather than JSON. */
   form: boolean;
@@ -47,10 +60,18 @@ export interface AdminRouteOptions {
   /** Injection point for tests. Defaults to the process-wide service-role client. */
   getClient?: () => ServiceClient;
   /**
-   * Injection point for tests: the whole session step. The integration tests hand this a fake
-   * admin instead of driving a real Discord OAuth flow.
+   * Injection point for tests: the whole session-and-group step. The integration tests hand this
+   * a fake session instead of driving a real Discord OAuth flow. `groupId` is the body's, or null
+   * when the body named none.
    */
-  authorize?: (request: Request, client: ServiceClient) => Promise<AdminAuthResult>;
+  authorize?: (request: Request, client: ServiceClient, groupId: string | null) => Promise<AdminAuthResult>;
+}
+
+/** The body's `groupId` when it is a string, before any schema has looked at the body. */
+export function peekGroupId(raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const value = (raw as { groupId?: unknown }).groupId;
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 export function withAdminAuth<S extends z.ZodType>(
@@ -73,14 +94,24 @@ export function withAdminAuth<S extends z.ZodType>(
     }
 
     try {
+      const raw = await readFormOrJsonBody(request);
+      const groupId = raw.ok ? peekGroupId(raw.raw) : null;
+
       const auth = options.authorize
-        ? await options.authorize(request, client)
-        : await resolveAdmin(requestCookieJar(request), client);
+        ? await options.authorize(request, client, groupId)
+        : await resolveAdmin(requestCookieJar(request), client, groupId);
       if (!auth.ok) {
+        // A signed-in caller whose body could not even be read: say that, not "groupId is
+        // required" — the missing group is a symptom of the unreadable body.
+        if (auth.status === 400 && !raw.ok) {
+          return raw.form
+            ? redirectBack(request, redirectTo, { error: 'that form was not valid' })
+            : raw.response;
+        }
         return jsonError(auth.status, auth.error);
       }
 
-      const body = await parseFormOrJsonBody(request, schema);
+      const body = raw.ok ? validateBody(schema, raw.raw, raw.form) : raw;
       if (!body.ok) {
         if (body.form) {
           return redirectBack(request, redirectTo, { error: 'that form was not valid' });
@@ -91,6 +122,7 @@ export function withAdminAuth<S extends z.ZodType>(
       const context: AdminContext = {
         client,
         admin: auth.admin,
+        groupId: auth.admin.groupId,
         request,
         form: body.form,
         redirectTo,

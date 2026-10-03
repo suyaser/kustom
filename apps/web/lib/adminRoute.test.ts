@@ -14,19 +14,32 @@ const schema = z.object({ name: z.string().min(1) });
 // Never used: every test here stops before the handler touches it.
 const client = {} as unknown as ServiceClient;
 
+const GROUP = '00000000-0000-4000-8000-00000000000a';
+
+/** The `groupId` each call's session step was handed, so a test can see what the gate checked. */
+let seenGroupIds: (string | null)[] = [];
+
 function route(auth: AdminAuthResult, redirectTo = '/admin/players') {
   return withAdminAuth(
     schema,
     async (input, context) =>
       context.respond(
-        z.object({ ok: z.literal(true), name: z.string() }),
+        z.object({ ok: z.literal(true), name: z.string(), groupId: z.string() }),
         {
           ok: true,
           name: input.name,
+          groupId: context.groupId,
         },
         'saved',
       ),
-    { getClient: () => client, authorize: async () => auth, redirectTo },
+    {
+      getClient: () => client,
+      authorize: async (_request, _client, groupId) => {
+        seenGroupIds.push(groupId);
+        return auth;
+      },
+      redirectTo,
+    },
   );
 }
 
@@ -36,6 +49,7 @@ const admin = {
     userId: 'user-1',
     discordId: '1',
     playerId: '11111111-1111-4111-8111-111111111111',
+    groupId: GROUP,
     puuid: 'puuid-1',
     displayName: 'Hana',
     email: null,
@@ -70,10 +84,12 @@ describe('withAdminAuth', () => {
   });
 
   it('answers 403 for a session that is not an admin', async () => {
-    const response = await route({ ok: false, status: 403, error: 'not an admin' })(jsonPost({ name: 'ok' }));
+    const response = await route({ ok: false, status: 403, error: 'not an admin of this group' })(
+      jsonPost({ groupId: GROUP, name: 'ok' }),
+    );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: 'not an admin' });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'not an admin of this group' });
   });
 
   it('rejects a form post from an anonymous caller with 401, not a redirect', async () => {
@@ -94,14 +110,42 @@ describe('withAdminAuth', () => {
   });
 
   it('returns the envelope for a valid JSON post', async () => {
-    const response = await route(admin)(jsonPost({ name: 'ok' }));
+    const response = await route(admin)(jsonPost({ groupId: GROUP, name: 'ok' }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, name: 'ok' });
+    await expect(response.json()).resolves.toEqual({ ok: true, name: 'ok', groupId: GROUP });
+  });
+
+  it("hands the session step the body's groupId, from JSON and from a form alike (M13.4)", async () => {
+    seenGroupIds = [];
+    await route(admin)(jsonPost({ groupId: GROUP, name: 'ok' }));
+    await route(admin)(formPost({ groupId: GROUP, name: 'ok' }));
+    await route(admin)(jsonPost({ name: 'ok' }));
+    expect(seenGroupIds).toEqual([GROUP, GROUP, null]);
+  });
+
+  it('answers 400 with the envelope when a signed-in caller names no group', async () => {
+    const response = await route({ ok: false, status: 400, error: 'groupId is required' })(
+      jsonPost({ name: 'ok' }),
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'groupId is required' });
+  });
+
+  it('says the body is unreadable, not that the group is missing, for broken JSON', async () => {
+    const response = await route({ ok: false, status: 400, error: 'groupId is required' })(
+      new Request('http://localhost/api/admin/players', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{not json',
+      }),
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'request body is not valid JSON' });
   });
 
   it('303s a form post back to its page with the notice', async () => {
-    const response = await route(admin)(formPost({ name: 'ok' }));
+    const response = await route(admin)(formPost({ groupId: GROUP, name: 'ok' }));
 
     expect(response.status).toBe(303);
     const location = new URL(response.headers.get('location') ?? '');
@@ -110,7 +154,7 @@ describe('withAdminAuth', () => {
   });
 
   it('400s an invalid JSON body with the zod issues', async () => {
-    const response = await route(admin)(jsonPost({ name: '' }));
+    const response = await route(admin)(jsonPost({ groupId: GROUP, name: '' }));
 
     expect(response.status).toBe(400);
     const body = (await response.json()) as { ok: false; issues?: { path: string }[] };
@@ -119,7 +163,7 @@ describe('withAdminAuth', () => {
   });
 
   it('303s an invalid form body back to the page with an error', async () => {
-    const response = await route(admin)(formPost({ name: '' }));
+    const response = await route(admin)(formPost({ groupId: GROUP, name: '' }));
 
     expect(response.status).toBe(303);
     const location = new URL(response.headers.get('location') ?? '');

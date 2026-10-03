@@ -66,6 +66,13 @@ export interface PostOptions extends WebhookOptions {
 }
 
 /**
+ * A post that is about one group and is not given a lobby or a game to read the group off
+ * (M13.4): the fearless pool and its reset, the nightly board, a closed window. The caller names
+ * the group; there is no default.
+ */
+export type GroupPostOptions = PostOptions & { groupId: string };
+
+/**
  * The teams embed for a balance that just happened. Everything comes off the event — ingest
  * worked out the ten, the sitters and the seat moves and this does not re-derive any of it —
  * except the names, which are read fresh.
@@ -167,7 +174,7 @@ export function resultPayload(
  */
 export async function postFearlessPool(
   client: ServiceClient,
-  options: PostOptions = {},
+  options: GroupPostOptions,
 ): Promise<WebhookOutcome> {
   // The group's own pool, posted to the group's own channel (M13.3): `options.groupId` is the
   // game's group when the result hook calls this.
@@ -193,7 +200,7 @@ export async function postFearlessPool(
  */
 export async function postFearlessReset(
   client: ServiceClient,
-  options: PostOptions = {},
+  options: GroupPostOptions,
 ): Promise<WebhookOutcome> {
   const url = tonightPageUrl(options.requestOrigin);
   return postToWebhook(
@@ -228,12 +235,14 @@ export async function postFearlessReset(
  */
 export async function postNightlyLeaderboard(
   client: ServiceClient,
-  options: PostOptions = {},
+  options: GroupPostOptions,
 ): Promise<WebhookOutcome> {
   const board = await loadBoard(client, {
     window: NIGHTLY_WINDOW,
     now: options.now ?? new Date(),
     timeZone: options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE,
+    // The group's own board, to the group's own channel (M13.4).
+    groupId: options.groupId,
   });
   const skip = nightlyLeaderboardSkip(board);
   if (skip !== null) return SKIPPED(skip);
@@ -323,10 +332,12 @@ export const NO_GAMES_IN_WINDOW = 'no games in the window';
 export async function postClosedWindow(
   client: ServiceClient,
   window: ClosedWindow,
-  options: PostOptions = {},
+  options: GroupPostOptions,
 ): Promise<WebhookOutcome> {
   const board = await loadBoard(client, {
     window: window.kind,
+    // The group's own window, to the group's own channel (M13.4).
+    groupId: options.groupId,
     // The board recomputes the window's bounds from `now` the same way `closedWindow` did, so
     // the row written in `window_posts` and the board printed in the channel are one week by
     // construction.
@@ -384,7 +395,7 @@ export async function postClosedWindow(
 async function loadWindowAwards(
   client: ServiceClient,
   window: ClosedWindow,
-  options: PostOptions,
+  options: GroupPostOptions,
 ): Promise<WindowAward[]> {
   const render: AwardRender = { name: renderName, delta: formatDelta };
 
@@ -394,6 +405,7 @@ async function loadWindowAwards(
       now: options.now ?? new Date(),
       timeZone: options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE,
       awardRender: render,
+      groupId: options.groupId,
     });
     // A closed window always has the three; `running` and `null` belong to windows this
     // function is never called for (`ClosedWindow` is `last-week` or `last-month`).

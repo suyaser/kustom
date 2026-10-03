@@ -12,8 +12,8 @@ import { type NextRequest, NextResponse } from 'next/server';
  * the one place `@supabase/ssr` can hand the refreshed tokens back to the browser.
  *
  * It does not gate anything: the gate is `app/admin/(dashboard)/layout.tsx` and
- * `lib/adminRoute.ts`, both of which check `players.is_admin` server-side with the service
- * role. A middleware that decided access would be a second, weaker copy of that rule.
+ * `lib/adminRoute.ts`, both of which check the session player's admin membership in the request's group
+ * server-side with the service role (M13.4). A middleware that decided access would be a second, weaker copy of that rule.
  *
  * `/api/admin/*` is deliberately outside the matcher: those handlers read cookies off the
  * request and answer 401/403 on their own, and they must not depend on middleware having run.

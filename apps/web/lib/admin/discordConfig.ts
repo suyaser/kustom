@@ -2,9 +2,11 @@ import type { ServiceClient } from '../supabase';
 import { type AdminWriteResult, writeOk } from './result';
 
 /**
- * The single `discord_config` row (`/admin/discord`).
+ * A group's `discord_config` row (`/admin/discord`).
  *
- * The table is keyed by guild id and holds a secret — the webhook URL is a bearer credential
+ * **One row per group** since M13.4 (`0020`: `group_id` is the primary key). Two groups may share
+ * a Discord server with different channels, so the guild id is just a field. The table holds a
+ * secret — the webhook URL is a bearer credential
  * for posting into the results channel — so it has no read policy at all and only the service
  * role ever touches it. The page shows the webhook masked; an admin overwrites it by typing a
  * new one, and clears it with the explicit "clear" box. An empty field means "leave it alone",
@@ -22,28 +24,32 @@ export interface AdminDiscordConfig {
 }
 
 /**
- * Every configured guild, oldest first. There should be one; the page renders the first and
- * says so when there is more than one, rather than picking silently.
+ * The group's config as a list of at most one (the page's shape predates `0020`, when a second
+ * guild's row could exist and the page warned about it; the key makes that impossible now).
  */
-export async function listDiscordConfigs(client: ServiceClient): Promise<AdminDiscordConfig[]> {
+export async function listDiscordConfigs(
+  client: ServiceClient,
+  groupId: string,
+): Promise<AdminDiscordConfig[]> {
   const { data, error } = await client
     .from('discord_config')
     .select('*')
+    .eq('group_id', groupId)
     .order('created_at', { ascending: true });
 
   if (error) throw new Error(`listDiscordConfigs failed: ${error.message}`);
   return (data ?? []).map(toAdminDiscordConfig);
 }
 
-/** One guild's row, by its primary key. */
+/** One group's row, by its primary key. */
 export async function getDiscordConfig(
   client: ServiceClient,
-  guildId: string,
+  groupId: string,
 ): Promise<AdminDiscordConfig | null> {
   const { data, error } = await client
     .from('discord_config')
     .select('*')
-    .eq('guild_id', guildId)
+    .eq('group_id', groupId)
     .maybeSingle();
 
   if (error) throw new Error(`getDiscordConfig failed: ${error.message}`);
@@ -72,6 +78,8 @@ function toAdminDiscordConfig(data: {
 }
 
 export interface SaveDiscordConfigInput {
+  /** The request's group (M13.4): the row written is this group's and no other. */
+  groupId: string;
   guildId: string;
   /** `undefined` keeps whatever is stored; a string overwrites it; `null` clears it. */
   webhookUrl?: string | null;
@@ -82,18 +90,18 @@ export interface SaveDiscordConfigInput {
 }
 
 /**
- * Writes the row for `input.guildId` and nothing else.
+ * Writes the request's group's row and nothing else.
  *
- * Keyed by the primary key, never by "the first row": an earlier version rewrote whichever row
- * happened to be oldest, so a leftover config from another guild would have been silently
- * renamed into this one. If saving under a new guild id leaves two rows, the page says so and
- * an admin deletes the stale one deliberately.
+ * Keyed by the primary key (`group_id`, M13.4), never by "the first row" and never by the guild:
+ * two groups in one Discord server each keep their own channels, and saving one group's config
+ * cannot touch another's.
  */
 export async function saveDiscordConfig(
   client: ServiceClient,
   input: SaveDiscordConfigInput,
 ): Promise<AdminWriteResult<AdminDiscordConfig>> {
   const row = {
+    group_id: input.groupId,
     guild_id: input.guildId,
     results_channel_id: input.resultsChannelId,
     lobby_voice_channel_id: input.lobbyVoiceChannelId,
@@ -102,10 +110,10 @@ export async function saveDiscordConfig(
     ...(input.webhookUrl === undefined ? {} : { webhook_url: input.webhookUrl }),
   };
 
-  const { error } = await client.from('discord_config').upsert(row, { onConflict: 'guild_id' });
+  const { error } = await client.from('discord_config').upsert(row, { onConflict: 'group_id' });
   if (error) throw new Error(`saveDiscordConfig failed: ${error.message}`);
 
-  const saved = await getDiscordConfig(client, input.guildId);
+  const saved = await getDiscordConfig(client, input.groupId);
   if (saved === null) throw new Error('saveDiscordConfig: row vanished after write');
   return writeOk(saved);
 }

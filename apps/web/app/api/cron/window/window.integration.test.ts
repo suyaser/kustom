@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { type ClosedWindow, closedWindow } from '@/lib/night';
+import { createTestGroups, deleteTestGroups } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -17,7 +18,14 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  *
  * - three calls across one Sunday post one message and write one row;
  * - a window with no games is recorded and never posted, and never retried;
- * - a webhook that refuses leaves the row unposted, so a later call sends the week late.
+ * - a webhook that refuses leaves the row unposted, so a later call sends the week late;
+ * - **every group on its own** (M13.4): two groups with webhooks each post once, one group's
+ *   failing webhook neither stops nor is mistaken for the other's, and a group with no webhook
+ *   gets no `window_posts` row at all.
+ *
+ * The cases above run in group A, a throwaway group of this file's; B and C exist for the
+ * per-group cases. The route loops over every group in the database, so the assertions read A's,
+ * B's and C's lines out of the body and never assume they are the only ones.
  *
  * The clock is faked to a Sunday in 2025 — the day a week closes on since M5.34 — and every
  * window this file touches is a week or a month nothing else in the suite has games in. Only
@@ -70,6 +78,7 @@ if (stack === null) {
   const FLAKY_SUNDAY = new Date('2025-05-11T07:00:00Z'); // 10:00 Cairo, Sunday 11 May
   const FIRST_OF_MONTH = new Date('2025-11-01T12:00:00Z'); // Saturday 1 November, after 06:00
   const AWARDS_SUNDAY = new Date('2025-03-09T07:00:00Z'); // 09:00 Cairo, Sunday 9 March
+  const TWO_GROUP_SUNDAY = new Date('2025-04-13T07:00:00Z'); // 10:00 Cairo, Sunday 13 April
 
   const windowsTouched: ClosedWindow[] = [
     closedWindow('last-week', SUNDAY, TIME_ZONE),
@@ -78,16 +87,22 @@ if (stack === null) {
     closedWindow('last-week', FIRST_OF_MONTH, TIME_ZONE),
     closedWindow('last-month', FIRST_OF_MONTH, TIME_ZONE),
     closedWindow('last-week', AWARDS_SUNDAY, TIME_ZONE),
+    closedWindow('last-week', TWO_GROUP_SUNDAY, TIME_ZONE),
   ];
+
+  /** A and B have webhooks, C has none (M13.4). */
+  const groups = { a: '', b: '', c: '' };
 
   let playerIds: string[] = [];
   let seasonId = '';
   let webhookUrl = '';
   let server: Server | null = null;
   let posts: Record<string, unknown>[] = [];
+  /** Which group's webhook path each post arrived on, in order. */
+  let postPaths: string[] = [];
   const gameIds: number[] = [];
   /** What the webhook does with the next post. The failure case flips it. */
-  let answer: (response: ServerResponse) => void = (response) => response.writeHead(204).end();
+  let answer: (response: ServerResponse, path: string) => void = (response) => response.writeHead(204).end();
 
   function request(bearer = 'it-window-secret'): Request {
     return new Request('http://localhost/api/cron/window', {
@@ -95,7 +110,19 @@ if (stack === null) {
     });
   }
 
+  interface GroupLine {
+    groupId: string;
+    posted: string[];
+    skipped: { kind: string; reason: string }[];
+  }
+
   interface RouteBody {
+    ok: boolean;
+    groups: GroupLine[];
+  }
+
+  /** One group's part of a call, in the shape the single-group route used to answer. */
+  interface RouteLine {
     ok: boolean;
     posted: string[];
     skipped: { kind: string; reason: string }[];
@@ -105,7 +132,7 @@ if (stack === null) {
    * One call, with the clock at `instant`. Only `Date` is faked — the route's `now` and every
    * `claimed_at` it writes are that instant, while the sockets underneath stay real.
    */
-  async function callAt(instant: Date, bearer?: string): Promise<RouteBody> {
+  async function callAtAll(instant: Date, bearer?: string): Promise<RouteBody> {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(instant);
     try {
@@ -116,22 +143,35 @@ if (stack === null) {
     }
   }
 
-  async function rowsFor(window: ClosedWindow) {
+  function lineOf(body: RouteBody, groupId: string): RouteLine {
+    const line = body.groups.find((entry) => entry.groupId === groupId);
+    if (line === undefined) throw new Error(`no line for group ${groupId} in ${JSON.stringify(body)}`);
+    return { ok: body.ok, posted: line.posted, skipped: line.skipped };
+  }
+
+  /** One call, and group A's line of it: every single-group case below runs in A. */
+  async function callAt(instant: Date, bearer?: string): Promise<RouteLine> {
+    return lineOf(await callAtAll(instant, bearer), groups.a);
+  }
+
+  async function rowsFor(window: ClosedWindow, groupId: string = groups.a) {
     const { data } = await db
       .from('window_posts')
       .select('kind, window_start, posted_at, attempts, reason')
+      .eq('group_id', groupId)
       .eq('kind', window.kind)
       .eq('window_start', window.key);
     return data ?? [];
   }
 
   /** A rated game inside a window: ten players, five a side, every rating column written. */
-  async function seedGame(startedAt: Date): Promise<void> {
+  async function seedGame(startedAt: Date, groupId: string = groups.a): Promise<void> {
     const lcuGameId = Math.floor(Math.random() * 1_000_000_000) + 8_000_000_000;
     gameIds.push(lcuGameId);
     const { data, error } = await db
       .from('games')
       .insert({
+        group_id: groupId,
         lcu_game_id: lcuGameId,
         season_id: seasonId,
         started_at: startedAt.toISOString(),
@@ -146,6 +186,7 @@ if (stack === null) {
 
     const { error: playersError } = await db.from('game_players').insert(
       playerIds.map((playerId, index) => ({
+        group_id: groupId,
         game_id: data.id,
         player_id: playerId,
         side: index < 5 ? 100 : 200,
@@ -180,6 +221,7 @@ if (stack === null) {
     const { data, error } = await db
       .from('games')
       .insert({
+        group_id: groups.a,
         lcu_game_id: lcuGameId,
         season_id: seasonId,
         started_at: startedAt.toISOString(),
@@ -198,6 +240,7 @@ if (stack === null) {
 
     const { error: playersError } = await db.from('game_players').insert(
       order.map((playerId, seat) => ({
+        group_id: groups.a,
         game_id: data.id,
         player_id: playerId,
         side: seat < 5 ? 100 : 200,
@@ -231,37 +274,29 @@ if (stack === null) {
     const { data: season, error } = await db.from('seasons').select('id').eq('is_active', true).single();
     if (error) throw new Error(`no active season: ${error.message}`);
     seasonId = season.id;
+    Object.assign(groups, await createTestGroups(db, runId, ['a', 'b', 'c'] as const));
 
     server = createServer((incoming, response) => {
       const chunks: Buffer[] = [];
       incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
       incoming.on('end', () => {
         posts.push(JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>);
-        answer(response);
+        const path = incoming.url ?? '';
+        postPaths.push(path);
+        answer(response, path);
       });
     });
     const listening = server;
     await new Promise<void>((resolve) => listening.listen(0, '127.0.0.1', resolve));
     webhookUrl = `http://127.0.0.1:${(listening.address() as AddressInfo).port}/webhook`;
 
-    // Leftovers from an interrupted run would win the "oldest row with a webhook" rule.
-    await db.from('discord_config').delete().like('guild_id', 'it-%');
-    const { count } = await db
-      .from('discord_config')
-      .select('guild_id', { count: 'exact', head: true })
-      .not('webhook_url', 'is', null);
-    if ((count ?? 0) > 0) {
-      throw new Error(
-        'a discord_config row with a webhook already exists; this test would not be the one used',
-      );
-    }
-    await db.from('discord_config').insert({ guild_id: guildId, webhook_url: webhookUrl });
-
-    // A window is keyed by its own start, so it cannot be namespaced by run: clear the rows a
-    // previous interrupted run of this file left behind before claiming anything.
-    for (const window of windowsTouched) {
-      await db.from('window_posts').delete().eq('kind', window.kind).eq('window_start', window.key);
-    }
+    // One webhook per group, told apart by path. Two groups in one Discord server: the same
+    // guild, each with its own channel (M13.4). C has none.
+    const { error: configError } = await db.from('discord_config').insert([
+      { group_id: groups.a, guild_id: guildId, webhook_url: `${webhookUrl}/a` },
+      { group_id: groups.b, guild_id: guildId, webhook_url: `${webhookUrl}/b` },
+    ]);
+    if (configError) throw new Error(`seeding discord_config: ${configError.message}`);
 
     // Two games in the week that closed on `SUNDAY`, one in the flaky week, and one that is in
     // both windows the 1st of November considers.
@@ -283,12 +318,14 @@ if (stack === null) {
 
   afterAll(async () => {
     vi.useRealTimers();
+    await db.from('games').delete().in('lcu_game_id', gameIds);
+    await deleteTestGroups(db, Object.values(groups));
+    // Other groups' claims on these windows (the original group's, when it has a webhook on this
+    // stack): a window key cannot be namespaced by run, so this file cleans what it caused.
     for (const window of windowsTouched) {
       await db.from('window_posts').delete().eq('kind', window.kind).eq('window_start', window.key);
     }
-    await db.from('games').delete().in('lcu_game_id', gameIds);
     await db.from('players').delete().in('puuid', puuids);
-    await db.from('discord_config').delete().eq('guild_id', guildId);
     await new Promise<void>((resolve) => {
       if (server === null) return resolve();
       server.close(() => resolve());
@@ -297,6 +334,7 @@ if (stack === null) {
 
   beforeEach(() => {
     posts = [];
+    postPaths = [];
     answer = (response) => response.writeHead(204).end();
   });
 
@@ -529,6 +567,52 @@ if (stack === null) {
       const body = await callAt(new Date('2025-11-02T12:00:00Z'));
 
       expect([...body.posted, ...body.skipped.map((skip) => skip.kind)]).toEqual(['last-week']);
+    });
+  });
+
+  /**
+   * **M13.4 acceptance 4**: every group posts on its own. A and B both have a game in the week
+   * and a webhook; A's webhook is down. B posts exactly once, A's claim stays retryable and goes
+   * out on the next call, and C — no webhook — never gets a `window_posts` row.
+   */
+  describe('two groups with webhooks, and one without', () => {
+    it("posts each once, keeps A's failure retryable without holding up B, and claims nothing for C", async () => {
+      const window = closedWindow('last-week', TWO_GROUP_SUNDAY, TIME_ZONE);
+      await seedGame(new Date('2025-04-09T19:00:00Z'), groups.a);
+      await seedGame(new Date('2025-04-10T19:00:00Z'), groups.b);
+      answer = (response, path) => response.writeHead(path.endsWith('/a') ? 500 : 204).end();
+
+      const first = await callAtAll(TWO_GROUP_SUNDAY);
+      expect(lineOf(first, groups.a)).toEqual({
+        ok: true,
+        posted: [],
+        skipped: [{ kind: 'last-week', reason: 'HTTP 500' }],
+      });
+      expect(lineOf(first, groups.b)).toEqual({ ok: true, posted: ['last-week'], skipped: [] });
+      expect(lineOf(first, groups.c)).toEqual({
+        ok: true,
+        posted: [],
+        skipped: [{ kind: 'last-week', reason: 'no webhook configured' }],
+      });
+      // A was tried twice and refused; B landed once, on B's own channel.
+      expect(postPaths.filter((path) => path.endsWith('/b'))).toHaveLength(1);
+      expect(postPaths.filter((path) => path.endsWith('/a'))).toHaveLength(2);
+      // Each group's post is its own board: B's names B's one game, not A's.
+      const bEmbed = embedOf(postPaths.findIndex((path) => path.endsWith('/b')));
+      expect(bEmbed?.description).toBe('Sunday 6 Apr to Saturday 12 Apr · 1 rated game');
+
+      expect((await rowsFor(window, groups.a))[0]).toMatchObject({ posted_at: null, reason: 'HTTP 500' });
+      expect((await rowsFor(window, groups.b))[0]?.posted_at).not.toBeNull();
+      expect(await rowsFor(window, groups.c)).toEqual([]);
+
+      // An hour later, with A's webhook back: A goes out late, B is not posted a second time.
+      answer = (response) => response.writeHead(204).end();
+      postPaths = [];
+      const retried = await callAtAll(new Date(TWO_GROUP_SUNDAY.getTime() + 60 * 60 * 1_000));
+      expect(lineOf(retried, groups.a).posted).toEqual(['last-week']);
+      expect(lineOf(retried, groups.b).skipped).toEqual([{ kind: 'last-week', reason: 'already posted' }]);
+      expect(postPaths).toEqual(['/webhook/a']);
+      expect(await rowsFor(window, groups.c)).toEqual([]);
     });
   });
 

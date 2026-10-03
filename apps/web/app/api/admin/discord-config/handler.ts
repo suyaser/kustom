@@ -12,6 +12,8 @@ export async function handleDiscordConfig(
   const webhookUrl = input.clearWebhook === true ? null : (input.webhookUrl ?? undefined);
 
   const result = await saveDiscordConfig(context.client, {
+    // The request's group, already checked (M13.4): an admin configures their own group's channel.
+    groupId: context.groupId,
     guildId: input.guildId,
     ...(webhookUrl === undefined ? {} : { webhookUrl }),
     resultsChannelId: input.resultsChannelId,

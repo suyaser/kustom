@@ -2,12 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { type Database, SEASON_ONE_ID } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { LAST_ADMIN } from '@/lib/admin/members';
 import { playerLabel, shortPuuid } from '@/lib/admin/playerName';
 import { ADMIN_PLAYERS_PAGE_SIZE, listAdminPlayers } from '@/lib/admin/players';
 import { listAdminTokens } from '@/lib/admin/tokens';
 import {
   type AdminAuthResult,
   authorizeAdmin,
+  NOT_A_GROUP_ADMIN,
   type SessionUserLike,
   supabaseAdminLookup,
 } from '@/lib/adminAuth';
@@ -18,8 +20,10 @@ import {
   mintCompanionToken,
   supabaseTokenLookup,
 } from '@/lib/companionAuth';
+import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { lobbyBody } from '@/lib/testing/fixtures';
+import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -27,7 +31,12 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  *
  * Discord is bypassed, not faked away: the tests inject the *session* (there is no way to drive
  * a real OAuth round trip from vitest) and then run the real `authorizeAdmin` against the real
- * `players` table, so the "is this person an admin" half of the gate is exercised for real.
+ * `players` and `group_memberships` tables, so the "is this person an admin of this group" half
+ * of the gate is exercised for real.
+ *
+ * Everything happens in two throwaway groups (M13.4): the admin is an admin of A and only a
+ * member of B; every request names A unless a test says otherwise. The cross-group 403s and 404s
+ * across every admin route are `groups.integration.test.ts`'s.
  *
  * Skipped, not failed, when the stack is not running (`pnpm db:start`). Every row is namespaced
  * with a run id and deleted afterwards.
@@ -79,8 +88,9 @@ if (stack === null) {
   const adminDiscordId = `9${runId.replace(/\D/g, '') || '1'}00001`;
   const memberDiscordId = `9${runId.replace(/\D/g, '') || '1'}00002`;
   const guildId = `it-guild-${runId}`;
-  // A second, older row: `saveDiscordConfig` must key on guild_id and never touch this one.
+  // Another group's row: `saveDiscordConfig` must key on the group and never touch this one.
   const otherGuildId = `it-guild-${runId}-other`;
+  const groups = { a: '', b: '' };
 
   let adminPlayerId = '';
   let memberPlayerId = '';
@@ -96,20 +106,23 @@ if (stack === null) {
     };
   }
 
-  /** The real gate with only the session injected. */
+  /** The real gate with only the session injected: the membership is read for real. */
   function authorizeAs(user: SessionUserLike | null) {
-    return async (_request: Request, client: typeof db): Promise<AdminAuthResult> =>
+    return async (_request: Request, client: typeof db, groupId: string | null): Promise<AdminAuthResult> =>
       authorizeAdmin({
         resolveSessionUser: async () => user,
         lookupPlayerByDiscordId: supabaseAdminLookup(client),
+        lookupGroupRole: supabaseGroupRole(client),
+        groupId,
       });
   }
 
-  function post(body: unknown): Request {
+  /** Every admin body names its group; group A unless the body already names one. */
+  function post(body: object): Request {
     return new Request('http://localhost/api/admin/x', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify('groupId' in body ? body : { groupId: groups.a, ...body }),
     });
   }
 
@@ -137,11 +150,23 @@ if (stack === null) {
   async function playerRow(playerId: string) {
     const { data, error } = await db
       .from('players')
-      .select('id, discord_id, is_admin, main_role, secondary_role')
+      .select('id, discord_id, main_role, secondary_role')
       .eq('id', playerId)
       .single();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  /** The member's role in a group, or null when they are not in it. */
+  async function roleIn(groupId: string, playerId: string): Promise<string | null> {
+    const { data, error } = await db
+      .from('group_memberships')
+      .select('role')
+      .eq('group_id', groupId)
+      .eq('player_id', playerId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.role ?? null;
   }
 
   beforeAll(async () => {
@@ -150,25 +175,32 @@ if (stack === null) {
     memberPlayerId = ids.get(memberPuuid) ?? '';
     expect(adminPlayerId).not.toBe('');
     expect(memberPlayerId).not.toBe('');
+    Object.assign(groups, await createTestGroups(db, runId, ['a', 'b'] as const));
 
-    const { error } = await db
-      .from('players')
-      .update({ discord_id: adminDiscordId, is_admin: true })
-      .eq('id', adminPlayerId);
+    const { error } = await db.from('players').update({ discord_id: adminDiscordId }).eq('id', adminPlayerId);
     if (error) throw new Error(error.message);
 
+    // **The old global flag set on the member, on purpose** (M13.4 acceptance 3): it must grant
+    // nothing. The gate reads the membership and only the membership.
     const { error: memberError } = await db
       .from('players')
-      .update({ discord_id: memberDiscordId, is_admin: false })
+      .update({ discord_id: memberDiscordId, is_admin: true })
       .eq('id', memberPlayerId);
     if (memberError) throw new Error(memberError.message);
+
+    await setTestMembership(db, groups.a, adminPlayerId, 'admin');
+    await setTestMembership(db, groups.b, adminPlayerId, 'member');
+    await setTestMembership(db, groups.a, memberPlayerId, 'member');
 
     // A companion token for the admin's own player. M1.8 means the caller has to appear in the
     // `members` it posts, so the admin is in every lobby body below.
     const { token, tokenHash } = mintCompanionToken();
-    const { error: tokenError } = await db
-      .from('companion_tokens')
-      .insert({ player_id: adminPlayerId, token_hash: tokenHash, label: `it-${runId} names` });
+    const { error: tokenError } = await db.from('companion_tokens').insert({
+      group_id: groups.a,
+      player_id: adminPlayerId,
+      token_hash: tokenHash,
+      label: `it-${runId} names`,
+    });
     if (tokenError) throw new Error(tokenError.message);
     companionToken = token;
   });
@@ -211,16 +243,10 @@ if (stack === null) {
     // the rows it had made. With no route there is no such state to unwind, and the seasons
     // table is left exactly as it was found.
 
-    const { error: configError } = await db
-      .from('discord_config')
-      .delete()
-      .in('guild_id', [guildId, otherGuildId]);
-    if (configError) throw new Error(`cleanup: deleting discord_config failed: ${configError.message}`);
-
-    // The lobby goes first: `lobby_members` cascades from it, and deleting the players while a
-    // lobby still points at them would cascade rows out from under the next assertion.
-    const { error: lobbyError } = await db.from('lobbies').delete().eq('lcu_party_id', namePartyId);
-    if (lobbyError) throw new Error(`cleanup: deleting the test lobby failed: ${lobbyError.message}`);
+    // The groups' rows go first — the lobby with them: `lobby_members` cascades from it, and
+    // deleting the players while a lobby still points at them would cascade rows out from under
+    // the next assertion.
+    await deleteTestGroups(db, Object.values(groups));
 
     const { error: playerError } = await db
       .from('players')
@@ -253,11 +279,20 @@ if (stack === null) {
       }
     });
 
-    it('answers 403 to a session whose player is not an admin', async () => {
+    it('answers 403 to a member who is not an admin of the group, whatever players.is_admin says', async () => {
+      // The member carries the retired global flag (`beforeAll`); it is not read.
       for (const [name, make] of Object.entries(routes)) {
         const response = await make(sessionUser(memberDiscordId))(post(body));
         expect([name, response.status]).toEqual([name, 403]);
-        await expect(response.json()).resolves.toEqual({ ok: false, error: 'not an admin' });
+        await expect(response.json()).resolves.toEqual({ ok: false, error: NOT_A_GROUP_ADMIN });
+      }
+    });
+
+    it('answers 403 to an admin of A asking about B, where they are only a member', async () => {
+      for (const [name, make] of Object.entries(routes)) {
+        const response = await make(sessionUser(adminDiscordId))(post({ ...body, groupId: groups.b }));
+        expect([name, response.status]).toEqual([name, 403]);
+        await expect(response.json()).resolves.toEqual({ ok: false, error: NOT_A_GROUP_ADMIN });
       }
     });
 
@@ -367,7 +402,7 @@ if (stack === null) {
 
       // Searched by this run's puuid prefix, not read off page one: the stack is shared and
       // the page is fifty rows deep (M3.25).
-      const { rows } = await listAdminPlayers(db, null, { search: `it-${runId}` });
+      const { rows } = await listAdminPlayers(db, groups.a, null, { search: `it-${runId}` });
       const named = rows.find((row) => row.id === namedPlayerId);
       const member = rows.find((row) => row.id === memberPlayerId);
       if (!named || !member) throw new Error('the players this test set up are missing');
@@ -385,7 +420,7 @@ if (stack === null) {
 
       // `/admin/tokens` reads the same chain off its own query, which had to learn `game_name`:
       // it used to fall from `display_name` straight to a PUUID fragment.
-      const tokens = await listAdminTokens(db);
+      const tokens = await listAdminTokens(db, groups.a);
       const ours = tokens.filter((token) => token.playerId === adminPlayerId);
       expect(ours.length).toBeGreaterThan(0);
       for (const token of ours) {
@@ -429,28 +464,31 @@ if (stack === null) {
     });
   });
 
-  describe('the admin flag', () => {
-    it('promotes and demotes another player', async () => {
+  describe('the admin flag, which is the role in the group (M13.4)', () => {
+    it('promotes and demotes a member of the group, and writes nothing on players', async () => {
       const route = routes.players(sessionUser(adminDiscordId));
 
       expect(
         (await route(post({ action: 'set-admin', playerId: memberPlayerId, isAdmin: true }))).status,
       ).toBe(200);
-      expect(await playerRow(memberPlayerId)).toMatchObject({ is_admin: true });
+      expect(await roleIn(groups.a, memberPlayerId)).toBe('admin');
 
       expect(
         (await route(post({ action: 'set-admin', playerId: memberPlayerId, isAdmin: 'false' }))).status,
       ).toBe(200);
-      expect(await playerRow(memberPlayerId)).toMatchObject({ is_admin: false });
+      expect(await roleIn(groups.a, memberPlayerId)).toBe('member');
+      // B is untouched by anything done in A.
+      expect(await roleIn(groups.b, memberPlayerId)).toBeNull();
     });
 
-    it('refuses to let an admin remove their own flag', async () => {
+    it('refuses to demote the last admin of the group, themselves included', async () => {
       const response = await routes.players(sessionUser(adminDiscordId))(
         post({ action: 'set-admin', playerId: adminPlayerId, isAdmin: false }),
       );
 
-      expect(response.status).toBe(403);
-      expect(await playerRow(adminPlayerId)).toMatchObject({ is_admin: true });
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: LAST_ADMIN });
+      expect(await roleIn(groups.a, adminPlayerId)).toBe('admin');
     });
   });
 
@@ -465,10 +503,12 @@ if (stack === null) {
 
       const { data: row, error } = await db
         .from('companion_tokens')
-        .select('id, token_hash, label, revoked_at')
+        .select('id, token_hash, label, revoked_at, group_id')
         .eq('id', body.tokenId)
         .single();
       if (error) throw new Error(error.message);
+      // Scoped to the request's group (M13.4), and the companion's auth says so.
+      expect(row.group_id).toBe(groups.a);
 
       // The raw token is nowhere in the row; only its SHA-256.
       expect(row.token_hash).toBe(hashCompanionToken(body.token));
@@ -479,6 +519,7 @@ if (stack === null) {
         lookup: supabaseTokenLookup(db),
       });
       expect(before.ok).toBe(true);
+      if (before.ok) expect(before.identity.groupId).toBe(groups.a);
 
       const revoked = await route(post({ action: 'revoke', tokenId: body.tokenId }));
       expect(revoked.status).toBe(200);
@@ -537,7 +578,7 @@ if (stack === null) {
       const { data: keptRow } = await db
         .from('discord_config')
         .select('webhook_url, results_channel_id')
-        .eq('guild_id', guildId)
+        .eq('group_id', groups.a)
         .single();
       expect(keptRow?.webhook_url).toBe(webhook);
       expect(keptRow?.results_channel_id).toBe('555');
@@ -557,17 +598,23 @@ if (stack === null) {
       const { data: clearedRow } = await db
         .from('discord_config')
         .select('webhook_url, lobby_voice_channel_id')
-        .eq('guild_id', guildId)
+        .eq('group_id', groups.a)
         .single();
       expect(clearedRow?.webhook_url).toBeNull();
       expect(clearedRow?.lobby_voice_channel_id).toBeNull();
     });
 
-    it('writes only the row for the guild id it was given', async () => {
+    it("writes only the request's group's row, even when another group shares the guild", async () => {
+      // B's row, in the same Discord server as A's: allowed since `0020` (two groups, one guild,
+      // different channels). A second row for A is not: `group_id` is the key.
       const { error: seedError } = await db
         .from('discord_config')
-        .insert({ guild_id: otherGuildId, results_channel_id: 'untouched' });
+        .insert({ group_id: groups.b, guild_id: guildId, results_channel_id: 'untouched' });
       if (seedError) throw new Error(seedError.message);
+      const { error: secondError } = await db
+        .from('discord_config')
+        .insert({ group_id: groups.a, guild_id: otherGuildId, results_channel_id: 'second' });
+      expect(secondError?.code).toBe('23505');
 
       const response = await routes.discord(sessionUser(adminDiscordId))(
         post({
@@ -581,13 +628,19 @@ if (stack === null) {
       );
       expect(response.status).toBe(200);
 
-      // The other guild's row keeps its own id and its own columns: no silent rename.
+      // The other group's row keeps its own columns: no write crosses the group.
       const { data: other } = await db
         .from('discord_config')
         .select('guild_id, results_channel_id')
-        .eq('guild_id', otherGuildId)
+        .eq('group_id', groups.b)
         .single();
-      expect(other).toEqual({ guild_id: otherGuildId, results_channel_id: 'untouched' });
+      expect(other).toEqual({ guild_id: guildId, results_channel_id: 'untouched' });
+      const { data: mine } = await db
+        .from('discord_config')
+        .select('results_channel_id')
+        .eq('group_id', groups.a)
+        .single();
+      expect(mine?.results_channel_id).toBe('999');
     });
   });
 
@@ -621,16 +674,43 @@ if (stack === null) {
       const { data: season } = await db.from('seasons').select('id').eq('is_active', true).single();
       const seasonId = season?.id ?? SEASON_ONE_ID;
 
-      const { error } = await db
-        .from('ratings')
-        .upsert({ player_id: memberPlayerId, season_id: seasonId, mu: 24, sigma: 6, games: 3, wins: 2 });
+      const { error } = await db.from('ratings').upsert({
+        group_id: groups.a,
+        player_id: memberPlayerId,
+        season_id: seasonId,
+        mu: 24,
+        sigma: 6,
+        games: 3,
+        wins: 2,
+      });
       if (error) throw new Error(error.message);
+      // The same player's rating in B, which A's page must not show.
+      await setTestMembership(db, groups.b, memberPlayerId, 'member');
+      const { error: otherError } = await db.from('ratings').upsert({
+        group_id: groups.b,
+        player_id: memberPlayerId,
+        season_id: seasonId,
+        mu: 30,
+        sigma: 3,
+        games: 9,
+        wins: 9,
+      });
+      if (otherError) throw new Error(otherError.message);
 
-      const { rows } = await listAdminPlayers(db, seasonId, { search: `it-${runId}` });
+      const { rows } = await listAdminPlayers(db, groups.a, seasonId, { search: `it-${runId}` });
       const member = rows.find((row) => row.id === memberPlayerId);
 
       expect(member?.rating).toEqual({ mu: 24, sigma: 6, games: 3, wins: 2 });
       expect(member?.discordId).toBe(memberDiscordId);
+      // Admin is the role in A: the member is not one, whatever `players.is_admin` says.
+      expect(member?.isAdmin).toBe(false);
+      expect(rows.find((row) => row.id === adminPlayerId)?.isAdmin).toBe(true);
+      await db.from('group_memberships').delete().eq('group_id', groups.b).eq('player_id', memberPlayerId);
+    });
+
+    it("lists the group's members only", async () => {
+      const { rows } = await listAdminPlayers(db, groups.b, null, { search: `it-${runId}` });
+      expect(rows.map((row) => row.id)).toEqual([adminPlayerId]);
     });
   });
 
@@ -670,8 +750,16 @@ if (stack === null) {
       rows.push({ puuid: otherPuuid, display_name: `UnderXscore ${runId}` });
 
       for (let start = 0; start < rows.length; start += 400) {
-        const { error } = await db.from('players').insert(rows.slice(start, start + 400));
+        const { data, error } = await db
+          .from('players')
+          .insert(rows.slice(start, start + 400))
+          .select('id');
         if (error) throw new Error(`seeding ${BULK} players failed: ${error.message}`);
+        // Members of A: the list is the group's members (M13.4).
+        const { error: memberError } = await db
+          .from('group_memberships')
+          .insert((data ?? []).map((row) => ({ group_id: groups.a, player_id: row.id, role: 'member' })));
+        if (memberError) throw new Error(`seeding memberships failed: ${memberError.message}`);
       }
     }, 60_000);
 
@@ -690,7 +778,7 @@ if (stack === null) {
     }, 60_000);
 
     it('reads fifty rows, and says how many there are in total', async () => {
-      const page = await listAdminPlayers(db, null);
+      const page = await listAdminPlayers(db, groups.a, null);
 
       expect(page.rows).toHaveLength(ADMIN_PLAYERS_PAGE_SIZE);
       expect(page.pageSize).toBe(ADMIN_PLAYERS_PAGE_SIZE);
@@ -702,8 +790,8 @@ if (stack === null) {
     });
 
     it('still has the row that sorts past the thousandth, on the page it belongs to', async () => {
-      const first = await listAdminPlayers(db, null);
-      const last = await listAdminPlayers(db, null, { page: first.pageCount });
+      const first = await listAdminPlayers(db, groups.a, null);
+      const last = await listAdminPlayers(db, groups.a, null, { page: first.pageCount });
 
       const seat = last.rows.findIndex((row) => row.puuid === needlePuuid);
       expect(seat).toBeGreaterThanOrEqual(0);
@@ -714,7 +802,7 @@ if (stack === null) {
     });
 
     it('finds it by display name', async () => {
-      const page = await listAdminPlayers(db, null, { search: `zzz ${runId}` });
+      const page = await listAdminPlayers(db, groups.a, null, { search: `zzz ${runId}` });
 
       expect(page.total).toBe(1);
       expect(page.rows.map((row) => row.puuid)).toEqual([needlePuuid]);
@@ -722,10 +810,10 @@ if (stack === null) {
     });
 
     it('finds it by PUUID prefix, and a prefix that names the whole batch finds the batch', async () => {
-      const one = await listAdminPlayers(db, null, { search: needlePuuid });
+      const one = await listAdminPlayers(db, groups.a, null, { search: needlePuuid });
       expect(one.rows.map((row) => row.puuid)).toEqual([needlePuuid]);
 
-      const batch = await listAdminPlayers(db, null, { search: bulkPrefix });
+      const batch = await listAdminPlayers(db, groups.a, null, { search: bulkPrefix });
       expect(batch.total).toBe(BULK);
       expect(batch.rows).toHaveLength(ADMIN_PLAYERS_PAGE_SIZE);
       expect(batch.rows.every((row) => row.puuid.startsWith(bulkPrefix))).toBe(true);
@@ -733,20 +821,20 @@ if (stack === null) {
 
     it('reads an underscore as a character, not as a wildcard', async () => {
       // The PUUID prefix and the display name, because both go through the same escape.
-      const byPuuid = await listAdminPlayers(db, null, { search: underscorePuuid });
+      const byPuuid = await listAdminPlayers(db, groups.a, null, { search: underscorePuuid });
       expect(byPuuid.rows.map((row) => row.puuid)).toEqual([underscorePuuid]);
       expect(byPuuid.total).toBe(1);
 
-      const byName = await listAdminPlayers(db, null, { search: `Under_score ${runId}` });
+      const byName = await listAdminPlayers(db, groups.a, null, { search: `Under_score ${runId}` });
       expect(byName.rows.map((row) => row.puuid)).toEqual([underscorePuuid]);
 
       // And the row it would have swept up with it is still findable on its own.
-      const other = await listAdminPlayers(db, null, { search: otherPuuid });
+      const other = await listAdminPlayers(db, groups.a, null, { search: otherPuuid });
       expect(other.rows.map((row) => row.puuid)).toEqual([otherPuuid]);
     });
 
     it('answers a search nobody matches with an empty page, not an error', async () => {
-      const page = await listAdminPlayers(db, null, { search: `no-such-player-${runId}` });
+      const page = await listAdminPlayers(db, groups.a, null, { search: `no-such-player-${runId}` });
 
       expect(page.rows).toEqual([]);
       expect(page.total).toBe(0);
@@ -754,7 +842,7 @@ if (stack === null) {
     });
 
     it('clamps a page past the end onto the last one', async () => {
-      const page = await listAdminPlayers(db, null, { search: bulkPrefix, page: 9_999 });
+      const page = await listAdminPlayers(db, groups.a, null, { search: bulkPrefix, page: 9_999 });
 
       expect(page.page).toBe(page.pageCount);
       expect(page.rows.length).toBeGreaterThan(0);

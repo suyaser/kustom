@@ -11,6 +11,8 @@ import { adminTokensRequestSchema } from './tokens/schema';
  */
 
 const PLAYER = '11111111-1111-4111-8111-111111111111';
+/** Every admin body names its group (M13.4). */
+const GROUP = '00000000-0000-4000-8000-00000000000a';
 
 describe('adminPlayersRequestSchema', () => {
   it('still parses a stale tab\u2019s role post, so the route can refuse it in words (M5.17)', () => {
@@ -18,6 +20,7 @@ describe('adminPlayersRequestSchema', () => {
     // browser that has had the page open since before the deploy is the one caller left, and
     // `that form was not valid` would tell them nothing true.
     const parsed = adminPlayersRequestSchema.parse({
+      groupId: GROUP,
       action: 'set-roles',
       playerId: PLAYER,
       mainRole: '',
@@ -29,6 +32,7 @@ describe('adminPlayersRequestSchema', () => {
 
   it('rejects a player id that is not a uuid', () => {
     const result = adminPlayersRequestSchema.safeParse({
+      groupId: GROUP,
       action: 'set-name',
       playerId: 'puuid-hana',
       displayName: 'Hana',
@@ -40,6 +44,7 @@ describe('adminPlayersRequestSchema', () => {
   it('trims a Discord id and turns an empty one into an unlink', () => {
     expect(
       adminPlayersRequestSchema.parse({
+        groupId: GROUP,
         action: 'set-discord',
         playerId: PLAYER,
         discordId: '  204255221925378048  ',
@@ -47,56 +52,88 @@ describe('adminPlayersRequestSchema', () => {
     ).toMatchObject({ discordId: '204255221925378048' });
 
     expect(
-      adminPlayersRequestSchema.parse({ action: 'set-discord', playerId: PLAYER, discordId: '' }),
+      adminPlayersRequestSchema.parse({
+        groupId: GROUP,
+        action: 'set-discord',
+        playerId: PLAYER,
+        discordId: '',
+      }),
     ).toMatchObject({ discordId: null });
   });
 
   it('reads the admin flag as a target state, from a string or a boolean', () => {
     expect(
-      adminPlayersRequestSchema.parse({ action: 'set-admin', playerId: PLAYER, isAdmin: 'false' }),
+      adminPlayersRequestSchema.parse({
+        groupId: GROUP,
+        action: 'set-admin',
+        playerId: PLAYER,
+        isAdmin: 'false',
+      }),
     ).toMatchObject({ isAdmin: false });
     expect(
-      adminPlayersRequestSchema.parse({ action: 'set-admin', playerId: PLAYER, isAdmin: true }),
+      adminPlayersRequestSchema.parse({
+        groupId: GROUP,
+        action: 'set-admin',
+        playerId: PLAYER,
+        isAdmin: true,
+      }),
     ).toMatchObject({ isAdmin: true });
   });
 
   it('takes a display name and reads an empty field as "back on automatic"', () => {
     expect(
-      adminPlayersRequestSchema.parse({ action: 'set-name', playerId: PLAYER, displayName: '  Hamoodi ' }),
-    ).toEqual({ action: 'set-name', playerId: PLAYER, displayName: 'Hamoodi' });
+      adminPlayersRequestSchema.parse({
+        groupId: GROUP,
+        action: 'set-name',
+        playerId: PLAYER,
+        displayName: '  Hamoodi ',
+      }),
+    ).toEqual({ groupId: GROUP, action: 'set-name', playerId: PLAYER, displayName: 'Hamoodi' });
 
     // The form posts "" for a cleared field; a JSON caller sends null. Both mean the same thing.
     for (const displayName of ['', '   ', null]) {
       expect(
-        adminPlayersRequestSchema.parse({ action: 'set-name', playerId: PLAYER, displayName }),
+        adminPlayersRequestSchema.parse({
+          groupId: GROUP,
+          action: 'set-name',
+          playerId: PLAYER,
+          displayName,
+        }),
       ).toMatchObject({ displayName: null });
     }
   });
 
   it('rejects an unknown action', () => {
-    expect(adminPlayersRequestSchema.safeParse({ action: 'delete', playerId: PLAYER }).success).toBe(false);
+    expect(
+      adminPlayersRequestSchema.safeParse({ groupId: GROUP, action: 'delete', playerId: PLAYER }).success,
+    ).toBe(false);
   });
 });
 
 describe('adminTokensRequestSchema', () => {
   it('accepts a mint with no label', () => {
-    expect(adminTokensRequestSchema.parse({ action: 'mint', playerId: PLAYER, label: '' })).toMatchObject({
+    expect(
+      adminTokensRequestSchema.parse({ groupId: GROUP, action: 'mint', playerId: PLAYER, label: '' }),
+    ).toMatchObject({
       action: 'mint',
       label: null,
     });
   });
 
   it('accepts a revoke by token id', () => {
-    expect(adminTokensRequestSchema.safeParse({ action: 'revoke', tokenId: PLAYER }).success).toBe(true);
+    expect(
+      adminTokensRequestSchema.safeParse({ groupId: GROUP, action: 'revoke', tokenId: PLAYER }).success,
+    ).toBe(true);
   });
 
   it('rejects a revoke without a token id', () => {
-    expect(adminTokensRequestSchema.safeParse({ action: 'revoke' }).success).toBe(false);
+    expect(adminTokensRequestSchema.safeParse({ groupId: GROUP, action: 'revoke' }).success).toBe(false);
   });
 });
 
 describe('discordConfigRequestSchema', () => {
   const base = {
+    groupId: GROUP,
     guildId: '123',
     webhookUrl: '',
     resultsChannelId: '',
@@ -107,6 +144,7 @@ describe('discordConfigRequestSchema', () => {
 
   it('treats an empty webhook as "leave it alone" and empty ids as null', () => {
     expect(discordConfigRequestSchema.parse(base)).toEqual({
+      groupId: GROUP,
       guildId: '123',
       webhookUrl: null,
       resultsChannelId: null,
@@ -155,9 +193,19 @@ describe('internalPathSchema', () => {
 
 describe('fearlessResetRequestSchema', () => {
   it('accepts an empty body and a path on this site', () => {
-    expect(fearlessResetRequestSchema.parse({})).toEqual({});
-    expect(fearlessResetRequestSchema.parse({ redirectTo: '/admin' })).toEqual({
+    expect(fearlessResetRequestSchema.parse({ groupId: GROUP })).toEqual({ groupId: GROUP });
+    expect(fearlessResetRequestSchema.parse({ groupId: GROUP, redirectTo: '/admin' })).toEqual({
+      groupId: GROUP,
       redirectTo: '/admin',
     });
+  });
+
+  it('refuses a body that names no group, or not a group id (M13.4)', () => {
+    expect(fearlessResetRequestSchema.safeParse({}).success).toBe(false);
+    expect(fearlessResetRequestSchema.safeParse({ groupId: 'customs' }).success).toBe(false);
+    expect(adminTokensRequestSchema.safeParse({ action: 'revoke', tokenId: PLAYER }).success).toBe(false);
+    expect(
+      adminPlayersRequestSchema.safeParse({ action: 'set-admin', playerId: PLAYER, isAdmin: true }).success,
+    ).toBe(false);
   });
 });

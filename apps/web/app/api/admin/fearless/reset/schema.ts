@@ -1,12 +1,15 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { internalPathSchema } from '@/lib/admin/formValues';
 
 /**
  * `POST /api/admin/fearless/reset`: move the fearless cursor to now (M10).
  *
- * No body is required. `redirectTo` is only for the no-JS form path, same as reroll.
+ * The body names its group (M13.4): the cursor moved is that group's. `redirectTo` is only for
+ * the no-JS form path, same as reroll.
  */
 export const fearlessResetRequestSchema = z.object({
+  groupId: groupIdSchema,
   redirectTo: internalPathSchema.optional(),
 });
 

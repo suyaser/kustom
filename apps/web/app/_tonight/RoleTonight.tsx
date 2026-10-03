@@ -2,6 +2,7 @@
 
 import { ROLES } from '@customs/core';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type MouseEvent, type ReactNode, useEffect, useId, useState } from 'react';
 import { isActiveLobbyStatus } from '@/lib/lobbyState';
 import {
@@ -21,6 +22,9 @@ import {
 import type { LobbyView, MemberView } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import { RoleIcon } from '../_icons/RoleIcon';
+
+/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
+const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
 
 /**
  * `Your role tonight` (M3.6): the one thing a friend can change on this page about themselves.
@@ -157,7 +161,7 @@ function RolePicker({
       const response = await fetch(ROLE_TAP_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lobbyId, role }),
+        body: JSON.stringify({ groupId: PAGE_GROUP_ID, lobbyId, role }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -180,6 +184,7 @@ function RolePicker({
       <form className="cn-role-choices" method="post" action={ROLE_TAP_ACTION} aria-labelledby={titleId}>
         <input type="hidden" name="lobbyId" value={lobbyId} />
         {/* Only the no-JavaScript path reads this. The route re-validates it as a path here. */}
+        <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
         <input type="hidden" name="redirectTo" value="/" />
         {ROLES.map((role) => {
           const selected = chosen === role;
@@ -240,7 +245,7 @@ function PickYourself({
       const response = await fetch(LINK_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ puuid }),
+        body: JSON.stringify({ groupId: PAGE_GROUP_ID, puuid }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -268,6 +273,7 @@ function PickYourself({
             <span className="cn-pick-name">{renderWebName(member.name)}</span>
             <form method="post" action={LINK_ACTION}>
               <input type="hidden" name="puuid" value={member.puuid} />
+              <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
               <input type="hidden" name="redirectTo" value="/" />
               <button
                 type="submit"

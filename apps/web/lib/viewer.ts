@@ -1,6 +1,8 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
 import { discordIdFromUser, supabaseSessionUser } from './adminAuth';
+import { supabaseGroupRole } from './groups/membership';
 import { claimablePuuids } from './me/claimable';
 import { getServiceClient } from './supabase';
 import { createAuthClient, readOnlyCookieJar } from './supabaseAuth';
@@ -19,10 +21,21 @@ import { ANONYMOUS_VIEWER, type ViewerState } from './tonight/viewer';
  * client before it writes anything, so this is a rendering decision and never the gate. A
  * client that lied about it would get a 403 from the route.
  *
+ * **Admin of the page's group** (M13.4): `group_memberships.role = 'admin'` in the group the page
+ * shows, which is the original group for every page until M13.9 moves the tonight page under
+ * `/g/<slug>`. The same check the reroll route makes, so the control is drawn exactly for the
+ * people the route will let through.
+ *
  * Deliberately **not** `resolveAdmin`: that calls `ensureBootstrapAdmin`, which writes. A page
  * never writes to the database (CLAUDE.md), and the tonight page is the one page that anyone
  * on the internet can open.
  */
+/**
+ * The group every page that reads the viewer shows until M13.9 to M13.14 move them under
+ * `/g/<slug>` and pass their own.
+ */
+const VIEWER_GROUP_ID = ORIGINAL_GROUP_ID;
+
 export interface Viewer {
   puuid: string;
   isAdmin: boolean;
@@ -70,10 +83,11 @@ export const currentViewerState: () => Promise<ViewerState> = cache(async () => 
 
     // `discord_id` is service-role only: anon has no privilege on `players` at all, which is
     // exactly why the column lives there and not in `players_public`. This read never leaves
-    // the server and only the puuid and the admin flag reach the page.
-    const { data, error } = await getServiceClient()
+    // the server and only the puuid and the admin decision reach the page.
+    const client = getServiceClient();
+    const { data, error } = await client
       .from('players')
-      .select('puuid, is_admin')
+      .select('id, puuid')
       .eq('discord_id', discordId)
       .maybeSingle();
     // Signed in and matching no player row: M3.6's `That's me` case, and the first thing
@@ -89,7 +103,8 @@ export const currentViewerState: () => Promise<ViewerState> = cache(async () => 
       return { kind: 'unlinked', claimable: await claimable() };
     }
 
-    return { kind: 'linked', puuid: data.puuid, isAdmin: data.is_admin };
+    const role = await supabaseGroupRole(client)(data.id, VIEWER_GROUP_ID);
+    return { kind: 'linked', puuid: data.puuid, isAdmin: role === 'admin' };
   } catch (error) {
     console.error('tonight page: reading the viewer failed', error);
     return ANONYMOUS_VIEWER;
@@ -102,7 +117,7 @@ export const currentViewerState: () => Promise<ViewerState> = cache(async () => 
  */
 async function claimable(): Promise<readonly string[]> {
   try {
-    return await claimablePuuids(getServiceClient(), { timeZone: nightTimeZone() });
+    return await claimablePuuids(getServiceClient(), { timeZone: nightTimeZone(), groupId: VIEWER_GROUP_ID });
   } catch (error) {
     console.error('tonight page: reading who can be picked failed', error);
     return [];

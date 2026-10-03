@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database, Json } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
@@ -185,6 +186,7 @@ if (stack === null) {
     );
     const { token: raw, tokenHash } = mintCompanionToken();
     await db.from('companion_tokens').insert({
+      group_id: ORIGINAL_GROUP_ID,
       player_id: ids.get(ownerPuuid) ?? '',
       token_hash: tokenHash,
       label: `it-${runId}-m77`,

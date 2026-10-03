@@ -1,21 +1,27 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { ensureBootstrapAdmin } from './bootstrapAdmin';
+import { type GroupRoleLookup, supabaseGroupRole } from './groups/membership';
 import type { ServiceClient } from './supabase';
 import { type AuthClient, type CookieJar, createAuthClient } from './supabaseAuth';
 
 /**
- * The admin gate (`CLAUDE.md` "Conventions": admin routes use the Supabase session and
- * `players.is_admin`).
+ * The admin gate: a Supabase session, and `group_memberships.role = 'admin'` **in the request's
+ * group** (M13.4; `04-decisions.md` 2026-10-03, "Group admin is a membership role"). The old
+ * global flag on `players` is not read anywhere any more.
  *
- * Two steps, both server-side, never a client claim:
+ * Three steps, all server-side, never a client claim:
  *
  *   1. The session cookies are exchanged for a **verified** user (`auth.getUser()` asks the
  *      auth server; `getSession()` would only decode a cookie).
  *   2. The Discord snowflake on that user's *identity* is matched against
- *      `players.discord_id` with the service-role client, and `players.is_admin` decides.
+ *      `players.discord_id` with the service-role client.
+ *   3. That player's membership row in the request's `groupId` decides. Admin of group A asking
+ *      about group B is 403, the same as a member who is not an admin at all.
  *
- * No session is 401. A session that is not an admin — for any reason: no Discord identity, no
- * player linked to it, `is_admin` false — is 403. The reason string says which, because the
- * only people who see it are the five people in the group.
+ * No session is 401. A request with no `groupId` is 400 (every admin request names one). A
+ * session that is not an admin of that group — for any reason: no Discord identity, no player
+ * linked to it, not a member, a member but not an admin — is 403. The reason string says which,
+ * because the only people who see it are the people in the group.
  *
  * The decision itself is a pure function over two injected lookups so it can be tested without
  * a database or an OAuth round trip; the Supabase-backed lookups are at the bottom.
@@ -37,11 +43,16 @@ export interface SessionUserLike {
   user_metadata?: Record<string, unknown> | undefined;
 }
 
-/** The player row behind an admin session. */
+/** The player row behind an admin session, and the group they were checked against. */
 export interface AdminIdentity {
   userId: string;
   discordId: string;
   playerId: string;
+  /**
+   * The group this request acts on, already checked: the session's player is an admin of it.
+   * Every admin handler scopes its reads and writes to this and nothing else.
+   */
+  groupId: string;
   puuid: string;
   displayName: string | null;
   /** From the session, for the "signed in as" line only. */
@@ -53,23 +64,33 @@ export interface AdminPlayerRecord {
   playerId: string;
   puuid: string;
   displayName: string | null;
-  isAdmin: boolean;
 }
 
 export type AdminAuthResult =
   | { ok: true; admin: AdminIdentity }
-  | { ok: false; status: 401 | 403; error: string };
+  | { ok: false; status: 400 | 401 | 403; error: string };
 
 export type SessionUserResolver = () => Promise<SessionUserLike | null>;
 export type AdminPlayerLookup = (discordId: string) => Promise<AdminPlayerRecord | null>;
 
+/** The reason strings, exported so the route tests assert these and not literals. */
+export const ADMIN_GROUP_REQUIRED = 'groupId is required';
+export const NOT_A_GROUP_ADMIN = 'not an admin of this group';
+
 export interface AuthorizeAdminOptions {
   resolveSessionUser: SessionUserResolver;
   lookupPlayerByDiscordId: AdminPlayerLookup;
+  /** The session player's role in a group (`group_memberships`). */
+  lookupGroupRole: GroupRoleLookup;
+  /**
+   * The group the request names, or `null` when it named none (or not a uuid). Checked **after**
+   * the session, so an anonymous caller is a 401 whatever the body said.
+   */
+  groupId: string | null;
 }
 
 /**
- * Session in, admin identity or 401/403 out. Pure apart from the two injected lookups.
+ * Session and group in, admin identity or 400/401/403 out. Pure apart from the injected lookups.
  */
 export async function authorizeAdmin(options: AuthorizeAdminOptions): Promise<AdminAuthResult> {
   const user = await options.resolveSessionUser();
@@ -87,8 +108,14 @@ export async function authorizeAdmin(options: AuthorizeAdminOptions): Promise<Ad
     return { ok: false, status: 403, error: 'no player is linked to this Discord account' };
   }
 
-  if (!player.isAdmin) {
-    return { ok: false, status: 403, error: 'not an admin' };
+  if (options.groupId === null || !groupIdSchema.safeParse(options.groupId).success) {
+    return { ok: false, status: 400, error: ADMIN_GROUP_REQUIRED };
+  }
+
+  // Not a member and a member who is not an admin are one answer: neither may act here, and
+  // telling them apart would tell an admin of another group who is in this one.
+  if ((await options.lookupGroupRole(player.playerId, options.groupId)) !== 'admin') {
+    return { ok: false, status: 403, error: NOT_A_GROUP_ADMIN };
   }
 
   return {
@@ -97,6 +124,7 @@ export async function authorizeAdmin(options: AuthorizeAdminOptions): Promise<Ad
       userId: user.id,
       discordId,
       playerId: player.playerId,
+      groupId: options.groupId,
       puuid: player.puuid,
       displayName: player.displayName,
       email: user.email ?? null,
@@ -163,7 +191,7 @@ export function supabaseAdminLookup(client: ServiceClient): AdminPlayerLookup {
   return async (discordId) => {
     const { data, error } = await client
       .from('players')
-      .select('id, puuid, display_name, is_admin')
+      .select('id, puuid, display_name')
       .eq('discord_id', discordId)
       .maybeSingle();
 
@@ -174,17 +202,22 @@ export function supabaseAdminLookup(client: ServiceClient): AdminPlayerLookup {
       playerId: data.id,
       puuid: data.puuid,
       displayName: data.display_name,
-      isAdmin: data.is_admin,
     };
   };
 }
 
-/** Everything the gate needs, wired to Supabase. */
-export async function resolveAdmin(jar: CookieJar, client: ServiceClient): Promise<AdminAuthResult> {
+/** Everything the gate needs, wired to Supabase, for one group. */
+export async function resolveAdmin(
+  jar: CookieJar,
+  client: ServiceClient,
+  groupId: string | null,
+): Promise<AdminAuthResult> {
   await ensureBootstrapAdmin(client);
 
   return authorizeAdmin({
     resolveSessionUser: supabaseSessionUser(createAuthClient(jar)),
     lookupPlayerByDiscordId: supabaseAdminLookup(client),
+    lookupGroupRole: supabaseGroupRole(client),
+    groupId,
   });
 }

@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { extraMember, lobbyView, workedMembers } from '@/lib/testing/tonightFixtures';
@@ -93,7 +94,7 @@ describe("the role control, for a linked viewer in tonight's lobby", () => {
     expect(fireEvent.click(jungle)).toBe(false);
 
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
-    expect(lastBody()).toEqual({ lobbyId: 'lobby-1', role: 'jungle' });
+    expect(lastBody()).toEqual({ groupId: ORIGINAL_GROUP_ID, lobbyId: 'lobby-1', role: 'jungle' });
     // The receipt is the word itself, optimistically, before the write comes back round
     // through Realtime. No toast and no "saved!".
     await waitFor(() => expect(jungle).toHaveAttribute('aria-pressed', 'true'));
@@ -115,7 +116,9 @@ describe("the role control, for a linked viewer in tonight's lobby", () => {
     // The only way out, and there is no separate Clear button.
     fireEvent.click(jungle);
 
-    await waitFor(() => expect(lastBody()).toEqual({ lobbyId: 'lobby-1', role: null }));
+    await waitFor(() =>
+      expect(lastBody()).toEqual({ groupId: ORIGINAL_GROUP_ID, lobbyId: 'lobby-1', role: null }),
+    );
     await waitFor(() => expect(jungle).toHaveAttribute('aria-pressed', 'false'));
   });
 
@@ -234,7 +237,7 @@ describe('signed in with no player row: picking yourself, once', () => {
 
     expect(fireEvent.click(screen.getAllByRole('button')[0] as Element)).toBe(false);
 
-    await waitFor(() => expect(lastBody()).toEqual({ puuid: ME }));
+    await waitFor(() => expect(lastBody()).toEqual({ groupId: ORIGINAL_GROUP_ID, puuid: ME }));
     // `players.discord_id` is in no Realtime publication and the browser may not read it, so
     // the server components are the only place that answer can come from.
     await waitFor(() => expect(refreshed).toHaveBeenCalledTimes(1));

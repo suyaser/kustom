@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { config, displayRating, type Rating, rateGameWeekly, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type FoldAwardPlayer, gameAward } from '@/lib/ingest/fold';
@@ -146,6 +147,7 @@ if (stack === null) {
 
     await db.from('ratings').insert(
       SEATS.map((seat) => ({
+        group_id: ORIGINAL_GROUP_ID,
         player_id: ids.get(seat.puuid) as string,
         season_id: seasonId,
         mu: STORED.mu,
@@ -162,6 +164,7 @@ if (stack === null) {
     const { data: game } = await db
       .from('games')
       .insert({
+        group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: Number(`8${Date.now() % 1_000_000}24`),
         season_id: seasonId,
         started_at: '2026-03-09T19:00:00Z',
@@ -176,6 +179,7 @@ if (stack === null) {
 
     const { error: seatError } = await db.from('game_players').insert(
       SEATS.map((seat) => ({
+        group_id: ORIGINAL_GROUP_ID,
         game_id: gameId,
         player_id: ids.get(seat.puuid) as string,
         side: seat.side,

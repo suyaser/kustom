@@ -1,10 +1,14 @@
 'use client';
 
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type FormEvent, useState } from 'react';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
 import { asSentence, REROLL_FAILED, REROLL_LABEL, REROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { nextRerollSplit } from '@/lib/tonight/state';
 import type { SplitChoice } from '@/lib/tonight/types';
+
+/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
+const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
 
 /**
  * The reroll control on the explanation strip (M3.2's button, M3.4's home for it).
@@ -14,7 +18,7 @@ import type { SplitChoice } from '@/lib/tonight/types';
  * split twice — a no-op — instead of skipping one the group never saw.
  *
  * **The page does not write.** This posts to `/api/admin/lobbies/[lobbyId]/reroll`, which
- * re-checks the Supabase session and `players.is_admin` server-side before anything moves.
+ * re-checks the Supabase session and the group admin membership server-side before anything moves.
  * Being drawn is not permission; a non-admin who forged the markup gets a 403.
  *
  * It is a real `<form>` with a real action, intercepted when JavaScript is running. Submitted
@@ -45,7 +49,7 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ splitId: next.id }),
+        body: JSON.stringify({ groupId: PAGE_GROUP_ID, splitId: next.id }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -68,6 +72,7 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
         <>
           <input type="hidden" name="splitId" value={next.id} />
           {/* Only the form path reads this. The route re-validates it as a path on this site. */}
+          <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
           <input type="hidden" name="redirectTo" value="/" />
         </>
       )}

@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Reveal the next clue. Returns that clue only. Does not return later clues, the
- * answer, or community stats.
+ * answer, or community stats. An optional `group` (M13.4) that is not the challenge's group is
+ * the same 404 as a challenge that does not exist.
  */
 export async function POST(
   request: Request,
@@ -25,6 +26,7 @@ export async function POST(
     challengeId,
     visitorId,
     now: new Date(),
+    groupId: parsed.data.group,
   });
   if ('error' in result) return jsonError(result.status, result.error);
   return withMysteryCookie(jsonOk(mysteryClueResponseSchema, { ok: true, ...result }), visitorId);

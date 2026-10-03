@@ -56,7 +56,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           expires_at?: string
-          group_id?: string
+          group_id: string
           id?: string
           kind: Database["public"]["Enums"]["companion_command_kind"]
           payload?: Json
@@ -124,7 +124,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          group_id?: string
+          group_id: string
           id?: string
           label?: string | null
           last_seen_at?: string | null
@@ -200,7 +200,7 @@ export type Database = {
           expires_at: string
           first_correct_at?: string | null
           game_id: string
-          group_id?: string
+          group_id: string
           hook: Json
           id?: string
           interesting_score: number
@@ -400,7 +400,7 @@ export type Database = {
         Insert: {
           blue_voice_channel_id?: string | null
           created_at?: string
-          group_id?: string
+          group_id: string
           guild_id: string
           lobby_voice_channel_id?: string | null
           red_voice_channel_id?: string | null
@@ -423,14 +423,14 @@ export type Database = {
           {
             foreignKeyName: "discord_config_group_id_fkey"
             columns: ["group_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "groups"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "discord_config_group_id_fkey"
             columns: ["group_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "groups_public"
             referencedColumns: ["id"]
           },
@@ -445,7 +445,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          group_id?: string
+          group_id: string
           id?: number
           reset_at?: string
           reset_by?: string | null
@@ -523,7 +523,7 @@ export type Database = {
           deaths?: number
           game_id: string
           gold?: number
-          group_id?: string
+          group_id: string
           kills?: number
           mu_after?: number | null
           mu_before?: number | null
@@ -611,7 +611,7 @@ export type Database = {
         Insert: {
           created_at?: string
           duration_s: number
-          group_id?: string
+          group_id: string
           id?: string
           lcu_game_id: number
           lobby_id?: string | null
@@ -759,7 +759,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          group_id?: string
+          group_id: string
           id?: string
           lcu_party_id: string
           lobby_name?: string | null
@@ -952,7 +952,7 @@ export type Database = {
         }
         Insert: {
           games?: number
-          group_id?: string
+          group_id: string
           mu: number
           ordinal?: number | null
           player_id: string
@@ -1114,7 +1114,7 @@ export type Database = {
         Insert: {
           attempts?: number
           claimed_at?: string
-          group_id?: string
+          group_id: string
           kind: string
           posted_at?: string | null
           reason?: string | null
@@ -1312,6 +1312,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_group_member_role: {
+        Args: { p_group_id: string; p_player_id: string; p_role: string }
+        Returns: string
       }
       start_season: {
         Args: { p_name: string }

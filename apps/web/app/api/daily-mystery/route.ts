@@ -1,4 +1,4 @@
-import { mysteryPlayViewSchema } from '@customs/db/schemas';
+import { mysteryPlayViewSchema, mysteryTodayQuerySchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { jsonError, jsonOk } from '@/lib/http';
 import { visitorFromRequest, withMysteryCookie } from '@/lib/mystery/request';
@@ -30,15 +30,23 @@ const closedResponseSchema = z.object({
 });
 
 /**
- * Today's Daily Mystery (M5.32). Public fields only: the crime, the suspects, already
- * revealed clues. Never the answer, never community distribution, never unrevealed clues.
+ * Today's Daily Mystery (M5.32) of `?group=<groupId>` (M13.4). Public fields only: the crime, the
+ * suspects, already revealed clues. Never the answer, never community distribution, never
+ * unrevealed clues. No membership: the page it serves is public by link, like every group page.
+ * A group id that names no group is the empty card — it has no games.
  */
 export async function GET(request: Request): Promise<Response> {
+  const query = mysteryTodayQuerySchema.safeParse({
+    group: new URL(request.url).searchParams.get('group') ?? undefined,
+  });
+  if (!query.success) return jsonError(400, 'group is required');
+
   const visitorId = visitorFromRequest(request);
   const state = await loadMysteryPage(getServiceClient(), {
     now: new Date(),
     timeZone: nightTimeZone(),
     visitorId,
+    groupId: query.data.group,
   });
 
   if (state.kind === 'empty') {

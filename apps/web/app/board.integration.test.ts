@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { displayRating, provisionalSeed, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -206,11 +207,43 @@ if (stack === null) {
     // it is what the balancer would still guess for them tonight, and the board ignoring it is
     // the point of the assertions below.
     await db.from('ratings').insert([
-      { player_id: playerIds.zoe, season_id: seasonId, mu: 25.2, sigma: 5, games: 2, wins: 1 },
-      { player_id: playerIds.ali, season_id: seasonId, mu: 22, sigma: 6, games: 2, wins: 1 },
+      {
+        group_id: ORIGINAL_GROUP_ID,
+        player_id: playerIds.zoe,
+        season_id: seasonId,
+        mu: 25.2,
+        sigma: 5,
+        games: 2,
+        wins: 1,
+      },
+      {
+        group_id: ORIGINAL_GROUP_ID,
+        player_id: playerIds.ali,
+        season_id: seasonId,
+        mu: 22,
+        sigma: 6,
+        games: 2,
+        wins: 1,
+      },
       // Where the fold left the window pair after all three of their games.
-      { player_id: playerIds.weekly, season_id: seasonId, mu: 25.8, sigma: 5, games: 3, wins: 2 },
-      { player_id: playerIds.other, season_id: seasonId, mu: 21.3, sigma: 5, games: 3, wins: 1 },
+      {
+        group_id: ORIGINAL_GROUP_ID,
+        player_id: playerIds.weekly,
+        season_id: seasonId,
+        mu: 25.8,
+        sigma: 5,
+        games: 3,
+        wins: 2,
+      },
+      {
+        group_id: ORIGINAL_GROUP_ID,
+        player_id: playerIds.other,
+        season_id: seasonId,
+        mu: 21.3,
+        sigma: 5,
+        games: 3,
+        wins: 1,
+      },
     ]);
 
     const startedAt = Date.now();
@@ -218,7 +251,12 @@ if (stack === null) {
     // blue, so Zoe (side 100) reads `the 58% side` and Ali (side 200) would read `42%`.
     const { data: lobby } = await db
       .from('lobbies')
-      .insert({ lcu_party_id: `it-${runId}-party`, status: 'finished', lobby_name: 'Customs 10 Sep #1' })
+      .insert({
+        group_id: ORIGINAL_GROUP_ID,
+        lcu_party_id: `it-${runId}-party`,
+        status: 'finished',
+        lobby_name: 'Customs 10 Sep #1',
+      })
       .select('id')
       .single();
     lobbyId = lobby?.id ?? '';
@@ -258,6 +296,7 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`8${(startedAt % 1_000_000_00) * 10 + index}`),
           season_id: seasonId,
           started_at: new Date(startedAt - game.minutesAgo * 60_000).toISOString(),
@@ -275,6 +314,7 @@ if (stack === null) {
 
       await db.from('game_players').insert([
         {
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: playerIds.zoe,
           side: 100,
@@ -285,6 +325,7 @@ if (stack === null) {
           sigma_after: 5,
         },
         {
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: playerIds.ali,
           side: 200,
@@ -296,10 +337,17 @@ if (stack === null) {
         },
         // On Zoe's side and never rated: the lineup still prints them, and they still have no
         // games of their own.
-        { game_id: gameId, player_id: playerIds.nameless, side: 100, role: 'jungle' },
+        {
+          group_id: ORIGINAL_GROUP_ID,
+          game_id: gameId,
+          player_id: playerIds.nameless,
+          side: 100,
+          role: 'jungle',
+        },
         // The other seven seats, so this is a game the gate counts. Rated flat at 25, so they
         // move nobody's numbers and appear in no assertion but Zoe's own lineup.
         ...fillerIds.map((id, seat) => ({
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: id,
           side: seat < 3 ? 100 : 200,
@@ -332,6 +380,7 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
+          group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`9${(startedAt % 1_000_000_00) * 10 + index}`),
           season_id: seasonId,
           started_at: game.startedAt,
@@ -346,6 +395,7 @@ if (stack === null) {
 
       await db.from('game_players').insert([
         {
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: playerIds.weekly,
           side: 100,
@@ -356,6 +406,7 @@ if (stack === null) {
           sigma_after: 5,
         },
         {
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: playerIds.other,
           side: 200,
@@ -367,6 +418,7 @@ if (stack === null) {
         },
         // Four each side, so the weekly fold (M7.3) has five and five to hand to core.
         ...weekFillerIds.map((id, seat) => ({
+          group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
           player_id: id,
           side: seat < 4 ? 100 : 200,

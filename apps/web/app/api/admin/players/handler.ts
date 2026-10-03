@@ -43,27 +43,31 @@ function runAction(input: LiveAction, context: AdminContext): Promise<AdminWrite
   switch (input.action) {
     case 'set-name':
       return setPlayerDisplayName(context.client, {
+        groupId: context.groupId,
         playerId: input.playerId,
         displayName: input.displayName,
       });
     case 'set-discord':
       return setPlayerDiscordId(context.client, {
+        groupId: context.groupId,
         playerId: input.playerId,
         discordId: input.discordId,
       });
     case 'set-admin':
-      // The acting player comes from the session, never from the body: that is what makes the
-      // "you cannot demote yourself" rule mean anything.
+      // The member's role in this group (M13.4), the same write as `/api/admin/members/role`:
+      // demoting the group's last admin is a 409, demoting yourself with another admin left is
+      // allowed (that is how a group is handed on).
       return setPlayerAdmin(context.client, {
+        groupId: context.groupId,
         playerId: input.playerId,
         isAdmin: input.isAdmin,
-        actingPlayerId: context.admin.playerId,
       });
     case 'set-backfill':
       // No self-rule here, unlike `set-admin`: approving your own companion is the ordinary
       // case (M5.1's live check is the user approving themselves), and revoking backfill locks
       // nobody out of anything.
       return setPlayerBackfill(context.client, {
+        groupId: context.groupId,
         playerId: input.playerId,
         approved: input.approved,
       });

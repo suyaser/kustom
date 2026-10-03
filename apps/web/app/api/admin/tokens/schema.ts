@@ -1,3 +1,4 @@
+import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import { idSchema, nullableTextSchema } from '@/lib/admin/formValues';
 
@@ -7,10 +8,14 @@ import { idSchema, nullableTextSchema } from '@/lib/admin/formValues';
  * The raw token is in the mint response and nowhere else — `companion_tokens` stores only its
  * SHA-256 hash — so a JSON caller must keep what it is given, and the browser gets the
  * one-time page in `handler.ts`.
+ *
+ * Both variants name their group (M13.4): a mint is for a member of it and posts to it, a revoke
+ * is of one of its tokens. Anything outside it is a 404.
  */
 
 export const mintTokenRequestSchema = z.object({
   action: z.literal('mint'),
+  groupId: groupIdSchema,
   playerId: idSchema,
   /** What this token is for ("bilal's desktop"). Optional. */
   label: nullableTextSchema,
@@ -18,6 +23,7 @@ export const mintTokenRequestSchema = z.object({
 
 export const revokeTokenRequestSchema = z.object({
   action: z.literal('revoke'),
+  groupId: groupIdSchema,
   tokenId: idSchema,
 });
 

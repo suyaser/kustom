@@ -129,7 +129,7 @@ export default async function AdminIndexPage({ searchParams }: { searchParams: P
  *
  * **The route is `/api/me/lobbies/start` since M4.13** — this is the one form on this page whose
  * route is not an admin route, because the press is no longer an admin write. An admin passes
- * its gate with no special case: `players.is_admin` can only be true on a row that is linked.
+ * its gate with no special case: a group admin membership can only belong to a row that is linked.
  *
  * The admin area ships no dress and no client JavaScript beyond `AdminForm`, so this is one
  * button and one sentence: the refusal comes back in the route's own words, and a successful

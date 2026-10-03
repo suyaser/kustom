@@ -1,4 +1,3 @@
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
 import type { WebhookPayload } from './embeds';
 
@@ -41,9 +40,8 @@ export interface WebhookOutcome {
 
 export interface WebhookOptions {
   /**
-   * Whose `discord_config` to post with (M13.3): teams, result and fearless posts go to the
-   * lobby's or game's group. Absent means the original group, which is what the not-yet-scoped
-   * callers (the crons and the admin reset, M13.4) still mean; M13.4 makes it required.
+   * Whose `discord_config` to post with (M13.3). Required by {@link postToWebhook} (M13.4): every
+   * post belongs to exactly one group, and there is no default group to fall back to.
    */
   groupId?: string;
   /** Injected in tests. Defaults to the global `fetch`. */
@@ -145,16 +143,13 @@ async function readRetryAfterMs(response: Response): Promise<number | null> {
 /**
  * The configured webhook URL of one group, or `null`.
  *
- * The group's rows only (M13.3): two groups may share a Discord server with different channels,
- * and one group's channel must never receive another group's teams. Within the group the oldest
- * row with a URL wins: `discord_config` is still keyed by guild until M13.4, and a leftover row
- * from a second guild must not be able to silently take over the posting by being written more
- * recently. `/admin/discord` says so when there is more than one row.
+ * The group's row only (M13.3): two groups may share a Discord server with different channels,
+ * and one group's channel must never receive another group's teams. One row per group since
+ * `0020` (`group_id` is the primary key). The oldest-row-with-a-URL ordering is kept anyway: it is
+ * the row `0020` keeps when it collapses a group's extra rows, and it keeps this read correct on a
+ * database `0020` has not reached yet (the code ships first; see the M13.4 deploy note).
  */
-export async function selectWebhookUrl(
-  client: ServiceClient,
-  groupId: string = ORIGINAL_GROUP_ID,
-): Promise<string | null> {
+export async function selectWebhookUrl(client: ServiceClient, groupId: string): Promise<string | null> {
   const { data, error } = await client
     .from('discord_config')
     .select('webhook_url')
@@ -192,9 +187,9 @@ export async function postToWebhook(
   client: ServiceClient,
   payload: WebhookPayload,
   label: string,
-  options: WebhookOptions = {},
+  options: WebhookOptions & { groupId: string },
 ): Promise<WebhookOutcome> {
-  const groupId = options.groupId ?? ORIGINAL_GROUP_ID;
+  const groupId = options.groupId;
   const url = await selectWebhookUrl(client, groupId);
   if (url === null) {
     if (!warnedAboutMissingWebhook.has(groupId)) {

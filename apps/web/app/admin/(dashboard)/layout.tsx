@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * The gate. Every page in this route group is admin-only, checked here, server-side, against
- * `players.is_admin` — never in the browser and never from anything the request supplied.
+ * the player's admin membership in the page's group (M13.4) — never in the browser and never
+ * from anything the request supplied.
  *
  * The route group `(dashboard)` keeps `/admin/login` out of it while leaving the URLs alone:
  * this layout wraps `/admin`, `/admin/players`, `/admin/tokens`, `/admin/games`,

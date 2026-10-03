@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { STALE_ROSTER } from '@/lib/admin/roll';
@@ -77,6 +78,7 @@ describe('the roll control', () => {
     expect(url).toBe(ACTION);
     expect(init.method).toBe('POST');
     expect(JSON.parse(String(init.body))).toEqual({
+      groupId: ORIGINAL_GROUP_ID,
       rosterKey: lobbyRosterKey(members.map((member) => member.puuid)),
     });
     // Teams up: nothing to say here, the block is about to be replaced by the teams.
@@ -124,6 +126,7 @@ describe('the roll control', () => {
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
     expect(JSON.parse(String(lastCall()[1].body))).toEqual({
+      groupId: ORIGINAL_GROUP_ID,
       rosterKey: lobbyRosterKey(swapped.map((member) => member.puuid)),
     });
   });
