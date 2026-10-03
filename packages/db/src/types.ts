@@ -665,6 +665,42 @@ export type Database = {
           },
         ]
       }
+      group_invites: {
+        Row: {
+          code: string
+          group_id: string
+          rotated_at: string
+          rotated_by: string | null
+        }
+        Insert: {
+          code: string
+          group_id: string
+          rotated_at?: string
+          rotated_by?: string | null
+        }
+        Update: {
+          code?: string
+          group_id?: string
+          rotated_at?: string
+          rotated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_invites_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_invites_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_memberships: {
         Row: {
           backfill_approved_at: string | null
@@ -858,6 +894,69 @@ export type Database = {
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pairing_attempts: {
+        Row: {
+          attempted_at: string
+          id: number
+          ip_hash: string
+        }
+        Insert: {
+          attempted_at?: string
+          id?: never
+          ip_hash: string
+        }
+        Update: {
+          attempted_at?: string
+          id?: never
+          ip_hash?: string
+        }
+        Relationships: []
+      }
+      pairing_codes: {
+        Row: {
+          auth_user_id: string
+          code_hash: string
+          created_at: string
+          discord_id: string
+          expires_at: string
+          group_id: string
+          used_at: string | null
+        }
+        Insert: {
+          auth_user_id: string
+          code_hash: string
+          created_at?: string
+          discord_id: string
+          expires_at: string
+          group_id: string
+          used_at?: string | null
+        }
+        Update: {
+          auth_user_id?: string
+          code_hash?: string
+          created_at?: string
+          discord_id?: string
+          expires_at?: string
+          group_id?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pairing_codes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pairing_codes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
             referencedColumns: ["id"]
           },
         ]
@@ -1295,6 +1394,35 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      create_group: {
+        Args: {
+          p_created_by: string
+          p_name: string
+          p_player_id: string
+          p_slug: string
+        }
+        Returns: {
+          group_id: string
+          outcome: string
+        }[]
+      }
+      new_invite_code: { Args: never; Returns: string }
+      pairing_attempt: {
+        Args: { p_ip_hash: string; p_limit: number; p_window_seconds: number }
+        Returns: boolean
+      }
+      redeem_pairing_code: {
+        Args: { p_code_hash: string; p_puuid: string }
+        Returns: {
+          group_id: string
+          linked_name: string
+          outcome: string
+        }[]
+      }
+      rotate_group_invite: {
+        Args: { p_group_id: string; p_rotated_by: string }
+        Returns: string
       }
       set_active_season: {
         Args: { p_id: string }
