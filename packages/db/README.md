@@ -155,6 +155,12 @@ nothing is deleted: the closed row keeps its frozen members and its `games` link
 
 ## What 0004_backfill_approval.sql adds (M5.1)
 
+> **Retired 2026-10-03.** Backfill has no approval step any more (`docs/04-decisions.md`): the scan
+> answers every member with `{ approved: true, unknown: [...] }` and nothing reads or writes these
+> columns, nor their copies on `group_memberships` (`0018`). They stay in the schema until a
+> cleanup migration drops them together with `players.is_admin`. The rest of this section is
+> history.
+
 Two columns on `players`, and nothing else:
 
 ```sql

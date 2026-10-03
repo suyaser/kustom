@@ -399,7 +399,7 @@ describe('companionMeResponseSchema', () => {
 });
 
 describe('companionBackfillScan schemas (M5.1)', () => {
-  it('takes 1 to 100 positive game ids and answers approved plus the unknown subset', () => {
+  it('takes 1 to 100 positive game ids and answers the unknown subset, always approved', () => {
     expect(companionBackfillScanRequestSchema.parse({ gameIds: [4000769615] }).gameIds).toEqual([4000769615]);
     expect(companionBackfillScanRequestSchema.safeParse({ gameIds: [] }).success).toBe(false);
     expect(companionBackfillScanRequestSchema.safeParse({ gameIds: [0] }).success).toBe(false);
@@ -414,9 +414,11 @@ describe('companionBackfillScan schemas (M5.1)', () => {
       unknown: [4000769615],
     });
     expect(answer).toEqual({ ok: true, approved: true, unknown: [4000769615] });
+    // Backfill has no approval step (2026-10-03): `approved` is always true, kept for shipped
+    // companions, and a false is a body the server can no longer send.
     expect(
-      companionBackfillScanResponseSchema.parse({ ok: true, approved: false, unknown: [] }).unknown,
-    ).toEqual([]);
+      companionBackfillScanResponseSchema.safeParse({ ok: true, approved: false, unknown: [] }).success,
+    ).toBe(false);
     // The error envelope is never this shape.
     expect(companionBackfillScanResponseSchema.safeParse({ ok: false, error: 'no' }).success).toBe(false);
   });

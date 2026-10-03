@@ -74,9 +74,15 @@ describe('the page has no role control left (M5.17)', () => {
     }
   });
 
-  it('leaves the four controls that are still an admin’s to press', () => {
-    for (const action of ['set-name', 'set-discord', 'set-admin', 'set-backfill']) {
+  it('leaves the three controls that are still an admin’s to press', () => {
+    for (const action of ['set-name', 'set-discord', 'set-admin']) {
       expect([action, page.includes(`value="${action}"`)]).toEqual([action, true]);
+    }
+  });
+
+  it('has no backfill control left: backfill is on for every member (2026-10-03)', () => {
+    for (const gone of ['set-backfill', 'backfillApprovedAt', 'backfillRequestedAt', 'Revoke']) {
+      expect([gone, page.includes(gone)]).toEqual([gone, false]);
     }
   });
 

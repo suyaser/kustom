@@ -12,8 +12,10 @@ import { eogBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * Backfill's server half (M5.1) against the Supabase CLI local stack: the scan route, the game
- * route's two `source: 'backfill'` turns, and the admin toggle that gates the whole thing.
+ * Backfill's server half (M5.1) against the Supabase CLI local stack: the scan route and the game
+ * route's two `source: 'backfill'` turns. There is no approval step any more
+ * (`04-decisions.md`, 2026-10-03): every member's scan is answered, and the admin action that
+ * used to gate it is retired with a 410.
  *
  * The contract being checked is the doc comment on `companionBackfillScanRequestSchema` in
  * `packages/db/src/schemas/companionResponses.ts`, which the companion half implements against.
@@ -43,7 +45,7 @@ if (stack === null) {
   const { POST: postScan } = await import('./scan/route');
   const { POST: postGame } = await import('../game/route');
   const { POST: postLobby } = await import('../lobby/route');
-  const { handleAdminPlayers } = await import('../../admin/players/handler');
+  const { handleAdminPlayers, BACKFILL_IS_ALWAYS_ON } = await import('../../admin/players/handler');
   const { adminPlayersRequestSchema } = await import('../../admin/players/schema');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
@@ -149,7 +151,7 @@ if (stack === null) {
     });
   }
 
-  /** The same action as an HTML form, which is how an admin actually presses Allow. */
+  /** The same action as an HTML form: what a tab left open from before the deploy still posts. */
   function adminForm(body: Record<string, string>): Request {
     return new Request('http://localhost/api/admin/players', {
       method: 'POST',
@@ -158,20 +160,19 @@ if (stack === null) {
     });
   }
 
-  async function setApproval(approved: boolean): Promise<Response> {
-    return adminRoute(adminPost({ action: 'set-backfill', playerId: ownerPlayerId, approved }));
-  }
-
-  /** The owner's approval in the token's group: the membership row, not `players` (M13.3). */
-  async function readApproval(): Promise<{ requested: string | null; approved: string | null }> {
+  /**
+   * The owner's membership row, whole. The two retired M5.1 columns are still in the schema and
+   * must stay exactly as they are: nothing reads or writes them any more.
+   */
+  async function readMembership(): Promise<unknown> {
     const { data, error } = await db
       .from('group_memberships')
-      .select('backfill_requested_at, backfill_approved_at')
+      .select('*')
       .eq('group_id', ORIGINAL_GROUP_ID)
       .eq('player_id', ownerPlayerId)
       .single();
     if (error) throw new Error(error.message);
-    return { requested: data.backfill_requested_at, approved: data.backfill_approved_at };
+    return data;
   }
 
   /** The ten `players` rows, whole and ordered: what a backfill post must not rewrite. */
@@ -230,24 +231,23 @@ if (stack === null) {
   });
 
   describe('POST /api/companion/backfill/scan', () => {
-    it('answers approved false with an empty unknown, and sets backfill_requested_at once', async () => {
-      const before = await readApproval();
-      expect(before.requested).toBeNull();
-      expect(before.approved).toBeNull();
+    it('answers a member who was never approved, and writes nothing to the membership', async () => {
+      const before = (await readMembership()) as {
+        backfill_requested_at: string | null;
+        backfill_approved_at: string | null;
+      };
+      // The case M5.1 refused: nobody ever pressed Allow for this player.
+      expect(before.backfill_requested_at).toBeNull();
+      expect(before.backfill_approved_at).toBeNull();
 
       const first = await postScan(post({ gameIds: [scanUnknownGameId] }, ownerToken));
       expect(first.status).toBe(200);
-      expect(await first.json()).toEqual({ ok: true, approved: false, unknown: [] });
+      expect(await first.json()).toEqual({ ok: true, approved: true, unknown: [scanUnknownGameId] });
 
-      const asked = await readApproval();
-      expect(asked.requested).not.toBeNull();
-
-      // A second scan does not move it: the admin page keeps saying when the friend's PC first
-      // came looking, not "a minute ago" forever.
+      // The same scan twice is the same answer, and the membership row never moves.
       const second = await postScan(post({ gameIds: [scanUnknownGameId] }, ownerToken));
-      expect(second.status).toBe(200);
-      expect(await second.json()).toEqual({ ok: true, approved: false, unknown: [] });
-      expect((await readApproval()).requested).toBe(asked.requested);
+      expect(await second.json()).toEqual({ ok: true, approved: true, unknown: [scanUnknownGameId] });
+      expect(await readMembership()).toEqual(before);
     });
 
     it('refuses a bad batch and an anonymous caller before it reads anything', async () => {
@@ -259,15 +259,7 @@ if (stack === null) {
       expect((await postScan(post({ gameIds: [scanUnknownGameId] }, null))).status).toBe(401);
     });
 
-    it('once approved, answers with only the ids we do not already have', async () => {
-      // The admin toggle, through the real route with a form post: `Allow`.
-      const allowed = await adminRoute(
-        adminForm({ action: 'set-backfill', playerId: ownerPlayerId, approved: 'true' }),
-      );
-      expect(allowed.status).toBe(303);
-      expect(allowed.headers.get('location')).toContain('notice=');
-      expect((await readApproval()).approved).not.toBeNull();
-
+    it('answers with only the ids we do not already have', async () => {
       // One game the database already has, from an ordinary end-of-game post.
       const stored = await postGame(
         post(eogBody({ gameId: scanKnownGameId, puuids, partyId: null }), ownerToken),
@@ -286,27 +278,33 @@ if (stack === null) {
         unknown: [scanKnownGameId, scanUnknownGameId],
       });
     });
+  });
 
-    it('answers approved false again after Revoke, and never moves the request date', async () => {
-      const asked = await readApproval();
+  describe('the retired admin action', () => {
+    it('set-backfill answers 410 with a sentence, as JSON or a stale form, and changes nothing', async () => {
+      const before = await readMembership();
 
-      const revoked = await setApproval(false);
-      expect(revoked.status).toBe(200);
-      expect(await revoked.json()).toEqual({
-        ok: true,
-        action: 'set-backfill',
-        playerId: ownerPlayerId,
-      });
+      for (const approved of [true, false]) {
+        const response = await adminRoute(
+          adminPost({ action: 'set-backfill', playerId: ownerPlayerId, approved }),
+        );
+        expect(response.status).toBe(410);
+        expect(await response.json()).toEqual({ ok: false, error: BACKFILL_IS_ALWAYS_ON });
+      }
+      // The old Revoke button's form, from a tab open since before the deploy: the usual 303
+      // back to the page, carrying the sentence rather than a notice.
+      const form = await adminRoute(
+        adminForm({ action: 'set-backfill', playerId: ownerPlayerId, approved: 'false' }),
+      );
+      expect(form.status).toBe(303);
+      expect(form.headers.get('location')).toContain('error=');
+      expect(form.headers.get('location')).not.toContain('notice=');
 
-      const response = await postScan(post({ gameIds: [scanUnknownGameId] }, ownerToken));
-      expect(await response.json()).toEqual({ ok: true, approved: false, unknown: [] });
+      expect(await readMembership()).toEqual(before);
 
-      const after = await readApproval();
-      expect(after.approved).toBeNull();
-      expect(after.requested).toBe(asked.requested);
-
-      // Back on for the game tests below.
-      expect((await setApproval(true)).status).toBe(200);
+      // And the scan still answers.
+      const scan = await postScan(post({ gameIds: [scanUnknownGameId] }, ownerToken));
+      expect(await scan.json()).toEqual({ ok: true, approved: true, unknown: [scanUnknownGameId] });
     });
   });
 

@@ -77,8 +77,8 @@ function fearlessNotice(body: unknown): string {
 function playersNotice(values: SubmittedValues): string {
   const cleared = (value: string | undefined): boolean => (value ?? '').trim().length === 0;
 
-  // No `set-roles` (M5.17): that action answers 410 and the page prints the route's own
-  // sentence, the way every refusal on this page does.
+  // No `set-roles` (M5.17) or `set-backfill` (2026-10-03): those answer 410 and the page
+  // prints the route's own sentence, the way every refusal on this page does.
   switch (values.action) {
     case 'set-name':
       return cleared(values.displayName)
@@ -88,10 +88,6 @@ function playersNotice(values: SubmittedValues): string {
       return cleared(values.discordId) ? 'Discord id cleared' : 'Discord id linked';
     case 'set-admin':
       return values.isAdmin === 'true' ? 'admin granted' : 'admin removed';
-    case 'set-backfill':
-      return values.approved === 'true'
-        ? 'backfill allowed. Backfilled games are not rated until the ratings are rebuilt.'
-        : 'backfill revoked';
     default:
       return 'saved';
   }

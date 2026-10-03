@@ -66,9 +66,9 @@ export const dynamic = 'force-dynamic';
  * and it takes three turns off this path: the participant check has no lobby fallback, the game
  * is linked to no lobby, and the rating fold does not run — the answer says
  * `{ rated: false, reason: 'backfill' }` and `pnpm --filter web rebuild-ratings` (M5.2) is what
- * turns a batch into ratings. Nothing is posted to Discord for one. Whether a companion may
- * send them at all is `POST /api/companion/backfill/scan` and the token's
- * `group_memberships.backfill_approved_at` (M13.3).
+ * turns a batch into ratings. Nothing is posted to Discord for one. There is no approval step:
+ * every member's companion may send them (`04-decisions.md`, 2026-10-03, reversing M5.1's
+ * gate), and the participant check is what limits a token to games its player played.
  *
  * **Groups (M13.3).** The group is the token's. A game already stored anywhere is the usual
  * no-op, and from another group's token it writes nothing, rates nothing and moves no lobby. A

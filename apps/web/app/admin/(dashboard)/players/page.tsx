@@ -17,7 +17,6 @@ import { AdminForm } from '../../_components/AdminForm';
 import {
   Card,
   Empty,
-  formatDay,
   InferredRoles,
   Notices,
   PageHeader,
@@ -34,8 +33,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * Every player, with the four things only an admin can change: the name the group uses, the
- * Discord link, the admin flag and backfill approval (M5.1).
+ * Every player, with the three things only an admin can change: the name the group uses, the
+ * Discord link and the admin flag. Backfill approval (M5.1) is gone: every member's companion
+ * sends its match history with no admin step (`04-decisions.md`, 2026-10-03), so there is no
+ * column for it.
  *
  * **Roles are not one of them any more** (M5.17). The column is still here and it is the only
  * read-only one: the pair is inferred from the games that player has actually played, and the
@@ -64,12 +65,6 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
           a PUUID shows up in a lobby, a game or a rank report — there is no "add player". A name follows the
           Riot ID until you set one here; clear the field to put it back on automatic. Roles are worked out
           from the games each player has played and cannot be set by hand.
-        </p>
-        {/* Product's copy, verbatim (M5.1): the decision an admin is being asked to make is
-            "whose PC is this", and nothing else on this page says it. */}
-        <p className="admin-muted">
-          Backfill lets a player&apos;s companion send past customs from their client&apos;s match history.
-          Turn it on once you know whose PC it is.
         </p>
       </PageHeader>
 
@@ -102,7 +97,6 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
                   <th>Roles</th>
                   <th>Discord</th>
                   <th>Admin</th>
-                  <th>Backfill</th>
                 </tr>
               </thead>
               <tbody>
@@ -123,7 +117,7 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
 /**
  * The search box. A plain `GET` form: searching and paging are **reads**, so they navigate and
  * leave a URL an admin can bookmark or send to someone. M3.20's in-place rule is about the
- * writes on this page — the name field, the Discord field, the admin flag, backfill — and every
+ * writes on this page — the name field, the Discord field, the admin flag — and every
  * one of those still posts through `AdminForm` and changes nothing about the URL.
  *
  * Dropping `page` on submit is deliberate: a new search starts at its own first page.
@@ -260,39 +254,8 @@ function PlayerRow({ player, actingPlayerId }: { player: AdminPlayerRow; actingP
           </button>
         </AdminForm>
       </td>
-      <td>
-        {/* Three states in one cell, then the one control (M5.1). `asked` is the companion
-            having knocked at `/api/companion/backfill/scan` and been told no — the marker is
-            there so an admin knows somebody is waiting rather than having to be asked. */}
-        <AdminForm action="/api/admin/players" kind="players">
-          <input type="hidden" name="action" value="set-backfill" />
-          <input type="hidden" name="playerId" value={player.id} />
-          <input
-            type="hidden"
-            name="approved"
-            value={player.backfillApprovedAt === null ? 'true' : 'false'}
-          />
-          <Status
-            tone={
-              player.backfillApprovedAt !== null ? 'on' : player.backfillRequestedAt !== null ? 'live' : 'off'
-            }
-          >
-            {formatBackfill(player)}
-          </Status>
-          <button type="submit" className={player.backfillApprovedAt === null ? undefined : 'admin-danger'}>
-            {player.backfillApprovedAt === null ? 'Allow' : 'Revoke'}
-          </button>
-        </AdminForm>
-      </td>
     </tr>
   );
-}
-
-/** `off` / `asked <date>` / `on since <date>`, exactly the three states the brief names. */
-function formatBackfill(player: AdminPlayerRow): string {
-  if (player.backfillApprovedAt !== null) return `on since ${formatDay(player.backfillApprovedAt)}`;
-  if (player.backfillRequestedAt !== null) return `asked ${formatDay(player.backfillRequestedAt)}`;
-  return 'off';
 }
 
 function formatRank(player: AdminPlayerRow): string {

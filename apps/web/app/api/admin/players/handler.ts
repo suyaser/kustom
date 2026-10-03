@@ -1,10 +1,5 @@
 import type { NextResponse } from 'next/server';
-import {
-  setPlayerAdmin,
-  setPlayerBackfill,
-  setPlayerDiscordId,
-  setPlayerDisplayName,
-} from '@/lib/admin/players';
+import { setPlayerAdmin, setPlayerDiscordId, setPlayerDisplayName } from '@/lib/admin/players';
 import type { AdminWriteResult } from '@/lib/admin/result';
 import type { AdminContext } from '@/lib/adminRoute';
 import { type AdminPlayersRequest, adminPlayersResponseSchema } from './schema';
@@ -13,8 +8,15 @@ import { type AdminPlayersRequest, adminPlayersResponseSchema } from './schema';
 export const ROLES_ARE_INFERRED =
   'Roles are worked out from the games people play, so there is nothing to set here. Reload the page to see the current pair.';
 
-/** Everything the route still does. `set-roles` is refused before this type is ever reached. */
-type LiveAction = Exclude<AdminPlayersRequest, { action: 'set-roles' }>;
+/**
+ * The refusal for `set-backfill`, retired when backfill approval was (`04-decisions.md`,
+ * 2026-10-03): the same stale-tab reader as `ROLES_ARE_INFERRED`, told what replaced it.
+ */
+export const BACKFILL_IS_ALWAYS_ON =
+  'Backfill is on for every member now, so there is nothing to allow or revoke. Reload the page.';
+
+/** Everything the route still does. The retired actions are refused before this type is reached. */
+type LiveAction = Exclude<AdminPlayersRequest, { action: 'set-roles' | 'set-backfill' }>;
 
 /**
  * Separate from `route.ts` because a Next route file may only export HTTP verbs, and the
@@ -28,6 +30,7 @@ export async function handleAdminPlayers(
   // 410 rather than 404 or a silent success: the action existed, it is gone, and the sentence
   // says what replaced it (M5.17).
   if (input.action === 'set-roles') return context.fail(410, ROLES_ARE_INFERRED);
+  if (input.action === 'set-backfill') return context.fail(410, BACKFILL_IS_ALWAYS_ON);
 
   const result = await runAction(input, context);
   if (!result.ok) return context.fail(result.status, result.error);
@@ -62,15 +65,6 @@ function runAction(input: LiveAction, context: AdminContext): Promise<AdminWrite
         playerId: input.playerId,
         isAdmin: input.isAdmin,
       });
-    case 'set-backfill':
-      // No self-rule here, unlike `set-admin`: approving your own companion is the ordinary
-      // case (M5.1's live check is the user approving themselves), and revoking backfill locks
-      // nobody out of anything.
-      return setPlayerBackfill(context.client, {
-        groupId: context.groupId,
-        playerId: input.playerId,
-        approved: input.approved,
-      });
   }
 }
 
@@ -86,11 +80,5 @@ function noticeFor(input: LiveAction): string {
       return input.discordId === null ? 'Discord id cleared' : 'Discord id linked';
     case 'set-admin':
       return input.isAdmin ? 'admin granted' : 'admin removed';
-    case 'set-backfill':
-      // The second sentence is the whole reason M5.1 and M5.2 ship together: an admin who
-      // approves someone and then looks at the leaderboard must not think backfill is broken.
-      return input.approved
-        ? 'backfill allowed. Backfilled games are not rated until the ratings are rebuilt.'
-        : 'backfill revoked';
   }
 }

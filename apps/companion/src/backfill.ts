@@ -13,8 +13,9 @@
  *   the steady state starts at 0 and stops at the first page whose customs are all already known. A short or
  *   empty page is the end, and the deepest `begIndex` reached is logged for M5.6.
  * - **The scan.** `POST /api/companion/backfill/scan`; the contract, in full, is the doc comment on
- *   `companionBackfillScanResponseSchema` in `@customs/db/schemas`. Not approved is one plain sentence and a
- *   stop; the next pass asks again. Ids the server already has a draft-ban list for go into the local cache
+ *   `companionBackfillScanResponseSchema` in `@customs/db/schemas`. There is no approval step: every scan is
+ *   answered (2026-10-03). A 403 means the token's player is no longer in its group: one plain sentence and
+ *   a stop until the next 6 h pass. Ids the server already has a draft-ban list for go into the local cache
  *   and are not scanned again. A live eog row has no list, so the server still asks for a detail. Version 2
  *   of this cache forgets the old "we have the id" set so last night's Yi/Zac get asked about once.
  * - **Details.** `GET /lol-match-history/v1/games/{gameId}` for the unknown ids, at most 20 per pass, one at a
@@ -85,9 +86,13 @@ export const RETRY_INTERVAL_MS = 10 * 60 * 1000;
 export const IDLE_PHASES: readonly string[] = ['None', 'Lobby'];
 export const GAME_COMPLETE = 'GameComplete';
 
-/** The one sentence for "not approved yet". Once per pass, never more. */
-export const NOT_APPROVED_MESSAGE =
-  'Backfill is waiting for an admin to approve it on the admin page (/admin/players). Nothing was sent.';
+/**
+ * The one sentence for a scan the server refused (HTTP 403): the token is real, but its player is no longer a
+ * member of the token's group. Once per pass, never more. Backfill has no approval step (2026-10-03), so this is
+ * the only refusal the scan has.
+ */
+export const SCAN_REFUSED_MESSAGE =
+  "Backfill was refused: this token's player is no longer a member of its group. Nothing was sent.";
 
 export const backfillCacheSchema = z.object({
   version: z.literal(BACKFILL_CACHE_VERSION),
@@ -184,8 +189,8 @@ export type PassEnd =
   | 'more'
   /** The client stopped being idle mid-pass. */
   | 'paused'
-  /** The server said no; back in `intervalMs`. */
-  | 'not_approved'
+  /** The server refused the token (403); back in `intervalMs`. */
+  | 'refused'
   /** The scan call failed; back in `retryIntervalMs`. */
   | 'scan_failed'
   /** No client, or no local player. */
@@ -379,9 +384,7 @@ export class Backfill {
       .then((result) => {
         this.history.push(result);
         this.running = null;
-        this.arm(
-          result.end === 'done' || result.end === 'not_approved' ? this.intervalMs : this.retryIntervalMs,
-        );
+        this.arm(result.end === 'done' || result.end === 'refused' ? this.intervalMs : this.retryIntervalMs);
         return result;
       });
     this.running = run;
@@ -437,9 +440,9 @@ export class Backfill {
       const unscanned = candidates.slice(MAX_SCANNED_PER_PASS);
       const scan = await this.scan(toScan, known);
       counts.scanned = scan.scanned;
-      if (scan.outcome === 'not_approved') {
-        this.logger.warn(NOT_APPROVED_MESSAGE);
-        end = 'not_approved';
+      if (scan.outcome === 'refused') {
+        this.logger.warn(SCAN_REFUSED_MESSAGE);
+        end = 'refused';
       } else if (scan.outcome === 'failed') {
         end = 'scan_failed';
       } else {
@@ -667,7 +670,7 @@ export class Backfill {
   private async scan(
     ids: readonly number[],
     known: Set<number>,
-  ): Promise<{ outcome: 'ok' | 'not_approved' | 'failed'; unknown: number[]; scanned: number }> {
+  ): Promise<{ outcome: 'ok' | 'refused' | 'failed'; unknown: number[]; scanned: number }> {
     const unknown: number[] = [];
     let scanned = 0;
     for (let start = 0; start < ids.length; start += SCAN_BATCH_SIZE) {
@@ -686,7 +689,7 @@ export class Backfill {
       );
       if (!result.ok) {
         if (result.reason === 'http' && result.status === 403) {
-          return { outcome: 'not_approved', unknown, scanned };
+          return { outcome: 'refused', unknown, scanned };
         }
         this.logger.warn('backfill scan failed; trying again later', {
           gameIds: batch.length,
@@ -694,10 +697,8 @@ export class Backfill {
         });
         return { outcome: 'failed', unknown, scanned };
       }
+      // `approved` is always true (the schema is a literal): there is nothing to branch on.
       scanned += batch.length;
-      if (!result.data.approved) {
-        return { outcome: 'not_approved', unknown, scanned };
-      }
       const unknownSet = new Set(result.data.unknown);
       for (const id of batch) {
         if (unknownSet.has(id)) {

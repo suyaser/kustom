@@ -151,16 +151,18 @@ export const BACKFILL_SCAN_BATCH_SIZE = 100;
  *
  * Request: `{ gameIds: number[] }`, 1 to 100 positive integer `lcu_game_id`s, companion bearer token.
  *
- * Answer, 2xx: `{ ok: true, approved, unknown }`.
- * - `approved: true`: `unknown` is the subset of `gameIds` with no `games` row, in any order. The
- *   companion fetches a match detail for each and posts it; the others go into its local cache and are
- *   never asked about again.
- * - `approved: false`: `unknown` is always `[]`, the route sets `players.backfill_requested_at` once
- *   (a second scan does not move it), and the companion logs one sentence and stops until its next pass.
+ * Answer, 2xx: `{ ok: true, approved: true, unknown }`. `unknown` is the subset of `gameIds` the server
+ * still wants a detail for, in any order. The companion fetches a match detail for each and posts it; the
+ * others go into its local cache and are never asked about again.
  *
- * Not approved is **either** `approved: false` **or** an HTTP 403. Any other non-2xx, a network error, or
- * a 2xx body that does not match this schema is "the scan failed": one log line and the pass comes back in
- * ten minutes with the same ids. A 404 while the route is not deployed is therefore a wait, never a refusal.
+ * **There is no approval step** (`04-decisions.md`, 2026-10-03, reversing M5.1's gate): every member's
+ * companion gets the answer. `approved` is always `true` and stays on the wire only because companions
+ * already shipped require it; it is a literal here so nothing new can branch on a false.
+ *
+ * An HTTP 403 is the auth step refusing the token (its player is not a member of its group): the companion
+ * logs one line and comes back on its long interval. Any other non-2xx, a network error, or a 2xx body that
+ * does not match this schema is "the scan failed": one log line and the pass comes back in ten minutes with
+ * the same ids. A 404 while the route is not deployed is therefore a wait, never a refusal.
  *
  * The games themselves go to the existing `POST /api/companion/game` as the unchanged `phase: 'eog'` body
  * with `source: 'backfill'`, **no `partyId` key** and `role: null` on every participant
@@ -177,7 +179,7 @@ export const companionBackfillScanRequestSchema = z.object({
 
 export const companionBackfillScanResponseSchema = z.object({
   ok: z.literal(true),
-  approved: z.boolean(),
+  approved: z.literal(true),
   unknown: z.array(z.number().int().positive()),
 });
 

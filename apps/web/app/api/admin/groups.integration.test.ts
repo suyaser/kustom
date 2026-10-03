@@ -269,13 +269,9 @@ if (stack === null) {
         const answer = await run();
         expect([answer.status, answer.json.error]).toEqual([404, NO_SUCH_MEMBER]);
       }
-      for (const action of ['set-discord', 'set-admin', 'set-backfill'] as const) {
-        const extra =
-          action === 'set-discord'
-            ? { discordId: '1' }
-            : action === 'set-admin'
-              ? { isAdmin: true }
-              : { approved: true };
+      // `set-backfill` is retired (2026-10-03) and answers 410 before it looks at the player.
+      for (const action of ['set-discord', 'set-admin'] as const) {
+        const extra = action === 'set-discord' ? { discordId: '1' } : { isAdmin: true };
         const answer = await call(
           withAdminAuth(adminPlayersRequestSchema, handleAdminPlayers, as(discord.hana)),
           {

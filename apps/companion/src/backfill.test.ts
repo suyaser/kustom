@@ -2,7 +2,9 @@
  * Backfill against the fake League client (list pages and details from the 16.17 fixtures) and the fake API
  * (the scan route and the game route), with the game watcher's real queue in a temp directory as the sink.
  * The numbered comments are the acceptance checks of the M5.1 brief in `docs/02-milestones.md`; the ones
- * that need a database (3's `backfill_requested_at`, 5, 6, 7, 9) are the server half's.
+ * that need a database (5, 6, 7, 9) are the server half's. Check 3 (approval) is gone: backfill has no approval
+ * step since 2026-10-03, so a scan is answered or refused (403, the token's player left its group), never "not
+ * approved".
  */
 
 import {
@@ -38,7 +40,7 @@ import {
   type BackfillOptions,
   backfillCachePath,
   backfillCacheSchema,
-  NOT_APPROVED_MESSAGE,
+  SCAN_REFUSED_MESSAGE,
 } from './backfill.js';
 import type { ConnectedContext } from './connection.js';
 import { GAME_API_PATH, GameWatcher } from './gameWatcher.js';
@@ -137,10 +139,11 @@ const scanOk = (unknown: readonly number[]): FakeApiResponse => ({
   status: 200,
   body: { ok: true, approved: true, unknown },
 });
-const scanNotApproved: FakeApiResponse = { status: 200, body: { ok: true, approved: false, unknown: [] } };
+/** What a server from before 2026-10-03 could still answer. The schema is `approved: true` now. */
+const scanApprovedFalse: FakeApiResponse = { status: 200, body: { ok: true, approved: false, unknown: [] } };
 const scanForbidden: FakeApiResponse = {
   status: 403,
-  body: { ok: false, error: 'backfill is not approved for this player' },
+  body: { ok: false, error: 'this token is not a member of its group' },
 };
 
 interface ScanPost {
@@ -634,33 +637,35 @@ describe('Backfill: the walk', () => {
   });
 });
 
-describe('Backfill: approval', () => {
-  it('approved false: nothing fetched, nothing posted, exactly one sentence, back in 6 h (check 3)', async () => {
-    const h = await setup({ scanResponses: [scanNotApproved] });
+describe('Backfill: the scan answer', () => {
+  it('there is no "not approved" state: approved false is a body that does not parse, so a failed scan (10 min)', async () => {
+    const h = await setup({ scanResponses: [scanApprovedFalse] });
     await pass(h);
     expect(h.scans()).toHaveLength(1);
     expect(h.detailGets()).toHaveLength(0);
     expect(h.gamePosts()).toHaveLength(0);
     expect(h.files()).toEqual([]);
-    expect(h.warnings()).toEqual([NOT_APPROVED_MESSAGE]);
-    expect(h.backfill.passes[0]).toMatchObject({ end: 'not_approved', pending: 16 });
-    expect(h.backfill.scheduledDelayMs).toBe(6 * 60 * 60 * 1000);
-    // Nothing became "known": the next pass asks again, once.
+    expect(h.warnings()).toEqual(['backfill scan failed; trying again later']);
+    expect(h.warnings().some((line) => /approv/i.test(line))).toBe(false);
+    expect(h.backfill.passes[0]).toMatchObject({ end: 'scan_failed', pending: 16 });
+    expect(h.backfill.scheduledDelayMs).toBe(10 * 60 * 1000);
+    // Nothing became "known": the next pass asks again.
     expect(h.backfill.cache().knownGameIds).toEqual([ABORTED]);
-    await pass(h);
-    expect(h.scans()).toHaveLength(2);
-    expect(h.warnings()).toEqual([NOT_APPROVED_MESSAGE, NOT_APPROVED_MESSAGE]);
   });
 
-  it('a 403 from the scan is the same: one sentence, stop, retry on the next interval', async () => {
+  it('a 403 (the token is no longer a member of its group) is one sentence, stop, retry in 6 h', async () => {
     const h = await setup({ scanResponses: [scanForbidden] });
     await pass(h);
     expect(h.detailGets()).toHaveLength(0);
     expect(h.gamePosts()).toHaveLength(0);
-    expect(h.warnings()).toEqual([NOT_APPROVED_MESSAGE]);
+    expect(h.warnings()).toEqual([SCAN_REFUSED_MESSAGE]);
     expect(h.logger.lines.filter((line) => line.level === 'error')).toHaveLength(0);
-    expect(h.backfill.passes[0]?.end).toBe('not_approved');
+    expect(h.backfill.passes[0]).toMatchObject({ end: 'refused', pending: 16 });
     expect(h.backfill.scheduledDelayMs).toBe(6 * 60 * 60 * 1000);
+    expect(h.backfill.cache().knownGameIds).toEqual([ABORTED]);
+    await pass(h);
+    expect(h.scans()).toHaveLength(2);
+    expect(h.warnings()).toEqual([SCAN_REFUSED_MESSAGE, SCAN_REFUSED_MESSAGE]);
   });
 
   it('the API being down is one line and a retry in 10 min; the ids wait in the cache', async () => {

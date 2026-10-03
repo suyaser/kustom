@@ -487,27 +487,10 @@ if (stack === null) {
   // ---------------------------------------------------------------------------
 
   describe('backfill (acceptance 5)', () => {
-    it("reads approval from the token's membership, not from players", async () => {
-      await db.from('players').update({ backfill_approved_at: new Date().toISOString() }).eq('id', id(hostC));
-      const notYet = await postScan(companion('backfill/scan', tokens.c, { gameIds: [1] }));
-      expect(await notYet.json()).toEqual({ ok: true, approved: false, unknown: [] });
-      const { data: asked } = await db
-        .from('group_memberships')
-        .select('backfill_requested_at')
-        .eq('group_id', groupIds.c)
-        .eq('player_id', id(hostC))
-        .single();
-      expect(asked?.backfill_requested_at).not.toBeNull();
-
-      await db.from('players').update({ backfill_approved_at: null }).eq('id', id(hostC));
-      await db
-        .from('group_memberships')
-        .update({ backfill_approved_at: new Date().toISOString() })
-        .eq('group_id', groupIds.c)
-        .eq('player_id', id(hostC));
+    it("the scan answers group C's member with no approval step", async () => {
       const gameId = gameNumber();
-      const approved = await postScan(companion('backfill/scan', tokens.c, { gameIds: [gameId] }));
-      expect(await approved.json()).toEqual({ ok: true, approved: true, unknown: [gameId] });
+      const scan = await postScan(companion('backfill/scan', tokens.c, { gameIds: [gameId] }));
+      expect(await scan.json()).toEqual({ ok: true, approved: true, unknown: [gameId] });
     });
 
     function backfillBody(gameId: number): Record<string, unknown> {

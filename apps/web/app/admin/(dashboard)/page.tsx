@@ -105,8 +105,8 @@ export default async function AdminIndexPage({ searchParams }: { searchParams: P
         <Card title="Pages" wide>
           <ul className="admin-destinations">
             <li>
-              <Link href="/admin/players">Players</Link> — names, Discord links, admin flags, backfill
-              approval. Roles are read-only: they are worked out from the games people play
+              <Link href="/admin/players">Players</Link> — names, Discord links, admin flags. Roles are
+              read-only: they are worked out from the games people play
             </li>
             <li>
               <Link href="/admin/tokens">Companion tokens</Link> — mint and revoke

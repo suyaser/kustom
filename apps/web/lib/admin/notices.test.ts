@@ -58,15 +58,11 @@ describe('players', () => {
     );
   });
 
-  it('covers the Discord link, the admin flag and backfill', () => {
+  it('covers the Discord link and the admin flag', () => {
     expect(notice({ action: 'set-discord', discordId: '123' })).toBe('Discord id linked');
     expect(notice({ action: 'set-discord', discordId: '' })).toBe('Discord id cleared');
     expect(notice({ action: 'set-admin', isAdmin: 'true' })).toBe('admin granted');
     expect(notice({ action: 'set-admin', isAdmin: 'false' })).toBe('admin removed');
-    expect(notice({ action: 'set-backfill', approved: 'true' })).toBe(
-      'backfill allowed. Backfilled games are not rated until the ratings are rebuilt.',
-    );
-    expect(notice({ action: 'set-backfill', approved: 'false' })).toBe('backfill revoked');
   });
 
   it('says the same words the route says', () => {
@@ -77,8 +73,6 @@ describe('players', () => {
       'Discord id linked',
       'admin granted',
       'admin removed',
-      'backfill allowed. Backfilled games are not rated until the ratings are rebuilt.',
-      'backfill revoked',
     ]) {
       expect(players, sentence).toContain(sentence);
     }

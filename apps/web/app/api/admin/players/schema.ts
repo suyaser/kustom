@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { booleanFieldSchema, idSchema, nullableRoleSchema, nullableTextSchema } from '@/lib/admin/formValues';
 
 /**
- * `POST /api/admin/players`. One route, four live actions and one retired one, discriminated on
+ * `POST /api/admin/players`. One route, three live actions and two retired ones, discriminated on
  * `action` — the repo's convention (`CLAUDE.md`) and what lets a plain HTML form say which
  * button was pressed with a hidden field.
  *
@@ -64,14 +64,18 @@ export const setAdminRequestSchema = z.object({
 });
 
 /**
- * Backfill approval (M5.1). Same shape and same reason as `set-admin`: the target state, so a
- * form that has been sitting open in a tab cannot flip the wrong way.
+ * **Retired** (`04-decisions.md`, 2026-10-03, reversing M5.1's approval). Backfill is on for
+ * every member with no admin step, so there is nothing to allow or revoke: the handler answers
+ * 410 with a sentence, before it looks at the player.
+ *
+ * Kept for the same one reader as `set-roles` — an admin with `/admin/players` open in a tab
+ * from before the deploy — and `approved` is optional so whatever that old form posts parses.
  */
 export const setBackfillRequestSchema = z.object({
   action: z.literal('set-backfill'),
   groupId: groupIdSchema,
   playerId: idSchema,
-  approved: booleanFieldSchema,
+  approved: booleanFieldSchema.optional(),
 });
 
 export const adminPlayersRequestSchema = z.discriminatedUnion('action', [
@@ -84,10 +88,10 @@ export const adminPlayersRequestSchema = z.discriminatedUnion('action', [
 
 export type AdminPlayersRequest = z.infer<typeof adminPlayersRequestSchema>;
 
-/** No `set-roles`: that action never answers `ok`, it answers 410 (M5.17). */
+/** No `set-roles` or `set-backfill`: those never answer `ok`, they answer 410. */
 export const adminPlayersResponseSchema = z.object({
   ok: z.literal(true),
-  action: z.enum(['set-name', 'set-discord', 'set-admin', 'set-backfill']),
+  action: z.enum(['set-name', 'set-discord', 'set-admin']),
   playerId: z.uuid(),
 });
 

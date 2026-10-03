@@ -105,8 +105,8 @@ export function Empty({ children }: { children: ReactNode }): ReactNode {
 }
 
 /**
- * `2026-09-08`, the day only. For a column where the minute is noise: when backfill was asked
- * for or allowed (M5.1) is a fact about a day, and the row is narrow enough already.
+ * `2026-09-08`, the day only. For a value where the minute is noise: when a player's roles were
+ * last inferred is a fact about a day, and the row is narrow enough already.
  */
 export function formatDay(value: string | null): string {
   if (value === null) return '—';
