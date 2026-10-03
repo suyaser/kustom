@@ -19,7 +19,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M11 The night as a broadcast | in progress | Opened 2026-09-23 from the user, who asked to start three of the lead's proposals plus champion icons on the fearless card and nowhere else. **M11.1 landed 2026-09-23**. **M11.3 landed 2026-09-23**: reusable `ResultPoster`, underdog line, `webAwardLine` (Discord markdown escape stays off the page); reviewed clean. **M11.2 landed 2026-09-23**. **M11.4 landed 2026-09-23**: `/og/*` cards, `/g/[gameId]`, Discord + tape links; reviewed clean after the decision row. The four tasks are closed. Product alt strings and a real-data unfurl are leftovers, not a fifth task. **M11.3** was: the underdog line off the stored `blue_win_prob` and the `MVP · ACE` line Discord already posts, reusable on a page of its own. **M11.2** the night tape: tonight's earlier finished and dropped games under the primary block, oldest first, a read of stored rows. **M11.4** share cards: 1200×630 unfurl images for `/`, a new `/g/[gameId]` (no single-game URL exists today) and `/p/[puuid]`, with no Share button. Order M11.1 → M11.3 → M11.2 → M11.4, because the last three all edit the tonight view and loader. No rating, balancer, ingest or schema change in any of them. Icons appear on the fearless card only — not `/fun`, `/games`, `/p`, Discord, share cards or the poster. |
 | M12 Overlay client | in progress | Folded into M6 one-app (2026-09-23): Overlay mode on `Kustom.exe`, not a second product. `GET /api/overlay` stays. Separate `KustomOverlay.exe` retired as a product. |
 | M6 Tray app and polish | in progress | Un-deferred 2026-09-23: one Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes, tray, Floodlit UI. M6.1 absorbs the M12 panel. |
-| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product), **M13.2** (schema, `0018`), **M13.3** (companion routes and the ingest fold per group, `0019`) and M13.7 (design) done and pushed; **M13.4** (session and admin routes, crons, group admin, `0020`) done locally, not yet pushed -- code first, then `0020` (see its entry). Nobody can create a second group yet -- that's M13.5. Next: **M13.5**, create, invite, pair. Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
+| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product), **M13.2** (schema, `0018`), **M13.3** (companion routes and the ingest fold per group, `0019`) and M13.7 (design) done and pushed; **M13.4** (session and admin routes, crons, group admin, `0020`) done locally, not yet pushed -- code first, then `0020` (see its entry). **M13.5** (create, invite, pair, `0021`) done locally, not yet pushed -- migration first, then code (see its entry). **M13.9** (the `/g/<slug>` shell and tonight page) done locally, not yet deployed. Next: **M13.6**, the operator. Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -8907,8 +8907,18 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > Pages (they keep passing the original group's id until M13.9 to M13.14 move them). Super-admin (M13.6).
     > Creating groups (M13.5).
 
-- [ ] **M13.5** Creating a group, the invite link, and pairing a PUUID. *(owner: `platform-engineer`; after
-  M13.4)*
+- [x] **M13.5** Creating a group, the invite link, and pairing a PUUID. *(owner: `platform-engineer`; after
+  M13.4)* Done 2026-10-03 (`0021_invites_and_pairing.sql`), not yet pushed to hosted. Acceptance 1-5 verified by
+  `app/api/groups/groups.integration.test.ts` (create, the 409 and per-field 400 sentences, unlinked creator
+  pairing to `admin`, join and rotated-link 404, the four pairing refusals and the 11th-attempt 429, one code
+  from two Kustoms at once, no `companion_tokens` row and no route naming the table); 6 by the schemas in
+  `packages/db/src/schemas/invites.ts` (`invites.test.ts`). Beyond the brief: `POST /api/admin/invite/rotate`
+  for M13.14's `New link`, rotation expires the codes the old link handed out, the rate limit is a table, the
+  creator is always `admin`, and the unworded refusals are platform's copy (decision rows 2026-10-03).
+  **Deploy order: `pnpm db:migrate` first, then the code** -- `0021` only adds tables and functions nothing
+  deployed reads, and it gives the original group its invite; code first would answer 500 on the seven new
+  routes until the migration lands. The `?joined=1` landing (M13.7) is the pages': `GET /api/me/pairing/status`
+  answers `used` with the group so the page can build `/g/<slug>?joined=1`.
 
     > **Brief (product, 2026-10-03)**
     >
@@ -9089,8 +9099,20 @@ before scoping would let the first stranger who signs up corrupt the original gr
     >
     > Cross-posting. A `kustom://` deep link for the code. Showing two groups' panels at once.
 
-- [ ] **M13.9** The `/g/<slug>` shell and the tonight page; old links redirect. *(owner: `web-engineer`; after
-  M13.4 and M13.7)*
+- [x] **M13.9** The `/g/<slug>` shell and the tonight page; old links redirect. *(owner: `web-engineer`; after
+  M13.4 and M13.7)* Done 2026-10-03, not yet deployed (code only, no migration). Acceptance 1 and 2 verified by
+  `app/groupTonight.integration.test.ts` (two fixture groups' lobby, tape and fearless pool through the anon key;
+  slug, unknown slug, game uuid and unknown uuid resolution); 3 by `lib/groups/landing.test.ts`; 4 by
+  `lib/nav.test.ts`, `app/_shell/Shell.test.tsx` and the integration test's page-body link sweep, on a group that
+  is not the original; 5 by `app/_tonight/TonightLive.test.tsx` (filters, and a B game firing no re-read). Checked
+  by hand against the local stack: `/` 308 with `Cache-Control: private, no-cache, no-store`, `/g/nope` 404,
+  `/g/<game uuid>` 308 to its group's game page, `/og/tonight` 308. **Product owner additions folded in:** the
+  shell's `Admin` tab for a group's admins (to `/admin`, original group only until M13.14), `/` sends a signed-in
+  person in no group to `/new` (M13.13 builds it), and no `Tonight` tab (the wordmark is the way home) -- decision
+  rows 2026-10-03. Pages not yet moved are linked at their old paths from the original group's pages only and not
+  at all from other groups' (`lib/nav.ts`'s table; M13.10 to M13.14 flip their rows). The game page is M11.4's,
+  mounted at `/g/<slug>/games/<id>`; its card stays at `/og/g/<id>` for M13.11. `You're in.` on `?joined=1`
+  (05-design.md) is left to M13.13, which sends it.
 
     > **Brief (product, 2026-10-03)**
     >

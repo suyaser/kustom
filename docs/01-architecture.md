@@ -85,7 +85,11 @@ daily_mysteries (id, group_id, day, kind, challenge_number, ...)  -- 0013/0016;
                 unique (group_id, day), unique (group_id, kind, challenge_number)   -- 0020
 groups         (id, slug unique, name, created_by null, created_at)                -- 0018, M13
 group_memberships (group_id, player_id, role 'member' | 'admin', created_at,
-                backfill_requested_at, backfill_approved_at)  pk (group_id, player_id)
+                backfill_requested_at, backfill_approved_at -- unread since 2026-10-03)  pk (group_id, player_id)
+group_invites  (group_id pk, code unique -- 22 url-safe chars, stored as is, rotated_at, rotated_by)  -- 0021, M13.5
+pairing_codes  (code_hash pk -- sha256 of 6 chars, group_id, auth_user_id, discord_id, created_at,
+                expires_at -- 15 min, used_at)                                        -- 0021, M13.5
+pairing_attempts (id, ip_hash, attempted_at) -- the per-address limit on POST /api/companion/pair  -- 0021
 
 players_public view (players minus discord_id; still carries the retired is_admin, unread since M13.4)
 ```
@@ -94,7 +98,8 @@ players_public view (players minus discord_id; still carries the retired is_admi
 `companion_commands`, `fearless_state`, `daily_mysteries`, `window_posts`, `discord_config`) is `not null` with
 **no default** since `0020` (M13.4): an insert that does not name its group fails, on purpose. `players.is_admin`
 and the two `players.backfill_*` columns are still in the table and read by nothing; admin is
-`group_memberships.role` and backfill approval is the membership's (M13.3, M13.4).
+`group_memberships.role` (M13.3, M13.4). Backfill has no approval step since 2026-10-03, so the two
+`group_memberships.backfill_*` columns are read and written by nothing either; a later cleanup drops all five.
 
 Also in the schema:
 
@@ -660,13 +665,22 @@ watching: on lobby event -> POST /api/companion/lobby
 
 ## Web (`apps/web`)
 
-- `/` Tonight: live lobby, teams, result. Public read. Realtime subscription on `lobbies`, `splits`, `games`.
+- `/g/<slug>` Tonight (M13.9): one group's live lobby, teams, result, tape and fearless list. Public read by
+  link, no directory. The slug resolves through `groups_public` (`lib/groups/requirePageGroup.ts`): an unknown
+  slug is 404; a uuid that names a game 308s to `/g/<its slug>/games/<id>` (M11.4's Discord links). Realtime
+  subscription filtered `group_id=eq.<id>` on every published table that has the column (`lobbies`, `games`,
+  `game_players`, `ratings`, `fearless_state`; `lobby_members` and `splits` have none and stay unfiltered).
+  Every in-app link comes from `lib/nav.ts`'s `groupHref`, which knows which pages have moved under the prefix;
+  an unmoved page is linked at its old path on the original group's pages only and not at all on any other
+  group's. `/` is a permanent redirect (`lib/groups/landing.ts`): signed out to `/g/customs`, a member to the
+  `kustom_group` cookie's group (written by `proxy.ts` on every group page, followed only when the session's
+  player is a member) or their oldest group, a signed-in person in no group to `/new`.
 - `/leaderboard` The board through one of five windows: by ordinal on `All time` and the two months, and by the
   weekly `Rating` on `This week` (the default) and `Last week`, which are folded from each player's seed at read
   time (M7.3) — the stored one, else `provisionalSeed()`, never their League rank. Wins, games, streak.
 - `/p/[puuid]` Player page: rating history chart, role record, recent games.
 - `/admin` Discord OAuth gated, admin membership (`group_memberships.role = 'admin'`) in the page's group — the
-  original group until M13.14 moves the pages under `/g/<slug>/admin`. Link Discord IDs, see the inferred roles (M5.17), mint companion tokens, set Discord config, approve backfill.
+  original group until M13.14 moves the pages under `/g/<slug>/admin`. Link Discord IDs, see the inferred roles (M5.17), mint companion tokens, set Discord config.
 - `/api/companion/*` bearer token, zod-validated. The command queue is three of them (M4.1):
   `GET /commands?clientConnected=`, `POST /commands/{id}/ack`, `POST /commands/{id}/nack`. The contract is one
   doc comment on `companionCommandsResponseSchema` in `packages/db/src/schemas/companionResponses.ts`; the
@@ -721,6 +735,19 @@ watching: on lobby event -> POST /api/companion/lobby
     of it, so `/admin`'s one button posts here too and the old
     `/api/admin/lobbies/start` was deleted rather than aliased. The rules and every string it answers with are
     `apps/web/lib/lobbyStart.ts`, imported by both surfaces.
+- **Creating, joining and pairing** (M13.5; `lib/groups/`, schemas in `packages/db/src/schemas/invites.ts`).
+  Session routes that come before a group is the caller's, so they carry no `groupId` to check and use
+  `lib/groups/sessionRoute.ts` (`resolveMe` without `withViewerAuth`'s membership step): `POST /api/groups
+  { name, slug }` (`create_group`: the group, its `fearless_state`, its invite and a linked creator's `admin`
+  membership in one transaction; 409 `That link is taken.`), `GET /api/groups/mine`, `POST /api/groups/join
+  { code }` (linked sessions only; never a token), `POST /api/me/pairing { groupId | inviteCode }` (the
+  creator, or a holder of the live invite) and `GET /api/me/pairing/status?code=` (the session's own codes
+  only). `POST /api/admin/invite/rotate { groupId }` is an ordinary admin write. **`POST /api/companion/pair
+  { code, puuid }` is the one companion route with no token**: rate limited per address first
+  (`pairing_attempt`, 10 a minute, every attempt counted), then `redeem_pairing_code` links the code's Discord
+  id (copied from the issuing session's verified identity) to the PUUID Kustom read from League, adds the
+  membership (`admin` for the group's creator) and uses the code, under a row lock. It never re-links a
+  Discord account and never takes a PUUID linked to someone else; a refusal writes nothing.
 
 ## Discord
 
@@ -732,13 +759,20 @@ watching: on lobby event -> POST /api/companion/lobby
 ## Security
 
 - Companion tokens are random 32 bytes, stored hashed, one per player, revocable from admin.
+- Pairing codes (M13.5) are six characters of a 32-letter alphabet, stored as SHA-256 like a token, 15
+  minutes, single use, and the only key to `POST /api/companion/pair`, which has no token. What guards that
+  route is the code's lifetime plus a per-address limit kept in the database (`pairing_attempts`, so every
+  Vercel instance shares it). The PUUID in the body is trusted only as "who is signed into League on the PC the
+  person is at"; who they are on Discord comes from the code, which only their own signed-in session can get.
+  Rotating an invite link expires every unused code a non-creator got through it.
 - The API never trusts a PUUID claim beyond what the companion reports; a companion can only report games and
   lobbies it was in. Both checks run before anything is written, so a refusal leaves no row behind.
   - Games: the token's player PUUID must appear among the participants of the posted game, **or** among the
     members of the lobby that game was played from — `is_spectator` included (M2.8) — or the API answers 403.
     The companion's end-of-game payload is flattened and carries no `localPlayer`, so participation is the
     check, and the lobby half is there because the friend sitting out a round is often the one running the
-    companion. Backfill is the exception, and it is admin-approved the first time per player.
+    companion. Backfill is the exception: no lobby fallback, only the participant check, and no approval step
+    (2026-10-03 reversed M5.1's per-player admin approval; every member's companion backfills).
   - Lobbies: the token's player PUUID must appear in the posted `members` — `isSpectator: true` counts — or the
     caller must already be that lobby's `reported_by_player_id`, or the API answers 403. The posted list
     replaces the roster, so without this one stale companion could delete another lobby's members. The
@@ -750,7 +784,8 @@ watching: on lobby event -> POST /api/companion/lobby
   running for months.
 - Supabase Row Level Security: public read on `seasons`, `ratings`, `lobbies`, `lobby_members`, `splits`, `games`
   and `game_players`, plus `players` through the `players_public` view. `companion_tokens`,
-  `companion_commands` and `discord_config` have no read policy at all. Writes only through the service role
+  `companion_commands`, `discord_config`, `group_invites`, `pairing_codes` and `pairing_attempts` have no read
+  policy at all. Writes only through the service role
   used by the API.
 - Public reads of players go through the `players_public` view, which is `players` without `discord_id`. It
   still carries the retired `is_admin`, which nothing reads since M13.4: the tonight page decides whether to draw
