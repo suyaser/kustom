@@ -9212,7 +9212,9 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > Out of scope: a marketing landing page; inviting by email or Discord DM.
 
 - [ ] **M13.14** Group admin under `/g/<slug>/admin`, and the operator's `/ops`. *(owner: `web-engineer`;
-  after M13.6 and M13.9; last)*
+  after M13.6 and M13.9; last)* **Added note (lead, 2026-10-03, user request):** the admin shell needs a link
+  back to `/g/<slug>` (the tonight page) so an admin can move freely between the two, the way M13.9's shell
+  will link an admin forward to admin. Fold into this task's acceptance; no separate task needed.
 
     > **Brief (product, 2026-10-03)**
     >
