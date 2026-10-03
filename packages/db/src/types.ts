@@ -446,7 +446,7 @@ export type Database = {
         }
         Insert: {
           group_id?: string
-          id: number
+          id?: number
           reset_at?: string
           reset_by?: string | null
           updated_at?: string

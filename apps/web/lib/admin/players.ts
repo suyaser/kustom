@@ -1,4 +1,5 @@
 import type { Role } from '@customs/core';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
@@ -186,9 +187,14 @@ export async function listAdminPlayers(
     let query = client
       .from('players')
       .select(
-        'id, puuid, display_name, game_name, tag_line, discord_id, is_admin, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, backfill_requested_at, backfill_approved_at, ratings(season_id, mu, sigma, games, wins)',
+        'id, puuid, display_name, game_name, tag_line, discord_id, is_admin, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, ratings(season_id, group_id, mu, sigma, games, wins), group_memberships(group_id, backfill_requested_at, backfill_approved_at)',
         { count: 'exact' },
       )
+      // The original group's rating and backfill state (M13.3: both are per group now, and the
+      // companion's scan reads the membership). This page is the original group's until M13.4
+      // scopes `/admin` to the request's group.
+      .eq('ratings.group_id', ORIGINAL_GROUP_ID)
+      .eq('group_memberships.group_id', ORIGINAL_GROUP_ID)
       .order('display_name', { ascending: true, nullsFirst: false })
       .order('puuid', { ascending: true })
       .range(from, from + size - 1);
@@ -259,11 +265,14 @@ function toAdminPlayerRow(seasonId: string | null) {
     rank_tier: string | null;
     rank_division: string | null;
     rank_lp: number | null;
-    backfill_requested_at: string | null;
-    backfill_approved_at: string | null;
     ratings: { season_id: string; mu: number; sigma: number; games: number; wins: number }[];
+    group_memberships: {
+      backfill_requested_at: string | null;
+      backfill_approved_at: string | null;
+    }[];
   }): AdminPlayerRow => {
     const rating = row.ratings.find((entry) => seasonId === null || entry.season_id === seasonId) ?? null;
+    const membership = row.group_memberships[0] ?? null;
     return {
       id: row.id,
       puuid: row.puuid,
@@ -279,8 +288,8 @@ function toAdminPlayerRow(seasonId: string | null) {
       rankTier: row.rank_tier,
       rankDivision: row.rank_division,
       rankLp: row.rank_lp,
-      backfillRequestedAt: row.backfill_requested_at,
-      backfillApprovedAt: row.backfill_approved_at,
+      backfillRequestedAt: membership?.backfill_requested_at ?? null,
+      backfillApprovedAt: membership?.backfill_approved_at ?? null,
       rating:
         rating === null
           ? null
@@ -435,6 +444,8 @@ export async function setPlayerAdmin(
 
 export interface SetPlayerBackfillInput {
   playerId: string;
+  /** The group whose approval this is (M13.3). The original group until M13.4. */
+  groupId?: string;
   /** The target state, not a toggle: two tabs cannot flip each other's answer. */
   approved: boolean;
   /** Injected so the integration tests can pin the timestamp. */
@@ -442,7 +453,13 @@ export interface SetPlayerBackfillInput {
 }
 
 /**
- * Allow or revoke backfill for one player (M5.1).
+ * Allow or revoke backfill for one player (M5.1), in one group (M13.3).
+ *
+ * The approval lives on the membership (`group_memberships.backfill_approved_at`), because
+ * approving somebody's history is a group admin's call about their group and the companion's
+ * scan reads it from there. The group is the original one until M13.4 passes the request's.
+ * Approving a player who is not yet a member makes them one (an admin naming them is enough);
+ * revoking a non-member writes nothing.
  *
  * Approving stamps `backfill_approved_at`; revoking sets it back to null and the next
  * `POST /api/companion/backfill/scan` answers `approved: false`. The request timestamp is
@@ -456,14 +473,25 @@ export async function setPlayerBackfill(
   client: ServiceClient,
   input: SetPlayerBackfillInput,
 ): Promise<AdminWriteResult<string>> {
-  const { data, error } = await client
-    .from('players')
-    .update({ backfill_approved_at: input.approved ? (input.now ?? new Date()).toISOString() : null })
-    .eq('id', input.playerId)
-    .select('id')
-    .maybeSingle();
-
+  const groupId = input.groupId ?? ORIGINAL_GROUP_ID;
+  const { data, error } = await client.from('players').select('id').eq('id', input.playerId).maybeSingle();
   if (error) throw new Error(`setPlayerBackfill failed: ${error.message}`);
   if (data === null) return writeFailed(404, 'no such player');
+
+  const approvedAt = input.approved ? (input.now ?? new Date()).toISOString() : null;
+  // `role` is not in the payload, so an existing membership keeps its role; a new one is `member`.
+  const { error: writeError } = input.approved
+    ? await client
+        .from('group_memberships')
+        .upsert(
+          { group_id: groupId, player_id: data.id, backfill_approved_at: approvedAt },
+          { onConflict: 'group_id,player_id' },
+        )
+    : await client
+        .from('group_memberships')
+        .update({ backfill_approved_at: null })
+        .eq('group_id', groupId)
+        .eq('player_id', data.id);
+  if (writeError) throw new Error(`setPlayerBackfill failed: ${writeError.message}`);
   return writeOk(data.id);
 }

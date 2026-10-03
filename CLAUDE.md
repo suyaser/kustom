@@ -40,10 +40,12 @@ pnpm lint                    # biome check .
 pnpm format                  # biome format --write .
 pnpm --filter web dev        # http://localhost:3000
 pnpm --filter web build      # next build (also typechecks the app)
-pnpm --filter web mint-token <puuid> [label]
+pnpm --filter web mint-token <puuid> [label] [--group <slug>]
                              # mints a companion token for a PUUID and prints it once.
                              # Reads apps/web/.env.local. Replaced by /admin in M1.6.
-pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] 
+                             # --group (M13.3, default customs): the group the token posts to;
+                             # adds a member row there if there is none.
+pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] [--group <slug>]
                              # folds every rated-eligible game of a season in started_at order,
                              # from seeds, and writes once at the end (M5.2). Run it after a
                              # backfill batch: backfilled games are stored unrated until it does.
@@ -51,6 +53,8 @@ pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune]
                              # last 15 minutes -- which is exactly the case right after a backfill
                              # batch, so pass --force (or wait 15 minutes) then.
                              # Exit 2 means games landed mid-run, so run it again.
+                             # M13.3: every group by default, each folded on its own (own games,
+                             # own ratings, own live-lobby / 15-minute guard); --group for one.
 pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
                              # M7.7 one-off, extended by M7.14: copies vision score, damage
                              # self-mitigated and damage to objectives out of games.raw onto

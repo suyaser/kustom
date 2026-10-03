@@ -32,6 +32,3 @@ export const EMPTY_FEARLESS: FearlessView = { champions: [], resetAt: null };
 
 /** Cap on the games the loader walks. Unique champs cannot exceed the roster anyway. */
 export const FEARLESS_MAX_GAMES = 500;
-
-/** The singleton `fearless_state.id`. */
-export const FEARLESS_STATE_ID = 1;

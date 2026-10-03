@@ -19,7 +19,12 @@ import {
 import '@/lib/ingest/discord';
 import { emitGameFinished } from '@/lib/ingest/hooks';
 import { isLobbyMemberOfGame, selectActiveLobby } from '@/lib/ingest/lobby';
-import { BACKFILL_NOT_RATED, rateStoredGame } from '@/lib/ingest/rating';
+import {
+  BACKFILL_NOT_RATED,
+  FOREIGN_DUPLICATE_NOT_RATED,
+  NOT_THIS_GROUP_REASON,
+  rateStoredGame,
+} from '@/lib/ingest/rating';
 import { moveLobbyLogged, sweepIdleLobbies } from '@/lib/lobbyState';
 import { hasActiveSeason, NO_ACTIVE_SEASON_MESSAGE } from '@/lib/season';
 import { siteOrigin } from '@/lib/siteUrl';
@@ -62,7 +67,15 @@ export const dynamic = 'force-dynamic';
  * is linked to no lobby, and the rating fold does not run — the answer says
  * `{ rated: false, reason: 'backfill' }` and `pnpm --filter web rebuild-ratings` (M5.2) is what
  * turns a batch into ratings. Nothing is posted to Discord for one. Whether a companion may
- * send them at all is `POST /api/companion/backfill/scan` and `players.backfill_approved_at`.
+ * send them at all is `POST /api/companion/backfill/scan` and the token's
+ * `group_memberships.backfill_approved_at` (M13.3).
+ *
+ * **Groups (M13.3).** The group is the token's. A game already stored anywhere is the usual
+ * no-op, and from another group's token it writes nothing, rates nothing and moves no lobby. A
+ * live game is stored in its lobby's group; a game with no lobby in the token's. A backfilled
+ * game with fewer than six of its players already members of the token's group is not stored
+ * at all: the answer is a 2xx with `created: false`, `reason: 'not-this-group'` and
+ * `skippedNotThisGroup: 1`, and the next daily scan offers it again.
  */
 export const POST = withCompanionAuth(
   companionGamePayloadSchema,
@@ -133,7 +146,34 @@ export const POST = withCompanionAuth(
       return jsonError(503, NO_ACTIVE_SEASON_MESSAGE);
     }
 
-    const result = await ingestEogGame(client, { ...payload, raw: scrubRawEogBlock(payload.raw) });
+    // The group comes from the token (M13.3); `ingestEogGame` decides where the game lands:
+    // an id stored anywhere keeps its group, a live game follows its lobby, and a backfilled one
+    // needs six of its ten to be members of the token's group.
+    const ingested = await ingestEogGame(
+      client,
+      { ...payload, raw: scrubRawEogBlock(payload.raw) },
+      { groupId: identity.groupId },
+    );
+
+    if (ingested.outcome === 'skipped-not-this-group') {
+      // A 2xx, so the companion drops its queue file: nothing is wrong with the game, it is just
+      // not this group's yet. Nothing was stored, so the next daily scan offers it again.
+      console.info(
+        `backfill: game ${payload.gameId} skipped for group ${identity.groupId}: ${ingested.members} of ${payload.participants.length} are members`,
+      );
+      return jsonOk(companionGameResponseSchema, {
+        ok: true,
+        phase: 'eog',
+        created: false,
+        gameId: null,
+        lobbyId: null,
+        participants: 0,
+        rated: false,
+        reason: NOT_THIS_GROUP_REASON,
+        skippedNotThisGroup: 1,
+      });
+    }
+    const result = ingested;
 
     // The fold: ten rows, five a side, over five minutes, and exactly once per game (M2.5).
     //
@@ -142,7 +182,14 @@ export const POST = withCompanionAuth(
     // null and `ratings` does not move until `pnpm --filter web rebuild-ratings` (M5.2) folds
     // the season. The answer is still a 2xx with `created` — a 2xx is what lets the companion
     // delete its queue file.
-    const fold = backfill ? BACKFILL_NOT_RATED : await rateStoredGame(client, result.gameId);
+    //
+    // Never for another group's game either (M13.3): that post is a no-op, and the fold reads
+    // and writes the game's own group's ratings when its own companions post it.
+    const fold = backfill
+      ? BACKFILL_NOT_RATED
+      : result.foreignDuplicate
+        ? FOREIGN_DUPLICATE_NOT_RATED
+        : await rateStoredGame(client, result.gameId);
 
     // A lobby that is already `finished` (the second companion's post) or that the sweep
     // abandoned between resolving it and here claims nothing and says so in the log.
@@ -150,7 +197,7 @@ export const POST = withCompanionAuth(
     // `dropped` is in the `from` list on purpose (M5.11): a block that sat in a companion's
     // queue file for days still closes the lobby it was played from, so the row leaves M5.5's
     // missed list by itself and the night's later cycles are untouched.
-    if (result.lobbyId !== null) {
+    if (result.lobbyId !== null && !result.foreignDuplicate) {
       await moveLobbyLogged(
         client,
         { lobbyId: result.lobbyId, from: ['open', 'balanced', 'in_game', 'dropped'], to: 'finished' },
@@ -166,6 +213,8 @@ export const POST = withCompanionAuth(
       await emitGameFinished({
         gameId: result.gameId,
         lobbyId: result.lobbyId,
+        // Discord posts to the game's group's channel (M13.3), not the token's.
+        groupId: result.groupId,
         rated: fold.rated,
         // Only used for the result embed's `url` (M3.3).
         requestOrigin: siteOrigin(request),

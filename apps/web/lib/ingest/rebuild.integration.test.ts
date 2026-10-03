@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { config, provisionalSeed, rateGame } from '@customs/core';
 import { type Database, SEASON_ONE_ID } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
@@ -168,8 +169,8 @@ if (stack === null) {
     return data ?? [];
   }
 
-  function rebuild(options: Parameters<typeof rebuildRatings>[1] = {}) {
-    return rebuildRatings(db, { seasonId, force: true, ...options });
+  function rebuild(options: Partial<Parameters<typeof rebuildRatings>[1]> = {}) {
+    return rebuildRatings(db, { groupId: ORIGINAL_GROUP_ID, seasonId, force: true, ...options });
   }
 
   /** The four seed columns of this season's `ratings` rows, ordered (M5.7). */
@@ -509,7 +510,7 @@ if (stack === null) {
   describe('no lock', () => {
     it('refuses while a game has just landed, and runs with --force', async () => {
       // The games above were all posted seconds ago, which is exactly what the guard is for.
-      const refused = await rebuildRatings(db, { seasonId });
+      const refused = await rebuildRatings(db, { groupId: ORIGINAL_GROUP_ID, seasonId });
       expect(refused.ok).toBe(false);
       if (refused.ok) return;
       expect(refused.code).toBe('guard');
@@ -526,7 +527,11 @@ if (stack === null) {
         .select('id')
         .single();
 
-      const refused = await rebuildRatings(db, { seasonId, now: new Date(Date.now() + 3_600_000) });
+      const refused = await rebuildRatings(db, {
+        groupId: ORIGINAL_GROUP_ID,
+        seasonId,
+        now: new Date(Date.now() + 3_600_000),
+      });
       expect(refused.ok).toBe(false);
       if (!refused.ok) {
         expect(refused.code).toBe('guard');
@@ -747,7 +752,11 @@ if (stack === null) {
     });
 
     it('says so, and writes nothing, for a season id that does not exist', async () => {
-      const result = await rebuildRatings(db, { seasonId: randomUUID(), force: true });
+      const result = await rebuildRatings(db, {
+        groupId: ORIGINAL_GROUP_ID,
+        seasonId: randomUUID(),
+        force: true,
+      });
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.code).toBe('no-season');
     });

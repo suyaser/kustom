@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { mintCompanionToken } from '../companionAuth';
 import type { ServiceClient } from '../supabase';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
@@ -62,6 +63,13 @@ export interface MintedToken {
 export interface MintTokenInput {
   playerId: string;
   label: string | null;
+  /**
+   * The group the token posts to (M13.3). The original group until `/api/admin/tokens` carries
+   * the request's group (M13.4). Inserting the token makes its player a member of the group if
+   * they were not (`0019`'s `companion_tokens_add_membership`), because a token whose player is
+   * not a member is refused.
+   */
+  groupId?: string;
 }
 
 export async function mintTokenForPlayer(
@@ -79,7 +87,12 @@ export async function mintTokenForPlayer(
   const { token, tokenHash } = mintCompanionToken();
   const { data, error } = await client
     .from('companion_tokens')
-    .insert({ player_id: player.id, token_hash: tokenHash, label: input.label })
+    .insert({
+      player_id: player.id,
+      token_hash: tokenHash,
+      label: input.label,
+      group_id: input.groupId ?? ORIGINAL_GROUP_ID,
+    })
     .select('id, label')
     .single();
 

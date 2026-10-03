@@ -55,11 +55,12 @@ players        (id, puuid unique, summoner_id, game_name, tag_line, display_name
                 discord_id null, is_admin, main_role, secondary_role,
                 roles_inferred_at null, roles_counted,          -- 0010, M5.17
                 rank_tier, rank_division, rank_lp, rank_updated_at, created_at)
-ratings        (player_id, season_id, mu, sigma, ordinal generated (mu - 2 * sigma) stored,
-                games, wins,
+ratings        (group_id, player_id, season_id, mu, sigma,         -- group_id 0018, M13
+                ordinal generated (mu - 2 * sigma) stored, games, wins,
                 seed_mu null, seed_sigma null,                  -- 0012, M5.7
                 seed_rank_tier null, seed_rank_division null,   -- 0012, M5.7
-                updated_at)  pk (player_id, season_id), index (season_id, ordinal desc)
+                updated_at)  pk (group_id, player_id, season_id) -- 0019, M13.3: one rating per person per group
+                             index (season_id, ordinal desc)
 lobbies        (id, lcu_party_id, status, reported_by_player_id, lobby_name, lobby_password,
                 created_at, updated_at)  unique (lcu_party_id) where status in (open, balanced, in_game)
 lobby_members  (lobby_id, player_id, side null, role null, role_override null, is_spectator, created_at)
@@ -159,10 +160,11 @@ Rules:
   with the same `roster_key` — one indexed lookup instead of a jsonb set comparison.
 - A companion token is revoked by setting `companion_tokens.revoked_at`, never by deleting the row: the auth path
   filters on it and `last_seen_at` stays as the audit trail of a token that may have leaked.
-- **At most one `create_lobby` command is live at a time, in the whole table** (M4.9,
-  `0008_one_create_lobby_at_a_time.sql`): a partial unique index over `kind` where
-  `kind = 'create_lobby' and status in ('pending', 'sent')`. That is the Start-a-lobby double-tap lock, global
-  rather than per host so two admins pressing at once cannot open two lobbies and fan out two sets of invites.
+- **At most one `create_lobby` command is live at a time per group** (M4.9,
+  `0008_one_create_lobby_at_a_time.sql`; per group since M13.3's `0019`): a partial unique index over
+  `(group_id, kind)` where `kind = 'create_lobby' and status in ('pending', 'sent')`. That is the Start-a-lobby
+  double-tap lock, per group rather than per host so two admins pressing at once cannot open two lobbies and fan
+  out two sets of invites, and per group rather than global so one group's press never blocks another's.
   The API still reads the pending row first for the friendly refusal and maps a `23505` on this index to the same
   409. An ack, a non-retryable nack or the expiry sweep takes the row out of the two live statuses and releases the lock.
 

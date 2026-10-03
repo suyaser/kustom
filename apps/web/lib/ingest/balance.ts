@@ -42,11 +42,14 @@ export async function balanceLobby(
   timeZone: string,
 ): Promise<BalanceOutcome> {
   const seasonId = await activeSeasonId(client);
-  const pool = await loadPool(client, lobby.id, seasonId, now, timeZone);
+  // The lobby's own group (M13.3), read off the row rather than trusted from a caller: the
+  // balancer is fed that group's ratings and remembers that group's splits, nobody else's.
+  const groupId = await lobbyGroupId(client, lobby.id);
+  const pool = await loadPool(client, lobby.id, seasonId, now, timeZone, groupId);
   const selection = selectTen(pool);
 
   const key = rosterKey(selection.playing.map((member) => member.puuid));
-  const lastSplit = await selectLastSplit(client, key);
+  const lastSplit = await selectLastSplit(client, key, groupId);
 
   const result = balance({
     players: selection.playing.map(toBalancePlayer),
@@ -66,6 +69,7 @@ export async function balanceLobby(
 
   return {
     lobbyId: lobby.id,
+    groupId,
     splitId,
     rosterKey: key,
     split: chosen,
@@ -94,6 +98,14 @@ export function toBalancePlayer(member: PoolMember): BalancePlayer {
     // — is the flat `offRolePenalty`, which is M1.4's behaviour unchanged.
     gamesSinceLastFill: member.gamesSinceLastFill ?? null,
   };
+}
+
+/** The group a lobby belongs to (M13.3). Throws for a lobby that does not exist. */
+export async function lobbyGroupId(client: ServiceClient, lobbyId: string): Promise<string> {
+  const { data, error } = await client.from('lobbies').select('group_id').eq('id', lobbyId).maybeSingle();
+  if (error) throw new Error(`balanceLobby: lobby group lookup failed: ${error.message}`);
+  if (!data) throw new Error(`balanceLobby: no lobby ${lobbyId}`);
+  return data.group_id;
 }
 
 /** The season ratings hang off. `games.season_id` defaults to the same function in SQL. */
@@ -125,6 +137,11 @@ export async function loadPool(
   seasonId: string,
   now: Date,
   timeZone: string,
+  /**
+   * The lobby's group (M13.3): whose `ratings` are read. A person with no row in this group is
+   * seeded exactly like somebody new, whatever they are rated in another group.
+   */
+  groupId: string,
 ): Promise<PoolMember[]> {
   const { data, error } = await client
     .from('lobby_members')
@@ -138,7 +155,7 @@ export async function loadPool(
   if (rows.length === 0) return [];
 
   const playerIds = rows.map((row) => row.player_id);
-  const ratings = await selectRatings(client, playerIds, seasonId);
+  const ratings = await selectRatings(client, playerIds, seasonId, groupId);
   // Two independent reads, in parallel, and note that only one of them has an early return:
   // `loadRotation` skips its work at ten or fewer because nobody sits, but fill protection is
   // exactly what matters at ten, where somebody has to take the empty seat (M7.6).
@@ -178,10 +195,12 @@ async function selectRatings(
   client: ServiceClient,
   playerIds: readonly string[],
   seasonId: string,
+  groupId: string,
 ): Promise<Map<string, { mu: number; sigma: number }>> {
   const { data, error } = await client
     .from('ratings')
     .select('player_id, mu, sigma')
+    .eq('group_id', groupId)
     .eq('season_id', seasonId)
     .in('player_id', playerIds);
   if (error) throw new Error(`balanceLobby: ratings select failed: ${error.message}`);
@@ -386,12 +405,20 @@ async function loadFills(client: ServiceClient, playerIds: readonly string[]): P
  *
  * `roster_key` is why this is one indexed lookup rather than a jsonb set comparison, and why
  * changing one player makes it `null` without any extra rule.
+ *
+ * **Among this group's lobbies only** (M13.3): the same ten in another group are another
+ * group's history, and its split must not decide this group's repeat penalty.
  */
-export async function selectLastSplit(client: ServiceClient, key: string): Promise<readonly string[] | null> {
+export async function selectLastSplit(
+  client: ServiceClient,
+  key: string,
+  groupId: string,
+): Promise<readonly string[] | null> {
   const { data, error } = await client
     .from('splits')
-    .select('blue')
+    .select('blue, lobbies!inner(group_id)')
     .eq('roster_key', key)
+    .eq('lobbies.group_id', groupId)
     .eq('is_chosen', true)
     .order('created_at', { ascending: false })
     .limit(1)

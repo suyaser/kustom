@@ -9,8 +9,10 @@ import type { ServiceClient } from '../supabase';
  * is not restated here. What is here is the half that touches the database: is this player
  * approved, and which of these `lcu_game_id`s do we not already have.
  *
- * Approval is per **player**, not per token: re-minting a token must not re-approve anybody
- * (`04-decisions.md`, 2026-09-09).
+ * Approval is per **player per group**, not per token: re-minting a token must not re-approve
+ * anybody (`04-decisions.md`, 2026-09-09), and approving somebody's history is a group admin's
+ * call about **their** group (M13.2, M13.3). It is read from the token's membership row,
+ * `group_memberships.backfill_approved_at`, and never from `players`.
  */
 
 export interface BackfillApproval {
@@ -22,14 +24,18 @@ export interface BackfillApproval {
 export async function selectBackfillApproval(
   client: ServiceClient,
   playerId: string,
+  groupId: string,
 ): Promise<BackfillApproval> {
   const { data, error } = await client
-    .from('players')
+    .from('group_memberships')
     .select('backfill_approved_at, backfill_requested_at')
-    .eq('id', playerId)
+    .eq('group_id', groupId)
+    .eq('player_id', playerId)
     .maybeSingle();
   if (error) throw new Error(`backfill: approval select failed: ${error.message}`);
-  if (data === null) throw new Error(`backfill: no player ${playerId}`);
+  // The auth step already refused a token with no membership (403), so this is a membership
+  // deleted between the two reads: not approved, and nothing to mark.
+  if (data === null) return { approved: false, approvedAt: null, requestedAt: null };
 
   return {
     approved: data.backfill_approved_at !== null,
@@ -49,14 +55,16 @@ export async function selectBackfillApproval(
 export async function markBackfillRequested(
   client: ServiceClient,
   playerId: string,
+  groupId: string,
   now: Date,
 ): Promise<boolean> {
   const { data, error } = await client
-    .from('players')
+    .from('group_memberships')
     .update({ backfill_requested_at: now.toISOString() })
-    .eq('id', playerId)
+    .eq('group_id', groupId)
+    .eq('player_id', playerId)
     .is('backfill_requested_at', null)
-    .select('id');
+    .select('player_id');
   if (error) throw new Error(`backfill: request update failed: ${error.message}`);
   return (data ?? []).length > 0;
 }

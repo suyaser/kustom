@@ -118,6 +118,14 @@ export const companionGameResponseSchema = z.object({
    */
   rated: z.boolean().optional(),
   reason: z.string().nullable().optional(),
+  /**
+   * M13.3: `1` when a `source: 'backfill'` game was **not stored** because fewer than six of its
+   * players are members of the token's group (`reason: 'not-this-group'`, `created: false`, no
+   * ids). Still a 2xx: nothing is wrong with the game, it is just not this group's yet, and the
+   * next daily scan offers the id again because nothing was stored. Absent on every other
+   * answer. Optional, so the 0.2.x companion's parse is unaffected (`z.object` strips it).
+   */
+  skippedNotThisGroup: z.number().int().nonnegative().optional(),
 });
 
 /**

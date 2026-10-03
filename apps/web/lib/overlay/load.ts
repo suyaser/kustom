@@ -15,6 +15,11 @@ import type { OverlayView } from './types';
 
 export interface LoadOverlayOptions {
   puuid: string;
+  /**
+   * The group whose night this is (M13.3): its fearless pool, its lobby tonight, its ratings and
+   * its games for the records. The route only gets here for a group the PUUID is a member of.
+   */
+  groupId: string;
   now?: Date;
 }
 
@@ -24,9 +29,9 @@ export async function loadOverlay(client: PublicClient, options: LoadOverlayOpti
   const timeZone = nightTimeZone();
 
   const [fearless, tonight, window] = await Promise.all([
-    loadFearless(client),
-    loadTonight(client, { nightStart, timeZone }),
-    loadWindowGames(client, { window: 'all-time', now, timeZone }),
+    loadFearless(client, options.groupId),
+    loadTonight(client, { nightStart, timeZone, groupId: options.groupId }),
+    loadWindowGames(client, { window: 'all-time', now, timeZone, groupId: options.groupId }),
   ]);
 
   const lobbyRow = tonight.lobby;

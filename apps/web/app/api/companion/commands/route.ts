@@ -27,9 +27,9 @@ export const dynamic = 'force-dynamic';
  *   "this friend was at their PC with League open", which is the signal M4.2's "around" and
  *   M4.3's token check are built on (`04-decisions.md`, 2026-09-09).
  *
- * The rows are always this token's player's. There is no way to ask for another player's queue
- * and no parameter that would express one: the token decides who the caller is, as everywhere
- * else in `/api/companion/*`.
+ * The rows are always this token's player's, in this token's group (M13.3). There is no way to
+ * ask for another player's queue, or another group's, and no parameter that would express one:
+ * the token decides who the caller is, as everywhere else in `/api/companion/*`.
  */
 export const GET = withCompanionIdentity(
   async (request, { client, identity }): Promise<NextResponse> => {
@@ -48,7 +48,10 @@ export const GET = withCompanionIdentity(
       console.info(`command sweep: ${expired} command(s) past their expiry -> failed`);
     }
 
-    const commands = query.data.clientConnected ? await claimCommands(client, identity.playerId, now) : [];
+    // This token's player, in this token's group (M13.3).
+    const commands = query.data.clientConnected
+      ? await claimCommands(client, identity.playerId, identity.groupId, now)
+      : [];
 
     return jsonOk(companionCommandsResponseSchema, {
       ok: true,

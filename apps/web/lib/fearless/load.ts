@@ -1,11 +1,12 @@
 import type { RoleValue, SideValue } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { championName, isRosterChampion } from '../champs/names';
 import { inChunks } from '../chunks';
 import { gameModeFromRaw } from '../games/queue';
 import type { PublicClient } from '../publicClient';
 import { foldFearless } from './fold';
 import { presentFearless, storedChampionNames } from './present';
-import { EMPTY_FEARLESS, FEARLESS_MAX_GAMES, FEARLESS_STATE_ID, type FearlessView } from './types';
+import { EMPTY_FEARLESS, FEARLESS_MAX_GAMES, type FearlessView } from './types';
 
 /**
  * The fearless pool, read with whichever client the caller already has (M10).
@@ -14,6 +15,11 @@ import { EMPTY_FEARLESS, FEARLESS_MAX_GAMES, FEARLESS_STATE_ID, type FearlessVie
  * Both see the same row: RLS lets anon select `fearless_state`, and the pool itself is a
  * join over `games` / `game_players`, which are already public. A failed read logs and
  * returns {@link EMPTY_FEARLESS} so the tonight page never 500s over a ban list.
+ *
+ * **One pool per group** (M13.3): the group's own `fearless_state` row (one per group since
+ * `0019`) and the group's own games after its `reset_at`. A group with no row yet has an empty
+ * pool, not another group's. `groupId` defaults to the original group for the pages that do not
+ * pass one yet (they move with M13.9 to M13.14); every ingest-side caller passes it.
  */
 
 interface StateRow {
@@ -35,11 +41,14 @@ interface GameRow {
   game_players: PlayerRow[] | PlayerRow | null;
 }
 
-export async function loadFearless(client: PublicClient): Promise<FearlessView> {
+export async function loadFearless(
+  client: PublicClient,
+  groupId: string = ORIGINAL_GROUP_ID,
+): Promise<FearlessView> {
   const { data: state, error: stateError } = await client
     .from('fearless_state')
     .select('reset_at')
-    .eq('id', FEARLESS_STATE_ID)
+    .eq('group_id', groupId)
     .maybeSingle();
 
   if (stateError) {
@@ -53,6 +62,7 @@ export async function loadFearless(client: PublicClient): Promise<FearlessView> 
   const { data: rows, error: gamesError } = await client
     .from('games')
     .select('id, started_at, duration_s, raw, game_players(player_id, side, champion_id, role)')
+    .eq('group_id', groupId)
     .gt('started_at', resetAt)
     .order('started_at', { ascending: true })
     .order('id', { ascending: true })

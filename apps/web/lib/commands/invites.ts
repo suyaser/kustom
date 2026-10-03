@@ -144,9 +144,13 @@ export interface AroundOptions {
  * Both clauses, three selects, no join across them: a player id and the most recent instant we
  * have evidence for. Rows the caller has no use for (the host, the lobby's own members) are
  * dropped by {@link chooseInvitees} rather than by three more filters here.
+ *
+ * **One group's people** (M13.3): this group's tokens, this group's games, this group's lobbies.
+ * The friend who plays in another group this week is not around for this one.
  */
 export async function readAroundCandidates(
   client: ServiceClient,
+  groupId: string,
   options: AroundOptions = {},
 ): Promise<AroundPlayer[]> {
   const now = options.now ?? new Date();
@@ -159,17 +163,21 @@ export async function readAroundCandidates(
     client
       .from('companion_tokens')
       .select('player_id, last_seen_at')
+      .eq('group_id', groupId)
       .is('revoked_at', null)
       .gte('last_seen_at', seenSince.toISOString())
       .lte('last_seen_at', nowIso),
     client
       .from('game_players')
       .select('player_id, games!inner(started_at)')
+      // `game_players.group_id` is always its game's (`game_players_game_group_fkey`).
+      .eq('group_id', groupId)
       .gte('games.started_at', playedSince)
       .lte('games.started_at', nowIso),
     client
       .from('lobby_members')
-      .select('player_id, lobbies!inner(status, created_at)')
+      .select('player_id, lobbies!inner(status, created_at, group_id)')
+      .eq('lobbies.group_id', groupId)
       .in('lobbies.status', [...PLAYED_LOBBY_STATUSES])
       .gte('lobbies.created_at', playedSince)
       .lte('lobbies.created_at', nowIso),
@@ -193,9 +201,10 @@ export async function readAroundCandidates(
   return candidates;
 }
 
-/** Everybody in a lobby that is live right now: already in, never invited. */
+/** Everybody in one of this group's lobbies that is live right now: already in, never invited. */
 export async function readLiveLobbyMemberIds(
   client: ServiceClient,
+  groupId: string,
   options: { now?: Date | undefined; timeZone?: string | undefined } = {},
 ): Promise<string[]> {
   const now = options.now ?? new Date();
@@ -203,7 +212,8 @@ export async function readLiveLobbyMemberIds(
 
   const { data, error } = await client
     .from('lobby_members')
-    .select('player_id, lobbies!inner(status, created_at)')
+    .select('player_id, lobbies!inner(status, created_at, group_id)')
+    .eq('lobbies.group_id', groupId)
     .in('lobbies.status', [...LIVE_LOBBY_STATUSES])
     .gte('lobbies.created_at', window.start)
     .lte('lobbies.created_at', window.until);
@@ -249,7 +259,11 @@ export interface FanOutResult {
  */
 export async function fanOutInvites(
   client: ServiceClient,
-  input: { hostPlayerId: string },
+  /**
+   * `groupId` is the `create_lobby`'s group, which is its host token's (M13.3): the invite list
+   * is people around in that group's games this week, and the rows are written in that group.
+   */
+  input: { hostPlayerId: string; groupId: string },
   options: FanOutOptions = {},
 ): Promise<FanOutResult> {
   const empty: FanOutResult = { invited: [], alreadyQueued: 0, trimmed: 0, gated: false };
@@ -257,8 +271,8 @@ export async function fanOutInvites(
 
   const now = options.now ?? new Date();
   const [candidates, inLobby] = await Promise.all([
-    readAroundCandidates(client, options),
-    readLiveLobbyMemberIds(client, { now, timeZone: options.timeZone }),
+    readAroundCandidates(client, input.groupId, options),
+    readLiveLobbyMemberIds(client, input.groupId, { now, timeZone: options.timeZone }),
   ]);
 
   const chosen = chooseInvitees({
@@ -281,7 +295,7 @@ export async function fanOutInvites(
   if (error) throw new Error(`fanOutInvites: players: ${error.message}`);
 
   const byId = new Map((players ?? []).map((row) => [row.id, row]));
-  const already = await readQueuedInvitePuuids(client, input.hostPlayerId, now);
+  const already = await readQueuedInvitePuuids(client, input.hostPlayerId, input.groupId, now);
 
   const commands: CommandToQueue[] = [];
   const invited: string[] = [];
@@ -304,7 +318,12 @@ export async function fanOutInvites(
       console.warn(`invite fan-out: ${playerId} has no invitable puuid; not queued`);
       continue;
     }
-    commands.push({ targetPlayerId: input.hostPlayerId, kind: 'invite', payload: payload.data });
+    commands.push({
+      targetPlayerId: input.hostPlayerId,
+      groupId: input.groupId,
+      kind: 'invite',
+      payload: payload.data,
+    });
     invited.push(playerId);
   }
 
@@ -315,16 +334,18 @@ export async function fanOutInvites(
   return { invited, alreadyQueued, trimmed: chosen.trimmed, gated: false };
 }
 
-/** The puuids this host is already holding a live `invite` for. */
+/** The puuids this host is already holding a live `invite` for, in this group. */
 async function readQueuedInvitePuuids(
   client: ServiceClient,
   hostPlayerId: string,
+  groupId: string,
   now: Date,
 ): Promise<Set<string>> {
   const { data, error } = await client
     .from('companion_commands')
     .select('payload')
     .eq('target_player_id', hostPlayerId)
+    .eq('group_id', groupId)
     .eq('kind', 'invite')
     .in('status', ['pending', 'sent'])
     // Live now, and no further ahead than one TTL: the same both-ends bound every other read
@@ -388,7 +409,11 @@ export function inviteFanOutHook(options: FanOutOptions = {}): CommandHook {
       // `getServiceClient` reads the environment when it is called, never at import, so this
       // module can be imported by a build that has no Supabase keys (same as `register.ts`).
       const client = options.getClient ? options.getClient() : getServiceClient();
-      const result = await fanOutInvites(client, { hostPlayerId: event.targetPlayerId }, options);
+      const result = await fanOutInvites(
+        client,
+        { hostPlayerId: event.targetPlayerId, groupId: event.groupId },
+        options,
+      );
       console.info(`lobby ${partyId}: invite fan-out queued ${result.invited.length} invite(s)`);
     },
   };

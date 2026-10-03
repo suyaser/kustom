@@ -5,6 +5,7 @@ import {
   COMMANDS_PAGE_SIZE,
   COMPANION_COMMAND_TTL_MS,
   companionCommandsResponseSchema,
+  ORIGINAL_GROUP_ID,
 } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -168,10 +169,14 @@ if (stack === null) {
     payload: Record<string, unknown>,
     now = new Date(),
   ): Promise<string> {
-    const { queued } = await enqueueCommands(db, [{ targetPlayerId: playerId, kind, payload } as never], {
-      now,
-      gate: ON,
-    });
+    const { queued } = await enqueueCommands(
+      db,
+      [{ targetPlayerId: playerId, groupId: ORIGINAL_GROUP_ID, kind, payload } as never],
+      {
+        now,
+        gate: ON,
+      },
+    );
     const id = queued[0];
     if (id === undefined) throw new Error(`queue: ${kind} was not written`);
     return id;
@@ -288,15 +293,17 @@ if (stack === null) {
       const start = new Date();
       const id = await queue(owner.playerId, 'switch_side', switchSidePayload(), start);
 
-      const first = await claimCommands(db, owner.playerId, start);
+      const first = await claimCommands(db, owner.playerId, ORIGINAL_GROUP_ID, start);
       expect(first.map((command) => command.id)).toEqual([id]);
 
       const almost = new Date(start.getTime() + COMMANDS_RECLAIM_MS - 1_000);
-      expect(await claimCommands(db, owner.playerId, almost)).toEqual([]);
+      expect(await claimCommands(db, owner.playerId, ORIGINAL_GROUP_ID, almost)).toEqual([]);
       expect((await row(id)).attempts).toBe(1);
 
       const past = new Date(start.getTime() + COMMANDS_RECLAIM_MS + 1_000);
-      expect((await claimCommands(db, owner.playerId, past)).map((c) => c.id)).toEqual([id]);
+      expect((await claimCommands(db, owner.playerId, ORIGINAL_GROUP_ID, past)).map((c) => c.id)).toEqual([
+        id,
+      ]);
       expect((await row(id)).attempts).toBe(2);
     });
 
@@ -306,7 +313,7 @@ if (stack === null) {
 
       for (let delivery = 1; delivery <= COMMANDS_MAX_DELIVERIES; delivery += 1) {
         const at = new Date(start.getTime() + delivery * (COMMANDS_RECLAIM_MS + 1_000));
-        const handed = await claimCommands(db, owner.playerId, at);
+        const handed = await claimCommands(db, owner.playerId, ORIGINAL_GROUP_ID, at);
         expect(
           handed.map((command) => command.id),
           `delivery ${delivery}`,
@@ -315,7 +322,7 @@ if (stack === null) {
       expect((await row(id)).attempts).toBe(COMMANDS_MAX_DELIVERIES);
 
       const fourth = new Date(start.getTime() + 4 * (COMMANDS_RECLAIM_MS + 1_000));
-      expect(await claimCommands(db, owner.playerId, fourth)).toEqual([]);
+      expect(await claimCommands(db, owner.playerId, ORIGINAL_GROUP_ID, fourth)).toEqual([]);
 
       const settled = await row(id);
       expect(settled.status).toBe('failed');
@@ -324,7 +331,7 @@ if (stack === null) {
 
       // And it stays gone, however long anybody waits.
       const later = new Date(start.getTime() + 10 * COMMANDS_RECLAIM_MS);
-      expect(await claimCommands(db, owner.playerId, later)).toEqual([]);
+      expect(await claimCommands(db, owner.playerId, ORIGINAL_GROUP_ID, later)).toEqual([]);
     });
 
     it('with clientConnected=false answers nothing, moves nothing and does not touch last_seen_at', async () => {
@@ -736,6 +743,7 @@ if (stack === null) {
 
       await commandLobbyHook.onBalanced?.({
         lobbyId,
+        groupId: ORIGINAL_GROUP_ID,
         splitId: randomUUID(),
         rosterKey: seats.map((seat) => seat.puuid).join(','),
         split,

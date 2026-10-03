@@ -9,6 +9,7 @@ import {
 import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
 import { selectLatestLobby } from './lobby';
+import { BACKFILL_MIN_MEMBERS, countMembersByPuuid, ensureMemberships } from './memberships';
 import { ensurePlayers } from './players';
 import { storedStat } from './statValue';
 
@@ -59,26 +60,83 @@ export function findDuplicateParticipant(payload: CompanionGameEogPayload): stri
 }
 
 export interface GameIngestResult {
+  outcome: 'stored';
   gameId: string;
   lobbyId: string | null;
+  /** The group the game belongs to: its lobby's, or the posting token's when it has none (M13.3). */
+  groupId: string;
   /** False when this `lcu_game_id` was already stored — the idempotent case. */
   created: boolean;
+  /**
+   * True when the game was already stored **in another group** than the posting token's (M13.3).
+   * Such a post is a no-op: nothing is written, no fold runs, no lobby moves. A game belongs to
+   * exactly one group, and ingest dedupe stays global (decision row 2026-10-03).
+   */
+  foreignDuplicate: boolean;
   /** Rows in `game_players` for this game after the write. */
   participants: number;
 }
 
+/**
+ * A backfilled game that is not this group's (M13.3): fewer than {@link BACKFILL_MIN_MEMBERS}
+ * of its players are members of the token's group. Nothing is written; the next daily scan
+ * offers it again, by which time more of them may have joined.
+ */
+export interface GameSkippedNotThisGroup {
+  outcome: 'skipped-not-this-group';
+  /** How many of the ten were members of the token's group. */
+  members: number;
+}
+
+export type GameIngestOutcome = GameIngestResult | GameSkippedNotThisGroup;
+
+export interface GameIngestOptions {
+  /** The posting token's group (`CompanionIdentity.groupId`). */
+  groupId: string;
+}
+
+/**
+ * Which group a game lands in (M13.3, decision rows 2026-10-03):
+ *
+ * - an `lcu_game_id` already stored **anywhere** keeps its group and its row -- a second post is
+ *   the usual idempotent no-op, and from another group's token it writes nothing at all;
+ * - a live game takes **its lobby's group**, whoever's companion posts it: the lobby went to the
+ *   group whose companion saw the party first, and the game that came out of it follows;
+ * - a game with no lobby takes **the token's group**;
+ * - a **backfilled** game (no lobby by definition) is stored in the token's group only when at
+ *   least {@link BACKFILL_MIN_MEMBERS} of its players are already members there, and is
+ *   otherwise skipped (`skipped-not-this-group`).
+ *
+ * Every player of a game stored here becomes a `member` of the game's group (playing is joining).
+ */
 export async function ingestEogGame(
   client: ServiceClient,
   payload: CompanionGameEogPayloadWithWinner,
-): Promise<GameIngestResult> {
+  options: GameIngestOptions,
+): Promise<GameIngestOutcome> {
   // A backfilled game belongs to no lobby (M5.1). The contract says the body carries no
   // `partyId` at all, and this is the belt to that braces: a months-old game must never be
   // linked to a lobby cycle the party id happens to still match, and `games.lobby_id` being
   // null is already a rated-eligible state (M2.5).
-  const lobbyId =
+  const lobby =
     payload.source === 'backfill'
       ? null
-      : await findLobbyId(client, payload.partyId ?? null, payload.startedAt);
+      : await findLobby(client, payload.partyId ?? null, payload.startedAt);
+  const lobbyId = lobby?.id ?? null;
+  const groupId = lobby?.groupId ?? options.groupId;
+
+  // The six-of-ten rule only decides where a **new** game goes; an id already stored anywhere is
+  // the usual no-op below and is not counted against anybody.
+  if (payload.source === 'backfill' && (await findGame(client, payload.gameId)) === null) {
+    const members = await countMembersByPuuid(
+      client,
+      options.groupId,
+      payload.participants.map((participant) => participant.puuid),
+    );
+    if (members < BACKFILL_MIN_MEMBERS) {
+      return { outcome: 'skipped-not-this-group', members };
+    }
+  }
 
   const insert: GameInsert = {
     lcu_game_id: payload.gameId,
@@ -92,29 +150,45 @@ export async function ingestEogGame(
     // point 11). Backfill (M5.1) will write through this function too.
     raw: asJson(scrubRawEogBlock(payload.raw)),
     // season_id is left out: the column defaults to public.active_season_id().
+    group_id: groupId,
   };
 
   const { data: inserted, error: insertError } = await client
     .from('games')
     .upsert(insert, { onConflict: 'lcu_game_id', ignoreDuplicates: true })
-    .select('id, lobby_id')
+    .select('id, lobby_id, group_id')
     .maybeSingle();
   if (insertError) throw new Error(`ingestGame: insert failed: ${insertError.message}`);
 
   const game = inserted ?? (await selectGame(client, payload.gameId));
   const created = inserted !== null;
 
-  await upsertGamePlayers(client, game.id, payload, created);
-  if (!created) {
-    await mergeStoredDraftBans(client, game.id, payload.raw);
+  // Stored already, and in another group than this token's: a game belongs to one group, and
+  // the other group's companion posting the same block changes nothing anywhere.
+  const foreignDuplicate = !created && game.group_id !== options.groupId;
+  if (!foreignDuplicate) {
+    await upsertGamePlayers(client, game.id, game.group_id, payload, created);
+    if (!created) {
+      await mergeStoredDraftBans(client, game.id, payload.raw);
+    }
   }
 
   return {
+    outcome: 'stored',
     gameId: game.id,
     lobbyId: game.lobby_id,
+    groupId: game.group_id,
     created,
+    foreignDuplicate,
     participants: await countGamePlayers(client, game.id),
   };
+}
+
+/** The stored row for this `lcu_game_id`, or null. */
+async function findGame(client: ServiceClient, lcuGameId: number): Promise<{ id: string } | null> {
+  const { data, error } = await client.from('games').select('id').eq('lcu_game_id', lcuGameId).maybeSingle();
+  if (error) throw new Error(`ingestGame: existing game lookup failed: ${error.message}`);
+  return data;
 }
 
 /**
@@ -141,10 +215,10 @@ async function mergeStoredDraftBans(
 async function selectGame(
   client: ServiceClient,
   lcuGameId: number,
-): Promise<{ id: string; lobby_id: string | null }> {
+): Promise<{ id: string; lobby_id: string | null; group_id: string }> {
   const { data, error } = await client
     .from('games')
-    .select('id, lobby_id')
+    .select('id, lobby_id, group_id')
     .eq('lcu_game_id', lcuGameId)
     .maybeSingle();
   if (error) throw new Error(`ingestGame: select failed: ${error.message}`);
@@ -168,6 +242,15 @@ export async function findLobbyId(
   partyId: string | null,
   startedAt?: string | null,
 ): Promise<string | null> {
+  return (await findLobby(client, partyId, startedAt))?.id ?? null;
+}
+
+/** {@link findLobbyId}, with the lobby's group: the group the game will be stored in (M13.3). */
+export async function findLobby(
+  client: ServiceClient,
+  partyId: string | null,
+  startedAt?: string | null,
+): Promise<{ id: string; groupId: string } | null> {
   if (partyId === null) return null;
 
   // An unknown party id is not an error: the companion may have missed the lobby events.
@@ -181,7 +264,7 @@ export async function findLobbyId(
     return null;
   }
 
-  return lobby.id;
+  return { id: lobby.id, groupId: lobby.groupId };
 }
 
 /**
@@ -204,6 +287,7 @@ export async function findLobbyId(
 async function upsertGamePlayers(
   client: ServiceClient,
   gameId: string,
+  groupId: string,
   payload: CompanionGameEogPayloadWithWinner,
   created: boolean,
 ): Promise<void> {
@@ -241,6 +325,8 @@ async function upsertGamePlayers(
     const facts = rawStats[participant.puuid];
     rows.push({
       game_id: gameId,
+      // Always the game's own group: `game_players_game_group_fkey` refuses anything else.
+      group_id: groupId,
       player_id: playerId,
       side: participant.side,
       role: participant.role,
@@ -273,6 +359,13 @@ async function upsertGamePlayers(
     .from('game_players')
     .upsert(rows, { onConflict: 'game_id,player_id', ignoreDuplicates: true });
   if (error) throw new Error(`ingestGame: game_players insert failed: ${error.message}`);
+
+  // Playing is joining (M13.3): everyone on this scoreboard is a member of the game's group.
+  await ensureMemberships(
+    client,
+    groupId,
+    rows.map((row) => row.player_id),
+  );
 }
 
 async function countGamePlayers(client: ServiceClient, gameId: string): Promise<number> {

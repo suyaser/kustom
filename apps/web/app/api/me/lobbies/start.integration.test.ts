@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
-import { companionCommandPayloadSchemas } from '@customs/db/schemas';
+import { companionCommandPayloadSchemas, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { SessionUserLike } from '@/lib/adminAuth';
@@ -503,7 +503,11 @@ if (stack === null) {
         .eq('kind', 'invite');
       if (error) throw new Error(error.message);
 
-      const result = await fanOutInvites(db, { hostPlayerId: id('host') }, { now: NOW, gate: ON });
+      const result = await fanOutInvites(
+        db,
+        { hostPlayerId: id('host'), groupId: ORIGINAL_GROUP_ID },
+        { now: NOW, gate: ON },
+      );
 
       expect(result.invited).toEqual([id('fresh'), id('recent')]);
       expect(await commandsOf('invite')).toHaveLength(2);
@@ -521,7 +525,11 @@ if (stack === null) {
     });
 
     it('skips anybody already holding a live invite when it runs again', async () => {
-      const result = await fanOutInvites(db, { hostPlayerId: id('host') }, { now: NOW, gate: ON });
+      const result = await fanOutInvites(
+        db,
+        { hostPlayerId: id('host'), groupId: ORIGINAL_GROUP_ID },
+        { now: NOW, gate: ON },
+      );
 
       expect(result).toMatchObject({ invited: [], alreadyQueued: 2, gated: false });
       expect(await commandsOf('invite')).toHaveLength(2);
@@ -530,7 +538,11 @@ if (stack === null) {
     it('queues nothing at all while the invite kind is gated off', async () => {
       // The gate off, on a host with nobody yet invited: no read, no write, no rows. The kind
       // is green in production since 16.18, so the flag is named rather than defaulted.
-      const result = await fanOutInvites(db, { hostPlayerId: id('fresh') }, { now: NOW, gate: OFF });
+      const result = await fanOutInvites(
+        db,
+        { hostPlayerId: id('fresh'), groupId: ORIGINAL_GROUP_ID },
+        { now: NOW, gate: OFF },
+      );
 
       expect(result).toMatchObject({ invited: [], gated: true });
       expect(await commandsOf('invite')).toHaveLength(2);
@@ -542,6 +554,7 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('host'),
+            groupId: ORIGINAL_GROUP_ID,
             kind: 'create_lobby',
             payload: { lobbyName: 'Customs 09 Jun #2', lobbyPassword: '1234' },
           },
@@ -631,7 +644,14 @@ if (stack === null) {
     it('refuses a second live create_lobby on a different host, and says so rather than throwing', async () => {
       const first = await enqueueCommands(
         db,
-        [{ targetPlayerId: id('host'), kind: 'create_lobby', payload: createPayload(2) }],
+        [
+          {
+            targetPlayerId: id('host'),
+            groupId: ORIGINAL_GROUP_ID,
+            kind: 'create_lobby',
+            payload: createPayload(2),
+          },
+        ],
         { now: NOW, gate: ON },
       );
       expect(first.queued).toHaveLength(1);
@@ -641,7 +661,14 @@ if (stack === null) {
       // reviewer found.
       const second = await enqueueCommands(
         db,
-        [{ targetPlayerId: id('inlobby'), kind: 'create_lobby', payload: createPayload(3) }],
+        [
+          {
+            targetPlayerId: id('inlobby'),
+            groupId: ORIGINAL_GROUP_ID,
+            kind: 'create_lobby',
+            payload: createPayload(3),
+          },
+        ],
         { now: NOW, gate: ON },
       );
 
@@ -653,16 +680,29 @@ if (stack === null) {
     it('still writes the rest of a batch whose create_lobby lost the race', async () => {
       await enqueueCommands(
         db,
-        [{ targetPlayerId: id('host'), kind: 'create_lobby', payload: createPayload(4) }],
+        [
+          {
+            targetPlayerId: id('host'),
+            groupId: ORIGINAL_GROUP_ID,
+            kind: 'create_lobby',
+            payload: createPayload(4),
+          },
+        ],
         { now: NOW, gate: ON },
       );
 
       const mixed = await enqueueCommands(
         db,
         [
-          { targetPlayerId: id('host'), kind: 'create_lobby', payload: createPayload(5) },
           {
             targetPlayerId: id('host'),
+            groupId: ORIGINAL_GROUP_ID,
+            kind: 'create_lobby',
+            payload: createPayload(5),
+          },
+          {
+            targetPlayerId: id('host'),
+            groupId: ORIGINAL_GROUP_ID,
             kind: 'invite',
             // Through the wire schema, which is where the branded puuid comes from.
             payload: companionCommandPayloadSchemas.invite.parse({
@@ -702,7 +742,14 @@ if (stack === null) {
 
       const blocked = await enqueueCommands(
         db,
-        [{ targetPlayerId: id('host'), kind: 'create_lobby', payload: createPayload(7) }],
+        [
+          {
+            targetPlayerId: id('host'),
+            groupId: ORIGINAL_GROUP_ID,
+            kind: 'create_lobby',
+            payload: createPayload(7),
+          },
+        ],
         { now: NOW, gate: ON },
       );
       expect(blocked.skipped).toEqual([{ kind: 'create_lobby', reason: 'conflict' }]);
@@ -716,7 +763,14 @@ if (stack === null) {
       // `failed` is outside the index's predicate, so the slot is free again.
       const after = await enqueueCommands(
         db,
-        [{ targetPlayerId: id('host'), kind: 'create_lobby', payload: createPayload(7) }],
+        [
+          {
+            targetPlayerId: id('host'),
+            groupId: ORIGINAL_GROUP_ID,
+            kind: 'create_lobby',
+            payload: createPayload(7),
+          },
+        ],
         { now: NOW, gate: ON },
       );
       expect(after.queued).toHaveLength(1);

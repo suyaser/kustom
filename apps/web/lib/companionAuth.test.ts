@@ -6,6 +6,7 @@ import {
   isLastSeenStale,
   LAST_SEEN_THROTTLE_MS,
   mintCompanionToken,
+  NOT_A_MEMBER_ERROR,
   readBearerToken,
 } from './companionAuth';
 
@@ -21,7 +22,8 @@ function record(overrides: Partial<CompanionTokenRecord> = {}): CompanionTokenRe
     tokenId: 'token-1',
     playerId: 'player-1',
     puuid: 'puuid-1',
-    isAdmin: false,
+    groupId: 'group-1',
+    isMember: true,
     revokedAt: null,
     lastSeenAt: NOW.toISOString(),
     ...overrides,
@@ -108,17 +110,41 @@ describe('authenticateCompanion', () => {
     expect(result).toEqual({ ok: false, status: 401, error: 'companion token has been revoked' });
   });
 
-  it('resolves the owning player from the token', async () => {
+  it("resolves the owning player and the token's group from the token", async () => {
     const result = await authenticateCompanion({
       authorization: 'Bearer secret',
-      lookup: async () => record({ playerId: 'player-9', puuid: 'puuid-9', isAdmin: true }),
+      lookup: async () => record({ playerId: 'player-9', puuid: 'puuid-9', groupId: 'group-b' }),
       now: NOW,
     });
 
     expect(result).toEqual({
       ok: true,
-      identity: { tokenId: 'token-1', playerId: 'player-9', puuid: 'puuid-9', isAdmin: true },
+      identity: { tokenId: 'token-1', playerId: 'player-9', puuid: 'puuid-9', groupId: 'group-b' },
     });
+  });
+
+  // M13.3: a token is only good while its player is a member of its group.
+  it('refuses a token whose player is no longer a member of its group, with 403', async () => {
+    const touch = vi.fn(async () => undefined);
+    const result = await authenticateCompanion({
+      authorization: 'Bearer secret',
+      lookup: async () => record({ isMember: false, lastSeenAt: null }),
+      touch,
+      now: NOW,
+    });
+
+    expect(result).toEqual({ ok: false, status: 403, error: NOT_A_MEMBER_ERROR });
+    // A token that may not post must not look like a live host to start-a-lobby.
+    expect(touch).not.toHaveBeenCalled();
+  });
+
+  it('still calls a revoked non-member token revoked (401), not 403', async () => {
+    const result = await authenticateCompanion({
+      authorization: 'Bearer secret',
+      lookup: async () => record({ isMember: false, revokedAt: '2026-09-01T00:00:00.000Z' }),
+    });
+
+    expect(result).toEqual({ ok: false, status: 401, error: 'companion token has been revoked' });
   });
 
   it('does not write last_seen_at when it is fresh', async () => {

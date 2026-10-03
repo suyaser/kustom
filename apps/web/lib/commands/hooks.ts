@@ -16,6 +16,8 @@ import type { CompanionCommandKind } from '@customs/db/schemas';
 export interface CommandAckedEvent {
   commandId: string;
   targetPlayerId: string;
+  /** The command's group, which is its target token's (M13.3). The invite fan-out stays inside it. */
+  groupId: string;
   kind: CompanionCommandKind;
   status: 'acked' | 'failed';
   /** The parsed result, for `acked` only. */

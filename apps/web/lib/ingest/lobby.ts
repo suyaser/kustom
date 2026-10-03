@@ -10,6 +10,7 @@ import { supersedeLobbyCommands } from '../commands/queue';
 import type { CompanionIdentity } from '../companionAuth';
 import { ACTIVE_LOBBY_STATUSES, assertLegalTransition, isActiveLobbyStatus } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
+import { ensureMemberships } from './memberships';
 import { ensurePlayers } from './players';
 import { carryRoleOverrides } from './roleCarry';
 
@@ -168,18 +169,48 @@ export async function isLobbyMemberOfGame(
 }
 
 export interface LobbyIngestOptions {
+  /**
+   * The posting token's group (M13.3, `CompanionIdentity.groupId`). A new lobby is created in
+   * it; an existing party keeps the group it already has.
+   */
+  groupId: string;
   /** Injected in tests: the rank staleness check (M2.4) and the role carry (M3.6) read it. */
   now?: Date;
 }
 
+/**
+ * **A party belongs to the group whose companion posted it first** (M13.3, decision row
+ * 2026-10-03). When this party's live row -- or, with no live row, its newest row -- is another
+ * group's, a post from this token is a no-op that answers exactly like today's duplicate post:
+ * `created: false`, the stored status and member count, and nothing written. No roster, no
+ * rename, no reporter claim, no membership, no `players` row. A second companion posting the
+ * same party for another group must never move the lobby.
+ *
+ * "Its newest row" is what keeps the night's **next** cycle in the same group: the party id is
+ * the client's and survives the whole night (M2.14), so without it the first post after a
+ * finished game would hand the party to whichever group's companion happened to post first.
+ */
 export async function ingestLobby(
   client: ServiceClient,
   payload: CompanionLobbyPayload,
   reportedByPlayerId: string,
-  options: LobbyIngestOptions = {},
+  options: LobbyIngestOptions,
 ): Promise<LobbyIngestResult> {
   const now = options.now ?? new Date();
-  const { lobby, created } = await upsertLobby(client, payload, reportedByPlayerId);
+
+  const owner = await selectPartyOwner(client, payload.partyId);
+  if (owner !== null && owner.groupId !== options.groupId) {
+    return foreignPartyAnswer(client, owner.lobby, payload, now);
+  }
+
+  let upserted: LobbyRowResult;
+  try {
+    upserted = await upsertLobby(client, payload, reportedByPlayerId, options.groupId);
+  } catch (error) {
+    if (error instanceof ForeignPartyRace) return foreignPartyAnswer(client, error.lobby, payload, now);
+    throw error;
+  }
+  const { lobby, created } = upserted;
 
   // Frozen (M2.9): the lobby is in a game or done, so the roster is a record of what
   // happened. Report what is stored and write nothing to `lobby_members`.
@@ -205,7 +236,7 @@ export async function ingestLobby(
   // or stepping into the spectator slot has to land in `lobby_members` (the seat plan reads
   // it) and a Riot ID that changed has to land in `players` (M1.7). Neither touches
   // `lobbies`, so neither restarts the clock — only the write below does that.
-  const diff = await replaceMembers(client, lobby.id, payload);
+  const diff = await replaceMembers(client, lobby.id, payload, lobby.groupId);
   const memberCount = diff.count;
 
   // A role for tonight lasts the night and lives on the player (M3.6): every row this post
@@ -230,6 +261,29 @@ export async function ingestLobby(
     created,
     memberCount,
     rosterFrozen: false,
+    ranksNeeded: await selectRanksNeeded(client, payload, now),
+    recheckInMs: null,
+  };
+}
+
+/**
+ * The answer to a post about another group's party: today's duplicate-post answer, with nothing
+ * written (see {@link ingestLobby}).
+ */
+async function foreignPartyAnswer(
+  client: ServiceClient,
+  lobby: ExistingLobby,
+  payload: CompanionLobbyPayload,
+  now: Date,
+): Promise<LobbyIngestResult> {
+  return {
+    lobbyId: lobby.id,
+    status: lobby.status,
+    created: false,
+    memberCount: await countMembers(client, lobby.id),
+    // Literally true: this post changed no `lobby_members` row, and it never will.
+    rosterFrozen: true,
+    // A read, and still worth answering: a rank is a fact about a person, not a group.
     ranksNeeded: await selectRanksNeeded(client, payload, now),
     recheckInMs: null,
   };
@@ -350,6 +404,7 @@ async function upsertLobby(
   client: ServiceClient,
   payload: CompanionLobbyPayload,
   reportedByPlayerId: string,
+  groupId: string,
 ): Promise<LobbyRowResult> {
   const existing = await selectActiveLobby(client, payload.partyId);
 
@@ -359,6 +414,9 @@ async function upsertLobby(
       reported_by_player_id: reportedByPlayerId,
       lobby_name: payload.lobbyName,
       lobby_password: payload.lobbyPassword,
+      // The token's group (M13.3). Passed explicitly even while `0018`'s temporary default would
+      // have filled in the same id: M13.4's `0020` drops that default.
+      group_id: groupId,
     };
     // A plain insert, not an upsert: `lcu_party_id` is no longer unique by itself (M2.14) and
     // `lobbies_active_party_idx` is partial, so there is no constraint for `on conflict` to
@@ -369,9 +427,12 @@ async function upsertLobby(
       throw new Error(`ingestLobby: insert failed: ${error.message}`);
     }
 
-    // Another companion opened the same cycle between our select and our insert.
+    // Another companion opened the same cycle between our select and our insert. If it was
+    // another group's, that group owns the party now and this post must not write into it --
+    // the caller re-checks ownership on the returned row.
     const raced = await selectActiveLobby(client, payload.partyId);
     if (raced === null) throw new Error('ingestLobby: lobby vanished after a conflicting insert');
+    if (raced.groupId !== groupId) throw new ForeignPartyRace(raced);
     return { lobby: raced, created: false };
   }
 
@@ -412,9 +473,12 @@ export interface ExistingLobby {
   /** Moved by every write to the row, by the `updated_at` trigger. The roll's CAS guard. */
   updatedAt: string;
   createdAt: string;
+  /** The group that owns this lobby: whichever group's companion posted the party first (M13.3). */
+  groupId: string;
 }
 
-const LOBBY_COLUMNS = 'id, status, reported_by_player_id, lobby_name, lobby_password, updated_at, created_at';
+const LOBBY_COLUMNS =
+  'id, status, reported_by_player_id, lobby_name, lobby_password, updated_at, created_at, group_id';
 
 function toExistingLobby(row: {
   id: string;
@@ -424,6 +488,7 @@ function toExistingLobby(row: {
   lobby_password: string | null;
   updated_at: string;
   created_at: string;
+  group_id: string;
 }): ExistingLobby {
   return {
     id: row.id,
@@ -433,7 +498,42 @@ function toExistingLobby(row: {
     lobbyPassword: row.lobby_password,
     updatedAt: row.updated_at,
     createdAt: row.created_at,
+    groupId: row.group_id,
   };
+}
+
+/**
+ * Thrown by {@link upsertLobby} when the insert lost a race to another group's companion: the
+ * party is that group's now. {@link ingestLobby} turns it back into the cross-group no-op.
+ */
+class ForeignPartyRace extends Error {
+  constructor(readonly lobby: ExistingLobby) {
+    super(`ingestLobby: party was opened by group ${lobby.groupId} first`);
+  }
+}
+
+/**
+ * Which group owns this party, and through which row: the live row when there is one, else the
+ * party's newest row of any status. `null` for a party nobody has posted.
+ */
+async function selectPartyOwner(
+  client: ServiceClient,
+  partyId: string,
+): Promise<{ groupId: string; lobby: ExistingLobby } | null> {
+  const live = await selectActiveLobby(client, partyId);
+  if (live !== null) return { groupId: live.groupId, lobby: live };
+
+  const { data, error } = await client
+    .from('lobbies')
+    .select(LOBBY_COLUMNS)
+    .eq('lcu_party_id', partyId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`ingestLobby: party owner lookup failed: ${error.message}`);
+  if (data === null) return null;
+  const newest = toExistingLobby(data);
+  return { groupId: newest.groupId, lobby: newest };
 }
 
 /**
@@ -526,6 +626,7 @@ async function replaceMembers(
   client: ServiceClient,
   lobbyId: string,
   payload: CompanionLobbyPayload,
+  groupId: string,
 ): Promise<MemberDiff> {
   const playerIds = await ensurePlayers(
     client,
@@ -568,6 +669,10 @@ async function replaceMembers(
       .upsert([...rows.values()], { onConflict: 'lobby_id,player_id' });
     if (error) throw new Error(`ingestLobby: member upsert failed: ${error.message}`);
   }
+
+  // Playing is joining (M13.3): everyone on this group's roster is a member of it from now on.
+  // `on conflict do nothing`, so an admin stays an admin.
+  await ensureMemberships(client, groupId, keep);
 
   return { count: keep.length, inserted };
 }

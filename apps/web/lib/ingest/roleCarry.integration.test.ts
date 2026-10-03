@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database, RoleValue } from '@customs/db';
-import { companionLobbyPayloadSchema } from '@customs/db/schemas';
+import { companionLobbyPayloadSchema, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { nightStart } from '@/lib/night';
@@ -90,7 +90,7 @@ if (stack === null) {
         isSpectator: false,
       })),
     });
-    return ingestLobby(db, payload, ownerPlayerId, { now });
+    return ingestLobby(db, payload, ownerPlayerId, { groupId: ORIGINAL_GROUP_ID, now });
   }
 
   async function playerIdOf(puuid: string): Promise<string> {

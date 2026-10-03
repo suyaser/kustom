@@ -44,6 +44,7 @@ const split: Split = {
 
 const balanced: LobbyBalancedEvent = {
   lobbyId: 'lobby-1',
+  groupId: 'group-1',
   splitId: 'split-1',
   rosterKey: 'a,b',
   split,
@@ -56,7 +57,7 @@ const balanced: LobbyBalancedEvent = {
   playing: [member('watcher')],
 };
 
-const finished: GameFinishedEvent = { gameId: 'game-1', lobbyId: 'lobby-1', rated: true };
+const finished: GameFinishedEvent = { gameId: 'game-1', lobbyId: 'lobby-1', groupId: 'group-1', rated: true };
 
 describe('the lobby hook list', () => {
   afterEach(() => {

@@ -8,7 +8,9 @@ import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './see
 
 /**
  * The rating rebuild (M5.2): fold every rated-eligible game of a season, in `started_at` order,
- * from seeds.
+ * from seeds -- **one group at a time** since M13.3, because a rating is a position in one
+ * group's pool. {@link rebuildRatings} folds one group; {@link rebuildAllGroups} is the loop the
+ * command runs.
  *
  * This is the promise underneath every number on the leaderboard — the ratings are a fold over
  * games in the order they were played, and if that ever stops being true (a batch of old
@@ -99,6 +101,11 @@ export const GUARD_MESSAGE = 'A lobby is live. Run this when nobody is playing, 
 export const FENCE_MESSAGE = 'New games landed while this was running. Run it again.';
 
 export interface RebuildOptions {
+  /**
+   * The group to fold (M13.3). Ratings are per group, so a rebuild is too: this group's games,
+   * this group's `ratings` rows, this group's guard. {@link rebuildAllGroups} is the loop.
+   */
+  groupId: string;
   /** The season to fold. Defaults to the active one. */
   seasonId?: string | null;
   /** Skip the guard, and nothing else. */
@@ -118,6 +125,9 @@ export interface RebuildOptions {
 export type RebuildSkipReason = RatedSkipReason;
 
 export interface RebuildReport {
+  groupId: string;
+  /** The group's slug, for the printed report. */
+  groupSlug: string;
   seasonId: string;
   seasonName: string;
   considered: number;
@@ -209,11 +219,10 @@ interface WriteRow {
   sigmaAfter: number | null;
 }
 
-export async function rebuildRatings(
-  client: ServiceClient,
-  options: RebuildOptions = {},
-): Promise<RebuildResult> {
+export async function rebuildRatings(client: ServiceClient, options: RebuildOptions): Promise<RebuildResult> {
   const now = options.now ?? new Date();
+  const groupId = options.groupId;
+  const groupSlug = await resolveGroupSlug(client, groupId);
 
   const season = await resolveSeason(client, options.seasonId ?? null);
   if (season === null) {
@@ -229,7 +238,9 @@ export async function rebuildRatings(
   }
 
   if (!options.force) {
-    const blocker = await guardBlocker(client, now);
+    // Per group (M13.3): another group's live lobby says nothing about whether this group's
+    // numbers are about to move under the rebuild.
+    const blocker = await guardBlocker(client, groupId, now);
     if (blocker !== null) {
       return { ok: false, code: 'guard', message: `${GUARD_MESSAGE} (${blocker})`, report: null };
     }
@@ -240,9 +251,9 @@ export async function rebuildRatings(
   // `started_at` then `lcu_game_id`, and the second key is not decoration: backfill will
   // happily land two games with the same `gameCreation`, and without a tie-break two runs
   // could order them differently and disagree about the numbers.
-  const games = await selectSeasonGames(client, season.id);
-  const rows = await selectSeasonGamePlayers(client, season.id);
-  const storedRatings = await selectSeasonRatings(client, season.id);
+  const games = await selectSeasonGames(client, season.id, groupId);
+  const rows = await selectSeasonGamePlayers(client, season.id, groupId);
+  const storedRatings = await selectSeasonRatings(client, season.id, groupId);
 
   const byGame = new Map<string, SnapshotRow[]>();
   for (const row of rows) {
@@ -378,6 +389,7 @@ export async function rebuildRatings(
       sameSeed(previous.seed, seed);
     if (!unchanged) {
       ratingInserts.push({
+        group_id: groupId,
         player_id: playerId,
         season_id: season.id,
         mu: rating.mu,
@@ -406,6 +418,8 @@ export async function rebuildRatings(
   const orphans = [...storedRatings.keys()].filter((playerId) => !played.has(playerId));
 
   const report: RebuildReport = {
+    groupId,
+    groupSlug,
     seasonId: season.id,
     seasonName: season.name,
     considered: games.length,
@@ -432,7 +446,7 @@ export async function rebuildRatings(
   await writeGamePlayerRatings(client, changedRows);
   await writeRatings(client, ratingInserts);
   if (options.prune && orphans.length > 0) {
-    await pruneRatings(client, season.id, orphans);
+    await pruneRatings(client, season.id, groupId, orphans);
     report.prunedRatings = orphans.length;
   }
 
@@ -453,12 +467,70 @@ export async function rebuildRatings(
   report.rolesChanged = roles.changed;
 
   // ---- Fence ---------------------------------------------------------------------------
-  const drift = await fenceDrift(client, season.id, games, byGame);
+  const drift = await fenceDrift(client, season.id, groupId, games, byGame);
   if (drift !== null) {
     return { ok: false, code: 'fence', message: `${FENCE_MESSAGE} (${drift})`, report };
   }
 
   return { ok: true, report };
+}
+
+// ---------------------------------------------------------------------------
+// Every group (M13.3)
+// ---------------------------------------------------------------------------
+
+export interface RebuildAllOptions extends Omit<RebuildOptions, 'groupId'> {
+  /** One group by slug (`--group <slug>`); every group, oldest first, when absent. */
+  groupSlug?: string | null;
+}
+
+/** One group's outcome inside {@link rebuildAllGroups}. */
+export interface GroupRebuild {
+  groupId: string;
+  groupSlug: string;
+  result: RebuildResult;
+}
+
+export type RebuildAllResult =
+  | { ok: true; groups: GroupRebuild[] }
+  | { ok: false; code: 'no-group'; message: string };
+
+/**
+ * `rebuild-ratings` over every group, **each folded independently** (M13.3): a group's ratings
+ * are a fold over that group's games and nothing else, so the groups share no state and one
+ * group's guard refusing (a live lobby, a game in the last fifteen minutes) does not stop the
+ * next group's rebuild. Oldest group first, so the original group is always the first report.
+ *
+ * Each group's result is returned as {@link rebuildRatings} gave it; the command decides the exit
+ * code from the worst of them.
+ */
+export async function rebuildAllGroups(
+  client: ServiceClient,
+  options: RebuildAllOptions = {},
+): Promise<RebuildAllResult> {
+  const query = client.from('groups').select('id, slug').order('created_at', { ascending: true });
+  const { data, error } = await (options.groupSlug ? query.eq('slug', options.groupSlug) : query);
+  if (error) throw new Error(`rebuild: groups select failed: ${error.message}`);
+
+  const groups = data ?? [];
+  if (groups.length === 0) {
+    return {
+      ok: false,
+      code: 'no-group',
+      message: options.groupSlug ? `No group with the slug ${options.groupSlug}.` : 'No groups exist.',
+    };
+  }
+
+  const { groupSlug: _slug, ...rest } = options;
+  const results: GroupRebuild[] = [];
+  for (const group of groups) {
+    results.push({
+      groupId: group.id,
+      groupSlug: group.slug,
+      result: await rebuildRatings(client, { ...rest, groupId: group.id }),
+    });
+  }
+  return { ok: true, groups: results };
 }
 
 function nulled(gameId: string, playerId: string): WriteRow {
@@ -490,11 +562,23 @@ async function resolveSeason(client: ServiceClient, seasonId: string | null): Pr
   return data;
 }
 
-/** The reason the guard says no, or null. One sentence either way (`GUARD_MESSAGE`). */
-async function guardBlocker(client: ServiceClient, now: Date): Promise<string | null> {
+/** `groups.slug`. Throws for a group that does not exist: folding nobody's games is a typo. */
+async function resolveGroupSlug(client: ServiceClient, groupId: string): Promise<string> {
+  const { data, error } = await client.from('groups').select('slug').eq('id', groupId).maybeSingle();
+  if (error) throw new Error(`rebuild: group select failed: ${error.message}`);
+  if (data === null) throw new Error(`rebuild: no group ${groupId}`);
+  return data.slug;
+}
+
+/**
+ * The reason the guard says no for **this group**, or null. One sentence either way
+ * (`GUARD_MESSAGE`).
+ */
+async function guardBlocker(client: ServiceClient, groupId: string, now: Date): Promise<string | null> {
   const { data: lobby, error: lobbyError } = await client
     .from('lobbies')
     .select('id, status')
+    .eq('group_id', groupId)
     .in('status', ['open', 'balanced', 'in_game'])
     .limit(1)
     .maybeSingle();
@@ -505,6 +589,7 @@ async function guardBlocker(client: ServiceClient, now: Date): Promise<string | 
   const { data: game, error: gameError } = await client
     .from('games')
     .select('lcu_game_id, created_at')
+    .eq('group_id', groupId)
     .gte('created_at', since)
     .limit(1)
     .maybeSingle();
@@ -532,11 +617,16 @@ async function selectPaged<T>(
   }
 }
 
-async function selectSeasonGames(client: ServiceClient, seasonId: string): Promise<SnapshotGame[]> {
+async function selectSeasonGames(
+  client: ServiceClient,
+  seasonId: string,
+  groupId: string,
+): Promise<SnapshotGame[]> {
   const rows = await selectPaged('games select', (from, to) =>
     client
       .from('games')
       .select('id, lcu_game_id, started_at, duration_s, winning_side, source, raw->gameMode')
+      .eq('group_id', groupId)
       .eq('season_id', seasonId)
       .not('winning_side', 'is', null)
       .order('started_at', { ascending: true })
@@ -566,7 +656,11 @@ async function selectSeasonGames(client: ServiceClient, seasonId: string): Promi
  * Filtered through the embedded `games` rather than an `in` list of game ids: a season's worth
  * of uuids is a URL nobody should build, and `games!inner` is one join either way.
  */
-async function selectSeasonGamePlayers(client: ServiceClient, seasonId: string): Promise<SnapshotRow[]> {
+async function selectSeasonGamePlayers(
+  client: ServiceClient,
+  seasonId: string,
+  groupId: string,
+): Promise<SnapshotRow[]> {
   const rows = await selectPaged('game_players select', (from, to) =>
     client
       .from('game_players')
@@ -577,6 +671,8 @@ async function selectSeasonGamePlayers(client: ServiceClient, seasonId: string):
         'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, games!inner(season_id), players!inner(puuid, rank_tier, rank_division)',
       )
       .eq('games.season_id', seasonId)
+      // `game_players.group_id` is always its game's (`game_players_game_group_fkey`).
+      .eq('group_id', groupId)
       .order('game_id', { ascending: true })
       .order('player_id', { ascending: true })
       .range(from, to),
@@ -620,11 +716,13 @@ interface StoredRating {
 async function selectSeasonRatings(
   client: ServiceClient,
   seasonId: string,
+  groupId: string,
 ): Promise<Map<string, StoredRating>> {
   const rows = await selectPaged('ratings select', (from, to) =>
     client
       .from('ratings')
       .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
+      .eq('group_id', groupId)
       .eq('season_id', seasonId)
       .order('player_id', { ascending: true })
       .range(from, to),
@@ -671,7 +769,7 @@ async function writeRatings(client: ServiceClient, inserts: readonly RatingInser
   for (let index = 0; index < inserts.length; index += WRITE_CHUNK) {
     const { error } = await client
       .from('ratings')
-      .upsert(inserts.slice(index, index + WRITE_CHUNK), { onConflict: 'player_id,season_id' });
+      .upsert(inserts.slice(index, index + WRITE_CHUNK), { onConflict: 'group_id,player_id,season_id' });
     if (error) throw new Error(`rebuild: ratings upsert failed: ${error.message}`);
   }
 }
@@ -679,12 +777,14 @@ async function writeRatings(client: ServiceClient, inserts: readonly RatingInser
 async function pruneRatings(
   client: ServiceClient,
   seasonId: string,
+  groupId: string,
   playerIds: readonly string[],
 ): Promise<void> {
   for (let index = 0; index < playerIds.length; index += WRITE_CHUNK) {
     const { error } = await client
       .from('ratings')
       .delete()
+      .eq('group_id', groupId)
       .eq('season_id', seasonId)
       .in('player_id', playerIds.slice(index, index + WRITE_CHUNK));
     if (error) throw new Error(`rebuild: ratings prune failed: ${error.message}`);
@@ -701,10 +801,11 @@ async function pruneRatings(
 async function fenceDrift(
   client: ServiceClient,
   seasonId: string,
+  groupId: string,
   games: readonly SnapshotGame[],
   byGame: ReadonlyMap<string, readonly SnapshotRow[]>,
 ): Promise<string | null> {
-  const after = await selectSeasonGames(client, seasonId);
+  const after = await selectSeasonGames(client, seasonId, groupId);
   if (after.length !== games.length) {
     return `${games.length} games at the start, ${after.length} now`;
   }
@@ -724,6 +825,7 @@ async function fenceDrift(
       .from('game_players')
       .select('game_id, games!inner(season_id)')
       .eq('games.season_id', seasonId)
+      .eq('group_id', groupId)
       .order('game_id', { ascending: true })
       .range(from, to),
   );
@@ -741,6 +843,7 @@ async function fenceDrift(
 /** The summary the command prints. One place, so a test can read what a human reads. */
 export function formatRebuildReport(report: RebuildReport): string {
   const lines = [
+    `group         ${report.groupSlug} (${report.groupId})`,
     `season        ${report.seasonName} (${report.seasonId})`,
     `considered    ${report.considered} game${report.considered === 1 ? '' : 's'}`,
     `rated         ${report.rated}`,

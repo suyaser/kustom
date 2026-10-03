@@ -52,26 +52,42 @@ export interface CompanionTokenRecord {
   tokenId: string;
   playerId: string;
   puuid: string;
-  isAdmin: boolean;
+  /**
+   * The one group this token posts to (`companion_tokens.group_id`, M13.3). The server takes the
+   * group from here and never from a header or a body (`04-decisions.md`, 2026-10-03).
+   */
+  groupId: string;
+  /**
+   * Whether the token's player still has a `group_memberships` row in {@link groupId}. A token
+   * is only good while it does: a membership that is gone is 403, however valid the hash.
+   */
+  isMember: boolean;
   /** Set means revoked: the token is refused however valid the hash is. */
   revokedAt: string | null;
   lastSeenAt: string | null;
 }
 
-/** The caller, as the token defines them. Route handlers get this and nothing else. */
+/**
+ * The caller, as the token defines them. Route handlers get this and nothing else: the player
+ * the token belongs to, and the group it posts to. Every companion handler takes the group from
+ * `groupId` here, never from the body.
+ */
 export interface CompanionIdentity {
   tokenId: string;
   playerId: string;
   puuid: string;
-  isAdmin: boolean;
+  groupId: string;
 }
 
 export type CompanionTokenLookup = (tokenHash: string) => Promise<CompanionTokenRecord | null>;
 export type CompanionTokenTouch = (tokenId: string) => Promise<void>;
 
+/** The 403's words: the token is real and unrevoked, but its player left (or was removed from) its group. */
+export const NOT_A_MEMBER_ERROR = 'companion token is not a member of its group';
+
 export type CompanionAuthResult =
   | { ok: true; identity: CompanionIdentity }
-  | { ok: false; status: 401; error: string };
+  | { ok: false; status: 401 | 403; error: string };
 
 export interface AuthenticateCompanionOptions {
   authorization: string | null | undefined;
@@ -82,7 +98,10 @@ export interface AuthenticateCompanionOptions {
 }
 
 /**
- * Bearer header in, identity or 401 out. Pure apart from the injected lookup and touch.
+ * Bearer header in, identity or 401/403 out. Pure apart from the injected lookup and touch.
+ *
+ * 401 is "this is not a token" (missing, unknown, revoked); 403 is "a real token whose player is
+ * no longer a member of the token's group" (M13.3).
  */
 export async function authenticateCompanion(
   options: AuthenticateCompanionOptions,
@@ -101,6 +120,12 @@ export async function authenticateCompanion(
     return { ok: false, status: 401, error: 'companion token has been revoked' };
   }
 
+  // After the revocation check, so a revoked token still reads as revoked; and before the
+  // touch, so a token that may not post does not look like a live host to start-a-lobby.
+  if (!record.isMember) {
+    return { ok: false, status: 403, error: NOT_A_MEMBER_ERROR };
+  }
+
   const now = options.now ?? new Date();
   if (options.touch && isLastSeenStale(record.lastSeenAt, now)) {
     await options.touch(record.tokenId);
@@ -112,7 +137,7 @@ export async function authenticateCompanion(
       tokenId: record.tokenId,
       playerId: record.playerId,
       puuid: record.puuid,
-      isAdmin: record.isAdmin,
+      groupId: record.groupId,
     },
   };
 }
@@ -130,14 +155,19 @@ export function isLastSeenStale(lastSeenAt: string | null, now: Date): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * `companion_tokens` joined to its player. Service role only: anon has no grant on this table
- * at all (`0001_init.sql`).
+ * `companion_tokens` joined to its player and that player's memberships. Service role only:
+ * anon has no grant on either table at all (`0001_init.sql`, `0018_groups.sql`).
+ *
+ * One round trip: the memberships come back embedded through `players` (a person is in a
+ * handful of groups at most) and the token's own group is picked out here.
  */
 export function supabaseTokenLookup(client: ServiceClient): CompanionTokenLookup {
   return async (tokenHash) => {
     const { data, error } = await client
       .from('companion_tokens')
-      .select('id, player_id, revoked_at, last_seen_at, players!inner(puuid, is_admin)')
+      .select(
+        'id, player_id, group_id, revoked_at, last_seen_at, players!inner(puuid, group_memberships(group_id))',
+      )
       .eq('token_hash', tokenHash)
       .maybeSingle();
 
@@ -148,7 +178,8 @@ export function supabaseTokenLookup(client: ServiceClient): CompanionTokenLookup
       tokenId: data.id,
       playerId: data.player_id,
       puuid: data.players.puuid,
-      isAdmin: data.players.is_admin,
+      groupId: data.group_id,
+      isMember: (data.players.group_memberships ?? []).some((row) => row.group_id === data.group_id),
       revokedAt: data.revoked_at,
       lastSeenAt: data.last_seen_at,
     };

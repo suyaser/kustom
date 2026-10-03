@@ -290,11 +290,19 @@ const CREATE_LOBBY_TTL_MS = COMPANION_COMMAND_TTL_MS.create_lobby;
 /** Statuses a lobby that is live right now can be in (`lib/ingest/lobby.ts`'s own list). */
 const LIVE_LOBBY_STATUSES = ['open', 'balanced', 'in_game'] as const;
 
+/**
+ * The night **of one group** (M13.3): its live lobby, its lobbies tonight (the `#n` in the name),
+ * its pending `create_lobby`, and the hosts it can pick from -- the unrevoked tokens **whose
+ * `group_id` is this group**, freshest first. A token of another group is never a host here, even
+ * one seen more recently and even when its player is in both groups: that token posts to the
+ * other group.
+ */
 export async function readStartLobbyState(
   client: ServiceClient,
-  options: { now?: Date; timeZone?: string } = {},
+  options: { groupId: string; now?: Date; timeZone?: string },
 ): Promise<StartLobbyState> {
   const now = options.now ?? new Date();
+  const groupId = options.groupId;
   const timeZone = options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE;
   const window = nightWindow(now, timeZone);
   const seenSince = new Date(now.getTime() - HOST_WINDOW_MS).toISOString();
@@ -303,6 +311,7 @@ export async function readStartLobbyState(
     client
       .from('lobbies')
       .select('id')
+      .eq('group_id', groupId)
       .in('status', [...LIVE_LOBBY_STATUSES])
       .gte('created_at', window.start)
       .lte('created_at', window.until)
@@ -312,11 +321,13 @@ export async function readStartLobbyState(
     client
       .from('lobbies')
       .select('id', { count: 'exact', head: true })
+      .eq('group_id', groupId)
       .gte('created_at', window.start)
       .lte('created_at', window.until),
     client
       .from('companion_commands')
       .select('id')
+      .eq('group_id', groupId)
       .eq('kind', 'create_lobby')
       .in('status', ['pending', 'sent'])
       // A `create_lobby` that can still run **now**: its expiry is ahead of this instant and at
@@ -329,6 +340,7 @@ export async function readStartLobbyState(
     client
       .from('companion_tokens')
       .select('player_id, last_seen_at, players!inner(id, puuid, display_name, game_name, tag_line)')
+      .eq('group_id', groupId)
       .is('revoked_at', null)
       .gte('last_seen_at', seenSince)
       .lte('last_seen_at', window.until),
@@ -399,7 +411,11 @@ export interface StartLobbyOutcome extends StartLobbyPlan {
  */
 export async function startLobby(
   client: ServiceClient,
-  input: { pressedByPlayerId: string | null },
+  /**
+   * `groupId` is the group the press is for (M13.3): the host is the freshest token **of that
+   * group** and the `create_lobby` row is written in it.
+   */
+  input: { pressedByPlayerId: string | null; groupId: string },
   options: StartLobbyOptions = {},
 ): Promise<AdminWriteResult<StartLobbyOutcome>> {
   if (!isCommandKindEnabled('create_lobby', options.gate) || !isCommandKindEnabled('invite', options.gate)) {
@@ -416,7 +432,7 @@ export async function startLobby(
   // statement, the same one the poll runs, and it settles nothing that is still in date.
   await sweepExpiredCommands(client, now);
 
-  const state = await readStartLobbyState(client, { now, timeZone });
+  const state = await readStartLobbyState(client, { groupId: input.groupId, now, timeZone });
   const decided = decideStart(state, {
     ...options,
     now,
@@ -431,6 +447,8 @@ export async function startLobby(
     [
       {
         targetPlayerId: plan.host.playerId,
+        // The host token's group, which is the press's group: that token is the one that polls it.
+        groupId: input.groupId,
         kind: 'create_lobby',
         payload: { lobbyName: plan.lobbyName, lobbyPassword: plan.lobbyPassword },
       },

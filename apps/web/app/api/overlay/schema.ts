@@ -11,6 +11,12 @@ const sideSchema = z.union([z.literal(100), z.literal(200)]);
 
 export const overlayQuerySchema = z.object({
   puuid: z.string().min(1).max(128),
+  /**
+   * The group to answer for (M13.3): `groups.id`. Answered only when the PUUID is a member of it.
+   * Missing: the PUUID's only group, or the empty answer when they have several (the 0.2.x panel
+   * sends none). `GET /api/overlay/groups` lists the choices.
+   */
+  group: z.uuid().optional(),
 });
 
 const recordSchema = z.object({
@@ -59,3 +65,11 @@ export const overlayResponseSchema = z.object({
 });
 
 export type OverlayResponse = z.infer<typeof overlayResponseSchema>;
+
+/**
+ * The answer for a PUUID with no group to show (M13.3): not a member of the group asked for,
+ * unknown, or in several groups with none named. Nothing banned, no lobby.
+ */
+export function emptyOverlay(puuid: string): OverlayResponse {
+  return { ok: true, viewerPuuid: puuid, fearless: { champions: [], resetAt: null }, lobby: null };
+}

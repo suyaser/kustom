@@ -61,6 +61,12 @@ export interface LoadTonightOptions {
    * {@link nightLabel}, so the tape's clocks are the server's (`lib/night.ts`, `NightClock`).
    */
   nightClock?: NightClock;
+  /**
+   * Only this group's lobbies, ratings and fearless pool (M13.3). Absent is today's behaviour --
+   * every lobby, and the original group's fearless pool -- which the tonight page keeps until
+   * M13.9 passes its group; the champ-select overlay passes it now.
+   */
+  groupId?: string;
 }
 
 export async function loadTonight(
@@ -69,17 +75,18 @@ export async function loadTonight(
 ): Promise<TonightSnapshot> {
   const nightStart = options.nightStart.toISOString();
   const clock = options.nightClock ?? nightClock(options.nightStart, options.timeZone);
+  const groupId = options.groupId;
   const [lobbyRow, season, fearless, tapeRows] = await Promise.all([
-    selectLobby(client, nightStart),
+    selectLobby(client, nightStart, groupId),
     selectSeason(client),
-    loadFearless(client),
-    selectTapeLobbies(client, nightStart),
+    loadFearless(client, groupId),
+    selectTapeLobbies(client, nightStart, groupId),
   ]);
   const seasonId = season?.id ?? null;
   const tapeLobbies = pickTapeLobbies(tapeRows, nightStart, drawnLobbyId(lobbyRow));
 
   const [lobby, tape] = await Promise.all([
-    lobbyRow === null ? Promise.resolve(null) : loadLobby(client, lobbyRow, seasonId),
+    lobbyRow === null ? Promise.resolve(null) : loadLobby(client, lobbyRow, seasonId, groupId),
     loadTape(client, tapeLobbies, clock),
   ]);
 
@@ -111,8 +118,12 @@ interface LobbyRow {
  * list filling up. That is the decision recorded on 2026-09-09, and it is why there is no
  * "last game" block on this page.
  */
-async function selectLobby(client: PublicClient, nightStart: string): Promise<LobbyRow | null> {
-  const { data, error } = await client
+async function selectLobby(
+  client: PublicClient,
+  nightStart: string,
+  groupId: string | undefined,
+): Promise<LobbyRow | null> {
+  let query = client
     .from('lobbies')
     // The name and the password come back with the row the page is already reading (M4.10):
     // one query, three facts. Both are publicly readable — RLS is row-level, and this row is
@@ -120,10 +131,9 @@ async function selectLobby(client: PublicClient, nightStart: string): Promise<Lo
     // the Discord embed and is read out in voice.
     .select('id, status, lobby_name, lobby_password')
     .gte('created_at', nightStart)
-    .neq('status', 'abandoned')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .neq('status', 'abandoned');
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`tonight: lobby lookup failed: ${error.message}`);
   if (data === null) return null;
   return {
@@ -152,8 +162,13 @@ async function selectSeason(client: PublicClient): Promise<{ id: string; name: s
   return data ?? null;
 }
 
-async function loadLobby(client: PublicClient, lobby: LobbyRow, seasonId: string | null): Promise<LobbyView> {
-  const members = await loadMembers(client, lobby.id, seasonId);
+async function loadLobby(
+  client: PublicClient,
+  lobby: LobbyRow,
+  seasonId: string | null,
+  groupId: string | undefined,
+): Promise<LobbyView> {
+  const members = await loadMembers(client, lobby.id, seasonId, groupId);
   const byPuuid = new Map(members.map((member) => [member.puuid, member]));
 
   // `open` has no splits to read and no game to read, and the first paint of a filling lobby
@@ -210,6 +225,7 @@ async function loadMembers(
   client: PublicClient,
   lobbyId: string,
   seasonId: string | null,
+  groupId: string | undefined,
 ): Promise<MemberView[]> {
   const { data, error } = await client
     .from('lobby_members')
@@ -227,7 +243,7 @@ async function loadMembers(
   const playerIds = rows.map((row) => row.player_id);
   const [players, ratings] = await Promise.all([
     loadPlayers(client, playerIds),
-    loadRatings(client, playerIds, seasonId),
+    loadRatings(client, playerIds, seasonId, groupId),
   ]);
 
   const members: MemberView[] = [];
@@ -300,14 +316,14 @@ async function loadRatings(
   client: PublicClient,
   playerIds: readonly string[],
   seasonId: string | null,
+  groupId: string | undefined,
 ): Promise<Map<string, { mu: number; sigma: number }>> {
   if (seasonId === null) return new Map();
 
-  const { data, error } = await client
-    .from('ratings')
-    .select('player_id, mu, sigma')
-    .eq('season_id', seasonId)
-    .in('player_id', [...playerIds]);
+  let query = client.from('ratings').select('player_id, mu, sigma').eq('season_id', seasonId);
+  // One rating per person per group (M13.3): with a group, that group's number and no other.
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
+  const { data, error } = await query.in('player_id', [...playerIds]);
   if (error) throw new Error(`tonight: rating lookup failed: ${error.message}`);
 
   return new Map((data ?? []).map((row) => [row.player_id, { mu: row.mu, sigma: row.sigma }]));
@@ -642,12 +658,18 @@ export interface TapeLobbyRow {
 
 const TAPE_STATUSES = ['finished', 'dropped'] as const;
 
-async function selectTapeLobbies(client: PublicClient, nightStart: string): Promise<TapeLobbyRow[]> {
-  const { data, error } = await client
+async function selectTapeLobbies(
+  client: PublicClient,
+  nightStart: string,
+  groupId: string | undefined,
+): Promise<TapeLobbyRow[]> {
+  let query = client
     .from('lobbies')
     .select('id, status, created_at')
     .gte('created_at', nightStart)
-    .in('status', [...TAPE_STATUSES])
+    .in('status', [...TAPE_STATUSES]);
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
+  const { data, error } = await query
     .order('created_at', { ascending: true })
     .order('id', { ascending: true });
   if (error) throw new Error(`tonight: tape lobby lookup failed: ${error.message}`);

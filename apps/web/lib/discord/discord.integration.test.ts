@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { mintCompanionToken } from '../companionAuth';
 import { FEARLESS_TITLE } from '../fearless/copy';
+import { loadFearless } from '../fearless/load';
 import { ensurePlayers } from '../ingest/players';
 import { nightStart } from '../night';
 import { siteOrigin } from '../siteUrl';
@@ -76,7 +78,8 @@ if (stack === null) {
   let namelessToken = '';
   let webhookUrl = '';
   let server: Server | null = null;
-  let posts: { body: Record<string, unknown> }[] = [];
+  /** Every request the webhook server received, with the path it was sent to (M13.3: one per group). */
+  let posts: { body: Record<string, unknown>; path?: string }[] = [];
   let answer: (response: ServerResponse) => void = (response) => response.writeHead(204).end();
 
   function party(name: string): string {
@@ -244,7 +247,10 @@ if (stack === null) {
       const chunks: Buffer[] = [];
       incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
       incoming.on('end', () => {
-        posts.push({ body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown> });
+        posts.push({
+          body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>,
+          path: incoming.url ?? '',
+        });
         answer(response);
       });
     });
@@ -517,12 +523,17 @@ if (stack === null) {
       // apply 0018). The case owns its precondition: the cursor sits just before tonight for
       // the duration of the post, and goes back to where it was afterwards.
       const tonightStart = nightStart(new Date(), TIME_ZONE).getTime();
-      const cursor = await db.from('fearless_state').select('reset_at').eq('id', 1).single();
+      // The original group's cursor: one row per group since M13.3's `0019`.
+      const cursor = await db
+        .from('fearless_state')
+        .select('reset_at')
+        .eq('group_id', ORIGINAL_GROUP_ID)
+        .single();
       if (cursor.error) throw new Error(cursor.error.message);
       const moved = await db
         .from('fearless_state')
         .update({ reset_at: new Date(tonightStart - 1_000).toISOString() })
-        .eq('id', 1);
+        .eq('group_id', ORIGINAL_GROUP_ID);
       if (moved.error) throw new Error(moved.error.message);
       let played: Response;
       try {
@@ -540,7 +551,10 @@ if (stack === null) {
           ),
         );
       } finally {
-        await db.from('fearless_state').update({ reset_at: cursor.data.reset_at }).eq('id', 1);
+        await db
+          .from('fearless_state')
+          .update({ reset_at: cursor.data.reset_at })
+          .eq('group_id', ORIGINAL_GROUP_ID);
       }
       expect(played.status).toBe(200);
       expect(lobbyId).toBeTruthy();
@@ -562,6 +576,114 @@ if (stack === null) {
       const fields = fieldsOf(3);
       expect(fields['Sitting out']).toBe('Sitting out: Player1 — most games tonight.');
       expect(fields.Seats).toBe(`Swap: Player1 out, Player10 in.\n${sideLine(SWITCH_SIDE_ENABLED)}`);
+    });
+  });
+
+  describe('a second group (M13.3)', () => {
+    /** Group two has its own channel; group three has none configured. */
+    const groups = { two: '', three: '' };
+    const twoPuuids = Array.from(
+      { length: 10 },
+      (_, index) => `it-${runId}-g2${String(index).padStart(2, '0')}`,
+    );
+    const threePuuids = Array.from(
+      { length: 10 },
+      (_, index) => `it-${runId}-g3${String(index).padStart(2, '0')}`,
+    );
+    const groupTokens = { two: '', three: '' };
+
+    /** A Rift game whose ten picks are champions 1 to 10 (Annie to Kayle), which no other case uses. */
+    function ownChampionsBody(gameId: number, ten: readonly string[]): Record<string, unknown> {
+      const body = eogBody({ gameId, puuids: ten, startedAt: new Date(Date.now() - 60_000).toISOString() });
+      // `raw.participants` is the same array, so the stored blob agrees with the columns.
+      (body.participants as Record<string, unknown>[]).forEach((participant, index) => {
+        participant.championId = index + 1;
+      });
+      return body;
+    }
+
+    beforeAll(async () => {
+      for (const key of ['two', 'three'] as const) {
+        const { data, error } = await db
+          .from('groups')
+          .insert({ slug: `it-${runId}-dc-${key}`, name: `dc ${key}` })
+          .select('id')
+          .single();
+        if (error) throw new Error(error.message);
+        groups[key] = data.id;
+        const cursor = await db
+          .from('fearless_state')
+          .insert({ group_id: data.id, reset_at: '2020-01-01T00:00:00.000Z' });
+        if (cursor.error) throw new Error(cursor.error.message);
+      }
+      const config = await db
+        .from('discord_config')
+        .insert({ guild_id: `${guildId}-two`, webhook_url: `${webhookUrl}-two`, group_id: groups.two });
+      if (config.error) throw new Error(config.error.message);
+
+      const ids = await ensurePlayers(
+        db,
+        [...twoPuuids, ...threePuuids].map((puuid) => ({ puuid })),
+      );
+      for (const key of ['two', 'three'] as const) {
+        const host = (key === 'two' ? twoPuuids : threePuuids)[0] ?? '';
+        const { token: raw, tokenHash } = mintCompanionToken();
+        const { error } = await db.from('companion_tokens').insert({
+          player_id: ids.get(host) ?? '',
+          token_hash: tokenHash,
+          label: `dc-${runId}-${key}`,
+          group_id: groups[key],
+        });
+        if (error) throw new Error(error.message);
+        groupTokens[key] = raw;
+      }
+    });
+
+    afterAll(async () => {
+      const both = [groups.two, groups.three];
+      await db.from('discord_config').delete().eq('guild_id', `${guildId}-two`);
+      await db.from('games').delete().in('group_id', both);
+      await db.from('ratings').delete().in('group_id', both);
+      await db.from('companion_tokens').delete().in('group_id', both);
+      await db.from('fearless_state').delete().in('group_id', both);
+      await db.from('group_memberships').delete().in('group_id', both);
+      await db
+        .from('players')
+        .delete()
+        .in('puuid', [...twoPuuids, ...threePuuids]);
+      await db.from('groups').delete().in('id', both);
+    });
+
+    it("posts the result and the fearless list to the game's group's channel, from that group's pool", async () => {
+      const originalPool = JSON.stringify(await loadFearless(db));
+
+      const played = await postGame(request(ownChampionsBody(gameNumber(), twoPuuids), groupTokens.two));
+      expect(played.status).toBe(200);
+      expect(await played.json()).toMatchObject({ created: true, rated: true });
+
+      // Two posts, both on group two's webhook and none on the original group's.
+      expect(posts.map((post) => post.path)).toEqual(['/webhook-two', '/webhook-two']);
+      const fearless = ((posts[1]?.body.embeds ?? []) as Record<string, unknown>[])[0];
+      expect(fearless?.title).toBe(FEARLESS_TITLE);
+      const printed = JSON.stringify(fearless);
+      expect(printed).toContain('Annie');
+      expect(printed).toContain('Kayle');
+      // Champion 103 is in the original group's pool from the cases above, never in this one.
+      expect(printed).not.toContain('Ahri');
+
+      const pool = await loadFearless(db, groups.two);
+      expect(pool.champions.map((champion) => champion.id).sort((a, b) => a - b)).toEqual([
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+      ]);
+      // The original group's pool did not learn group two's picks.
+      expect(JSON.stringify(await loadFearless(db))).toBe(originalPool);
+    });
+
+    it('posts nothing anywhere for a group with no webhook configured', async () => {
+      const played = await postGame(request(ownChampionsBody(gameNumber(), threePuuids), groupTokens.three));
+      expect(played.status).toBe(200);
+      expect(await played.json()).toMatchObject({ created: true, rated: true });
+      expect(posts).toEqual([]);
     });
   });
 

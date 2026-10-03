@@ -37,7 +37,11 @@ import { jsonError, jsonOk } from '@/lib/http';
 
 export function ackRoute(id: string): (request: Request) => Promise<NextResponse> {
   return withCompanionAuth(companionCommandAckRequestSchema, async (body, { client, identity }) => {
-    const found = await readCommandForPlayer(client, { id, targetPlayerId: identity.playerId });
+    const found = await readCommandForPlayer(client, {
+      id,
+      targetPlayerId: identity.playerId,
+      groupId: identity.groupId,
+    });
     if (!found.ok) return jsonError(found.status, found.error);
 
     const settled = await ackCommand(client, { row: found.row, result: body.result });
@@ -49,7 +53,11 @@ export function ackRoute(id: string): (request: Request) => Promise<NextResponse
 
 export function nackRoute(id: string): (request: Request) => Promise<NextResponse> {
   return withCompanionAuth(companionCommandNackRequestSchema, async (body, { client, identity }) => {
-    const found = await readCommandForPlayer(client, { id, targetPlayerId: identity.playerId });
+    const found = await readCommandForPlayer(client, {
+      id,
+      targetPlayerId: identity.playerId,
+      groupId: identity.groupId,
+    });
     if (!found.ok) return jsonError(found.status, found.error);
 
     // `error` is prose and is stored verbatim: the companion writes a

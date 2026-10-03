@@ -80,7 +80,8 @@ export async function postTeamsForEvent(
     url: tonightPageUrl(options.requestOrigin ?? event.requestOrigin),
     timestamp: (options.now ?? new Date()).toISOString(),
   });
-  return postToWebhook(client, teamsEmbed(input), 'teams embed', options);
+  // The lobby's group's channel (M13.3).
+  return postToWebhook(client, teamsEmbed(input), 'teams embed', { ...options, groupId: event.groupId });
 }
 
 /**
@@ -98,15 +99,17 @@ export async function postTeamsForSplit(
   splitId: string,
   options: PostOptions = {},
 ): Promise<WebhookOutcome> {
-  const source = await loadTeamsSource(client, splitId, options);
-  if (source === null) return SKIPPED('no such split');
+  const loaded = await loadTeamsSource(client, splitId, options);
+  if (loaded === null) return SKIPPED('no such split');
+  const { source, groupId } = loaded;
 
   const names = await loadNames(client, teamsPuuids(source));
   const input = buildTeamsInput(source, names, {
     url: tonightPageUrl(options.requestOrigin),
     timestamp: (options.now ?? new Date()).toISOString(),
   });
-  return postToWebhook(client, teamsEmbed(input), 'teams embed', options);
+  // The split's lobby's group's channel (M13.3), whoever pressed the reroll.
+  return postToWebhook(client, teamsEmbed(input), 'teams embed', { ...options, groupId });
 }
 
 /**
@@ -125,7 +128,17 @@ export async function postResultForGame(
   const payload = resultPayload(source, gameId, options.requestOrigin);
   if (payload === null) return SKIPPED('game is not rated');
 
-  return postToWebhook(client, payload, 'result embed', options);
+  // The game's own group's channel (M13.3), read off the row: a game belongs to one group.
+  const groupId = await gameGroupId(client, gameId);
+  if (groupId === null) return SKIPPED('no such game');
+  return postToWebhook(client, payload, 'result embed', { ...options, groupId });
+}
+
+/** `games.group_id`, or null for a game that does not exist. */
+async function gameGroupId(client: ServiceClient, gameId: string): Promise<string | null> {
+  const { data, error } = await client.from('games').select('group_id').eq('id', gameId).maybeSingle();
+  if (error) throw new Error(`discord: game group lookup failed: ${error.message}`);
+  return data?.group_id ?? null;
 }
 
 /**
@@ -156,7 +169,9 @@ export async function postFearlessPool(
   client: ServiceClient,
   options: PostOptions = {},
 ): Promise<WebhookOutcome> {
-  const pool = await loadFearless(client);
+  // The group's own pool, posted to the group's own channel (M13.3): `options.groupId` is the
+  // game's group when the result hook calls this.
+  const pool = await loadFearless(client, options.groupId);
   if (pool.champions.length === 0) return SKIPPED('fearless pool is empty');
 
   const url = tonightPageUrl(options.requestOrigin);
@@ -401,10 +416,10 @@ async function loadTeamsSource(
   client: ServiceClient,
   splitId: string,
   options: PostOptions,
-): Promise<TeamsSource | null> {
+): Promise<{ source: TeamsSource; groupId: string } | null> {
   const { data, error } = await client
     .from('splits')
-    .select('rank, blue, red, explanation, lobbies!inner(id, lobby_name, lobby_password)')
+    .select('rank, blue, red, explanation, lobbies!inner(id, lobby_name, lobby_password, group_id)')
     .eq('id', splitId)
     .maybeSingle();
   if (error) throw new Error(`discord: split lookup failed: ${error.message}`);
@@ -429,6 +444,7 @@ async function loadTeamsSource(
     seasonId,
     options.now ?? new Date(),
     options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE,
+    data.lobbies.group_id,
   );
 
   const playing = pool.filter((member) => ten.has(member.puuid));
@@ -438,15 +454,18 @@ async function loadTeamsSource(
   const tiedOnGames = pool.every((member: PoolMember) => member.gamesTonight === first);
 
   return {
-    split: { blue, red },
-    explanation: data.explanation,
-    lobbyName: data.lobbies.lobby_name,
-    lobbyPassword: data.lobbies.lobby_password,
-    playing,
-    sitters,
-    seatMoves: planSeats({ playing, sitters, tiedOnGames }),
-    tiedOnGames,
-    promoted: { rank: data.rank, splitCount: count ?? data.rank },
+    groupId: data.lobbies.group_id,
+    source: {
+      split: { blue, red },
+      explanation: data.explanation,
+      lobbyName: data.lobbies.lobby_name,
+      lobbyPassword: data.lobbies.lobby_password,
+      playing,
+      sitters,
+      seatMoves: planSeats({ playing, sitters, tiedOnGames }),
+      tiedOnGames,
+      promoted: { rank: data.rank, splitCount: count ?? data.rank },
+    },
   };
 }
 
@@ -466,7 +485,8 @@ export const discordLobbyHook: LobbyHook = {
     // counted Rift, which is the only map Fearless reads.
     if (!event.rated) return;
     const client = getServiceClient();
-    const origin = { requestOrigin: event.requestOrigin ?? null };
+    // Both posts go to the game's group (M13.3): its channel, and its own fearless pool.
+    const origin = { requestOrigin: event.requestOrigin ?? null, groupId: event.groupId };
     await postResultForGame(client, event.gameId, origin);
     await postFearlessPool(client, origin);
   },

@@ -16,7 +16,7 @@ import { readSeed, type StoredSeed, seedColumns, seedFor } from './seed';
  * rebuild (M5.2), which replays exactly this for every game of a season.
  */
 
-export type RatingSkipReason = RatedSkipReason | 'already-rated' | 'backfill';
+export type RatingSkipReason = RatedSkipReason | 'already-rated' | 'backfill' | 'other-group';
 
 export interface RatingFoldResult {
   rated: boolean;
@@ -52,6 +52,19 @@ interface GamePlayerRow extends FoldRatedPlayer {
 export const BACKFILL_NOT_RATED: RatingFoldResult = { rated: false, reason: 'backfill', claimed: 0 };
 
 /**
+ * A post of a game that is already stored in **another group** (M13.3). That post is a no-op;
+ * the fold belongs to the game's own group and ran (or will run) when its companions posted it.
+ */
+export const FOREIGN_DUPLICATE_NOT_RATED: RatingFoldResult = {
+  rated: false,
+  reason: 'other-group',
+  claimed: 0,
+};
+
+/** `reason` on the answer to a backfilled game that was not stored for this group (M13.3). */
+export const NOT_THIS_GROUP_REASON = 'not-this-group';
+
+/**
  * Rate one stored game, once.
  *
  * The gate first (`fold.ts`): ten `game_players` rows, five a side, `duration_s` over 300
@@ -79,13 +92,18 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
 
   // Ordered by puuid on both sides, so the arrays handed to core are deterministic and a
   // rebuild (M5.2) reproduces exactly these numbers.
+  //
+  // **The game's group's ratings and nobody else's** (M13.3): a person has one rating per group,
+  // and somebody with no row in this group starts at the seed here, whatever they are worth in
+  // another one -- whose number this fold never reads and never writes.
   const stored = await selectRatings(
     client,
     rows.map((row) => row.playerId),
     game.seasonId,
+    game.groupId,
   );
 
-  // The stored rating, or — for somebody who has never been rated — their first seed, from
+  // The stored rating, or — for somebody who has never been rated **in this group** — their first seed, from
   // `seed.ts`'s one rule and not a second copy of it. That rule is `provisionalSeed()` from 2026-09-16: a
   // League rank no longer starts anybody's history, here or in the rebuild.
   const before = new Map<string, Rating>();
@@ -158,7 +176,7 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
     );
   }
 
-  await applyRatings(client, game.seasonId, game.winningSide, rows, after, stored, seeds);
+  await applyRatings(client, game.seasonId, game.groupId, game.winningSide, rows, after, stored, seeds);
 
   // The ten who played, and nobody else (M5.17). Deliberately not fatal: the game is rated and
   // the numbers are right, and a pair that failed to move is fixed by the next game these
@@ -178,6 +196,8 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
 
 interface StoredGame {
   seasonId: string;
+  /** The group whose `ratings` this game moves (M13.3). */
+  groupId: string;
   durationS: number;
   winningSide: SideValue;
   /** Null for a backfilled game and for a game played from no lobby: nobody was filled. */
@@ -193,7 +213,7 @@ interface StoredGame {
 async function selectGame(client: ServiceClient, gameId: string): Promise<StoredGame> {
   const { data, error } = await client
     .from('games')
-    .select('season_id, duration_s, winning_side, lobby_id, raw')
+    .select('season_id, group_id, duration_s, winning_side, lobby_id, raw')
     .eq('id', gameId)
     .single();
   if (error) throw new Error(`rating: game select failed: ${error.message}`);
@@ -202,6 +222,7 @@ async function selectGame(client: ServiceClient, gameId: string): Promise<Stored
   }
   return {
     seasonId: data.season_id,
+    groupId: data.group_id,
     durationS: data.duration_s,
     winningSide: data.winning_side,
     lobbyId: data.lobby_id,
@@ -256,10 +277,12 @@ async function selectRatings(
   client: ServiceClient,
   playerIds: readonly string[],
   seasonId: string,
+  groupId: string,
 ): Promise<Map<string, StoredRating>> {
   const { data, error } = await client
     .from('ratings')
     .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
+    .eq('group_id', groupId)
     .eq('season_id', seasonId)
     .in('player_id', playerIds);
   if (error) throw new Error(`rating: ratings select failed: ${error.message}`);
@@ -321,6 +344,7 @@ async function writeRatingColumns(
 async function applyRatings(
   client: ServiceClient,
   seasonId: string,
+  groupId: string,
   winningSide: SideValue,
   rows: readonly GamePlayerRow[],
   after: Map<string, Rating>,
@@ -331,6 +355,7 @@ async function applyRatings(
     const previous = stored.get(row.playerId);
     const rating = mustGet(after, row.playerId);
     return {
+      group_id: groupId,
       player_id: row.playerId,
       season_id: seasonId,
       mu: rating.mu,
@@ -341,6 +366,9 @@ async function applyRatings(
     };
   });
 
-  const { error } = await client.from('ratings').upsert(inserts, { onConflict: 'player_id,season_id' });
+  // One rating per person per group (`0019`'s primary key).
+  const { error } = await client
+    .from('ratings')
+    .upsert(inserts, { onConflict: 'group_id,player_id,season_id' });
   if (error) throw new Error(`rating: ratings upsert failed: ${error.message}`);
 }

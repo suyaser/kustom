@@ -53,3 +53,25 @@ export const groupSlugSchema = z
   .refine((value) => !(RESERVED_GROUP_SLUGS as readonly string[]).includes(value), 'slug is a reserved word');
 
 export type GroupSlug = z.infer<typeof groupSlugSchema>;
+
+/**
+ * `GET /api/overlay/groups?puuid=` (M13.3): the groups a PUUID is a member of, oldest membership
+ * first. No token -- a public read like `GET /api/overlay`. Kustom's overlay mode (M13.8) asks
+ * this to know which `group` to pass, and asks nothing when the list has one entry.
+ */
+export const overlayGroupsQuerySchema = z.object({
+  puuid: z.string().min(1).max(128),
+});
+
+export const overlayGroupSchema = z.object({
+  id: z.uuid(),
+  slug: z.string(),
+  name: z.string(),
+});
+
+export const overlayGroupsResponseSchema = z.object({
+  ok: z.literal(true),
+  groups: z.array(overlayGroupSchema),
+});
+
+export type OverlayGroupsResponse = z.infer<typeof overlayGroupsResponseSchema>;

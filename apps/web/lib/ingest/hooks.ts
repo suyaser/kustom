@@ -19,6 +19,8 @@ import type { PoolMember, SeatMove } from './selection';
 /** A lobby just reached `balanced` and its three splits are stored. */
 export interface LobbyBalancedEvent {
   lobbyId: string;
+  /** The lobby's group (M13.3): whose Discord channel the teams go to, whose tokens get commands. */
+  groupId: string;
   /** `splits.id` of the chosen split (rank 1). */
   splitId: string;
   /** The ten puuids, sorted and joined with ',': `splits.roster_key`. */
@@ -52,6 +54,8 @@ export interface GameFinishedEvent {
   /** `games.id`, not the client's `lcu_game_id`. */
   gameId: string;
   lobbyId: string | null;
+  /** The game's group (M13.3): whose Discord channel the result and fearless posts go to. */
+  groupId: string;
   /** False for a remake, a short surrender, or a game that was already rated (M2.5's gate). */
   rated: boolean;
   /** As on {@link LobbyBalancedEvent}: the triggering request's origin, for the embed `url`. */

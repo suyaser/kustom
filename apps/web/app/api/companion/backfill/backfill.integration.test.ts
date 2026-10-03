@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AdminAuthResult } from '@/lib/adminAuth';
@@ -160,11 +161,13 @@ if (stack === null) {
     return adminRoute(adminPost({ action: 'set-backfill', playerId: ownerPlayerId, approved }));
   }
 
+  /** The owner's approval in the token's group: the membership row, not `players` (M13.3). */
   async function readApproval(): Promise<{ requested: string | null; approved: string | null }> {
     const { data, error } = await db
-      .from('players')
+      .from('group_memberships')
       .select('backfill_requested_at, backfill_approved_at')
-      .eq('id', ownerPlayerId)
+      .eq('group_id', ORIGINAL_GROUP_ID)
+      .eq('player_id', ownerPlayerId)
       .single();
     if (error) throw new Error(error.message);
     return { requested: data.backfill_requested_at, approved: data.backfill_approved_at };

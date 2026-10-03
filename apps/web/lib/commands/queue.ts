@@ -93,8 +93,12 @@ function toEnvelope(row: {
 // Writing
 // ---------------------------------------------------------------------------
 
-/** One row to write: who it is for, and a kind with the payload that kind takes. */
-export type CommandToQueue = CompanionCommand & { targetPlayerId: string };
+/**
+ * One row to write: who it is for, the group it belongs to, and a kind with the payload that kind
+ * takes. `groupId` is the target token's group (M13.3): a host in two groups polls with two
+ * tokens, and each token is handed its own group's rows only.
+ */
+export type CommandToQueue = CompanionCommand & { targetPlayerId: string; groupId: string };
 
 export interface EnqueueOptions {
   now?: Date | undefined;
@@ -189,6 +193,7 @@ export async function enqueueCommands(
     }
     inserts.push({
       target_player_id: command.targetPlayerId,
+      group_id: command.groupId,
       kind: command.kind,
       payload: parsed.data,
       expires_at: new Date(now.getTime() + COMPANION_COMMAND_TTL_MS[command.kind]).toISOString(),
@@ -317,8 +322,10 @@ export async function sweepExpiredCommands(client: ServiceClient, now: Date = ne
 }
 
 /**
- * Hand out this player's work: up to ten rows, oldest first, each one claimed with a
- * compare-and-set on `attempts` so two polls of the same token cannot both take the same row.
+ * Hand out this player's work **in the polling token's group**: up to ten rows, oldest first,
+ * each one claimed with a compare-and-set on `attempts` so two polls of the same token cannot
+ * both take the same row. A host in two groups polls with two tokens (M13.8) and each poll gets
+ * its own group's rows only (M13.3).
  *
  * A `sent` row is a candidate again after {@link COMMANDS_RECLAIM_MS} — long enough that a
  * companion mid-execution is not raced by its own next poll, short enough that a crash costs
@@ -330,6 +337,7 @@ export async function sweepExpiredCommands(client: ServiceClient, now: Date = ne
 export async function claimCommands(
   client: ServiceClient,
   targetPlayerId: string,
+  groupId: string,
   now: Date = new Date(),
 ): Promise<CompanionCommandEnvelope[]> {
   const nowIso = now.toISOString();
@@ -339,6 +347,7 @@ export async function claimCommands(
     .from('companion_commands')
     .select(CLAIM_COLUMNS)
     .eq('target_player_id', targetPlayerId)
+    .eq('group_id', groupId)
     .in('status', [...LIVE_STATUSES])
     .gt('expires_at', nowIso)
     // A pending row, or a sent one whose 30 seconds are up (or that somehow never recorded
@@ -404,15 +413,16 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * The row this ack or nack is about, or the refusal.
  *
- * - **404** for an id that is not a uuid, does not exist, **or belongs to another player**.
- *   Never 403: a 403 would confirm that somebody else's command id exists.
+ * - **404** for an id that is not a uuid, does not exist, **or belongs to another player** -- or
+ *   to the same player in another group than the token's (M13.3). Never 403: a 403 would confirm
+ *   that somebody else's command id exists.
  * - **409** for a row that is already `acked` or `failed`, and nothing changes. The companion
  *   reads that as "already recorded" — the other half of execute-once, for the ack that was
  *   lost after the client call had already happened.
  */
 export async function readCommandForPlayer(
   client: ServiceClient,
-  input: { id: string; targetPlayerId: string },
+  input: { id: string; targetPlayerId: string; groupId: string },
 ): Promise<CommandLookup> {
   if (!UUID_RE.test(input.id)) {
     // Refused before the query: `id=eq.<not a uuid>` is a Postgres 22P02, which would be a 500.
@@ -424,6 +434,7 @@ export async function readCommandForPlayer(
     .select('*')
     .eq('id', input.id)
     .eq('target_player_id', input.targetPlayerId)
+    .eq('group_id', input.groupId)
     .maybeSingle();
   if (error) throw new Error(`readCommandForPlayer: ${error.message}`);
   if (data === null) return { ok: false, status: 404, error: 'no such command' };
@@ -467,6 +478,7 @@ export async function ackCommand(
   await emitCommandAcked({
     commandId: input.row.id,
     targetPlayerId: input.row.target_player_id,
+    groupId: input.row.group_id,
     kind: input.row.kind,
     status: 'acked',
     result: parsed.data as Record<string, unknown>,
@@ -510,6 +522,7 @@ export async function nackCommand(
     await emitCommandAcked({
       commandId: input.row.id,
       targetPlayerId: input.row.target_player_id,
+      groupId: input.row.group_id,
       kind: input.row.kind,
       status: 'failed',
       result: null,

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '@customs/core';
 import type { Database } from '@customs/db';
-import { companionLobbyPayloadSchema } from '@customs/db/schemas';
+import { companionLobbyPayloadSchema, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
@@ -104,7 +104,7 @@ if (stack === null) {
         isSpectator: false,
       })),
     });
-    return ingestLobby(db, payload, ownerPlayerId, { now });
+    return ingestLobby(db, payload, ownerPlayerId, { groupId: ORIGINAL_GROUP_ID, now });
   }
 
   /**
@@ -112,7 +112,14 @@ if (stack === null) {
    * assertion that the ten-player early return in `loadRotation` does not reach this number.
    */
   async function gamesSinceLastFill(): Promise<Map<string, number | null>> {
-    const pool = await loadPool(db, lobbyId, await activeSeasonId(db), new Date(), TIME_ZONE);
+    const pool = await loadPool(
+      db,
+      lobbyId,
+      await activeSeasonId(db),
+      new Date(),
+      TIME_ZONE,
+      ORIGINAL_GROUP_ID,
+    );
     expect(pool).toHaveLength(10);
     return new Map(pool.map((member) => [member.puuid, member.gamesSinceLastFill ?? null]));
   }

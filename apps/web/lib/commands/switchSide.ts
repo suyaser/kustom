@@ -143,6 +143,9 @@ export async function queueSwitchSideForBalance(
   }
 
   const now = options.now ?? new Date();
+  // The lobby's group (M13.3): only that group's tokens are asked to move, and the rows are
+  // written in it, so a host in two groups gets them on the token of the group they are playing in.
+  const groupId = await lobbyGroup(client, event.lobbyId);
   const superseded = await supersedeCommands(client, {
     playerIds: event.playing.map((member) => member.playerId),
     kinds: ['switch_side'],
@@ -153,6 +156,7 @@ export async function queueSwitchSideForBalance(
   const around = await playersWithALiveCompanion(
     client,
     moves.map((move) => move.playerId),
+    groupId,
     now,
   );
 
@@ -160,6 +164,7 @@ export async function queueSwitchSideForBalance(
     .filter((move) => around.has(move.playerId))
     .map((move) => ({
       targetPlayerId: move.playerId,
+      groupId,
       kind: 'switch_side',
       payload: { targetSide: move.to },
     }));
@@ -173,10 +178,22 @@ export async function queueSwitchSideForBalance(
   return { superseded, queued: queued.length, moves };
 }
 
-/** Clause (a): an unrevoked token seen in the last ten minutes. One select, at most ten ids. */
+/** `lobbies.group_id`. Throws for a lobby that does not exist: a split always has one. */
+async function lobbyGroup(client: ServiceClient, lobbyId: string): Promise<string> {
+  const { data, error } = await client.from('lobbies').select('group_id').eq('id', lobbyId).maybeSingle();
+  if (error) throw new Error(`queueSwitchSideForBalance: lobby group lookup failed: ${error.message}`);
+  if (data === null) throw new Error(`queueSwitchSideForBalance: no lobby ${lobbyId}`);
+  return data.group_id;
+}
+
+/**
+ * Clause (a): an unrevoked token **of this group** seen in the last ten minutes (M13.3). One
+ * select, at most ten ids.
+ */
 export async function playersWithALiveCompanion(
   client: ServiceClient,
   playerIds: readonly string[],
+  groupId: string,
   now: Date = new Date(),
 ): Promise<Set<string>> {
   if (playerIds.length === 0) return new Set();
@@ -185,6 +202,7 @@ export async function playersWithALiveCompanion(
   const { data, error } = await client
     .from('companion_tokens')
     .select('player_id')
+    .eq('group_id', groupId)
     .in('player_id', [...playerIds])
     .is('revoked_at', null)
     .gte('last_seen_at', seenSince);

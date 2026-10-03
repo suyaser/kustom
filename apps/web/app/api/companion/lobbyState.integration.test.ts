@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type Database, rosterKey } from '@customs/db';
-import { companionLobbyPayloadSchema } from '@customs/db/schemas';
+import { companionLobbyPayloadSchema, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { rollLobby } from '@/lib/admin/roll';
@@ -105,7 +105,7 @@ if (stack === null) {
   /** The ingest the route calls, with the clock the test wants. */
   function ingest(partyId: string, members: readonly MemberSpec[], now: Date) {
     const payload = companionLobbyPayloadSchema.parse(body(partyId, members));
-    return ingestLobby(db, payload, ownerPlayerId, { now });
+    return ingestLobby(db, payload, ownerPlayerId, { groupId: ORIGINAL_GROUP_ID, now });
   }
 
   /** An admin's roll against the stored roster, and what the listeners were told. */
@@ -726,9 +726,11 @@ if (stack === null) {
       const redA = sideOf(chosenA.split.red);
 
       // The lookup the balancer is handed: the newest chosen split for exactly these ten.
-      const stored = await selectLastSplit(db, chosenA.rosterKey);
+      const stored = await selectLastSplit(db, chosenA.rosterKey, ORIGINAL_GROUP_ID);
       expect(stored).not.toBeNull();
       expect(new Set(stored ?? [])).toEqual(blueA);
+      // M13.3: the same ten in another group are another group's history.
+      expect(await selectLastSplit(db, chosenA.rosterKey, randomUUID())).toBeNull();
 
       // Game one closes the row; the same party opens the night's next cycle (M2.14).
       await db.from('lobbies').update({ status: 'finished' }).eq('id', openedA.lobbyId);
@@ -770,7 +772,7 @@ if (stack === null) {
         .eq('is_chosen', true);
       expect(count).toBe(1);
       // And a roster nobody has ever split has no history either.
-      expect(await selectLastSplit(db, 'nobody-has-played-this-ten')).toBeNull();
+      expect(await selectLastSplit(db, 'nobody-has-played-this-ten', ORIGINAL_GROUP_ID)).toBeNull();
     });
   });
 

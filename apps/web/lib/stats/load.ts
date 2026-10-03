@@ -80,6 +80,12 @@ export interface StatsOptions {
   leftPuuid?: string | undefined;
   /** `/1v1?b=`: the right pick, a puuid. */
   rightPuuid?: string | undefined;
+  /**
+   * Only this group's games (M13.3). Absent reads every game, which is what the pages still do
+   * until M13.9 to M13.12 pass their group; the champ-select overlay passes it today. Filters the
+   * games read and nothing else: the week seeds are not group-scoped here (pages, M13.9+).
+   */
+  groupId?: string | undefined;
 }
 
 export async function loadFunFacts(client: PublicClient, options: StatsOptions): Promise<FunFactsView> {
@@ -239,7 +245,7 @@ async function readWindow(
    * cap" without a second `count` query, and the extra one is dropped before anything counts it
    * — so the page uses exactly the most recent `cap` games and says so.
    */
-  const read = await loadGames(client, range, cap + 1, extras);
+  const read = await loadGames(client, range, cap + 1, { ...extras, groupId: options.groupId });
   const capped = read.length > cap;
   const newest = capped ? read.slice(0, cap) : read;
   const rows = await loadGameRows(
@@ -346,15 +352,15 @@ async function loadGames(
   client: PublicClient,
   range: WindowRange,
   limit: number,
-  extras: { withGameMode?: boolean } = {},
+  extras: { withGameMode?: boolean; groupId?: string | undefined } = {},
 ): Promise<GameRow[]> {
   const games: GameRow[] = [];
 
   for (let from = 0; from < limit; from += PAGE_SIZE) {
     const to = Math.min(from + PAGE_SIZE, limit) - 1;
     const page = extras.withGameMode
-      ? await loadGamePage(client, range, from, to, true)
-      : await loadGamePage(client, range, from, to, false);
+      ? await loadGamePage(client, range, from, to, true, extras.groupId)
+      : await loadGamePage(client, range, from, to, false, extras.groupId);
     games.push(...page);
     if (page.length < to - from + 1) break;
   }
@@ -372,6 +378,7 @@ async function loadGamePage(
   from: number,
   to: number,
   withGameMode: boolean,
+  groupId?: string | undefined,
 ): Promise<GameRow[]> {
   if (withGameMode) {
     let query = client
@@ -381,6 +388,7 @@ async function loadGamePage(
       .order('lcu_game_id', { ascending: false })
       .range(from, to);
     query = withRange(query, 'started_at', range);
+    if (groupId !== undefined) query = query.eq('group_id', groupId);
     const { data, error } = await query;
     if (error) throw new Error(`stats: game lookup failed: ${error.message}`);
     return toGameRows(data ?? [], true);
@@ -393,6 +401,7 @@ async function loadGamePage(
     .order('lcu_game_id', { ascending: false })
     .range(from, to);
   query = withRange(query, 'started_at', range);
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
   const { data, error } = await query;
   if (error) throw new Error(`stats: game lookup failed: ${error.message}`);
   return toGameRows(data ?? [], false);

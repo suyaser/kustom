@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
 // Registers the `onAcked` listener that fans the invites out (M4.2) and the `balanced` listener
 // that queues `switch_side` (M4.1). A side-effect import, exactly as on the companion routes:
@@ -47,7 +48,10 @@ export async function handleStartLobby(
     // The presser comes from the **session**, never from the body: whose client opens a lobby is
     // a real decision, and a body that could name someone else would be a request to open a
     // lobby on a stranger's PC.
-    { pressedByPlayerId: presser.playerId },
+    //
+    // The group is the original one until M13.4 makes every `/api/me/*` request carry a checked
+    // `groupId`; `startLobby` itself already picks only that group's tokens (M13.3).
+    { pressedByPlayerId: presser.playerId, groupId: ORIGINAL_GROUP_ID },
     { timeZone: nightTimeZone(), ...options },
   );
 

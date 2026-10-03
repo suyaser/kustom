@@ -12,7 +12,10 @@ export const dynamic = 'force-dynamic';
  * The companion posts the whole lobby member list every time it changes. Idempotent: posting
  * the same lobby twice leaves exactly one live row and the same members.
  *
- * `reported_by_player_id` comes from the token, never from the body.
+ * `reported_by_player_id` and the lobby's group come from the token, never from the body
+ * (M13.3). A party keeps the group whose companion posted it first; a post about another
+ * group's party is a no-op that answers like a duplicate post. Everyone on a roster this post
+ * writes becomes a `member` of the lobby's group (playing is joining).
  *
  * Refused here, before anything is written:
  * - 403 when the token's player is neither in the posted `members` nor already the reporter
@@ -54,7 +57,9 @@ export const POST = withCompanionAuth(companionLobbyPayloadSchema, async (payloa
     return jsonError(403, 'a companion may only report a lobby it is in');
   }
 
-  const result = await ingestLobby(client, payload, identity.playerId, { now });
+  // The group comes from the token, never from the body (M13.3). A party another group's
+  // companion posted first stays that group's, and this post answers as a duplicate.
+  const result = await ingestLobby(client, payload, identity.playerId, { groupId: identity.groupId, now });
 
   return jsonOk(companionLobbyResponseSchema, {
     ok: true,

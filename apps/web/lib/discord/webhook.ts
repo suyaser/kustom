@@ -1,3 +1,4 @@
+import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
 import type { WebhookPayload } from './embeds';
 
@@ -39,6 +40,12 @@ export interface WebhookOutcome {
 }
 
 export interface WebhookOptions {
+  /**
+   * Whose `discord_config` to post with (M13.3): teams, result and fearless posts go to the
+   * lobby's or game's group. Absent means the original group, which is what the not-yet-scoped
+   * callers (the crons and the admin reset, M13.4) still mean; M13.4 makes it required.
+   */
+  groupId?: string;
   /** Injected in tests. Defaults to the global `fetch`. */
   fetchImpl?: typeof fetch;
   /** Injected in tests so a 429 does not cost the suite a second. */
@@ -136,17 +143,22 @@ async function readRetryAfterMs(response: Response): Promise<number | null> {
 }
 
 /**
- * The configured webhook URL, or `null`.
+ * The configured webhook URL of one group, or `null`.
  *
- * The oldest row with a URL wins: `discord_config` is keyed by guild and this group has one
- * guild, but a leftover row from a second one must not be able to silently take over the
- * posting by being written more recently. `/admin/discord` says so when there is more than
- * one row.
+ * The group's rows only (M13.3): two groups may share a Discord server with different channels,
+ * and one group's channel must never receive another group's teams. Within the group the oldest
+ * row with a URL wins: `discord_config` is still keyed by guild until M13.4, and a leftover row
+ * from a second guild must not be able to silently take over the posting by being written more
+ * recently. `/admin/discord` says so when there is more than one row.
  */
-export async function selectWebhookUrl(client: ServiceClient): Promise<string | null> {
+export async function selectWebhookUrl(
+  client: ServiceClient,
+  groupId: string = ORIGINAL_GROUP_ID,
+): Promise<string | null> {
   const { data, error } = await client
     .from('discord_config')
     .select('webhook_url')
+    .eq('group_id', groupId)
     .not('webhook_url', 'is', null)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -161,12 +173,15 @@ export async function selectWebhookUrl(client: ServiceClient): Promise<string | 
   return url && url.length > 0 ? url : null;
 }
 
-/** Said once per process, not once per lobby: an unconfigured webhook is not an incident. */
-let warnedAboutMissingWebhook = false;
+/**
+ * Said once per process **per group**, not once per lobby: an unconfigured webhook is not an
+ * incident, and a group with no channel yet must not hide another group's first warning.
+ */
+const warnedAboutMissingWebhook = new Set<string>();
 
 /** Tests only. */
 export function resetWebhookWarning(): void {
-  warnedAboutMissingWebhook = false;
+  warnedAboutMissingWebhook.clear();
 }
 
 /**
@@ -179,11 +194,14 @@ export async function postToWebhook(
   label: string,
   options: WebhookOptions = {},
 ): Promise<WebhookOutcome> {
-  const url = await selectWebhookUrl(client);
+  const groupId = options.groupId ?? ORIGINAL_GROUP_ID;
+  const url = await selectWebhookUrl(client, groupId);
   if (url === null) {
-    if (!warnedAboutMissingWebhook) {
-      warnedAboutMissingWebhook = true;
-      console.info('discord: no webhook configured; skipping posts until one is set in /admin/discord');
+    if (!warnedAboutMissingWebhook.has(groupId)) {
+      warnedAboutMissingWebhook.add(groupId);
+      console.info(
+        `discord: no webhook configured for group ${groupId}; skipping its posts until one is set in /admin/discord`,
+      );
     }
     return { status: 'skipped', httpStatus: null, reason: 'no webhook configured', attempts: 0 };
   }
