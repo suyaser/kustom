@@ -18,7 +18,8 @@ export function siteMetadataBase(env: Record<string, string | undefined> = proce
 }
 
 /** The image routes, one per card. Route handlers, not `opengraph-image` files, so nothing cascades. */
-export const tonightImagePath = (): string => '/og/tonight';
+/** A group's tonight card (M13.9): `/og/g/<slug>/tonight`. `/og/tonight` 308s to the original group's. */
+export const tonightImagePath = (slug: string): string => `/og/g/${encodeURIComponent(slug)}/tonight`;
 export const gameImagePath = (gameId: string): string => `/og/g/${encodeURIComponent(gameId)}`;
 export const playerImagePath = (puuid: string): string => `/og/p/${encodeURIComponent(puuid)}`;
 

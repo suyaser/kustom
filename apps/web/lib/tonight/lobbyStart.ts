@@ -51,6 +51,13 @@ export interface LobbyStartView extends CreateLobbyProgress {
 export interface LoadLobbyStartOptions {
   now?: Date;
   timeZone?: string;
+  /**
+   * Only this group's press (M13.9): `companion_commands.group_id` is the target token's group
+   * (M13.3), and a group's tonight page must not say `Opening a lobby on Omar's PC…` about
+   * another group's night. Absent reads every group, which `/admin` (the original group's until
+   * M13.14) still does.
+   */
+  groupId?: string;
 }
 
 /**
@@ -67,12 +74,14 @@ export async function loadLobbyStart(
   const now = options.now ?? new Date();
   const window = nightWindow(now, options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE);
 
-  const { data, error } = await client
+  let query = client
     .from('companion_commands')
     .select(
       'target_player_id, status, error, payload, created_at, players!inner(puuid, display_name, game_name, tag_line)',
     )
-    .eq('kind', 'create_lobby')
+    .eq('kind', 'create_lobby');
+  if (options.groupId !== undefined) query = query.eq('group_id', options.groupId);
+  const { data, error } = await query
     .gte('created_at', window.start)
     .lte('created_at', window.until)
     .order('created_at', { ascending: false })
@@ -103,7 +112,7 @@ export async function loadLobbyStart(
     // and a create that failed queued nothing and never will (M4.2).
     invited:
       data.status === 'acked'
-        ? await countInvites(client, data.target_player_id, data.created_at, window)
+        ? await countInvites(client, data.target_player_id, data.created_at, window, options.groupId)
         : 0,
   };
 }
@@ -143,11 +152,16 @@ async function countInvites(
   hostPlayerId: string,
   createdAt: string,
   window: { start: string; until: string },
+  groupId: string | undefined,
 ): Promise<number> {
-  const { count, error } = await client
+  let query = client
     .from('companion_commands')
     .select('id', { count: 'exact', head: true })
-    .eq('kind', 'invite')
+    .eq('kind', 'invite');
+  // A host in two groups holds two tokens: the fan-out's invites are queued in the group the
+  // create was (`lib/commands/invites.ts`), so a group's count is its own.
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
+  const { count, error } = await query
     .eq('target_player_id', hostPlayerId)
     .gte('created_at', createdAt)
     .lte('created_at', window.until);

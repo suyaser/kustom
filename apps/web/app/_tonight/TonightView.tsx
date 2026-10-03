@@ -1,5 +1,6 @@
 import type { BoardRow } from '@/lib/board/types';
 import type { MysteryPageState } from '@/lib/mystery/service';
+import { groupHref } from '@/lib/nav';
 import { NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
 import {
   evennessLine,
@@ -37,6 +38,7 @@ import { type ViewerState, viewerIsAdmin, viewerPuuid } from '@/lib/tonight/view
 import { TopOfBoard } from '../_leaderboard/BoardCard';
 import { MysteryTeaser } from '../_mystery/MysteryTeaser';
 import { CompanionCard, HowThisWorksCard } from '../_shell/HowThisWorks';
+import { usePageGroup } from '../_shell/PageGroup';
 import { FearlessCard } from './FearlessCard';
 import { NightTape } from './NightTape';
 import { RerollControl } from './RerollControl';
@@ -137,6 +139,7 @@ export function TonightView({
   mystery = null,
   admins = [],
 }: TonightViewProps) {
+  const group = usePageGroup();
   const state = tonightState(snapshot);
   const header = tonightHeader(state, admins);
   const seatViewer = { puuid: viewerPuuid(viewer), isAdmin: viewerIsAdmin(viewer) };
@@ -296,7 +299,11 @@ export function TonightView({
         {/* The same five rows as the top of `/leaderboard`, from the same query and the same
             sort: a rail that disagreed with the page it links to about who is first would be
             worse than a rail with two cards in it. */}
-        <TopOfBoard rows={topPlayers} viewerPuuid={seatViewer.puuid} />
+        <TopOfBoard
+          rows={topPlayers}
+          viewerPuuid={seatViewer.puuid}
+          playerHref={(puuid) => groupHref(group, { page: 'player', puuid })}
+        />
         {/* The daily game's one-row pointer (2026-10-03). Static once rendered, so the rail
             rule holds; below 1080px the same row sits inline in the column instead. */}
         <MysteryTeaser mystery={mystery} />

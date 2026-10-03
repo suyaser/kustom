@@ -72,14 +72,45 @@
   column-gap: var(--cn-sp-3);
 }
 
+/*
+ * The lockup (05-design.md, "The group in the shell", M13.7): bar + `KUSTOM` on row 1, the
+ * group's name on row 2. The name sits in the wordmark's column, so its left edge lines up with
+ * the `K` in both themes (the column gap is the bar-to-letters gap), and it gets every pixel left
+ * of the theme switch before its ellipsis. Both rows fit the existing 44px row.
+ */
 .cn-wordmark {
   grid-area: wordmark;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--cn-sp-2);
+  align-content: center;
+  column-gap: var(--cn-sp-2);
+  row-gap: 2px;
+  min-width: 0;
   min-height: 44px;
   color: var(--cn-text);
   text-decoration: none;
+}
+
+/*
+ * A name somebody typed, set the way a player's name is: Archivo, t-sm, 600, as typed. Never the
+ * display cut, never upper case, never tracked -- the gaming layer's upper case is for `.cn-tab`
+ * and `.cn-theme-opt` only. One line; the longest names lose their tail on a phone, and the full
+ * name stays in the DOM for a screen reader. No `title`: it does nothing on touch.
+ */
+.cn-wordmark-group {
+  grid-column: 2;
+  min-width: 0;
+  font-family: var(--cn-font-sans);
+  font-size: var(--cn-t-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cn-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cn-theme-toggle {

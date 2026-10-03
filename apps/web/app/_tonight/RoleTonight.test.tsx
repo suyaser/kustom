@@ -212,7 +212,7 @@ describe('signed out, with a lobby up', () => {
     expect(screen.getByRole('button', { name: SIGN_IN_LABEL })).toBeEnabled();
     expect(container.querySelector('form')).toHaveAttribute('action', '/auth/signin');
     // Not `/admin`, which is where a sign-in with no destination lands.
-    expect(container.querySelector('input[name="next"]')).toHaveValue('/');
+    expect(container.querySelector('input[name="next"]')).toHaveValue('/g/customs');
   });
 });
 

@@ -9,9 +9,12 @@ import {
   MYSTERY_WRONG,
 } from '@/lib/mystery/copy';
 import type { MysteryPageState } from '@/lib/mystery/service';
+import { groupHref } from '@/lib/nav';
+import { usePageGroup } from '../_shell/PageGroup';
 
 /**
- * Today's daily game on `/`, as one row that opens `/mystery` (2026-10-03).
+ * Today's daily game on the tonight page, as one row that opens the group's daily page
+ * (2026-10-03; the link is `lib/nav.ts`'s since M13.9).
  *
  * The full card — six names, the clue ladder, the case file — lived inline on the tonight page
  * and was most of a phone screen tall on a page whose job is "is the night happening and am I
@@ -32,7 +35,10 @@ export function MysteryTeaser({
   /** The placement class: inline in the column, or in the ≥1080px rail. */
   className?: string;
 }) {
-  if (mystery === null || mystery.kind === 'empty') return null;
+  const href = groupHref(usePageGroup(), { page: 'mystery' });
+  // No daily page for this group yet (`lib/nav.ts`: it moves under `/g/<slug>` with M13.12), no
+  // pointer at one. The page does not load a challenge then either.
+  if (href === null || mystery === null || mystery.kind === 'empty') return null;
 
   const day = mystery.kind === 'play' ? mystery.play : mystery.result;
   const action =
@@ -44,7 +50,7 @@ export function MysteryTeaser({
   const classes = ['cn-card', 'cn-mystery-teaser', className].filter(Boolean).join(' ');
 
   return (
-    <Link href="/mystery" className={classes}>
+    <Link href={href} className={classes}>
       <span className="cn-mystery-teaser-body">
         {/* The card title every other card on the page wears (2026-10-03). It was the strip's
             date class — small tracked upper-case mono — and read as a second date line. */}

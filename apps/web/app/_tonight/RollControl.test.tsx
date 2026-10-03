@@ -60,7 +60,7 @@ describe('the roll control', () => {
     expect(container.querySelector('input[name="rosterKey"]')).toHaveValue(
       lobbyRosterKey(members.map((member) => member.puuid)),
     );
-    expect(container.querySelector('input[name="redirectTo"]')).toHaveValue('/');
+    expect(container.querySelector('input[name="redirectTo"]')).toHaveValue('/g/customs');
     expect(screen.getByText(ROLL_ADMIN_HINT)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: ROLL_LABEL })).toBeEnabled();
   });

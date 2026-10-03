@@ -6,7 +6,8 @@ import { resultOfGame } from '../tonight/load';
 import type { ResultView } from '../tonight/types';
 
 /**
- * One stored game, for `/g/[gameId]` and its card (M11.4). Read with the anon key through the
+ * One stored game, for `/g/<slug>/games/<gameId>` and its card (M11.4; moved under the group by
+ * M13.9). Read with the anon key through the
  * same `resultOfGame` the tonight page's result block uses, so the poster on this page has the
  * odds, MVP and deltas it had on the night.
  */
@@ -27,18 +28,25 @@ export function isGameId(value: string): boolean {
   return UUID.test(value);
 }
 
+/**
+ * `groupId`, when given, is the group whose page is asking (M13.9's `/g/<slug>/games/<id>`): a
+ * game of any other group is `null` -- a 404, never a redirect across groups (M13.11's rule).
+ * The share card (`/og/g/<id>`, moved by M13.11) still asks by id alone.
+ */
 export async function loadGamePage(
   client: PublicClient,
   gameId: string,
   timeZone: string,
+  groupId?: string,
 ): Promise<GamePageView | null> {
   if (!isGameId(gameId)) return null;
 
-  const { data: game, error } = await client
+  let query = client
     .from('games')
     .select('id, lobby_id, duration_s, winning_side, started_at, raw->gameMode')
-    .eq('id', gameId)
-    .maybeSingle();
+    .eq('id', gameId);
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
+  const { data: game, error } = await query.maybeSingle();
   if (error) throw new Error(`og: game lookup failed: ${error.message}`);
   if (!game) return null;
 

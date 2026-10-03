@@ -106,7 +106,7 @@ describe('idle: nobody has pressed it', () => {
     expect(form).toHaveAttribute('action', '/api/me/lobbies/start');
     // The 303 path comes back to the tonight page, not to `/admin`, which is the route's own
     // default (M3.4). The route re-validates it as a path on this site.
-    expect(container.querySelector('input[name="redirectTo"]')).toHaveValue('/');
+    expect(container.querySelector('input[name="redirectTo"]')).toHaveValue('/g/customs');
   });
 });
 
@@ -331,6 +331,6 @@ describe('the signed-out block', () => {
     expect(form).toHaveAttribute('method', 'post');
     expect(form).toHaveAttribute('action', '/auth/signin');
     // Back to `/`, not to `/admin`, which is where a sign-in defaults.
-    expect(container.querySelector('input[name="next"]')).toHaveValue('/');
+    expect(container.querySelector('input[name="next"]')).toHaveValue('/g/customs');
   });
 });

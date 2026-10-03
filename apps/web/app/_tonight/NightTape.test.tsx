@@ -103,7 +103,7 @@ describe('NightTape', () => {
     );
     const [played, dropped] = rowsOf(container);
     const link = played?.querySelector('a');
-    expect(link).toHaveAttribute('href', '/g/game-a');
+    expect(link).toHaveAttribute('href', '/g/customs/games/game-a');
     expect(link).toHaveTextContent(/^RED WINS · 31:04$/);
     expect(dropped?.querySelector('a')).toBeNull();
     expect(container.querySelectorAll('a')).toHaveLength(1);

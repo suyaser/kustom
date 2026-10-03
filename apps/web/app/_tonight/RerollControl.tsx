@@ -1,14 +1,12 @@
 'use client';
 
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type FormEvent, useState } from 'react';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
+import { groupHome } from '@/lib/nav';
 import { asSentence, REROLL_FAILED, REROLL_LABEL, REROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { nextRerollSplit } from '@/lib/tonight/state';
 import type { SplitChoice } from '@/lib/tonight/types';
-
-/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
-const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
+import { usePageGroup } from '../_shell/PageGroup';
 
 /**
  * The reroll control on the explanation strip (M3.2's button, M3.4's home for it).
@@ -33,6 +31,7 @@ const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
  * press and `NO_MORE_SPLITS` says so beside it.
  */
 export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: readonly SplitChoice[] }) {
+  const group = usePageGroup();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const next = nextRerollSplit(splits);
@@ -49,7 +48,7 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId: PAGE_GROUP_ID, splitId: next.id }),
+        body: JSON.stringify({ groupId: group.id, splitId: next.id }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -72,8 +71,8 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
         <>
           <input type="hidden" name="splitId" value={next.id} />
           {/* Only the form path reads this. The route re-validates it as a path on this site. */}
-          <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
-          <input type="hidden" name="redirectTo" value="/" />
+          <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="redirectTo" value={groupHome(group)} />
         </>
       )}
       <button

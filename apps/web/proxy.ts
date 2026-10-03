@@ -1,8 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
+import { GROUP_COOKIE_MAX_AGE_S, GROUP_COOKIE_NAME, groupSlugFromPath } from './lib/groups/pageGroup';
 
 /**
- * Session refresh for `/admin` navigations, and nothing else.
+ * Two jobs, one per matcher: the session refresh for `/admin` navigations, and the
+ * `kustom_group` cookie for group pages (M13.9).
  *
  * `proxy.ts` is Next 16's name for what used to be `middleware.ts`; building with the old name
  * prints a deprecation warning.
@@ -19,6 +21,8 @@ import { type NextRequest, NextResponse } from 'next/server';
  * request and answer 401/403 on their own, and they must not depend on middleware having run.
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  if (request.nextUrl.pathname.startsWith('/g/')) return rememberGroup(request);
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return NextResponse.next({ request });
@@ -54,6 +58,30 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
+/**
+ * "The last group they opened" (M13.9): written on every group page so `/` can send a signed-in
+ * member back to it. Set here rather than by a client component so it needs no JavaScript and
+ * costs no round trip. It is a hint, never a credential: `/` only follows it for a session whose
+ * player is a member of that group (`lib/groups/landing.ts`), so an unknown slug written by a
+ * 404 is harmless.
+ *
+ * `HttpOnly` (nothing in the browser reads it), `SameSite=Lax`, a year, the whole site. Not
+ * rewritten when it already says this group, so a night of re-reads sends no `Set-Cookie`.
+ */
+function rememberGroup(request: NextRequest): NextResponse {
+  const response = NextResponse.next({ request });
+  const slug = groupSlugFromPath(request.nextUrl.pathname);
+  if (slug === null || request.cookies.get(GROUP_COOKIE_NAME)?.value === slug) return response;
+  response.cookies.set(GROUP_COOKIE_NAME, slug, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: request.nextUrl.protocol === 'https:',
+    path: '/',
+    maxAge: GROUP_COOKIE_MAX_AGE_S,
+  });
+  return response;
+}
+
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/g/:path*'],
 };

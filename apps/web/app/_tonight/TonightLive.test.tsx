@@ -20,26 +20,53 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh }),
 }));
 
-/** No socket in a component test: the channel is a stub that never fires and never subscribes. */
+/**
+ * No socket in a component test: the channel is a stub that never subscribes. It records what
+ * the page asked to hear, and `fire` plays a server-delivered event back -- the server only
+ * delivers what matches a subscription's filter, which is the rule the group test leans on.
+ */
+type Listener = { config: { table: string; filter?: string }; callback: () => void };
+const listeners = vi.hoisted(() => ({ all: [] as Listener[], channels: [] as string[] }));
+
 vi.mock('@/lib/publicClient', () => ({
   createPublicClient: () => ({
-    channel: () => ({
-      on() {
-        return this;
-      },
-      subscribe() {
-        return this;
-      },
-    }),
+    channel: (name: string) => {
+      listeners.channels.push(name);
+      return {
+        on(_kind: string, config: Listener['config'], callback: () => void) {
+          listeners.all.push({ config, callback });
+          return this;
+        },
+        subscribe() {
+          return this;
+        },
+      };
+    },
     removeChannel: () => Promise.resolve('ok'),
   }),
 }));
+
+/** What Realtime does with a row change: hand it to every subscription whose filter it matches. */
+function fire(table: string, row: Record<string, string>): void {
+  for (const { config, callback } of listeners.all) {
+    if (config.table !== table) continue;
+    if (config.filter !== undefined) {
+      const [column, condition] = config.filter.split('=');
+      if (column === undefined || condition !== `eq.${row[column]}`) continue;
+    }
+    callback();
+  }
+}
 
 vi.mock('@/lib/tonight/load', () => ({
   loadTonight: vi.fn(async () => snapshot(null)),
 }));
 
-const { TonightLive } = await import('./TonightLive');
+const { TonightLive, liveSubscriptions } = await import('./TonightLive');
+const { loadTonight } = await import('@/lib/tonight/load');
+
+const GROUP_A = '11111111-1111-4111-8111-111111111111';
+const GROUP_B = '22222222-2222-4222-8222-222222222222';
 
 const admin: ViewerState = { kind: 'linked', puuid: 'puuid-hamoodi', isAdmin: true };
 
@@ -56,7 +83,13 @@ function start(status: LobbyStartView['status']): LobbyStartView {
 
 function draw(lobbyStart: LobbyStartView | null) {
   return render(
-    <TonightLive initial={snapshot(null)} viewer={admin} topPlayers={[]} lobbyStart={lobbyStart} />,
+    <TonightLive
+      groupId={GROUP_A}
+      initial={snapshot(null)}
+      viewer={admin}
+      topPlayers={[]}
+      lobbyStart={lobbyStart}
+    />,
   );
 }
 
@@ -65,6 +98,9 @@ const TICK = 5_000;
 
 beforeEach(() => {
   refresh.mockClear();
+  listeners.all.length = 0;
+  listeners.channels.length = 0;
+  vi.mocked(loadTonight).mockClear();
   vi.useFakeTimers();
 });
 
@@ -113,5 +149,44 @@ describe('the create_lobby poll', () => {
     unmount();
     act(() => vi.advanceTimersByTime(TICK * 4));
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** M13.9 acceptance 5: group A's page never re-reads on group B's game. */
+describe('the Realtime subscription', () => {
+  it("filters every published table that has a group_id to the page's group", () => {
+    expect(liveSubscriptions(GROUP_A)).toEqual([
+      { table: 'lobbies', filter: `group_id=eq.${GROUP_A}` },
+      // No `group_id` on these two: they reach their group through their lobby.
+      { table: 'lobby_members' },
+      { table: 'splits' },
+      { table: 'games', filter: `group_id=eq.${GROUP_A}` },
+      { table: 'game_players', filter: `group_id=eq.${GROUP_A}` },
+      { table: 'ratings', filter: `group_id=eq.${GROUP_A}` },
+      { table: 'fearless_state', filter: `group_id=eq.${GROUP_A}` },
+    ]);
+  });
+
+  it('subscribes with those filters, on a channel of its own group', () => {
+    draw(null);
+    expect(listeners.channels).toEqual([`tonight:${GROUP_A}`]);
+    expect(listeners.all.map((listener) => listener.config)).toEqual(
+      liveSubscriptions(GROUP_A).map((subscription) => ({ event: '*', schema: 'public', ...subscription })),
+    );
+  });
+
+  it('does not re-read when a game lands in another group, and does when one lands in its own', async () => {
+    draw(null);
+
+    // Everything a game landing writes: the game, its ten rows, the fold's ratings, its lobby.
+    for (const table of ['games', 'game_players', 'ratings', 'lobbies']) fire(table, { group_id: GROUP_B });
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(loadTonight).not.toHaveBeenCalled();
+
+    fire('games', { group_id: GROUP_A });
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(loadTonight).toHaveBeenCalledTimes(1);
+    // The re-read is the group's snapshot.
+    expect(vi.mocked(loadTonight).mock.calls[0]?.[1]).toMatchObject({ groupId: GROUP_A });
   });
 });

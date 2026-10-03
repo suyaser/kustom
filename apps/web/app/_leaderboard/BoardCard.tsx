@@ -1,7 +1,7 @@
 import { boardLegend, TOP_OF_BOARD_TITLE } from '@/lib/board/copy';
 import type { BoardRow as BoardRowModel } from '@/lib/board/types';
 import '../board-parts.css';
-import { BoardRow } from './BoardRow';
+import { BoardRow, type PlayerHref } from './BoardRow';
 
 /**
  * The board's rows, in a card (M3.19, `05-design.md`, "What changes on the leaderboard and the
@@ -32,9 +32,11 @@ export interface BoardCardProps {
   title?: string;
   /** Where the first row's rank starts. Always 1 today; the parameter is what stops it being a guess. */
   firstRank?: number;
+  /** Where each name links, from the page's group (`BoardRow`'s own default when absent). */
+  playerHref?: PlayerHref;
 }
 
-export function BoardCard({ rows, viewerPuuid, title, firstRank = 1 }: BoardCardProps) {
+export function BoardCard({ rows, viewerPuuid, title, firstRank = 1, playerHref }: BoardCardProps) {
   return (
     <section className="cn-card cn-board-card">
       <header className="cn-card-head cn-board-head">
@@ -43,7 +45,13 @@ export function BoardCard({ rows, viewerPuuid, title, firstRank = 1 }: BoardCard
       </header>
       <ol className="cn-board">
         {rows.map((row, index) => (
-          <BoardRow key={row.puuid} row={row} rank={firstRank + index} viewerPuuid={viewerPuuid} />
+          <BoardRow
+            key={row.puuid}
+            row={row}
+            rank={firstRank + index}
+            viewerPuuid={viewerPuuid}
+            {...(playerHref === undefined ? {} : { playerHref })}
+          />
         ))}
       </ol>
     </section>
@@ -65,10 +73,20 @@ export function BoardCard({ rows, viewerPuuid, title, firstRank = 1 }: BoardCard
 export function TopOfBoard({
   rows,
   viewerPuuid,
+  playerHref,
 }: {
   rows: readonly BoardRowModel[];
   viewerPuuid: string | null;
+  /** The group's player pages (M13.9), from the tonight page's group; `BoardRow`'s default when absent. */
+  playerHref?: PlayerHref;
 }) {
   if (rows.length === 0) return null;
-  return <BoardCard rows={rows} viewerPuuid={viewerPuuid} title={TOP_OF_BOARD_TITLE} />;
+  return (
+    <BoardCard
+      rows={rows}
+      viewerPuuid={viewerPuuid}
+      title={TOP_OF_BOARD_TITLE}
+      {...(playerHref === undefined ? {} : { playerHref })}
+    />
+  );
 }

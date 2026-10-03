@@ -42,6 +42,39 @@ const LIVE_TABLES = [
   'fearless_state',
 ] as const;
 
+type LiveTable = (typeof LIVE_TABLES)[number];
+
+/**
+ * The published tables that carry `group_id` (M13.2). Their events are filtered to the page's
+ * group **by the server** (`group_id=eq.<id>`), so a game landing in another group -- its `games`
+ * row, its ten `game_players`, the fold's `ratings`, its lobby going `finished` -- never reaches
+ * this page and never re-reads it (M13.9).
+ *
+ * `lobby_members` and `splits` reach their group through their lobby and have no column to
+ * filter on, so they stay unfiltered: another group's lobby filling or rolling costs this page a
+ * re-read of its own group's snapshot, which can only come back unchanged. Correct, and cheap.
+ */
+const GROUP_SCOPED: ReadonlySet<LiveTable> = new Set([
+  'lobbies',
+  'games',
+  'game_players',
+  'ratings',
+  'fearless_state',
+]);
+
+export interface LiveSubscription {
+  table: LiveTable;
+  /** A Realtime `postgres_changes` filter, or absent for a table with no `group_id`. */
+  filter?: string;
+}
+
+/** What the page listens to for one group. Pure, so the filter is a unit test. */
+export function liveSubscriptions(groupId: string): LiveSubscription[] {
+  return LIVE_TABLES.map((table) =>
+    GROUP_SCOPED.has(table) ? { table, filter: `group_id=eq.${groupId}` } : { table },
+  );
+}
+
 /** Ten members joining at once is one re-read, not ten. */
 const COALESCE_MS = 120;
 
@@ -68,6 +101,11 @@ const NAME_REREAD_MS = 60_000;
 const START_POLL_MS = 5_000;
 
 export interface TonightLiveProps {
+  /**
+   * The page's group (M13.9): every re-read is this group's snapshot, and the Realtime
+   * subscription only hears this group's rows ({@link liveSubscriptions}).
+   */
+  groupId: string;
   initial: TonightSnapshot;
   /** Who is reading, decided on the server from the session (`lib/viewer.ts`). */
   viewer: ViewerState;
@@ -94,6 +132,7 @@ export interface TonightLiveProps {
 }
 
 export function TonightLive({
+  groupId,
   initial,
   viewer,
   topPlayers,
@@ -162,7 +201,12 @@ export function TonightLive({
       }
       inFlight = true;
       try {
-        const next = await loadTonight(client, { nightStart: new Date(nightStart), nightLabel, nightClock });
+        const next = await loadTonight(client, {
+          nightStart: new Date(nightStart),
+          nightLabel,
+          nightClock,
+          groupId,
+        });
         if (!cancelled) setSnapshot(next);
       } catch (error) {
         // The last snapshot stays on the screen. A failed read is not something to announce.
@@ -178,9 +222,15 @@ export function TonightLive({
 
     refresh.current = schedule;
 
-    const channel = client.channel('tonight');
-    for (const table of LIVE_TABLES) {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table }, schedule);
+    const channel = client.channel(`tonight:${groupId}`);
+    for (const { table, filter } of liveSubscriptions(groupId)) {
+      channel.on(
+        'postgres_changes',
+        filter === undefined
+          ? { event: '*', schema: 'public', table }
+          : { event: '*', schema: 'public', table, filter },
+        schedule,
+      );
     }
     channel.subscribe((status) => {
       // The first subscribe and every reconnect land here: re-read once, say nothing.
@@ -192,7 +242,7 @@ export function TonightLive({
       if (timer !== null) clearTimeout(timer);
       void client.removeChannel(channel);
     };
-  }, [nightStart, nightLabel, nightClock]);
+  }, [groupId, nightStart, nightLabel, nightClock]);
 
   /** A roll press was answered: re-read the snapshot now (`TonightView`'s `onRollSettled`). */
   const onRollSettled = useCallback(() => refresh.current(), []);

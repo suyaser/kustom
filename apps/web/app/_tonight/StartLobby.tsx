@@ -1,15 +1,13 @@
 'use client';
 
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type FormEvent, useState } from 'react';
 import { startLobbyResponseSchema } from '@/app/api/me/lobbies/start/schema';
 import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStart';
 import { PLAYERS_PER_GAME } from '@/lib/lobbyState';
+import { groupHome } from '@/lib/nav';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-
-/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
-const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
+import { usePageGroup } from '../_shell/PageGroup';
 
 /**
  * `Start a lobby` on the tonight page (M4.2's control, M4.7 (a)'s layout).
@@ -78,6 +76,7 @@ export interface StartLobbyProps {
 }
 
 export function StartLobby({ start, press, around, onPressed }: StartLobbyProps) {
+  const group = usePageGroup();
   const [inFlight, setInFlight] = useState(false);
   /** The route's own sentence for a refused press, until the next press clears it. */
   const [refused, setRefused] = useState<string | null>(null);
@@ -122,7 +121,7 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
       const response = await fetch(START_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId: PAGE_GROUP_ID }),
+        body: JSON.stringify({ groupId: group.id }),
       });
       const body: unknown = await response.json().catch(() => null);
 
@@ -158,8 +157,8 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
       {press ? (
         <form className="cn-start-form" method="post" action={START_ACTION} onSubmit={submit}>
           {/* Only the no-JavaScript path reads this. The route re-validates it as a path. */}
-          <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
-          <input type="hidden" name="redirectTo" value="/" />
+          <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="redirectTo" value={groupHome(group)} />
           <button
             className={quiet ? 'cn-button cn-button-quiet' : 'cn-button'}
             type="submit"
@@ -207,12 +206,13 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
  * and there is nothing to sign in *for* while a lobby is already open.
  */
 export function StartLobbySignIn() {
+  const group = usePageGroup();
   return (
     <div className="cn-start">
       <p className="cn-start-note">{START_LOBBY_SIGN_IN}</p>
       <form method="post" action={SIGN_IN_ACTION} className="cn-signin">
         {/* Back to the tonight page, not to `/admin`, which is where a sign-in defaults. */}
-        <input type="hidden" name="next" value="/" />
+        <input type="hidden" name="next" value={groupHome(group)} />
         <button type="submit" className="cn-button">
           {SIGN_IN_LABEL}
         </button>

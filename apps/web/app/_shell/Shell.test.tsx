@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { ORIGINAL_GROUP, type PageGroup } from '@/lib/groups/pageGroup';
 import { RELEASES_URL } from '@/lib/nav';
 import { COMPANION_CARD_BODY, HOW_THIS_WORKS_LINES } from '@/lib/shellCopy';
 import { THEME_PICKER_LABEL } from '@/lib/theme';
@@ -15,34 +16,90 @@ import { Shell } from './Shell';
 const pathname = vi.hoisted(() => ({ current: '/' }));
 vi.mock('next/navigation', () => ({ usePathname: () => pathname.current }));
 
-function draw(path: string, viewerPuuid: string | null = null) {
+/** A group that is not the original one, with a name nothing else on the page could print. */
+const GROUP_A: PageGroup = {
+  id: '11111111-1111-4111-8111-111111111111',
+  slug: 'thursday-flex',
+  name: 'Thursday Flex',
+};
+
+function draw(
+  path: string,
+  viewerPuuid: string | null = null,
+  group: PageGroup = ORIGINAL_GROUP,
+  isAdmin = false,
+) {
   pathname.current = path;
   return render(
-    <Shell viewerPuuid={viewerPuuid}>
+    <Shell group={group} viewerPuuid={viewerPuuid} isAdmin={isAdmin}>
       <p>page</p>
     </Shell>,
   );
 }
 
 describe('the top bar', () => {
-  it('says KUSTOM and never the repo codename', () => {
-    const { container } = draw('/');
+  it('says KUSTOM and never the repo codename of its own accord', () => {
+    const { container } = draw('/g/thursday-flex', null, GROUP_A);
 
     expect(screen.getByText('KUSTOM')).toBeInTheDocument();
     // The repo's codename appears on no friend-facing surface (M3.21). Checked on the word
-    // rather than the phrase so the phrase itself is not in `apps/web` at all.
+    // rather than the phrase so the phrase itself is not in `apps/web` at all. (The original
+    // group is itself called that -- its name is data, printed as the group line below.)
     expect(container.textContent).not.toContain('Customs');
   });
 
-  it('renders only the routes that exist, and underlines the one being read', () => {
-    draw('/');
+  /** 05-design.md, "The group in the shell" (M13.7). */
+  it('names the group under the wordmark, as one link to the group home', () => {
+    draw('/g/thursday-flex', null, GROUP_A);
 
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toContain('Tonight');
+    const lockup = screen.getByRole('link', { name: 'KUSTOM Thursday Flex' });
+    expect(lockup).toHaveAttribute('href', '/g/thursday-flex');
+    expect(lockup.querySelector('.cn-wordmark-group')).toHaveTextContent('Thursday Flex');
+  });
+
+  it('prints a group name as text, never as markup', () => {
+    draw('/g/x', null, { ...GROUP_A, name: '<b>Flex</b> 🎮' });
+
+    expect(document.querySelector('.cn-wordmark-group')?.textContent).toBe('<b>Flex</b> 🎮');
+    expect(document.querySelector('.cn-wordmark-group b')).toBeNull();
+  });
+
+  /** M13.9 acceptance 4, over the whole shell: tabs, wordmark and footer, every viewer. */
+  it('renders no link on /g/a/* that leaves /g/a/ except to another site', () => {
+    for (const [viewerPuuid, isAdmin] of [
+      [null, false],
+      ['puuid-hana', false],
+      ['puuid-hana', true],
+    ] as const) {
+      const { unmount } = draw('/g/thursday-flex', viewerPuuid, GROUP_A, isAdmin);
+      for (const link of screen.getAllByRole('link')) {
+        const href = link.getAttribute('href') ?? '';
+        const inside = href === '/g/thursday-flex' || href.startsWith('/g/thursday-flex/');
+        expect(inside || href.startsWith('https://'), href).toBe(true);
+      }
+      unmount();
+    }
+  });
+
+  it('shows a group admin the Admin tab, and nobody else', () => {
+    const member = draw('/g/customs', 'puuid-hana', ORIGINAL_GROUP, false);
+    expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
+    member.unmount();
+
+    draw('/g/customs', 'puuid-hana', ORIGINAL_GROUP, true);
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
+  });
+
+  it('renders only the routes that exist, and underlines the one being read', () => {
+    draw('/g/customs');
+
+    // No `Tonight` tab: the wordmark lockup is the way home (the product owner, M13.9).
+    expect(screen.queryByRole('link', { name: 'Tonight' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'KUSTOM Customs Night' })).toHaveAttribute('href', '/g/customs');
     // `Stats` is a route since M5.4, so it is a tab; the rule is unchanged and the list is
     // still the routes that exist.
     expect(screen.getByRole('link', { name: 'Games' })).toHaveAttribute('href', '/games');
     expect(screen.getByRole('link', { name: 'Stats' })).toHaveAttribute('href', '/stats');
-    expect(screen.getByRole('link', { name: 'Tonight' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Leaderboard' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: 'Games' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: 'Stats' })).not.toHaveAttribute('aria-current');
@@ -96,7 +153,7 @@ describe('the top bar', () => {
   });
 
   it('points the companion tab at the releases page, not at a 90MB download', () => {
-    draw('/');
+    draw('/g/customs');
 
     const companion = screen.getByRole('link', { name: 'Companion ↗' });
     expect(companion).toHaveAttribute('href', RELEASES_URL);
@@ -104,7 +161,7 @@ describe('the top bar', () => {
   });
 
   it('offers a Day / Night switch, Night on', () => {
-    draw('/');
+    draw('/g/customs');
 
     const toggle = screen.getByRole('switch', { name: THEME_PICKER_LABEL });
     expect(toggle).toHaveAttribute('aria-checked', 'true');
@@ -115,7 +172,7 @@ describe('the top bar', () => {
 
 describe('the footer', () => {
   it('explains the whole system in four lines, closed by default', () => {
-    draw('/');
+    draw('/g/customs');
 
     expect(screen.getByText('How this works')).toBeInTheDocument();
     for (const line of HOW_THIS_WORKS_LINES) {
@@ -145,18 +202,23 @@ describe('the footer', () => {
   });
 
   it('sends Get the companion at the releases page', () => {
-    draw('/');
+    draw('/g/customs');
 
     expect(screen.getByRole('link', { name: 'Get the companion' })).toHaveAttribute('href', RELEASES_URL);
   });
 
   it('offers Your games only to a viewer who has a player row, and points it at their page', () => {
-    const anonymous = draw('/');
+    const anonymous = draw('/g/customs');
     expect(screen.queryByRole('link', { name: 'Your games' })).not.toBeInTheDocument();
     anonymous.unmount();
 
-    draw('/', 'puuid-hana');
+    draw('/g/customs', 'puuid-hana');
     expect(screen.getByRole('link', { name: 'Your games' })).toHaveAttribute('href', '/p/puuid-hana');
+  });
+
+  it('offers no Your games on a group whose player page has not moved yet', () => {
+    draw('/g/thursday-flex', 'puuid-hana', GROUP_A);
+    expect(screen.queryByRole('link', { name: 'Your games' })).not.toBeInTheDocument();
   });
 });
 

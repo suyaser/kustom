@@ -1,4 +1,5 @@
 import { displayRating } from '@customs/core';
+import type { Route } from 'next';
 import Link from 'next/link';
 import { gamesLabel, LOST, PROVEN_LABEL, RATING_LABEL, WON, winLossLabel } from '@/lib/board/copy';
 import { formatStreak } from '@/lib/board/streak';
@@ -40,9 +41,21 @@ export interface BoardRowProps {
   rank: number;
   /** The signed-in viewer's puuid, for the `brand` "you" rule. `null` for everybody else. */
   viewerPuuid: string | null;
+  /**
+   * Where a name links (M13.9): the group's player page, from `lib/nav.ts`. `null` draws the
+   * name as text -- a group whose player page has not moved under `/g/<slug>` yet has no page to
+   * open. The default is the player page's old address, which `/leaderboard` (the original
+   * group's, until M13.10) still uses.
+   */
+  playerHref?: PlayerHref;
 }
 
-export function BoardRow({ row, rank, viewerPuuid }: BoardRowProps) {
+/** A player's page on this board's group, or `null` when there is none to open. */
+export type PlayerHref = (puuid: string) => Route | null;
+
+const legacyPlayerHref: PlayerHref = (puuid) => `/p/${encodeURIComponent(puuid)}` as Route;
+
+export function BoardRow({ row, rank, viewerPuuid, playerHref = legacyPlayerHref }: BoardRowProps) {
   const you = row.puuid === viewerPuuid;
   const expandable = row.breakdown.length > 0;
 
@@ -51,7 +64,7 @@ export function BoardRow({ row, rank, viewerPuuid }: BoardRowProps) {
       {expandable ? (
         <details className="cn-row-details">
           <summary className="cn-row-summary">
-            <BoardRowLines row={row} rank={rank} mark />
+            <BoardRowLines row={row} rank={rank} mark href={playerHref(row.puuid)} />
           </summary>
           <ul className="cn-row-games">
             {row.breakdown.map((game) => (
@@ -60,13 +73,23 @@ export function BoardRow({ row, rank, viewerPuuid }: BoardRowProps) {
           </ul>
         </details>
       ) : (
-        <BoardRowLines row={row} rank={rank} mark={false} />
+        <BoardRowLines row={row} rank={rank} mark={false} href={playerHref(row.puuid)} />
       )}
     </li>
   );
 }
 
-function BoardRowLines({ row, rank, mark }: { row: BoardRowModel; rank: number; mark: boolean }) {
+function BoardRowLines({
+  row,
+  rank,
+  mark,
+  href,
+}: {
+  row: BoardRowModel;
+  rank: number;
+  mark: boolean;
+  href: Route | null;
+}) {
   /**
    * **A week row has one number and it is `Rating`** (M7.3). The primary slot carries it, line
    * 2's small-type second number is dropped rather than replaced, and **no Proven is printed on
@@ -74,33 +97,36 @@ function BoardRowLines({ row, rank, mark }: { row: BoardRowModel; rank: number; 
    * exactly the row M3.5 shipped: Proven on the right edge, `Rating` under it.
    */
   const weekly = row.track === 'weekly';
+  /*
+   * Two nameless players are two links called `Someone` (M3.10, the designer's M3.5 review). A
+   * screen reader listing the page's links then reads the same word twice with nothing to choose
+   * between them, so the rank — which is on screen beside it — joins the accessible name and
+   * nothing else. Never the puuid. A named row stays one text node: the wrapper exists only where
+   * there is something to disambiguate.
+   */
+  const name = isNameless(row.name) ? (
+    <>
+      <span>{renderWebName(row.name)}</span>
+      {/* The comma is doing work: an accessible name concatenates its parts with no separator,
+          so ` rank 1` would be announced as `Someonerank 1`. */}
+      <span className="cn-sr">{`, rank ${rank}`}</span>
+    </>
+  ) : (
+    renderWebName(row.name)
+  );
 
   return (
     <>
       <div className="cn-row-top">
         {/* Rank 1 gets `brand` on the rank number only. No medals, no trophies, no emoji. */}
         <span className={rank === 1 ? 'cn-num cn-rank cn-rank-first' : 'cn-num cn-rank'}>{rank}</span>
-        <Link className="cn-row-name" href={`/p/${row.puuid}`}>
-          {/*
-           * Two nameless players are two links called `Someone` (M3.10, the designer's M3.5
-           * review). A screen reader listing the page's links then reads the same word twice
-           * with nothing to choose between them, so the rank — which is on screen beside it —
-           * joins the accessible name and nothing else. Never the puuid.
-           *
-           * A named row stays one text node: the wrapper exists only where there is something
-           * to disambiguate.
-           */}
-          {isNameless(row.name) ? (
-            <>
-              <span>{renderWebName(row.name)}</span>
-              {/* The comma is doing work: an accessible name concatenates its parts with no
-                  separator, so ` rank 1` would be announced as `Someonerank 1`. */}
-              <span className="cn-sr">{`, rank ${rank}`}</span>
-            </>
-          ) : (
-            renderWebName(row.name)
-          )}
-        </Link>
+        {href === null ? (
+          <span className="cn-row-name">{name}</span>
+        ) : (
+          <Link className="cn-row-name" href={href}>
+            {name}
+          </Link>
+        )}
         {/*
          * The disclosure sits between the name and Proven so the primary number stays on the
          * right edge, under the legend. The slot is reserved on every row so a seed with

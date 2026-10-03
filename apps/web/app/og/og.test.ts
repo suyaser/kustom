@@ -6,7 +6,7 @@ import type { GamePageView } from '@/lib/og/load';
 import { lobbyView, snapshot, workedResult, workedTeams } from '@/lib/testing/tonightFixtures';
 
 /**
- * The three share-card routes and the pages that point at them (M11.4). The loaders are mocked:
+ * The three share-card routes and the pages that point at them (M11.4; scoped to a group by M13.9). The loaders are mocked:
  * what is under test is the 404 rule, the PNG itself and the metadata, not the queries.
  */
 
@@ -24,6 +24,14 @@ vi.mock('@/lib/og/load', async (original) => ({
 vi.mock('@/lib/board/load', () => ({ loadPlayerBoard: (...args: unknown[]) => loadPlayerBoard(...args) }));
 vi.mock('@/lib/tonight/load', () => ({ loadTonight: (...args: unknown[]) => loadTonight(...args) }));
 vi.mock('@/lib/viewer', () => ({ currentViewer: async () => null }));
+
+/** The group pages' slug resolution (M13.9), answered from a table instead of the database. */
+const GROUP = { id: '00000000-0000-0000-0000-000000000001', slug: 'customs', name: 'Customs Night' };
+vi.mock('@/lib/groups/resolve', () => ({
+  resolveGroupParam: async (_client: unknown, param: string) =>
+    param === GROUP.slug ? { kind: 'group', group: GROUP } : { kind: 'none' },
+}));
+vi.mock('@/lib/groups/requirePageGroup', () => ({ requirePageGroup: async () => GROUP }));
 
 const GAME_ID = '0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12';
 const SITE = 'https://kustom.example';
@@ -62,10 +70,10 @@ beforeEach(() => {
   loadTonight.mockReset();
 });
 
-describe('/og/g/[gameId]', () => {
+describe('/og/g/<gameId>', () => {
   const call = async (gameId: string) => {
-    const { GET } = await import('./g/[gameId]/route');
-    return GET(new Request(`${SITE}/og/g/${gameId}`), { params: Promise.resolve({ gameId }) });
+    const { GET } = await import('./g/[slug]/route');
+    return GET(new Request(`${SITE}/og/g/${gameId}`), { params: Promise.resolve({ slug: gameId }) });
   };
 
   it('answers a 1200×630 PNG under 300 KB for a stored game', async () => {
@@ -118,7 +126,12 @@ describe('/og/p/[puuid]', () => {
   });
 });
 
-describe('/og/tonight', () => {
+describe('/og/g/[slug]/tonight', () => {
+  const call = async (slug: string) => {
+    const { GET } = await import('./g/[slug]/tonight/route');
+    return GET(new Request(`${SITE}/og/g/${slug}/tonight`), { params: Promise.resolve({ slug }) });
+  };
+
   it.each([
     ['tonight-idle', snapshot(null)],
     ['tonight-filling', snapshot(lobbyView({ status: 'open' }))],
@@ -128,27 +141,49 @@ describe('/og/tonight', () => {
     ],
   ])('answers a PNG for %s', async (name, fixture) => {
     loadTonight.mockResolvedValue(fixture);
-    const { GET } = await import('./tonight/route');
-    const response = await GET();
+    const response = await call('customs');
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('image/png');
     expect((await readPng(response, name)).byteLength).toBeLessThan(MAX_BYTES);
+    // The group's night, never every group's.
+    expect(loadTonight.mock.calls[0]?.[1]).toMatchObject({ groupId: GROUP.id });
+  });
+
+  it("404s an unknown group, never another group's night", async () => {
+    const response = await call('nope');
+    expect(response.status).toBe(404);
+    expect(loadTonight).not.toHaveBeenCalled();
   });
 });
 
-describe('/g/[gameId]', () => {
-  it('404s a missing game', async () => {
+describe('/og/tonight', () => {
+  it("308s to the original group's card, permanently", async () => {
+    const { legacyRedirects } = await import('../../next.config');
+    expect(legacyRedirects).toContainEqual({
+      source: '/og/tonight',
+      destination: '/og/g/customs/tonight',
+      permanent: true,
+    });
+  });
+});
+
+describe('/g/[slug]/games/[gameId]', () => {
+  const params = Promise.resolve({ slug: 'customs', gameId: GAME_ID });
+
+  it('404s a missing game, or one of another group', async () => {
     loadGamePage.mockResolvedValue(null);
-    const { default: GamePage } = await import('../(site)/g/[gameId]/page');
-    await expect(GamePage({ params: Promise.resolve({ gameId: GAME_ID }) })).rejects.toMatchObject({
+    const { default: GamePage } = await import('../(group)/g/[slug]/games/[gameId]/page');
+    await expect(GamePage({ params })).rejects.toMatchObject({
       digest: expect.stringContaining('404'),
     });
+    // The group's id goes to the loader, which answers `null` for a game outside it.
+    expect(loadGamePage.mock.calls[0]?.[3]).toBe(GROUP.id);
   });
 
   it('emits no share card for a missing game', async () => {
     loadGamePage.mockResolvedValue(null);
-    const { generateMetadata } = await import('../(site)/g/[gameId]/page');
-    const metadata = await generateMetadata({ params: Promise.resolve({ gameId: GAME_ID }) });
+    const { generateMetadata } = await import('../(group)/g/[slug]/games/[gameId]/page');
+    const metadata = await generateMetadata({ params });
     expect(metadata.openGraph).toBeUndefined();
   });
 });
@@ -161,16 +196,19 @@ describe('share metadata', () => {
     expect(metadata.twitter).toMatchObject({ card: 'summary_large_image' });
   };
 
-  it('/ points at the tonight card', async () => {
-    const { generateMetadata } = await import('../(site)/page');
-    expectShareCard(generateMetadata(), '/og/tonight');
+  it("/g/[slug] points at its group's tonight card", async () => {
+    const { generateMetadata } = await import('../(group)/g/[slug]/page');
+    expectShareCard(
+      await generateMetadata({ params: Promise.resolve({ slug: 'customs' }) }),
+      '/og/g/customs/tonight',
+    );
   });
 
-  it('/g/[gameId] points at its game card', async () => {
+  it('/g/[slug]/games/[gameId] points at its game card', async () => {
     loadGamePage.mockResolvedValue(fixtureGame());
-    const { generateMetadata } = await import('../(site)/g/[gameId]/page');
+    const { generateMetadata } = await import('../(group)/g/[slug]/games/[gameId]/page');
     expectShareCard(
-      await generateMetadata({ params: Promise.resolve({ gameId: GAME_ID }) }),
+      await generateMetadata({ params: Promise.resolve({ slug: 'customs', gameId: GAME_ID }) }),
       `/og/g/${GAME_ID}`,
     );
   });

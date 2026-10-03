@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { formatDuration, underdogClause } from '@/lib/discord/embeds';
+import { groupHref } from '@/lib/nav';
 import {
   evennessLine,
   HEAD_SEPARATOR,
@@ -11,6 +12,7 @@ import {
   tapeSatOut,
 } from '@/lib/tonight/copy';
 import type { TapeEntry } from '@/lib/tonight/types';
+import { usePageGroup } from '../_shell/PageGroup';
 
 /**
  * Tonight's earlier games, oldest first (M11.2, 05-design.md "The night tape"). A quiet log in
@@ -35,7 +37,12 @@ export function NightTape({ tape }: { tape: readonly TapeEntry[] }) {
 }
 
 function TapeRow({ entry, index }: { entry: TapeEntry; index: number }) {
+  const group = usePageGroup();
   const result = entry.result;
+  // The game's page in this group (M13.9 mounts it at `/g/<slug>/games/<id>`), built by
+  // `lib/nav.ts` like every other in-app link. Only `null` if the page ever stopped existing for
+  // this group, and then the verdict is plain text rather than a link to a 404.
+  const gameHref = result === null ? null : groupHref(group, { page: 'game', gameId: result.gameId });
   const underdog = result === null ? null : underdogClause(entry.blueWinProb, result.winningSide);
   const even = evennessLine(entry.blueWinProb);
   const satOut = tapeSatOut(entry.sitters);
@@ -50,10 +57,12 @@ function TapeRow({ entry, index }: { entry: TapeEntry; index: number }) {
         <p className="cn-tape-result">
           {result === null ? (
             TAPE_NO_RESULT
+          ) : gameHref === null ? (
+            <TapeVerdict result={result} />
           ) : (
             // A history link to the game's own page (M11.4), not a nightly control: the line
             // keeps its text size and gains no 44px target.
-            <Link className="cn-tape-link" href={`/g/${result.gameId}`}>
+            <Link className="cn-tape-link" href={gameHref}>
               <TapeVerdict result={result} />
             </Link>
           )}

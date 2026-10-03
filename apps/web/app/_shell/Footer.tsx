@@ -1,6 +1,6 @@
-import type { Route } from 'next';
 import Link from 'next/link';
-import { RELEASES_URL } from '@/lib/nav';
+import type { PageGroup } from '@/lib/groups/pageGroup';
+import { groupHref, RELEASES_URL } from '@/lib/nav';
 import { COMPANION_LINK_LABEL, YOUR_GAMES_LABEL } from '@/lib/shellCopy';
 import { HowThisWorksDetails } from './HowThisWorks';
 
@@ -12,9 +12,11 @@ import { HowThisWorksDetails } from './HowThisWorks';
  *
  * `Your games` is rendered only for a signed-in viewer who has a player row, and points at
  * their own page — nineteen of the twenty people holding this link have no session, and a link
- * that answers "who am I?" with a 404 is worse than no link.
+ * that answers "who am I?" with a 404 is worse than no link. It is the group's player page
+ * (`lib/nav.ts`), so on a group whose player page has not moved yet there is no link at all.
  */
-export function Footer({ viewerPuuid }: { viewerPuuid: string | null }) {
+export function Footer({ group, viewerPuuid }: { group: PageGroup; viewerPuuid: string | null }) {
+  const yourGames = viewerPuuid === null ? null : groupHref(group, { page: 'player', puuid: viewerPuuid });
   return (
     <footer className="cn-footer">
       <div className="cn-footer-inner">
@@ -23,8 +25,8 @@ export function Footer({ viewerPuuid }: { viewerPuuid: string | null }) {
           <a className="cn-link" href={RELEASES_URL} target="_blank" rel="noreferrer noopener">
             {COMPANION_LINK_LABEL}
           </a>
-          {viewerPuuid === null ? null : (
-            <Link className="cn-link" href={`/p/${viewerPuuid}` as Route}>
+          {yourGames === null ? null : (
+            <Link className="cn-link" href={yourGames}>
               {YOUR_GAMES_LABEL}
             </Link>
           )}

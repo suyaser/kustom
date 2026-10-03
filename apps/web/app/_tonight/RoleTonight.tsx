@@ -2,9 +2,9 @@
 
 import { ROLES } from '@customs/core';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type MouseEvent, type ReactNode, useEffect, useId, useState } from 'react';
 import { isActiveLobbyStatus } from '@/lib/lobbyState';
+import { groupHome } from '@/lib/nav';
 import {
   LINK_OFFLINE,
   PICK_YOURSELF,
@@ -22,9 +22,7 @@ import {
 import type { LobbyView, MemberView } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import { RoleIcon } from '../_icons/RoleIcon';
-
-/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
-const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
+import { usePageGroup } from '../_shell/PageGroup';
 
 /**
  * `Your role tonight` (M3.6): the one thing a friend can change on this page about themselves.
@@ -137,6 +135,7 @@ function RolePicker({
   status: LobbyStatusValue;
   seat: MemberView;
 }) {
+  const group = usePageGroup();
   const [pending, setPending] = useState<RoleValue | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
   const titleId = useId();
@@ -161,7 +160,7 @@ function RolePicker({
       const response = await fetch(ROLE_TAP_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId: PAGE_GROUP_ID, lobbyId, role }),
+        body: JSON.stringify({ groupId: group.id, lobbyId, role }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -184,8 +183,8 @@ function RolePicker({
       <form className="cn-role-choices" method="post" action={ROLE_TAP_ACTION} aria-labelledby={titleId}>
         <input type="hidden" name="lobbyId" value={lobbyId} />
         {/* Only the no-JavaScript path reads this. The route re-validates it as a path here. */}
-        <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
-        <input type="hidden" name="redirectTo" value="/" />
+        <input type="hidden" name="groupId" value={group.id} />
+        <input type="hidden" name="redirectTo" value={groupHome(group)} />
         {ROLES.map((role) => {
           const selected = chosen === role;
           return (
@@ -234,6 +233,7 @@ function PickYourself({
   members: readonly MemberView[];
   onLinked?: (() => void) | undefined;
 }) {
+  const group = usePageGroup();
   const [failed, setFailed] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<string | null>(null);
   const listId = useId();
@@ -245,7 +245,7 @@ function PickYourself({
       const response = await fetch(LINK_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId: PAGE_GROUP_ID, puuid }),
+        body: JSON.stringify({ groupId: group.id, puuid }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -273,8 +273,8 @@ function PickYourself({
             <span className="cn-pick-name">{renderWebName(member.name)}</span>
             <form method="post" action={LINK_ACTION}>
               <input type="hidden" name="puuid" value={member.puuid} />
-              <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
-              <input type="hidden" name="redirectTo" value="/" />
+              <input type="hidden" name="groupId" value={group.id} />
+              <input type="hidden" name="redirectTo" value={groupHome(group)} />
               <button
                 type="submit"
                 className="cn-pick-button"
@@ -311,12 +311,13 @@ function PickYourself({
  * exactly what everybody else sees.
  */
 function SignIn() {
+  const group = usePageGroup();
   return (
     <RoleCard title={ROLE_CONTROL_HEADING}>
       <p className="cn-hint">{ROLE_SIGN_IN}</p>
       <form method="post" action={SIGN_IN_ACTION} className="cn-signin">
         {/* Back to the tonight page, not to `/admin`, which is where a sign-in defaults. */}
-        <input type="hidden" name="next" value="/" />
+        <input type="hidden" name="next" value={groupHome(group)} />
         <button type="submit" className="cn-button">
           {SIGN_IN_LABEL}
         </button>

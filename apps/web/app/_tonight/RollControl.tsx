@@ -1,13 +1,11 @@
 'use client';
 
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { type FormEvent, useState } from 'react';
+import { groupHome } from '@/lib/nav';
 import { asSentence, ROLL_ADMIN_HINT, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { rollRosterKey } from '@/lib/tonight/state';
 import type { MemberView } from '@/lib/tonight/types';
-
-/** The group this page shows; the original one until M13.9 moves the page under `/g/<slug>`. */
-const PAGE_GROUP_ID = ORIGINAL_GROUP_ID;
+import { usePageGroup } from '../_shell/PageGroup';
 
 /**
  * The admin's `Roll teams` button under the rack (2026-10-03): the only way an `open` lobby
@@ -39,6 +37,7 @@ export function RollControl({
   members: readonly MemberView[];
   onSettled?: (() => void) | undefined;
 }) {
+  const group = usePageGroup();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const rosterKey = rollRosterKey(members);
@@ -54,7 +53,7 @@ export function RollControl({
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId: PAGE_GROUP_ID, rosterKey }),
+        body: JSON.stringify({ groupId: group.id, rosterKey }),
       });
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
@@ -74,8 +73,8 @@ export function RollControl({
     <form className="cn-roll-form" method="post" action={action} onSubmit={submit}>
       <input type="hidden" name="rosterKey" value={rosterKey} />
       {/* Only the form path reads this. The route re-validates it as a path on this site. */}
-      <input type="hidden" name="groupId" value={PAGE_GROUP_ID} />
-      <input type="hidden" name="redirectTo" value="/" />
+      <input type="hidden" name="groupId" value={group.id} />
+      <input type="hidden" name="redirectTo" value={groupHome(group)} />
       <p className="cn-roll-note">{ROLL_ADMIN_HINT}</p>
       {/* Quiet while a press is in flight, **never `disabled`**: a disabled control drops the
           focus to `<body>` (M3.20). `submit` already short-circuits a second press. */}

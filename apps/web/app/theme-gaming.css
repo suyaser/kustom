@@ -52,7 +52,8 @@ html:not([data-theme="current"]) .cn-topbar {
 }
 
 html:not([data-theme="current"]) .cn-wordmark {
-  gap: 0.65rem;
+  /* Column only: the lockup's two rows keep their 2px (05-design.md, "The group in the shell"). */
+  column-gap: 0.65rem;
 }
 
 html:not([data-theme="current"]) .cn-wordmark-bar {
