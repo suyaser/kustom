@@ -179,9 +179,9 @@
 
 /*
  * The daily game's pointer on `/` (2026-10-03): one card-height row, the whole row a link to
- * `/mystery`. The heading is the slug, the question is one line, and the action sits on the
- * right — `brand` only when it is a control you may still press (`Guess now`), `dim` once the
- * day is settled. At least 44px tall, like every tappable thing.
+ * `/mystery`. The heading is a `cn-card-title` like every other card's, the question is one
+ * line, and the action sits on the right — `brand` only when it is a control you may still press
+ * (`Guess now`), `dim` once the day is settled. At least 44px tall, like every tappable thing.
  */
 .cn-mystery-teaser {
   display: flex;

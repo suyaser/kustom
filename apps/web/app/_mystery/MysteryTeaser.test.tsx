@@ -61,6 +61,19 @@ describe('MysteryTeaser, the daily game on /', () => {
     expect(link.querySelector('.cn-mystery-teaser-go')).not.toBeNull();
   });
 
+  /**
+   * The heading wears `cn-card-title` like every other card on the page (2026-10-03). It was the
+   * strip's date class, `cn-slug`, and read as a second date line under the night's own.
+   */
+  it('titles the row like every other card, not like the date line, and keeps the KDA in mono', () => {
+    render(<MysteryTeaser mystery={{ kind: 'play', play }} />);
+    const link = screen.getByRole('link');
+    const title = link.querySelector('.cn-card-title');
+    expect(title).toHaveTextContent('Daily Mystery #184');
+    expect(link.querySelector('.cn-slug')).toBeNull();
+    expect(screen.getByText('2 / 11 / 4')).toHaveClass('cn-num');
+  });
+
   it('never prints a suspect, a clue or the hook lines: the game itself is on /mystery', () => {
     render(<MysteryTeaser mystery={{ kind: 'play', play }} />);
     expect(screen.queryByText('Ahmed')).not.toBeInTheDocument();

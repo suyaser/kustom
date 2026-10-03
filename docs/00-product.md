@@ -28,8 +28,8 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 1. **The bot is the referee.** No human picks teams. Ever.
 2. **Zero input.** Nobody checks in, nobody reports results. The client already knows who is in the lobby and
    who won; the companion reads it. Any manual step will be skipped by someone, and skipped steps corrupt ratings.
-   The one deliberate exception is **when** to balance (2026-10-03): an admin taps Roll teams once the right ten
-   are in. A skipped roll costs nothing but a wait — no teams, no game, nothing to corrupt — and who plays with
+   The one deliberate exception is **when** to balance (2026-10-03): an admin taps Roll teams once everyone who is
+   staying is in (with more than ten, the bot's rotation decides who sits out). A skipped roll costs nothing but a wait — no teams, no game, nothing to corrupt — and who plays with
    whom is still the bot's call, never the admin's.
 3. **Fair by numbers, but explained.** Every split posts its predicted win chance, the rating gap, whether anyone
    is off-role, and the next-best alternative. "The bot is rigged" needs a number to argue with.
@@ -46,8 +46,9 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    everyone who has been around lately (M4.2). Opening one by hand in the client still works exactly as it
    always did. Either way, somebody in that lobby is running the companion, because that is what the rest of the
    night reads.
-3. The companion keeps the roster current as people join, leave and step into the spectator slot. When the
-   right ten are in, an admin taps **Roll teams** on the tonight page; the server balances exactly the roster
+3. The companion keeps the roster current as people join, leave and step into the spectator slot. When
+   everyone who is staying is in, an admin taps **Roll teams** on the tonight page (the page names the admins
+   while it waits, so the room knows whose phone to ping); the server balances exactly the roster
    that admin was looking at and posts Blue and Red with roles, win chance, and a one-line why. Nothing
    balances by itself any more (2026-10-03): the automatic version fired the moment ten were present and still,
    and on a real night that was too often the wrong ten. If somebody leaves after the roll, the teams come down
@@ -55,12 +56,14 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 4. Players switch to their side (companion can do it for them, see M4). Game starts.
 5. At end of game the companion captures the full stats block. Ratings move. Leaderboard updates. What each
    person plays is counted too, so their main and backup follow the games they actually play. The ten
-   champions they locked are added to the **fearless** list on the tonight page and posted to Discord —
-   those champs are banned from the next custom, grouped by the lane they first locked, A–Z inside
-   the lane, each with its champion's small square icon beside the name (M11.1; the name is still the
-   text, and a missing icon just leaves the name). Under each lane the tonight page also lists who is still open in that lane. The find box
-   checks a pick without scrolling: a banned name says it is on the ban list, an open name says it is
-   still available. Discord keeps posting the bans. The list keeps growing until an admin resets it.
+   champions they locked are added to the **fearless** pool and those champs are banned from the next
+   custom. Discord posts the ban list, grouped by the lane each was first locked in. The tonight page leads
+   with the other half: under each lane, **who is still open** in it, as full chips with the champion's
+   small square icon beside the name (M11.1; the name is still the text, and a missing icon just leaves the
+   name), and that lane's bans folded shut underneath behind a count (2026-10-03). Five lane toggles at the
+   top of the card narrow it to the lanes a reader cares about. The find box checks a pick without
+   scrolling: a banned name says it is on the ban list, an open name says it is still available, and typing
+   reaches every lane and every fold. The list keeps growing until an admin resets it.
 6. If more than ten showed up, the server posts who sits: whoever has played most tonight, and between
    equals whoever has gone longest without sitting. On the first game of a night nobody has done either, so
    the post says as much — somebody has to be first — and from the second game on the rotation has real
@@ -88,7 +91,8 @@ since 2026-10-03), and each is one tap:
   and nobody has to find out who the admins are to get the night started. A visitor who is not signed in is
   offered the sign-in instead; whoever the link was forwarded to gets neither. The group has not yet started a
   night this way in front of anybody, so the first real press is still ahead of us.
-- **Roll teams** (admins, 2026-10-03). The lobby has the right ten in it and an admin taps once; the server
+- **Roll teams** (admins, 2026-10-03). Everyone who is staying is in the lobby and an admin taps once (with
+  eleven or more, the rotation sits people out; nobody trims the lobby by hand); the server
   balances that roster and posts the teams. The tap names the roster the admin saw, so if somebody joined or
   left in the second before it, nothing is rolled and the page shows the new roster to tap again. Tapping twice
   posts once. With fewer than ten there is nothing to roll. Somebody leaving after the roll takes the teams
@@ -96,7 +100,8 @@ since 2026-10-03), and each is one tap:
 - **Reroll** (M3.2, admins). Teams are posted and somebody wants a different night. One tap promotes the
   second split, one more promotes the third, and then it stops: three splits come out of the balancer and
   there is no fourth. A reroll posts a new message in Discord saying which reroll it is; it never edits the
-  old one, never changes who is playing, and never picks at random. When the list runs out, the way to get
+  old one, never changes who is playing, and never picks at random. The tonight page says it too, to
+  everybody, under the teams: `Reroll 1 of 2. Teams changed.` When the list runs out, the way to get
   different teams is to change who is in the lobby and roll again.
 - **Role for tonight** (M3.6). A friend taps a role on the tonight page and the balancer treats it as their
   main for the rest of the night, with their usual main as the backup. Nobody sets their roles anywhere else:
@@ -310,7 +315,7 @@ See `02-milestones.md` for the build order. In product terms:
 | A second rating for the week, on the weekly board only | M7 |
 | Filled last game, last to be filled this game | M7 |
 | MVP and ACE keep a little more of the result, and the post names them | M7 |
-| How even the teams are, as a percentage, under the teams on the tonight page | M3.31 |
+| How even the teams are, as a percentage, under the teams on the tonight page while they are set (restored 2026-10-03 after a regression) | M3.31 |
 | Who beats you and who you win with, on the fun page | M8 |
 | The nights the bot said you would lose and you did not | M8 |
 | Last week's award winners labelled on the board | M8 |

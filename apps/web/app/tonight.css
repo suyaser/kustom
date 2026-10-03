@@ -699,6 +699,24 @@
   color: var(--cn-dim);
 }
 
+/* A refusal is the answer to a press: `text` at 600, the roll's and the start control's dress
+   (`.cn-roll-note-refused`), not the caption grey of `No more splits.` beside a spent button. */
+.cn-reroll-note-refused {
+  color: var(--cn-text);
+  font-weight: 600;
+}
+
+/*
+ * `Reroll 1 of 2. Teams changed.` (2026-10-03), under the explanation strip with the evenness
+ * line: the page's body size in `text`, not `dim` — a friend who has already moved to their side
+ * needs to see that the names changed. No colour of its own, no banner: a sentence.
+ */
+.cn-reroll-marker {
+  margin: 0;
+  font-size: var(--cn-t-sm);
+  color: var(--cn-text);
+}
+
 /* ---------------------------------------------------------------------------
  * Result. The result is a fact, not an event: no wash of colour, no banner.
  * ------------------------------------------------------------------------- */
@@ -858,7 +876,8 @@
   flex-direction: column;
   gap: var(--cn-sp-3);
   padding: var(--cn-sp-4);
-  margin-top: var(--cn-sp-5);
+  /* No `margin-top` (2026-10-03): the column's own gap is the space between cards, and an extra
+     `sp-5` on top of it gave this one card double the air of every other. */
   box-shadow: inset 2px 0 0 var(--cn-brand);
 }
 
@@ -1157,11 +1176,36 @@
   flex-direction: column;
 }
 
+/*
+ * The card's own head, ruled off from what is under it (2026-10-03): the lane headings are
+ * `t-base` mono 600 and the card title is `t-sm`, so without a rule the lane words read as
+ * page-level headings rather than as parts of this card.
+ */
 .cn-fearless-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--cn-sp-3);
+  padding-bottom: var(--cn-sp-3);
+  border-bottom: 1px solid var(--cn-line);
+}
+
+/*
+ * The lane filter (2026-10-03, the step "Known cost" under Fearless named): the five role words
+ * as 44px toggles, all on by default, in the role tap's own dress (`.cn-role-choice`,
+ * `.cn-role-on`) and the same 3 + 2 grid on a phone. Nothing new to learn: a pressed role chip
+ * on this page already means "this one".
+ */
+.cn-fearless-filter {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  max-width: 47rem;
+  gap: var(--cn-sp-2);
+  /* A `<fieldset>` for the group semantics, with the browser's frame taken off. */
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .cn-fearless-count,
@@ -1220,6 +1264,12 @@
 
 .cn-fearless-lane:last-child {
   padding-block-end: 0;
+}
+
+/* The card head's rule (or the find box above) already separates the first lane. */
+.cn-fearless-lane:first-child {
+  border-top: 0;
+  padding-block-start: 0;
 }
 
 /*

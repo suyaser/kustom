@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RELEASES_URL } from '@/lib/nav';
-import { HOW_THIS_WORKS_LINES } from '@/lib/shellCopy';
+import { COMPANION_CARD_BODY, HOW_THIS_WORKS_LINES } from '@/lib/shellCopy';
 import { THEME_PICKER_LABEL } from '@/lib/theme';
 import { Shell } from './Shell';
 
@@ -157,5 +157,19 @@ describe('the footer', () => {
 
     draw('/', 'puuid-hana');
     expect(screen.getByRole('link', { name: 'Your games' })).toHaveAttribute('href', '/p/puuid-hana');
+  });
+});
+
+/**
+ * `Run the companion` (corrected 2026-10-03). Since the companion split into Host and Overlay,
+ * most people run Overlay mode with no token; only the one or two Host PCs need one. The card
+ * used to tell every player to get a token from an admin.
+ */
+describe('the companion card', () => {
+  it('says most people need no token, and only Host mode needs one', () => {
+    expect(COMPANION_CARD_BODY).toContain('Overlay mode');
+    expect(COMPANION_CARD_BODY).toContain('no token');
+    expect(COMPANION_CARD_BODY).toContain('Host mode need a token from an admin');
+    expect(COMPANION_CARD_BODY).not.toMatch(/paste in the token an admin gives you/);
   });
 });

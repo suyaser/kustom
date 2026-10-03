@@ -16,7 +16,8 @@ import type { MysteryPageState } from '@/lib/mystery/service';
  * The full card — six names, the clue ladder, the case file — lived inline on the tonight page
  * and was most of a phone screen tall on a page whose job is "is the night happening and am I
  * in it". `/mystery` already renders the whole game from the same loader, so `/` keeps a
- * pointer: the game's own heading, the day's question in one line, and what a tap does.
+ * pointer: the game's own heading (as a card title), the day's question in one line, and what a
+ * tap does.
  *
  * Every word is from `lib/mystery/copy.ts`; nothing here is new copy. Static once rendered —
  * no clock, no subscription — which is what lets it sit in the rail (the rail never carries
@@ -45,7 +46,9 @@ export function MysteryTeaser({
   return (
     <Link href="/mystery" className={classes}>
       <span className="cn-mystery-teaser-body">
-        <span className="cn-num cn-slug">{challengeHeading(day.kind, day.challengeNumber)}</span>
+        {/* The card title every other card on the page wears (2026-10-03). It was the strip's
+            date class — small tracked upper-case mono — and read as a second date line. */}
+        <span className="cn-card-title">{challengeHeading(day.kind, day.challengeNumber)}</span>
         <span className="cn-mystery-teaser-line">
           {categoryLabel(day.category)}
           <span className="cn-mystery-teaser-sep" aria-hidden="true">

@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { championName } from '../champs/names';
+import { LANE_ORDER } from '../laneOrder';
 import {
   availableFearless,
   fearlessExact,
   fearlessIconUrl,
   fearlessLanes,
+  fearlessLanesShown,
   fearlessMatches,
   groupFearless,
   normalizeFearlessQuery,
   presentFearless,
   storedChampionNames,
+  toggleFearlessLane,
 } from './present';
 import type { FearlessChampion } from './types';
 
@@ -210,5 +213,40 @@ describe('fearlessIconUrl', () => {
     expect(fearlessIconUrl({ id: 103, iconUrl: null })).toBeNull();
     expect(fearlessIconUrl({ id: 103 })).toMatch(/\/103\.png$/);
     expect(fearlessIconUrl({ id: 12_345 })).toBeNull();
+  });
+});
+
+describe('the lane filter (2026-10-03)', () => {
+  const lanes = [
+    { role: 'top' as const },
+    { role: 'jungle' as const },
+    { role: 'mid' as const },
+    { role: 'adc' as const },
+    { role: 'support' as const },
+    { role: null },
+  ];
+  const all = new Set(LANE_ORDER);
+
+  it('lists every lane, `other` included, with all five on', () => {
+    expect(fearlessLanesShown(lanes, all, '')).toEqual(lanes);
+  });
+
+  it('lists only the lanes still on, and drops `other`, when some are off', () => {
+    expect(
+      fearlessLanesShown(lanes, new Set(['jungle', 'mid'] as const), '').map((lane) => lane.role),
+    ).toEqual(['jungle', 'mid']);
+  });
+
+  it('ignores the toggles while the find box has text in it', () => {
+    expect(fearlessLanesShown(lanes, new Set(['jungle'] as const), 'ahr')).toEqual(lanes);
+    expect(fearlessLanesShown(lanes, new Set(['jungle'] as const), '   ').map((lane) => lane.role)).toEqual([
+      'jungle',
+    ]);
+  });
+
+  it('toggles one lane, and turns all five back on instead of none', () => {
+    expect([...toggleFearlessLane(all, 'top')]).toEqual(['jungle', 'mid', 'adc', 'support']);
+    expect([...toggleFearlessLane(new Set(['mid'] as const), 'top')].sort()).toEqual(['mid', 'top']);
+    expect(toggleFearlessLane(new Set(['mid'] as const), 'mid')).toEqual(all);
   });
 });

@@ -1,4 +1,4 @@
-import { resolveRoles } from '@customs/core';
+import { evenness, resolveRoles } from '@customs/core';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
@@ -7,6 +7,7 @@ import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
 import {
   FEARLESS_BANNED_LABEL,
   FEARLESS_CARD_SENTENCE,
+  FEARLESS_LANE_FILTER,
   FEARLESS_SEARCH,
   FEARLESS_SEARCH_EMPTY,
   FEARLESS_TITLE,
@@ -47,7 +48,7 @@ import {
   TAPE_TITLE,
 } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import type { SeatView, TonightSnapshot } from '@/lib/tonight/types';
+import type { SeatView, TeamsView, TonightSnapshot } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import { TonightView } from './TonightView';
 
@@ -73,6 +74,8 @@ function draw(
     /** Tonight's `create_lobby`, which only a linked viewer's render is ever given (M4.13). */
     lobbyStart?: LobbyStartView | null;
     mystery?: MysteryPageState | null;
+    /** The admins' names the page read with the snapshot (2026-10-03). */
+    admins?: readonly (string | null)[];
   } = {},
 ) {
   // Anonymous unless the test names a puuid or an admin: `null` used to mean both "signed
@@ -95,6 +98,7 @@ function draw(
       topPlayers={viewer.topPlayers ?? []}
       lobbyStart={viewer.lobbyStart ?? null}
       mystery={viewer.mystery ?? null}
+      admins={viewer.admins ?? []}
     />,
   );
 }
@@ -190,10 +194,11 @@ describe('idle: no lobby tonight', () => {
 
   /**
    * The daily game is a one-row pointer to `/mystery` (2026-10-03), not the whole card: inline
-   * above the empty rack below 1080px, and in the rail from 1080px (`mystery.css` hides the
-   * inline copy there, as `tonight.css` does for the idle cards).
+   * **under** the empty rack below 1080px — after the primary block, as in every other state, so
+   * the first join does not reshuffle the column — and in the rail from 1080px (`mystery.css`
+   * hides the inline copy there, as `tonight.css` does for the idle cards).
    */
-  it('points at the daily game above the empty rack and in the rail, never the whole card', () => {
+  it('points at the daily game under the empty rack and in the rail, never the whole card', () => {
     const { container } = draw(snapshot(null), { mystery: PLAY_DAY });
 
     const inline = container.querySelector('.cn-col > .cn-mystery-teaser');
@@ -204,7 +209,7 @@ describe('idle: no lobby tonight', () => {
     expect(inline?.textContent).toContain(MYSTERY_GUESS);
     const col = [...(container.querySelector('.cn-col')?.children ?? [])];
     const rack = col.findIndex((child) => child.querySelector('.cn-rack-open') !== null);
-    expect(col.indexOf(inline as Element)).toBeLessThan(rack);
+    expect(col.indexOf(inline as Element)).toBeGreaterThan(rack);
 
     const rail = container.querySelector('.cn-rail .cn-mystery-teaser');
     expect(rail).not.toBeNull();
@@ -322,7 +327,7 @@ describe('filling: the lobby is open', () => {
     const { container } = draw(snapshot(lobbyView({ members: [...workedMembers(), extraMember()] })));
 
     expect(strip(container)[1]).toBe('11 IN THE LOBBY live');
-    expect(strip(container)[2]).toBe('Ten play, the rest sit out this game.');
+    expect(strip(container)[2]).toBe('Ten play, the rest sit out. Waiting on an admin to roll the teams.');
     const lists = screen.getAllByRole('list');
     expect(lists).toHaveLength(2);
     expect(within(lists[1] as HTMLElement).getByText('Deniz')).toBeInTheDocument();
@@ -968,6 +973,150 @@ describe('the reroll control', () => {
 });
 
 /**
+ * `Teams are 92% even.` (M3.31), the one line under the balanced teams — restored 2026-10-03
+ * after M4.11's commit dropped it with no decision behind it.
+ *
+ * The rule the line breaks on is that it is **the stored `blue_win_prob` read a second time**,
+ * never a second comparison of the two sides: the line and the explanation's own `Blue favored
+ * …%` come from one number, so they cannot disagree the morning after a rating has moved.
+ */
+describe('how even the teams are (M3.31)', () => {
+  function withProb(blueWinProb: number, explanation?: string): TeamsView {
+    const teams = workedTeams();
+    return { ...teams, blueWinProb, explanation: explanation ?? teams.explanation };
+  }
+
+  function evenLine(container: HTMLElement): string | null {
+    return container.querySelector('.cn-even')?.textContent ?? null;
+  }
+
+  it('prints the stored probability through core, not a number of its own', () => {
+    const teams = workedTeams();
+    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams })));
+
+    expect(evenLine(container)).toBe(`Teams are ${evenness(teams.blueWinProb)}% even.`);
+    expect(evenLine(container)).toBe('Teams are 92% even.');
+  });
+
+  it('follows the stored probability even when the ratings on screen say otherwise', () => {
+    const { container } = draw(
+      snapshot(
+        lobbyView({
+          status: 'balanced',
+          teams: withProb(0.7, 'Blue favored 70%. Everyone on a main role. Gap 640.'),
+        }),
+      ),
+    );
+    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 70%.');
+    expect(evenLine(container)).toBe('Teams are 60% even.');
+  });
+
+  it('says `as even as they get` at the top of the scale, never `100% even`', () => {
+    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: withProb(0.5) })));
+    expect(evenLine(container)).toBe('Teams are as even as they get.');
+    expect(container.textContent).not.toContain('100% even');
+  });
+
+  it('prints nothing at all for a split with no stored probability', () => {
+    const missing = { ...workedTeams(), blueWinProb: null as unknown as number };
+    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: missing })));
+    expect(container.querySelector('.cn-even')).toBeNull();
+    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 54%.');
+  });
+
+  it('sits directly under the explanation strip', () => {
+    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })));
+    const order = [...(container.querySelector('.cn-block')?.children ?? [])].map((child) => child.className);
+    expect(order.indexOf('cn-even')).toBe(order.findIndex((name) => name.includes('cn-explain')) + 1);
+  });
+
+  it('is drawn on the balanced page and nowhere else', () => {
+    const { container: balanced, unmount: a } = draw(
+      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })),
+    );
+    expect(evenLine(balanced)).toBe('Teams are 92% even.');
+    a();
+
+    const { container: filling, unmount: b } = draw(snapshot(lobbyView({ status: 'open' })));
+    expect(filling.querySelector('.cn-even')).toBeNull();
+    b();
+
+    const { container: inGame, unmount: c } = draw(
+      snapshot(lobbyView({ status: 'in_game', teams: workedTeams() })),
+    );
+    expect(inGame.querySelector('.cn-even')).toBeNull();
+    c();
+
+    // A finish the fold did not rate draws this very block under `GAME OVER`.
+    const { container: unrated, unmount: d } = draw(
+      snapshot(
+        lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult({ rated: false }) }),
+      ),
+    );
+    expect(strip(unrated)[1]).toBe('GAME OVER');
+    expect(unrated.querySelectorAll('.cn-team')).toHaveLength(2);
+    expect(unrated.querySelector('.cn-even')).toBeNull();
+    d();
+
+    const { container: rated } = draw(
+      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
+    );
+    expect(rated.querySelector('.cn-even')).toBeNull();
+  });
+});
+
+/**
+ * `Reroll 1 of 2. Teams changed.` (2026-10-03): the page's half of what Discord's reroll title
+ * already says, to every viewer and not only to the admin holding the button.
+ */
+describe('the reroll marker', () => {
+  const marker = (container: HTMLElement) =>
+    container.querySelector('.cn-reroll-marker')?.textContent ?? null;
+
+  it('is absent while the balancer’s own split is up', () => {
+    const { container } = draw(
+      snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 0 }) })),
+    );
+    expect(container.querySelector('.cn-reroll-marker')).toBeNull();
+  });
+
+  it('says which reroll it is, to a reader with no session as much as to an admin', () => {
+    const rerolled = snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 1 }) }));
+    const { container: anon, unmount } = draw(rerolled);
+    expect(marker(anon)).toBe('Reroll 1 of 2. Teams changed.');
+    unmount();
+
+    const { container: admin, unmount: done } = draw(rerolled, { isAdmin: true });
+    expect(marker(admin)).toBe('Reroll 1 of 2. Teams changed.');
+    done();
+
+    const { container: last } = draw(
+      snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 2 }) })),
+    );
+    expect(marker(last)).toBe('Reroll 2 of 2. Teams changed.');
+  });
+
+  it('keeps the button labelled Reroll', () => {
+    draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 1 }) })), { isAdmin: true });
+    expect(screen.getByRole('button', { name: 'Reroll' })).toBeInTheDocument();
+  });
+
+  it('is gone once the game has started', () => {
+    const { container } = draw(snapshot(lobbyView({ status: 'in_game', teams: workedTeams({ chosen: 1 }) })));
+    expect(container.querySelector('.cn-reroll-marker')).toBeNull();
+  });
+
+  it('sits under the evenness line, below the cards: a reroll moves nothing above it', () => {
+    const { container } = draw(
+      snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 1 }) })),
+    );
+    const order = [...(container.querySelector('.cn-block')?.children ?? [])].map((child) => child.className);
+    expect(order.indexOf('cn-reroll-marker')).toBe(order.indexOf('cn-even') + 1);
+    expect(order.indexOf('cn-reroll-marker')).toBeGreaterThan(order.indexOf('cn-cards'));
+  });
+});
+
+/**
  * The roll (2026-10-03): where the button is drawn and for whom, and the line that tells
  * everybody else why ten names do not turn into teams by themselves. The press itself is
  * `RollControl.test.tsx`.
@@ -975,8 +1124,8 @@ describe('the reroll control', () => {
 describe('the roll', () => {
   const roll = { name: ROLL_LABEL } as const;
 
-  it('tells a reader with no session why a full lobby has no teams yet', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })));
+  it('tells a reader with no session what is coming while the lobby fills, under the rack', () => {
+    const { container } = draw(snapshot(lobbyView({ members: workedMembers(7) })));
 
     expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
     expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
@@ -986,6 +1135,42 @@ describe('the roll', () => {
     expect(children.indexOf('cn-roll')).toBe(children.indexOf('cn-card cn-rack') + 1);
   });
 
+  /**
+   * At ten the strip's sentence carries the wait on its own, naming who can roll (2026-10-03);
+   * the hint under the rack would say it a second time, so it is not drawn.
+   */
+  it('leaves a full lobby to the strip for a reader with no session: no hint, no button', () => {
+    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })));
+
+    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
+    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
+    expect(container.querySelector('.cn-roll')).toBeNull();
+    expect(strip(container)[2]).toBe('Waiting on an admin to roll the teams.');
+  });
+
+  it('names the admins in the strip at ten, and falls back to `an admin` with none', () => {
+    const { container, unmount } = draw(snapshot(lobbyView({ members: workedMembers() })), {
+      admins: ['Yasser', 'Omar'],
+    });
+    expect(strip(container)[2]).toBe('Waiting on Yasser or Omar to roll the teams.');
+    unmount();
+
+    const { container: eleven, unmount: done } = draw(
+      snapshot(lobbyView({ members: [...workedMembers(), extraMember()] })),
+      { admins: ['Yasser'] },
+    );
+    expect(strip(eleven)[2]).toBe('Ten play, the rest sit out. Waiting on Yasser to roll the teams.');
+    done();
+
+    const { container: none } = draw(snapshot(lobbyView({ members: workedMembers() })), { admins: [] });
+    expect(strip(none)[2]).toBe('Waiting on an admin to roll the teams.');
+  });
+
+  it('names nobody before ten: the countdown is the whole sentence', () => {
+    const { container } = draw(snapshot(lobbyView({ members: workedMembers(9) })), { admins: ['Yasser'] });
+    expect(strip(container)[2]).toBe('One more to go.');
+  });
+
   it('says the same while the lobby fills, to an admin too: nothing to press yet', () => {
     draw(snapshot(lobbyView({ members: workedMembers(7) })), { isAdmin: true });
 
@@ -993,11 +1178,16 @@ describe('the roll', () => {
     expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
   });
 
-  it('is not a button for a linked player who is not an admin', () => {
-    draw(snapshot(lobbyView({ members: workedMembers() })), { puuid: 'puuid-somebody' });
-
+  it('is not a button for a linked player who is not an admin, at any count', () => {
+    const { unmount } = draw(snapshot(lobbyView({ members: workedMembers(7) })), { puuid: 'puuid-somebody' });
     expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
     expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
+    unmount();
+
+    // At ten, nothing under the rack: the strip names who can roll.
+    draw(snapshot(lobbyView({ members: workedMembers() })), { puuid: 'puuid-somebody' });
+    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
+    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
   });
 
   it('is a button for an admin once ten are in, posting to this lobby', () => {
@@ -1114,6 +1304,23 @@ describe('the Start a lobby control', () => {
       'cn-start',
       'cn-missed',
     ]);
+  });
+
+  /**
+   * From ten on the invite readout (`waiting for them to accept`) is stale, and it crowded the
+   * roll out of a stack of up to five notes under the rack (2026-10-03).
+   */
+  it('drops the readout once ten are in, for the admin and for everybody else', () => {
+    for (const isAdmin of [true, false]) {
+      const { container, unmount } = draw(snapshot(lobbyView({ members: workedMembers() })), {
+        puuid: 'puuid-not-in-this-lobby',
+        isAdmin,
+        lobbyStart: startRow({ status: 'acked', invited: 9 }),
+      });
+      expect(container.querySelector('.cn-start')).toBeNull();
+      expect(screen.queryByText(invitedLine(9))).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it('draws nothing at all while filling when nobody pressed it tonight', () => {
@@ -1536,6 +1743,150 @@ describe('the night tape (M11.2)', () => {
     draw(snapshot(null, { tape: [tapeEntry({ sitters: [null] })] }));
     expect(screen.getByText(NAMELESS_HINT)).toBeInTheDocument();
     expect(document.querySelector('.cn-tape')).toHaveTextContent('Sat out: Someone.');
+  });
+});
+
+/**
+ * The column, state by state (2026-10-03). The primary block first in every state, the idle
+ * page included, so the first join does not reshuffle what is under it; then:
+ *
+ * - `filling`: `Your role tonight` straight under the rack — a tap only counts before the roll;
+ * - `teams`: Fearless, then the daily pointer — the find box is the point during pick;
+ * - `result`: the night tape before Fearless — the night's story, not the ban list;
+ * - idle: the pointer, Fearless, the tape.
+ */
+describe('the column order, state by state', () => {
+  const pool = { resetAt: FIXTURE_NIGHT_START, champions: [{ id: 103, name: 'Ahri', role: 'mid' as const }] };
+  const column = (container: HTMLElement) => [...(container.querySelector('main')?.children ?? [])];
+  const at = (children: Element[], cls: string) =>
+    children.findIndex((child) => child.classList.contains(cls));
+  const extras = { fearless: pool, tape: [tapeEntry()] };
+
+  it('idle: the primary block first, then the pointer, Fearless and the tape', () => {
+    const { container } = draw(snapshot(null, extras), { isAdmin: true, mystery: PLAY_DAY });
+    const col = column(container);
+    const rack = col.findIndex((child) => child.querySelector('.cn-rack-open') !== null);
+    expect(at(col, 'cn-start')).toBeLessThan(rack);
+    expect(at(col, 'cn-mystery-teaser')).toBe(rack + 1);
+    expect(at(col, 'cn-fearless')).toBe(rack + 2);
+    expect(at(col, 'cn-tape-card')).toBe(rack + 3);
+  });
+
+  it('filling: Your role tonight directly under the rack, above the pointer and Fearless', () => {
+    const { container } = draw(snapshot(lobbyView({ members: workedMembers(7) }), extras), {
+      puuid: workedMembers(1)[0]?.puuid ?? '',
+      mystery: PLAY_DAY,
+    });
+    const col = column(container);
+    const block = col.findIndex((child) => child.querySelector('.cn-rack') !== null);
+    expect(at(col, 'cn-role-card')).toBe(block + 1);
+    expect(at(col, 'cn-mystery-teaser')).toBe(block + 2);
+    expect(at(col, 'cn-fearless')).toBe(block + 3);
+    expect(at(col, 'cn-tape-card')).toBe(block + 4);
+    expect(col.at(-1)).toHaveClass('cn-tape-card');
+  });
+
+  it('teams: Fearless right under the block, the pointer after it, the role card last', () => {
+    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() }), extras), {
+      mystery: PLAY_DAY,
+    });
+    const col = column(container);
+    const block = col.findIndex((child) => child.querySelector('.cn-team') !== null);
+    expect(at(col, 'cn-fearless')).toBe(block + 1);
+    expect(at(col, 'cn-mystery-teaser')).toBe(block + 2);
+    expect(at(col, 'cn-tape-card')).toBe(block + 3);
+    expect(col.at(-1)).toHaveClass('cn-role-card');
+  });
+
+  it('result: the night tape before Fearless, the role card last', () => {
+    const { container } = draw(
+      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() }), extras),
+      { mystery: PLAY_DAY },
+    );
+    const col = column(container);
+    const poster = col.findIndex((child) => child.querySelector('.cn-result-head') !== null);
+    expect(poster).toBeGreaterThan(-1);
+    expect(at(col, 'cn-mystery-teaser')).toBe(poster + 1);
+    expect(at(col, 'cn-tape-card')).toBe(at(col, 'cn-mystery-teaser') + 1);
+    expect(at(col, 'cn-fearless')).toBe(at(col, 'cn-tape-card') + 1);
+    // Nothing after Fearless but the role card, when it draws at all.
+    expect(
+      col.slice(at(col, 'cn-fearless') + 1).every((child) => child.classList.contains('cn-role-card')),
+    ).toBe(true);
+  });
+});
+
+/**
+ * The lane filter (2026-10-03): five 44px toggles in the role tap's dress, all on. The open lists
+ * stay unfolded — the filter is the fix for the card's length, not a fold.
+ */
+describe('fearless, the lane filter', () => {
+  const pool = {
+    resetAt: FIXTURE_NIGHT_START,
+    champions: [
+      { id: 103, name: 'Ahri', role: 'mid' as const },
+      { id: 222, name: 'Jinx', role: 'adc' as const },
+      { id: 99_999, name: 'Champion 99999', role: null },
+    ],
+  };
+  const laneWords = () =>
+    [...document.querySelectorAll('.cn-fearless-lane h3')].map((heading) => heading.textContent);
+  const toggle = (role: string) =>
+    within(screen.getByRole('group', { name: FEARLESS_LANE_FILTER })).getByRole('button', { name: role });
+
+  it('draws five toggles under the find box, all pressed, and every lane', () => {
+    draw(snapshot(null, { fearless: pool }));
+    const group = screen.getByRole('group', { name: FEARLESS_LANE_FILTER });
+    const buttons = within(group).getAllByRole('button');
+    expect(buttons.map((button) => button.textContent)).toEqual(['top', 'jungle', 'mid', 'adc', 'support']);
+    for (const button of buttons) {
+      expect(button).toHaveAttribute('aria-pressed', 'true');
+      expect(button).toHaveClass('cn-role-choice', 'cn-role-on');
+      expect(button).toHaveAttribute('type', 'button');
+    }
+    const search = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
+    expect(search.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(laneWords()).toEqual(['top', 'jungle', 'mid', 'adc', 'support', 'other']);
+  });
+
+  it('hides a lane when its toggle is turned off, and brings it back', () => {
+    draw(snapshot(null, { fearless: pool }));
+    fireEvent.click(toggle('top'));
+    expect(toggle('top')).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle('top')).not.toHaveClass('cn-role-on');
+    // A narrowed card is the lanes asked for: `other` is not a lane anybody picks for.
+    expect(laneWords()).toEqual(['jungle', 'mid', 'adc', 'support']);
+    fireEvent.click(toggle('top'));
+    expect(laneWords()).toEqual(['top', 'jungle', 'mid', 'adc', 'support', 'other']);
+  });
+
+  it('narrows to one lane, and turning the last one off brings all five back', () => {
+    draw(snapshot(null, { fearless: pool }));
+    for (const role of ['top', 'mid', 'adc', 'support']) fireEvent.click(toggle(role));
+    expect(laneWords()).toEqual(['jungle']);
+    // The open chips are still open, not folded.
+    expect(document.querySelectorAll('.cn-fearless-lane .cn-fearless-open-chip').length).toBeGreaterThan(0);
+
+    fireEvent.click(toggle('jungle'));
+    expect(laneWords()).toEqual(['top', 'jungle', 'mid', 'adc', 'support', 'other']);
+    for (const role of ['top', 'jungle', 'mid', 'adc', 'support']) {
+      expect(toggle(role)).toHaveAttribute('aria-pressed', 'true');
+    }
+  });
+
+  it('lets the find box reach a lane that is toggled off, then applies the filter again', () => {
+    draw(snapshot(null, { fearless: pool }));
+    for (const role of ['top', 'jungle', 'adc', 'support']) fireEvent.click(toggle(role));
+    expect(laneWords()).toEqual(['mid']);
+
+    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
+    fireEvent.change(box, { target: { value: 'jinx' } });
+    expect(laneWords()).toEqual(['adc']);
+    expect(document.querySelector('.cn-fearless')?.textContent).toContain(fearlessBanned('Jinx'));
+    expect(document.querySelector('.cn-fearless')?.textContent).not.toContain(FEARLESS_SEARCH_EMPTY);
+
+    fireEvent.change(box, { target: { value: '' } });
+    expect(laneWords()).toEqual(['mid']);
   });
 });
 

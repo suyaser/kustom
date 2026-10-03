@@ -39,9 +39,15 @@ export const HEADLINE_FINISHED = 'GAME OVER';
  * change of count moves nothing under a thumb.
  * ------------------------------------------------------------------------- */
 
-/** M1.10's sentence, unchanged word for word, so the wording does not move under people. */
+/**
+ * M1.10's sentence, re-worded on 2026-10-03: it said `the teams show up here`, which stopped
+ * being true when ingest stopped balancing by itself — teams appear only once an admin presses
+ * `Roll teams`. It names the press, and keeps the half of the premise that is still true: who
+ * plays with whom is the bot's call, not the admin's. Kept to two lines of `t-sm` at 390px, the
+ * height the strip reserves.
+ */
 export const IDLE_SENTENCE =
-  'When ten of you are in a custom lobby with the companion running, the teams show up here.';
+  'When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.';
 
 /**
  * Nobody has joined yet — said **once**, in the strip, and never again under the rack. A rack
@@ -55,17 +61,58 @@ export const IN_GAME_SENTENCE = 'Ratings move when it ends.';
 
 export const FINISHED_SENTENCE = 'Ratings are updated. The leaderboard has the rest.';
 
-/** Eleven or more around: the ten play and the sit-out strip explains who is not in them. */
-export const OVERFULL_SENTENCE = 'Ten play, the rest sit out this game.';
+/**
+ * Eleven or more around, before the roll: who sits out is the bot's rotation, not the admin's
+ * pick, and nothing has been rolled yet — so the sentence says both (2026-10-03). It used to
+ * stop at the sit-out, which on an `open` lobby read as if the ten were already decided.
+ * {@link overfullSentence} names the admins the same way {@link waitingOnRoll} does.
+ */
+export const OVERFULL_LEAD = 'Ten play, the rest sit out.';
+
+export const OVERFULL_SENTENCE = `${OVERFULL_LEAD} Waiting on an admin to roll the teams.`;
 
 /**
  * Ten in. Since 2026-10-03 ingest no longer balances on its own — teams exist only once an admin
  * presses `Roll teams` — so the old `Teams in a moment.` promised something that never happens by
  * itself. This is the strip's live line, announced on the change to ten; {@link ROLL_HINT} under
- * the rack is not live and an admin never sees it (the button takes its place), so the strip
- * keeps a sentence of its own rather than going blank at the one count that matters.
+ * the rack is not live and is not drawn at ten (the strip carries it alone), so the strip keeps a
+ * sentence of its own rather than going blank at the one count that matters.
+ *
+ * The generic form. With admins on record the page names them ({@link waitingOnRoll}).
  */
 export const TEN_IN_SENTENCE = 'Waiting on an admin to roll the teams.';
+
+/**
+ * Past this many admins the line goes back to the generic `an admin`: four names and an `or` do
+ * not fit the two lines the strip reserves, and a roll call is not the point of the sentence.
+ */
+export const MAX_NAMED_ADMINS = 3;
+
+/**
+ * `Yasser`, `Yasser or Omar`, `Yasser, Omar or Sara` — or `null`, which means "say `an admin`":
+ * nobody on record, a name we do not have, or more than {@link MAX_NAMED_ADMINS}.
+ *
+ * Naming them is transparency, not a permission change (2026-10-03): a night with no admin
+ * online stalls at ten, and the friends in voice should know whose phone to ping. Nameless admin
+ * rows are dropped rather than printed as `Someone` — `Waiting on Someone` names nobody.
+ */
+export function adminNames(admins: readonly PlayerName[]): string | null {
+  const named = admins.filter((name) => !isNameless(name)).map(renderWebName);
+  if (named.length === 0 || named.length > MAX_NAMED_ADMINS) return null;
+  if (named.length === 1) return named[0] ?? null;
+  return `${named.slice(0, -1).join(', ')} or ${named[named.length - 1]}`;
+}
+
+/** `Waiting on Yasser or Omar to roll the teams.`, or {@link TEN_IN_SENTENCE}. */
+export function waitingOnRoll(admins: readonly PlayerName[] = []): string {
+  const who = adminNames(admins);
+  return who === null ? TEN_IN_SENTENCE : `Waiting on ${who} to roll the teams.`;
+}
+
+/** `Ten play, the rest sit out. Waiting on Yasser to roll the teams.`, or {@link OVERFULL_SENTENCE}. */
+export function overfullSentence(admins: readonly PlayerName[] = []): string {
+  return `${OVERFULL_LEAD} ${waitingOnRoll(admins)}`;
+}
 
 /**
  * How many are still missing, as a **word** — the digit is already 44px above it in the
@@ -76,11 +123,15 @@ export const TEN_IN_SENTENCE = 'Waiting on an admin to roll the teams.';
  */
 const COUNTDOWN_WORDS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'] as const;
 
-/** The strip's sentence while the lobby fills. The one text that changes without a state change. */
-export function fillingSentence(around: number): string {
+/**
+ * The strip's sentence while the lobby fills. The one text that changes without a state change.
+ * `admins` is the group's admins by name, read once with the page; at ten or more the sentence
+ * names them, and with none it says `an admin`.
+ */
+export function fillingSentence(around: number, admins: readonly PlayerName[] = []): string {
   if (around <= 0) return EMPTY_LOBBY;
-  if (around > PLAYERS_PER_GAME) return OVERFULL_SENTENCE;
-  if (around === PLAYERS_PER_GAME) return TEN_IN_SENTENCE;
+  if (around > PLAYERS_PER_GAME) return overfullSentence(admins);
+  if (around === PLAYERS_PER_GAME) return waitingOnRoll(admins);
   return `${COUNTDOWN_WORDS[PLAYERS_PER_GAME - around]} more to go.`;
 }
 
@@ -153,6 +204,40 @@ export const NAMELESS_HINT = "Names fill in after someone's first game.";
 /** `05-design.md`, "Explanation line": the ghost button on the strip. */
 export const REROLL_LABEL = 'Reroll';
 
+/** The reroll press never reached the route. */
+export const REROLL_UNREACHABLE = 'That did not reach the server. The teams have not changed.';
+
+/** A reroll refusal with no sentence of the route's own in it. */
+export const REROLL_FAILED = 'That reroll did not go through. The teams have not changed.';
+
+/**
+ * `Reroll 1 of 2. Teams changed.` — under the explanation, to **every** viewer, while the teams
+ * on screen are a promoted split other than rank 1 (2026-10-03). Discord's reroll post says it
+ * in its title (`teamsTitle`, `Teams are set · reroll 1 of 2`); the page said nothing, so a
+ * friend who had already moved to their side saw new names with no sign anything had happened.
+ *
+ * The same arithmetic as `teamsTitle`: the count is how many splits the lobby stored, never a
+ * literal, and a rank past the stored count still reads sensibly. `null` for rank 1 — the teams
+ * the balancer chose, however they got back on the board — and for no chosen split at all.
+ */
+export function rerollMarker(chosenRank: number | null, splitCount: number): string | null {
+  if (chosenRank === null || chosenRank <= 1) return null;
+  const rerolls = Math.max(splitCount - 1, chosenRank - 1);
+  return `${REROLL_LABEL} ${chosenRank - 1} of ${rerolls}. Teams changed.`;
+}
+
+/**
+ * A route's refusal as a sentence of its own slot. The admin routes answer lower case with no
+ * full stop (`the lobby changed since you looked: …`) because `/admin` prints them inline; on
+ * the tonight page each stands alone under its button, so it gets a capital and a stop. Shared
+ * by `RollControl` and `RerollControl` so the two refusals read alike.
+ */
+export function asSentence(text: string): string {
+  const trimmed = text.trim();
+  const capital = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capital) ? capital : `${capital}.`;
+}
+
 /* ---------------------------------------------------------------------------
  * The roll (2026-10-03): an admin's press is the only way a lobby gets teams. Ingest no longer
  * balances by itself, so the filling page has to say why nothing is happening.
@@ -162,13 +247,23 @@ export const REROLL_LABEL = 'Reroll';
 export const ROLL_LABEL = 'Roll teams';
 
 /**
- * Under the rack while the lobby fills, for everybody who is not holding the button: the reason
- * ten people in the lobby do not, by themselves, put teams on this page.
+ * Under the rack while the lobby is still short of ten: the reason ten people in the lobby do
+ * not, by themselves, put teams on this page. Not drawn from ten on — the strip's sentence
+ * carries it there, naming the admins.
+ *
+ * `Everyone who is staying`, not `the right ten` (2026-10-03): with eleven or more around the
+ * bot's rotation already decides who sits out, so the admin's job is to wait for the people who
+ * are coming, not to trim the lobby to ten by hand.
  */
-export const ROLL_HINT = 'Once the right ten are in, an admin rolls the teams.';
+export const ROLL_HINT = 'Once everyone who is staying is in, an admin rolls the teams.';
 
-/** Beside the admin's button: the press names the roster on screen, so look before pressing. */
-export const ROLL_ADMIN_HINT = 'Check these are the right people, then roll.';
+/**
+ * Beside the admin's button: the press names the roster on screen, so look before pressing. The
+ * second sentence is what an admin with eleven in the lobby needs: no kicking, the rotation sits
+ * people out.
+ */
+export const ROLL_ADMIN_HINT =
+  'Check everyone who is staying is in, then roll. Past ten, the bot picks who sits out.';
 
 /** The press never reached the route. */
 export const ROLL_UNREACHABLE = 'That did not reach the server. Nothing was rolled.';

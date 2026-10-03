@@ -18,6 +18,12 @@ export const FEARLESS_SEARCH = 'Find a champion';
 export const FEARLESS_SEARCH_EMPTY = 'No champion matches.';
 
 /**
+ * The lane filter's group name, for a screen reader only (2026-10-03): the five toggles say
+ * their role words themselves, and this says what pressing them does.
+ */
+export const FEARLESS_LANE_FILTER = 'Lanes to show';
+
+/**
  * The tonight card's sentence (designer, 2026-10-03). The card leads with who is still open,
  * so `Ban these next game.` above a list of open champions would say the opposite of what is
  * under it. Discord posts the ban list alone and keeps {@link FEARLESS_SENTENCE}.

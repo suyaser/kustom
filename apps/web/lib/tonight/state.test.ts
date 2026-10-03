@@ -41,7 +41,7 @@ describe('the strip headline, one per state', () => {
     expect(strip.headline).toBe('NOBODY IN YET');
     expect(strip.count).toBeNull();
     expect(strip.sentence).toBe(
-      'When ten of you are in a custom lobby with the companion running, the teams show up here.',
+      'When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.',
     );
     expect(strip.live).toBe(false);
   });
@@ -172,7 +172,7 @@ describe('the sentence while the lobby fills', () => {
   });
 
   it('counts the seats still to fill, in words, because the digit is already 44px above it', () => {
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9].map(fillingSentence)).toEqual([
+    expect([1, 2, 3, 4, 5, 6, 7, 8, 9].map((around) => fillingSentence(around))).toEqual([
       'Nine more to go.',
       'Eight more to go.',
       'Seven more to go.',
@@ -190,8 +190,34 @@ describe('the sentence while the lobby fills', () => {
     // produce teams, so the line names the press that does.
     expect(fillingSentence(10)).toBe('Waiting on an admin to roll the teams.');
     expect(fillingSentence(10)).not.toMatch(/in a moment/i);
-    expect(fillingSentence(11)).toBe('Ten play, the rest sit out this game.');
-    expect(fillingSentence(14)).toBe('Ten play, the rest sit out this game.');
+    // Past ten the rotation sits people out, and the teams are still waiting on the roll
+    // (2026-10-03): the sentence says both, not only the sit-out.
+    expect(fillingSentence(11)).toBe('Ten play, the rest sit out. Waiting on an admin to roll the teams.');
+    expect(fillingSentence(14)).toBe('Ten play, the rest sit out. Waiting on an admin to roll the teams.');
+  });
+
+  it('names the admins at ten and past it, and never before', () => {
+    expect(fillingSentence(10, ['Yasser'])).toBe('Waiting on Yasser to roll the teams.');
+    expect(fillingSentence(10, ['Yasser', 'Omar'])).toBe('Waiting on Yasser or Omar to roll the teams.');
+    expect(fillingSentence(10, ['Yasser', 'Omar', 'Sara'])).toBe(
+      'Waiting on Yasser, Omar or Sara to roll the teams.',
+    );
+    expect(fillingSentence(12, ['Yasser', 'Omar'])).toBe(
+      'Ten play, the rest sit out. Waiting on Yasser or Omar to roll the teams.',
+    );
+    // Before ten there is nothing to roll, so nobody is named.
+    expect(fillingSentence(9, ['Yasser'])).toBe('One more to go.');
+    expect(fillingSentence(0, ['Yasser'])).toBe('Nobody in the lobby yet.');
+  });
+
+  it('falls back to `an admin` with nobody to name', () => {
+    // No admin on record.
+    expect(fillingSentence(10, [])).toBe('Waiting on an admin to roll the teams.');
+    // An admin row with no name: `Waiting on Someone` names nobody.
+    expect(fillingSentence(10, [null, '  '])).toBe('Waiting on an admin to roll the teams.');
+    expect(fillingSentence(10, [null, 'Omar'])).toBe('Waiting on Omar to roll the teams.');
+    // Four names do not fit the two lines the strip reserves.
+    expect(fillingSentence(10, ['A', 'B', 'C', 'D'])).toBe('Waiting on an admin to roll the teams.');
   });
 
   it('is the sentence the strip carries, for the lobby it is given', () => {
@@ -199,7 +225,22 @@ describe('the sentence while the lobby fills', () => {
     const strip = stripOf(eleven);
 
     expect(strip.count).toBe(11);
-    expect(strip.sentence).toBe('Ten play, the rest sit out this game.');
+    expect(strip.sentence).toBe('Ten play, the rest sit out. Waiting on an admin to roll the teams.');
+    expect(tonightHeader(tonightState(eleven), ['Yasser']).sentence).toBe(
+      'Ten play, the rest sit out. Waiting on Yasser to roll the teams.',
+    );
+  });
+
+  it('names the admins in the strip at ten, and leaves every other state alone', () => {
+    const ten = snapshot(lobbyView({ members: workedMembers() }));
+    expect(tonightHeader(tonightState(ten), ['Yasser', 'Omar']).sentence).toBe(
+      'Waiting on Yasser or Omar to roll the teams.',
+    );
+    const balanced = snapshot(lobbyView({ status: 'balanced', teams: workedTeams() }));
+    expect(tonightHeader(tonightState(balanced), ['Yasser']).sentence).toBe(stripOf(balanced).sentence);
+    expect(tonightHeader(tonightState(snapshot(null)), ['Yasser']).sentence).toBe(
+      stripOf(snapshot(null)).sentence,
+    );
   });
 });
 

@@ -5,6 +5,7 @@ import { loadMysteryOrNone } from '@/lib/mystery/load';
 import { shareMetadata, tonightImagePath } from '@/lib/og/meta';
 import { createPublicClient } from '@/lib/publicClient';
 import { getServiceClient } from '@/lib/supabase';
+import { loadAdminNamesOrNone } from '@/lib/tonight/admins';
 import { loadTonight } from '@/lib/tonight/load';
 import { loadLobbyStartOrNone } from '@/lib/tonight/lobbyStart';
 import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
@@ -39,7 +40,7 @@ const RAIL_BOARD_ROWS = 5;
 
 export default async function TonightPage() {
   const client = createPublicClient();
-  const [snapshot, viewer, topPlayers, mystery] = await Promise.all([
+  const [snapshot, viewer, topPlayers, mystery, admins] = await Promise.all([
     loadTonight(client, { nightStart: tonightStart(), timeZone: nightTimeZone() }),
     currentViewerState(),
     // The rail, read once with the page and never re-read on a Realtime event: it is the one
@@ -60,6 +61,9 @@ export default async function TonightPage() {
       timeZone: nightTimeZone(),
     }),
     loadMysteryOrNone(),
+    // Who can roll, named in the strip at ten or more (2026-10-03). Read once, like the rail,
+    // and empty on any failure: the strip then says `an admin`.
+    loadAdminNamesOrNone(client),
   ]);
 
   /**
@@ -83,6 +87,7 @@ export default async function TonightPage() {
       topPlayers={topPlayers}
       lobbyStart={lobbyStart}
       mystery={mystery}
+      admins={admins}
     />
   );
 }

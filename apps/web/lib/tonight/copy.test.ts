@@ -1,10 +1,18 @@
 import { evenness } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { awardLine } from '../discord/embeds';
+import { HOW_THIS_WORKS_LINES } from '../shellCopy';
 import { WORKED_ROSTER } from '../testing/workedExample';
 import {
+  adminNames,
+  asSentence,
   EVENNESS_PERFECT,
   evennessLine,
+  IDLE_SENTENCE,
+  OVERFULL_SENTENCE,
+  ROLL_ADMIN_HINT,
+  ROLL_HINT,
+  rerollMarker,
   TAPE_NO_RESULT,
   TAPE_TITLE,
   TAPE_WINS,
@@ -98,5 +106,96 @@ describe('the night tape copy (M11.2)', () => {
     expect(tapeSatOut(['Yuki', 'Omar'])).toBe('Sat out: Yuki, Omar.');
     expect(tapeSatOut(['Yuki', null])).toBe('Sat out: Yuki, Someone.');
     expect(tapeSatOut([])).toBeNull();
+  });
+});
+
+/**
+ * The roll copy (2026-10-03). Since ingest stopped balancing by itself, teams appear only when an
+ * admin presses `Roll teams`, and no sentence on `/` may say or imply they show up on their own.
+ * The other half of the premise is still true and has to stay readable beside it: who plays with
+ * whom is the bot's call, not the admin's.
+ */
+describe('the roll, as `/` says it', () => {
+  it('names the admin roll in the idle sentence, and keeps the bot as the one who picks', () => {
+    expect(IDLE_SENTENCE).toBe(
+      'When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.',
+    );
+    expect(IDLE_SENTENCE).not.toMatch(/show up/i);
+  });
+
+  it('names the admin roll in How this works, line 2, beside the bot making the call', () => {
+    const line = HOW_THIS_WORKS_LINES[1];
+    expect(line).toBe(
+      "When everyone is in, an admin taps Roll teams. Who plays with whom is the bot's call: it makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.",
+    );
+    expect(line).toContain('Roll teams');
+    expect(line).toContain("the bot's call");
+  });
+
+  it('never claims teams appear by themselves, anywhere on the page or in the footer', () => {
+    for (const text of [IDLE_SENTENCE, ...HOW_THIS_WORKS_LINES, ROLL_HINT, OVERFULL_SENTENCE]) {
+      expect(text).not.toMatch(/show up|appear|automatic|in a moment/i);
+    }
+  });
+
+  /**
+   * `the right ten` read as "trim the lobby to ten by hand", which is the rotation's job: with
+   * eleven or more around the bot already sits people out. The admin waits for whoever is coming.
+   */
+  it('means everyone staying, not literally ten', () => {
+    expect(ROLL_HINT).toBe('Once everyone who is staying is in, an admin rolls the teams.');
+    expect(ROLL_ADMIN_HINT).toBe(
+      'Check everyone who is staying is in, then roll. Past ten, the bot picks who sits out.',
+    );
+    for (const text of [ROLL_HINT, ROLL_ADMIN_HINT]) expect(text).not.toMatch(/right ten|right people/i);
+  });
+
+  it('says the overfull lobby is still waiting on the roll, not only that someone sits out', () => {
+    expect(OVERFULL_SENTENCE).toBe('Ten play, the rest sit out. Waiting on an admin to roll the teams.');
+  });
+});
+
+describe('adminNames (2026-10-03)', () => {
+  it('joins one, two and three names with `or`', () => {
+    expect(adminNames(['Yasser'])).toBe('Yasser');
+    expect(adminNames(['Yasser', 'Omar'])).toBe('Yasser or Omar');
+    expect(adminNames(['Yasser', 'Omar', 'Sara'])).toBe('Yasser, Omar or Sara');
+  });
+
+  it('says nothing (the caller says `an admin`) for nobody, nameless rows only, or more than three', () => {
+    expect(adminNames([])).toBeNull();
+    expect(adminNames([null])).toBeNull();
+    expect(adminNames(['A', 'B', 'C', 'D'])).toBeNull();
+  });
+
+  it('prints names the way the rest of the page does: trimmed and cut at 32', () => {
+    expect(adminNames(['  Yasser  '])).toBe('Yasser');
+    expect(adminNames(['a'.repeat(40)])).toBe(`${'a'.repeat(31)}…`);
+  });
+});
+
+describe('rerollMarker (2026-10-03)', () => {
+  it("is Discord's `reroll 1 of 2` as a sentence, for rank 2 and rank 3 of three", () => {
+    expect(rerollMarker(2, 3)).toBe('Reroll 1 of 2. Teams changed.');
+    expect(rerollMarker(3, 3)).toBe('Reroll 2 of 2. Teams changed.');
+  });
+
+  it('counts the splits the lobby stored, never a literal', () => {
+    expect(rerollMarker(2, 2)).toBe('Reroll 1 of 1. Teams changed.');
+    // A rank past the stored count still never reads `3 of 2`.
+    expect(rerollMarker(4, 3)).toBe('Reroll 3 of 3. Teams changed.');
+  });
+
+  it("says nothing for the balancer's own split, or with no chosen split", () => {
+    expect(rerollMarker(1, 3)).toBeNull();
+    expect(rerollMarker(null, 3)).toBeNull();
+  });
+});
+
+describe('asSentence', () => {
+  it('capitalises a route refusal and gives it a full stop, once', () => {
+    expect(asSentence('the lobby changed since you looked')).toBe('The lobby changed since you looked.');
+    expect(asSentence('Already a sentence.')).toBe('Already a sentence.');
+    expect(asSentence('  spaced out!  ')).toBe('Spaced out!');
   });
 });

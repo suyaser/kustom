@@ -7,6 +7,10 @@
  * joined the group last week, and each claim is true of what is shipped — the table under the
  * copy section names the code behind every one of them.
  *
+ * The second was re-written on 2026-10-03, when teams stopped appearing on their own: it names
+ * the admin's `Roll teams` and keeps "who plays with whom is the bot's call" beside it, so the
+ * premise — the bot is the referee — still reads true.
+ *
  * The fourth was re-written by M7.19 (product, 2026-09-16) and fixes three things at once: no
  * rating starts from a League rank any more (`provisionalSeed()`), only a Summoner's Rift result
  * moves one (M7.1 took ARAM out of the fold), and the Proven gap **settles** — it never catches
@@ -19,7 +23,7 @@ export const HOW_THIS_WORKS_TITLE = 'How this works';
 
 export const HOW_THIS_WORKS_LINES = [
   "Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.",
-  'The bot makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.',
+  "When everyone is in, an admin taps Roll teams. Who plays with whom is the bot's call: it makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.",
   'Results come off the end-of-game screen. Nobody reports a score.',
   "Everybody starts on the same rating, and every Summoner's Rift result moves it. Proven is the board's careful version of it and settles after about 30 games.",
 ] as const;
@@ -27,8 +31,13 @@ export const HOW_THIS_WORKS_LINES = [
 /** The rail's and the idle page's second card. */
 export const COMPANION_CARD_TITLE = 'Run the companion';
 
+/**
+ * Corrected 2026-10-03: it told every player to paste in a token from an admin, which has not been
+ * true since the companion split into Host and Overlay. Most people run Overlay mode with no
+ * token at all; only the one or two PCs in Host mode need one.
+ */
 export const COMPANION_CARD_BODY =
-  'Windows only. Install it once, paste in the token an admin gives you, and leave it running while you play.';
+  'Windows only. Most of you run Kustom in Overlay mode, which needs no token. The one or two PCs in Host mode need a token from an admin and stay running while you play.';
 
 /** Footer link and companion-card link. Both point at the releases page (`lib/nav.ts`). */
 export const COMPANION_LINK_LABEL = 'Get the companion';

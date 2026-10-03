@@ -1,9 +1,11 @@
 'use client';
 
+import type { RoleValue } from '@customs/db';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   FEARLESS_BANNED_LABEL,
   FEARLESS_CARD_SENTENCE,
+  FEARLESS_LANE_FILTER,
   FEARLESS_SEARCH,
   FEARLESS_SEARCH_EMPTY,
   FEARLESS_TITLE,
@@ -18,9 +20,12 @@ import {
   fearlessExact,
   fearlessIconUrl,
   fearlessLanes,
+  fearlessLanesShown,
   fearlessMatches,
+  toggleFearlessLane,
 } from '@/lib/fearless/present';
 import type { FearlessChampion, FearlessView } from '@/lib/fearless/types';
+import { LANE_ORDER } from '@/lib/laneOrder';
 import { RoleIcon } from '../_icons/RoleIcon';
 
 /**
@@ -46,10 +51,15 @@ import { RoleIcon } from '../_icons/RoleIcon';
  * pick; the bans are reference. Typing in the find box opens every fold, because the box is
  * how a pick is checked and a match hidden behind a closed summary would read as "no champion
  * matches". The closed fold stays in the DOM, so the browser's own find-in-page reaches it.
+ *
+ * Lane filter (2026-10-03): five role toggles under the find box, all on by default, so a
+ * jungler in pick can list jungle alone instead of scrolling past four other lanes. The open
+ * lists stay unfolded — folding them again is ruled out in 05-design.md.
  */
 export function FearlessCard({ fearless }: { fearless: FearlessView }) {
   const searchId = useId();
   const [query, setQuery] = useState('');
+  const [shown, setShown] = useState<ReadonlySet<RoleValue>>(() => new Set(LANE_ORDER));
 
   const openPool = useMemo(() => availableFearless(fearless.champions), [fearless.champions]);
   const visibleBanned = useMemo(
@@ -60,7 +70,8 @@ export function FearlessCard({ fearless }: { fearless: FearlessView }) {
     () => openPool.filter((champion) => fearlessMatches(champion.name, query)),
     [openPool, query],
   );
-  const lanes = useMemo(() => fearlessLanes(visibleBanned, visibleOpen), [visibleBanned, visibleOpen]);
+  const allLanes = useMemo(() => fearlessLanes(visibleBanned, visibleOpen), [visibleBanned, visibleOpen]);
+  const lanes = fearlessLanesShown(allLanes, shown, query);
   const bannedHit = fearless.champions.find((champion) => fearlessExact(champion.name, query));
   const openHit = bannedHit ? undefined : openPool.find((champion) => fearlessExact(champion.name, query));
 
@@ -96,7 +107,29 @@ export function FearlessCard({ fearless }: { fearless: FearlessView }) {
           {fearlessAvailable(openHit.name)}
         </p>
       ) : null}
-      {lanes.length === 0 ? (
+      {/*
+       * The lane filter (2026-10-03): the step "Known cost" under Fearless in 05-design.md named
+       * for the card's length. Five 44px toggles, all on, in the role tap's dress. Not a form —
+       * nothing is posted; it only decides which lanes this reader's card lists.
+       */}
+      <fieldset className="cn-fearless-filter" aria-label={FEARLESS_LANE_FILTER}>
+        {LANE_ORDER.map((role) => {
+          const on = shown.has(role);
+          return (
+            <button
+              key={role}
+              type="button"
+              className={on ? 'cn-role-choice cn-role-on' : 'cn-role-choice'}
+              aria-pressed={on}
+              onClick={() => setShown((current) => toggleFearlessLane(current, role))}
+            >
+              <RoleIcon role={role} />
+              {fearlessLaneTitle(role)}
+            </button>
+          );
+        })}
+      </fieldset>
+      {allLanes.length === 0 ? (
         <p className="cn-fearless-empty">{FEARLESS_SEARCH_EMPTY}</p>
       ) : (
         <div className="cn-fearless-lanes">

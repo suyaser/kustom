@@ -2,6 +2,7 @@ import type { BoardRow } from '@/lib/board/types';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
 import {
+  evennessLine,
   HEAD_SEPARATOR,
   joinWebNames,
   MISSED_INVITE_END,
@@ -12,6 +13,7 @@ import {
   OFF_ROLE_LEGEND_SUFFIX,
   ROLL_HINT,
   renderWebName,
+  rerollMarker,
   SIT_OUT_VIEWER,
   sitOutGeneral,
 } from '@/lib/tonight/copy';
@@ -23,7 +25,14 @@ import {
   tonightHeader,
   tonightState,
 } from '@/lib/tonight/state';
-import type { LobbyView, MemberView, SeatView, TeamsView, TonightSnapshot } from '@/lib/tonight/types';
+import type {
+  LobbyView,
+  MemberView,
+  PlayerName,
+  SeatView,
+  TeamsView,
+  TonightSnapshot,
+} from '@/lib/tonight/types';
 import { type ViewerState, viewerIsAdmin, viewerPuuid } from '@/lib/tonight/viewer';
 import { TopOfBoard } from '../_leaderboard/BoardCard';
 import { MysteryTeaser } from '../_mystery/MysteryTeaser';
@@ -109,6 +118,12 @@ export interface TonightViewProps {
    * snapshot of the lobby. The live page always passes one.
    */
   mystery?: MysteryPageState | null;
+  /**
+   * The admins' display names, read once with the page (`lib/tonight/admins.ts`). At ten or more
+   * the strip names them — `Waiting on Yasser or Omar to roll the teams.` — and with none it
+   * says `an admin` (2026-10-03). Optional so fixture tests keep the generic sentence.
+   */
+  admins?: readonly PlayerName[];
 }
 
 export function TonightView({
@@ -120,9 +135,10 @@ export function TonightView({
   onLobbyStarted,
   onRollSettled,
   mystery = null,
+  admins = [],
 }: TonightViewProps) {
   const state = tonightState(snapshot);
-  const header = tonightHeader(state);
+  const header = tonightHeader(state, admins);
   const seatViewer = { puuid: viewerPuuid(viewer), isAdmin: viewerIsAdmin(viewer) };
   /**
    * M4.10's lobby line is for a **signed-in viewer matched to a player row** and nobody else
@@ -192,17 +208,17 @@ export function TonightView({
          * ten empty seats are 480px, so a button under them is under the fold on the phone
          * this page is designed for, and on an idle page it is the only thing to do.
          */}
-        {state.kind === 'idle' ? (startLobby ?? startSignIn) : null}
-        {idle ? <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" /> : null}
-        {idle ? <FearlessCard fearless={snapshot.fearless} /> : null}
-        {state.kind === 'idle' ? <Idle /> : null}
+        {idle ? (startLobby ?? startSignIn) : null}
+        {idle ? <Idle /> : null}
         {state.kind === 'filling' ? (
           <section className="cn-block">
             <SeatRack members={state.lobby.members} viewerPuuid={seatViewer.puuid} />
             <Roll lobby={state.lobby} isAdmin={seatViewer.isAdmin} onSettled={onRollSettled} />
             {/* The readout, under the rack it is about: how many were invited, or a create
-                that failed. No button — there is a lobby already. */}
-            {startLobby}
+                that failed. No button — there is a lobby already. **Only while the lobby is
+                still short of ten** (2026-10-03): from ten on `waiting for them to accept` is
+                stale, and it crowded the roll out of a stack of notes under the rack. */}
+            {rollStage(state.lobby) === 'waiting' ? startLobby : null}
             <MissedInvite lobby={state.lobby} linked={linked} />
           </section>
         ) : null}
@@ -220,23 +236,60 @@ export function TonightView({
         {/* M3.10's one quiet line, under the block and never per row. */}
         {hasNamelessRow(state, snapshot.tape) ? <p className="cn-hint">{NAMELESS_HINT}</p> : null}
 
-        {idle ? null : <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />}
-        {idle ? null : <FearlessCard fearless={snapshot.fearless} />}
+        {/*
+         * `Your role tonight` (M3.6), **directly under the rack while the lobby fills**
+         * (2026-10-03). It is the one time-sensitive input on the page — a tap only counts
+         * before the admin rolls — and last in the column it sat under Fearless, thousands of
+         * pixels down a phone. Under the primary block it still cannot move it. In every other
+         * state it stays last (below).
+         */}
+        {state.kind === 'filling' ? (
+          <RoleTonight lobby={snapshot.lobby} viewer={viewer} onViewerChanged={onViewerChanged} />
+        ) : null}
 
         {/*
-         * The night tape (M11.2): after Fearless, directly before `Your role tonight`, in every
-         * state. History never pushes the fearless find box below the fold during pick.
+         * The secondary cards, after the primary block **in every state**, the idle page
+         * included (2026-10-03): the column order is the same before and after the first person
+         * joins, so the first join does not reshuffle the page.
+         *
+         * - `teams`: Fearless first and the daily pointer after it. During pick the find box is
+         *   the point, and seventy pixels of teaser between the explanation and it is in the way.
+         * - `result`: the night tape before Fearless. A game just ended, and the night's story is
+         *   what a reader wants then; Fearless matters during pick, not after.
+         * - everything else: the pointer, then Fearless, then the tape.
+         *
+         * The tape (M11.2) never pushes the fearless find box below the fold during pick.
          */}
-        <NightTape tape={snapshot.tape} />
+        {state.kind === 'teams' ? (
+          <>
+            <FearlessCard fearless={snapshot.fearless} />
+            <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />
+            <NightTape tape={snapshot.tape} />
+          </>
+        ) : state.kind === 'result' ? (
+          <>
+            <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />
+            <NightTape tape={snapshot.tape} />
+            <FearlessCard fearless={snapshot.fearless} />
+          </>
+        ) : (
+          <>
+            <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />
+            <FearlessCard fearless={snapshot.fearless} />
+            <NightTape tape={snapshot.tape} />
+          </>
+        )}
 
         {/*
          * `Your role tonight`, and the `That's me` list behind it (M3.6). **Last in the
-         * column, in every state**, so appearing or disappearing cannot move the primary
-         * block: five 44px targets do not fit inside a 44px rack row, and the rack is ten
-         * rows at every count. It draws nothing at all for the common case — a visitor who
-         * is not signed in and no live lobby.
+         * column outside `filling`**, where all it says is that the teams are already set or
+         * how to sign in, so appearing or disappearing cannot move the primary block: five 44px
+         * targets do not fit inside a 44px rack row. It draws nothing at all for the common
+         * case — a visitor who is not signed in and no live lobby.
          */}
-        <RoleTonight lobby={snapshot.lobby} viewer={viewer} onViewerChanged={onViewerChanged} />
+        {state.kind === 'filling' ? null : (
+          <RoleTonight lobby={snapshot.lobby} viewer={viewer} onViewerChanged={onViewerChanged} />
+        )}
       </main>
 
       <aside className="cn-rail" aria-label="About this page">
@@ -384,6 +437,21 @@ function TeamsBlock({
         showReroll={viewer.isAdmin && lobby.status === 'balanced'}
       />
       {/*
+       * M3.31's one line, **under the explanation strip and not between it and the cards**: it
+       * is a gloss of the strip's first clause, so it reads after the sentence it re-says. Gated
+       * on the status and not on the block, like the lines around it: `teams` also draws an
+       * `in_game` lobby and a **finished** game the fold did not rate, and `Teams are 92% even.`
+       * under either is a line about a decision the night has already closed. (Restored
+       * 2026-10-03: M4.11's commit dropped it with no decision behind it.)
+       */}
+      {lobby.status === 'balanced' ? <Evenness blueWinProb={teams.blueWinProb} /> : null}
+      {/*
+       * `Reroll 1 of 2. Teams changed.` (2026-10-03), to every viewer, while the teams on screen
+       * are not the balancer's first split — what Discord's reroll title already says. Balanced
+       * only: once the game is up the teams on the rift are the teams.
+       */}
+      {lobby.status === 'balanced' ? <RerollMarker splits={teams.splits} /> : null}
+      {/*
        * Still true while the teams are up and people are moving to their sides, and **gone the
        * moment the game starts**, when there is nothing left to join (M4.10). `in_game` renders
        * this same block, so the line is gated on the status and not on the block.
@@ -396,8 +464,9 @@ function TeamsBlock({
 /**
  * The roll, under the rack while the lobby fills (2026-10-03). Ingest no longer balances, so a
  * full lobby sits at `open` until an admin presses — and a friend watching ten names and no
- * teams is owed the reason. Everybody gets {@link ROLL_HINT}; an admin, once there are ten to
- * roll (or a roll to repair), gets the button in its place.
+ * teams is owed the reason. While the lobby is short of ten everybody gets {@link ROLL_HINT}; from
+ * ten on an admin gets the button (or the repair press) in its place, and everybody else gets
+ * nothing here — the strip's sentence names the admins and carries it alone.
  *
  * Under the rack, never above it: the rack is ten rows at every count, so the line appearing,
  * and the button replacing it at ten, moves nothing a reader is looking at.
@@ -414,6 +483,9 @@ function Roll({
   const stage = rollStage(lobby);
   if (stage === 'none') return null;
   const press = isAdmin && (stage === 'ready' || stage === 'repair');
+  // At ten or more the strip's sentence names who can roll (2026-10-03), so the hint under the
+  // rack would only say it a second time. It explains what is coming while the lobby fills.
+  if (!press && stage === 'ready') return null;
 
   return (
     <div className="cn-roll">
@@ -424,6 +496,25 @@ function Roll({
       )}
     </div>
   );
+}
+
+/**
+ * `Teams are 92% even.` (M3.31): `evenness` of the chosen split's **stored** `blue_win_prob`,
+ * the number the explanation's own first clause was written from, so the two can never
+ * disagree. No line at all when there is no usable probability.
+ */
+function Evenness({ blueWinProb }: { blueWinProb: number | null | undefined }) {
+  const line = evennessLine(blueWinProb);
+  if (line === null) return null;
+  return <p className="cn-even">{line}</p>;
+}
+
+/** `Reroll 1 of 2. Teams changed.`, or nothing while the balancer's first split is up. */
+function RerollMarker({ splits }: { splits: TeamsView['splits'] }) {
+  const chosen = splits.find((split) => split.isChosen);
+  const line = rerollMarker(chosen?.rank ?? null, splits.length);
+  if (line === null) return null;
+  return <p className="cn-reroll-marker">{line}</p>;
 }
 
 /**

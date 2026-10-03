@@ -656,7 +656,14 @@ Nobody has a role set, so the balancer treats everyone as flexible.
 - **The reroll control stays on the explanation strip** and does not move to the top bar. The button means
   "give me a different version of *this sentence*"; in a header it would be a control with no object. On phone
   it is full width below the sentence, on ≥720px it is right-aligned beside it. The disabled state and the
-  `No more splits. …` note are unchanged.
+  `No more splits. …` note are unchanged. **In flight it is quiet (`aria-disabled` + `.cn-button-quiet`), never
+  `disabled`** (2026-10-03, the M3.20 rule the roll and `Start a lobby` already follow); the real attribute is
+  only for the spent last split. A refusal is the route's words through `asSentence`, `text` at 600
+  (`.cn-reroll-note-refused`), like the other two amber controls' refusals.
+- **Under the explanation strip, in `balanced` only:** `Teams are 92% even.` (M3.31, `.cn-even`; restored
+  2026-10-03 after M4.11's commit dropped it), then, when the teams on screen are not rank 1,
+  `Reroll 1 of 2. Teams changed.` (`.cn-reroll-marker`, `t-sm` `text`, to every viewer; 2026-10-03). Both are
+  below the cards, so a reroll moves nothing above them.
 - The sit-out strip stays **above** the cards, for v1's reason. It gets the card treatment and the 3px `brand`
   leading rule and **no header bar**: its own sentence opens `Sitting out this game: …`, and a `SITTING OUT`
   label above that is the same three words twice, 45px above the fold on the one screen where the second team
@@ -952,9 +959,13 @@ state and not a feed. It answers question 3 ("what happened?") for the whole nig
   list never auto-scrolls.
 - **Hidden when there is nothing to log.** No beats means no card, no heading and no empty sentence, the
   same rule as fearless.
-- **Placement: after Fearless, directly before `Your role tonight`, in every state.** The fearless find box
+- **Placement: after Fearless, directly before `Your role tonight`** — except in `result`, where it sits
+  **before** Fearless (2026-10-03: a game just ended and the night's story is the point; Fearless matters
+  during pick), and in `filling`, where `Your role tonight` has moved up under the rack. The fearless find box
   is a live tool used during pick. By the third game the tape is 10 or more rows (about 300px), and history
-  must not push a live tool below the fold. `Your role tonight` stays last, per M3.6. The tape grows only
+  must not push a live tool below the fold. `Your role tonight` stays last, per M3.6 — **except in
+  `filling`** (2026-10-03), where it sits directly under the rack: a role tap only counts before the roll,
+  and last in the column it was under Fearless, thousands of pixels down a phone. The tape grows only
   when a beat lands, and every beat is also a state change that already replaces the primary block, so a new
   row never moves a pixel on its own. **Desktop:** main column, never the rail. The rail never carries state.
 
@@ -1043,12 +1054,16 @@ the review found one real defect. Everything else follows from rules already on 
 
 - **Where: under the rack, never above it.** This is the opposite of `Start a lobby`, and on purpose. In `idle`
   the rack is a picture and the button is the point, so the button goes first. In `filling` the ten names are
-  what the admin has to check before pressing (`Check these are the right people, then roll.`): read, then
+  what the admin has to check before pressing (`Check everyone who is staying is in, then roll. Past ten, the bot
+  picks who sits out.` since 2026-10-03; was `Check these are the right people, then roll.`): read, then
   press. The rack is ten rows at every count, so the hint appearing, and the button replacing it at ten, moves
   nothing above it.
-- **Who sees what.** Everybody gets `ROLL_HINT` (`Once the right ten are in, an admin rolls the teams.`) in the
-  `.cn-hint` dress, Archivo `t-sm` `dim`: it is an aside about somebody else's press. An admin, once there is a
-  roll to make, gets the instruction and the button **in its place**, never both. The instruction is `t-sm` 400
+- **Who sees what.** While the lobby is short of ten everybody gets `ROLL_HINT` (`Once everyone who is staying
+  is in, an admin rolls the teams.` since 2026-10-03; was `Once the right ten are in, …`) in the `.cn-hint`
+  dress, Archivo `t-sm` `dim`: it is an aside about somebody else's press. From ten on an admin gets the
+  instruction and the button **in its place**, never both, and **everybody else gets nothing under the rack**
+  (2026-10-03): the strip's sentence names the admins and carries it alone. The `Start a lobby` readout under
+  the rack also goes at ten — `waiting for them to accept` is stale by then. The instruction is `t-sm` 400
   **`text`**, not `dim`, because it is the one line the admin is meant to act on (the `Missed the invite?`
   rule).
 - **Order inside the form:** instruction, button, then the one refusal slot. The instruction goes **above** the
@@ -1228,11 +1243,11 @@ placement are the designer's and are untouched.
 | strip headline, balanced | `TEAMS ARE SET` | product 2026-09-09 — code says `Teams set` |
 | strip headline, in game | `IN GAME` | product 2026-09-09 |
 | strip headline, finished | `GAME OVER` | product 2026-09-09 — **changed**, code says `Final` |
-| sentence, idle | *(shipped)* `When ten of you are in a custom lobby with the companion running, the teams show up here.` | shipped, kept |
+| sentence, idle | `When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.` | **re-worded 2026-10-03** (product review) — was M1.10's `… the teams show up here.`, false since teams appear only on an admin's `Roll teams`. Names the press and keeps the bot as the one who picks, in the two lines the strip reserves |
 | sentence, 0 in | *(shipped)* `Nobody in the lobby yet.` — in the strip, and **not repeated under the rack** | product 2026-09-09 — **changed** |
 | sentence, 1–9 in | `One more to go.` … `Nine more to go.` (word, not digit — the digit is already 44px above it) | product 2026-09-09 |
-| sentence, 10 in | `Waiting on an admin to roll the teams.` | **re-worded 2026-10-03** with the admin roll trigger — was `Teams in a moment.` (product 2026-09-09), which became false once ingest stopped balancing by itself: teams appear only when an admin presses `Roll teams`. Kept as a strip sentence rather than removed: the strip is the page's live line and must hold one at ten, while the roll hint under the rack is not live and is replaced by the button for an admin |
-| sentence, 11+ in | `Ten play, the rest sit out this game.` | product 2026-09-09 |
+| sentence, 10 in | `Waiting on Yasser or Omar to roll the teams.` — the admins by name, up to three (`Yasser, Omar or Sara`); `Waiting on an admin to roll the teams.` with none on record, a nameless row, or more than three | **names added 2026-10-03** (decision row of that date: transparency, not a permission change). **re-worded 2026-10-03** with the admin roll trigger — was `Teams in a moment.` (product 2026-09-09), which became false once ingest stopped balancing by itself: teams appear only when an admin presses `Roll teams`. Kept as a strip sentence rather than removed: the strip is the page's live line and must hold one at ten, while the roll hint under the rack is not live and is replaced by the button for an admin |
+| sentence, 11+ in | `Ten play, the rest sit out. Waiting on Yasser to roll the teams.` (the same admin naming and fallback as at ten) | **re-worded 2026-10-03** — was `Ten play, the rest sit out this game.` (product 2026-09-09), which on an `open` lobby read as if the ten were already decided; it now says the teams are waiting on the roll |
 | sentence, balanced | `Split by rating and role. Nobody picked the teams.` | product 2026-09-09 — **changed** |
 | sentence, in game | `Ratings move when it ends.` | product 2026-09-09 — **changed** |
 | sentence, finished rated | `Ratings are updated. The leaderboard has the rest.` | product 2026-09-09 — **changed** |
@@ -1269,11 +1284,11 @@ placement are the designer's and are untouched.
 | nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `1v1` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is; **`1v1` added 2026-09-18 (M8.5)** after `Fun` |
 | footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
 | how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
-| how this works, line 2 | `The bot makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.` | product 2026-09-09 — **changed** |
+| how this works, line 2 | `When everyone is in, an admin taps Roll teams. Who plays with whom is the bot's call: it makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.` | **re-worded 2026-10-03** (product review) — no string on `/` may say or imply teams appear with no tap; the bot-as-referee half stays beside the roll |
 | how this works, line 3 | `Results come off the end-of-game screen. Nobody reports a score.` | product 2026-09-09 |
 | how this works, line 4 | `Everybody starts on the same rating, and every Summoner's Rift result moves it. Proven is the board's careful version of it and settles after about 30 games.` | **re-worded, product 2026-09-16 (M7.19, step 3 of two)** — was `Your rating starts from your rank and moves with every result. Proven is the board's careful version of it and catches up after about 30 games.`, which was false in three ways at once, and this one string fixes all three: nothing starts from a rank any more (M7.19), an ARAM result moves nothing (M7.1), and `catches up` is the verb M3.19 retired. The designer's proposed string fixed two of the three and kept `starts from your rank`, so it is superseded rather than taken. **Two sentences, not three**: the first-few-nights swing is real and is the answer to "why did my number jump 110?", but the four lines are the whole system in four lines and this one already carries two ideas; the group hears that part in M7.19's own message to them (acceptance 7) and `/p/[puuid]` carries the per-player version. **It does not name ARAM.** Saying which mode counts is true and short; saying which mode does not invites a footer line about a mode this line is not about, and M7.18 is the task that labels the two counts where they actually collide. The line moves from second person to `Everybody` on purpose: the fact that changed is that the start is the same for all ten, and that is not a sentence about you. **The defects this replaces, raised by the designer 2026-09-16 (M7 review), both product's to fix in `lib/shellCopy.ts`, both fixed here.** (1) **`moves with every result` is false since M7.1** — ARAM results move nothing, `00-product.md` says so in a paragraph of its own ("Only Summoner's Rift customs move the number"), and the group was told exactly that on 2026-09-16 when the rebuild ran. This line is in the footer of every page and in the rail card, so it is the product's most-printed claim about ratings and it is the one a player can now catch out. (2) **`catches up` is the word M3.19 ruled out** — `SETTLING_SENTENCE` was rewritten on 2026-09-10 precisely because the gap **settles** and never closes, and this line kept the retired verb, so the two sentences a reader meets on one visit disagree about what Proven does. ~~Proposed, one string fixing both: `Your rating starts from your rank and moves with every Summoner's Rift result. Proven is the board's careful version of it and settles after about 30 games.`~~ — **superseded 2026-09-16 by the string in column 2**, which drops the third falsehood the proposal kept. Nothing about MVP and ACE belongs in it — four lines are the whole system and `/p/[puuid]`'s own explanation carries that one |
 | companion card, title | `Run the companion` | product 2026-09-09 |
-| companion card, body | `Windows only. Install it once, paste in the token an admin gives you, and leave it running while you play.` | product 2026-09-09 — **changed** |
+| companion card, body | `Windows only. Most of you run Kustom in Overlay mode, which needs no token. The one or two PCs in Host mode need a token from an admin and stay running while you play.` | **corrected 2026-10-03** — the old body told every player to get a token, untrue since Host / Overlay (2026-09-23 decision row) |
 | companion card, link | `Get the companion` → `https://github.com/suyaser/kustom-releases/releases/latest` | product 2026-09-09 |
 
 **Why the nine changed.** Each one is a rule, not a preference, so the next string is decided the same way.
@@ -3341,6 +3356,17 @@ and `sp-1` below when a `banned` fold ends the lane, because the 44px fold row i
 **Known cost.** On a phone, with open always shown, the card is long: about 400px per lane at 24 open. The find
 box is first in the card for exactly that reason. If length becomes a complaint, the next step is a lane filter
 at the top of the card (the five role words as 44px toggles), **not** folding the open lists again.
+
+**Lane filter (built 2026-10-03).** Directly under the find box: the five role words as 44px toggles
+(`.cn-fearless-filter`), in the role tap's own dress (`.cn-role-choice`, `.cn-role-on`, `aria-pressed`) and its
+3 + 2 grid at 390px, inside a `role="group"` named `Lanes to show`. All on by default. Off hides that lane;
+`other` shows only while all five are on. Turning the last one off turns all five back on. **Typing in the find
+box ignores the filter** (a match hidden by a toggle would read as `No champion matches.`), and the toggles
+apply again once the box is empty. Local state only; nothing is posted.
+
+**The card's head is ruled off** (2026-10-03): `.cn-fearless-head` carries `padding-bottom: sp-3` and a 1px
+`line` bottom border, so the `t-base` lane headings read as parts of this card rather than page headings, and
+the first lane drops its own top border.
 
 ### The player page (`/p/[puuid]`) — settled 2026-09-09
 

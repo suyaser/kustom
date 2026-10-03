@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
-import { REROLL_LABEL } from '@/lib/tonight/copy';
+import { asSentence, REROLL_FAILED, REROLL_LABEL, REROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { nextRerollSplit } from '@/lib/tonight/state';
 import type { SplitChoice } from '@/lib/tonight/types';
 
@@ -22,6 +22,11 @@ import type { SplitChoice } from '@/lib/tonight/types';
  * the route's notice in the query string; submitted as JSON, which is the normal path, nothing
  * navigates at all and the promoted split arrives through Realtime like every other change,
  * which is what keeps the strip from scrolling under a thumb.
+ *
+ * **Quiet while a press is in flight, never `disabled`** (M3.20, the rule `RollControl` and
+ * `StartLobby` follow): a disabled control drops the focus to `<body>`. The real attribute is
+ * kept for the one permanent case, the last split on the board, where there is nothing left to
+ * press and `NO_MORE_SPLITS` says so beside it.
  */
 export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: readonly SplitChoice[] }) {
   const [pending, setPending] = useState(false);
@@ -32,6 +37,8 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     if (next === null) return;
     event.preventDefault();
+    // A second press while the first is in flight does nothing: the button is only quiet.
+    if (pending) return;
     setPending(true);
     setFailed(null);
     try {
@@ -45,7 +52,7 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
         setFailed(errorOf(body));
       }
     } catch {
-      setFailed('That did not reach the server. The teams have not changed.');
+      setFailed(REROLL_UNREACHABLE);
     } finally {
       setPending(false);
     }
@@ -64,11 +71,18 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
           <input type="hidden" name="redirectTo" value="/" />
         </>
       )}
-      <button className="cn-button" type="submit" disabled={next === null || pending}>
+      <button
+        className={pending ? 'cn-button cn-button-quiet' : 'cn-button'}
+        type="submit"
+        disabled={next === null}
+        aria-disabled={pending || undefined}
+      >
         {REROLL_LABEL}
       </button>
       {failed === null ? null : (
-        <p className="cn-reroll-note" role="alert">
+        // `text` at 600, like the roll's and the start control's refusals: the answer to a
+        // press has to be found without hunting.
+        <p className="cn-reroll-note cn-reroll-note-refused" role="alert">
           {failed}
         </p>
       )}
@@ -76,11 +90,15 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
   );
 }
 
-/** The API's envelope is `{ ok: false, error }`. Anything else gets a sentence of our own. */
+/**
+ * The API's envelope is `{ ok: false, error }`. The route's sentences are written for `/admin`,
+ * lower case with no stop, so each gets a capital and a full stop here (`asSentence`, shared
+ * with `RollControl`). Anything else gets a sentence of our own.
+ */
 function errorOf(body: unknown): string {
   if (typeof body === 'object' && body !== null && 'error' in body) {
     const error = (body as { error: unknown }).error;
-    if (typeof error === 'string' && error.length > 0) return error;
+    if (typeof error === 'string' && error.trim().length > 0) return asSentence(error);
   }
-  return 'That reroll did not go through. The teams have not changed.';
+  return REROLL_FAILED;
 }

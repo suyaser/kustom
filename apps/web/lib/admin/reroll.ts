@@ -191,7 +191,7 @@ async function readSeatedMembers(client: ServiceClient, lobbyId: string): Promis
 function notBalancedMessage(status: LobbyStatusValue): string {
   switch (status) {
     case 'open':
-      return 'that lobby has no teams yet; an admin rolls them once the right ten are in';
+      return 'that lobby has no teams yet; an admin rolls them once everyone who is staying is in';
     case 'in_game':
     // A `dropped` lobby is one whose game started and whose result never arrived (M5.11).
     // The same sentence is still the true one, and the admin page gains no new word for it.

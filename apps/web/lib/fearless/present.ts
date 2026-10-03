@@ -167,3 +167,34 @@ function laneRank(role: RoleValue | null): number {
   const index = LANE_ORDER.indexOf(role);
   return index === -1 ? LANE_ORDER.length : index;
 }
+
+/**
+ * Which lanes the card lists, given the reader's toggles and the find box (2026-10-03).
+ *
+ * - **All five on** (the default) lists every lane, `other` included: the card as it was.
+ * - **Some off** lists only the lanes still on. `other` goes too — it is not a lane anybody
+ *   picks for, and a reader who narrowed to `jungle` asked for jungle.
+ * - **Typing overrides the filter.** The find box is how a pick is checked, and a match hidden
+ *   because its lane is toggled off would read as `No champion matches.` — the same reason
+ *   typing opens every `banned` fold. The toggles keep their state and apply again once the box
+ *   is empty.
+ */
+export function fearlessLanesShown<T extends { role: RoleValue | null }>(
+  lanes: readonly T[],
+  shown: ReadonlySet<RoleValue>,
+  query: string,
+): T[] {
+  if (query.trim().length > 0 || shown.size === LANE_ORDER.length) return [...lanes];
+  return lanes.filter((lane) => lane.role !== null && shown.has(lane.role));
+}
+
+/**
+ * Toggle one lane. Turning the last lane off turns all five back on: a card that lists nothing
+ * is not a state anybody asked for, and "show me everything" is the one sensible reading of it.
+ */
+export function toggleFearlessLane(shown: ReadonlySet<RoleValue>, role: RoleValue): Set<RoleValue> {
+  const next = new Set(shown);
+  if (next.has(role)) next.delete(role);
+  else next.add(role);
+  return next.size === 0 ? new Set(LANE_ORDER) : next;
+}

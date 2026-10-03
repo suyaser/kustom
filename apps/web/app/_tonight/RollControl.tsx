@@ -1,7 +1,7 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
-import { ROLL_ADMIN_HINT, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
+import { asSentence, ROLL_ADMIN_HINT, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { rollRosterKey } from '@/lib/tonight/state';
 import type { MemberView } from '@/lib/tonight/types';
 
@@ -101,9 +101,4 @@ function errorOf(body: unknown): string {
     if (typeof error === 'string' && error.trim().length > 0) return asSentence(error.trim());
   }
   return ROLL_FAILED;
-}
-
-function asSentence(text: string): string {
-  const capital = text.charAt(0).toUpperCase() + text.slice(1);
-  return /[.!?]$/.test(capital) ? capital : `${capital}.`;
 }

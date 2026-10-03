@@ -8,7 +8,7 @@ import { createPublicClient } from '@/lib/publicClient';
 import { loadTonight } from '@/lib/tonight/load';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { hasNamelessRow, tonightState } from '@/lib/tonight/state';
-import type { TonightSnapshot } from '@/lib/tonight/types';
+import type { PlayerName, TonightSnapshot } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import { TonightView } from './TonightView';
 
@@ -85,6 +85,12 @@ export interface TonightLiveProps {
    */
   lobbyStart?: LobbyStartView | null;
   mystery?: MysteryPageState | null;
+  /**
+   * The admins' display names (`lib/tonight/admins.ts`), read once with the page for the strip's
+   * `Waiting on … to roll the teams.` Not re-read on a Realtime event: who the admins are does
+   * not change during a night.
+   */
+  admins?: readonly PlayerName[];
 }
 
 export function TonightLive({
@@ -93,6 +99,7 @@ export function TonightLive({
   topPlayers,
   lobbyStart = null,
   mystery = null,
+  admins = [],
 }: TonightLiveProps) {
   const [snapshot, setSnapshot] = useState(initial);
   const router = useRouter();
@@ -221,6 +228,7 @@ export function TonightLive({
       onLobbyStarted={refreshServer}
       onRollSettled={onRollSettled}
       mystery={mystery}
+      admins={admins}
     />
   );
 }

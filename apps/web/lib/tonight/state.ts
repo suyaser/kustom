@@ -84,8 +84,11 @@ export interface HeaderView {
  *
  * Every string is product's, from the final copy table (05-design.md, 2026-09-09), and
  * `state.test.ts` pins one per state.
+ *
+ * `admins` is the group's admins by display name (`lib/tonight/admins.ts`), only read by the
+ * filling sentence at ten or more. Optional so the share card keeps the generic sentence.
  */
-export function tonightHeader(state: TonightState): HeaderView {
+export function tonightHeader(state: TonightState, admins: readonly PlayerName[] = []): HeaderView {
   switch (state.kind) {
     case 'idle':
       return { headline: HEADLINE_IDLE, count: null, sentence: IDLE_SENTENCE, live: false };
@@ -94,7 +97,9 @@ export function tonightHeader(state: TonightState): HeaderView {
       return {
         headline: HEADLINE_FILLING,
         count: around,
-        sentence: fillingSentence(around),
+        // At ten or more the sentence names who can roll (2026-10-03); `admins` is read once
+        // with the page, and an empty list is today's generic `an admin`.
+        sentence: fillingSentence(around, admins),
         live: true,
       };
     }
