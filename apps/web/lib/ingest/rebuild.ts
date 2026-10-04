@@ -1,4 +1,4 @@
-import type { Rating } from '@customs/core';
+import { displayRating, foldWinProbability, printedChange, type Rating } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
 import { gameModeFromRaw } from '../games/queue';
 import type { ServiceClient } from '../supabase';
@@ -15,6 +15,13 @@ import {
 } from './fold';
 import { kustomWeekStart } from './kustomWeek';
 import { countsForRatings, readRatingsSince } from './ratingsEpoch';
+import {
+  type CompareChange,
+  type CompareGame,
+  compareRebuild,
+  formatComparison,
+  type RebuildComparison,
+} from './rebuildCompare';
 import { recomputeInferredRoles, selectAllPlayerIds } from './roles';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
@@ -162,6 +169,12 @@ export interface RebuildReport {
    * Rating, and weeks with at least one rated game.
    */
   kustom: { gamePlayerRows: number; ratingRows: number; weeks: number };
+  /**
+   * The M18.10 gate (M18.5, `rebuildCompare.ts`): the Kustom fold against the stored numbers over
+   * the same games -- log loss, Spearman, top 3, places moved and a short side by side. Printed on
+   * a dry run. Null for a group with no rated game since the epoch.
+   */
+  comparison: RebuildComparison | null;
   skipped: Record<RebuildSkipReason, number>;
   /**
    * `game_players` rows whose rating columns or fold breakdown changed (or would, on a dry run).
@@ -243,6 +256,8 @@ interface SnapshotRow extends FoldRatedPlayer {
   gameId: string;
   rankTier: string | null;
   rankDivision: string | null;
+  /** `players.display_name ?? game_name`, for the dry run's side by side only. */
+  name: string | null;
   muBefore: number | null;
   sigmaBefore: number | null;
   muAfter: number | null;
@@ -359,6 +374,12 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   let weeks = 0;
   let kustomRows = 0;
 
+  const compareGames: CompareGame[] = [];
+  const compareChanges: CompareChange[] = [];
+  let lastRatedAt: string | null = null;
+  const names = new Map<string, string>();
+  for (const row of rows) if (row.name !== null) names.set(row.playerId, row.name);
+
   const storedRow = new Map<string, SnapshotRow>();
   for (const row of rows) storedRow.set(`${row.gameId}:${row.playerId}`, row);
 
@@ -439,6 +460,19 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
 
     const outcomes = foldGameOutcomes(gate.blue, gate.red, before, game.winningSide);
 
+    // The M18.10 gate's inputs (read-only): blue's stored OpenSkill odds -- an OpenSkill-era row's
+    // `fold_p`, else `foldWinProbability` of the stored befores, which is the same number (M14.59)
+    // -- beside blue's Kustom expected, and each row's stored and new printed change.
+    compareGames.push({
+      blueWon: game.winningSide === 100,
+      oldBlueP: storedBlueP(
+        gate.blue.map((p) => storedRow.get(`${game.id}:${p.playerId}`)),
+        gate.red.map((p) => storedRow.get(`${game.id}:${p.playerId}`)),
+      ),
+      newBlueP: kustom.get((gate.blue[0] as FoldRatedPlayer).playerId)?.allTime?.expected as number,
+    });
+    lastRatedAt = game.startedAt;
+
     for (const player of players) {
       const playerBefore = before.get(player.playerId) as Rating;
       const outcome = outcomes.get(player.playerId) as FoldOutcome;
@@ -447,6 +481,16 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
       const playerAfter = outcome.after;
       current.set(player.playerId, playerAfter);
       allTime.set(player.playerId, { r: kAllTime.rAfter, n: kAllTime.n + 1 });
+      const old = storedRow.get(`${game.id}:${player.playerId}`);
+      compareChanges.push({
+        playerId: player.playerId,
+        startedAt: game.startedAt,
+        oldChange:
+          old?.muBefore == null || old.muAfter == null
+            ? null
+            : displayRating(old.muAfter) - displayRating(old.muBefore),
+        newChange: printedChange(kAllTime.rBefore, kAllTime.rAfter),
+      });
       week.set(player.playerId, { r: k.week.rAfter, n: k.week.n + 1 });
       const tally = played.get(player.playerId) ?? { games: 0, wins: 0 };
       played.set(player.playerId, {
@@ -571,6 +615,29 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
 
   const orphans = [...storedRatings.keys()].filter((playerId) => !played.has(playerId));
 
+  const comparison =
+    rated === 0
+      ? null
+      : compareRebuild({
+          games: compareGames,
+          changes: compareChanges,
+          players: [...played].map(([playerId, tally]) => {
+            const mu = storedRatings.get(playerId)?.mu ?? null;
+            return {
+              playerId,
+              name: names.get(playerId) ?? (puuids.get(playerId) ?? playerId).slice(0, 12),
+              games: tally.games,
+              oldRating: mu === null ? null : displayRating(mu),
+              newRating: Math.round((allTime.get(playerId) ?? KUSTOM_FRESH).r),
+            };
+          }),
+          // The last two weeks: from the boundary a week before the last rated game's week.
+          recentSince:
+            lastRatedAt === null
+              ? null
+              : new Date(Date.parse(kustomWeekStart(lastRatedAt, timeZone)) - 7 * 86_400_000).toISOString(),
+        });
+
   const report: RebuildReport = {
     groupId,
     groupSlug,
@@ -579,6 +646,7 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
     rated,
     weeklyOnly,
     kustom: { gamePlayerRows: kustomRows, ratingRows: played.size, weeks },
+    comparison,
     skipped,
     gamePlayerRowsChanged: changedRows.length,
     breakdownsFilled,
@@ -787,6 +855,25 @@ function weekColumns(outcome: KustomFoldOutcome) {
   };
 }
 
+/**
+ * Blue's stored OpenSkill odds for the gate: the `fold_p` of a blue row the OpenSkill fold wrote
+ * (`r_after` null), else `foldWinProbability` of the ten stored befores, else null.
+ */
+function storedBlueP(
+  blue: readonly (SnapshotRow | undefined)[],
+  red: readonly (SnapshotRow | undefined)[],
+): number | null {
+  const first = blue[0];
+  if (first !== undefined && first.rAfter === null && first.foldP !== null) return first.foldP;
+  const befores = (side: readonly (SnapshotRow | undefined)[]) =>
+    side.flatMap((row) =>
+      row?.muBefore == null || row.sigmaBefore == null ? [] : [{ mu: row.muBefore, sigma: row.sigmaBefore }],
+    );
+  const b = befores(blue);
+  const r = befores(red);
+  return b.length === 5 && r.length === 5 ? foldWinProbability(b, r, 100) : null;
+}
+
 function storedAward(award: string | null): FoldAwardValue | null {
   return award === 'mvp' || award === 'ace' || award === 'none' ? award : null;
 }
@@ -900,7 +987,7 @@ async function selectGroupGamePlayers(client: ServiceClient, groupId: string): P
           // `role` and the nine stat columns are M7.9's, and are the same list `rating.ts`
           // selects: the rebuild has to be able to name the same MVP the live fold named, or the
           // two folds disagree about a game and one of them rewrites the other's numbers.
-          'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before, r_before, r_after, k, share_rank, week_r_before, week_r_after, week_k, week_fold_p, week_games_before, players!inner(puuid, rank_tier, rank_division)',
+          'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before, r_before, r_after, k, share_rank, week_r_before, week_r_after, week_k, week_fold_p, week_games_before, players!inner(puuid, rank_tier, rank_division, display_name, game_name)',
         )
         // `game_players.group_id` is always its game's (`game_players_game_group_fkey`).
         .eq('group_id', groupId)
@@ -929,6 +1016,7 @@ async function selectGroupGamePlayers(client: ServiceClient, groupId: string): P
       damageToObjectives: row.damage_to_objectives,
       rankTier: row.players.rank_tier,
       rankDivision: row.players.rank_division,
+      name: row.players.display_name ?? row.players.game_name ?? null,
       muBefore: row.mu_before,
       sigmaBefore: row.sigma_before,
       muAfter: row.mu_after,
@@ -1132,6 +1220,7 @@ export function formatRebuildReport(report: RebuildReport): string {
     );
   }
   for (const problem of report.problems) lines.push(`PROBLEM       ${problem}`);
+  if (report.dryRun && report.comparison !== null) lines.push(...formatComparison(report.comparison));
   if (report.dryRun) lines.push('dry run: nothing was written');
   return lines.join('\n');
 }

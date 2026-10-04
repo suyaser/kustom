@@ -77,7 +77,9 @@ pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] [--group <slug
                              # (the owner's Reset ratings epoch; null = every game).
                              # M18.5: folds the Kustom rating on both tracks (all-time from the epoch,
                              # weekly over every game whatever the epoch) and reports
-                             # `kustom  N game_players rows, N ratings rows, N weeks`.
+                             # `kustom  N game_players rows, N ratings rows, N weeks`. A dry run also
+                             # prints the M18.10 gate per group: Kustom log loss vs stored OpenSkill
+                             # fold_p, Spearman (10+ / all), top 3, places moved, a short side by side.
 KUSTOM_REPLAY_CSV=<export.csv> pnpm --filter web exec vitest run lib/ingest/kustomReplay.test.ts --silent=false
                              # M18.5: the M18.3 real-data replay through the implemented fold; must print
                              # log loss 0.700, Spearman 0.938 / 0.925. Reads the export in place (never
