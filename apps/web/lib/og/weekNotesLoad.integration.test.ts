@@ -135,7 +135,7 @@ if (stack === null) {
     expect(week).not.toBeNull();
     const model = await loadWeekNotes(anon, group(), week as NonNullable<typeof week>, TZ);
     expect(model?.week).toBe('WEEK 2');
-    expect(model?.counts).toBe('2 rated games · 2 nights');
+    expect(model?.counts).toBe('2\u00A0rated games · 2\u00A0nights');
     expect(model?.range).toBe('Sunday 7 Jun to Saturday 13 Jun');
     expect(model?.buffs.medals.map((medal) => [medal.name, medal.role])).toEqual([
       ['Lena', 'mid'],

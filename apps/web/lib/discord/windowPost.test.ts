@@ -54,6 +54,13 @@ vi.mock('../stats/load', () => ({
   loadStats: (...args: unknown[]) => loadStats(...args),
 }));
 
+/** M14.79: whether the closed week has a picture worth sending (`null` = nearly empty). */
+const loadWeekNotes = vi.fn(async (): Promise<unknown> => ({ week: 'WEEK 1' }));
+vi.mock('../og/weekNotesLoad', async (original) => ({
+  ...(await original<typeof import('../og/weekNotesLoad')>()),
+  loadWeekNotes: () => loadWeekNotes(),
+}));
+
 vi.mock('./webhook', () => ({
   postToWebhook: (_client: unknown, payload: WebhookPayload) => {
     sent = payload;
@@ -188,6 +195,20 @@ describe('the week notes image', () => {
     expect(pictured.embeds[0]?.fields).toEqual(local.embeds[0]?.fields);
     expect(pictured.embeds[0]?.description).toBe(local.embeds[0]?.description);
     expect(pictured.embeds[0]?.footer).toEqual(local.embeds[0]?.footer);
+  });
+
+  it('is left off a nearly empty week (the route 404s for it), and off a failed read', async () => {
+    loadStats.mockResolvedValue({ awards: null });
+    loadWeekNotes.mockResolvedValueOnce(null);
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'https://kustom.example' });
+    expect((sent as unknown as WebhookPayload).embeds[0]?.image).toBeUndefined();
+
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    loadWeekNotes.mockRejectedValueOnce(new Error('PostgREST is having a day'));
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'https://kustom.example' });
+    expect((sent as unknown as WebhookPayload).embeds[0]?.image).toBeUndefined();
+    expect((sent as unknown as WebhookPayload).embeds[0]?.fields).toBeDefined();
+    logged.mockRestore();
   });
 });
 

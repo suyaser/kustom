@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og';
 import type { CSSProperties, ReactNode } from 'react';
 import type { WeekNotesMedal, WeekNotesModel, WeekNotesTile } from '@/lib/og/weekNotes';
 import { RoleIcon } from '../_icons/RoleIcon';
-import { fitSize } from './fit';
+import { fitSize, textWidth } from './fit';
 import { OG_DISPLAY, OG_MONO, OG_TEXT, ogFonts } from './fonts';
 import { OG_PALETTE as P } from './palette';
 
@@ -46,6 +46,8 @@ const RING = 100;
 const NAME = 36;
 const NAME_FIT_MIN = 33;
 const NAME_MIN = 30;
+/** A camelCase seam break may go to 27 (7.3 px in the feed): two whole halves read better than a cut. */
+const SEAM_MIN = 27;
 const NUMBER = 36;
 const LABEL = 26;
 /** A tile's sub line carries counts (`138 still open`): 28 px, about 7.6 px in the feed. */
@@ -154,13 +156,25 @@ function SectionHead({
   );
 }
 
-/** One line from 36 down to 33; else wrapped at spaces at 36; else 30 and broken inside the word. */
-function nameFit(name: string, room: number): { size: number; wrap: CSSProperties } {
+/**
+ * One line from 36 down to 33; else wrapped at spaces at 36; else a one-word name breaks at its
+ * camelCase seam; else 30 and broken inside the word.
+ */
+function nameFit(name: string, room: number): { size: number; wrap: CSSProperties; text?: string } {
   const one = fitSize(name, 'text-bold', room, NAME, NAME_FIT_MIN);
   if (one.fits) return { size: one.size, wrap: { whiteSpace: 'nowrap' } };
   const words = name.split(/\s+/);
   if (words.length > 1 && words.every((word) => fitSize(word, 'text-bold', room, NAME, NAME).fits)) {
     return { size: NAME, wrap: { whiteSpace: 'normal' } };
+  }
+  // One long word: break at its camelCase seam (`The` / `SHADOWREAPER`) when both halves fit.
+  const seam = /^(.*\p{Ll})(\p{Lu}.*)$/u.exec(name);
+  if (seam?.[1] !== undefined && seam[2] !== undefined && words.length === 1) {
+    const halves = [seam[1], seam[2]];
+    const size = Math.min(...halves.map((half) => fitSize(half, 'text-bold', room, NAME, SEAM_MIN).size));
+    if (halves.every((half) => fitSize(half, 'text-bold', room, size, size).fits)) {
+      return { size, wrap: { whiteSpace: 'pre-line' }, text: halves.join('\n') };
+    }
   }
   const last = fitSize(name, 'text-bold', room, NAME_FIT_MIN, NAME_MIN);
   return {
@@ -173,7 +187,15 @@ function Medallion({ medal, up }: { medal: WeekNotesMedal; up: boolean }) {
   const room = MEDAL_W - 12;
   const name = nameFit(medal.name, room);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: MEDAL_W }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        width: MEDAL_W,
+        alignSelf: 'stretch',
+      }}
+    >
       <div style={{ display: 'flex', position: 'relative', width: RING, height: RING }}>
         <div
           style={{
@@ -182,7 +204,7 @@ function Medallion({ medal, up }: { medal: WeekNotesMedal; up: boolean }) {
             height: RING,
             borderRadius: RING,
             border: `${up ? 4 : 2}px solid ${up ? P.text : P.line}`,
-            backgroundColor: '#111723',
+            backgroundColor: P.raised,
             alignItems: 'center',
             justifyContent: 'center',
             ...display(40, up ? P.text : P.dim),
@@ -222,29 +244,103 @@ function Medallion({ medal, up }: { medal: WeekNotesMedal; up: boolean }) {
           ...name.wrap,
         }}
       >
-        {medal.name}
+        {name.text ?? medal.name}
       </div>
       {medal.suffix === null ? null : <div style={{ ...text(LABEL, 400, P.dim) }}>{medal.suffix}</div>}
+      {/* The points sit on the medallion's bottom edge, level across the row however the names wrap. */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'baseline',
+          alignItems: 'flex-start',
           justifyContent: 'center',
-          flexWrap: 'wrap',
           width: MEDAL_W,
-          marginTop: 2,
+          marginTop: 'auto',
+          paddingTop: 2,
         }}
       >
-        <div style={{ ...mono(NUMBER, 600, up ? P.text : P.dim) }}>{medal.points}</div>
-        <div style={{ ...mono(30, 500, P.dim), marginLeft: 10 }}>{medal.record}</div>
+        <div style={{ ...mono(NUMBER, 600, up ? P.text : P.dim), lineHeight: '44px' }}>{medal.points}</div>
+        <RecordLine wins={medal.wins} losses={medal.losses} size={recordSize(medal)} />
       </div>
+    </div>
+  );
+}
+
+const RECORD = 30;
+const RECORD_SMALL = 26;
+const POINTS_GAP = 10;
+
+/** `5W 2L`'s four tokens: digits in Martian Mono 500, `W` / `L` in Atkinson 700. */
+function recordTokens(wins: number, losses: number) {
+  return [{ num: String(wins) }, { word: 'W' }, { num: String(losses) }, { word: 'L' }] as const;
+}
+
+function recordWidth(wins: number, losses: number, size: number): number {
+  const space = textWidth(' ', 'text-bold', size);
+  return recordTokens(wins, losses).reduce(
+    (sum, token) =>
+      sum + ('num' in token ? textWidth(token.num, 'mono', size) : textWidth(token.word, 'text-bold', size)),
+    space,
+  );
+}
+
+/** 30 px, or 26 when the points and the record would not fit the medallion together. */
+function recordSize(medal: WeekNotesMedal): number {
+  const points = textWidth(medal.points, 'mono', NUMBER);
+  return points + POINTS_GAP + recordWidth(medal.wins, medal.losses, RECORD) <= MEDAL_W - 8
+    ? RECORD
+    : RECORD_SMALL;
+}
+
+/** Pixels the letters sit lower than the digits in a shared line box (`Record` in Cards.tsx, scaled). */
+const letterDrop = (size: number) => Math.round((2 * size) / 32);
+
+/**
+ * The week's W–L in dim, set per token like the cards' record (5.16 ruling (a)): no space between a
+ * digit run and its letter, one space between the pairs. Baselines lined up by hand, because Satori's
+ * `baseline` does not line up two faces with different metrics.
+ */
+function RecordLine({ wins, losses, size }: { wins: number; losses: number; size: number }) {
+  // The points' 44 px line box; Martian Mono's baseline sits 0.4 em lower per px of size there.
+  const box = '44px';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        marginLeft: POINTS_GAP,
+        marginTop: Math.round(0.4 * (NUMBER - size)),
+      }}
+    >
+      {recordTokens(wins, losses).map((token, index) =>
+        'num' in token ? (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: four fixed tokens; two can be the same digits
+            key={index}
+            style={{
+              ...mono(size, 500, P.dim),
+              lineHeight: box,
+              marginLeft: index === 0 ? 0 : textWidth(' ', 'text-bold', size),
+            }}
+          >
+            {token.num}
+          </div>
+        ) : (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: four fixed tokens
+            key={index}
+            style={{ ...text(size, 700, P.dim), lineHeight: box, marginTop: letterDrop(size) }}
+          >
+            {token.word}
+          </div>
+        ),
+      )}
     </div>
   );
 }
 
 function Medals({ medals, up }: { medals: readonly WeekNotesMedal[]; up: boolean }) {
   return (
-    <div style={{ display: 'flex', marginTop: 26 }}>
+    <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 26 }}>
       {medals.map((medal, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: a fixed, ordered list; names can repeat
         <Medallion key={index} medal={medal} up={up} />
@@ -264,7 +360,7 @@ function Tile({ tile, grow }: { tile: WeekNotesTile; grow: boolean }) {
         display: 'flex',
         flexDirection: 'column',
         padding: '10px 20px 12px',
-        backgroundColor: 'rgba(17,23,35,0.85)',
+        backgroundColor: P.card,
         border: `2px solid ${P.line}`,
         borderRadius: 10,
         ...(grow ? { flexGrow: 1, flexBasis: 0 } : {}),
@@ -297,7 +393,7 @@ function KeyBox({ model }: { model: WeekNotesModel['key'] }) {
         padding: '18px 22px 20px',
         border: `2px solid ${P.line}`,
         borderRadius: 10,
-        backgroundColor: 'rgba(5,7,12,0.9)',
+        backgroundColor: P.card,
       }}
     >
       <div style={{ ...display(30, P.dim), letterSpacing: '0.12em' }}>{model.title}</div>
@@ -385,10 +481,12 @@ export function WeekNotesBoard({ model }: { model: WeekNotesModel }) {
               </div>
             )}
           </div>
-          {/* With no NERFS the key moves under BUFFS rather than float beside an empty space. */}
-          <div style={{ display: 'flex', marginLeft: model.nerfs === null ? -3 * MEDAL_W : 'auto' }}>
-            <KeyBox model={model.key} />
-          </div>
+          {/* The key explains medallions, so it shows only beside some. With no NERFS it moves under BUFFS. */}
+          {model.buffs.medals.length === 0 && model.nerfs === null ? null : (
+            <div style={{ display: 'flex', marginLeft: model.nerfs === null ? -3 * MEDAL_W : 'auto' }}>
+              <KeyBox model={model.key} />
+            </div>
+          )}
         </div>
       </div>
 

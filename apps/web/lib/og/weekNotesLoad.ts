@@ -1,6 +1,7 @@
 import { SETTLING_GAMES } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import { ruleModeOf } from '@customs/db/schemas';
+import { z } from 'zod';
 import { loadBoard } from '../board/load';
 import { championName, isRosterChampion } from '../champs/names';
 import { loadFearless } from '../fearless/load';
@@ -11,6 +12,7 @@ import { civilDayKey, formatDayName, nightStart, weekStart, windowRange } from '
 import type { PublicClient } from '../publicClient';
 import { loadFunFacts, loadStats } from '../stats/load';
 import {
+  isNearlyEmpty,
   mostPlayedRole,
   WEEK_START_PATTERN,
   type WeekNotesInput,
@@ -50,6 +52,9 @@ export interface WeekBounds {
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
+/** The route's `[weekStart]` segment: an ISO calendar date (`2026-09-27`). Sunday and closed are checked after. */
+export const weekStartSchema = z.iso.date();
+
 /**
  * The image's `cache-control`: a day at the CDN, not immutable, so a `rebuild-ratings` that
  * refolds a closed week shows by the next day (Discord's proxy keeps its own copy anyway).
@@ -61,6 +66,8 @@ export const WEEK_NOTES_CACHE = 'public, max-age=3600, s-maxage=86400, stale-whi
  * open a week (not a Sunday), or a week that has not closed by `now`.
  */
 export function weekFromParam(param: string, timeZone: string, now: Date): WeekBounds | null {
+  // The boundary (CLAUDE.md): a real ISO calendar date, or a 404.
+  if (!weekStartSchema.safeParse(param).success) return null;
   const match = WEEK_START_PATTERN.exec(param);
   if (match === null) return null;
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
@@ -101,7 +108,8 @@ interface WeekGame {
 }
 
 /**
- * The week's model, or null when the week has no counted game (the route's 404). Every read but
+ * The week's model, or null when the week has no counted game or nothing worth a picture
+ * (`isNearlyEmpty`): the route's 404, and no image on the Sunday post. Every read but
  * the board and the week's games degrades to "nothing new" on failure, logged: a missing tile is
  * better than no picture.
  */
@@ -167,7 +175,9 @@ export async function loadWeekNotes(
     awards,
     settlingGames: SETTLING_GAMES,
   };
-  return weekNotesModel(input);
+  const model = weekNotesModel(input);
+  // Nothing worth a picture: the route 404s and the Sunday post sends no image (the lead, 2026-10-04).
+  return isNearlyEmpty(model) ? null : model;
 }
 
 async function soft<T>(what: string, fallback: T, read: () => Promise<T>): Promise<T> {

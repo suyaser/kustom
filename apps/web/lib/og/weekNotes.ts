@@ -46,7 +46,7 @@ export const WEEK_NOTES_COPY = {
   nerfs: 'NERFS',
   nerfsSub: 'gave some points back',
   key: 'KEY',
-  keyLine: 'Points: Rating won or lost in the week’s games. Mark: most-played role.',
+  keyLine: "Points: Rating won or lost in the week's games. Mark: most-played role.",
   systems: 'SYSTEMS',
   /** [NEW COPY] No rule game and no Fearless game all week. */
   systemsEmpty: 'Plain customs all week.',
@@ -63,7 +63,7 @@ export const WEEK_NOTES_COPY = {
   record: 'RECORD',
   firstPicks: 'FIRST PICKS FOR THE GROUP',
   firstPicksSub: 'champions nobody here had played before',
-  footer: 'Made by Kustom from this group’s own games. Not affiliated with or endorsed by Riot Games.',
+  footer: "Made by Kustom from this group's own games. Not affiliated with or endorsed by Riot Games.",
 } as const;
 
 const ROLE_ORDER: readonly RoleValue[] = ['top', 'jungle', 'mid', 'adc', 'support'];
@@ -155,8 +155,9 @@ export interface WeekNotesMedal {
   role: RoleValue | null;
   /** `+212`, `−61` (U+2212). */
   points: string;
-  /** `5W 2L`. */
-  record: string;
+  /** The week's W–L, as numbers: the card sets each digit run and its letter as its own token. */
+  wins: number;
+  losses: number;
 }
 
 export interface WeekNotesTile {
@@ -192,8 +193,8 @@ export function weekNotesModel(input: WeekNotesInput): WeekNotesModel {
 
   const buffs = buffRows(input.players).map(medal);
   const nerfs = nerfRows(input.players).map(medal);
-  const systems = systemTiles(input);
-  const news = newTiles(input, byPuuid);
+  const systems = systemTiles(input).map(tidyTile);
+  const news = newTiles(input, byPuuid).map(tidyTile);
 
   return {
     group: input.group,
@@ -213,6 +214,27 @@ export function weekNotesModel(input: WeekNotesInput): WeekNotesModel {
     news: { title: C.news, tiles: news, empty: news.length === 0 ? C.newsEmpty : null },
     footer: C.footer,
   };
+}
+
+function tidyTile(tile: WeekNotesTile): WeekNotesTile {
+  return {
+    label: tile.label,
+    value: keepTogether(tile.value),
+    sub: tile.sub === null ? null : keepTogether(tile.sub),
+  };
+}
+
+/**
+ * A model with nothing worth a picture (M14.79, the lead's ruling 2026-10-04): nobody up, no NERFS,
+ * plain SYSTEMS and nothing NEW. The route 404s for it and the Sunday post sends no image.
+ */
+export function isNearlyEmpty(model: WeekNotesModel): boolean {
+  return (
+    model.buffs.medals.length === 0 &&
+    model.nerfs === null &&
+    model.systems.tiles.length === 0 &&
+    model.news.tiles.length === 0
+  );
 }
 
 /** Net points above zero, most first (the board's order breaks ties). */
@@ -243,13 +265,15 @@ function medal(player: WeekNotesPlayer): WeekNotesMedal {
     suffix: player.nameSuffix ?? null,
     role: player.role,
     points: formatWebDelta(player.points),
-    record: `${player.wins}W ${player.losses}L`,
+    wins: player.wins,
+    losses: player.losses,
   };
 }
 
 /**
  * `SA` for `Syndrome Axes` (the first letters of the first two words); for one word, its first
- * character and its first digit (`H4` for `H4RDC0R33`, `P7` for `PerfPlayer7`), else its next capital
+ * character and its first run of digits, up to two (`H4` for `H4RDC0R33`, `P13` for `PerfPlayer13`,
+ * `P1` for `PerfPlayer1`), else its next capital
  * (`FH` for `FoxHound`), else its second letter (`RA` for `Ramzyinhović`). Upper case.
  */
 export function initials(name: string): string {
@@ -262,9 +286,10 @@ export function initials(name: string): string {
   const [first = '', second] = words;
   const chars = [...first];
   if (second !== undefined) return `${chars[0]}${[...second][0]}`.toUpperCase();
-  const rest = chars.slice(1);
-  const marked = rest.find((char) => /\p{N}/u.test(char)) ?? rest.find((char) => /\p{Lu}/u.test(char));
-  return `${chars[0]}${marked ?? chars[1] ?? ''}`.toUpperCase();
+  const rest = chars.slice(1).join('');
+  const digits = /\p{N}{1,2}/u.exec(rest)?.[0];
+  const capital = [...rest].find((char) => /\p{Lu}/u.test(char));
+  return `${chars[0]}${digits ?? capital ?? chars[1] ?? ''}`.toUpperCase();
 }
 
 function systemTiles(input: WeekNotesInput): WeekNotesTile[] {
@@ -354,11 +379,14 @@ function newTiles(input: WeekNotesInput, byPuuid: ReadonlyMap<string, WeekNotesP
     if (tiles.length >= NEW_MAX) break;
     const [line, ...tie] = award.line.split('\n');
     if (line === undefined || line.trim() === '') continue;
-    tiles.push({
-      label: award.label.toUpperCase(),
-      value: line,
-      sub: tie.length > 0 ? `+${tie.length} tied` : null,
-    });
+    // `XETA · 4W 1L · 80% · their main is jungle`: the qualifier goes to the sub line.
+    const qualified = /^(.*) · their (main is .+)$/u.exec(line);
+    const value = qualified?.[1] ?? line;
+    const subs = [
+      ...(qualified?.[2] === undefined ? [] : [qualified[2]]),
+      ...(tie.length > 0 ? [`+${tie.length} tied`] : []),
+    ];
+    tiles.push({ label: award.label.toUpperCase(), value, sub: joinDot(subs) });
   }
 
   return tiles.slice(0, NEW_MAX);
@@ -375,7 +403,18 @@ function joinDot(parts: readonly string[]): string | null {
 }
 
 function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
+  return `${n}${NBSP}${word}${n === 1 ? '' : 's'}`;
+}
+
+/** No-break space: a number never wraps away from its unit, nor a W from its L. */
+export const NBSP = '\u00A0';
+
+/**
+ * `48,213 damage`, `34 banned`, `4W 1L`: the space after a number (before a word, `%` or `/`) and
+ * inside a W–L pair becomes a no-break space, so a wrapped tile never strands a number on its own.
+ */
+export function keepTogether(line: string): string {
+  return line.replace(/(\d+W) (\d+L)/gu, `$1${NBSP}$2`).replace(/(\d[\d,.]*k?) (?=[\p{L}%])/gu, `$1${NBSP}`);
 }
 
 function stableSort<T>(items: readonly T[], compare: (a: T, b: T) => number): T[] {

@@ -3,7 +3,10 @@ import { WEEK_PLAYERS, weekInput, weekPlayer } from '../testing/weekNotesFixture
 import {
   BUFFS_MAX,
   initials,
+  isNearlyEmpty,
+  keepTogether,
   mostPlayedRole,
+  NBSP,
   NERFS_MAX,
   nerfRows,
   WEEK_NOTES_COPY,
@@ -24,8 +27,10 @@ describe('weekNotesModel', () => {
     const model = weekNotesModel(weekInput());
     expect(model.week).toBe('WEEK 12');
     expect(model.range).toBe('Sunday 27 Sep to Saturday 3 Oct');
-    expect(model.counts).toBe('14 rated games · 4 nights');
-    expect(weekNotesModel(weekInput({ games: 1, nights: 1 })).counts).toBe('1 rated game · 1 night');
+    expect(model.counts).toBe(`14${NBSP}rated games · 4${NBSP}nights`);
+    expect(weekNotesModel(weekInput({ games: 1, nights: 1 })).counts).toBe(
+      `1${NBSP}rated game · 1${NBSP}night`,
+    );
   });
 
   it('never carries a PUUID, anywhere in the model', () => {
@@ -36,7 +41,7 @@ describe('weekNotesModel', () => {
 
   it('carries the Riot notice verbatim as the footer', () => {
     expect(weekNotesModel(weekInput()).footer).toBe(
-      'Made by Kustom from this group’s own games. Not affiliated with or endorsed by Riot Games.',
+      "Made by Kustom from this group's own games. Not affiliated with or endorsed by Riot Games.",
     );
   });
 
@@ -57,7 +62,8 @@ describe('BUFFS', () => {
       suffix: null,
       role: 'mid',
       points: '+212',
-      record: '5W 2L',
+      wins: 5,
+      losses: 2,
     });
     expect(buffs.empty).toBeNull();
   });
@@ -127,7 +133,7 @@ describe('SYSTEMS', () => {
   it('names the most-played rule, the rest under it, and the Fearless list', () => {
     expect(weekNotesModel(weekInput()).systems.tiles).toEqual([
       { label: 'MODE OF THE NIGHT', value: 'Tanks only ×2', sub: 'Ionia vs Noxus ×1 · not rated' },
-      { label: 'FEARLESS', value: '34 banned', sub: '12 this week · 138 still open' },
+      { label: 'FEARLESS', value: '34\u00A0banned', sub: '12\u00A0this week · 138\u00A0still open' },
     ]);
   });
 
@@ -141,7 +147,7 @@ describe('SYSTEMS', () => {
   it('leaves out `0 this week` when the week added nothing to the list', () => {
     const tiles = weekNotesModel(weekInput({ modes: [], fearless: { total: 10, added: 0, open: 163 } }))
       .systems.tiles;
-    expect(tiles).toEqual([{ label: 'FEARLESS', value: '10 banned', sub: '163 still open' }]);
+    expect(tiles).toEqual([{ label: 'FEARLESS', value: '10\u00A0banned', sub: '163\u00A0still open' }]);
   });
 
   it('is a quiet line on a week with no rule and no Fearless game', () => {
@@ -155,7 +161,7 @@ describe('NEW', () => {
   it('is the first night, the record and the first picks, in that order', () => {
     expect(weekNotesModel(weekInput()).news.tiles).toEqual([
       { label: 'FIRST NIGHT', value: 'Chaos', sub: 'joined on Tuesday · settling 5/10' },
-      { label: 'RECORD', value: 'Syndrome Axes · 48,213 damage', sub: 'Most damage, new group best' },
+      { label: 'RECORD', value: 'Syndrome Axes · 48,213\u00A0damage', sub: 'Most damage, new group best' },
       {
         label: 'FIRST PICKS FOR THE GROUP',
         value: 'Smolder, Aurora, Ambessa +6',
@@ -196,7 +202,7 @@ describe('NEW', () => {
     expect(tiles[0]).toEqual({
       label: 'RECORD',
       value: 'knifiy · 20/1/4',
-      sub: 'Most kills, new group best · +2 more',
+      sub: 'Most kills, new group best · +2\u00A0more',
     });
   });
 
@@ -207,7 +213,12 @@ describe('NEW', () => {
       'BEST OFF-ROLE',
       'CURSED DUO',
     ]);
-    expect(tiles[1]?.value).toBe('XETA · 4W 1L · 80% · their main is jungle');
+    // The off-role qualifier moves to the sub line; the W–L pair holds together.
+    expect(tiles[1]).toEqual({
+      label: 'BEST OFF-ROLE',
+      value: 'XETA · 4W\u00A01L · 80%',
+      sub: 'main is jungle',
+    });
   });
 
   it('is a quiet line when nothing is new and nobody won an award', () => {
@@ -217,7 +228,38 @@ describe('NEW', () => {
   });
 });
 
+describe('nearly empty', () => {
+  it('is a model with nobody up, no NERFS, plain SYSTEMS and nothing NEW', () => {
+    const empty = weekInput({
+      players: [weekPlayer({ name: 'Lena', points: 0 })],
+      firstNights: [],
+      records: [],
+      firstPicks: [],
+      modes: [],
+      fearless: null,
+      awards: [],
+    });
+    expect(isNearlyEmpty(weekNotesModel(empty))).toBe(true);
+    // Any one section with something in it is a picture.
+    expect(
+      isNearlyEmpty(weekNotesModel({ ...empty, players: [weekPlayer({ name: 'Lena', points: 5 })] })),
+    ).toBe(false);
+    expect(isNearlyEmpty(weekNotesModel({ ...empty, firstPicks: ['Ahri'] }))).toBe(false);
+    expect(
+      isNearlyEmpty(weekNotesModel({ ...empty, modes: [{ name: 'Mirror match', count: 1, rated: true }] })),
+    ).toBe(false);
+    expect(isNearlyEmpty(weekNotesModel(weekInput()))).toBe(false);
+  });
+});
+
 describe('the parts', () => {
+  it('keeps a number with its unit and a W with its L', () => {
+    expect(keepTogether('48,213 damage · 4W 1L · 80% · +2 more')).toBe(
+      `48,213${NBSP}damage · 4W${NBSP}1L · 80% · +2${NBSP}more`,
+    );
+    expect(keepTogether('Tanks only ×2')).toBe('Tanks only ×2');
+  });
+
   it.each([
     ['Ramzyinhović', 'RA'],
     ['Syndrome Axes', 'SA'],
@@ -226,7 +268,9 @@ describe('the parts', () => {
     ['FoxHound', 'FH'],
     ['TheSHADOWREAPER', 'TS'],
     ['Player0', 'P0'],
-    ['PerfPlayer17', 'P1'],
+    ['PerfPlayer13', 'P13'],
+    ['PerfPlayer1', 'P1'],
+    ['PerfPlayer123', 'P12'],
     ['knifiy', 'KN'],
     ['x', 'X'],
     ['!!!', '?'],

@@ -21,6 +21,10 @@ export const OG_PALETTE = {
   red: '#FF6B35',
   /** `--primary-text` (amber-400): the wordmark bar only. No live state exists in a PNG. */
   brand: '#FFCF66',
+  /** A raised plane behind a medallion's initials (the week notes image, M14.79). */
+  raised: '#141B28',
+  /** A card plane: the week notes' tiles and KEY box (M14.79). */
+  card: '#0C121A',
 } as const;
 
 /**

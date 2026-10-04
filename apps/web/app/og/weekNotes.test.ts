@@ -66,7 +66,9 @@ describe('/og/g/<slug>/week/<weekStart>', () => {
     expect((week as { key: string }).key).toBe(WEEK);
   });
 
-  it('renders the quiet states: no NERFS, nothing in SYSTEMS or NEW, nobody up', async () => {
+  // The quietest week that still gets a picture: nobody up, no NERFS (so no KEY), plain SYSTEMS and
+  // one first pick. One less and the week is nearly empty, which the loader answers null for.
+  it('renders the quiet states: nobody up, no NERFS, no KEY, plain SYSTEMS, one NEW tile', async () => {
     const quiet = weekInput({
       players: [
         weekPlayer({ name: 'Lena', points: 0, games: 1, wins: 1, losses: 0 }),
@@ -76,7 +78,7 @@ describe('/og/g/<slug>/week/<weekStart>', () => {
       nights: 1,
       firstNights: [],
       records: [],
-      firstPicks: [],
+      firstPicks: ['Ahri'],
       modes: [],
       fearless: null,
       awards: [],
@@ -102,7 +104,8 @@ describe('/og/g/<slug>/week/<weekStart>', () => {
     expect(loadWeekNotes).not.toHaveBeenCalled();
   });
 
-  it('is a 404 for a week with no counted game', async () => {
+  // The loader answers null for no counted game and for a nearly empty week (`isNearlyEmpty`).
+  it('is a 404 for a week with no counted game, or nothing worth a picture', async () => {
     loadWeekNotes.mockResolvedValue(null);
     expect((await call('customs', WEEK)).status).toBe(404);
   });
