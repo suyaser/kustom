@@ -38,6 +38,12 @@ const CAPTION = 'h-6';
 /** A labelled select row: the label, a 6px gap, the 44px select and its Show button (measured 72 on the board, 71 on Games). */
 const BOARD_SORT = 'h-[calc(1.375rem+0.375rem+var(--tap))]';
 const GAMES_PLAYER = 'h-[calc(1.3125rem+0.375rem+var(--tap))]';
+/**
+ * A row of Records' summary card (`RecordsSegment` `Line`): `py-2.5` (20) + one `text-base` line
+ * (`--fs-base` 17 × 1.5 = 25.5), plus the 1px hairline above every row but the first. 45.5 / 46.5 /
+ * 46.5 in a 140.5 card, measured at 375 and 1280.
+ */
+const SUMMARY_ROW = 'first:h-[calc(1.25rem+var(--fs-base)*1.5)] h-[calc(1.25rem+var(--fs-base)*1.5+1px)]';
 /** List rows to the fold; `FIRST_SCREEN` clips whatever is past it. */
 const LIST_ROWS = 12;
 const ROW = 'h-(--row-min-h)';
@@ -154,7 +160,7 @@ function StatsFrame() {
       </div>
       <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-x-5">
         <div className="flex flex-col gap-4 lg:gap-5">
-          <Frame data-frame="summary" rows={3} rowClassName="h-[46.2px]" />
+          <Frame data-frame="summary" rows={3} rowClassName={SUMMARY_ROW} />
           <Frame data-frame="list" rows={LIST_ROWS} rowClassName={ROW} />
         </div>
         <Frame data-frame="list" className="hidden lg:flex" rows={LIST_ROWS} rowClassName={ROW} />

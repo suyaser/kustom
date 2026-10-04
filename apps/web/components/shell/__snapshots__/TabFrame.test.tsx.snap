@@ -139,7 +139,7 @@ exports[`TabFrame > draws the stats frame from Frame blocks at token heights (37
   },
   {
     "frame": "summary",
-    "rows": "3 × h-[46.2px]",
+    "rows": "3 × first:h-[calc(1.25rem+var(--fs-base)*1.5)] h-[calc(1.25rem+var(--fs-base)*1.5+1px)]",
     "shape": [
       "flex",
     ],
