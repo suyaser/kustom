@@ -2,6 +2,7 @@ import { displayRating } from '@customs/core';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EntityLink } from '@/components/links/EntityLink';
 import { CompactReceipt } from '@/components/receipt';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
@@ -302,6 +303,7 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
         {allGamesHref === null ? null : (
           <div className="border-t border-border px-(--card-pad) py-1">
             <Link
+              prefetch="auto"
               href={allGamesHref}
               className="inline-flex min-h-11 items-center font-bold text-primary-text underline underline-offset-3"
             >
@@ -403,7 +405,7 @@ function GameRow({
       {href === null ? (
         <div className="flex min-w-0 flex-col gap-1">{main}</div>
       ) : (
-        <Link
+        <EntityLink
           href={href}
           className={cn(
             'flex min-w-0 flex-col gap-1',
@@ -413,7 +415,7 @@ function GameRow({
           )}
         >
           {main}
-        </Link>
+        </EntityLink>
       )}
       <span className="flex flex-col items-end gap-0.5 text-end">
         {game.muAfter === null ? (

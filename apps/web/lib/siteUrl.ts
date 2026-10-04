@@ -193,6 +193,21 @@ export function resultBadgeUrl(
   return `${base}/og/g/${encodeURIComponent(slug)}/games/${encodeURIComponent(gameId)}/badge`;
 }
 
+/**
+ * `<origin>/og/g/<slug>/week/<weekStart>`, the Sunday post's "Week N notes" picture (M14.79,
+ * E1 `image`), or `undefined` off a public origin. `weekStart` is the Sunday the week opens on,
+ * `2026-09-27` (`weekKey`).
+ */
+export function weekNotesImageUrl(
+  origin: string | null | undefined,
+  slug: string,
+  weekStart: string,
+): string | undefined {
+  const base = publicImageOrigin(origin);
+  if (base === undefined) return undefined;
+  return `${base}/og/g/${encodeURIComponent(slug)}/week/${encodeURIComponent(weekStart)}`;
+}
+
 function firstHeaderValue(value: string | null): string | null {
   if (value === null) return null;
   const first = value.split(',')[0]?.trim();

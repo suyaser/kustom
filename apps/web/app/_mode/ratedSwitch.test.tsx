@@ -76,6 +76,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** The controls' outcome line: shown in place, not a live region (the Announcer speaks). */
+const outcome = () => document.querySelector('[data-slot="mode-outcome"]') as HTMLElement;
+
 describe('the Rated switch toggles on its own', () => {
   it('flips the moment it is tapped, keeps the answer, and the next tap posts the other way', async () => {
     const net = heldFetch();
@@ -92,14 +95,14 @@ describe('the Rated switch toggles on its own', () => {
     await net.release(answer(false, 5));
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     expect(toggle()).not.toHaveAttribute('aria-disabled');
-    expect(screen.getByRole('status')).toHaveTextContent('Next game is not rated.');
+    expect(outcome()).toHaveTextContent('Next game is not rated.');
 
     // The page has not re-read yet (no new props): the second tap still turns it back on.
     fireEvent.click(toggle());
     expect(toggle()).toHaveAttribute('aria-checked', 'true');
     await net.release(answer(true, 6));
     expect(toggle()).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('status')).toHaveTextContent('Next game is rated.');
+    expect(outcome()).toHaveTextContent('Next game is rated.');
 
     expect(bodies(net.mock)).toEqual([
       { groupId: ORIGINAL_GROUP.id, rated: false },
@@ -140,7 +143,7 @@ describe('a failed write says so and reverts', () => {
     expect(toggle()).toHaveAttribute('aria-checked', 'true');
     expect(toggle()).toHaveAccessibleDescription(RATED_ON);
     expect(screen.getByRole('alert')).toHaveTextContent(MODE_CHANGE_FAILED);
-    expect(screen.getByRole('status')).toHaveTextContent('');
+    expect(outcome()).toHaveTextContent('');
   });
 
   it('no network reverts too, and the next tap tries the same change again', async () => {
@@ -199,6 +202,6 @@ describe('after Roll the switch is for the next game', () => {
     await net.release(answer(false, 5));
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     expect(toggle()).toHaveAccessibleDescription(RATED_OFF);
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Next game is not rated.'));
+    await waitFor(() => expect(outcome()).toHaveTextContent('Next game is not rated.'));
   });
 });

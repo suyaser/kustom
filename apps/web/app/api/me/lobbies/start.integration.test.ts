@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
-import { companionCommandPayloadSchemas, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
+import { companionCommandPayloadSchemas } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { SessionUserLike } from '@/lib/adminAuth';
@@ -25,7 +25,7 @@ import {
 } from '@/lib/lobbyStart';
 import { START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
 import { authorizeMe, type MeAuthResult, supabaseMeLookup } from '@/lib/me/identity';
-import { setTestMembership } from '@/lib/testing/groups';
+import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { adminNames } from '@/lib/tonight/copy';
 
@@ -44,6 +44,16 @@ import { adminNames } from '@/lib/tonight/copy';
  * — the night's 06:00 and `now` itself — so a run at a fixed instant six years ago sees exactly
  * the rows this file seeded and none of the shared stack's leftovers, however many other agents
  * are using it. Nothing here sleeps and nothing here can see another run's lobby.
+ *
+ * **Safe beside other runs (mode QA, 2026-10-04).** Two things used to make it flaky while other
+ * files or agents used the stack at the same time:
+ * - it pressed in the original group, whose one live `create_lobby` slot
+ *   (`companion_commands_one_create_lobby_idx`, per group) and hosts every other run shares; it now
+ *   has a scratch group of its own (`createTestGroups`), deleted after;
+ * - its seeded live lobby carried a 2019 `updated_at`, so the global idle sweep that every
+ *   companion post runs (`sweepIdleLobbies`, real clock) abandoned it the moment any other test
+ *   posted. The press reads lobbies by `created_at` only, so the row keeps its 2019 `created_at`
+ *   and gets a current `updated_at`.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -105,6 +115,8 @@ if (stack === null) {
   const gameIds = [9_100_000_000_000 + Math.floor(Math.random() * 1_000_000), 0];
   gameIds[1] = (gameIds[0] ?? 0) + 1;
 
+  /** This file's scratch group (beforeAll). */
+  let GROUP = '';
   let hostToken = '';
   let lobbyId = '';
   let commandId = '';
@@ -144,7 +156,7 @@ if (stack === null) {
     return new Request('http://localhost/api/me/lobbies/start', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify('groupId' in body ? body : { groupId: ORIGINAL_GROUP_ID, ...body }),
+      body: JSON.stringify('groupId' in body ? body : { groupId: GROUP, ...body }),
     });
   }
 
@@ -172,7 +184,7 @@ if (stack === null) {
     const { data, error } = await db
       .from('games')
       .insert({
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: GROUP,
         lcu_game_id: lcuGameId,
         started_at: startedAt,
         duration_s: 1_800,
@@ -185,11 +197,12 @@ if (stack === null) {
 
     const { error: playerError } = await db
       .from('game_players')
-      .insert({ group_id: ORIGINAL_GROUP_ID, game_id: data.id, player_id: playerId, side: 100, role: 'mid' });
+      .insert({ group_id: GROUP, game_id: data.id, player_id: playerId, side: 100, role: 'mid' });
     if (playerError) throw new Error(`seedGame: ${playerError.message}`);
   }
 
   beforeAll(async () => {
+    GROUP = (await createTestGroups(db, runId, ['start'])).start;
     const created = await ensurePlayers(
       db,
       NAMES.map((name) => ({ puuid: puuidOf(name) })),
@@ -203,7 +216,7 @@ if (stack === null) {
     const admin = await db.from('players').update({ discord_id: adminDiscordId }).eq('id', id('admin'));
     if (admin.error) throw new Error(admin.error.message);
     // An admin of the group (M13.4), so a member of it: the press only asks for membership.
-    await setTestMembership(db, ORIGINAL_GROUP_ID, id('admin'), 'admin');
+    await setTestMembership(db, GROUP, id('admin'), 'admin');
 
     // Somebody signed in who is **not** an admin. Since M4.13 the route serves them too, and
     // the press below proves it opens the lobby on their own PC.
@@ -218,7 +231,7 @@ if (stack === null) {
     async function mint(name: Name, lastSeenAt: string): Promise<string> {
       const { token, tokenHash } = mintCompanionToken();
       const { error } = await db.from('companion_tokens').insert({
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: GROUP,
         player_id: id(name),
         token_hash: tokenHash,
         label: `start ${runId} ${name}`,
@@ -253,6 +266,7 @@ if (stack === null) {
         'puuid',
         NAMES.map((name) => puuidOf(name)),
       );
+    await deleteTestGroups(db, [GROUP]);
   });
 
   describe('who may press (M4.13)', () => {
@@ -344,7 +358,7 @@ if (stack === null) {
         // original group's real hosts on the shared stack are whoever they are, so the expected
         // line is built from the same read; the named and generic forms are pinned in
         // `startNoHost.integration.test.ts` on a group of its own.
-        const who = adminNames(await readGroupHostNames(db, ORIGINAL_GROUP_ID));
+        const who = adminNames(await readGroupHostNames(db, GROUP));
         await expect(response.json()).resolves.toEqual({ ok: false, error: noKustomRunningLine(who) });
         expect(await commandsOf('create_lobby')).toHaveLength(0);
       } finally {
@@ -403,7 +417,7 @@ if (stack === null) {
       const form = new Request('http://localhost/api/me/lobbies/start', {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ groupId: ORIGINAL_GROUP_ID, redirectTo: '/' }).toString(),
+        body: new URLSearchParams({ groupId: GROUP, redirectTo: '/' }).toString(),
       });
 
       const response = await press({ gate: ON })(form);
@@ -421,7 +435,7 @@ if (stack === null) {
       const form = new Request('http://localhost/api/me/lobbies/start', {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ groupId: ORIGINAL_GROUP_ID, redirectTo: '/admin' }).toString(),
+        body: new URLSearchParams({ groupId: GROUP, redirectTo: '/admin' }).toString(),
       });
 
       const response = await press({ gate: ON })(form);
@@ -436,12 +450,13 @@ if (stack === null) {
       const { data, error } = await db
         .from('lobbies')
         .insert({
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: GROUP,
           lcu_party_id: partyId,
           status: 'open',
           lobby_name: 'Customs 09 Jun #1',
           created_at: minutesBefore(1),
-          updated_at: minutesBefore(1),
+          // Current, never 2019: see the file comment (the global idle sweep).
+          updated_at: new Date().toISOString(),
         })
         .select('id')
         .single();
@@ -509,7 +524,7 @@ if (stack === null) {
 
       const result = await fanOutInvites(
         db,
-        { hostPlayerId: id('host'), groupId: ORIGINAL_GROUP_ID },
+        { hostPlayerId: id('host'), groupId: GROUP },
         { now: NOW, gate: ON },
       );
 
@@ -531,7 +546,7 @@ if (stack === null) {
     it('skips anybody already holding a live invite when it runs again', async () => {
       const result = await fanOutInvites(
         db,
-        { hostPlayerId: id('host'), groupId: ORIGINAL_GROUP_ID },
+        { hostPlayerId: id('host'), groupId: GROUP },
         { now: NOW, gate: ON },
       );
 
@@ -544,7 +559,7 @@ if (stack === null) {
       // is green in production since 16.18, so the flag is named rather than defaulted.
       const result = await fanOutInvites(
         db,
-        { hostPlayerId: id('fresh'), groupId: ORIGINAL_GROUP_ID },
+        { hostPlayerId: id('fresh'), groupId: GROUP },
         { now: NOW, gate: OFF },
       );
 
@@ -558,7 +573,7 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('host'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'create_lobby',
             payload: { lobbyName: 'Customs 09 Jun #2', lobbyPassword: '1234', pickType: 'draft' },
           },
@@ -634,7 +649,7 @@ if (stack === null) {
       // row the read cannot see — its `expires_at` is two TTLs out, and the read's window is
       // exactly one — so `decideStart` passes and only the index can refuse.
       const { error } = await db.from('companion_commands').insert({
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: GROUP,
         target_player_id: id('inlobby'),
         kind: 'create_lobby',
         payload: createPayload(9),
@@ -656,7 +671,7 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('host'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'create_lobby',
             payload: createPayload(2),
           },
@@ -673,7 +688,7 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('inlobby'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'create_lobby',
             payload: createPayload(3),
           },
@@ -692,7 +707,7 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('host'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'create_lobby',
             payload: createPayload(4),
           },
@@ -705,13 +720,13 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('host'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'create_lobby',
             payload: createPayload(5),
           },
           {
             targetPlayerId: id('host'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'invite',
             // Through the wire schema, which is where the branded puuid comes from.
             payload: companionCommandPayloadSchemas.invite.parse({
@@ -740,7 +755,7 @@ if (stack === null) {
       const { data, error } = await db
         .from('companion_commands')
         .insert({
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: GROUP,
           target_player_id: id('host'),
           kind: 'create_lobby',
           payload: createPayload(6),
@@ -755,7 +770,7 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('host'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'create_lobby',
             payload: createPayload(7),
           },
@@ -776,7 +791,7 @@ if (stack === null) {
         [
           {
             targetPlayerId: id('host'),
-            groupId: ORIGINAL_GROUP_ID,
+            groupId: GROUP,
             kind: 'create_lobby',
             payload: createPayload(7),
           },
@@ -789,7 +804,7 @@ if (stack === null) {
 
     it('sweeps a stale pending create out of the way of a real press', async () => {
       const { error } = await db.from('companion_commands').insert({
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: GROUP,
         target_player_id: id('host'),
         kind: 'create_lobby',
         payload: createPayload(8),

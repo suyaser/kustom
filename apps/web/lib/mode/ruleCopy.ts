@@ -67,6 +67,16 @@ export function mirrorStatus(open: number | null): string {
   return open === null ? MIRROR_STATUS : `${MIRROR_STATUS} · ${open} open`;
 }
 
+/**
+ * The filling host line (M15.16, back since the 2026-10-04 QA fix): while a lobby fills and the next
+ * game's rule is mirror, the lobby may already be a Draft Pick one (made before mirror was picked,
+ * or by hand), and Start a lobby only asks for Blind Pick when it makes the lobby (M17.17).
+ */
+export const MIRROR_HOST_LEAD = 'Mirror match next.';
+export const MIRROR_HOST_FILLING_REST =
+  'It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.';
+export const MIRROR_HOST_FILLING_LINE = `${MIRROR_HOST_LEAD} ${MIRROR_HOST_FILLING_REST}`;
+
 /** Under the status: `This game only. Then back to Fearless.` */
 export function oneGameLine(standing: StandingModeId): string {
   return `This game only. Then back to ${STANDING_NAME[standing]}.`;
@@ -137,9 +147,17 @@ export function ruleSentence(standing: StandingModeId): string {
 export const SPIN = 'Spin';
 export const SPINNING = 'Spinning…';
 
-/** `Next game: Mages only.` (a standing pick after Roll: `Next game: Normal.`). */
-export function nextGameLine(next: RuleOption | StandingModeId): string {
-  return `Next game: ${typeof next === 'string' ? STANDING_NAME[next] : ruleLabel(next)}.`;
+/**
+ * `Next game: Mages only.` (a standing pick after Roll: `Next game: Normal.`). With `rated` it says
+ * Rated too (QA fix 2026-10-04): `Next game: Tanks only. Rated.`; with no mode (the next game plays
+ * the same mode as this one) only Rated: `Next game: not rated.`
+ */
+export function nextGameLine(next: RuleOption | StandingModeId | null, rated: boolean | null = null): string {
+  const mode = next === null ? null : `${typeof next === 'string' ? STANDING_NAME[next] : ruleLabel(next)}.`;
+  if (rated === null) return `Next game: ${mode ?? ''}`.trimEnd();
+  const ratedWords = rated ? 'rated.' : 'not rated.';
+  if (mode === null) return `Next game: ${ratedWords}`;
+  return `Next game: ${mode} ${ratedWords.charAt(0).toUpperCase()}${ratedWords.slice(1)}`;
 }
 
 export const RATED_LABEL = 'Rated';
@@ -196,6 +214,11 @@ export function classCounts(tag: ClassTag, count: number, total: number): string
 export function classEmptyLane(tag: ClassTag, role: RoleValue): string {
   const one = CLASS_SINGULAR[tag];
   return `No ${one} is usually played here. Any ${one} on this list may go ${role}.`;
+}
+
+/** A lane where none of a side's region usually plays: `No champion from Ionia usually plays here. Any of them will do.` */
+export function regionEmptyLane(region: RegionId): string {
+  return `No champion from ${regionName(region)} usually plays here. Any of them will do.`;
 }
 
 export function regionSentence(blue: RegionId, red: RegionId, rated: boolean): string {

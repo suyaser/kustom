@@ -5,6 +5,7 @@ import {
   GROUP_SLUG_RULE,
 } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
+import { invalidateGroups } from '@/lib/cache/tags';
 import { createGroup } from '@/lib/groups/create';
 import { type SessionRouteOptions, withSession } from '@/lib/groups/sessionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
@@ -52,6 +53,7 @@ export function createGroupRoute(options: SessionRouteOptions = {}) {
     });
     if (!result.ok) return jsonError(result.status, result.error);
 
+    invalidateGroups();
     return jsonOk(createGroupResponseSchema, { ok: true, ...result.value }, 201);
   }, options);
 }

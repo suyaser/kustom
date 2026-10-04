@@ -5,11 +5,14 @@ import { AiRecap } from '@/components/ai/AiRecap';
 import { loadGameRecapOrNone } from '@/lib/ai/recap';
 import { welcomeHref } from '@/lib/board/hrefs';
 import { loadGameBreakdownOrNone } from '@/lib/breakdown/load';
+import { cachedGroupCalibration } from '@/lib/games/calibrationCache';
 import { resultForWinner } from '@/lib/games/copy';
 import { loadGameDetail } from '@/lib/games/detail';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import { claimableSeats } from '@/lib/me/claimable';
 import { groupHref } from '@/lib/nav';
+import { loadGameHead } from '@/lib/og/heads';
+import { isGameId } from '@/lib/og/load';
 import { gameImagePath, shareMetadata } from '@/lib/og/meta';
 import { groupPageTitle } from '@/lib/og/titles';
 import { createPublicClient } from '@/lib/publicClient';
@@ -17,7 +20,7 @@ import { getServiceClient } from '@/lib/supabase';
 import { HEAD_SEPARATOR, renderWebName } from '@/lib/tonight/copy';
 import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
 import { viewerIsAdmin } from '@/lib/tonight/viewer';
-import { currentViewer, currentViewerState } from '@/lib/viewer';
+import { currentViewerState } from '@/lib/viewer';
 import { VersusPitch } from '../../../../../_board/VersusPitch';
 import { GameDetail } from '../../../../../_games/GameDetail';
 import { ThatsMe } from '../../../../../_games/ThatsMe';
@@ -35,14 +38,21 @@ interface GamePageProps {
 }
 
 const loadGame = cache(async (gameId: string, groupId: string, viewerPuuid: string | null) =>
-  loadGameDetail(createPublicClient(), { gameId, groupId, viewerPuuid, timeZone: nightTimeZone() }),
+  loadGameDetail(createPublicClient(), {
+    gameId,
+    groupId,
+    viewerPuuid,
+    timeZone: nightTimeZone(),
+    calibration: cachedGroupCalibration,
+  }),
 );
 
 export async function generateMetadata({ params }: GamePageProps): Promise<Metadata> {
   const { slug, gameId } = await params;
   const group = await requirePageGroup(slug);
-  const viewer = await currentViewer(group.id);
-  const game = await loadGame(gameId, group.id, viewer?.puuid ?? null);
+  // One small read (performance plan, phase 1): every prefetch of this page runs this, never the
+  // page's loader (and never the session).
+  const game = await loadGameHead(gameId, group.id, nightTimeZone());
   if (game === null) return { title: groupPageTitle(group) };
   const verdict = `${resultForWinner(game.winningSide)} ${HEAD_SEPARATOR} ${game.durationLabel}`;
   return {
@@ -58,18 +68,18 @@ export default async function GamePage({ params }: GamePageProps) {
   const { slug, gameId } = await params;
   const group = await requirePageGroup(slug);
   const viewer = await currentViewerState(group.id);
-  const game = await loadGame(gameId, group.id, viewer.kind === 'linked' ? viewer.puuid : null);
-  if (game === null) notFound();
-  // M16.4: the AI recap, if any (nothing for a group without Premium); `Hide` for admins only.
-  // M14.58 / M14.59: the fold's stored breakdown, beside it (a failed read is plain numbers).
-  const [recap, breakdown] = await Promise.all([
-    loadGameRecapOrNone(getServiceClient, {
-      groupId: group.id,
-      gameId: game.gameId,
-      now: new Date(),
-    }),
-    game.aram ? Promise.resolve(null) : loadGameBreakdownOrNone(createPublicClient(), game.gameId),
+  // One round (app-perf): the recap and the breakdown are keyed by the URL's id and the group, so
+  // they start beside the game; a game of another group is still the 404 below, its extras unused.
+  const wellFormed = isGameId(gameId);
+  const [game, recap, rawBreakdown] = await Promise.all([
+    loadGame(gameId, group.id, viewer.kind === 'linked' ? viewer.puuid : null),
+    // M16.4: the AI recap, if any (nothing for a group without Premium); `Hide` for admins only.
+    wellFormed ? loadGameRecapOrNone(getServiceClient, { groupId: group.id, gameId, now: new Date() }) : null,
+    // M14.58 / M14.59: the fold's stored breakdown, beside it (a failed read is plain numbers).
+    wellFormed ? loadGameBreakdownOrNone(createPublicClient(), gameId) : null,
   ]);
+  if (game === null) notFound();
+  const breakdown = game.aram ? null : rawBreakdown;
 
   const here =
     groupHref(group, { page: 'game', gameId: game.gameId }) ??

@@ -1,5 +1,23 @@
 import { DEFAULT_GROUP_MODE, type GroupMode, NEW_GROUP_MODE, parseGroupMode } from '@customs/db/schemas';
+import { cache } from 'react';
 import type { PublicClient } from '../publicClient';
+
+/**
+ * The group's one `group_modes` row, every column a page reads (the standing mode and when it was
+ * set, and the M15 card state), **once per render** (app-perf, 2026-10-04): the fearless pool and
+ * the Mode card both ask, and asked separately they were two round trips for one row. React's
+ * `cache` keys on the client object and the group, so the dedupe only joins callers that share a
+ * client inside one server render; a route handler or a script (no render) reads every time,
+ * which is what a writer that re-reads after its own write needs.
+ */
+export const readGroupModeRow = cache((client: PublicClient, groupId: string) =>
+  client
+    .from('group_modes')
+    .select('mode, updated_at, pending_rule, pending_class_tag, rated_override, version')
+    .eq('group_id', groupId)
+    .maybeSingle()
+    .then((result) => result),
+);
 
 /**
  * The group's standing mode (M14.29): `group_modes.mode`, one row per group since `0024`.
@@ -26,11 +44,7 @@ export async function loadGroupModeState(
   client: PublicClient,
   groupId: string,
 ): Promise<{ mode: GroupMode; since: string | null }> {
-  const { data, error } = await client
-    .from('group_modes')
-    .select('mode, updated_at')
-    .eq('group_id', groupId)
-    .maybeSingle();
+  const { data, error } = await readGroupModeRow(client, groupId);
 
   if (error) {
     console.error('mode: reading the group mode failed', error.message);

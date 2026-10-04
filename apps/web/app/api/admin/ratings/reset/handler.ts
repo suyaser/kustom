@@ -7,6 +7,7 @@ import type { NextResponse } from 'next/server';
 import { resetGroupRatings } from '@/lib/admin/ratingsReset';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { siteOrigin } from '@/lib/siteUrl';
 
 /** [NEW COPY] The success notice. */
@@ -38,6 +39,7 @@ export async function handleRatingsReset(
       : context.fail(result.status, result.error);
   }
 
+  invalidateGroup(context.groupId, ['stats', 'games']);
   if (context.form) return redirectBack(context.request, back, { notice: RATINGS_RESET_DONE });
   return context.respond(
     ratingsResetResponseSchema,

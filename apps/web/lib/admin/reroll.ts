@@ -1,4 +1,5 @@
 import type { LobbyStatusValue } from '@customs/db';
+import { invalidateGroup } from '../cache/tags';
 import {
   type CommandGate,
   isCommandKindEnabled,
@@ -97,7 +98,7 @@ export async function promoteSplit(
 
   const { data: lobby, error: lobbyError } = await client
     .from('lobbies')
-    .select('id, status')
+    .select('id, status, group_id')
     .eq('id', input.lobbyId)
     .maybeSingle();
   if (lobbyError) throw new Error(`promoteSplit: lobby lookup failed: ${lobbyError.message}`);
@@ -142,6 +143,8 @@ export async function promoteSplit(
     .eq('id', target.id)
     .eq('lobby_id', input.lobbyId);
   if (setError) throw new Error(`promoteSplit: setting is_chosen failed: ${setError.message}`);
+  // The lobby's earlier games (if it played) now read another chosen split (app-perf).
+  invalidateGroup(lobby.group_id, ['games']);
 
   await queueSwitchSideForPromotedSplit(client, input.lobbyId, sides, options.gate);
 

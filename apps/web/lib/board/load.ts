@@ -1,7 +1,7 @@
 import { displayRating, isSettling, type KustomBefore, provisionalSeed, type Rating } from '@customs/core';
 import { openSkillPair, type RoleValue, type SideValue } from '@customs/db';
 import { type BreakdownGame, resultOdds, rowReason } from '../breakdown/read';
-import { inChunks } from '../chunks';
+import { inChunks, mapChunks } from '../chunks';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { type FoldAwardPlayer, type FoldPerformance, gatedGameAward } from '../ingest/fold';
 import { readSeed, type StoredSeed, seedFor } from '../ingest/seed';
@@ -114,14 +114,38 @@ export interface BoardOptions {
  */
 export async function loadBoard(client: PublicClient, options: BoardOptions): Promise<BoardView> {
   const { window, groupId } = options;
-  const since = await loadRatingsSince(client, groupId);
   const ownRange = windowRange(window, options.now ?? new Date(), options.timeZone);
-  // Games before the group's latest reset count on no all-time window (M14.18).
-  const range = epochRange(window, ownRange, since);
-  const [facts, members, ratings] = await Promise.all([
-    loadWindowFacts(client, window, range, groupId, since),
+  // One round of independent reads (app-perf, 2026-10-04): the epoch, the members, the ratings, the
+  // closed window's awards and the roster labels start together; only the window's own reads wait
+  // for the epoch. Every promise ends up inside the one `Promise.all` below, so a failed read is
+  // the board's failure, never an unhandled rejection.
+  const sinceRead = loadRatingsSince(client, groupId);
+  const ratingsRead = loadRatings(client, groupId);
+  const windowRead = sinceRead.then(async (since) => {
+    // Games before the group's latest reset count on no all-time window (M14.18).
+    const range = epochRange(window, ownRange, since);
+    const [header, keyed] = await Promise.all([
+      loadWindowFacts(client, window, range, groupId, since).then(async (facts) => ({
+        facts,
+        fallback:
+          facts.games === 0 && facts.everRated && window !== 'all-time'
+            ? await emptyWindowFallback(client, window, groupId, options)
+            : null,
+      })),
+      window === 'all-time'
+        ? ratingsRead.then((ratings) => allTimeRows(client, ratings))
+        : windowRows(client, range, ratingsRead, options),
+    ]);
+    return { ...header, keyed };
+  });
+  const [since, { facts, fallback, keyed }, members, ratings, winners, names] = await Promise.all([
+    sinceRead,
+    windowRead,
     loadMemberIds(client, groupId),
-    loadRatings(client, groupId),
+    ratingsRead,
+    window === 'all-time' ? Promise.resolve(NO_AWARD_WINNERS) : rowAwards(client, options),
+    // Two people with the same name are told apart, over the whole roster (M14.69).
+    loadRosterLabels(client, groupId),
   ]);
   const slot = {
     // M14.70 (design review): an empty week still prints its dates; only an empty All time has none.
@@ -132,21 +156,8 @@ export async function loadBoard(client: PublicClient, options: BoardOptions): Pr
     resetDay: since === null ? null : formatDayMonth(since, options.timeZone),
     games: facts.games,
     everRated: facts.everRated,
-    fallback:
-      facts.games === 0 && facts.everRated && window !== 'all-time'
-        ? await emptyWindowFallback(client, window, groupId, options)
-        : null,
+    fallback,
   };
-
-  const keyed =
-    window === 'all-time'
-      ? await allTimeRows(client, ratings)
-      : await windowRows(client, range, ratings, options);
-  const [winners, names] = await Promise.all([
-    window === 'all-time' ? Promise.resolve(NO_AWARD_WINNERS) : rowAwards(client, options),
-    // Two people with the same name are told apart, over the whole roster (M14.69).
-    loadRosterLabels(client, groupId),
-  ]);
   const rows = keyed.map(([, row]) => withLabel(row, names));
 
   return {
@@ -297,7 +308,8 @@ async function firstCountedGameAt(client: PublicClient, groupId: string): Promis
 async function windowRows(
   client: PublicClient,
   range: WindowRange,
-  ratings: ReadonlyMap<string, RatingRow>,
+  /** Awaited only to build the rows, so the games and their rows never wait for it. */
+  ratingsRead: Promise<ReadonlyMap<string, RatingRow>>,
   options: BoardOptions,
 ): Promise<KeyedRow[]> {
   const games = await loadGroupGames(client, {
@@ -323,7 +335,7 @@ async function windowRows(
   }
 
   const playerIds = [...byPlayer.keys()];
-  const players = await loadPlayersByIds(client, playerIds);
+  const [players, ratings] = await Promise.all([loadPlayersByIds(client, playerIds), ratingsRead]);
 
   return playerIds.flatMap((playerId) => {
     const player = players.get(playerId);
@@ -446,30 +458,46 @@ export async function loadPlayerBoard(
   puuid: string,
   options: BoardOptions,
 ): Promise<PlayerBoardView | null> {
-  const player = await selectPlayer(client, puuid);
-  if (player === null) return null;
-
   const { window, groupId } = options;
-  const since = await loadRatingsSince(client, groupId);
   const ownRange = windowRange(window, options.now ?? new Date(), options.timeZone);
-  const range = epochRange(window, ownRange, since);
-  const [member, ratings, games, rows, everPlayed] = await Promise.all([
-    isMember(client, groupId, player.id),
-    loadRatings(client, groupId, [player.id]),
-    loadGroupGames(client, { limit: GROUP_GAME_LIMIT, range, groupId }),
-    loadPlayerGameRows(client, player.id, groupId, range),
-    // On All time the rows above are every game; another window needs its own look.
-    window === 'all-time' ? Promise.resolve(false) : hasAnyGame(client, player.id, groupId),
-  ]);
+  // app-perf (2026-10-04): the player, the epoch and the group's ratings start together (the one
+  // ratings read serves this player's row and the all-time rank); the player's own reads follow in
+  // one round. The rows carry their games (`games!inner`), so the group's whole game list is no
+  // longer read just to join them.
+  const ratingsRead = loadRatings(client, groupId);
+  const ownRead = Promise.all([selectPlayer(client, puuid), loadRatingsSince(client, groupId)]).then(
+    async ([player, since]) => {
+      if (player === null) return null;
+      const range = epochRange(window, ownRange, since);
+      const [member, rows, everPlayed] = await Promise.all([
+        isMember(client, groupId, player.id),
+        loadPlayerGameRowsWithGames(client, player.id, groupId, range),
+        // On All time the rows above are every game; another window needs its own look.
+        window === 'all-time' ? Promise.resolve(false) : hasAnyGame(client, player.id, groupId),
+      ]);
+      return { player, since, member, rows, everPlayed };
+    },
+  );
+  // The all-time board's ranked rows, for `#3`; only All time prints a rank.
+  const rankedRead =
+    window === 'all-time' ? ratingsRead.then((ratings) => rankedAllTimeRows(client, ratings)) : null;
+  const [own, ratings] = await Promise.all([ownRead, ratingsRead]);
+  if (own === null) {
+    // Settle the speculative read before leaving, so its failure is never unhandled.
+    await rankedRead?.catch(() => null);
+    return null;
+  }
+  const { player, since, member, rows, everPlayed } = own;
   const stored = ratings.get(player.id);
 
   // Nothing in this group: not a member, no rating row, no game. The page's 404.
-  if (!member && stored === undefined && rows.length === 0 && !everPlayed) return null;
+  if (!member && stored === undefined && rows.length === 0 && !everPlayed) {
+    await rankedRead?.catch(() => null);
+    return null;
+  }
 
-  const byGame = new Map(games.map((game) => [game.id, game]));
   const all = rows
-    .filter((row) => byGame.has(row.gameId))
-    .map((row) => ({ row, game: byGame.get(row.gameId) as GroupGame }))
+    .map(({ row, game }) => ({ row, game }))
     .sort((a, b) => Date.parse(a.game.startedAt) - Date.parse(b.game.startedAt));
   const played = all.filter(({ row }) => row.muAfter !== null);
 
@@ -478,7 +506,7 @@ export async function loadPlayerBoard(
   const seed = seedFor(stored?.seed ?? null, player.rankTier, player.rankDivision);
   const seedRating = displayRating(seed.rating.mu);
 
-  const [recent, rank] = await Promise.all([
+  const [recent, ranked] = await Promise.all([
     loadRecentGames(
       client,
       recentGames(
@@ -486,10 +514,9 @@ export async function loadPlayerBoard(
         RECENT_GAMES,
       ),
     ),
-    window === 'all-time' && !isSettling(allTimeGames)
-      ? loadAllTimeRank(client, groupId, player.puuid)
-      : Promise.resolve(null),
+    rankedRead,
   ]);
+  const rank = window === 'all-time' && !isSettling(allTimeGames) ? rankOf(ranked ?? [], player.puuid) : null;
 
   const onWeek = window !== 'all-time';
   const first = played[0];
@@ -531,13 +558,18 @@ export async function loadPlayerBoard(
  * Their place on the `All time` board's ranked section, by the board's own comparator over the
  * group's ranked rows, so the `#3` on the self lens is the `3` on the board.
  */
-async function loadAllTimeRank(client: PublicClient, groupId: string, puuid: string): Promise<number | null> {
-  const ratings = await loadRatings(client, groupId);
-  const rows = (await allTimeRows(client, ratings))
+async function rankedAllTimeRows(
+  client: PublicClient,
+  ratings: ReadonlyMap<string, RatingRow>,
+): Promise<BoardRow[]> {
+  return (await allTimeRows(client, ratings))
     .map(([, row]) => row)
     .filter((row) => !row.settling)
     .sort(compareBoardRows);
-  const index = rows.findIndex((row) => row.puuid === puuid);
+}
+
+function rankOf(ranked: readonly BoardRow[], puuid: string): number | null {
+  const index = ranked.findIndex((row) => row.puuid === puuid);
   return index === -1 ? null : index + 1;
 }
 
@@ -656,12 +688,9 @@ async function loadChosenSplits(
   lobbyIds: readonly string[],
 ): Promise<Map<string, { blueWinProb: number; rank: number }>> {
   const splits = new Map<string, { blueWinProb: number; rank: number }>();
-  for (const chunk of inChunks(lobbyIds)) {
-    const { data, error } = await client
-      .from('splits')
-      .select('lobby_id, blue_win_prob, rank')
-      .in('lobby_id', chunk)
-      .eq('is_chosen', true);
+  for (const { data, error } of await mapChunks(lobbyIds, (chunk) =>
+    client.from('splits').select('lobby_id, blue_win_prob, rank').in('lobby_id', chunk).eq('is_chosen', true),
+  )) {
     if (error) throw new Error(`board: split lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.blue_win_prob === null) continue;
@@ -677,8 +706,9 @@ async function loadGameModes(
   gameIds: readonly string[],
 ): Promise<Map<string, string | null>> {
   const modes = new Map<string, string | null>();
-  for (const chunk of inChunks(gameIds)) {
-    const { data, error } = await client.from('games').select('id, raw->gameMode').in('id', chunk);
+  for (const { data, error } of await mapChunks(gameIds, (chunk) =>
+    client.from('games').select('id, raw->gameMode').in('id', chunk),
+  )) {
     if (error) throw new Error(`board: game mode lookup failed: ${error.message}`);
     for (const row of data ?? []) modes.set(row.id, gameModeFromRaw({ gameMode: row.gameMode }));
   }
@@ -771,11 +801,12 @@ async function loadPlayersByIds(
   playerIds: readonly string[],
 ): Promise<Map<string, PlayerRow>> {
   const players = new Map<string, PlayerRow>();
-  for (const chunk of inChunks(playerIds)) {
-    const { data, error } = await client
+  for (const { data, error } of await mapChunks(playerIds, (chunk) =>
+    client
       .from('players_public')
       .select('id, puuid, display_name, game_name, rank_tier, rank_division')
-      .in('id', chunk);
+      .in('id', chunk),
+  )) {
     if (error) throw new Error(`board: player lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.id === null || row.puuid === null) continue;
@@ -790,11 +821,9 @@ async function loadNamesByPlayerId(
   playerIds: readonly string[],
 ): Promise<Map<string, { puuid: string; name: PlayerName }>> {
   const names = new Map<string, { puuid: string; name: PlayerName }>();
-  for (const chunk of inChunks(playerIds)) {
-    const { data, error } = await client
-      .from('players_public')
-      .select('id, puuid, display_name, game_name')
-      .in('id', chunk);
+  for (const { data, error } of await mapChunks(playerIds, (chunk) =>
+    client.from('players_public').select('id, puuid, display_name, game_name').in('id', chunk),
+  )) {
     if (error) throw new Error(`board: name lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.id === null || row.puuid === null) continue;
@@ -894,17 +923,21 @@ interface PlayerGameRow {
 const STAT_COLUMNS =
   'kills, deaths, assists, damage_to_champs, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives' as const;
 
-/** One player's scoreboard rows in the group, newest first, inside the window. */
-async function loadPlayerGameRows(
+/**
+ * One player's scoreboard rows in the group, newest first, inside the window, each with its game
+ * (one read: the game's facts ride on the row through `games!inner`). A game with no winner is
+ * dropped, as the group's game list dropped it.
+ */
+async function loadPlayerGameRowsWithGames(
   client: PublicClient,
   playerId: string,
   groupId: string,
   range?: WindowRange,
-): Promise<PlayerGameRow[]> {
+): Promise<{ row: PlayerGameRow; game: GroupGame }[]> {
   let query = client
     .from('game_players')
     .select(
-      'game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, games!inner(started_at, group_id)',
+      'game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, games!inner(started_at, group_id, lcu_game_id, duration_s, winning_side, lobby_id)',
     )
     .eq('player_id', playerId)
     .eq('games.group_id', groupId);
@@ -914,7 +947,23 @@ async function loadPlayerGameRows(
     .order('games(started_at)', { ascending: false })
     .limit(GROUP_GAME_LIMIT);
   if (error) throw new Error(`board: game player lookup failed: ${error.message}`);
-  return (data ?? []).map(toGameRow);
+  return (data ?? []).flatMap((raw) => {
+    const game = Array.isArray(raw.games) ? raw.games[0] : raw.games;
+    if (game == null || (game.winning_side !== 100 && game.winning_side !== 200)) return [];
+    return [
+      {
+        row: toGameRow(raw),
+        game: {
+          id: raw.game_id,
+          lcuGameId: game.lcu_game_id,
+          startedAt: game.started_at,
+          durationS: game.duration_s,
+          winningSide: game.winning_side as SideValue,
+          lobbyId: game.lobby_id,
+        },
+      },
+    ];
+  });
 }
 
 function withRange<Q extends { gte(column: string, value: string): Q; lt(column: string, value: string): Q }>(
@@ -934,8 +983,7 @@ async function loadGameRows(
   gameIds: readonly string[],
   options: { withStats?: boolean } = {},
 ): Promise<PlayerGameRow[]> {
-  const rows: PlayerGameRow[] = [];
-  for (const chunk of inChunks(gameIds)) {
+  const pages = await mapChunks(gameIds, async (chunk) => {
     // Two spelled-out selects: a literal column list is checked against the generated types.
     const { data, error } =
       options.withStats === true
@@ -952,9 +1000,9 @@ async function loadGameRows(
             )
             .in('game_id', chunk);
     if (error) throw new Error(`board: game player lookup failed: ${error.message}`);
-    rows.push(...(data ?? []).map(toGameRow));
-  }
-  return rows;
+    return (data ?? []).map(toGameRow);
+  });
+  return pages.flat();
 }
 
 interface RawGamePlayerRow {

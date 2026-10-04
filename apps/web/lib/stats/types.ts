@@ -1,7 +1,6 @@
 import type { RoleValue, SideValue } from '@customs/db';
 import type { Streak } from '../board/streak';
 import type { QueueKind } from '../games/queue';
-import type { HistoryGame } from '../games/types';
 import type { WindowKind } from '../night';
 import type { PlayerName } from '../tonight/types';
 import type { RawGameFacts } from './rawFacts';
@@ -240,12 +239,26 @@ export interface StatsView {
  * columns `/stats` deliberately does not fold.
  * ------------------------------------------------------------------------- */
 
+/**
+ * The custom a number came from, as the Stats pages use it: a link to its game page, so its id.
+ *
+ * It used to be the whole `/games` card (`HistoryGame`, both scoreboards), built once per opening
+ * from the expand-in-place era of `/fun`. Nothing reads more than the id since the segments link
+ * to the game page, and the full card made a 300-game All time view about 40 MB of JSON, too big to
+ * cache and expensive to build. Add a field here only when a page prints it.
+ */
+export interface StatsGameRef {
+  id: string;
+  /** M14.79: the week notes picture keeps a record only when every holder's game is in the week. */
+  startedAt: string;
+}
+
 /** One counted custom under a record that can reopen more than one night. */
 export interface FunOpening {
   /** Champion, steal name, or null when the row already said the number. */
   label: string | null;
   detail: string;
-  game: HistoryGame;
+  game: StatsGameRef;
 }
 
 /** One named line on `/fun`: a person, a number, and optional match context. */
@@ -256,7 +269,7 @@ export interface FunHolder extends PlayerRef {
    * The counted custom this number came from. Null on a habit (attendance, a
    * window total). The page opens both scoreboards from this.
    */
-  game: HistoryGame | null;
+  game: StatsGameRef | null;
   /**
    * Every counted custom behind a window total (deathless games, career
    * steals). Empty when there is no night to reopen. One opening is the
@@ -317,7 +330,7 @@ export interface FunBloodRow {
    */
   haul: string | null;
   when: string;
-  game: HistoryGame | null;
+  game: StatsGameRef | null;
 }
 
 /** One killer's first bloods, grouped so two people are not one undivided list. */
@@ -419,7 +432,7 @@ export interface FunOddsWin {
   percent: number;
   /** `31% · Won · Tuesday`. */
   line: string;
-  game: HistoryGame;
+  game: StatsGameRef;
 }
 
 /** One person on the ranked list, and every such win behind their count. */
@@ -441,7 +454,7 @@ export interface FunOddsRecord {
   /** Everyone on the winning side the roster knows — five on a full custom. */
   players: PlayerRef[];
   when: string;
-  game: HistoryGame;
+  game: StatsGameRef;
 }
 
 export interface FunOdds {

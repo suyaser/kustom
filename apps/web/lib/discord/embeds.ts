@@ -126,6 +126,8 @@ export interface Embed {
   description?: string;
   fields?: EmbedField[];
   thumbnail?: { url: string };
+  /** The large picture under the embed (M14.79: the Sunday post's week notes). Never counted toward 6,000. */
+  image?: { url: string };
   footer?: { text: string };
 }
 
@@ -817,6 +819,13 @@ export interface WindowSummaryEmbedInput {
    * exactly the board-only post.
    */
   storyline?: string | undefined;
+  /**
+   * **M14.79**: the "Week N notes" picture (`/og/g/<slug>/week/<weekStart>`) as E1's `image`, or
+   * `undefined` off a public https origin (`weekNotesImageUrl`). The post is complete without it:
+   * every line of E1 is the same with or without, and Discord gives an image no alt text, so E1's
+   * text is the accessible version.
+   */
+  image?: string | undefined;
 }
 
 /**
@@ -834,6 +843,7 @@ export function windowSummaryEmbed(input: WindowSummaryEmbedInput): WebhookPaylo
       ...(input.url === undefined ? {} : { url: input.url }),
       description: input.description,
       fields: [...boardFields(input.entries, input.track, input.settling), ...awards.map(awardField)],
+      ...(input.image === undefined ? {} : { image: { url: input.image } }),
       footer: { text: boardFooter(input.track) },
     },
     authorOf(input.identity),

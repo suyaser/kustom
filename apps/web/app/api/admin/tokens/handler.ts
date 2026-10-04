@@ -1,6 +1,7 @@
 import type { NextResponse } from 'next/server';
 import { revokeToken } from '@/lib/admin/tokens';
 import { type AdminContext, type AdminRouteOptions, withAdminAuth } from '@/lib/adminRoute';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { type AdminTokensRequest, adminTokensRequestSchema, revokeTokenResponseSchema } from './schema';
 
 /**
@@ -24,6 +25,7 @@ export async function handleAdminTokens(
     const result = await revokeToken(context.client, { tokenId: input.tokenId, groupId: context.groupId });
     if (!result.ok) return context.fail(result.status, result.error);
 
+    invalidateGroup(context.groupId, ['hosts']);
     return context.respond(
       revokeTokenResponseSchema,
       { ok: true, action: 'revoke', tokenId: result.value.tokenId, revokedAt: result.value.revokedAt },

@@ -173,6 +173,7 @@ export function RecordRow({
       ) : (
         <Link
           href={href as Route}
+          prefetch={false}
           title={rule}
           className={cn(
             className,

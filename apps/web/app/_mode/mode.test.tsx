@@ -36,6 +36,35 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('region wars sides: no empty column (QA fix 2026-10-04)', () => {
+  const sides = [
+    {
+      side: 'blue' as const,
+      title: 'BLUE Ionia',
+      region: 'Ionia',
+      within: [103, 64],
+      emptyLane: { top: 'No champion from Ionia usually plays here. Any of them will do.' },
+    },
+    { side: 'red' as const, title: 'RED Noxus', region: 'Noxus', within: [222] },
+  ];
+
+  it("a side's lane with none of its champions keeps its row with the side's sentence", () => {
+    render(<FearlessPool banned={[]} initialLane="top" viewerLane={null} sides={sides} />);
+    const top = screen.getByRole('region', { name: 'BLUE Ionia top' });
+    expect(
+      within(top).getByText('No champion from Ionia usually plays here. Any of them will do.'),
+    ).toBeInTheDocument();
+    // A side with no sentences keeps the old shape: no row for a lane it has nothing in.
+    expect(screen.queryByRole('region', { name: 'RED Noxus top' })).toBeNull();
+  });
+
+  it('typing drops the sentence rows (the find answers instead)', () => {
+    render(<FearlessPool banned={[]} initialLane="all" viewerLane={null} sides={sides} />);
+    fireEvent.change(screen.getByLabelText('Find a champion'), { target: { value: 'ahri' } });
+    expect(screen.queryByText(/usually plays here/)).toBeNull();
+  });
+});
+
 describe('the fearless pool in the panel', () => {
   it('opens on ?lane= with one lane, and All shows every lane plus other', () => {
     render(<FearlessPool banned={POOL} initialLane="jungle" viewerLane={null} />);

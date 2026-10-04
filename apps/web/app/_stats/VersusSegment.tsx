@@ -86,7 +86,8 @@ export function VersusSegment({
 }: {
   versus: VersusView;
   stats: StatsView;
-  fun: FunFactsView;
+  /** Only the rivals block is drawn here (nemesis), and only it is read (`loadVersusSegment`). */
+  fun: Pick<FunFactsView, 'rivals'>;
   links: StatsLinks;
   /** The Pick two form's GET target: this segment's path. */
   action: string;
@@ -316,7 +317,15 @@ function Series({ series, links }: { series: HeadToHead; links: StatsLinks }) {
  * **The** duos block (M14.17 acceptance 11: it exists once in the app). Best and worst together
  * are `/stats`' `duoRecords`, split so no pair is in both (`splitDuos`); nemesis is `/fun`'s fold.
  */
-function Duos({ stats, fun, links }: { stats: StatsView; fun: FunFactsView; links: StatsLinks }) {
+function Duos({
+  stats,
+  fun,
+  links,
+}: {
+  stats: StatsView;
+  fun: Pick<FunFactsView, 'rivals'>;
+  links: StatsLinks;
+}) {
   const nemesis = fun.rivals.nemesis;
   const { shown, total } = capRows(nemesis.rows, 'nemesis', links);
   return (

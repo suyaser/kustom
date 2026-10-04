@@ -182,8 +182,8 @@ describe('funFactsView', () => {
     const facts = funFactsView([game], rosterFor([game]));
     const kills = facts.records.find((record) => record.id === 'kills')?.holders[0];
     expect(kills?.name).toBe('Lena');
-    expect(kills?.game?.blue.seats.some((seat) => seat.puuid === 'u-lena')).toBe(true);
-    expect(kills?.game?.red.seats.length).toBe(5);
+    // The record links its one game (a `StatsGameRef`: the id and its start, for the week notes).
+    expect(kills?.game).toEqual({ id: game.id, startedAt: game.startedAt });
     expect(facts.deathHall.find((record) => record.id === 'deaths')?.holders[0]?.name).toBe('Yuki');
     expect(facts.records.find((record) => record.id === 'assists')?.holders[0]?.name).toBe('Theo');
     expect(facts.records.find((record) => record.id === 'damage')?.holders[0]?.name).toBe('Lena');

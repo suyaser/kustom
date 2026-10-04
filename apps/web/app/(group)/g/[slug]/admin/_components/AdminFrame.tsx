@@ -55,6 +55,7 @@ export function AdminFrame({
               {nav.map((item) => (
                 <li key={item.href}>
                   <Link
+                    prefetch="auto"
                     href={item.href}
                     aria-current={item.current ? 'page' : undefined}
                     className={cn(
@@ -82,6 +83,7 @@ export function AdminFrame({
 function BackLink({ href, children }: { href: Route; children: ReactNode }) {
   return (
     <Link
+      prefetch="auto"
       href={href}
       className="-ms-1 inline-flex min-h-11 w-fit max-w-full items-center gap-1 rounded-control px-1 text-sm font-bold text-foreground"
     >

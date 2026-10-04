@@ -311,16 +311,19 @@ export async function listCapturedGames(
   client: ServiceClient,
   { timeZone, groupId, cap = CAPTURED_CAP }: GamesReportOptions,
 ): Promise<CapturedGameRow[]> {
-  // The epoch the fold reads (M15.13), so `Waiting to be counted` is never said of a game it skips.
-  const ratingsSince = await readRatingsSince(client, groupId);
-  const { data, error } = await client
-    .from('games')
-    .select(
-      'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_no_draw, gameMode:raw->gameMode, lobbies(lcu_party_id), game_players(player_id, side, mu_after)',
-    )
-    .eq('group_id', groupId)
-    .order('started_at', { ascending: false })
-    .range(0, Math.max(1, cap) - 1);
+  // The epoch the fold reads (M15.13), so `Waiting to be counted` is never said of a game it skips;
+  // read beside the games, not before them (app-perf).
+  const [ratingsSince, { data, error }] = await Promise.all([
+    readRatingsSince(client, groupId),
+    client
+      .from('games')
+      .select(
+        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_no_draw, gameMode:raw->gameMode, lobbies(lcu_party_id), game_players(player_id, side, mu_after)',
+      )
+      .eq('group_id', groupId)
+      .order('started_at', { ascending: false })
+      .range(0, Math.max(1, cap) - 1),
+  ]);
 
   if (error) throw new Error(`listCapturedGames failed: ${error.message}`);
 

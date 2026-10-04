@@ -1,5 +1,6 @@
 import { companionPairRequestSchema, companionPairResponseSchema } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { ServerEnvError } from '@/lib/env';
 import { PAIRING_RATE_LIMITED } from '@/lib/groups/copy';
 import { allowPairAttempt, clientAddress, redeemPairingCode } from '@/lib/groups/pairing';
@@ -56,6 +57,7 @@ export function companionPairRoute(options: PairRouteOptions = {}) {
       const result = await redeemPairingCode(client, body.data.code, body.data.puuid, mode);
       if (!result.ok) return jsonError(result.status, result.error);
 
+      invalidateGroup(result.value.group.id, ['hosts']);
       const { group, companionToken, hostRefusal } = result.value;
       return jsonOk(companionPairResponseSchema, {
         ok: true,

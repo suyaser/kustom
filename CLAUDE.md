@@ -84,6 +84,7 @@ KUSTOM_REPLAY_CSV=<export.csv> pnpm --filter web exec vitest run lib/ingest/kust
                              # M18.5: the M18.3 real-data replay through the implemented fold; must print
                              # log loss 0.700, Spearman 0.938 / 0.925. Reads the export in place (never
                              # copy it into the repo); skipped without the variable, so never in CI.
+pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
 pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
                              # M7.7 one-off, extended by M7.14: copies vision score, damage
                              # self-mitigated and damage to objectives out of games.raw onto

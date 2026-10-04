@@ -7,9 +7,8 @@ import type { PageGroup } from '@/lib/groups/pageGroup';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import { groupBase, groupHref } from '@/lib/nav';
 import { groupPageTitle } from '@/lib/og/titles';
-import { createPublicClient } from '@/lib/publicClient';
+import { cachedStatsSegment, statsCacheKey } from '@/lib/stats/cached';
 import { SEGMENT_LABELS, STATS_LABEL, type StatsSegment } from '@/lib/stats/copy';
-import { loadFunFacts, loadRecordsSegment, loadVersusSegment } from '@/lib/stats/load';
 import { groupHasRoasts } from '@/lib/stats/roasts';
 import {
   modeHref,
@@ -33,6 +32,9 @@ import { VersusSegment } from './VersusSegment';
  * The three Stats routes (M14.17) share this: resolve the group, parse the URL, read **only this
  * segment's data, only this group's games**, and draw it in the frame. Records reads `/stats`' fold
  * and `/fun`'s records in one read; Champions only `/fun`'s; 1v1 `/1v1`'s plus the duos block.
+ *
+ * The data comes through the group's Stats cache (`lib/stats/cached.ts`): the same for every
+ * viewer, expired when a game lands or ratings move. Links are built here, outside it.
  */
 
 export interface StatsRouteProps {
@@ -77,8 +79,7 @@ export async function renderStatsSegment(segment: StatsSegment, props: StatsRout
   const base = groupHref(group, { page: 'stats' }) ?? `${groupBase(group)}/stats`;
   const state = parseStatsParams(segment, await props.searchParams);
   const links = statsLinks(group, base, state);
-  const client = createPublicClient();
-  const options = { window: state.window, timeZone: nightTimeZone(), groupId: group.id };
+  const key = { groupId: group.id, window: state.window, timeZone: nightTimeZone() };
   const frame = {
     segment,
     segmentHref: (target: StatsSegment) => segmentHref(base, state, target),
@@ -88,7 +89,9 @@ export async function renderStatsSegment(segment: StatsSegment, props: StatsRout
   const mode = { selected: state.mode, href: (next: typeof state.mode) => modeHref(base, state, next) };
 
   if (segment === 'records') {
-    const { stats, fun } = await loadRecordsSegment(client, { ...options, queue: state.mode });
+    const { stats, fun } = await cachedStatsSegment(
+      statsCacheKey({ ...key, segment: 'records', mode: state.mode }),
+    );
     return (
       <StatsFrame
         {...frame}
@@ -106,7 +109,7 @@ export async function renderStatsSegment(segment: StatsSegment, props: StatsRout
   }
 
   if (segment === 'champions') {
-    const fun = await loadFunFacts(client, { ...options, queue: state.mode });
+    const fun = await cachedStatsSegment(statsCacheKey({ ...key, segment: 'champions', mode: state.mode }));
     return (
       <StatsFrame
         {...frame}
@@ -121,11 +124,9 @@ export async function renderStatsSegment(segment: StatsSegment, props: StatsRout
     );
   }
 
-  const { versus, stats, fun } = await loadVersusSegment(client, {
-    ...options,
-    ...(state.a === undefined ? {} : { leftPuuid: state.a }),
-    ...(state.b === undefined ? {} : { rightPuuid: state.b }),
-  });
+  const { versus, stats, fun } = await cachedStatsSegment(
+    statsCacheKey({ ...key, segment: 'versus', a: state.a, b: state.b }),
+  );
   return (
     <StatsFrame {...frame} range={versus.range} games={versus.games} capped={versus.capped} cap={versus.cap}>
       <VersusSegment

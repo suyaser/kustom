@@ -18,13 +18,15 @@ import {
  * Layout only: nothing here composes copy.
  */
 
-export type OgFace = 'text-bold' | 'text-regular' | 'display';
+export type OgFace = 'text-bold' | 'text-regular' | 'display' | 'mono';
 
 const TABLES: Record<OgFace, { widths: readonly number[]; widest: number; upper: boolean }> = {
   'text-bold': { widths: TEXT_BOLD_WIDTHS, widest: TEXT_BOLD_WIDEST, upper: false },
   'text-regular': { widths: TEXT_REGULAR_WIDTHS, widest: TEXT_REGULAR_WIDEST, upper: false },
   // The display cut is always set upper case (`display()` in Cards.tsx).
   display: { widths: DISPLAY_WIDTHS, widest: DISPLAY_WIDEST, upper: true },
+  // Martian Mono 85 (500 and 600) is monospaced: every glyph advances 640 per 1000 em (M14.79).
+  mono: { widths: [], widest: 640, upper: false },
 };
 
 /** Two per cent of slack for rounding in the renderer. */

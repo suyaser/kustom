@@ -177,7 +177,7 @@ describe('loadYourNightOrNone', () => {
             : (answers.players ?? { data: [...PUUID_OF].map(([id, puuid]) => ({ id, puuid })), error: null });
         };
         const builder: Record<string, unknown> = {};
-        for (const op of ['select', 'eq', 'gte', 'in', 'order']) {
+        for (const op of ['select', 'eq', 'gte', 'in', 'order', 'range']) {
           builder[op] = (...args: unknown[]) => {
             call.ops.push([op, args]);
             return builder;

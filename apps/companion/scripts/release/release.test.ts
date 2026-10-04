@@ -174,6 +174,8 @@ describe('the release assets', () => {
 
   it('ship the friend part of the companion README', () => {
     expect(friendReadme('# Hi\n\nfriend\n\n---\nbuild notes\n')).toBe('# Hi\n\nfriend\n');
+    // a Windows checkout with core.autocrlf=true (the v1.0.0 release failure)
+    expect(friendReadme('# Hi\r\n\r\nfriend\r\n\r\n---\r\nbuild notes\r\n')).toBe('# Hi\n\nfriend\n');
     expect(() => friendReadme('no rule')).toThrow(/horizontal rule/);
   });
 });

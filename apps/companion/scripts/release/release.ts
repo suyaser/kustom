@@ -188,7 +188,9 @@ export function releaseAssets(): readonly string[] {
 }
 
 /** `apps/companion/README.md` above its first horizontal rule: the friend-facing part, shipped as README.txt. */
-export function friendReadme(readme: string): string {
+export function friendReadme(input: string): string {
+  // A Windows checkout (core.autocrlf) hands us CRLF; the shipped README.txt is LF either way.
+  const readme = input.replace(/\r\n/g, '\n');
   const rule = readme.indexOf('\n---\n');
   if (rule < 0) {
     throw new Error(

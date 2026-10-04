@@ -7,6 +7,7 @@ import type { NextResponse } from 'next/server';
 import { transferOwnership } from '@/lib/admin/members';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
+import { invalidateGroup } from '@/lib/cache/tags';
 
 /** The success notices. Platform's words, listed in the M14.11 report for product to replace. */
 export const OWNERSHIP_HANDED_ON = "Ownership handed over. You're an admin now.";
@@ -36,6 +37,7 @@ export async function handleOwnerTransfer(
   }
 
   const notice = result.value.changed ? OWNERSHIP_HANDED_ON : ALREADY_OWNER;
+  invalidateGroup(context.groupId, ['admins']);
   if (context.form) return redirectBack(context.request, back, { notice });
 
   return context.respond(

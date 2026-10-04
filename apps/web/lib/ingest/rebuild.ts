@@ -1,5 +1,6 @@
 import { displayRating, foldWinProbability, printedChange, type Rating } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
+import { invalidateGroup } from '../cache/tags';
 import { gameModeFromRaw } from '../games/queue';
 import type { ServiceClient } from '../supabase';
 import {
@@ -673,6 +674,9 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
     await pruneRatings(client, groupId, orphans);
     report.prunedRatings = orphans.length;
   }
+  // Every game's `mu_after` may have moved: drop the group's cached game-derived reads (app-perf;
+  // a no-op in the script, whose writes show when the entries expire).
+  invalidateGroup(groupId, ['games']);
 
   // ---- Inferred roles (M5.17) ----------------------------------------------------------
   //

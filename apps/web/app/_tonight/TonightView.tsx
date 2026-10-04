@@ -1,4 +1,4 @@
-import { type Calibration, displayRating, ruleOf } from '@customs/core';
+import { type Calibration, displayRating, nextGame, ruleOf } from '@customs/core';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FairnessReceipt, PreGameReceipt } from '@/components/receipt';
@@ -8,10 +8,10 @@ import type { GameBreakdown } from '@/lib/breakdown/load';
 import { fearlessWhatsOpen } from '@/lib/fearless/copy';
 import type { PageGroup } from '@/lib/groups/pageGroup';
 import { noKustomRunningLine } from '@/lib/lobbyStartCopy';
-import { modeCardView, selectValue, showsFearlessPool, tooFewOpen } from '@/lib/mode/card';
+import { modeCardView, selectValue, showsFearlessPool, tooFewOpen, upcomingState } from '@/lib/mode/card';
 import { championTable } from '@/lib/mode/champions';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
-import { ruleLaneLabel } from '@/lib/mode/ruleCopy';
+import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, ruleLaneLabel } from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
 import { bannedByGame, normalJustNow } from '@/lib/mode/view';
 import type { MysteryPageState } from '@/lib/mystery/service';
@@ -172,6 +172,8 @@ export function TonightView(props: TonightViewProps) {
     bans,
     table,
   });
+  // The admin controls are about the next game: after Roll, the card this game's record leaves.
+  const upcoming = upcomingState(modeState, snapshot.lobby?.status ?? null, snapshot.lobby?.lock ?? null);
   const speech: ModeSpeech = {
     standing: modeState.standing,
     pending: modeState.pending,
@@ -204,9 +206,9 @@ export function TonightView(props: TonightViewProps) {
         isAdmin
           ? {
               inGame: cardView.locked || variant === 'in-game',
-              selected: selectValue(modeState),
-              tooFew: tooFewOpen(modeState, bans, table),
-              nextRated: speech.nextRated,
+              selected: selectValue(upcoming),
+              tooFew: tooFewOpen(upcoming, bans, table),
+              nextRated: nextGame(upcoming).rated,
               version: modeState.version,
               redirectTo: groupHome(group),
               notice: props.modeNotice?.notice ?? null,
@@ -307,6 +309,7 @@ export function TonightView(props: TonightViewProps) {
             lobbyStart={props.lobbyStart ?? null}
             wouldSitOut={props.wouldSitOut ?? null}
             rolls={rolls !== null}
+            mirrorNext={cardView.pendingKey === 'mirror'}
           />
         ) : null}
         {state.kind === 'filling' ? modeCard : null}
@@ -494,6 +497,7 @@ function Filling({
   lobbyStart,
   wouldSitOut,
   rolls,
+  mirrorNext = false,
 }: {
   lobby: LobbyView;
   viewerPuuid: string | null;
@@ -502,6 +506,8 @@ function Filling({
   wouldSitOut: readonly string[] | null;
   /** The viewer holds `Roll teams`: the preview is the button's hint in the strip, not repeated here. */
   rolls: boolean;
+  /** The next game's rule is mirror: this open lobby may be Draft Pick (QA fix 2026-10-04). */
+  mirrorNext?: boolean;
 }) {
   const stage = rollStage(lobby);
   const sitLine = rolls ? null : sitOutPreview(lobby, wouldSitOut);
@@ -512,6 +518,7 @@ function Filling({
       {sitLine === null ? null : <p className="text-sm">{sitLine}</p>}
       {/* `Roll teams` is in the strip (M14.41); its hint stays here for whoever waits on it. */}
       {stage === 'waiting' ? <p className="text-sm text-muted-foreground">{ROLL_HINT}</p> : null}
+      {mirrorNext && linked ? <MirrorFillingLine /> : null}
       {stage === 'waiting' && linked ? (
         <StartLobby start={lobbyStart} press={false} around={lobbyAround(lobby.members)} />
       ) : null}
@@ -726,6 +733,23 @@ function Result({
 }
 
 /**
+ * The mirror host line while a lobby fills (M15.16, back since the 2026-10-04 QA fix; 05-design
+ * §10, dashed note, lead in 700): the lobby already exists and may be the Draft Pick one, so it
+ * says what to do then. Not a control. Spin never hands an open lobby mirror (`lib/mode/spin.ts`);
+ * this is for a mirror picked by hand, or picked before the lobby was made by hand.
+ */
+function MirrorFillingLine() {
+  return (
+    <p
+      data-slot="mirror-host-line"
+      className="rounded-control border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-sm"
+    >
+      <b className="font-bold">{MIRROR_HOST_LEAD}</b> {MIRROR_HOST_FILLING_REST}
+    </p>
+  );
+}
+
+/**
  * `Full scoreboard` (M14.41, scene-walk gap 5, [NEW COPY]): the finished poster's link to this
  * game's own page, where the scoreboard and the full receipt live. A standalone link, 44px tall.
  */
@@ -734,6 +758,7 @@ function FullScoreboardLink({ group, gameId }: { group: PageGroup; gameId: strin
   if (href === null) return null;
   return (
     <Link
+      prefetch={false}
       href={href}
       className="inline-flex min-h-11 w-fit items-center text-sm font-bold text-primary-text underline underline-offset-3"
     >

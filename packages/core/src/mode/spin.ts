@@ -43,7 +43,7 @@ function pick<T>(items: readonly T[], rng: Rng): T {
  * option uniformly inside it (so five classes do not drown region wars). Excluded: the previous
  * rule of tonight (`previousRule`, an option or the previous game's locked mode), anything
  * `playable` rejects, anything that is not a rule (a standing mode is never a result), and any
- * family outside `SPIN_FAMILIES` (mirror, for now).
+ * family outside `SPIN_FAMILIES` (today that is none: mirror joined at M17.17).
  * `null` when nothing is left.
  */
 export function drawSpin(

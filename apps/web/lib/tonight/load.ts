@@ -3,12 +3,23 @@ import { openSkillPair, type RoleValue, type SideValue } from '@customs/db';
 import { ORIGINAL_GROUP_ID, ruleModeOf } from '@customs/db/schemas';
 import { receiptSplitFromRow } from '@/components/receipt/model';
 import type { StoredSplit } from '@/components/receipt/types';
+import { inChunks } from '../chunks';
 import { readAssignments } from '../discord/assemble';
 import { loadFearless } from '../fearless/load';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
-import { loadGameStamp, loadLastGameAt, loadLobbyLock, loadModeState } from '../mode/tonightRead';
+import { loadCheckNames } from '../mode/clientNames';
+import { type LockRow, lockFromRow } from '../mode/lock';
+import {
+  type GameStampRow,
+  loadGameStamp,
+  loadLastGameAt,
+  loadModeFacts,
+  stampCheck,
+  stampFromRow,
+} from '../mode/tonightRead';
+import type { GameStampView } from '../mode/types';
 import { formatClock, formatNightLabel, type NightClock, nightClock } from '../night';
 import type { PublicClient } from '../publicClient';
 import { renderWebName } from './copy';
@@ -82,20 +93,30 @@ export async function loadTonight(
   const nightStart = options.nightStart.toISOString();
   const clock = options.nightClock ?? nightClock(options.nightStart, options.timeZone);
   const groupId = options.groupId;
-  const [lobbyRow, { mode, modeSince, ...fearless }, tapeRows, modeState, lastGameAt] = await Promise.all([
-    selectLobby(client, nightStart, groupId),
-    loadFearless(client, groupId),
-    selectTapeLobbies(client, nightStart, groupId),
-    // M15.5: the card's rule state and when the last game landed; each read falls back on its own.
-    loadModeState(client, groupId ?? ORIGINAL_GROUP_ID),
-    loadLastGameAt(client, groupId ?? ORIGINAL_GROUP_ID),
-  ]);
-  const tapeLobbies = pickTapeLobbies(tapeRows, nightStart, drawnLobbyId(lobbyRow));
+  // **Three rounds, whatever the screen** (performance plan, phase 2). Round one: the night's
+  // lobbies (one read for the drawn lobby and the tape), the `group_modes` row (one read for the
+  // pool and the card, M15.5), the pool's cursor and when the last game landed; each falls back on
+  // its own. Round two: every member, split and game (with its scoreboard) of those lobbies, and
+  // the pool's games. Round three: the names and ratings of everybody they mention.
+  const modeFacts = loadModeFacts(client, groupId ?? ORIGINAL_GROUP_ID);
+  const fearlessRead = loadFearless(client, groupId, {
+    modeState: modeFacts.then((facts) => facts.standing),
+  });
+  const lastGameAtRead = loadLastGameAt(client, groupId ?? ORIGINAL_GROUP_ID);
+  // Started before the lobbies are awaited, and awaited below; if the lobbies read throws first,
+  // these must not become unhandled rejections (side references, as the page's roster read does).
+  for (const started of [modeFacts, fearlessRead, lastGameAtRead]) started.catch(() => undefined);
+  const lobbies = await selectNightLobbies(client, nightStart, groupId);
+  const lobbyRow = newestLobby(lobbies);
+  const tapeLobbies = pickTapeLobbies(lobbies, nightStart, drawnLobbyId(lobbyRow));
 
-  const [lobby, tape] = await Promise.all([
-    lobbyRow === null ? Promise.resolve(null) : loadLobby(client, lobbyRow, groupId),
-    loadTape(client, tapeLobbies, clock),
-  ]);
+  const [{ lobby, tape }, { mode, modeSince, ...fearless }, { state: modeState }, lastGameAt] =
+    await Promise.all([
+      loadNight(client, lobbyRow, tapeLobbies, groupId, clock),
+      fearlessRead,
+      modeFacts,
+      lastGameAtRead,
+    ]);
 
   return {
     nightStart,
@@ -122,62 +143,268 @@ interface LobbyRow {
   lobbyName: string | null;
   /** `lobbies.updated_at`: for an `in_game` row, when the game started (see {@link LobbyView.startedAt}). */
   updatedAt: string;
+  created_at: string;
+  /** The lock columns (M15.5), read with the row instead of a read of their own. */
+  lock: LockRow;
 }
 
 /**
- * The newest `lobbies` row of tonight that is not `abandoned`.
+ * Tonight's lobbies that are not `abandoned`, oldest first: **one read** for both the lobby the
+ * page draws ({@link newestLobby}) and the tape's candidates ({@link pickTapeLobbies}), with the
+ * name and the lock on the same rows. The name comes back with the row the page is already reading
+ * (M4.10). The password does not: it is not readable with the anon key (M14.28, `0028`), and only
+ * a linked member of the group is given it, by the page, from a service-role read
+ * (`lib/tonight/lobbyPassword.ts`).
+ */
+async function selectNightLobbies(
+  client: PublicClient,
+  nightStart: string,
+  groupId: string | undefined,
+): Promise<LobbyRow[]> {
+  let query = client
+    .from('lobbies')
+    .select(
+      'id, status, lobby_name, updated_at, created_at, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version',
+    )
+    .gte('created_at', nightStart)
+    .neq('status', 'abandoned');
+  if (groupId !== undefined) query = query.eq('group_id', groupId);
+  const { data, error } = await query
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (error) throw new Error(`tonight: lobby lookup failed: ${error.message}`);
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    status: row.status,
+    lobbyName: row.lobby_name,
+    updatedAt: row.updated_at,
+    created_at: row.created_at,
+    lock: row,
+  }));
+}
+
+/**
+ * The newest of tonight's lobbies.
  *
  * One row is one game cycle (M2.14), so a night has several and the page follows the newest:
  * when the group starts the next game, the result of the last one is replaced by the member
  * list filling up. That is the decision recorded on 2026-09-09, and it is why there is no
  * "last game" block on this page.
  */
-async function selectLobby(
-  client: PublicClient,
-  nightStart: string,
-  groupId: string | undefined,
-): Promise<LobbyRow | null> {
-  let query = client
-    .from('lobbies')
-    // The name comes back with the row the page is already reading (M4.10). The password does
-    // not: it is not readable with the anon key (M14.28, `0028`), and only a linked member of the
-    // group is given it, by the page, from a service-role read (`lib/tonight/lobbyPassword.ts`).
-    .select('id, status, lobby_name, updated_at')
-    .gte('created_at', nightStart)
-    .neq('status', 'abandoned');
-  if (groupId !== undefined) query = query.eq('group_id', groupId);
-  const { data, error } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(`tonight: lobby lookup failed: ${error.message}`);
-  if (data === null) return null;
-  return {
-    id: data.id,
-    status: data.status,
-    lobbyName: data.lobby_name,
-    updatedAt: data.updated_at,
-  };
+export function newestLobby<T extends { created_at: string }>(rows: readonly T[]): T | null {
+  let newest: T | null = null;
+  for (const row of rows) {
+    if (newest === null || Date.parse(row.created_at) >= Date.parse(newest.created_at)) newest = row;
+  }
+  return newest;
 }
 
-async function loadLobby(
+/** One `in (...)` read per {@link inChunks} list, all at once, rows concatenated (`414` otherwise). */
+async function readIn<T>(
+  ids: readonly string[],
+  read: (chunk: string[]) => {
+    range(from: number, to: number): PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+  },
+  what: string,
+): Promise<T[]> {
+  const chunks = await Promise.all(
+    inChunks(ids).map(async (chunk) => {
+      // And paged: PostgREST cuts any response at `max_rows` (1000) without saying so, and a busy
+      // night's members or splits over ninety lobbies can pass it. The queries order on a unique
+      // key, so pages neither overlap nor skip; one page is the usual case.
+      const rows: T[] = [];
+      for (let from = 0; ; from += READ_PAGE) {
+        const { data, error } = await read(chunk).range(from, from + READ_PAGE - 1);
+        if (error) throw new Error(`tonight: ${what} lookup failed: ${error.message}`);
+        rows.push(...(data ?? []));
+        if ((data ?? []).length < READ_PAGE) break;
+      }
+      return rows;
+    }),
+  );
+  return chunks.flat();
+}
+
+/** PostgREST's `max_rows`: one page of {@link readIn}. */
+const READ_PAGE = 1_000;
+
+const MEMBER_COLUMNS = 'lobby_id, player_id, role_override, is_spectator, side, created_at';
+const SPLIT_COLUMNS =
+  'id, lobby_id, rank, blue, red, blue_win_prob, gap, off_role_count, explanation, is_chosen, created_at';
+/**
+ * The game row (the mode alone, not the end-of-game blob), its rule stamp (M15.5, M15.19: the
+ * columns of `GAME_STAMP_COLUMNS`) and its scoreboard, embedded, with the award's stat line (M11.3).
+ */
+const NIGHT_GAME_COLUMNS =
+  'id, lobby_id, winning_side, started_at, duration_s, gameMode:raw->gameMode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after, sigma_before, r_before)' as const;
+
+type NightGameRow = GameStampRow & {
+  id: string;
+  lobby_id: string | null;
+  winning_side: number | null;
+  started_at: string;
+  game_players: GamePlayerRow[];
+};
+
+/**
+ * The drawn lobby and the tape, in two more rounds: every member, split and game (with its
+ * scoreboard embedded) of tonight's lobbies in one read each, then the names and ratings of
+ * everybody those mention. An `open` lobby reads no split and no game, and only a `finished` one
+ * reads its game, as before.
+ */
+async function loadNight(
   client: PublicClient,
-  lobby: LobbyRow,
+  lobbyRow: LobbyRow | null,
+  tapeLobbies: readonly TapeLobbyRow[],
   groupId: string | undefined,
-): Promise<LobbyView> {
-  const members = await loadMembers(client, lobby.id, groupId);
+  clock: NightClock,
+): Promise<{ lobby: LobbyView | null; tape: TapeEntry[] }> {
+  const current = lobbyRow;
+  const tapeIds = tapeLobbies.map((lobby) => lobby.id);
+  const memberIds = [...new Set([...(current === null ? [] : [current.id]), ...tapeIds])];
+  if (memberIds.length === 0) return { lobby: null, tape: [] };
+  const splitIds = [
+    ...new Set([...(current !== null && current.status !== 'open' ? [current.id] : []), ...tapeIds]),
+  ];
+  const gameIds = [
+    ...new Set([...(current !== null && current.status === 'finished' ? [current.id] : []), ...tapeIds]),
+  ];
+
+  const [memberRows, splitRows, gameRows] = await Promise.all([
+    readIn(
+      memberIds,
+      (chunk) =>
+        client
+          .from('lobby_members')
+          // `side` is the column M4.11 reads: where the client has each person right now, so the
+          // page can tell whether the ten are already on the sides the split gave them.
+          .select(MEMBER_COLUMNS)
+          .in('lobby_id', chunk)
+          .order('created_at', { ascending: true })
+          .order('player_id', { ascending: true })
+          .order('lobby_id', { ascending: true }),
+      'member',
+    ),
+    readIn(
+      splitIds,
+      (chunk) =>
+        client
+          .from('splits')
+          .select(SPLIT_COLUMNS)
+          .in('lobby_id', chunk)
+          .order('created_at', { ascending: false })
+          .order('rank', { ascending: true })
+          .order('id', { ascending: true }),
+      'split',
+    ),
+    readIn(
+      gameIds,
+      (chunk) =>
+        client
+          .from('games')
+          .select(NIGHT_GAME_COLUMNS)
+          .in('lobby_id', chunk)
+          .order('started_at', { ascending: false })
+          .order('id', { ascending: true }),
+      'game',
+    ),
+  ]);
+
+  const currentMembers = current === null ? [] : memberRows.filter((row) => row.lobby_id === current.id);
+  const currentGame =
+    current !== null && current.status === 'finished'
+      ? (gameRows.find((game) => game.lobby_id === current.id) ?? null)
+      : null;
+  const playerIds = [
+    ...new Set([
+      ...memberRows.map((row) => row.player_id),
+      ...gameRows.flatMap((game) => game.game_players.map((row) => row.player_id)),
+    ]),
+  ];
+  const stampCheckOf = currentGame === null ? null : stampCheck(currentGame.id, currentGame);
+  const [players, ratings, checkNames] = await Promise.all([
+    readNightPlayers(client, playerIds),
+    loadRatings(
+      client,
+      currentMembers.map((row) => row.player_id),
+      groupId,
+    ),
+    currentGame === null ? Promise.resolve({}) : loadCheckNames(client, currentGame.id, stampCheckOf),
+  ]);
+
+  const lobby =
+    current === null
+      ? null
+      : buildLobby(current, {
+          members: buildMembers(currentMembers, players, ratings),
+          splits: splitRows.filter((row) => row.lobby_id === current.id),
+          game:
+            currentGame === null
+              ? null
+              : {
+                  row: currentGame,
+                  stamp: stampFromRow(currentGame, stampCheckOf, checkNames),
+                },
+          players,
+        });
+
+  const tapeSet = new Set(tapeIds);
+  const tapeGames = gameRows.filter((game) => game.lobby_id !== null && tapeSet.has(game.lobby_id));
+  const tape =
+    tapeLobbies.length === 0
+      ? []
+      : assembleTape(
+          {
+            lobbies: tapeLobbies,
+            games: tapeGames,
+            gamePlayers: tapeGames.flatMap((game) =>
+              game.game_players.map((row) => ({ ...row, game_id: game.id })),
+            ),
+            splits: splitRows.filter((row) => tapeSet.has(row.lobby_id) && row.is_chosen),
+            members: memberRows.filter((row) => tapeSet.has(row.lobby_id)),
+            players: new Map(
+              [...players].map(([id, player]) => [id, { puuid: player.puuid, name: displayName(player) }]),
+            ),
+          },
+          clock,
+        );
+  return { lobby, tape };
+}
+
+/** The drawn lobby from its rows. Pure. */
+function buildLobby(
+  lobby: LobbyRow,
+  source: {
+    members: MemberView[];
+    splits: readonly SplitRow[];
+    game: { row: NightGameRow; stamp: GameStampView } | null;
+    players: ReadonlyMap<string, PlayerRow>;
+  },
+): LobbyView {
+  const members = source.members;
   const byPuuid = new Map(members.map((member) => [member.puuid, member]));
 
   // `open` has no splits to read and no game to read, and the first paint of a filling lobby
   // is the one people wait on.
-  const [teams, result, lock] =
-    lobby.status === 'open'
-      ? [null, null, null]
-      : await Promise.all([
-          loadTeams(client, lobby.id, members, byPuuid),
-          lobby.status === 'finished' ? loadResult(client, lobby.id, byPuuid) : Promise.resolve(null),
-          // M15.5: the mode locked at Roll, which the card shows while the teams are set or in game.
-          lobby.status === 'balanced' || lobby.status === 'in_game'
-            ? loadLobbyLock(client, lobby.id)
-            : Promise.resolve(null),
-        ]);
+  const open = lobby.status === 'open';
+  const teams = open ? null : buildTeams(source.splits, members, byPuuid);
+  const game = source.game;
+  const result =
+    !open && lobby.status === 'finished' && game !== null
+      ? (assembleResult(
+          game.row,
+          game.row.game_players,
+          chosenSplitOf(source.splits),
+          game.stamp,
+          scoreboardOf(source.players, game.row.game_players),
+          byPuuid,
+        )?.result ?? null)
+      : null;
+  // M15.5: the mode locked at Roll, which the card shows while the teams are set or in game.
+  const lock =
+    !open && (lobby.status === 'balanced' || lobby.status === 'in_game')
+      ? (lockFromRow(lobby.lock)?.lock ?? null)
+      : null;
 
   return {
     id: lobby.id,
@@ -225,29 +452,18 @@ interface PlayerRow {
  * the bug this file's rule exists to prevent. The seam is one evening wide and closes the moment
  * their first game is folded.
  */
-async function loadMembers(
-  client: PublicClient,
-  lobbyId: string,
-  groupId: string | undefined,
-): Promise<MemberView[]> {
-  const { data, error } = await client
-    .from('lobby_members')
-    // `side` is the column M4.11 reads: where the client has each person right now, so the
-    // page can tell whether the ten are already on the sides the split gave them.
-    .select('player_id, role_override, is_spectator, side, created_at')
-    .eq('lobby_id', lobbyId)
-    .order('created_at', { ascending: true })
-    .order('player_id', { ascending: true });
-  if (error) throw new Error(`tonight: member lookup failed: ${error.message}`);
-
-  const rows = data ?? [];
+function buildMembers(
+  rows: readonly {
+    player_id: string;
+    role_override: RoleValue | null;
+    is_spectator: boolean;
+    side: number | null;
+    created_at: string;
+  }[],
+  players: ReadonlyMap<string, PlayerRow>,
+  ratings: ReadonlyMap<string, { mu: number; sigma: number; games: number }>,
+): MemberView[] {
   if (rows.length === 0) return [];
-
-  const playerIds = rows.map((row) => row.player_id);
-  const [players, ratings] = await Promise.all([
-    loadPlayers(client, playerIds),
-    loadRatings(client, playerIds, groupId),
-  ]);
 
   const members: MemberView[] = [];
   for (const row of rows) {
@@ -290,18 +506,23 @@ async function loadMembers(
 }
 
 /** `players_public`: `players` minus `discord_id`, and the only players relation anon can read. */
-async function loadPlayers(
+async function readNightPlayers(
   client: PublicClient,
   playerIds: readonly string[],
 ): Promise<Map<string, PlayerRow>> {
-  const { data, error } = await client
-    .from('players_public')
-    .select('id, puuid, display_name, game_name, main_role, secondary_role, rank_tier, rank_division')
-    .in('id', [...playerIds]);
-  if (error) throw new Error(`tonight: player lookup failed: ${error.message}`);
+  const rows = await readIn(
+    playerIds,
+    (chunk) =>
+      client
+        .from('players_public')
+        .select('id, puuid, display_name, game_name, main_role, secondary_role, rank_tier, rank_division')
+        .in('id', chunk)
+        .order('id', { ascending: true }),
+    'player',
+  );
 
   const players = new Map<string, PlayerRow>();
-  for (const row of data ?? []) {
+  for (const row of rows) {
     // The view's columns are all nullable to the generated types; the id is the primary key
     // of the table underneath it and is never null in a row that exists.
     if (row.id === null || row.puuid === null) continue;
@@ -324,15 +545,20 @@ async function loadRatings(
   playerIds: readonly string[],
   groupId: string | undefined,
 ): Promise<Map<string, { mu: number; sigma: number; games: number }>> {
-  let query = client.from('ratings').select('player_id, mu, sigma, games');
-  // One rating per person per group (M13.3): with a group, that group's number and no other.
-  if (groupId !== undefined) query = query.eq('group_id', groupId);
-  const { data, error } = await query.in('player_id', [...playerIds]);
-  if (error) throw new Error(`tonight: rating lookup failed: ${error.message}`);
+  const rows = await readIn(
+    playerIds,
+    (chunk) => {
+      let query = client.from('ratings').select('player_id, mu, sigma, games');
+      // One rating per person per group (M13.3): with a group, that group's number and no other.
+      if (groupId !== undefined) query = query.eq('group_id', groupId);
+      return query.in('player_id', chunk).order('player_id', { ascending: true }).order('group_id');
+    },
+    'rating',
+  );
 
   // A Kustom-only row (0036) has no OpenSkill pair: to this build it is not rated yet.
   const ratings = new Map<string, { mu: number; sigma: number; games: number }>();
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const pair = openSkillPair(row);
     if (pair !== null) ratings.set(row.player_id, { ...pair, games: row.games });
   }
@@ -363,21 +589,11 @@ function toSide(side: number | null): SideValue | null {
  * off-role marker beside a name comes from core's `isOffRole` on the same role the split
  * stored, so the sentence and the cards can never disagree about who is off their role.
  */
-async function loadTeams(
-  client: PublicClient,
-  lobbyId: string,
+function buildTeams(
+  rows: readonly SplitRow[],
   members: readonly MemberView[],
   byPuuid: ReadonlyMap<string, MemberView>,
-): Promise<TeamsView | null> {
-  const { data, error } = await client
-    .from('splits')
-    .select('id, rank, blue, red, blue_win_prob, gap, off_role_count, explanation, is_chosen, created_at')
-    .eq('lobby_id', lobbyId)
-    .order('created_at', { ascending: false })
-    .order('rank', { ascending: true });
-  if (error) throw new Error(`tonight: split lookup failed: ${error.message}`);
-
-  const rows = data ?? [];
+): TeamsView | null {
   // **The window where no split is chosen.** Both `balanceLobby` and `promoteSplit` clear
   // `is_chosen` in one statement and set it in the next — PostgREST has no transaction — so a
   // read that lands between them sees a lobby with splits and none chosen. Falling through to
@@ -470,30 +686,6 @@ function toSeat(
 }
 
 /**
- * The lobby's game, as the result card needs it.
- *
- * The two mu values travel; the delta is computed where it is rendered. A game the fold did
- * not rate keeps every row and sets `rated` false, which is the "no deltas under the header
- * `Final`" case — never a banner apologising for a remake.
- */
-async function loadResult(
-  client: PublicClient,
-  lobbyId: string,
-  byPuuid: ReadonlyMap<string, MemberView>,
-): Promise<ResultView | null> {
-  const { data: game, error } = await client
-    .from('games')
-    .select('id, duration_s, winning_side, started_at')
-    .eq('lobby_id', lobbyId)
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(`tonight: game lookup failed: ${error.message}`);
-  if (!game) return null;
-  return (await resultOfGame(client, game, lobbyId, byPuuid))?.result ?? null;
-}
-
-/**
  * One stored game as the poster draws it, plus the chosen split's stored explanation: the
  * tonight page's result block and `/g/[gameId]` (M11.4) both come through here, so a game's
  * odds, MVP and deltas are one computation on both. `null` for a game with no winner or no
@@ -519,6 +711,22 @@ export async function resultOfGame(
     client,
     rows.map((row) => row.player_id),
   );
+  return assembleResult(game, rows, splitRoles, stamp, scoreboard, byPuuid);
+}
+
+type GamePlayerRow = Awaited<ReturnType<typeof loadGamePlayers>>[number];
+
+/** {@link resultOfGame} from its rows. Pure; Tonight reads the rows with the rest of the night. */
+function assembleResult(
+  game: { id: string; duration_s: number; winning_side: number | null },
+  rows: readonly GamePlayerRow[],
+  splitRoles: ChosenSplit,
+  stamp: GameStampView | null,
+  scoreboard: ReadonlyMap<string, { puuid: string; name: PlayerName }>,
+  byPuuid: ReadonlyMap<string, MemberView>,
+): { result: ResultView; explanation: string | null } | null {
+  if (game.winning_side !== 100 && game.winning_side !== 200) return null;
+  if (rows.length === 0) return null;
 
   const seats: ResultSeatView[] = [];
   const ten: FoldAwardPlayer[] = [];
@@ -664,6 +872,45 @@ interface ChosenSplit {
 
 const NO_SPLIT: ChosenSplit = { roles: new Map(), blueWinProb: null, explanation: null };
 
+/** One `splits` row as the night reads it ({@link SPLIT_COLUMNS}). */
+interface SplitRow {
+  id: string;
+  lobby_id: string;
+  rank: number;
+  blue: unknown;
+  red: unknown;
+  blue_win_prob: number;
+  gap: number;
+  off_role_count: number;
+  explanation: string;
+  is_chosen: boolean;
+  created_at: string;
+}
+
+/** {@link loadChosenSplit} from the lobby's split rows already read. Pure. */
+function chosenSplitOf(rows: readonly SplitRow[]): ChosenSplit {
+  const data = rows.find((row) => row.is_chosen);
+  if (data === undefined) return NO_SPLIT;
+  const roles = new Map<string, RoleValue>();
+  for (const side of [data.blue, data.red]) {
+    for (const assignment of readAssignments(side)) roles.set(assignment.puuid, assignment.role);
+  }
+  return { roles, blueWinProb: data.blue_win_prob, explanation: data.explanation };
+}
+
+/** {@link scoreboardPlayers} from the night's players already read. Pure. */
+function scoreboardOf(
+  players: ReadonlyMap<string, PlayerRow>,
+  rows: readonly { player_id: string }[],
+): Map<string, { puuid: string; name: PlayerName }> {
+  const out = new Map<string, { puuid: string; name: PlayerName }>();
+  for (const row of rows) {
+    const player = players.get(row.player_id);
+    if (player !== undefined) out.set(row.player_id, { puuid: player.puuid, name: displayName(player) });
+  }
+  return out;
+}
+
 /** The chosen split's roles, odds and stored explanation: the fallback role, the prediction line's number. */
 async function loadChosenSplit(client: PublicClient, lobbyId: string): Promise<ChosenSplit> {
   const { data, error } = await client
@@ -698,24 +945,6 @@ export interface TapeLobbyRow {
 }
 
 const TAPE_STATUSES = ['finished', 'dropped'] as const;
-
-async function selectTapeLobbies(
-  client: PublicClient,
-  nightStart: string,
-  groupId: string | undefined,
-): Promise<TapeLobbyRow[]> {
-  let query = client
-    .from('lobbies')
-    .select('id, status, created_at')
-    .gte('created_at', nightStart)
-    .in('status', [...TAPE_STATUSES]);
-  if (groupId !== undefined) query = query.eq('group_id', groupId);
-  const { data, error } = await query
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (error) throw new Error(`tonight: tape lobby lookup failed: ${error.message}`);
-  return data ?? [];
-}
 
 /**
  * The lobby the primary block is drawing, or `null` when it draws none.
@@ -768,9 +997,6 @@ export interface TapeGamePlayer {
   damage_to_champs?: number;
 }
 
-const TAPE_GAME_PLAYER_COLUMNS =
-  'game_id, mu_before, mu_after, player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs';
-
 /** Everything {@link assembleTape} reads, as the queries return it. */
 export interface TapeSource {
   lobbies: readonly TapeLobbyRow[];
@@ -803,72 +1029,6 @@ export interface TapeSource {
   }[];
   members: readonly { lobby_id: string; player_id: string; created_at: string }[];
   players: ReadonlyMap<string, { puuid: string; name: PlayerName }>;
-}
-
-async function loadTape(
-  client: PublicClient,
-  lobbies: readonly TapeLobbyRow[],
-  clock: NightClock,
-): Promise<TapeEntry[]> {
-  if (lobbies.length === 0) return [];
-  const ids = lobbies.map((lobby) => lobby.id);
-
-  const [games, splits, members] = await Promise.all([
-    client
-      .from('games')
-      // The mode alone, not the end-of-game blob (`selectGroupGames` in `lib/ingest/rebuild.ts`).
-      // M15.19: and the rule it was played under, for the tile's `Tanks only · not rated`.
-      .select(
-        'id, lobby_id, duration_s, winning_side, started_at, raw->gameMode, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked',
-      )
-      .in('lobby_id', ids),
-    client
-      .from('splits')
-      .select('lobby_id, blue, red, blue_win_prob, rank')
-      .in('lobby_id', ids)
-      .eq('is_chosen', true),
-    client
-      .from('lobby_members')
-      .select('lobby_id, player_id, created_at')
-      .in('lobby_id', ids)
-      .order('created_at', { ascending: true }),
-  ]);
-  if (games.error) throw new Error(`tonight: tape game lookup failed: ${games.error.message}`);
-  if (splits.error) throw new Error(`tonight: tape split lookup failed: ${splits.error.message}`);
-  if (members.error) throw new Error(`tonight: tape member lookup failed: ${members.error.message}`);
-
-  const gameIds = (games.data ?? []).map((game) => game.id);
-  const gamePlayers: TapeGamePlayer[] =
-    gameIds.length === 0
-      ? []
-      : await client
-          .from('game_players')
-          .select(TAPE_GAME_PLAYER_COLUMNS)
-          .in('game_id', gameIds)
-          .then(({ data, error }) => {
-            if (error) throw new Error(`tonight: tape game player lookup failed: ${error.message}`);
-            return data ?? [];
-          });
-  // The members' names (sitters) and the scoreboard's (the MVP), in one read.
-  const playerIds = [
-    ...new Set([
-      ...(members.data ?? []).map((member) => member.player_id),
-      ...gamePlayers.flatMap((row) => (row.player_id === undefined ? [] : [row.player_id])),
-    ]),
-  ];
-  const players = playerIds.length === 0 ? new Map() : await scoreboardPlayers(client, playerIds);
-
-  return assembleTape(
-    {
-      lobbies,
-      games: games.data ?? [],
-      gamePlayers,
-      splits: splits.data ?? [],
-      members: members.data ?? [],
-      players,
-    },
-    clock,
-  );
 }
 
 /**

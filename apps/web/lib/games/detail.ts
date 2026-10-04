@@ -60,33 +60,45 @@ export interface GameDetailView {
 
 export async function loadGameDetail(
   client: PublicClient,
-  options: { gameId: string; groupId: string; viewerPuuid: string | null; timeZone: string },
+  options: {
+    gameId: string;
+    groupId: string;
+    viewerPuuid: string | null;
+    timeZone: string;
+    /** As `loadGamesList`'s: pages pass `cachedGroupCalibration`; the default reads with `client`. */
+    calibration?: (groupId: string) => Promise<Calibration>;
+  },
 ): Promise<GameDetailView | null> {
   const { gameId, groupId, timeZone } = options;
   if (!isGameId(gameId)) return null;
 
-  const { data: game, error } = await client
-    .from('games')
-    .select('id, started_at, duration_s, winning_side, lobby_id, lcu_game_id, raw, rated')
-    .eq('id', gameId)
-    .eq('group_id', groupId)
-    .maybeSingle();
+  // app-perf (2026-10-04): the game, its scoreboard and the calibration line in one round (the
+  // scoreboard is keyed by the game id the URL already gave), then the run and the names.
+  const [{ data: game, error }, rows, calibration] = await Promise.all([
+    // The one page that reads `raw` whole: one row, for the scoreboard's client facts.
+    client
+      .from('games')
+      .select('id, started_at, duration_s, winning_side, lobby_id, lcu_game_id, raw, rated')
+      .eq('id', gameId)
+      .eq('group_id', groupId)
+      .maybeSingle(),
+    readScoreRows(client, [gameId]),
+    options.calibration?.(groupId) ?? readGroupCalibration(client, groupId),
+  ]);
   if (error) throw new Error(`games: game lookup failed: ${error.message}`);
   if (game === null || (game.winning_side !== 100 && game.winning_side !== 200)) return null;
   const winningSide: 100 | 200 = game.winning_side;
+  if (rows.length === 0) return null;
 
-  const [rows, runs, calibration] = await Promise.all([
-    readScoreRows(client, [game.id]),
+  const [runs, players] = await Promise.all([
     game.lobby_id === null
       ? Promise.resolve(new Map<string, StoredSplit[]>())
       : readSplitRuns(client, [game.lobby_id]),
-    readGroupCalibration(client, groupId),
+    readPlayersById(
+      client,
+      rows.map((row) => row.playerId),
+    ),
   ]);
-  if (rows.length === 0) return null;
-  const players = await readPlayersById(
-    client,
-    rows.map((row) => row.playerId),
-  );
   const run = game.lobby_id === null ? [] : (runs.get(game.lobby_id) ?? []);
 
   const puuidOf = (playerId: string): string => players.get(playerId)?.puuid ?? `id:${playerId}`;

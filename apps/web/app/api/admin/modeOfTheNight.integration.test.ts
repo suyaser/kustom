@@ -16,6 +16,9 @@ import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { rebuildRatings } from '@/lib/ingest/rebuild';
 import { moveLobby } from '@/lib/lobbyState';
+import { modeCardView } from '@/lib/mode/card';
+import { championTable } from '@/lib/mode/champions';
+import { readLobbyLock } from '@/lib/mode/lock';
 import { loadModeState } from '@/lib/mode/tonightRead';
 import { eogBody, testGameId } from '@/lib/testing/fixtures';
 import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
@@ -575,10 +578,85 @@ if (stack === null || !ready) {
       expect((await tonightRated()).rated).toBe(false);
       expect(await lockOf(lobbyId)).toEqual(locked);
 
+      // The admin foot names the change: the same mode, only Rated differs.
+      expect(await adminLine(lobbyId)).toBe('Next game: not rated.');
+
       // The running game is rated as locked; the flip survives it, for the next game.
       const { game } = await record(partyId);
       expect(game.rated).toBe(true);
       expect(await cardRow()).toMatchObject({ rated_override: false });
+      await card({ mode: 'normal' });
+    });
+
+    /** The admin foot's `Next game: …` line as Tonight draws it from the reads, while the lobby is set. */
+    async function adminLine(lobbyId: string): Promise<string | null> {
+      const state = await loadModeState(anon, groups.g);
+      const lock = await readLobbyLock(db, lobbyId);
+      if (state === null || lock === null) throw new Error('no card state or no lock');
+      return modeCardView({
+        state,
+        lobbyStatus: 'balanced',
+        lock: lock.lock,
+        bans: [],
+        table: championTable(),
+      }).nextLine;
+    }
+
+    // The user's decision 2026-10-04: after Roll, flipping Rated changes only Rated.
+    it('after Roll a flip changes only Rated: the rule is used up, the flip is for the next game', async () => {
+      await card({ mode: 'fearless' });
+      await card({ mode: 'class:Tank' });
+      const { lobbyId, partyId } = await openAndRoll();
+      expect(await lockOf(lobbyId)).toMatchObject({
+        lock_rule: 'class',
+        lock_class_tag: 'Tank',
+        lock_rated: false,
+      });
+
+      await card({ rated: true });
+      // The card does not promise Tanks only again.
+      expect(await adminLine(lobbyId)).toBe('Next game: Fearless.');
+      await card({ rated: false });
+      await card({ rated: true });
+
+      const gameId = testGameId() + 900;
+      await startGame(partyId, gameId);
+      const { game } = await record(partyId, { gameId });
+      // The running game kept its lock; the rule is used up; the last flip stands for the next game.
+      expect(game).toMatchObject({ rule: 'class', rule_class_tag: 'Tank', rated: false });
+      expect(await cardRow()).toMatchObject({
+        mode: 'fearless',
+        pending_rule: null,
+        pending_class_tag: null,
+        rated_override: true,
+      });
+      expect(await tonightRated()).toMatchObject({ rated: true });
+
+      // The next game is a plain Fearless game.
+      const next = await openAndRoll();
+      expect(await lockOf(next.lobbyId)).toMatchObject({
+        lock_mode: 'fearless',
+        lock_rule: null,
+        lock_rated: true,
+      });
+      await record(next.partyId);
+      await card({ mode: 'normal' });
+    });
+
+    it('after Roll a flip then a new rule: the new rule survives the record, Rated said with it', async () => {
+      await card({ mode: 'fearless' });
+      await card({ mode: 'class:Tank' });
+      const { lobbyId, partyId } = await openAndRoll();
+      await card({ rated: true });
+      await card({ mode: 'class:Mage' });
+      await card({ rated: true });
+      expect(await adminLine(lobbyId)).toBe('Next game: Mages only. Rated.');
+      await record(partyId);
+      expect(await cardRow()).toMatchObject({
+        pending_rule: 'class',
+        pending_class_tag: 'Mage',
+        rated_override: true,
+      });
       await card({ mode: 'normal' });
     });
   });

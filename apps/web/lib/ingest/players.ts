@@ -1,4 +1,5 @@
 import type { PlayerInsert, PlayerUpdate } from '@customs/db';
+import { invalidateNames } from '../cache/tags';
 import type { ServiceClient } from '../supabase';
 
 /**
@@ -116,6 +117,9 @@ export async function ensurePlayers(
     if (updateError) {
       throw new Error(`ensurePlayers: refresh of ${row.puuid} failed: ${updateError.message}`);
     }
+    // A rename (or a moved tag line, which the same-name labels read) reaches every cached slice
+    // that prints a name, in every group (performance plan, phase 2; `lib/cache/tags.ts`).
+    if ('game_name' in patch || 'display_name' in patch || 'tag_line' in patch) invalidateNames();
   }
 
   const missing = puuids.filter((puuid) => !ids.has(puuid));

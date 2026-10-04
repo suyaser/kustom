@@ -10,9 +10,17 @@ import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook } from '../ingest
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
 import { loadGroupMode } from '../mode/load';
 import { readLobbyLock } from '../mode/lock';
-import { type ClosedWindow, DEFAULT_NIGHT_TIME_ZONE } from '../night';
+import { type ClosedWindow, civilDayKey, DEFAULT_NIGHT_TIME_ZONE } from '../night';
+import { loadWeekNotes, weekFromParam } from '../og/weekNotesLoad';
 import { RECEIPT_ANCHOR } from '../receipt/copy';
-import { gamePageUrl, groupPageUrl, leaderboardPageUrl, modePageUrl, resultBadgeUrl } from '../siteUrl';
+import {
+  gamePageUrl,
+  groupPageUrl,
+  leaderboardPageUrl,
+  modePageUrl,
+  resultBadgeUrl,
+  weekNotesImageUrl,
+} from '../siteUrl';
 import type { AwardRender } from '../stats/awards';
 import { loadStats } from '../stats/load';
 import type { StatsView } from '../stats/types';
@@ -570,8 +578,37 @@ export async function postClosedWindow(
     entries,
     url: group === null ? undefined : leaderboardPageUrl(options.requestOrigin, group.slug, window.kind),
     storyline: storyline ?? undefined,
+    image: group === null ? undefined : await weekNotesImage(client, window, group, options),
   });
   return postToWebhook(client, payload, `${window.kind} embed`, options);
+}
+
+/**
+ * M14.79: the week notes picture under the board, or `undefined`. Only from a public https origin,
+ * and only for a week the route will draw: a week with nothing worth a picture (`isNearlyEmpty`)
+ * sends no image, so Discord never shows a broken square. A failed read is no image, never a
+ * failed post.
+ */
+async function weekNotesImage(
+  client: ServiceClient,
+  window: ClosedWindow,
+  group: PostGroup,
+  options: GroupPostOptions,
+): Promise<string | undefined> {
+  const timeZone = options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE;
+  // The Sunday the week opens on (`2026-09-27`), the route's `[weekStart]`.
+  const key = civilDayKey(window.start, timeZone);
+  const url = weekNotesImageUrl(options.requestOrigin, group.slug, key);
+  if (url === undefined) return undefined;
+  try {
+    const week = weekFromParam(key, timeZone, options.now ?? new Date());
+    if (week === null) return undefined;
+    const model = await loadWeekNotes(client, { id: options.groupId, name: group.name }, week, timeZone);
+    return model === null ? undefined : url;
+  } catch (error) {
+    console.error('discord: reading the week notes failed; posting without the image', error);
+    return undefined;
+  }
 }
 
 /**

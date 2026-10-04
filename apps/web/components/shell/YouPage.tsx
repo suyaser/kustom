@@ -1,6 +1,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EntityLink } from '@/components/links/EntityLink';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
@@ -82,7 +83,7 @@ export function YouPage(props: YouPageProps) {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-(--gutter) py-6 *:max-w-3xl lg:py-8">
         {(props.kind === 'linked' || props.kind === 'unlinked') && props.admin != null ? (
           <Card>
-            <Link href={props.admin} className={cn(ROW, 'border-t-0 py-4')}>
+            <Link prefetch="auto" href={props.admin} className={cn(ROW, 'border-t-0 py-4')}>
               <span className="flex flex-col gap-0.5">
                 <span className="font-bold">{ADMIN_CARD_TITLE}</span>
                 <span className="text-sm font-normal text-muted-foreground">
@@ -104,16 +105,16 @@ export function YouPage(props: YouPageProps) {
 
         {props.kind === 'linked' && props.playerPage !== null ? (
           <Card>
-            <Link href={props.playerPage} className={cn(ROW, 'border-t-0')}>
+            <EntityLink href={props.playerPage} className={cn(ROW, 'border-t-0')}>
               {SEE_YOUR_PUBLIC_PAGE_LABEL}
               <Chevron />
-            </Link>
+            </EntityLink>
           </Card>
         ) : null}
 
         {props.kind !== 'anonymous' && props.daily !== null ? (
           <Card>
-            <Link href={props.daily} className={cn(ROW, 'border-t-0')}>
+            <Link prefetch="auto" href={props.daily} className={cn(ROW, 'border-t-0')}>
               {DAILY_LABEL}
               <Chevron />
             </Link>

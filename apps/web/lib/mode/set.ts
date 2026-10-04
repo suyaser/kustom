@@ -5,6 +5,7 @@ import {
   nextGame,
   type RuleOption,
   type StandingModeId,
+  sameRule,
   setRated,
 } from '@customs/core';
 import { type NextGame, ruleChoiceOf } from '@customs/db/schemas';
@@ -21,7 +22,8 @@ import { type ModeStore, type StoredModeState, supabaseModeStore } from './state
  * `changed: false`, no Realtime event). A rule pick, a Spin and a Rated flip always write, even
  * when they repeat what is pending: a rule re-queued mid-game, or the switch set again, is a
  * choice for the **next** game and must survive the running game's compare-and-clear (decision
- * row 2026-10-04, the version token).
+ * row 2026-10-04, the version token). A Rated-only flip after Roll changes only Rated: the record
+ * still uses up the locked rule (core's `onlyRatedSinceRoll`, the user's decision 2026-10-04).
  *
  * **Two admins at once.** The write is compare-and-set; the loser re-reads and re-applies its
  * action to the winner's state, so the last write wins and nothing is half-applied.
@@ -31,7 +33,11 @@ import { type ModeStore, type StoredModeState, supabaseModeStore } from './state
 
 export type ModeAction =
   | { kind: 'standing'; standing: StandingModeId }
-  | { kind: 'rule'; rule: RuleOption }
+  /**
+   * A rule pick. `playable` (QA fix 2026-10-04) is the server's check for the state it is written
+   * on: false refuses the pick (`too-few-open`), unless it is the rule already pending.
+   */
+  | { kind: 'rule'; rule: RuleOption; playable?: (state: ModeState, rule: RuleOption) => Promise<boolean> }
   | { kind: 'rated'; rated: boolean }
   /** Spin: `draw` is the server's pick for this state (`lib/mode/spin.ts`), or null for none. */
   | { kind: 'spin'; draw: (state: ModeState) => Promise<RuleOption | null> };
@@ -39,7 +45,9 @@ export type ModeAction =
 export type ModeWriteResult =
   | { ok: true; state: ModeState; changed: boolean; spun: RuleOption | null }
   /** Spin found nothing playable (every option excluded). Nothing was written. */
-  | { ok: false; reason: 'nothing-to-spin'; state: ModeState };
+  | { ok: false; reason: 'nothing-to-spin'; state: ModeState }
+  /** A rule pick with too few champions open tonight (Fearless bans counted). Nothing was written. */
+  | { ok: false; reason: 'too-few-open'; state: ModeState };
 
 /** Re-reads after a lost compare-and-set before giving up (a write storm, not a normal night). */
 const MAX_ATTEMPTS = 5;
@@ -51,8 +59,8 @@ export async function writeModeCard(
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const current = await store.read(input.groupId);
     const step = await apply(current, input.action);
-    if (step.kind === 'nothing-to-spin')
-      return { ok: false, reason: 'nothing-to-spin', state: current.state };
+    if (step.kind === 'nothing-to-spin' || step.kind === 'too-few-open')
+      return { ok: false, reason: step.kind, state: current.state };
     if (step.kind === 'unchanged') return { ok: true, state: current.state, changed: false, spun: null };
 
     const wrote = await store.write(input.groupId, current, step.next, {
@@ -69,6 +77,7 @@ export async function writeModeCard(
 type Step =
   | { kind: 'unchanged' }
   | { kind: 'nothing-to-spin' }
+  | { kind: 'too-few-open' }
   | { kind: 'write'; next: ModeState; spun: RuleOption | null };
 
 async function apply(current: StoredModeState, action: ModeAction): Promise<Step> {
@@ -81,8 +90,13 @@ async function apply(current: StoredModeState, action: ModeAction): Promise<Step
       if (repeat) return { kind: 'unchanged' };
       return { kind: 'write', next: chooseStanding(state, action.standing), spun: null };
     }
-    case 'rule':
+    case 'rule': {
+      // The rule already pending stays pickable, as the select keeps it (`tooFewOpen`).
+      const pending = sameRule(state.pending, action.rule);
+      if (!pending && action.playable !== undefined && !(await action.playable(state, action.rule)))
+        return { kind: 'too-few-open' };
       return { kind: 'write', next: chooseRule(state, action.rule), spun: null };
+    }
     case 'rated':
       return { kind: 'write', next: setRated(state, action.rated), spun: null };
     case 'spin': {
