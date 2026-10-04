@@ -553,12 +553,12 @@ describe('10.6 and 10.7, the boards', () => {
     const [e1] = windowSummaryEmbed(game4Weekly()).embeds;
     const board = lines(e1?.fields?.[0]?.value);
     expect(board.slice(0, 4)).toEqual([
-      '`1` **Ramzyinhović** · +212 · 5W–2L',
-      '`2` **Syndrome Axes** · +140 · 6W–3L',
-      '`3` **knifiy** · +88 · 4W–3L',
-      '`4` XETA · +41 · 3W–3L',
+      '`1` **Ramzyinhović** · +212 · 5W\u2060–\u20602L',
+      '`2` **Syndrome Axes** · +140 · 6W\u2060–\u20603L',
+      '`3` **knifiy** · +88 · 4W\u2060–\u20603L',
+      '`4` XETA · +41 · 3W\u2060–\u20603L',
     ]);
-    expect(board[9]).toBe('`10` Chaos · -96 · 1W–4L · settling · 4/10');
+    expect(board[9]).toBe('`10` Chaos · -96 · 1W\u2060–\u20604L · settling · 4/10');
     expect(e1?.fields?.map((field) => field.name)).toEqual(['Top ten', 'Best off-role', 'Cursed duo']);
     expect(e1?.footer?.text).toBe(WEEK_BOARD_SENTENCE_SHORT);
     expect(e1?.title).toBe('Last week · board');

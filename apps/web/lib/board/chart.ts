@@ -41,6 +41,9 @@ const SEED_PAD = 0.15;
 /** The smallest y span drawn, in display points (05-design 11.2, the Kustom scale). */
 export const MIN_SPAN = 100;
 
+/** The reference label's room beside the dashed line, in viewBox units (about 14px at 140px tall). */
+export const LABEL_ROOM = 14;
+
 export interface ChartGeometry {
   width: number;
   height: number;
@@ -53,6 +56,8 @@ export interface ChartGeometry {
   /** The range actually drawn, after padding and after taking the seed in. */
   low: number;
   high: number;
+  /** Whether the reference label goes under the dashed line (the last point is at or above it). */
+  labelBelow: boolean;
 }
 
 /**
@@ -64,7 +69,8 @@ export interface ChartGeometry {
 export function chartGeometry(series: readonly number[], seed: number): ChartGeometry | null {
   if (series.length === 0) return null;
 
-  const { low, high } = range(series, seed);
+  const labelBelow = (series[series.length - 1] as number) >= seed;
+  const { low, high } = roomForLabel(range(series, seed), seed, labelBelow);
   const span = high - low;
   const plot = CHART_HEIGHT - 2 * INSET;
   const y = (value: number): number => INSET + (1 - (value - low) / span) * plot;
@@ -88,7 +94,25 @@ export function chartGeometry(series: readonly number[], seed: number): ChartGeo
     seedPercent: round((seedY / CHART_HEIGHT) * 100),
     low,
     high,
+    labelBelow,
   };
+}
+
+/**
+ * Room for the reference line's label (05-design 11.2, M18.7 design review): the label sits on the
+ * side of the dashed line away from the last point (under it when the line ends at or above the
+ * reference, over it otherwise), so the range is widened until that side has {@link LABEL_ROOM}
+ * viewBox units between the line and the plot's edge.
+ */
+function roomForLabel(
+  { low, high }: { low: number; high: number },
+  seed: number,
+  labelBelow: boolean,
+): { low: number; high: number } {
+  const f = LABEL_ROOM / (CHART_HEIGHT - 2 * INSET);
+  if (labelBelow && seed - low < f * (high - low)) return { low: (seed - f * high) / (1 - f), high };
+  if (!labelBelow && high - seed < f * (high - low)) return { low, high: (seed - f * low) / (1 - f) };
+  return { low, high };
 }
 
 /**

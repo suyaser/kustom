@@ -7,6 +7,7 @@ import { RichText } from '@/components/receipt/parts';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { NumText } from '@/components/ui/num-text';
 import { SideGlyph } from '@/components/ui/side-glyph';
 import { LOST } from '@/lib/board/copy';
 import {
@@ -188,8 +189,8 @@ export function GameRow({ item, href }: { item: GameListItem; href: string }) {
             />
             {resultForWinner(item.winningSide)}
           </span>
-          <span className="num text-xs text-muted-foreground">
-            {item.dateLabel} · {item.durationLabel}
+          <span className="text-xs text-muted-foreground">
+            <NumText text={`${item.dateLabel} · ${item.durationLabel}`} />
           </span>
         </span>
         <RowOdds item={item} />

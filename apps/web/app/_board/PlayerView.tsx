@@ -1,4 +1,4 @@
-import { displayKustom } from '@customs/core';
+import { displayKustom, preGameOdds } from '@customs/core';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -6,6 +6,7 @@ import { EntityLink } from '@/components/links/EntityLink';
 import { CompactReceipt } from '@/components/receipt';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
+import { NumText } from '@/components/ui/num-text';
 import { SideGlyph } from '@/components/ui/side-glyph';
 import { WhyButton, WhyPanel, WhyScope } from '@/components/why/why-scope';
 import { subjectFor, WhyText } from '@/components/why/why-text';
@@ -28,12 +29,12 @@ import {
   ratingTileLabel,
   settlingChip,
   WEEK_CHANGE_COLUMN_LABEL,
-  WEEK_PLAYER_SENTENCE,
   WEEK_TOTAL_LABEL,
   WELCOME_NO_GAMES,
   WINDOW_EMPTY,
   WON,
   weekChangeWords,
+  weekPlayerSentence,
   weekPointsWords,
   welcomeLine,
   windowLabel,
@@ -125,7 +126,11 @@ export function PlayerView(props: PlayerViewProps) {
         </p>
       ) : null}
       {lens === 'public' ? (
-        <RatingCard player={player} groupName={props.group.name} />
+        <RatingCard
+          player={player}
+          groupName={props.group.name}
+          whose={props.viewerPuuid === player.puuid ? 'your' : 'their'}
+        />
       ) : (
         <SelfTrend {...props} />
       )}
@@ -170,11 +175,20 @@ function StatusChip({ player }: { player: PlayerBoardView }) {
   return <Chip variant="settling">{settlingChip(player.ratedGames)}</Chip>;
 }
 
-function RatingCard({ player, groupName }: { player: PlayerBoardView; groupName: string }) {
+function RatingCard({
+  player,
+  groupName,
+  whose,
+}: {
+  player: PlayerBoardView;
+  groupName: string;
+  /** `your` on the viewer's own page (copy review row 27). */
+  whose: 'your' | 'their';
+}) {
   // 05-design 11.5: a week they played leads with the week's points. A week with no game keeps the
   // Rating card (the slot line already says `No games this week yet.`): nobody reads `±0` for nothing.
   if (player.window !== 'all-time' && player.points !== null && player.games > 0) {
-    return <WeekRatingCard player={player} window={player.window} points={player.points} />;
+    return <WeekRatingCard player={player} window={player.window} points={player.points} whose={whose} />;
   }
   const start = explainRatingStart(player);
   const empty = player.ratedGames === 0 && player.games === 0;
@@ -199,7 +213,7 @@ function RatingCard({ player, groupName }: { player: PlayerBoardView; groupName:
           <RatingChart history={player.history} reference={player.reference} window={player.window} />
         )}
         {player.track === 'week' ? (
-          <p className="text-sm text-pretty text-muted-foreground">{WEEK_PLAYER_SENTENCE}</p>
+          <p className="text-sm text-pretty text-muted-foreground">{weekPlayerSentence(whose)}</p>
         ) : null}
       </div>
     </Card>
@@ -216,10 +230,12 @@ function WeekRatingCard({
   player,
   window,
   points,
+  whose,
 }: {
   player: PlayerBoardView;
   window: Exclude<PlayerBoardView['window'], 'all-time'>;
   points: number;
+  whose: 'your' | 'their';
 }) {
   return (
     <Card>
@@ -237,7 +253,7 @@ function WeekRatingCard({
         {player.history.length === 0 ? null : (
           <RatingChart history={player.history} reference={player.reference} window={player.window} />
         )}
-        <p className="text-sm text-pretty text-muted-foreground">{WEEK_PLAYER_SENTENCE}</p>
+        <p className="text-sm text-pretty text-muted-foreground">{weekPlayerSentence(whose)}</p>
       </div>
     </Card>
   );
@@ -363,13 +379,15 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
             className="flex items-baseline justify-between gap-3 border-t border-border px-(--card-pad) py-3 text-sm"
           >
             <span>{WEEK_TOTAL_LABEL}</span>
-            {/* Clear of the rows' Why chevron (14px, and the button's two 4px gaps around its sr-only words), so the sum sits under the column. */}
-            <span className="pe-[22px]">
+            {/* The WhyButton's own box (`gap-1`, `-me-1 pe-1`) with an empty 14px where its chevron
+                sits, so the sum's digits line up under the change column (M18.7 design review). */}
+            <span className="-me-1 inline-flex items-center justify-end gap-1 pe-1">
               <RatingDelta
                 delta={player.weekTotal}
                 width="change"
                 spoken={weekPointsWords(player.weekTotal, week)}
               />
+              <span aria-hidden="true" className="w-3.5 shrink-0" />
             </span>
           </p>
         )}
@@ -451,8 +469,10 @@ function GameRow({
           <SideGlyph side={game.side === 100 ? 'blue' : 'red'} />
           {game.won ? WON : LOST}
         </span>
-        <span className="num text-xs text-muted-foreground">
-          {formatDayMonth(new Date(game.startedAt), timeZone)} · {formatMinutes(game.durationS)}
+        <span className="text-xs text-muted-foreground">
+          <NumText
+            text={`${formatDayMonth(new Date(game.startedAt), timeZone)} · ${formatMinutes(game.durationS)}`}
+          />
         </span>
       </span>
       {/* Line 2: the role word in a fixed spot, then the odds sentence and its chips inline. */}
@@ -491,8 +511,14 @@ function GameRow({
       <Chip className="font-bold">{game.award === 'mvp' ? MVP_LABEL : ACE_LABEL}</Chip>
     );
   // 05-design 11.6.3: a week row's odds sentence opens `On this week's numbers` when the weekly
-  // odds differ from the roll odds the row prints; this is that printed number, for this side.
-  const rollSidePct = sideWinChance(game.blueWinProb, game.side);
+  // odds differ from the odds the row prints; this is that printed number, for this side: the roll's
+  // odds, or with no split the pre-game odds the compact receipt prints (M18.7 design review).
+  const printedBlue =
+    game.blueWinProb ??
+    (game.ratingsBefore === null
+      ? null
+      : (odds?.ratingBlueWinProb ?? preGameOdds(game.ratingsBefore.blue, game.ratingsBefore.red)));
+  const rollSidePct = sideWinChance(printedBlue, game.side);
 
   const row = (
     <div

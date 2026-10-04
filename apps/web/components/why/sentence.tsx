@@ -40,7 +40,7 @@ export function SentenceText({ sentence, lead = false }: { sentence: Sentence; l
           textWithGlyphs(part, String(index))
         ) : (
           // biome-ignore lint/suspicious/noArrayIndexKey: parts of one fixed sentence.
-          <span key={index} className="num">
+          <span key={index} className="num text-[0.92em]">
             {part.num}
           </span>
         ),

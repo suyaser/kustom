@@ -22,9 +22,9 @@ export const RANKED_SECTION_TITLE = 'Ranked';
 /** The settling section's heading (STRATEGY §5). */
 export const SETTLING_SECTION_TITLE = 'Still settling';
 
-/** The settling section's line (STRATEGY §5), the same words the Discord board post prints. */
+/** The settling section's line (STRATEGY §5), the same words the Discord board post prints; the first-ten rule since M18.7 (designer's words, lead-approved). */
 export const SETTLING_SECTION_LINE =
-  `New players' ratings move fast at first. They get a rank after ${SETTLING_GAMES} games.` as const;
+  `Their first ${SETTLING_GAMES} games count extra. They get a rank after ${SETTLING_GAMES} games.` as const;
 
 /** The settling chip (05-design 5.6): `settling · 4/10`. */
 export function settlingChip(ratedGames: number): string {

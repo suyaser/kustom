@@ -395,7 +395,7 @@ export interface LeaderboardEmbedInput {
  * listed unnumbered. The count is core's `SETTLING_GAMES`, never a literal.
  */
 export const SETTLING_FOOTER =
-  `New players' ratings move fast at first. They get a rank after ${SETTLING_GAMES} games.` as const;
+  `Their first ${SETTLING_GAMES} games count extra. They get a rank after ${SETTLING_GAMES} games.` as const;
 
 /** The settling section's field name (STRATEGY §5's heading). */
 export const SETTLING_FIELD = 'Still settling';
@@ -774,9 +774,12 @@ function leaderboardLine(entry: LeaderboardEntry, index: number): string {
   return `${rank} · ${weekLineTail(entry.week)}`;
 }
 
-/** `+212 · 5W–2L`, and `· settling · 4/10` for a player still settling (M14.57). */
+/**
+ * `+212 · 5W–2L`, and `· settling · 4/10` for a player still settling (M14.57). Word joiners
+ * (U+2060) hold the record together around the en dash, so `5W–` never ends a line (M18.7 review).
+ */
 export function weekLineTail(week: WeekEntry): string {
-  const head = `${formatDelta(week.points)} · ${week.wins}W–${week.losses}L`;
+  const head = `${formatDelta(week.points)} · ${week.wins}W⁠–⁠${week.losses}L`;
   return week.settlingGames === null ? head : `${head} · settling · ${week.settlingGames}/${SETTLING_GAMES}`;
 }
 

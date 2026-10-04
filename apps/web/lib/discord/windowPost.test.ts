@@ -142,7 +142,7 @@ describe('the awards field', () => {
         embeds: { fields: { value: string }[]; footer: { text: string } }[];
       }
     ).embeds[0];
-    expect(embed?.fields[0]?.value).toBe('`1` **Lena** · +86 · 3W–1L');
+    expect(embed?.fields[0]?.value).toBe('`1` **Lena** · +86 · 3W\u2060–\u20601L');
     expect(embed?.fields[0]?.value).not.toContain('2088');
     expect(embed?.footer.text).toBe(WEEK_BOARD_SENTENCE_SHORT);
     expect(embed?.footer.text).not.toBe(SETTLING_FOOTER);

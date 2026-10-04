@@ -86,7 +86,9 @@ describe('GameDetail', () => {
 
   it('prints the duration as minutes', () => {
     draw(game());
-    expect(screen.getByText('31 min')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '31 min'),
+    ).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\b\d{1,2}:\d\d\b/);
   });
 
