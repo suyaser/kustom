@@ -7,7 +7,6 @@ import {
   type RegionId,
   type RegionPair,
   type Rng,
-  regionOpenCounts,
   type StandingModeId,
 } from '@customs/core';
 import { parseGroupMode, ruleColumnsOf, ruleModeOf } from '@customs/db/schemas';
@@ -115,7 +114,8 @@ export function lockFor(state: ModeState, existing: StoredLock | null, inputs: L
   let regions: RegionPair | null = null;
   if (state.pending?.id === 'region') {
     const bans = state.standing === 'fearless' ? inputs.bans : [];
-    regions = drawRegions(inputs.regions, regionOpenCounts(inputs.table, bans), inputs.rng);
+    // The roster form, so the draw applies M20 D2's union rule to shared champions.
+    regions = drawRegions(inputs.regions, { roster: inputs.table, bans }, inputs.rng);
   }
   const lock = lockAtRoll(state, regions);
   // Core locked the standing mode for a region wars it could not draw: say so (M15.17).

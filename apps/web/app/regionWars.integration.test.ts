@@ -18,8 +18,9 @@ import {
  * M15.10, Region wars end to end, the M15.8 way: a scratch group's fixture night through the real
  * routes (the card, Roll, Reroll, the companion's lobby and game posts) on the local stack.
  *
- * 1. Standing Fearless; a rated Fearless game bans Kha'Zix and Cho'Gath (the Void, 9 to 7 open) and
- *    Ezreal (Piltover, 8 to 7), under the 8 a region needs.
+ * 1. Standing Fearless; a rated Fearless game bans Kha'Zix and Cho'Gath (the Void, 9 to 7 open),
+ *    under the 8 a region needs. Ezreal takes Piltover from 10 to 9 (Singed and Mel count for it by
+ *    their Kustom home, M20.3), so Piltover stays drawable.
  * 2. Region wars picked: the card says sides are drawn at Roll, the panel says the same with the
  *    region credit.
  * 3. Roll draws on the server, with a pinned RNG that would land on the Void if the bans were not
@@ -28,7 +29,7 @@ import {
  * 5. Teams come down (somebody leaves): the copy goes; back to ten, Roll draws again: Ionia vs
  *    Freljord.
  * 6. The card and the panel show both pools, the seated viewer's side first, and the credit.
- * 7. The game: Blue all Ionia, Red three Freljord, Annie (`unaffiliated`: broke) and a champion
+ * 7. The game: Blue all Ionia, Red three Freljord, Annie (Noxus by home: broke) and a champion
  *    newer than the pin (no row: couldn't check, named as the client named it). Not rated: no pool,
  *    no rating, no role moves.
  * 8. The result post and the poster carry the check line; the card is back on Fearless.
@@ -38,14 +39,15 @@ import {
 
 const stack = await stackWithModes(await resolveLocalStack());
 
-// Game 0, rated Fearless: Kha'Zix and Cho'Gath take the Void to 7, Ezreal takes Piltover to 7.
+// Game 0, rated Fearless: Kha'Zix and Cho'Gath take the Void to 7, Ezreal takes Piltover to 9.
 const GAME0 = [121, 31, 86, 122, 222, 412, 99, 238, 67, 81];
 /**
- * The first draw: 0.85 is the Void's slot of the eleven drawable regions with no bans, and
- * Shurima's of the nine left once game 0's bans take the Void and Piltover under eight.
+ * The first draw: 0.85 is the Void's slot of the 13 drawable regions with no bans, and Shurima's
+ * of the 12 left once game 0's bans take the Void under eight; 0.1 is then Bilgewater, second of
+ * either region's partners (M20.3: every pair passes M20 D2 here).
  */
-const FIRST_DRAW = [0.85, 0];
-/** The redraw: Ionia of the nine, then Freljord of the eight left. */
+const FIRST_DRAW = [0.85, 0.1];
+/** The redraw: Ionia of the 12, then Freljord of its 11 partners. */
 const REDRAW = [0.4, 0.3];
 /** Blue: Ahri, Yasuo, Irelia, Karma, Shen (Ionia). Red: Ashe, Sejuani, Braum (Freljord), Annie, a new champion. */
 const NEW_CHAMPION = 9_901;
@@ -108,7 +110,7 @@ if (stack === null) {
       expect(await night.poolIds()).toEqual(sortIds(GAME0));
       const open = regionOpenCounts(championTable(), GAME0);
       expect(open.get('void')).toBe(7);
-      expect(open.get('piltover')).toBe(7);
+      expect(open.get('piltover')).toBe(9);
       night.clearPosts();
     });
 
@@ -292,12 +294,12 @@ if (stack === null) {
       const open = regionOpenCounts(table, [...banned]);
       const toBan: number[] = [];
       for (const [id, facts] of table) {
-        // One region per champion until M20.3's home list; unaffiliated is the empty set.
-        const region = facts.region?.[0] ?? (facts.region === null ? null : 'unaffiliated');
-        if (region === null || region === 'ionia' || region === 'unaffiliated' || banned.has(id)) continue;
-        const left = open.get(region) ?? 0;
-        if (left <= 7) continue;
-        open.set(region, left - 1);
+        // A region set (M20.3): a ban takes one from every region the champion counts for. Never an
+        // Ionia champion (Ionia keeps its 8), never an unaffiliated one (the empty set).
+        const regions = facts.region ?? [];
+        if (regions.length === 0 || regions.includes('ionia') || banned.has(id)) continue;
+        if (regions.every((region) => (open.get(region) ?? 0) <= 7)) continue;
+        for (const region of regions) open.set(region, (open.get(region) ?? 0) - 1);
         toBan.push(id);
       }
       const padding = [...table]

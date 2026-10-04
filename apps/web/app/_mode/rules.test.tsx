@@ -636,7 +636,9 @@ describe('the panels', () => {
     const before = panel('region');
     expect(screen.getByText('The two regions are drawn when teams are rolled.')).toBeInTheDocument();
     expect(
-      screen.getByText("Regions from Meraki's lolstaticdata and the League of Legends Wiki."),
+      screen.getByText(
+        "Regions from Meraki's lolstaticdata and the League of Legends Wiki. Where a champion has two, the second is our own call.",
+      ),
     ).toBeInTheDocument();
     before.unmount();
     panel('region', { drawn: true, side: 'red' });

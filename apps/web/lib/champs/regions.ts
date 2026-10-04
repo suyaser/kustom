@@ -11,10 +11,9 @@
  *
  * Keyed by the numeric champion key (`game_players.champion_id`). `unaffiliated` is a real
  * region slug, a champion with no home region (never drawn, breaks any region rule); a key with no
- * row answers `null` (couldn't check). Champions per region at 16.19.1:
- *   bandle-city 7, bilgewater 8, demacia 15, freljord 15, ionia 23
- *   ixtal 8, mount-targon 7, noxus 17, piltover 8, shadow-isles 10
- *   shurima 11, void 9, zaun 14, unaffiliated 21
+ * row answers `null` (couldn't check). The Kustom home regions (M20 D1) sit beside this table in
+ * `homeRegions.ts`, hand-kept and never written by the script; the champions per region, Universe
+ * and with homes, are pinned in `regions.test.ts`.
  */
 
 export type RegionId =
@@ -69,8 +68,9 @@ export const REGION_NAMES: Readonly<Record<RegionId, string>> = {
   unaffiliated: 'Unaffiliated',
 };
 
-/** The credit line the region panel shows (M15.10, brief section 4). */
-export const REGION_CREDIT = "Regions from Meraki's lolstaticdata and the League of Legends Wiki.";
+/** The credit line the region panel shows (M15.10, brief section 4; M20.1's words). */
+export const REGION_CREDIT =
+  "Regions from Meraki's lolstaticdata and the League of Legends Wiki. Where a champion has two, the second is our own call.";
 
 const CHAMPION_REGIONS: Readonly<Record<number, RegionId>> = {
   1: 'unaffiliated', // Annie
