@@ -20,6 +20,7 @@
     "ai-eval": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/ai-eval.ts",
     "ai-eval-month": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/ai-eval-month.ts",
     "perf-tonight": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/perf-tonight.ts",
+    "perf-tonight-taps": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/perf-tonight-taps.ts",
     "clean": "rm -rf .next"
   },
   "dependencies": {
