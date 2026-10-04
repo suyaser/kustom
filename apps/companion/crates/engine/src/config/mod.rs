@@ -71,11 +71,23 @@ pub const MODE_KEY: &str = "mode";
 /// The local dev server, the API origin when nothing else names one.
 pub const LOCAL_API_BASE: &str = "http://localhost:3000";
 
-/// The API origin used when `config.json` names none: the deployed origin baked in at build time
-/// (`CUSTOMS_NIGHT_API_BASE`), else the local dev server. A file's own `apiBase` always wins.
+/// The deployed origin; what every release build uses unless `CUSTOMS_NIGHT_API_BASE` names another.
+/// The TypeScript companion's `RELEASE_API_BASE`.
+pub const RELEASE_API_BASE: &str = "https://kustom-delta.vercel.app";
+
+/// The API origin used when `config.json` names none: `CUSTOMS_NIGHT_API_BASE` at build time if set (and
+/// non-empty), else the deployed origin in a release build and the local dev server in a debug build
+/// (`tauri:dev`, tests). A file's own `apiBase` always wins. A release build can never default to
+/// localhost: v1.0.0 did, because nothing set the variable and pairing does not carry an origin.
 pub const DEFAULT_API_BASE: &str = match option_env!("CUSTOMS_NIGHT_API_BASE") {
-    Some(base) => base,
-    None => LOCAL_API_BASE,
+    Some(base) if !base.is_empty() => base,
+    _ => {
+        if cfg!(debug_assertions) {
+            LOCAL_API_BASE
+        } else {
+            RELEASE_API_BASE
+        }
+    }
 };
 
 /// Which platform's config root to use.
@@ -397,6 +409,27 @@ mod tests {
             PathBuf::from("/tmp/x")
         );
         assert_eq!(config_dir_from(Platform::MacOs, &env_of(&[])), None);
+    }
+
+    #[test]
+    fn default_api_base_is_a_valid_origin_and_never_local_in_release() {
+        assert_eq!(
+            parse_api_base(DEFAULT_API_BASE).as_deref(),
+            Some(DEFAULT_API_BASE)
+        );
+        assert_eq!(
+            parse_api_base(RELEASE_API_BASE).as_deref(),
+            Some(RELEASE_API_BASE)
+        );
+        assert!(RELEASE_API_BASE.starts_with("https://"));
+        if option_env!("CUSTOMS_NIGHT_API_BASE").is_none() {
+            let expected = if cfg!(debug_assertions) {
+                LOCAL_API_BASE
+            } else {
+                RELEASE_API_BASE
+            };
+            assert_eq!(DEFAULT_API_BASE, expected);
+        }
     }
 
     #[test]
