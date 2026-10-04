@@ -214,14 +214,16 @@ if (stack === null) {
       if (parts === null) throw new Error(`rank ${row.rank} stored no parts`);
       expect(parts.gap + parts.offRole + parts.repeat + parts.variety).toBe(row.score);
       expect(parts.offRole).toBe(0);
+      // M18.14: charged beyond the lobby's floor of 2 (see below).
       expect(parts.variety).toBe(
-        Math.min(config.balance.varietyCap, config.balance.varietyPerPair * parts.repeatedPairs),
+        Math.min(config.balance.varietyCap, config.balance.varietyPerPair * (parts.repeatedPairs - 2)),
       );
     }
-    // Two trios of the previous game: each must leave at least one pair together, and the best
-    // split leaves exactly that, so 2 pairs and 50 points, with a gap of 0.
+    // Two trios of the previous game: each must leave at least one pair together, so every split
+    // keeps at least 2 (the floor), and the best split keeps exactly that: 2 pairs, charged
+    // nothing (M18.14), with a gap of 0.
     const chosen = storedScoreParts(data?.[0]?.score_parts);
-    expect(chosen).toMatchObject({ gap: 0, repeatedPairs: 2, variety: 2 * config.balance.varietyPerPair });
+    expect(chosen).toMatchObject({ gap: 0, repeatedPairs: 2, variety: 0 });
     expect(rolled.balance.split.scoreParts).toEqual(chosen);
 
     // 0045's check refuses a shape the receipt could not read; null stays legal (older rows).

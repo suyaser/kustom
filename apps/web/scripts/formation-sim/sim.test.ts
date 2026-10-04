@@ -56,12 +56,26 @@ describe('formation-sim port', () => {
     for (let i = 0; i < 300; i += 1) {
       const { ten, lastBlue, pairs } = lobby(rng, 1100);
       const core = coreBalance(ten, lastBlue, pairs);
-      const port = portBalance(ten, lastBlue, pairs, { strength: 'flat', variety: true });
+      const port = portBalance(ten, lastBlue, pairs, { strength: 'flat', variety: 'floor' });
       expect(port.blue).toEqual(core.blue);
       expect(port.red).toEqual(core.red);
       expect(port.score).toBeCloseTo(core.score, 9);
       expect(port.offRoleCount).toBe(core.offRoleCount);
     }
+  });
+
+  it('same ten every night (M18.14): the M18.13 rule is inert, the floor rule splits teammates up', () => {
+    const world = makeWorld(5, 0);
+    const raw = run(world, 'm1813', 120, { fixedTen: true });
+    const flat = run(world, 'flatOnly', 120, { fixedTen: true });
+    const after = run(world, 'after', 120, { fixedTen: true });
+    // Every split of the same ten keeps 8 or more of last game's pairs, so the raw rule charged
+    // every split the cap: exactly the balancer with no variety at all.
+    expect(raw).toEqual(flat);
+    const m = metrics(after);
+    expect(m.sameTen).toBeGreaterThan(70);
+    expect(m.repeatsSameTen).toBeGreaterThanOrEqual(8);
+    expect(m.repeatsSameTen).toBeLessThan(metrics(raw).repeatsSameTen);
   });
 
   it('is deterministic per seed', () => {

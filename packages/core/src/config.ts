@@ -277,12 +277,15 @@ export const config = {
     /** Rating points added once when a split puts the same five together as `lastSplit`. */
     repeatSplitPenalty: 200,
     /**
-     * Teammate variety (M18.13, owner-approved 2026-10-04): a split pays
-     * `min(varietyCap, varietyPerPair * repeated pairs)` Rating points, a repeated pair being two
-     * players on the same side of this split who were teammates in the recent window. 25 a pair,
-     * capped at 100, so variety can lift a split over a fairer one by at most 100 points of
-     * gap; the shown win chance is still the true one. The gentle version of
-     * `repeatSplitPenalty`, which stays as it is.
+     * Teammate variety (M18.13, owner-approved 2026-10-04; M18.14, owner decision 2026-10-04): a
+     * split pays `min(varietyCap, varietyPerPair * (repeated pairs - floor))` Rating points, a
+     * repeated pair being two players on the same side of this split who were teammates in the
+     * recent window, and the floor the fewest repeated pairs any split of this lobby the duo locks
+     * allow must keep. The same ten again keep at least 8 (two 3-2 reshuffles of last game's
+     * fives), so a 3-2 is free and a 4-1 (12) pays 100; with a rotating roster the floor is
+     * usually 0 and this is the M18.13 rule. 25 a pair, capped at 100, so variety can lift a split
+     * over a fairer one by at most 100 points of gap; the shown win chance is still the true one.
+     * The gentle version of `repeatSplitPenalty`, which stays as it is.
      */
     varietyPerPair: 25,
     varietyCap: 100,

@@ -27,6 +27,8 @@ import {
  * - `before`: the M18.2 balancer, `r × {1, 0.93, 0.85}`, no variety. A port (core no longer has it).
  * - `after`: core's own `balance()`, as shipped (flat `roleDrop`, capped teammate variety from the
  *   night's previous game), called exactly as `apps/web/lib/ingest/balance.ts` calls it.
+ * - `m1813`: the port with core's rules as M18.13 shipped them (flat `roleDrop`, variety on the
+ *   raw pair count), the baseline M18.14's floor is measured against.
  * - `flatOnly`, `varietyOnly`: the port with one of the two terms, to say which term moved what.
  * - `random`: a random split with best lanes, the floor.
  *
@@ -160,8 +162,15 @@ function trueStrength(p: WorldPlayer, role: number): number {
 // The balancers.
 // ---------------------------------------------------------------------------------------------
 
-export type VariantName = 'before' | 'after' | 'flatOnly' | 'varietyOnly' | 'random';
-export const VARIANTS: readonly VariantName[] = ['before', 'after', 'flatOnly', 'varietyOnly', 'random'];
+export type VariantName = 'before' | 'after' | 'm1813' | 'flatOnly' | 'varietyOnly' | 'random';
+export const VARIANTS: readonly VariantName[] = [
+  'before',
+  'after',
+  'm1813',
+  'flatOnly',
+  'varietyOnly',
+  'random',
+];
 
 /** One of the ten as both balancers read it. `id` is the world index; puuids sort like ids. */
 export interface SimSeat {
@@ -175,7 +184,11 @@ export interface SimSeat {
 
 export interface PortOptions {
   strength: 'multiplier' | 'flat';
-  variety: boolean;
+  /**
+   * `none`; `raw`, the M18.13 rule `min(cap, 25 × pairs kept)`; `floor`, the M18.14 rule
+   * `min(cap, 25 × (pairs kept − the fewest any split of the lobby keeps))`, core's rule now.
+   */
+  variety: 'none' | 'raw' | 'floor';
 }
 
 export interface Chosen {
@@ -309,7 +322,9 @@ export function portBalance(
     red: TeamPick;
     gap: number;
   } | null = null;
-  for (const mask of BLUE_MASKS) {
+  const kept = BLUE_MASKS.map((mask) => pairsIn(team(mask)) + pairsIn(team(FULL ^ mask)));
+  const floor = options.variety === 'floor' ? Math.min(...kept) : 0;
+  for (const [m, mask] of BLUE_MASKS.entries()) {
     const blue = team(mask);
     const red = team(FULL ^ mask);
     const gap = Math.abs(blue.sum - red.sum);
@@ -317,9 +332,10 @@ export function portBalance(
     const redIds = red.idx.map((i) => (ten[i] as SimSeat).id);
     const isRepeat =
       lastBlue !== null && (blueIds.every((x) => lastBlue.has(x)) || redIds.every((x) => lastBlue.has(x)));
-    const variety = options.variety
-      ? Math.min(B.varietyCap, B.varietyPerPair * (pairsIn(blue) + pairsIn(red)))
-      : 0;
+    const variety =
+      options.variety === 'none'
+        ? 0
+        : Math.min(B.varietyCap, B.varietyPerPair * ((kept[m] as number) - floor));
     const score = gap + (blue.cost + red.cost) + (isRepeat ? B.repeatSplitPenalty : 0) + variety;
     const off = blue.off + red.off;
     const better =
@@ -406,7 +422,21 @@ export interface GameRecord {
 
 const pairKey = (a: number, b: number): string => (a < b ? `${a}-${b}` : `${b}-${a}`);
 
-export function run(world: World, variant: VariantName, games: number): GameRecord[] {
+export interface RunOptions {
+  /**
+   * M18.14's same-ten scenario: every night the same ten turn up (the ten most regular players of
+   * the world), so every game after a night's first is the previous game's ten again. The random
+   * streams are drawn as usual; only who is present is overridden.
+   */
+  fixedTen?: boolean;
+}
+
+export function run(
+  world: World,
+  variant: VariantName,
+  games: number,
+  options: RunOptions = {},
+): GameRecord[] {
   const rng = mulberry32(world.seed * 104729 + 7);
   const rngSplit = mulberry32(world.seed * 31 + 3);
   const P = world.players;
@@ -415,10 +445,16 @@ export function run(world: World, variant: VariantName, games: number): GameReco
   const sinceFill: (number | null)[] = new Array(N).fill(null);
   const lastByRoster = new Map<string, Set<number>>();
   const recs: GameRecord[] = [];
+  const regulars = P.map((p, i) => [p.attend, i] as const)
+    .sort((a, b) => b[0] - a[0] || a[1] - b[1])
+    .slice(0, 10)
+    .map((x) => x[1])
+    .sort((a, b) => a - b);
   let g = 0;
   while (g < games) {
-    const present: number[] = [];
+    let present: number[] = [];
     for (let i = 0; i < N; i += 1) if (rng() < (P[i] as WorldPlayer).attend) present.push(i);
+    if (options.fixedTen) present = [...regulars];
     if (present.length < 10) {
       rng();
       continue;
@@ -454,7 +490,7 @@ export function run(world: World, variant: VariantName, games: number): GameReco
       } else {
         split = portBalance(ten, lastBlue, prevPairs, {
           strength: variant === 'before' || variant === 'varietyOnly' ? 'multiplier' : 'flat',
-          variety: variant === 'varietyOnly',
+          variety: variant === 'varietyOnly' ? 'floor' : variant === 'm1813' ? 'raw' : 'none',
         });
       }
 
@@ -563,6 +599,8 @@ export interface Metrics {
   repeats: number;
   /** % of games whose ten were exactly the previous game's ten. */
   sameTen: number;
+  /** Mean repeats over those same-ten games only (8 is the floor there), `NaN` when none. */
+  repeatsSameTen: number;
 }
 
 export function metrics(recs: readonly GameRecord[]): Metrics {
@@ -574,6 +612,10 @@ export function metrics(recs: readonly GameRecord[]): Metrics {
     off: mean((x) => x.off),
     repeats: mean((x) => x.repeats),
     sameTen: mean((x) => (x.sameTen ? 100 : 0)),
+    repeatsSameTen: (() => {
+      const same = recs.filter((x) => x.sameTen);
+      return same.reduce((s, x) => s + x.repeats, 0) / same.length;
+    })(),
   };
 }
 

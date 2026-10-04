@@ -12,8 +12,11 @@
 --                  its rounding)
 --   offRole        the sum of each off-role seat's cost (fill protection included)
 --   repeat         the repeat-split penalty, or 0
---   variety        min(cap, per-pair x repeatedPairs), teammate variety
---   repeatedPairs  pairs on the same side who were teammates in the night's previous game
+--   variety        min(cap, per-pair x (repeatedPairs - floor)), teammate variety; the floor is
+--                  the fewest repeatedPairs of any split of that lobby (M18.14), so it is what was
+--                  charged, not recomputable from this row alone
+--   repeatedPairs  the raw count: pairs on the same side who were teammates in the night's
+--                  previous game
 --
 -- score = gap + offRole + repeat + variety (core sums them in that order). Not checked here:
 -- the parts are doubles summed in JS, and a database recomputation is not the place to argue
