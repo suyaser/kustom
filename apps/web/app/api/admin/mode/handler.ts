@@ -7,13 +7,14 @@ import { readServerEnv } from '@/lib/env';
 import { serverRng } from '@/lib/mode/rng';
 import {
   NOTHING_TO_SPIN,
+  RULE_TOO_FEW_OPEN,
   ratedNotice,
   ruleChosenNotice,
   spinNotice,
   standingNotice,
 } from '@/lib/mode/ruleNotices';
 import { type ModeAction, nextGameOf, writeModeCard } from '@/lib/mode/set';
-import { spinDraw } from '@/lib/mode/spin';
+import { ruleCheck, spinDraw } from '@/lib/mode/spin';
 import { type ModeStore, supabaseModeStore } from '@/lib/mode/state';
 import {
   type SetGroupModeRequest,
@@ -35,7 +36,10 @@ import {
  * owner of the body's `groupId`), zod on the body (400). Core decides every new state; the write is
  * compare-and-set on `group_modes.version`. A change after Roll is for the next game: the lobby
  * keeps its lock (`lib/mode/lock.ts`). Posts nothing to Discord. A no-op (a repeat standing pick)
- * is a 200 with `changed: false`. A Spin with nothing left to draw is a 409.
+ * is a 200 with `changed: false`. A Spin with nothing left to draw is a 409. A rule pick with too
+ * few champions open tonight (core's `rulePlayable`, Fearless bans counted on a Fearless night) is
+ * a 409 `That rule has too few champions open tonight.` (QA fix 2026-10-04); the rule already
+ * pending stays pickable.
  */
 
 export interface ModeRouteDeps {
@@ -48,6 +52,8 @@ export interface ModeRouteDeps {
   store?: ModeStore;
   /** Tests only: Spin's draw (default: `spinDraw` over the database and `rng`). */
   draw?: (state: ModeState) => Promise<RuleOption | null>;
+  /** Tests only: the rule check (default: `ruleCheck` over the database and `table`). */
+  playable?: (state: ModeState, rule: RuleOption) => Promise<boolean>;
 }
 
 export async function handleSetGroupMode(
@@ -80,7 +86,16 @@ export async function handleSetGroupMode(
     action =
       rule === null
         ? { kind: 'standing', standing: input.mode === 'fearless' ? 'fearless' : 'normal' }
-        : { kind: 'rule', rule };
+        : {
+            kind: 'rule',
+            rule,
+            playable:
+              deps.playable ??
+              ruleCheck(context.client, {
+                groupId,
+                ...(deps.table === undefined ? {} : { table: deps.table }),
+              }),
+          };
   } else {
     // The schema refuses a body with none of the three; this is the type's exhaustiveness.
     return context.fail(400, 'name exactly one of mode, rated or spin');
@@ -92,9 +107,10 @@ export async function handleSetGroupMode(
   const result = await writeModeCard(store, { groupId, playerId: context.admin.playerId, action });
 
   if (!result.ok) {
+    const refusal = result.reason === 'too-few-open' ? RULE_TOO_FEW_OPEN : NOTHING_TO_SPIN;
     return context.form
-      ? redirectBack(context.request, back, { error: NOTHING_TO_SPIN })
-      : context.fail(409, NOTHING_TO_SPIN);
+      ? redirectBack(context.request, back, { error: refusal })
+      : context.fail(409, refusal);
   }
 
   const next = nextGameOf(result.state);
@@ -162,7 +178,7 @@ function splitOptions(options: AdminRouteOptions & ModeRouteDeps): {
   routeOptions: AdminRouteOptions;
   deps: ModeRouteDeps;
 } {
-  const { rng, now, timeZone, table, store, draw, ...routeOptions } = options;
+  const { rng, now, timeZone, table, store, draw, playable, ...routeOptions } = options;
   return {
     routeOptions,
     deps: {
@@ -172,6 +188,7 @@ function splitOptions(options: AdminRouteOptions & ModeRouteDeps): {
       ...(table ? { table } : {}),
       ...(store ? { store } : {}),
       ...(draw ? { draw } : {}),
+      ...(playable ? { playable } : {}),
     },
   };
 }

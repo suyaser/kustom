@@ -56,7 +56,13 @@ import {
   SPINNING,
   TOO_FEW_OPEN,
 } from '@/lib/mode/ruleCopy';
-import { NOTHING_TO_SPIN, ratedNotice, ruleChosenNotice, standingNotice } from '@/lib/mode/ruleNotices';
+import {
+  NOTHING_TO_SPIN,
+  RULE_TOO_FEW_OPEN,
+  ratedNotice,
+  ruleChosenNotice,
+  standingNotice,
+} from '@/lib/mode/ruleNotices';
 import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { requestTonightRefresh } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
@@ -220,7 +226,8 @@ export function ModeControls({
     if (pending !== null || choice === current) return;
     const result = await post(MODE_ACTION, { mode: choice }, 'mode');
     if (!result.ok) {
-      setFailed(MODE_CHANGE_FAILED);
+      // 409: the server's rule check (a page older than the pool, QA fix 2026-10-04).
+      setFailed(result.status === 409 ? RULE_TOO_FEW_OPEN : MODE_CHANGE_FAILED);
       setChoice(current);
       return;
     }

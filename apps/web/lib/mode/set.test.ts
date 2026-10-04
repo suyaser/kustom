@@ -127,6 +127,29 @@ describe('writeModeCard: a rule, the Rated switch, Spin (M15.3)', () => {
     expect(result).toMatchObject({ ok: false, reason: 'nothing-to-spin' });
     expect(t.writes).toEqual([]);
   });
+
+  it('a rule the check refuses writes nothing (too-few-open); the pending rule is never re-checked', async () => {
+    const t = memoryModeStore(state({ pending: MAGES }));
+    const checked: RuleOption[] = [];
+    const playable = async (_state: ModeState, rule: RuleOption) => {
+      checked.push(rule);
+      return false;
+    };
+    const refused = await writeModeCard(t.store, {
+      groupId: GROUP,
+      playerId: ADMIN,
+      action: { kind: 'rule', rule: TANKS, playable },
+    });
+    expect(refused).toMatchObject({ ok: false, reason: 'too-few-open' });
+    expect(t.writes).toEqual([]);
+    const again = await writeModeCard(t.store, {
+      groupId: GROUP,
+      playerId: ADMIN,
+      action: { kind: 'rule', rule: MAGES, playable },
+    });
+    expect(again).toMatchObject({ ok: true, changed: true });
+    expect(checked).toEqual([TANKS]);
+  });
 });
 
 describe('writeModeCard: two admins at once', () => {

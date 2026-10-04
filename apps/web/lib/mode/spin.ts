@@ -136,3 +136,21 @@ export async function hasOpenLobby(client: ServiceClient, groupId: string): Prom
   if (error) throw new Error(`spin: open lobby lookup failed: ${error.message}`);
   return (data ?? []).length > 0;
 }
+
+/**
+ * The server's rule check for a pick (QA fix 2026-10-04): core's `rulePlayable` with the Fearless
+ * bans counted on a standing-Fearless night only (D7), the same test the select's
+ * ` (too few open)` uses, so a stale page or a hand-made post cannot queue a rule nobody can play.
+ */
+export function ruleCheck(
+  client: ServiceClient,
+  input: { groupId: string; table?: ChampionTable },
+): (state: ModeState, rule: RuleOption) => Promise<boolean> {
+  return async (state, rule) => {
+    const bans =
+      state.standing === 'fearless'
+        ? (await loadFearless(client, input.groupId)).champions.map((champion) => champion.id)
+        : [];
+    return rulePlayable(rule, input.table ?? championTable(), bans);
+  };
+}

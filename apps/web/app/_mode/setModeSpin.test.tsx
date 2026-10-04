@@ -144,6 +144,17 @@ describe('Set mode answers on its own', () => {
     expect(select().value).toBe('fearless');
     expect(setButton()).toBeNull();
   });
+
+  it("the server's rule check (409) says the rule has too few champions open", async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.change(select(), { target: { value: 'class:Support' } });
+    fireEvent.click(setButton() as HTMLElement);
+    await net.release({ ok: false, status: 409, json: async () => ({}) } as Response);
+    expect(screen.getByRole('alert')).toHaveTextContent('That rule has too few champions open tonight.');
+    expect(select().value).toBe('fearless');
+  });
 });
 
 describe('Spin is quiet during its own reveal', () => {

@@ -157,6 +157,54 @@ describe('POST /api/admin/mode: the writes', () => {
   });
 });
 
+describe('POST /api/admin/mode: a rule with too few champions open (QA fix 2026-10-04)', () => {
+  // Five tanks, thirty mages: Tanks only is under core's minimum, Mages only is not.
+  const table = new Map(
+    Array.from({ length: 35 }, (_, i) => [
+      i + 1,
+      { tags: [i < 5 ? ('Tank' as const) : ('Mage' as const)], region: i < 20 ? 'ionia' : 'noxus' },
+    ]),
+  );
+
+  it('409 with the sentence, nothing written; a playable rule still queues', async () => {
+    const { t, mode } = setup(card({ standing: 'normal' }), { table });
+    const refused = await answer(await mode(json({ groupId: GROUP, mode: 'class:Tank' })));
+    expect(refused).toEqual({
+      status: 409,
+      body: { ok: false, error: 'That rule has too few champions open tonight.' },
+    });
+    expect(t.writes).toEqual([]);
+    expect((await mode(json({ groupId: GROUP, mode: 'class:Mage' }))).status).toBe(200);
+  });
+
+  it('a no-JS pick goes back with the sentence as the error', async () => {
+    const { t, mode } = setup(card({ standing: 'normal' }), { table });
+    const response = await mode(form({ groupId: GROUP, mode: 'class:Tank', redirectTo: '/g/crew' }));
+    expect(response.status).toBe(303);
+    expect(new URL(response.headers.get('location') ?? '').searchParams.get('error')).toBe(
+      'That rule has too few champions open tonight.',
+    );
+    expect(t.writes).toEqual([]);
+  });
+
+  it('counts the bans the check is given, and the rule already pending stays pickable', async () => {
+    const asked: string[] = [];
+    const playable = async (state: ModeState) => {
+      asked.push(state.standing);
+      return false;
+    };
+    const { t, mode } = setup(card({ pending: { id: 'class', tag: 'Mage' } }), { playable });
+    expect((await mode(json({ groupId: GROUP, mode: 'region' }))).status).toBe(409);
+    expect(asked).toEqual(['fearless']);
+    expect((await mode(json({ groupId: GROUP, mode: 'class:Mage' }))).status).toBe(200);
+    expect(t.writes).toHaveLength(1);
+    // Standing picks and the switch are never checked.
+    expect((await mode(json({ groupId: GROUP, mode: 'normal' }))).status).toBe(200);
+    expect((await mode(json({ groupId: GROUP, rated: false }))).status).toBe(200);
+    expect(asked).toEqual(['fearless']);
+  });
+});
+
 describe('Spin: POST /api/admin/mode { spin: true } and POST /api/admin/mode/spin', () => {
   it('both write the server pick and answer it', async () => {
     const draws: ModeState[] = [];
