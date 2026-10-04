@@ -13554,6 +13554,12 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
 - [ ] **M21.10** Review and scene walk. *(owners: `reviewer`, then `product`)* The reviewer's pass over M21.4 to
   M21.9; product walks the scene on the local stack with a hand-swapped game. Acceptance: the milestone acceptance
   below, played through once, plus M21.1's verdict recorded and M21.2 done or explicitly deferred by the owner.
+- [ ] **M21.11** A game matched to a stale lobby. *(owner: `platform-engineer`; from the M21.1 audit)* On
+  2026-10-02 a game was attached to a lobby whose last member row was 61 minutes before the game started: five of
+  its sided members never played and five spectators or unsided members did (lobby 422e74e0). Find how the eog
+  matched it (party id reuse, lobby kept open across games, or the eog fallback) and make a game match only a lobby
+  whose sided members are the players in it, or create a fresh lobby. Acceptance: an integration test reproduces
+  the stale match and shows the fix; the M21.1 query rerun on local fixtures has no `no_visible_cause`.
 
 ```
 M21.1 (audit) --+-- M21.4 (kickoff, server) --+-- M21.5 (Tonight in game) -- M21.9 (after M20.10) --\
