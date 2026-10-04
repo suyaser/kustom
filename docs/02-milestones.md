@@ -24,7 +24,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M15 Mode of the night | done (accepted 2026-10-04: M15.1–M15.19 merged; reviewer pass plus product scene walk; three rules live: class wars, region wars, mirror match) | Added 2026-10-03 (the user): class night first (builds the mode card, Spin, the mode panel's pool, Discord line, post-game check), then region wars (static region table seeded once from Meraki, words only), then mirror match (the first rated mode). Unrated by default; never touches champ select; no Ultimate Bravery or kill-race scoring. After M14. **M15.1 done 2026-10-04** (brief `redesign/briefs/m15.1-mode-of-the-night.md`): a rule is one game on top of the standing mode, locked at Roll; Rated switch in any mode (the user's yes); mirror ships with the host opening Blind Pick by hand (M17.17 automates it); no Bo3, no weekdays, no `Rest of tonight`. **2026-10-04: M15.7 (overlay API) dropped** because M17 removes the overlay; the mode's pool is shown only on Tonight's mode panel (M15.5) and linked from Discord (M15.6). No companion work in M15. |
 | M16 Kustom Premium: AI | done for 2.0 (2026-10-04: M16.1–M16.19 merged; the ship blockers M16.15–M16.18 landed; open: M16.20 real-group read after two Premium weeks, which needs the user's export; M16.21 scouting prompt nits, which need spend) | Added 2026-10-03 (the user): a future paid feature, if Kustom succeeds. Game recap line, weekly storyline, player scouting report, behind a per-group premium flag the operator sets with a script (M16.2; never a route, `/ops` read-only); no payments or billing (a future decision). Guardrails: numbers only from the DB with a checker, players sent as P1..P10, opt-outs, caps of $2 per group per month and $20 overall. Needs the user's Anthropic API key. After M15. **M16.1 done 2026-10-04** (brief `redesign/briefs/m16.1-premium-ai.md`): labels `AI recap` / `AI scouting report`; invisible to non-Premium groups; `customs` on as soon as M16.3 lands; landing and `/about` don't mention AI. |
 | M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
-| M18 Kustom rating | not started (planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one unannounced `rebuild-ratings` run by the owner (M18.10). **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, the owner's call, M18.2). The week stays Sunday 06:00 Africa/Cairo (owner-confirmed 2026-10-04). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. |
+| M18 Kustom rating | not started (planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one unannounced `rebuild-ratings` run by the owner (M18.10). **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, the owner's call, M18.2). The week stays Sunday 06:00 Africa/Cairo (owner-confirmed 2026-10-04). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. **M18.11 and M18.13 owner-approved 2026-10-04**, schema changes included (per-group `(a, b)` columns; `splits.score_parts`); both still after M18.10. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -12561,8 +12561,9 @@ Tasks:
   month, and from then on every caller of `winProbability` in that group passes the group's pair (receipt, both
   folds' expected, explanation, AI facts). It changes no stored Rating and only future games' expected scores. The
   receipt says once, under the calibration line: `Odds are tuned to how this group's games actually went.`
-  **Needs the owner's OK before it starts**: the thresholds (200, 0.8, monthly) are the research's suggestion, not
-  a ruling, and storing `(a, b)` per group is a schema change outside 0036's approval. Acceptance: core fit tested on
+  **Owner-approved 2026-10-04** (decision row): the thresholds as written (200 games, `b < 0.8`, at most monthly)
+  and the schema change, a per-group `(a, b)` pair stored as columns (platform names them; a new migration after
+  0036, number at merge). Still runs after M18.10, not as part of the switch. Acceptance: core fit tested on
   synthetic games with a known stretch (recovers `b` within 0.05 at 2 000 games); a group with a fitted pair shows
   the line and its receipt percentage equals `winProbability` with that pair.
 
@@ -12581,7 +12582,9 @@ Tasks:
   were OpenSkill display points at the old median), and only if the report's query 9.1 part 2 shows fills landing
   unevenly by rating third on real games; **(B) teammate variety**, `min(100, 25 × repeated teammate pairs from
   the night's previous game)` added to the split score, puuids only. The receipt's `whyLower` needs a stored reason
-  for each new term (`splits.score_parts`, a schema change for the owner). Acceptance: the report's two simulations
+  for each new term (`splits.score_parts`). **Owner-approved 2026-10-04** (decision row): (A), (B) and the schema
+  change `splits.score_parts` (a new migration after 0036, number at merge). Still runs after M18.10 and two weeks
+  of Kustom-rolled games, not as part of the switch. Acceptance: the report's two simulations
   rerun on the Kustom scale show no measurable loss of evenness; real-data query 9.1 result quoted; `whyLower`
   names each term.
 
@@ -12590,7 +12593,7 @@ Tasks:
 ```
 M18.1 (core module) ──┬── M18.2 (balancer) ───────────────┐
 M18.3 (gate) ─────────┤                                   ├── switch deploy ── M18.10 (owner's runbook) ── M18.12 (a week later)
-M18.4 (0036) ─────────┴── M18.5 (fold) ── M18.6 (reads) ──┤                                        └── M18.11, M18.13 (later, owner OKs)
+M18.4 (0036) ─────────┴── M18.5 (fold) ── M18.6 (reads) ──┤                                        └── M18.11, M18.13 (later, owner-approved)
 M18.8 (design) ───────────────────────── M18.7 (pages) ───┤
 M18.9 (docs, copy) ───────────────────────────────────────┘
 ```
@@ -12603,8 +12606,9 @@ M18.6, M18.7 and M18.9 merge as one switch; 0036 reaches hosted before that buil
    (M5.34, `night.ts` `weekStart`); the weekly Rating resets there and nothing else about the week changes.
 2. ~~**The rank guess goes** (M18.2).~~ **Resolved 2026-10-04 (the owner): drop it.** Newcomers are 1200 to the
    bot as well as to the fold, retiring M14.59's rank guess; decision row.
-3. **M18.11's thresholds and storage** (200 games, `b < 0.8`, monthly; a per-group pair) and **M18.13's
-   `splits.score_parts`**: both are schema changes outside 0036.
+3. ~~**M18.11's thresholds and storage** and **M18.13's `splits.score_parts`**.~~ **Resolved 2026-10-04 (the
+   owner): both approved as written**, schema changes included (per-group `(a, b)` columns; `splits.score_parts`);
+   both still run after the switch; decision rows.
 
 Acceptance (milestone): after the owner's rebuild, `/g/customs` shows Ratings folded by the Kustom formula on
 every surface, a settled player's change is at most 20, two settled teammates with the same share show the same
