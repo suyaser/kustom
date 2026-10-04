@@ -585,7 +585,7 @@ export function funFactsView(
   const plays = playsOf(counted, players);
   const long = plays.filter((play) => play.game.durationS >= LONG_GAME_S);
   // A link to the game page is all a page reads off a record's game (`StatsGameRef`).
-  const bind: BindGame = (game) => ({ id: game.id });
+  const bind: BindGame = (game) => ({ id: game.id, startedAt: game.startedAt });
   const rec = (
     id: string,
     title: string,

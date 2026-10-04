@@ -249,6 +249,8 @@ export interface StatsView {
  */
 export interface StatsGameRef {
   id: string;
+  /** M14.79: the week notes picture keeps a record only when every holder's game is in the week. */
+  startedAt: string;
 }
 
 /** One counted custom under a record that can reopen more than one night. */

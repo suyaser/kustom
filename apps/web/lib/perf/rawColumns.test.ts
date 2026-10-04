@@ -14,6 +14,10 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
   'lib/games/detail.ts': { count: 1, why: 'One game: the scoreboard reads the client facts in the blob.' },
   'lib/mode/clientNames.ts': { count: 1, why: 'One game, only when a champion id has no name.' },
   'lib/fearless/load.ts': { count: 1, why: 'Only the games that locked an unnamed champion id.' },
+  'lib/og/weekNotesLoad.ts': {
+    count: 1,
+    why: "Week notes: only the week's games that picked a champion newer than the names table.",
+  },
   'lib/mystery/ensure.ts': { count: 1, why: "Writer: builds the day's challenge once." },
   'lib/mystery/service.ts': { count: 1, why: 'One game: the challenge being played.' },
   'lib/ai/facts.ts': { count: 1, why: 'Writer side: facts for one AI line.' },
