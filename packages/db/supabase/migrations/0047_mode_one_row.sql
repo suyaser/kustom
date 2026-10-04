@@ -25,7 +25,9 @@
 --       `group_modes_set_updated_at` trigger on every update) stays; no write path reads it.
 --   (e) lobbies drops lock_version and lock_no_draw (with lobbies_lock_no_draw). Lock existence
 --       is keyed on lock_mode: lock_rated becomes optional in `lobbies_lock_whole` (it is the Rated
---       switch as it was moved, null = the locked mode's default). lock_region_blue/red unchanged.
+--       switch as it was moved, null = the locked mode's default). lock_region_blue/red unchanged;
+--       `lobbies_lock_regions` is re-made so a region lock with a null region is refused (0032's
+--       version passed it: a CHECK passes on NULL).
 --   (f) games.rule_no_draw goes (with games_rule_no_draw). Hosted read 2026-10-04 (owner): 0 rows
 --       true. games.rated, games.rule* and the fold are untouched.
 --
@@ -79,12 +81,16 @@ alter table public.group_modes
   add column pending_region_red text;
 
 alter table public.group_modes
-  add constraint group_modes_pending_regions check (
+  -- `coalesce(..., false)`: a CHECK passes on NULL, and `null ~ '...'` is NULL, so without it a
+  -- region rule with no pair would pass (the hole 0032's lobbies_lock_regions has; fixed below).
+  add constraint group_modes_pending_regions check (coalesce(
     (pending_rule = 'region'
+      and pending_region_blue is not null and pending_region_red is not null
       and pending_region_blue ~ '^[a-z][a-z-]{1,40}$' and pending_region_red ~ '^[a-z][a-z-]{1,40}$'
       and pending_region_blue <> pending_region_red
       and pending_region_blue <> 'unaffiliated' and pending_region_red <> 'unaffiliated')
-    or (pending_rule is distinct from 'region' and pending_region_blue is null and pending_region_red is null)
+    or (pending_rule is distinct from 'region' and pending_region_blue is null and pending_region_red is null),
+    false)
   );
 
 comment on column public.group_modes.pending_region_blue is
@@ -122,6 +128,21 @@ alter table public.lobbies
     (lock_mode is null and lock_rule is null and lock_class_tag is null and lock_region_blue is null
       and lock_region_red is null and lock_rated is null and locked_at is null)
     or (lock_mode in ('normal', 'fearless') and locked_at is not null)
+  );
+
+-- 0032's lobbies_lock_regions passes a region lock with a null region (a CHECK passes on NULL).
+-- The lock's pair is always concrete (M20.7 (e): a hand-back returns exactly the locked pair), so
+-- the check is re-made to refuse it. Every existing row satisfies it: the draw always wrote both.
+alter table public.lobbies drop constraint lobbies_lock_regions;
+alter table public.lobbies
+  add constraint lobbies_lock_regions check (coalesce(
+    (lock_rule = 'region'
+      and lock_region_blue is not null and lock_region_red is not null
+      and lock_region_blue ~ '^[a-z][a-z-]{1,40}$' and lock_region_red ~ '^[a-z][a-z-]{1,40}$'
+      and lock_region_blue <> lock_region_red
+      and lock_region_blue <> 'unaffiliated' and lock_region_red <> 'unaffiliated')
+    or (lock_rule is distinct from 'region' and lock_region_blue is null and lock_region_red is null),
+    false)
   );
 
 comment on column public.lobbies.lock_mode is

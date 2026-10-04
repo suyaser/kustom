@@ -182,7 +182,10 @@ export async function ingestEogGame(
   const modeRecord: ModeRecord = {
     kind,
     lock: stored?.lock ?? null,
-    live: payload.source !== 'backfill' && (lobby === null || isPlayableStatus(lobby.status)),
+    // Core reads `live: false` as a backfill (the standing default, whatever the lock): a late
+    // block from a dropped lobby with a lock is live and stamps from that lock.
+    live:
+      payload.source !== 'backfill' && (lobby === null || isPlayableStatus(lobby.status) || stored !== null),
     row: (await readModeRow(client, groupId)).row,
   };
   const modeColumns = stampColumns({
