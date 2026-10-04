@@ -143,6 +143,71 @@ export function readAnthropicEnv(
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Which model provider writes Kustom Premium's AI lines (the user's 2026-10-04 move to DeepSeek).
+ * `deepseek` is DeepSeek's own API (`DEEPSEEK_API_KEY`); `anthropic` is Claude
+ * (`ANTHROPIC_API_KEY`), kept as the fallback. Both server only, never `NEXT_PUBLIC_`.
+ */
+export const AI_PROVIDERS = ['deepseek', 'anthropic'] as const;
+export type AiProvider = (typeof AI_PROVIDERS)[number];
+
+/**
+ * The provider used when `AI_PROVIDER` is unset and both keys are present. Stays `anthropic`
+ * until DeepSeek passes the eval bar (overall 4.2, engaging 3.0 per feature, refusals at or below
+ * Sonnet's); then this one word flips to `deepseek`.
+ */
+export const PREFERRED_AI_PROVIDER: AiProvider = 'anthropic';
+
+const aiProviderSchema = z.enum(AI_PROVIDERS);
+const apiKeySchema = z.string().trim().min(1);
+
+export interface AiEnv {
+  provider: AiProvider;
+  apiKey: string;
+}
+
+/**
+ * The AI environment, or null when AI is off (quietly). In order:
+ * - `AI_PROVIDER` set to `deepseek` or `anthropic`: that provider, and only with its own key; no
+ *   key, AI is off (an explicit choice never falls over to the other provider's bill).
+ * - `AI_PROVIDER` set to anything else: AI is off (a typo must not pick a provider).
+ * - `AI_PROVIDER` unset or blank: {@link PREFERRED_AI_PROVIDER} if its key is set, else the other
+ *   one if its key is set, else off. So adding `DEEPSEEK_API_KEY` switches nothing on its own
+ *   while the preference is `anthropic`, and removing a key falls back to the other.
+ */
+export function readAiEnv(source: Readonly<Record<string, string | undefined>> = process.env): AiEnv | null {
+  const keyOf = (provider: AiProvider): string | null => {
+    const parsed = apiKeySchema.safeParse(
+      provider === 'deepseek' ? source.DEEPSEEK_API_KEY : source.ANTHROPIC_API_KEY,
+    );
+    return parsed.success ? parsed.data : null;
+  };
+  const raw = source.AI_PROVIDER?.trim() ?? '';
+  if (raw !== '') {
+    const chosen = aiProviderSchema.safeParse(raw);
+    if (!chosen.success) return null;
+    const apiKey = keyOf(chosen.data);
+    return apiKey === null ? null : { provider: chosen.data, apiKey };
+  }
+  const other: AiProvider = PREFERRED_AI_PROVIDER === 'deepseek' ? 'anthropic' : 'deepseek';
+  for (const provider of [PREFERRED_AI_PROVIDER, other]) {
+    const apiKey = keyOf(provider);
+    if (apiKey !== null) return { provider, apiKey };
+  }
+  return null;
+}
+
+/**
+ * The provider whose models the feature table names: the one {@link readAiEnv} would call, or,
+ * with no usable key (AI off, tests), an explicit `AI_PROVIDER`, else the preference. Never a key.
+ */
+export function aiProviderOf(source: Readonly<Record<string, string | undefined>> = process.env): AiProvider {
+  const env = readAiEnv(source);
+  if (env !== null) return env.provider;
+  const chosen = aiProviderSchema.safeParse(source.AI_PROVIDER?.trim());
+  return chosen.success ? chosen.data : PREFERRED_AI_PROVIDER;
+}
+
 // `ServerEnvError` lives in `./publicEnv` (M14.44) so the browser's zod-free reader can throw the
 // same class; re-exported here for every server caller.
 export { ServerEnvError } from './publicEnv';

@@ -5,7 +5,7 @@ import {
   type AiReply,
   type AiRequest,
   type AiTransport,
-  anthropicTransport,
+  aiTransportFor,
   createAiClient,
 } from '../lib/ai/client.ts';
 import {
@@ -16,10 +16,17 @@ import {
   RECENT_LINES,
 } from '../lib/ai/facts.ts';
 import { generateGameLine, generatePlayerLine, generateWeekLine } from '../lib/ai/generate.ts';
-import { costUsd, memoryMeter, memoryMeterState } from '../lib/ai/meter.ts';
+import {
+  AI_FEATURES,
+  AI_MODELS,
+  type AiModel,
+  costUsd,
+  memoryMeter,
+  memoryMeterState,
+} from '../lib/ai/meter.ts';
 import { type PoolRow, scoutingExtrasOf } from '../lib/ai/scouting.ts';
 import { memoryLineStore } from '../lib/ai/store.ts';
-import { readAnthropicEnv } from '../lib/env.ts';
+import { readAiEnv } from '../lib/env.ts';
 import type { AiGate } from '../lib/premium.ts';
 import { buildMonth, id, nameOf, OPTED_OUT, playerInputs, weekInput } from './ai-eval-month-data.ts';
 
@@ -28,8 +35,12 @@ import { buildMonth, id, nameOf, OPTED_OUT, playerInputs, weekInput } from './ai
  * `ai-eval-month-data.ts`) through production's generators, the real client and checker, a memory
  * store and a memory meter capped at `--budget`. Dev-only, run by hand; no database at all.
  *
- *   pnpm --filter web ai-eval-month --kinds week,player[,game] [--week-reps N] [--game-every N]
+ *   [AI_PROVIDER=deepseek|anthropic] pnpm --filter web ai-eval-month --kinds week,player[,game]
+ *                                   [--week-reps N] [--game-every N] [--model flash|pro|sonnet]
  *                                   [--budget <usd>] [--json <file>] [--ledger <file>]
+ *
+ * The provider is production's (`readAiEnv`); `--model` swaps every feature's model for this
+ * process only and must belong to that provider.
  *
  * Prints, per kind: subjects, published, refused for good, first-attempt pass, every refusal's
  * code and reason, and the cost. `--game-every N` takes one game in N (a subsample).
@@ -47,14 +58,30 @@ const budget = Number(flag('--budget', '0.25'));
 const jsonOut = flag('--json', '');
 const ledger = flag('--ledger', '');
 
-const env = readAnthropicEnv(process.env);
-if (env === null) throw new Error('ANTHROPIC_API_KEY is not set');
+const env = readAiEnv(process.env);
+if (env === null) throw new Error('no AI key: set DEEPSEEK_API_KEY or ANTHROPIC_API_KEY (and AI_PROVIDER)');
+const MODEL_FLAGS: Record<string, AiModel> = {
+  sonnet: 'claude-sonnet-5-5',
+  flash: 'deepseek-flash',
+  pro: 'deepseek-v4-pro',
+};
+const modelFlag = flag('--model', '');
+if (modelFlag !== '') {
+  const model = MODEL_FLAGS[modelFlag];
+  if (model === undefined) throw new Error('--model is sonnet, flash or pro');
+  if (AI_MODELS[model].provider !== env.provider)
+    throw new Error(`--model ${modelFlag} is not a ${env.provider} model (set AI_PROVIDER)`);
+  AI_FEATURES.game.model = model;
+  AI_FEATURES.week.model = model;
+  AI_FEATURES.player.model = model;
+}
+console.log(`ai-eval-month  provider ${env.provider}  model ${AI_FEATURES.game.model}`);
 const GROUP = 'eval-month';
 const GATE: AiGate = { premium: true, linesEnabled: true, premiumChangedAt: '2000-01-01T00:00:00.000Z' };
 const state = memoryMeterState({ [GROUP]: { capUsd: budget } });
 state.globalCapUsd = budget;
 const calls: { request: AiRequest; reply: AiReply | null }[] = [];
-const inner = anthropicTransport(env.ANTHROPIC_API_KEY);
+const inner = aiTransportFor(env);
 const transport: AiTransport = {
   async send(request, signal) {
     try {
