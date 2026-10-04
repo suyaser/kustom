@@ -9,7 +9,7 @@ import {
   ruleOptionOf,
   setGroupModeResponseSchema,
 } from '@customs/db/schemas';
-import { type FormEvent, useEffect, useId, useState } from 'react';
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -95,6 +95,9 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  * - After Roll every change is for the next game: `Changes apply from the next game.` and
  *   `Next game: Mages only.` (the page's `nextLine`).
  * - Outcomes show in place (`role="status"`, a refusal `role="alert"`), never as a toast.
+ * - **Focus never drops to the page** (QA fix 2026-10-04): a confirmed Set mode hides its button,
+ *   so focus moves to the select; a reset closes its dialog and its trigger goes with the bans, so
+ *   focus moves to the outcome line (`tabIndex={-1}`).
  */
 export interface ModeControlsProps {
   groupId: string;
@@ -149,6 +152,8 @@ export function ModeControls({
   const [pending, setPending] = useState<'mode' | 'spin' | 'rated' | null>(null);
   const [said, setSaid] = useState<string | null>(notice ?? null);
   const [failed, setFailed] = useState<string | null>(error ?? null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const statusRef = useRef<HTMLParagraphElement>(null);
 
   // The switch's own answer since its last tap (see the doc comment): `pending` while the write
   // is in flight, `confirmed` with the route's version once it answered, null for the page's value.
@@ -219,6 +224,8 @@ export function ModeControls({
       return;
     }
     confirm(choice, result.next);
+    // The button goes with the confirmed choice: keep focus on the select, never <body>.
+    selectRef.current?.focus();
     const rule = ruleOptionOf(choice as ModeChoice);
     // The rule's default rated flag is the server's; the card and the announcer say it on refresh.
     setSaid(
@@ -316,6 +323,7 @@ export function ModeControls({
         <div className="flex flex-col gap-2 @[520px]:flex-row @[520px]:items-center">
           <NativeSelect
             id={selectId}
+            ref={selectRef}
             name="mode"
             value={choice}
             aria-describedby={sentenceId}
@@ -400,7 +408,13 @@ export function ModeControls({
       </form>
 
       {mode === 'fearless' && banned > 0 ? (
-        <ResetFearless groupId={groupId} banned={banned} confirmHref={resetConfirmHref} onSaid={setSaid} />
+        <ResetFearless
+          groupId={groupId}
+          banned={banned}
+          confirmHref={resetConfirmHref}
+          onSaid={setSaid}
+          onClosed={() => statusRef.current?.focus()}
+        />
       ) : null}
 
       {failed === null ? null : (
@@ -408,7 +422,7 @@ export function ModeControls({
           {failed}
         </p>
       )}
-      <p role="status" className="text-sm empty:hidden">
+      <p ref={statusRef} tabIndex={-1} role="status" className="text-sm empty:hidden">
         {said}
       </p>
     </div>
@@ -430,15 +444,19 @@ function ResetFearless({
   banned,
   confirmHref,
   onSaid,
+  onClosed,
 }: {
   groupId: string;
   banned: number;
   confirmHref: string;
   onSaid: (line: string) => void;
+  /** After a reset the dialog closes onto the outcome line, not its trigger (gone with the bans). */
+  onClosed: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const done = useRef(false);
 
   async function reset(): Promise<void> {
     setPending(true);
@@ -463,6 +481,7 @@ function ResetFearless({
             ? FEARLESS_RESET_SKIPPED
             : FEARLESS_RESET_FAILED,
       );
+      done.current = true;
       setOpen(false);
       setPending(false);
       requestTonightRefresh();
@@ -491,7 +510,14 @@ function ResetFearless({
           </Button>
         </AlertDialogTrigger>
       </form>
-      <AlertDialogContent>
+      <AlertDialogContent
+        onCloseAutoFocus={(event) => {
+          if (!done.current) return;
+          done.current = false;
+          event.preventDefault();
+          onClosed();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{FEARLESS_RESET_TITLE}</AlertDialogTitle>
           <AlertDialogDescription>{fearlessResetBody(banned)}</AlertDialogDescription>

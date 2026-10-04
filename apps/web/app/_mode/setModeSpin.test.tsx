@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { FEARLESS_RESET_BUTTON, FEARLESS_RESET_POSTED } from '@/lib/fearless/copy';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { MODE_CHANGE_FAILED, SET_MODE } from '@/lib/mode/copy';
 import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
@@ -201,5 +202,37 @@ describe('Spin is quiet during its own reveal', () => {
     fireEvent.click(spinButton());
     await net.release({ ok: false, status: 409, json: async () => ({}) } as Response);
     expect(spinButton()).not.toHaveAttribute('aria-disabled');
+  });
+});
+
+describe('focus never drops to the page (QA fix 2026-10-04)', () => {
+  it('after Set mode succeeds, focus is on the select (its button is gone)', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.change(select(), { target: { value: 'class:Mage' } });
+    (setButton() as HTMLElement).focus();
+    fireEvent.click(setButton() as HTMLElement);
+    await net.release(answer({ rule: 'class:Mage', rated: false, version: 5 }));
+    expect(setButton()).toBeNull();
+    expect(select()).toHaveFocus();
+  });
+
+  it('after Reset fearless, focus is on the outcome line', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} banned={3} />);
+    fireEvent.click(screen.getByRole('button', { name: FEARLESS_RESET_BUTTON }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: FEARLESS_RESET_BUTTON }));
+    await net.release({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, post: 'posted' }),
+    } as Response);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    const line = screen.getByText(FEARLESS_RESET_POSTED);
+    expect(line).toHaveAttribute('tabindex', '-1');
+    await waitFor(() => expect(line).toHaveFocus());
   });
 });
