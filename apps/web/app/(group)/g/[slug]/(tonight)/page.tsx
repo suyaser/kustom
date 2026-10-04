@@ -135,21 +135,27 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
   const header = tonightHeader(state, admins);
 
   // What only some states draw, read only for them.
-  const showsReceipt = state.kind === 'teams' || state.kind === 'result';
+  const showsReceipt = state.kind === 'teams' || state.kind === 'in-game' || state.kind === 'result';
   const overTen =
     state.kind === 'filling' && state.lobby.status === 'open' && state.lobby.members.length > 10
       ? state.lobby.id
       : null;
   // M14.41 (gap 4): why tonight's sitters sit, while the teams are up (the rotation's own read).
+  // M21.5: in game with a kickoff record, the sitters are whoever is on neither team that started.
   const sitOutLobby =
-    state.kind === 'teams' &&
-    (state.lobby.status === 'balanced' || state.lobby.status === 'in_game') &&
-    state.teams.sitters.length > 0
+    state.kind === 'in-game' && state.game.sitters.length > 0
       ? {
           id: state.lobby.id,
-          ten: new Set([...state.teams.blue, ...state.teams.red].map((seat) => seat.puuid)),
+          ten: new Set([...state.game.blue, ...state.game.red].map((seat) => seat.puuid)),
         }
-      : null;
+      : state.kind === 'teams' &&
+          (state.lobby.status === 'balanced' || state.lobby.status === 'in_game') &&
+          state.teams.sitters.length > 0
+        ? {
+            id: state.lobby.id,
+            ten: new Set([...state.teams.blue, ...state.teams.red].map((seat) => seat.puuid)),
+          }
+        : null;
   const night = new Date(labelled.nightStart);
   const showsYourNight = viewer.kind === 'linked' && (state.kind === 'idle' || state.kind === 'result');
   const [snapshot, lobbyStart, lastGame, calibration, wouldSitOut, yourNight, sitOutRule, recap, breakdown] =

@@ -137,6 +137,10 @@ export function announcement(state: TonightState, header: HeaderView, viewerPuui
       return '';
     case 'filling':
       return header.sentence;
+    // M21.5: the same one sentence as a game with no kickoff record, so the move from the teams
+    // to the teams that started is announced once.
+    case 'in-game':
+      return ANNOUNCE_GAME_STARTED;
     case 'teams': {
       if (state.lobby.status === 'in_game') return ANNOUNCE_GAME_STARTED;
       if (state.lobby.status !== 'balanced') return '';

@@ -37,6 +37,7 @@ import {
   rollAdminHint,
   rollerSubLine,
 } from '@/lib/tonight/copy';
+import { swappedRun, viewerKickoffSeat } from '@/lib/tonight/kickoff';
 import type { LastGame } from '@/lib/tonight/lastGame';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { tonightRoles } from '@/lib/tonight/roles';
@@ -70,6 +71,8 @@ import {
   tonightState,
 } from '@/lib/tonight/state';
 import type {
+  KickoffSeatView,
+  KickoffView,
   LobbyView,
   MemberView,
   PlayerName,
@@ -163,12 +166,19 @@ export function TonightView(props: TonightViewProps) {
   const emptyGroup = state.kind === 'idle' && props.lastGame === null && snapshot.tape.length === 0;
   const showDaily = state.kind === 'idle' || state.kind === 'result';
   const mode = snapshot.mode;
+  // M21.5: in game with a kickoff record, where the viewer really sits (the teams that started).
   const seat =
-    state.kind === 'teams' && state.lobby.status !== 'finished' ? viewerSeat(state.teams, puuid) : null;
+    state.kind === 'in-game'
+      ? viewerKickoffSeat(state.game, puuid)
+      : state.kind === 'teams' && state.lobby.status !== 'finished'
+        ? viewerSeat(state.teams, puuid)
+        : null;
   const variant: ModeCardVariant =
     state.kind === 'filling'
       ? 'filling'
-      : state.kind === 'teams'
+      : state.kind === 'in-game'
+        ? 'in-game'
+        : state.kind === 'teams'
         ? state.lobby.status === 'in_game'
           ? 'in-game'
           : state.lobby.status === 'balanced'
@@ -256,18 +266,20 @@ export function TonightView(props: TonightViewProps) {
   const rolls = rollerOf(state, isAdmin);
   const action = stripAction(props, state, { isAdmin, linked, emptyGroup });
   const ruleJump =
-    answer !== null && answer.kind === 'seated' && variant === 'balanced'
+    answer !== null && answer.kind === 'seated' && answer.role !== null && variant === 'balanced'
       ? showsFearlessPool(cardView)
         ? fearlessWhatsOpen(answer.role)
         : ruleLaneLabel(cardView.shown, answer.role, answer.side)
       : null;
   // M14.41 (gap 3): the ten by side on the first screen, for whoever has no seated answer band.
   const names =
-    state.kind === 'teams' &&
-    (state.lobby.status === 'balanced' || state.lobby.status === 'in_game') &&
-    answer?.kind !== 'seated'
-      ? { blue: state.teams.blue.map((seat) => seat.name), red: state.teams.red.map((seat) => seat.name) }
-      : null;
+    answer?.kind === 'seated'
+      ? null
+      : state.kind === 'in-game'
+        ? { blue: state.game.blue.map((seat) => seat.name), red: state.game.red.map((seat) => seat.name) }
+        : state.kind === 'teams' && (state.lobby.status === 'balanced' || state.lobby.status === 'in_game')
+          ? { blue: state.teams.blue.map((seat) => seat.name), red: state.teams.red.map((seat) => seat.name) }
+          : null;
 
   /*
    * The role card: while the lobby fills and while the teams are up (kept for next game); hidden in
@@ -309,7 +321,7 @@ export function TonightView(props: TonightViewProps) {
           answer={
             // The jump link only while the teams are set (8.3): not in game. M15.5: the rule's label
             // (`Tanks for support`, `Ionia for support`); mirror and Normal have none.
-            answer !== null && answer.kind === 'seated' && ruleJump !== null
+            answer !== null && answer.kind === 'seated' && answer.role !== null && ruleJump !== null
               ? {
                   ...answer,
                   jump: {
@@ -364,6 +376,18 @@ export function TonightView(props: TonightViewProps) {
             teams={state.teams}
             viewerPuuid={puuid}
             linked={linked}
+            calibration={props.calibration}
+            modeCard={modeCard}
+            sitOutRule={props.sitOutRule ?? null}
+            group={group}
+          />
+        ) : null}
+        {state.kind === 'in-game' ? (
+          <InGame
+            lobby={state.lobby}
+            game={state.game}
+            teams={state.teams}
+            viewerPuuid={puuid}
             calibration={props.calibration}
             modeCard={modeCard}
             sitOutRule={props.sitOutRule ?? null}
@@ -431,7 +455,11 @@ function SubLine({
   header: HeaderView;
   renderedAt: number;
 }): ReactNode {
-  if (state.kind === 'teams' && state.lobby.status === 'in_game' && state.lobby.startedAt !== null) {
+  if (
+    (state.kind === 'teams' || state.kind === 'in-game') &&
+    state.lobby.status === 'in_game' &&
+    state.lobby.startedAt !== null
+  ) {
     return (
       <>
         <Elapsed startedAt={state.lobby.startedAt} renderedAt={renderedAt} />
@@ -450,6 +478,11 @@ function answerBand(state: TonightState, puuid: string | null): AnswerBand {
   }
   if (state.kind === 'teams' && state.lobby.status !== 'finished') {
     const seat = viewerSeat(state.teams, puuid);
+    return seat === null ? null : { kind: 'seated', side: seat.side, role: seat.role };
+  }
+  // M21.5: `YOU on BLUE` from the teams that started; a changed side has no role to name.
+  if (state.kind === 'in-game') {
+    const seat = viewerKickoffSeat(state.game, puuid);
     return seat === null ? null : { kind: 'seated', side: seat.side, role: seat.role };
   }
   if (state.kind === 'result') {
@@ -660,6 +693,101 @@ function Teams({
       {balanced && anySeatOnTheWrongSide(teams) ? <SideLine /> : null}
       {modeCard}
       {balanced ? <MissedInvite lobby={lobby} linked={linked} /> : null}
+    </>
+  );
+}
+
+/**
+ * The in-game block for a game with a kickoff record (M21.5): the teams that started, on their real
+ * sides, under `Odds at kickoff`.
+ *
+ * - `rolled`: the split's fairness receipt, as before M21; on swapped sides the run is turned
+ *   round (`swappedRun`) so the bar and the sentence name the side each team is really on.
+ * - `custom`: the pre-game receipt titled `Odds at kickoff` over the stored kickoff odds, with
+ *   `Teams changed in the lobby after the roll, so these are the odds for the teams playing now.`
+ *   and `How the bot decided` opening the rolled run (as the finished poster does).
+ * - `unrolled`: the same receipt with `Kustom didn't pick these teams. …`.
+ * - Not rated (the lock says so), `custom` or `unrolled`: no bar and no number (M15.18), only
+ *   `No odds for this game.`; the strip keeps its rule line.
+ *
+ * No Roll prompt, no side line, no admins named: the game is on.
+ */
+function InGame({
+  lobby,
+  game,
+  teams,
+  viewerPuuid,
+  calibration,
+  modeCard,
+  sitOutRule,
+  group,
+}: {
+  lobby: LobbyView;
+  game: KickoffView;
+  teams: TeamsView | null;
+  viewerPuuid: string | null;
+  calibration: Calibration | null | undefined;
+  modeCard: ReactNode;
+  sitOutRule: SitOutRule | null;
+  group: PageGroup;
+}) {
+  const viewerSits = viewerPuuid !== null && game.sitters.some((member) => member.puuid === viewerPuuid);
+  const names = receiptNames(lobby, null);
+  const members = new Map(lobby.members.map((member) => [member.puuid, member]));
+  const seat = viewerKickoffSeat(game, viewerPuuid);
+  const notRated = lobby.lock?.rated === false;
+
+  const receipt =
+    game.kind === 'rolled' && teams !== null ? (
+      <FairnessReceipt
+        variant="in-game"
+        splits={game.swapped ? swappedRun(teams.stored) : teams.stored}
+        names={names}
+        offRole={offRoleSeats(teams)}
+        noMain={noMainCount(teams, members)}
+        calibration={calibration}
+      />
+    ) : (
+      <PreGameReceipt
+        kickoff={{ blueWinProb: notRated ? null : game.blueWinProb }}
+        reason={game.kind === 'custom' && teams !== null ? 'teams-changed' : 'no-split'}
+        rolled={game.kind === 'custom' && teams !== null ? { splits: teams.stored, names } : undefined}
+        calibration={calibration}
+      />
+    );
+
+  const seats = (side: readonly KickoffSeatView[]): TeamSeat[] =>
+    side.map((one) => ({
+      puuid: one.puuid,
+      name: one.name,
+      nameSuffix: one.nameSuffix ?? null,
+      role: one.role,
+      rating: one.rating,
+      offRole: one.offRole,
+      ratedGames: members.get(one.puuid)?.ratedGames ?? null,
+    }));
+
+  return (
+    <>
+      <SitOutCard sitters={game.sitters} viewerSits={viewerSits} rule={sitOutRule} />
+      {receipt}
+      <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+        <TeamCard
+          side="blue"
+          seats={seats(game.blue)}
+          viewerPuuid={viewerPuuid}
+          className={seat?.side === 'blue' ? 'order-first md:order-none' : undefined}
+          group={group}
+        />
+        <TeamCard
+          side="red"
+          seats={seats(game.red)}
+          viewerPuuid={viewerPuuid}
+          className={seat?.side === 'red' ? 'order-first md:order-none' : undefined}
+          group={group}
+        />
+      </div>
+      {modeCard}
     </>
   );
 }

@@ -597,6 +597,12 @@ export const CALIBRATION_EXPECTED = 'Expected';
 export const PRE_GAME_NO_SPLIT = "Kustom didn't pick these teams. Odds from everyone's ratings going in.";
 export const PRE_GAME_TEAMS_CHANGED =
   'Teams changed in the lobby after the roll, so these are the odds for the teams that actually played.';
+/**
+ * M21.5, in game: the teams that started are not the roll, and the odds are theirs (the stored
+ * kickoff odds). The after-game line above says `actually played`; this one is live.
+ */
+export const KICKOFF_TEAMS_CHANGED =
+  'Teams changed in the lobby after the roll, so these are the odds for the teams playing now.';
 export const NO_ODDS = 'No odds for this game.';
 
 /** The compact row's reroll tag: `pick #2`. */

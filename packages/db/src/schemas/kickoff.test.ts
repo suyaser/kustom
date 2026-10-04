@@ -68,5 +68,28 @@ describe('kickoffFromRow / kickoffRowOf', () => {
       ...patch,
     };
     expect(kickoffFromRow(row)).toBeNull();
+    // M21.5: the reader hears why, once, so it can log the drop.
+    const drops: string[] = [];
+    expect(kickoffFromRow(row, (reason) => drops.push(reason))).toBeNull();
+    expect(drops).toHaveLength(1);
+    expect(drops[0]?.length).toBeGreaterThan(0);
+  });
+
+  it('never reports a drop for a lobby with no record, or for a good one', () => {
+    const drops: string[] = [];
+    kickoffFromRow(none, (reason) => drops.push(reason));
+    kickoffFromRow(
+      {
+        ...none,
+        kickoff_kind: 'unrolled',
+        kickoff_blue: blue,
+        kickoff_red: red,
+        kickoff_blue_win_prob: 0.5,
+        kickoff_odds_model: 'kustom',
+        kickoff_at: at,
+      },
+      (reason) => drops.push(reason),
+    );
+    expect(drops).toEqual([]);
   });
 });

@@ -32,7 +32,8 @@ export type AnswerBand =
   | {
       kind: 'seated';
       side: 'blue' | 'red';
-      role: RoleValue;
+      /** `null` in game on a side that changed after the roll (M21.5): no lane until the eog. */
+      role: RoleValue | null;
       /** M14.30, Fearless: `What's open for <role>`, one tap into the panel on the viewer's lane. */
       jump?: { href: Route; label: string; id: string } | undefined;
     }
@@ -192,7 +193,7 @@ function Answer({ answer }: { answer: NonNullable<AnswerBand> }) {
         <>
           {`${ANSWER_ON} `}
           <Chip variant="side" side={answer.side} className="inline-flex align-middle" />
-          {answerRole(answer.role)}
+          {answer.role === null ? null : answerRole(answer.role)}
           {answer.jump === undefined ? null : (
             <>
               {' '}
