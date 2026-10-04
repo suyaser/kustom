@@ -21,10 +21,10 @@ Between the migrations and the deploy, old code ingests games without a `game_fa
 reader treats a missing row as "read this game's raw" (`apps/web/lib/stats/gameFacts.ts`), so the gap is a
 slower read for those games, never a wrong number, until the backfill runs.
 
-**Migration numbering.** `0036` (`kustom-rating`), `0037` (`m19-9-live`) and `0038` (`auth-local-claims`) are taken
-by branches that may not be merged when this runs. If `0039`..`0042` reach hosted first, a later push of
-`0036`..`0038` is "older than the newest remote migration" and `supabase db push` refuses it without
-`--include-all`. That is expected and safe: none of the four touches what `0036`..`0038` touch. (`0043`, the
+**Migration numbering.** `0037` (`group_live`, M19.9) is on `main`. `0036` (`kustom-rating`) and `0038`
+(`auth-local-claims`) are taken by branches that may not be merged when this runs. If `0039`..`0042` reach
+hosted first, a later push of `0036` or `0038` is "older than the newest remote migration" and `supabase db push` refuses it without
+`--include-all`. That is expected and safe: none of the four touches what `0036` and `0038` touch. (`0043`, the
 batched fold write, needs `0036` and ships with the M18 lane.)
 
 ## 1. Expected durations
@@ -46,6 +46,13 @@ slower than this laptop, so read the right-hand column as a range, not a promise
 
 Off-night (no lobby open, no game in progress): `0039` and `0040` hold an exclusive lock on `games` for their
 duration, so an end-of-game post in that window waits (and the companion retries).
+
+- **No Tonight page open while `0040` runs.** Its UPDATE re-stores every `games` row, and until M19.11 takes
+  `games` out of the Realtime publication each row is one UPDATE event (about 60 KB with `raw`) to every
+  subscribed Tonight page. Close Tonight on every device (or wait until nobody is on it) before pushing.
+- **`0042` before the first Admin Members visit on the new code.** Members reads `group_member_game_counts`;
+  without the view the page fails. All four migrations go in one push before the deploy, which covers it; if
+  the push is split, `0042` must still land before the deploy.
 
 1. **lz4 is available on hosted.** In the Supabase SQL editor (read only):
 

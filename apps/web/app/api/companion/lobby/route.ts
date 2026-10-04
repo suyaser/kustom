@@ -2,6 +2,7 @@ import { companionLobbyPayloadSchema, companionLobbyResponseSchema } from '@cust
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import { ingestLobby, mayReportLobby } from '@/lib/ingest/lobby';
+import { withLiveSignal } from '@/lib/live/bump';
 import { sweepIdleLobbies } from '@/lib/lobbyState';
 
 // node:crypto hashes the bearer token, so this route is not edge-compatible.
@@ -38,6 +39,10 @@ export const dynamic = 'force-dynamic';
  * companion that posts a bot loses the bot and keeps its nine friends (M2.10, point 4). The
  * M1.8 caller check below therefore runs on the filtered list, which is the order the brief
  * asks for.
+ *
+ * **Live signal (M19.8, M19.9).** A post that matches what is stored writes nothing and bumps
+ * nothing. One that wrote bumps its lobby's group `lobby` once, as the route's last statement;
+ * a lobby the idle sweep moved bumps its own group the same way.
  */
 export const POST = withCompanionAuth(companionLobbyPayloadSchema, async (payload, { client, identity }) => {
   if (payload.droppedMembers > 0) {
@@ -51,24 +56,33 @@ export const POST = withCompanionAuth(companionLobbyPayloadSchema, async (payloa
   // and no result ever came (M5.11). The second is what lets this very post open the
   // night's next cycle for a party whose last game was never closed.
   const now = new Date();
-  await sweepIdleLobbies(client, now);
+  // Flushed when the body returns, after every write of this post (M19.9). A 403 still flushes:
+  // the sweep may have moved some other group's lobby.
+  return withLiveSignal(client, async (live) => {
+    await sweepIdleLobbies(client, now, live);
 
-  if (!(await mayReportLobby(client, payload, identity))) {
-    return jsonError(403, 'a companion may only report a lobby it is in');
-  }
+    if (!(await mayReportLobby(client, payload, identity))) {
+      return jsonError(403, 'a companion may only report a lobby it is in');
+    }
 
-  // The group comes from the token, never from the body (M13.3). A party another group's
-  // companion posted first stays that group's, and this post answers as a duplicate.
-  const result = await ingestLobby(client, payload, identity.playerId, { groupId: identity.groupId, now });
+    // The group comes from the token, never from the body (M13.3). A party another group's
+    // companion posted first stays that group's, and this post answers as a duplicate.
+    // Ingest notes each write in `live` as it lands, so a throw part way still bumps.
+    const result = await ingestLobby(client, payload, identity.playerId, {
+      groupId: identity.groupId,
+      now,
+      live,
+    });
 
-  return jsonOk(companionLobbyResponseSchema, {
-    ok: true,
-    lobbyId: result.lobbyId,
-    status: result.status,
-    created: result.created,
-    memberCount: result.memberCount,
-    rosterFrozen: result.rosterFrozen,
-    recheckInMs: result.recheckInMs,
-    ranksNeeded: result.ranksNeeded,
+    return jsonOk(companionLobbyResponseSchema, {
+      ok: true,
+      lobbyId: result.lobbyId,
+      status: result.status,
+      created: result.created,
+      memberCount: result.memberCount,
+      rosterFrozen: result.rosterFrozen,
+      recheckInMs: result.recheckInMs,
+      ranksNeeded: result.ranksNeeded,
+    });
   });
 });

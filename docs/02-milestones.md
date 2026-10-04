@@ -12402,14 +12402,14 @@ answer sooner, change once per real change, and stop hearing other groups.
   above: write, then the cached read returns the new value on the next call; (2) a route that wrote nothing
   revalidates nothing; (3) a table in `docs/01-architecture.md` lists every tag and every route that clears it,
   and M19.6's inventory links to it.
-- [ ] **M19.8** A lobby post that changed nothing writes nothing (audit 8.2). *(owner: `platform-engineer`)*
+- [x] **M19.8** A lobby post that changed nothing writes nothing (audit 8.2). *(owner: `platform-engineer`)*
   `lib/ingest/lobby.ts` compares each `lobby_members` row with the stored one and writes only rows that changed
   (new, gone, side, spectator flag, Riot ID). The 2026-09-08 "written on every accepted lobby post" row is
   superseded by a new decision row in this task. Acceptance: (1) `companion.integration` and
   `lobbyState.integration` pass unchanged; (2) new integration: the same lobby post twice gives 0 Realtime
   events and 0 rows written on the second post; one side change gives exactly one row written; (3) bench:
   renders from an unchanged post 1 → 0.
-- [ ] **M19.9** Per-group live signal: `group_live` (P3; decision row 2026-10-04). *(owner: `platform-engineer`;
+- [x] **M19.9** Per-group live signal: `group_live` (P3; decision row 2026-10-04). *(owner: `platform-engineer`;
   migration number: next free at merge, M18.4 has claimed `0036`)* Table
   `group_live(group_id uuid primary key references groups on delete cascade, version bigint not null default 0,
   kind text not null, changed_at timestamptz not null default now())` and **no other column**. `kind` is checked
@@ -12456,7 +12456,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   (3) `lobbyPassword.integration.test.ts` is updated to assert `lobbies` is not published at all (it was
   asserting the password never rides an event); (4) nothing in `apps/web` subscribes to a removed table (grep in
   the test); (5) Tonight still updates on every change in the bench script.
-- [ ] **M19.12** `getClaims()` instead of `getUser()` per signed-in render: investigate. *(owner:
+- [x] **M19.12** `getClaims()` instead of `getUser()` per signed-in render: investigate. *(owner:
   `platform-engineer`; security review by `reviewer` required before anything is adopted)* Today the group
   layout and Tonight call `currentSessionPlayer` and admin pages also call `currentPageSession`; each calls
   GoTrue `getUser()`, so an admin page pays two auth round trips. Deliverable, written into this task: (a) the
@@ -12482,7 +12482,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   (4) `lib/clientGraph.test.ts` passes (no zod, no `node:*` in the client graph); (5) bench: Rated, Set mode and
   Spin tap to card ≤ 100 ms; server renders per mode change 0. Out of scope: any slice that prints a name
   (lobby, teams, result, tape stay server-rendered).
-- [ ] **M19.14** Skeletons for the tabs. *(owner: `designer`)* Loading states for Tonight, Board, Games, Stats and
+- [x] **M19.14** Skeletons for the tabs. *(owner: `designer`)* Loading states for Tonight, Board, Games, Stats and
   You in the design tokens, in `docs/05-design.md`: shapes only, no words, no spinner, no layout shift when the
   page lands (CLS stays ≤ 0.01), reduced-motion respected. Acceptance: one frame per tab at 375 px and 1280 px,
   and the rule for the pressed tab state.
@@ -12493,7 +12493,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   fallback. Acceptance: (1) page tests render each fallback; `pageGroup.test.tsx` and `nav.test.ts` unchanged;
   (2) axe and keyboard checks on the skeletons; (3) bench: tab tap to visible feedback < 100 ms, Tonight first
   byte to header ≤ 200 ms; (4) a live refresh never shows a skeleton (test).
-- [ ] **M19.16** Two small status reads (audit 8.4, 8.5). *(owner: `platform-engineer`)* `GET
+- [x] **M19.16** Two small status reads (audit 8.4, 8.5). *(owner: `platform-engineer`)* `GET
   /api/me/lobbies/start/status?groupId=` → `{ status: 'pending' | 'sent' | 'done' | 'failed' | null, host: {
   name } | null }` for linked members of that group (service-role read of the command, session-checked), and a
   light read of whether a game's recap line has landed (`{ landed: boolean }`), each with a zod response
@@ -12506,7 +12506,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   to a signal. Acceptance: (1) `StartLobby.test.tsx`: the poll hits the status route, not the page;
   (2) bench: Tonight renders while Start a lobby is pending 12 a minute → 0, and exactly one render when it
   turns `done` or `failed`.
-- [ ] **M19.18** Static marketing pages (P7, optional). *(owner: `web-engineer`)* `/download`, `/about` and
+- [x] **M19.18** Static marketing pages (P7, optional). *(owner: `web-engineer`)* `/download`, `/about` and
   `/how` stop being `force-dynamic`; Sign in / Sign out in the top bar becomes a small client island that asks
   `/api/me`. Acceptance: landing tests unchanged; `next build` lists them as static; a signed-in visitor still
   sees Sign out after the island loads, with no layout shift.

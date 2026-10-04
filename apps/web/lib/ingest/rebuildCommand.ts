@@ -1,6 +1,7 @@
+import { flushLive, LiveChanges } from '../live/bump';
 import { isLocalStackHostname } from '../ops/target';
 import type { ServiceClient } from '../supabase';
-import { formatRebuildReport, type RebuildAllOptions, type RebuildAllResult } from './rebuild';
+import { formatRebuildReport, type RebuildAllOptions, type RebuildAllResult, rebuildWrote } from './rebuild';
 
 /**
  * `pnpm --filter web rebuild-ratings` as a function (M5.2; the target line and `--hosted`, M14.27).
@@ -159,6 +160,13 @@ export async function runRebuildCommand(
     deps.out(formatRebuildReport(result.report));
     problems += result.report.problems.length;
   }
+  // Tonight's live signal (M19.9): every group whose fold wrote a row, once, after every group's
+  // writes. A dry run, a refusal and an unchanged database bump nothing.
+  const live = new LiveChanges();
+  for (const { groupId, result } of all.groups) {
+    if (rebuildWrote(result)) live.touch(groupId, 'ratings');
+  }
+  await flushLive(client, live);
   deps.out(`took          ${deps.now() - started} ms`);
 
   if (problems > 0) {

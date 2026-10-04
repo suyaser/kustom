@@ -93,6 +93,11 @@ export interface GameIngestResult {
    * compare-and-clear the route runs after the fold (`clearAfterRecord`).
    */
   modeRecord: RecordedGame;
+  /**
+   * True when this post wrote any row: the game, a `game_players` row, merged bans, or a refreshed
+   * Riot ID. A second companion's identical block writes nothing (M19.9: no `group_live` bump).
+   */
+  wrote: boolean;
 }
 
 /**
@@ -205,13 +210,17 @@ export async function ingestEogGame(
   // Stored already, and in another group than this token's: a game belongs to one group, and
   // the other group's companion posting the same block changes nothing anywhere.
   const foreignDuplicate = !created && game.group_id !== options.groupId;
+  let wrote = created;
   if (!foreignDuplicate) {
-    await upsertGamePlayers(client, game.id, game.group_id, payload, created);
+    if (await upsertGamePlayers(client, game.id, game.group_id, payload, created)) wrote = true;
+    // game_facts (0041) follows the stored block, before the route bumps the live signal: the first
+    // post writes the row, a ban merge rewrites it, a repeat post only fills a missing one.
     const facts = { id: game.id, groupId: game.group_id };
     if (created) {
       await writeGameFacts(client, [gameFactsInsert(facts, insert.raw)], 'replace');
     } else {
       const stored = await mergeStoredDraftBans(client, game.id, payload.raw);
+      if (stored.merged) wrote = true;
       await writeGameFacts(client, [gameFactsInsert(facts, stored.raw)], stored.merged ? 'replace' : 'fill');
     }
     // The group's cached game-derived reads (the calibration line) are stale now (app-perf).
@@ -227,6 +236,7 @@ export async function ingestEogGame(
     foreignDuplicate,
     participants: await countGamePlayers(client, game.id),
     modeRecord: recordedGame(kind, lock),
+    wrote,
   };
 }
 
@@ -348,8 +358,9 @@ async function upsertGamePlayers(
   groupId: string,
   payload: CompanionGameEogPayloadWithWinner,
   created: boolean,
-): Promise<void> {
+): Promise<boolean> {
   const backfill = payload.source === 'backfill';
+  let refreshed = false;
   const withNames = !backfill || created;
 
   // The end-of-game block is the only place the client gives us a Riot ID for someone we have
@@ -363,7 +374,12 @@ async function upsertGamePlayers(
       gameName: withNames ? participant.gameName : null,
       tagLine: withNames ? participant.tagLine : null,
     })),
-    { fillOnly: backfill },
+    {
+      fillOnly: backfill,
+      onRefresh: () => {
+        refreshed = true;
+      },
+    },
   );
 
   // Vision score, damage mitigated and damage to objectives come off the posted block, not off
@@ -411,11 +427,13 @@ async function upsertGamePlayers(
       damage_to_objectives: storedStat(facts?.damageToObjectives ?? participant.damageToObjectives),
     });
   }
-  if (rows.length === 0) return;
+  if (rows.length === 0) return refreshed;
 
-  const { error } = await client
+  // `ignoreDuplicates` answers only the rows it inserted: none for a repeated block (M19.9).
+  const { data: inserted, error } = await client
     .from('game_players')
-    .upsert(rows, { onConflict: 'game_id,player_id', ignoreDuplicates: true });
+    .upsert(rows, { onConflict: 'game_id,player_id', ignoreDuplicates: true })
+    .select('player_id');
   if (error) throw new Error(`ingestGame: game_players insert failed: ${error.message}`);
 
   // Playing is joining (M13.3): everyone on this scoreboard is a member of the game's group.
@@ -424,6 +442,7 @@ async function upsertGamePlayers(
     groupId,
     rows.map((row) => row.player_id),
   );
+  return refreshed || (inserted ?? []).length > 0;
 }
 
 async function countGamePlayers(client: ServiceClient, gameId: string): Promise<number> {
