@@ -366,8 +366,8 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
             className="flex items-baseline justify-between gap-3 border-t border-border px-(--card-pad) py-3 text-sm"
           >
             <span>{WEEK_TOTAL_LABEL}</span>
-            {/* Clear of the rows' Why chevron (14px and the 4px gap), so the sum sits under the column. */}
-            <span className="pe-[18px]">
+            {/* Clear of the rows' Why chevron (14px, and the button's two 4px gaps around its sr-only words), so the sum sits under the column. */}
+            <span className="pe-[22px]">
               <RatingDelta
                 delta={player.weekTotal}
                 width="change"

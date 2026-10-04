@@ -62,7 +62,7 @@ export function RatingChart({
       </svg>
       <span
         aria-hidden="true"
-        className="num absolute end-0 -translate-y-full pb-0.5 text-2xs text-muted-foreground"
+        className="num absolute end-0 -translate-y-full rounded-sm bg-card px-1 pb-0.5 text-2xs text-muted-foreground"
         style={{ top: `${geometry.seedPercent}%` }}
       >
         {referenceLabel}
