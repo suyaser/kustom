@@ -12865,7 +12865,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   its players); (3) `TonightLive.test.tsx`: a stale version on resubscribe re-reads, an equal one does not;
   (4) the `TonightLive` header comment and decision row 2026-10-03 (Realtime filters) are superseded in the same
   change.
-- [ ] **M19.11** Player and lobby rows leave the anon Realtime publication (P3, security; decision row
+- [x] **M19.11** Player and lobby rows leave the anon Realtime publication (P3, security; decision row
   2026-10-04). *(owner: `platform-engineer`; after M19.10 is merged and has run one real night)* Migration
   removes `lobbies`, `lobby_members`, `splits`, `games`, `game_players` and `ratings` from `supabase_realtime`.
   Today `lobby_members` and `splits` have no `group_id`, so every change to them reaches any anon subscriber of
@@ -12879,6 +12879,8 @@ answer sooner, change once per real change, and stop hearing other groups.
   (3) `lobbyPassword.integration.test.ts` is updated to assert `lobbies` is not published at all (it was
   asserting the password never rides an event); (4) nothing in `apps/web` subscribes to a removed table (grep in
   the test); (5) Tonight still updates on every change in the bench script.
+
+  *Landed 2026-10-04 on `m19-11-publication` (8fb45022, reviewer pass; hosted push of 0044 held to 2026-10-05, after the first real night on M19.10). Column lists verified on local Realtime v2.73.2 / PG 17.6: ignored (wal2json reads by table name; a service-role subscriber still received `set_by` with `group_modes` published by a column list), so `group_modes` and `fearless_state` stay published whole and the ids stay out of anon payloads through column privileges (0029, 0032), asserted by `publication.integration.test.ts`. Bench (perf-tonight-taps): every step renders exactly once, another group's posts render 0, foreign 0.*
 - [x] **M19.12** `getClaims()` instead of `getUser()` per signed-in render: investigate. *(owner:
   `platform-engineer`; security review by `reviewer` required before anything is adopted)* Today the group
   layout and Tonight call `currentSessionPlayer` and admin pages also call `currentPageSession`; each calls
@@ -13145,7 +13147,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   grows by no more than the table it already ships (`clientGraph.test.ts` passes); (6) M14.30's seven panel
   checks still pass.
 
-- [ ] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
+- [x] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
   after M20.2, same lane; amended 2026-10-04 for M20 D9 to D11)* `lifecycle.ts`'s six functions become one pure
   `transition(state, action)` over the one-row state `{ standing, pending: rule | null, rated }`, where a region
   rule always carries both regions (`{ id: 'region', blue, red }`, the M15 `Mode` shape; there is no region rule
@@ -13173,6 +13175,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   `version`, `afterRecord`, `onlyRatedSinceRoll` and `consumesRule`'s callers are gone from `packages/core` (grep
   in the PR); (8) 100% of the new module covered.
 
+  *Landed 2026-10-05 (2b74f454, reviewer pass after one round; 634 core tests, transition.ts 100% covered). Acceptance (7), deleting the old lifecycle exports, moves to M20.7/M20.8 when apps/web stops calling them.*
 - [ ] **M20.7** Schema and server on the one-row model. *(owner: `platform-engineer`; after M20.6; migration at
   the next free number at merge, local first, shown to the user before it is applied; amended 2026-10-04 for M20
   D9 to D11)* **Migration list:** (a) `group_modes` keeps `standing`, the pending rule and class tag, keeps

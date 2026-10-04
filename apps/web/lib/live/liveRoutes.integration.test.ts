@@ -22,8 +22,9 @@ import { expectBumpedLast, installWriteRecorder, type RecordedWrite } from '@/li
  *   it already was, a role it already had, a join of a member.
  * - **A lobby post that changed nothing writes nothing (M19.8 acceptance 2).** The same post twice:
  *   no write request at all to `lobbies`, `lobby_members`, `players` or `group_memberships`, and no
- *   Realtime event on `lobby_members` or `group_live`; one side change: exactly one row written
- *   and exactly one event of each.
+ *   `group_live` event; one side change: exactly one `lobby_members` row written and exactly one
+ *   `group_live` event. (M19.8 also counted `lobby_members` events; since M19.11 (`0044`) that
+ *   table is in no publication, so the write recorder is what proves the one row.)
  * - **One eog, one signal (M19.9 acceptance 2).** An eog gives exactly one `group_live` event, and
  *   when it arrives the game, its ten players with their ratings, and the group's ratings are all
  *   readable with the anon key; the same block again gives none.
@@ -182,12 +183,11 @@ if (stack === null) {
   }
 
   // ---------------------------------------------------------------------------------------------
-  // Realtime: one anon channel for the whole file, on this group's live row and its lobby rows.
+  // Realtime: one anon channel for the whole file, on this group's live row.
   // ---------------------------------------------------------------------------------------------
 
   type Payload = RealtimePostgresChangesPayload<Record<string, unknown>>;
   const liveEvents: Payload[] = [];
-  const memberEvents: Payload[] = [];
   let wake: () => void = () => {};
   function until(label: string, done: () => boolean, timeoutMs = 45_000): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -228,14 +228,6 @@ if (stack === null) {
           { event: '*', schema: 'public', table: 'group_live', filter: groupLiveFilter(A) },
           (e) => {
             liveEvents.push(e);
-            wake();
-          },
-        );
-        next.on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'lobby_members', filter: `lobby_id=eq.${lobbyId}` },
-          (e) => {
-            memberEvents.push(e);
             wake();
           },
         );
@@ -309,7 +301,6 @@ if (stack === null) {
 
     it('lobby post (M19.8): the same post writes nothing and sends no event; one side change writes one row and sends one', async () => {
       await openChannel();
-      const membersBefore = memberEvents.length;
       const liveBefore = liveEvents.length;
 
       const same = await recorded(() => postLobby(companion('lobby', membersBody())));
@@ -340,15 +331,12 @@ if (stack === null) {
       expect(memberWrites).toHaveLength(1);
       expect(memberWrites[0]?.body).toEqual([expect.objectContaining({ player_id: id(p(4)), side: 200 })]);
 
-      // Realtime delivers in WAL order: once the swap's own events are here, an event from the
-      // repeated post would already have arrived before them.
-      await until('the swap on lobby_members', () => memberEvents.length > membersBefore);
+      // Realtime delivers in WAL order: once the swap's own event is here, an event from the
+      // repeated post would already have arrived before it.
       await until('the swap on group_live', () =>
         liveEvents.slice(liveBefore).some((e) => kindOf(e) === 'lobby'),
       );
       await drain();
-      expect(memberEvents.slice(membersBefore)).toHaveLength(1);
-      expect(memberEvents[membersBefore]?.eventType).toBe('UPDATE');
       expect(liveEvents.slice(liveBefore).filter((event) => kindOf(event) === 'lobby')).toHaveLength(1);
     }, 300_000);
 

@@ -1,4 +1,7 @@
 /**
+ * @deprecated M20.6: replaced by `transition.ts` (one row, no version; decision row M20 D6). Kept
+ * only while apps/web still calls it; delete this file and its tests when M20.7 and M20.8 land.
+ *
  * The rule's lifecycle (M15.2, brief D2, R1, R2, R9), as pure state transitions the server
  * applies to whatever it stores (platform owns the columns, M15.3).
  *
@@ -63,26 +66,35 @@ export interface GameStamp {
   checked: boolean;
 }
 
+/** @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8. */
 export function startState(standing: StandingModeId): ModeState {
   return { standing, pending: null, ratedOverride: null, version: 0 };
 }
 
-/** Picking Normal or Fearless: sets the standing mode, clears a pending rule, resets the switch. */
+/** Picking Normal or Fearless: sets the standing mode, clears a pending rule, resets the switch.
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
+ */
 export function chooseStanding(state: ModeState, standing: StandingModeId): ModeState {
   return { standing, pending: null, ratedOverride: null, version: state.version + 1 };
 }
 
-/** Picking a rule or a Spin result: the standing mode stays, the switch resets to the rule's default. */
+/** Picking a rule or a Spin result: the standing mode stays, the switch resets to the rule's default.
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
+ */
 export function chooseRule(state: ModeState, rule: RuleOption): ModeState {
   return { ...state, pending: rule, ratedOverride: null, version: state.version + 1 };
 }
 
-/** The Rated switch, for the next game, either way, in any mode. */
+/** The Rated switch, for the next game, either way, in any mode.
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
+ */
 export function setRated(state: ModeState, rated: boolean): ModeState {
   return { ...state, ratedOverride: rated, version: state.version + 1 };
 }
 
-/** What the card says the next game is. */
+/** What the card says the next game is.
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
+ */
 export function nextGame(state: ModeState): { modeId: ModeId; rule: RuleOption | null; rated: boolean } {
   const modeId: ModeId = state.pending?.id ?? state.standing;
   return { modeId, rule: state.pending, rated: state.ratedOverride ?? modeRatedDefault(modeId) };
@@ -92,6 +104,8 @@ export function nextGame(state: ModeState): { modeId: ModeId; rule: RuleOption |
  * The lobby's copy at Roll teams. With `existing` (a Reroll) the copy is kept as it was, region
  * draw included. Region wars needs `regions` (`drawRegions`); if no pair could be drawn, the game
  * is locked on the standing mode with the rated flag the card showed, and the rule stays pending.
+ *
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
  */
 export function lockAtRoll(
   state: ModeState,
@@ -109,7 +123,9 @@ export function lockAtRoll(
   return { mode, rated, version: state.version };
 }
 
-/** Only a Rift game from a rolled lobby uses up the rule. Remake, ARAM and no-lobby games do not. */
+/** Only a Rift game from a rolled lobby uses up the rule. Remake, ARAM and no-lobby games do not.
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
+ */
 export function consumesRule(game: RecordedGame): boolean {
   return game.kind === 'rift' && game.lock !== null;
 }
@@ -118,6 +134,8 @@ export function consumesRule(game: RecordedGame): boolean {
  * The game's stamp. A rolled game takes the lobby's copy; a remake or ARAM is never rated and
  * never checked. A game with no lobby copy takes the standing mode at its default (the switch
  * and the rule wait for a rolled game).
+ *
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
  */
 export function gameStamp(state: ModeState, game: RecordedGame): GameStamp {
   if (game.lock === null) {
@@ -134,6 +152,8 @@ export function gameStamp(state: ModeState, game: RecordedGame): GameStamp {
  * again) resets the switch, so a re-queued rule reads as a new choice and survives. The one case
  * the card's state cannot tell apart is the same rule re-queued **and then** a Rated flip: that
  * reads as Rated only and the rule is used up (there is no second token; decision row 2026-10-04).
+ *
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
  */
 export function onlyRatedSinceRoll(state: ModeState, lock: LockedMode): boolean {
   return (
@@ -147,6 +167,8 @@ export function onlyRatedSinceRoll(state: ModeState, lock: LockedMode): boolean 
  * After a game is recorded: compare and clear. Unchanged unless the game consumes and either
  * nothing moved since Roll (the rule is used up, the switch resets) or only the Rated switch moved
  * (the rule is used up, the flip stays for the next game).
+ *
+ * @deprecated M20.6: use `transition.ts`; delete with M20.7/M20.8.
  */
 export function afterRecord(state: ModeState, game: RecordedGame): ModeState {
   if (!consumesRule(game) || game.lock === null) return state;
