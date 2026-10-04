@@ -3877,7 +3877,8 @@ on, and the Data Dragon id is the file name.
 
 Names and seats are `EXAMPLE_SPLITS[0]`: blue Hana, Iris, Karim, Bilal and Theo; red Omar, Rami, Nadia, Lena and
 Yuki, in lane order. The changes are illustrative whole numbers in M18's range (11.3). The winners are positive,
-the losers negative, and no change is zero. The duration is `32:40`.
+the losers negative, and no change is zero. The duration is `32 min` (6.12: durations are ‹21 min›, never
+`32:40`; signed off 2026-10-04).
 
 ### 12.3 Anatomy
 
@@ -3885,7 +3886,7 @@ Phone, 375 (the card is 343 wide; 16px pad, so 311 inside):
 
 ```
 ┌─ --card, 1px --border, radius 8 ───────────────────┐
-│ ◥ Red won                                    32:40 │  title row: text --fs-md 700 + glyph; duration mono --fs-xs muted
+│ ◥ Red won                                   32 min │  title row: text --fs-md 700 + glyph; duration mono --fs-xs muted
 │ ┌──────────────────────┐┊┌───────────────────────┐ │
 │ │ ◣ BLUE 54%           │┊│░░░░░░░░░░ 46% RED ◥░░░│ │  WinBar size="compact" (40px), unchanged
 │ └──────────────────────┘┊└───────────────────────┘ │
@@ -3907,11 +3908,11 @@ Row grid: `grid-template-columns: var(--sq) minmax(0,1fr) 3.5rem minmax(0,1fr) v
 | Part | Spec |
 |---|---|
 | Card | `--card`, 1px `--border` (not `--border-strong`: that edge belongs to the receipt, 5.5), `--radius-card`, `--card-pad`. Width: the hero's right column at ≥ 1024 (`30rem`). Below 1024 it is full column width, capped at `30rem`, and aligned to the start edge with the copy. |
-| Title row | `◥ Red won`: the side glyph in `--team-red` (13px, as in the bar), then the words in the text face, `--fs-md` 700, `--foreground`. Blue winning would read `◣ Blue won`, but the fixture is red. The duration `32:40` is mono `--fs-xs` `--muted-foreground`, end-aligned. This is a `<p>`, not a heading: the hero's only heading is the h1. |
+| Title row | `◥ Red won`: the side glyph in `--team-red` (13px, as in the bar), then the words in the text face, `--fs-md` 700, `--foreground`. Blue winning would read `◣ Blue won`, but the fixture is red. The duration `32 min` is mono `--fs-xs` `--muted-foreground`, end-aligned (6.12). This is a `<p>`, not a heading: the hero's only heading is the h1. |
 | Win bar | `<WinBar odds={…} size="compact" />` from `components/receipt/win-bar.tsx`, as is. It carries its own sr sentence. 8px below the title row and 12px above the first row. |
 | Champion square | `--sq`: **40px below 768, 48px at 768–1023, 56px at ≥ 1024.** Square, `border-radius: var(--radius-chip)` (4), `object-fit: cover`, `display: block`, `flex: none`. Shown as Data Dragon delivers it: no crop, no zoom, no mask, **never a circle**, no ring, no shadow, no filter. It is not dimmed for the losing side ("nobody is dimmed", 5.1). `width` and `height` attributes equal `--sq` at the phone size (40), and CSS sizes the box, so the box is reserved before the bytes arrive. The fallback behind it is `--raised` (it shows only if the file fails). |
 | Name | Text face 700, `--foreground`. `--fs-sm` (16) below 1024, `--fs-md` (19) from 1024. Blue names are start-aligned and red names end-aligned (the mirror). Wrap rule as 5.1: `overflow-wrap: anywhere`, never truncated. |
-| Change | `<RatingDelta delta={n} width="change" />` (`app/_board/RatingDelta.tsx`), under the name, `--fs-xs`, 2px below. It is signed, uncoloured and uses the real minus (5.3, 11.3). Blue changes are start-aligned and red changes end-aligned. |
+| Change | `<RatingDelta delta={n} width="change" />` (`app/_board/RatingDelta.tsx`), under the name, `--fs-xs`, 2px below. It is signed, uncoloured and uses the real minus; a gain is `--foreground` 600 and a loss `--muted-foreground` 400, as everywhere (5.3, 11.3). Blue changes are start-aligned and red changes end-aligned. |
 | Role cell | Centred, 3.5rem (56px) wide. `RoleIcon` at 20px stacked over the role word in mono `--fs-2xs`, `font-stretch` 75%, `--muted-foreground`, as in 5.1's role cell. `support` is the widest word and fits at 13px. |
 | Row height | `--sq` plus 8px above and below (56 / 64 / 72). |
 | Caption | `<figcaption>`, `--fs-sm`, `--muted-foreground`, 8px under the card. |
@@ -3923,6 +3924,46 @@ example name (`Karim`, `Nadia`) is about 50px at 16/700, so nothing wraps. At 14
 Card height: about 380px at 375 (title 28, bar 40, gaps 20, five 56px rows, padding 32) and about 470px at
 1440. Below 1024 the card starts right under the buttons, at about 460px on a 375 × 667 screen, so the title,
 the bar and the first lane row (Garen vs Darius) are in the first screen. That is the glance.
+
+### 12.3a Large text: the stacked row
+
+Added at sign-off (2026-10-04). The five-column row does not fit large text on a phone: at 200% on 375 the
+role column grows to 112px (3.5rem) and leaves about 43px per name, so `overflow-wrap: anywhere` breaks
+‹Omar› into ‹O / m / ar›. No column width fixes that, because ‹Karim›, ‹support› and ‹Nadia› at 32px need
+about 280px together and the card has 279. So the row changes shape instead of letting a name break.
+
+- **Trigger: a container query on the card, in em.** The card (the `--card` box that holds the table) gets
+  `container-type: inline-size`. The rows stack at `@container (width < 18em)`. The em resolves against the
+  card's own font size, so the switch follows the text size, not the screen. At 100% on 375 the card is 311px
+  (19.4em), so it keeps the normal row. At 125% it is about 15em, and at 200% about 8.7em, so both stack. A 320
+  screen at 100% (16em) stacks too, and that is correct, because its names would break in the normal row.
+  1440 and tablets never stack.
+- **The stacked row**, still one `<tr>` per lane:
+
+  ```
+  ├──────────────────────────────────────────┤
+  │                 ⌂ top                    │  role th: icon 20px inline before the word, centred
+  │ [Garen]                        [Darius]  │  squares at the outer edges, 40px
+  │ Hana                               Omar  │  name: blue start, red end; text face 700
+  │ −18                                 +17  │  change: RatingDelta, as 12.3
+  ├──────────────────────────────────────────┤
+  ```
+
+  The `<tr>` becomes `display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); column-gap: 8px`.
+  The role `<th>` takes `grid-column: 1 / -1` on the first line, with the icon and the word in one line
+  (`flex-direction: row`, gap 4px), centred. The blue `<td>` sits in column 1 and the red `<td>` in column 2.
+  Inside each `Seat`, the square is on its own line, then the name, then the change: one column, start-aligned
+  for blue and end-aligned for red. The mirror holds. The squares stay 40px and keep their outer edge. Padding
+  is 8px above and below, as in 12.3. The `<colgroup>` width does not apply in this mode.
+- Each name gets half the card minus 4px: about 135px at 200% on 375, and ‹Karim› needs about 100px. Keep
+  `overflow-wrap: anywhere` as the last resort for a name longer than any real one. It no longer fires for real
+  names.
+- **Semantics stay a table.** A `display` change on table parts can drop table semantics in some engines. So
+  the table parts carry explicit roles in every mode: `role="table"` on the table, `role="row"` on each `<tr>`,
+  `role="rowheader"` on the role `<th>`, `role="columnheader"` on the hidden `<th>`s, and `role="cell"` on each
+  `<td>`. These are redundant in the normal mode and harmless. The row still reads ‹top · Hana, Garen, lost 18 ·
+  Omar, Darius, gained 17›.
+- Nothing else changes: no new tokens, no side colour on the seats, and the win bar and title row are as 12.3.
 
 ### 12.4 Where it sits
 
@@ -3952,20 +3993,21 @@ as in the fearless chip.
   row names it. That is the opposite of the fearless chip's `alt=""`, which sits beside a visible name. A row
   reads ‹top · Hana, Garen, lost 18 · Omar, Darius, gained 17›.
 - The win bar stays `aria-hidden`, with its sr sentence (5.5).
-- Text contrast is all stock tokens on `--card` (3.2), and the role word and the change are muted at 6.44.
-- At 200% text on a 375 screen the names wrap and the rows grow taller. The page never scrolls sideways (M14.42).
-  The squares do not scale with text.
+- Text contrast is all stock tokens on `--card` (3.2). The role word and a loss are muted at 6.44, a gain is `--foreground`.
+- Large text reflows the rows (12.3a). A name never breaks inside a word at any text size, and the page never
+  scrolls sideways (M14.42). The squares do not scale with text.
 - Forced colours: the bar follows 6.8's `data-side-fill` rule. The images stay. No meaning rides on colour.
 
 ### 12.7 Assets and performance
 
 - **Self-hosted, committed, statically imported.** There are ten files,
   `apps/web/components/landing/champions/<DdragonId>.webp`, each made from Data Dragon's
-  `cdn/<DDRAGON_VERSION>/img/champion/<id>.png`. They stay at the native 120 × 120 (no resample, so the art is
-  as delivered), as WebP at quality 80, with metadata stripped. That is about 4–6 KB each and **≤ 60 KB for all
-  ten**. They are imported with `import garen from './champions/Garen.webp'`, so Next emits hashed,
+  `cdn/<DDRAGON_VERSION>/img/champion/<id>.png`. They stay at the native size Data Dragon serves at the pin, **128 × 128** at 16.19.1 (no resample, so the
+  art is as delivered), as WebP at quality 80, with metadata stripped. That is about 3–4 KB each and **≤ 60 KB
+  for all ten** (measured 34 KB on 2026-10-04). They are imported with `import garen from './champions/Garen.webp'`, so Next emits hashed,
   immutable-cached URLs under `/_next/static/media/`.
-- 120px covers 3× at 40 and about 2× at 56, so there is no `srcset`.
+- 128px covers 3× at 40 and about 2.3× at 56, so there is no `srcset`. If a later pin serves another native
+  size, keep it as served; the `width`/`height` attributes stay 40 either way.
 - **No image optimizer and no hotlink.** The page never requests `ddragon.leagueoflegends.com` or
   `/_next/image`. No new `remotePatterns`, and no preconnect on the landing page.
 - **Loading:** `loading="eager"` (they are in the first screen at 1440 and near it at 375), `decoding="async"`,
@@ -4007,6 +4049,8 @@ No existing hero copy changes. `HERO_TITLE_SET`, `HERO_SUB` and both buttons sta
 2. All ten faces render from `/_next/static/media/`. The network panel shows no ddragon and no `/_next/image`
    request on `/`.
 3. CLS is 0.00 on `/` with a throttled load, and the LCP element is text.
-4. Nothing truncates. At 200% text there is no sideways scroll.
+4. Nothing truncates, and no name breaks inside a word at 200% text (12.3a). The figure itself causes no
+   sideways scroll. The BareShell header's overflow at 200% is pre-existing and tracked as its own follow-up, not
+   part of this sign-off.
 5. A screen reader reads the table row by row, with the champion names.
 6. The Riot notice is still in the footer of `/` and `/about`.
