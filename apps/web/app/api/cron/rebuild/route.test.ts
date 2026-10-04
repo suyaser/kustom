@@ -9,11 +9,18 @@ import { GET } from './route';
  * `lib/ingest/rebuildCron.test.ts`; the fold against a database is the integration file.
  */
 
-const stub = vi.hoisted(() => ({ calls: 0 }));
+const stub = vi.hoisted(() => ({ calls: 0, fail: false, expired: [] as [string, string][] }));
+
+vi.mock('@/lib/cache/tags', () => ({
+  expireGroupTag: (kind: string, groupId: string) => {
+    stub.expired.push([kind, groupId]);
+  },
+}));
 
 vi.mock('@/lib/ingest/rebuildCron', () => ({
   runRebuildCron: async () => {
     stub.calls += 1;
+    if (stub.fail) throw new Error('database down');
     return [
       {
         groupId: '00000000-0000-4000-8000-00000000000b',
@@ -45,6 +52,8 @@ describe('GET /api/cron/rebuild', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
     process.env.CRON_SECRET = 'secret-value';
     stub.calls = 0;
+    stub.fail = false;
+    stub.expired = [];
   });
 
   afterEach(() => {
@@ -70,6 +79,21 @@ describe('GET /api/cron/rebuild', () => {
     const body = await response.json();
     expect(rebuildCronResponseSchema.parse(body).groups).toHaveLength(1);
     expect(stub.calls).toBe(1);
+  });
+
+  it("expires each folded group's Stats cache after the run, and nothing on a refused or failed run", async () => {
+    expect((await GET(get('Bearer nope'))).status).toBe(401);
+    expect(stub.expired).toEqual([]);
+
+    expect((await GET(get('Bearer secret-value'))).status).toBe(200);
+    expect(stub.expired).toEqual([['stats', '00000000-0000-4000-8000-00000000000b']]);
+
+    stub.expired = [];
+    stub.fail = true;
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await GET(get('Bearer secret-value'))).status).toBe(500);
+    expect(stub.expired).toEqual([]);
+    error.mockRestore();
   });
 
   it('is scheduled daily after the 06:00 boundary in both halves of the Cairo year (03:00 / 04:00 UTC)', () => {

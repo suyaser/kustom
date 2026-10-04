@@ -6,6 +6,7 @@ import {
   NO_WINNING_TEAM_MESSAGE,
 } from '@customs/db/schemas';
 import { scheduleGameLine } from '@/lib/ai/afterIngest';
+import { expireGroupTag } from '@/lib/cache/tags';
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import {
@@ -180,11 +181,19 @@ export const POST = withCompanionAuth(
     //
     // Never for another group's game either (M13.3): that post is a no-op, and the fold reads
     // and writes the game's own group's ratings when its own companions post it.
-    const fold = backfill
-      ? BACKFILL_NOT_RATED
-      : result.foreignDuplicate
-        ? FOREIGN_DUPLICATE_NOT_RATED
-        : await rateStoredGame(client, result.gameId);
+    let fold: Awaited<ReturnType<typeof rateStoredGame>>;
+    try {
+      fold = backfill
+        ? BACKFILL_NOT_RATED
+        : result.foreignDuplicate
+          ? FOREIGN_DUPLICATE_NOT_RATED
+          : await rateStoredGame(client, result.gameId);
+    } finally {
+      // The group's Stats cache: a game stored, rated, renamed or given its bans changes it. In a
+      // `finally`, so a fold that throws after the game was stored still expires it (the retry
+      // that follows the 500 expires it again once the fold lands).
+      if (!result.foreignDuplicate) expireGroupTag('stats', result.groupId);
+    }
 
     // A lobby that is already `finished` (the second companion's post) or that the sweep
     // abandoned between resolving it and here claims nothing and says so in the log.
