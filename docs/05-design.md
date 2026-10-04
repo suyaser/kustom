@@ -209,7 +209,7 @@ Nothing is a pill (999) except the live dot and the tab-bar notification dot.
 
 | Token | Phone | ≥1024 | Face | Use |
 |---|---|---|---|---|
-| `--fs-2xs` | 13 | 13 | mono / text 700 | **floor.** Role words, tab-bar labels, settling chip. Nothing that carries meaning goes smaller. |
+| `--fs-2xs` | 13 | 13 | mono / text 700; text 400 for region tags only | **floor.** Role words, tab-bar labels, settling chip, region tags on champion chips (8.15). Nothing that carries meaning goes smaller. |
 | `--fs-xs` | 15 | 15 | text | row meta (`94 games · 58W 36L`), chip labels, `Your side`, captions under the bar |
 | `--fs-sm` | 16 | 16 | text | secondary lines: the reason line, sit-out sentence, strip sub-line, footnotes, deltas |
 | `--fs-base` | 17 | 17 | text | body, buttons, the `How the bot decided` summary. **Inputs and selects: 17 (≥16, no iOS zoom).** |
@@ -2287,6 +2287,7 @@ name.** Source: Data Dragon sprites (8.8).
 | **Find hit** | the chip it is, **inverted**: `--foreground` fill, `--card` text | as its row, in `--card` | full |
 | `Banned next game` chips (card, finished) | the open dress | 600 17 | full: here the ban *is* the news |
 | Unknown id or not in the pinned `champion.json` | no icon box at all | as its row | none |
+| **Region tag** (M20, 8.15) | a second line under the name, inside the same box, on every chip above | text 400 13, `--muted-foreground` (`--card` on a find hit) | unchanged |
 
 The hit is inverted, not amber (amber means live, you and the primary action only, 1.2). Chips are not
 controls, so 40px, not 44. Measured at 375: `Heimerdinger` (109px) fits the 150px cell; at 320 the grid drops
@@ -2534,6 +2535,194 @@ CDN string).
 - `04-decisions.md`: product's rows of 2026-10-03 (the Mode card and routed panel; no rated toggle in M14;
   companion UI out of scope) are the decisions; designer's row of the same day records the panel's seven
   conditions, the one-panel registry, `Set mode` instead of auto-submit, and the member visibility rule.
+
+### 8.15 Region tags on champion chips (M20.4)
+
+Owner: `designer`. For M20.5. It follows decision row M20 D3: the tags are display only, show the region's
+plain name in words, are part of the chip's accessible name, and there is no filter by region. A champion's
+regions are the set from M20 D1. The set holds Riot Universe's region and at most one Kustom home region.
+Unaffiliated means the set is empty. The tag answers one question the room asks in champion select: "is Jinx
+Zaun?". It is reference text. It is not a second name, and it is not a control.
+
+#### 8.15.1 The rule
+
+- **Every champion chip on a pool view carries its regions as a second line of text under the name.** That
+  means:
+  - the Fearless pool, by lane and under `All`;
+  - the class, region and mirror pools;
+  - the `Banned` folds;
+  - the find box's hit;
+  - the Mode card's `Banned next game` chips (the only place the card shows champion icons today).
+
+  If the card ever shows champion icons anywhere else, the tag goes there too.
+- **The words are the region's display name from the one table** (`regionName`): `Zaun`, `Shadow Isles`,
+  `Bandle City`, `Targon`, `The Void`. There are no abbreviations, no slugs and no upper case.
+- **Two regions: both names, joined by ` · `** (a middle dot with a space either side, the house separator,
+  as in `138 open · 34 banned`).
+  - Universe's region comes first and the home region second, so the chip agrees with the credit line
+    (`Where a champion has two, the second is our own call.`): Vi reads `Piltover · Zaun` and Kayn reads
+    `Ionia · Noxus`.
+  - Fizz is the one champion with no Universe region and two homes. He keeps the home list's order,
+    `Bilgewater · Bandle City` (see the open question in M20.4's report).
+- **Unaffiliated, or no row in the table: no tag at all.** That covers a champion newer than the table and a
+  `Champion 999` from an id outside the roster. The second line is not rendered and leaves no empty element.
+  There is no `Unaffiliated`, no `—`, no `Runeterra` and no placeholder. The chip is the name alone, exactly as
+  it is today. At 16.19.1 this is 14 champions (`Bard`, `Nami`, `Senna`, `Lucian`, …).
+- **A region-wars pool shows the full tag too**, including the region of the pool the chip sits in. A shared
+  champion (M20 D2) appears in both pools, and its `Piltover · Zaun` in each one is what tells the room either
+  side may take it. Nothing in the tag is emphasised for tonight's regions: no bold, no tint, no side colour.
+- The tag never changes what a chip is. Sorting, grouping, counts, the find box, the lane control, open versus
+  banned, and the hit inversion are all exactly as in 8.7. **Typing a region name in the find box matches
+  nothing new.** It is still a substring match on champion names only, so `Zaun` prints `No champion
+  matches.`
+- The find box's answer line keeps its copy (`Vi is still available.`). The tag shows on the inverted hit chip
+  under it. Changing that sentence is product's call, and nobody has asked for it.
+
+#### 8.15.2 The look
+
+| Part | Open chip (and the card's `Banned next game`) | Banned chip | Find hit (either) |
+|---|---|---|---|
+| Box | unchanged (8.7.3): grid cell, `--raised`, 1px `--border`, radius 4, padding `4 6 4 5`, gap 7, min-height 40 | unchanged: natural width, transparent, 1px solid `--border`, min-height 34 | inverted as now |
+| Name | unchanged: text 600 17 `--foreground` | unchanged: text 400 15 `--muted-foreground` | `--card` |
+| **Tag** | **text 400 13 (`--fs-2xs`), line-height 16px, `--muted-foreground`**, directly under the name with no extra gap, start-aligned with the name | the same: text 400 13, line-height 16, `--muted-foreground` | **`--card`, full strength** (no opacity, which would fail contrast on the inverted fill) |
+| Icon | unchanged, centred on the name-and-tag stack (the chip keeps `align-items: center`) | unchanged, 55% | full |
+
+- **The text side of the chip becomes a stack**: name, then tag. Both sit in the column that starts after
+  the icon. With icons off (`data-icons="off"`), the stack starts at the chip's padding.
+- **The hierarchy holds without a new token.** The name is foreground 600 17 and the tag is muted 400 13. That
+  is four steps apart in size, weight and colour together, so the eye runs down the names as a column and
+  skips the tags. In the panel's ladder (8.7.2), the tag sits below level 5.
+- **Wrapping**:
+  - The space inside a multi-word region name is a no-break space (U+00A0), as is the space before the dot.
+    So `Bandle City` and `Shadow Isles` never split, and when a two-region tag does not fit, it breaks after
+    the dot: `Piltover ·` on one line, `Bandle City` on the next.
+  - The chip keeps `overflow-wrap: break-word`, so a unit longer than the line still breaks as a last resort
+    instead of scrolling sideways.
+  - Do not use `white-space: nowrap`: at large text it would push the chip wider than its cell.
+- **Heights** (Night and Day alike):
+  - an untagged chip stays 40;
+  - a one-line tag makes about 46;
+  - a tag that wraps to two lines makes about 62.
+  - In a two-column row both cells take the taller height (CSS grid's default stretch), and a lone
+    untagged chip keeps its name centred.
+  - Banned chips go from 34 to about 44.
+- **Night and Day use the same tokens**, with no `day:` class. `--muted-foreground` measures 5.91 on `--raised`
+  and 6.44 on `--card` at Night, and 7.66 and 8.68 at Day (3.2). All of those are above AA, and the 13px floor
+  is allowed by 2.7. On a find hit the tag is `--card` on `--foreground`, which is the name's own contrast
+  (17.51 at Night, 16.69 at Day).
+- Forced colours: the tag is plain text and maps to `CanvasText`, and the chip keeps its 1px border.
+
+#### 8.15.3 Frames
+
+375, Night, Fearless `All`, jungle shown (the other lanes look the same). Text width per cell is about 123px,
+and widths are measured at Atkinson 13/400:
+
+```
+│ ⋀ jungle                               31 open │ lane head unchanged
+│ ┌──────────────────────┐ ┌──────────────────────┐
+│ │▣ Elise               │ │▣ Evelynn             │ Evelynn: unaffiliated, no second line,
+│ │  Shadow Isles ·      │ │                      │ name centred in the stretched cell
+│ │  Noxus               │ │                      │
+│ └──────────────────────┘ └──────────────────────┘ 62: Elise's tag wraps after the dot
+│ ┌──────────────────────┐ ┌──────────────────────┐
+│ │▣ Jarvan IV           │ │▣ Kayn                │
+│ │  Demacia             │ │  Ionia · Noxus       │ 46: both tags fit on one line
+│ └──────────────────────┘ └──────────────────────┘
+│ ┌──────────────────────┐ ┌──────────────────────┐
+│ │▣ Rek'Sai             │ │▣ Vi                  │
+│ │  The Void · Shurima  │ │  Piltover · Zaun     │
+│ └──────────────────────┘ └──────────────────────┘
+│ Banned 4 ⌄                                       │ fold unchanged; opened, chips are two-line:
+│ [▣ Lee Sin ] [▣ Kindred ] [▣ Xin Zhao       ]    │ [icon at 55%, name 15 muted]
+│ [  Ionia   ]              [  Demacia · Ionia]    │ [tag 13 muted]; Kindred has none
+```
+
+- **Acceptance (2), scannable with the full pool.** At 375 under `All`, all 172 chips are about a sixth
+  longer to scroll than today:
+  - about 74 rows at 46 and about 12 rows at 62, against 86 rows at 40, plus the unchanged lane heads;
+  - the names keep their left edge, weight and colour;
+  - one lane at a time (the default for a seated player, 8.7.4) is still about one and a half screens.
+
+  M20.5's frame `mode-panel-fearless-tags-375.png` is the full `All` pool, top to bottom.
+- **Region wars at 375**: stacked pools as now, with the sticky `BLUE Piltover` / `RED Zaun` heads. Vi appears
+  in both pools with the same `Piltover · Zaun`.
+- **1440**, in the dialog:
+  - The `All` board's five lane columns (about 210px each, one chip per line) fit almost every tag on one
+    line. `Shadow Isles · Bandle City` (Vex) is about 165px, so it is the likeliest to wrap.
+  - The one-lane grid (`minmax(10.5em, 1fr)`, 6 columns of about 181px) and the two region pools (3 columns
+    each) wrap long two-region tags after the dot, as at 375.
+  - Nothing else in the dialog moves.
+- **The Mode card, finished, `Banned next game`**: the same chips, so the same tag. Cells there are narrower
+  (about 89px of text beside the role cell at 375), so a two-region tag usually takes two lines. That is fine:
+  this is a list of at most ten.
+
+#### 8.15.4 Large text (200%) and reflow
+
+- **The chip grids switch from two columns to one by text size, not by screen width** (the 12.3a idea, done
+  with a grid minimum in em). Each chip list's columns become `repeat(auto-fill, minmax(min(100%, 9em),
+  1fr))`, in place of `grid-cols-1 min-[360px]:grid-cols-2`.
+  - At 100% on 375: 343px of body is 21.4em, so there are two columns of 9em (144px) or more, as today.
+  - At 320: one column, as today.
+  - At 125% and 200% on 375: one column, so the tag line gets the full width minus the icon (about 299px at
+    200%, where `Shadow Isles · Bandle City` at 26px is about 330px and breaks after the dot as designed).
+  - The ≥1024 minimums move to em too: one lane `10.5em` (168px at 100%), two pools `9.4em` (150px). The
+    board stays one chip per column line.
+  - The Mode card's `Banned next game` list uses `minmax(min(100%, 8em), 1fr)`.
+- Banned chips already wrap at natural width. At 200% each chip is two lines and the fold just grows.
+- Check at 200% on 375, Night and Day: no sideways scroll, no name or region name broken inside a word, every
+  tag fully visible, nothing hidden behind the sticky region heads.
+
+#### 8.15.5 Accessible name
+
+- **The chip reads as `<name>, <regions>`**: `Jinx, Zaun`, then `Vi, Piltover and Zaun`, then `Bard` with
+  no tag.
+- Markup inside the existing `<li>`, which stays non-interactive:
+  - the name `<span>`;
+  - a visually hidden `, ` (`sr-only`);
+  - the tag `<span>`, in which a two-region tag puts the visible ` · ` in an `aria-hidden` span and a
+    visually hidden ` and ` beside it.
+
+  Screen readers then never say "middle dot", and the list reads the way a friend would answer.
+- No `aria-label` on the `<li>`: list items do not reliably take an author name, and visible text that matches
+  is better anyway. No `title` attribute and no tooltip either. The words are on screen.
+- The banned status still comes from the `Banned` fold's summary, and the hit from the answer line
+  (`role="status"`). The tag adds no live announcement.
+- The region pool sections keep their names (`BLUE Piltover`). The tag does not repeat in them.
+
+#### 8.15.6 Do not
+
+- **No colour, tint, crest, flag, icon, emblem or art per region**, and no side colour on a tag in region wars
+  (blue and red are sides, not regions) (M15, M20 D3).
+- No box, pill, border or fill around the tag. A boxed word reads as a control or a filter, and 172 more
+  borders would bury the names.
+- No tag on the same line as the name. `Jinx Zaun` reads as one name, and inline tags break the names' column.
+- No mono face, display face, upper case or tracking on the tag. Mono is for numbers and roles. A region is a
+  word.
+- No abbreviations (`SI`, `BC`, `Void`) and no truncation or ellipsis (6.6). The tag wraps, and the chip grows.
+- No placeholder for an empty set (`Unaffiliated`, `—`, `?`, `Runeterra`).
+- No marker for which region is Universe's and which is ours (no asterisk, no italic). The credit line under
+  the region pools says it once.
+- No region filter, region search, sort by region or group by region (M20 D3). No hover or tap reveal: chips
+  are not controls (8.7.3).
+- No tags beyond pool views and the card's champion icons. That means none on team cards, the poster, the
+  tape, history, the landing figure or any Discord post. Region wars' posts already name the two regions in
+  their rule line.
+- Do not fetch or ship the region table on Tonight's live island. The card is server-rendered.
+
+#### 8.15.7 Acceptance for M20.5 (designer signs on screenshots, at most 3 rounds)
+
+1. Frames at 375 and 1440, in Night and Day:
+   - Fearless `All` (the full pool at 375) and one lane;
+   - region wars Piltover vs Zaun, with Vi in both pools;
+   - class wars `Tanks only`;
+   - a `Banned` fold open;
+   - a find hit on `Vi`;
+   - the finished card's `Banned next game`.
+2. The same Fearless `All` and region frames at 200% text on 375.
+3. Jinx reads `Zaun`, Vi `Piltover · Zaun`, Zaahen `Shurima`, Vex `Shadow Isles · Bandle City`, and Bard no
+   tag. Nothing truncates, and no region name splits inside a word.
+4. Contrast: tag ≥ 4.5 on `--raised`, `--card` and the hit fill in both themes. This holds by token, so
+   confirm no opacity was applied.
 
 ---
 
