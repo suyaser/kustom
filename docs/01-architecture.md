@@ -711,9 +711,17 @@ M18.12). A non-finite `r` or an `n` that is not a whole number `>= 0` is a `Bala
   maximizes effective skill minus off-role penalty. 126 x 2 x 120 evaluations, well under 100 ms.
 - `score = |sum(blueEff) - sum(redEff)| + sum(off-role cost of each filled seat) + 200 * isRepeatOfLastSplit +
   variety + inf * duoSeparated`, in Rating points. One filled seat costs 120 unless fill protection scales it.
-- **Teammate variety** (M18.13, owner-approved 2026-10-04): `variety = min(100, 25 * repeatedPairs)`
-  (`varietyCap`, `varietyPerPair`), a repeated pair being two players on the same side of this split who were also
-  teammates in the recent window, `config.balance.varietyWindowGames = 1`: the previous game **of the same night**.
+- **Teammate variety** (M18.13, owner-approved 2026-10-04; floor M18.14, owner decision 2026-10-04):
+  `variety = min(100, 25 * (repeatedPairs - floor))` (`varietyCap`, `varietyPerPair`), a repeated pair being two
+  players on the same side of this split who were also teammates in the recent window,
+  `config.balance.varietyWindowGames = 1`: the previous game **of the same night**. The floor is the fewest
+  `repeatedPairs` of any partition this lobby's duo locks allow, taken over the same 126-partition pass (a second
+  loop over the candidates, no analytic shortcut, so duo locks and ignored pairs are counted exactly as the split
+  is). Why: the same ten again keep at least `2 * (C(3,2) + C(2,2)) = 8` of last game's pairs whatever the split,
+  which under the M18.13 rule is already the cap, so every split paid 100 and variety never moved the order. Now a
+  3-2 reshuffle of last game's fives is free, a 4-1 (12 pairs) pays 100, and a rotating roster, where some split
+  can usually break every pair (floor 0), gets exactly the M18.13 rule. `repeatedPairs` stays the raw count (the
+  receipt prints both raw counts, `12 vs 8 pairs`); `variety` is the charged amount.
   The caller computes the pairs (puuids only) and passes them as `recentTeammates`; core never reads history. A pair
   counts once whatever its order or how often it appears; a pair naming somebody not in tonight's ten, the same
   player twice, or two players locked together as a duo is ignored, never an error. The cap bounds the fairness

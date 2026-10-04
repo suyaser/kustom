@@ -68,9 +68,13 @@ export interface ScoreParts {
   offRole: number;
   /** `repeatSplitPenalty` (200) when this split is the same five as `lastSplit`, else 0. */
   repeat: number;
-  /** `min(varietyCap, varietyPerPair * repeatedPairs)`. */
+  /**
+   * `min(varietyCap, varietyPerPair * (repeatedPairs - floor))`, the floor being the fewest
+   * `repeatedPairs` of any split of this lobby (M18.14): the pairs kept beyond what the lobby
+   * forces. Not derivable from one split alone; it is what was charged.
+   */
   variety: number;
-  /** Pairs on the same side here who were also teammates in the recent window. */
+  /** Raw: pairs on the same side here who were also teammates in the recent window. */
   repeatedPairs: number;
 }
 
@@ -94,7 +98,7 @@ export interface Split {
   /**
    * Unrounded: `rawGap + sum(off-role cost of each filled seat) + 200 * isRepeat + variety`.
    * One seat costs 120 at baseline and up to 240 under fill protection (M7.5); variety is 0 to
-   * 100 (M18.13). This ordered the list.
+   * 100 (M18.13), charged beyond the lobby's floor of repeated pairs (M18.14). This ordered the list.
    */
   score: number;
   /**

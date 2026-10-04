@@ -323,7 +323,18 @@ export function balance(input: BalanceInput): BalanceResult {
   const lastIndices = last === null ? null : new Set(last.map((p) => byPuuid.get(p)?.index ?? -1));
   const recent = recentPairs(input.recentTeammates ?? [], byPuuid, blocks);
 
-  const candidates: Split[] = [];
+  // Pass 1: every partition the duo locks allow, with its own terms. Variety needs the lobby's
+  // floor (the fewest recent pairs any of these keeps) before any split can be priced (M18.14).
+  interface Scored {
+    blue: Prepared[];
+    red: Prepared[];
+    blueRoles: TeamAssignment;
+    redRoles: TeamAssignment;
+    rawGap: number;
+    isRepeat: boolean;
+    repeatedPairs: number;
+  }
+  const scored: Scored[] = [];
   for (const companions of BLUE_COMPANIONS) {
     const blueIdx = new Set([0, ...companions]);
     if (blocks.some((block) => block.some((i) => blueIdx.has(i)) && block.some((i) => !blueIdx.has(i)))) {
@@ -333,20 +344,32 @@ export function balance(input: BalanceInput): BalanceResult {
     const red = prepared.filter((p) => !blueIdx.has(p.index));
     const blueRoles = assignRoles(blue);
     const redRoles = assignRoles(red);
-    const rawGap = Math.abs(blueRoles.sum - redRoles.sum);
-    const offRoleCount = blueRoles.offRoleCount + redRoles.offRoleCount;
-    const isRepeat =
-      lastIndices !== null &&
-      (blue.every((p) => lastIndices.has(p.index)) || red.every((p) => lastIndices.has(p.index)));
-    const repeatedPairs = recent.filter(([a, b]) => blueIdx.has(a) === blueIdx.has(b)).length;
+    scored.push({
+      blue,
+      red,
+      blueRoles,
+      redRoles,
+      rawGap: Math.abs(blueRoles.sum - redRoles.sum),
+      isRepeat:
+        lastIndices !== null &&
+        (blue.every((p) => lastIndices.has(p.index)) || red.every((p) => lastIndices.has(p.index))),
+      repeatedPairs: recent.filter(([a, b]) => blueIdx.has(a) === blueIdx.has(b)).length,
+    });
+  }
+  const pairFloor = scored.reduce((min, s) => Math.min(min, s.repeatedPairs), Number.POSITIVE_INFINITY);
+
+  // Pass 2: price each one.
+  const candidates: Split[] = [];
+  for (const { blue, red, blueRoles, redRoles, rawGap, isRepeat, repeatedPairs } of scored) {
     // The same per-player prices `assignRoles` charged, so a seat and the split that contains
     // it are never valued differently (M7.5). The score is the sum of the stored parts, in
-    // this order, so `score_parts` adds up to `score` exactly (M18.13).
+    // this order, so `score_parts` adds up to `score` exactly (M18.13). Variety charges only
+    // the pairs kept beyond the floor, so a lobby that must keep some is not charged for them.
     const scoreParts: ScoreParts = {
       gap: rawGap,
       offRole: blueRoles.offRoleCost + redRoles.offRoleCost,
       repeat: isRepeat ? cfg.repeatSplitPenalty : 0,
-      variety: Math.min(cfg.varietyCap, cfg.varietyPerPair * repeatedPairs),
+      variety: Math.min(cfg.varietyCap, cfg.varietyPerPair * (repeatedPairs - pairFloor)),
       repeatedPairs,
     };
     const score = scoreParts.gap + scoreParts.offRole + scoreParts.repeat + scoreParts.variety;
@@ -357,7 +380,7 @@ export function balance(input: BalanceInput): BalanceResult {
       // The plain Ratings, not the role-weighted sums: the fold's expected reads these (M18.2).
       blueWinProb: winProbability(sumR(blue), sumR(red), input.calib),
       score,
-      offRoleCount,
+      offRoleCount: blueRoles.offRoleCount + redRoles.offRoleCount,
       scoreParts,
     });
   }
