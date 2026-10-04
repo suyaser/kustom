@@ -22,7 +22,7 @@ export const NODE_SHA256: Readonly<Record<string, string>> = {
 };
 export const NODE_DIST_BASE = `https://nodejs.org/dist/v${NODE_RELEASE}`;
 
-export const RELEASE_API_BASE = 'https://kustom-delta.vercel.app';
+export const RELEASE_API_BASE = 'https://playkustom.com';
 
 export function apiBaseForBuild(env: NodeJS.ProcessEnv = process.env): string {
   const override = env.CUSTOMS_NIGHT_API_BASE?.trim();

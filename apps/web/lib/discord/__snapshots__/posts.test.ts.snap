@@ -2,12 +2,12 @@
 
 exports[`the stack of every post (10.3), as snapshots > fearless 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "Banned next game: 10 more, 34 in all. 139 still open.",
@@ -42,7 +42,7 @@ exports[`the stack of every post (10.3), as snapshots > fearless 1`] = `
         "text": "Tap the title to see what's still open",
       },
       "title": "Fearless",
-      "url": "https://kustom-delta.vercel.app/g/customs/mode",
+      "url": "https://playkustom.com/g/customs/mode",
     },
   ],
   "username": "Kustom",
@@ -51,17 +51,17 @@ exports[`the stack of every post (10.3), as snapshots > fearless 1`] = `
 
 exports[`the stack of every post (10.3), as snapshots > fearless reset 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "Fearless reset. Every champion is open again.",
       "title": "Fearless",
-      "url": "https://kustom-delta.vercel.app/g/customs/mode",
+      "url": "https://playkustom.com/g/customs/mode",
     },
   ],
   "username": "Kustom",
@@ -70,12 +70,12 @@ exports[`the stack of every post (10.3), as snapshots > fearless reset 1`] = `
 
 exports[`the stack of every post (10.3), as snapshots > nightly 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "fields": [
@@ -97,7 +97,7 @@ exports[`the stack of every post (10.3), as snapshots > nightly 1`] = `
         "text": "Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams.",
       },
       "title": "This week · board",
-      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=this-week",
+      "url": "https://playkustom.com/g/customs/leaderboard?window=this-week",
     },
   ],
   "username": "Kustom",
@@ -106,17 +106,17 @@ exports[`the stack of every post (10.3), as snapshots > nightly 1`] = `
 
 exports[`the stack of every post (10.3), as snapshots > ratings reset 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "Ratings were reset. Everyone starts at 1200 again. Top 3 before the reset: Ramzyinhović, Syndrome Axes and knifiy.",
       "title": "Ratings reset",
-      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=all-time",
+      "url": "https://playkustom.com/g/customs/leaderboard?window=all-time",
     },
   ],
   "username": "Kustom",
@@ -125,22 +125,22 @@ exports[`the stack of every post (10.3), as snapshots > ratings reset 1`] = `
 
 exports[`the stack of every post (10.3), as snapshots > result 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night · game 4",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16739125,
       "description": "Red was 51%. Red won.
 Top damage: Syndrome Axes, 31.4k.
 **MVP** Syndrome Axes · **ACE** Ramzyinhović",
       "thumbnail": {
-        "url": "https://kustom-delta.vercel.app/og/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12/badge",
+        "url": "https://playkustom.com/og/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12/badge",
       },
       "title": "Red wins · 31 min",
-      "url": "https://kustom-delta.vercel.app/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
+      "url": "https://playkustom.com/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
     },
     {
       "color": 3054591,
@@ -167,12 +167,12 @@ Top damage: Syndrome Axes, 31.4k.
 
 exports[`the stack of every post (10.3), as snapshots > result not rated 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night · game 4",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16739125,
       "description": "Red was 51%. Red won.
@@ -180,7 +180,7 @@ Tanks only: Blue kept the rule. Red: Jinx isn't a tank.
 Not rated, so no Rating change.
 Top damage: Syndrome Axes, 31.4k.",
       "title": "Red wins · 31 min",
-      "url": "https://kustom-delta.vercel.app/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
+      "url": "https://playkustom.com/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
     },
     {
       "color": 3054591,
@@ -207,22 +207,22 @@ Top damage: Syndrome Axes, 31.4k.",
 
 exports[`the stack of every post (10.3), as snapshots > result with recap 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night · game 4",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16739125,
       "description": "Red was 51%. Red won.
 Top damage: Syndrome Axes, 31.4k.
 **MVP** Syndrome Axes · **ACE** Ramzyinhović",
       "thumbnail": {
-        "url": "https://kustom-delta.vercel.app/og/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12/badge",
+        "url": "https://playkustom.com/og/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12/badge",
       },
       "title": "Red wins · 31 min",
-      "url": "https://kustom-delta.vercel.app/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
+      "url": "https://playkustom.com/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
     },
     {
       "color": 3054591,
@@ -254,12 +254,12 @@ Top damage: Syndrome Axes, 31.4k.
 
 exports[`the stack of every post (10.3), as snapshots > teams 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night · Fearless",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "**Blue 49%** · **51% Red**
@@ -280,7 +280,7 @@ Basically a coin flip.",
         },
       ],
       "title": "Teams are set",
-      "url": "https://kustom-delta.vercel.app/g/customs",
+      "url": "https://playkustom.com/g/customs",
     },
     {
       "color": 3054591,
@@ -306,7 +306,7 @@ Basically a coin flip.",
 Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
 -# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
       "title": "How the bot decided",
-      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+      "url": "https://playkustom.com/g/customs#how-the-bot-decided",
     },
   ],
   "username": "Kustom",
@@ -315,12 +315,12 @@ Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with
 
 exports[`the stack of every post (10.3), as snapshots > teams reroll 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night · Fearless",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "**Blue 49%** · **51% Red**
@@ -341,7 +341,7 @@ Basically a coin flip.",
         },
       ],
       "title": "Teams are set · reroll 1 of 2",
-      "url": "https://kustom-delta.vercel.app/g/customs",
+      "url": "https://playkustom.com/g/customs",
     },
     {
       "color": 3054591,
@@ -367,7 +367,7 @@ Basically a coin flip.",
 Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
 -# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
       "title": "How the bot decided",
-      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+      "url": "https://playkustom.com/g/customs#how-the-bot-decided",
     },
   ],
   "username": "Kustom",
@@ -376,15 +376,15 @@ Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with
 
 exports[`the stack of every post (10.3), as snapshots > teams rule 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night · Fearless",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
-      "description": "**This game: tanks only.** Not rated. [See the tanks](https://kustom-delta.vercel.app/g/customs/mode)
+      "description": "**This game: tanks only.** Not rated. [See the tanks](https://playkustom.com/g/customs/mode)
 **Blue 49%** · **51% Red**
 🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
 Basically a coin flip.",
@@ -403,7 +403,7 @@ Basically a coin flip.",
         },
       ],
       "title": "Teams are set",
-      "url": "https://kustom-delta.vercel.app/g/customs",
+      "url": "https://playkustom.com/g/customs",
     },
     {
       "color": 3054591,
@@ -429,7 +429,7 @@ Basically a coin flip.",
 Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
 -# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
       "title": "How the bot decided",
-      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+      "url": "https://playkustom.com/g/customs#how-the-bot-decided",
     },
   ],
   "username": "Kustom",
@@ -441,7 +441,7 @@ exports[`the stack of every post (10.3), as snapshots > the test post: content o
   "allowed_mentions": {
     "parse": [],
   },
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "content": "Kustom is connected. Teams and results will show up here.",
   "username": "Kustom",
 }
@@ -449,12 +449,12 @@ exports[`the stack of every post (10.3), as snapshots > the test post: content o
 
 exports[`the stack of every post (10.3), as snapshots > weekly 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "author": {
         "name": "Customs Night",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "Sunday 27 Sep to Saturday 3 Oct · 14 rated games",
@@ -485,7 +485,7 @@ exports[`the stack of every post (10.3), as snapshots > weekly 1`] = `
         "text": "Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams.",
       },
       "title": "Last week · board",
-      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=last-week",
+      "url": "https://playkustom.com/g/customs/leaderboard?window=last-week",
     },
   ],
   "username": "Kustom",
@@ -494,7 +494,7 @@ exports[`the stack of every post (10.3), as snapshots > weekly 1`] = `
 
 exports[`the stack of every post (10.3), as snapshots > weekly with storyline 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "color": 9148589,
@@ -504,7 +504,7 @@ exports[`the stack of every post (10.3), as snapshots > weekly with storyline 1`
     {
       "author": {
         "name": "Customs Night",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "Sunday 27 Sep to Saturday 3 Oct · 14 rated games",
@@ -535,7 +535,7 @@ exports[`the stack of every post (10.3), as snapshots > weekly with storyline 1`
         "text": "Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams.",
       },
       "title": "Last week · board",
-      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=last-week",
+      "url": "https://playkustom.com/g/customs/leaderboard?window=last-week",
     },
   ],
   "username": "Kustom",
@@ -544,7 +544,7 @@ exports[`the stack of every post (10.3), as snapshots > weekly with storyline 1`
 
 exports[`the stack of every post (10.3), as snapshots > weekly with week notes 1`] = `
 {
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
   "embeds": [
     {
       "color": 9148589,
@@ -554,7 +554,7 @@ exports[`the stack of every post (10.3), as snapshots > weekly with week notes 1
     {
       "author": {
         "name": "Customs Night",
-        "url": "https://kustom-delta.vercel.app/g/customs",
+        "url": "https://playkustom.com/g/customs",
       },
       "color": 16764774,
       "description": "Sunday 27 Sep to Saturday 3 Oct · 14 rated games",
@@ -585,10 +585,10 @@ exports[`the stack of every post (10.3), as snapshots > weekly with week notes 1
         "text": "Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams.",
       },
       "image": {
-        "url": "https://kustom-delta.vercel.app/og/g/customs/week/2026-09-27",
+        "url": "https://playkustom.com/og/g/customs/week/2026-09-27",
       },
       "title": "Last week · board",
-      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=last-week",
+      "url": "https://playkustom.com/g/customs/leaderboard?window=last-week",
     },
   ],
   "username": "Kustom",

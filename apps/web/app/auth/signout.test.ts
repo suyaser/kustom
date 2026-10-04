@@ -30,7 +30,7 @@ afterAll(() => {
   }
 });
 
-const ORIGIN = 'https://kustom-delta.vercel.app';
+const ORIGIN = 'https://playkustom.com';
 
 function request(next?: string): Request {
   const body = new URLSearchParams();

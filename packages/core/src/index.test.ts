@@ -69,6 +69,8 @@ describe('core skeleton', () => {
       'explainLegacyDelta',
       // M14.4: the favored side and its rounded % for a `blue_win_prob`, so pages do no maths.
       'favoredSide',
+      // M18.11: the group's (a, b) fitted to its results, ridge-shrunk toward (0, 1).
+      'fitOddsPair',
       // M14.58 / M14.59 (a): the probability the fold stores per side; predictWin, one function.
       'foldWinProbability',
       'gameStamp',
@@ -118,6 +120,8 @@ describe('core skeleton', () => {
       // M18.1: performance-rank shares (1.2 .. 0.8 winners, reversed losers).
       'shareFor',
       'shareRanks',
+      // M18.11: 200 games, 0 < b < 0.8, at most every 30 days (injected clock).
+      'shouldAdoptOddsPair',
       'startState',
       // M14.4: why the runner-up ranked lower, from `off_role_count` and `gap` (STRATEGY §4.4).
       'whyLower',

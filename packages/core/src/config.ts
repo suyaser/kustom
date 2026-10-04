@@ -325,6 +325,23 @@ export const config = {
     oddsScale: 400,
     winnerShares: [1.2, 1.1, 1.0, 0.9, 0.8],
   },
+  /**
+   * The balanced-teams guard (M18.11 core, `rating/oddsFit.ts`, research rating-systems §6.5 and
+   * team-formation option C). `fitOddsPair` fits `(a, b)` in `winProbability`'s
+   * `logistic(a + b × gap / 400)` to a group's results by Newton's method on the log likelihood
+   * minus `ridge / 2 × (a² + (b − 1)²)`: the ridge counts as evidence that the plain odds `(0, 1)`
+   * are right, so a few games cannot move them. `shouldAdoptOddsPair` adopts a fit only with at
+   * least `minGames` games, `0 < b < adoptBelowB`, and `minDaysBetween` days since the last
+   * adoption (owner-approved 2026-10-04: 200 games, b < 0.8, at most monthly).
+   */
+  oddsFit: {
+    minGames: 200,
+    adoptBelowB: 0.8,
+    minDaysBetween: 30,
+    ridge: 4,
+    maxIterations: 50,
+    tolerance: 1e-10,
+  },
   modes: {
     /**
      * Whether a game is rated when nobody flips the switch (M15, brief D5). Normal, Fearless and

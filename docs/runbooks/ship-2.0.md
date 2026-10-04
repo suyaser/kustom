@@ -277,13 +277,13 @@ server reads:
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | hosted project | existing |
 | `BOOTSTRAP_ADMIN_PUUID` | **your own PUUID** (see risk R2) | existing, meaning changes: it now picks `customs`'s permanent owner |
 | `BOOTSTRAP_ADMIN_DISCORD_ID` | your Discord snowflake, or unset if already linked | existing |
-| `NEXT_PUBLIC_SITE_URL` | `https://kustom-delta.vercel.app` | existing; required now (the Discord redirect is derived from it; M14.61: the Discord avatar and result badge are only attached when this origin is `https` and public, so a typo or an `http://` here silently drops every image) |
+| `NEXT_PUBLIC_SITE_URL` | `https://playkustom.com` | existing; required now (the Discord redirect is derived from it; M14.61: the Discord avatar and result badge are only attached when this origin is `https` and public, so a typo or an `http://` here silently drops every image) |
 | `CUSTOMS_NIGHT_TZ` | `Africa/Cairo` or unset | existing |
 | `CRON_SECRET` | existing value | existing |
 | `SUPER_ADMIN_USER_IDS` | your `auth.users.id` (Supabase → Authentication → Users), comma-separated | **new** (M14.19) |
 | `DISCORD_CLIENT_ID` | same as the sign-in app's client id (the hosted Discord provider in the Supabase dashboard) | **new** (M14.20) |
 | `DISCORD_CLIENT_SECRET` | same app's secret. Server only, never `NEXT_PUBLIC_` | **new** (M14.20) |
-| `DISCORD_REDIRECT_URI` | `https://kustom-delta.vercel.app/api/admin/discord/callback` | **new**, optional but set it so it is exact |
+| `DISCORD_REDIRECT_URI` | `https://playkustom.com/api/admin/discord/callback` | **new**, optional but set it so it is exact |
 | `ANTHROPIC_API_KEY` | your Anthropic API key (console.anthropic.com → API keys). Server only, never `NEXT_PUBLIC_`. Scope: **Production only**, not Preview or Development, so a preview deploy never spends | **new** (M16.3), optional: unset or blank, every AI path is silently absent (no call, no line, no error) |
 | `DEEPSEEK_API_KEY` | your DeepSeek API key (platform.deepseek.com → API keys; top up a few dollars first, it is prepaid). Server only, never `NEXT_PUBLIC_`. Scope: **Production only** | **new** (2026-10-04, Premium AI on DeepSeek); data goes to DeepSeek in the PRC (the user's accepted trade-off) |
 | `AI_PROVIDER` | optional: unset, DeepSeek V4 Pro writes the AI lines when `DEEPSEEK_API_KEY` is set (the default since 2026-10-04), else Claude; `deepseek` or `anthropic` pins one provider (only with its own key). Scope: **Production only** | **new** (2026-10-04). A typo or a provider without its key turns AI off quietly; an env change needs a redeploy |
@@ -314,10 +314,10 @@ Env changes only take effect on the next deployment, which is the window's push.
 ### 1.6 Discord developer portal and Supabase auth
 
 - discord.com/developers/applications → the sign-in application → OAuth2 → Redirects → add
-  `https://kustom-delta.vercel.app/api/admin/discord/callback` (character for character). Keep the existing
+  `https://playkustom.com/api/admin/discord/callback` (character for character). Keep the existing
   Supabase callback `https://<project-ref>.supabase.co/auth/v1/callback`. Save.
-- Supabase → Authentication → URL Configuration: Site URL `https://kustom-delta.vercel.app`; redirect list contains
-  `https://kustom-delta.vercel.app/auth/callback` (no wildcard). Already true since M1.11; just confirm. Hosted
+- Supabase → Authentication → URL Configuration: Site URL `https://playkustom.com`; redirect list contains
+  `https://playkustom.com/auth/callback` (no wildcard). Already true since M1.11; just confirm. Hosted
   Discord sign-in is already on (the user, 2026-10-03).
 
 ### 1.6b Two live checks on your machine (M14.10 AC4, M14.20 AC5; before 1.7)
@@ -737,10 +737,10 @@ are images Discord fetches from production. Every post is complete without them;
 
 1. **The images are public.** Both must answer `200` and `content-type: image/png`:
    ```sh
-   curl -sI "https://kustom-delta.vercel.app/og/kustom/avatar?v=2" | grep -i '^HTTP\|^content-type'
-   curl -sI "https://kustom-delta.vercel.app/og/g/customs/games/<a real customs games.id>/badge" | grep -i '^HTTP\|^content-type'
+   curl -sI "https://playkustom.com/og/kustom/avatar?v=2" | grep -i '^HTTP\|^content-type'
+   curl -sI "https://playkustom.com/og/g/customs/games/<a real customs games.id>/badge" | grep -i '^HTTP\|^content-type'
    ```
-   A missing image in a real post later means `NEXT_PUBLIC_SITE_URL` is not `https://kustom-delta.vercel.app` (1.5).
+   A missing image in a real post later means `NEXT_PUBLIC_SITE_URL` is not `https://playkustom.com` (1.5).
 2. **A scratch channel and webhook.** In Discord, a channel only you can see → Edit Channel → Integrations →
    Webhooks → New Webhook → Copy Webhook URL. Not `customs`'s channel, and not through Connect Discord (that would
    replace `customs`'s stored webhook, R6).
@@ -796,7 +796,7 @@ are images Discord fetches from production. Every post is complete without them;
 | Data wrong after the seasons file (3.5 snapshot does not match) | site may look fine | stop writes (hosts close Kustom), report. The only undo is 6.1's restore from 3.2's dump, which loses anything written since |
 | 3.7a rebuild write reports ratings rows 3.6 did not show, or exits with a PROBLEM (`roles N > 0` alone is expected, not this row) | the site; ratings as written | stop; send the output to the lead. A role pair that looks wrong can be compared against, or put back from, 3.7a's CSV. The fold is deterministic from the stored games, so the next good run puts the numbers back; 6.1 only if a rating is plainly wrong and the lead agrees |
 | AI lines misbehave or spend (after 3.7b) | everything else; AI paths are silent when off | the kill switch (1.5): `update public.ai_settings set calls_enabled = false;`, no deploy. Then `set-premium customs off --hosted` if it is one group. Bad lines: an admin's `Hide` on the line. Removing `ANTHROPIC_API_KEY` also works, but needs a redeploy |
-| Discord images missing (3.9) | every post (complete without images) | check `NEXT_PUBLIC_SITE_URL` on Vercel Production is exactly `https://kustom-delta.vercel.app`, redeploy |
+| Discord images missing (3.9) | every post (complete without images) | check `NEXT_PUBLIC_SITE_URL` on Vercel Production is exactly `https://playkustom.com`, redeploy |
 | (skipped) 0.4.0 misbehaves (section 5, not run for 2.0) | the server, 0.3.x | delete or mark the GitHub release as pre-release so `/download` and the updater stop offering it; hosts reinstall 0.3.x |
 
 ---
