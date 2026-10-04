@@ -30,7 +30,7 @@ Yuki · 1134 · settling · 0/10",
         },
       ],
       "footer": {
-        "text": "New players' ratings move fast at first. They get a rank after 10 games.",
+        "text": "Their first 10 games count extra. They get a rank after 10 games.",
       },
       "title": "All time · board",
       "url": "https://customs.example/g/customs/leaderboard?window=all-time",
@@ -115,7 +115,7 @@ exports[`leaderboardEmbed, the worked example > is the design doc's nightly post
         },
       ],
       "footer": {
-        "text": "New players' ratings move fast at first. They get a rank after 10 games.",
+        "text": "Their first 10 games count extra. They get a rank after 10 games.",
       },
       "title": "This week · board",
       "url": "https://customs.example/g/customs/leaderboard?window=this-week",
@@ -325,7 +325,7 @@ exports[`windowSummaryEmbed, the closed window > is the milestone's weekly post 
         },
       ],
       "footer": {
-        "text": "New players' ratings move fast at first. They get a rank after 10 games.",
+        "text": "Their first 10 games count extra. They get a rank after 10 games.",
       },
       "title": "Last week · board",
       "url": "https://customs.example/g/customs/leaderboard?window=last-week",

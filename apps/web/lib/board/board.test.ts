@@ -81,9 +81,7 @@ describe('the copy product owns (M14.15, STRATEGY §5)', () => {
 
   it('is the settling section line, word for word, the same as the Discord board post', () => {
     expect(SETTLING_SECTION_TITLE).toBe('Still settling');
-    expect(SETTLING_SECTION_LINE).toBe(
-      "New players' ratings move fast at first. They get a rank after 10 games.",
-    );
+    expect(SETTLING_SECTION_LINE).toBe('Their first 10 games count extra. They get a rank after 10 games.');
     expect(SETTLING_SECTION_LINE).toBe(SETTLING_FOOTER);
   });
 

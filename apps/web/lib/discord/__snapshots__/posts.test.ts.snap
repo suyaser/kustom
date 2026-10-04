@@ -81,16 +81,16 @@ exports[`the stack of every post (10.3), as snapshots > nightly 1`] = `
       "fields": [
         {
           "name": "Top ten",
-          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
-\`2\` **Syndrome Axes** · +140 · 6W–3L
-\`3\` **knifiy** · +88 · 4W–3L
-\`4\` XETA · +41 · 3W–3L
-\`5\` H4RDC0R33 · +30 · 4W–4L
-\`6\` PRT Khokha · +12 · 3W–3L
-\`7\` FoxHound · -18 · 2W–3L
-\`8\` SugarPapy · -44 · 2W–4L
-\`9\` TheSHADOWREAPER · -61 · 1W–3L
-\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W⁠–⁠2L
+\`2\` **Syndrome Axes** · +140 · 6W⁠–⁠3L
+\`3\` **knifiy** · +88 · 4W⁠–⁠3L
+\`4\` XETA · +41 · 3W⁠–⁠3L
+\`5\` H4RDC0R33 · +30 · 4W⁠–⁠4L
+\`6\` PRT Khokha · +12 · 3W⁠–⁠3L
+\`7\` FoxHound · -18 · 2W⁠–⁠3L
+\`8\` SugarPapy · -44 · 2W⁠–⁠4L
+\`9\` TheSHADOWREAPER · -61 · 1W⁠–⁠3L
+\`10\` Chaos · -96 · 1W⁠–⁠4L · settling · 4/10",
         },
       ],
       "footer": {
@@ -461,16 +461,16 @@ exports[`the stack of every post (10.3), as snapshots > weekly 1`] = `
       "fields": [
         {
           "name": "Top ten",
-          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
-\`2\` **Syndrome Axes** · +140 · 6W–3L
-\`3\` **knifiy** · +88 · 4W–3L
-\`4\` XETA · +41 · 3W–3L
-\`5\` H4RDC0R33 · +30 · 4W–4L
-\`6\` PRT Khokha · +12 · 3W–3L
-\`7\` FoxHound · -18 · 2W–3L
-\`8\` SugarPapy · -44 · 2W–4L
-\`9\` TheSHADOWREAPER · -61 · 1W–3L
-\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W⁠–⁠2L
+\`2\` **Syndrome Axes** · +140 · 6W⁠–⁠3L
+\`3\` **knifiy** · +88 · 4W⁠–⁠3L
+\`4\` XETA · +41 · 3W⁠–⁠3L
+\`5\` H4RDC0R33 · +30 · 4W⁠–⁠4L
+\`6\` PRT Khokha · +12 · 3W⁠–⁠3L
+\`7\` FoxHound · -18 · 2W⁠–⁠3L
+\`8\` SugarPapy · -44 · 2W⁠–⁠4L
+\`9\` TheSHADOWREAPER · -61 · 1W⁠–⁠3L
+\`10\` Chaos · -96 · 1W⁠–⁠4L · settling · 4/10",
         },
         {
           "name": "Best off-role",
@@ -511,16 +511,16 @@ exports[`the stack of every post (10.3), as snapshots > weekly with storyline 1`
       "fields": [
         {
           "name": "Top ten",
-          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
-\`2\` **Syndrome Axes** · +140 · 6W–3L
-\`3\` **knifiy** · +88 · 4W–3L
-\`4\` XETA · +41 · 3W–3L
-\`5\` H4RDC0R33 · +30 · 4W–4L
-\`6\` PRT Khokha · +12 · 3W–3L
-\`7\` FoxHound · -18 · 2W–3L
-\`8\` SugarPapy · -44 · 2W–4L
-\`9\` TheSHADOWREAPER · -61 · 1W–3L
-\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W⁠–⁠2L
+\`2\` **Syndrome Axes** · +140 · 6W⁠–⁠3L
+\`3\` **knifiy** · +88 · 4W⁠–⁠3L
+\`4\` XETA · +41 · 3W⁠–⁠3L
+\`5\` H4RDC0R33 · +30 · 4W⁠–⁠4L
+\`6\` PRT Khokha · +12 · 3W⁠–⁠3L
+\`7\` FoxHound · -18 · 2W⁠–⁠3L
+\`8\` SugarPapy · -44 · 2W⁠–⁠4L
+\`9\` TheSHADOWREAPER · -61 · 1W⁠–⁠3L
+\`10\` Chaos · -96 · 1W⁠–⁠4L · settling · 4/10",
         },
         {
           "name": "Best off-role",
@@ -561,16 +561,16 @@ exports[`the stack of every post (10.3), as snapshots > weekly with week notes 1
       "fields": [
         {
           "name": "Top ten",
-          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
-\`2\` **Syndrome Axes** · +140 · 6W–3L
-\`3\` **knifiy** · +88 · 4W–3L
-\`4\` XETA · +41 · 3W–3L
-\`5\` H4RDC0R33 · +30 · 4W–4L
-\`6\` PRT Khokha · +12 · 3W–3L
-\`7\` FoxHound · -18 · 2W–3L
-\`8\` SugarPapy · -44 · 2W–4L
-\`9\` TheSHADOWREAPER · -61 · 1W–3L
-\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W⁠–⁠2L
+\`2\` **Syndrome Axes** · +140 · 6W⁠–⁠3L
+\`3\` **knifiy** · +88 · 4W⁠–⁠3L
+\`4\` XETA · +41 · 3W⁠–⁠3L
+\`5\` H4RDC0R33 · +30 · 4W⁠–⁠4L
+\`6\` PRT Khokha · +12 · 3W⁠–⁠3L
+\`7\` FoxHound · -18 · 2W⁠–⁠3L
+\`8\` SugarPapy · -44 · 2W⁠–⁠4L
+\`9\` TheSHADOWREAPER · -61 · 1W⁠–⁠3L
+\`10\` Chaos · -96 · 1W⁠–⁠4L · settling · 4/10",
         },
         {
           "name": "Best off-role",

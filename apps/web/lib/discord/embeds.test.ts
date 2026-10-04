@@ -761,7 +761,7 @@ describe('leaderboardEmbed, the worked example', () => {
     const embed = leaderboardEmbed(workedLeaderboardInput()).embeds[0];
 
     expect(embed?.footer?.text).toBe(
-      `New players' ratings move fast at first. They get a rank after ${SETTLING_GAMES} games.`,
+      `Their first ${SETTLING_GAMES} games count extra. They get a rank after ${SETTLING_GAMES} games.`,
     );
     expect(SETTLING_FOOTER).toContain('10 games');
     expect(embed?.fields?.[0]?.value).not.toContain('settling');
@@ -854,16 +854,20 @@ describe('a board post on a week', () => {
   it('prints net points and W–L, never a Rating', () => {
     const value = leaderboardEmbed(weekly()).embeds[0]?.fields?.[0]?.value ?? '';
 
-    expect(value.split('\n')[0]).toBe('`1` **Lena** · +58 · 4W–2L');
+    expect(value.split('\n')[0]).toBe('`1` **Lena** · +58 · 4W\u2060–\u20602L');
     expect(value).not.toContain('2088');
   });
 
   it('adds the all-time settling chip to a settling player, and +0 for a net zero', () => {
     expect(weekLineTail({ points: 31, wins: 1, losses: 0, settlingGames: 3 })).toBe(
-      '+31 · 1W–0L · settling · 3/10',
+      '+31 · 1W\u2060–\u20600L · settling · 3/10',
     );
-    expect(weekLineTail({ points: 0, wins: 1, losses: 1, settlingGames: null })).toBe('+0 · 1W–1L');
-    expect(weekLineTail({ points: -45, wins: 0, losses: 2, settlingGames: null })).toBe('-45 · 0W–2L');
+    expect(weekLineTail({ points: 0, wins: 1, losses: 1, settlingGames: null })).toBe(
+      '+0 · 1W\u2060–\u20601L',
+    );
+    expect(weekLineTail({ points: -45, wins: 0, losses: 2, settlingGames: null })).toBe(
+      '-45 · 0W\u2060–\u20602L',
+    );
   });
 
   it('carries the week footer, and the all-time windows the settling line', () => {

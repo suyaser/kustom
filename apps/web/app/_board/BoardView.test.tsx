@@ -108,7 +108,7 @@ describe('the ranked list and the settling section', () => {
     const heading = screen.getByRole('heading', { name: 'Still settling' });
     const section = heading.closest('section') as HTMLElement;
     expect(
-      within(section).getByText("New players' ratings move fast at first. They get a rank after 10 games."),
+      within(section).getByText('Their first 10 games count extra. They get a rank after 10 games.'),
     ).toBeInTheDocument();
     const links = rowLinks(section);
     expect(links.map((link) => link.textContent?.includes('Rank'))).toEqual([false, false]);

@@ -1,6 +1,7 @@
 import { chartGeometry } from '@/lib/board/chart';
 import { chartReferenceLabel, trendSummary, weekTrendSummary } from '@/lib/board/copy';
 import type { WindowKind } from '@/lib/night';
+import { cn } from '@/lib/utils';
 
 /**
  * The trend line (M3.5; 2.0 since M14.15): a server SVG with `role="img"` and a `<title>`
@@ -62,7 +63,11 @@ export function RatingChart({
       </svg>
       <span
         aria-hidden="true"
-        className="num absolute end-0 -translate-y-full rounded-sm bg-card px-1 pb-0.5 text-2xs text-muted-foreground"
+        // Opposite the last point, so the line never runs through the words (M18.7 design review).
+        className={cn(
+          'num absolute end-0 text-end text-2xs text-muted-foreground',
+          geometry.labelBelow ? 'translate-y-0 pt-0.5' : '-translate-y-full pb-0.5',
+        )}
         style={{ top: `${geometry.seedPercent}%` }}
       >
         {referenceLabel}

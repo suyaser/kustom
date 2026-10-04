@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { EntityLink } from '@/components/links/EntityLink';
 import { FairnessReceipt, PreGameReceipt } from '@/components/receipt';
 import { Chip } from '@/components/ui/chip';
+import { NumText } from '@/components/ui/num-text';
 import { SideGlyph } from '@/components/ui/side-glyph';
 import { WhyButton, WhyPanel, WhyScope } from '@/components/why/why-scope';
 import { subjectFor, WhyText } from '@/components/why/why-text';
@@ -82,7 +83,9 @@ export function GameDetail({
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <span>{game.nightLabel}</span>
             <span aria-hidden="true">·</span>
-            <span className="num">{game.durationLabel}</span>
+            <span>
+              <NumText text={game.durationLabel} />
+            </span>
             {game.aram ? <Chip>{GAMES_MODE_LABELS.aram}</Chip> : null}
           </p>
         </header>
