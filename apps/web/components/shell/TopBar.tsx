@@ -60,6 +60,7 @@ export function TopBar({
               const active = tab.key === current;
               return (
                 <Link
+                  prefetch="auto"
                   key={tab.key}
                   href={tab.href}
                   aria-current={active ? 'page' : undefined}
@@ -77,6 +78,7 @@ export function TopBar({
           <div className="ms-auto flex items-center gap-2">
             {admin === null ? null : (
               <Link
+                prefetch="auto"
                 href={admin}
                 className="flex min-h-11 items-center rounded-control px-3 font-bold text-muted-foreground hover:text-foreground"
               >
@@ -85,6 +87,7 @@ export function TopBar({
             )}
             {you === undefined ? null : (
               <Link
+                prefetch="auto"
                 href={you.href}
                 aria-current={current === 'you' ? 'page' : undefined}
                 className={cn(

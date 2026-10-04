@@ -1,5 +1,6 @@
 import type { Metadata, Route } from 'next';
 import { permanentRedirect } from 'next/navigation';
+import { cachedGroupCalibration } from '@/lib/games/calibrationCache';
 import { GAMES_LABEL, GAMES_MODE_LABELS, GAMES_WINDOW_LABELS } from '@/lib/games/copy';
 import { type GamesSearchParams, gamesListHref, parseGamesFilters } from '@/lib/games/filters';
 import { loadGamesList } from '@/lib/games/list';
@@ -40,12 +41,13 @@ export default async function GamesPage({ params, searchParams }: GamesPageProps
   const { filters, legacy } = parseGamesFilters(await searchParams);
   if (legacy) permanentRedirect(gamesListHref(base, filters) as Route);
 
-  const viewer = await currentViewer(group.id);
   const view = await loadGamesList(createPublicClient(), {
     groupId: group.id,
     filters,
-    viewerPuuid: viewer?.puuid ?? null,
+    // A promise: the list's reads start without waiting for the session (app-perf).
+    viewerPuuid: currentViewer(group.id).then((viewer) => viewer?.puuid ?? null),
     timeZone: nightTimeZone(),
+    calibration: cachedGroupCalibration,
   });
   return <GamesList view={view} base={base} />;
 }

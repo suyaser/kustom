@@ -31,3 +31,30 @@ export function inChunks(ids: readonly string[]): string[][] {
   }
   return chunks;
 }
+
+/** How many chunk reads run at once: enough for any real history, polite to the gateway. */
+const CHUNK_CONCURRENCY = 6;
+
+/**
+ * Runs `read` over every {@link inChunks} chunk **in parallel** (at most six at a time) and returns
+ * the results in chunk order (app-perf, 2026-10-04). A `for ... await` over chunks is one round
+ * trip per chunk, one after the other: a 1,000-game history is a dozen waves where this is two.
+ * Empty in, no request.
+ */
+export async function mapChunks<T>(
+  ids: readonly string[],
+  read: (chunk: string[]) => PromiseLike<T>,
+): Promise<T[]> {
+  const chunks = inChunks(ids);
+  const results = new Array<T>(chunks.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < chunks.length) {
+      const index = next;
+      next += 1;
+      results[index] = await read(chunks[index] as string[]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunks.length) }, worker));
+  return results;
+}

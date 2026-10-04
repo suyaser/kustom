@@ -63,7 +63,7 @@ export function VersusPitch({
       {viewer === 'linked' ? (
         <p className="flex-1 py-2.5">
           {PITCH_LINKED_BEFORE}
-          <Link href={you} className="font-bold underline underline-offset-3">
+          <Link prefetch="auto" href={you} className="font-bold underline underline-offset-3">
             {PITCH_LINKED_LINK}
           </Link>
           {PITCH_LINKED_AFTER}

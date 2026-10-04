@@ -7,6 +7,7 @@ import {
   type Json,
   scrubRawEogBlock,
 } from '@customs/db';
+import { invalidateGroup } from '../cache/invalidate';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import { championTable } from '../mode/champions';
 import { readLobbyLock } from '../mode/lock';
@@ -204,6 +205,8 @@ export async function ingestEogGame(
     if (!created) {
       await mergeStoredDraftBans(client, game.id, payload.raw);
     }
+    // The group's cached game-derived reads (the calibration line) are stale now (app-perf).
+    invalidateGroup('games', game.group_id);
   }
 
   return {

@@ -85,7 +85,9 @@ export default async function AdminLoginPage({
               <>
                 <p className="text-base">{ADMIN_LOGIN_SIGNED_IN}</p>
                 <Button asChild className="w-full md:w-auto md:self-start">
-                  <Link href={viewer.href}>{OPEN_ADMIN_LABEL}</Link>
+                  <Link prefetch="auto" href={viewer.href}>
+                    {OPEN_ADMIN_LABEL}
+                  </Link>
                 </Button>
               </>
             ) : denied ? (

@@ -1,5 +1,6 @@
 import { type BalancePlayer, balance, config, type Split, seedFromRank } from '@customs/core';
 import { type Json, rosterKey, type SplitInsert } from '@customs/db';
+import { invalidateGroup } from '../cache/invalidate';
 import { NAMELESS_PLAYER } from '../discord/embeds';
 import { nightStart } from '../night';
 import type { ServiceClient } from '../supabase';
@@ -65,6 +66,8 @@ export async function balanceLobby(
   }
 
   const splitId = await storeSplits(client, lobby.id, key, result.splits, result.explanations);
+  // A lobby that already played keeps its games, whose chosen split just changed (app-perf).
+  invalidateGroup('games', groupId);
 
   return {
     lobbyId: lobby.id,
