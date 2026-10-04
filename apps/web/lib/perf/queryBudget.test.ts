@@ -66,6 +66,7 @@ function fixtures(): Fixtures {
     game_id: game.id,
     group_id: GROUP,
     player_id: PID(n),
+    players_public: { puuid: PUUID(n) },
     side: n < 5 ? 100 : 200,
     role: ROLES[n % 5],
     champion_id: 1 + n,
@@ -284,7 +285,7 @@ describe('query budgets', () => {
     expectWithin(recording, { queries: 3, waves: 2 });
   });
 
-  it('the player page stats: only their games (0042 index), four rounds', async () => {
+  it('the player page stats: only their games (0042 index), three rounds', async () => {
     const { loadPlayerStats } = await import('../stats/load');
     const { result, recording } = await measure((client) =>
       loadPlayerStats(client, PUUID(3), {
@@ -295,16 +296,16 @@ describe('query budgets', () => {
       }),
     );
     expect(result.games).toBe(6);
-    expectWithin(recording, { queries: 6, waves: 4 });
+    expectWithin(recording, { queries: 5, waves: 3 });
   });
 
-  it("You vs them: only the viewer's games, four rounds", async () => {
+  it("You vs them: only the viewer's games, three rounds", async () => {
     const { loadYouVersus } = await import('../versus/you');
     const { result, recording } = await measure((client) =>
       loadYouVersus(client, { groupId: GROUP, viewerPuuid: PUUID(3), timeZone: 'Europe/London' }),
     );
     expect(result.length).toBe(9);
-    expectWithin(recording, { queries: 6, waves: 4 });
+    expectWithin(recording, { queries: 5, waves: 3 });
   });
 
   it('Stats Records: the facts come with the games (0041), never a raw path', async () => {

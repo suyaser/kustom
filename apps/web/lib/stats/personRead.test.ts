@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type Fixtures, recordingClient } from '../testing/recordingClient';
+import { type Fixtures, type Recording, recordingClient } from '../testing/recordingClient';
 import { youVsEveryone } from '../versus/you';
 import { loadPlayerStats, loadWindowGames } from './load';
 import { playerStatsView } from './player';
@@ -38,6 +38,7 @@ function fixtures(): Fixtures {
         game_id: game.id,
         group_id: GROUP,
         player_id: PID(n),
+        players_public: { puuid: PUUID(n) },
         side: seat < 5 ? 100 : 200,
         role: ROLES[seat % 5],
         champion_id: 1 + ((g + seat) % 30),
@@ -68,6 +69,18 @@ function fixtures(): Fixtures {
   };
 }
 
+const GAME_COLUMNS = 'id, started_at, duration_s, winning_side, lcu_game_id, lobby_id';
+
+/** The person path's games read: by id, with the mode. */
+function readGamesById(recording: Recording): boolean {
+  return recording.requests.some((r) => r.table === 'games' && r.select === `${GAME_COLUMNS}, game_mode`);
+}
+
+/** The group read's games page (no mode on the player page). */
+function readGroupPage(recording: Recording): boolean {
+  return recording.requests.some((r) => r.table === 'games' && r.select === GAME_COLUMNS);
+}
+
 const options = (window: 'all-time' | 'this-week' | 'last-week') => ({
   window,
   groupId: GROUP,
@@ -94,13 +107,9 @@ describe('the one-person read', () => {
         const person = recordingClient(fixtures());
         const actual = await loadPlayerStats(person.client, PUUID(n), options(window));
         expect(actual).toEqual(expected);
-        // It took the person path: one person lookup, one id read.
-        expect(person.recording.count('players_public')).toBe(2);
-        expect(
-          person.recording.requests.some(
-            (r) => r.table === 'game_players' && r.select === 'game_id, games!inner(started_at)',
-          ),
-        ).toBe(true);
+        // It took the person path: their games by id, never the group's page.
+        expect(readGamesById(person.recording)).toBe(true);
+        expect(readGroupPage(person.recording)).toBe(false);
       }
     },
   );
@@ -131,24 +140,25 @@ describe('the one-person read', () => {
   it('reads the group for a closed week (its awards fold every game)', async () => {
     const person = recordingClient(fixtures());
     await loadPlayerStats(person.client, PUUID(0), options('last-week'));
-    expect(person.recording.requests.some((r) => r.select === 'game_id, games!inner(started_at)')).toBe(
-      false,
-    );
+    expect(readGroupPage(person.recording)).toBe(true);
+    expect(readGamesById(person.recording)).toBe(false);
   });
 
   it('reads the group when the window holds more games than the cap', async () => {
     const person = recordingClient(fixtures());
     const view = await loadPlayerStats(person.client, PUUID(0), { ...options('all-time'), maxGames: 5 });
     expect(view.capped).toBe(true);
-    expect(person.recording.requests.some((r) => r.select === 'game_id, games!inner(started_at)')).toBe(
-      false,
-    );
+    expect(readGroupPage(person.recording)).toBe(true);
+    expect(readGamesById(person.recording)).toBe(false);
   });
 
   it('is the empty view for a puuid nobody has', async () => {
     const person = recordingClient(fixtures());
     const view = await loadPlayerStats(person.client, 'nobody', options('all-time'));
     expect(view.games).toBe(0);
-    expect(person.recording.count('game_players')).toBe(0);
+    // One id read that finds nothing; no game, scoreboard or people read after it.
+    expect(person.recording.count('game_players')).toBe(1);
+    expect(readGamesById(person.recording)).toBe(false);
+    expect(person.recording.count('players_public')).toBe(0);
   });
 });

@@ -531,8 +531,9 @@ async function loadGamePage(
  * are exactly the group read's. The gate (`countedGames`) is per game and sorts by `started_at`, so
  * a subset in the same order folds to the same numbers.
  *
- * Four rounds: the probe and the person; their game ids in the window (`game_players_group_player_idx`,
- * 0042); those games and their rows side by side; then (the caller) the people on them.
+ * Three rounds, the group read's count: the probe beside the person's game ids in the window
+ * (`game_players_group_player_idx`, 0042); those games and their rows side by side; then (the
+ * caller) the people on them.
  */
 async function loadPersonGames(
   client: PublicClient,
@@ -556,32 +557,33 @@ async function loadPersonGames(
     'started_at',
     range,
   ).range(cap, cap);
-  const [probed, person] = await Promise.all([
-    probe,
-    client.from('players_public').select('id').eq('puuid', puuid).maybeSingle(),
-  ]);
-  if (probed.error) throw new Error(`stats: cap probe failed: ${probed.error.message}`);
-  if (person.error) throw new Error(`stats: player lookup failed: ${person.error.message}`);
-  if ((probed.data ?? []).length > 0) return null;
-  const playerId = person.data?.id ?? null;
-  if (playerId === null) return { games: [], rows: [] };
-
-  const gameIds: string[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await withRange(
+  // The person's game ids in the window, by puuid through the players_public embed, so the lookup
+  // of their id is not a round of its own. Paged at PostgREST's thousand (a person in a year-old
+  // group has a few hundred).
+  const idsPage = (from: number) =>
+    withRange(
       client
         .from('game_players')
-        .select('game_id, games!inner(started_at)')
+        .select('game_id, games!inner(started_at), players_public!inner(puuid)')
         .eq('group_id', groupId)
-        .eq('player_id', playerId),
+        .eq('players_public.puuid', puuid),
       'games.started_at',
       range,
     )
       .order('game_id')
       .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`stats: player game lookup failed: ${error.message}`);
-    for (const row of data ?? []) gameIds.push(row.game_id);
-    if ((data ?? []).length < PAGE_SIZE) break;
+  const [probed, first] = await Promise.all([probe, idsPage(0)]);
+  if (probed.error) throw new Error(`stats: cap probe failed: ${probed.error.message}`);
+  if ((probed.data ?? []).length > 0) return null;
+
+  const gameIds: string[] = [];
+  let page = first;
+  for (let from = 0; ; ) {
+    if (page.error) throw new Error(`stats: player game lookup failed: ${page.error.message}`);
+    for (const row of page.data ?? []) gameIds.push(row.game_id);
+    if ((page.data ?? []).length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+    page = await idsPage(from);
   }
 
   const shape = rawShapeOf(extras);

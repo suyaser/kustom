@@ -9,7 +9,8 @@
  *   more than the deepest wave that had finished when it started: exactly the round trips a page
  *   pays one after another at a real RTT.
  * - Answers come from per-table fixture rows, filtered on plain `eq` / `neq` / `in` / `is` columns
- *   and cut by `range` / `limit`, so the loaders take their real paths; anything else (embedded
+ *   (and an `eq` on an embedded `rel.column` when the fixture row carries `rel` as an object) and
+ *   cut by `range` / `limit`, so the loaders take their real paths; anything else (other embedded
  *   filters, JSON paths, comparisons, order) is accepted and ignored. A `count` option answers the
  *   filtered row count.
  * - A `select` naming the whole `games.raw` blob is recorded (`rawSelects`): list loaders must
@@ -109,6 +110,7 @@ function builder(table: string, run: Runner) {
   const self: Record<string, unknown> = {};
   const chain = (): typeof self => self;
   const plain = (column: string) => !column.includes('.') && !column.includes('->') && !column.includes('(');
+  const embedded = (column: string) => /^[a-z_]+\.[a-z_]+$/.test(column);
 
   Object.assign(self, {
     select(columns?: string, options?: { head?: boolean; count?: string }) {
@@ -118,7 +120,7 @@ function builder(table: string, run: Runner) {
       return self;
     },
     eq(column: string, value: unknown) {
-      if (plain(column)) filters.push({ column, op: 'eq', value });
+      if (plain(column) || embedded(column)) filters.push({ column, op: 'eq', value });
       return self;
     },
     neq(column: string, value: unknown) {
@@ -178,6 +180,13 @@ function builder(table: string, run: Runner) {
 }
 
 function matches(row: FixtureRow, filter: Filter): boolean {
+  const [rel, nested] = filter.column.split('.');
+  if (nested !== undefined && rel !== undefined) {
+    const inner = row[rel];
+    // An embed the fixture does not carry is not filtered (the old behaviour for every `rel.column`).
+    if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return true;
+    return matches(inner as FixtureRow, { ...filter, column: nested });
+  }
   const value = row[filter.column];
   if (value === undefined) return true;
   switch (filter.op) {
