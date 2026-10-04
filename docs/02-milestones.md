@@ -13101,7 +13101,7 @@ or a full room: the card is on Tonight in every state, empty group included.
     >   game: region wars, new regions.` then `Blue picks from Shurima, Red from Zaun. Not rated.` as today
     >   (replaces `This game: region wars, redrawn.`).
 
-- [ ] **M20.2** Core: a champion has a set of regions, and the shared-champion draw rule. *(owner:
+- [x] **M20.2** Core: a champion has a set of regions, and the shared-champion draw rule. *(owner:
   `core-engineer`; after M20.1; `packages/core/src/mode/`; can start at once, before the in-flight mode fixes
   merge, since it touches no lifecycle code)* `ChampionFacts.region` becomes a set (shape the engineer's: a
   readonly array, empty = `unaffiliated`, `null` = no row). `regionPool`, `regionOpenCounts`,
@@ -13114,7 +13114,8 @@ or a full room: the card is on Tonight in every state, empty group included.
   no pool; no row is `unknown`; (4) every existing `packages/core` mode test passes unchanged except the
   `region` field's shape; (5) no new import of a fixture in core.
 
-- [ ] **M20.3** The home list, the table and the credit line. *(owner: `web-engineer`; after M20.2;
+  *Landed 2026-10-04 (602f9a54, reviewer pass).*
+- [x] **M20.3** The home list, the table and the credit line. *(owner: `web-engineer`; after M20.2;
   `apps/web/lib/champs/`)* A hand-kept, committed `homeRegions.ts` with exactly M20.1's 32 additions (champion
   key → home region, a comment naming the champion), **not** written by `seed-regions`; `championFacts.ts` builds
   each champion's set as the Universe region plus its home. `seed-regions --check-universe` keeps checking the
@@ -13127,6 +13128,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   (5) the region panel shows the new credit line; (6) the no-runtime-fetch test still passes; (7) stored games
   are not re-checked (`games.rule_check` is written at record and stays as it was).
 
+  *Landed 2026-10-05 (37b33b53, reviewer pass): homeRegions.ts, 31 champions / 32 additions; all 13 regions drawable, all 78 pairs pass D2; Roll draws on the roster (lock.ts).*
 - [ ] **M20.4** Design: region tags on champion chips. *(owner: `designer`; after M20.1; `docs/05-design.md`)*
   How a chip shows its region names on every pool view (the panel's Fearless pool by lane, the class, region and
   mirror pools, the find box's answer, and the Mode card wherever it shows champion icons), at 375 and 1440, in
