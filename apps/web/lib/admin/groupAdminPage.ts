@@ -1,8 +1,8 @@
 import { type GroupRole, isAtLeast } from '@customs/db/schemas';
 import { cache } from 'react';
-import { supabaseGroupRole } from '../groups/membership';
+import { type PlayerInGroupLookup, supabasePlayerInGroup } from '../groups/membership';
 import type { PageGroup } from '../groups/pageGroup';
-import { currentPageSession, type PageSession } from '../groups/pageSession';
+import { currentPageIdentity, currentPlayerInGroup, type PageIdentity } from '../groups/pageSession';
 import { getServiceClient, type ServiceClient } from '../supabase';
 import { isSuperAdmin } from '../superAdmin';
 
@@ -34,11 +34,16 @@ export type AdminAccess =
 export interface DecideOptions {
   /** Injection point for tests; defaults to the env list. */
   isSuperAdmin?: (userId: string) => boolean;
+  /**
+   * The player-and-membership read (one query). Defaults to `supabasePlayerInGroup(client)`;
+   * {@link currentAdminAccess} passes the request-cached one the group layout's viewer also uses.
+   */
+  lookupMember?: PlayerInGroupLookup;
 }
 
 export async function decideAdminAccess(
   client: ServiceClient,
-  session: PageSession,
+  session: PageIdentity,
   group: Pick<PageGroup, 'id'>,
   options: DecideOptions = {},
 ): Promise<AdminAccess> {
@@ -49,18 +54,16 @@ export async function decideAdminAccess(
 
   if (session.kind === 'no-discord') return operatorOr({ kind: 'not-admin' });
 
-  if (session.player !== null) {
-    // The session lookup already read the role when it was asked about this group (one round
-    // trip, `currentPageSession(group.id)`); otherwise it is the plain membership read.
-    const role =
-      session.membership !== undefined && session.membership.groupId === group.id
-        ? session.membership.role
-        : await supabaseGroupRole(client)(session.player.playerId, group.id);
+  // The player and their membership in this group, together: `null` is no player row (the
+  // unlinked case below), a player with `role: null` is a linked non-member.
+  const member = await (options.lookupMember ?? supabasePlayerInGroup(client))(session.discordId, group.id);
+  if (member !== null) {
+    const { role } = member;
     if (role !== null && isAtLeast(role, 'admin')) {
       return {
         kind: 'runs-group',
         role: role === 'owner' ? 'owner' : 'admin',
-        playerId: session.player.playerId,
+        playerId: member.player.playerId,
       };
     }
     return operatorOr({ kind: 'not-admin' });
@@ -74,10 +77,16 @@ export async function decideAdminAccess(
   return operatorOr({ kind: 'not-admin' });
 }
 
-/** {@link decideAdminAccess} for this request, shared by the layout, the pages and anything else. */
+/**
+ * {@link decideAdminAccess} for this request, shared by the layout, the pages and anything else. The
+ * identity and the member come from the same live-session lookup for this group (`session_player`,
+ * one call per render, shared with `currentViewerState(group.id)`).
+ */
 export const currentAdminAccess: (group: PageGroup) => Promise<AdminAccess> = cache(
   async (group: PageGroup) =>
-    decideAdminAccess(getServiceClient(), await currentPageSession(group.id), group),
+    decideAdminAccess(getServiceClient(), await currentPageIdentity(group.id), group, {
+      lookupMember: currentPlayerInGroup,
+    }),
 );
 
 /**

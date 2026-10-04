@@ -10,11 +10,14 @@ import { currentLiveSession } from '../session/currentLiveSession';
  * when nobody is signed in, the name is missing, or the read fails: the page then drops the line
  * rather than guessing.
  */
-export const currentDiscordName: () => Promise<string | null> = cache(async () => {
-  try {
-    const live = await currentLiveSession(null);
-    return live.kind === 'signed-in' ? live.discordName : null;
-  } catch {
-    return null;
-  }
-});
+export const currentDiscordName: (groupId?: string) => Promise<string | null> = cache(
+  async (groupId?: string) => {
+    try {
+      // Pass the page's group so this rides on the lookup the page already made for it.
+      const live = await currentLiveSession(groupId ?? null);
+      return live.kind === 'signed-in' ? live.discordName : null;
+    } catch {
+      return null;
+    }
+  },
+);

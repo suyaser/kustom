@@ -1,8 +1,9 @@
 import type { RebuildCronGroup } from '@customs/db/schemas';
+import type { LiveChanges } from '../live/bump';
 import type { ServiceClient } from '../supabase';
 import { type FoldGatePlayer, gateRatedGame } from './fold';
 import { countsForRatings, readRatingsSince } from './ratingsEpoch';
-import { type RebuildResult, rebuildRatings } from './rebuild';
+import { type RebuildResult, rebuildRatings, rebuildWrote } from './rebuild';
 
 /**
  * The daily rebuild cron (M14.63; decision 2026-10-04): a backfilled game is stored unrated
@@ -140,6 +141,11 @@ export interface RebuildCronOptions {
   rebuild?: (client: ServiceClient, groupId: string) => Promise<RebuildResult>;
   /** Which groups are waiting. Tests only; defaults to {@link findGroupsWithUnratedBackfill}. */
   findPending?: (client: ServiceClient) => Promise<PendingGroup[]>;
+  /**
+   * The request's live signal (M19.9): every group whose fold wrote a row is touched `ratings`,
+   * and the route bumps them once each after the whole loop.
+   */
+  live?: LiveChanges;
 }
 
 /** One line per pending group, in the order they were folded. */
@@ -162,11 +168,17 @@ export async function runRebuildCron(
     }
 
     try {
-      let result = await rebuild(client, groupId);
+      // Noted after every fold that wrote, not only the last: a fenced run wrote before its rerun.
+      const fold = async () => {
+        const folded = await rebuild(client, groupId);
+        if (rebuildWrote(folded)) options.live?.touch(groupId, 'ratings');
+        return folded;
+      };
+      let result = await fold();
       // The fence is the command's exit 2: idempotent, so running it again is the fix.
       for (let rerun = 0; rerun < FENCE_RERUNS && !result.ok && result.code === 'fence'; rerun += 1) {
         if (options.elapsedMs() >= options.startBudgetMs) break;
-        result = await rebuild(client, groupId);
+        result = await fold();
       }
 
       if (result.ok) {
@@ -182,6 +194,8 @@ export async function runRebuildCron(
       }
     } catch (error) {
       console.error(`cron rebuild: group ${groupId} failed`, error);
+      // A fold that threw may have written already (it writes before its role pass and its fence).
+      options.live?.touch(groupId, 'ratings');
       line('failed', null, 'internal error');
     }
   }

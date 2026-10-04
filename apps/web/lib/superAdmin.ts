@@ -5,8 +5,9 @@ import { z } from 'zod';
  * any group to help it.
  *
  * **An env var of Supabase auth user ids, nothing else.** `SUPER_ADMIN_USER_IDS` is a
- * comma-separated list of `auth.users.id`, checked server-side after `auth.getUser()` has verified
- * the session. It is not a `players` row, not a membership and not a table, so no group can see it
+ * comma-separated list of `auth.users.id`, checked server-side after the verified session lookup
+ * (`lib/session/liveSession.ts`: signature-checked token plus a live `auth.sessions` row) has named
+ * the user. It is not a `players` row, not a membership and not a table, so no group can see it
  * and no bug in a write path can grant it; changing it is a deploy.
  *
  * What it opens is **read-only**: every admin GET and admin page read in any group (the read gate,
@@ -56,7 +57,8 @@ export function superAdminIds(source: Record<string, string | undefined> = proce
 
 /**
  * True when the **verified** session user id is on the list. Only ever called with the id
- * `auth.getUser()` returned, never with anything a request carried.
+ * the verified session lookup returned (the token's `sub`, with a live session row), never with
+ * anything a request carried.
  */
 export function isSuperAdmin(
   userId: string | null | undefined,

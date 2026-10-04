@@ -157,6 +157,20 @@ Also in the schema:
   events while the events still fire. A table outside the publication never emits a change event, silently, and the
   tonight page (M3.4) and the bot (M4.4) are built on those events. `players` is left out; it is not publicly
   readable.
+- **The live signal, `group_live`** (`0037`, M19.9; decision row 2026-10-04). One row per group, exactly
+  `(group_id uuid pk, version bigint, kind text, changed_at timestamptz)` and never another column: no player or
+  lobby data. Backfilled at version 0 / `roster` and inserted for a new group by `groups_insert_live()`. RLS on,
+  anon and authenticated `select` every row (a counter, a word and a time are public by design), nobody but
+  `service_role` writes, through `bump_group_live(p_group, p_kind)` (version + 1, the kind, `now()`; returns the
+  new version). Published to `supabase_realtime`. `kind` is checked against `lobby`, `split`, `game`, `mode`,
+  `ratings`, `roster` and is the **last** change's kind, a hint, not a log; one request that changed several
+  things bumps once with the strongest (`game > ratings > split > lobby > roster > mode`). Every write route
+  bumps its group once as its **last** statement, after every other write including the Discord post, and not
+  at all when it wrote nothing (`apps/web/lib/live/bump.ts` holds the route-by-route table). The subscriber
+  contract (M19.10): filter `group_id=eq.<id>` (`groupLiveFilter`), parse `new` with `groupLiveRowSchema` from
+  `@customs/db/schemas` (strict: a fifth column fails the parse), compare `version` with the version the page
+  was rendered at; a DELETE carries only `group_id` (the group was deleted). Background `after()` work (the AI
+  lines) does not bump. The six player and lobby tables stay published until M19.11.
 
 Rules:
 
@@ -684,6 +698,11 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   `lobby_members`.
 - `open`, `balanced` and `abandoned` keep the replace semantics — the posted list is the roster, deletions
   included — because a lobby that dissolves without ever starting has no history worth keeping.
+- **A lobby post that changed nothing writes nothing** (M19.8). Ingest reads the stored `lobby_members` rows
+  first and writes only a new row, a gone row, or a moved side or spectator flag; `ensurePlayers` reads before
+  it inserts and writes a Riot ID only when it moved; memberships are ensured for newly created rows only. The
+  same post twice therefore sends no write request (beyond the idle sweep's two statements and the token's
+  `last_seen_at`), no Realtime event and no `group_live` bump.
 - An `open` or `balanced` lobby nobody has posted about for two hours is `abandoned`, swept by the next
   companion post or by `GET /api/cron/sweep` (bearer `CRON_SECRET`). An `in_game` lobby two hours unmentioned
   is `dropped` by the same sweep (M5.11): no game runs two hours, so that row lost its end-of-game block. It is

@@ -154,6 +154,24 @@ function chainTo(entry: string, hit: (spec: string) => boolean): string[] | null
   return null;
 }
 
+/** The shortest chain from `entry` to a source file matching `hit`, or null. */
+function chainToFile(entry: string, hit: (file: string) => boolean): string[] | null {
+  const queue: string[][] = [[entry]];
+  const seen = new Set([entry]);
+  while (queue.length > 0) {
+    const chain = queue.shift() ?? [];
+    const current = chain[chain.length - 1] ?? '';
+    if (!path.isAbsolute(current)) continue;
+    if (current !== entry && hit(current)) return chain;
+    for (const next of valueImports(current)) {
+      if (seen.has(next)) continue;
+      seen.add(next);
+      queue.push([...chain, next]);
+    }
+  }
+  return null;
+}
+
 const short = (file: string) =>
   path.isAbsolute(file)
     ? path.relative(WEB, file).startsWith('..')
@@ -198,6 +216,30 @@ describe('the client import graph', () => {
     expect(
       chainTo(path.join(WEB, 'app/_tonight/TonightLive.tsx'), (spec) => spec === '@supabase/realtime-js'),
     ).not.toBeNull();
+  });
+
+  it('keeps the every-page base free of feature copy and core (M19.18)', () => {
+    // The root error boundaries and the bare shell's top-bar islands load on every page, the static
+    // Kustom pages included, so whatever they import is first-load JavaScript everywhere. `lib/nav.ts`
+    // pulls the games, stats, daily, versus and tonight copy (and `@customs/core` through them):
+    // about 6 KB gzip that `Wordmark` once brought in for one string.
+    const base = [
+      'app/error.tsx',
+      'app/global-error.tsx',
+      'components/landing/KustomSignIn.tsx',
+      'components/shell/ThemeToggle.tsx',
+    ];
+    const banned = (file: string) => {
+      const name = short(file);
+      return name === 'lib/nav.ts' || name.startsWith('packages/core/');
+    };
+    const offenders = base
+      .map((entry) => chainToFile(path.join(WEB, entry), banned))
+      .filter((chain): chain is string[] => chain !== null)
+      .map((chain) => chain.map(short).join(' -> '));
+    expect(offenders).toEqual([]);
+    // The detector works: a group page's top bar does reach the nav.
+    expect(chainToFile(path.join(WEB, 'components/shell/TabBar.tsx'), banned)).not.toBeNull();
   });
 
   it('every allow-list row still matches a client module', () => {

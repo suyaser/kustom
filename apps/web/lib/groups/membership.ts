@@ -33,6 +33,57 @@ export function supabaseGroupRole(client: ServiceClient): GroupRoleLookup {
   };
 }
 
+/**
+ * The session's player and their role in one group, read in **one** query (M19.12's
+ * no-trust-change fold): `null` when no player row carries the Discord id (the unlinked case), the
+ * player with `role: null` when they have no membership in the group, or one whose role string the
+ * union does not know.
+ */
+export type PlayerInGroup = {
+  player: { playerId: string; puuid: string };
+  role: GroupRole | null;
+} | null;
+
+export type PlayerInGroupLookup = (discordId: string, groupId: string) => Promise<PlayerInGroup>;
+
+/**
+ * {@link PlayerInGroupLookup} with the service role (both tables are service-role only); the same
+ * shape as M19.16's `supabaseMemberLookup`. The membership is a plain embed filtered to the asked
+ * group, **not** `!inner`: an inner embed would drop the player row of a non-member and make "not in
+ * this group" read as "no player". So a non-member is the player with `[]`, and a member is exactly
+ * one row (`(group_id, player_id)` is the primary key).
+ */
+export function supabasePlayerInGroup(client: ServiceClient): PlayerInGroupLookup {
+  return async (discordId, groupId) => {
+    // A group id that is not a uuid names no group (as in `supabaseGroupRole`). Filtering the embed
+    // on it would be Postgres's 22P02 for the whole read, so ask for the player alone.
+    if (!groupIdSchema.safeParse(groupId).success) {
+      const { data, error } = await client
+        .from('players')
+        .select('id, puuid')
+        .eq('discord_id', discordId)
+        .maybeSingle();
+      if (error) throw new Error(`player lookup failed: ${error.message}`);
+      return data === null ? null : { player: { playerId: data.id, puuid: data.puuid }, role: null };
+    }
+    const { data, error } = await client
+      .from('players')
+      .select('id, puuid, group_memberships(role)')
+      .eq('discord_id', discordId)
+      .eq('group_memberships.group_id', groupId)
+      .maybeSingle();
+    if (error) throw new Error(`player and membership lookup failed: ${error.message}`);
+    if (data === null) return null;
+    const row = data.group_memberships[0];
+    // A role the union does not know (a hand-edited row) grants nothing, as in `supabaseGroupRole`.
+    const parsed = row === undefined ? null : groupRoleSchema.safeParse(row.role);
+    return {
+      player: { playerId: data.id, puuid: data.puuid },
+      role: parsed?.success ? parsed.data : null,
+    };
+  };
+}
+
 /** True when `playerId` has a membership row in `groupId`, whatever its role. */
 export async function isGroupMember(
   client: ServiceClient,

@@ -41,6 +41,14 @@ export interface EnsurePlayersOptions {
    * because that name arrives on the insert.
    */
   fillOnly?: boolean;
+  /**
+   * Called once for every existing row this call refreshed (a Riot ID, tag line or summoner id
+   * that moved). Lobby and game ingest use it to know whether the post wrote anything (M19.8,
+   * M19.9): a rename is a change Tonight prints, a repeated post is not. New rows are not
+   * reported here; a new player always arrives with a new `lobby_members` or `game_players` row,
+   * which the caller already counts.
+   */
+  onRefresh?: () => void;
 }
 
 /**
@@ -59,36 +67,39 @@ export async function ensurePlayers(
 
   const puuids = [...wanted.keys()];
 
-  // A new row is created with everything the client just told us, `display_name` included:
-  // on creation the display name *is* the reported `gameName` (null when none was reported,
-  // e.g. a PUUID first seen in an eog block). Existing rows are untouched here.
-  const inserts: PlayerInsert[] = puuids.map((puuid) => {
-    const input = wanted.get(puuid);
-    return {
-      puuid,
-      summoner_id: input?.summonerId ?? null,
-      game_name: input?.gameName ?? null,
-      tag_line: input?.tagLine ?? null,
-      display_name: input?.gameName ?? null,
-    };
-  });
-  const { error: insertError } = await client
-    .from('players')
-    .upsert(inserts, { onConflict: 'puuid', ignoreDuplicates: true });
-  if (insertError) {
-    throw new Error(`ensurePlayers: insert failed: ${insertError.message}`);
-  }
+  // Read first, insert only who is missing (M19.8): a repeated post of a known roster is one
+  // select and no write request at all, not an insert that conflicts on every row.
+  const known = await selectPlayers(client, puuids);
+  const seen = new Set(known.map((row) => row.puuid));
+  const missing = puuids.filter((puuid) => !seen.has(puuid));
 
-  const { data, error } = await client
-    .from('players')
-    .select('id, puuid, summoner_id, game_name, tag_line, display_name')
-    .in('puuid', puuids);
-  if (error) {
-    throw new Error(`ensurePlayers: select failed: ${error.message}`);
+  let created: PlayerRow[] = [];
+  if (missing.length > 0) {
+    // A new row is created with everything the client just told us, `display_name` included:
+    // on creation the display name *is* the reported `gameName` (null when none was reported,
+    // e.g. a PUUID first seen in an eog block). Existing rows are untouched here, and a row a
+    // concurrent request created a moment ago is too (`on conflict do nothing`, read back below).
+    const inserts: PlayerInsert[] = missing.map((puuid) => {
+      const input = wanted.get(puuid);
+      return {
+        puuid,
+        summoner_id: input?.summonerId ?? null,
+        game_name: input?.gameName ?? null,
+        tag_line: input?.tagLine ?? null,
+        display_name: input?.gameName ?? null,
+      };
+    });
+    const { error: insertError } = await client
+      .from('players')
+      .upsert(inserts, { onConflict: 'puuid', ignoreDuplicates: true });
+    if (insertError) {
+      throw new Error(`ensurePlayers: insert failed: ${insertError.message}`);
+    }
+    created = await selectPlayers(client, missing);
   }
 
   const ids = new Map<string, string>();
-  for (const row of data ?? []) {
+  for (const row of [...known, ...created]) {
     ids.set(row.puuid, row.id);
 
     const input = wanted.get(row.puuid);
@@ -117,17 +128,39 @@ export async function ensurePlayers(
     if (updateError) {
       throw new Error(`ensurePlayers: refresh of ${row.puuid} failed: ${updateError.message}`);
     }
+    options.onRefresh?.();
     // A rename (or a moved tag line, which the same-name labels read) reaches every cached slice
     // that prints a name, in every group (performance plan, phase 2; `lib/cache/tags.ts`).
     if ('game_name' in patch || 'display_name' in patch || 'tag_line' in patch) invalidateNames();
   }
 
-  const missing = puuids.filter((puuid) => !ids.has(puuid));
-  if (missing.length > 0) {
-    throw new Error(`ensurePlayers: ${missing.length} puuid(s) missing after insert`);
+  const absent = puuids.filter((puuid) => !ids.has(puuid));
+  if (absent.length > 0) {
+    throw new Error(`ensurePlayers: ${absent.length} puuid(s) missing after insert`);
   }
 
   return ids;
+}
+
+/** A `players` row as {@link ensurePlayers} compares it with what the client reported. */
+interface PlayerRow {
+  id: string;
+  puuid: string;
+  summoner_id: string | null;
+  game_name: string | null;
+  tag_line: string | null;
+  display_name: string | null;
+}
+
+async function selectPlayers(client: ServiceClient, puuids: readonly string[]): Promise<PlayerRow[]> {
+  const { data, error } = await client
+    .from('players')
+    .select('id, puuid, summoner_id, game_name, tag_line, display_name')
+    .in('puuid', [...puuids]);
+  if (error) {
+    throw new Error(`ensurePlayers: select failed: ${error.message}`);
+  }
+  return data ?? [];
 }
 
 /**

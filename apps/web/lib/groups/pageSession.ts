@@ -1,7 +1,8 @@
-import type { GroupRole } from '@customs/db/schemas';
 import { cache } from 'react';
 import { currentLiveSession } from '../session/currentLiveSession';
 import type { LiveSession } from '../session/liveSession';
+import { getServiceClient } from '../supabase';
+import { type PlayerInGroup, type PlayerInGroupLookup, supabasePlayerInGroup } from './membership';
 
 /**
  * Who opened `/new`, `/join/<code>` or a group's admin page (M14.21): nobody, or a Discord session
@@ -13,8 +14,9 @@ import type { LiveSession } from '../session/liveSession';
  * as "signed out": on these pages a false "sign in" button would loop a signed-in person.
  * No session cookie at all is the common case and costs no round trip.
  *
- * Read through the verified session lookup (`lib/session/liveSession.ts`): the token's signature
- * checked locally, then one service-role call that requires a live session row.
+ * Everything here reads the verified session lookup (`lib/session/liveSession.ts`): the token's
+ * signature checked locally, then one service-role `session_player` call that requires a live
+ * session row and returns the player and, when a group is asked, the role in it.
  */
 export type PageSession =
   | { kind: 'anonymous' }
@@ -30,30 +32,64 @@ export type PageSession =
       discordId: string;
       /** `null` until they pair a League account through Kustom (or pick themselves on tonight's page). */
       player: { playerId: string; puuid: string } | null;
-      /**
-       * The player's role in the group the session was read for (`currentPageSession(groupId)`),
-       * from the same lookup. Absent when no group was asked; `role` null is "not a member".
-       */
-      membership?: { groupId: string; role: GroupRole | null };
     };
+
+/**
+ * The verified session without the player: what `decideAdminAccess` takes, beside a
+ * {@link PlayerInGroupLookup}. The Discord id is `auth.identities`' (read by `session_player`),
+ * never `user_metadata`.
+ */
+export type PageIdentity =
+  | { kind: 'anonymous' }
+  | { kind: 'no-discord'; userId: string }
+  | { kind: 'discord'; userId: string; discordId: string };
+
+/** A live session read as a {@link PageIdentity}. */
+export function pageIdentityOf(live: LiveSession): PageIdentity {
+  if (live.kind === 'signed-in') return { kind: 'discord', userId: live.userId, discordId: live.discordId };
+  return live.kind === 'no-discord' ? { kind: 'no-discord', userId: live.userId } : { kind: 'anonymous' };
+}
 
 /** A live session read as a {@link PageSession}. */
 export function pageSessionOf(live: LiveSession): PageSession {
-  if (live.kind === 'anonymous') return { kind: 'anonymous' };
-  if (live.kind === 'no-discord') return { kind: 'no-discord', userId: live.userId };
+  if (live.kind !== 'signed-in') return pageIdentityOf(live) as PageSession;
   return {
     kind: 'signed-in',
     userId: live.userId,
     discordId: live.discordId,
     player: live.player === null ? null : { playerId: live.player.playerId, puuid: live.player.puuid },
-    ...(live.groupId === null ? {} : { membership: { groupId: live.groupId, role: live.role } }),
   };
 }
 
 /**
- * The page session, optionally with the role in one group: the admin pages pass theirs, so the
- * session and the membership are one round trip, shared with `currentViewerState(groupId)`.
+ * The page identity, read in the same lookup as the role in `groupId` when a page names its group
+ * (the admin pages do: identity, player and role are then one round trip for the whole render,
+ * shared with `currentViewerState(groupId)`).
  */
-export const currentPageSession: (groupId?: string) => Promise<PageSession> = cache(
-  async (groupId?: string) => pageSessionOf(await currentLiveSession(groupId ?? null)),
+export const currentPageIdentity: (groupId?: string) => Promise<PageIdentity> = cache(
+  async (groupId?: string) => pageIdentityOf(await currentLiveSession(groupId ?? null)),
+);
+
+/**
+ * The player behind a Discord id and their role in one group, from the request's live session for
+ * that group (one `session_player` call, React-cached): the group layout's viewer and the admin
+ * pages' access check share it. A Discord id that is not the session's own (no caller does that)
+ * falls back to the plain one-query read.
+ */
+export const currentPlayerInGroup: PlayerInGroupLookup = cache(
+  async (discordId: string, groupId: string): Promise<PlayerInGroup> => {
+    const live = await currentLiveSession(groupId);
+    if (live.kind === 'signed-in' && live.discordId === discordId) return playerInGroupOf(live);
+    return supabasePlayerInGroup(getServiceClient())(discordId, groupId);
+  },
+);
+
+/** A signed-in live session as the {@link PlayerInGroup} shape (`null`: no player row). */
+export function playerInGroupOf(live: Extract<LiveSession, { kind: 'signed-in' }>): PlayerInGroup {
+  if (live.player === null) return null;
+  return { player: { playerId: live.player.playerId, puuid: live.player.puuid }, role: live.role };
+}
+
+export const currentPageSession: () => Promise<PageSession> = cache(async () =>
+  pageSessionOf(await currentLiveSession(null)),
 );

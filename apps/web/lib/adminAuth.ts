@@ -3,7 +3,7 @@ import { ensureBootstrapAdmin } from './bootstrapAdmin';
 import { type GroupRoleLookup, supabaseGroupRole } from './groups/membership';
 import { liveSessionLookups, liveSessionResolver, type SessionGateLookups } from './session/liveSession';
 import type { ServiceClient } from './supabase';
-import { type AuthClient, type CookieJar, createAuthClient } from './supabaseAuth';
+import { type CookieJar, createAuthClient } from './supabaseAuth';
 import { isSuperAdmin } from './superAdmin';
 
 /**
@@ -180,19 +180,6 @@ function nonEmpty(value: unknown): string | null {
 // ---------------------------------------------------------------------------
 // Supabase-backed lookups
 // ---------------------------------------------------------------------------
-
-/**
- * `auth.getUser()`, which verifies the JWT with the auth server rather than trusting a cookie.
- * No gate uses it any more ({@link sessionLookups} replaced it); kept for the session-refresh
- * integration test, which pins GoTrue's own refresh behaviour.
- */
-export function supabaseSessionUser(client: AuthClient): SessionUserResolver {
-  return async () => {
-    const { data, error } = await client.auth.getUser();
-    if (error !== null || data.user === null) return null;
-    return data.user;
-  };
-}
 
 /**
  * `players` by `discord_id`, read with the **service role**: anon and authenticated have no

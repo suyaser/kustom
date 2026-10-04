@@ -8,7 +8,6 @@ import {
 } from '@supabase/ssr';
 import { NextRequest, type NextResponse } from 'next/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { supabaseSessionUser } from '@/lib/adminAuth';
 import { type CookieRecord, createAuthClient, readOnlyCookieJar } from '@/lib/supabaseAuth';
 import { localAuthUsers } from '@/lib/testing/authUsers';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -83,7 +82,8 @@ if (stack === null || authUsers === null) {
 
   /** A server component reading the session: read-only jar, `getUser()`, nothing written back. */
   async function pageViewer(cookies: readonly CookieRecord[]): Promise<string | null> {
-    const user = await supabaseSessionUser(createAuthClient(readOnlyCookieJar(cookies)))();
+    const { data, error } = await createAuthClient(readOnlyCookieJar(cookies)).auth.getUser();
+    const user = error === null ? data.user : null;
     return user?.id ?? null;
   }
 
