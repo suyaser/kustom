@@ -44,6 +44,26 @@ export const MIN_SPAN = 100;
 /** The reference label's room beside the dashed line, in viewBox units (about 14px at 140px tall). */
 export const LABEL_ROOM = 14;
 
+/**
+ * The label's horizontal span, estimated in CSS pixels because the viewBox stretches to the column:
+ * mono `--fs-2xs` (13px) runs about 0.6em a character, and the narrowest chart is a 320px phone less
+ * the page and card padding. Over-estimating the span only moves a label to the gutter sooner;
+ * under-estimating it is the collision this exists to prevent.
+ */
+const LABEL_CHAR_PX = 13 * 0.6;
+const NARROWEST_CHART_PX = 256;
+/** Air either side of the words, so a line passing just left of the label does not touch it. */
+const LABEL_PAD_PX = 8;
+
+/** The default label length: `Start 1200` and `Week start` are both ten characters. */
+export const DEFAULT_LABEL_CHARS = 10;
+
+/**
+ * Where the reference label sits: over the dashed line, under it, or in the gutter under the plot
+ * when the line passes through both sides within the label's span (M18.7 design re-check).
+ */
+export type LabelPlacement = 'above' | 'below' | 'gutter';
+
 export interface ChartGeometry {
   width: number;
   height: number;
@@ -56,8 +76,8 @@ export interface ChartGeometry {
   /** The range actually drawn, after padding and after taking the seed in. */
   low: number;
   high: number;
-  /** Whether the reference label goes under the dashed line (the last point is at or above it). */
-  labelBelow: boolean;
+  /** Where the reference label goes; see {@link labelPlacement}. */
+  labelPlacement: LabelPlacement;
 }
 
 /**
@@ -66,11 +86,14 @@ export interface ChartGeometry {
  * `series` is already in display units and in `started_at` order: the loader hands over
  * display values (`round(R)` or week points), so nothing here rounds a Rating.
  */
-export function chartGeometry(series: readonly number[], seed: number): ChartGeometry | null {
+export function chartGeometry(
+  series: readonly number[],
+  seed: number,
+  labelChars: number = DEFAULT_LABEL_CHARS,
+): ChartGeometry | null {
   if (series.length === 0) return null;
 
-  const labelBelow = (series[series.length - 1] as number) >= seed;
-  const { low, high } = roomForLabel(range(series, seed), seed, labelBelow);
+  const { placement, low, high } = labelPlacement(series, seed, labelChars);
   const span = high - low;
   const plot = CHART_HEIGHT - 2 * INSET;
   const y = (value: number): number => INSET + (1 - (value - low) / span) * plot;
@@ -94,8 +117,76 @@ export function chartGeometry(series: readonly number[], seed: number): ChartGeo
     seedPercent: round((seedY / CHART_HEIGHT) * 100),
     low,
     high,
-    labelBelow,
+    labelPlacement: placement,
   };
+}
+
+/**
+ * The x where the label's span starts, in viewBox units: the label is right-aligned, so it covers
+ * `[labelStartX, CHART_WIDTH]`, padding included.
+ */
+export function labelStartX(labelChars: number): number {
+  const fraction = Math.min(1, (labelChars * LABEL_CHAR_PX + 2 * LABEL_PAD_PX) / NARROWEST_CHART_PX);
+  return CHART_WIDTH * (1 - fraction);
+}
+
+/**
+ * The series' lowest and highest value along the drawn path over `[fromX, CHART_WIDTH]`: every
+ * point inside the span, plus the line's value where it enters the span (interpolated), so a dip
+ * between two points either side of the span's edge still counts.
+ */
+export function pathExtentFrom(series: readonly number[], fromX: number): { min: number; max: number } {
+  if (series.length === 1) {
+    const only = series[0] as number;
+    return { min: only, max: only };
+  }
+  const step = CHART_WIDTH / (series.length - 1);
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  const take = (value: number): void => {
+    if (value < min) min = value;
+    if (value > max) max = value;
+  };
+  for (let index = 0; index < series.length; index++) {
+    const x = index * step;
+    const value = series[index] as number;
+    if (x >= fromX) {
+      take(value);
+    } else if (index + 1 < series.length && (index + 1) * step > fromX) {
+      const next = series[index + 1] as number;
+      take(value + ((next - value) * (fromX - x)) / step);
+    }
+  }
+  return { min, max };
+}
+
+/**
+ * Which side of the dashed line the label goes on, judged from the line's path across the label's
+ * whole span (M18.7 design re-check), not from one point: a line that dips under the reference and
+ * recovers inside the span would otherwise run through the words.
+ *
+ * A side clears when the path within the span stays out of the {@link LABEL_ROOM} band on that side
+ * of the reference. The side away from the last point is tried first (the M18.7 review's rule),
+ * then the other; each try first widens the range so that side has room to the plot's edge, and the
+ * band is measured in the widened range. If neither clears, the label goes in the gutter under the
+ * plot and the range is left as the series and seed need it.
+ */
+export function labelPlacement(
+  series: readonly number[],
+  seed: number,
+  labelChars: number = DEFAULT_LABEL_CHARS,
+): { placement: LabelPlacement; low: number; high: number } {
+  const base = range(series, seed);
+  const { min, max } = pathExtentFrom(series, labelStartX(labelChars));
+  const preferBelow = (series[series.length - 1] as number) >= seed;
+  const order: readonly ('above' | 'below')[] = preferBelow ? ['below', 'above'] : ['above', 'below'];
+  for (const side of order) {
+    const widened = roomForLabel(base, seed, side === 'below');
+    const band = (LABEL_ROOM / (CHART_HEIGHT - 2 * INSET)) * (widened.high - widened.low);
+    const clear = side === 'above' ? max <= seed || min >= seed + band : min >= seed || max <= seed - band;
+    if (clear) return { placement: side, ...widened };
+  }
+  return { placement: 'gutter', ...base };
 }
 
 /**

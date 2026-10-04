@@ -20,7 +20,8 @@ export function RatingChart({
   reference: number;
   window: WindowKind;
 }) {
-  const geometry = chartGeometry(history, reference);
+  const referenceLabel = chartReferenceLabel(kind === 'all-time' ? 'all-time' : 'week', reference);
+  const geometry = chartGeometry(history, reference, referenceLabel.length);
   if (geometry === null) return null;
 
   const first = history[0] as number;
@@ -29,7 +30,7 @@ export function RatingChart({
     kind === 'all-time'
       ? trendSummary(first, last, Math.max(1, history.length - 1))
       : weekTrendSummary(last, Math.max(1, history.length - 1), kind);
-  const referenceLabel = chartReferenceLabel(kind === 'all-time' ? 'all-time' : 'week', reference);
+  const placement = geometry.labelPlacement;
 
   return (
     <figure className="relative">
@@ -61,17 +62,31 @@ export function RatingChart({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <span
-        aria-hidden="true"
-        // Opposite the last point, so the line never runs through the words (M18.7 design review).
-        className={cn(
-          'num absolute end-0 text-end text-2xs text-muted-foreground',
-          geometry.labelBelow ? 'translate-y-0 pt-0.5' : '-translate-y-full pb-0.5',
-        )}
-        style={{ top: `${geometry.seedPercent}%` }}
-      >
-        {referenceLabel}
-      </span>
+      {placement === 'gutter' ? (
+        // The line crosses both sides of the reference under the words (M18.7 design re-check), so
+        // the label drops into the gutter under the plot, right-aligned like the in-plot one.
+        <span
+          aria-hidden="true"
+          data-placement="gutter"
+          className="num block pt-1 text-end text-2xs text-muted-foreground"
+        >
+          {referenceLabel}
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          data-placement={placement}
+          // On the side of the dashed line the path leaves clear across the label's span
+          // (lib/board/chart.ts, labelPlacement), so the line never runs through the words.
+          className={cn(
+            'num absolute end-0 text-end text-2xs text-muted-foreground',
+            placement === 'below' ? 'translate-y-0 pt-0.5' : '-translate-y-full pb-0.5',
+          )}
+          style={{ top: `${geometry.seedPercent}%` }}
+        >
+          {referenceLabel}
+        </span>
+      )}
     </figure>
   );
 }
