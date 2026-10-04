@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { cache } from 'react';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import { BACK_TO_TONIGHT, gameCopy, MYSTERY_TITLE } from '@/lib/mystery/copy';
-import { loadMysteryOrNone } from '@/lib/mystery/load';
+import { loadMysteryOrNone, loadTodayMysteryKind } from '@/lib/mystery/load';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { groupHome } from '@/lib/nav';
 import { groupPageTitle } from '@/lib/og/titles';
@@ -33,7 +33,10 @@ function titleOf(state: MysteryPageState): string {
 
 export async function generateMetadata({ params }: MysteryPageProps): Promise<Metadata> {
   const group = await requirePageGroup((await params).slug);
-  return { title: groupPageTitle(group, titleOf(await loadTodayGame(group.id))) };
+  // One read-only row (app-perf): metadata runs on every prefetch, and the page's own load builds
+  // the day and touches the visitor's session. Before the day's first visit the title is `Daily`.
+  const kind = await loadTodayMysteryKind(group.id);
+  return { title: groupPageTitle(group, kind === null ? MYSTERY_TITLE : gameCopy(kind).title) };
 }
 
 export default async function GroupMysteryPage({ params }: MysteryPageProps) {

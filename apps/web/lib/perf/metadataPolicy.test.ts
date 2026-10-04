@@ -17,8 +17,8 @@ const ALLOWED_LOADS: Record<string, { calls: readonly string[]; why: string }> =
     why: 'One `group_modes` row between them (`readGroupModeRow`, one request).',
   },
   'app/(group)/g/[slug]/mystery/page.tsx': {
-    calls: ['loadTodayGame'],
-    why: 'React-cached with the page body; three small reads. A candidate for a one-row title read.',
+    calls: ['loadTodayMysteryKind'],
+    why: "One row, read only (never the page's load, which builds the day and touches the session).",
   },
   // tonight-perf is replacing these two with a title read (2026-10-04). Delete on merge.
   'app/(group)/g/[slug]/p/[puuid]/page.tsx': { calls: ['loadPlayer'], why: 'Pending tonight-perf.' },
