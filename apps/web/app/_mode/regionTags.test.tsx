@@ -121,8 +121,7 @@ describe('the Fearless pool (acceptance 4: filter and sort exactly as before)', 
   });
 
   it('lists the same chips in the same order with or without tags', () => {
-    const names = () =>
-      screen.getAllByRole('listitem').map((li) => spoken(li).split(', ')[0]);
+    const names = () => screen.getAllByRole('listitem').map((li) => spoken(li).split(', ')[0]);
     const plain = render(<FearlessPool banned={BANNED} initialLane="all" viewerLane={null} />);
     const before = names();
     plain.unmount();
@@ -198,7 +197,9 @@ describe('the panel builds the map on the server and passes it on', () => {
 
   it('class wars: the class pool is tagged too', () => {
     panel({ ...regionView, shown: { id: 'class', tag: 'Tank' } as ModeCardView['shown'], locked: false });
-    const lanes = screen.getAllByRole('listitem').filter((li) => li.querySelector('[data-slot="region-tag"]'));
+    const lanes = screen
+      .getAllByRole('listitem')
+      .filter((li) => li.querySelector('[data-slot="region-tag"]'));
     expect(lanes.length).toBeGreaterThan(0);
   });
 });
