@@ -205,7 +205,8 @@ describe('the games list', () => {
   });
 
   it("shows pre-game odds for a game with no split, and nothing when anyone's rating is missing", () => {
-    const seat = { mu: 25, sigma: 8 };
+    // M18.5: the pre-game odds read the all-time Kustom Rating going in (`r_before`).
+    const seat = { r: 1500 };
     draw(
       workedPlayer('Hana', {
         recent: [
@@ -221,7 +222,7 @@ describe('the games list', () => {
             pickRank: null,
             ratingsBefore: {
               blue: Array(5).fill(seat),
-              red: [...Array(4).fill(seat), { mu: null, sigma: null }],
+              red: [...Array(4).fill(seat), { r: null }],
             },
           }),
         ],

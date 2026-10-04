@@ -564,6 +564,7 @@ export async function resultOfGame(
       muBefore: row.mu_before,
       muAfter: row.mu_after,
       sigmaBefore: row.sigma_before,
+      rBefore: row.r_before,
     });
 
     if (row.damage_to_champs > 0 && (topDamage === null || row.damage_to_champs > topDamage.damage)) {
@@ -623,7 +624,7 @@ async function loadGamePlayers(client: PublicClient, gameId: string) {
     // The stat line is the award's input (M11.3): the columns the result post reads, all of
     // them publicly readable on the rows this key already sees.
     .select(
-      'player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after, sigma_before',
+      'player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after, sigma_before, r_before',
     )
     .eq('game_id', gameId);
   if (error) throw new Error(`tonight: game player lookup failed: ${error.message}`);

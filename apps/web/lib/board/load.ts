@@ -1,4 +1,4 @@
-import { displayRating, isSettling, provisionalSeed, type Rating, type RatingBefore } from '@customs/core';
+import { displayRating, isSettling, type KustomBefore, provisionalSeed, type Rating } from '@customs/core';
 import { openSkillPair, type RoleValue, type SideValue } from '@customs/db';
 import { type BreakdownGame, resultOdds, rowReason } from '../breakdown/read';
 import { inChunks } from '../chunks';
@@ -585,10 +585,9 @@ async function loadRecentGames(
         return player === undefined ? [] : [{ puuid: player.puuid, name: player.name, role: other.role }];
       });
     const split = game.lobbyId === null ? undefined : splits.get(game.lobbyId);
-    const before = (side: SideValue): RatingBefore[] =>
-      all
-        .filter((other) => other.side === side)
-        .map((other) => ({ mu: other.muBefore, sigma: other.sigmaBefore }));
+    // M18.5: the pre-game odds are `winProbability` of the stored all-time Kustom Ratings going in.
+    const before = (side: SideValue): KustomBefore[] =>
+      all.filter((other) => other.side === side).map((other) => ({ r: other.rBefore }));
 
     // M14.58 / M14.59: the fold's stored breakdown, read with the same rows.
     const breakdown: BreakdownGame = {
@@ -880,6 +879,8 @@ interface PlayerGameRow {
   sigmaBefore: number | null;
   muAfter: number | null;
   sigmaAfter: number | null;
+  /** The all-time Kustom Rating going in (0036; M18.5 reads it for the pre-game odds only, M18.6 the rest). */
+  rBefore: number | null;
   stats: FoldPerformance | null;
   /** The fold's `0034` breakdown, on the wide read only (`null` on the narrow one). */
   breakdown: {
@@ -941,12 +942,12 @@ async function loadGameRows(
         ? await client
             .from('game_players')
             .select(
-              `game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, ${STAT_COLUMNS}, fold_p, base_mu_after, award, rated_games_before`,
+              `game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, r_before, ${STAT_COLUMNS}, fold_p, base_mu_after, award, rated_games_before`,
             )
             .in('game_id', chunk)
         : await client
             .from('game_players')
-            .select('game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after')
+            .select('game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, r_before')
             .in('game_id', chunk);
     if (error) throw new Error(`board: game player lookup failed: ${error.message}`);
     rows.push(...(data ?? []).map(toGameRow));
@@ -963,6 +964,7 @@ interface RawGamePlayerRow {
   sigma_before?: number | null;
   mu_after: number | null;
   sigma_after?: number | null;
+  r_before?: number | null;
   kills?: number | null;
   deaths?: number | null;
   assists?: number | null;
@@ -988,6 +990,7 @@ function toGameRow(row: RawGamePlayerRow): PlayerGameRow {
     sigmaBefore: row.sigma_before ?? null,
     muAfter: row.mu_after,
     sigmaAfter: row.sigma_after ?? null,
+    rBefore: row.r_before ?? null,
     stats: 'kills' in row ? toStats(row) : null,
     breakdown:
       'fold_p' in row

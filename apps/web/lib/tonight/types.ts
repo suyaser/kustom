@@ -126,6 +126,8 @@ export interface ResultSeatView {
   muAfter: number | null;
   /** `game_players.sigma_before`: with `muBefore`, the pre-game odds of a split-less game (M14.9). */
   sigmaBefore: number | null;
+  /** `game_players.r_before` (0036): the pre-game odds of a split-less game since M18.5. */
+  rBefore?: number | null;
 }
 
 export interface ResultView {

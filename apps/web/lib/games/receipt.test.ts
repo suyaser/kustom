@@ -16,12 +16,16 @@ const RED = ['r1', 'r2', 'r3', 'r4', 'r5'];
 function seats(
   blue = BLUE,
   red = RED,
-  rating: { mu: number | null; sigma: number | null } = { mu: 25, sigma: 5 },
+  rating: { mu: number | null; sigma: number | null; r?: number | null } = { mu: 25, sigma: 5, r: 1500 },
 ): ReceiptSeat[] {
-  return [
-    ...blue.map((puuid) => ({ puuid, side: 100 as const, muBefore: rating.mu, sigmaBefore: rating.sigma })),
-    ...red.map((puuid) => ({ puuid, side: 200 as const, muBefore: rating.mu, sigmaBefore: rating.sigma })),
-  ];
+  const seat = (puuid: string, side: 100 | 200): ReceiptSeat => ({
+    puuid,
+    side,
+    muBefore: rating.mu,
+    sigmaBefore: rating.sigma,
+    rBefore: rating.r ?? null,
+  });
+  return [...blue.map((puuid) => seat(puuid, 100)), ...red.map((puuid) => seat(puuid, 200))];
 }
 
 function split(rank: number, options: Partial<StoredSplit> = {}, blue = BLUE, red = RED): StoredSplit {
@@ -76,16 +80,16 @@ describe('gameReceiptOf', () => {
     expect(receipt).toMatchObject({ kind: 'pre-game', reason: 'teams-changed', rolled: run });
   });
 
-  it('carries a missing mu_before through, for the receipt to say No odds', () => {
+  it('carries a missing r_before through, for the receipt to say No odds (M18.5)', () => {
     const receipt = gameReceiptOf({
       aram: false,
       rated: true,
-      seats: seats(BLUE, RED, { mu: null, sigma: null }),
+      seats: seats(BLUE, RED, { mu: null, sigma: null, r: null }),
       splits: [],
     });
     expect(receipt).toMatchObject({ kind: 'pre-game' });
     if (receipt.kind !== 'pre-game') throw new Error('unreachable');
-    expect(receipt.ratingsBefore.blue[0]).toEqual({ mu: null, sigma: null });
+    expect(receipt.ratingsBefore.blue[0]).toEqual({ r: null });
   });
 
   it('makes no rating claim on an ARAM the bot did not roll', () => {

@@ -155,6 +155,7 @@ export async function loadGameDetail(
       side: row.side,
       muBefore: row.muBefore,
       sigmaBefore: row.sigmaBefore,
+      rBefore: row.rBefore,
     })),
     splits: run,
   });

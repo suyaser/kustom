@@ -72,9 +72,15 @@ function fakeClient(writes: string[], options: FakeOptions = {}): ServiceClient 
           : { data: { ratings_since: since }, error: null };
     }
     const chain: Record<string, unknown> = {};
-    for (const method of ['select', 'eq', 'in', 'is', 'not', 'order', 'limit', 'range', 'gte', 'lt']) {
+    for (const method of ['select', 'eq', 'in', 'is', 'order', 'limit', 'range', 'gte', 'lt', 'lte']) {
       chain[method] = () => chain;
     }
+    // The weekly track's read (M18.5) is the one `game_players` select with a `not`: nobody has
+    // played earlier this week in this fake.
+    chain.not = () => {
+      answer = { data: [], error: null };
+      return chain;
+    };
     for (const method of ['update', 'upsert', 'insert', 'delete']) {
       chain[method] = () => {
         writes.push(`${table}.${method}`);
@@ -112,14 +118,16 @@ describe('rateStoredGame and a reset that lands mid-fold (M14.18)', () => {
     expect(writes).not.toContain('ratings.upsert');
   });
 
-  it('never claims a game that started before an epoch already in place', async () => {
+  it('folds a game that started before an epoch already in place on the weekly track only (M18.5)', async () => {
     const writes: string[] = [];
     const result = await rateStoredGame(
       fakeClient(writes, { epochs: ['2026-10-02T00:00:00.000Z'] }),
       'game-1',
     );
-    expect(result).toEqual({ rated: false, reason: 'before-reset', claimed: 0 });
-    expect(writes).toEqual([]);
+    // The weekly track ignores the reset: ten weekly rows claimed, no rating written.
+    expect(result).toEqual({ rated: false, reason: 'before-reset', claimed: 10 });
+    expect(writes.filter((write) => write === 'game_players.update')).toHaveLength(10);
+    expect(writes).not.toContain('ratings.upsert');
   });
 
   it('writes the ratings when the epoch did not move', async () => {
