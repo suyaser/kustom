@@ -186,6 +186,24 @@ export type RebuildResult =
   | { ok: true; report: RebuildReport }
   | { ok: false; code: 'guard' | 'fence'; message: string; report: RebuildReport | null };
 
+/**
+ * Did this run write a row? (M19.9: the caller bumps the group's `group_live` row `ratings` only
+ * then.) A dry run and a guard refusal never do; a fence did write before it noticed the drift; an
+ * unchanged database writes nothing on its second run.
+ */
+export function rebuildWrote(result: RebuildResult): boolean {
+  const report = result.report;
+  if (report === null || report.dryRun) return false;
+  if (!result.ok && result.code === 'guard') return false;
+  return (
+    report.gamePlayerRowsChanged > 0 ||
+    report.breakdownsFilled > 0 ||
+    report.ratingRowsChanged > 0 ||
+    report.prunedRatings > 0 ||
+    report.rolesChanged > 0
+  );
+}
+
 interface SnapshotGame {
   id: string;
   lcuGameId: number;

@@ -44,7 +44,15 @@ const client = {
     chain.maybeSingle = async () => answer;
     return chain;
   },
+  // `bump_group_live` (M19.9): logged with how many card writes had landed when it ran.
+  rpc: async (name: string, args: { p_group: string; p_kind: string }) => {
+    bumps.push({ name, group: args.p_group, kind: args.p_kind, writesBefore: current?.writes.length ?? -1 });
+    return { data: bumps.length, error: null };
+  },
 } as unknown as ServiceClient;
+
+const bumps: { name: string; group: string; kind: string; writesBefore: number }[] = [];
+let current: ReturnType<typeof memoryModeStore> | null = null;
 
 const card = (over: Partial<ModeState> = {}): ModeState => ({
   standing: 'fearless',
@@ -56,6 +64,8 @@ const card = (over: Partial<ModeState> = {}): ModeState => ({
 
 function setup(initial: ModeState | null = card(), deps: ModeRouteDeps = {}, auth = admin) {
   const t = memoryModeStore(initial);
+  current = t;
+  bumps.length = 0;
   const options = { getClient: () => client, authorize: async () => auth, store: t.store, ...deps };
   return { t, mode: setGroupModeRoute(options), spin: spinModeRoute(options) };
 }
@@ -258,5 +268,37 @@ describe('Spin: POST /api/admin/mode { spin: true } and POST /api/admin/mode/spi
       expect(status).toBe(200);
       expect(body.spun).toMatch(/^(class:|region$|mirror$)/);
     }
+  });
+});
+
+describe('the live signal (M19.9)', () => {
+  it('a card write bumps `mode` once, after the write', async () => {
+    const { mode } = setup();
+    expect((await mode(json({ groupId: GROUP, mode: 'normal' }))).status).toBe(200);
+    expect(bumps).toEqual([{ name: 'bump_group_live', group: GROUP, kind: 'mode', writesBefore: 1 }]);
+  });
+
+  it('Rated and Spin bump the same way', async () => {
+    const rated = setup();
+    expect((await rated.mode(json({ groupId: GROUP, rated: false }))).status).toBe(200);
+    expect(bumps).toEqual([{ name: 'bump_group_live', group: GROUP, kind: 'mode', writesBefore: 1 }]);
+
+    const spun = setup(card(), { draw: async () => ({ id: 'region' }) });
+    expect((await spun.spin(json({ groupId: GROUP }))).status).toBe(200);
+    expect(bumps).toEqual([{ name: 'bump_group_live', group: GROUP, kind: 'mode', writesBefore: 1 }]);
+  });
+
+  it('a pick that changed nothing, a refusal and a 403 bump nothing', async () => {
+    const same = setup();
+    await same.mode(json({ groupId: GROUP, mode: 'fearless' }));
+    expect(bumps).toEqual([]);
+
+    const nothing = setup(card(), { draw: async () => null });
+    expect((await nothing.spin(json({ groupId: GROUP }))).status).toBe(409);
+    expect(bumps).toEqual([]);
+
+    const outsider = setup(card(), {}, notAdmin);
+    await outsider.mode(json({ groupId: GROUP, mode: 'normal' }));
+    expect(bumps).toEqual([]);
   });
 });

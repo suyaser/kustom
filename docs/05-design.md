@@ -478,6 +478,9 @@ Rules:
   iOS; Android has no file named Arial, so `local()` misses and Android falls through to an unmatched
   `system-ui` (Roboto), which is the accepted residue. Do not add a Roboto face with guessed numbers.
 
+The block below is the M14.25 setup, **superseded by 4.1** (self-hosted, axis-trimmed, split files). Kept so
+the diff is readable; build from 4.1.
+
 ```ts
 // app/fonts.ts
 import { Archivo, Atkinson_Hyperlegible_Next, Martian_Mono } from 'next/font/google';
@@ -487,8 +490,8 @@ export const display = Archivo({ subsets: ['latin'], axes: ['wdth'], variable: '
 // <html className={`${text.variable} ${mono.variable} ${display.variable}`}>
 ```
 
-All three faces keep next/font's default `preload: true`: every page draws all three above the fold (the
-strip headline or a page title, names, numbers). No other webfont is loaded; IBM Plex Mono and the 1.0
+All three faces stay preloaded on every page (every page draws all three above the fold: the strip headline
+or a page title, names, numbers), but since 4.1 only each face's small **core** file is preloaded. No other webfont is loaded; IBM Plex Mono and the 1.0
 Archivo instances are gone with the 1.0 stylesheets (M14.25). The share cards carry their own static
 TTFs (5.16).
 
@@ -496,6 +499,188 @@ TTFs (5.16).
 differs, check the generated list; the families are on Google Fonts.
 
 The scale is in 2.7.
+
+### 4.1 Font loading for the LCP budget (amendment, 2026-10-04, M19)
+
+The owner's budget: LCP < 2.5 s, TTFB < 800 ms, INP < 200 ms (Lighthouse mobile, 375 px, simulated slow 4G +
+4x CPU). Measured on `next start` before this amendment: marketing pages LCP 3.2–3.4 s, group pages ~3.6 s, and
+about 60% of that was the four preloaded webfonts, **182 KB** on the critical path.
+
+**What the 182 KB actually is** (read from the built `.next/static/media` files with fontTools; the M19.18 note
+had the first two swapped):
+
+| Preloaded file | Size | Axes shipped | Axes the app draws |
+|---|---|---|---|
+| Archivo, latin | 90.1 KB | wght 100–900 × wdth 62–125, 302 glyphs | wght 800–900, wdth 62–70, upper case only |
+| Martian Mono, latin | 38.4 KB | wght 100–800 × wdth 75–112.5 | wght 400–700, wdth 75–100 |
+| Atkinson Hyperlegible Next, latin | 34.0 KB | wght 200–800 | wght 400–700 |
+| Atkinson Hyperlegible Next, latin-ext | 19.1 KB | wght 200–800 | wght 400–700, and only when a name has `ć` |
+
+Almost all of it is axis range the design never asks for. So the fix is the file, not the preload list.
+
+#### The decision
+
+**Option (c), done thoroughly; (a) falls out of it; (b) is rejected.**
+
+1. **Self-host trimmed variable files**, one per face, cut to the axis ranges in the table's last column.
+   They stay variable inside those ranges, so every weight and `font-stretch` value in the app keeps
+   rendering exactly as today (no visual diff, no snapping).
+   - text: Atkinson Hyperlegible Next, wght **400–700**.
+   - mono: Martian Mono, wght **400–700**, wdth **75–100**. Wider than the 500/600 rule on purpose: today
+     some mono runs inherit 400 (body) or 700 (`.num font-bold`, 5 places), and the 400–700 file costs
+     only 1.3 KB more than 500–600 while making the cut a zero-diff change. Mono at 100% is real: `.num`
+     with no `font-stretch-*` utility renders at 100%. Nothing draws mono above 100%.
+   - display: Archivo, wght **800–900**, wdth **62–70**.
+2. **Split each face into a preloaded core file and a lazy rest file by `unicode-range`**, the way Google
+   splits latin and latin-ext, but drawn around our content:
+   - text core and mono core: printable ASCII plus `U+00A0 U+00B7 U+00D7 U+2013 U+2014 U+2019 U+201C U+201D
+     U+2022 U+2026 U+2191 U+2193 U+2212` (nbsp, the `·` separator, `×`, dashes, quotes, bullet,
+     ellipsis, arrows, real minus).
+   - display core: the same minus `a–z` (`U+0061–007A`). The display face is upper case only (4: "Upper
+     case"), and the browser matches `unicode-range` against the text after `text-transform`, so a
+     headline never requests a lower-case glyph.
+   - each rest file: everything else in the face's Google latin + latin-ext coverage (Latin-1 letters,
+     Latin Extended-A/B, the remaining punctuation; display rest also carries `a–z`).
+   A rest file is fetched only when a glyph in its range is on screen: a name like `Menaçe` or
+   `Ramzyinhović` pulls text rest (small, about 20 KB, measured as a guide, not a budget), and that one
+   glyph swaps in late. That is option (a)'s trade, accepted for the same reason, without (a)'s cost of
+   still shipping the full axis range.
+3. **Preload the three core files on every page, from the root layout.** Not route-scoped (option b): with
+   the cut, Martian core is 16.6 KB, about 80 ms at simulated slow 4G, and the heavy file that (b) left in
+   place on every page was Archivo, not Martian. (b) would move the font variables out of the root layout
+   and make every page know whether it draws a number above the fold, for 80 ms. No.
+4. `font-display: swap` stays. `optional` was considered for the display face and rejected: on a first visit
+   over a slow phone connection the headline would stay in Arial for the whole session.
+
+#### Critical-path bytes and expected LCP
+
+Measured on the cut files (fontTools instancer + subsetter, woff2, from the Google files Next fetched):
+
+| Core file (preloaded) | Bytes |
+|---|---|
+| text core, Atkinson 400–700, ASCII + punctuation | 12.5 KB |
+| mono core, Martian 400–700 × 75–100, ASCII + punctuation | 16.6 KB |
+| display core, Archivo 800–900 × 62–70, upper case + digits + punctuation | 11.4 KB |
+| **Total on the critical path** | **40.5 KB** (was 182 KB, −141 KB, −78%) |
+
+Expected LCP, same Lighthouse configuration (slow 4G is about 200 KB/s in the simulation, so 141 KB is
+about 0.7 s of contended transfer during the first second; the measured no-preload run took 0.4–0.6 s off
+`/download` while costing FCP, which this keeps):
+
+| Page type | Before | Expected | Budget |
+|---|---|---|---|
+| Marketing (`/`, `/about`, `/download`) | 3.2–3.4 s | **2.4–2.6 s** | met or within 0.1 s |
+| Group pages (`/g/[slug]`, tonight, stats) | ~3.6 s | **2.9–3.1 s** | not met by fonts alone |
+| FCP, every page | 0.8 s | 0.8 s or better | |
+
+After this, fonts are about 0.2 s of LCP and there is nothing left to cut there; the group pages' remaining
+gap is framework JS and data, and belongs to the engineering lanes, not to typography.
+
+#### CLS: fallback faces matched to how the app draws, not to the font's default
+
+The swap must not move the team card or rewrap a headline: **CLS ≤ 0.01**. next/font's automatic fallback
+measures the font at its *default* instance (Martian's default is wdth 112.5, Archivo's wdth 100), but the
+app draws Martian at 75–88% and the headline at 62%, so the automatic Arial fallback is much wider than the
+real text. A wide fallback headline wraps to two lines and unwraps on swap; that is the most likely source of
+the 0.247 on `/about` when preloads were removed. So all three faces get a hand-declared fallback, measured at
+the instance the app actually draws, with next/font's method (overrides are hhea ascent / descent / gap per
+upm, divided by size-adjust):
+
+```css
+/* text: unchanged from section 4 (measured at wght 400 against Arial, lower-case letter frequency) */
+@font-face {
+  font-family: "Atkinson Fallback";
+  src: local("Arial"), local("ArialMT");
+  size-adjust: 100.07%;
+  ascent-override: 98.33%;
+  descent-override: 31.58%;
+  line-gap-override: 0%;
+}
+
+/* mono: matched on digits, which is most of what mono draws. Martian is monospaced, so every glyph at
+   wght 500, wdth 85 (the commonest stretch in the app, font-stretch-85%) is 0.640 em; Arial's digits are
+   tabular at 0.556 em. hhea 1000 / -200 / 0 per 1000. Runs drawn at 75% or 100% are 9-12% off, and
+   those sit in fixed-width cells (role cell, seat rating), so they cannot push layout. */
+@font-face {
+  font-family: "Martian Fallback";
+  src: local("Arial"), local("ArialMT");
+  size-adjust: 115.08%;
+  ascent-override: 86.90%;
+  descent-override: 17.38%;
+  line-gap-override: 0%;
+}
+
+/* display: matched on upper case (the face is upper case only) at wght 900, wdth 62 (the headline),
+   against Arial Bold's upper case, so the fallback headline wraps exactly where the real one does.
+   hhea 878 / -210 / 0 per 1000. Bar labels and pills at 70% are about 11% narrower in fallback, inside
+   fixed boxes. */
+@font-face {
+  font-family: "Archivo Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT");
+  font-weight: 800 900;
+  size-adjust: 70.83%;
+  ascent-override: 123.95%;
+  descent-override: 29.65%;
+  line-gap-override: 0%;
+}
+```
+
+The stacks become:
+
+```css
+--font-text: var(--font-text-core), var(--font-text-rest), "Atkinson Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+--font-mono: var(--font-mono-core), var(--font-mono-rest), "Martian Fallback", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+--font-display: var(--font-display-core), var(--font-display-rest), "Archivo Fallback", "Arial Narrow", system-ui, sans-serif;
+```
+
+Remaining CLS risks, accepted:
+- **Android has no Arial**, so all three fallback faces miss and Android falls through to Roboto unmatched,
+  as it already does for text (section 4). Do not add Roboto faces with guessed numbers; measure Roboto from
+  its file first if Android CLS shows up in field data.
+- **A rest-file glyph swapping late** (`ç`, `ć`) changes one glyph's width inside a name. Names truncate in
+  fixed rows, so it moves nothing unless a name wraps; worst case a line, well under 0.01.
+- **Kerning across the core/rest split** (an ASCII letter next to an accented one) is lost, exactly as it is
+  today across Google's latin/latin-ext split. Not visible at these sizes.
+- Atkinson's override values were re-derived from the variable file at wght 400 for this amendment and came
+  out 99.36% / 99.04% / 31.80%, within 1% of the shipped values, which were measured from the Google Fonts
+  static file. Keep the shipped values; they are what CLS was verified against.
+
+#### Build notes for web-engineer
+
+1. **Generator, run by hand, outputs committed.** `apps/web/scripts/font-subsets.py` (Python, like
+   `og-metrics.py`; needs `fonttools` and `brotli`), wrapped as `pnpm --filter web font-subsets [--check]`.
+   Input: the three variable TTFs from `github.com/google/fonts` at a pinned commit (`ofl/atkinsonhyperlegiblenext/`,
+   `ofl/martianmono/`, `ofl/archivo/`), downloaded into a cache dir, never at build time. For each face:
+   `fontTools.varLib.instancer.instantiateVariableFont` to the ranges in point 1 (keep the instancer's
+   clamped defaults; do **not** move the default to wdth 85 or 62: that measured +8 KB on mono and +4 KB on
+   display, and the fallback faces above already handle the drawn width), then reload the instanced font
+   from bytes before subsetting (subsetting the in-memory instance throws on lazily loaded glyphs), then
+   `fontTools.subset` with `layout_features=['*']`, `hinting=False`, `notdef_outline=True`, flavor `woff2`.
+   Six files into `apps/web/app/fonts/` (`text-core.woff2`, `text-rest.woff2`, and so on) plus `OFL.txt`.
+   `--check` regenerates in memory and fails on a byte difference. Add the command to CLAUDE.md and the
+   milestone row.
+2. **Loading: `next/font/local`, two calls per face** (core and rest), so the files stay hashed and immutable
+   under `/_next/static/media` and the CSS-variable architecture of section 7.3 holds:
+   `weight: '400 700'` (text, mono) or `'800 900'` (display); `declarations` carrying `font-stretch: 75% 100%`
+   (mono) or `62% 70%` (display) and the file's `unicode-range`; `display: 'swap'`;
+   `adjustFontFallback: false` (the faces above replace it); `preload: true` on the three core calls,
+   `false` on the three rest calls. Variables `--font-text-core`, `--font-text-rest`, `--font-mono-core`,
+   `--font-mono-rest`, `--font-display-core`, `--font-display-rest` on `<html>`, replacing
+   `--font-atkinson`/`--font-martian`/`--font-archivo` (update 7.2's rename table and the 7.3 block in the
+   same change). If `next/font/local` refuses `unicode-range` or `font-stretch` in `declarations`, fall back
+   to plain `@font-face` rules in `globals.css` (`url()` imports so Next still hashes the files) and three
+   `<link rel="preload" as="font" type="font/woff2" crossorigin>` in the root layout for the core files.
+3. **Fallback faces and stacks** exactly as above, in the unlayered `:root` block in `globals.css` where
+   `Atkinson Fallback` already lives.
+4. **Do not touch** `app/_og/fonts/`: the share cards render server-side from static TTFs (5.16) and are
+   not on any page's critical path.
+5. **Acceptance**, same Lighthouse configuration on `next start`: font transfer before LCP ≤ 45 KB on every
+   page; no `*-rest` request on `/`, `/about`, `/download`, or a group page whose names are ASCII; CLS ≤ 0.01
+   on `/about` and `/g/customs`; FCP no worse than 0.8 s; and a side-by-side screenshot at 375 px with the
+   font requests blocked in DevTools against the loaded page shows the strip headline, the team card and a
+   leaderboard row on the same lines (no rewrap). Report LCP per page type against the table above.
+6. Optional follow-up, not needed for the cut: the six places that draw mono at 400 or 700 can move to
+   500/600 per the weight rule in 2.7. The file covers them either way.
 
 ---
 
@@ -863,6 +1048,8 @@ tab bar, and the group line when the group is known.
 > the no-JS forms (Roll, Reroll, That's me, the Mode card link). They render whole on the server; on a client
 > navigation Next keeps the old page up until the new one is ready (measured 52–104 ms at 375). The text below stands
 > for any future route that is never used without JS; `LoadingView` and ‹Loading…› are currently unused.
+> **M19.14 (2026-10-04):** no tab gets a `loading.tsx`; tab feedback is the pressed tab and a client-drawn
+> pending frame, 5.9a.
 
 **Decision: a static shell, streamed first; no skeletons.** `loading.tsx` per route group renders:
 - the real top bar, tab bar and group line (from the layout, already static)
@@ -878,6 +1065,192 @@ Why not skeletons: a shimmering grey block is the brightest moving thing in a da
 promise a shape that may not arrive (idle vs balanced tonight). Why reserved frames at all: so the team cards
 land without shifting the page (CLS). Pages should also stream with Suspense: the shell and strip first, the
 fearless pool and rail later.
+
+### 5.9a Tab feedback and pending frames (M19.14)
+
+Ruled 2026-10-04 for M19.15. Budget (owner): **a tab tap shows feedback within 200 ms** (INP < 200 ms) and
+**LCP < 2.5 s**. Today a tab tap shows nothing for 270 to 700 ms (`redesign/research/performance.md`, P5).
+
+**Why not `loading.tsx` (5.9 still stands).** A `loading.tsx` is a Suspense boundary, and on a **first
+document load** Next streams it: the fallback is the HTML, and the real page arrives in a hidden node that only
+JavaScript swaps in. With JS off, the skeleton is all the page ever shows. That is how M14.39 lost Tonight's
+no-JS forms. Every tab has something a no-JS reader would lose:
+
+| Route | What a no-JS first load needs |
+|---|---|
+| Tonight | Roll, Reroll, That's me, the Mode card link (5.9 amendment) |
+| Board | the board itself: it is opened from Discord and WhatsApp links, and it is all content |
+| Games, Game page | the list and the receipt: the result post links the game page (10.5) |
+| Player page | the player: opened from the board and from shared links |
+| Stats | the `/1v1` GET form (5.0, native select) and the records; `stats/loading.tsx` would also wrap `/1v1` |
+| You | the sign-in and sign-out POST forms (`/auth/signin`, `/auth/signout`) |
+| Admin | the POST forms and the confirm routes (5.13) |
+
+A `loading.tsx` only helps a **client** navigation, so the skeleton has to be drawn by the client, not
+streamed by the server. The design gets the same speed with no no-JS cost: the tab answers the tap itself, and
+a slow navigation swaps `<main>` for a pending frame drawn in the browser.
+
+**Per route**
+
+| Route | `loading.tsx` | Pressed tab (`useLinkStatus`) | Pending frame |
+|---|---|---|---|
+| Tonight | no | yes | yes, the Tonight frame |
+| Board | no | yes | yes, the Board frame |
+| Games | no | yes | yes, the Games frame |
+| Stats (Records, Champions, 1v1) | no | yes | yes, the Stats frame |
+| You | no | yes | yes, the You frame |
+| Game page | no | no (not a tab; reached from rows) | no |
+| Player page | no | no (not a tab; reached from rows) | no |
+| Admin (all sections) | no | the desktop top bar's `Admin` link only | no |
+
+- **Game and player pages** get no skeleton. Their links sit in rows and tiles that are server-rendered;
+  a `useLinkStatus` probe in every row would add a client component per row for a page that M19 made cheap
+  (title-only `generateMetadata`). The row's own `:active` press state (5.2, CSS only, no JS) is the tap
+  feedback. Their tab already reads Board or Games (5.11), and that does not change while the page loads.
+- **Admin** gets the pressed state on the desktop `Admin` link (the same rule as a tab) and nothing else.
+  The admin section pills are links inside the page: CSS `:active` only.
+- **No `<Suspense>` boundary on a route a person can land on from a link** (every route in the table), for the
+  same reason: on a first load its content is hidden from a no-JS reader. **This overrides M19.15's
+  `<Suspense>` around Tonight's below-the-fold sections and the board's storyline** (OPEN for the lead). LCP
+  comes from the cheaper loaders (M19.1 to M19.13), not from streaming. Tonight's header is server HTML in
+  the first chunk either way.
+- **A live refresh never shows a pending frame.** `router.refresh()` and Realtime re-reads are not link
+  navigations, so they never set a pending tab; the shown page stays until the new one is ready (5.10).
+
+#### The pressed tab
+
+The tap's feedback is on the tab you pressed, painted in the same frame as the press. That is the
+INP < 200 ms answer, and it does not wait on the network.
+
+- **On press** (`:active`, unchanged): `scale(.98)` for `--dur-press` (2.9).
+- **While pending** (`useLinkStatus().pending`, on the pressed link only): the label and icon go to
+  `--foreground` and the icon fills (the same as active), and the tab gets the **3px top bar in
+  `--border-strong`** at the active bar's place and size. The tab you are leaving keeps `aria-current` and its
+  `--primary-text` bar until the new page is committed, because it is still the page on screen. Two bars
+  for a moment, one neutral and one amber, read as "going there from here". Colour is not the only signal:
+  the pending tab also gets the filled icon and the bar shape.
+- **On landing**: the amber bar moves to the new tab, and the neutral bar goes. This is a colour change at
+  `--dur-fast`, not a slide (2.9: nothing slides under a thumb).
+- **Desktop top nav (>= 1024)**: the same rule on the 60px links. While pending, the link goes to
+  `--foreground` with a 3px `--border-strong` underline; the current link keeps its `--primary-text`
+  underline until landing.
+- **No delay** on the pressed state. It is a colour change on a 75px tab, not a flash, and a delay would
+  spend the INP budget. Next skips `pending` when the route was already prefetched and the change is instant,
+  which is right: there is nothing to wait for.
+- Tapping the tab you are already on is not a navigation: nothing changes.
+- Contrast: `--border-strong` on `--card` is at least 3:1 (6.15), the same edge rule as any control.
+
+#### The pending frame
+
+If the navigation is **still pending 300 ms after the tap**, `<main>`'s content is hidden and the
+destination tab's frame is drawn in its place. Under 300 ms (a prefetched or fast route, 52 to 104 ms measured
+in 5.9) the frame never appears, so there is no flash. The old page is hidden with the `hidden` attribute, not
+unmounted, so an abandoned navigation (a second tap, the back button) shows it again unchanged.
+
+The frames use 5.9's reserved-frame part (`components/ui/frame.tsx`, the restyled shadcn `Skeleton`):
+
+- `--card` blocks with a 1px `--border` and the card radius (8), at the **real heights** of the components that
+  will land: seat rows `--seat-min-h` (64), board and history rows `--row-min-h` (56), team headers `--thead-h`
+  (54), chips and the strip's top line `--chip-h` (28), segmented pickers `--tap` (44). Rows inside a frame are
+  divided by the 1px hairline (2.5).
+- **Shapes only, no words.** No fake text bars, no ‹Loading…›, no spinner, no amber, no side colours (a frame
+  doesn't know which side a player is on yet). The h1 is a frame of its line height, not a word, because
+  Tonight's and You's h1s depend on state.
+- **No motion at all**: no shimmer, no pulse, no fade in. The frame appears in one paint and the page replaces
+  it in one paint. Reduced motion therefore changes nothing; the pressed tab's colour change already drops to
+  instant under 2.9's media query.
+- Gutters, card padding and section gaps are the page's own (2.5), so the first block of the real page
+  lands where its frame was. Only the first screen is framed; the frame never grows past `100svh` minus the
+  bars, so a short page doesn't leave a long empty frame behind.
+- CLS: frames hold the real heights of everything in the first screen, so the landing page shifts nothing
+  above the fold. A page that lands taller pushes only the space below the last frame, which is below the
+  fold. The target stays CLS <= 0.01.
+
+**Frames per tab** (375 left, 1280 right; `▭` is a frame, `═` its hairline-divided rows; the top bar and the
+tab bar are the real ones, unchanged):
+
+```
+TONIGHT 375                                  TONIGHT 1280 (main column + 340 rail)
+▭ strip top line   28                        ▭ strip top line 28              │ ▭ rail
+▭ headline         56 (display 46, 1 line)   ▭ headline 76 (display 64)       │   tape: 4 × 64
+▭ sub-line         2 × 22 reserved           ▭ sub-line 2 × 22                │
+▭ action / band    44                        ▭ action / band 44               │
+                                             ▭ blue card            ▭ red card│
+▭ team card  54 + 5 × 64 ═                     54 + 5 × 64 ═          54 + 5 ═│
+▭ team card  54 + 5 × 64 ═ (below the fold)
+```
+The strip is one frame with its rows as the real strip's (5.10); the team cards are two frames side by side
+from 768 (5.1). Idle, balanced or in game is not known before landing, so the frame is the balanced shape: it
+is the tallest first screen and the most common one a tab tap lands on.
+
+```
+BOARD 375                                    BOARD 1280
+▭ h1 line          32                        ▭ h1 32
+▭ window picker    44 (3 segments)           ▭ window picker 44 (inline, w-auto)  │ ▭ rail (top this week)
+▭ list  N × 56 ═   (rows to the fold)        ▭ list N × 56 ═                       │   5 × 56 ═
+```
+
+```
+GAMES 375                                    GAMES 1280
+▭ h1 line          32                        ▭ h1 32
+▭ queue picker     44                        ▭ queue picker 44
+▭ list  N × 56 ═                             ▭ list N × 56 ═ (main column)          │ ▭ rail
+```
+
+```
+STATS 375                                    STATS 1280
+▭ h1 line          32                        ▭ h1 32
+▭ section picker   44 (Records · Champions · 1v1)
+▭ window picker    44                        ▭ section + window pickers, one row 44
+▭ section summary  52                        ▭ section summary 52
+▭ rows  N × 56 ═                             ▭ rows in 2 columns, N × 56 ═ (5.14a)
+```
+The Stats frame is the Records shape whichever segment is tapped from the tab bar; a tap on a segment inside
+Stats is an in-page link (no frame).
+
+```
+YOU 375                                      YOU 1280
+▭ h1 line          32                        ▭ h1 32
+▭ card             1 × 56 + 3 × 56 ═         ▭ card 4 × 56 ═     ▭ card 4 × 56 ═ (2 columns)
+▭ card             3 × 56 ═
+```
+Signed out, You is the sign-in pitch, but the frame is the same: it is only the first screen, for at most a few
+hundred milliseconds.
+
+#### Screen readers
+
+- The pressed tab says nothing new. The person just activated it; a pending announcement would talk over the
+  page's own announcement a moment later.
+- While the frame shows, `<main>` has `aria-busy="true"`; every frame is `aria-hidden` (as `Frame` already
+  is). There is no ‹Loading…› text and no live region for loading, so 6.4's "one polite announcer per live
+  page" is untouched.
+- **Landing is announced by Next's route announcer**, which reads the new `document.title` on a client
+  navigation. Every tab and page keeps its own distinct `<title>` (`Leaderboard · Customs Night`), so the
+  announcement names where you are. `aria-busy` is removed in the same commit.
+- Focus stays on the pressed tab during pending (it is still in the DOM), and moves as Next moves it on
+  landing. The hidden old page is out of the tab order (`hidden`).
+
+#### Build notes (for M19.15)
+
+- One client context in the group shell (`Shell.tsx`) wraps `<main>`'s children: `{ pendingTab, since }`.
+- Inside each `Link` in `TabBar` and `TopBar` sits a tiny client child that calls `useLinkStatus()` and reports
+  `pending` for its tab to the context. It renders nothing visible; the pending style is a data attribute on
+  the link (`data-pending`), styled in CSS.
+- The `<main>` wrapper renders `children` in a `div` that gets `hidden` while `pendingTab` is set and 300 ms
+  have passed, and renders `<TabFrame tab={pendingTab} />` beside it. Pending clears when `useLinkStatus`
+  goes false or the pathname changes.
+- `TabFrame` composes `Frame` only, with the heights above as tokens; it never fetches and takes no props but
+  the tab key, so it is in the client bundle once (a few hundred bytes).
+- No `loading.tsx` and no `<Suspense>` is added under `app/(group)/g/[slug]/`. `LoadingView` stays unused.
+- Tests: (1) each tab renders its `TabFrame` at 375 and 1280 (snapshot of heights); (2) the server HTML of every
+  tab with JS off contains the page's h1 and its forms (no streamed boundary); (3) `router.refresh()` never
+  sets `pendingTab`; (4) the frame does not appear under 300 ms; (5) axe on a shown frame (`aria-busy`,
+  `aria-hidden`, focus on the tab); `pageGroup.test.tsx` and `nav.test.ts` unchanged.
+
+**Acceptance (designer signs):** the pressed tab paints within 100 ms of the tap on a mid phone at 375 and
+1280, in Night and Day; each of the five frames at 375 and 1280 matches its sketch above, with no words, no
+motion and no colour but `--card` and `--border`; landing from a frame moves nothing above the fold (CLS <= 0.01);
+with JS off, every route in the first table renders whole on its first load.
 
 ### 5.10 Status headline strip
 

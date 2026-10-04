@@ -4,6 +4,7 @@ import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth 
 import { safeNextPath } from '@/lib/authNext';
 import { postTeamsForSplit } from '@/lib/discord/post';
 import { lobbyInGroup } from '@/lib/groups/membership';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type RerollRequest, rerollRequestSchema, rerollResponseSchema } from './schema';
 
@@ -39,19 +40,50 @@ export async function handleReroll(
   // does not learn which of B's lobby ids are real. Checked before anything is read or written.
   if (!(await lobbyInGroup(context.client, lobbyId, context.groupId))) return fail(404, NO_SUCH_LOBBY);
 
-  const result = await promoteSplit(context.client, { lobbyId, splitId: input.splitId });
-  // A lobby that is not `balanced`, a split of another lobby, or a third press: the envelope
-  // for a JSON caller, a 303 back to the page it was pressed on with `?error=` for the form.
-  // Nothing was written and nothing was posted either way.
-  if (!result.ok) return fail(result.status, result.error);
+  // Tonight's live signal (M19.9), flushed after the promotion and its Discord post (and the post's
+  // message-id write), and also when the post throws: the split is up either way, and the retry
+  // answers `promoted: false`. A second tap promoted nothing and says nothing.
+  return withLiveSignal(context.client, async (live) => {
+    const result = await noteWrite(
+      live,
+      context.groupId,
+      'split',
+      () => promoteSplit(context.client, { lobbyId, splitId: input.splitId }),
+      (promotion) => promotion.ok && promotion.value.promoted,
+    );
+    // A lobby that is not `balanced`, a split of another lobby, or a third press: the envelope
+    // for a JSON caller, a 303 back to the page it was pressed on with `?error=` for the form.
+    // Nothing was written and nothing was posted either way.
+    if (!result.ok) return fail(result.status, result.error);
 
-  const { splitId, rank, splitCount, promoted } = result.value;
+    const { splitId, rank, splitCount, promoted } = result.value;
 
-  // Already chosen: 200, nothing promoted, nothing posted. Two taps produce one message.
-  const outcome = promoted
-    ? await postTeamsForSplit(context.client, splitId, { requestOrigin: siteOrigin(context.request) })
-    : null;
+    // Already chosen: 200, nothing promoted, nothing posted. Two taps produce one message.
+    const outcome = promoted
+      ? await postTeamsForSplit(context.client, splitId, { requestOrigin: siteOrigin(context.request) })
+      : null;
+    return answerReroll(context, back, lobbyId, { splitId, rank, splitCount, promoted, outcome });
+  });
+}
 
+function answerReroll(
+  context: AdminContext,
+  back: string,
+  lobbyId: string,
+  {
+    splitId,
+    rank,
+    splitCount,
+    promoted,
+    outcome,
+  }: {
+    splitId: string;
+    rank: number;
+    splitCount: number;
+    promoted: boolean;
+    outcome: { status: 'posted' | 'skipped' | 'failed' } | null;
+  },
+): NextResponse {
   const message = notice({ rank, splitCount, promoted, post: outcome === null ? null : outcome.status });
 
   if (context.form) return redirectBack(context.request, back, { notice: message });
