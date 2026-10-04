@@ -1,8 +1,9 @@
-import { type BalancePlayer, balance, config, type Split, seedFromRank } from '@customs/core';
-import { type Json, openSkillPair, rosterKey, type SplitInsert } from '@customs/db';
+import { type BalancePlayer, balance, config, type Split } from '@customs/core';
+import { type Json, rosterKey, type SplitInsert } from '@customs/db';
 import { NAMELESS_PLAYER } from '../discord/embeds';
 import { nightStart } from '../night';
 import type { ServiceClient } from '../supabase';
+import { KUSTOM_FRESH, type KustomState } from './fold';
 import type { LobbyBalancedEvent } from './hooks';
 import { type PoolMember, planSeats, selectTen } from './selection';
 
@@ -12,7 +13,12 @@ import { type PoolMember, planSeats, selectTen } from './selection';
  *
  * No balancing maths lives here and none ever will — `packages/core` is the only place that
  * decides who plays with whom. This file is the I/O and the policy around that call: which
- * ten, seeded from what, and what gets written down.
+ * ten, rated from what, and what gets written down.
+ *
+ * **The balancer reads what the fold reads** (M18.2, M18.5): each player's all-time Kustom
+ * Rating `ratings.r` and their rated-games count, and 1200 and 0 for somebody with no row in the
+ * group, exactly as the fold starts them. So for a roster unchanged since the roll and no game
+ * folded in between, the split's stored `blue_win_prob` is the fold's blue `fold_p`.
  */
 
 /** How far back the sit-out lookup reads. A player who has not sat out in this many games. */
@@ -88,8 +94,8 @@ export function toBalancePlayer(member: PoolMember): BalancePlayer {
   return {
     puuid: member.puuid,
     name: member.name,
-    mu: member.mu,
-    sigma: member.sigma,
+    r: member.r,
+    n: member.n,
     mainRole: member.mainRole,
     secondaryRole: member.secondaryRole,
     roleOverride: member.roleOverride,
@@ -110,11 +116,10 @@ export async function lobbyGroupId(client: ServiceClient, lobbyId: string): Prom
 /**
  * Everyone around, with their rating in the lobby's group and their place in the rotation.
  *
- * **No `ratings` row means seed in memory from the rank, and write nothing.** Rows are
- * written by the rating fold and by nothing else, which is what makes "re-seed a new player
- * until they have actually played" free: with no row, every balance re-reads their newest
- * rank, and the moment they finish a game the fold writes the row and the seeding stops.
- * There is no explicit re-seed code and there must not be one.
+ * **No `ratings` row means 1200 and 0, and write nothing** (M18.2: the rank guess is retired;
+ * rank stays on the roster as information). Rows are written by the rating fold and by nothing
+ * else. A row the Kustom fold has not written yet (`r` null, an OpenSkill-era row before the
+ * switch's rebuild) is 1200 with its count, which is what the live fold would fold it from.
  */
 export async function loadGroupPool(
   client: ServiceClient,
@@ -123,7 +128,7 @@ export async function loadGroupPool(
   timeZone: string,
   /**
    * The lobby's group (M13.3): whose `ratings` are read. A person with no row in this group is
-   * seeded exactly like somebody new, whatever they are rated in another group.
+   * 1200 and 0, like somebody new, whatever they are rated in another group.
    */
   groupId: string,
 ): Promise<PoolMember[]> {
@@ -131,7 +136,7 @@ export async function loadGroupPool(
     client
       .from('lobby_members')
       .select(
-        'player_id, side, is_spectator, role_override, players!inner(puuid, display_name, game_name, main_role, secondary_role, rank_tier, rank_division)',
+        'player_id, side, is_spectator, role_override, players!inner(puuid, display_name, game_name, main_role, secondary_role)',
       )
       .eq('lobby_id', lobbyId),
     lobbyHost(client, lobbyId),
@@ -153,8 +158,7 @@ export async function loadGroupPool(
 
   return rows.map((row) => {
     const player = row.players;
-    const stored = ratings.get(row.player_id);
-    const seeded = stored ?? seedFromRank(player.rank_tier, player.rank_division);
+    const rating = ratings.get(row.player_id) ?? KUSTOM_FRESH;
 
     return {
       playerId: row.player_id,
@@ -169,8 +173,8 @@ export async function loadGroupPool(
       mainRole: player.main_role,
       secondaryRole: player.secondary_role,
       roleOverride: row.role_override,
-      mu: seeded.mu,
-      sigma: seeded.sigma,
+      r: rating.r,
+      n: rating.n,
       gamesTonight: rotation.gamesTonight.get(row.player_id) ?? 0,
       lastSitOutAt: rotation.lastSitOutAt.get(row.player_id) ?? null,
       gamesSinceLastFill: fills.get(row.player_id) ?? null,
@@ -198,19 +202,18 @@ async function selectRatings(
   client: ServiceClient,
   playerIds: readonly string[],
   groupId: string,
-): Promise<Map<string, { mu: number; sigma: number }>> {
+): Promise<Map<string, KustomState>> {
   const { data, error } = await client
     .from('ratings')
-    .select('player_id, mu, sigma')
+    .select('player_id, r, games')
     .eq('group_id', groupId)
     .in('player_id', playerIds);
   if (error) throw new Error(`balanceLobby: ratings select failed: ${error.message}`);
 
-  // A Kustom-only row (0036) has no OpenSkill pair: to this build it is not rated yet.
-  const ratings = new Map<string, { mu: number; sigma: number }>();
+  // The fold's own starting rule (`rating.ts`): `r`, or 1200 on a row it has not written yet.
+  const ratings = new Map<string, KustomState>();
   for (const row of data ?? []) {
-    const pair = openSkillPair(row);
-    if (pair !== null) ratings.set(row.player_id, pair);
+    ratings.set(row.player_id, { r: row.r ?? KUSTOM_FRESH.r, n: row.games });
   }
   return ratings;
 }
@@ -507,6 +510,8 @@ async function storeSplits(
     red: split.red as unknown as Json,
     gap: split.gap,
     blue_win_prob: split.blueWinProb,
+    // M18.4/M18.5: these odds are Kustom's `winProbability`; the calibration line counts only these.
+    odds_model: 'kustom',
     score: split.score,
     off_role_count: split.offRoleCount,
     is_chosen: index === 0,

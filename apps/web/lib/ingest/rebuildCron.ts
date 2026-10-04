@@ -1,7 +1,6 @@
 import type { RebuildCronGroup } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
 import { type FoldGatePlayer, gateRatedGame } from './fold';
-import { countsForRatings, readRatingsSince } from './ratingsEpoch';
 import { type RebuildResult, rebuildRatings } from './rebuild';
 
 /**
@@ -17,7 +16,8 @@ import { type RebuildResult, rebuildRatings } from './rebuild';
  * {@link FENCE_RERUNS} more times.
  *
  * **Which groups.** A group is folded only when it has a game that is `source = 'backfill'`, has
- * a `game_players` row with no `mu_after`, started at or after the group's ratings epoch, and
+ * a `game_players` row with no `week_r_after` (M18.5: every rated game carries the weekly Kustom
+ * track, whatever the group's ratings epoch, because the weekly track ignores a reset), and
  * passes the fold's own gate ({@link gateRatedGame}: ten players five a side, over 300 seconds,
  * the Rift, rated). The gate is the fold's, so an ARAM or a short-handed backfill -- which the
  * fold walks past and leaves null forever -- never makes a group fold every morning.
@@ -56,7 +56,8 @@ interface Candidate {
  */
 export async function findGroupsWithUnratedBackfill(client: ServiceClient): Promise<PendingGroup[]> {
   // 1. Backfilled, rated-eligible on the columns alone, with at least one row the fold has not
-  //    written (the inner join keeps only games with a null `mu_after` row).
+  //    written (the inner join keeps only games with a null `week_r_after` row: the weekly track,
+  //    which every rated game gets, before or after the group's epoch).
   const candidates: Candidate[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await client
@@ -66,7 +67,7 @@ export async function findGroupsWithUnratedBackfill(client: ServiceClient): Prom
       .eq('rated', true)
       .not('winning_side', 'is', null)
       .gt('duration_s', 300)
-      .is('game_players.mu_after', null)
+      .is('game_players.week_r_after', null)
       .order('started_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
@@ -102,8 +103,8 @@ export async function findGroupsWithUnratedBackfill(client: ServiceClient): Prom
     }
   }
 
-  // 3. The group's epoch (M14.18): a backfill older than the last reset is never folded.
-  const epochs = new Map<string, string | null>();
+  // 3. No epoch filter since M18.5: a backfill older than the group's last reset is history on
+  //    the all-time track, but the weekly track still folds it.
   const counts = new Map<string, number>();
   for (const candidate of candidates) {
     const gate = gateRatedGame(
@@ -113,10 +114,6 @@ export async function findGroupsWithUnratedBackfill(client: ServiceClient): Prom
       true,
     );
     if (!gate.ok) continue;
-    if (!epochs.has(candidate.groupId)) {
-      epochs.set(candidate.groupId, await readRatingsSince(client, candidate.groupId));
-    }
-    if (!countsForRatings(candidate.startedAt, epochs.get(candidate.groupId) ?? null)) continue;
     counts.set(candidate.groupId, (counts.get(candidate.groupId) ?? 0) + 1);
   }
   if (counts.size === 0) return [];

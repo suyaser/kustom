@@ -1,6 +1,9 @@
 import {
   applyMvpAceBonus,
   foldWinProbability,
+  KUSTOM_START,
+  type KustomAward,
+  type KustomRow,
   type MvpAce,
   mvpAce,
   type PerformancePlayer,
@@ -10,6 +13,7 @@ import {
   type RatingChange,
   type Role,
   rateGame,
+  rateGameKustom,
 } from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
@@ -291,6 +295,119 @@ export function foldGameOutcomes(
     });
   });
   return out;
+}
+
+/**
+ * Where one player stands on one Kustom track before a game (M18.5): the unrounded Rating `r`
+ * and `n`, their rated games on that track before this one.
+ */
+export interface KustomState {
+  r: number;
+  n: number;
+}
+
+/**
+ * A first game on a track: 1200 and 0 (M18). A player missing from a track's map is this, on
+ * both tracks, in the live fold, the rebuild and the balancer alike.
+ */
+export const KUSTOM_FRESH: Readonly<KustomState> = Object.freeze({ r: KUSTOM_START, n: 0 });
+
+/** What one track of the Kustom fold did to one player in one game (the 0036 columns). */
+export interface KustomTrackOutcome {
+  /** `r_before` / `week_r_before`. */
+  rBefore: number;
+  /** `r_after` / `week_r_after`. */
+  rAfter: number;
+  /** `k` / `week_k`: `kFor(n)`. */
+  k: number;
+  /** `fold_p` / `week_fold_p`: this player's side's expected score on this track. */
+  expected: number;
+  /** `rated_games_before` / `week_games_before`: the `n` K was read from. */
+  n: number;
+}
+
+/** Both tracks of one player in one game, and the share rank and award they share. */
+export interface KustomFoldOutcome {
+  /** `share_rank`: 1..5 inside the team, or null when the game has no performance score. */
+  shareRank: number | null;
+  /** `award`: rank 1 of the winners is the MVP, rank 1 of the losers the ACE. */
+  award: KustomAward;
+  /**
+   * The all-time track, or null when the game is folded on the weekly track only: it started
+   * before the group's `ratings_since` (the weekly track ignores a reset, M18).
+   */
+  allTime: KustomTrackOutcome | null;
+  week: KustomTrackOutcome;
+}
+
+/**
+ * The Kustom fold of one game, both tracks (M18.5): `rateGameKustom` from `@customs/core`
+ * called once per track on the same ten and the same performance scores, so the share ranks,
+ * and the MVP and ACE they name, are one answer for both. None of the arithmetic is here.
+ *
+ * `allTime` is the ten's all-time standing, or `null` to fold the weekly track alone; `week` is
+ * their standing in this game's week. A player missing from a map is {@link KUSTOM_FRESH}.
+ * Keyed by player id, like {@link foldGameOutcomes}. Hand it a game {@link gateRatedGame} passed;
+ * core throws on anything else, and that throw is a bug, not data.
+ */
+export function foldGameKustom(
+  blue: readonly FoldRatedPlayer[],
+  red: readonly FoldRatedPlayer[],
+  tracks: {
+    allTime: ReadonlyMap<string, KustomState> | null;
+    week: ReadonlyMap<string, KustomState>;
+  },
+  winningSide: SideValue,
+): Map<string, KustomFoldOutcome> {
+  const ten = [...blue, ...red];
+  const scores = gameScores(ten);
+  const scoreOf = new Map<string, number>((scores ?? []).map((score) => [score.puuid, score.score]));
+
+  const fold = (track: ReadonlyMap<string, KustomState>): Map<string, KustomRow> => {
+    const rows = rateGameKustom({
+      players: ten.map((player) => {
+        const state = track.get(player.playerId) ?? KUSTOM_FRESH;
+        return {
+          puuid: player.puuid,
+          side: player.side,
+          r: state.r,
+          n: state.n,
+          score: scoreOf.get(player.puuid) ?? null,
+        };
+      }),
+      winningSide,
+    });
+    return new Map(rows.map((row) => [row.puuid, row]));
+  };
+
+  const week = fold(tracks.week);
+  const allTime = tracks.allTime === null ? null : fold(tracks.allTime);
+
+  const out = new Map<string, KustomFoldOutcome>();
+  for (const player of ten) {
+    const weekRow = mustRow(week, player.puuid);
+    const allTimeRow = allTime === null ? null : mustRow(allTime, player.puuid);
+    out.set(player.playerId, {
+      shareRank: weekRow.shareRank,
+      award: weekRow.award,
+      allTime:
+        allTimeRow === null
+          ? null
+          : trackOutcome(allTimeRow, (tracks.allTime?.get(player.playerId) ?? KUSTOM_FRESH).n),
+      week: trackOutcome(weekRow, (tracks.week.get(player.playerId) ?? KUSTOM_FRESH).n),
+    });
+  }
+  return out;
+}
+
+function trackOutcome(row: KustomRow, n: number): KustomTrackOutcome {
+  return { rBefore: row.rBefore, rAfter: row.rAfter, k: row.k, expected: row.expected, n };
+}
+
+function mustRow(rows: ReadonlyMap<string, KustomRow>, puuid: string): KustomRow {
+  const row = rows.get(puuid);
+  if (row === undefined) throw new Error(`fold: core returned no Kustom row for ${puuid}`);
+  return row;
 }
 
 /** {@link foldGameOutcomes}, the ratings alone: one game's new ratings, by player id. */

@@ -223,8 +223,8 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
     players: WORKED_ROSTER.map((player) => ({
       puuid: workedPuuid(player.name),
       name: player.name,
-      mu: player.mu,
-      sigma: player.sigma,
+      r: player.r,
+      n: 40,
       mainRole: 'mid' as Role,
       secondaryRole: null,
       roleOverride: null,
