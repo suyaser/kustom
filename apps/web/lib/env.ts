@@ -152,11 +152,10 @@ export const AI_PROVIDERS = ['deepseek', 'anthropic'] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 /**
- * The provider used when `AI_PROVIDER` is unset and both keys are present. Stays `anthropic`
- * until DeepSeek passes the eval bar (overall 4.2, engaging 3.0 per feature, refusals at or below
- * Sonnet's); then this one word flips to `deepseek`.
+ * The provider used when `AI_PROVIDER` is unset and both keys are present: `deepseek` since the
+ * owner's final call of 2026-10-04 (Claude stays the fallback when only its key is set).
  */
-export const PREFERRED_AI_PROVIDER: AiProvider = 'anthropic';
+export const PREFERRED_AI_PROVIDER: AiProvider = 'deepseek';
 
 const aiProviderSchema = z.enum(AI_PROVIDERS);
 const apiKeySchema = z.string().trim().min(1);
@@ -172,8 +171,8 @@ export interface AiEnv {
  *   key, AI is off (an explicit choice never falls over to the other provider's bill).
  * - `AI_PROVIDER` set to anything else: AI is off (a typo must not pick a provider).
  * - `AI_PROVIDER` unset or blank: {@link PREFERRED_AI_PROVIDER} if its key is set, else the other
- *   one if its key is set, else off. So adding `DEEPSEEK_API_KEY` switches nothing on its own
- *   while the preference is `anthropic`, and removing a key falls back to the other.
+ *   one if its key is set, else off. So with both keys set DeepSeek writes, and removing a key
+ *   falls back to the other.
  */
 export function readAiEnv(source: Readonly<Record<string, string | undefined>> = process.env): AiEnv | null {
   const keyOf = (provider: AiProvider): string | null => {

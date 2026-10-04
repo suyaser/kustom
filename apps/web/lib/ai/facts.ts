@@ -58,11 +58,12 @@ export interface FactList {
  * ------------------------------------------------------------------------------------------- */
 
 const ROLE_ORDER: readonly RoleValue[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+/** Roles the way a friend says them (round-2 read, 2026-10-04): `bot lane carry (ADC)` was copied verbatim. */
 const ROLE_WORD: Record<RoleValue, string> = {
-  top: 'top lane',
+  top: 'top',
   jungle: 'jungle',
-  mid: 'mid lane',
-  adc: 'bot lane carry (ADC)',
+  mid: 'mid',
+  adc: 'bot lane',
   support: 'support',
 };
 
@@ -612,8 +613,8 @@ export function buildPlayerFacts(input: PlayerFactsInput, optedOut: ReadonlySet<
   const pct = winPercent(input.wins, input.ratedGames);
   if (pct >= 50) overall.push(value('win rate in the group', pct, 'percent'));
   if (input.weekGames > 0) {
-    overall.push(value('games in the week before this report', input.weekGames, 'games'));
-    overall.push(value('wins in the week before this report', input.weekWins, 'wins'));
+    overall.push(value('games over the week', input.weekGames, 'games'));
+    overall.push(value('wins over the week', input.weekWins, 'wins'));
   }
   facts.push({
     token: me,
@@ -689,37 +690,23 @@ export function buildPlayerFacts(input: PlayerFactsInput, optedOut: ReadonlySet<
     facts.push({
       token: me,
       side: null,
-      notes: [
-        'their best game in the week before this report',
-        extras.bestGame.won ? 'it was a win' : 'it was a loss',
-      ],
+      notes: ['their best game of the week', extras.bestGame.won ? 'it was a win' : 'it was a loss'],
       champions: champion === null ? [] : [champion],
       values: [
         value('kills in that game', extras.bestGame.kills, 'kills'),
         value('assists in that game', extras.bestGame.assists, 'assists'),
       ],
-      claims: [claim('max', 'their best game of the week before this report')],
+      claims: [claim('max', 'their best game of the week')],
     });
   }
   if (extras.newChampion !== undefined && knownChampion(extras.newChampion.name) !== null) {
     facts.push({
       token: me,
       side: null,
-      notes: ['new to their pool in the week before this report'],
+      notes: ['new to their pool over the week'],
       champions: [extras.newChampion.name],
-      values: [
-        value(
-          `games on ${extras.newChampion.name} in the week before this report`,
-          extras.newChampion.games,
-          'games',
-        ),
-      ],
-      claims: [
-        claim(
-          'first',
-          `first games on ${extras.newChampion.name} in the group, in the week before this report`,
-        ),
-      ],
+      values: [value(`games on ${extras.newChampion.name} over the week`, extras.newChampion.games, 'games')],
+      claims: [claim('first', `first games on ${extras.newChampion.name} in the group, over the week`)],
     });
   }
   if (extras.roleShift !== undefined && extras.roleShift.weekGames >= ROLE_SHIFT_MIN_GAMES) {
@@ -727,12 +714,12 @@ export function buildPlayerFacts(input: PlayerFactsInput, optedOut: ReadonlySet<
       token: me,
       side: null,
       notes: [
-        `in the week before this report: mostly ${ROLE_WORD[extras.roleShift.weekRole]}, away from their usual ${ROLE_WORD[extras.roleShift.usualRole]}`,
+        `over the week: mostly ${ROLE_WORD[extras.roleShift.weekRole]}, away from their usual ${ROLE_WORD[extras.roleShift.usualRole]}`,
       ],
       champions: [],
       values: [
         value(
-          `games in ${ROLE_WORD[extras.roleShift.weekRole]} in the week before this report`,
+          `games in ${ROLE_WORD[extras.roleShift.weekRole]} over the week`,
           extras.roleShift.weekGames,
           'games',
         ),
@@ -1720,7 +1707,11 @@ function deepseekUserPrompt(list: FactList, retryReason: string | null, recent: 
       ? 'Nothing else: this line is that story alone, told well.'
       : `The one other thing it may carry: ${second}. Nothing else from the facts.`,
     ...(list.kind === 'game'
-      ? ['Leave out the game length and the team kills unless the story is about the game itself.']
+      ? [
+          'Leave out the game length and the team kills unless the story is about the game itself.',
+          // 2026-10-04: the checker refuses a recap that names nobody from the winning team.
+          'Always name someone from the winning team (their token) or the winning side (Blue or Red), even when the story is about a player who lost.',
+        ]
       : list.kind === 'week'
         ? [
             'Also name 1st place with their points and 2nd place with their points, if the story has not already: three or four sentences in all, each with its own player.',

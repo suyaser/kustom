@@ -69,7 +69,7 @@ describe('scoutingInputOf', () => {
     expect(text).toContain('8 games on Lee Sin');
     expect(text).toContain('8 games in jungle');
     expect(text).not.toContain('Ahri');
-    expect(text).not.toContain('mid lane');
+    expect(text).not.toMatch(/games in mid\b/);
   });
 });
 
@@ -431,11 +431,11 @@ describe('design round 1: the report never says this week (it stays up for weeks
     new Set(),
   ) as FactList;
 
-  it('labels the week facts as the week before the report', () => {
+  it('labels the week facts as over the week, never this week (round-2 read: no form labels)', () => {
     const text = list.facts.map(renderFact).join('\n');
-    expect(text).toContain('6 games in the week before this report');
-    expect(text).toContain('4 wins in the week before this report');
-    expect(text).not.toMatch(/this week/);
+    expect(text).toContain('6 games over the week');
+    expect(text).toContain('4 wins over the week');
+    expect(text).not.toMatch(/this week|last week|before this report/);
   });
 
   it.each([
@@ -563,10 +563,11 @@ describe('M16.19 the scouting report leads with what the page does not show', ()
     expect(text).toContain('P2 | the teammate the player this report is about wins with most');
     expect(text).toContain('9 games together on the same team | 7 wins together on the same team');
     expect(text).toContain(
-      'their best game in the week before this report | it was a win | champion Lee Sin | 12 kills in that game',
+      'their best game of the week | it was a win | champion Lee Sin | 12 kills in that game',
     );
-    expect(text).toContain('champion Ornn | 2 games on Ornn in the week before this report');
-    expect(text).toContain('mostly top lane, away from their usual jungle');
+    expect(text).toContain('champion Ornn | 2 games on Ornn over the week');
+    expect(text).toContain('mostly top, away from their usual jungle');
+    expect(text).not.toMatch(/before this report|\(ADC\)/);
     expect(text).not.toMatch(/deaths/);
     // An opted-out partner is no fact and no token.
     const out = buildPlayerFacts(

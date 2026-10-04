@@ -8,7 +8,7 @@ import type { StatsView } from '../stats/types';
 import { type AiReply, createAiClient, fakeReply, mockTransport } from './client';
 import { buildWeekFacts } from './facts';
 import { type GenerateDeps, generateWeekLine, MAX_ATTEMPTS } from './generate';
-import { memoryMeter, memoryMeterState } from './meter';
+import { AI_FEATURES, memoryMeter, memoryMeterState } from './meter';
 import { memoryLineStore } from './store';
 import { runStoryline, type StorylineHookDeps, weekFactsFromPost, weekStartDay } from './storyline';
 
@@ -216,12 +216,12 @@ describe('runStoryline: the Sunday post’s hook', () => {
     }
   });
 
-  it('one Sonnet call per group-week, stored; a second Sunday call makes none', async () => {
+  it('one call per group-week, stored; a second Sunday call makes none', async () => {
     const h = harness();
     expect(await runStoryline(SOURCE, h.deps)).toBe(GOOD);
     expect(await runStoryline(SOURCE, h.deps)).toBe(GOOD);
     expect(h.transport.requests).toHaveLength(1);
-    expect(h.transport.requests[0]?.model).toBe('claude-sonnet-5-5');
+    expect(h.transport.requests[0]?.model).toBe(AI_FEATURES.week.model);
     // Shown all week under Last week: the prompt says the week, never this week.
     expect(h.transport.requests[0]?.system).toContain('never this week');
     expect(JSON.stringify(h.transport.requests[0])).not.toMatch(/games this week|points this week/);

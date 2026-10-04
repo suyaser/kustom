@@ -724,6 +724,27 @@ const FACT_WORDS: ReadonlySet<string> = new Set([
   'upset',
 ]);
 
+/**
+ * After `still`, what makes it a win despite something: `still won`, `still came through`, or a
+ * take-verb with the win as its object (`still took the win`, `still got it`). `still took 8 kills`
+ * on a winner reads as a loss (round-2 read, Gr-15 B: `Zizo still took`).
+ */
+const STILL_WON: ReadonlySet<string> = new Set(['won', 'win', 'wins', 'came']);
+const STILL_TOOK: ReadonlySet<string> = new Set(['got', 'took', 'takes', 'picked', 'grabbed', 'pulled']);
+const STILL_TOOK_OBJECT = /^(it|the win|a win|the game|up the win|out the win|off the win)\b/;
+
+function stillWon(sentence: readonly Tok[], at: number): boolean {
+  const next = sentence[at + 1];
+  if (next?.t !== 'word') return false;
+  if (STILL_WON.has(next.lower)) return true;
+  if (!STILL_TOOK.has(next.lower)) return false;
+  const rest = sentence
+    .slice(at + 2, at + 5)
+    .map((tok) => (tok.t === 'word' ? tok.lower : '_'))
+    .join(' ');
+  return STILL_TOOK_OBJECT.test(rest);
+}
+
 /** Closeness, margin, timing, a doubled streak and a sentence with no fact in it. */
 function checkStoryClaims(list: FactList, sentences: readonly Tok[][]): CheckResult | null {
   const notes = list.facts.flatMap((fact) => (fact.token === null ? fact.notes : []));
@@ -767,9 +788,17 @@ function checkStoryClaims(list: FactList, sentences: readonly Tok[][]): CheckRes
         return reject('forbidden', `"${phrase}" beside a player who won`);
     }
     // `still` on a winner reads as a loss (A/B read): only `still won`, `still got the win`, ...
-    if (list.kind === 'game' && sentence.some((tok) => tok.t === 'ptoken' && winners.has(tok.token))) {
-      if (/\bstill\s+(?!(won|win|wins|got|took|takes|picked|grabbed|came)\b)/.test(words))
+    // Since a recap must name a winner (2026-10-04), `still` belongs to its own player -- the
+    // nearest token before it, else the first after -- so `{P2} won, and {P8} still had` passes.
+    if (list.kind === 'game') {
+      for (let i = 0; i < sentence.length; i += 1) {
+        const tok = sentence[i] as Tok;
+        if (tok.t !== 'word' || tok.lower !== 'still') continue;
+        const owner = ownerAt(sentence, i);
+        if (owner === null || !winners.has(owner)) continue;
+        if (stillWon(sentence, i)) continue;
         return reject('forbidden', '"still" beside a player who won');
+      }
     }
     if (list.kind !== 'game') {
       for (const { phrase, re } of WEEK_TIMING_RES) {
@@ -777,6 +806,136 @@ function checkStoryClaims(list: FactList, sentences: readonly Tok[][]): CheckRes
       }
       if (/\bput\b(?:\s+\S+){0,4}\s+to\s+bed\b/.test(words))
         return reject('forbidden', 'timing inside the week no fact shows: "put ... to bed"');
+    }
+  }
+  return null;
+}
+
+/**
+ * The sides of a game (product's round-2 read, 2026-10-04; any provider). A recap is about the game
+ * the winners won, so it names at least one of them (six loser-only lines in the read); and a near
+ * win is never a fact (`Red nearly took the win` on a close kill count), so no sentence says anyone
+ * nearly won, and no sentence about the losing side says nearly or almost at all.
+ */
+const NEAR_WIN_RE =
+  /\b(nearly|almost)\s+(won|win|wins|took|take|takes|stole|steal|snatched|snatch|pulled|pull|had|got|came|stopped|stop|turned|turn|forced|force|flipped|flip|closed|close|clawed|dragged|made)\b/;
+
+function checkGameSides(list: FactList, sentences: readonly Tok[][]): CheckResult | null {
+  if (list.kind !== 'game') return null;
+  const winners = new Set<string>();
+  const losers = new Set<string>();
+  let winningSide: 100 | 200 | null = null;
+  for (const fact of list.facts) {
+    if (fact.token === null) continue;
+    if (fact.notes.includes('won')) {
+      winners.add(fact.token);
+      if (fact.side !== null) winningSide = fact.side;
+    } else if (fact.notes.includes('lost')) losers.add(fact.token);
+  }
+  const losingWord = winningSide === null ? null : winningSide === 100 ? 'red' : 'blue';
+  const winningWord = winningSide === null ? null : winningSide === 100 ? 'blue' : 'red';
+  // A winner's token, the winning side (`Blue won`) or, on an upset, the underdogs. Only when a
+  // winner is in the facts at all (every winner opted out leaves nobody to name).
+  if (winners.size > 0) {
+    const namesWinner = sentences.some((sentence) =>
+      sentence.some(
+        (tok) =>
+          (tok.t === 'ptoken' && winners.has(tok.token)) ||
+          (tok.t === 'word' &&
+            (tok.lower === winningWord ||
+              (list.upset && (tok.lower === 'underdog' || tok.lower === 'underdogs')))),
+      ),
+    );
+    if (!namesWinner) return reject('shape', 'a game line that names nobody from the winning team');
+  }
+  for (const sentence of sentences) {
+    const words = ` ${sentence.map((tok) => (tok.t === 'word' ? tok.lower : '_')).join(' ')} `;
+    if (NEAR_WIN_RE.test(words)) return reject('forbidden', 'a near win, which no fact shows');
+    const aboutLosers = sentence.some(
+      (tok) =>
+        (tok.t === 'ptoken' && losers.has(tok.token)) || (tok.t === 'word' && tok.lower === losingWord),
+    );
+    if (aboutLosers && /\b(almost|nearly)\b/.test(words))
+      return reject('forbidden', '"almost" or "nearly" about the losing side');
+  }
+  return null;
+}
+
+/**
+ * Fact-label echoes and role verbs (product's round-2 read, 2026-10-04; any provider). A label
+ * copied into the line reads like a form (`the week before this report`, `bot lane carry (ADC)`,
+ * `added Blitzcrank with 1 game on Blitzcrank`); and owning a role (owns, holds, runs, anchors,
+ * rules) is praise a losing or level record there does not earn (`owns top lane` on 24 wins in 58).
+ */
+const ROLE_VERB_RE =
+  /^(own|owns|owned|owning|hold|holds|held|holding|run|runs|ran|running|anchor|anchors|anchored|anchoring|rule|rules|ruled|ruling)$/;
+const ROLE_OF_WORD: Readonly<Record<string, string>> = {
+  top: 'top',
+  jungle: 'jungle',
+  mid: 'mid',
+  middle: 'mid',
+  bot: 'adc',
+  adc: 'adc',
+  carry: 'adc',
+  support: 'support',
+};
+
+/** A scouting role fact's note (`role: bot lane`) as one of {@link ROLE_OF_WORD}'s values. */
+function roleOfNote(note: string): string | null {
+  if (!note.startsWith('role: ')) return null;
+  const first = note.slice('role: '.length).split(' ')[0] ?? '';
+  return ROLE_OF_WORD[first] ?? null;
+}
+
+function checkLabelEchoes(list: FactList, text: string, sentences: readonly Tok[][]): CheckResult | null {
+  if (/\bbefore\s+this\s+report\b/i.test(text))
+    return reject('forbidden', 'a fact label copied: "before this report"');
+  if (/\(\s*adc\s*\)/i.test(text)) return reject('forbidden', 'a fact label copied: "(ADC)"');
+  for (const sentence of sentences) {
+    // `picked up Hecarim with 1 game on Hecarim`: the champion said twice around its own count.
+    for (let i = 0; i + 4 < sentence.length; i += 1) {
+      const [w, n, g, on, champ] = sentence.slice(i, i + 5) as [Tok, Tok, Tok, Tok, Tok];
+      if (
+        w.t === 'word' &&
+        w.lower === 'with' &&
+        n.t === 'num' &&
+        g.t === 'word' &&
+        /^games?$/.test(g.lower) &&
+        on.t === 'word' &&
+        on.lower === 'on' &&
+        champ.t === 'champ' &&
+        sentence.slice(0, i).some((tok) => tok.t === 'champ' && tok.name === champ.name)
+      )
+        return reject('forbidden', `a fact label copied: "with ${n.raw} ${g.raw} on ${champ.name}"`);
+    }
+  }
+  if (list.kind !== 'player') return null;
+  const records = new Map<string, { games: number; wins: number }>();
+  for (const fact of list.facts) {
+    const role = fact.notes.map(roleOfNote).find((r) => r !== null);
+    if (role === undefined || role === null) continue;
+    const games = fact.values.find((v) => v.unit === 'games')?.value;
+    const wins = fact.values.find((v) => v.unit === 'wins')?.value;
+    if (games !== undefined && wins !== undefined) records.set(role, { games, wins });
+  }
+  for (const sentence of sentences) {
+    for (let i = 0; i < sentence.length; i += 1) {
+      const tok = sentence[i] as Tok;
+      if (tok.t !== 'word' || !ROLE_VERB_RE.test(tok.lower)) continue;
+      // The role named within the next five words or numbers (`runs the group through jungle`,
+      // `holds 28 games in support`); a token or a champion ends the reach.
+      for (let j = i + 1; j < sentence.length && j <= i + 5; j += 1) {
+        const ahead = sentence[j] as Tok;
+        if (ahead.t === 'num') continue;
+        if (ahead.t !== 'word') break;
+        const role = ROLE_OF_WORD[ahead.lower];
+        if (role === undefined) continue;
+        const record = records.get(role);
+        // A losing or level record there (or none in the facts) owns nothing.
+        if (record === undefined || record.wins * 2 <= record.games)
+          return reject('forbidden', `"${tok.raw}" ${ahead.raw} without a winning record there`);
+        break;
+      }
     }
   }
   return null;
@@ -1095,7 +1254,7 @@ function checkAbsolutes(list: FactList, sentences: readonly Tok[][]): CheckResul
           (tok.raw === 'Top' && i > 0) ||
           (next?.t === 'word' && /^lane/.test(next.lower)) ||
           (prev?.t === 'word' &&
-            ['in', 'at', 'the', 'from', 'on'].includes(prev.lower) &&
+            ['in', 'at', 'the', 'from', 'on', 'plays', 'played', 'playing'].includes(prev.lower) &&
             next?.t !== 'word');
         if (lane) continue;
       }
@@ -1410,6 +1569,12 @@ export function checkLine(
       }
     }
   }
+
+  // 10. A game's sides, fact-label echoes and owned roles (product's round-2 read, 2026-10-04).
+  const sides = checkGameSides(list, sentences);
+  if (sides !== null) return sides;
+  const echoes = checkLabelEchoes(list, text, sentences);
+  if (echoes !== null) return echoes;
 
   return { ok: true, text };
 }

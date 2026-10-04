@@ -29,6 +29,9 @@ describe('readAiEnv', () => {
   });
 
   it('unset, it takes the preferred provider when both keys are set, else whichever is set', () => {
+    // The owner's final call (2026-10-04): DeepSeek writes when its key is there.
+    expect(PREFERRED_AI_PROVIDER).toBe('deepseek');
+    expect(readAiEnv(BOTH)).toEqual({ provider: 'deepseek', apiKey: 'sk-ds' });
     expect(readAiEnv(BOTH)?.provider).toBe(PREFERRED_AI_PROVIDER);
     expect(readAiEnv({ ...BOTH, AI_PROVIDER: '  ' })?.provider).toBe(PREFERRED_AI_PROVIDER);
     expect(readAiEnv({ DEEPSEEK_API_KEY: ' sk-ds ' })).toEqual({ provider: 'deepseek', apiKey: 'sk-ds' });

@@ -284,7 +284,7 @@ server reads:
 | `DISCORD_REDIRECT_URI` | `https://kustom-delta.vercel.app/api/admin/discord/callback` | **new**, optional but set it so it is exact |
 | `ANTHROPIC_API_KEY` | your Anthropic API key (console.anthropic.com → API keys). Server only, never `NEXT_PUBLIC_`. Scope: **Production only**, not Preview or Development, so a preview deploy never spends | **new** (M16.3), optional: unset or blank, every AI path is silently absent (no call, no line, no error) |
 | `DEEPSEEK_API_KEY` | your DeepSeek API key (platform.deepseek.com → API keys; top up a few dollars first, it is prepaid). Server only, never `NEXT_PUBLIC_`. Scope: **Production only** | **new** (2026-10-04, Premium AI on DeepSeek); data goes to DeepSeek in the PRC (the user's accepted trade-off) |
-| `AI_PROVIDER` | `deepseek` to switch the AI lines to DeepSeek V4 Pro; `anthropic` (or unset with only `ANTHROPIC_API_KEY`) to stay on / fall back to Claude. Scope: **Production only** | **new** (2026-10-04). A typo or a provider without its key turns AI off quietly; an env change needs a redeploy |
+| `AI_PROVIDER` | optional: unset, DeepSeek V4 Pro writes the AI lines when `DEEPSEEK_API_KEY` is set (the default since 2026-10-04), else Claude; `deepseek` or `anthropic` pins one provider (only with its own key). Scope: **Production only** | **new** (2026-10-04). A typo or a provider without its key turns AI off quietly; an env change needs a redeploy |
 
 Not on Vercel: `SUPABASE_AUTH_DISCORD_*` (Supabase CLI, local only), `SUPABASE_LOCAL_*` (tests), `CUSTOMS_NIGHT_API_BASE`
 (companion build only), `KUSTOM_AI_LIVE` (the one-call live test, never in CI or on Vercel). Remove

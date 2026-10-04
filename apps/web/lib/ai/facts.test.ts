@@ -262,7 +262,7 @@ describe('buildPlayerFacts', () => {
     expect(champions).not.toContain('Ahri'); // 3 games
     const text = list.facts.map(renderFact).join('\n');
     expect(text).toContain('30 games in jungle');
-    expect(text).not.toContain('top lane'); // 4 games
+    expect(text).not.toMatch(/games in top\b/); // 4 games
   });
 
   it('prints a win rate only when it is at least half', () => {
@@ -511,13 +511,14 @@ describe('M16.8 the game prompt', () => {
       'someone went N kills and N damage on Jinx.',
     );
     const recent = ['{P1} makes it 5 wins in a row.', '{P4} played 22 minutes without a death.'];
-    const prompt = buildPrompt(game, null, recent);
+    // Claude's user turn (DeepSeek's shows a week its earlier Sundays, tested below).
+    const prompt = { user: userPrompt(game, null, recent, 'anthropic') };
     expect(prompt.user).toContain('- someone makes it N wins in a row.');
     expect(prompt.user).not.toContain('{P1} makes');
     // Only the game line gets the list.
-    expect(buildPrompt(buildWeekFacts(AI_WEEK, new Set()) as FactList, null, recent).user).not.toContain(
-      'someone',
-    );
+    expect(
+      userPrompt(buildWeekFacts(AI_WEEK, new Set()) as FactList, null, recent, 'anthropic'),
+    ).not.toContain('someone');
   });
 });
 
@@ -647,14 +648,16 @@ describe('M16.15 angle rotation', () => {
     const five = withStreak(5);
     expect(storyAngles(five)).toContain('P1: 5 wins in a row');
     expect(storyAngles(five, 'streak')).not.toContain('P1: 5 wins in a row');
-    const prompt = buildPrompt(five, null, ['{P4} makes it 6 wins in a row on Jinx.']);
+    const prompt = { user: userPrompt(five, null, ['{P4} makes it 6 wins in a row on Jinx.'], 'anthropic') };
     expect(prompt.user).toContain(
       'The previous line led with a win streak. Lead with something else this time.',
     );
     expect(prompt.user).not.toContain('- P1: 5 wins in a row');
 
     // A 7-game streak is news even right after another streak line.
-    const again = buildPrompt(withStreak(7), null, ['{P4} makes it 6 wins in a row on Jinx.']);
+    const again = {
+      user: userPrompt(withStreak(7), null, ['{P4} makes it 6 wins in a row on Jinx.'], 'anthropic'),
+    };
     expect(again.user).toContain('- P1: 7 wins in a row');
     expect(again.user).not.toContain('Lead with something else');
   });
@@ -673,7 +676,7 @@ describe('M16.15 angle rotation', () => {
 
   it('an upset is no exception: a second upset line in a row is asked to lead with something else', () => {
     const upset = buildGameFacts({ ...AI_GAME, upset: true }, new Set()) as FactList;
-    const prompt = buildPrompt(upset, null, ['Red took the upset in 27 minutes.']);
+    const prompt = { user: userPrompt(upset, null, ['Red took the upset in 27 minutes.'], 'anthropic') };
     expect(prompt.user).toContain('The previous line led with an upset. Lead with something else this time.');
     expect(prompt.user).not.toContain('- the underdog won: an upset');
   });

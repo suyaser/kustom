@@ -7,7 +7,7 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
 import { readAiGate } from '../premium';
 import { createAiClient, fakeReply, mockTransport } from './client';
 import { type GenerateDeps, gameLineSourcesFor, generateGameLine } from './generate';
-import { dbMeter, readAiBudgetStatus } from './meter';
+import { AI_FEATURES, costUsd, dbMeter, readAiBudgetStatus } from './meter';
 import { dbLineStore, hideLine, loadShownLine, readOptedOut, setAiOptOut } from './store';
 
 /**
@@ -176,10 +176,12 @@ if (stack === null || service === null || !applied) {
         .from('ai_calls')
         .select('outcome, cost_usd, input_tokens, output_tokens')
         .eq('group_id', groupId);
-      // 1,500 in and 30 out on the game line's model: Sonnet 5.5 at $2/$10 since M16.8.
-      expect(data).toEqual([{ outcome: 'ok', cost_usd: 0.0033, input_tokens: 1_500, output_tokens: 30 }]);
+      // 1,500 in and 30 out on the game line's model, at its price (Sonnet 5.5: $0.0033; DeepSeek
+      // V4 Pro since the 2026-10-04 switch: $0.002099).
+      const cost = costUsd(AI_FEATURES.game.model, { inputTokens: 1_500, outputTokens: 30 });
+      expect(data).toEqual([{ outcome: 'ok', cost_usd: cost, input_tokens: 1_500, output_tokens: 30 }]);
       const budget = await readAiBudgetStatus(db, groupId, new Date());
-      expect(budget).toMatchObject({ paused: false, groupSpentUsd: 0.0033, groupCapUsd: 2 });
+      expect(budget).toMatchObject({ paused: false, groupSpentUsd: cost, groupCapUsd: 2 });
     });
 
     it('is idempotent: the same game again, and two companions at once, change no row count', async () => {
