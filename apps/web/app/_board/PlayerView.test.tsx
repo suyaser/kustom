@@ -117,7 +117,9 @@ describe('the public lens', () => {
 
   it('prints a week with its points note and no settling chip', () => {
     draw(workedPlayer('Hana', { window: 'this-week', track: 'week', points: 86, settling: false }));
-    expect(screen.getByText(/Points are the Rating won or lost in this week's games/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Everyone starts each week at zero and only that week's games count\. Rating is/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/settling ·/)).not.toBeInTheDocument();
   });
 });
