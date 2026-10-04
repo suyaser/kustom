@@ -18,6 +18,7 @@ import {
   explanationShown,
   HOW_SUMMARY,
   oddsSentence,
+  PRE_GAME_NO_SPLIT,
   type ReceiptSplit,
   reasonLine,
   receiptChips,
@@ -573,6 +574,105 @@ export function teamsTitle(promoted: PromotedSplit | undefined): string {
 /** `` `top` **Hana** · 1434 ``, plus ` · off main role` on the line of whoever is off it. */
 function teamsLine(player: TeamsPlayer): string {
   return `\`${player.role}\` **${renderName(player.name)}** · ${player.rating}${player.offRole ? ' · off main role' : ''}`;
+}
+
+/* ---------------------------------------------------------------------------
+ * Game on (M21.6)
+ * ------------------------------------------------------------------------- */
+
+/** M21.6, product's copy: the title when the teams that started are not the roll. */
+export const GAME_ON_CUSTOM_TITLE = 'Game on, with your own teams';
+export const GAME_ON_CUSTOM_DESCRIPTION =
+  "These aren't the teams Kustom rolled. Here's who's actually playing.";
+/**
+ * Nobody rolled (owner, 2026-10-05: the post goes out for these too). Product gave no copy for
+ * this kind: the title is the post's name and the line is the receipt's own sentence for teams
+ * Kustom did not pick (`PRE_GAME_NO_SPLIT`, the line Tonight prints for the same game).
+ */
+export const GAME_ON_UNROLLED_TITLE = 'Game on';
+export const GAME_ON_UNROLLED_DESCRIPTION = PRE_GAME_NO_SPLIT;
+
+/**
+ * The odds sentence's rank for teams that are not a split: anything above 1, so a clear favourite
+ * never reads `This was the fairest split these ten allow.` (these teams were nobody's split).
+ */
+const NOT_A_SPLIT_RANK = 2;
+
+export interface GameOnPlayer {
+  puuid: string;
+  name: PlayerName;
+  /** The split's role when this player's side is the split's five, else `null` (lane unknown). */
+  role: Role | null;
+  /** `displayKustom(r)`: the all-time Kustom Rating the kickoff odds were taken over. */
+  rating: number;
+}
+
+export interface GameOnEmbedInput {
+  identity: PostIdentity;
+  /** `custom`: rolled, then the teams changed. `unrolled`: nobody rolled. */
+  kind: 'custom' | 'unrolled';
+  blue: readonly GameOnPlayer[];
+  red: readonly GameOnPlayer[];
+  /** The kickoff odds, or `null` for a game whose odds are not shown (not rated). */
+  blueWinProb: number | null;
+  /** The lobby's lock for the rule line, as on the teams post. */
+  mode?: TeamsModeInput | null | undefined;
+  modeUrl?: string | undefined;
+  /** E1's title link: the group's tonight page. */
+  url?: string | undefined;
+}
+
+/**
+ * The `Game on` post (M21.6): a new message when the game starts with teams Kustom did not roll.
+ * E1 amber (title, the one-line why, then the teams post's header: rule line, labels, bar,
+ * sentence, from the kickoff odds), E2 `🟦 BLUE`, E3 `🟥 RED`. A side with roles (the split's five)
+ * is in lane order; a side without is in rating order, highest first. Ten names and the longest
+ * rule line are far below every limit, so nothing here is shed; the guard still runs.
+ */
+export function gameOnEmbed(input: GameOnEmbedInput): WebhookPayload {
+  const custom = input.kind === 'custom';
+  const modeLine =
+    input.mode === undefined || input.mode === null ? null : teamsModeLine(input.mode, input.modeUrl);
+  const description = [
+    custom ? GAME_ON_CUSTOM_DESCRIPTION : GAME_ON_UNROLLED_DESCRIPTION,
+    ...(modeLine === null ? [] : [modeLine]),
+    ...(input.blueWinProb === null
+      ? []
+      : [
+          oddsLabels(input.blueWinProb),
+          oddsBar(input.blueWinProb),
+          oddsSentence(input.blueWinProb, NOT_A_SPLIT_RANK),
+        ]),
+  ];
+  const standing = input.mode?.standing;
+  const header: DraftEmbed = withAuthor(
+    {
+      color: ACCENT_COLOR,
+      title: custom ? GAME_ON_CUSTOM_TITLE : GAME_ON_UNROLLED_TITLE,
+      ...(input.url === undefined ? {} : { url: input.url }),
+      description,
+    },
+    authorOf(input.identity, standing === 'fearless' ? FEARLESS_TITLE : undefined),
+  );
+  return message(input.identity, [
+    header,
+    sideEmbed(BLUE_COLOR, BLUE_SIDE_TITLE, gameOnOrder(input.blue).map(gameOnLine)),
+    sideEmbed(RED_COLOR, RED_SIDE_TITLE, gameOnOrder(input.red).map(gameOnLine)),
+  ]);
+}
+
+/** Lane order for a side with roles; rating order (then puuid) for one without. */
+function gameOnOrder(side: readonly GameOnPlayer[]): GameOnPlayer[] {
+  if (side.every((player) => player.role !== null)) return inLaneOrder(side);
+  return [...side].sort(
+    (a, b) => b.rating - a.rating || (a.puuid < b.puuid ? -1 : a.puuid > b.puuid ? 1 : 0),
+  );
+}
+
+/** `` `top` **Hana** · 1434 `` with a role, `**Hana** · 1434` without. */
+function gameOnLine(player: GameOnPlayer): string {
+  const name = `**${renderName(player.name)}** · ${player.rating}`;
+  return player.role === null ? name : `\`${player.role}\` ${name}`;
 }
 
 /* ---------------------------------------------------------------------------
