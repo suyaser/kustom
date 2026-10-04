@@ -148,18 +148,23 @@ export async function loadGameStamp(client: PublicClient, gameId: string): Promi
 export async function loadModeFacts(
   client: PublicClient,
   groupId: string,
-): Promise<{ standing: { mode: GroupMode; since: string | null }; state: ModeState | null }> {
-  const { data, error } = await client
-    .from('group_modes')
-    .select('mode, updated_at, pending_rule, pending_class_tag, rated_override, version')
-    .eq('group_id', groupId)
-    .maybeSingle();
+): Promise<{
+  standing: { mode: GroupMode; since: string | null };
+  state: ModeState | null;
+  failed: boolean;
+}> {
+  // The one read of the row per render (`readGroupModeRow`, audit defect 10).
+  const { data, error } = await readGroupModeRow(client, groupId);
   if (error) {
     console.error('mode: reading the group mode failed', error.message);
-    return { standing: { mode: DEFAULT_GROUP_MODE, since: null }, state: null };
+    return { standing: { mode: DEFAULT_GROUP_MODE, since: null }, state: null, failed: true };
   }
-  if (data === null) return { standing: { mode: NEW_GROUP_MODE, since: null }, state: null };
-  return { standing: { mode: parseGroupMode(data.mode), since: data.updated_at }, state: stateFromRow(data) };
+  if (data === null) return { standing: { mode: NEW_GROUP_MODE, since: null }, state: null, failed: false };
+  return {
+    standing: { mode: parseGroupMode(data.mode), since: data.updated_at },
+    state: stateFromRow(data),
+    failed: false,
+  };
 }
 
 /** `games.created_at` of the group's newest game: when the last game landed, or null. */

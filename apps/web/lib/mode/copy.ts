@@ -85,3 +85,9 @@ export const PANEL_ADMIN_END = '.';
 export function modeTitle(name: GroupMode | string): string {
   return `${name === 'normal' || name === 'fearless' ? MODE_NAMES[name] : name} | Kustom`;
 }
+
+/**
+ * [NEW COPY] The Mode card when the `group_modes` read failed (audit, M19.13): the card keeps the
+ * last mode it had, or the stand-in on a first paint, and never claims it is the group's.
+ */
+export const MODE_READ_FAILED = "Couldn't read the mode just now.";

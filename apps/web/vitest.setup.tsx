@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import { resetModeStoreForTests } from '@/lib/mode/clientStore';
+import { resetControlsForTests } from '@/lib/mode/controlsStore';
 
 /**
  * Setup for the `dom` project only (`vitest.config.ts`): jest-dom's matchers and one unmount
@@ -15,4 +16,5 @@ import { resetModeStoreForTests } from '@/lib/mode/clientStore';
 afterEach(() => {
   cleanup();
   resetModeStoreForTests();
+  resetControlsForTests();
 });

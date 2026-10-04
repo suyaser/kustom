@@ -5,9 +5,9 @@ import { applyModeRow } from '@/lib/mode/clientStore';
 import { MODE_APPLIES_NEXT_GAME, MODE_CHANGE_FAILED } from '@/lib/mode/copy';
 import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
 import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
+import { type HarnessProps, ModeControlsHarness as ModeControls } from '@/lib/testing/ModeControlsHarness';
 import { ADMIN_VIEWER, type TonightFixtureOptions, tonightStateFixture } from '../_tonight/fixtures';
 import { TonightView } from '../_tonight/TonightView';
-import { ModeControls, type ModeControlsProps } from './ModeControls';
 
 /**
  * The Rated switch on Tonight's admin row (prod fix, 2026-10-04): "I tap it and nothing changes".
@@ -19,15 +19,17 @@ import { ModeControls, type ModeControlsProps } from './ModeControls';
  * props after a tap unless they say so: the switch must answer on its own.
  */
 
-const PROPS: ModeControlsProps = {
+/** The card as the page rendered it: Fearless, the switch at its default (rated), version 4. */
+const SERVER = { standing: 'fearless', pending: null, ratedOverride: null, version: 4 } as const;
+const at = (version: number, ratedOverride: boolean | null = null) => ({ ...SERVER, version, ratedOverride });
+
+const PROPS: HarnessProps = {
   groupId: ORIGINAL_GROUP.id,
-  mode: 'fearless',
   banned: 0,
   inGame: false,
   redirectTo: '/g/customs',
   resetConfirmHref: '/g/customs/mode/reset',
-  nextRated: true,
-  version: 4,
+  server: SERVER,
 };
 
 function answer(rated: boolean, version: number): Response {
@@ -192,19 +194,19 @@ describe('the page re-read and the switch agree', () => {
     fireEvent.click(toggle());
     await net.release(answer(false, 5));
     // A Realtime re-read that started before the write: still version 4, still rated.
-    rerender(<ModeControls {...PROPS} nextRated={true} version={4} />);
+    rerender(<ModeControls {...PROPS} server={at(4)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     // The re-read of our own write.
-    rerender(<ModeControls {...PROPS} nextRated={false} version={5} />);
+    rerender(<ModeControls {...PROPS} server={at(5, false)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     // Another admin picked a mode, which resets the switch to the default.
-    rerender(<ModeControls {...PROPS} nextRated={true} version={6} />);
+    rerender(<ModeControls {...PROPS} server={at(6)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'true');
   });
 
   it('with no write of its own, the switch is simply the page', () => {
     const { rerender } = render(<ModeControls {...PROPS} />);
-    rerender(<ModeControls {...PROPS} nextRated={false} version={5} />);
+    rerender(<ModeControls {...PROPS} server={at(5, false)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     expect(toggle()).toHaveAccessibleDescription(RATED_OFF);
   });

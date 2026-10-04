@@ -8,6 +8,7 @@ import type { FearlessChampion } from '@/lib/fearless/types';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { MODE_ANNOUNCEMENTS, MODE_CHANGE_FAILED } from '@/lib/mode/copy';
 import { parseLane } from '@/lib/mode/view';
+import { ModeControlsHarness } from '@/lib/testing/ModeControlsHarness';
 import { Announcer } from '../_tonight/Announcer';
 import { demoPool } from '../_tonight/fixtures';
 import { FearlessPool } from './FearlessPool';
@@ -455,11 +456,26 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
         ({
           ok: true,
           status: 200,
-          json: async () => ({ ok: true, mode: 'fearless', changed: true }),
+          json: async () => ({
+            ok: true,
+            mode: 'fearless',
+            changed: true,
+            next: { standing: 'fearless', rule: null, rated: false, ratedOverride: false, version: 5 },
+          }),
         }) as Response,
     );
     vi.stubGlobal('fetch', fetchMock);
-    draw({ nextRated: true });
+    // As the card feeds it (M19.13): the switch is the client mode store's, which the answer moves.
+    render(
+      <ModeControlsHarness
+        groupId={ORIGINAL_GROUP.id}
+        banned={3}
+        inGame={false}
+        redirectTo="/g/customs"
+        resetConfirmHref="/g/customs/mode/reset"
+        server={{ standing: 'fearless', pending: null, ratedOverride: null, version: 4 }}
+      />,
+    );
     const toggle = screen.getByRole('switch', { name: 'Rated' }) as HTMLButtonElement;
     expect(toggle).toHaveAttribute('aria-checked', 'true');
     expect(toggle).toHaveAccessibleDescription('Next game is rated.');

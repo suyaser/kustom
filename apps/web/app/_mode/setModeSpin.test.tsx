@@ -7,8 +7,8 @@ import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
 import { SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
+import { type HarnessProps, ModeControlsHarness as ModeControls } from '@/lib/testing/ModeControlsHarness';
 import { Announcer } from '../_tonight/Announcer';
-import { ModeControls, type ModeControlsProps } from './ModeControls';
 
 /**
  * Set mode and Spin answer at once (QA fix 2026-10-04, the Rated switch's pattern).
@@ -19,16 +19,16 @@ import { ModeControls, type ModeControlsProps } from './ModeControls';
  * tests never re-render with new props after a tap unless they say so (the delayed refresh).
  */
 
-const PROPS: ModeControlsProps = {
+/** The card as the page rendered it: Fearless, nothing pending, rated, version 4. */
+const SERVER = { standing: 'fearless', pending: null, ratedOverride: null, version: 4 } as const;
+
+const PROPS: HarnessProps = {
   groupId: ORIGINAL_GROUP.id,
-  mode: 'fearless',
   banned: 0,
   inGame: false,
   redirectTo: '/g/customs',
   resetConfirmHref: '/g/customs/mode/reset',
-  selected: 'fearless',
-  nextRated: true,
-  version: 4,
+  server: SERVER,
 };
 
 function answer(
@@ -151,12 +151,17 @@ describe('Set mode answers on its own', () => {
     fireEvent.change(select(), { target: { value: 'normal' } });
     fireEvent.click(setButton() as HTMLElement);
     await net.release(answer({ rule: null, rated: true, version: 5, standing: 'normal' }));
-    rerender(<ModeControls {...PROPS} selected="fearless" version={4} />);
+    rerender(<ModeControls {...PROPS} server={SERVER} />);
     expect(select().value).toBe('normal');
     expect(setButton()).toBeNull();
-    rerender(<ModeControls {...PROPS} mode="normal" selected="normal" version={5} />);
+    rerender(<ModeControls {...PROPS} server={{ ...SERVER, standing: 'normal', version: 5 }} />);
     expect(select().value).toBe('normal');
-    rerender(<ModeControls {...PROPS} mode="normal" selected="class:Mage" version={6} />);
+    rerender(
+      <ModeControls
+        {...PROPS}
+        server={{ ...SERVER, standing: 'normal', pending: { id: 'class', tag: 'Mage' }, version: 6 }}
+      />,
+    );
     expect(select().value).toBe('class:Mage');
     expect(setButton()).toBeNull();
   });
@@ -208,7 +213,9 @@ describe('Spin is quiet during its own reveal', () => {
     expect(select().value).toBe('class:Mage');
 
     // The page re-reads the spin; the reveal cycles; then Spin is back.
-    rerender(<ModeControls {...PROPS} selected="class:Mage" version={5} />);
+    rerender(
+      <ModeControls {...PROPS} server={{ ...SERVER, pending: { id: 'class', tag: 'Mage' }, version: 5 }} />,
+    );
     await act(async () => {
       vi.advanceTimersByTime(SPIN_CYCLE_MS - 1);
     });
@@ -310,7 +317,7 @@ describe('said once, by the Announcer (QA fix 2026-10-04)', () => {
     lockedRule: null,
     lobbyStatus: null,
   };
-  const page = (props: Partial<ModeControlsProps>, speech: ModeSpeech) => (
+  const page = (props: Partial<HarnessProps>, speech: ModeSpeech) => (
     <>
       <Announcer text="" mode="fearless" speech={speech} />
       <ModeControls {...PROPS} {...props} />
@@ -331,7 +338,7 @@ describe('said once, by the Announcer (QA fix 2026-10-04)', () => {
     expect(live()).toHaveLength(1);
     rerender(
       page(
-        { selected: 'class:Tank', nextRated: false, version: 5 },
+        { server: { ...SERVER, pending: { id: 'class', tag: 'Tank' }, version: 5 } },
         { ...before, pending: { id: 'class', tag: 'Tank' }, nextRated: false },
       ),
     );
@@ -355,7 +362,9 @@ describe('said once, by the Announcer (QA fix 2026-10-04)', () => {
       }),
     } as Response);
     expect(live()).toHaveLength(1);
-    rerender(page({ nextRated: false, version: 5 }, { ...before, nextRated: false }));
+    rerender(
+      page({ server: { ...SERVER, ratedOverride: false, version: 5 } }, { ...before, nextRated: false }),
+    );
     expect(live()[0]).toHaveTextContent('Next game is not rated.');
     expect(outcome()).toHaveTextContent('Next game is not rated.');
   });

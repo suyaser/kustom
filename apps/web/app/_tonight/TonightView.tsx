@@ -15,13 +15,14 @@ import {
   showsFearlessPool,
   tooFewOpen,
   unplayableRules,
-  upcomingState,
 } from '@/lib/mode/card';
+import { requeueable } from '@/lib/mode/cardView';
 import { championTable } from '@/lib/mode/champions';
 import type { ModeSlice } from '@/lib/mode/clientStore';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
 import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, ruleLaneLabel } from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
+import { missingState } from '@/lib/mode/state';
 import { bannedByGame, normalJustNow, normalNoteFactsOf } from '@/lib/mode/view';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { groupHome, groupHref } from '@/lib/nav';
@@ -172,7 +173,8 @@ export function TonightView(props: TonightViewProps) {
           : 'idle';
   // M15.5: what the card is about (the lock after Roll, else the next game), one answer for the
   // card, the answer band, the strip's host line and the announcer.
-  const modeState = snapshot.modeState ?? { standing: mode, pending: null, ratedOverride: null, version: 0 };
+  // A missing row is a new group (`missingState`); a failed read is flagged (`modeReadFailed`).
+  const modeState = snapshot.modeState ?? missingState();
   const bans = snapshot.fearless.champions.map((champion) => champion.id);
   const table = championTable();
   const cardView = modeCardView({
@@ -182,8 +184,6 @@ export function TonightView(props: TonightViewProps) {
     bans,
     table,
   });
-  // The admin controls are about the next game: after Roll, the card this game's record leaves.
-  const upcoming = upcomingState(modeState, snapshot.lobby?.status ?? null, snapshot.lobby?.lock ?? null);
   const speech: ModeSpeech = {
     standing: modeState.standing,
     pending: modeState.pending,
@@ -205,6 +205,7 @@ export function TonightView(props: TonightViewProps) {
     classFacts: classFacts(bans, table),
     unplayable: unplayableRules(bans, table),
     normalFacts: normalNoteFactsOf(snapshot),
+    readFailed: snapshot.modeReadFailed === true,
   };
   // Everyone, every state, empty group included (design ruling on §8.2, 2026-10-03).
   const modeCard = (
@@ -232,10 +233,11 @@ export function TonightView(props: TonightViewProps) {
         isAdmin
           ? {
               inGame: cardView.locked || variant === 'in-game',
-              selected: selectValue(upcoming),
-              tooFew: tooFewOpen(upcoming, bans, table),
-              nextRated: nextGame(upcoming).rated,
-              version: modeState.version,
+              requeue: requeueable(modeState, snapshot.lobby?.status ?? null, snapshot.lobby?.lock ?? null),
+              // What is set, before and after Roll (owner bug 1): never the post-record prediction.
+              selected: selectValue(modeState),
+              tooFew: tooFewOpen(modeState, bans, table),
+              nextRated: nextGame(modeState).rated,
               redirectTo: groupHome(group),
               notice: props.modeNotice?.notice ?? null,
               error: props.modeNotice?.error ?? null,
@@ -322,6 +324,7 @@ export function TonightView(props: TonightViewProps) {
             slice: modeSlice,
             lockedRule: speech.lockedRule,
             lobbyStatus: speech.lobbyStatus,
+            readFailed: snapshot.modeReadFailed === true,
           }}
         />
 
@@ -345,7 +348,7 @@ export function TonightView(props: TonightViewProps) {
             lobbyStart={props.lobbyStart ?? null}
             wouldSitOut={props.wouldSitOut ?? null}
             rolls={rolls !== null}
-            mirror={{ groupId: group.id, slice: modeSlice }}
+            mirror={{ groupId: group.id, slice: modeSlice, readFailed: snapshot.modeReadFailed === true }}
           />
         ) : null}
         {state.kind === 'filling' ? modeCard : null}
@@ -546,7 +549,7 @@ function Filling({
    * While the next game's rule is mirror, this open lobby may be Draft Pick (QA fix 2026-10-04):
    * the host line shows. Read from the client mode store (M19.13), so it follows the card.
    */
-  mirror: { groupId: string; slice: ModeSlice };
+  mirror: { groupId: string; slice: ModeSlice; readFailed: boolean };
 }) {
   const stage = rollStage(lobby);
   const sitLine = rolls ? null : sitOutPreview(lobby, wouldSitOut);
@@ -558,7 +561,7 @@ function Filling({
       {/* `Roll teams` is in the strip (M14.41); its hint stays here for whoever waits on it. */}
       {stage === 'waiting' ? <p className="text-sm text-muted-foreground">{ROLL_HINT}</p> : null}
       {linked ? (
-        <MirrorNext groupId={mirror.groupId} slice={mirror.slice}>
+        <MirrorNext groupId={mirror.groupId} slice={mirror.slice} readFailed={mirror.readFailed}>
           <MirrorFillingLine />
         </MirrorNext>
       ) : null}

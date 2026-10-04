@@ -83,6 +83,12 @@ export function stampColumns(input: StampInput): GameModeColumns {
  * user, 2026-10-04); a game that does not consume (remake, ARAM, no lock) changes nothing.
  * Idempotent: a second companion's post finds nothing left to clear and writes nothing.
  *
+ * **A lost compare-and-set re-reads and tries again** (audit defect 3): an admin who writes while
+ * the eog lands moves the version, and one try used to leave the used-up rule pending, so the next
+ * game silently repeated it. Each attempt applies `afterRecord` to the state it just read, so the
+ * admin's write is respected (a re-queue survives, a Rated flip still uses the rule up). A loss on
+ * every attempt is logged and answers false; the companion's retry runs it again.
+ *
  * Returns true when it cleared something.
  */
 export async function clearAfterRecord(
@@ -90,9 +96,19 @@ export async function clearAfterRecord(
   groupId: string,
   game: RecordedGame,
 ): Promise<boolean> {
-  const current = await store.read(groupId);
-  const next = afterRecord(current.state, game);
-  if (next === current.state) return false;
-  // No admin here: `set_by` keeps the last admin's id.
-  return store.write(groupId, current, next, {});
+  for (let attempt = 0; attempt < CLEAR_ATTEMPTS; attempt += 1) {
+    const current = await store.read(groupId);
+    const next = afterRecord(current.state, game);
+    if (next === current.state) return false;
+    // No admin here: `set_by` keeps the last admin's id.
+    if (await store.write(groupId, current, next, {})) return true;
+  }
+  console.error(
+    `mode: the rule clear after a recorded game lost the compare-and-set ${CLEAR_ATTEMPTS} times in a row`,
+    { groupId },
+  );
+  return false;
 }
+
+/** Re-reads after a lost compare-and-set before giving up (an admin writing during the eog). */
+export const CLEAR_ATTEMPTS = 5;

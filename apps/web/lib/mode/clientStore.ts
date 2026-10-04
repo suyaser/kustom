@@ -142,6 +142,7 @@ export function confirmedVersion(groupId: string): number | null {
 /** Tests only: forget every group. */
 export function resetModeStoreForTests(): void {
   entries = new Map();
+  lastGood.clear();
   for (const listener of listeners) listener();
 }
 
@@ -209,9 +210,30 @@ const EMPTY_MAP: ReadonlyMap<string, Entry> = new Map();
  * `withTap: false`, a tap still in flight is left out (the announcer says only what a row or an
  * answer confirmed).
  */
-export function useModeSlice(groupId: string, server: ModeSlice, withTap = true): MergedSlice {
+export function useModeSlice(
+  groupId: string,
+  server: ModeSlice,
+  withTap = true,
+  readFailed = false,
+): MergedSlice {
   const store = useSyncExternalStore(subscribe, getEntries, getServerEntries);
-  return mergeSlice(server, groupId, store, withTap);
+  return mergeSlice(lastGoodServer(groupId, server, readFailed), groupId, store, withTap);
+}
+
+/**
+ * The last render whose `group_modes` read worked, per group (audit: a failed read must not show
+ * Normal). A render whose read failed carries a stand-in state; the card keeps the last good one
+ * instead (and says it could not read the mode). Written only by renders that read it, idempotent.
+ */
+const lastGood = new Map<string, ModeSlice>();
+
+export function lastGoodServer(groupId: string, server: ModeSlice, readFailed: boolean): ModeSlice {
+  if (!readFailed) {
+    const held = lastGood.get(groupId);
+    if (held === undefined || held.state.version <= server.state.version) lastGood.set(groupId, server);
+    return server;
+  }
+  return lastGood.get(groupId) ?? server;
 }
 
 /** Pure: a rule key the store can hold, for a row's `pending_rule` / `pending_class_tag`. */

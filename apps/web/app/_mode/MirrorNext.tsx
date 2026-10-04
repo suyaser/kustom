@@ -11,12 +11,14 @@ import { type ModeSlice, useModeSlice } from '@/lib/mode/clientStore';
 export function MirrorNext({
   groupId,
   slice,
+  readFailed = false,
   children,
 }: {
   groupId: string;
   slice: ModeSlice;
+  readFailed?: boolean;
   children: ReactNode;
 }) {
-  const merged = useModeSlice(groupId, slice);
+  const merged = useModeSlice(groupId, slice, true, readFailed);
   return merged.state.pending?.id === 'mirror' ? children : null;
 }

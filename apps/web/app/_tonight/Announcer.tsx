@@ -28,6 +28,8 @@ export interface AnnouncerLive {
   /** The rule locked on tonight's live lobby (balanced, in game), or null. */
   lockedRule: RuleOption | null;
   lobbyStatus: string | null;
+  /** The render's `group_modes` read failed: keep the last good state, never announce a stand-in. */
+  readFailed?: boolean | undefined;
 }
 
 const NO_SLICE: ModeSlice = {
@@ -48,7 +50,7 @@ export function Announcer({
   speech?: ModeSpeech | undefined;
   live?: AnnouncerLive | undefined;
 }) {
-  const merged = useModeSlice(live?.groupId ?? '', live?.slice ?? NO_SLICE, false);
+  const merged = useModeSlice(live?.groupId ?? '', live?.slice ?? NO_SLICE, false, live?.readFailed === true);
   const mode: GroupMode = live === undefined ? serverMode : merged.state.standing;
   const speech: ModeSpeech | undefined =
     live === undefined

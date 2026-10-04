@@ -114,8 +114,9 @@ export function modeCardViewFrom(input: ModeCardViewInput): ModeCardView {
 /**
  * The card as it will be for the next game: after Roll, what this game's record will leave
  * (core's `afterRecord`: the locked rule used up unless an admin queued something since, a
- * Rated-only flip kept); before Roll, the card itself. The admin controls' select and switch read
- * this, so they are about the same game as `Next game: …`.
+ * Rated-only flip kept); before Roll, the card itself. Text only: the admins' `Next game: …` line.
+ * The controls never read it (owner bug 1: a prediction there made the select read Normal after
+ * Roll); they show what is set.
  */
 export function upcomingState(
   state: ModeState,
@@ -153,6 +154,22 @@ function nextLineFor(upcoming: ModeState, lock: LockedMode): string {
  */
 export function showsFearlessPool(view: Pick<ModeCardView, 'shown' | 'standing'>): boolean {
   return view.shown.id === 'fearless' || (view.shown.id === 'mirror' && view.standing === 'fearless');
+}
+
+/**
+ * After Roll, whether picking the pending rule again would queue it for the next game too
+ * (owner bug 3): the lobby locked that very rule and nothing changed since, so the record would use
+ * it up. The select already shows it, so the controls offer `Set mode` for it anyway.
+ */
+export function requeueable(
+  state: ModeState,
+  lobbyStatus: LobbyStatusValue | null,
+  lock: LockedMode | null,
+): boolean {
+  const live = lobbyStatus !== null && LOCKED_STATUSES.has(lobbyStatus);
+  if (!live || lock === null || lock.version !== state.version || state.pending === null) return false;
+  const locked = ruleOf(lock.mode);
+  return locked !== null && ruleKey(locked) === ruleKey(state.pending);
 }
 
 /** The select's value for the next game: a standing mode or a rule key (`class:Tank`). */

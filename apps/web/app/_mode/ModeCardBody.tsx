@@ -27,11 +27,11 @@ import {
   modeCardViewFrom,
   type NormalNoteFacts,
   normalNote,
+  requeueable,
   selectValue,
   showsFearlessPool,
   tooFewFrom,
   type UnplayableRules,
-  upcomingState,
 } from '@/lib/mode/cardView';
 import { type ModeSlice, poolClearedSince, useModeSlice } from '@/lib/mode/clientStore';
 import {
@@ -40,6 +40,7 @@ import {
   MODE_CARD_NEXT_GAME,
   MODE_NOW_NORMAL_BODY,
   MODE_NOW_NORMAL_TITLE,
+  MODE_READ_FAILED,
   NORMAL_STATUS,
 } from '@/lib/mode/copy';
 import { MODE_CARD_LINK_ID, modePanelHref, modeResetConfirmHref } from '@/lib/mode/hrefs';
@@ -97,6 +98,8 @@ export interface ModeCardLive {
   classFacts: ClassFacts;
   unplayable: UnplayableRules;
   normalFacts: NormalNoteFacts;
+  /** The render's `group_modes` read failed: `slice` is a stand-in (keep the last good one). */
+  readFailed?: boolean | undefined;
 }
 
 export interface ModeCardBodyProps {
@@ -125,7 +128,8 @@ const NO_SLICE: ModeSlice = {
 
 export function ModeCardBody(props: ModeCardBodyProps) {
   const { group, variant, viewerLane, viewerSide, live } = props;
-  const merged = useModeSlice(group.id, live?.slice ?? NO_SLICE);
+  const readFailed = live?.readFailed === true;
+  const merged = useModeSlice(group.id, live?.slice ?? NO_SLICE, true, readFailed);
   const poolCleared = live !== null && poolClearedSince(live.slice, merged);
   const view: ModeCardView =
     live === null
@@ -146,17 +150,18 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           pending: merged.state.pending,
           since: merged.updatedAt,
         });
-  let controls = props.controls;
+  // A failed read hides the controls: nobody sets a mode from a picture the page could not read.
+  let controls = readFailed ? null : props.controls;
   if (controls !== null && live !== null) {
-    // The controls are about the next game: after Roll, the card this game's record leaves.
-    const upcoming = upcomingState(merged.state, live.lobbyStatus, live.lock);
+    // The controls show what is set (the pending rule, else the standing mode), before and after
+    // Roll: never a prediction of what the record will leave (audit, owner bug 1).
     controls = {
       ...controls,
       inGame: view.locked || variant === 'in-game',
-      selected: selectValue(upcoming),
-      tooFew: tooFewFrom(upcoming, live.unplayable, poolCleared),
-      nextRated: nextGame(upcoming).rated,
-      version: merged.confirmedVersion,
+      requeue: requeueable(merged.state, live.lobbyStatus, live.lock),
+      selected: selectValue(merged.state),
+      tooFew: tooFewFrom(merged.state, live.unplayable, poolCleared),
+      nextRated: nextGame(merged.state).rated,
     };
   }
 
@@ -225,6 +230,14 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       {showTen ? bannedNext.node : null}
       {bannedNothing ? (
         <p className="border-b border-border px-(--card-pad) py-4 text-base">{FEARLESS_NOT_RATED_FINISHED}</p>
+      ) : null}
+      {readFailed ? (
+        <p
+          data-slot="mode-read-failed"
+          className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm"
+        >
+          {MODE_READ_FAILED}
+        </p>
       ) : null}
       {/* Design round 1: the didn't-apply note leads the card, before the mode it fell back to. */}
       {view.didntApply ? (
