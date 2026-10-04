@@ -184,6 +184,7 @@ release** on it, or don't do it.
 
 - **1.0.1**: default API origin fix. 1.0.0's installer defaulted to `http://localhost:3000` (the build never set
   `CUSTOMS_NIGHT_API_BASE`), so a fresh install could not pair. 1.0.1 bakes in `https://playkustom.com` (the owner's domain, 2026-10-04); `kustom-delta.vercel.app` stays served for older configs.
+  A saved `apiBase` of `https://kustom-delta.vercel.app` (now a 308 redirect, which the transport never follows) is replaced by `https://playkustom.com` on load and rewritten once in `config.json` (`LEGACY_API_BASES` in `config/mod.rs`); other origins are untouched.
   A 1.0.0 install updates to it through the updater endpoint in `tauri.conf.json` (kustom-releases
   `latest.json`), which is independent of the API origin. Stuck-on-1.0.0 workaround: create
   `%APPDATA%\customs-night\config.json` containing `{"apiBase":"https://kustom-delta.vercel.app"}`, restart.
