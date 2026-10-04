@@ -1,4 +1,5 @@
-import { WORDMARK } from '@/lib/nav';
+// Not `@/lib/nav`: that module's copy imports would ride into every page's first load (M19.18).
+import { WORDMARK } from '@/lib/shellCopy';
 
 /**
  * The KUSTOM lockup's mark (05-design.md 5.11, 7.1): a 5x22 `--primary-text` bar, the lamp, then the

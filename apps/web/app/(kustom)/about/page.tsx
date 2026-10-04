@@ -7,6 +7,10 @@ import { kustomShareMetadata } from '@/lib/og/meta';
 /**
  * `/about` (M14.24; STRATEGY §2.2): the landing page, and it never redirects anybody. Every group
  * page's footer links here as `What's Kustom?`.
+ *
+ * Still dynamic after M19.18, unlike `/download` and `/how`: the `Back to <Group>` bar comes from the
+ * `kustom_group` cookie (HttpOnly, so no client island can read it) plus a group read, and the
+ * `Create your group` action and the `Free.` line differ for a signed-in visitor.
  */
 export const dynamic = 'force-dynamic';
 
