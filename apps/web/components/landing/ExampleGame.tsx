@@ -107,7 +107,7 @@ export function ExampleGame() {
           <tbody>
             {game.lanes.map((lane) => (
               <tr key={lane.role} className="border-t border-border">
-                <td className="py-2 pe-2 lg:pe-3">
+                <td className="py-2 pe-[8px] lg:pe-[12px]">
                   <Seat seat={lane.blue} side="blue" />
                 </td>
                 <th scope="row" className="py-2 font-normal">
@@ -116,7 +116,7 @@ export function ExampleGame() {
                     <span className="font-mono text-2xs font-stretch-75%">{lane.role}</span>
                   </span>
                 </th>
-                <td className="py-2 ps-2 lg:ps-3">
+                <td className="py-2 ps-[8px] lg:ps-[12px]">
                   <Seat seat={lane.red} side="red" />
                 </td>
               </tr>
@@ -139,7 +139,7 @@ function Seat({ seat, side }: { seat: ExampleSeat; side: 'blue' | 'red' }) {
   return (
     <span
       className={cn(
-        'grid items-center gap-x-2 gap-y-0.5 lg:gap-x-3',
+        'grid items-center gap-x-[8px] gap-y-0.5 lg:gap-x-[12px]',
         blue ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)_auto]',
       )}
     >
@@ -161,7 +161,7 @@ function Seat({ seat, side }: { seat: ExampleSeat; side: 'blue' | 'red' }) {
         decoding="async"
         fetchPriority="low"
         className={cn(
-          'row-span-2 row-start-1 block size-10 overflow-hidden rounded-chip bg-raised object-cover md:size-12 lg:size-14',
+          'row-span-2 row-start-1 block size-[40px] overflow-hidden rounded-chip bg-raised object-cover md:size-[48px] lg:size-[56px]',
           blue ? 'col-start-1' : 'col-start-2',
         )}
       />
