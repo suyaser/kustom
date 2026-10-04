@@ -54,6 +54,13 @@ vi.mock('../stats/load', () => ({
   loadStats: (...args: unknown[]) => loadStats(...args),
 }));
 
+/** M14.79: whether the closed week has a picture worth sending (`null` = nearly empty). */
+const loadWeekNotes = vi.fn(async (): Promise<unknown> => ({ week: 'WEEK 1' }));
+vi.mock('../og/weekNotesLoad', async (original) => ({
+  ...(await original<typeof import('../og/weekNotesLoad')>()),
+  loadWeekNotes: () => loadWeekNotes(),
+}));
+
 vi.mock('./webhook', () => ({
   postToWebhook: (_client: unknown, payload: WebhookPayload) => {
     sent = payload;
@@ -163,6 +170,44 @@ describe('the awards field', () => {
     expect(embed?.description).toBe('Sunday 6 Sep to Saturday 12 Sep · 4 rated games');
     expect(logged).toHaveBeenCalledTimes(1);
     expect(String(logged.mock.calls[0]?.[0])).toContain('last-week awards');
+    logged.mockRestore();
+  });
+});
+
+/**
+ * M14.79: the Sunday post carries the week notes picture as E1's `image` on a public https origin,
+ * addressed by the Sunday the closed week opens on, and none on localhost; the text is the same.
+ */
+describe('the week notes image', () => {
+  const OPTIONS = { now: new Date('2025-09-08T07:00:00Z'), groupId: GROUP_ID, timeZone: 'Africa/Cairo' };
+
+  it('is on E1 from a public origin, for the closed week, and the text is unchanged', async () => {
+    loadStats.mockResolvedValue({ awards: null });
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'http://localhost:3000' });
+    const local = sent as unknown as WebhookPayload;
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'https://kustom.example' });
+    const pictured = sent as unknown as WebhookPayload;
+
+    expect(pictured.embeds[0]?.image).toEqual({ url: 'https://kustom.example/og/g/customs/week/2025-08-31' });
+    expect(local.embeds[0]?.image).toBeUndefined();
+    expect(JSON.stringify(local)).not.toContain('/og/');
+    // Same lines either way: only the links and the picture depend on the origin.
+    expect(pictured.embeds[0]?.fields).toEqual(local.embeds[0]?.fields);
+    expect(pictured.embeds[0]?.description).toBe(local.embeds[0]?.description);
+    expect(pictured.embeds[0]?.footer).toEqual(local.embeds[0]?.footer);
+  });
+
+  it('is left off a nearly empty week (the route 404s for it), and off a failed read', async () => {
+    loadStats.mockResolvedValue({ awards: null });
+    loadWeekNotes.mockResolvedValueOnce(null);
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'https://kustom.example' });
+    expect((sent as unknown as WebhookPayload).embeds[0]?.image).toBeUndefined();
+
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    loadWeekNotes.mockRejectedValueOnce(new Error('PostgREST is having a day'));
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'https://kustom.example' });
+    expect((sent as unknown as WebhookPayload).embeds[0]?.image).toBeUndefined();
+    expect((sent as unknown as WebhookPayload).embeds[0]?.fields).toBeDefined();
     logged.mockRestore();
   });
 });

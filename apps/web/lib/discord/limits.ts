@@ -305,6 +305,7 @@ function renderDraft(draft: Draft, embed: number, dropped: ReadonlySet<string>):
   }
   if (fields.length > 0) out.fields = fields;
   if (base.thumbnail !== undefined) out.thumbnail = base.thumbnail;
+  if (base.image !== undefined) out.image = base.image;
   if (base.footer !== undefined) out.footer = { text: cutText(base.footer.text, FOOTER_LIMIT) };
   return out;
 }

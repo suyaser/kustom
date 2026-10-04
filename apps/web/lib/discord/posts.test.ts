@@ -11,9 +11,11 @@ import {
   publicImageOrigin,
   resultBadgeUrl,
   tonightPageUrl,
+  weekNotesImageUrl,
 } from '../siteUrl';
 import {
   GAME4_EXPLANATION,
+  GAME4_GROUP,
   GAME4_ORIGIN,
   GAME4_RECAP,
   GAME4_STORYLINE,
@@ -64,6 +66,8 @@ import { TEST_POST_TEXT, testPostBody } from './testPost';
  */
 
 const LOCAL = 'http://localhost:3000';
+/** The Sunday game 4's week opens on (M14.79's `[weekStart]`). */
+const WEEK = '2026-09-27';
 
 /** Every post this directory builds, on a public origin. */
 function everyPost(): Record<string, WebhookPayload> {
@@ -76,6 +80,13 @@ function everyPost(): Record<string, WebhookPayload> {
     'result with recap': recapPayload(resultEmbed(game4Result()), GAME4_RECAP),
     weekly: windowSummaryEmbed(game4Weekly()),
     'weekly with storyline': windowSummaryEmbed(game4Weekly({ storyline: GAME4_STORYLINE })),
+    // M14.79: the week notes picture as E1's image, beside the storyline and the board.
+    'weekly with week notes': windowSummaryEmbed(
+      game4Weekly({
+        storyline: GAME4_STORYLINE,
+        image: weekNotesImageUrl(GAME4_ORIGIN, GAME4_GROUP.slug, WEEK),
+      }),
+    ),
     nightly: leaderboardEmbed(game4Nightly()),
     fearless: fearlessEmbed(game4Fearless()),
     'fearless reset': fearlessResetEmbed({ identity: game4Identity(), url: game4Fearless().url }),
@@ -493,6 +504,47 @@ describe("10.14 check 8: M16.5's hook, the Sunday storyline", () => {
     const told = windowSummaryEmbed(game4Weekly({ awards, storyline: 'y'.repeat(600) }));
     expect(messageLength(alone.embeds) + 600 + AI_RECAP_LABEL.length).toBeGreaterThan(TOTAL_LIMIT);
     expect(told).toEqual(alone);
+  });
+});
+
+describe('M14.79: the week notes image on the Sunday post', () => {
+  const image = (origin: string | null) => weekNotesImageUrl(origin, GAME4_GROUP.slug, WEEK);
+
+  it('a public https origin puts it on E1 as `image`, and E1 is otherwise the post without it', () => {
+    const plain = windowSummaryEmbed(game4Weekly({ storyline: GAME4_STORYLINE }));
+    const pictured = windowSummaryEmbed(
+      game4Weekly({ storyline: GAME4_STORYLINE, image: image(GAME4_ORIGIN) }),
+    );
+    expect(pictured.embeds[1]?.image).toEqual({ url: `${GAME4_ORIGIN}/og/g/customs/week/2026-09-27` });
+    // The storyline E0 carries none; the text of every embed is unchanged.
+    expect(pictured.embeds[0]).toEqual(plain.embeds[0]);
+    const { image: _picture, ...rest } = pictured.embeds[1] as Embed;
+    expect(rest).toEqual(plain.embeds[1]);
+  });
+
+  it('localhost, plain http or a private host sends no image at all', () => {
+    for (const origin of [LOCAL, 'http://kustom-delta.vercel.app', 'https://192.168.1.20', null]) {
+      expect(image(origin)).toBeUndefined();
+      const payload = windowSummaryEmbed(
+        game4Weekly({ identity: game4Identity(LOCAL), image: image(origin) }),
+      );
+      expect(payload.embeds.every((embed) => embed.image === undefined)).toBe(true);
+      expect(JSON.stringify(payload)).not.toContain('/week/');
+    }
+  });
+
+  it('does not count toward 6,000: the guard sheds the same lines and keeps the image', () => {
+    const awards = Array.from({ length: 5 }, (_, index) => ({
+      label: `Award ${index}`,
+      line: 'w'.repeat(1_000),
+    }));
+    const alone = windowSummaryEmbed(game4Weekly({ awards, storyline: 'y'.repeat(600) }));
+    const pictured = windowSummaryEmbed(
+      game4Weekly({ awards, storyline: 'y'.repeat(600), image: image(GAME4_ORIGIN) }),
+    );
+    expect(pictured.embeds).toHaveLength(alone.embeds.length);
+    expect(messageLength(pictured.embeds)).toBe(messageLength(alone.embeds));
+    expect(pictured.embeds.at(-1)?.image?.url).toBe(image(GAME4_ORIGIN));
   });
 });
 
