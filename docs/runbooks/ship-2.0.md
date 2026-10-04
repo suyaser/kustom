@@ -283,12 +283,17 @@ server reads:
 | `DISCORD_CLIENT_SECRET` | same app's secret. Server only, never `NEXT_PUBLIC_` | **new** (M14.20) |
 | `DISCORD_REDIRECT_URI` | `https://kustom-delta.vercel.app/api/admin/discord/callback` | **new**, optional but set it so it is exact |
 | `ANTHROPIC_API_KEY` | your Anthropic API key (console.anthropic.com → API keys). Server only, never `NEXT_PUBLIC_`. Scope: **Production only**, not Preview or Development, so a preview deploy never spends | **new** (M16.3), optional: unset or blank, every AI path is silently absent (no call, no line, no error) |
+| `DEEPSEEK_API_KEY` | your DeepSeek API key (platform.deepseek.com → API keys; top up a few dollars first, it is prepaid). Server only, never `NEXT_PUBLIC_`. Scope: **Production only** | **new** (2026-10-04, Premium AI on DeepSeek); data goes to DeepSeek in the PRC (the user's accepted trade-off) |
+| `AI_PROVIDER` | `deepseek` to switch the AI lines to DeepSeek V4 Pro; `anthropic` (or unset with only `ANTHROPIC_API_KEY`) to stay on / fall back to Claude. Scope: **Production only** | **new** (2026-10-04). A typo or a provider without its key turns AI off quietly; an env change needs a redeploy |
 
 Not on Vercel: `SUPABASE_AUTH_DISCORD_*` (Supabase CLI, local only), `SUPABASE_LOCAL_*` (tests), `CUSTOMS_NIGHT_API_BASE`
 (companion build only), `KUSTOM_AI_LIVE` (the one-call live test, never in CI or on Vercel). Remove
 `DISCORD_BOT_TOKEN` / `DISCORD_GUILD_ID` if they are there (no bot).
 
 **AI spend guards (M16.3), set alongside the key:**
+- On DeepSeek (`AI_PROVIDER=deepseek`): DeepSeek is prepaid, so the balance you top up is the hard ceiling that
+  backs up Kustom's meter (there is no separate monthly limit to set); a few dollars covers months at about $0.25
+  per group-month. The meter, the `$2` / `$20` caps and the kill switch below are the same for either provider.
 - Anthropic console → Billing / Limits: a **$20 monthly spend limit**. It backs up Kustom's own meter (`$2` per
   group per month, `$20` overall, in `ai_settings` and `groups.ai_monthly_cap_usd`).
 - Setting the key spends nothing by itself: after `0031` every group has `premium = false`, and `ai_reserve_call`

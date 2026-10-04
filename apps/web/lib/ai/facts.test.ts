@@ -39,6 +39,8 @@ import {
   storyAngles,
   systemPrompt,
   thousands,
+  usedPhrases,
+  userPrompt,
   weekMarginNote,
 } from './facts';
 import { AI_FEATURES } from './meter';
@@ -677,17 +679,76 @@ describe('M16.15 angle rotation', () => {
   });
 });
 
+describe('system prompts per provider (DeepSeek, 2026-10-04)', () => {
+  it.each(['game', 'week', 'player'] as const)('gives DeepSeek its binding rules last (%s)', (kind) => {
+    const prompt = systemPrompt(kind, 'deepseek');
+    expect(prompt).toContain('Binding rules, checked by a program');
+    expect(prompt).toContain('Plain ASCII only');
+    expect(prompt.split('\n').at(-1)).toMatch(/^Reply with the line only/);
+    expect(systemPrompt(kind, 'anthropic')).not.toContain('Binding rules');
+    // The same strict rules block as Claude's: DeepSeek's wording only adds.
+    expect(prompt).toContain('Rules, all of them strict; a line that breaks one is thrown away:');
+  });
+
+  it('defaults to the provider of the process feature table', () => {
+    for (const kind of ['game', 'week', 'player'] as const) {
+      const provider = AI_FEATURES[kind].model.startsWith('deepseek') ? 'deepseek' : 'anthropic';
+      expect(systemPrompt(kind)).toBe(systemPrompt(kind, provider));
+    }
+  });
+});
+
+describe("DeepSeek's user turn (A/B read round 2, 2026-10-04)", () => {
+  const week = buildWeekFacts(AI_WEEK, new Set()) as FactList;
+  const recent = [
+    '{P3} lost, but {P3} had 31.2k damage in the loss.',
+    '{P1} lost, but nobody had more CS in the loss.',
+  ];
+
+  it("leaves Claude's user turn without the story, shape, examples or phrase list", () => {
+    const claude = userPrompt(game, null, recent, 'anthropic');
+    for (const marker of ['The story to lead with', 'The shape:', 'Example lines', 'Phrases already used'])
+      expect(claude).not.toContain(marker);
+  });
+
+  it('names one story, a shape and three examples, the same on every call for the same facts', () => {
+    const first = userPrompt(game, null, recent, 'deepseek');
+    expect(first).toMatch(/The story to lead with: .+\./);
+    expect(first).toMatch(/The shape: .+/);
+    expect(
+      first.split('\n').filter((line) => line.startsWith('- ') && line.includes('{P')).length,
+    ).toBeGreaterThanOrEqual(3);
+    expect(userPrompt(game, null, recent, 'deepseek')).toBe(first);
+  });
+
+  it('lists the phrases recent lines already used, from masked lines only', () => {
+    const used = usedPhrases(recent.map(recentLineForPrompt));
+    expect(used).toContain('in the loss');
+    expect(used).toContain('lost, but');
+    expect(used.join(' ')).not.toMatch(/\{P|\d/);
+    expect(userPrompt(game, null, recent, 'deepseek')).toContain(
+      'Phrases already used, do not write any of them:',
+    );
+  });
+
+  it('shows a week its earlier Sundays and never asks for the margin as a number', () => {
+    const prompt = userPrompt(week, null, ['{P1} took 1st place on 212 points.'], 'deepseek');
+    expect(prompt).toContain("This group's earlier Sunday paragraphs");
+    expect(prompt).not.toMatch(/points ahead|ahead of the runner-up/);
+  });
+});
+
 describe('story-claim facts (2026-10-04, every provider)', () => {
   const sha = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
 
-  it('pins the system prompts, so a prompt change is always deliberate', () => {
+  it("pins Claude's system prompts, so a prompt change is always deliberate", () => {
     // Moved on purpose (lead, 2026-10-04): main's M16.8-M16.19 prompts were 4f424a950ab457fe /
     // 07c13f69006efaec / 5f5dc0d3fa252474. Added since: no gendered pronoun even for a champion,
     // no "one" standing in for a game or win (scouting, week), and the week's margin words and
     // examples tied to the clear-lead / close-race notes the checker now requires.
-    expect(sha(systemPrompt('game'))).toBe('7fc9a7819ecc7c67');
-    expect(sha(systemPrompt('week'))).toBe('ab78478bb8709860');
-    expect(sha(systemPrompt('player'))).toBe('f63fe302c5978cac');
+    expect(sha(systemPrompt('game', 'anthropic'))).toBe('7fc9a7819ecc7c67');
+    expect(sha(systemPrompt('week', 'anthropic'))).toBe('ab78478bb8709860');
+    expect(sha(systemPrompt('player', 'anthropic'))).toBe('f63fe302c5978cac');
   });
 
   it('a week margin is close at 5 points or fewer, clear from 20 and a quarter of 2nd, else neither', () => {

@@ -11,13 +11,16 @@ import {
   aiClientFromEnv,
   anthropicTransport,
   createAiClient,
+  DEEPSEEK_ANTHROPIC_BASE_URL,
+  deepseekTransport,
   fakeReply,
   mockTransport,
   parseMessage,
   recordedTransport,
 } from './client';
+import recordedDeepseek from './fixtures/deepseek-messages.json';
 import recorded from './fixtures/messages.json';
-import { memoryMeter, memoryMeterState, memorySpend } from './meter';
+import { AI_MODELS, costUsd, memoryMeter, memoryMeterState, memorySpend } from './meter';
 
 /** M16.3: the one door to the model, mocked; and the guard that it is the only one. */
 
@@ -219,6 +222,130 @@ describe('aiClientFromEnv', () => {
 
   it('builds a client when a key is set (no call is made by building it)', () => {
     expect(aiClientFromEnv(service, { ANTHROPIC_API_KEY: 'sk-ant-test' })).not.toBeNull();
+    expect(aiClientFromEnv(service, { DEEPSEEK_API_KEY: 'sk-ds-test' })).not.toBeNull();
+    expect(aiClientFromEnv(service, { AI_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'sk-ds' })).not.toBeNull();
+  });
+
+  it('is null when the chosen provider has no key, or the provider is a typo', () => {
+    expect(aiClientFromEnv(service, { AI_PROVIDER: 'deepseek', ANTHROPIC_API_KEY: 'sk-ant' })).toBeNull();
+    expect(aiClientFromEnv(service, { AI_PROVIDER: 'deepsek', DEEPSEEK_API_KEY: 'sk-ds' })).toBeNull();
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * DeepSeek (the user's 2026-10-04 move): the same SDK at DeepSeek's Anthropic-format endpoint
+ * ------------------------------------------------------------------------------------------- */
+
+function capturingFetch(responses: readonly unknown[]) {
+  const calls: { url: string; headers: Headers; body: Record<string, unknown> }[] = [];
+  const fetchImpl = (async (url: unknown, init?: { body?: unknown; headers?: HeadersInit }) => {
+    calls.push({
+      url: String(url),
+      headers: new Headers(init?.headers),
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+    });
+    return new Response(JSON.stringify(responses[calls.length - 1] ?? responses[0]), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }) as unknown as typeof fetch;
+  return { calls, fetchImpl };
+}
+
+describe('the DeepSeek transport', () => {
+  const signal = new AbortController().signal;
+  const DS_REQUEST: AiRequest = {
+    model: 'deepseek-v4-pro',
+    system: 'system rules',
+    user: SECRET_PROMPT,
+    maxTokens: 150,
+  };
+
+  it('pins the request: DeepSeek host, x-api-key, the Messages body, thinking off, temperature', async () => {
+    const { calls, fetchImpl } = capturingFetch(recordedDeepseek);
+    await deepseekTransport('sk-ds-test', { fetch: fetchImpl }).send(DS_REQUEST, signal);
+    expect(DEEPSEEK_ANTHROPIC_BASE_URL).toBe('https://api.deepseek.com/anthropic');
+    expect(calls[0]?.url).toBe('https://api.deepseek.com/anthropic/v1/messages');
+    expect(calls[0]?.headers.get('x-api-key')).toBe('sk-ds-test');
+    expect(calls[0]?.body).toEqual({
+      model: 'deepseek-v4-pro',
+      max_tokens: 150,
+      system: 'system rules',
+      messages: [{ role: 'user', content: SECRET_PROMPT }],
+      thinking: { type: 'disabled' },
+      temperature: 0.7,
+    });
+  });
+
+  it('never omits thinking off for a DeepSeek model (DeepSeek thinks by default)', async () => {
+    const deepseekModels = Object.entries(AI_MODELS).filter(([, model]) => model.provider === 'deepseek');
+    expect(deepseekModels.length).toBeGreaterThan(0);
+    for (const [id, model] of deepseekModels) {
+      expect(model.thinkingOff).toEqual({ type: 'disabled' });
+      const { calls, fetchImpl } = capturingFetch(recordedDeepseek);
+      await deepseekTransport('sk', { fetch: fetchImpl }).send(
+        { ...DS_REQUEST, model: id as AiRequest['model'] },
+        signal,
+      );
+      expect(calls[0]?.body.thinking).toEqual({ type: 'disabled' });
+    }
+  });
+
+  it('parses recorded DeepSeek replies, cache hits included, and prices them', async () => {
+    const transport = recordedTransport(recordedDeepseek);
+    const first = await transport.send(DS_REQUEST, signal);
+    const second = await transport.send(DS_REQUEST, signal);
+    expect(first).toEqual({
+      requestId: '0236c5b1-854c-4e3e-bf28-0ee10877c7c3',
+      text: '{P2} took 9 kills on Lee Sin and never once saw a death screen.',
+      inputTokens: 864,
+      outputTokens: 13,
+      stopReason: 'end_turn',
+    });
+    // Anthropic's usage semantics: input_tokens (96) excludes the cache read (768).
+    expect(second).toMatchObject({ inputTokens: 864, cachedInputTokens: 768, outputTokens: 15 });
+    expect(costUsd('deepseek-v4-pro', second)).toBeLessThan(costUsd('deepseek-v4-pro', first));
+  });
+
+  it('refuses a model of the other provider without a request (DeepSeek would remap claude-*)', async () => {
+    const { calls, fetchImpl } = capturingFetch(recordedDeepseek);
+    await expect(
+      deepseekTransport('sk', { fetch: fetchImpl }).send(
+        { ...DS_REQUEST, model: 'claude-sonnet-5-5' },
+        signal,
+      ),
+    ).rejects.toMatchObject({ kind: 'client' });
+    const claude = capturingFetch(recorded);
+    await expect(
+      anthropicTransport('sk', { fetch: claude.fetchImpl }).send(DS_REQUEST, signal),
+    ).rejects.toMatchObject({ kind: 'client' });
+    expect(calls).toHaveLength(0);
+    expect(claude.calls).toHaveLength(0);
+  });
+
+  it('reads a reply robustly: no type, a thinking block, DeepSeek usage names', () => {
+    const reply = parseMessage({
+      id: 'abc-123',
+      content: [
+        { type: 'thinking', thinking: 'secret reasoning' },
+        { type: 'text', text: '{P1} had 9 kills.' },
+      ],
+      stop_reason: 'end_turn',
+      usage: {
+        input_tokens: 900,
+        output_tokens: 7,
+        prompt_cache_hit_tokens: 800,
+        prompt_cache_miss_tokens: 100,
+      },
+    });
+    expect(reply).toEqual({
+      requestId: 'abc-123',
+      text: '{P1} had 9 kills.',
+      inputTokens: 900,
+      cachedInputTokens: 800,
+      outputTokens: 7,
+      stopReason: 'end_turn',
+    });
   });
 });
 
@@ -257,6 +384,9 @@ describe('parsing the API answer', () => {
     await transport.send({ ...REQUEST, model: 'claude-haiku-4-5-20251001' }, signal);
     expect(bodies[0]?.thinking).toEqual({ type: 'between_tools' });
     expect(bodies[1]).not.toHaveProperty('thinking');
+    // Claude keeps its default temperature.
+    expect(bodies[0]).not.toHaveProperty('temperature');
+    expect(bodies[1]).not.toHaveProperty('temperature');
   });
 
   it('rejects a malformed answer', () => {
@@ -302,6 +432,15 @@ describe('every model call goes through lib/ai/client.ts', () => {
       .filter((path) => /api\.anthropic\.com/.test(readFileSync(path, 'utf8')))
       .map((path) => relative(REPO_ROOT, path));
     expect(callers).toEqual([]);
+  });
+
+  it("only the client names DeepSeek's host", () => {
+    const callers = files
+      .filter((path) => path !== client)
+      .filter((path) => /api\.deepseek\.com/.test(readFileSync(path, 'utf8')))
+      .map((path) => relative(REPO_ROOT, path));
+    expect(callers).toEqual([]);
+    expect(readFileSync(client, 'utf8')).toMatch(/api\.deepseek\.com/);
   });
 
   it('the guard sees the client itself', () => {
