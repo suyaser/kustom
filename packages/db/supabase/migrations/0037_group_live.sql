@@ -69,7 +69,10 @@ alter table public.group_live enable row level security;
 create policy "group live is publicly readable" on public.group_live
   for select to anon, authenticated using (true);
 
-revoke insert, update, delete, truncate on public.group_live from anon, authenticated;
+-- Select and nothing else: not insert, update, delete or truncate, and not references or trigger
+-- either (Supabase's default privileges grant all of them on a new public table).
+revoke all on public.group_live from anon, authenticated;
+grant select on public.group_live to anon, authenticated;
 
 alter publication supabase_realtime add table public.group_live;
 

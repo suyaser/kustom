@@ -4,7 +4,7 @@ import type { NextResponse } from 'next/server';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { readServerEnv } from '@/lib/env';
-import { bumpIfWrote } from '@/lib/live/bump';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
 import { serverRng } from '@/lib/mode/rng';
 import {
   NOTHING_TO_SPIN,
@@ -105,7 +105,18 @@ export async function handleSetGroupMode(
   // `context.groupId` and `context.admin.playerId`: the group the gate checked and the actor the
   // session resolved, never anything else out of the body.
   const before = action.kind === 'standing' ? await store.read(groupId) : null;
-  const result = await writeModeCard(store, { groupId, playerId: context.admin.playerId, action });
+  // Tonight's live signal (M19.9): the card's one write is the request's last, so the bump follows
+  // it directly, also when the write throws after landing. A pick that changed nothing (the mode
+  // it already was) says nothing.
+  const result = await withLiveSignal(context.client, (live) =>
+    noteWrite(
+      live,
+      groupId,
+      'mode',
+      () => writeModeCard(store, { groupId, playerId: context.admin.playerId, action }),
+      (written) => written.ok && written.changed,
+    ),
+  );
 
   if (!result.ok) {
     const refusal = result.reason === 'too-few-open' ? RULE_TOO_FEW_OPEN : NOTHING_TO_SPIN;
@@ -113,10 +124,6 @@ export async function handleSetGroupMode(
       ? redirectBack(context.request, back, { error: refusal })
       : context.fail(409, refusal);
   }
-
-  // Tonight's live signal (M19.9), after the card's one write: a pick that changed nothing (the
-  // mode it already was) says nothing.
-  await bumpIfWrote(context.client, groupId, 'mode', result.changed);
 
   const next = nextGameOf(result.state);
   const notice =

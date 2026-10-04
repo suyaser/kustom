@@ -1,17 +1,19 @@
+import type { CompanionCommandRow } from '@customs/db';
 import {
   companionCommandAckRequestSchema,
   companionCommandAckResponseSchema,
   companionCommandNackRequestSchema,
 } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
-import { ackCommand, nackCommand, readCommandForPlayer } from '@/lib/commands/queue';
+import { ackCommand, nackCommand, readCommandForPlayer, type SettleResult } from '@/lib/commands/queue';
 // Registers the listeners on the queue's `onAcked` seam at module load: M4.2's invite fan-out
 // hangs off a `create_lobby` that came back `done`. A side-effect import like the companion
 // lobby route's — with this line removed both routes behave identically and nobody listens.
 import '@/lib/commands/register';
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
-import { bumpIfWrote } from '@/lib/live/bump';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
+import type { ServiceClient } from '@/lib/supabase';
 
 /**
  * The two ways a command ends (M4.1): `POST .../commands/{id}/ack` with the kind's result, and
@@ -49,10 +51,11 @@ export function ackRoute(id: string): (request: Request) => Promise<NextResponse
     });
     if (!found.ok) return jsonError(found.status, found.error);
 
-    const settled = await ackCommand(client, { row: found.row, result: body.result });
+    // After the ack and the invites it fanned out (M19.9), and also when the fan-out throws.
+    const settled = await withSettleSignal(client, found.row, () =>
+      ackCommand(client, { row: found.row, result: body.result }),
+    );
     if (!settled.ok) return jsonError(settled.status, settled.error);
-    // After the ack and the invites it fanned out (M19.9).
-    await bumpIfWrote(client, found.row.group_id, 'lobby', found.row.kind === 'create_lobby');
 
     return jsonOk(companionCommandAckResponseSchema, { ok: true });
   });
@@ -70,14 +73,29 @@ export function nackRoute(id: string): (request: Request) => Promise<NextRespons
     // `error` is prose and is stored verbatim: the companion writes a
     // `commandFailureReasonSchema` word, then a detail after ': '. The route must not refuse a
     // prefix it does not know, because an older exe may be the one running.
-    const settled = await nackCommand(client, {
-      row: found.row,
-      error: body.error,
-      retryable: body.retryable,
-    });
+    const settled = await withSettleSignal(client, found.row, () =>
+      nackCommand(client, {
+        row: found.row,
+        error: body.error,
+        retryable: body.retryable,
+      }),
+    );
     if (!settled.ok) return jsonError(settled.status, settled.error);
-    await bumpIfWrote(client, found.row.group_id, 'lobby', found.row.kind === 'create_lobby');
 
     return jsonOk(companionCommandAckResponseSchema, { ok: true });
   });
+}
+
+/**
+ * Settle a command and, for a `create_lobby`, bump the group's live signal `lobby` once the settle
+ * (and whatever its listeners wrote) is done, or once it threw after landing (M19.9). Other kinds
+ * run plain.
+ */
+async function withSettleSignal(
+  client: ServiceClient,
+  row: CompanionCommandRow,
+  settle: () => Promise<SettleResult>,
+): Promise<SettleResult> {
+  if (row.kind !== 'create_lobby') return settle();
+  return withLiveSignal(client, (live) => noteWrite(live, row.group_id, 'lobby', settle, (done) => done.ok));
 }

@@ -168,13 +168,18 @@ export async function runRebuildCron(
     }
 
     try {
-      let result = await rebuild(client, groupId);
+      // Noted after every fold that wrote, not only the last: a fenced run wrote before its rerun.
+      const fold = async () => {
+        const folded = await rebuild(client, groupId);
+        if (rebuildWrote(folded)) options.live?.touch(groupId, 'ratings');
+        return folded;
+      };
+      let result = await fold();
       // The fence is the command's exit 2: idempotent, so running it again is the fix.
       for (let rerun = 0; rerun < FENCE_RERUNS && !result.ok && result.code === 'fence'; rerun += 1) {
         if (options.elapsedMs() >= options.startBudgetMs) break;
-        result = await rebuild(client, groupId);
+        result = await fold();
       }
-      if (rebuildWrote(result)) options.live?.touch(groupId, 'ratings');
 
       if (result.ok) {
         // A data problem (the command's exit 1) does not undo the fold: it wrote. Named in the
@@ -189,6 +194,8 @@ export async function runRebuildCron(
       }
     } catch (error) {
       console.error(`cron rebuild: group ${groupId} failed`, error);
+      // A fold that threw may have written already (it writes before its role pass and its fence).
+      options.live?.touch(groupId, 'ratings');
       line('failed', null, 'internal error');
     }
   }

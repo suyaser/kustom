@@ -158,6 +158,8 @@ export async function sweepIdleLobbies(
     .lt('updated_at', cutoff)
     .select('id, group_id');
   if (error) throw new Error(`sweepIdleLobbies: ${error.message}`);
+  // Noted as each statement lands, so a throw in the second still bumps the first's groups.
+  for (const row of data ?? []) live?.touch(row.group_id, 'lobby');
 
   const abandoned = (data ?? []).length;
   if (abandoned > 0) {
@@ -177,6 +179,7 @@ export async function sweepIdleLobbies(
     .lt('updated_at', cutoff)
     .select('id, group_id');
   if (stuckError) throw new Error(`sweepIdleLobbies: dropping stuck games failed: ${stuckError.message}`);
+  for (const row of stuck ?? []) live?.touch(row.group_id, 'lobby');
 
   const dropped = (stuck ?? []).length;
   if (dropped > 0) {
@@ -189,8 +192,6 @@ export async function sweepIdleLobbies(
   for (const row of stuck ?? []) {
     await supersedeCommandsQuietly(client, row.id, 'dropped');
   }
-
-  for (const row of [...(data ?? []), ...(stuck ?? [])]) live?.touch(row.group_id, 'lobby');
 
   return abandoned + dropped;
 }

@@ -108,6 +108,32 @@ export async function withLiveSignal<T>(
   }
 }
 
+/**
+ * Run one writing step and note it in `live`: when `wrote(result)` says it wrote, **and when it
+ * throws** (a step that throws may already have written: Roll's claim and lock land before the
+ * balance, the role tap's player write before its row write). A bump for a step that failed before
+ * writing anything is harmless; a missed bump after a write is not, because the retry is a no-op
+ * (`already_rolled`, `promoted: false`) and would never bump. Use inside {@link withLiveSignal},
+ * so the later steps (the Discord post and its message-id write) still run before the flush.
+ */
+export async function noteWrite<T>(
+  live: LiveChanges,
+  groupId: string,
+  kind: GroupLiveKind,
+  run: () => Promise<T>,
+  wrote: (result: T) => boolean,
+): Promise<T> {
+  let result: T;
+  try {
+    result = await run();
+  } catch (error) {
+    live.touch(groupId, kind);
+    throw error;
+  }
+  if (wrote(result)) live.touch(groupId, kind);
+  return result;
+}
+
 /** One group, one kind, when the request wrote: the common case for a route with one group. */
 export async function bumpIfWrote(
   client: ServiceClient,

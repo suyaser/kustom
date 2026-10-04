@@ -8,7 +8,7 @@ import { resetGroupRatings } from '@/lib/admin/ratingsReset';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { invalidateGroup } from '@/lib/cache/tags';
-import { bumpGroupLive } from '@/lib/live/bump';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 
 /** [NEW COPY] The success notice. */
@@ -27,13 +27,24 @@ export async function handleRatingsReset(
 ): Promise<NextResponse> {
   const back = safeNextPath(input.redirectTo) ?? context.redirectTo;
 
-  const result = await resetGroupRatings(context.client, {
-    groupId: context.groupId,
-    actorId: context.admin.playerId,
-    confirmSlug: input.confirmSlug,
-    requestOrigin: siteOrigin(context.request),
-    ...(fetchImpl === undefined ? {} : { fetchImpl }),
-  });
+  // Tonight's live signal (M19.9), flushed after the reset, its audit row and its Discord post, and
+  // also when a step after the reset throws.
+  const result = await withLiveSignal(context.client, (live) =>
+    noteWrite(
+      live,
+      context.groupId,
+      'ratings',
+      () =>
+        resetGroupRatings(context.client, {
+          groupId: context.groupId,
+          actorId: context.admin.playerId,
+          confirmSlug: input.confirmSlug,
+          requestOrigin: siteOrigin(context.request),
+          ...(fetchImpl === undefined ? {} : { fetchImpl }),
+        }),
+      (reset) => reset.ok,
+    ),
+  );
   if (!result.ok) {
     return context.form
       ? redirectBack(context.request, back, { error: result.error })
@@ -41,8 +52,6 @@ export async function handleRatingsReset(
   }
 
   invalidateGroup(context.groupId, ['stats', 'games']);
-  // Tonight's live signal (M19.9), after the reset, its audit row and its Discord post.
-  await bumpGroupLive(context.client, context.groupId, 'ratings');
   if (context.form) return redirectBack(context.request, back, { notice: RATINGS_RESET_DONE });
   return context.respond(
     ratingsResetResponseSchema,

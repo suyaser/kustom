@@ -67,8 +67,12 @@ export const POST = withCompanionAuth(companionLobbyPayloadSchema, async (payloa
 
     // The group comes from the token, never from the body (M13.3). A party another group's
     // companion posted first stays that group's, and this post answers as a duplicate.
-    const result = await ingestLobby(client, payload, identity.playerId, { groupId: identity.groupId, now });
-    if (result.wrote) live.touch(result.groupId, 'lobby');
+    // Ingest notes each write in `live` as it lands, so a throw part way still bumps.
+    const result = await ingestLobby(client, payload, identity.playerId, {
+      groupId: identity.groupId,
+      now,
+      live,
+    });
 
     return jsonOk(companionLobbyResponseSchema, {
       ok: true,

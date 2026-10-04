@@ -8,6 +8,7 @@ import {
 } from '@customs/db';
 import { supersedeLobbyCommands } from '../commands/queue';
 import type { CompanionIdentity } from '../companionAuth';
+import type { LiveChanges } from '../live/bump';
 import { ACTIVE_LOBBY_STATUSES, assertLegalTransition, isActiveLobbyStatus } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
 import { ensureMemberships } from './memberships';
@@ -189,6 +190,11 @@ export interface LobbyIngestOptions {
   groupId: string;
   /** Injected in tests: the rank staleness check (M2.4) and the role carry (M3.6) read it. */
   now?: Date;
+  /**
+   * The request's live signal (M19.9): the lobby's group is touched `lobby` as each write lands,
+   * so the route's `withLiveSignal` bumps it even when a later step throws.
+   */
+  live?: LiveChanges;
 }
 
 /**
@@ -224,6 +230,10 @@ export async function ingestLobby(
     throw error;
   }
   const { lobby, created } = upserted;
+  // The request's live signal (M19.9), noted as each write lands rather than from the answer, so a
+  // post that throws part way (a member upsert, the membership insert) still bumps what it wrote.
+  const touch = () => options.live?.touch(lobby.groupId, 'lobby');
+  if (upserted.wrote) touch();
 
   // Frozen (M2.9): the lobby is in a game or done, so the roster is a record of what
   // happened. Report what is stored and write nothing to `lobby_members`.
@@ -252,7 +262,7 @@ export async function ingestLobby(
   // stepping into the spectator slot has to land in `lobby_members` (the seat plan reads it) and
   // a Riot ID that changed has to land in `players` (M1.7). Only what moved is written (M19.8).
   // Neither touches `lobbies`, so neither restarts the clock — only the write below does that.
-  const diff = await replaceMembers(client, lobby.id, payload, lobby.groupId);
+  const diff = await replaceMembers(client, lobby.id, payload, lobby.groupId, touch);
   const memberCount = diff.count;
 
   // A role for tonight lasts the night and lives on the player (M3.6): every row this post
@@ -661,6 +671,8 @@ async function replaceMembers(
   lobbyId: string,
   payload: CompanionLobbyPayload,
   groupId: string,
+  /** Called as each write lands (M19.9: the route's live signal survives a later throw). */
+  touch: () => void = () => {},
 ): Promise<MemberDiff> {
   let refreshed = false;
   const playerIds = await ensurePlayers(
@@ -674,6 +686,7 @@ async function replaceMembers(
     {
       onRefresh: () => {
         refreshed = true;
+        touch();
       },
     },
   );
@@ -708,6 +721,7 @@ async function replaceMembers(
       ? remove
       : remove.not('player_id', 'in', `(${keep.map((id) => `"${id}"`).join(',')})`));
     if (deleteError) throw new Error(`ingestLobby: member delete failed: ${deleteError.message}`);
+    touch();
   }
 
   if (changed.length > 0) {
@@ -715,6 +729,7 @@ async function replaceMembers(
       .from('lobby_members')
       .upsert(changed, { onConflict: 'lobby_id,player_id' });
     if (error) throw new Error(`ingestLobby: member upsert failed: ${error.message}`);
+    touch();
   }
 
   // Playing is joining (M13.3): everyone on this group's roster is a member of it from now on.

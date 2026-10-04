@@ -140,6 +140,7 @@ expect_eq "RLS on" "$(psql_t -At -c "select relrowsecurity from pg_class where o
 expect_eq "policies" \
   "$(psql_t -At -c "select count(*) from pg_policies where schemaname = 'public' and tablename = 'group_live'")" "1"
 for role in anon authenticated; do
+  expect_eq "$role privileges" "$(psql_t -At -c "select string_agg(privilege_type, ',' order by privilege_type) from information_schema.role_table_grants where table_schema = 'public' and table_name = 'group_live' and grantee = '$role'")" "SELECT"
   expect_eq "$role reads" "$(must_pass "set local role $role; select count(*) from public.group_live;")" "$GROUP_COUNT"
   must_fail "$role insert" "set local role $role; insert into public.group_live (group_id, kind) values (gen_random_uuid(), 'game');"
   must_fail "$role update" "set local role $role; update public.group_live set version = 9;"

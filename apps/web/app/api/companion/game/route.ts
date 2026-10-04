@@ -18,7 +18,7 @@ import {
   isCustomGame,
   isParticipant,
 } from '@/lib/ingest/game';
-import { type LiveChanges, withLiveSignal } from '@/lib/live/bump';
+import { type LiveChanges, noteWrite, withLiveSignal } from '@/lib/live/bump';
 // Registers the Discord listeners on `hooks.ts` at module load (M3.1, M3.3). Side-effect
 // import: remove it and this route behaves identically, minus the message.
 import '@/lib/ingest/discord';
@@ -161,10 +161,19 @@ async function handleGamePost(
   // The group comes from the token (M13.3); `ingestEogGame` decides where the game lands:
   // an id stored anywhere keeps its group, a live game follows its lobby, and a backfilled one
   // needs six of its ten to be members of the token's group.
-  const ingested = await ingestEogGame(
-    client,
-    { ...payload, raw: scrubRawEogBlock(payload.raw) },
-    { groupId: identity.groupId },
+  // A throw part way (the game stored, its players not) may already have written: bump the token's
+  // group, where a game with no lobby lands (M19.9). The retry then finishes and bumps again.
+  const ingested = await noteWrite(
+    live,
+    identity.groupId,
+    'game',
+    () =>
+      ingestEogGame(
+        client,
+        { ...payload, raw: scrubRawEogBlock(payload.raw) },
+        { groupId: identity.groupId },
+      ),
+    () => false,
   );
 
   if (ingested.outcome === 'skipped-not-this-group') {
