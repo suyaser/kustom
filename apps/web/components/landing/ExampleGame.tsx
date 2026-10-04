@@ -44,7 +44,8 @@ import yasuo from './champions/Yasuo.webp';
  *
  * Large text (12.3a): the card is an inline-size container, and below 18em (its own font size, so
  * the switch follows the text size, not the screen) each row stacks: the lane on its own line, then
- * the two seats side by side, each square over name over change. The table parts carry explicit
+ * the two seats side by side, each square over name over change. The table and its row groups turn
+ * `block` in that mode, because a grid `<tr>` inside a table box shrinks to its content. The table parts carry explicit
  * ARIA roles in every mode, because a `display` change on table parts can drop their semantics.
  * Every `@max-[18em]:` class below is that one mode; Tailwind needs them written out in full.
  */
@@ -93,14 +94,14 @@ export function ExampleGame() {
           </div>
         )}
         {/* biome-ignore lint/a11y/noRedundantRoles: 12.3a, the roles survive the stacked mode's display change */}
-        <table role="table" className="w-full table-fixed border-collapse">
+        <table role="table" className="w-full table-fixed border-collapse @max-[18em]:block">
           <caption className="sr-only">{EXAMPLE_GAME_TABLE_CAPTION}</caption>
-          <colgroup>
+          <colgroup className="@max-[18em]:hidden">
             <col />
             <col className="w-14" />
             <col />
           </colgroup>
-          <thead>
+          <thead className="@max-[18em]:block">
             {/* biome-ignore lint/a11y/noRedundantRoles: 12.3a */}
             <tr role="row">
               {/* biome-ignore lint/a11y/noRedundantRoles: 12.3a */}
@@ -117,7 +118,7 @@ export function ExampleGame() {
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="@max-[18em]:block">
             {game.lanes.map((lane) => (
               <tr
                 key={lane.role}
