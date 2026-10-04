@@ -72,3 +72,31 @@ describe('WhyText footnote (M14.64, 05-design 11.6)', () => {
     );
   });
 });
+
+describe('the inline sum for a screen reader (M18.7, 05-design 11.6.5)', () => {
+  /** What a screen reader reads: everything but the `aria-hidden` glyphs. */
+  function spoken(element: Element): string {
+    const clone = element.cloneNode(true) as Element;
+    for (const hidden of Array.from(clone.querySelectorAll('[aria-hidden="true"]'))) hidden.remove();
+    return (clone.textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  it('reads 16 times 50% equals 8, and times 1 for the share; the glyphs are hidden', () => {
+    const { container } = render(<WhyText reason={reason('win', 8)} subject={YOU} />);
+    const text = spoken(container);
+    expect(text).toContain('so the win was worth 16 times 50% equals 8.');
+    expect(text).toContain(': times 1.');
+    expect(text).not.toMatch(/[×=]/);
+    for (const glyph of Array.from(container.querySelectorAll('[aria-hidden="true"]'))) {
+      expect(['×', '=']).toContain(glyph.textContent);
+    }
+  });
+
+  it('shows the glyphs and not the words to the eye', () => {
+    const { container } = render(<WhyText reason={reason('win', 8)} subject={YOU} />);
+    const clone = container.cloneNode(true) as Element;
+    for (const hidden of Array.from(clone.querySelectorAll('.sr-only'))) hidden.remove();
+    expect(clone.textContent).toContain('16\u2009×\u200950%\u2009=\u20098.');
+    expect(clone.textContent).not.toMatch(/times|equals/);
+  });
+});

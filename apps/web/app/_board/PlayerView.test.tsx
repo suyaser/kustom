@@ -122,7 +122,9 @@ describe('the public lens', () => {
     expect(screen.queryByText(/Started the week at/)).toBeNull();
     // The chart's reference line is `Week start`, and its words are the week's points.
     expect(screen.getByText('Week start')).toBeInTheDocument();
-    expect(screen.getByRole('img')).toHaveAccessibleName('Points this week went from 0 to +86 over 3 rated games.');
+    expect(screen.getByRole('img')).toHaveAccessibleName(
+      'Points this week went from 0 to +86 over 3 rated games.',
+    );
   });
 
   it('M18.7: a week with no game keeps the Rating card and prints no ±0', () => {
@@ -499,7 +501,8 @@ describe('M18.7: the week tab (05-design 11.5, 11.6.3)', () => {
     fireEvent.click(button);
     return document.getElementById(button.getAttribute('aria-controls') as string) as HTMLElement;
   };
-  const gameRows = () => within(screen.getByRole('region', { name: 'Recent games' })).getAllByRole('listitem');
+  const gameRows = () =>
+    within(screen.getByRole('region', { name: 'Recent games' })).getAllByRole('listitem');
   /** A row as it reads closed: no spoken words, no (hidden) Why panel. */
   const rowText = (row: HTMLElement): string => {
     const clone = withoutSrOnly(row);
@@ -525,7 +528,9 @@ describe('M18.7: the week tab (05-design 11.5, 11.6.3)', () => {
     expect(screen.getByRole('button', { name: 'gained 19 this week. Why?' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'gained 13 this week. Why?' })).toBeInTheDocument();
     expect(screen.getByText('lost 16 this week')).toBeInTheDocument();
-    expect(screen.getByText('16 points this week', { selector: '[data-slot="week-total"] *' })).toBeInTheDocument();
+    expect(
+      screen.getByText('16 points this week', { selector: '[data-slot="week-total"] *' }),
+    ).toBeInTheDocument();
   });
 
   it("explains the weekly change with the week's numbers, then the all-time change in one labelled clause", () => {

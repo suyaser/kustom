@@ -5,6 +5,7 @@ import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { groupHref } from '@/lib/nav';
 import { HOW_SUMMARY, TITLE_BALANCED, TITLE_FINISHED, TITLE_IN_GAME } from '@/lib/receipt/copy';
 import { lobbyView, snapshot, workedMembers, workedTeams } from '@/lib/testing/tonightFixtures';
+import { visibleText } from '@/lib/testing/visibleText';
 import {
   IN_GAME_SENTENCE,
   MISSED_INVITE_LEAD,
@@ -25,7 +26,6 @@ import {
   TOP_TITLE,
   YOUR_SIDE_TAG,
 } from '@/lib/tonight/screenCopy';
-import { visibleText } from '@/lib/testing/visibleText';
 import { SIT_OUT_VIEWER_LEAD } from '@/lib/tonight/sitOut';
 import {
   ADMIN_VIEWER,
@@ -680,7 +680,7 @@ describe('M14.41 gap 1: one Rating per person', () => {
     const top = screen.getByRole('region', { name: TOP_TITLE });
     expect(fourDigits(visibleText(top)).size).toBe(0);
     expect(within(top).getAllByText('4W 2L')).toHaveLength(5);
-    expect(within(top).getAllByText("58 points this week")).toHaveLength(5);
+    expect(within(top).getAllByText('58 points this week')).toHaveLength(5);
   });
 
   it('finished, weekly rating != group rating: no name beside two different four-digit numbers', () => {
