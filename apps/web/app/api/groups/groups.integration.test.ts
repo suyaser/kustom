@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { Database } from '@customs/db';
 import { GROUP_NAME_RULE, GROUP_SLUG_RULE } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   type AdminAuthResult,
   authorizeAdmin,
@@ -35,6 +35,10 @@ import { authorizeMe, supabaseMeLookup } from '@/lib/me/identity';
 import { localAuthUsers } from '@/lib/testing/authUsers';
 import { deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+
+// The roster behind Tonight's same-name labels is cached per group (performance plan, phase 2).
+const { invalidateGroup } = vi.hoisted(() => ({ invalidateGroup: vi.fn() }));
+vi.mock('@/lib/cache/tags', () => ({ invalidateGroup, invalidateGroups: vi.fn() }));
 
 /**
  * Creating a group, the invite link and pairing a PUUID (M13.5, acceptance 1 to 5), against the
@@ -467,8 +471,11 @@ if (stack === null || authUsers === null) {
 
     it('a linked visitor with the live invite joins as member; a second tap is a no-op', async () => {
       liveCode = await inviteCode(groupA);
+      invalidateGroup.mockClear();
       const answer = await join('cleo', liveCode);
       expect(answer.status).toBe(200);
+      // A new member is a new roster: the cached label inputs are dropped.
+      expect(invalidateGroup).toHaveBeenCalledWith(groupA, ['roster']);
       expect(answer.json).toMatchObject({
         ok: true,
         role: 'member',

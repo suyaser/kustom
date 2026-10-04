@@ -26,10 +26,17 @@ export interface PlayerHead {
   name: PlayerName;
 }
 
-export const loadPlayerHead = cache(async (puuid: string): Promise<PlayerHead | null> => {
-  const { data, error } = await createPublicClient()
+/**
+ * The player's title facts **in this group**, or null: the page's own 404 rule (`loadPlayerBoard`:
+ * a member, a rating row or a scoreboard row in the group), so a PUUID with nothing here never puts
+ * its name in this group's `<title>` or share card while the page itself 404s. Two small rounds:
+ * the player, then the three membership checks side by side.
+ */
+export const loadPlayerHead = cache(async (puuid: string, groupId: string): Promise<PlayerHead | null> => {
+  const client = createPublicClient();
+  const { data, error } = await client
     .from('players_public')
-    .select('puuid, display_name, game_name')
+    .select('id, puuid, display_name, game_name')
     .eq('puuid', puuid)
     .limit(1)
     .maybeSingle();
@@ -37,7 +44,25 @@ export const loadPlayerHead = cache(async (puuid: string): Promise<PlayerHead | 
     console.error('heads: player title lookup failed', error.message);
     return null;
   }
-  if (data === null || data.puuid === null) return null;
+  if (data === null || data.id === null || data.puuid === null) return null;
+  const playerId = data.id;
+  const [member, rating, played] = await Promise.all([
+    client
+      .from('group_members_public')
+      .select('player_id')
+      .eq('group_id', groupId)
+      .eq('player_id', playerId)
+      .limit(1),
+    client.from('ratings').select('player_id').eq('group_id', groupId).eq('player_id', playerId).limit(1),
+    client.from('game_players').select('game_id').eq('group_id', groupId).eq('player_id', playerId).limit(1),
+  ]);
+  const failed = member.error ?? rating.error ?? played.error;
+  if (failed) {
+    console.error('heads: player group lookup failed', failed.message);
+    return null;
+  }
+  const inGroup = [member.data, rating.data, played.data].some((rows) => (rows ?? []).length > 0);
+  if (!inGroup) return null;
   return { puuid: data.puuid, name: data.display_name ?? data.game_name ?? null };
 });
 

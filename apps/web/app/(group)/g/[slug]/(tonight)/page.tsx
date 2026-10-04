@@ -103,6 +103,8 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
       ? loadLobbyStartOrNone(getServiceClient(), { timeZone, groupId: group.id })
       : null,
   );
+  // Awaited in the second wave; never unhandled if the first wave throws before it gets there.
+  lobbyStartRead.catch(() => undefined);
   const [anonSnapshot, viewer, top, mystery, admins, hostPresence] = await Promise.all([
     loadTonight(client, { nightStart: tonightStart(), timeZone, groupId: group.id }),
     viewerRead,

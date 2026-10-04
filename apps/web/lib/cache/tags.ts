@@ -39,6 +39,14 @@ export function invalidateGroup(groupId: string, kinds: readonly GroupTagKind[])
   for (const kind of kinds) invalidate(groupTag(kind, groupId));
 }
 
+/**
+ * One slice of one group, now: the stats-perf lane's spelling of {@link invalidateGroup} (same
+ * `{ expire: 0 }`, same never-throws), kept so the two branches' `lib/cache/tags.ts` merge as a union.
+ */
+export function expireGroupTag(kind: GroupTagKind, groupId: string): void {
+  invalidate(groupTag(kind, groupId));
+}
+
 /** A player was renamed (or their tag line moved): every cached slice that prints a name. */
 export function invalidateNames(): void {
   invalidate(NAMES_TAG);

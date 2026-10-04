@@ -103,6 +103,9 @@ export async function loadTonight(
     modeState: modeFacts.then((facts) => facts.standing),
   });
   const lastGameAtRead = loadLastGameAt(client, groupId ?? ORIGINAL_GROUP_ID);
+  // Started before the lobbies are awaited, and awaited below; if the lobbies read throws first,
+  // these must not become unhandled rejections (side references, as the page's roster read does).
+  for (const started of [modeFacts, fearlessRead, lastGameAtRead]) started.catch(() => undefined);
   const lobbies = await selectNightLobbies(client, nightStart, groupId);
   const lobbyRow = newestLobby(lobbies);
   const tapeLobbies = pickTapeLobbies(lobbies, nightStart, drawnLobbyId(lobbyRow));

@@ -54,7 +54,7 @@ export async function generateMetadata({ params }: PlayerPageProps): Promise<Met
   const group = await requirePageGroup(slug);
   // One small read (performance plan, phase 1): every prefetch of this page runs this, never the
   // page's loader.
-  const player = await loadPlayerHead(decode(puuid));
+  const player = await loadPlayerHead(decode(puuid), group.id);
   if (player === null) return { title: groupPageTitle(group) };
   const title = groupPageTitle(group, renderWebName(player.name));
   // The card is always the all-time numbers (M11.4), whatever window this page was opened on.

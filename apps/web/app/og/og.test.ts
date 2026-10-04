@@ -455,8 +455,20 @@ describe('share metadata', () => {
       '/og/g/customs/p/puuid-lena',
     );
     // One small read for the title, never the page's loader (a prefetch runs this).
-    expect(loadPlayerHead).toHaveBeenCalledWith('puuid-lena');
+    expect(loadPlayerHead).toHaveBeenCalledWith('puuid-lena', GROUP.id);
     expect(loadPlayerBoard).not.toHaveBeenCalled();
+  });
+
+  it('a PUUID with nothing in this group gets the group title and no share card (never their name)', async () => {
+    loadPlayerHead.mockResolvedValue(null);
+    const { generateMetadata } = await import('../(group)/g/[slug]/p/[puuid]/page');
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ slug: 'customs', puuid: 'puuid-outsider' }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(metadata.title).toBe('Customs Night · Kustom');
+    expect(metadata.openGraph).toBeUndefined();
+    expect(metadata.twitter).toBeUndefined();
   });
 });
 
