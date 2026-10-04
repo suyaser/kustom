@@ -17,6 +17,10 @@ import type { SessionPlayer } from '../viewer';
  * The cookie is a hint, never trusted: the bar is drawn only for a group `groups_public` knows.
  * A failed membership read keeps a signed-in visitor on the landing page (it still works), and a
  * failed group read just leaves the bar out.
+ *
+ * `/about` is static since about-static and no longer calls this: its client islands draw the same
+ * table's `/about` column from `GET /api/groups/remembered` ({@link rememberedGroup}) and the
+ * session probe. The `about` kind stays as the rule those islands follow.
  */
 export type LandingPageKind = 'root' | 'about';
 
@@ -46,7 +50,7 @@ export async function decideLanding(page: LandingPageKind, deps: LandingDeps): P
   // `/`: the bar is for signed-out visitors (a signed-in member was redirected above). `/about`:
   // for anybody whose browser remembers a group, since a member reached it from that group.
   const wantsBar = audience === 'signed-out' || page === 'about';
-  const back = wantsBar && cookieSlug ? await safeGroup(deps, cookieSlug) : null;
+  const back = wantsBar ? await rememberedGroup(cookieSlug, deps.groupBySlug) : null;
   return { kind: 'landing', audience, back };
 }
 
@@ -65,9 +69,18 @@ async function signedInViewer(
   }
 }
 
-async function safeGroup(deps: LandingDeps, slug: string): Promise<PageGroup | null> {
+/**
+ * The group a `kustom_group` cookie names, when `groups_public` knows it: no cookie is no read,
+ * and a failed read is no bar. Also `GET /api/groups/remembered`'s whole answer, so the static
+ * `/about`'s client island and the dynamic `/` draw the bar on exactly the same rule.
+ */
+export async function rememberedGroup(
+  cookieSlug: string | null | undefined,
+  groupBySlug: LandingDeps['groupBySlug'],
+): Promise<PageGroup | null> {
+  if (!cookieSlug) return null;
   try {
-    return await deps.groupBySlug(slug);
+    return await groupBySlug(cookieSlug);
   } catch (error) {
     console.error('landing: the remembered group could not be read', error);
     return null;

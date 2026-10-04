@@ -13,6 +13,7 @@ import {
   pairingCodeSchema,
   pairingRequestSchema,
   pairingStatusResponseSchema,
+  rememberedGroupResponseSchema,
 } from './index';
 
 describe('pairing codes (M13.5)', () => {
@@ -145,5 +146,16 @@ describe('pairingStatusResponseSchema (M13.5)', () => {
     ).toBe(true);
     expect(pairingStatusResponseSchema.safeParse({ ok: true, status: 'expired' }).success).toBe(true);
     expect(pairingStatusResponseSchema.safeParse({ ok: true, status: 'pending' }).success).toBe(false);
+  });
+});
+
+describe('rememberedGroupResponseSchema (about-static)', () => {
+  it('is a public slug and name, or null', () => {
+    const parse = (body: unknown) => rememberedGroupResponseSchema.safeParse(body).success;
+    expect(parse({ ok: true, group: { slug: 'customs', name: 'Customs Night' } })).toBe(true);
+    expect(parse({ ok: true, group: null })).toBe(true);
+    expect(parse({ ok: true })).toBe(false);
+    expect(parse({ ok: true, group: { slug: 'Customs', name: 'Customs Night' } })).toBe(false);
+    expect(parse({ ok: true, group: { slug: 'customs', name: '' } })).toBe(false);
   });
 });

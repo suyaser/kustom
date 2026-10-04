@@ -872,6 +872,13 @@ watching: on lobby event -> POST /api/companion/lobby
   id (copied from the issuing session's verified identity) to the PUUID Kustom read from League, adds the
   membership (`admin` for the group's creator) and uses the code, under a row lock. It never re-links a
   Discord account and never takes a PUUID linked to someone else; a refusal writes nothing.
+- **`GET /api/groups/remembered`** (about-static; schema `rememberedGroupResponseSchema` in `invites.ts`). No
+  session, no body: reads the HttpOnly `kustom_group` cookie and answers `200 { ok: true, group: { slug, name }
+  | null }` from `groups_public`, on `decideLanding`'s own rule (`rememberedGroup`: no cookie is no read, an
+  unknown slug or a failed read is `null`; never 4xx/5xx). `Cache-Control: private, no-store`. It exists so the
+  static `/about` can draw `Back to <Group>` as a client island; its audience lines share the top bar's
+  session probe (`lib/landing/sessionProbe.ts`, one `GET /api/groups/mine` per page load, only with an `sb-`
+  cookie).
 
 ## Discord
 

@@ -1,18 +1,22 @@
 import type { Metadata } from 'next';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { PAGE_DESCRIPTION, PAGE_TITLE } from '@/lib/landing/copy';
-import { landingData, landingDecision } from '@/lib/landing/server';
+import { landingData } from '@/lib/landing/server';
 import { kustomShareMetadata } from '@/lib/og/meta';
 
 /**
  * `/about` (M14.24; STRATEGY §2.2): the landing page, and it never redirects anybody. Every group
  * page's footer links here as `What's Kustom?`.
  *
- * Still dynamic after M19.18, unlike `/download` and `/how`: the `Back to <Group>` bar comes from the
- * `kustom_group` cookie (HttpOnly, so no client island can read it) plus a group read, and the
- * `Create your group` action and the `Free.` line differ for a signed-in visitor.
+ * Incremental static (about-static, after M19.18), like `/how`: prerendered for an anonymous
+ * visitor and rebuilt in the background at most every five minutes, the landing data's own cache
+ * window. What depends on the visitor is client islands (`components/landing/AboutIslands.tsx`):
+ * the `Back to <Group>` bar asks `GET /api/groups/remembered` (the `kustom_group` cookie is
+ * HttpOnly), and `Create your group` and the `Free.` line turn for a signed-in visitor on the
+ * session probe the top bar's `KustomSignIn` already makes. Was `force-dynamic`, a function
+ * invocation and a session read per hit.
  */
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -21,8 +25,5 @@ export const metadata: Metadata = {
 };
 
 export default async function About() {
-  const decision = await landingDecision('about');
-  // `decideLanding` never redirects `/about`; the narrowing is for the types.
-  if (decision.kind !== 'landing') throw new Error('about: a redirect decision for /about');
-  return <LandingPage data={await landingData()} audience={decision.audience} back={decision.back} />;
+  return <LandingPage data={await landingData()} islands />;
 }
