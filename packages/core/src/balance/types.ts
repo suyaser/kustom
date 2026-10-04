@@ -46,6 +46,32 @@ export interface BalanceInput {
    * never which splits are chosen.
    */
   calib?: KustomCalib;
+  /**
+   * Teammate variety (M18.13): every pair of puuids who were teammates in the recent window
+   * (`config.balance.varietyWindowGames`, the night's previous game), computed by the caller.
+   * Order inside a pair and duplicates do not matter; a pair naming someone not in tonight's
+   * ten, the same player twice, or two players locked together as a duo is ignored, never an
+   * error. Absent, `null` or empty: no variety term, every split's `variety` is 0.
+   */
+  recentTeammates?: readonly Duo[] | null;
+}
+
+/**
+ * Every term of a split's score (M18.13), stored as `splits.score_parts` so the receipt can say
+ * why a split ranked lower from stored numbers. `score === gap + offRole + repeat + variety`,
+ * summed in that order, exactly.
+ */
+export interface ScoreParts {
+  /** The unrounded gap in Rating points on role-adjusted strength; `Split.gap` is its rounding. */
+  gap: number;
+  /** Sum of each off-role seat's cost: 120 at baseline, up to 240 under fill protection. */
+  offRole: number;
+  /** `repeatSplitPenalty` (200) when this split is the same five as `lastSplit`, else 0. */
+  repeat: number;
+  /** `min(varietyCap, varietyPerPair * repeatedPairs)`. */
+  variety: number;
+  /** Pairs on the same side here who were also teammates in the recent window. */
+  repeatedPairs: number;
 }
 
 export interface Assignment {
@@ -58,7 +84,7 @@ export interface Split {
   blue: Assignment[];
   /** Five, in lane order. */
   red: Assignment[];
-  /** `Math.round(rawGap)`, Rating points, on role-weighted strength (`r × roleMultiplier`). */
+  /** `Math.round(rawGap)`, Rating points, on role-adjusted strength (`r − roleDrop`, M18.13). */
   gap: number;
   /**
    * Blue's chance to win, in `[0, 1]`: `winProbability(Σ blue r, Σ red r, calib)` on the plain
@@ -66,10 +92,16 @@ export interface Split {
    */
   blueWinProb: number;
   /**
-   * Unrounded: `rawGap + sum(off-role cost of each filled seat) + 200 * isRepeat`. One seat
-   * costs 120 at baseline and up to 240 under fill protection (M7.5). This ordered the list.
+   * Unrounded: `rawGap + sum(off-role cost of each filled seat) + 200 * isRepeat + variety`.
+   * One seat costs 120 at baseline and up to 240 under fill protection (M7.5); variety is 0 to
+   * 100 (M18.13). This ordered the list.
    */
   score: number;
+  /**
+   * The terms of `score` (M18.13). `balance` always sets it; it is optional only so a `Split`
+   * built by hand, or read back from a row stored before `splits.score_parts`, still types.
+   */
+  scoreParts?: ScoreParts;
   /** Players not on a main role, 0 to 10. */
   offRoleCount: number;
 }

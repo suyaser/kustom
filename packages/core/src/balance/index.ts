@@ -12,7 +12,7 @@ import { winProbability } from '../rating/kustom';
 import { ROLES } from '../types';
 import { explain } from './explain';
 import { roleTier } from './roles';
-import type { Assignment, BalanceInput, BalancePlayer, BalanceResult, Duo, Split } from './types';
+import type { Assignment, BalanceInput, BalancePlayer, BalanceResult, Duo, ScoreParts, Split } from './types';
 
 export { explain } from './explain';
 /** M14.4: the fairness receipt's facts, so no page parses `explanation` (STRATEGY §4.2 rule 5). */
@@ -29,9 +29,11 @@ export {
   preGameOdds,
   type RankedColumns,
   type RatingBefore,
+  type ScoredColumns,
   type SplitTeams,
   type SwapDescription,
   type WhyLower,
+  type WhyLowerScored,
   whyLower,
 } from './receipt';
 /**
@@ -41,7 +43,15 @@ export {
  * embed and the page ask these, never a re-derived `role !== mainRole`.
  */
 export { isOffRole, type ResolvedRoles, type RoleProfile, resolveRoles } from './roles';
-export type { Assignment, BalanceInput, BalancePlayer, BalanceResult, Duo, Split } from './types';
+export type {
+  Assignment,
+  BalanceInput,
+  BalancePlayer,
+  BalanceResult,
+  Duo,
+  ScoreParts,
+  Split,
+} from './types';
 
 /** Thrown for every input the balancer refuses. The message is written for a Discord line. */
 export class BalanceError extends Error {
@@ -64,7 +74,7 @@ interface Prepared {
   readonly puuid: string;
   /** The plain Rating, which is what the odds read (the fold reads the same number). */
   readonly r: number;
-  /** Effective strength per role, `r × roleMultiplier`, indexed like `ROLES`. */
+  /** Effective strength per role, `r − roleDrop[tier]` (M18.13), indexed like `ROLES`. */
   readonly effective: readonly number[];
   /** Whether playing each role counts as off-role, indexed like `ROLES`. */
   readonly offRole: readonly boolean[];
@@ -128,14 +138,18 @@ function offRoleCostOf(player: BalancePlayer): number {
   return cfg.offRolePenalty * (1 + cfg.fillProtectionFactor / (Math.max(0, since) + 1));
 }
 
-/** Price every role for a player, in Rating points, and mark which roles are off-role. */
+/**
+ * Price every role for a player, in Rating points, and mark which roles are off-role. The drop
+ * is flat (M18.13): the same seat takes the same points from a 1400 player as from a 1100 one,
+ * so who gets filled is decided by fill protection and the gap, never by who is rated lowest.
+ */
 function prepare(player: BalancePlayer, index: number): Prepared {
   const base = player.r;
   const effective: number[] = [];
   const offRole: boolean[] = [];
   for (const role of ROLES) {
     const tier = roleTier(player, role);
-    effective.push(base * cfg.roleMultiplier[tier]);
+    effective.push(base - cfg.roleDrop[tier]);
     offRole.push(tier !== 'main');
   }
   return {
@@ -206,6 +220,31 @@ function duoBlocks(
     else g.push(i);
   }
   return [...groups.values()].filter((g) => g.length > 1);
+}
+
+/**
+ * Teammate variety (M18.13): the caller's recent pairs as player-index pairs, each unordered
+ * pair once, sorted. Ignored, never thrown on: a pair naming somebody not in tonight's ten (they
+ * played the previous game and sat this one out), the same player twice, and a pair inside one
+ * duo block (they asked to play together; that is not the bot repeating them).
+ */
+function recentPairs(
+  pairs: readonly Duo[],
+  byPuuid: ReadonlyMap<string, Prepared>,
+  blocks: readonly (readonly number[])[],
+): (readonly [number, number])[] {
+  const blockOf = new Map<number, number>();
+  for (const [b, block] of blocks.entries()) for (const i of block) blockOf.set(i, b);
+  const keys = new Set<number>();
+  for (const [a, b] of pairs) {
+    const pa = byPuuid.get(a)?.index;
+    const pb = byPuuid.get(b)?.index;
+    if (pa === undefined || pb === undefined || pa === pb) continue;
+    const ba = blockOf.get(pa);
+    if (ba !== undefined && ba === blockOf.get(pb)) continue;
+    keys.add(Math.min(pa, pb) * PLAYERS + Math.max(pa, pb));
+  }
+  return [...keys].sort((x, y) => x - y).map((k) => [Math.floor(k / PLAYERS), k % PLAYERS] as const);
 }
 
 function validate(input: BalanceInput): void {
@@ -282,6 +321,7 @@ export function balance(input: BalanceInput): BalanceResult {
   const blocks = duoBlocks(input.duos ?? [], byPuuid, names);
   const last = input.lastSplit ?? null;
   const lastIndices = last === null ? null : new Set(last.map((p) => byPuuid.get(p)?.index ?? -1));
+  const recent = recentPairs(input.recentTeammates ?? [], byPuuid, blocks);
 
   const candidates: Split[] = [];
   for (const companions of BLUE_COMPANIONS) {
@@ -298,10 +338,18 @@ export function balance(input: BalanceInput): BalanceResult {
     const isRepeat =
       lastIndices !== null &&
       (blue.every((p) => lastIndices.has(p.index)) || red.every((p) => lastIndices.has(p.index)));
+    const repeatedPairs = recent.filter(([a, b]) => blueIdx.has(a) === blueIdx.has(b)).length;
     // The same per-player prices `assignRoles` charged, so a seat and the split that contains
-    // it are never valued differently (M7.5).
-    const score =
-      rawGap + blueRoles.offRoleCost + redRoles.offRoleCost + (isRepeat ? cfg.repeatSplitPenalty : 0);
+    // it are never valued differently (M7.5). The score is the sum of the stored parts, in
+    // this order, so `score_parts` adds up to `score` exactly (M18.13).
+    const scoreParts: ScoreParts = {
+      gap: rawGap,
+      offRole: blueRoles.offRoleCost + redRoles.offRoleCost,
+      repeat: isRepeat ? cfg.repeatSplitPenalty : 0,
+      variety: Math.min(cfg.varietyCap, cfg.varietyPerPair * repeatedPairs),
+      repeatedPairs,
+    };
+    const score = scoreParts.gap + scoreParts.offRole + scoreParts.repeat + scoreParts.variety;
     candidates.push({
       blue: toAssignments(blue, blueRoles.roles),
       red: toAssignments(red, redRoles.roles),
@@ -310,6 +358,7 @@ export function balance(input: BalanceInput): BalanceResult {
       blueWinProb: winProbability(sumR(blue), sumR(red), input.calib),
       score,
       offRoleCount,
+      scoreParts,
     });
   }
 

@@ -237,11 +237,20 @@ export const config = {
   },
   balance: {
     /**
-     * Effective strength on a role is `r * multiplier`, `r` the all-time Kustom Rating (M18.2).
-     * `main` is the player's main (or tonight's override, or any role for a flexible player),
-     * `secondary` their backup, `fill` anything else.
+     * Effective strength on a role is `r - roleDrop[tier]`, `r` the all-time Kustom Rating
+     * (M18.2), in Rating points (M18.13). `main` is the player's main (or tonight's override, or
+     * any role for a flexible player), `secondary` their backup, `fill` anything else.
+     *
+     * **Flat, not a percentage** (M18.13, owner-approved 2026-10-04). It replaced
+     * `r * { main: 1, secondary: 0.93, fill: 0.85 }`, which took more points from a high-rated
+     * player than a low-rated one for the same seat, so the cheapest fill was always the
+     * weakest player: in a fixed sweep of 1,000 lobbies on the real Kustom spread the bottom
+     * third took 1,019 off-role seats to the top third's 401; flat, 689 to 770
+     * (`balance/formation.test.ts`). 84 and 180
+     * are 0.07 and 0.15 of 1200, the Kustom anchor: what the multipliers took from a 1200
+     * player, now taken from everybody.
      */
-    roleMultiplier: { main: 1.0, secondary: 0.93, fill: 0.85 },
+    roleDrop: { main: 0, secondary: 84, fill: 180 },
     /**
      * Rating points added to a split's score per player not on a main role, before fill
      * protection scales it: the price of one off-role seat for somebody with no fill history.
@@ -267,6 +276,23 @@ export const config = {
     fillProtectionFactor: 1.0,
     /** Rating points added once when a split puts the same five together as `lastSplit`. */
     repeatSplitPenalty: 200,
+    /**
+     * Teammate variety (M18.13, owner-approved 2026-10-04): a split pays
+     * `min(varietyCap, varietyPerPair * repeated pairs)` Rating points, a repeated pair being two
+     * players on the same side of this split who were teammates in the recent window. 25 a pair,
+     * capped at 100, so variety can lift a split over a fairer one by at most 100 points of
+     * gap; the shown win chance is still the true one. The gentle version of
+     * `repeatSplitPenalty`, which stays as it is.
+     */
+    varietyPerPair: 25,
+    varietyCap: 100,
+    /**
+     * The recent window, read by the **caller** (core never reads history): the previous this-many
+     * games **of the same night**, every pair of teammates in them passed as
+     * `BalanceInput.recentTeammates`. One is the approved rule: the night's previous game. A pair
+     * that appears in several of those games still counts once.
+     */
+    varietyWindowGames: 1,
     /** How many splits `balance` returns at most, best first. Reroll walks this list. */
     splitsReturned: 3,
   },
