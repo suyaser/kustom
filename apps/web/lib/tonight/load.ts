@@ -236,7 +236,7 @@ const SPLIT_COLUMNS =
  * columns of `GAME_STAMP_COLUMNS`) and its scoreboard, embedded, with the award's stat line (M11.3).
  */
 const NIGHT_GAME_COLUMNS =
-  'id, lobby_id, winning_side, started_at, duration_s, gameMode:raw->gameMode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after, sigma_before)' as const;
+  'id, lobby_id, winning_side, started_at, duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after, sigma_before)' as const;
 
 type NightGameRow = GameStampRow & {
   id: string;

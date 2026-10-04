@@ -5,7 +5,8 @@ import { inChunks } from '../chunks';
 import { formatDamage } from '../discord/embeds';
 import { formatMinutes } from '../games/duration';
 import { formatDayMonth, nextCivilMidnight } from '../night';
-import { rawFactsFromUnknown } from '../stats/rawFacts';
+import { resolveFacts } from '../stats/gameFacts';
+import { emptyRawFacts } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
 import { clueView } from './clues';
 import { kdaLine } from './copy';
@@ -459,7 +460,7 @@ async function loadPerformance(
 ): Promise<MysteryPerformance> {
   const { data: game, error: gameError } = await client
     .from('games')
-    .select('started_at, duration_s, winning_side, raw')
+    .select('id, started_at, duration_s, winning_side, game_facts(facts_version, facts)')
     .eq('id', row.game_id)
     .maybeSingle();
   if (gameError) throw new Error(`daily mystery: failed to read game: ${gameError.message}`);
@@ -478,7 +479,8 @@ async function loadPerformance(
     .select('puuid')
     .eq('id', row.mystery_player_id)
     .maybeSingle();
-  const raw = rawFactsFromUnknown(game?.raw);
+  const raw =
+    game === null ? emptyRawFacts() : ((await resolveFacts(client, [game])).get(game.id) ?? emptyRawFacts());
   const facts = identity?.puuid ? raw.byPuuid[identity.puuid] : undefined;
   const kills = seat?.kills ?? 0;
   const deaths = seat?.deaths ?? 0;

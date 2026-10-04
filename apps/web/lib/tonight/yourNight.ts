@@ -169,7 +169,7 @@ function awardPlayers(
 }
 
 const COLUMNS =
-  'id, started_at, duration_s, winning_side, rated, gameMode:raw->gameMode, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, champion_id, mu_before, mu_after)';
+  'id, started_at, duration_s, winning_side, rated, gameMode:game_mode, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, champion_id, mu_before, mu_after)';
 
 /** PostgREST's `max_rows`: one page of the night's games. */
 const PAGE = 1_000;

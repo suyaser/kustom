@@ -10,6 +10,7 @@ export * from './companion';
 export * from './companionResponses';
 export * from './discordConnect';
 export * from './foldBreakdown';
+export * from './gameFacts';
 export * from './groups';
 export * from './invites';
 export * from './live';

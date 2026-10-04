@@ -410,7 +410,15 @@ if (stack === null) {
     });
 
     it('lets anon read the public display tables', async () => {
-      for (const table of ['lobbies', 'lobby_members', 'splits', 'games', 'game_players', 'ratings']) {
+      for (const table of [
+        'lobbies',
+        'lobby_members',
+        'splits',
+        'games',
+        'game_players',
+        'ratings',
+        'game_facts',
+      ]) {
         // `lobbies` by named columns: `lobby_password` is not anon-readable since 0028 (M14.28), so
         // `select=*` is refused there on purpose.
         const columns = table === 'lobbies' ? 'id,status,lobby_name' : '*';
@@ -429,6 +437,8 @@ if (stack === null) {
         'daily_mystery_clues',
         'daily_mystery_sessions',
         'daily_mystery_attempts',
+        // 0042: Admin Members' per-player counts, service role only.
+        'group_member_game_counts',
       ]) {
         const result = await rest('anon', `${table}?select=*&limit=1`);
         expect(result.ok, `${table} must not be readable by anon`).toBe(false);
@@ -454,6 +464,24 @@ if (stack === null) {
 
       const stillOpen = await rest('service', `lobbies?id=eq.${lobbyId}&select=id`);
       expect(rows(stillOpen.body)).toHaveLength(1);
+
+      // 0041: game_facts is derived by the service role at ingest; anon reads it and never writes it.
+      const facts = await insert(
+        'game_facts',
+        {
+          game_id: crypto.randomUUID(),
+          group_id: ORIGINAL_GROUP_ID,
+          facts_version: 1,
+          facts: { byPuuid: {}, bans: [] },
+        },
+        'anon',
+      );
+      expect(facts.ok).toBe(false);
+      const factsPatch = await rest('anon', 'game_facts?facts_version=eq.1', {
+        method: 'PATCH',
+        body: JSON.stringify({ facts_version: 2 }),
+      });
+      expect(factsPatch.ok).toBe(false);
     });
   });
 

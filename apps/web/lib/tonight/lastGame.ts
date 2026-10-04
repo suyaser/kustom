@@ -21,7 +21,7 @@ export interface LastGame {
 export async function loadLastGame(client: PublicClient, groupId: string): Promise<LastGame | null> {
   const { data: game, error } = await client
     .from('games')
-    .select('id, lobby_id, duration_s, winning_side, started_at, gameMode:raw->gameMode')
+    .select('id, lobby_id, duration_s, winning_side, started_at, gameMode:game_mode')
     .eq('group_id', groupId)
     .in('winning_side', [100, 200])
     .order('started_at', { ascending: false })

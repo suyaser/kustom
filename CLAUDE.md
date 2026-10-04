@@ -48,7 +48,8 @@ pnpm --filter web mint-token <puuid> [label] [--group <slug>]
                              # adds a member row there if there is none.
                              # Runs node with --conditions=react-server (M14.44): companionAuth.ts
                              # imports 'server-only'. Any new script importing a server-only module
-                             # needs the same flag.
+                             # needs the same flag. And --import tsx (db-perf): node's own type
+                             # stripping cannot resolve the extensionless imports under lib/.
 pnpm --filter web set-premium <slug> on|off [--cap <usd>] [--hosted]  # M16.2: the only writer of groups.premium / ai_monthly_cap_usd (service role, .env.local); prints URL + before/after, idempotent; refuses a non-local URL without --hosted
 pnpm --filter web patch-notes-image <out.png>  # the one-time Kustom 2.0 patch notes picture, 1920x1080 PNG (words in apps/web/scripts/patch-notes/notes.ts, the week notes picture's look); dev only, no route, no env
 pnpm --filter web ddragon-fixture [--from <champion.json>]  # M15.4: regenerates the pinned Data Dragon fixture and lib/champs/tags.ts (deterministic)
@@ -80,6 +81,14 @@ pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] [--group <slug
                              # M14.18: folds only games with started_at >= groups.ratings_since
                              # (the owner's Reset ratings epoch; null = every game).
 pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
+pnpm --filter web backfill-game-facts [--dry-run] [--group <slug>] [--hosted]
+                             # 0041 (db-perf): writes game_facts (rawFactsFromUnknown of games.raw) for
+                             # every game without a row and recomputes rows below GAME_FACTS_VERSION
+                             # (lib/stats/gameFacts.ts). Idempotent: a second run prints `total 0 written`.
+                             # Every group by default. First line `target <host> (local|hosted)`; any
+                             # non-local URL is refused without --hosted, dry runs too. Run it once after
+                             # deploying 0041's code (docs/runbooks/db-performance.md), and after any bump
+                             # of GAME_FACTS_VERSION. Readers fall back to raw for a missing row meanwhile.
 pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
                              # M7.7 one-off, extended by M7.14: copies vision score, damage
                              # self-mitigated and damage to objectives out of games.raw onto
@@ -127,6 +136,7 @@ packages/db/scripts/m14-14-throwaway-check.sh [0026 path]  # M14.14: checks 0026
 packages/db/scripts/m14-58-throwaway-check.sh [0034 path]  # M14.58: checks 0034 on a throwaway restore of local (pg_dump read only); needs Docker
 packages/db/scripts/session-player-throwaway-check.sh [0038 path]  # verified session lookup: checks 0038 (grants, definer settings, revoked/banned/deleted/unlinked cases) on a throwaway restore of local (pg_dump read only); needs Docker
 packages/db/scripts/m19-9-throwaway-check.sh [0037 path]   # M19.9: checks 0037 (group_live) on a throwaway restore of local, then replays every migration on a fresh throwaway; pg_dump read only; needs Docker
+packages/db/scripts/m19-dbperf-throwaway-check.sh [migrations dir]  # db-perf: applies and checks 0039-0042 on a throwaway restore of local (pg_dump read only); needs Docker
 # SUPER_ADMIN_USER_IDS (M14.19, server only): comma-separated Supabase auth.users ids; read-only access to every group's admin reads and /ops, never a write. Set it on Vercel Production too.
 # CI (.github/workflows/ci.yml) runs install --frozen-lockfile, `pnpm -r typecheck`, `pnpm lint`, `pnpm -r test` and `pnpm --filter web build` on every pull request and every push to main, on Node .nvmrc with no local stack (the *.integration.test.ts files skip) and no secrets -- run those five before you open one.
 ```

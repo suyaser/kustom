@@ -978,7 +978,7 @@ export async function readSeatHistory(
       const { data, error } = await service
         .from('game_players')
         .select(
-          'side, champion_id, kills, assists, cs, damage_to_champs, vision_score, games!inner(group_id, started_at, winning_side, game_mode:raw->>gameMode)',
+          'side, champion_id, kills, assists, cs, damage_to_champs, vision_score, games!inner(group_id, started_at, winning_side, game_mode)',
         )
         .eq('player_id', playerId)
         .eq('games.group_id', groupId)

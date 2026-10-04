@@ -13,6 +13,7 @@ import { championTable } from '../mode/champions';
 import { readLobbyLock } from '../mode/lock';
 import { recordedGame, stampColumns } from '../mode/record';
 import { supabaseModeStore } from '../mode/state';
+import { gameFactsInsert, writeGameFacts } from '../stats/gameFacts';
 import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
 import { isRatedMode } from './fold';
@@ -35,6 +36,10 @@ import { storedStat } from './statValue';
  * Idempotency is on `lcu_game_id`: two companions in the same game both post, and the second
  * post does not replace the row. A later match-history post may copy `teams[].bans` onto a
  * live eog block that never stored them — that list only, nothing else.
+ *
+ * It also keeps `game_facts` (0041) in step with the stored block: the first post writes the row,
+ * a ban merge rewrites it, and a repeat post that changed nothing only fills a row that is missing
+ * (a game stored before 0041), so the second companion writes nothing.
  */
 
 /** The only `gameType` we ingest. Anything else is not our night (`M2.5`). */
@@ -208,7 +213,16 @@ export async function ingestEogGame(
   let wrote = created;
   if (!foreignDuplicate) {
     if (await upsertGamePlayers(client, game.id, game.group_id, payload, created)) wrote = true;
-    if (!created && (await mergeStoredDraftBans(client, game.id, payload.raw))) wrote = true;
+    // game_facts (0041) follows the stored block, before the route bumps the live signal: the first
+    // post writes the row, a ban merge rewrites it, a repeat post only fills a missing one.
+    const facts = { id: game.id, groupId: game.group_id };
+    if (created) {
+      await writeGameFacts(client, [gameFactsInsert(facts, insert.raw)], 'replace');
+    } else {
+      const stored = await mergeStoredDraftBans(client, game.id, payload.raw);
+      if (stored.merged) wrote = true;
+      await writeGameFacts(client, [gameFactsInsert(facts, stored.raw)], stored.merged ? 'replace' : 'fill');
+    }
     // The group's cached game-derived reads (the calibration line) are stale now (app-perf).
     invalidateGroup(game.group_id, ['games']);
   }
@@ -255,17 +269,15 @@ async function mergeStoredDraftBans(
   client: ServiceClient,
   gameId: string,
   incomingRaw: Record<string, unknown>,
-): Promise<boolean> {
+): Promise<{ raw: unknown; merged: boolean }> {
   const { data, error } = await client.from('games').select('raw').eq('id', gameId).maybeSingle();
   if (error) throw new Error(`ingestGame: raw select failed: ${error.message}`);
   const merged = mergeDraftBans(data?.raw, incomingRaw);
-  if (merged === null) return false;
-  const { error: updateError } = await client
-    .from('games')
-    .update({ raw: asJson(scrubRawEogBlock(merged)) })
-    .eq('id', gameId);
+  if (merged === null) return { raw: data?.raw ?? null, merged: false };
+  const raw = asJson(scrubRawEogBlock(merged));
+  const { error: updateError } = await client.from('games').update({ raw }).eq('id', gameId);
   if (updateError) throw new Error(`ingestGame: raw ban merge failed: ${updateError.message}`);
-  return true;
+  return { raw, merged: true };
 }
 
 async function selectGame(

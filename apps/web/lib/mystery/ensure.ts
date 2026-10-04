@@ -5,7 +5,8 @@ import { inChunks } from '../chunks';
 import { formatMinutes } from '../games/duration';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { civilDayKey, civilDayStart, nextCivilMidnight } from '../night';
-import { rawFactsFromUnknown } from '../stats/rawFacts';
+import { resolveFacts } from '../stats/gameFacts';
+import { emptyRawFacts, type RawGameFacts } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
 import { type BuildGame, type BuildSeat, type BuiltChallenge, planChallenge } from './build';
 import { HOOK_DURATION } from './copy';
@@ -35,7 +36,10 @@ interface GameRow {
   started_at: string;
   duration_s: number;
   winning_side: number;
-  raw: unknown;
+  /** `games.game_mode` (0039). */
+  gameMode: string | null;
+  /** The game's `game_facts` (0041), or its raw paths when it has no current row. */
+  facts: RawGameFacts;
 }
 
 interface SeatRow {
@@ -191,12 +195,12 @@ async function buildToday(
   }
 
   const built: BuildGame[] = games.map((game) => {
-    const raw = rawFactsFromUnknown(game.raw);
+    const raw = game.facts;
     return {
       id: game.id,
       startedAt: new Date(game.started_at),
       durationS: game.duration_s,
-      isRift: matchesQueue(gameModeFromRaw(game.raw), 'sr'),
+      isRift: matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'sr'),
       seats: (seatsByGame.get(game.id) ?? []).map((seat) => {
         const facts = raw.byPuuid[puuids.get(seat.player_id) ?? ''] ?? raw.byPuuid[seat.player_id];
         return {
@@ -228,15 +232,29 @@ async function buildToday(
   return planChallenge({ dayKey: day, games: built, avoid });
 }
 
+/**
+ * The candidates: the group's newest games with their mode and stored facts, never the raw block
+ * (`redesign/research/db-performance.md` finding 6: this read was 500 whole blocks, 33 MB on a
+ * year-old group, on the first Tonight visit of every day).
+ */
 async function loadGames(client: ServiceClient, groupId: string): Promise<GameRow[]> {
   const { data, error } = await client
     .from('games')
-    .select('id, started_at, duration_s, winning_side, raw')
+    .select('id, started_at, duration_s, winning_side, game_mode, game_facts(facts_version, facts)')
     .eq('group_id', groupId)
     .order('started_at', { ascending: false })
     .limit(CANDIDATE_GAMES);
   if (error) throw new Error(`daily mystery: failed to read games: ${error.message}`);
-  return (data ?? []) as GameRow[];
+  const rows = data ?? [];
+  const facts = await resolveFacts(client, rows);
+  return rows.map((row) => ({
+    id: row.id,
+    started_at: row.started_at,
+    duration_s: row.duration_s,
+    winning_side: row.winning_side as number,
+    gameMode: row.game_mode,
+    facts: facts.get(row.id) ?? emptyRawFacts(),
+  }));
 }
 
 async function loadSeats(client: ServiceClient, gameIds: string[]): Promise<SeatRow[]> {
