@@ -6,6 +6,7 @@ import type { PageGroup } from '@/lib/groups/pageGroup';
 import { ADMIN_TAB_LABEL, currentMainTab, groupHome, groupHref, mainTabs } from '@/lib/nav';
 import { MAIN_NAV_LABEL, SIGN_IN_LABEL } from '@/lib/shellCopy';
 import { cn } from '@/lib/utils';
+import { LinkPendingProbe, useNavPending } from './navPending';
 import { TabIcon } from './TabIcon';
 import { ThemeToggle } from './ThemeToggle';
 import { Wordmark } from './Wordmark';
@@ -40,6 +41,10 @@ export function TopBar({
   const you = tabs.find((tab) => tab.key === 'you');
   const current = currentMainTab(pathname, group);
   const admin = isAdmin ? groupHref(group, { page: 'admin' }) : null;
+  const adminCurrent = admin !== null && (pathname === admin || pathname.startsWith(`${admin}/`));
+  // M19.15 (5.9a): the link a tap is waiting on goes to the foreground with a neutral 3px underline;
+  // the current one keeps its amber underline until the new page lands.
+  const { pendingTab } = useNavPending();
 
   return (
     <header className="border-b border-border bg-card pt-[env(safe-area-inset-top)]">
@@ -58,18 +63,22 @@ export function TopBar({
           <div className="flex self-stretch">
             {sections.map((tab) => {
               const active = tab.key === current;
+              const pending = !active && pendingTab === tab.key;
               return (
                 <Link
                   prefetch="auto"
                   key={tab.key}
                   href={tab.href}
                   aria-current={active ? 'page' : undefined}
+                  data-pending={pending ? '' : undefined}
                   className={cn(
                     'flex items-center border-b-[3px] border-transparent px-3.5 font-bold text-muted-foreground hover:text-foreground',
-                    'focus-visible:-outline-offset-4',
+                    'transition-colors duration-(--dur-fast) ease-out focus-visible:-outline-offset-4',
                     active && 'border-primary-text text-foreground',
+                    pending && 'border-border-strong text-foreground',
                   )}
                 >
+                  <LinkPendingProbe tab={tab.key} current={active} />
                   {tab.label}
                 </Link>
               );
@@ -80,8 +89,13 @@ export function TopBar({
               <Link
                 prefetch="auto"
                 href={admin}
-                className="flex min-h-11 items-center rounded-control px-3 font-bold text-muted-foreground hover:text-foreground"
+                data-pending={!adminCurrent && pendingTab === 'admin-nav' ? '' : undefined}
+                className={cn(
+                  'flex min-h-11 items-center rounded-control px-3 font-bold text-muted-foreground transition-colors duration-(--dur-fast) ease-out hover:text-foreground',
+                  'data-pending:text-foreground data-pending:shadow-[inset_0_-3px_0_var(--border-strong)]',
+                )}
               >
+                <LinkPendingProbe tab="admin-nav" current={adminCurrent} />
                 {ADMIN_TAB_LABEL}
               </Link>
             )}
@@ -90,12 +104,15 @@ export function TopBar({
                 prefetch="auto"
                 href={you.href}
                 aria-current={current === 'you' ? 'page' : undefined}
+                data-pending={current !== 'you' && pendingTab === 'you' ? '' : undefined}
                 className={cn(
                   'flex min-h-11 items-center gap-2 rounded-control border border-border-strong px-3 font-bold hover:bg-accent',
                   current === 'you' && 'shadow-[inset_0_-3px_0_var(--primary-text)]',
+                  'data-pending:shadow-[inset_0_-3px_0_var(--border-strong)]',
                 )}
               >
-                <TabIcon tab="you" active={current === 'you'} />
+                <LinkPendingProbe tab="you" current={current === 'you'} />
+                <TabIcon tab="you" active={current === 'you' || pendingTab === 'you'} />
                 {you.label}
               </Link>
             )}
