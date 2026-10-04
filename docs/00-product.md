@@ -351,7 +351,7 @@ your Rating by `K × (result − expected) × share`: expected is the same win c
 teams' total Ratings; K is 32 on your first game and falls to 16 by your 11th, then stays there; share is 1.2 down
 to 0.8 by how you played against your own team (MVP and ACE keep their names). Everyone starts at 1200, nothing
 decays, and a settled player moves about 8 points a game, 20 at most. A second, weekly Rating starts everyone at
-1200 every Monday at 06:00 and orders the week board. Teams are balanced on the all-time Rating only. M18.9 rewrites this
+1200 every Sunday at 06:00 (owner-confirmed 2026-10-04) and orders the week board. Teams are balanced on the all-time Rating only. M18.9 rewrites this
 section and "The week and all time" when it ships; until then the text below is what runs.
 
 The model keeps one rating per player in each group, `{ mu, sigma }` — `mu` is what it thinks you are,
@@ -450,7 +450,7 @@ surface ever prints a team total.
 names, no season page, no archive of past boards, and the word does not appear anywhere a friend can read it.
 The week is the fresh start the group actually plays for.
 
-The board opens on **This week** — Monday 06:00 to Monday 06:00 (Sunday to Sunday until M18.14 ships), the same 06:00 boundary that decides which
+The board opens on **This week** — Sunday 06:00 to Sunday 06:00, the same 06:00 boundary that decides which
 night a game belongs to, because the group plays past midnight — and offers **Last week** and **All time**
 beside it (This month and Last month were removed on 2026-10-04, M14.48: the user found them a useless
 filter). A window changes who is on the board and what their record and their climb over those days were. It
@@ -466,14 +466,10 @@ but a newcomer's row keeps its `settling` chip, which is why their points run la
 had a second rating of its own that restarted every Sunday; it showed a different change for the same game
 than every other screen, and it is gone.)
 
-**The week starts on Monday** (the owner, 2026-10-04; M18.14), for everything: the board, the awards, the weekly
-Rating and the weekly post all turn over at Monday 06:00, so there is one fresh start a week and not two. Sunday
-night's games, after midnight included, close the week. A range reads `Monday 12 Oct to Sunday 18 Oct`. A night
-is still 06:00 to 06:00. Until M18.14 ships the week runs Sunday to Sunday (2026-09-15, M5.34); the week in
-progress when it ships runs one night longer, Sunday to the next Monday, and every week before it stays as it
-was.
+**The week starts on Sunday** (2026-09-15), because that is when this group's week starts — Egypt works Sunday
+to Thursday. A range reads `Sunday 13 Sep to Saturday 19 Sep`. A night is still 06:00 to 06:00.
 
-Every Monday morning, the week that just closed posts itself to Discord — its final
+Every Sunday, the week that just closed posts itself to Discord — its final
 board, in points order, and its three awards (most improved, which is the week's most points; best off-role; cursed duo) — with nobody pressing
 anything. That is the whole of what people wanted from seasons: something that ends, and something to win by
 Friday. Daily was asked about and turned down: one to three games is not a board.
@@ -499,8 +495,8 @@ group that wants to start over, not for a normal week.
 Some groups have **Kustom Premium**, switched on by the person who runs Kustom (with a script, never a button);
 nobody pays for it, and Kustom is still free. The landing page and `/about` don't mention it. In a Premium
 group, an AI writes a little story on top of numbers Kustom already has: one line under each game's result (on Tonight's poster, the game page and the Discord result post), a
-paragraph at the top of the weekly post (and on the board's Last week), and two or three lines on each
-regular's page, rewritten every week when it closes. Every line is labelled `AI recap` or `AI scouting report`, and every
+paragraph at the top of the Sunday post (and on the board's Last week), and two or three lines on each
+regular's page, rewritten every Sunday. Every line is labelled `AI recap` or `AI scouting report`, and every
 number in it is checked against the database before it is shown; a line that fails the check simply does
 not appear. It never says the odds, never talks about anything Kustom cannot see, and only teases the side
 that won. Any player can turn off `Write about me` on their You page (or ask an admin to), and admins can
@@ -564,7 +560,7 @@ See `02-milestones.md` for the build order. In product terms:
 | More than one group: start one, invite with a link, ratings per group, `/g/<link>` pages | M13 |
 | The receipt on every split, in history and in Discord; calibration; pre-game odds | M14 |
 | One Rating everywhere, boards sorted on it, the settling section | M14 |
-| The Kustom rating (one-line formula, K 32 to 16, shares instead of MVP/ACE multipliers) and a weekly Rating that restarts every Monday | M18 (planned) |
+| The Kustom rating (one-line formula, K 32 to 16, shares instead of MVP/ACE multipliers) and a weekly Rating that restarts every Sunday | M18 (planned) |
 | No seasons | M14 |
 | Owner, admins and members; removing a member; the owner's Reset ratings | M14 |
 | Tonight · Board · Games · Stats · You, on phones and laptops; no More page | M14.7b |
