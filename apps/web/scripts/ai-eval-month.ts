@@ -14,6 +14,7 @@ import {
   buildWeekFacts,
   type FactList,
   RECENT_LINES,
+  renderFact,
 } from '../lib/ai/facts.ts';
 import { generateGameLine, generatePlayerLine, generateWeekLine } from '../lib/ai/generate.ts';
 import {
@@ -75,21 +76,62 @@ if (modelFlag !== '') {
   AI_FEATURES.week.model = model;
   AI_FEATURES.player.model = model;
 }
-console.log(`ai-eval-month  provider ${env.provider}  model ${AI_FEATURES.game.model}`);
+// Experiments (2026-10-04), eval only: a temperature, thinking on, and a second "edit for punch" pass.
+const temperatureFlag = flag('--temperature', '');
+const thinking = args.includes('--thinking');
+const editPass = args.includes('--edit-pass');
+type MutableModel = { temperature: number | null; thinkingOff: unknown };
+const modelEntry = AI_MODELS[AI_FEATURES.game.model] as unknown as MutableModel;
+if (temperatureFlag !== '') modelEntry.temperature = Number(temperatureFlag);
+if (thinking) {
+  // DeepSeek ignores budget_tokens; the reasoning is billed as output, so max_tokens grows with it.
+  modelEntry.thinkingOff = { type: 'enabled', budget_tokens: 2048 };
+  for (const kind of ['game', 'week', 'player'] as const) AI_FEATURES[kind].maxTokens += 4000;
+}
+console.log(
+  `ai-eval-month  provider ${env.provider}  model ${AI_FEATURES.game.model}  temperature ${modelEntry.temperature}` +
+    `${thinking ? '  thinking on' : ''}${editPass ? '  edit pass' : ''}`,
+);
 const GROUP = 'eval-month';
 const GATE: AiGate = { premium: true, linesEnabled: true, premiumChangedAt: '2000-01-01T00:00:00.000Z' };
 const state = memoryMeterState({ [GROUP]: { capUsd: budget } });
 state.globalCapUsd = budget;
-const calls: { request: AiRequest; reply: AiReply | null }[] = [];
-const inner = aiTransportFor(env);
+const calls: { request: AiRequest; reply: AiReply | null; ms: number }[] = [];
+const base = aiTransportFor(env);
+/** The fact list of the subject being written, for the edit pass's own check. */
+let currentList: FactList | null = null;
+const EDIT_ASK =
+  'Rewrite it for punch: same story, sharper words, and why it matters. Keep every player token, number with its unit word and champion exactly as written; add no new number, claim or name; follow every rule above. Reply with the line only.';
+/** The edit pass: a passing draft gets one more call; the edit is kept only if it passes too. */
+const inner: AiTransport = editPass
+  ? {
+      async send(request, signal) {
+        const draft = await base.send(request, signal);
+        if (currentList === null || !checkLine(draft.text, currentList, { stopReason: draft.stopReason }).ok)
+          return draft;
+        const edited = await base.send(
+          { ...request, user: `${request.user}\n\nYour draft: ${draft.text}\n${EDIT_ASK}` },
+          signal,
+        );
+        const keep = checkLine(edited.text, currentList, { stopReason: edited.stopReason }).ok;
+        return {
+          ...(keep ? edited : draft),
+          inputTokens: draft.inputTokens + edited.inputTokens,
+          cachedInputTokens: (draft.cachedInputTokens ?? 0) + (edited.cachedInputTokens ?? 0),
+          outputTokens: draft.outputTokens + edited.outputTokens,
+        };
+      },
+    }
+  : base;
 const transport: AiTransport = {
   async send(request, signal) {
+    const started = Date.now();
     try {
       const reply = await inner.send(request, signal);
-      calls.push({ request, reply });
+      calls.push({ request, reply, ms: Date.now() - started });
       return reply;
     } catch (error) {
-      calls.push({ request, reply: null });
+      calls.push({ request, reply: null, ms: Date.now() - started });
       throw error;
     }
   },
@@ -110,6 +152,8 @@ interface Tally {
   refused: number;
   cost: number;
   reasons: Map<string, number>;
+  ms: number[];
+  lines: string[];
 }
 const tallies = new Map<string, Tally>();
 const records: unknown[] = [];
@@ -121,8 +165,9 @@ async function one(
   run: () => Promise<{ status: string; text?: string }>,
 ) {
   const first = calls.length;
+  currentList = list;
   const outcome = await run();
-  const tally = tallies.get(kind) ?? {
+  const tally: Tally = tallies.get(kind) ?? {
     subjects: 0,
     published: 0,
     firstPass: 0,
@@ -130,11 +175,17 @@ async function one(
     refused: 0,
     cost: 0,
     reasons: new Map(),
+    ms: [],
+    lines: [],
   };
   tallies.set(kind, tally);
   tally.subjects += 1;
-  if (outcome.status === 'published') tally.published += 1;
+  if (outcome.status === 'published') {
+    tally.published += 1;
+    if (outcome.text !== undefined) tally.lines.push(outcome.text);
+  }
   const attempts = calls.slice(first).map((call, index) => {
+    tally.ms.push(call.ms);
     if (call.reply === null) return { error: true };
     const cost = costUsd(call.request.model, call.reply);
     tally.cost += cost;
@@ -162,7 +213,14 @@ async function one(
           nameOf,
         })
       : null;
-  records.push({ kind, label, status: outcome.status, attempts, shown });
+  // The facts with names, so a blind reader can check every claim (2026-10-04).
+  const facts = list.facts.map((fact) =>
+    renderFact(fact).replace(/\bP([1-9]\d?)\b/g, (token) => {
+      const playerId = list.tokenMap[token as keyof typeof list.tokenMap];
+      return playerId === undefined ? token : (nameOf(playerId) ?? token);
+    }),
+  );
+  records.push({ kind, label, status: outcome.status, attempts, shown, facts });
   console.log(`${kind}\t${label}\t${outcome.status}\t${attempts.length} attempt(s)\t${shown ?? ''}`);
   if (ledger !== '')
     appendFileSync(
@@ -183,14 +241,18 @@ const deps = (night: string[] = []) => ({
 
 const games = buildMonth();
 if (kinds.includes('week')) {
+  // The group's earlier Sundays, newest first, as production reads them (2026-10-04).
+  const sundays: string[] = [];
   for (let rep = 0; rep < weekReps; rep += 1) {
     for (let w = 0; w < 4; w += 1) {
       const week = weekInput(games, w);
       const list = buildWeekFacts(week, optedOut);
       if (list === null) continue;
-      await one('week', `week ${w + 1} rep ${rep + 1}`, list, () =>
-        generateWeekLine(deps(), { groupId: GROUP, week }),
-      );
+      await one('week', `week ${w + 1} rep ${rep + 1}`, list, async () => {
+        const outcome = await generateWeekLine(deps(sundays), { groupId: GROUP, week });
+        if (outcome.status === 'published') sundays.unshift(outcome.text);
+        return outcome;
+      });
     }
   }
 }
@@ -275,6 +337,31 @@ for (const [kind, t] of tallies) {
       `attempts ${t.attempts}, refused ${t.refused}, $${t.cost.toFixed(4)}`,
   );
   for (const [reason, n] of [...t.reasons].sort((a, b) => b[1] - a[1])) console.log(`  ${n}x ${reason}`);
+  const sorted = [...t.ms].sort((a, b) => a - b);
+  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] ?? 0;
+  const mean = sorted.reduce((sum, n) => sum + n, 0) / Math.max(1, sorted.length);
+  console.log(
+    `  latency mean ${Math.round(mean)} ms, p95 ${p95} ms; cost per published line $${(t.cost / Math.max(1, t.published)).toFixed(5)}`,
+  );
+  // Stock phrases the A/B read capped (2026-10-04): counted over published lines.
+  const stock = [
+    'duo to watch',
+    'pair to split up',
+    'ran away',
+    'in the loss',
+    'in a losing game',
+    'for the first time in the group',
+    'personal best',
+    'the teammate',
+    'what a',
+    'keep it close',
+    'still',
+  ];
+  const counts = stock
+    .map((phrase) => [phrase, t.lines.filter((line) => line.toLowerCase().includes(phrase)).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([phrase, n]) => `${phrase} ${n}/${t.lines.length}`);
+  if (counts.length > 0) console.log(`  stock: ${counts.join(', ')}`);
 }
 console.log(`total $${total.toFixed(4)}`);
 if (jsonOut !== '') writeFileSync(jsonOut, `${JSON.stringify(records, null, 1)}\n`);

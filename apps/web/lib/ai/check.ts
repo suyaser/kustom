@@ -2,7 +2,7 @@ import 'server-only';
 import type { AiClaim, AiFact, AiFactUnit, AiLineKind, AiLineStatus, AiTokenMap } from '@customs/db/schemas';
 import { listChampions } from '../champs/names';
 import { type AiGate, aiGateOpen } from '../premium';
-import type { FactList } from './facts';
+import { CLEAR_LEAD_NOTE, CLOSE_RACE_NOTE, type FactList } from './facts';
 import { AI_FEATURES } from './meter';
 
 /**
@@ -617,6 +617,171 @@ const LOSER_BARBS: readonly string[] = [
   'wasted',
 ];
 
+/**
+ * Story claims no number shows (DeepSeek A/B read, 2026-10-04; any provider). Closeness words need
+ * a close-game note (a game's `close game`, a week's close race) and never sit beside a winner on a
+ * game; margin words need a stated margin (a game's `lopsided game`, a week's clear lead); timing
+ * inside the week needs a fact no list carries, so it is always refused there.
+ */
+const CLOSENESS_WORDS: readonly string[] = [
+  'keep it close',
+  'kept it close',
+  'keeping it close',
+  'kept things close',
+  'keep things close',
+  'close game',
+  'close one',
+  'close finish',
+  'close race',
+  'close call',
+  'tight',
+  'tighter',
+  'nearly',
+  'squeeze',
+  'squeezed',
+  'whisker',
+  'edged',
+  'edges',
+  'to the wire',
+  'neck and neck',
+  'photo finish',
+  'razor',
+  'narrow',
+  'narrowly',
+];
+/** On a game, `came close` is the losers nearly winning; on a week it is `nobody came close`. */
+const GAME_CLOSENESS_EXTRA: readonly string[] = ['came close', 'so close'];
+const MARGIN_WORDS: readonly string[] = [
+  'ran away',
+  'run away',
+  'runs away',
+  'running away',
+  'runaway',
+  'ran off with',
+  'comfortable',
+  'comfortably',
+  'by a distance',
+  'by a mile',
+  'nobody got near',
+  'got near',
+  'came close',
+  'got close',
+  'well clear',
+  'cruised',
+  'cruise',
+  'cruising',
+  'out of reach',
+  'out of sight',
+  'miles ahead',
+  'streets ahead',
+  'pulled away',
+  'never in doubt',
+  'untouchable',
+  'easy',
+  'easily',
+];
+const WEEK_TIMING_WORDS: readonly string[] = [
+  'early',
+  'start to finish',
+  'wire to wire',
+  'from the front',
+  'the whole way',
+  'never looked back',
+  'late in the week',
+  'down the stretch',
+  'midweek',
+  'by the weekend',
+  'opened the week',
+  'closed the week',
+  'to open the week',
+  'got going',
+  'over before',
+  'before anyone',
+  'all week',
+  'closed with',
+  'closed last week',
+  'ended the week with',
+  'ended last week with',
+  'late',
+];
+const wordRes = (phrases: readonly string[]) =>
+  phrases.map((phrase) => ({
+    phrase,
+    re: new RegExp(`(?<![a-z'])${escapeRegex(phrase).replace(/ /g, '\\s+')}(?![a-z])`),
+  }));
+const CLOSENESS_RES = wordRes(CLOSENESS_WORDS);
+const GAME_CLOSENESS_RES = wordRes(GAME_CLOSENESS_EXTRA);
+const MARGIN_RES = wordRes(MARGIN_WORDS);
+const WEEK_TIMING_RES = wordRes(WEEK_TIMING_WORDS);
+/** Words that make a sentence about the game even with no token, number or champion in it. */
+const FACT_WORDS: ReadonlySet<string> = new Set([
+  'blue',
+  'red',
+  'team',
+  'teams',
+  'underdog',
+  'underdogs',
+  'upset',
+]);
+
+/** Closeness, margin, timing, a doubled streak and a sentence with no fact in it. */
+function checkStoryClaims(list: FactList, sentences: readonly Tok[][]): CheckResult | null {
+  const notes = list.facts.flatMap((fact) => (fact.token === null ? fact.notes : []));
+  const closeFact =
+    list.kind === 'game'
+      ? notes.some((note) => note.startsWith('close game'))
+      : list.kind === 'week' && notes.includes(CLOSE_RACE_NOTE);
+  const marginFact =
+    list.kind === 'game'
+      ? notes.includes('lopsided game')
+      : list.kind === 'week' && notes.includes(CLEAR_LEAD_NOTE);
+  const winners = new Set(
+    list.facts.flatMap((fact) => (fact.token !== null && fact.notes.includes('won') ? [fact.token] : [])),
+  );
+  for (const sentence of sentences) {
+    const words = ` ${sentence.map((tok) => (tok.t === 'word' ? tok.lower : '_')).join(' ')} `;
+    // A doubled streak: `4 wins in a row, their longest run of wins in a row`.
+    if ((words.match(/\bin\s+a\s+row\b/g) ?? []).length > 1 || /\brun\s+of\s+wins\b/.test(words))
+      return reject('shape', 'wins in a row said twice in one sentence');
+    const hasFact = sentence.some(
+      (tok) =>
+        tok.t === 'ptoken' ||
+        tok.t === 'num' ||
+        tok.t === 'champ' ||
+        (tok.t === 'word' && FACT_WORDS.has(tok.lower)),
+    );
+    if (!hasFact) return reject('shape', 'a sentence with no fact in it');
+    // Margin first, so `nobody came close` on a week reads as a margin claim.
+    const marginRes = list.kind === 'player' ? [] : MARGIN_RES;
+    for (const { phrase, re } of list.kind === 'game'
+      ? marginRes.filter((m) => m.phrase !== 'came close')
+      : marginRes) {
+      if (re.test(words) && !marginFact)
+        return reject('forbidden', `a margin the facts do not state: "${phrase}"`);
+    }
+    const closeRes = list.kind === 'game' ? [...CLOSENESS_RES, ...GAME_CLOSENESS_RES] : CLOSENESS_RES;
+    for (const { phrase, re } of closeRes) {
+      if (!re.test(words)) continue;
+      if (!closeFact) return reject('forbidden', `a close finish the facts do not state: "${phrase}"`);
+      if (list.kind === 'game' && sentence.some((tok) => tok.t === 'ptoken' && winners.has(tok.token)))
+        return reject('forbidden', `"${phrase}" beside a player who won`);
+    }
+    // `still` on a winner reads as a loss (A/B read): only `still won`, `still got the win`, ...
+    if (list.kind === 'game' && sentence.some((tok) => tok.t === 'ptoken' && winners.has(tok.token))) {
+      if (/\bstill\s+(?!(won|win|wins|got|took|takes|picked|grabbed|came)\b)/.test(words))
+        return reject('forbidden', '"still" beside a player who won');
+    }
+    if (list.kind !== 'game') {
+      for (const { phrase, re } of WEEK_TIMING_RES) {
+        if (re.test(words)) return reject('forbidden', `timing inside the week no fact shows: "${phrase}"`);
+      }
+      if (/\bput\b(?:\s+\S+){0,4}\s+to\s+bed\b/.test(words))
+        return reject('forbidden', 'timing inside the week no fact shows: "put ... to bed"');
+    }
+  }
+  return null;
+}
+
 const LOSER_BARB_RES = LOSER_BARBS.map((phrase) => ({
   phrase,
   re: new RegExp(`(?<![a-z'])${escapeRegex(phrase).replace(/ /g, '\\s+')}(?![a-z])`),
@@ -1225,7 +1390,11 @@ export function checkLine(
   const absolutes = checkAbsolutes(list, sentences);
   if (absolutes !== null) return absolutes;
 
-  // 8. Loser barbs: a sentence naming a losing player stays kind.
+  // 8. Story claims (2026-10-04): closeness, margins, timing, doubled streaks, fact-less filler.
+  const story = checkStoryClaims(list, sentences);
+  if (story !== null) return story;
+
+  // 9. Loser barbs: a sentence naming a losing player stays kind.
   const losers = new Set(
     list.facts.flatMap((fact) => (fact.token !== null && fact.notes.includes('lost') ? [fact.token] : [])),
   );

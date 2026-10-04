@@ -38,6 +38,9 @@ import {
   storyAngles,
   systemPrompt,
   thousands,
+  usedPhrases,
+  userPrompt,
+  weekMarginNote,
 } from './facts';
 import { AI_FEATURES } from './meter';
 
@@ -442,7 +445,7 @@ describe('M16.8 history facts', () => {
     ) as FactList;
     expect(factOf(list, 'P2')[0]?.claims).toContainEqual({
       claim: 'max',
-      text: 'their longest run of wins in a row in the group',
+      text: 'their longest run in the group',
     });
   });
 
@@ -699,5 +702,52 @@ describe('system prompts per provider (DeepSeek, 2026-10-04)', () => {
       const provider = AI_FEATURES[kind].model.startsWith('deepseek') ? 'deepseek' : 'anthropic';
       expect(systemPrompt(kind)).toBe(systemPrompt(kind, provider));
     }
+  });
+});
+
+describe("DeepSeek's user turn (A/B read round 2, 2026-10-04)", () => {
+  const week = buildWeekFacts(AI_WEEK, new Set()) as FactList;
+  const recent = [
+    '{P3} lost, but {P3} had 31.2k damage in the loss.',
+    '{P1} lost, but nobody had more CS in the loss.',
+  ];
+
+  it("leaves Claude's user turn without the story, shape, examples or phrase list", () => {
+    const claude = userPrompt(game, null, recent, 'anthropic');
+    for (const marker of ['The story to lead with', 'The shape:', 'Example lines', 'Phrases already used'])
+      expect(claude).not.toContain(marker);
+  });
+
+  it('names one story, a shape and three examples, the same on every call for the same facts', () => {
+    const first = userPrompt(game, null, recent, 'deepseek');
+    expect(first).toMatch(/The story to lead with: .+\./);
+    expect(first).toMatch(/The shape: .+/);
+    expect(
+      first.split('\n').filter((line) => line.startsWith('- ') && line.includes('{P')).length,
+    ).toBeGreaterThanOrEqual(3);
+    expect(userPrompt(game, null, recent, 'deepseek')).toBe(first);
+  });
+
+  it('lists the phrases recent lines already used, from masked lines only', () => {
+    const used = usedPhrases(recent.map(recentLineForPrompt));
+    expect(used).toContain('in the loss');
+    expect(used).toContain('lost, but');
+    expect(used.join(' ')).not.toMatch(/\{P|\d/);
+    expect(userPrompt(game, null, recent, 'deepseek')).toContain(
+      'Phrases already used, do not write any of them:',
+    );
+  });
+
+  it('shows a week its earlier Sundays and asks for the margin', () => {
+    const prompt = userPrompt(week, null, ['{P1} took 1st place on 212 points.'], 'deepseek');
+    expect(prompt).toContain("This group's earlier Sunday paragraphs");
+    expect(prompt).toContain('points ahead of the runner-up');
+  });
+
+  it('a week margin is close at 5 points or fewer, clear from 20 and a quarter of 2nd, else neither', () => {
+    expect(weekMarginNote(70, 68)).toMatch(/^close race/);
+    expect(weekMarginNote(200, 101)).toMatch(/^clear lead/);
+    expect(weekMarginNote(106, 92)).toBeNull();
+    expect(weekMarginNote(60, 70)).toBeNull();
   });
 });

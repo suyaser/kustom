@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { AI_GAME, AI_PLAYER, AI_WEEK, playerId } from '@/lib/testing/aiFixtures';
 import { type CheckResult, checkLine, normalizeLine, playersNamedIn, renderLine } from './check';
-import { buildGameFacts, buildPlayerFacts, buildWeekFacts, type FactList } from './facts';
+import {
+  buildGameFacts,
+  buildPlayerFacts,
+  buildWeekFacts,
+  CLEAR_LEAD_NOTE,
+  CLOSE_RACE_NOTE,
+  type FactList,
+  renderFact,
+} from './facts';
 
 /**
  * M16.3: the deterministic checker, attacked. Tokens in the game (see `aiFixtures.ts`): Blue won,
@@ -420,8 +428,8 @@ describe('M16.9 exact idioms: read as words, and only where their guard holds', 
   it.each([
     ['made the most of', '{P1} made the most of 12 games with 9 wins. {P2} took 2nd place.'],
     ['at least', '{P1} won at least 9 wins worth of games. {P2} took 2nd place.'],
-    ['top three', '{P1} and {P2} led a tight top three. {P3} held 3rd place.'],
-    ['top three, no player named', '{P1} took 1st place. That is a tight top three this time.'],
+    // 2026-10-04: `tight` now needs a close race, and a sentence with no fact is filler.
+    ['top three', '{P1} and {P2} led the top three. {P3} held 3rd place.'],
     ['at the top', 'The race at the top was all {P1}: 9 wins in 12 games. {P2} took 2nd place.'],
     ['top two', '{P1} and {P2} were the top two. {P3} took 3rd place.'],
   ])('a week line with %s passes', (_label, line) => {
@@ -818,5 +826,126 @@ describe('DeepSeek eval tightenings (2026-10-04)', () => {
 
   it('passes words that only contain a pronoun', () => {
     expectPass(checkLine('{P2} put up 9 kills on Lee Sin, and there is the whole story.', game));
+  });
+});
+
+describe('story claims need a fact (DeepSeek A/B read, 2026-10-04)', () => {
+  /** The same list with the game-level shape notes replaced. */
+  const withNotes = (list: FactList, notes: string[]): FactList => ({
+    ...list,
+    facts: [
+      ...list.facts,
+      { id: 'F99', token: null, side: null, notes, champions: [], values: [], claims: [] },
+    ],
+  });
+  const closeGame = withNotes(calmGame, ['close game: the team kills were nearly level']);
+  const lopsided = withNotes(calmGame, ['lopsided game']);
+  const weekWithNotes = (notes: string[]): FactList => ({
+    ...week,
+    facts: week.facts.map((fact) => (fact.id === 'F1' ? { ...fact, notes } : fact)),
+  });
+  const closeWeek = weekWithNotes(['the closed week of custom games', CLOSE_RACE_NOTE]);
+  const evenWeek = weekWithNotes(['the closed week of custom games']);
+
+  it('closeness needs the close-game note (Gr-12 A, Gr-15 A) and never sits beside a winner', () => {
+    const line = '{P2} had 9 kills on Lee Sin. {P10} had 40 vision on Lulu to keep it close.';
+    expectReject(checkLine(line, calmGame), 'forbidden', /close finish the facts do not state/);
+    expectReject(checkLine(line, lopsided), 'forbidden');
+    // Gr-11 B: the note is there, but the phrase sits on a winner.
+    expectReject(
+      checkLine('{P5} had 21 assists on Thresh to keep it close.', closeGame),
+      'forbidden',
+      /beside a player who won/,
+    );
+    // Gr-06 A shape: the losing side, in a close game.
+    expectPass(checkLine(line, closeGame));
+    expectPass(checkLine('Blue edged a close game. {P2} had 9 kills on Lee Sin.', closeGame));
+  });
+
+  it('margin words need a stated margin (Ws-03 B, Ws-07 A); Ws-02 passes', () => {
+    expectReject(
+      checkLine('{P1} ran away with 1st place on 212 points. {P2} took 2nd place.', evenWeek),
+      'forbidden',
+      /margin/,
+    );
+    expectReject(
+      checkLine('{P1} took a comfortable 1st place on 212 points. {P2} took 2nd place.', closeWeek),
+      'forbidden',
+    );
+    expectReject(
+      checkLine(
+        '{P1} took 1st place on 212 points. Nobody came close to {P1}. {P2} took 2nd place.',
+        evenWeek,
+      ),
+      'forbidden',
+    );
+    expectPass(
+      checkLine(
+        '{P1} ran away with 1st place on 212 points, 132 points ahead of the runner-up. {P2} took 2nd place.',
+        week,
+      ),
+    );
+    expectReject(checkLine('{P2} had 9 kills on Lee Sin and Blue cruised.', calmGame), 'forbidden', /margin/);
+    expectPass(checkLine('{P2} had 9 kills on Lee Sin and Blue cruised.', lopsided));
+  });
+
+  it('a close race on a week needs the close-race note', () => {
+    expectReject(
+      checkLine('{P1} squeezed into 1st place on 212 points. {P2} took 2nd place.', week),
+      'forbidden',
+      /close finish/,
+    );
+    expectPass(checkLine('{P1} squeezed into 1st place on 212 points. {P2} took 2nd place.', closeWeek));
+  });
+
+  it('refuses timing inside the week (Ws-08 A, Ws-04 A)', () => {
+    expectReject(
+      checkLine('{P1} put the week to bed early with 212 points. {P2} took 2nd place.', week),
+      'forbidden',
+      /timing/,
+    );
+    expectReject(
+      checkLine('{P1} led from start to finish with 212 points. {P2} took 2nd place.', week),
+      'forbidden',
+      /timing/,
+    );
+    expectReject(
+      checkLine('{P1} put it to bed with 212 points in 1st place. {P2} took 2nd place.', week),
+      'forbidden',
+      /to bed/,
+    );
+  });
+
+  it('refuses a doubled streak (Gr-03 B)', () => {
+    expectReject(
+      checkLine(
+        '{P1} made it 5 wins in a row and kept the wins in a row going on 212 points. {P2} took 2nd place.',
+        week,
+      ),
+      'shape',
+      /twice/,
+    );
+  });
+
+  it('refuses a sentence with no fact in it (What a week.)', () => {
+    expectReject(
+      checkLine('{P1} took 1st place on 212 points. What a week. {P2} took 2nd place.', week),
+      'shape',
+      /no fact/,
+    );
+    expectPass(checkLine('{P2} had 9 kills on Lee Sin. Blue will take that.', calmGame));
+  });
+
+  it('still on a winner only as still won (Gr-09 B, Gr-19 B)', () => {
+    expectReject(checkLine('{P5} still had 21 assists on Thresh.', calmGame), 'forbidden', /still/);
+    expectPass(checkLine('{P5} still won with 6 deaths on Thresh.', calmGame));
+    expectPass(checkLine('{P8} still had 31.2k damage on Ahri.', calmGame));
+  });
+
+  it('the week facts print the margin and places with their endings', () => {
+    const lines = week.facts.map(renderFact).join('\n');
+    expect(lines).toContain('132 points ahead of the runner-up');
+    expect(lines).toContain("1st place on the week's board");
+    expect(lines).toContain(CLEAR_LEAD_NOTE);
   });
 });

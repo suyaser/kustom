@@ -372,8 +372,7 @@ export function buildGameFacts(input: GameFactsInput, optedOut: ReadonlySet<stri
       const streak = seat.history?.winStreak ?? null;
       if (streak !== null && streak >= WIN_STREAK_MIN) {
         values.push(value('wins in a row', streak, 'streak'));
-        if (seat.history?.longestStreak === true)
-          claims.push(claim('max', 'their longest run of wins in a row in the group'));
+        if (seat.history?.longestStreak === true) claims.push(claim('max', 'their longest run in the group'));
       }
     } else {
       // The losing side (M16.16): only numbers they earned -- top 2 in the game for that stat (the
@@ -444,6 +443,25 @@ export const WEEK_BOARD_ROWS = 5;
 export const WEEK_STREAK_MIN = 3;
 /** A week won game for game becomes a claim from this many games (M16.13). */
 export const WEEK_PERFECT_MIN = 5;
+/**
+ * The margin at the top of the week (DeepSeek A/B read, 2026-10-04): 1st place this many points
+ * or fewer ahead of 2nd is a close race; at least {@link CLEAR_LEAD_POINTS} ahead, and a quarter
+ * more than 2nd's points, is a clear lead. In between is neither, and the checker allows neither
+ * closeness words (`a squeeze`) nor margin words (`ran away`) without the matching note.
+ */
+export const CLOSE_RACE_POINTS = 5;
+export const CLEAR_LEAD_POINTS = 20;
+export const CLOSE_RACE_NOTE = 'close race at the top: first and second place were a few points apart';
+export const CLEAR_LEAD_NOTE = 'clear lead at the top: first place finished well ahead of second place';
+
+/** The week's margin note for 1st place's points over 2nd's, or null when it is neither. */
+export function weekMarginNote(first: number, second: number): string | null {
+  const gap = first - second;
+  if (gap < 0) return null;
+  if (gap <= CLOSE_RACE_POINTS) return CLOSE_RACE_NOTE;
+  if (gap >= CLEAR_LEAD_POINTS && gap >= 0.25 * Math.max(0, second)) return CLEAR_LEAD_NOTE;
+  return null;
+}
 
 export function buildWeekFacts(input: WeekFactsInput, optedOut: ReadonlySet<string>): FactList | null {
   const top = input.board.slice(0, WEEK_BOARD_ROWS);
@@ -476,11 +494,21 @@ export function buildWeekFacts(input: WeekFactsInput, optedOut: ReadonlySet<stri
   const mostGamesRows = input.board.filter((row) => row.games === maxGames);
   const mostGames = maxGames > 0 && mostGamesRows.length === 1 ? (mostGamesRows[0] ?? null) : null;
 
+  // The margin at the top (2026-10-04): 1st's net points over 2nd's, both from the board.
+  const pointsOf = (row: (typeof input.board)[number] | undefined) =>
+    row === undefined ? undefined : input.climbs.find((entry) => entry.playerId === row.playerId)?.climb;
+  const firstPoints = pointsOf(input.board[0]);
+  const secondPoints = pointsOf(input.board[1]);
+  const margin =
+    firstPoints !== undefined && secondPoints !== undefined && firstPoints > 0
+      ? { gap: firstPoints - secondPoints, note: weekMarginNote(firstPoints, secondPoints) }
+      : null;
+
   const facts: Omit<AiFact, 'id'>[] = [
     {
       token: null,
       side: null,
-      notes: ['the closed week of custom games'],
+      notes: ['the closed week of custom games', ...(margin?.note ? [margin.note] : [])],
       champions: [],
       values: [value('rated games in the week', input.ratedGames, 'games')],
       claims: [],
@@ -499,6 +527,8 @@ export function buildWeekFacts(input: WeekFactsInput, optedOut: ReadonlySet<stri
       if (place === 0) {
         claims.push(claim('first', "first on the week's board"));
         claims.push(claim('max', "top of the week's board, most points in the week"));
+        if (margin !== null && margin.gap > 0)
+          values.push(value('points ahead of the runner-up', margin.gap, 'rating'));
       }
       // M16.13: what the board shows and the model kept reaching for, now as facts it may use.
       if (mostGames?.playerId === id) claims.push(claim('max', 'most games played in the week'));
@@ -1021,6 +1051,14 @@ export function renderFact(fact: AiFact): string {
 }
 
 /** {@link renderFact}, with damage in thousands (`29.9k`) when asked: what the game prompt prints. */
+/** `1st`, `2nd`, `3rd`, `4th`, `11th`, `22nd`. */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  const ending = n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+  return `${n}${ending}`;
+}
+
 export function renderFactWith(fact: AiFact, options: { thousands?: boolean }): string {
   const parts: string[] = [`${fact.id}:`];
   if (fact.token !== null) parts.push(fact.token);
@@ -1034,7 +1072,10 @@ export function renderFactWith(fact: AiFact, options: { thousands?: boolean }): 
     ...fact.champions.map((name) => `champion ${name}`),
     ...fact.values.map((v) =>
       v.of === undefined
-        ? `${options.thousands === true && v.unit === 'damage' ? thousands(v.value) : formatNumber(v.value)} ${v.label}`
+        ? v.unit === 'place'
+          ? // 2026-10-04: a place prints with its ending (`1st place`), the way the line must write it.
+            `${ordinal(v.value)} ${v.label}`
+          : `${options.thousands === true && v.unit === 'damage' ? thousands(v.value) : formatNumber(v.value)} ${v.label}`
         : `${formatNumber(v.value)} of ${formatNumber(v.of)} ${v.label}`,
     ),
     ...fact.claims.map((c) => c.text),
@@ -1249,46 +1290,92 @@ const WEEK_STYLE: readonly string[] = [
 const DEEPSEEK_GAME_STYLE: readonly string[] = [
   GAME_STYLE[0] as string,
   'How a good line reads:',
-  '- A quick reaction in the group chat, not a match report. Pick the one best story (the first Angle, or a better one you see in the facts), give it one or two numbers, then a short playful remark in plain words. Name one or two players, never more, and use at most three numbers in the whole line.',
-  '- One or two short sentences, 80 to 160 characters. Never a list of stats strung together with and. A closing remark is a few words of friendly banter with no number in it: Somebody check the replay.',
-  '- Gentle teasing only of players whose team won (a winner with the most deaths, or no kills, who still won), and only about their numbers in that game: never carried, lucky, boosted or scripting. Players who lost only get credit: never say what they could not do or that it was not enough.',
-  '- A close game is a close game or a tight finish, never the close one or a close one; a first game on a champion is a first game on Soraka, never on her or on him. Never use the words one, every, bad or worst (not even not bad). These read like a box score and are banned too: put up, answered with, gets the credit, gets the nod, topped, led everyone, led all, debuted, dropped, racked up, orchestrated, dominated, went off, from the losing side, on the other side, across the board, game-high, stat line, respawn timers.',
-  '- Start every sentence with a player token, Blue, Red, or a plain word such as The, That, What, Not, Nobody or Just; never with They, It, a number or a champion. A second sentence about the same player repeats the token.',
-  '- Never open the way a recent line opened, and never reuse an example line. The remarks in the examples are used up: write a fresh one that fits this game, never Somebody check the replay, let it slide or a true team player.',
-  'Examples of the style, from other games (never copy their numbers or wording):',
-  '- {P2} spent 22 minutes on Lee Sin without a single death: 12 kills, 0 deaths. Somebody check the replay.',
-  '- {P1} finished with 9 deaths on Sett and still got the win. Blue will let it slide.',
-  '- Red only needed 18 minutes. {P4} made sure of it with 13 kills on Jinx.',
-  '- {P6} picked up Draven for the first time in the group and played it like a main, 10 kills.',
-  '- {P5} won with 0 kills and 21 assists on Thresh. A true team player.',
-  '- Somebody stop {P4}: 5 wins in a row now.',
-  '- {P8} still found 30.6k damage on Kassadin in a losing game, the most damage in the game.',
-  '- The team kills stayed nearly level, and Blue edged it. {P3} had 36.2k damage on Yasuo to show for it.',
+  '- A reaction in the group chat, not a match report: the one story of this game (the user turn says which), told with one or two numbers, and why it matters in a few plain words. Name one or two players, never more; at most three numbers in the whole line.',
+  '- Why it matters, from the facts only: a first try that paid off, a run nobody has stopped, a support with more assists than anyone, a win with the most deaths, a loser who still had the best number in the game. Not a closer bolted on: the reason is part of the sentence.',
+  '- One or two short sentences, 80 to 160 characters. Never a list of stats strung together with and. Every sentence carries a player token, a number, a champion, Blue or Red: no sentence of banter on its own.',
+  '- Gentle teasing only of players whose team won, and only about their numbers in that game: never carried, lucky, boosted or scripting. Players who lost only get credit: never say what they could not do or that it was not enough.',
+  '- Still is for a player who lost or a winner who won despite a number (still won with 9 deaths): never still on a plain winner (never {P3} still had 12 assists when Blue won).',
+  '- Close words (close game, tight, nearly, edged, kept it close) only when a fact says close game, and never about a player who won. Margin words (cruised, easy, comfortable) only when a fact says lopsided game.',
+  '- Worn out, never use: in the loss, in a losing game, even as, saw more of the map than anyone, saw the whole map, a new high, to keep it close, let it slide, a true team player, somebody check the replay, made it look easy, put up, answered with, gets the credit, gets the nod, topped, led everyone, led all, debuted, dropped, racked up, orchestrated, dominated, went off, from the losing side, on the other side, across the board, game-high, stat line, their longest run of wins in a row, the close one, a close one. Never the words one, every, bad or worst.',
+  '- A first game on a champion: write it a new way each time (was new for them, their first Draven in the group, picked up Draven for the first time); never on her or on him.',
+  '- Start every sentence with a player token, Blue, Red, or a plain word such as The, That, What, Not, Nobody or Just; never with They, It, a number, and never with a champion: the player owns the champion, so the token comes first.',
+  '- The user turn shows a few example lines from other subjects: they show the range, never a shape to copy; this line must read differently from every one of them.',
 ];
 
 const DEEPSEEK_WEEK_STYLE: readonly string[] = [
   WEEK_STYLE[0] as string,
   'How a good paragraph reads:',
-  '- The week as a story in two to four sentences: who ran away with it, a win streak, a tight race at the top, the award. Name at most three players and use at most five numbers. Not a list of everyone on the board.',
+  '- The week as a story in two to four sentences, led by the story the user turn names. Name at most three players and use at most five numbers. Not a list of everyone on the board.',
+  '- Say why it mattered: how big the margin was (only as a fact states it), a run that carried someone up the board, a perfect week, an award earned on the side.',
   '- Sound like the group chat sportscaster: punchy, warm, a little teasing of the people at the top. Nobody lower down gets teased.',
-  '- Start every sentence with a player token or a plain word such as The, What, Nobody or Just; never with That, They, It, a number, or a phrase like Quietly, Elsewhere, Hats off or Further down (Down the board is fine). No sign-off.',
-  'Examples of the style, from other weeks (never copy their numbers or wording):',
-  ...WEEK_STYLE.slice(-2),
+  '- The size of the win at the top comes only from the facts: ran away, comfortable, by a distance or nobody came close only when a fact says clear lead; a squeeze, tight or close race only when a fact says close race; otherwise just say 1st place and the points. Nothing about when in the week something happened (early, from start to finish, put it to bed, the whole way).',
+  '- Worn out, never use: ran away with the week, owned the week, refused to lose, What a week, What a run, chased, settled for, down the board, made the most of, The race was, The race at the top was.',
+  '- Every sentence names a player token or carries a number: no sign-off and no sentence of banter on its own. Start every sentence with a player token or a plain word such as The, Nobody or Just; never with That, They, It, What, a number, or a phrase like Quietly, Elsewhere or Hats off.',
+  '- The user turn shows a few example lines from other subjects: they show the range, never a shape to copy; this line must read differently from every one of them.',
 ];
 
 const DEEPSEEK_PLAYER_STYLE: readonly string[] = [
   PLAYER_STYLE[0] as string,
   'How a good report reads:',
-  '- The page above already shows their Rating, record, most played champion and role. Lead with something it does not: their duo partner, their best game of the week, a champion new to their pool, or a role shift. Then one more true thing about how they play, in two or three sentences.',
-  '- Sound like a friend sizing them up: confident, warm, a little playful. Describe what the numbers show; never advise, never explain why, never guess.',
+  '- The page above already shows their Rating, record, most played champion and role. Lead with the story the user turn names, then one more true thing about how they play, in two or three sentences. Leave out anything the user turn does not ask for: not every report needs the duo partner, the week record or the best game.',
+  '- Say why it matters in a few words, from the facts only: a new champion that already won, a role they keep drifting to, the teammate they win with.',
+  '- Sound like a friend sizing them up: confident, warm, a little playful. Describe what the numbers show; never advise, never explain why, never guess, and no claim about the whole group (nobody in the group, the best in the group) unless a fact says it.',
   '- A losing week (fewer wins than games lost) is just the count, 6 wins in 18 games, with no word about how it felt: never rough, tough, quiet, cold, slow, worst or a struggle. A winning week can be called warm.',
-  '- The report stays up for weeks: say the week or over the week, in the past tense. Never this week, last week, lately, recently or right now.',
-  "- The first sentence starts with {P1} and says who they are in this group in a friend's words, backed by a number. Start every other sentence with {P1}, {P2} or a plain word such as The, When, Not, Nobody or Just; never with a number, Overall or Teammate. Never open with {P1} and {P2}, with the duo, or with the most played champion.",
-  'Examples of the style, about other players (never copy their numbers, wording or openings):',
-  '- {P1} spent the week on a heater, 8 wins in 10 games, the best of them 14 kills on Riven. When {P2} is on the same team, it is 7 wins in 9 games together.',
-  '- {P1} tried Nidalee for the first time in the group and kept drifting to jungle, 6 games there over the week. The week ended at 4 wins in 9 games for {P1}.',
-  '- {P1} is a support through and through: 41 wins in 70 games in support, and Janna is the comfort pick at 64 percent over 22 games. The week went 5 wins in 8 games for {P1}.',
+  '- The report stays up for weeks: say the week or over the week, in the past tense. Never this week, last week, lately, recently or right now, and nothing about when in the week.',
+  '- Worn out, never use: duo to watch, pair to split up, the teammate they win with most, partnership to fear, in the pool of, joined the pool, comfort pick, warm stretch, the best of them, on a heater. Never write a champion twice (Elise joined with 1 game on Elise).',
+  '- Start every sentence with {P1}, {P2} or a plain word such as The, When, Not, Nobody or Just; never with a number, a champion, Overall or Teammate. Never open with {P1} and {P2} or with the most played champion.',
+  '- The user turn shows a few example lines from other subjects: they show the range, never a shape to copy; this line must read differently from every one of them.',
 ];
+
+/** Example pools (2026-10-04): the user turn shows three, chosen from the facts, so no one shape is copied. */
+const DEEPSEEK_EXAMPLES: Record<AiLineKind, readonly string[]> = {
+  game: [
+    '{P2} went 22 minutes on Lee Sin without dying once, 12 kills and 0 deaths, and Blue never had to worry about the jungle.',
+    '{P1} won with 9 deaths on Sett, the most deaths in the game, and nobody on Blue is bringing it up.',
+    'Red closed it out in 18 minutes, and {P4} was the reason: 13 kills on Jinx, the most kills in the game.',
+    'Their first Draven in the group, and {P6} made it count with 10 kills for Red.',
+    '{P5} won without a single kill: 0 kills and 21 assists on Thresh.',
+    'Somebody stop {P4}: 5 wins in a row now.',
+    'Nobody in the game did more damage than {P8}, 30.6k damage on Kassadin, even on the team that went down.',
+    'Blue won with fewer team kills than Red, and {P3} had the 36.2k damage on Yasuo that made the difference.',
+    "{P7} had a hand in 22 of Blue's 31 team kills on Rakan, which is most of the game.",
+    '{P9} found a personal best on Caitlyn, 312 CS, their most CS in the group.',
+    'The underdogs took it, and {P2} led Red with 11 kills on Vi.',
+    '{P10} saw the whole map for Blue: 88 vision score on Leona, the highest vision score in the game.',
+  ],
+  week: [
+    '{P1} finished 1st place on 212 points, 90 points ahead of the runner-up, and 6 wins in a row did most of the work. {P2} held 2nd place on 122 points.',
+    'The race at the top came down to 2 points: {P1} took 1st place on 70 points, with {P2} on 68 points in 2nd place. {P4} picked up the best off-role award with 7 wins in a row.',
+    'Nobody lost a game like {P1}: 14 wins in 14 games and 1st place on 200 points. {P2} took 2nd place on 101 points.',
+    '{P3} turned 7 wins in a row into the biggest climb of the week and 2nd place on 88 points. {P1} kept 1st place on 120 points.',
+    '{P2} played 19 games, more than anyone, and turned them into 3rd place on 64 points. {P1} took 1st place on 106 points.',
+    'The best off-role award went to {P4}, who also strung together 5 wins in a row. {P1} took 1st place on 150 points, 40 points ahead of the runner-up.',
+  ],
+  player: [
+    '{P1} picked up Nidalee for the first time in the group and went 2 wins in 3 games on Nidalee. {P1} finished the week at 4 wins in 9 games.',
+    '{P1} spent the week away from the jungle, 6 games in top lane, and still went 7 wins in 10 games.',
+    '{P1} had the biggest game of their week on Riven, 14 kills and 9 assists in a win.',
+    '{P1} lives in support: 41 wins in 70 games in support, with Janna at 64 percent over 22 games.',
+    '{P1} and {P2} win together: 9 wins in 12 games on the same team. {P1} went 5 wins in 8 games over the week.',
+    '{P1} kept going back to Darius, 18 games on Darius, and it shows in 11 wins on Darius.',
+    'Nobody had to guess where {P1} would be: 30 games in mid lane, 17 wins there.',
+    '{P1} went 6 wins in 7 games over the week, the best of it 9 kills and 14 assists on Sona.',
+  ],
+};
+
+/** Three examples from a kind's pool, picked by the seed. */
+function pickExamples(kind: AiLineKind, seed: number): string[] {
+  const pool = DEEPSEEK_EXAMPLES[kind];
+  const start = seed % pool.length;
+  const step = 1 + ((seed >>> 8) % (pool.length - 1));
+  const picked: string[] = [];
+  for (let i = 0; picked.length < Math.min(3, pool.length); i += 1) {
+    const example = pool[(start + i * step) % pool.length] as string;
+    if (!picked.includes(example)) picked.push(example);
+    if (i > pool.length * 3) break;
+  }
+  return picked;
+}
 
 /** The rules DeepSeek reads last, per line kind. Each is a check the program runs. */
 const DEEPSEEK_BINDING: Record<AiLineKind, readonly string[]> = {
@@ -1301,7 +1388,7 @@ const DEEPSEEK_BINDING: Record<AiLineKind, readonly string[]> = {
   week: [
     '- Every number is copied from a fact and followed straight away by its unit word: 14 wins in 23 games, 70 points, 6 wins in a row. A single one is 1 win, 1 game. Never a bare number (the most wins with 14, won 11 of them), never a number word.',
     '- A place is always written with its ending: 1st place, 2nd place, 3rd place, 4th place, 5th place. Never 1 place or 4 place.',
-    '- Every sentence with a number or a place starts with the token of the player it belongs to; a sentence without a token carries no number (What a run. is fine, What a run, 7 wins in a row is not). Never put another token between a player and their number: {P4} also had 7 wins in a row, never {P4} matched {P1} with 7 wins in a row. Say 1st place, never at the top or on top.',
+    '- Every sentence with a number or a place starts with the token of the player it belongs to, and every sentence names a player token. Never put another token between a player and their number: {P4} also had 7 wins in a row, never {P4} matched {P1} with 7 wins in a row. Say 1st place, never at the top or on top.',
     "- A place, a number or an award goes only in a sentence with the token of the player whose fact has it, and only if their fact has it. Never put two players' numbers in one sentence unless each number comes right after its own token: {P2} on 68 points and {P3} on 67 points, never {P2} and {P3} with 68 points and 67 points.",
     "- Never compare players yourself: most wins, more wins than, led the board in wins or never got close only where a fact says exactly that for that player. Most, best, biggest, only, never and every only where that player's fact says so; never the word one (not even at one point); never write win rate. A run is written 6 wins in a row, never with the word streak, and its sentence names its player's token. Never a gap like separated by 3 points.",
   ],
@@ -1389,12 +1476,288 @@ export function openingOf(maskedLine: string): string {
     .replace(/[.,:;!?]+$/, '');
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * DeepSeek's user turn (A/B read, 2026-10-04): it holds one shape once it finds it, so the turn
+ * picks the story and the line's shape for it (deterministically, from the facts, so a retry and a
+ * rerun ask for the same thing), and lists the exact phrases the group's recent lines already used.
+ * Nothing new leaves the server: the same facts, the same masked recent lines.
+ * ------------------------------------------------------------------------------------------- */
+
+/** Phrases DeepSeek reached for again and again on the eval month; listed when a recent line has one. */
+const STOCK_PHRASES: readonly string[] = [
+  'in the loss',
+  'in a losing game',
+  'in a loss',
+  'for the first time in the group',
+  'first game on',
+  'the most damage in the game',
+  'the most kills in the game',
+  'the highest vision score in the game',
+  'their longest run',
+  'made it',
+  'personal best',
+  'still found',
+  'still had',
+  'still won',
+  'finished with',
+  'set the table',
+  'duo to watch',
+  'pair to split up',
+  'the teammate',
+  'on the same team',
+  'together on the same team',
+  'joined the pool',
+  'new to the pool',
+  'comfort pick',
+  'warm week',
+  'warm stretch',
+  'over the week',
+  'the best of them',
+  'their best game',
+  'ran away with',
+  'refusing to lose',
+  'settled for',
+  'took 1st place',
+  'on the way to',
+  'lost, but',
+  'nobody on',
+  'on either team',
+  'still fell',
+  'still lost',
+  'in the win',
+  'team kills in',
+  'the race at the top',
+  'a clear leader',
+  'made the gap',
+  'went with it',
+  'ahead of the runner-up',
+  'held 2nd place',
+  'on the side',
+  'joins the same team',
+  'games together',
+  'lives in',
+  'sits at',
+  'even as',
+  'saw more of the map',
+  'the whole map',
+  'a new high',
+  'nobody came close',
+  'the biggest climb of the week',
+  'saved',
+  'owns',
+  'holds',
+  'runs the',
+  'peaked',
+  'standout',
+  'nobody',
+];
+
+/** The phrases a set of masked recent lines already used: stock ones, and any three words two lines share. */
+export function usedPhrases(masked: readonly string[], max = 14): string[] {
+  const lower = masked.map((line) => line.toLowerCase());
+  const found = new Set(STOCK_PHRASES.filter((phrase) => lower.some((line) => line.includes(phrase))));
+  const grams = new Map<string, number>();
+  for (const line of lower) {
+    const words = line
+      .replace(/[^a-z' ]+/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+    const seen = new Set<string>();
+    for (let i = 0; i + 3 <= words.length; i += 1) {
+      const gram = words.slice(i, i + 3).join(' ');
+      if (/\b(someone|n)\b/.test(gram) || seen.has(gram)) continue;
+      seen.add(gram);
+      grams.set(gram, (grams.get(gram) ?? 0) + 1);
+    }
+  }
+  for (const [gram, count] of grams) if (count >= 2) found.add(gram);
+  return [...found].slice(0, max);
+}
+
+/** A stable number from the facts, so the same game always asks for the same story and shape. */
+function factSeed(list: FactList): number {
+  return Number.parseInt(
+    createHash('sha256').update(JSON.stringify(list.facts)).digest('hex').slice(0, 8),
+    16,
+  );
+}
+
+const GAME_SHAPES: readonly string[] = [
+  'Open with the player token and the number, then why it matters, in one sentence.',
+  'Open with Blue, Red or The game, then bring in the player and their number.',
+  'Open with what made it unusual (a first try, no deaths, fewer team kills, a run), then who and the number.',
+  'Two short sentences: the story with its number, then a second player or the team with one number.',
+  'One sentence that reads like a friend reacting, the number in the middle of it.',
+];
+const WEEK_SHAPES: readonly string[] = [
+  'Open with the 1st place token and their points, then the one other story.',
+  'Open with the story (a run, a perfect week, the margin, the award), then whose it is.',
+  'Open with the player in 2nd place and their points, then 1st place.',
+  'Open with the award or the run of someone outside 1st place, then 1st place.',
+  "Open with The and the week's standout number, the player token in the same sentence.",
+];
+const PLAYER_SHAPES: readonly string[] = [
+  'Two sentences.',
+  'Three short sentences.',
+  'Two sentences, the second starting with When or The.',
+];
+
+/** What a week line may lead with, from its facts. */
+function weekLeads(list: FactList): string[] {
+  const leads: string[] = [];
+  const notes = list.facts.flatMap((fact) => (fact.token === null ? fact.notes : []));
+  if (notes.includes(CLEAR_LEAD_NOTE))
+    leads.push('the margin at the top: a clear lead, with the points ahead of the runner-up');
+  if (notes.includes(CLOSE_RACE_NOTE))
+    leads.push('the close race at the top, with the points ahead of the runner-up');
+  for (const fact of list.facts) {
+    if (fact.token === null) continue;
+    if (fact.claims.some((c) => c.claim === 'all')) leads.push(`${fact.token}: won every game they played`);
+    const streak = fact.values.find((v) => v.unit === 'streak');
+    if (streak !== undefined) leads.push(`${fact.token}: ${streak.value} wins in a row`);
+    if (fact.claims.some((c) => c.text === 'biggest climb of the week'))
+      leads.push(`${fact.token}: the biggest climb of the week`);
+    for (const note of fact.notes) if (note.startsWith('won the ')) leads.push(`${fact.token}: ${note}`);
+  }
+  return leads.length > 0 ? leads : ['1st place and the points'];
+}
+
+/** What a scouting report may lead with, from its facts (never the page's own record). */
+function playerLeads(list: FactList): { leads: string[]; duo: boolean } {
+  const leads: string[] = [];
+  let duo = false;
+  for (const fact of list.facts) {
+    if (fact.notes.some((note) => note.startsWith('new to their pool')))
+      leads.push(`the champion new to their pool (${fact.champions[0] ?? 'the new champion'})`);
+    if (fact.claims.some((c) => c.text.startsWith('their best game')))
+      leads.push('their best game of the week, with its kills and assists');
+    if (fact.notes.some((note) => note.includes('away from their usual')))
+      leads.push('the role they played most of the week, away from their usual one');
+    if (fact.notes.some((note) => note.startsWith('the teammate'))) duo = true;
+    const role = fact.claims.find((c) => c.text.startsWith('most played role'));
+    if (role !== undefined)
+      leads.push(
+        `who they are in the group: their ${role.text.replace('most played role, ', '')} games and wins`,
+      );
+  }
+  return { leads: leads.length > 0 ? leads : ['how the week went'], duo };
+}
+
+/** The duo partner is a second beat only, and on about half the reports (`duo to watch` 16 of 17). */
+const DUO_BEAT = 'the teammate {P1} wins with most ({P2}), their games and wins together';
+
+/** A highest kill-participation winner, as an extra angle: a number the facts already carry. */
+function participationAngle(list: FactList): string | null {
+  let best: { token: string; value: number; of: number } | null = null;
+  for (const fact of list.facts) {
+    if (fact.token === null || !fact.notes.includes('won')) continue;
+    const v = fact.values.find((entry) => entry.of !== undefined);
+    if (v === undefined || v.of === undefined) continue;
+    if (best === null || v.value / v.of > best.value / best.of)
+      best = { token: fact.token, value: v.value, of: v.of };
+  }
+  return best === null ? null : `${best.token}: took part in ${best.value} of ${best.of} team kills`;
+}
+
+function deepseekUserPrompt(list: FactList, retryReason: string | null, recent: readonly string[]): string {
+  const seed = factSeed(list);
+  const masked = recent.slice(0, RECENT_LINES).map(recentLineForPrompt);
+  let lead: string;
+  let shape: string;
+  /** What else the line may carry, besides the lead (null: nothing else). */
+  let second: string | null = null;
+  if (list.kind === 'game') {
+    const previousLead = recent[0] !== undefined ? leadAngleOf(recent[0]) : null;
+    const rotate =
+      previousLead !== null && previousLead !== 'other' && !exceptionalAngle(list, previousLead)
+        ? previousLead
+        : null;
+    const angles = storyAngles(list, rotate);
+    const extra = participationAngle(list);
+    if (extra !== null && angles.length < 4) angles.push(extra);
+    const first = rankedAngles(list)[0];
+    const keepFirst = first !== undefined && (first.kind === 'upset' || exceptionalAngle(list, first.kind));
+    lead =
+      angles.length === 0
+        ? 'the best number in the game'
+        : keepFirst && angles[0] !== undefined
+          ? angles[0]
+          : (angles[seed % Math.min(3, angles.length)] as string);
+    shape = GAME_SHAPES[(seed >>> 4) % GAME_SHAPES.length] as string;
+    const rest = angles.filter((angle) => angle !== lead);
+    second =
+      (seed >>> 12) % 3 === 0 || rest.length === 0 ? null : (rest[(seed >>> 6) % rest.length] as string);
+  } else if (list.kind === 'week') {
+    const leads = weekLeads(list);
+    lead = leads[seed % leads.length] as string;
+    shape = WEEK_SHAPES[(seed >>> 4) % WEEK_SHAPES.length] as string;
+    const rest = leads.filter((entry) => entry !== lead);
+    second = rest.length === 0 ? null : (rest[(seed >>> 6) % rest.length] as string);
+  } else {
+    const { leads, duo } = playerLeads(list);
+    lead = leads[seed % leads.length] as string;
+    shape = PLAYER_SHAPES[(seed >>> 4) % PLAYER_SHAPES.length] as string;
+    const rest = leads.filter((entry) => entry !== lead);
+    second =
+      duo && (seed >>> 10) % 2 === 0
+        ? DUO_BEAT
+        : rest.length === 0
+          ? null
+          : (rest[(seed >>> 6) % rest.length] as string);
+  }
+  const used = usedPhrases(masked);
+  const lines = [
+    'Facts:',
+    ...list.facts.map((fact) => renderFactWith(fact, { thousands: list.kind === 'game' })),
+    '',
+    `The story to lead with: ${lead}.`,
+    second === null
+      ? 'Nothing else: this line is that story alone, told well.'
+      : `The one other thing it may carry: ${second}. Nothing else from the facts.`,
+    ...(list.kind === 'game'
+      ? ['Leave out the game length and the team kills unless the story is about the game itself.']
+      : list.kind === 'week'
+        ? [
+            'Also name 1st place with their points and the points ahead of the runner-up, and 2nd place with their points, if the story has not already: three or four sentences in all, each with its own player.',
+          ]
+        : []),
+    `The shape: ${shape}`,
+    '',
+    'Example lines from other subjects (the range, not a shape to copy; read differently from all of them):',
+    ...pickExamples(list.kind, seed >>> 16).map((example) => `- ${example}`),
+    ...(masked.length > 0
+      ? [
+          '',
+          list.kind === 'game'
+            ? "Recent lines in this group's Discord (other games), for what not to repeat:"
+            : list.kind === 'week'
+              ? "This group's earlier Sunday paragraphs, for what not to repeat:"
+              : "Other reports just written for this group's players, for what not to repeat:",
+          ...masked.map((line) => `- ${line}`),
+          `Openings already used, do not start with any of them: ${[...new Set(masked.map(openingOf))].join(' / ')}.`,
+        ]
+      : []),
+    ...(used.length > 0 ? [`Phrases already used, do not write any of them: ${used.join(' / ')}.`] : []),
+    '',
+    TASK[list.kind],
+  ];
+  if (retryReason !== null) {
+    lines.push(
+      '',
+      `Your previous line was refused by the checker (${retryReason}). Write a new line that follows every rule.`,
+    );
+  }
+  return lines.join('\n');
+}
+
 /** The user turn: the fact list, the task, and on a second attempt why the first was refused. */
 export function userPrompt(
   list: FactList,
   retryReason: string | null,
   recent: readonly string[] = [],
+  provider: AiProvider = providerOf(list.kind),
 ): string {
+  if (provider === 'deepseek') return deepseekUserPrompt(list, retryReason, recent);
   // M16.15: the angle that led the group's previous line is dropped this time, unless exceptional.
   const previousLead = list.kind === 'game' && recent[0] !== undefined ? leadAngleOf(recent[0]) : null;
   const rotate =
