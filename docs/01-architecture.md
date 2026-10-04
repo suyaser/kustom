@@ -408,11 +408,13 @@ on the same ten and the same performance scores (so one share rank, one MVP and 
   call (0043, below), so two concurrent posts serialise on the row locks and the loser writes 0 rows.
 - **One writer (0043).** Every `game_players` rating write -- the live fold's claim, `rebuild-ratings` and the
   daily cron's rebuild -- goes through `apply_game_player_ratings(p_group, p_rows, p_only_unrated)`
-  (`lib/ingest/applyRatings.ts`; row schema `gamePlayerRatingsRowSchema` in `@customs/db/schemas`): one statement,
-  so one transaction; every row carries all seventeen rating columns (a missing key is refused, so a track is
-  always written whole); rows whose stored values already match are skipped in the database (no Realtime event).
-  Security definer, `search_path ''`, service role only, `statement_timeout` 60 s. `p_only_unrated` true is the
-  claim, false the rebuild. Before 0043 the rebuild was one PATCH per moved row (finding 7 of
+  (`lib/ingest/applyRatings.ts`; row schema `gamePlayerRatingsRowSchema` in `@customs/db/schemas`): one statement
+  per call, so one transaction per call; every row carries all seventeen rating columns (a missing key is refused,
+  so a track is always written whole); rows whose stored values already match are skipped in the database (no
+  Realtime event). Security definer, `search_path ''`, service role only. The function's `statement_timeout`
+  setting does not extend the caller's (PostgREST's ~8 s governs), so the rebuild calls it in chunks of whole
+  games in `started_at` order (`APPLY_CHUNK_ROWS`, 2,000 rows); a run that fails part way is fixed by running it
+  again. `p_only_unrated` true is the claim (ten rows, one call), false the rebuild. Before 0043 the rebuild was one PATCH per moved row (finding 7 of
   `redesign/research/db-performance.md`).
 - **The rebuild** reads every game of the group (not only those since the epoch), keeps an all-time state from
   1200 at the epoch and a weekly state emptied at every week boundary, keeps every pre-epoch row's all-time

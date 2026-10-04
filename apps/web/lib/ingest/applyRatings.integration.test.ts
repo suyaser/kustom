@@ -34,6 +34,7 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  * 7. the M18 rollback pre-step (`packages/db/scripts/m18-rollback-prestep.sql`) still turns a group
  *    the RPC wrote back into OpenSkill-only rows the old build's writes are accepted on, and the
  *    Kustom rebuild then puts every row back.
+ * 8. a rebuild larger than one chunk writes in several calls of whole games, and a second run 0.
  *
  * Own group, own players; skipped without the stack (`pnpm db:start`) or without 0043 applied.
  */
@@ -174,8 +175,14 @@ if (stack === null || !applied) {
     );
   }
 
-  function rebuild(dryRun = false) {
-    return rebuildRatings(db, { groupId, force: true, dryRun, timeZone: TZ });
+  function rebuild(dryRun = false, writeChunkRows?: number) {
+    return rebuildRatings(db, {
+      groupId,
+      force: true,
+      dryRun,
+      timeZone: TZ,
+      ...(writeChunkRows === undefined ? {} : { writeChunkRows }),
+    });
   }
 
   beforeAll(async () => {
@@ -397,6 +404,28 @@ if (stack === null || !applied) {
       expect(refilled.every((row) => row.r_after !== null && row.week_r_after !== null)).toBe(true);
       const second = await rebuild();
       expect(second.ok && second.report.gamePlayerRowsWritten).toBe(0);
+    });
+
+    it('writes a rebuild larger than one chunk in several calls of whole games; a second run writes 0', async () => {
+      // Every Kustom column of the group's 50 rows emptied, so the rebuild rewrites all of them.
+      const prestep = readFileSync(`${DB_PACKAGE_ROOT}scripts/m18-rollback-prestep.sql`, 'utf8');
+      psql(`begin;\n${prestep}\ncommit;`, { group_id: groupId });
+
+      // 25 rows a call and ten rows a game: games are never split, so 20 + 20 + 10.
+      const first = await rebuild(false, 25);
+      expect(first.ok).toBe(true);
+      if (!first.ok) return;
+      expect(first.report.gamePlayerRowsChanged).toBe(50);
+      expect(first.report.gamePlayerRowsWritten).toBe(50);
+      expect(first.report.gamePlayerWriteCalls).toBe(3);
+      expect((await stored()).every((row) => row.r_after !== null && row.week_r_after !== null)).toBe(true);
+
+      const before = versions();
+      const second = await rebuild(false, 25);
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      expect([second.report.gamePlayerRowsWritten, second.report.gamePlayerWriteCalls]).toEqual([0, 0]);
+      expect(versions()).toBe(before);
     });
   });
 }

@@ -16,7 +16,8 @@
 #      fails cleanly;
 #   2. no existing value moved and no table changed: a fingerprint of every game_players /
 #      ratings rating column, and of public's columns and checks, is identical before and after;
-#   3. hardening: security definer, search_path '' and statement_timeout 60s on the function;
+#   3. hardening: security definer and search_path '' on the function (its statement_timeout
+#      setting is checked only as "as applied": it does not extend the caller's timeout);
 #      execute for service_role only (not public, anon, authenticated);
 #   4. as service_role on real rows: every stored row of the biggest group handed back exactly as
 #      stored writes 0 rows; a whole Kustom write through it on one real game writes 10 and passes

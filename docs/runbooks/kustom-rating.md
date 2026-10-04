@@ -14,6 +14,7 @@ columns stay in the schema, unread, until M18.12, so rollback is the previous bu
 - The switch build is merged and green: M18.2 (balancer), M18.5 (fold and rebuild), M18.6 (reads), M18.7 (pages),
   M18.9 (words), and this task's `0043` writer. Note its commit as `SWITCH`. Note the commit production runs now
   as `PREVIOUS` (Vercel → Deployments → Production / Current): it is the rollback build.
+- **Do not deploy (step 2) until step 1's check printed `service_can` true; without 0043 every game post fails.**
 - Pick a quiet time: no lobby live in any group and no game in the last 15 minutes (the rebuild refuses otherwise).
   Steps 2 to 5 take about ten minutes; nobody should play during them.
 - **No automated Discord message** at any step: no code sends anything. The switch is announced afterwards, by
@@ -88,6 +89,8 @@ select has_function_privilege('anon', 'public.apply_game_player_ratings(uuid, js
 
 ## 2. Deploy the switch build
 
+**Do not deploy until step 1's check printed `service_can` true; without 0043 every game post fails.**
+
 Promote `SWITCH` to production (Vercel). Wait for **Ready**. Go straight on to step 3: until step 4 has run, a
 game folded by the new build starts every player's all-time track from 1200 with their old games count (their
 `ratings.r` is still null), and the boards read nearly empty Kustom columns.
@@ -135,10 +138,17 @@ Add `--force` only if it refuses with the 15-minute guard and you have checked t
 Read:
 
 - `target  ... (hosted)` again.
-- Per group: `wrote  N game_players rows, M ratings rows (0043: N game_players rows moved in one call)`. The
-  first number and the `0043` number agree. Every group's `kustom` line matches its dry run.
+- Per group: `wrote  N game_players rows, M ratings rows (0043: N game_players rows moved in K calls)`. The
+  first number and the `0043` number agree. K is the number of chunks: the rebuild writes whole games, at most
+  2,000 rows a call, so each call stays inside PostgREST's statement timeout (about 8 s). Every group's `kustom`
+  line matches its dry run.
 - Exit 0. Exit 2 means games landed during the run ("Run it again"): run the same command again. Exit 1 is a
   refusal or a `PROBLEM`: read it, fix it, run again.
+- **If it fails with `canceling statement due to statement timeout`**: run the same command once more, and report
+  it to the lead with the output. Each chunk is its own transaction, so the chunks before the failure are written
+  and the rest are untouched; the rebuild is idempotent, so the rerun writes only what is left (and the second run
+  below writes 0). If the rerun times out too, stop there and go to the lead (the board is part-switched; step 6 is
+  the way back if the lead says so).
 
 Then run it a second time. It must say `wrote  0 game_players rows, 0 ratings rows` for every group: the fold is
 idempotent, and the database skipped nothing it should have written.
@@ -169,15 +179,38 @@ Only if the gate fails or a check disagrees. In this order:
    build's rebuild un-rates a skipped game with a write that leaves `r_after` beside a null `fold_p`,
    `game_players_kustom_together` refuses it, and that rebuild aborts.
 
+   **The route: the Supabase SQL editor** (Dashboard → SQL Editor, on the hosted project). First find the ids:
+
+   ```sql
+   select id, slug from public.groups order by slug;
+   ```
+
+   Then, per group: open `packages/db/scripts/m18-rollback-prestep.sql`, copy its `update` statement (everything
+   after the comments), replace `:'group_id'` with the group's id in single quotes
+   (`'00000000-0000-0000-0000-000000000001'` for `customs`), and run it. The editor runs it as one statement, so it
+   lands whole or not at all. Then check:
+
+   ```sql
+   select count(*) from public.game_players
+   where group_id = '<id>' and (r_after is not null or week_r_after is not null);
+   ```
+
+   It must be 0.
+
+   **Or with psql**, if you prefer the file as is. The URL comes from the Dashboard → **Connect** → **Session
+   pooler** connection string (it looks like `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-0-eu-west-1.pooler.supabase.com:5432/postgres`);
+   put the database password in place of `[YOUR-PASSWORD]` (Dashboard → Project Settings → Database, reset it
+   there if you do not have it). Check the host before anything runs:
+
    ```sh
-   # group ids: select id, slug from public.groups;
+   export DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres'
+   echo "$DATABASE_URL" | sed -E 's#^[a-z]+://([^:]*):[^@]*@([^:/]+).*#user: \1  host: \2#'
+   # must print user: postgres.<ref>  (the ref in packages/db/supabase/.temp/project-ref) and the pooler host
    psql "$DATABASE_URL" --single-transaction -v ON_ERROR_STOP=1 \
      -v group_id=<groups.id> -f packages/db/scripts/m18-rollback-prestep.sql
    ```
 
-   or paste it into the SQL editor with the id in place of `:'group_id'`. Afterwards
-   `select count(*) from public.game_players where group_id = '<id>' and (r_after is not null or week_r_after is not null);`
-   is 0.
+   It prints `UPDATE <n>`; then run the same check query.
 3. **Run the old build's rebuild**, from a checkout of `PREVIOUS`:
 
    ```sh
@@ -234,6 +267,9 @@ ok: refused anon (permission denied for function apply_game_player_ratings)
 ok: refused authenticated (permission denied for function apply_game_player_ratings)
 ALL CHECKS PASSED
 ```
+
+(`statement_timeout=60s` is the function's setting as applied. It does not lengthen anything: the caller's
+statement timeout, PostgREST's ~8 s on hosted, governs a call, which is why the rebuild writes in chunks.)
 
 **Step 3**, `pnpm --filter web rebuild-ratings --dry-run --group customs`:
 

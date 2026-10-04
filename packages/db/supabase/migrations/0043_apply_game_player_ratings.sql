@@ -26,14 +26,18 @@
 -- Rows whose stored values already equal the new ones (`is distinct from`, exact) are skipped, so
 -- a second rebuild writes 0 rows and fires no Realtime event, and `game_players` triggers (none
 -- today) would not see a no-op. One statement, so one transaction: a row refused by a check
--- (0036's `game_players_kustom_together` and friends) rolls the whole fold back and the caller
--- sees the error; nothing is half written.
+-- (0036's `game_players_kustom_together` and friends) rolls the whole call back and the caller
+-- sees the error; nothing of that call is half written. The rebuild calls it in chunks of whole
+-- games (apps/web/lib/ingest/rebuild.ts, at most 2,000 rows a call), so each call stays well
+-- inside the caller's statement timeout.
 --
 -- Hardening: security definer (runs as the owner, so it does not depend on the caller's table
 -- grants), `search_path = ''` with every name schema-qualified, execute revoked from public, anon
 -- and authenticated and granted to service_role only (the API and the scripts use the service
--- role). statement_timeout 60 s on the function, so a large group's rebuild is not cut at the
--- authenticator's 8 s.
+-- role). The function-level `statement_timeout = '60s'` below does NOT lengthen anything: the
+-- timer of the outer statement (PostgREST's request, under the authenticator's ~8 s) is not re-armed
+-- by a function's SET, so the caller's limit governs. It is kept only so the function's settings
+-- match what is applied locally; the real guard is the rebuild's chunking.
 --
 -- Requires 0036 (it names the Kustom columns). Additive: the OpenSkill build ignores it, so the
 -- M18 rollback (previous build + m18-rollback-prestep.sql + its own rebuild) is unchanged.

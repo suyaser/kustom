@@ -137,6 +137,8 @@ export interface RebuildOptions {
    * to notice. Nothing in the app passes it.
    */
   afterSnapshot?: () => Promise<void>;
+  /** Tests only: rows per 0043 call (default `APPLY_CHUNK_ROWS`). */
+  writeChunkRows?: number;
   now?: Date;
   /** The zone of the weekly track's Sunday 06:00 (M18.5). Default: `nightTimeZone()`, the board's. */
   timeZone?: string;
@@ -180,6 +182,8 @@ export interface RebuildReport {
    * match exactly). Zero on a dry run and on a second run of an unchanged database.
    */
   gamePlayerRowsWritten: number;
+  /** `apply_game_player_ratings` calls made (chunks of whole games, `APPLY_CHUNK_ROWS`). */
+  gamePlayerWriteCalls: number;
   /**
    * Rated `game_players` rows this run writes a fold breakdown on for the first time (M14.58,
    * `0034`: stored before the migration). Zero on every run after the first.
@@ -650,6 +654,7 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
     skipped,
     gamePlayerRowsChanged: changedRows.length,
     gamePlayerRowsWritten: 0,
+    gamePlayerWriteCalls: 0,
     breakdownsFilled,
     ratingRowsChanged: ratingInserts.length,
     seedsStored,
@@ -668,7 +673,14 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   if (options.afterSnapshot) await options.afterSnapshot();
 
   // ---- Write once, at the end ----------------------------------------------------------
-  report.gamePlayerRowsWritten = await writeGamePlayerRatings(client, groupId, changedRows);
+  const written = await writeGamePlayerRatings(
+    client,
+    groupId,
+    changedRows,
+    options.writeChunkRows ?? APPLY_CHUNK_ROWS,
+  );
+  report.gamePlayerRowsWritten = written.written;
+  report.gamePlayerWriteCalls = written.calls;
   await writeRatings(client, ratingInserts);
   if (options.prune && orphans.length > 0) {
     await pruneRatings(client, groupId, orphans);
@@ -1075,21 +1087,57 @@ async function selectGroupRatings(
 }
 
 /**
- * Every rating column of every row that moved, in **one call** (0043, `applyGamePlayerRatings`):
- * one statement, so one transaction -- the whole fold lands or none of it does -- and rows the
- * database finds unmoved are skipped there too, so a no-op rebuild fires no Realtime event. Before
- * 0043 this was one PATCH per row (18,190 requests for a 2,000-game group, not atomic).
+ * Rows per `apply_game_player_ratings` call (0043). A call is one statement, and it runs under the
+ * caller's statement timeout (PostgREST's authenticator, about 8 s on hosted; the function's own
+ * `statement_timeout` setting does not extend it), so the rebuild writes in chunks well inside it.
+ */
+export const APPLY_CHUNK_ROWS = 2_000;
+
+/**
+ * Every rating column of every row that moved, through 0043 (`applyGamePlayerRatings`), in chunks
+ * of **whole games** in `started_at` order (at most `chunkRows` rows a call, a game never split).
+ * Each chunk is one statement, so one transaction, and rows the database finds unmoved are skipped
+ * there too, so a no-op rebuild fires no Realtime event. A run that fails part way leaves the
+ * earlier chunks written and the rest as they were; the rebuild is idempotent, so running it again
+ * writes only what is left, and the run after that writes 0. Before 0043 this was one PATCH per
+ * row (18,190 requests for a 2,000-game group).
  *
  * `onlyUnrated: false`: deliberately **not** guarded by "rated on no track". The rebuild is the
  * one writer entitled to overwrite the live fold's claim, because it is the one writer that knows
  * the whole order. Every column of both tracks is in every row, so 0036's "a track together or not
- * at all" holds by construction. Returns the rows the database wrote.
+ * at all" holds by construction. Returns the rows the database wrote and the calls made.
  */
 async function writeGamePlayerRatings(
   client: ServiceClient,
   groupId: string,
   rows: readonly WriteRow[],
-): Promise<number> {
+  chunkRows: number,
+): Promise<{ written: number; calls: number }> {
+  const chunks: WriteRow[][] = [];
+  let chunk: WriteRow[] = [];
+  let game: WriteRow[] = [];
+  const closeGame = () => {
+    if (game.length === 0) return;
+    if (chunk.length > 0 && chunk.length + game.length > chunkRows) {
+      chunks.push(chunk);
+      chunk = [];
+    }
+    chunk.push(...game);
+    game = [];
+  };
+  for (const row of rows) {
+    if (game.length > 0 && game[0]?.gameId !== row.gameId) closeGame();
+    game.push(row);
+  }
+  closeGame();
+  if (chunk.length > 0) chunks.push(chunk);
+
+  let written = 0;
+  for (const part of chunks) written += await applyChunk(client, groupId, part);
+  return { written, calls: chunks.length };
+}
+
+function applyChunk(client: ServiceClient, groupId: string, rows: readonly WriteRow[]): Promise<number> {
   return applyGamePlayerRatings(
     client,
     groupId,
@@ -1205,7 +1253,11 @@ export function formatRebuildReport(report: RebuildReport): string {
     `${report.dryRun ? 'would change  ' : 'wrote         '}${report.gamePlayerRowsChanged} game_players row${
       report.gamePlayerRowsChanged === 1 ? '' : 's'
     }, ${report.ratingRowsChanged} ratings row${report.ratingRowsChanged === 1 ? '' : 's'}${
-      report.dryRun ? '' : ` (0043: ${report.gamePlayerRowsWritten} game_players rows moved in one call)`
+      report.dryRun
+        ? ''
+        : ` (0043: ${report.gamePlayerRowsWritten} game_players rows moved in ${report.gamePlayerWriteCalls} call${
+            report.gamePlayerWriteCalls === 1 ? '' : 's'
+          })`
     }`,
     `players       ${report.playersWritten} with a rated game`,
     `seeds         ${report.seedsStored} ${report.dryRun ? 'to store' : 'stored'} for the first time`,
