@@ -12,7 +12,7 @@ import type {
   TeamsView,
   TonightSnapshot,
 } from '../tonight/types';
-import { WORKED_ROSTER, workedBalance, workedPuuid } from './workedExample';
+import { WORKED_ROSTER, workedBalance, workedPuuid, workedRoster } from './workedExample';
 
 /**
  * The tonight page's states, built from the worked example (`docs/00-product.md`) — the same
@@ -31,24 +31,26 @@ import { WORKED_ROSTER, workedBalance, workedPuuid } from './workedExample';
  */
 export const FIXTURE_NIGHT_START = '2026-09-08T03:00:00.000Z';
 
-export function workedMembers(count = WORKED_ROSTER.length): MemberView[] {
-  return WORKED_ROSTER.slice(0, count).map((player) => ({
-    puuid: workedPuuid(player.name),
-    name: player.name,
-    mainRole: player.mainRole,
-    secondaryRole: player.secondaryRole,
-    roleOverride: null,
-    isSpectator: false,
-    // Long enough ago that the three-second "just joined" marker is off by default.
-    joinedAt: JOINED_LONG_AGO,
-    rating: displayKustom(player.r),
-    // Everybody in the worked example is a regular: well past settling (M14.9).
-    ratedGames: 40,
-    // **Nobody has been placed by default** (M4.11). A lobby that has just been balanced is a
-    // lobby nobody has moved in yet, so the fixture's honest value is `null` — which keeps the
-    // side line on screen, the state every test written before M4.11 was written against.
-    side: null,
-  }));
+export function workedMembers(count = workedRoster().length): MemberView[] {
+  return workedRoster()
+    .slice(0, count)
+    .map((player) => ({
+      puuid: workedPuuid(player.name),
+      name: player.name,
+      mainRole: player.mainRole,
+      secondaryRole: player.secondaryRole,
+      roleOverride: null,
+      isSpectator: false,
+      // Long enough ago that the three-second "just joined" marker is off by default.
+      joinedAt: JOINED_LONG_AGO,
+      rating: displayKustom(player.r),
+      // Everybody in the worked example is a regular: well past settling (M14.9).
+      ratedGames: 40,
+      // **Nobody has been placed by default** (M4.11). A lobby that has just been balanced is a
+      // lobby nobody has moved in yet, so the fixture's honest value is `null` — which keeps the
+      // side line on screen, the state every test written before M4.11 was written against.
+      side: null,
+    }));
 }
 
 /** Nobody in the fixtures is "new": this lobby filled up long before the suite ran. */
@@ -166,7 +168,7 @@ export function seatedOnTheirSides(
  */
 export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
   const teams = workedTeams();
-  const byPuuid = new Map(WORKED_ROSTER.map((player) => [workedPuuid(player.name), player]));
+  const byPuuid = new Map(workedRoster().map((player) => [workedPuuid(player.name), player]));
   const ratingsOf = (seats: readonly SeatView[]) =>
     seats.map((seat) => {
       const player = byPuuid.get(seat.puuid);

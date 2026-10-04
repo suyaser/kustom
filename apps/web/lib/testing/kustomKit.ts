@@ -61,7 +61,7 @@ const GAMES: readonly KitGame[] = [
       'SugarPapy',
     ],
     durationS: 1_860,
-    startedAt: '2026-10-04T18:10:00.000Z',
+    startedAt: '2026-09-27T18:10:00.000Z',
   },
   {
     blue: ['H4RDC0R33', 'XETA', 'Ramzyinhović', 'SugarPapy', 'TheSHADOWREAPER'],
@@ -80,7 +80,7 @@ const GAMES: readonly KitGame[] = [
       'Used2BeATahmMain',
     ],
     durationS: 1_710,
-    startedAt: '2026-10-04T18:55:00.000Z',
+    startedAt: '2026-09-27T18:55:00.000Z',
   },
   {
     blue: ['FoxHound', 'Syndrome Axes', 'Ramzyinhović', 'PRT Khokha', 'Used2BeATahmMain'],
@@ -99,7 +99,7 @@ const GAMES: readonly KitGame[] = [
       'TheSHADOWREAPER',
     ],
     durationS: 2_040,
-    startedAt: '2026-10-04T19:40:00.000Z',
+    startedAt: '2026-09-27T19:40:00.000Z',
   },
   {
     blue: ['Chaos', 'XETA', 'Ramzyinhović', 'SugarPapy', 'TheSHADOWREAPER'],
@@ -118,7 +118,7 @@ const GAMES: readonly KitGame[] = [
       'Used2BeATahmMain',
     ],
     durationS: 1_620,
-    startedAt: '2026-10-05T18:15:00.000Z',
+    startedAt: '2026-09-28T18:15:00.000Z',
   },
   {
     blue: ['Chaos', 'Syndrome Axes', 'knifiy', 'PRT Khokha', 'Used2BeATahmMain'],
@@ -137,7 +137,7 @@ const GAMES: readonly KitGame[] = [
       'SugarPapy',
     ],
     durationS: 1_950,
-    startedAt: '2026-10-05T19:00:00.000Z',
+    startedAt: '2026-09-28T19:00:00.000Z',
   },
   {
     // 05-design 11.8's game: red favoured, red wins, Syndrome Axes MVP, Ramzyinhović ACE.
@@ -157,7 +157,7 @@ const GAMES: readonly KitGame[] = [
       'SugarPapy',
     ],
     durationS: 1_860,
-    startedAt: '2026-10-05T19:44:00.000Z',
+    startedAt: '2026-09-28T19:44:00.000Z',
   },
 ];
 
@@ -318,6 +318,10 @@ function recentFor(name: string, track: 'all-time' | 'week'): RecentGame[] {
     const all = f.allTime.get(name) as KustomRow;
     const week = f.week.get(name) as KustomRow;
     const team = side === 100 ? f.game.blue : f.game.red;
+    // The week's first game was rolled before the switch (M18.7 kit): the bot's stored OpenSkill odds
+    // (7 points under the fold's) stay as posted, so the row shows 05-design 11.7's `For points` line.
+    const preSwitch = index === 0;
+    const botBlue = preSwitch ? Math.max(0, f.blueWinProb - 0.07) : f.blueWinProb;
     out.push({
       gameId: `kit-game-${index + 1}`,
       startedAt: f.game.startedAt,
@@ -331,7 +335,7 @@ function recentFor(name: string, track: 'all-time' | 'week'): RecentGame[] {
       weekRBefore: week.rBefore,
       weekRAfter: week.rAfter,
       award: all.award === 'none' ? null : all.award,
-      blueWinProb: f.blueWinProb,
+      blueWinProb: botBlue,
       pickRank: 1,
       ratingsBefore: null,
       aram: false,
@@ -341,7 +345,15 @@ function recentFor(name: string, track: 'all-time' | 'week'): RecentGame[] {
         role: ROLES[seat] ?? null,
       })),
       reason: track === 'week' ? reasonOf(week, 'week', weekN, all) : reasonOf(all, 'all-time', n, all),
-      odds: null,
+      odds: preSwitch
+        ? {
+            botBluePct: Math.round(botBlue * 100),
+            ratingBluePct: Math.round(f.blueWinProb * 100),
+            differ: true,
+            pointsBluePct: Math.round(f.blueWinProb * 100),
+            ratingBlueWinProb: f.blueWinProb,
+          }
+        : null,
     });
     weekN += 1;
     n += 1;
@@ -350,12 +362,12 @@ function recentFor(name: string, track: 'all-time' | 'week'): RecentGame[] {
 }
 
 /** One player's page on the kit week, either tab. */
-export function kitPlayer(name: string, window: 'all-time' | 'this-week'): PlayerBoardView {
+export function kitPlayer(name: string, window: 'all-time' | 'last-week'): PlayerBoardView {
   const r = STATE.r.get(name) as number;
   const n = STATE.n.get(name) as number;
   const start = ROSTER.find((p) => p.name === name) as { r: number; n: number };
   const record = recordOf(name);
-  const week = window === 'this-week';
+  const week = window === 'last-week';
   const recent = recentFor(name, week ? 'week' : 'all-time');
   const oldestFirst = [...recent].reverse();
   const allRanked = kitAllTimeRows().filter((row) => !row.settling);
@@ -371,7 +383,7 @@ export function kitPlayer(name: string, window: 'all-time' | 'this-week'): Playe
     wins: week ? record.wins : Math.round(n * 0.52),
     losses: week ? record.losses : n - Math.round(n * 0.52),
     ratedGames: n,
-    range: week ? 'Sunday 4 Oct to Saturday 10 Oct' : null,
+    range: week ? 'Sunday 27 Sep to Saturday 3 Oct' : null,
     settling: !week && isSettling(n),
     rank: week || isSettling(n) ? null : rank + 1,
     reference: week ? 0 : 1200,
