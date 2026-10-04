@@ -1,6 +1,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 /**
  * A link to one **entity page** (a player `/g/<slug>/p/<puuid>`, a game `/g/<slug>/games/<id>`, a
@@ -20,6 +21,13 @@ import type { ReactNode } from 'react';
  * `lib/perf/prefetchPolicy.test.ts` fails a `<Link>` to an entity page that is neither this nor
  * `prefetch={false}`.
  */
+/**
+ * The tap's feedback (05-design.md 5.9a, M19.15): an entity page gets no pending frame, so the link's
+ * own `:active` press is the answer, CSS only, painted on the press. `--accent` is shadcn's neutral
+ * pressed surface, never amber. A row's own classes may add to it (`hover:bg-accent`, a press scale).
+ */
+const PRESS = 'touch-manipulation active:bg-accent';
+
 export function EntityLink({
   href,
   className,
@@ -30,7 +38,7 @@ export function EntityLink({
   children?: ReactNode;
 }) {
   return (
-    <Link href={href} prefetch={false} {...(className === undefined ? {} : { className })}>
+    <Link href={href} prefetch={false} className={cn(PRESS, className)}>
       {children}
     </Link>
   );
