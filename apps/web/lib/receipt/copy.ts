@@ -500,7 +500,7 @@ export const REROLLED_PAST = 'Rerolled past this one.';
 
 export const DISAGREE_TITLE = 'Why win chance and rating gap can disagree';
 export const DISAGREE_BODY =
-  'Win chance also counts how sure the bot is about each player, so a team of new faces is harder to call. The rating gap is what the bot balances on, counting anyone off their main role as a bit weaker there.';
+  "Win chance comes from everyone's Rating as it is. The rating gap is what the bot balances on, and it counts anyone off their main role as a bit weaker there, so the two can point slightly different ways.";
 
 export const NOBODY_PICKED_TITLE = 'Nobody picked these teams.';
 /**

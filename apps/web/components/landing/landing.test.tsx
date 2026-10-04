@@ -251,7 +251,8 @@ describe('/how', () => {
     render(<HowPage demo={DEMO} calibration={null} />);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('How the bot decides');
     expect(screen.getByRole('heading', { level: 2, name: 'Your rating' })).toBeInTheDocument();
-    expect(screen.getByText(/OpenSkill/)).toBeInTheDocument();
+    expect(screen.getByText(/a win never lowers it and a loss never raises it/)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/OpenSkill/);
     const index = screen.getByRole('navigation', { name: 'On this page' });
     const targets = within(index)
       .getAllByRole('link')
