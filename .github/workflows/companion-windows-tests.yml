@@ -1,0 +1,41 @@
+# Runs `cargo test --workspace` on Windows for the companion, the same step the release job runs, without
+# building an installer or touching any secret. It exists because the Tauri test binaries (tests/*.rs) only
+# load on Windows when they carry the application manifest (apps/companion/src-tauri/build.rs); a release tag
+# is a bad place to find out they do not. Publishes nothing.
+name: Companion Windows tests
+
+on:
+  pull_request:
+    paths:
+      - 'apps/companion/**'
+      - '.github/workflows/companion-windows-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: companion-windows-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/companion
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # Keep in step with apps/companion/rust-toolchain.toml and companion-release.yml.
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master, 2026-10-01 (the action has no release tags)
+        with:
+          toolchain: 1.99.0
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/companion -> target
+
+      - run: cargo test --workspace --locked
