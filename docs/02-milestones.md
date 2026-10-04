@@ -12643,6 +12643,8 @@ Tasks:
   rerun on the Kustom scale show no measurable loss of evenness; real-data query 9.1 result quoted; `whyLower`
   names each term.
 
+  *Core half landed 2026-10-04 on `kustom-rating` (8a708b46, reviewer pass): flat `roleDrop` 0/84/180, teammate variety 25 per repeated pair (cap 100, window 1 game), `scoreParts` on every split; fill share by rating third on a 1,000-lobby sweep 1,019:401 → 689:770. Outstanding before ticking: platform (migration for `splits.score_parts`, recent pairs, storing parts), web (receipt lines), and the evenness rerun of the research simulations on the Kustom scale + query 9.1 on real games.*
+
 **Order.**
 
 ```
