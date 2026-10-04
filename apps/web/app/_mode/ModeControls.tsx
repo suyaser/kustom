@@ -94,7 +94,8 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  * - **`Reset fearless`** while the standing mode is Fearless and the pool has a ban.
  * - After Roll every change is for the next game: `Changes apply from the next game.` and
  *   `Next game: Mages only.` (the page's `nextLine`).
- * - Outcomes show in place (`role="status"`, a refusal `role="alert"`), never as a toast.
+ * - Outcomes show in place, never as a toast; a refusal is `role="alert"`. The outcome line is not
+ *   a live region: Tonight's Announcer speaks the card's change once (QA fix 2026-10-04).
  * - **Focus never drops to the page** (QA fix 2026-10-04): a confirmed Set mode hides its button,
  *   so focus moves to the select; a reset closes its dialog and its trigger goes with the bans, so
  *   focus moves to the outcome line (`tabIndex={-1}`).
@@ -422,7 +423,10 @@ export function ModeControls({
           {failed}
         </p>
       )}
-      <p ref={statusRef} tabIndex={-1} role="status" className="text-sm empty:hidden">
+      {/* No live region here (QA fix 2026-10-04): Tonight's one Announcer says every outcome when
+          the card re-reads, so a role="status" here said each one twice. A reset's line is read
+          because focus moves to it. */}
+      <p ref={statusRef} tabIndex={-1} data-slot="mode-outcome" className="text-sm empty:hidden">
         {said}
       </p>
     </div>

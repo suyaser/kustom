@@ -4,7 +4,9 @@ import { FEARLESS_RESET_BUTTON, FEARLESS_RESET_POSTED } from '@/lib/fearless/cop
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { MODE_CHANGE_FAILED, SET_MODE } from '@/lib/mode/copy';
 import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
+import type { ModeSpeech } from '@/lib/mode/speech';
 import { SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
+import { Announcer } from '../_tonight/Announcer';
 import { ModeControls, type ModeControlsProps } from './ModeControls';
 
 /**
@@ -77,6 +79,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** The controls' outcome line: shown in place, not a live region (the Announcer speaks). */
+const outcome = () => document.querySelector('[data-slot="mode-outcome"]') as HTMLElement;
+
 describe('Set mode answers on its own', () => {
   it('the button goes away once the choice is confirmed, and cannot post it again before the re-read', async () => {
     const net = heldFetch();
@@ -94,7 +99,7 @@ describe('Set mode answers on its own', () => {
     // The page has not re-read (still `selected: fearless`, version 4): the choice stands anyway.
     expect(setButton()).toBeNull();
     expect(select().value).toBe('class:Tank');
-    expect(screen.getByRole('status')).toHaveTextContent('Next game: Class wars, tanks only. Not rated.');
+    expect(outcome()).toHaveTextContent('Next game: Class wars, tanks only. Not rated.');
     fireEvent.submit(select().form as HTMLFormElement);
     expect(bodies(net.mock)).toEqual([{ groupId: ORIGINAL_GROUP.id, mode: 'class:Tank' }]);
   });
@@ -234,5 +239,64 @@ describe('focus never drops to the page (QA fix 2026-10-04)', () => {
     const line = screen.getByText(FEARLESS_RESET_POSTED);
     expect(line).toHaveAttribute('tabindex', '-1');
     await waitFor(() => expect(line).toHaveFocus());
+  });
+});
+
+describe('said once, by the Announcer (QA fix 2026-10-04)', () => {
+  const before: ModeSpeech = {
+    standing: 'fearless',
+    pending: null,
+    nextRated: true,
+    lockedRule: null,
+    lobbyStatus: null,
+  };
+  const page = (props: Partial<ModeControlsProps>, speech: ModeSpeech) => (
+    <>
+      <Announcer text="" mode="fearless" speech={speech} />
+      <ModeControls {...PROPS} {...props} />
+    </>
+  );
+  const live = () => screen.getAllByRole('status');
+
+  it('a Set mode: the controls show the line, the one live region says it when the card re-reads', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    const { rerender } = render(page({}, before));
+    fireEvent.change(select(), { target: { value: 'class:Tank' } });
+    fireEvent.click(setButton() as HTMLElement);
+    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
+    const line = 'Next game: Class wars, tanks only. Not rated.';
+    expect(outcome()).toHaveTextContent(line);
+    // One live region on the page, and it is the Announcer's.
+    expect(live()).toHaveLength(1);
+    rerender(
+      page(
+        { selected: 'class:Tank', nextRated: false, version: 5 },
+        { ...before, pending: { id: 'class', tag: 'Tank' }, nextRated: false },
+      ),
+    );
+    expect(live()).toHaveLength(1);
+    expect(live()[0]).toHaveTextContent(line);
+  });
+
+  it('a Rated flip: the same', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    const { rerender } = render(page({}, before));
+    fireEvent.click(screen.getByRole('switch', { name: 'Rated' }));
+    await net.release({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        mode: 'fearless',
+        changed: true,
+        next: { standing: 'fearless', rule: null, rated: false, ratedOverride: false, version: 5 },
+      }),
+    } as Response);
+    expect(live()).toHaveLength(1);
+    rerender(page({ nextRated: false, version: 5 }, { ...before, nextRated: false }));
+    expect(live()[0]).toHaveTextContent('Next game is not rated.');
+    expect(outcome()).toHaveTextContent('Next game is not rated.');
   });
 });
