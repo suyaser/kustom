@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { AI_GAME, AI_PLAYER, AI_WEEK, playerId } from '@/lib/testing/aiFixtures';
 import { type CheckResult, checkLine, normalizeLine, playersNamedIn, renderLine } from './check';
-import { buildGameFacts, buildPlayerFacts, buildWeekFacts, type FactList } from './facts';
+import {
+  buildGameFacts,
+  buildPlayerFacts,
+  buildWeekFacts,
+  CLEAR_LEAD_NOTE,
+  CLOSE_RACE_NOTE,
+  type FactList,
+  renderFact,
+} from './facts';
 
 /**
  * M16.3: the deterministic checker, attacked. Tokens in the game (see `aiFixtures.ts`): Blue won,
@@ -34,8 +42,8 @@ describe('clean lines pass', () => {
     '{P2} was in on 14 of 39 kills on Lee Sin, and never died.',
     '{P4} dealt 24,312 damage on Jinx while {P2} took 9 kills.',
     '{P4} dealt 24.3k damage on Jinx. Blue had 39 kills in 31 minutes.',
-    '{P8} did the most damage in the game on Ahri, 31204 damage to champions.',
-    '{P10} still had 40 vision for Red on Lulu.',
+    '{P8} did the most damage in the game on Ahri, 31204 damage to champions, and Blue won anyway.',
+    '{P10} still had 40 vision for Red on Lulu as Blue won.',
     "Blue's 39 kills sealed it for {P1} on Garen.",
     '{P2} and {P3} ran the map, {P2} with nine kills.',
   ])('%s', (line) => {
@@ -245,7 +253,7 @@ describe('absolute words', () => {
   it('a backed claim passes for its own player only', () => {
     expectPass(checkLine('{P2} never died on Lee Sin.', game));
     expectReject(checkLine('{P3} never died on Orianna.', game), 'absolute');
-    expectPass(checkLine('{P9} had the most CS in the game on Caitlyn.', game));
+    expectPass(checkLine('{P9} had the most CS in the game on Caitlyn as Blue won.', game));
     expectReject(checkLine('{P9} had the most kills on Caitlyn.', game), 'absolute', /most \.\.\. kills/);
     expectReject(checkLine('{P5} had the highest damage on Thresh.', game), 'absolute', /damage/);
   });
@@ -404,7 +412,12 @@ describe('loser barbs: only the winning side is teased', () => {
   });
 
   it('praise for a loser and teasing a winner both pass', () => {
-    expectPass(checkLine('{P8} did the most damage in the game on Ahri, 31204 damage to champions.', game));
+    expectPass(
+      checkLine(
+        '{P8} did the most damage in the game on Ahri, 31204 damage to champions, as Blue won.',
+        game,
+      ),
+    );
     expectPass(checkLine('{P1} had a rough day on Garen, and Blue won anyway.', game));
   });
 });
@@ -420,8 +433,8 @@ describe('M16.9 exact idioms: read as words, and only where their guard holds', 
   it.each([
     ['made the most of', '{P1} made the most of 12 games with 9 wins. {P2} took 2nd place.'],
     ['at least', '{P1} won at least 9 wins worth of games. {P2} took 2nd place.'],
-    ['top three', '{P1} and {P2} led a tight top three. {P3} held 3rd place.'],
-    ['top three, no player named', '{P1} took 1st place. That is a tight top three this time.'],
+    // 2026-10-04: `tight` now needs a close race, and a sentence with no fact is filler.
+    ['top three', '{P1} and {P2} led the top three. {P3} held 3rd place.'],
     ['at the top', 'The race at the top was all {P1}: 9 wins in 12 games. {P2} took 2nd place.'],
     ['top two', '{P1} and {P2} were the top two. {P3} took 3rd place.'],
   ])('a week line with %s passes', (_label, line) => {
@@ -562,7 +575,9 @@ describe('M16.14 small holes', () => {
 
   it('1 places is refused too (place counts are no unit the checker reads, so it never passes)', () => {
     expect(checkLine('{P1} climbed 1 places. {P2} took 2nd place.', week).ok).toBe(false);
-    expect(checkLine('{P1} finished in 1 place. {P2} took 2nd place.', week).ok).toBe(true);
+    // Passed until the 2026-10-04 checks; a place now always needs its ending.
+    expect(checkLine('{P1} finished in 1 place. {P2} took 2nd place.', week).ok).toBe(false);
+    expect(checkLine('{P1} finished in 1st place. {P2} took 2nd place.', week).ok).toBe(true);
   });
 
   it('a plural share of a total still passes', () => {
@@ -798,5 +813,314 @@ describe('M16.19 r3: a sentence naming the duo partner carries duo facts only', 
     ['the duo claim, together with the subject', '{P2} has the most wins together with {P1}.'],
   ])('passes %s', (_label, line) => {
     expectPass(checkLine(line + tail, six));
+  });
+});
+
+describe('place endings and pronouns (2026-10-04, every provider)', () => {
+  it('refuses a place without its ending', () => {
+    expectReject(checkLine('{P1} took 1 place with 212 points.', week), 'number', /place without its ending/);
+  });
+
+  it.each(['her', 'him', 'his', 'he', 'She'])('refuses the gendered pronoun %s', (pronoun) => {
+    expectReject(
+      checkLine(`{P2} put up 9 kills on Lee Sin and ${pronoun} won in 31 minutes.`, game),
+      'forbidden',
+      /gendered pronoun/,
+    );
+  });
+
+  it('passes words that only contain a pronoun', () => {
+    expectPass(checkLine('{P2} put up 9 kills on Lee Sin, and there is the whole story.', game));
+  });
+});
+
+describe('story claims need a fact (A/B read, 2026-10-04, every provider)', () => {
+  /** The same list with the game-level shape notes replaced. */
+  const withNotes = (list: FactList, notes: string[]): FactList => ({
+    ...list,
+    facts: [
+      ...list.facts,
+      { id: 'F99', token: null, side: null, notes, champions: [], values: [], claims: [] },
+    ],
+  });
+  const closeGame = withNotes(calmGame, ['close game: the team kills were nearly level']);
+  const lopsided = withNotes(calmGame, ['lopsided game']);
+  const weekWithNotes = (notes: string[]): FactList => ({
+    ...week,
+    facts: week.facts.map((fact) => (fact.id === 'F1' ? { ...fact, notes } : fact)),
+  });
+  const closeWeek = weekWithNotes(['the closed week of custom games', CLOSE_RACE_NOTE]);
+  const evenWeek = weekWithNotes(['the closed week of custom games']);
+
+  it('closeness needs the close-game note (Gr-12 A, Gr-15 A) and never sits beside a winner', () => {
+    const line = '{P2} had 9 kills on Lee Sin. {P10} had 40 vision on Lulu to keep it close.';
+    expectReject(checkLine(line, calmGame), 'forbidden', /close finish the facts do not state/);
+    expectReject(checkLine(line, lopsided), 'forbidden');
+    // Gr-11 B: the note is there, but the phrase sits on a winner.
+    expectReject(
+      checkLine('{P5} had 21 assists on Thresh to keep it close.', closeGame),
+      'forbidden',
+      /beside a player who won/,
+    );
+    // Gr-06 A shape: the losing side, in a close game.
+    expectPass(checkLine(line, closeGame));
+    expectPass(checkLine('Blue edged a close game. {P2} had 9 kills on Lee Sin.', closeGame));
+  });
+
+  it('margin words need a stated margin (Ws-03 B, Ws-07 A); Ws-02 passes', () => {
+    expectReject(
+      checkLine('{P1} ran away with 1st place on 212 points. {P2} took 2nd place.', evenWeek),
+      'forbidden',
+      /margin/,
+    );
+    expectReject(
+      checkLine('{P1} took a comfortable 1st place on 212 points. {P2} took 2nd place.', closeWeek),
+      'forbidden',
+    );
+    expectReject(
+      checkLine(
+        '{P1} took 1st place on 212 points. Nobody came close to {P1}. {P2} took 2nd place.',
+        evenWeek,
+      ),
+      'forbidden',
+    );
+    // Ws-02: AI_WEEK's own facts carry the clear-lead note (212 points to 2nd's 80).
+    expectPass(checkLine('{P1} ran away with 1st place on 212 points. {P2} took 2nd place.', week));
+    // The gap is a note, never a number (2026-10-04): a line cannot print it.
+    expectReject(
+      checkLine(
+        '{P1} ran away with 1st place on 212 points, 132 points ahead of the runner-up. {P2} took 2nd place.',
+        week,
+      ),
+      'number',
+    );
+    expectReject(checkLine('{P2} had 9 kills on Lee Sin and Blue cruised.', calmGame), 'forbidden', /margin/);
+    expectPass(checkLine('{P2} had 9 kills on Lee Sin and Blue cruised.', lopsided));
+  });
+
+  it('a close race on a week needs the close-race note', () => {
+    expectReject(
+      checkLine('{P1} squeezed into 1st place on 212 points. {P2} took 2nd place.', week),
+      'forbidden',
+      /close finish/,
+    );
+    expectPass(checkLine('{P1} squeezed into 1st place on 212 points. {P2} took 2nd place.', closeWeek));
+  });
+
+  it('refuses timing inside the week (Ws-08 A, Ws-04 A)', () => {
+    expectReject(
+      checkLine('{P1} put the week to bed early with 212 points. {P2} took 2nd place.', week),
+      'forbidden',
+      /timing/,
+    );
+    expectReject(
+      checkLine('{P1} led from start to finish with 212 points. {P2} took 2nd place.', week),
+      'forbidden',
+      /timing/,
+    );
+    expectReject(
+      checkLine('{P1} put it to bed with 212 points in 1st place. {P2} took 2nd place.', week),
+      'forbidden',
+      /to bed/,
+    );
+  });
+
+  it('refuses a doubled streak (Gr-03 B)', () => {
+    expectReject(
+      checkLine(
+        '{P1} made it 5 wins in a row and kept the wins in a row going on 212 points. {P2} took 2nd place.',
+        week,
+      ),
+      'shape',
+      /twice/,
+    );
+  });
+
+  it('refuses a sentence with no fact in it (What a week.)', () => {
+    expectReject(
+      checkLine('{P1} took 1st place on 212 points. What a week. {P2} took 2nd place.', week),
+      'shape',
+      /no fact/,
+    );
+    expectPass(checkLine('{P2} had 9 kills on Lee Sin. Blue will take that.', calmGame));
+  });
+
+  it('still on a winner only as still won (Gr-09 B, Gr-19 B)', () => {
+    expectReject(checkLine('{P5} still had 21 assists on Thresh.', calmGame), 'forbidden', /still/);
+    expectPass(checkLine('{P5} still won with 6 deaths on Thresh.', calmGame));
+    expectPass(checkLine('{P8} still had 31.2k damage on Ahri as Blue won.', calmGame));
+  });
+
+  it('the week facts print the margin as a note and places with their endings', () => {
+    const lines = week.facts.map(renderFact).join('\n');
+    expect(lines).not.toContain('ahead of the runner-up');
+    expect(lines).not.toContain('132');
+    expect(lines).toContain("1st place on the week's board");
+    expect(lines).toContain(CLEAR_LEAD_NOTE);
+  });
+});
+
+describe("product's round-2 read (2026-10-04, every provider)", () => {
+  const closeGame: FactList = {
+    ...calmGame,
+    facts: calmGame.facts.map((fact, index) =>
+      index === 0
+        ? { ...fact, notes: [...fact.notes, 'close game: the team kills were nearly level'] }
+        : fact,
+    ),
+  };
+  const WEEK_LINE = '{P1} went 9 wins in 12 games over the week.';
+
+  it('refuses a game recap that names nobody from the winning team (Gr-07 A, Gr-18 B, Gr-21 B)', () => {
+    expectReject(
+      checkLine('{P8} did the most damage in the game on Ahri, 31204 damage to champions.', calmGame),
+      'shape',
+      /winning team/,
+    );
+    expectReject(
+      checkLine('{P9} had 262 CS on Caitlyn, and {P10} had 40 vision score on Lulu.', calmGame),
+      'shape',
+      /winning team/,
+    );
+    // A winner's token, the winning side, or (on an upset) the underdogs is enough.
+    expectPass(checkLine('{P8} had 31204 damage to champions on Ahri, and {P2} had 9 kills.', calmGame));
+    expectPass(checkLine('{P9} had 262 CS on Caitlyn, and Blue won in 31 minutes.', calmGame));
+    expectPass(checkLine('The underdogs won in 31 minutes.', game));
+    expectReject(checkLine('Red had 262 CS from {P9} on Caitlyn.', calmGame), 'shape', /winning team/);
+    // Every winner opted out: nobody from the winning team is there to name.
+    const winnersOut = new Set(
+      AI_GAME.seats.filter((seat) => seat.side === AI_GAME.winningSide).map((seat) => seat.playerId),
+    );
+    const losersOnly = buildGameFacts({ ...AI_GAME, upset: false }, winnersOut) as FactList;
+    const ahri = losersOnly.facts.find((fact) => fact.champions.includes('Ahri'))?.token;
+    expect(ahri).toBeDefined();
+    expectPass(
+      checkLine(`{${ahri}} did the most damage in the game on Ahri, 31204 damage to champions.`, losersOnly),
+    );
+  });
+
+  it('`still` belongs to its own player, so a winner and a loser can share a sentence', () => {
+    expectPass(checkLine('{P2} had 9 kills on Lee Sin, and {P8} still had 8 kills on Ahri.', calmGame));
+    expectPass(checkLine('{P8} had 8 kills on Ahri, and {P2} still won on Lee Sin.', calmGame));
+    expectReject(
+      checkLine('{P8} had 8 kills on Ahri, and {P2} still had 9 kills on Lee Sin.', calmGame),
+      'forbidden',
+      /still/,
+    );
+    expectReject(checkLine('Still, {P5} had 21 assists on Thresh.', calmGame), 'forbidden', /still/);
+    // A take-verb only with the win as its object (Gr-15 B: `Zizo still took`).
+    expectPass(checkLine('{P8} had 8 kills on Ahri, and {P2} still took the win on Lee Sin.', calmGame));
+    expectReject(
+      checkLine('{P8} had 8 kills on Ahri, and {P2} still took 9 kills on Lee Sin.', calmGame),
+      'forbidden',
+      /still/,
+    );
+  });
+
+  it('refuses a near win, and nearly or almost about the losing side (Gr-30 B)', () => {
+    expectReject(
+      checkLine('{P2} had 9 kills on Lee Sin. Red nearly took the win anyway.', closeGame),
+      'forbidden',
+      /near win/,
+    );
+    expectReject(
+      checkLine('{P2} had 9 kills on Lee Sin. Red nearly won it on team kills.', closeGame),
+      'forbidden',
+      /near win/,
+    );
+    expectReject(
+      checkLine('{P2} had 9 kills on Lee Sin. {P8} almost matched it with 8 kills on Ahri.', closeGame),
+      'forbidden',
+      /losing side/,
+    );
+    expectReject(
+      checkLine('{P2} had 9 kills on Lee Sin. Red was almost level on team kills.', closeGame),
+      'forbidden',
+      /losing side/,
+    );
+    // The close-game note itself, about neither side, still reads fine.
+    expectPass(checkLine('{P2} had 9 kills on Lee Sin. The team kills were nearly level.', closeGame));
+  });
+
+  it('refuses fact labels copied into the line (Sr-04 A, Sr-14 A, Sr-17 B)', () => {
+    expectReject(
+      checkLine(`{P1} went 9 wins in 12 games in the week before this report. ${WEEK_LINE}`, player),
+      'forbidden',
+      /before this report/,
+    );
+    expectReject(
+      checkLine('{P4} had 8 kills on Jinx as the bot lane carry (ADC) for Blue.', game),
+      'forbidden',
+      /\(ADC\)/,
+    );
+    expectPass(checkLine('{P4} had 8 kills on Jinx in the bot lane for Blue.', game));
+    const ornn = buildPlayerFacts(
+      { ...AI_PLAYER, extras: { newChampion: { name: 'Ornn', games: 1 } } },
+      new Set(),
+    ) as FactList;
+    expectReject(
+      checkLine(`{P1} picked up Ornn with 1 game on Ornn. ${WEEK_LINE}`, ornn),
+      'forbidden',
+      /with 1 game on Ornn/,
+    );
+    expectPass(checkLine(`{P1} picked up Ornn over the week, 1 game so far. ${WEEK_LINE}`, ornn));
+  });
+
+  it('scouting labels read the way a friend says them', () => {
+    const list = buildPlayerFacts(
+      {
+        ...AI_PLAYER,
+        roles: [{ role: 'adc', games: 30, wins: 20 }],
+        extras: {
+          bestGame: { champion: 'Jinx', kills: 12, assists: 6, won: true },
+          newChampion: { name: 'Ornn', games: 2 },
+          roleShift: { weekRole: 'top', weekGames: 4, usualRole: 'adc' },
+        },
+      },
+      new Set(),
+    ) as FactList;
+    const text = list.facts.map(renderFact).join('\n');
+    expect(text).toContain('30 games in bot lane');
+    expect(text).toContain('mostly top, away from their usual bot lane');
+    expect(text).toContain('12 games over the week');
+    expect(text).toContain('their best game of the week');
+    expect(text).not.toMatch(/before this report|\(ADC\)|carry|top lane/);
+  });
+
+  it('refuses owning a role on a losing or level record there (Sr-01 A, Sr-12 B, Sr-16 B)', () => {
+    expectPass(checkLine(`{P1} owns the jungle with 20 wins in 30 games there. ${WEEK_LINE}`, player));
+    const losing = buildPlayerFacts(
+      { ...AI_PLAYER, roles: [{ role: 'jungle', games: 30, wins: 12 }] },
+      new Set(),
+    ) as FactList;
+    const level = buildPlayerFacts(
+      { ...AI_PLAYER, roles: [{ role: 'jungle', games: 30, wins: 15 }] },
+      new Set(),
+    ) as FactList;
+    for (const line of [
+      `{P1} owns the jungle with 12 wins in 30 games there. ${WEEK_LINE}`,
+      `{P1} runs the group through jungle, 30 games there. ${WEEK_LINE}`,
+      `{P1} anchors jungle with 30 games there. ${WEEK_LINE}`,
+    ])
+      expectReject(checkLine(line, losing), 'forbidden', /without a winning record/);
+    expectReject(
+      checkLine(`{P1} holds the jungle with 15 wins in 30 games there. ${WEEK_LINE}`, level),
+      'forbidden',
+      /without a winning record/,
+    );
+    // A role with no record in the facts owns nothing either.
+    expectReject(
+      checkLine(`{P1} holds top with 20 wins in 30 games in jungle. ${WEEK_LINE}`, player),
+      'forbidden',
+      /without a winning record/,
+    );
+    expectPass(checkLine(`{P1} played 30 games in jungle, 12 wins there. ${WEEK_LINE}`, losing));
+    // A number between the verb and the role does not hide it (`holds 28 games in support`).
+    expectReject(
+      checkLine(`{P1} holds 30 games in jungle with 12 wins there. ${WEEK_LINE}`, losing),
+      'forbidden',
+      /without a winning record/,
+    );
+    expectPass(checkLine(`{P1} holds 20 wins in 30 games in jungle. ${WEEK_LINE}`, player));
   });
 });

@@ -124,6 +124,28 @@ export const myGroupsResponseSchema = z.object({
 export type MyGroupsResponse = z.infer<typeof myGroupsResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// GET /api/groups/remembered
+// ---------------------------------------------------------------------------
+
+/**
+ * The group this browser last opened (the HttpOnly `kustom_group` cookie), for `/about`'s
+ * `Back to <Group>` bar now that the page is static. `null` without the cookie, for a slug
+ * `groups_public` does not know, and when the read fails. Public names only: no id, no role.
+ */
+export const rememberedGroupSchema = z.object({
+  slug: groupSlugSchema,
+  name: z.string().min(1),
+});
+
+export const rememberedGroupResponseSchema = z.object({
+  ok: z.literal(true),
+  group: rememberedGroupSchema.nullable(),
+});
+
+export type RememberedGroup = z.infer<typeof rememberedGroupSchema>;
+export type RememberedGroupResponse = z.infer<typeof rememberedGroupResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // POST /api/groups/join
 // ---------------------------------------------------------------------------
 

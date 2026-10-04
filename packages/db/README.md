@@ -233,6 +233,31 @@ of the four survives on a row whose `mu_after` is null. Readers parse them with
 verifies the migration on a throwaway restore of the local stack, reading the shared stack only via
 `pg_dump`.
 
+## What 0039 to 0042 add (database performance plan)
+
+From `redesign/research/db-performance.md`; the hosted order and checks are
+`docs/runbooks/db-performance.md`, and `scripts/m19-dbperf-throwaway-check.sh` rehearses all four on a
+throwaway restore.
+
+- `0039`: `games.game_mode`, a stored generated column (`raw->>'gameMode'`, string values only), so no
+  reader detoasts the 60 KB block for the mode; index `(group_id, started_at desc, lcu_game_id desc)`,
+  the order every games reader uses, replacing `(group_id, started_at desc)`.
+- `0040`: `games.raw` stored with lz4 (2.5x smaller than pglz on the seed, about 3x faster to detoast);
+  every existing value re-stored.
+- `0041`: `game_facts (game_id, group_id, facts_version, facts)`: `rawFactsFromUnknown(raw)` written by
+  that TypeScript function at ingest and by `backfill-game-facts`. Derived: readers take a row only when
+  it parses (`storedGameFactsSchema`, `src/schemas/gameFacts.ts`) and carries the code's
+  `GAME_FACTS_VERSION`, and read raw otherwise. Public read, service-role write, not in Realtime.
+- `0042`: index `game_players (group_id, player_id) include (game_id)` (the player page and You read
+  only that person's games) and the service-role view `group_member_game_counts` (Admin Members'
+  games played and last game per player, counted in Postgres; row schema `memberGameCountRowSchema`).
+
+**Applying locally while other branches' migrations are on the stack.** `supabase migration up --local`
+refuses when the local history holds versions this checkout has no file for (another branch's `0036`..`0038`
+applied to the shared stack). Put an empty placeholder file per missing version in `supabase/migrations/`
+(same `NNNN_name.sql`), run `migration up`, and delete the placeholders: applied versions are not re-run, so
+the placeholders are never executed. Never `migration repair` the shared stack's history for this.
+
 ## The companion wire contract (M2.10)
 
 `src/schemas/companion.ts` is the **wire contract** for the three bodies the companion POSTs, and

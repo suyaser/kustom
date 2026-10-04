@@ -1,0 +1,44 @@
+[
+  {
+    "id": "0236c5b1-854c-4e3e-bf28-0ee10877c7c3",
+    "type": "message",
+    "role": "assistant",
+    "model": "deepseek-v4-pro",
+    "content": [
+      {
+        "type": "text",
+        "text": "{P2} took 9 kills on Lee Sin and never once saw a death screen."
+      }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 864,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 13,
+      "service_tier": "standard"
+    }
+  },
+  {
+    "id": "cceb1566-8d62-454f-ac02-29ee2b56f873",
+    "type": "message",
+    "role": "assistant",
+    "model": "deepseek-v4-pro",
+    "content": [
+      {
+        "type": "text",
+        "text": "{P2} spent 31 minutes on Lee Sin without a death: 9 kills, 0 deaths."
+      }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 96,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 768,
+      "output_tokens": 15,
+      "service_tier": "standard"
+    }
+  }
+]

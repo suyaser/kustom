@@ -62,7 +62,7 @@ export async function findGroupsWithUnratedBackfill(client: ServiceClient): Prom
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await client
       .from('games')
-      .select('id, group_id, started_at, duration_s, raw->gameMode, game_players!inner(player_id)')
+      .select('id, group_id, started_at, duration_s, gameMode:game_mode, game_players!inner(player_id)')
       .eq('source', 'backfill')
       .eq('rated', true)
       .not('winning_side', 'is', null)

@@ -77,10 +77,14 @@ export async function decideAdminAccess(
   return operatorOr({ kind: 'not-admin' });
 }
 
-/** {@link decideAdminAccess} for this request, shared by the layout, the pages and anything else. */
+/**
+ * {@link decideAdminAccess} for this request, shared by the layout, the pages and anything else. The
+ * identity and the member come from the same live-session lookup for this group (`session_player`,
+ * one call per render, shared with `currentViewerState(group.id)`).
+ */
 export const currentAdminAccess: (group: PageGroup) => Promise<AdminAccess> = cache(
   async (group: PageGroup) =>
-    decideAdminAccess(getServiceClient(), await currentPageIdentity(), group, {
+    decideAdminAccess(getServiceClient(), await currentPageIdentity(group.id), group, {
       lookupMember: currentPlayerInGroup,
     }),
 );

@@ -1,12 +1,12 @@
 import { opsGroupsResponseSchema } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
-import { supabaseSessionUser } from '@/lib/adminAuth';
+import { sessionLookups } from '@/lib/adminAuth';
 import { ServerEnvError } from '@/lib/env';
 import { jsonError, jsonOk } from '@/lib/http';
 import { listOpsGroups } from '@/lib/ops/groups';
 import { authorizeOperator, type OperatorAuthResult } from '@/lib/ops/operator';
 import { getServiceClient, type ServiceClient } from '@/lib/supabase';
-import { createAuthClient, requestCookieJar } from '@/lib/supabaseAuth';
+import { requestCookieJar } from '@/lib/supabaseAuth';
 import { superAdminIds } from '@/lib/superAdmin';
 
 /**
@@ -26,7 +26,8 @@ function defaultAuthorize(request: Request): Promise<OperatorAuthResult> {
     superAdminIds: superAdminIds(),
     resolveSessionUser: async () => {
       // Only built when the list is not empty: authorizeOperator refuses before calling this.
-      return supabaseSessionUser(createAuthClient(requestCookieJar(request)))();
+      // The verified session lookup: a live session row, not just a valid token (`liveSession.ts`).
+      return sessionLookups(requestCookieJar(request), getServiceClient(), null).resolveSessionUser();
     },
   });
 }

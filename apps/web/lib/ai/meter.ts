@@ -6,6 +6,7 @@ import {
   aiMonthSpendRowSchema,
   aiReserveResultSchema,
 } from '@customs/db/schemas';
+import { type AiProvider, aiProviderOf } from '../env';
 import { type AiGate, aiGateOpen } from '../premium';
 import type { ServiceClient } from '../supabase';
 
@@ -29,35 +30,92 @@ import type { ServiceClient } from '../supabase';
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * Prices in USD per million tokens, standard (non-batch, non-cached, global routing) rates.
+ * Prices in USD per million tokens, standard (non-batch, global routing) rates. `cachedInput` is
+ * the price of an input token the provider reports as a cache hit; a model without one bills every
+ * input token at `input`.
  *
- * Source: https://platform.claude.com/docs/en/about-claude/pricing and the models overview
+ * Anthropic: https://platform.claude.com/docs/en/about-claude/pricing and the models overview
  * (https://platform.claude.com/docs/en/about-claude/models/overview), both read 2026-10-04.
  * Haiku 4.5 is $1 in / $5 out. Sonnet 5.5 is $2 in / $10 out -- **not** the $3 / $15 the brief
  * assumed: Sonnet 5's $2 / $10 launch price became the standard price and the planned 1 September
  * 2026 rise was cancelled (the pricing page's footnote 3), and Sonnet 5.5 is listed at $2 / $10.
- * The models overview lists Haiku 4.5's retirement as "not sooner than October 15, 2026": check it
- * before then and move the game line and scouting report to its successor here.
+ * The models overview lists Haiku 4.5's retirement as "not sooner than October 15, 2026".
+ *
+ * DeepSeek: https://api-docs.deepseek.com/quick_start/pricing, read 2026-10-04. **Peak** prices
+ * (01:00-04:00 and 06:00-10:00 UTC, weekdays); every other hour is half price, but the meter always
+ * prices at peak, so a cost is never under-counted. `deepseek-flash` is DeepSeek-V4.1-Flash, $0.30
+ * in (cache miss) / $0.006 (cache hit) / $1.20 out. `deepseek-v4-pro` (V4-Pro-0813) is $1.32 /
+ * $0.044 / $3.96. The 2026-09-10 release note said Pro requests would route to Flash; on
+ * 2026-10-04 `/models` lists it, and its replies carry `model: deepseek-v4-pro` with their own
+ * token counts, so it is a model of its own.
+ *
+ * `temperature` is sent when not null. `thinkingOff` is what the request sends to switch thinking off, or null when the model does not
+ * think unless asked. Every DeepSeek model thinks by default (effort `high`): left on, the
+ * reasoning is billed as output, runs into `max_tokens` and takes about 11 s, so the DeepSeek
+ * entries are never null (`client.test.ts`).
  */
+/**
+ * DeepSeek's sampling temperature (its default is 1.0). Our lines are rule-bound: at 1.0 the same
+ * prompt swung from 2 to 13 refused attempts in 20 between two eval runs; lower keeps it steadier.
+ * Claude models send none (their tuned default).
+ */
+const DEEPSEEK_TEMPERATURE = 0.7;
+
 export const AI_MODELS = {
   'claude-haiku-4-5-20251001': {
+    provider: 'anthropic',
     label: 'Claude Haiku 4.5',
     inputUsdPerMTok: 1,
+    cachedInputUsdPerMTok: null,
     outputUsdPerMTok: 5,
     /** Haiku 4.5 does not think unless asked; nothing to send. */
-    disableThinking: false,
+    thinkingOff: null,
+    temperature: null,
   },
   'claude-sonnet-5-5': {
+    provider: 'anthropic',
     label: 'Claude Sonnet 5.5',
     inputUsdPerMTok: 2,
+    cachedInputUsdPerMTok: null,
     outputUsdPerMTok: 10,
     /**
      * Adaptive thinking is on by default; a short paragraph from a fact list needs none. Turned
      * off with `thinking: { type: 'between_tools' }`: this model answers `disabled` with a 400.
      */
-    disableThinking: true,
+    thinkingOff: { type: 'between_tools' },
+    temperature: null,
   },
-} as const;
+  'deepseek-flash': {
+    provider: 'deepseek',
+    label: 'DeepSeek V4.1 Flash',
+    inputUsdPerMTok: 0.3,
+    cachedInputUsdPerMTok: 0.006,
+    outputUsdPerMTok: 1.2,
+    /** DeepSeek's Anthropic-format endpoint takes `thinking: { type: 'disabled' }` (thinking-mode guide). */
+    thinkingOff: { type: 'disabled' },
+    temperature: DEEPSEEK_TEMPERATURE,
+  },
+  'deepseek-v4-pro': {
+    provider: 'deepseek',
+    label: 'DeepSeek V4 Pro',
+    inputUsdPerMTok: 1.32,
+    cachedInputUsdPerMTok: 0.044,
+    outputUsdPerMTok: 3.96,
+    thinkingOff: { type: 'disabled' },
+    temperature: DEEPSEEK_TEMPERATURE,
+  },
+} as const satisfies Record<
+  string,
+  {
+    provider: AiProvider;
+    label: string;
+    inputUsdPerMTok: number;
+    cachedInputUsdPerMTok: number | null;
+    outputUsdPerMTok: number;
+    thinkingOff: { type: 'between_tools' | 'disabled' } | null;
+    temperature: number | null;
+  }
+>;
 
 export type AiModel = keyof typeof AI_MODELS;
 
@@ -73,35 +131,53 @@ export interface AiFeature {
   maxSentences: number;
 }
 
-export const AI_FEATURES: Record<AiLineKind, AiFeature> = {
-  /**
-   * The game recap line: one sentence or two, at most 220 characters. Sonnet 5.5 since M16.8: on
-   * the eval set Haiku 4.5 wrote box scores (the same support sentence in six games of sixteen)
-   * where Sonnet told the game's story, at about $0.007 a line (~$0.75 per group-month at 25
-   * games a week). Haiku 4.5 also retires no sooner than 2026-10-15.
-   */
-  game: {
-    model: 'claude-sonnet-5-5',
-    maxTokens: 150,
-    maxChars: 220,
-    minSentences: 1,
-    maxSentences: 2,
-  },
+/**
+ * The checker's shape per feature, the same for every provider: a provider switch never loosens a
+ * length cap.
+ */
+const FEATURE_SHAPES: Record<AiLineKind, Omit<AiFeature, 'model'>> = {
+  /** The game recap line: one sentence or two, at most 220 characters. */
+  game: { maxTokens: 150, maxChars: 220, minSentences: 1, maxSentences: 2 },
   /** The weekly storyline: one paragraph, at most 600 characters. */
-  week: { model: 'claude-sonnet-5-5', maxTokens: 400, maxChars: 600, minSentences: 2, maxSentences: 6 },
-  /**
-   * The scouting report: two or three sentences, at most 300 characters. Sonnet 5.5 since M16.9,
-   * for the same reason as the game line (M16.8), about $0.01 per player-week; nothing uses Haiku
-   * 4.5 any more, which retires no sooner than 2026-10-15.
-   */
-  player: {
-    model: 'claude-sonnet-5-5',
-    maxTokens: 200,
-    maxChars: 300,
-    minSentences: 2,
-    maxSentences: 3,
-  },
+  week: { maxTokens: 400, maxChars: 600, minSentences: 2, maxSentences: 6 },
+  /** The scouting report: two or three sentences, at most 300 characters. */
+  player: { maxTokens: 200, maxChars: 300, minSentences: 2, maxSentences: 3 },
 };
+
+/**
+ * Which model writes which line, per provider.
+ *
+ * Anthropic: Sonnet 5.5 for all three since M16.8 / M16.9 (on the eval set Haiku 4.5 wrote box
+ * scores where Sonnet told the game's story; Haiku 4.5 also retires no sooner than 2026-10-15).
+ *
+ * DeepSeek: V4 Pro for all three (the user's 2026-10-04 move). `/models` lists both
+ * `deepseek-flash` and `deepseek-v4-pro`, and Pro answers as itself. On the eval month Pro met
+ * Sonnet's refusal rates on every kind (game 16% of attempts, 2 of 75 lost; week 6%; scouting
+ * 5-10%) where Flash missed scouting (30%, 2 of 18 lost); Pro is about $0.0012 a game line at
+ * peak price with the system prompt cached, about a fifth of Sonnet's.
+ */
+export const AI_FEATURE_MODELS: Record<AiProvider, Record<AiLineKind, AiModel>> = {
+  anthropic: { game: 'claude-sonnet-5-5', week: 'claude-sonnet-5-5', player: 'claude-sonnet-5-5' },
+  deepseek: { game: 'deepseek-v4-pro', week: 'deepseek-v4-pro', player: 'deepseek-v4-pro' },
+};
+
+/** The feature table for one provider: the models from {@link AI_FEATURE_MODELS}, the shapes shared. */
+export function featuresFor(provider: AiProvider): Record<AiLineKind, AiFeature> {
+  const models = AI_FEATURE_MODELS[provider];
+  return {
+    game: { model: models.game, ...FEATURE_SHAPES.game },
+    week: { model: models.week, ...FEATURE_SHAPES.week },
+    player: { model: models.player, ...FEATURE_SHAPES.player },
+  };
+}
+
+/**
+ * This process's provider ({@link aiProviderOf}: `AI_PROVIDER` and which keys are set), fixed at
+ * start-up. No model is ever chosen per request at runtime.
+ */
+export const AI_PROVIDER: AiProvider = aiProviderOf(process.env);
+
+export const AI_FEATURES: Record<AiLineKind, AiFeature> = featuresFor(AI_PROVIDER);
 
 /** The user's caps (2026-10-04). The live figures are `groups.ai_monthly_cap_usd` and `ai_settings`. */
 export const DEFAULT_GROUP_MONTHLY_CAP_USD = 2;
@@ -122,11 +198,22 @@ function ceilMicro(usd: number): number {
   return Math.max(0, Math.ceil(usd * 1e6 - 1e-6)) / 1e6;
 }
 
-/** What a finished call cost, from the token counts the API reported. */
-export function costUsd(model: AiModel, usage: { inputTokens: number; outputTokens: number }): number {
+/**
+ * What a finished call cost, from the token counts the API reported. `inputTokens` is every input
+ * token; `cachedInputTokens` (at most that many) is the part reported as a cache hit, priced at
+ * the model's cache price when it has one and at the full input price otherwise.
+ */
+export function costUsd(
+  model: AiModel,
+  usage: { inputTokens: number; outputTokens: number; cachedInputTokens?: number | undefined },
+): number {
   const price = AI_MODELS[model];
+  const input = Math.max(0, usage.inputTokens);
+  const cached = Math.min(input, Math.max(0, usage.cachedInputTokens ?? 0));
+  const cachedPrice = price.cachedInputUsdPerMTok ?? price.inputUsdPerMTok;
   return ceilMicro(
-    (Math.max(0, usage.inputTokens) * price.inputUsdPerMTok +
+    ((input - cached) * price.inputUsdPerMTok +
+      cached * cachedPrice +
       Math.max(0, usage.outputTokens) * price.outputUsdPerMTok) /
       1e6,
   );
@@ -140,7 +227,7 @@ export const REQUEST_OVERHEAD_TOKENS = 64;
 
 /**
  * An upper bound on a request's input tokens without asking the API: its UTF-8 byte count plus
- * the framing. Every token of Claude's byte-level tokenizer covers at least one byte, so a prompt
+ * the framing. Every token of a byte-level BPE tokenizer (Claude's, DeepSeek's) covers at least one byte, so a prompt
  * can never be more tokens than bytes. Our prompts are plain ASCII English (about four bytes per
  * token), so this over-reserves about fourfold, which costs nothing but headroom.
  */
@@ -148,7 +235,10 @@ export function inputTokenUpperBound(system: string, user: string): number {
   return Buffer.byteLength(system, 'utf8') + Buffer.byteLength(user, 'utf8') + REQUEST_OVERHEAD_TOKENS;
 }
 
-/** The most a call can cost: every input token at the input price, `max_tokens` at the output price. */
+/**
+ * The most a call can cost: every input token at the full (peak, cache-miss) input price,
+ * `max_tokens` at the output price. A cache hit only ever makes the bill smaller.
+ */
 export function worstCaseUsd(model: AiModel, inputTokens: number, maxTokens: number): number {
   return costUsd(model, { inputTokens, outputTokens: maxTokens });
 }

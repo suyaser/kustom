@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resetSessionProbe } from '@/lib/landing/sessionProbe';
 import { SIGN_IN_LABEL, SIGN_OUT_LABEL } from '@/lib/shellCopy';
 import { hasSessionCookie, KustomSignIn, SESSION_PROBE_URL } from './KustomSignIn';
 
@@ -30,6 +31,7 @@ afterEach(() => {
   clearCookie(COOKIE);
   clearCookie('kustom_group');
   vi.unstubAllGlobals();
+  resetSessionProbe();
 });
 
 describe('hasSessionCookie', () => {

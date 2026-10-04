@@ -1,11 +1,11 @@
 import { type GroupRole, groupIdSchema, groupRoleSchema } from '@customs/db/schemas';
 import { NextResponse } from 'next/server';
 import type { z } from 'zod';
-import { discordIdFromUser, type SessionUserLike, supabaseSessionUser } from '../adminAuth';
+import { discordIdFromUser, type SessionUserLike, sessionLookups } from '../adminAuth';
 import { ServerEnvError } from '../env';
 import { jsonError } from '../http';
 import { getServiceClient, type ServiceClient } from '../supabase';
-import { createAuthClient, requestCookieJar } from '../supabaseAuth';
+import { requestCookieJar } from '../supabaseAuth';
 import { NOT_IN_THIS_GROUP } from './copy';
 import type { MePlayer } from './identity';
 
@@ -17,11 +17,12 @@ import type { MePlayer } from './identity';
  * the membership in the request's `groupId` -- with two differences, both for the poll's cost:
  *
  * - **The query string, not a body.** A GET carries no body; the schema parses `searchParams`.
- * - **One database wave after GoTrue.** The player and their membership in the group are one
- *   query (`players` with its `group_memberships` row for that group embedded), and the route's
- *   own read starts **beside** it rather than after it. The read's answer is only returned once
- *   the membership says yes; for anyone else it is dropped unread, so the speculative start costs
- *   a non-member's forged request one wasted row read and tells them nothing.
+ * - **Few waves.** By default the session, the player and their role in the query's group are one
+ *   verified session lookup (`session_player`, read before the query is parsed so the 401/403
+ *   order holds). An injected member lookup runs **beside** the route's own read instead. Either
+ *   way the read's answer is only returned once the membership says yes; for anyone else it is
+ *   dropped unread, so a non-member's forged request costs one wasted row read and tells them
+ *   nothing.
  *
  * Who gets in: a linked player with a membership row in `groupId` (any role). 401 without a
  * session, 403 for a session with no Discord identity, no linked player, or no membership. The
@@ -74,7 +75,7 @@ export function supabaseMemberLookup(client: ServiceClient): MemberLookup {
 export interface MemberReadOptions {
   /** Injection point for tests. Defaults to the process-wide service-role client. */
   getClient?: (() => ServiceClient) | undefined;
-  /** Injection point for tests: the GoTrue step. Defaults to `getUser()` on the request's cookies. */
+  /** Injection point for tests: the session step. Defaults to the verified session lookup (`sessionLookups`). */
   resolveSessionUser?: ((request: Request) => Promise<SessionUserLike | null>) | undefined;
   /** Injection point for tests: the player-and-membership lookup. */
   lookupMember?: ((client: ServiceClient) => MemberLookup) | undefined;
@@ -83,8 +84,26 @@ export interface MemberReadOptions {
 /** What a read is handed: the parsed query and the service-role client. Never the session. */
 export type MemberRead<Q, R> = (query: Q, client: ServiceClient) => Promise<R>;
 
-function defaultSessionUser(request: Request): Promise<SessionUserLike | null> {
-  return supabaseSessionUser(createAuthClient(requestCookieJar(request)))();
+/**
+ * The default session and member steps, both answered by **one** verified session lookup
+ * (`session_player`, `lib/adminAuth.ts`'s `sessionLookups`) for the query's `groupId`: the token
+ * checked locally, then the live session row, the player and the role in that group together. The
+ * group is read off the raw query here only to pick what the lookup asks about; the parsed query
+ * still decides everything after the session step.
+ */
+function defaultSteps(request: Request, client: ServiceClient) {
+  const raw = new URL(request.url).searchParams.get('groupId');
+  const groupId = raw !== null && groupIdSchema.safeParse(raw).success ? raw : null;
+  const lookups = sessionLookups(requestCookieJar(request), client, groupId);
+  const lookupMember: MemberLookup = async (discordId, asked) => {
+    const player = await lookups.lookupPlayerByDiscordId(discordId);
+    if (player === null) return null;
+    return {
+      player: { playerId: player.playerId, puuid: player.puuid },
+      role: await lookups.lookupGroupRole(player.playerId, asked),
+    };
+  };
+  return { resolveSessionUser: lookups.resolveSessionUser, lookupMember };
 }
 
 /** `searchParams` as a plain object, first value per key, for the query schema. */
@@ -115,7 +134,9 @@ export function withMemberRead<Q extends z.ZodType<{ groupId: string }>, R exten
     }
 
     try {
-      const user = await (options.resolveSessionUser ?? defaultSessionUser)(request);
+      let steps: ReturnType<typeof defaultSteps> | undefined;
+      const defaults = () => (steps ??= defaultSteps(request, client));
+      const user = await (options.resolveSessionUser ?? (() => defaults().resolveSessionUser()))(request);
       if (user === null) return jsonError(401, READ_SIGN_IN_REQUIRED);
       const discordId = discordIdFromUser(user);
       if (discordId === null) return jsonError(403, READ_NO_DISCORD);
@@ -131,7 +152,14 @@ export function withMemberRead<Q extends z.ZodType<{ groupId: string }>, R exten
       const answer = read(query, client);
       // Dropped below for a refusal; never an unhandled rejection.
       answer.catch(() => undefined);
-      const member = await (options.lookupMember ?? supabaseMemberLookup)(client)(discordId, query.groupId);
+      // Production: the member from the same session lookup. A test that injected only the session
+      // step gets the plain one-query read (there is no real session to look up).
+      const lookupMember = options.lookupMember
+        ? options.lookupMember(client)
+        : options.resolveSessionUser
+          ? supabaseMemberLookup(client)
+          : defaults().lookupMember;
+      const member = await lookupMember(discordId, query.groupId);
       if (member === null) return jsonError(403, READ_NOT_LINKED);
       if (member.role === null) return jsonError(403, NOT_IN_THIS_GROUP);
 

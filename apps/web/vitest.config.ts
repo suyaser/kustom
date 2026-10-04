@@ -55,7 +55,12 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['app/**/*.test.ts', 'lib/**/*.test.ts', 'components/**/*.test.ts'],
+          include: [
+            'app/**/*.test.ts',
+            'lib/**/*.test.ts',
+            'components/**/*.test.ts',
+            'scripts/**/*.test.ts',
+          ],
           fileParallelism: false,
         },
       },

@@ -17,7 +17,7 @@ import {
   retryStoredLine,
   WEEKLY_RETRY_WINDOW_MS,
 } from './generate';
-import { AI_FEATURES, memoryMeter, memoryMeterState } from './meter';
+import { AI_FEATURES, costUsd, memoryMeter, memoryMeterState } from './meter';
 import { memoryLineStore } from './store';
 import { scheduleStorylineRetry } from './storyline';
 
@@ -238,8 +238,8 @@ describe('generateGameLine', () => {
       output_tokens: 40,
     });
     expect(row?.fact_hash).toMatch(/^[0-9a-f]{64}$/);
-    // 1,800 in and 40 out on the game line's model (Sonnet 5.5, $2/$10, since M16.8).
-    expect(row?.cost_usd).toBeCloseTo(0.004, 6);
+    // 1,800 in and 40 out on the game line's model, at its price (Sonnet 5.5: $0.004).
+    expect(row?.cost_usd).toBe(costUsd(AI_FEATURES.game.model, { inputTokens: 1_800, outputTokens: 40 }));
     expect(h.meterState.ledger).toHaveLength(1);
   });
 
@@ -460,7 +460,7 @@ describe('the weekly storyline and the scouting report share the flow', () => {
       status: 'cached',
     });
     expect(h.transport.requests).toHaveLength(1);
-    expect(h.transport.requests[0]?.model).toBe('claude-sonnet-5-5');
+    expect(h.transport.requests[0]?.model).toBe(AI_FEATURES.week.model);
     expect(h.store.rows[0]).toMatchObject({ kind: 'week', subject: '2026-09-27' });
   });
 

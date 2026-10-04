@@ -193,7 +193,7 @@ async function readWeekGames(client: PublicClient, groupId: string, week: WeekBo
   const { data, error } = await client
     .from('games')
     .select(
-      'id, started_at, rated, mode, rule, rule_class_tag, rule_region_blue, rule_region_red, raw->gameMode, game_players(player_id, role, champion_id, mu_after)',
+      'id, started_at, rated, mode, rule, rule_class_tag, rule_region_blue, rule_region_red, gameMode:game_mode, game_players(player_id, role, champion_id, mu_after)',
     )
     .eq('group_id', groupId)
     .gte('started_at', week.start.toISOString())

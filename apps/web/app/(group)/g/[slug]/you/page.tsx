@@ -68,7 +68,7 @@ export default async function YouRoute({ params, searchParams }: YouRouteProps) 
         here={here}
         daily={daily}
         admin={admin}
-        discordName={await currentDiscordName()}
+        discordName={await currentDiscordName(group.id)}
       />
     );
   }
@@ -106,7 +106,7 @@ export default async function YouRoute({ params, searchParams }: YouRouteProps) 
       kind="linked"
       group={group}
       here={here}
-      discordName={await currentDiscordName()}
+      discordName={await currentDiscordName(group.id)}
       daily={daily}
       admin={viewer.isAdmin ? groupHref(group, { page: 'admin' }) : null}
       owner={viewer.isOwner === true}

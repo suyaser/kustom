@@ -10,8 +10,9 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "mint-token": "node --conditions=react-server --env-file-if-exists=.env.local scripts/mint-token.ts",
+    "mint-token": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/mint-token.ts",
     "rebuild-ratings": "node --env-file-if-exists=.env.local --import tsx scripts/rebuild-ratings.ts",
+    "backfill-game-facts": "node --env-file-if-exists=.env.local --import tsx scripts/backfill-game-facts.ts",
     "copy-raw-stats": "node --env-file-if-exists=.env.local --import tsx scripts/copy-raw-stats.ts",
     "set-premium": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/set-premium.ts",
     "m7-13-battle-test": "node --import tsx scripts/m7-13-battle-test.ts",
@@ -19,8 +20,10 @@
     "seed-regions": "node --import tsx scripts/seed-regions.ts",
     "ai-eval": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/ai-eval.ts",
     "ai-eval-month": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/ai-eval-month.ts",
+    "font-subsets": "python3 scripts/font-subsets.py",
     "perf-tonight": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/perf-tonight.ts",
     "perf-tonight-taps": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/perf-tonight-taps.ts",
+    "patch-notes-image": "TSX_TSCONFIG_PATH=scripts/patch-notes/tsconfig.json node --conditions=react-server --import tsx scripts/patch-notes-image.tsx",
     "clean": "rm -rf .next"
   },
   "dependencies": {

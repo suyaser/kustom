@@ -30,6 +30,11 @@ export interface LocalAuthUsers {
    */
   createWithPassword(email: string, password: string): string;
   remove(ids: readonly string[]): void;
+  /**
+   * Any statement, as `postgres` in the stack's database (the verified session lookup's test links
+   * a Discord identity, bans, soft-deletes and signs out a user by writing `auth.*` directly).
+   */
+  sql(statement: string): void;
 }
 
 function findDbContainer(): string | null {
@@ -97,6 +102,9 @@ values (${literal(id)}, '00000000-0000-0000-0000-000000000000', 'authenticated',
     remove(ids) {
       if (ids.length === 0) return;
       psql(`delete from auth.users where id in (${ids.map(literal).join(', ')});`);
+    },
+    sql(statement) {
+      psql(statement);
     },
   };
 }

@@ -51,7 +51,7 @@ export function refreshesSession(request: NextRequest): boolean {
 async function refreshSession(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
   if (!url || !anonKey) return response;
 
   try {

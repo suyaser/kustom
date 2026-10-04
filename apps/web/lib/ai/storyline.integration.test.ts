@@ -11,7 +11,7 @@ import { closedWindow } from '../night';
 import { readAiGate } from '../premium';
 import { createAiClient, fakeReply, mockTransport } from './client';
 import { type GenerateDeps, generateWeekLine, retryStoredLine } from './generate';
-import { dbMeter } from './meter';
+import { AI_FEATURES, dbMeter } from './meter';
 import { dbLineStore, hideLine, readOptedOut, setAiOptOut } from './store';
 import {
   loadBoardStoryline,
@@ -204,7 +204,7 @@ if (stack === null || service === null || !applied) {
         "\\*Story\\_Star\\* @everyone finished first on the week's board with 5 wins from 6 games. StoryFriend1 took 2nd place with 4 wins.",
       );
       expect(h.transport.requests).toHaveLength(1);
-      expect(h.transport.requests[0]?.model).toBe('claude-sonnet-5-5');
+      expect(h.transport.requests[0]?.model).toBe(AI_FEATURES.week.model);
       expect(await weekRow(premiumGroup)).toMatchObject({
         status: 'published',
         attempts: 1,

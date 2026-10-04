@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers';
-import { type SessionUserLike, type SessionUserResolver, supabaseSessionUser } from '../adminAuth';
-import { createAuthClient, readOnlyCookieJar } from '../supabaseAuth';
+import type { SessionUserLike, SessionUserResolver } from '../adminAuth';
+import { currentLiveSession } from '../session/currentLiveSession';
+import { sessionUserOf } from '../session/liveSession';
 import { superAdminIds } from '../superAdmin';
 
 /**
@@ -41,10 +41,9 @@ export async function authorizeOperator(options: {
 export async function currentOperator(): Promise<OperatorAuthResult> {
   const ids = superAdminIds();
   if (ids.size === 0) return { ok: false, status: 403, error: OPERATOR_ONLY };
-  const store = await cookies();
-  const jar = readOnlyCookieJar(store.getAll().map(({ name, value }) => ({ name, value })));
   return authorizeOperator({
     superAdminIds: ids,
-    resolveSessionUser: supabaseSessionUser(createAuthClient(jar)),
+    // The verified session lookup: a live session row, not just a valid token (`liveSession.ts`).
+    resolveSessionUser: async () => sessionUserOf(await currentLiveSession(null)),
   });
 }

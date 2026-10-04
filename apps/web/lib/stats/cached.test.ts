@@ -205,6 +205,46 @@ describe('cachedStatsSegment', () => {
     );
   });
 
+  it('stores the view the page prints: museum rows keep their newest two openings', async () => {
+    const opening = (n: number) => ({ gameId: `g-${n}` });
+    const group = (count: number) => ({
+      taker: { puuid: `p-${count}` },
+      count,
+      openings: Array.from({ length: count }, (_, n) => opening(n)),
+    });
+    const section = { title: 't', intro: 'i', empty: 'e', rows: [group(1), group(2), group(9)] };
+    loadFunFacts.mockResolvedValue({
+      museum: section,
+      donated: section,
+      halls: [section, section],
+      pools: ['kept'],
+    });
+    const view = (await cachedStatsSegment(
+      statsCacheKey({ groupId: 'g-1', segment: 'champions', window: 'all-time' }),
+    )) as unknown as { museum: typeof section; halls: (typeof section)[]; pools: string[] };
+    expect(view.museum.rows.map((row) => row.openings.length)).toEqual([1, 2, 2]);
+    expect(view.halls.map((hall) => hall.rows.map((row) => row.openings.length))).toEqual([
+      [1, 2, 2],
+      [1, 2, 2],
+    ]);
+    expect(view.museum.rows[2]?.count).toBe(9);
+    expect(view.museum.rows[2]?.openings).toEqual([opening(0), opening(1)]);
+    expect(view.pools).toEqual(['kept']);
+  });
+
+  it('computes a view too big to store once per view, never twice', async () => {
+    // Random hex does not compress: about 3 MB of base64 once gzipped, over the 1.8 M-char limit.
+    const blob = Array.from({ length: 300_000 }, () => Math.random().toString(16).slice(2, 12)).join('');
+    loadFunFacts.mockResolvedValue({ blob });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const key = statsCacheKey({ groupId: 'g-1', segment: 'champions', window: 'all-time' });
+    expect(await cachedStatsSegment(key)).toEqual({ blob });
+    expect(loadFunFacts).toHaveBeenCalledTimes(1);
+    // The stored marker says "too big": the next view computes, once.
+    expect(await cachedStatsSegment(key)).toEqual({ blob });
+    expect(loadFunFacts).toHaveBeenCalledTimes(2);
+  });
+
   it('serves the same shape on a miss as on a hit (both have been through JSON)', async () => {
     loadFunFacts.mockResolvedValue({ when: undefined, list: [1] });
     const key = statsCacheKey({ groupId: 'g-1', segment: 'champions', window: 'all-time' });

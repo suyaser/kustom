@@ -218,7 +218,7 @@ interface SnapshotGame {
    * fold refused to rate and the rebuild rated would move numbers nobody played for. It must
    * not read the whole block to do it: this select covers **a whole group's history**, an end-of-game
    * block is tens of kilobytes, and a hosted rebuild would drag all that JSON across the
-   * wire to look at one string. PostgREST projects the field (`raw->gameMode`) and the shape
+   * wire to look at one string. The stored column `game_mode` (0039, generated from `raw`) is read, and the shape
    * put back together here is the only shape `gameModeFromRaw` ever looks at, so the answer is
    * identical to the live fold's on every input, including a null `raw` and a `gameMode` that
    * is not a string.
@@ -677,7 +677,7 @@ async function selectGroupGames(
   const rows = await selectPaged('games select', (from, to) => {
     const query = client
       .from('games')
-      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, rated, raw->gameMode')
+      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, rated, gameMode:game_mode')
       .eq('group_id', groupId)
       .not('winning_side', 'is', null);
     return (since === null ? query : query.gte('started_at', since))

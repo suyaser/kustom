@@ -38,6 +38,14 @@ export const legacyRedirects = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  // The anon (publishable) key is public by design, but the owner names it `SUPABASE_ANON_KEY` on
+  // Vercel (2026-10-04). Next only hands `NEXT_PUBLIC_*` to the browser, so the build copies it
+  // under the old name, which every reader (server, proxy, browser Realtime) keeps using. The old
+  // name still works when it is the one that is set (local .env.local, CI).
+  env: {
+    NEXT_PUBLIC_SUPABASE_ANON_KEY:
+      process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  },
   // Workspace packages ship TypeScript source, not a build artefact.
   // @customs/lcu is deliberately absent: the web app must never import the League client bridge.
   transpilePackages: ['@customs/core', '@customs/db'],

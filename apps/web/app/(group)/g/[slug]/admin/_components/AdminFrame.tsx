@@ -60,6 +60,8 @@ export function AdminFrame({
                     aria-current={item.current ? 'page' : undefined}
                     className={cn(
                       'inline-flex min-h-11 items-center rounded-control border border-border-strong px-4 text-sm font-bold text-muted-foreground hover:bg-accent',
+                      // M19.15 (5.9a): admin sections get no frame; the pill's own press is the answer.
+                      'touch-manipulation transition-[background-color,scale] duration-(--dur-fast) ease-out active:scale-[.98] active:bg-accent active:duration-(--dur-press)',
                       'aria-[current=page]:border-foreground aria-[current=page]:bg-accent aria-[current=page]:text-foreground',
                     )}
                   >

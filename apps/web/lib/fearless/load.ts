@@ -48,7 +48,7 @@ interface GameRow {
   id: string;
   started_at: string;
   duration_s: number;
-  /** `raw->>gameMode` only: the blob is read whole just for the few games `clientNames` needs. */
+  /** `game_mode` (0039) only: the blob is read whole just for the few games `clientNames` needs. */
   gameMode: string | null;
   game_players: PlayerRow[] | PlayerRow | null;
 }
@@ -81,7 +81,7 @@ export async function loadFearless(
   const { data: rows, error: gamesError } = await client
     .from('games')
     .select(
-      'id, started_at, duration_s, gameMode:raw->>gameMode, game_players(player_id, side, champion_id, role)',
+      'id, started_at, duration_s, gameMode:game_mode, game_players(player_id, side, champion_id, role)',
     )
     .eq('group_id', groupId)
     // M14.29: the mode in force when the game was recorded. Normal games never join the pool.
@@ -149,7 +149,7 @@ async function clientNames(
   const named = games.filter((row) => seatsOf(row).length > 0);
   const playerIds = named.flatMap((row) => seatsOf(row).map((player) => player.player_id));
   // The blobs of only the games that locked one of those ids (app-perf: the pool read itself
-  // carries `raw->>gameMode`, never the blob), beside the puuids.
+  // carries `game_mode`, never the blob), beside the puuids.
   const [people, blobs] = await Promise.all([
     mapChunks(playerIds, (chunk) => client.from('players_public').select('id, puuid').in('id', chunk)),
     mapChunks(

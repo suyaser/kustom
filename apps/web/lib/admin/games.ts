@@ -246,7 +246,7 @@ export type RatedReason =
 export interface RatedReasonInput {
   players: readonly { playerId: string; side: SideValue; muAfter: number | null }[];
   durationS: number;
-  /** `games.raw->gameMode`. */
+  /** `games.game_mode` (0039: the string `raw->>'gameMode'`). */
   gameMode: unknown;
   /** `games.rated` (M15.3). */
   rated: boolean;
@@ -318,7 +318,7 @@ export async function listCapturedGames(
     client
       .from('games')
       .select(
-        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_no_draw, gameMode:raw->gameMode, lobbies(lcu_party_id), game_players(player_id, side, mu_after)',
+        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_no_draw, gameMode:game_mode, lobbies(lcu_party_id), game_players(player_id, side, mu_after)',
       )
       .eq('group_id', groupId)
       .order('started_at', { ascending: false })
