@@ -1,6 +1,6 @@
 [package]
 name = "kustom-companion"
-version = "1.0.0"
+version = "1.0.1"
 description = "Kustom: the host app for Customs Night (window, tray and the in-process engine)"
 authors = ["Customs Night"]
 edition = "2024"

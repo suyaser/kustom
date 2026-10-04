@@ -180,6 +180,14 @@ it) and `/download`'s 0.3.x copy (Host and Overlay modes, "Grab ... there") move
 is out would make the old version `latest` and point every updater at nothing newer. Untick **Set as the latest
 release** on it, or don't do it.
 
+## Release notes for the record
+
+- **1.0.1**: default API origin fix. 1.0.0's installer defaulted to `http://localhost:3000` (the build never set
+  `CUSTOMS_NIGHT_API_BASE`), so a fresh install could not pair. 1.0.1 bakes in `https://kustom-delta.vercel.app`.
+  A 1.0.0 install updates to it through the updater endpoint in `tauri.conf.json` (kustom-releases
+  `latest.json`), which is independent of the API origin. Stuck-on-1.0.0 workaround: create
+  `%APPDATA%\customs-night\config.json` containing `{"apiBase":"https://kustom-delta.vercel.app"}`, restart.
+
 ## Windows round-trip 1 (M17.12 acceptance)
 
 On the Windows PC that plays League, with the draft's `Kustom-setup.exe` (or the dry run's artifact zip, before

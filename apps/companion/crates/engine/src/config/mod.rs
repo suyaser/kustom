@@ -433,6 +433,23 @@ mod tests {
     }
 
     #[test]
+    fn a_hand_written_api_base_only_file_is_used_before_any_pairing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+        fs::write(
+            config_path(&dir),
+            r#"{"apiBase":"https://kustom-delta.vercel.app"}"#,
+        )
+        .unwrap();
+        let LoadOutcome::Loaded(config) = load_config(&dir) else {
+            panic!("not loaded")
+        };
+        assert_eq!(config.api_base, "https://kustom-delta.vercel.app");
+        assert!(!config.api_base_invalid);
+        assert!(config.groups.is_empty());
+    }
+
+    #[test]
     fn api_base_is_an_origin() {
         assert_eq!(
             parse_api_base(" https://kustom.gg/ ").as_deref(),
