@@ -1135,6 +1135,12 @@ export function checkLine(
   if (/[*_`#~|<>[\]@\\"]/.test(text)) return reject('shape', 'markdown, a quote or a mention character');
   if (/(^|[^{])\bP\d{1,2}\b/.test(text.replace(/\{P\d{1,2}\}/g, '')))
     return reject('token', 'a player token without braces');
+  // DeepSeek eval (2026-10-04): both were prompt-only rules, which DeepSeek broke and Claude never
+  // did. A place always has its ending (`1st place`, never `1 place`); no gendered pronoun, not
+  // even for a champion (`on her`), since the model cannot know who anyone is.
+  if (/\b\d+\s+place\b/i.test(text)) return reject('number', 'a place without its ending (1st place)');
+  const gendered = /\b(he|she|him|his|her|hers|himself|herself)\b/i.exec(text);
+  if (gendered !== null) return reject('forbidden', `a gendered pronoun: "${gendered[0]}"`);
 
   // Exact idioms that read literally as a number or an absolute (M16.9): each is a neutral word to
   // the checks below, and only where its own guard holds. Everything else is checked as written.

@@ -562,7 +562,9 @@ describe('M16.14 small holes', () => {
 
   it('1 places is refused too (place counts are no unit the checker reads, so it never passes)', () => {
     expect(checkLine('{P1} climbed 1 places. {P2} took 2nd place.', week).ok).toBe(false);
-    expect(checkLine('{P1} finished in 1 place. {P2} took 2nd place.', week).ok).toBe(true);
+    // Passed until the DeepSeek eval (2026-10-04); a place now always needs its ending.
+    expect(checkLine('{P1} finished in 1 place. {P2} took 2nd place.', week).ok).toBe(false);
+    expect(checkLine('{P1} finished in 1st place. {P2} took 2nd place.', week).ok).toBe(true);
   });
 
   it('a plural share of a total still passes', () => {
@@ -798,5 +800,23 @@ describe('M16.19 r3: a sentence naming the duo partner carries duo facts only', 
     ['the duo claim, together with the subject', '{P2} has the most wins together with {P1}.'],
   ])('passes %s', (_label, line) => {
     expectPass(checkLine(line + tail, six));
+  });
+});
+
+describe('DeepSeek eval tightenings (2026-10-04)', () => {
+  it('refuses a place without its ending', () => {
+    expectReject(checkLine('{P1} took 1 place with 212 points.', week), 'number', /place without its ending/);
+  });
+
+  it.each(['her', 'him', 'his', 'he', 'She'])('refuses the gendered pronoun %s', (pronoun) => {
+    expectReject(
+      checkLine(`{P2} put up 9 kills on Lee Sin and ${pronoun} won in 31 minutes.`, game),
+      'forbidden',
+      /gendered pronoun/,
+    );
+  });
+
+  it('passes words that only contain a pronoun', () => {
+    expectPass(checkLine('{P2} put up 9 kills on Lee Sin, and there is the whole story.', game));
   });
 });

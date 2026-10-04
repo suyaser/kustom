@@ -12,6 +12,7 @@ import type {
   PlayerToken,
 } from '@customs/db/schemas';
 import { championName, listChampions } from '../champs/names';
+import type { AiProvider } from '../env';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { readScoreRows, readSplitRuns } from '../games/read';
 import { type GameReceipt, gameReceiptOf } from '../games/receipt';
@@ -19,7 +20,7 @@ import { aiGateOpen, readAiGate } from '../premium';
 import { resultOdds } from '../receipt/copy';
 import { killParticipation } from '../stats/killParticipation';
 import type { ServiceClient } from '../supabase';
-import { AI_FEATURES, type AiModel } from './meter';
+import { AI_FEATURES, AI_MODELS, type AiModel } from './meter';
 
 /**
  * The fact builder (M16.3; brief 4.1 to 4.3, decisions M16.1 D4 to D6). It turns rows Kustom
@@ -1236,9 +1237,109 @@ const WEEK_STYLE: readonly string[] = [
   '- The race at the top went to the wire: {P1} took 1st place on 70 points, with {P2} right behind on 68 points. Nobody else came close, though {P4} put together 7 wins in a row on the way to the best off-role award.',
 ];
 
-export function systemPrompt(kind: AiLineKind): string {
+/* ---------------------------------------------------------------------------------------------
+ * DeepSeek's wording (the user's 2026-10-04 move to DeepSeek). The Claude prompts above stay
+ * byte for byte what M16.8-M16.19 tuned; DeepSeek gets its own style and a block of binding rules
+ * at the very end, where a model that drifts from instructions still reads them last. The eval
+ * found it binds a champion or number to the wrong token, drops unit words (`with 13`), reaches
+ * for box-score verbs (`put up`, `answered with`) and writes dashes the checker refuses. The
+ * checker is the same for both: these words only make a pass likelier, never a line looser.
+ * ------------------------------------------------------------------------------------------- */
+
+const DEEPSEEK_GAME_STYLE: readonly string[] = [
+  GAME_STYLE[0] as string,
+  'How a good line reads:',
+  '- A quick reaction in the group chat, not a match report. Pick the one best story (the first Angle, or a better one you see in the facts), give it one or two numbers, then a short playful remark in plain words. Name one or two players, never more, and use at most three numbers in the whole line.',
+  '- One or two short sentences, 80 to 160 characters. Never a list of stats strung together with and. A closing remark is a few words of friendly banter with no number in it: Somebody check the replay.',
+  '- Gentle teasing only of players whose team won (a winner with the most deaths, or no kills, who still won), and only about their numbers in that game: never carried, lucky, boosted or scripting. Players who lost only get credit: never say what they could not do or that it was not enough.',
+  '- A close game is a close game or a tight finish, never the close one or a close one; a first game on a champion is a first game on Soraka, never on her or on him. Never use the words one, every, bad or worst (not even not bad). These read like a box score and are banned too: put up, answered with, gets the credit, gets the nod, topped, led everyone, led all, debuted, dropped, racked up, orchestrated, dominated, went off, from the losing side, on the other side, across the board, game-high, stat line, respawn timers.',
+  '- Start every sentence with a player token, Blue, Red, or a plain word such as The, That, What, Not, Nobody or Just; never with They, It, a number or a champion. A second sentence about the same player repeats the token.',
+  '- Never open the way a recent line opened, and never reuse an example line. The remarks in the examples are used up: write a fresh one that fits this game, never Somebody check the replay, let it slide or a true team player.',
+  'Examples of the style, from other games (never copy their numbers or wording):',
+  '- {P2} spent 22 minutes on Lee Sin without a single death: 12 kills, 0 deaths. Somebody check the replay.',
+  '- {P1} finished with 9 deaths on Sett and still got the win. Blue will let it slide.',
+  '- Red only needed 18 minutes. {P4} made sure of it with 13 kills on Jinx.',
+  '- {P6} picked up Draven for the first time in the group and played it like a main, 10 kills.',
+  '- {P5} won with 0 kills and 21 assists on Thresh. A true team player.',
+  '- Somebody stop {P4}: 5 wins in a row now.',
+  '- {P8} still found 30.6k damage on Kassadin in a losing game, the most damage in the game.',
+  '- The team kills stayed nearly level, and Blue edged it. {P3} had 36.2k damage on Yasuo to show for it.',
+];
+
+const DEEPSEEK_WEEK_STYLE: readonly string[] = [
+  WEEK_STYLE[0] as string,
+  'How a good paragraph reads:',
+  '- The week as a story in two to four sentences: who ran away with it, a win streak, a tight race at the top, the award. Name at most three players and use at most five numbers. Not a list of everyone on the board.',
+  '- Sound like the group chat sportscaster: punchy, warm, a little teasing of the people at the top. Nobody lower down gets teased.',
+  '- Start every sentence with a player token or a plain word such as The, What, Nobody or Just; never with That, They, It, a number, or a phrase like Quietly, Elsewhere, Hats off or Further down (Down the board is fine). No sign-off.',
+  'Examples of the style, from other weeks (never copy their numbers or wording):',
+  ...WEEK_STYLE.slice(-2),
+];
+
+const DEEPSEEK_PLAYER_STYLE: readonly string[] = [
+  PLAYER_STYLE[0] as string,
+  'How a good report reads:',
+  '- The page above already shows their Rating, record, most played champion and role. Lead with something it does not: their duo partner, their best game of the week, a champion new to their pool, or a role shift. Then one more true thing about how they play, in two or three sentences.',
+  '- Sound like a friend sizing them up: confident, warm, a little playful. Describe what the numbers show; never advise, never explain why, never guess.',
+  '- A losing week (fewer wins than games lost) is just the count, 6 wins in 18 games, with no word about how it felt: never rough, tough, quiet, cold, slow, worst or a struggle. A winning week can be called warm.',
+  '- The report stays up for weeks: say the week or over the week, in the past tense. Never this week, last week, lately, recently or right now.',
+  "- The first sentence starts with {P1} and says who they are in this group in a friend's words, backed by a number. Start every other sentence with {P1}, {P2} or a plain word such as The, When, Not, Nobody or Just; never with a number, Overall or Teammate. Never open with {P1} and {P2}, with the duo, or with the most played champion.",
+  'Examples of the style, about other players (never copy their numbers, wording or openings):',
+  '- {P1} spent the week on a heater, 8 wins in 10 games, the best of them 14 kills on Riven. When {P2} is on the same team, it is 7 wins in 9 games together.',
+  '- {P1} tried Nidalee for the first time in the group and kept drifting to jungle, 6 games there over the week. The week ended at 4 wins in 9 games for {P1}.',
+  '- {P1} is a support through and through: 41 wins in 70 games in support, and Janna is the comfort pick at 64 percent over 22 games. The week went 5 wins in 8 games for {P1}.',
+];
+
+/** The rules DeepSeek reads last, per line kind. Each is a check the program runs. */
+const DEEPSEEK_BINDING: Record<AiLineKind, readonly string[]> = {
+  game: [
+    '- Every number is copied exactly from a fact and followed straight away by its unit word: 9 kills, 0 deaths, 1 death, 1 kill, 24 assists, 290 CS, 31.2k damage, 66 vision, 41 minutes, 5 wins in a row. Never a bare number (with 13, at 29, 392 on Ashe), never died 7 times, never a score like 27-9, never the word one.',
+    "- Write a player's token before their numbers and their champion, in the same sentence, with no other token in between: {P3} took 10 kills on Yasuo. A number or a champion belongs to the nearest token before it. Never bring a player's number back in a later sentence (not even the 6 deaths); game minutes and team kills go with Blue, Red or The game.",
+    '- A champion goes only with the player whose fact names it. Not sure whose it is? Leave the champion out. Team kills belong to Blue or Red, never to a player.',
+    "- Most, best, highest, longest and first only when that player's own fact says so. A record run is their own longest run, never the group's.",
+  ],
+  week: [
+    '- Every number is copied from a fact and followed straight away by its unit word: 14 wins in 23 games, 70 points, 6 wins in a row. A single one is 1 win, 1 game. Never a bare number (the most wins with 14, won 11 of them), never a number word.',
+    '- A place is always written with its ending: 1st place, 2nd place, 3rd place, 4th place, 5th place. Never 1 place or 4 place.',
+    '- Every sentence with a number or a place starts with the token of the player it belongs to; a sentence without a token carries no number (What a run. is fine, What a run, 7 wins in a row is not). Never put another token between a player and their number: {P4} also had 7 wins in a row, never {P4} matched {P1} with 7 wins in a row. Say 1st place, never at the top or on top.',
+    "- A place, a number or an award goes only in a sentence with the token of the player whose fact has it, and only if their fact has it. Never put two players' numbers in one sentence unless each number comes right after its own token: {P2} on 68 points and {P3} on 67 points, never {P2} and {P3} with 68 points and 67 points.",
+    "- Never compare players yourself: most wins, more wins than, led the board in wins or never got close only where a fact says exactly that for that player. Most, best, biggest, only, never and every only where that player's fact says so; never the word one (not even at one point); never write win rate. A run is written 6 wins in a row, never with the word streak, and its sentence names its player's token. Never a gap like separated by 3 points.",
+  ],
+  player: [
+    "- Every number is copied from a fact and followed straight away by its unit word: 6 wins in 18 games, 14 kills, 2 games on Ornn, 79 percent. A single one is always singular: 1 game, 1 win, 1 kill, never 1 games or 1 kills. Never a bare number (won 24 of them, a 57 win rate), and the words win rate never appear in the report: a fact prints 65 win rate, you write Kai'Sa at 65 percent.",
+    '- At most 300 characters, about 45 words: three sentences only when all three are short.',
+    '- The best game is written the best of them 11 kills on Lee Sin, never the best of them was a win or the best game a win: the word best never sits near the word win.',
+    "- Every sentence with a number names {P1} in it, or {P2} for the games and wins together. Tokens are always written in braces, {P1}, never P1. A champion goes only with the player whose fact names it; the duo partner's sentence carries only their games and wins together.",
+    '- Most, best, only, never, ever and every only where a fact says so.',
+  ],
+};
+
+const DEEPSEEK_COMMON: readonly string[] = [
+  '- Never he, she, him, his or her, not even for a champion (on Caitlyn, never on her): use the token, they, them or the champion name.',
+  '- A single one is always singular: 1 kill, 1 death, 1 game, 1 win.',
+  '- Plain ASCII only: no dashes like \u2014 or \u2013, no curly quotes, no emoji.',
+];
+
+/** Which provider a line kind's model belongs to in this process. */
+function providerOf(kind: AiLineKind): AiProvider {
+  return AI_MODELS[AI_FEATURES[kind].model].provider;
+}
+
+export function systemPrompt(kind: AiLineKind, provider: AiProvider = providerOf(kind)): string {
+  const deepseek = provider === 'deepseek';
+  const style = deepseek
+    ? kind === 'game'
+      ? DEEPSEEK_GAME_STYLE
+      : kind === 'week'
+        ? DEEPSEEK_WEEK_STYLE
+        : DEEPSEEK_PLAYER_STYLE
+    : kind === 'game'
+      ? GAME_STYLE
+      : kind === 'week'
+        ? WEEK_STYLE
+        : PLAYER_STYLE;
   return [
-    ...(kind === 'game' ? GAME_STYLE : kind === 'week' ? WEEK_STYLE : PLAYER_STYLE),
+    ...style,
     'Rules, all of them strict; a line that breaks one is thrown away:',
     '- Use only the facts given. Every number you write must appear in a fact, written exactly as it appears there, next to its unit word (kills, deaths, assists, CS, damage, vision, minutes, games, wins, Rating, place).',
     '- A number belongs to the player of its fact: put that player token in the same sentence.',
@@ -1252,6 +1353,13 @@ export function systemPrompt(kind: AiLineKind): string {
     '- Nothing about anyone as a person: no skill, rank, looks, age, real life.',
     '- Plain sentences: no emoji, no links, no hashtags, no markdown, no quotation marks, no line breaks.',
     `- ${TASK[kind]}`,
+    ...(deepseek
+      ? [
+          'Binding rules, checked by a program before anything is posted:',
+          ...DEEPSEEK_BINDING[kind],
+          ...DEEPSEEK_COMMON,
+        ]
+      : []),
     'Reply with the line only: no note about the rules or the facts, no correction, no comment on your own line.',
   ].join('\n');
 }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { aiFactListSchema } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
 import type { StoredSplit } from '@/components/receipt/types';
@@ -35,6 +36,7 @@ import {
   renderFact,
   renderFactWith,
   storyAngles,
+  systemPrompt,
   thousands,
 } from './facts';
 import { AI_FEATURES } from './meter';
@@ -670,5 +672,32 @@ describe('M16.15 angle rotation', () => {
     const prompt = buildPrompt(upset, null, ['Red took the upset in 27 minutes.']);
     expect(prompt.user).toContain('The previous line led with an upset. Lead with something else this time.');
     expect(prompt.user).not.toContain('- the underdog won: an upset');
+  });
+});
+
+describe('system prompts per provider (DeepSeek, 2026-10-04)', () => {
+  const sha = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+
+  it("keeps Claude's prompts byte for byte what M16.8-M16.19 tuned", () => {
+    expect(sha(systemPrompt('game', 'anthropic'))).toBe('4f424a950ab457fe');
+    expect(sha(systemPrompt('week', 'anthropic'))).toBe('07c13f69006efaec');
+    expect(sha(systemPrompt('player', 'anthropic'))).toBe('5f5dc0d3fa252474');
+  });
+
+  it.each(['game', 'week', 'player'] as const)('gives DeepSeek its binding rules last (%s)', (kind) => {
+    const prompt = systemPrompt(kind, 'deepseek');
+    expect(prompt).toContain('Binding rules, checked by a program');
+    expect(prompt).toContain('Plain ASCII only');
+    expect(prompt.split('\n').at(-1)).toMatch(/^Reply with the line only/);
+    expect(systemPrompt(kind, 'anthropic')).not.toContain('Binding rules');
+    // The same strict rules block as Claude's: DeepSeek's wording only adds.
+    expect(prompt).toContain('Rules, all of them strict; a line that breaks one is thrown away:');
+  });
+
+  it('defaults to the provider of the process feature table', () => {
+    for (const kind of ['game', 'week', 'player'] as const) {
+      const provider = AI_FEATURES[kind].model.startsWith('deepseek') ? 'deepseek' : 'anthropic';
+      expect(systemPrompt(kind)).toBe(systemPrompt(kind, provider));
+    }
   });
 });
