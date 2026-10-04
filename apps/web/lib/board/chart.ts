@@ -183,8 +183,7 @@ export function labelPlacement(
   for (const side of order) {
     const widened = roomForLabel(base, seed, side === 'below');
     const band = (LABEL_ROOM / (CHART_HEIGHT - 2 * INSET)) * (widened.high - widened.low);
-    const clear =
-      side === 'above' ? max <= seed || min >= seed + band : min >= seed || max <= seed - band;
+    const clear = side === 'above' ? max <= seed || min >= seed + band : min >= seed || max <= seed - band;
     if (clear) return { placement: side, ...widened };
   }
   return { placement: 'gutter', ...base };
