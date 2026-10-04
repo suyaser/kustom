@@ -75,7 +75,9 @@ first mode, there is no fearless page; the 1.0 fearless text stays in force unti
    beside it, built from the stored numbers (`blue_win_prob`, `gap`, off-role count). It never parses the
    sentence and never re-derives a number differently.
 6. **No champion art, crests, avatars or emoji.** The fearless 24px icon exception carries over as written in
-   `docs/05-design-1.0.md` ("The fearless icon exception").
+   `docs/05-design-1.0.md` ("The fearless icon exception"). The second named exception is the landing
+   page's example game (section 12, 2026-10-04): ten Data Dragon champion squares in one fixed picture, and
+   nowhere else. Neither exception is a precedent for a third.
 
 ### 1.2 What changes, and why
 
@@ -3823,3 +3825,188 @@ All three closed 2026-10-04:
    M18.9; decision row).
 3. ~~**All copy marked [DRAFT COPY]**~~ Final in M18.9: every such string above now reads [FINAL COPY, M18.9]
    and matches the copy files.
+
+---
+
+## 12. Landing imagery: the example game (2026-10-04)
+
+Owner: `designer`. Surface: the landing page, `/` and `/about` (`apps/web/components/landing/LandingPage.tsx`).
+The owner's brief: the page is all text, and a visitor should see at a glance that this is a tool for League of
+Legends custom games. This section is the second named exception to 1.1 rule 6.
+
+### 12.1 The direction
+
+1. **The product is the picture.** The hero's right column (and on phones, the block under the buttons) shows
+   one finished example game: the compact win bar, then the five lanes as rows, blue on the left and red
+   mirrored on the right, with each player's champion square, name and rating change.
+2. **Ten Data Dragon champion squares are the only artwork.** They are recognisable champions, one per lane per
+   side, served from our own origin as small WebP files committed to the repo. There is no splash art, no logo
+   and no art band.
+3. **It is a fixture, and it says so.** It uses the same ten friends and the same split as the worked example
+   (`lib/landing/example.ts`, split 1: blue 54%). Red wins the game. The caption calls it an example game.
+4. **The hero receipt moves down, nothing is lost.** The real receipt, live or example, already shows in the
+   Proof section, open. Today the hero shows it a second time, closed. The example game takes the hero's slot,
+   and the Proof receipt keeps the live caption and `See this game`.
+5. **Quiet around it.** Stock tokens, 1px `--border`, no glow and no motion. The champion faces are the only
+   new thing on the page, and they are content (who played what), never decoration.
+
+Why not the alternatives:
+
+- **A splash band behind the hero** (dimmed art at 1440 × 400 or larger). It is the esports-broadcast look, not a
+  friend's living room. It is decoration, which 1.1 rule 1 bans. It would be the largest image on the page, so
+  it becomes the LCP element, and a dimmed photo under the display headline drops text contrast below 3.2's
+  numbers at the lamp peaks. Rejected.
+- **A champion collage or a grid of faces.** It says "League", but it does not say "balanced teams". It is a
+  fan site, not this product. Rejected.
+- **Champions on the real Team card (5.1).** Still not built. 5.1's "Not built: champions on seats" stands:
+  there is no data source before the game. This picture is a separate component, so the exception cannot leak
+  into Tonight.
+
+### 12.2 The champions
+
+These are default skins only, at the pin `DDRAGON_VERSION` (`16.19.1`). The numeric key is what the code keys
+on, and the Data Dragon id is the file name.
+
+| Lane | Blue (lost) | Red (won) | Why this pair |
+|---|---|---|---|
+| top | Hana: **Garen** (86, `Garen`) −18 | Omar: **Darius** (122, `Darius`) +17 | The Demacia vs Noxus top lane. Every player knows both faces. |
+| jungle | Iris: **Lee Sin** (64, `LeeSin`) −21 | Rami: **Amumu** (32, `Amumu`) +22 | The most-played jungler of all time, and the most recognisable face in the game. |
+| mid | Karim: **Ahri** (103, `Ahri`) −16 | Nadia: **Yasuo** (157, `Yasuo`) +15 | The two mid faces that non-mains know too. |
+| adc | Bilal: **Jinx** (222, `Jinx`) −19 | Lena: **Ezreal** (81, `Ezreal`) +20 | Arcane's lead, and the game's most-picked marksman. |
+| support | Theo: **Thresh** (412, `Thresh`) −14 | Yuki: **Lux** (99, `Lux`) +13 | The two support icons. Lux is the face on most "first champion" lists. |
+
+Names and seats are `EXAMPLE_SPLITS[0]`: blue Hana, Iris, Karim, Bilal and Theo; red Omar, Rami, Nadia, Lena and
+Yuki, in lane order. The changes are illustrative whole numbers in M18's range (11.3). The winners are positive,
+the losers negative, and no change is zero. The duration is `32:40`.
+
+### 12.3 Anatomy
+
+Phone, 375 (the card is 343 wide; 16px pad, so 311 inside):
+
+```
+┌─ --card, 1px --border, radius 8 ───────────────────┐
+│ ◥ Red won                                    32:40 │  title row: text --fs-md 700 + glyph; duration mono --fs-xs muted
+│ ┌──────────────────────┐┊┌───────────────────────┐ │
+│ │ ◣ BLUE 54%           │┊│░░░░░░░░░░ 46% RED ◥░░░│ │  WinBar size="compact" (40px), unchanged
+│ └──────────────────────┘┊└───────────────────────┘ │
+├────────────────────────────────────────────────────┤
+│ [Garen] Hana          ⌂top           Omar [Darius] │  row: square | name | role | name | square
+│         −18                           +17          │  change under the name, mono --fs-xs
+├────────────────────────────────────────────────────┤
+│ [LeeSin] Iris        ⌇jungle         Rami [Amumu]  │
+│          −21                          +22          │
+├────────────────────────────────────────────────────┤
+│  … mid, adc, support                               │
+└────────────────────────────────────────────────────┘
+  An example game: ten friends on an ordinary Tuesday.  figcaption, --fs-sm muted
+```
+
+Row grid: `grid-template-columns: var(--sq) minmax(0,1fr) 3.5rem minmax(0,1fr) var(--sq)`, `column-gap: 8px`
+(12 from 1024), `align-items: center`. Rows are divided by 1px `--border` hairlines, as on 5.1's seats.
+
+| Part | Spec |
+|---|---|
+| Card | `--card`, 1px `--border` (not `--border-strong`: that edge belongs to the receipt, 5.5), `--radius-card`, `--card-pad`. Width: the hero's right column at ≥ 1024 (`30rem`). Below 1024 it is full column width, capped at `30rem`, and aligned to the start edge with the copy. |
+| Title row | `◥ Red won`: the side glyph in `--team-red` (13px, as in the bar), then the words in the text face, `--fs-md` 700, `--foreground`. Blue winning would read `◣ Blue won`, but the fixture is red. The duration `32:40` is mono `--fs-xs` `--muted-foreground`, end-aligned. This is a `<p>`, not a heading: the hero's only heading is the h1. |
+| Win bar | `<WinBar odds={…} size="compact" />` from `components/receipt/win-bar.tsx`, as is. It carries its own sr sentence. 8px below the title row and 12px above the first row. |
+| Champion square | `--sq`: **40px below 768, 48px at 768–1023, 56px at ≥ 1024.** Square, `border-radius: var(--radius-chip)` (4), `object-fit: cover`, `display: block`, `flex: none`. Shown as Data Dragon delivers it: no crop, no zoom, no mask, **never a circle**, no ring, no shadow, no filter. It is not dimmed for the losing side ("nobody is dimmed", 5.1). `width` and `height` attributes equal `--sq` at the phone size (40), and CSS sizes the box, so the box is reserved before the bytes arrive. The fallback behind it is `--raised` (it shows only if the file fails). |
+| Name | Text face 700, `--foreground`. `--fs-sm` (16) below 1024, `--fs-md` (19) from 1024. Blue names are start-aligned and red names end-aligned (the mirror). Wrap rule as 5.1: `overflow-wrap: anywhere`, never truncated. |
+| Change | `<RatingDelta delta={n} width="change" />` (`app/_board/RatingDelta.tsx`), under the name, `--fs-xs`, 2px below. It is signed, uncoloured and uses the real minus (5.3, 11.3). Blue changes are start-aligned and red changes end-aligned. |
+| Role cell | Centred, 3.5rem (56px) wide. `RoleIcon` at 20px stacked over the role word in mono `--fs-2xs`, `font-stretch` 75%, `--muted-foreground`, as in 5.1's role cell. `support` is the widest word and fits at 13px. |
+| Row height | `--sq` plus 8px above and below (56 / 64 / 72). |
+| Caption | `<figcaption>`, `--fs-sm`, `--muted-foreground`, 8px under the card. |
+
+Measured fit at 375: 311 − 2 × 40 (squares) − 56 (role) − 4 × 8 (gaps) leaves 71px per name. The longest
+example name (`Karim`, `Nadia`) is about 50px at 16/700, so nothing wraps. At 1440: 440 inside − 2 × 56 − 56
+− 4 × 12 leaves 112px per name at 19px.
+
+Card height: about 380px at 375 (title 28, bar 40, gaps 20, five 56px rows, padding 32) and about 470px at
+1440. Below 1024 the card starts right under the buttons, at about 460px on a 375 × 667 screen, so the title,
+the bar and the first lane row (Garen vs Darius) are in the first screen. That is the glance.
+
+### 12.4 Where it sits
+
+- **≥ 1024:** the hero grid is unchanged (`minmax(0,1fr) minmax(0,30rem)`, `items-start`, gap 48). The example
+  game replaces `<HeroReceipt>` in the right column. The h1, the sub line and both buttons do not move.
+- **< 1024:** the order is h1, sub line, buttons, then the example game, 24px below (the grid's existing
+  `gap-6`). The buttons stay above the fold at 375 × 667, as M14.24 requires.
+- **Proof** keeps `<HeroReceipt … open />` exactly as today, with the live caption and `See this game` when the
+  demo group has a rolled game, and the example receipt otherwise.
+- **Nothing else on the landing page gets a champion.** Not the steps, the problem bubbles, the counters, the
+  FAQ, `/download` or `/how`. The Open Graph card (5.16) is unchanged.
+
+### 12.5 Night and Day
+
+The layout is identical in both themes. Only tokens change: card, border, text, the bar's team fills and the
+hatch. The squares are the same files, with no per-theme filter. In Day a square sits on white with no border,
+as in the fearless chip.
+
+### 12.6 Accessibility
+
+- The whole picture is a `<figure>`. The rows are a real `<table>`, because the content is a lane-by-lane
+  comparison:
+  - `<caption class="sr-only">`: ‹Example game, lane by lane. Red won.›
+  - visually hidden column headers: ‹Blue team›, ‹Lane›, ‹Red team›
+  - one `<tr>` per lane, in lane order, with the role cell as `<th scope="row">`
+- Each square's `alt` is the champion's name (`Garen`). Here the champion is the content, and nothing else on the
+  row names it. That is the opposite of the fearless chip's `alt=""`, which sits beside a visible name. A row
+  reads ‹top · Hana, Garen, lost 18 · Omar, Darius, gained 17›.
+- The win bar stays `aria-hidden`, with its sr sentence (5.5).
+- Text contrast is all stock tokens on `--card` (3.2), and the role word and the change are muted at 6.44.
+- At 200% text on a 375 screen the names wrap and the rows grow taller. The page never scrolls sideways (M14.42).
+  The squares do not scale with text.
+- Forced colours: the bar follows 6.8's `data-side-fill` rule. The images stay. No meaning rides on colour.
+
+### 12.7 Assets and performance
+
+- **Self-hosted, committed, statically imported.** There are ten files,
+  `apps/web/components/landing/champions/<DdragonId>.webp`, each made from Data Dragon's
+  `cdn/<DDRAGON_VERSION>/img/champion/<id>.png`. They stay at the native 120 × 120 (no resample, so the art is
+  as delivered), as WebP at quality 80, with metadata stripped. That is about 4–6 KB each and **≤ 60 KB for all
+  ten**. They are imported with `import garen from './champions/Garen.webp'`, so Next emits hashed,
+  immutable-cached URLs under `/_next/static/media/`.
+- 120px covers 3× at 40 and about 2× at 56, so there is no `srcset`.
+- **No image optimizer and no hotlink.** The page never requests `ddragon.leagueoflegends.com` or
+  `/_next/image`. No new `remotePatterns`, and no preconnect on the landing page.
+- **Loading:** `loading="eager"` (they are in the first screen at 1440 and near it at 375), `decoding="async"`,
+  `fetchpriority="low"` so that the fonts and the h1 win. No preload. No fade-in, placeholder shimmer or blur-up.
+- **LCP:** the element stays the h1 or the sub line, both text. A 56px square is far smaller than either, so it
+  cannot become the LCP element. The budget (LCP < 2.5 s) is unchanged by this section.
+- **CLS: 0 from this section.** Every box has a fixed size in CSS plus `width`/`height` attributes. The card's
+  height does not depend on the images.
+- **Failure:** a missing file shows the `--raised` box with the alt text clipped inside it. The row keeps its
+  height, and the name is still there.
+- **Pin bump:** the files do not follow `DDRAGON_VERSION` automatically. They are re-cut only by hand, with the
+  script below. A newer patch's art change is not worth a re-cut.
+
+### 12.8 Do not
+
+- No League of Legends logo, wordmark, Riot fist, "LoL" lockup, or the word "official". No Riot fonts
+  (Beaufort, Spiegel). No hextech gold frames, no champ-select chrome, no imitation of the client's UI.
+- No splash, loading-screen or centred art, no background art band, and no art under any text.
+- No circular faces, rings, glows, side-coloured borders or tints on the squares, and no greyscale for the losers.
+- No champion as a role marker. The role is the word plus `RoleIcon`, as everywhere.
+- No hover effect, tilt, parallax, carousel, rotation through champions or entrance animation.
+- No live data in this picture. It is the fixture, captioned as an example, and the real game lives in Proof.
+- No second picture lower on the page. One exception, one place.
+
+### 12.9 Copy
+
+| Key | String | Status |
+|---|---|---|
+| `EXAMPLE_GAME_CAPTION` | `An example game: ten friends on an ordinary Tuesday.` | designer draft; product may reword |
+| `EXAMPLE_GAME_WON` | `Red won` | designer draft; sentence case (the upper-case side word stays inside the bar) |
+| `EXAMPLE_GAME_TABLE_CAPTION` (sr) | `Example game, lane by lane. Red won.` | designer draft |
+| column headers (sr) | `Blue team`, `Lane`, `Red team` | |
+
+No existing hero copy changes. `HERO_TITLE_SET`, `HERO_SUB` and both buttons stay as they are.
+
+### 12.10 Acceptance (designer signs on screenshots, Night and Day, at 375 and 1440)
+
+1. At 375 × 667, the buttons and the Garen vs Darius row are both in the first screen.
+2. All ten faces render from `/_next/static/media/`. The network panel shows no ddragon and no `/_next/image`
+   request on `/`.
+3. CLS is 0.00 on `/` with a throttled load, and the LCP element is text.
+4. Nothing truncates. At 200% text there is no sideways scroll.
+5. A screen reader reads the table row by row, with the champion names.
+6. The Riot notice is still in the footer of `/` and `/about`.
