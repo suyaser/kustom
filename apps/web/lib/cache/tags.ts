@@ -5,9 +5,14 @@ import { revalidateTag } from 'next/cache';
  * 5.3). Every cached read of a group's data carries `groupTag(kind, groupId)`, and every writer
  * that changes that data calls {@link expireGroupTag} once, after its last write.
  *
- * - `stats`: the three Stats segments (`lib/stats/cached.ts`). Changes when a game is stored
- *   (live or backfill, ban enrichment included), rated, or re-rated (the daily rebuild, Reset
- *   ratings), and when a stored player's name changes on a game post.
+ * - `stats`: the three Stats segments (`lib/stats/cached.ts`). Expired when a game is stored
+ *   (live or backfill, ban enrichment included; the eog route), re-rated (the daily rebuild
+ *   cron, Reset ratings), and so also when a game post renames a stored player. **Not** expired
+ *   by the lobby and rank posts, although they rename players too (`ensurePlayers` follows a Riot
+ *   ID change): expiring on every lobby post would empty the cache all night. Stats picks those
+ *   names up at the next game post or within the entry's 1 h revalidate. Not expired by the
+ *   `rebuild-ratings` / `copy-raw-stats` CLIs either (no Next request to reach the cache from):
+ *   the same 1 h bound.
  *
  * Only data that is the same for every viewer is ever cached under these tags (anon reads, no
  * session, no service-role fact).
