@@ -73,7 +73,7 @@ pub const LOCAL_API_BASE: &str = "http://localhost:3000";
 
 /// The deployed origin; what every release build uses unless `CUSTOMS_NIGHT_API_BASE` names another.
 /// The TypeScript companion's `RELEASE_API_BASE`.
-pub const RELEASE_API_BASE: &str = "https://kustom-delta.vercel.app";
+pub const RELEASE_API_BASE: &str = "https://playkustom.com";
 
 /// The API origin used when `config.json` names none: `CUSTOMS_NIGHT_API_BASE` at build time if set (and
 /// non-empty), else the deployed origin in a release build and the local dev server in a debug build
