@@ -86,7 +86,9 @@ for (const [worldName, { synPts, fixedTen }] of Object.entries(WORLDS)) {
         const d = rows.flatMap((r, i) => (ok[i] ? [r[k] - (base[i] as Metrics)[k]] : []));
         const dm = d.reduce((s, x) => s + x, 0) / d.length;
         const se = Math.sqrt(d.reduce((s, x) => s + (x - dm) ** 2, 0) / (d.length - 1) / d.length) || 0;
-        return `${mean.toFixed(2)} [${dm >= 0 ? '+' : ''}${dm.toFixed(2)}±${(2 * se).toFixed(2)}]`.padStart(22);
+        return `${mean.toFixed(2)} [${dm >= 0 ? '+' : ''}${dm.toFixed(2)}±${(2 * se).toFixed(2)}]`.padStart(
+          22,
+        );
       });
       console.log(`${variant.padEnd(12)}${cells.join('')}`);
     }

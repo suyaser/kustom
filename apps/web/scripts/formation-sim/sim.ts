@@ -163,7 +163,14 @@ function trueStrength(p: WorldPlayer, role: number): number {
 // ---------------------------------------------------------------------------------------------
 
 export type VariantName = 'before' | 'after' | 'm1813' | 'flatOnly' | 'varietyOnly' | 'random';
-export const VARIANTS: readonly VariantName[] = ['before', 'after', 'm1813', 'flatOnly', 'varietyOnly', 'random'];
+export const VARIANTS: readonly VariantName[] = [
+  'before',
+  'after',
+  'm1813',
+  'flatOnly',
+  'varietyOnly',
+  'random',
+];
 
 /** One of the ten as both balancers read it. `id` is the world index; puuids sort like ids. */
 export interface SimSeat {
@@ -424,7 +431,12 @@ export interface RunOptions {
   fixedTen?: boolean;
 }
 
-export function run(world: World, variant: VariantName, games: number, options: RunOptions = {}): GameRecord[] {
+export function run(
+  world: World,
+  variant: VariantName,
+  games: number,
+  options: RunOptions = {},
+): GameRecord[] {
   const rng = mulberry32(world.seed * 104729 + 7);
   const rngSplit = mulberry32(world.seed * 31 + 3);
   const P = world.players;

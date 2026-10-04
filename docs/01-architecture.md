@@ -721,7 +721,10 @@ M18.12). A non-finite `r` or an `n` that is not a whole number `>= 0` is a `Bala
   which under the M18.13 rule is already the cap, so every split paid 100 and variety never moved the order. Now a
   3-2 reshuffle of last game's fives is free, a 4-1 (12 pairs) pays 100, and a rotating roster, where some split
   can usually break every pair (floor 0), gets exactly the M18.13 rule. `repeatedPairs` stays the raw count (the
-  receipt prints both raw counts, `12 vs 8 pairs`); `variety` is the charged amount.
+  receipt prints both raw counts, `12 vs 8 pairs`); `variety` is the charged amount. Evidence
+  (`pnpm --filter web formation-sim 20 600`, paired against the M18.13 rule): true edge and stomp within 2 SE in
+  every world; repeated pairs per game 3.75 to 3.22 (rotating roster) and, with the same ten every night, 9.47 to
+  8.21 on same-ten games, where 8 is the floor.
   The caller computes the pairs (puuids only) and passes them as `recentTeammates`; core never reads history. A pair
   counts once whatever its order or how often it appears; a pair naming somebody not in tonight's ten, the same
   player twice, or two players locked together as a duo is ignored, never an error. The cap bounds the fairness
