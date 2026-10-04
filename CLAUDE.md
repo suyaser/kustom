@@ -90,6 +90,7 @@ KUSTOM_REPLAY_CSV=<export.csv> pnpm --filter web exec vitest run lib/ingest/kust
                              # M18.5: the M18.3 real-data replay through the implemented fold; must print
                              # log loss 0.700, Spearman 0.938 / 0.925. Reads the export in place (never
                              # copy it into the repo); skipped without the variable, so never in CI.
+pnpm --filter web formation-sim [seeds=20] [games=600]  # M18.13: team-formation.md §3 evenness + who-gets-filled simulations on the Kustom scale, shipped balance() vs the M18.2 one; no database, deterministic, dev only (~1 min)
 pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
 packages/db/scripts/m18-10-throwaway-check.sh [0043 path]  # M18.10: checks 0043 on a throwaway restore of local (pg_dump read only); needs Docker + pnpm db:start
 # M18.10 step 5 (read-only switch checks: board, one game, week sums): paste packages/db/scripts/m18-10-checks.sql into the SQL editor with the group slug

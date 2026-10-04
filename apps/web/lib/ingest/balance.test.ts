@@ -1,7 +1,7 @@
 import { balance, config } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { workedBalance, workedPool } from '../testing/workedExample';
-import { type FillGame, fillDistances, toBalancePlayer } from './balance';
+import { type FillGame, fillDistances, teammatePairs, toBalancePlayer } from './balance';
 import type { PoolMember } from './selection';
 
 /**
@@ -102,5 +102,38 @@ describe('toBalancePlayer', () => {
 
     expect(fromPool).toEqual(workedBalance());
     expect(fromPool.splits.map((split) => split.gap)).toEqual([100, 170, 220]);
+  });
+});
+
+describe('teammatePairs (M18.13)', () => {
+  const game = (blue: string[], red: string[]) => ({
+    players: [...blue.map((puuid) => ({ puuid, side: 100 })), ...red.map((puuid) => ({ puuid, side: 200 }))],
+  });
+
+  it('is empty with no previous game: the first roll of a night has no variety term', () => {
+    expect(teammatePairs([])).toEqual([]);
+  });
+
+  it('gives the twenty same-side pairs of a 5v5, never a cross-side pair', () => {
+    const pairs = teammatePairs([game(['a', 'b', 'c', 'd', 'e'], ['f', 'g', 'h', 'i', 'j'])]);
+    expect(pairs).toHaveLength(20);
+    expect(pairs).toContainEqual(['a', 'e']);
+    expect(pairs).toContainEqual(['f', 'j']);
+    expect(pairs).not.toContainEqual(['a', 'f']);
+    for (const [x, y] of pairs) expect(x < y).toBe(true);
+  });
+
+  it('is the same list whatever order the rows come back in', () => {
+    const one = teammatePairs([game(['e', 'd', 'c', 'b', 'a'], ['j', 'i', 'h', 'g', 'f'])]);
+    const two = teammatePairs([game(['a', 'b', 'c', 'd', 'e'], ['f', 'g', 'h', 'i', 'j'])]);
+    expect(one).toEqual(two);
+  });
+
+  it('counts a pair once when it shared a side in two games of the window', () => {
+    const pairs = teammatePairs([
+      game(['a', 'b', 'c', 'd', 'e'], ['f', 'g', 'h', 'i', 'j']),
+      game(['a', 'b', 'f', 'g', 'h'], ['c', 'd', 'e', 'i', 'j']),
+    ]);
+    expect(pairs.filter(([x, y]) => x === 'a' && y === 'b')).toHaveLength(1);
   });
 });

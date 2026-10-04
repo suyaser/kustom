@@ -1,6 +1,6 @@
 import { type Assignment, displayKustom, isOffRole, type Mode, type Role, resolveRoles } from '@customs/core';
 import type { SideValue } from '@customs/db';
-import { type RuleCheck, ruleCheckSchema, ruleModeOf } from '@customs/db/schemas';
+import { type RuleCheck, ruleCheckSchema, ruleModeOf, storedScoreParts } from '@customs/db/schemas';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { matchesQueue } from '../games/queue';
 import { type FoldPerformance, gatedGameAward, gateGame } from '../ingest/fold';
@@ -504,6 +504,8 @@ export interface StoredSplitRow {
   gap: number;
   off_role_count: number;
   blue_win_prob: number;
+  /** M18.13 (0045): jsonb, zod-checked in `toReceipt`. Absent or null on a row from before 0045. */
+  score_parts?: unknown;
 }
 
 /**
@@ -520,6 +522,7 @@ export function toReceipt(rows: readonly StoredSplitRow[], postedSplitId: string
     gap: row.gap,
     offRoleCount: row.off_role_count,
     blueWinProb: row.blue_win_prob,
+    scoreParts: storedScoreParts(row.score_parts),
   });
   const posted = rows.find((row) => row.id === postedSplitId);
   if (posted === undefined) return null;
@@ -543,7 +546,7 @@ export async function loadLobbyReceipt(
 ): Promise<TeamsReceipt | null> {
   const { data, error } = await client
     .from('splits')
-    .select('id, rank, blue, red, gap, off_role_count, blue_win_prob')
+    .select('id, rank, blue, red, gap, off_role_count, blue_win_prob, score_parts')
     .eq('lobby_id', lobbyId)
     .order('rank', { ascending: true });
   if (error) {

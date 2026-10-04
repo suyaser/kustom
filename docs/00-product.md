@@ -123,9 +123,20 @@ says it.
   adds `This was the fairest split these ten allow.`, which is true because it scored best of all 126).
 - **Three chips:** `Rating gap 100 pts` (always with its unit), `Main roles 10/10` or `2 off main role`, and
   `Bot's pick #1 of 3` (`Reroll 1 of 2 · pick #2` after a reroll).
-- **A reason line** naming who would change in the next-best split and why it lost: more people off their
-  main role, or a bigger rating gap, or, when the stored numbers do not say which, that it scored a hair worse
-  overall (repeated teams, recent fills or rounding). When the runner-up had closer odds than the pick, the line always explains it, because that is
+- **A reason line** naming who would change in the next-best split and why it lost. The why is one of six,
+  tried in this order, and the same words label each lower split under `How the bot decided`
+  (`Ranked lower: …`):
+  1. more people off their main role: `with 2 more off their main role`;
+  2. a bigger rating gap: `with a bigger rating gap (120 vs 45 pts)`;
+  3. last game's teams again: `and it's last game's teams again`;
+  4. more of last game's teammates on the same team: `and it keeps more of last game's teammates together (4 vs 2 pairs)`
+     (`1 pair` when the pick keeps one);
+  5. it fills someone who was filled more recently: `and it fills someone who was filled more recently`;
+  6. none of those, or a split stored before teammate variety (migration 0045): `and it scored a hair worse
+     overall (repeated teams, recent fills or rounding)`.
+
+  3 to 5 come only from the score parts stored with each split since M18.13; when more than one applies, the
+  one worth the most points is named. When the runner-up had closer odds than the pick, the line always explains it, because that is
   the most "rigged"-looking thing the receipt can show.
 - **`How the bot decided`**, open to everybody (it used to be admin-only): the three splits the bot kept, in
   order, with their odds, gaps and off-role counts; why win chance and rating gap can disagree (win chance

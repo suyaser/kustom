@@ -230,7 +230,7 @@ const READ_PAGE = 1_000;
 
 const MEMBER_COLUMNS = 'lobby_id, player_id, role_override, is_spectator, side, created_at';
 const SPLIT_COLUMNS =
-  'id, lobby_id, rank, blue, red, blue_win_prob, gap, off_role_count, explanation, is_chosen, created_at';
+  'id, lobby_id, rank, blue, red, blue_win_prob, gap, off_role_count, score_parts, explanation, is_chosen, created_at';
 /**
  * The game row (the mode alone, not the end-of-game blob), its rule stamp (M15.5, M15.19: the
  * columns of `GAME_STAMP_COLUMNS`) and its scoreboard, embedded, with the award's stat line (M11.3).
@@ -610,6 +610,7 @@ function buildTeams(
         blue_win_prob: row.blue_win_prob,
         gap: row.gap,
         off_role_count: row.off_role_count,
+        score_parts: row.score_parts,
         blue: readAssignments(row.blue),
         red: readAssignments(row.red),
         explanation: row.explanation,
@@ -864,6 +865,8 @@ interface SplitRow {
   blue_win_prob: number;
   gap: number;
   off_role_count: number;
+  /** M18.13 (0045): jsonb, parsed by `receiptSplitFromRow`. Absent on rows a test builds by hand. */
+  score_parts?: unknown;
   explanation: string;
   is_chosen: boolean;
   created_at: string;
