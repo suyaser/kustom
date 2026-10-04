@@ -3,6 +3,7 @@ import type { NextResponse } from 'next/server';
 import { setMemberRole } from '@/lib/admin/members';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { type MemberRoleRequest, memberRoleRequestSchema, memberRoleResponseSchema } from './schema';
 
 /** The success notice for the role the member has now, and whether this press changed it. */
@@ -43,6 +44,7 @@ export async function handleMemberRole(
   const { role, changed } = result.value;
   const notice = changed ? ROLE_NOTICES[role].changed : ROLE_NOTICES[role].unchanged;
 
+  invalidateGroup(context.groupId, ['admins']);
   if (context.form) return redirectBack(context.request, back, { notice });
 
   return context.respond(

@@ -50,6 +50,7 @@ function Row({ row, rank, you, href }: { row: BoardRow; rank: number | null; you
   const week = row.points !== null;
   return (
     <Link
+      prefetch={false}
       href={href}
       className={cn(
         'grid min-h-(--row-min-h) items-start gap-x-3 px-(--card-pad) py-3',

@@ -170,6 +170,7 @@ export function GameRow({ item, href }: { item: GameListItem; href: string }) {
   return (
     <li className="border-t border-border first:border-t-0">
       <Link
+        prefetch={false}
         href={href as Route}
         className={cn(
           'flex min-h-(--row-min-h) flex-col gap-1 px-(--card-pad) py-3 text-foreground no-underline',

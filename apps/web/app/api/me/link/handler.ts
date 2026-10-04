@@ -1,5 +1,6 @@
 import { type SelfLinkRequest, selfLinkRequestSchema, selfLinkResponseSchema } from '@customs/db';
 import type { NextResponse } from 'next/server';
+import { invalidateGroup } from '@/lib/cache/tags';
 import type { MeContext, MeRouteOptions } from '@/lib/me/route';
 import { withViewerAuth } from '@/lib/me/route';
 import { linkSelf, type SelfLinkStore, supabaseSelfLinkStore } from '@/lib/me/selfLink';
@@ -43,6 +44,7 @@ async function handle(
   const result = await linkSelf(store, context.me, input.puuid);
   if (!result.ok) return context.fail(result.status, result.error);
 
+  invalidateGroup(context.groupId, ['roster']);
   return context.respond(
     selfLinkResponseSchema,
     { ok: true, puuid: result.value.puuid },

@@ -29,7 +29,7 @@ describe('expireGroupTag', () => {
   });
 
   it('is a quiet no-op outside a Next request (a CLI script, a route test)', () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'warn').mockImplementation(() => {});
     revalidateTag.mockImplementation(() => {
       throw new Error('Invariant: static generation store missing in revalidateTag stats:g-1');
     });
@@ -38,7 +38,7 @@ describe('expireGroupTag', () => {
   });
 
   it('never fails the writer on any other error, and says so', () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'warn').mockImplementation(() => {});
     revalidateTag.mockImplementation(() => {
       throw new Error('cache down');
     });

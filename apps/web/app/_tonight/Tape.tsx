@@ -147,6 +147,7 @@ function Tile({ entry, number, group }: { entry: TapeEntry; number: number; grou
         <div className="flex min-h-11 rounded-control border border-border bg-raised">{body}</div>
       ) : (
         <Link
+          prefetch={false}
           href={href}
           className="flex min-h-11 rounded-control border border-border bg-raised hover:border-border-strong"
         >

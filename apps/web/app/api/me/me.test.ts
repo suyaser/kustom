@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
 import type { GroupRole } from '@customs/db/schemas';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { GroupRoleLookup } from '@/lib/groups/membership';
 import { holdsAdminRole } from '@/lib/me/claimable';
 import {
@@ -24,6 +24,10 @@ import type { ServiceClient } from '@/lib/supabase';
 import { selfLinkRoute } from './link/handler';
 import { startLobbyRoute } from './lobbies/start/handler';
 import { roleTonightRoute } from './role-tonight/handler';
+
+// The roster behind Tonight's same-name labels is cached per group (performance plan, phase 2).
+const { invalidateGroup } = vi.hoisted(() => ({ invalidateGroup: vi.fn() }));
+vi.mock('@/lib/cache/tags', () => ({ invalidateGroup, invalidateGroups: vi.fn() }));
 
 /** Assembled rather than spelled, so this file is not its own counter-example. */
 const OLD_START_PATH = ['/api', 'admin', 'lobbies', 'start'].join('/');
@@ -357,15 +361,19 @@ describe('POST /api/me/link', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, puuid: ME });
     expect(store.links).toEqual([{ playerId: `player-${ME}`, discordId: 'discord-1' }]);
+    // A linked player is a roster change: the group's cached label inputs are dropped.
+    expect(invalidateGroup).toHaveBeenCalledWith(GROUP, ['roster']);
   });
 
   it('refuses somebody outside the claim set (tonight plus the last 12 hours)', async () => {
+    invalidateGroup.mockClear();
     const store = linkStore({ members: [SOMEBODY_ELSE] });
     const response = await linkRoute({ ok: true, me: visitor }, store)(post({ puuid: ME }, 'link'));
 
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ ok: false, error: LINK_NOT_CLAIMABLE });
     expect(store.links).toEqual([]);
+    expect(invalidateGroup).not.toHaveBeenCalled();
   });
 
   it('re-checks the claim set on the server and ignores anything the page sends with it (M14.34)', async () => {

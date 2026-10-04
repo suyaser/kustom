@@ -1,5 +1,5 @@
 import { rebuildCronResponseSchema } from '@customs/db/schemas';
-import { expireGroupTag } from '@/lib/cache/tags';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { readServerEnv, ServerEnvError } from '@/lib/env';
 import { jsonError, jsonOk } from '@/lib/http';
 import { runRebuildCron } from '@/lib/ingest/rebuildCron';
@@ -55,7 +55,7 @@ export async function GET(request: Request): Promise<Response> {
       elapsedMs: () => Date.now() - started,
       startBudgetMs: START_BUDGET_MS,
     });
-    for (const line of groups) expireGroupTag('stats', line.groupId);
+    for (const group of groups) invalidateGroup(group.groupId, ['stats', 'games']);
     return jsonOk(rebuildCronResponseSchema, { ok: true, groups });
   } catch (error) {
     console.error('cron rebuild failed', error);

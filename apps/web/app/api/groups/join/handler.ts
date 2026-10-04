@@ -1,5 +1,6 @@
 import { joinGroupRequestSchema, joinGroupResponseSchema } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { joinGroup } from '@/lib/groups/invites';
 import { type SessionRouteOptions, withSession } from '@/lib/groups/sessionRoute';
 import { jsonError, jsonOk, parseJsonBody } from '@/lib/http';
@@ -22,6 +23,7 @@ export function joinGroupRoute(options: SessionRouteOptions = {}) {
     });
     if (!result.ok) return jsonError(result.status, result.error);
 
+    invalidateGroup(result.value.group.id, ['roster']);
     return jsonOk(joinGroupResponseSchema, { ok: true, ...result.value });
   }, options);
 }

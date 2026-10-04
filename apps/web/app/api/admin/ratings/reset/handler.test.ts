@@ -13,6 +13,9 @@ vi.mock('@/lib/cache/tags', () => ({
   expireGroupTag: (kind: string, groupId: string) => {
     stub.expired.push([kind, groupId]);
   },
+  invalidateGroup: (groupId: string, kinds: readonly string[]) => {
+    for (const kind of kinds) stub.expired.push([kind, groupId]);
+  },
 }));
 vi.mock('@/lib/admin/ratingsReset', () => ({
   resetGroupRatings: () => stub.reset?.(),
@@ -60,7 +63,7 @@ describe('POST /api/admin/ratings/reset: the Stats cache', () => {
     });
     const response = await route(post());
     expect(response.status).toBe(200);
-    expect(stub.expired).toEqual([['stats', GROUP]]);
+    expect(stub.expired).toEqual([['stats', GROUP], ['games', GROUP]]);
   });
 
   it('expires nothing when the reset is refused', async () => {

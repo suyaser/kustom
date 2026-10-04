@@ -1,5 +1,6 @@
 import type { RoleValue, SideValue } from '@customs/db';
 import { championName } from '../champs/names';
+import { inChunks } from '../chunks';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { type FoldAwardPlayer, gameScores, gatedGameAward, gateGame } from '../ingest/fold';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
@@ -170,6 +171,9 @@ function awardPlayers(
 const COLUMNS =
   'id, started_at, duration_s, winning_side, rated, gameMode:raw->gameMode, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, champion_id, mu_before, mu_after)';
 
+/** PostgREST's `max_rows`: one page of the night's games. */
+const PAGE = 1_000;
+
 /** The viewer's night in this group, or `null` (no counted game, or a failed read: the card is absent). */
 export async function loadYourNightOrNone(
   client: PublicClient,
@@ -184,26 +188,39 @@ export async function loadYourNightOrNone(
     if (meError) throw new Error(meError.message);
     if (me?.id == null) return null;
 
-    const { data, error } = await client
-      .from('games')
-      .select(COLUMNS)
-      .eq('group_id', options.groupId)
-      .gte('started_at', options.nightStart.toISOString())
-      .in('winning_side', [100, 200])
-      .order('started_at', { ascending: true });
-    if (error) throw new Error(error.message);
-    const games = (data ?? []) as unknown as YourNightGame[];
+    // Paged: PostgREST cuts a response at `max_rows` (1000) without saying so. `id` breaks ties so
+    // pages neither overlap nor skip; one page is every real night.
+    const games: YourNightGame[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await client
+        .from('games')
+        .select(COLUMNS)
+        .eq('group_id', options.groupId)
+        .gte('started_at', options.nightStart.toISOString())
+        .in('winning_side', [100, 200])
+        .order('started_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      games.push(...((data ?? []) as unknown as YourNightGame[]));
+      if ((data ?? []).length < PAGE) break;
+    }
     if (!games.some((game) => game.game_players.some((row) => row.player_id === me.id))) return null;
 
     const ids = [...new Set(games.flatMap((game) => game.game_players.map((row) => row.player_id)))];
-    const { data: players, error: playersError } = await client
-      .from('players_public')
-      .select('id, puuid')
-      .in('id', ids);
-    if (playersError) throw new Error(playersError.message);
+    // Chunked, every chunk at once: a long `in` list is a `414 URI too long`.
+    const pages = await Promise.all(
+      inChunks(ids).map(async (chunk) => {
+        const { data: players, error: playersError } = await client
+          .from('players_public')
+          .select('id, puuid')
+          .in('id', chunk);
+        if (playersError) throw new Error(playersError.message);
+        return players ?? [];
+      }),
+    );
     const puuidOf = new Map<string, string>();
-    for (const row of players ?? [])
-      if (row.id !== null && row.puuid !== null) puuidOf.set(row.id, row.puuid);
+    for (const row of pages.flat()) if (row.id !== null && row.puuid !== null) puuidOf.set(row.id, row.puuid);
 
     return foldYourNight(games, me.id, puuidOf, options.nightStart);
   } catch (error) {

@@ -9,6 +9,7 @@ import { loadPlayerBoard } from '@/lib/board/load';
 import { PLAYER_WINDOW, windowOrDefault } from '@/lib/board/window';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import type { WindowKind } from '@/lib/night';
+import { loadPlayerHead } from '@/lib/og/heads';
 import { playerImagePath, shareMetadata } from '@/lib/og/meta';
 import { groupPageTitle } from '@/lib/og/titles';
 import { createPublicClient } from '@/lib/publicClient';
@@ -39,7 +40,6 @@ interface PlayerPageProps {
   searchParams: Promise<{ window?: string | string[] }>;
 }
 
-/** One load per request between the title and the page (Next calls them separately). */
 const loadPlayer = cache(async (puuid: string, groupId: string, window: WindowKind) =>
   loadPlayerBoard(createPublicClient(), puuid, { window, groupId, timeZone: nightTimeZone() }),
 );
@@ -49,10 +49,12 @@ const loadSections = cache(async (puuid: string, groupId: string, window: Window
   loadPlayerStats(createPublicClient(), puuid, { window, groupId, timeZone: nightTimeZone() }),
 );
 
-export async function generateMetadata({ params, searchParams }: PlayerPageProps): Promise<Metadata> {
-  const [{ slug, puuid }, query] = await Promise.all([params, searchParams]);
+export async function generateMetadata({ params }: PlayerPageProps): Promise<Metadata> {
+  const { slug, puuid } = await params;
   const group = await requirePageGroup(slug);
-  const player = await loadPlayer(decode(puuid), group.id, windowOrDefault(query.window, PLAYER_WINDOW));
+  // One small read (performance plan, phase 1): every prefetch of this page runs this, never the
+  // page's loader.
+  const player = await loadPlayerHead(decode(puuid), group.id);
   if (player === null) return { title: groupPageTitle(group) };
   const title = groupPageTitle(group, renderWebName(player.name));
   // The card is always the all-time numbers (M11.4), whatever window this page was opened on.

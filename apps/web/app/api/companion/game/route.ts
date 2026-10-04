@@ -6,7 +6,7 @@ import {
   NO_WINNING_TEAM_MESSAGE,
 } from '@customs/db/schemas';
 import { scheduleGameLine } from '@/lib/ai/afterIngest';
-import { expireGroupTag } from '@/lib/cache/tags';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import {
@@ -189,10 +189,11 @@ export const POST = withCompanionAuth(
           ? FOREIGN_DUPLICATE_NOT_RATED
           : await rateStoredGame(client, result.gameId);
     } finally {
-      // The group's Stats cache: a game stored, rated, renamed or given its bans changes it. In a
-      // `finally`, so a fold that throws after the game was stored still expires it (the retry
-      // that follows the 500 expires it again once the fold lands).
-      if (!result.foreignDuplicate) expireGroupTag('stats', result.groupId);
+      // The group's Stats and games caches (top five, last game, roster labels, calibration): a
+      // game stored, rated, renamed or given its bans changes them. In a `finally`, so a fold that
+      // throws after the game was stored still expires them (the retry that follows the 500
+      // expires them again once the fold lands).
+      if (!result.foreignDuplicate) invalidateGroup(result.groupId, ['stats', 'games']);
     }
 
     // A lobby that is already `finished` (the second companion's post) or that the sweep

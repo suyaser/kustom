@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { resolveLocalStack } from '../testing/localStack';
 import { ensurePlayers } from './players';
+
+// A rename drops every cached slice that prints a name (performance plan, phase 2).
+const { invalidateNames } = vi.hoisted(() => ({ invalidateNames: vi.fn() }));
+vi.mock('../cache/tags', () => ({ invalidateNames }));
 
 /**
  * `ensurePlayers` against the Supabase CLI local stack: the display-name rule of M1.7.
@@ -51,6 +55,23 @@ if (stack === null) {
   afterAll(async () => {
     const { error } = await db.from('players').delete().in('puuid', puuids);
     if (error) throw new Error(`cleanup failed: ${error.message}`);
+  });
+
+  describe('ensurePlayers and the server cache', () => {
+    it('drops the cached names on a rename or a moved tag line, and only then', async () => {
+      const target = puuid('cache');
+      await ensurePlayers(db, [{ puuid: target, gameName: 'Dana', tagLine: 'EUW' }]);
+      invalidateNames.mockClear();
+
+      await ensurePlayers(db, [{ puuid: target, gameName: 'Dana', tagLine: 'EUW' }]);
+      expect(invalidateNames).not.toHaveBeenCalled();
+
+      await ensurePlayers(db, [{ puuid: target, gameName: 'Dana2', tagLine: 'EUW' }]);
+      expect(invalidateNames).toHaveBeenCalledTimes(1);
+
+      await ensurePlayers(db, [{ puuid: target, gameName: 'Dana2', tagLine: 'TR1' }]);
+      expect(invalidateNames).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('ensurePlayers display names (M1.7)', () => {

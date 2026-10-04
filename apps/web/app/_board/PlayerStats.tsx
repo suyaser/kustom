@@ -169,6 +169,7 @@ function PartnerList({
         {partners.map((partner) => (
           <li key={partner.puuid} className={ROW}>
             <Link
+              prefetch={false}
               href={playerHref(partner.puuid)}
               className="inline-flex min-h-11 items-center font-bold underline underline-offset-3 [overflow-wrap:anywhere]"
             >

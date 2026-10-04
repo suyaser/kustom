@@ -15,6 +15,9 @@ vi.mock('@/lib/cache/tags', () => ({
   expireGroupTag: (kind: string, groupId: string) => {
     stub.expired.push([kind, groupId]);
   },
+  invalidateGroup: (groupId: string, kinds: readonly string[]) => {
+    for (const kind of kinds) stub.expired.push([kind, groupId]);
+  },
 }));
 
 vi.mock('@/lib/ingest/rebuildCron', () => ({
@@ -86,7 +89,7 @@ describe('GET /api/cron/rebuild', () => {
     expect(stub.expired).toEqual([]);
 
     expect((await GET(get('Bearer secret-value'))).status).toBe(200);
-    expect(stub.expired).toEqual([['stats', '00000000-0000-4000-8000-00000000000b']]);
+    expect(stub.expired).toEqual([['stats', '00000000-0000-4000-8000-00000000000b'], ['games', '00000000-0000-4000-8000-00000000000b']]);
 
     stub.expired = [];
     stub.fail = true;
