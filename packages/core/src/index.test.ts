@@ -19,6 +19,9 @@ describe('core skeleton', () => {
       'BalanceError',
       // M15.2 the mode model: ids, families, the five classes, rule options, rated defaults.
       'CLASS_TAGS',
+      // M18.1 the Kustom rating (not yet wired): the start, and the typed input error.
+      'KUSTOM_START',
+      'KustomInputError',
       'MODE_IDS',
       'ROLES',
       'RULE_FAMILIES',
@@ -49,6 +52,8 @@ describe('core skeleton', () => {
       'consumesRule',
       // M14.4: who differs between two stored splits; the sentence's `Next best:` is built on it.
       'describeSwap',
+      // M18.1: round(r), the printed Kustom Rating.
+      'displayKustom',
       'displayRating',
       // M15.2 the server's draws, with an injected RNG.
       'drawRegions',
@@ -59,6 +64,8 @@ describe('core skeleton', () => {
       'explain',
       // M14.58: why a game moved a Rating, as structure (stored breakdown, and pre-0034 rows).
       'explainDelta',
+      // M18.1: why a Kustom row moved, as structure (web owns the words, M18.7).
+      'explainKustomDelta',
       'explainLegacyDelta',
       // M14.4: the favored side and its rounded % for a `blue_win_prob`, so pages do no maths.
       'favoredSide',
@@ -72,6 +79,8 @@ describe('core skeleton', () => {
       // M14.4: under `SETTLING_GAMES` rated games, the board's unnumbered section.
       'isSettling',
       'isStandingMode',
+      // M18.1: K from the player's own rated games on the track (32 down to 16).
+      'kFor',
       'lockAtRoll',
       'modeFamily',
       'modePool',
@@ -88,10 +97,14 @@ describe('core skeleton', () => {
       // M14.4: `predictWin` from `mu_before` / `sigma_before` for a game with no split, or null.
       'preGameOdds',
       'predictWin',
+      // M18.1: round(after) - round(before), so a column adds up.
+      'printedChange',
       // Where every stored rating starts (2026-09-16). No arguments: nothing
       // about a player changes it, and that is the decision.
       'provisionalSeed',
       'rateGame',
+      // M18.1: one game folded on one Kustom track.
+      'rateGameKustom',
       'regionOpenCounts',
       'regionPool',
       // The resolver behind it, for the tonight page's `<override> · <old main>` row (M3.6).
@@ -102,9 +115,14 @@ describe('core skeleton', () => {
       'sameRule',
       'seedFromRank',
       'setRated',
+      // M18.1: performance-rank shares (1.2 .. 0.8 winners, reversed losers).
+      'shareFor',
+      'shareRanks',
       'startState',
       // M14.4: why the runner-up ranked lower, from `off_role_count` and `gap` (STRATEGY §4.4).
       'whyLower',
+      // M18.1: the one Kustom odds function, logistic(a + b * gap / 400).
+      'winProbability',
     ]);
   });
 });
