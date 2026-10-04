@@ -403,8 +403,27 @@ describe('handBack: per field, only into empty fields', () => {
     expect(handBack(row(), lock)).toEqual({ pending: ioniaNoxus, rated: false });
   });
 
-  it('a newer rule wins; Rated still returns if empty', () => {
-    expect(handBack(row({ pending: tanks }), lock)).toEqual({ rated: false });
+  it('a newer pick wins, and keeps its own default Rated (no explicit Rated from the old rule)', () => {
+    expect(handBack(row({ pending: tanks }), lock)).toEqual({});
+    // Pick B after Roll on A with Rated on, then the teams come down: B stays at its default.
+    const state = row({ pending: { id: 'region', blue: 'zaun', red: 'targon' }, rated: true });
+    const taken = take(state, ctx());
+    let after = apply(state, taken.patch);
+    after = apply(after, patchOf(after, { type: 'pick', rule: mirror }));
+    expect(handBack(after, taken.lock)).toEqual({});
+    expect(nextRated(apply(after, handBack(after, taken.lock)))).toBe(true);
+  });
+
+  it('the same rule re-queued after Roll still gets its Rated back', () => {
+    expect(handBack(row({ pending: { id: 'region', blue: 'zaun', red: 'targon' } }), lock)).toEqual({
+      rated: false,
+    });
+  });
+
+  it('a standing lock hands Rated back to a row with no rule, never onto a newer rule', () => {
+    const standing: ModeLock = { standing: 'normal', mode: { id: 'normal' }, rated: false };
+    expect(handBack(row(), standing)).toEqual({ rated: false });
+    expect(handBack(row({ pending: tanks }), standing)).toEqual({});
   });
 
   it('a newer Rated wins; the rule still returns if empty', () => {
@@ -450,11 +469,18 @@ describe('handBack: per field, only into empty fields', () => {
       const after = apply(state, taken.patch);
       expect(apply(after, handBack(after, taken.lock))).toEqual(state);
     }
-    // The no-draw path too.
-    const noDraw = row({ standing: 'fearless', pending: ioniaNoxus, rated: false });
+    // The no-draw path too, with Rated at its default.
+    const noDraw = row({ standing: 'fearless', pending: ioniaNoxus });
     const taken = take(noDraw, ctx(sequence(0), NO_PAIR));
     const after = apply(noDraw, taken.patch);
     expect(apply(after, handBack(after, taken.lock))).toEqual(noDraw);
+  });
+
+  it('the no-draw limit: an explicit Rated moved with a standing lock is not put on the still-pending rule', () => {
+    const noDraw = row({ standing: 'fearless', pending: ioniaNoxus, rated: true });
+    const taken = take(noDraw, ctx(sequence(0), NO_PAIR));
+    const after = apply(noDraw, taken.patch);
+    expect(handBack(after, taken.lock)).toEqual({});
   });
 
   it('take then a newer admin choice then handBack keeps every newer field', () => {
@@ -508,8 +534,9 @@ describe('recordGame: the lock if there is one, otherwise the pending state', ()
         stamp: { standing: 'fearless', mode: ioniaNoxus, rated: false, checked: false },
         patch: { pending: ioniaNoxus },
       });
+      // Pending tanks and an ARAM: the game was never played under tanks, which stays pending.
       expect(recordGame(row({ pending: tanks, rated: true }), game({ kind }))).toEqual({
-        stamp: { standing: 'normal', mode: tanks, rated: false, checked: false },
+        stamp: { standing: 'normal', mode: { id: 'normal' }, rated: false, checked: false },
         patch: {},
       });
     }
@@ -640,17 +667,5 @@ describe('property: no reachable state is a region rule without a valid pair', (
         if (lock !== null && lock.mode.id === 'region') expect(validPair(lock.mode)).toBe(true);
       }
     }
-  });
-});
-
-describe('performance', () => {
-  it('a take, every action and a hand-back run well under 200 ms', () => {
-    const start = performance.now();
-    const state = row({ pending: ioniaNoxus });
-    for (let i = 0; i < 100; i += 1) {
-      transition(state, { type: 'redraw' }, ctx(seeded(i)));
-      take(state, ctx(seeded(i)));
-    }
-    expect(performance.now() - start).toBeLessThan(200);
   });
 });

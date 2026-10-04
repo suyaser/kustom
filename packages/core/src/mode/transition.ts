@@ -26,6 +26,7 @@ import {
   type RegionPair,
   RULE_OPTIONS,
   type RuleOption,
+  ruleOf,
   type StandingModeId,
   sameRule,
   UNAFFILIATED,
@@ -279,14 +280,20 @@ export function take(row: ModeRow, context: TransitionContext): TakeResult {
 
 /**
  * Teams coming down, a remake or an ARAM record: the lock's rule (its pair as last locked) goes back
- * only if the row has no rule, its Rated only if the row's Rated is empty. A newer admin choice
- * always wins. Twice is the same as once.
+ * only if the row has no rule; its Rated only if the row's Rated is empty **and** the row's rule is
+ * still the lock's (or none, the lock's going back with it). A newer admin choice always wins, and a
+ * newer pick reset Rated to its own default. Twice is the same as once.
+ *
+ * Limit: on the no-draw path the rule stayed pending while the lock is the standing mode, which reads
+ * like a newer pick, so an explicit Rated moved there is not handed back (a default one is).
  */
 export function handBack(row: ModeRow, lock: ModeLock): RowPatch {
   const patch: RowPatch = {};
-  if (row.pending === null && lock.mode.id !== 'normal' && lock.mode.id !== 'fearless')
-    patch.pending = lock.mode;
-  if (row.rated === null && lock.rated !== null) patch.rated = lock.rated;
+  const rule = ruleOf(lock.mode);
+  if (row.pending === null && rule !== null) patch.pending = lock.mode as PendingRule;
+  // Rated belongs to the rule it was moved with: a newer pick (which resets Rated) keeps its own default.
+  const sameGame = row.pending === null || sameRule(ruleOf(row.pending), rule);
+  if (row.rated === null && lock.rated !== null && sameGame) patch.rated = lock.rated;
   return patch;
 }
 
@@ -328,14 +335,21 @@ export function recordGame(row: ModeRow, game: RecordInput): RecordResult {
       patch: rift ? {} : handBack(row, lock),
     };
   }
+  if (!rift) {
+    // A remake or ARAM never played the rule: it stays pending, and the game reads the standing mode.
+    return {
+      stamp: { standing: row.standing, mode: { id: row.standing }, rated: false, checked: false },
+      patch: {},
+    };
+  }
   const mode: Mode = row.pending ?? { id: row.standing };
   return {
     stamp: {
       standing: row.standing,
       mode,
-      rated: rift && nextRated(row),
-      checked: rift && row.pending !== null,
+      rated: nextRated(row),
+      checked: row.pending !== null,
     },
-    patch: rift ? { pending: null, rated: null } : {},
+    patch: { pending: null, rated: null },
   };
 }
