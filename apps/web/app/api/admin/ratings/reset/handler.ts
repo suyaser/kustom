@@ -8,6 +8,7 @@ import { resetGroupRatings } from '@/lib/admin/ratingsReset';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { invalidateGroup } from '@/lib/cache/tags';
+import { bumpGroupLive } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 
 /** [NEW COPY] The success notice. */
@@ -40,6 +41,8 @@ export async function handleRatingsReset(
   }
 
   invalidateGroup(context.groupId, ['stats', 'games']);
+  // Tonight's live signal (M19.9), after the reset, its audit row and its Discord post.
+  await bumpGroupLive(context.client, context.groupId, 'ratings');
   if (context.form) return redirectBack(context.request, back, { notice: RATINGS_RESET_DONE });
   return context.respond(
     ratingsResetResponseSchema,

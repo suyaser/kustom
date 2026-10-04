@@ -3,6 +3,7 @@ import { invalidateGroup } from '@/lib/cache/tags';
 import { readServerEnv, ServerEnvError } from '@/lib/env';
 import { jsonError, jsonOk } from '@/lib/http';
 import { runRebuildCron } from '@/lib/ingest/rebuildCron';
+import { flushLive, LiveChanges } from '@/lib/live/bump';
 import { getServiceClient } from '@/lib/supabase';
 
 // The Supabase service-role client and a shared secret: never edge, never cached.
@@ -51,11 +52,16 @@ export async function GET(request: Request): Promise<Response> {
   if (token !== secret) return jsonError(401, 'bad cron secret');
 
   try {
-    const groups = await runRebuildCron(getServiceClient(), {
+    const client = getServiceClient();
+    const live = new LiveChanges();
+    const groups = await runRebuildCron(client, {
       elapsedMs: () => Date.now() - started,
       startBudgetMs: START_BUDGET_MS,
+      live,
     });
     for (const group of groups) invalidateGroup(group.groupId, ['stats', 'games']);
+    // Tonight's live signal (M19.9): each group whose fold wrote, once, after every group's writes.
+    await flushLive(client, live);
     return jsonOk(rebuildCronResponseSchema, { ok: true, groups });
   } catch (error) {
     console.error('cron rebuild failed', error);

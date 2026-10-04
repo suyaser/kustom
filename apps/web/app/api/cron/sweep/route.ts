@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { readServerEnv, ServerEnvError } from '@/lib/env';
 import { jsonError, jsonOk } from '@/lib/http';
+import { flushLive, LiveChanges } from '@/lib/live/bump';
 import { sweepIdleLobbies } from '@/lib/lobbyState';
 import { getServiceClient } from '@/lib/supabase';
 
@@ -60,7 +61,11 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const swept = await sweepIdleLobbies(getServiceClient(), new Date());
+    const client = getServiceClient();
+    const live = new LiveChanges();
+    const swept = await sweepIdleLobbies(client, new Date(), live);
+    // Each group with a lobby swept hears it once, after the sweep's writes (M19.9).
+    await flushLive(client, live);
     return jsonOk(responseSchema, { ok: true, swept });
   } catch (error) {
     console.error('cron sweep failed', error);

@@ -3,6 +3,7 @@ import type { NextResponse } from 'next/server';
 // that queues `switch_side` (M4.1). A side-effect import, exactly as on the companion routes:
 // with this line removed the press still queues its `create_lobby` and nothing else happens.
 import '@/lib/commands/register';
+import { bumpGroupLive } from '@/lib/live/bump';
 import { openingOnPcLine, type StartLobbyOptions, startLobby } from '@/lib/lobbyStart';
 import { NOT_IN_THIS_GROUP, START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
 import { type MeContext, type MeRouteOptions, withViewerAuth } from '@/lib/me/route';
@@ -62,6 +63,10 @@ export async function handleStartLobby(
   // is the 303 with `?error=` for a form post and the envelope for JSON, so the words are the
   // route's own either way.
   if (!result.ok) return context.fail(result.status, result.error);
+
+  // Tonight's live signal (M19.9): the `create_lobby` command is queued, so every open Tonight of
+  // this group shows the lobby opening. The command row is this request's last write.
+  await bumpGroupLive(context.client, context.groupId, 'lobby');
 
   const value = result.value;
 

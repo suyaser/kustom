@@ -1,6 +1,7 @@
 import { type RoleTonightRequest, roleTonightRequestSchema, roleTonightResponseSchema } from '@customs/db';
 import { isAtLeast } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
+import { bumpGroupLive } from '@/lib/live/bump';
 import { NOT_IN_THIS_GROUP, ROLE_TAP_NOT_LINKED } from '@/lib/me/copy';
 import {
   type RoleTonightStore,
@@ -59,6 +60,8 @@ async function handle(
     { timeZone: nightTimeZone() },
   );
   if (!result.ok) return context.fail(result.status, result.error);
+  // Tonight's live signal (M19.9): the role landed on the player and the lobby row.
+  await bumpGroupLive(context.client, context.groupId, 'lobby');
 
   const { puuid, role, status } = result.value;
 

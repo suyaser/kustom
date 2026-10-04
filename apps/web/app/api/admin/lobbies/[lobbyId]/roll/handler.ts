@@ -12,6 +12,7 @@ import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth 
 import { safeNextPath } from '@/lib/authNext';
 import { readServerEnv } from '@/lib/env';
 import { lobbyInGroup } from '@/lib/groups/membership';
+import { bumpIfWrote } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type RollRequest, rollRequestSchema, rollResponseSchema } from './schema';
 
@@ -56,6 +57,9 @@ export async function handleRoll(
   }
 
   const { splitId, outcome } = result.value;
+  // Tonight's live signal (M19.9), after the split, the lock, the Discord post and the queued
+  // switch_side commands: the teams are up. `already_rolled` wrote nothing and says nothing.
+  await bumpIfWrote(context.client, context.groupId, 'split', outcome === 'rolled');
   const notice =
     outcome === 'rolled'
       ? 'Teams are up.'

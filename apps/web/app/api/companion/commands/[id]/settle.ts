@@ -11,6 +11,7 @@ import { ackCommand, nackCommand, readCommandForPlayer } from '@/lib/commands/qu
 import '@/lib/commands/register';
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
+import { bumpIfWrote } from '@/lib/live/bump';
 
 /**
  * The two ways a command ends (M4.1): `POST .../commands/{id}/ack` with the kind's result, and
@@ -33,6 +34,10 @@ import { jsonError, jsonOk } from '@/lib/http';
  * The id is curried in from the path segment by `route.ts`, as on `/api/admin/lobbies/[lobbyId]`.
  * It is checked inside the handler and not in the route, so the bearer token stays the first
  * gate: an unauthenticated caller learns nothing about this route's shape.
+ *
+ * A settled `create_lobby` is the end of Start a lobby's pending state, so it bumps the group's
+ * `group_live` row `lobby` as the request's last write (M19.9). The other kinds change nothing
+ * Tonight prints and bump nothing.
  */
 
 export function ackRoute(id: string): (request: Request) => Promise<NextResponse> {
@@ -46,6 +51,8 @@ export function ackRoute(id: string): (request: Request) => Promise<NextResponse
 
     const settled = await ackCommand(client, { row: found.row, result: body.result });
     if (!settled.ok) return jsonError(settled.status, settled.error);
+    // After the ack and the invites it fanned out (M19.9).
+    await bumpIfWrote(client, found.row.group_id, 'lobby', found.row.kind === 'create_lobby');
 
     return jsonOk(companionCommandAckResponseSchema, { ok: true });
   });
@@ -69,6 +76,7 @@ export function nackRoute(id: string): (request: Request) => Promise<NextRespons
       retryable: body.retryable,
     });
     if (!settled.ok) return jsonError(settled.status, settled.error);
+    await bumpIfWrote(client, found.row.group_id, 'lobby', found.row.kind === 'create_lobby');
 
     return jsonOk(companionCommandAckResponseSchema, { ok: true });
   });

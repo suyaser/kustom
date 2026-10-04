@@ -4,6 +4,7 @@ import { invalidateGroup } from '@/lib/cache/tags';
 import { joinGroup } from '@/lib/groups/invites';
 import { type SessionRouteOptions, withSession } from '@/lib/groups/sessionRoute';
 import { jsonError, jsonOk, parseJsonBody } from '@/lib/http';
+import { bumpIfWrote } from '@/lib/live/bump';
 
 /**
  * `POST /api/groups/join { code }` (M13.5): `Join <Group>` on `/join/<code>`, for a session that is
@@ -24,6 +25,8 @@ export function joinGroupRoute(options: SessionRouteOptions = {}) {
     if (!result.ok) return jsonError(result.status, result.error);
 
     invalidateGroup(result.value.group.id, ['roster']);
+    // Tonight's live signal (M19.9): only a join that made the membership.
+    await bumpIfWrote(client, result.value.group.id, 'roster', result.value.outcome === 'joined');
     return jsonOk(joinGroupResponseSchema, { ok: true, ...result.value });
   }, options);
 }

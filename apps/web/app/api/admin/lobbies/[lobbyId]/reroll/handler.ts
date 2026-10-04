@@ -4,6 +4,7 @@ import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth 
 import { safeNextPath } from '@/lib/authNext';
 import { postTeamsForSplit } from '@/lib/discord/post';
 import { lobbyInGroup } from '@/lib/groups/membership';
+import { bumpIfWrote } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type RerollRequest, rerollRequestSchema, rerollResponseSchema } from './schema';
 
@@ -51,6 +52,9 @@ export async function handleReroll(
   const outcome = promoted
     ? await postTeamsForSplit(context.client, splitId, { requestOrigin: siteOrigin(context.request) })
     : null;
+  // Tonight's live signal (M19.9), after the promotion and its Discord post (and the post's
+  // message-id write): another split is up. A second tap promoted nothing and says nothing.
+  await bumpIfWrote(context.client, context.groupId, 'split', promoted);
 
   const message = notice({ rank, splitCount, promoted, post: outcome === null ? null : outcome.status });
 

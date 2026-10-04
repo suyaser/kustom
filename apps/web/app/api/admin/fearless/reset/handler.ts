@@ -9,6 +9,7 @@ import {
   FEARLESS_RESET_SKIPPED,
 } from '@/lib/fearless/copy';
 import { resetFearless } from '@/lib/fearless/reset';
+import { bumpGroupLive } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type FearlessResetRequest, fearlessResetRequestSchema, fearlessResetResponseSchema } from './schema';
 
@@ -34,6 +35,8 @@ export async function handleFearlessReset(
     requestOrigin: siteOrigin(context.request),
     groupId: context.groupId,
   });
+  // Tonight's live signal (M19.9), after the reset and its Discord post: the card's pool emptied.
+  await bumpGroupLive(context.client, context.groupId, 'mode');
   const message = outcome.reason === FEARLESS_SKIPPED_NORMAL ? FEARLESS_RESET_NOTICE : notice(outcome.status);
 
   if (context.form) return redirectBack(context.request, back, { notice: message });

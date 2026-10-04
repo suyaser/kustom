@@ -4,6 +4,7 @@ import type { NextResponse } from 'next/server';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { readServerEnv } from '@/lib/env';
+import { bumpIfWrote } from '@/lib/live/bump';
 import { serverRng } from '@/lib/mode/rng';
 import {
   NOTHING_TO_SPIN,
@@ -112,6 +113,10 @@ export async function handleSetGroupMode(
       ? redirectBack(context.request, back, { error: refusal })
       : context.fail(409, refusal);
   }
+
+  // Tonight's live signal (M19.9), after the card's one write: a pick that changed nothing (the
+  // mode it already was) says nothing.
+  await bumpIfWrote(context.client, groupId, 'mode', result.changed);
 
   const next = nextGameOf(result.state);
   const notice =

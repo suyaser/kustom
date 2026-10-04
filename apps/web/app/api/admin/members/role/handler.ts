@@ -4,6 +4,7 @@ import { setMemberRole } from '@/lib/admin/members';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { invalidateGroup } from '@/lib/cache/tags';
+import { bumpIfWrote } from '@/lib/live/bump';
 import { type MemberRoleRequest, memberRoleRequestSchema, memberRoleResponseSchema } from './schema';
 
 /** The success notice for the role the member has now, and whether this press changed it. */
@@ -45,6 +46,8 @@ export async function handleMemberRole(
   const notice = changed ? ROLE_NOTICES[role].changed : ROLE_NOTICES[role].unchanged;
 
   invalidateGroup(context.groupId, ['admins']);
+  // Tonight's live signal (M19.9): only when the role moved.
+  await bumpIfWrote(context.client, context.groupId, 'roster', changed);
   if (context.form) return redirectBack(context.request, back, { notice });
 
   return context.respond(

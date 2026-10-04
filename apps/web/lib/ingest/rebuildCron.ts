@@ -1,8 +1,9 @@
 import type { RebuildCronGroup } from '@customs/db/schemas';
+import type { LiveChanges } from '../live/bump';
 import type { ServiceClient } from '../supabase';
 import { type FoldGatePlayer, gateRatedGame } from './fold';
 import { countsForRatings, readRatingsSince } from './ratingsEpoch';
-import { type RebuildResult, rebuildRatings } from './rebuild';
+import { type RebuildResult, rebuildRatings, rebuildWrote } from './rebuild';
 
 /**
  * The daily rebuild cron (M14.63; decision 2026-10-04): a backfilled game is stored unrated
@@ -140,6 +141,11 @@ export interface RebuildCronOptions {
   rebuild?: (client: ServiceClient, groupId: string) => Promise<RebuildResult>;
   /** Which groups are waiting. Tests only; defaults to {@link findGroupsWithUnratedBackfill}. */
   findPending?: (client: ServiceClient) => Promise<PendingGroup[]>;
+  /**
+   * The request's live signal (M19.9): every group whose fold wrote a row is touched `ratings`,
+   * and the route bumps them once each after the whole loop.
+   */
+  live?: LiveChanges;
 }
 
 /** One line per pending group, in the order they were folded. */
@@ -168,6 +174,7 @@ export async function runRebuildCron(
         if (options.elapsedMs() >= options.startBudgetMs) break;
         result = await rebuild(client, groupId);
       }
+      if (rebuildWrote(result)) options.live?.touch(groupId, 'ratings');
 
       if (result.ok) {
         // A data problem (the command's exit 1) does not undo the fold: it wrote. Named in the

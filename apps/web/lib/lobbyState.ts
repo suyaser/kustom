@@ -1,5 +1,6 @@
 import type { LobbyStatusValue } from '@customs/db';
 import { supersedeLobbyCommands } from './commands/queue';
+import type { LiveChanges } from './live/bump';
 import { assertLegalTransition, IDLE_ABANDON_MS, isTerminalLobbyStatus } from './lobbyRules';
 import type { ServiceClient } from './supabase';
 
@@ -138,7 +139,16 @@ export async function moveLobbyLogged(
  *
  * Returns how many lobbies were given up on, either way, for the log and for the cron route.
  */
-export async function sweepIdleLobbies(client: ServiceClient, now: Date = new Date()): Promise<number> {
+export async function sweepIdleLobbies(
+  client: ServiceClient,
+  now: Date = new Date(),
+  /**
+   * The request's live signal (M19.9): every group with a lobby swept is touched as `lobby`, so
+   * the route bumps it once at its end. The sweep crosses groups; a request that swept nothing
+   * touches nothing.
+   */
+  live?: LiveChanges,
+): Promise<number> {
   const cutoff = new Date(now.getTime() - IDLE_ABANDON_MS).toISOString();
 
   const { data, error } = await client
@@ -146,7 +156,7 @@ export async function sweepIdleLobbies(client: ServiceClient, now: Date = new Da
     .update({ status: 'abandoned' })
     .in('status', ['open', 'balanced'])
     .lt('updated_at', cutoff)
-    .select('id');
+    .select('id, group_id');
   if (error) throw new Error(`sweepIdleLobbies: ${error.message}`);
 
   const abandoned = (data ?? []).length;
@@ -165,7 +175,7 @@ export async function sweepIdleLobbies(client: ServiceClient, now: Date = new Da
     .update({ status: 'dropped' })
     .eq('status', 'in_game')
     .lt('updated_at', cutoff)
-    .select('id');
+    .select('id, group_id');
   if (stuckError) throw new Error(`sweepIdleLobbies: dropping stuck games failed: ${stuckError.message}`);
 
   const dropped = (stuck ?? []).length;
@@ -179,6 +189,8 @@ export async function sweepIdleLobbies(client: ServiceClient, now: Date = new Da
   for (const row of stuck ?? []) {
     await supersedeCommandsQuietly(client, row.id, 'dropped');
   }
+
+  for (const row of [...(data ?? []), ...(stuck ?? [])]) live?.touch(row.group_id, 'lobby');
 
   return abandoned + dropped;
 }
