@@ -1,9 +1,11 @@
 import type { Rating, Role } from '@customs/core';
 import { openSkillPair, type RatingInsert, type SideValue } from '@customs/db';
+import type { GamePlayerRatingsRow } from '@customs/db/schemas';
 import { invalidateGroup } from '../cache/tags';
 import { gameModeFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
+import { applyGamePlayerRatings } from './applyRatings';
 import {
   type FoldOutcome,
   type FoldRatedPlayer,
@@ -130,12 +132,14 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   // all-time track. It still folds on the weekly track (M18: a reset does not touch the week).
   if (!countsForRatings(game.startedAt, await readRatingsSince(client, game.groupId))) {
     const weekly = foldGameKustom(blueRows, redRows, { allTime: null, week }, game.winningSide);
-    let claimed = 0;
-    for (const row of [...rows].sort((a, b) => (a.playerId < b.playerId ? -1 : 1))) {
-      if (await writeWeekOnlyColumns(client, gameId, row.playerId, mustKustom(weekly, row.playerId))) {
-        claimed += 1;
-      }
-    }
+    // One call for the ten (0043), claimed the same way as a rated game: only rows rated on no
+    // track are written, so a second companion's post writes nothing.
+    const claimed = await applyGamePlayerRatings(
+      client,
+      game.groupId,
+      rows.map((row) => weekOnlyRow(gameId, row.playerId, mustKustom(weekly, row.playerId))),
+      { onlyUnrated: true },
+    );
     console.info(
       `rating: game ${gameId} not rated: it started before the group's ratings reset (weekly track: ${claimed} rows)`,
     );
@@ -210,36 +214,39 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   // column's `true`.
   const roleFlags = await roleInferenceFlags(client, game.lobbyId, rows);
 
-  // The claim is the null rating column, not a new column: whoever writes the first row owns
-  // the fold. Two companions post the same game and both requests get this far; the loser's
-  // update matches nothing and it stops here, having changed nothing.
+  // The claim is the null rating columns, not a new column: whoever writes the rows owns the fold.
+  // Two companions post the same game and both requests get this far; the ten rows go in **one
+  // statement** (0043, `p_only_unrated`), so the loser blocks on the winner's row locks, re-checks
+  // "rated on no track" against the winner's rows, matches nothing and stops here, having changed
+  // nothing. Before 0043 this was ten sequential claims, one request each.
   const ordered = [...rows].sort((a, b) => (a.playerId < b.playerId ? -1 : 1));
-  let claimed = 0;
-  for (const row of ordered) {
-    const wrote = await writeRatingColumns(
-      client,
-      gameId,
-      row.playerId,
-      {
-        before: mustGet(before, row.playerId),
-        outcome: mustOutcome(outcomes, row.playerId),
-        kustom: mustKustom(kustom, row.playerId),
-        // The count the settling chip reads, as it stood when this game was folded (0034).
-        ratedGamesBefore: stored.get(row.playerId)?.games ?? 0,
-      },
-      roleFlags.get(row.playerId) ?? true,
-    );
-    if (wrote) claimed += 1;
-    else if (claimed === 0) {
-      // The first row was already written: this game has been rated. Nothing else is touched,
-      // and `ratings.updated_at` does not move.
-      return { rated: false, reason: 'already-rated', claimed: 0 };
-    }
+  const claimed = await applyGamePlayerRatings(
+    client,
+    game.groupId,
+    ordered.map((row) =>
+      ratedRow(
+        gameId,
+        row.playerId,
+        {
+          before: mustGet(before, row.playerId),
+          outcome: mustOutcome(outcomes, row.playerId),
+          kustom: mustKustom(kustom, row.playerId),
+          // The count the settling chip reads, as it stood when this game was folded (0034).
+          ratedGamesBefore: stored.get(row.playerId)?.games ?? 0,
+        },
+        roleFlags.get(row.playerId) ?? true,
+      ),
+    ),
+    { onlyUnrated: true },
+  );
+  if (claimed === 0) {
+    // Already rated. Nothing else is touched, and `ratings.updated_at` does not move.
+    return { rated: false, reason: 'already-rated', claimed: 0 };
   }
 
   if (claimed !== PLAYERS_PER_GAME) {
-    // Between zero and ten is a crash scar: a request that died mid-fold. Say so loudly and
-    // leave the rest to the M5.2 rebuild rather than guessing.
+    // Between zero and ten is a crash scar left by a request before 0043 (the claim is one
+    // statement now). Say so loudly and leave the rest to the M5.2 rebuild rather than guessing.
     console.error(
       `rating: game ${gameId} claimed ${claimed} of ${PLAYERS_PER_GAME} rows; the rest were already written`,
     );
@@ -495,75 +502,64 @@ function kustomColumns(outcome: KustomFoldOutcome) {
 }
 
 /**
- * One row's four rating columns, the fold's breakdown (M14.58, `0034`: the side's odds, the base
- * `mu_after`, the award and the rated-games count), both Kustom tracks (M18.5, `0036`) and the role
- * guard, guarded by `mu_after is null` and `week_r_after is null`. `false` means somebody else has
- * already written it.
+ * One row's whole rating write for the claim (0043): the four OpenSkill columns, the fold's
+ * breakdown (M14.58, `0034`: the side's odds, the base `mu_after`, the award and the rated-games
+ * count), both Kustom tracks (M18.5, `0036`) and the role guard.
  *
  * **The Kustom columns are the rating** from M18 on: `fold_p` is the all-time Kustom expected for
  * the row's side and `award` the share ranks' MVP / ACE (the same two `mvpAce` names: one score,
  * one tie-break). The OpenSkill columns (`mu_*`, `sigma_*`, `base_mu_after`) are still written,
- * from the same game, so the readers M18.6 has not moved yet keep working and the rollback build
- * finds them filled; nothing new reads them.
+ * from the same game, so the rollback build finds them filled; nothing new reads them.
  *
  * `counts_for_role_inference` rides along with the claim rather than in a pass of its own, so
- * the row that lost the race writes neither and the winner writes both (M5.17).
+ * the request that lost the race writes neither and the winner writes both (M5.17).
  */
-async function writeRatingColumns(
-  client: ServiceClient,
+function ratedRow(
   gameId: string,
   playerId: string,
   ratings: { before: Rating; outcome: FoldOutcome; kustom: KustomFoldOutcome; ratedGamesBefore: number },
   countsForRoleInference: boolean,
-): Promise<boolean> {
+): GamePlayerRatingsRow {
   const allTime = ratings.kustom.allTime;
   if (allTime === null) throw new Error(`rating: game ${gameId} folded without its all-time track`);
-  const { data, error } = await client
-    .from('game_players')
-    .update({
-      mu_before: ratings.before.mu,
-      sigma_before: ratings.before.sigma,
-      mu_after: ratings.outcome.after.mu,
-      sigma_after: ratings.outcome.after.sigma,
-      base_mu_after: ratings.outcome.baseMuAfter,
-      fold_p: allTime.expected,
-      rated_games_before: ratings.ratedGamesBefore,
-      r_before: allTime.rBefore,
-      r_after: allTime.rAfter,
-      k: allTime.k,
-      ...kustomColumns(ratings.kustom),
-      counts_for_role_inference: countsForRoleInference,
-    })
-    .eq('game_id', gameId)
-    .eq('player_id', playerId)
-    .is('mu_after', null)
-    .is('week_r_after', null)
-    .select('player_id');
-  if (error) throw new Error(`rating: claim failed: ${error.message}`);
-  return (data ?? []).length > 0;
+  return {
+    game_id: gameId,
+    player_id: playerId,
+    mu_before: ratings.before.mu,
+    sigma_before: ratings.before.sigma,
+    mu_after: ratings.outcome.after.mu,
+    sigma_after: ratings.outcome.after.sigma,
+    base_mu_after: ratings.outcome.baseMuAfter,
+    fold_p: allTime.expected,
+    rated_games_before: ratings.ratedGamesBefore,
+    r_before: allTime.rBefore,
+    r_after: allTime.rAfter,
+    k: allTime.k,
+    ...kustomColumns(ratings.kustom),
+    counts_for_role_inference: countsForRoleInference,
+  };
 }
 
 /**
  * A game before the group's ratings reset, on the weekly track alone (M18.5; a legal 0036 row:
- * the weekly five, `share_rank` and `award`, no all-time column). Claimed the same way.
+ * the weekly five, `share_rank` and `award`, every all-time column null). Claimed the same way.
  */
-async function writeWeekOnlyColumns(
-  client: ServiceClient,
-  gameId: string,
-  playerId: string,
-  kustom: KustomFoldOutcome,
-): Promise<boolean> {
-  const { data, error } = await client
-    .from('game_players')
-    .update(kustomColumns(kustom))
-    .eq('game_id', gameId)
-    .eq('player_id', playerId)
-    .is('mu_after', null)
-    .is('r_after', null)
-    .is('week_r_after', null)
-    .select('player_id');
-  if (error) throw new Error(`rating: weekly claim failed: ${error.message}`);
-  return (data ?? []).length > 0;
+function weekOnlyRow(gameId: string, playerId: string, kustom: KustomFoldOutcome): GamePlayerRatingsRow {
+  return {
+    game_id: gameId,
+    player_id: playerId,
+    mu_before: null,
+    sigma_before: null,
+    mu_after: null,
+    sigma_after: null,
+    base_mu_after: null,
+    fold_p: null,
+    rated_games_before: null,
+    r_before: null,
+    r_after: null,
+    k: null,
+    ...kustomColumns(kustom),
+  };
 }
 
 /**

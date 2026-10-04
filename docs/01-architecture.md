@@ -403,9 +403,17 @@ on the same ten and the same performance scores (so one share rank, one MVP and 
   weekly five, `share_rank` and `award`, no all-time column), legal under 0036. Stored as `week_r_before`,
   `week_r_after`, `week_k`, `week_fold_p`, `week_games_before`; the current weekly Rating is derived, not stored.
 - **`share_rank`** (1..5, null when the game has no performance score) drives both tracks and is stored once.
-- **Claim.** The live fold writes a row only while `mu_after` and `week_r_after` are both null (a weekly-only
-  write also needs `r_after` null), so a second companion's post, or a repost of a game from before the switch,
-  changes nothing.
+- **Claim.** The live fold writes a row only while `mu_after`, `r_after` and `week_r_after` are all null, so a
+  second companion's post, or a repost of a game from before the switch, changes nothing. The ten rows go in one
+  call (0043, below), so two concurrent posts serialise on the row locks and the loser writes 0 rows.
+- **One writer (0043).** Every `game_players` rating write -- the live fold's claim, `rebuild-ratings` and the
+  daily cron's rebuild -- goes through `apply_game_player_ratings(p_group, p_rows, p_only_unrated)`
+  (`lib/ingest/applyRatings.ts`; row schema `gamePlayerRatingsRowSchema` in `@customs/db/schemas`): one statement,
+  so one transaction; every row carries all seventeen rating columns (a missing key is refused, so a track is
+  always written whole); rows whose stored values already match are skipped in the database (no Realtime event).
+  Security definer, `search_path ''`, service role only, `statement_timeout` 60 s. `p_only_unrated` true is the
+  claim, false the rebuild. Before 0043 the rebuild was one PATCH per moved row (finding 7 of
+  `redesign/research/db-performance.md`).
 - **The rebuild** reads every game of the group (not only those since the epoch), keeps an all-time state from
   1200 at the epoch and a weekly state emptied at every week boundary, keeps every pre-epoch row's all-time
   columns as stored (history), and writes only rows that moved (1e-9, `RATING_EPSILON`), so a second run changes
