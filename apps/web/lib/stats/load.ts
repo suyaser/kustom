@@ -33,7 +33,9 @@ import { type AwardWinners, awardWinners, NO_AWARD_WINNERS } from './winners';
  * and `game_players`, with a cap. No precomputed stats table and no materialised view:
  * precomputing would be a second thing that can disagree with `game_players`, and
  * `game_players` is the truth. If this page ever gets slow the fix is {@link STATS_MAX_GAMES},
- * not a cache table.
+ * not a cache table. (The Stats pages do keep the *answer* in Next's data cache per group,
+ * `lib/stats/cached.ts`, expired by every writer; that is a copy of this file's output, never a
+ * second source of a number.)
  *
  * Nothing here decides a number. The arithmetic is `fold.ts` and `awards.ts`, which are pure
  * and tested against a fixture; this file reads rows and hands them over.
@@ -59,6 +61,12 @@ export interface StatsOptions {
   window: WindowKind;
   /** Injected in tests; `new Date()` otherwise. The boundaries are `lib/night.ts`'s (M5.9). */
   now?: Date;
+  /**
+   * The window's bounds, already computed: the Stats cache (`lib/stats/cached.ts`) keys an entry by
+   * them and passes them back, so the read is exactly the window the key names even when the
+   * week rolls over between the two. Absent, they are `windowRange(window, now, timeZone)`.
+   */
+  range?: WindowRange | undefined;
   timeZone?: string;
   /** Lowered by the cap test. Production is {@link STATS_MAX_GAMES}. */
   maxGames?: number;
@@ -94,7 +102,7 @@ export async function loadFunFacts(client: PublicClient, options: StatsOptions):
    * this page and on no other. `/stats`, `/games` and `/p/[puuid]` make exactly the reads they
    * made before.
    */
-  const read = await readWindow(client, options, { withGameMode: true, withOdds: true });
+  const read = await readWindow(client, options, { withRawFacts: true, withOdds: true });
   const games = read.games.filter((game) => matchesQueue(game.gameMode, queue));
   return assembleFunFacts({ ...read, games }, queue);
 }
@@ -116,7 +124,8 @@ export async function loadGamesHistory(
   client: PublicClient,
   options: StatsOptions,
 ): Promise<GamesHistoryView> {
-  const read = await readWindow(client, options, { withGameMode: true });
+  // The cards' champion names and display roles read the raw facts (`historyGameOf`).
+  const read = await readWindow(client, options, { withRawFacts: true });
   return gamesHistoryView({
     ...read,
     focusPuuid: options.focusPuuid,
@@ -145,7 +154,7 @@ export async function loadRecordsSegment(
   options: StatsOptions,
 ): Promise<{ stats: StatsView; fun: FunFactsView }> {
   const queue = options.queue ?? GAMES_QUEUE;
-  const read = await readWindow(client, options, { withGameMode: true, withOdds: true });
+  const read = await readWindow(client, options, { withRawFacts: true, withOdds: true });
   return {
     stats: statsView({ ...read, awardRender: options.awardRender }),
     fun: assembleFunFacts(
@@ -159,11 +168,15 @@ export async function loadRecordsSegment(
  * Stats → 1v1 (M14.17): lane wars and Pick two (`versusView`, Rift only), and the one duos block:
  * best and worst together from `/stats`' `duoRecords` (every map, as before) and nemesis from
  * `/fun`'s fold over the Rift games. One read.
+ *
+ * **No raw facts.** None of the three reads `games.raw` past the mode (lane wars and duos are
+ * `game_players`; nemesis is wins and losses), so this asks for `raw->gameMode` only, and `fun` is
+ * the rivals block alone: the rest of `/fun` would be computed over facts this read never had.
  */
 export async function loadVersusSegment(
   client: PublicClient,
   options: StatsOptions,
-): Promise<{ versus: VersusView; stats: StatsView; fun: FunFactsView }> {
+): Promise<{ versus: VersusView; stats: StatsView; fun: Pick<FunFactsView, 'rivals'> }> {
   const read = await readWindow(client, options, { withGameMode: true });
   const rift = read.games.filter((game) => matchesQueue(game.gameMode, 'sr'));
   return {
@@ -173,7 +186,7 @@ export async function loadVersusSegment(
       ...(options.rightPuuid === undefined ? {} : { rightPuuid: options.rightPuuid }),
     }),
     stats: statsView(read),
-    fun: assembleFunFacts({ ...read, games: rift }, 'sr'),
+    fun: { rivals: assembleFunFacts({ ...read, games: rift }, 'sr').rivals },
   };
 }
 
@@ -275,11 +288,11 @@ export async function loadAwardWinners(client: PublicClient, options: StatsOptio
 async function readWindow(
   client: PublicClient,
   options: StatsOptions,
-  extras: { withGameMode?: boolean; withOdds?: boolean } = {},
+  extras: ReadExtras = {},
 ): Promise<WindowRead> {
   const window = options.window;
   const cap = options.maxGames ?? STATS_MAX_GAMES;
-  const range = windowRange(window, options.now ?? new Date(), options.timeZone);
+  const range = options.range ?? windowRange(window, options.now ?? new Date(), options.timeZone);
 
   /**
    * **One extra row is the cap detector.** Reading `cap + 1` games says "there are more than the
@@ -289,28 +302,31 @@ async function readWindow(
   const read = await loadGames(client, range, cap + 1, { ...extras, groupId: options.groupId });
   const capped = read.length > cap;
   const newest = capped ? read.slice(0, cap) : read;
-  const rows = await loadGameRows(
-    client,
-    newest.map((game) => game.id),
-  );
+  /**
+   * The scoreboards and the posted odds both hang off the games alone, so they are read side by
+   * side (one round, not two), and the people after the scoreboards that name them.
+   *
+   * The chance the balancer posted on the night, per lobby (M8.2), and only for the page that
+   * prints it. A game with no `lobby_id` — every backfilled custom — asks for nothing and gets
+   * nothing; the map simply has no entry and the section counts one fewer game.
+   */
+  const [rows, odds] = await Promise.all([
+    loadGameRows(
+      client,
+      newest.map((game) => game.id),
+    ),
+    extras.withOdds === true
+      ? loadChosenWinProbs(
+          client,
+          newest.map((game) => game.lobbyId).filter((id): id is string => id !== null),
+        )
+      : Promise.resolve(new Map<string, number>()),
+  ]);
   const players = await loadPlayers(
     client,
     rows.map((row) => row.playerId),
   );
   const roster = new Map(players.map((player) => [player.playerId, player]));
-
-  /**
-   * The chance the balancer posted on the night, per lobby (M8.2), and only for the page that
-   * prints it. A game with no `lobby_id` — every backfilled custom — asks for nothing and gets
-   * nothing; the map simply has no entry and the section counts one fewer game.
-   */
-  const odds =
-    extras.withOdds === true
-      ? await loadChosenWinProbs(
-          client,
-          newest.map((game) => game.lobbyId).filter((id): id is string => id !== null),
-        )
-      : new Map<string, number>();
 
   const byGame = new Map<string, StatsRow[]>();
   for (const row of rows) {
@@ -353,6 +369,30 @@ async function readWindow(
 /** What one window's read comes back with, before anything counts it. */
 type WindowRead = Omit<StatsInput, 'awardRender'>;
 
+/**
+ * What a read takes from `games.raw`, which is the whole end-of-game block (about 60 KB a game):
+ *
+ * - nothing (`/stats`' fold, the board, the player page);
+ * - `withGameMode`: `raw->gameMode` alone, for a caller that only drops ARAM and Kiwi;
+ * - `withRawFacts`: the mode plus the three keys `rawFactsFromUnknown` reads (`teams`,
+ *   `participants`, `participantIdentities`), for `/fun`'s records and the `/games` cards.
+ *
+ * Never the whole column: no reader needs `localPlayer` or the block's other top-level keys.
+ */
+interface ReadExtras {
+  withGameMode?: boolean;
+  withRawFacts?: boolean;
+  withOdds?: boolean;
+}
+
+/** The raw block's paths a read selects: what {@link ReadExtras} asked for. */
+type RawShape = 'none' | 'mode' | 'facts';
+
+function rawShapeOf(extras: ReadExtras): RawShape {
+  if (extras.withRawFacts === true) return 'facts';
+  return extras.withGameMode === true ? 'mode' : 'none';
+}
+
 interface GameRow {
   id: string;
   startedAt: string;
@@ -366,8 +406,9 @@ interface GameRow {
    * (M8.2); it never reaches {@link StatsGame}.
    */
   lobbyId: string | null;
-  /** Set only when `/games` or `/fun` asked for it. `/stats` never selects `raw`. */
+  /** Set only when the read asked for the mode (or the facts). `/stats` never selects `raw`. */
   gameMode?: string | null;
+  /** Set only when the read asked for the facts. */
   rawFacts?: RawGameFacts | null;
 }
 
@@ -381,15 +422,14 @@ async function loadGames(
   client: PublicClient,
   range: WindowRange,
   limit: number,
-  extras: { withGameMode?: boolean; groupId?: string | undefined } = {},
+  extras: ReadExtras & { groupId?: string | undefined } = {},
 ): Promise<GameRow[]> {
   const games: GameRow[] = [];
+  const shape = rawShapeOf(extras);
 
   for (let from = 0; from < limit; from += PAGE_SIZE) {
     const to = Math.min(from + PAGE_SIZE, limit) - 1;
-    const page = extras.withGameMode
-      ? await loadGamePage(client, range, from, to, true, extras.groupId)
-      : await loadGamePage(client, range, from, to, false, extras.groupId);
+    const page = await loadGamePage(client, range, from, to, shape, extras.groupId);
     games.push(...page);
     if (page.length < to - from + 1) break;
   }
@@ -398,21 +438,24 @@ async function loadGames(
 }
 
 /**
- * Two literal `select` strings so PostgREST's client can type the row. A concatenated
- * column list is a `ParserError` and `/stats` must not pull `raw`.
+ * Three literal `select` strings so PostgREST's client can type the row. A concatenated column
+ * list is a `ParserError`. The raw block is read by **JSON path** (`raw->gameMode`, ...), never as
+ * the column, and `/stats` reads none of it.
  */
 async function loadGamePage(
   client: PublicClient,
   range: WindowRange,
   from: number,
   to: number,
-  withGameMode: boolean,
+  shape: RawShape,
   groupId?: string | undefined,
 ): Promise<GameRow[]> {
-  if (withGameMode) {
+  if (shape === 'facts') {
     let query = client
       .from('games')
-      .select('id, started_at, duration_s, winning_side, lcu_game_id, lobby_id, raw')
+      .select(
+        'id, started_at, duration_s, winning_side, lcu_game_id, lobby_id, gameMode:raw->gameMode, teams:raw->teams, participants:raw->participants, participantIdentities:raw->participantIdentities',
+      )
       .order('started_at', { ascending: false })
       .order('lcu_game_id', { ascending: false })
       .range(from, to);
@@ -420,7 +463,21 @@ async function loadGamePage(
     if (groupId !== undefined) query = query.eq('group_id', groupId);
     const { data, error } = await query;
     if (error) throw new Error(`stats: game lookup failed: ${error.message}`);
-    return toGameRows(data ?? [], true);
+    return toGameRows(data ?? [], 'facts');
+  }
+
+  if (shape === 'mode') {
+    let query = client
+      .from('games')
+      .select('id, started_at, duration_s, winning_side, lcu_game_id, lobby_id, gameMode:raw->gameMode')
+      .order('started_at', { ascending: false })
+      .order('lcu_game_id', { ascending: false })
+      .range(from, to);
+    query = withRange(query, 'started_at', range);
+    if (groupId !== undefined) query = query.eq('group_id', groupId);
+    const { data, error } = await query;
+    if (error) throw new Error(`stats: game lookup failed: ${error.message}`);
+    return toGameRows(data ?? [], 'mode');
   }
 
   let query = client
@@ -433,7 +490,27 @@ async function loadGamePage(
   if (groupId !== undefined) query = query.eq('group_id', groupId);
   const { data, error } = await query;
   if (error) throw new Error(`stats: game lookup failed: ${error.message}`);
-  return toGameRows(data ?? [], false);
+  return toGameRows(data ?? [], 'none');
+}
+
+/**
+ * The selected paths put back into the shape the two readers take (`gameModeFromRaw`,
+ * `rawFactsFromUnknown`), which read only these four keys. A missing key, or a `raw` that is
+ * null or not an object, comes back from PostgREST as `null` on every path, and both readers
+ * treat a null key exactly as they treat a missing one or a missing column: no mode, no facts.
+ */
+export function rawFromPaths(row: {
+  gameMode?: unknown;
+  teams?: unknown;
+  participants?: unknown;
+  participantIdentities?: unknown;
+}): Record<string, unknown> {
+  return {
+    gameMode: row.gameMode ?? null,
+    teams: row.teams ?? null,
+    participants: row.participants ?? null,
+    participantIdentities: row.participantIdentities ?? null,
+  };
 }
 
 function toGameRows(
@@ -444,13 +521,17 @@ function toGameRows(
     duration_s: number;
     winning_side: number | null;
     lobby_id: string | null;
-    raw?: unknown;
+    gameMode?: unknown;
+    teams?: unknown;
+    participants?: unknown;
+    participantIdentities?: unknown;
   }[],
-  withGameMode: boolean,
+  shape: RawShape,
 ): GameRow[] {
   const games: GameRow[] = [];
   for (const row of page) {
     if (row.winning_side !== 100 && row.winning_side !== 200) continue;
+    const raw = shape === 'none' ? null : rawFromPaths(row);
     games.push({
       id: row.id,
       startedAt: row.started_at,
@@ -458,7 +539,8 @@ function toGameRows(
       durationS: row.duration_s,
       winningSide: row.winning_side,
       lobbyId: row.lobby_id,
-      ...(withGameMode ? { gameMode: gameModeFromRaw(row.raw), rawFacts: rawFactsFromUnknown(row.raw) } : {}),
+      ...(shape === 'none' ? {} : { gameMode: gameModeFromRaw(raw) }),
+      ...(shape === 'facts' ? { rawFacts: rawFactsFromUnknown(raw) } : {}),
     });
   }
   return games;
@@ -487,7 +569,8 @@ interface ScoreboardRow {
 async function loadGameRows(client: PublicClient, gameIds: readonly string[]): Promise<ScoreboardRow[]> {
   const rows: ScoreboardRow[] = [];
 
-  for (const chunk of inChunks(gameIds)) {
+  // Side by side, a few at a time, and appended in chunk order (the sequential loop's order).
+  const pages = await inParallel(inChunks(gameIds), async (chunk) => {
     const { data, error } = await client
       .from('game_players')
       .select(
@@ -495,8 +578,11 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
       )
       .in('game_id', chunk);
     if (error) throw new Error(`stats: game player lookup failed: ${error.message}`);
+    return data ?? [];
+  });
 
-    for (const row of data ?? []) {
+  for (const data of pages) {
+    for (const row of data) {
       rows.push({
         gameId: row.game_id,
         playerId: row.player_id,
@@ -542,15 +628,18 @@ async function loadChosenWinProbs(
   const odds = new Map<string, number>();
   if (lobbyIds.length === 0) return odds;
 
-  for (const chunk of inChunks(lobbyIds)) {
+  const pages = await inParallel(inChunks(lobbyIds), async (chunk) => {
     const { data, error } = await client
       .from('splits')
       .select('lobby_id, blue_win_prob')
       .in('lobby_id', chunk)
       .eq('is_chosen', true);
     if (error) throw new Error(`stats: split lookup failed: ${error.message}`);
+    return data ?? [];
+  });
 
-    for (const row of data ?? []) {
+  for (const data of pages) {
+    for (const row of data) {
       if (row.blue_win_prob === null) continue;
       odds.set(row.lobby_id, row.blue_win_prob);
     }
@@ -568,14 +657,17 @@ async function loadChosenWinProbs(
 async function loadPlayers(client: PublicClient, playerIds: readonly string[]): Promise<StatsPlayer[]> {
   const players: StatsPlayer[] = [];
 
-  for (const chunk of inChunks(playerIds)) {
+  const pages = await inParallel(inChunks(playerIds), async (chunk) => {
     const { data, error } = await client
       .from('players_public')
       .select('id, puuid, display_name, game_name, main_role')
       .in('id', chunk);
     if (error) throw new Error(`stats: player lookup failed: ${error.message}`);
+    return data ?? [];
+  });
 
-    for (const row of data ?? []) {
+  for (const data of pages) {
+    for (const row of data) {
       if (row.id === null || row.puuid === null) continue;
       players.push({
         playerId: row.id,
@@ -603,4 +695,33 @@ function withRange<Q extends { gte(column: string, value: string): Q; lt(column:
   if (range.start !== null) next = next.gte(column, range.start.toISOString());
   if (range.end !== null) next = next.lt(column, range.end.toISOString());
   return next;
+}
+
+/**
+ * How many chunk reads one loader keeps in flight. A 2,000-game window is 23 scoreboard chunks;
+ * all at once would be a burst on the shared PostgREST pool for one page view.
+ */
+const CHUNK_CONCURRENCY = 6;
+
+/**
+ * `work` over every item, at most {@link CHUNK_CONCURRENCY} at a time, answers in item order (so
+ * the rows come back in the order the old one-after-another loops appended them). The first
+ * failure rejects, as the loops' first throw did.
+ */
+export async function inParallel<T, R>(
+  items: readonly T[],
+  work: (item: T) => Promise<R>,
+  limit: number = CHUNK_CONCURRENCY,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await work(items[index] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
+  return results;
 }

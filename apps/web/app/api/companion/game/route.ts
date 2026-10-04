@@ -6,6 +6,7 @@ import {
   NO_WINNING_TEAM_MESSAGE,
 } from '@customs/db/schemas';
 import { scheduleGameLine } from '@/lib/ai/afterIngest';
+import { expireGroupTag } from '@/lib/cache/tags';
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import {
@@ -185,6 +186,8 @@ export const POST = withCompanionAuth(
       : result.foreignDuplicate
         ? FOREIGN_DUPLICATE_NOT_RATED
         : await rateStoredGame(client, result.gameId);
+    // The group's Stats cache: a game stored, rated, renamed or given its bans changes them.
+    if (!result.foreignDuplicate) expireGroupTag('stats', result.groupId);
 
     // A lobby that is already `finished` (the second companion's post) or that the sweep
     // abandoned between resolving it and here claims nothing and says so in the log.

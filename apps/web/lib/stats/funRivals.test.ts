@@ -130,7 +130,9 @@ describe('nemesis', () => {
       ...Array.from({ length: 4 }, () => 'Won'),
       ...Array.from({ length: 6 }, () => 'Lost'),
     ]);
-    const days = yuki?.openings.map((opening) => opening.game.startedAt) ?? [];
+    const startedAt = new Map(games.map((game) => [game.id, game.startedAt]));
+    const days = yuki?.openings.map((opening) => startedAt.get(opening.game.id) ?? '') ?? [];
+    expect(days.every((day) => day !== '')).toBe(true);
     expect([...days].sort().reverse()).toEqual(days);
   });
 
