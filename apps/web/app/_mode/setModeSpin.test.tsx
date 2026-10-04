@@ -1,0 +1,205 @@
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
+import { MODE_CHANGE_FAILED, SET_MODE } from '@/lib/mode/copy';
+import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
+import { SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
+import { ModeControls, type ModeControlsProps } from './ModeControls';
+
+/**
+ * Set mode and Spin answer at once (QA fix 2026-10-04, the Rated switch's pattern).
+ *
+ * Both used to move only when the whole Tonight page had been re-read (`router.refresh`): until
+ * then `Set mode` stayed on screen and a second tap posted the same choice again, and Spin was
+ * live again the moment its post answered, so a double tap during the reveal spun twice. The
+ * tests never re-render with new props after a tap unless they say so (the delayed refresh).
+ */
+
+const PROPS: ModeControlsProps = {
+  groupId: ORIGINAL_GROUP.id,
+  mode: 'fearless',
+  banned: 0,
+  inGame: false,
+  redirectTo: '/g/customs',
+  resetConfirmHref: '/g/customs/mode/reset',
+  selected: 'fearless',
+  nextRated: true,
+  version: 4,
+};
+
+function answer(
+  next: { rule: string | null; rated: boolean; version: number; standing?: string },
+  spun?: string,
+) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      ok: true,
+      mode: next.standing ?? 'fearless',
+      changed: true,
+      next: {
+        standing: next.standing ?? 'fearless',
+        rule: next.rule,
+        rated: next.rated,
+        ratedOverride: null,
+        version: next.version,
+      },
+      ...(spun === undefined ? {} : { spun }),
+    }),
+  } as Response;
+}
+
+/** A fetch whose answers the test releases one at a time. */
+function heldFetch() {
+  const pending: ((response: Response) => void)[] = [];
+  const mock = vi.fn(() => new Promise<Response>((resolve) => pending.push(resolve)));
+  return {
+    mock,
+    async release(response: Response) {
+      await act(async () => {
+        pending.shift()?.(response);
+      });
+    },
+  };
+}
+
+const bodies = (mock: ReturnType<typeof vi.fn>) =>
+  mock.mock.calls.map((call) => JSON.parse(String((call as unknown as [string, RequestInit])[1].body)));
+
+const select = () => screen.getByRole('combobox', { name: 'Mode' }) as HTMLSelectElement;
+const setButton = () => screen.queryByRole('button', { name: SET_MODE });
+const spinButton = () => screen.getByRole('button', { name: /^Spin/ });
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+describe('Set mode answers on its own', () => {
+  it('the button goes away once the choice is confirmed, and cannot post it again before the re-read', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    expect(setButton()).toBeNull();
+
+    fireEvent.change(select(), { target: { value: 'class:Tank' } });
+    fireEvent.click(setButton() as HTMLElement);
+    // A second tap while it is in flight is ignored.
+    fireEvent.submit(select().form as HTMLFormElement);
+    expect(net.mock).toHaveBeenCalledTimes(1);
+    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
+
+    // The page has not re-read (still `selected: fearless`, version 4): the choice stands anyway.
+    expect(setButton()).toBeNull();
+    expect(select().value).toBe('class:Tank');
+    expect(screen.getByRole('status')).toHaveTextContent('Next game: Class wars, tanks only. Not rated.');
+    fireEvent.submit(select().form as HTMLFormElement);
+    expect(bodies(net.mock)).toEqual([{ groupId: ORIGINAL_GROUP.id, mode: 'class:Tank' }]);
+  });
+
+  it('the Rated switch takes the route answer with it (a rule resets it to the rule default)', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    expect(screen.getByRole('switch', { name: 'Rated' })).toHaveAccessibleDescription(RATED_ON);
+    fireEvent.change(select(), { target: { value: 'class:Tank' } });
+    fireEvent.click(setButton() as HTMLElement);
+    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
+    expect(screen.getByRole('switch', { name: 'Rated' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('switch', { name: 'Rated' })).toHaveAccessibleDescription(RATED_OFF);
+  });
+
+  it('an older re-read does not move the select back; a newer one (another admin) is taken', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    const { rerender } = render(<ModeControls {...PROPS} />);
+    fireEvent.change(select(), { target: { value: 'normal' } });
+    fireEvent.click(setButton() as HTMLElement);
+    await net.release(answer({ rule: null, rated: true, version: 5, standing: 'normal' }));
+    rerender(<ModeControls {...PROPS} selected="fearless" version={4} />);
+    expect(select().value).toBe('normal');
+    expect(setButton()).toBeNull();
+    rerender(<ModeControls {...PROPS} mode="normal" selected="normal" version={5} />);
+    expect(select().value).toBe('normal');
+    rerender(<ModeControls {...PROPS} mode="normal" selected="class:Mage" version={6} />);
+    expect(select().value).toBe('class:Mage');
+    expect(setButton()).toBeNull();
+  });
+
+  it('a failure says so and puts the select back on the confirmed value', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.change(select(), { target: { value: 'mirror' } });
+    fireEvent.click(setButton() as HTMLElement);
+    await net.release({ ok: false, status: 500, json: async () => ({}) } as Response);
+    expect(screen.getByRole('alert')).toHaveTextContent(MODE_CHANGE_FAILED);
+    expect(select().value).toBe('fearless');
+    expect(setButton()).toBeNull();
+  });
+});
+
+describe('Spin is quiet during its own reveal', () => {
+  it('a double tap after the answer never spins twice; it frees once the page has it and the reveal cycled', async () => {
+    vi.useFakeTimers();
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    const reveals: unknown[] = [];
+    const onReveal = (event: Event) => reveals.push((event as CustomEvent).detail);
+    window.addEventListener(SPIN_REVEAL_EVENT, onReveal);
+    const { rerender } = render(<ModeControls {...PROPS} />);
+
+    fireEvent.click(spinButton());
+    fireEvent.click(spinButton());
+    expect(net.mock).toHaveBeenCalledTimes(1);
+    await net.release(answer({ rule: 'class:Mage', rated: false, version: 5 }, 'class:Mage'));
+    expect(reveals).toEqual([{ rule: 'class:Mage', source: 'local' }]);
+    // Answered, but the reveal has not played: still quiet, and a tap posts nothing.
+    expect(spinButton()).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(spinButton());
+    expect(net.mock).toHaveBeenCalledTimes(1);
+    // The select already shows the spin.
+    expect(select().value).toBe('class:Mage');
+
+    // The page re-reads the spin; the reveal cycles; then Spin is back.
+    rerender(<ModeControls {...PROPS} selected="class:Mage" version={5} />);
+    await act(async () => {
+      vi.advanceTimersByTime(SPIN_CYCLE_MS - 1);
+    });
+    expect(spinButton()).toHaveAttribute('aria-disabled', 'true');
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(spinButton()).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(spinButton());
+    expect(net.mock).toHaveBeenCalledTimes(2);
+    window.removeEventListener(SPIN_REVEAL_EVENT, onReveal);
+  });
+
+  it('a page that never re-reads still frees Spin after the reveal wait', async () => {
+    vi.useFakeTimers();
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.click(spinButton());
+    await net.release(answer({ rule: 'region', rated: false, version: 5 }, 'region'));
+    await act(async () => {
+      vi.advanceTimersByTime(SPIN_WAIT_MS);
+    });
+    expect(spinButton()).toHaveAttribute('aria-disabled', 'true');
+    await act(async () => {
+      vi.advanceTimersByTime(SPIN_CYCLE_MS);
+    });
+    expect(spinButton()).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('a refused Spin (nothing to spin) is free at once', async () => {
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.click(spinButton());
+    await net.release({ ok: false, status: 409, json: async () => ({}) } as Response);
+    expect(spinButton()).not.toHaveAttribute('aria-disabled');
+  });
+});
