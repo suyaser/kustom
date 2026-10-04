@@ -1,4 +1,5 @@
 import type { Split } from '@customs/core';
+import type { LobbyKickoff } from '@customs/db/schemas';
 import type { PoolMember, SeatMove } from './selection';
 
 /**
@@ -68,8 +69,24 @@ export interface GameFinishedEvent {
   requestOrigin?: string | null;
 }
 
+/**
+ * A lobby's kickoff record was just written (M21.4): the game started and these are the teams
+ * playing. Fired once per game, by the one `in_progress` post whose conditional write landed
+ * (`writeKickoffAtStart`), so a retry or a second companion fires nothing (M21.6).
+ */
+export interface LobbyStartedEvent {
+  lobbyId: string;
+  /** The lobby's group: whose channel hears about it. */
+  groupId: string;
+  /** The record as written: kind, the two teams and, for `custom` / `unrolled`, Kustom's odds. */
+  kickoff: LobbyKickoff;
+  /** As on {@link LobbyBalancedEvent}: the triggering request's origin, for the embed `url`. */
+  requestOrigin?: string | null;
+}
+
 export interface LobbyHook {
   onBalanced?: (event: LobbyBalancedEvent) => void | Promise<void>;
+  onStarted?: (event: LobbyStartedEvent) => void | Promise<void>;
   onFinished?: (event: GameFinishedEvent) => void | Promise<void>;
 }
 
@@ -105,6 +122,10 @@ async function emit<E>(
 
 export function emitLobbyBalanced(event: LobbyBalancedEvent): Promise<void> {
   return emit(event, (hook) => hook.onBalanced, 'onBalanced');
+}
+
+export function emitLobbyStarted(event: LobbyStartedEvent): Promise<void> {
+  return emit(event, (hook) => hook.onStarted, 'onStarted');
 }
 
 export function emitGameFinished(event: GameFinishedEvent): Promise<void> {

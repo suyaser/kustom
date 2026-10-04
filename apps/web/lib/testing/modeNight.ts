@@ -78,6 +78,15 @@ export function titleOf(post: Post | undefined): string {
   return embed?.title ?? '';
 }
 
+/**
+ * The `Game on` post (M21.6). These fixture nights start their games on the lobby's posted sides,
+ * not the roll's, so each start is a `custom` kickoff and posts one; the mode suites are about
+ * the rule lines and leave it out of what they count (`gameOn.integration.test.ts` owns it).
+ */
+export function isGameOnPost(post: Post | undefined): boolean {
+  return titleOf(post).startsWith('Game on');
+}
+
 export interface EogOptions {
   /** The detected position per seat (blue then red), overriding the split's roles; null is none. */
   roles?: readonly (string | null)[];
@@ -415,7 +424,8 @@ export async function modeNight(stack: LocalStack, key: string) {
       const chunks: Buffer[] = [];
       incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
       incoming.on('end', () => {
-        state.posts.push(JSON.parse(Buffer.concat(chunks).toString('utf8')) as Post);
+        const post = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Post;
+        if (!isGameOnPost(post)) state.posts.push(post);
         response.writeHead(204).end();
       });
     });

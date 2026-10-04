@@ -6,11 +6,13 @@ import {
   kickoffRowOf,
   type LobbyKickoff,
 } from '@customs/db/schemas';
+import { afterResponse, type Scheduler } from '../afterResponse';
 import { readAssignments } from '../discord/assemble';
 import { splitSidesOf } from '../games/receipt';
 import type { ServiceClient } from '../supabase';
 import { selectRatings } from './balance';
 import { KUSTOM_FRESH } from './fold';
+import { emitLobbyStarted } from './hooks';
 
 /**
  * The kickoff record (M21.4, `0046_lobby_kickoff.sql`; decision rows M21 D1 and 2026-10-05): the
@@ -106,10 +108,22 @@ export type KickoffOutcome =
  * `lockLobbyAtStart`: the update only lands on `status = 'in_game' and kickoff_kind is null`, so a
  * retry (whose move found the lobby already `in_game`) finishes a write a 500 cut short, and a
  * second companion writes nothing. `onWrite` runs only when this call wrote (the live signal).
+ *
+ * The write is also the `Game on` post's claim (M21.6): only the call that wrote announces the
+ * kickoff through `hooks.ts` (`emitLobbyStarted`), so a retry or a second companion sends nothing.
+ * The announcement runs after the response (`afterResponse`, Next's `after()`), so a slow Discord
+ * never delays the `in_progress` answer or the route's `group_live` flush. It never throws into the
+ * request (a Discord failure is a log line), and it is never retried. `schedule` is for tests.
  */
 export async function writeKickoffAtStart(
   client: ServiceClient,
-  input: { lobbyId: string; now: Date; onWrite?: () => void },
+  input: {
+    lobbyId: string;
+    now: Date;
+    onWrite?: () => void;
+    requestOrigin?: string | null;
+    schedule?: Scheduler;
+  },
 ): Promise<KickoffOutcome> {
   const { data: lobby, error: lobbyError } = await client
     .from('lobbies')
@@ -178,6 +192,13 @@ export async function writeKickoffAtStart(
   if (error) throw new Error(`kickoff: lobby write failed: ${error.message}`);
   if ((data ?? []).length === 0) return { outcome: 'lost-race' };
   input.onWrite?.();
+  const started = {
+    lobbyId: input.lobbyId,
+    groupId: lobby.group_id,
+    kickoff: record,
+    requestOrigin: input.requestOrigin ?? null,
+  };
+  (input.schedule ?? afterResponse)(() => emitLobbyStarted(started));
   return { outcome: 'written', record };
 }
 

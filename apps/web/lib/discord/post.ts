@@ -5,8 +5,9 @@ import { loadBoard } from '../board/load';
 import type { BoardRow, BoardView, RatingTrack } from '../board/types';
 import { LEADERBOARD_WINDOW } from '../board/window';
 import { loadFearless } from '../fearless/load';
-import { loadGroupPool } from '../ingest/balance';
-import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook } from '../ingest/hooks';
+import { loadGroupPool, selectRatings } from '../ingest/balance';
+import { KUSTOM_FRESH } from '../ingest/fold';
+import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook, LobbyStartedEvent } from '../ingest/hooks';
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
 import { loadGroupMode } from '../mode/load';
 import { readLobbyLock } from '../mode/lock';
@@ -27,8 +28,11 @@ import type { StatsView } from '../stats/types';
 import { getServiceClient, type ServiceClient } from '../supabase';
 import { rememberResultPost, resultPostWantsId } from './aiEdit';
 import {
+  buildGameOnInput,
   buildResultInput,
   buildTeamsInput,
+  type GameOnKickoff,
+  type GameOnSource,
   loadLobbyReceipt,
   loadNames,
   loadPostGroup,
@@ -44,6 +48,7 @@ import {
   fearlessEmbed,
   fearlessResetEmbed,
   formatDelta,
+  gameOnEmbed,
   type LeaderboardEntry,
   leaderboardEmbed,
   renderName,
@@ -192,6 +197,78 @@ export async function loadTeamsMode(client: ServiceClient, lobbyId: string): Pro
     console.error('discord: reading the lobby mode lock failed; posting without the rule line', error);
     return null;
   }
+}
+
+/**
+ * Whether a kickoff gets a `Game on` post (M21.6, owner 2026-10-05): `custom` (rolled, then the
+ * teams changed) and `unrolled` (nobody rolled) do; `rolled` does not, the teams post is right.
+ */
+export function announcesKickoff(kickoff: LobbyStartedEvent['kickoff']): kickoff is GameOnKickoff {
+  return kickoff.kind !== 'rolled';
+}
+
+/**
+ * The `Game on` post (M21.6): one **new** message to the lobby's group's channel, never an edit
+ * (no teams-post message id is stored, and an edit notifies nobody). Once per game because the
+ * event is: only the `in_progress` post whose kickoff write landed fires it. `skipped` for a
+ * `rolled` kickoff or a group with no channel; never throws for a Discord problem.
+ */
+export async function postGameOnForLobby(
+  client: ServiceClient,
+  event: LobbyStartedEvent,
+  options: PostOptions = {},
+): Promise<WebhookOutcome> {
+  const { kickoff } = event;
+  if (!announcesKickoff(kickoff)) return SKIPPED('kickoff teams are the roll');
+  const puuids = [...kickoff.blue, ...kickoff.red];
+  const [names, group, mode, split, ratingOf] = await Promise.all([
+    loadNames(client, puuids),
+    loadPostGroup(client, event.groupId),
+    loadTeamsMode(client, event.lobbyId),
+    kickoff.kind === 'custom' ? loadChosenSplit(client, event.lobbyId) : Promise.resolve(null),
+    loadKickoffRatings(client, event.groupId, puuids),
+  ]);
+  const origin = options.requestOrigin ?? event.requestOrigin;
+  const context = teamsContext(origin, group);
+  const input = buildGameOnInput({ kickoff, split, ratingOf, mode }, names, context);
+  return postToWebhook(client, gameOnEmbed(input), 'game on embed', { ...options, groupId: event.groupId });
+}
+
+/** The lobby's chosen split's two sides, or `null` (none, or the read failed: no roles then). */
+async function loadChosenSplit(client: ServiceClient, lobbyId: string): Promise<GameOnSource['split']> {
+  const { data, error } = await client
+    .from('splits')
+    .select('blue, red')
+    .eq('lobby_id', lobbyId)
+    .eq('is_chosen', true)
+    .maybeSingle();
+  if (error) {
+    console.error('discord: reading the chosen split failed; posting Game on without roles', error);
+    return null;
+  }
+  return data === null ? null : { blue: readAssignments(data.blue), red: readAssignments(data.red) };
+}
+
+/**
+ * Each kickoff player's all-time `r` in the group, through the balancer's own read
+ * (`selectRatings`, 1200 for no row): the same numbers the kickoff odds were taken over.
+ */
+async function loadKickoffRatings(
+  client: ServiceClient,
+  groupId: string,
+  puuids: readonly string[],
+): Promise<(puuid: string) => number> {
+  const { data, error } = await client
+    .from('players')
+    .select('id, puuid')
+    .in('puuid', [...puuids]);
+  if (error) throw new Error(`discord: kickoff player lookup failed: ${error.message}`);
+  const idOf = new Map((data ?? []).map((row) => [row.puuid, row.id]));
+  const ratings = await selectRatings(client, [...idOf.values()], groupId);
+  return (puuid) => {
+    const id = idOf.get(puuid);
+    return (id === undefined ? undefined : ratings.get(id))?.r ?? KUSTOM_FRESH.r;
+  };
 }
 
 /**
@@ -765,6 +842,12 @@ export const discordLobbyHook: LobbyHook = {
     // `getServiceClient` reads the environment when it is called, never at import, so this
     // module can be imported by a build that has no Supabase keys.
     await postTeamsForEvent(getServiceClient(), event);
+  },
+  onStarted: async (event: LobbyStartedEvent): Promise<void> => {
+    // M21.6: teams Kustom did not roll get a `Game on` post; a rolled kickoff gets nothing. The
+    // event fires once per game (the kickoff write is the claim), so two companions send one.
+    if (!announcesKickoff(event.kickoff)) return;
+    await postGameOnForLobby(getServiceClient(), event);
   },
   onFinished: async (event: GameFinishedEvent): Promise<void> => {
     // A game the fold actually rated, or a clean Rift game played not rated (M15.6: it gets a
