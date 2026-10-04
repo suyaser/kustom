@@ -13505,7 +13505,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   (6) unit tests for the state table with the three kinds; (7) the announcement says `Game started.` once.
 
   *Landed 2026-10-05 (5b59a960; reviewer pass, designer rulings 05-design 13 applied). Acceptance 5 (a second page moving without a refresh) rides the existing group_live bump; the integration run waits for the shared stack to match main. ARAM in game: M21.12.*
-- [ ] **M21.6** Discord: a `Game on` post when the teams that started are not the teams posted. *(owner:
+- [x] **M21.6** Discord: a `Game on` post when the teams that started are not the teams posted. *(owner:
   `platform-engineer`, copy from product as below; after M21.4)* When the kickoff kind is `custom`, the request that
   moved the lobby to `in_game` sends one **new** message to the group's channel (never an edit: a reroll never
   edits either, no teams-post message id is stored, and an edit notifies nobody). `rolled` sends nothing (the
@@ -13520,6 +13520,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   the limits guard passes with ten 16-character names and the longest rule line; (5) no message when the group has
   no channel connected.
 
+  *Landed 2026-10-05 (a99ab356, reviewer pass). Follow-ups: degrade to 1200 when the player lookup fails instead of dropping the post; afterIngest reuses afterResponse.*
 - [ ] **M21.7** After the game, every surface prints the odds of the teams that played. *(owners:
   `platform-engineer` for the Discord and loader halves, `web-engineer` for Tonight; after M21.4, can run beside
   M21.5)* Route each reader that prints a rolled split's odds through `gameReceiptOf` (the one rule), so a `custom`
