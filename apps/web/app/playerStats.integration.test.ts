@@ -441,10 +441,13 @@ if (stack === null) {
       expect(text).toContain('Average game 31 min.');
       // `Most improved` is retired (M14.57): no page names it.
       expect(text).not.toContain('Most improved');
-      // M14.57 web: the week's net points sit beside the all-time Rating, once, as
-      // `+212 last week · 3W 4L` (no award line, no `1266 → 1478`).
-      expect(text.match(/\+212/g)).toHaveLength(1);
-      expect(text).toMatch(/\+212\s+gained 212\s+last week ·\s+3\s*W\s+4\s*L/);
+      // M18.7 (05-design 11.5): the week's points lead (`Points last week +212`), the all-time
+      // Rating moves into the meta line, and the `Week total` row repeats the header, which is
+      // the point of it; the chart's title says it a third time (no award line, no `1266 → 1478`).
+      expect(text).toMatch(/Points last week\s+\+212\s+212 points last week/);
+      expect(text).toMatch(/7\s*games ·\s+3\s*W\s+4\s*L\s+·\s+Rating\s+\d{4}/);
+      expect(text).toMatch(/Week total\s+\+212/);
+      expect(text.match(/\+212/g)).toHaveLength(3);
       expect(text).not.toContain('→');
       // A partner's name is a link to their page; the puuid is in the href and nowhere a
       // reader reads.
