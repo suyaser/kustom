@@ -392,7 +392,8 @@ function mustOutcome(outcomes: ReadonlyMap<string, FoldOutcome>, playerId: strin
 
 function mustKustom(outcomes: ReadonlyMap<string, KustomFoldOutcome>, playerId: string): KustomFoldOutcome {
   const outcome = outcomes.get(playerId);
-  if (outcome === undefined) throw new Error(`rating: the Kustom fold returned nothing for player ${playerId}`);
+  if (outcome === undefined)
+    throw new Error(`rating: the Kustom fold returned nothing for player ${playerId}`);
   return outcome;
 }
 

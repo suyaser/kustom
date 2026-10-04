@@ -394,9 +394,7 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
       for (const player of players) {
         const previous = storedRow.get(`${game.id}:${player.playerId}`);
         writes.push(
-          afterEpoch || previous === undefined
-            ? nulled(game.id, player.playerId)
-            : weekNulled(previous),
+          afterEpoch || previous === undefined ? nulled(game.id, player.playerId) : weekNulled(previous),
         );
       }
       continue;
@@ -766,7 +764,8 @@ function weekOnly(
   previous: SnapshotRow | undefined,
   outcome: KustomFoldOutcome,
 ): WriteRow {
-  const base = previous === undefined ? nulled(gameId, playerId) : { gameId, playerId, ...keptAllTime(previous) };
+  const base =
+    previous === undefined ? nulled(gameId, playerId) : { gameId, playerId, ...keptAllTime(previous) };
   return { ...base, award: outcome.award, ...weekColumns(outcome) };
 }
 
@@ -886,24 +885,23 @@ async function selectGroupGames(client: ServiceClient, groupId: string): Promise
  * Filtered on the row's own `group_id` rather than an `in` list of game ids: a group's worth of
  * uuids is a URL nobody should build.
  */
-async function selectGroupGamePlayers(
-  client: ServiceClient,
-  groupId: string,
-): Promise<SnapshotRow[]> {
+async function selectGroupGamePlayers(client: ServiceClient, groupId: string): Promise<SnapshotRow[]> {
   const rows = await selectPaged('game_players select', (from, to) => {
-    return client
-      .from('game_players')
-      .select(
-        // `role` and the nine stat columns are M7.9's, and are the same list `rating.ts`
-        // selects: the rebuild has to be able to name the same MVP the live fold named, or the
-        // two folds disagree about a game and one of them rewrites the other's numbers.
-        'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before, r_before, r_after, k, share_rank, week_r_before, week_r_after, week_k, week_fold_p, week_games_before, players!inner(puuid, rank_tier, rank_division)',
-      )
-      // `game_players.group_id` is always its game's (`game_players_game_group_fkey`).
-      .eq('group_id', groupId)
-      .order('game_id', { ascending: true })
-      .order('player_id', { ascending: true })
-      .range(from, to);
+    return (
+      client
+        .from('game_players')
+        .select(
+          // `role` and the nine stat columns are M7.9's, and are the same list `rating.ts`
+          // selects: the rebuild has to be able to name the same MVP the live fold named, or the
+          // two folds disagree about a game and one of them rewrites the other's numbers.
+          'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before, r_before, r_after, k, share_rank, week_r_before, week_r_after, week_k, week_fold_p, week_games_before, players!inner(puuid, rank_tier, rank_division)',
+        )
+        // `game_players.group_id` is always its game's (`game_players_game_group_fkey`).
+        .eq('group_id', groupId)
+        .order('game_id', { ascending: true })
+        .order('player_id', { ascending: true })
+        .range(from, to)
+    );
   });
 
   return rows

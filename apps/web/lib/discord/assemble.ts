@@ -1,4 +1,12 @@
-import { type Assignment, displayKustom, displayRating, isOffRole, type Mode, type Role, resolveRoles } from '@customs/core';
+import {
+  type Assignment,
+  displayKustom,
+  displayRating,
+  isOffRole,
+  type Mode,
+  type Role,
+  resolveRoles,
+} from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { type RuleCheck, ruleCheckSchema, ruleModeOf } from '@customs/db/schemas';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';

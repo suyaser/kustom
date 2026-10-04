@@ -947,7 +947,9 @@ async function loadGameRows(
             .in('game_id', chunk)
         : await client
             .from('game_players')
-            .select('game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, r_before')
+            .select(
+              'game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, r_before',
+            )
             .in('game_id', chunk);
     if (error) throw new Error(`board: game player lookup failed: ${error.message}`);
     rows.push(...(data ?? []).map(toGameRow));

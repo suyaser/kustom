@@ -148,20 +148,8 @@ export const CALIBRATION_EARLY: Calibration = { n: 7, favoredWon: 5, actualPct: 
 
 /** All-time Kustom Ratings going in (M18.5: the receipt's pre-game odds read `r_before`). */
 export const RATINGS_KNOWN: RatingsBefore = {
-  blue: [
-    { r: 1320 },
-    { r: 1440 },
-    { r: 1800 },
-    { r: 1260 },
-    { r: 1380 },
-  ],
-  red: [
-    { r: 1260 },
-    { r: 1620 },
-    { r: 1440 },
-    { r: 1320 },
-    { r: 1260 },
-  ],
+  blue: [{ r: 1320 }, { r: 1440 }, { r: 1800 }, { r: 1260 }, { r: 1380 }],
+  red: [{ r: 1260 }, { r: 1620 }, { r: 1440 }, { r: 1320 }, { r: 1260 }],
 };
 
 export const RATINGS_MISSING: RatingsBefore = {
