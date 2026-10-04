@@ -42,6 +42,12 @@ import { storedRosterKey } from '@/lib/testing/roll';
  *
  * Its own scratch group, players, token and Discord row, all deleted after; never `customs` or
  * `ogss`. Skipped, not failed, without the local stack or before `0032`.
+ *
+ * **The lobby is kept current (mode QA, 2026-10-04).** `sweepIdleLobbies` is global: every
+ * companion post on the shared stack runs it, and `lobbyState.integration` runs it two hours
+ * ahead, which abandons every open lobby on the stack. The rule lobby sits open from step 3 to
+ * step 4, so `roll` first gives it a current `updated_at` (and puts back a foreign sweep's
+ * `abandoned`, which only ever means another file's clock got to it): {@link keepCurrent}.
  */
 
 const stack = await resolveLocalStack();
@@ -231,8 +237,23 @@ if (stack === null || !ready) {
     return ((await response.json()) as { lobbyId: string }).lobbyId;
   }
 
+  /**
+   * Give our open lobby a current `updated_at` (the row's trigger stamps `now()` on any update),
+   * undoing a foreign idle sweep's `abandoned` if one got there first. Never touches another row.
+   */
+  async function keepCurrent(lobbyId: string) {
+    const { error } = await db
+      .from('lobbies')
+      .update({ status: 'open' })
+      .eq('id', lobbyId)
+      .eq('group_id', group.id)
+      .in('status', ['open', 'abandoned']);
+    if (error) throw new Error(`keepCurrent: ${error.message}`);
+  }
+
   /** The admin's Roll through the real handler (Discord listeners registered). */
   async function roll(lobbyId: string) {
+    await keepCurrent(lobbyId);
     const response = await rollRoute(
       lobbyId,
       adminOptions,
