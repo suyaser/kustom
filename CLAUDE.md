@@ -150,6 +150,7 @@ packages/db/scripts/m18-4-throwaway-check.sh [0036 path]  # M18.4: rehearses 003
 packages/db/scripts/session-player-throwaway-check.sh [0038 path]  # verified session lookup: checks 0038 (grants, definer settings, revoked/banned/deleted/unlinked cases) on a throwaway restore of local (pg_dump read only); needs Docker
 packages/db/scripts/m19-9-throwaway-check.sh [0037 path]   # M19.9: checks 0037 (group_live) on a throwaway restore of local, then replays every migration on a fresh throwaway; pg_dump read only; needs Docker
 packages/db/scripts/m19-dbperf-throwaway-check.sh [migrations dir]  # db-perf: applies and checks 0039-0042 on a throwaway restore of local (pg_dump read only); needs Docker
+packages/db/scripts/m19-11-throwaway-check.sh [0044 path]  # M19.11: applies 0044 on a throwaway restore of local (publication exactly group_live, group_modes, fearless_state; no column list), then replays every migration on a fresh throwaway; pg_dump read only; needs Docker
 # SUPER_ADMIN_USER_IDS (M14.19, server only): comma-separated Supabase auth.users ids; read-only access to every group's admin reads and /ops, never a write. Set it on Vercel Production too.
 # CI (.github/workflows/ci.yml) runs install --frozen-lockfile, `pnpm -r typecheck`, `pnpm lint`, `pnpm -r test` and `pnpm --filter web build` on every pull request and every push to main, on Node .nvmrc with no local stack (the *.integration.test.ts files skip) and no secrets -- run those five before you open one.
 ```
