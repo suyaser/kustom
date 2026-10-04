@@ -97,6 +97,15 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    flip `Rated` for the next game, in any mode, before teams are rolled, never after. A not-rated game is
    recorded and posted like any other, but it moves no rating, adds nothing to the Fearless pool and teaches
    nobody a role. A mode change made after teams are rolled is for the next game.
+   Region wars (M20, planned 2026-10-04): some champions count for two regions, where Riot puts them and where
+   they're from (Vi for Piltover and Zaun, every yordle for Bandle City; that second list is ours), so every one
+   of the 13 regions can come up, and each champion chip says its region (`Jinx · Zaun`). A champion both sides'
+   regions share is open to both, and a pair is only drawn if each side still has 8 of its own. An admin can
+   pick one side's region or both before Roll, the rest drawn as usual, and after Roll can tap `Redraw regions`
+   once for two new ones without touching the teams; picks already made stay, and the check reads the new
+   regions. The rule moves onto the lobby when teams are rolled, so anything changed after that is the next
+   game; it comes back to the card if the teams come down or the game was a remake or an ARAM, unless an admin
+   has already picked something else. When two admins tap at once, the last tap wins and both see it.
 6. If more than ten showed up, the server posts who sits: whoever has played most tonight, and between
    equals whoever has gone longest without sitting. On the first game of a night nobody has done either, so
    the post says as much — somebody has to be first — and from the second game on the rotation has real
@@ -607,6 +616,7 @@ See `02-milestones.md` for the build order. In product terms:
 | Tonight's mode on one card (Normal or Fearless), its panel opens on your lane, at its own link | M14.29 to M14.31 |
 | Reasons to sign in: claim your games, you vs them, your night | M14.33 to M14.36 |
 | A rule for one game (class wars, region wars, mirror match), not rated by default, Spin, a Rated switch | M15 |
+| Region wars on all 13 regions (two-region champions), region tags on champion chips, admins pick or redraw the regions | M20 (planned) |
 | Kustom Premium: AI recap line, weekly storyline, scouting report, behind a per-group flag the operator sets; capped at $2 a group a month; no billing yet | M16 (built; review open, M16.7) |
 | The result as a poster; tonight's earlier games kept on the page | M11 |
 | A picture when a link to tonight, a game or a player is pasted | M11 |

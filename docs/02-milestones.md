@@ -26,6 +26,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
 | M18 Kustom rating | in progress (**switch build `rating-switch` 2026-10-04**: `kustom-rating` + M18.7 pages + `main` (65db4837, re-merged to 63fc150e) merged, all five CI checks, replay 0.700 / 0.938 / 0.925, m18-4 and m18-10 throwaway checks, a local walk of the runbook steps 3-5 and a local rollback to production `main` 63fc150e and back green; awaiting the owner's hosted run, `docs/runbooks/kustom-rating.md`, hosted at 0042 so 0036 + 0043 push with `--include-all`; M18.1, M18.2, M18.4, M18.5, M18.6, M18.8 spec, M18.9 landed; rating branch synced with main 06323b49 2026-10-04 on `kustom-rating`, reviewer pass each; 0036 applied locally only; planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one `rebuild-ratings` run by the owner (M18.10), announced once in a patch-notes post to each group's Discord (the owner, 2026-10-04, superseding "unannounced"). M18.9 (docs and final words) landed 2026-10-04 on `m18-9-copy`. **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, the owner's call, M18.2). The week stays Sunday 06:00 Africa/Cairo (owner-confirmed 2026-10-04). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. **M18.11 and M18.13 owner-approved 2026-10-04**, schema changes included (per-group `(a, b)` columns; `splits.score_parts`); both still after M18.10. |
 | M19 Fast pages | in progress (2026-10-04: M19.1, M19.2, M19.4, M19.5, M19.6, M19.7 landed on main as `perf-integrate`, reviewer pass per lane and on the merge; Tonight result screen 38→14 queries, 14→5 rounds, refresh incl. prefetches ~95→14; Stats warm 0 queries; next: M19.3 scheduler, M19.8–M19.11 live signal) | Added 2026-10-04 from `redesign/research/performance.md`: Tonight changes once per real change, renders in ≤ 6 waves and ≤ 300 ms, never hears another group, controls stay pending until the screen answers, tabs answer at once. Owner decisions 2026-10-04 (decision rows): the name-free Mode card may be patched on the client (M19.13), and a per-group `group_live` signal replaces the table subscriptions, after which player and lobby tables leave the anon Realtime publication (M19.9 to M19.11). `getClaims()` is an investigation with a required security review (M19.12). M19.3 and M19.13 wait for `fix-mode-qa`. |
+| M20 Region wars, picked and redrawn, on one mode state | not started (planned 2026-10-04; M20.1 done) | Added 2026-10-04 from the owner's five decisions (decision rows M20 D1 to D8): two-region champions from a Kustom home list so all 13 regions can be drawn (M20.2, M20.3), region tags on every champion chip (M20.4, M20.5), the Mode card on one `group_modes` row with no version or CAS, Roll moving the rule onto the lobby (M20.6 to M20.8), admins pick one or both regions before Roll (M20.9, M20.10), Redraw after Roll without touching the teams (M20.11, M20.12). The rewrite waits for the in-flight mode bug fixes; M20.2 can start now. M19.13 moves after M20.12. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -12903,6 +12904,10 @@ answer sooner, change once per real change, and stop hearing other groups.
   (4) `lib/clientGraph.test.ts` passes (no zod, no `node:*` in the client graph); (5) bench: Rated, Set mode and
   Spin tap to card ≤ 100 ms; server renders per mode change 0. Out of scope: any slice that prints a name
   (lobby, teams, result, tape stay server-rendered).
+  **Amended 2026-10-04 (M20, decision row M20 D8):** runs after M20.12, on M20's one-row state (`standing`,
+  pending rule with its region picks, `rated`; the lock for "this game"). M20.7 drops `group_modes.version`, so
+  the gate in (2) reads `group_modes.updated_at` (written on every update, read by no write path); "rated
+  override" in the card's slice is the row's `rated`. Every other acceptance stands as written.
 - [x] **M19.14** Skeletons for the tabs. *(owner: `designer`)* Loading states for Tonight, Board, Games, Stats and
   You in the design tokens, in `docs/05-design.md`: shapes only, no words, no spinner, no layout shift when the
   page lands (CLS stays ≤ 0.01), reduced-motion respected. Acceptance: one frame per tab at 375 px and 1280 px,
@@ -12951,6 +12956,269 @@ game end changes the page once, after all its writes, and another group's night 
 stays pending until the screen shows the answer, and the Mode card answers in 100 ms; a tab tap shows at once;
 no player or lobby row travels over Realtime to an anonymous client; every page shows exactly what it showed
 before, labels included. Nobody typed anything.
+
+---
+
+## M20 Region wars, picked and redrawn, on one mode state (needs M15 and the in-flight mode bug fixes; planned 2026-10-04, briefs at task level)
+
+Source: the owner's five decisions of 2026-10-04 (decision rows of that date), product's region audit
+(`regions-audit.csv`, the `C adds:` rows, transcribed in M20.1 below) and the reviewer's ponytail review of the
+Mode card's state. **A new milestone, not M15.20+**: M15 is accepted and its row stays `done`; M20 changes how
+its card keeps state and adds to region wars. The in-flight mode bug fixes (the select bound to pending, a stable
+`ModeControls` slot, the `clearAfterRecord` CAS loop, no `Normal` on a read error) ship first, as they are, on
+the current model; M20 replaces that model afterwards and is not a reason to hold them.
+
+**Goal.** Region wars that can land on any of the 13 regions, that an admin can aim (pick one side's region or
+both) or re-roll (Redraw) without touching the teams, with every champion chip saying where it is from; and a
+Mode card with one source of truth, so the bug class the QA pass found (a Rated flip repeating `Tanks only`, a
+select disagreeing with the card) cannot come back.
+
+**The scene, unchanged.** Ten friends in voice, someone opens a lobby, teams appear, they play, ratings move.
+Every new control here is an optional admin tap on the Mode card that already exists. Nothing new is asked of a
+member, and a night where nobody touches the card plays exactly as today.
+
+**Rules for the whole milestone (settled, not reopened by a task):**
+- **A champion's regions are a set: Riot Universe's region plus at most one Kustom home region**, the list in
+  M20.1, which is our own data (decision row). `unaffiliated` means the set is empty. The set is the only region
+  fact: pools, the draw, the panel, the chip tags and the post-game check all read it. No champion has more than
+  two regions.
+- **The draw's minimum, with shared champions.** A region pair (Blue A, Red B) is drawable when, with the
+  Fearless bans removed on a Fearless night, A has at least 8 open, B has at least 8 open, **and A and B together
+  have at least 16 different open champions** (so each side can have 8 of its own even if the other side takes
+  every champion they share). A shared champion is in both pools, shows in both on the panel, and is `kept` for
+  either side in the check. Never `unaffiliated`, never the same region on both sides.
+- **The mode state is one row.** `group_modes` holds `standing`, the pending rule (with its class tag or its
+  region picks) and `rated` (`null` = the mode's default). No version, no compare-and-set. **Roll moves** the
+  pending rule, its region picks and `rated` onto the lobby's lock and empties them on the row, in one atomic
+  step; anything picked after Roll is the next game. "This game" is the lobby's lock; "next game" is the row.
+- **Handing back.** Teams coming down, a remake and an ARAM record put the lock's rule (with its picks) back
+  only if the row's pending rule is empty, and its Rated back only if the row's `rated` is empty. A newer admin
+  choice always wins. A recorded Rift game and a dropped lobby hand nothing back; a recorded Rift game writes
+  nothing to `group_modes`.
+- **Region wars that can't be drawn at Roll** moves Rated and leaves the rule and its picks pending; the game is
+  the standing mode, rated as the moved switch says, else the standing mode's default (rated). The teams post
+  says so before anyone picks (M15.17's line, `Rated.` or `Not rated.` by the lock). No no-draw column.
+- **Two admins: last write wins** (decision row, with what fails). Each action writes only the fields it sets;
+  Roll's move and every hand-back are single conditional statements, so no admin tap is ever silently lost to
+  Roll, a hand-back or a record.
+- Kustom still never touches champion select. A Redraw changes no pick already made; the check reads the regions
+  on the lobby when the game ends.
+- Words only for regions (M15): a tag is the region's name in text. No crest, colour per region or art.
+- The player-facing word stays **region** (`Region wars`, `Ionia vs Noxus`); "zone" is the owner's word in the
+  brief, not new copy.
+
+**Tasks.**
+
+- [x] **M20.1** Product brief and decisions. *(owner: `product`; done 2026-10-04)* This section; decision rows
+  of 2026-10-04 (M20 D1 to D8); `00-product.md`'s mode paragraph and features table.
+    > **The Kustom home list** (from `regions-audit.csv`, rows marked `C adds:`; 31 champions, 32 additions;
+    > the Universe region in brackets, `-` for unaffiliated):
+    > - **Bandle City** (every yordle counts): Heimerdinger (Piltover), Poppy (Demacia), Kennen (Ionia),
+    >   Fizz (-), Ziggs (Zaun), Gnar (Freljord), Kled (Noxus), Vex (Shadow Isles). Teemo, Tristana, Corki,
+    >   Veigar, Rumble, Lulu and Yuumi are Bandle City on Universe already.
+    > - **Bilgewater**: Fizz (-, so Fizz has two: Bilgewater and Bandle City), Tahm Kench (-).
+    > - **Demacia**: Taric (Targon).
+    > - **Freljord**: Brand (-).
+    > - **Ionia**: Xin Zhao (Demacia), Sona (Demacia).
+    > - **Noxus**: Annie (-), Urgot (Zaun), Karthus (Shadow Isles), Elise (Shadow Isles), Kayn (Ionia).
+    > - **Piltover**: Singed (Zaun), Mel (Noxus).
+    > - **Shurima**: Jax (-), Kassadin (Void), Malzahar (Void), Kai'Sa (Void), Aatrox (-), Samira (Noxus),
+    >   Rek'Sai (Void), Zaahen (-).
+    > - **Targon**: Kayle (Demacia), Morgana (Demacia).
+    > - **Zaun**: Vi (Piltover, so Vi counts for Piltover and Zaun).
+    >
+    > **Counts at 16.19.1, no bans** (today → with homes): Bandle City 7 → 15, Bilgewater 8 → 10, Demacia 15 →
+    > 16, Freljord 15 → 16, Ionia 23 → 25, Ixtal 8 → 8, Targon 7 → 9, Noxus 17 → 22, Piltover 8 → 10, Shadow
+    > Isles 10 → 10, Shurima 11 → 19, The Void 9 → 9, Zaun 14 → 15; unaffiliated 21 → 14. Today two regions
+    > (Bandle City, Targon) can never be drawn; with the homes all 13 can on a fresh pool. On a Fearless night
+    > the bans still decide (Ixtal sits at exactly 8, so one Ixtal ban takes it out until a reset): that is the
+    > existing rule, not a gap.
+    >
+    > **New and changed copy** (product's; the designer may move it, not reword it):
+    > - Credit line (`REGION_CREDIT`): `Regions from Meraki's lolstaticdata and the League of Legends Wiki. Where
+    >   a champion has two, the second is our own call.`
+    > - Admin region picks (only while region wars is next): labels `Blue's region` and `Red's region`; each
+    >   offers `Random` (default) then the 13 regions, a region that can't make 8 open reading `Targon (too few
+    >   open)` and disabled, as the rule select does.
+    > - The card's next-game line: `Next game: Ionia vs Noxus` (both picked), `Next game: Ionia vs a random
+    >   region` / `Next game: a random region vs Noxus` (one picked), `Next game: Region wars` (none, as today).
+    > - Route refusals (409): `That region has too few champions open tonight.` and `Pick two different
+    >   regions.`, `Those two regions don't have enough champions between them.` (the union rule).
+    > - Redraw (admin, after Roll, region wars only): button `Redraw regions`; notice after it lands `New regions:
+    >   Shurima vs Zaun. Picks already made stay, and the check uses the new regions.`; refusals `There's no other
+    >   pair of regions to draw.` and `The game has started, so the regions stay.`
+    > - The teams post after a Redraw is the same post a Reroll sends, its rule line reading `This game: region
+    >   wars, redrawn.` then `Blue picks from Shurima, Red from Zaun. Not rated.` as today.
+
+- [ ] **M20.2** Core: a champion has a set of regions, and the shared-champion draw rule. *(owner:
+  `core-engineer`; after M20.1; `packages/core/src/mode/`; can start at once, before the in-flight mode fixes
+  merge, since it touches no lifecycle code)* `ChampionFacts.region` becomes a set (shape the engineer's: a
+  readonly array, empty = `unaffiliated`, `null` = no row). `regionPool`, `regionOpenCounts`,
+  `drawableRegions`, `rulePlayable('region')`, `drawRegions` and `checkMode`'s region branch read the set. New:
+  `pairDrawable(blue, red, roster, bans)` with the rule above, used by the draw (a pair is drawn only if it
+  passes) and by `rulePlayable` (region wars is playable when at least one pair passes). Acceptance: (1) tests
+  with a two-region champion: in both pools, counted for both regions, `kept` on either side; (2) the union rule:
+  a pair at 8 + 8 with 1 shared is refused, 8 + 9 with 1 shared passes, a pair failing only on the union is
+  never drawn (seeded draw over 1,000 RNG values); (3) a champion whose set is empty is `broke` on any side and in
+  no pool; no row is `unknown`; (4) every existing `packages/core` mode test passes unchanged except the
+  `region` field's shape; (5) no new import of a fixture in core.
+
+- [ ] **M20.3** The home list, the table and the credit line. *(owner: `web-engineer`; after M20.2;
+  `apps/web/lib/champs/`)* A hand-kept, committed `homeRegions.ts` with exactly M20.1's 32 additions (champion
+  key → home region, a comment naming the champion), **not** written by `seed-regions`; `championFacts.ts` builds
+  each champion's set as the Universe region plus its home. `seed-regions --check-universe` keeps checking the
+  Universe column only and is untouched otherwise. `REGION_CREDIT` takes M20.1's line; the header counts in
+  `regions.ts`' comment move to a test. Acceptance: (1) a test pins all 14 counts of M20.1 at 16.19.1 (13
+  regions, unaffiliated 14); (2) every region has at least 8 with no bans and every one of the 78 region pairs
+  passes `pairDrawable` with no bans; (3) a test fails if a home duplicates the Universe region, names
+  `unaffiliated`, gives any champion a third region, or keys a champion not in `names.ts`; (4) Vi reads Piltover
+  and Zaun, Fizz Bilgewater and Bandle City, every champion in M20.1's Bandle City paragraph reads Bandle City;
+  (5) the region panel shows the new credit line; (6) the no-runtime-fetch test still passes; (7) stored games
+  are not re-checked (`games.rule_check` is written at record and stays as it was).
+
+- [ ] **M20.4** Design: region tags on champion chips. *(owner: `designer`; after M20.1; `docs/05-design.md`)*
+  How a chip shows its region names on every pool view (the panel's Fearless pool by lane, the class, region and
+  mirror pools, the find box's answer, and the Mode card wherever it shows champion icons), at 375 and 1440, in
+  Day and Night, at large text. Display only. Acceptance: (1) 05-design 8.x gains the tag's rule: text, the
+  region's plain name, two names for a two-region champion, nothing for an unaffiliated champion or one with no
+  row; (2) the Fearless panel (about 170 chips) stays scannable: a frame at 375 with the full pool; (3) the tag is
+  in the chip's accessible name (`Jinx, Zaun`); (4) no colour, crest or icon per region; (5) at most 3 rounds.
+
+- [ ] **M20.5** Build: region tags on champion chips. *(owner: `web-engineer`; after M20.3 and M20.4)* Every
+  surface M20.4 names, from the one champion-facts table. Acceptance: (1) M20.4's frames matched at 375 and 1440,
+  screenshots; (2) Jinx reads `Zaun`, Vi `Piltover · Zaun` (or M20.4's separator), Zaahen reads `Shurima`, an
+  unaffiliated champion reads no tag; (3) a test that a chip's accessible name carries its regions; (4) the find
+  box and pools filter and sort exactly as before (no filter by region, out of scope); (5) Tonight's client JS
+  grows by no more than the table it already ships (`clientGraph.test.ts` passes); (6) M14.30's seven panel
+  checks still pass.
+
+- [ ] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
+  after M20.2, same lane)* `lifecycle.ts`'s six functions become one pure `transition(state, action)` over the
+  one-row state `{ standing, pending: { rule, regions: { blue, red } } | null, rated }` (region picks: a region or
+  `null` for random, only on a region rule), plus `take(state, draw)` for Roll and `handBack(state, lock)`.
+  Actions: set standing (empties the pending rule and `rated`), set rule (resets `rated`; empties picks unless the
+  rule is region wars with picks), set Rated, set region picks, and Spin as set rule with the server's pick (Spin
+  landing on region wars has no picks). `take` returns the lock and the emptied row; a region rule that can't be
+  drawn moves only Rated (rule above). `handBack` fills only empty fields. `gameStamp` reads the lock or, with
+  none, the standing mode. Each action returns the fields it sets (a patch), so the server writes one update of
+  only those fields. `drawRegions` honours picks (one picked side draws the other from pairs passing
+  `pairDrawable`). Acceptance: (1) a table test per action and per prior state; (2) `take` then `handBack`
+  restores the row exactly when nothing changed in between, and keeps every newer admin field when something did;
+  `handBack` twice equals once; (3) the 2.0 QA case: a Rated flip after Roll changes only the next game's Rated
+  and never repeats the rule; (4) a picked side is never redrawn, a picked pair that fails the rule makes the
+  draw fail (no draw), never a silent substitute; (5) `version`, `afterRecord`, `onlyRatedSinceRoll` and
+  `consumesRule`'s callers are gone from `packages/core` (grep in the PR); (6) 100% of the new module covered.
+
+- [ ] **M20.7** Schema and server on the one-row model. *(owner: `platform-engineer`; after M20.6; migration at
+  the next free number at merge, local first, shown to the user before it is applied)* `group_modes` keeps
+  `standing`, the pending rule and class tag, gains `pending_region_blue` / `pending_region_red` (nullable; only
+  with a region rule, a check), keeps `rated`; drops `version` and every reader of it; keeps `set_by` private
+  (0029); keeps or adds an `updated_at` written on every update, which no write path reads (M19.13's ordering
+  only). `lobbies` drops `lock_version` and `lock_no_draw` and records which region sides an admin picked, so a
+  hand-back returns the picks and not the draw. Roll takes the pending fields onto the lobby in one atomic step;
+  the `lobbies_drop_mode_lock` trigger hands back by the rule above before it drops the lock; a remake and an ARAM
+  record hand back the same way; a recorded Rift game writes nothing to `group_modes` (`clearAfterRecord` and its
+  CAS loop deleted). `POST /api/admin/mode` takes every action (standing, rule, rated, region picks, spin), zod
+  both ways, and answers one `{ state, notice }`; `/api/admin/mode/spin` is deleted and the no-JS Spin form posts
+  to `/api/admin/mode`. `games.rule_no_draw`: the PR reports how many hosted games have it true (a read, by the
+  lead); at zero the migration drops it, else it stays read-only for those rows and no new game writes it.
+  Acceptance (integration tests): (1) each action is one update of only its fields; (2) **concurrency**: an
+  admin pick racing Roll ends in the lock or still pending, never lost (two connections, repeated); a pick
+  racing a hand-back keeps the pick; (3) teams down after a new pick keeps the pick and returns Rated only if
+  empty; (4) remake and ARAM hand back, a second companion's post is a no-op, a dropped lobby hands nothing back
+  and a late block still stamps from its lock; (5) a Rift record leaves `group_modes` byte-identical; (6) Reroll
+  keeps the lock, region draw included; (7) region wars with no possible draw: the lobby locks the standing mode
+  with the moved Rated, the rule and picks stay pending, the teams post reads M15.17's line with the lock's
+  `Rated.` / `Not rated.`; (8) M15's `classWars`, `regionWars` and `mirrorMatch` integration tests pass, any
+  changed expectation listed in the PR with its decision row; (9) `games.rated`, the fold, rebuild-ratings and
+  the Fearless pool read exactly what they read before (a replay of the local stack's games moves no rating);
+  (10) one `group_live` bump of kind `mode` per action (M19.9); (11) the migration shown first.
+
+- [ ] **M20.8** Tonight: the card renders `{ standing, pending, rated }`. *(owner: `web-engineer`; after M20.7;
+  the Tonight lane, see Order)* The select is `pending ?? standing`; the client keeps only a `useOptimistic`
+  draft of the last tap; every notice is the route's `notice`, never recomputed. Deleted: `upcomingState`, the
+  `moved` / `nextLine` diffing, `didntApply`, the version reads and the spin route client. "This game" lines read
+  the lobby's lock, "Next game" lines the row. Acceptance: (1) a parity test renders every 05-design 8.3 state
+  for every mode and rule (Normal, Fearless with bans, each class, region before and after Roll, mirror, Rated on
+  and off, after Roll) before and after the change with identical text, except the region no-draw Rated change,
+  listed; (2) two admins on two pages: either's tap reaches both cards and both settle on the last write; (3)
+  no-JS forms for standing, rule, Rated and Spin work; (4) the deleted symbols are gone from `apps/web` (grep in
+  the PR) and the PR reports the net line count across M20.6 to M20.8 (the review estimated about −700; reported,
+  not a gate); (5) M15.5's Spin reveal still lands only when the card's pending rule matches; (6)
+  `clientGraph.test.ts` passes.
+
+- [ ] **M20.9** Admins pick the regions: server. *(owner: `platform-engineer`; after M20.7 and M20.3)* The region
+  picks action on `POST /api/admin/mode` (Blue, Red, each a region or `null`), allowed only while the pending rule
+  is region wars; picking another rule or a standing mode empties them; Roll draws only the random sides.
+  Acceptance (integration): (1) both picked: the lock carries exactly the picks; (2) one picked: that side kept,
+  the other drawn from pairs passing the rule (seeded); (3) 409 with M20.1's words for a region under 8 open
+  (Fearless bans counted), the same region twice, and a pair failing the union rule; (4) a pick that was valid but
+  fails at Roll (bans grew) is the no-draw path: rule and picks stay pending; (5) teams down returns the picks,
+  not the draw; (6) members and visitors get 403, signed out 401; (7) the teams post names the picked regions as
+  it names drawn ones (no "picked" word: the room cannot tell and does not need to).
+
+- [ ] **M20.10** Admins pick the regions: the card. *(owner: `web-engineer`, `designer` for placement; after M20.8
+  and M20.9)* The two pickers on the admin row while region wars is next, M20.1's labels and next-game lines,
+  disabled `(too few open)` options from the same check the route uses. Acceptance: (1) every new string of M20.1
+  present, none invented; (2) screens at 375 and 1440, before and after a pick; (3) members see the next-game line
+  and no picker; (4) the region panel before Roll shows the picked side's pool (and `drawn when teams are rolled`
+  for a random side); (5) no-JS form post works; (6) designer at most 3 rounds.
+
+- [ ] **M20.11** Redraw the regions: server. *(owner: `platform-engineer`; after M20.7 and M20.3)* A redraw
+  action, admin-only, allowed only while the lobby is `balanced` with a region lock: two new random regions,
+  ignoring any picks, an unordered pair different from the current one, passing the rule; it updates
+  `lobbies.lock_region_*` and nothing else (teams, split, Rated untouched); it sends the teams post again as a
+  Reroll does, with M20.1's redrawn line. Acceptance (integration): (1) the split and every `lobby_members` row
+  unchanged, the lock's regions changed; (2) never the same pair, in either order (seeded); (3) 409 with M20.1's
+  words when no other pair passes, when the lobby is `in_game` or later, and when the lock is not region wars;
+  (4) the game recorded after a Redraw is checked against the new regions (a champion from the old region only
+  reads `broke`); (5) members 403; (6) one `group_live` bump; (7) Discord snapshot of the redrawn post within the
+  limits guard.
+
+- [ ] **M20.12** Redraw the regions: the card. *(owner: `web-engineer`; after M20.8 and M20.11)* `Redraw regions`
+  on the admin row while the lobby is balanced on region wars; the route's notice; the panel and the card move to
+  the new regions for everyone. Acceptance: (1) screens at 375 and 1440; (2) a second open page shows the new
+  regions without a refresh; (3) the button is absent once the game has started and for members; (4) no-JS form
+  post works; (5) reduced motion: no animation on the change.
+
+- [ ] **M20.13** Review and scene walk. *(owners: `reviewer`, then `product`)* Acceptance: the reviewer's pass
+  over M20.2 to M20.12; then product walks the milestone acceptance on the local stack and a two-admin night (two
+  browsers): a pick during Roll, a Rated flip mid-game, a remake under a rule, teams coming down after a new pick.
+  Every gap becomes `M20.14+` with an acceptance check.
+
+**Order.**
+
+```
+core lane:     M20.2 (region sets) ---------- M20.6 (transition; after the in-flight mode fixes merge)
+                  \                              \
+web data:          M20.3 (home list) --+          M20.7 (schema + server, platform) --+-- M20.9 (picks, server) --\
+designer:      M20.4 (tag look) -------+-- M20.5 (tags, web)                          +-- M20.11 (redraw, server) -+
+Tonight lane:  in-flight mode fixes -- M19.3 -- M19.10 -- M20.8 (card on one state) -- M20.10 (picks, card) --
+               M20.12 (redraw, card) -- M19.13 (Mode card on the client) ...                    M20.13 (review, walk)
+```
+
+- **The rewrite goes first and the region pick and Redraw build on it.** Both add fields to the row and the
+  lock and both meet the moment Roll takes the rule; built on the version/CAS model they would extend
+  `lockAtRoll`, `afterRecord` and `lock_version` and then be rewritten with them. M20.7's migration carries the
+  pick columns so M20.9 needs none.
+- **M20.2 to M20.5 run beside the rewrite.** M20.2 and M20.6 are the same lane (`packages/core/src/mode/`,
+  `spin.ts` and `pool.ts` in both): M20.2 first, since it can start today.
+- **M19.13 moves after M20.12** and gates on `group_modes.updated_at` instead of `version` (amended there), so it
+  patches the final shape once. M19.3 and M19.10 stay where they are. `ModeControls.tsx` and `TonightView.tsx`
+  are one lane: M20.8, M20.10, M20.12 never run at the same time as M19.3, M19.10 or M19.13.
+- M20.5 edits panel chips, not the card's controls; it can run beside M19.3 but not beside M20.8 if both touch
+  the Mode card's icons (the lead's call at dispatch).
+
+**Out of the milestone:** filtering or searching pools by region; a region chosen by vote; per-group home lists;
+region art, crests or colours; a "picked by an admin" mark on the posts; Redraw after the game has started;
+changing class wars or mirror match; any rating change.
+
+Acceptance: on a Fearless night an admin picks `Region wars`, sets Blue to Targon and leaves Red random, taps
+Roll; ten friends see `Targon vs Zaun` on the card, its panel (every chip tagged, Vi in Zaun's pool reading
+`Piltover · Zaun`) and the teams post; the admin taps `Redraw regions` once and everyone sees two new regions with
+the same teams; they play; the poster checks the new regions; nobody's Rating moved; the card is back on Fearless
+with nothing pending. A second admin flipping Rated mid-game changed only the next game. Nobody else typed or
+tapped anything.
 
 ---
 
@@ -13115,6 +13383,10 @@ M5.35 (is selectedPosition real at GameStart?) — rides on M5.18's capture nigh
 M5.15 (how you got here) — needs only M3.5; exact once M5.7 lands.
 ```
 
+**M20 (region wars, one mode state)** waits on the in-flight mode bug fixes for its rewrite (M20.6 to M20.8) and
+shares the Tonight lane with M19; M20.2 to M20.5 run beside it. The order graph is in M20's own section. M19.13
+moves after M20.12.
+
 **M19 (fast pages)** runs beside M18 and touches none of its files except where both add a migration (number at
 merge). Inside it:
 
@@ -13124,7 +13396,7 @@ M19.1 (bench) --+-- M19.2 (prefetch) -- M19.4 (cheap Tonight render) --\
                 +-- M19.6 (inventory, prefetch rule, budget guards)       /
 M19.7 (invalidation, platform) -----------------------------------------/
 M19.8 (no-op lobby post) | M19.9 (group_live) | M19.12 (getClaims, investigate) | M19.16 (status reads)
-fix-mode-qa merges -- M19.3 (scheduler, pending) -- M19.10 (Tonight on group_live) -- M19.13 (Mode card on the client)
+fix-mode-qa merges -- M19.3 (scheduler, pending) -- M19.10 (Tonight on group_live) -- [M20.8, M20.10, M20.12] -- M19.13 (Mode card on the client)
                                                                   \-- one real night -- M19.11 (publication trimmed)
 M19.14 (skeletons, designer) -- M19.15 (loading, streaming)
 M19.16 + M19.3 -- M19.17 (targeted polls)        M19.18 (static marketing, optional)        M19.19 (review, walk)
