@@ -158,11 +158,15 @@ Also in the schema:
   - RLS helpers (`0022`): `current_player_id()` and `is_group_admin(group)`, executable by `authenticated` too,
     because a function called inside a policy runs as the querying role. Both answer only about the caller's own
     verified session.
-- **Realtime.** The `supabase_realtime` publication covers `lobbies`, `lobby_members`, `splits`, `games`,
-  `game_players`, `ratings`, `fearless_state` (`0017`) and `group_modes` (`0024`). Realtime only puts into a
-  subscriber's payload the columns its role may select, so `0028` (and `0029`) keep the hidden columns out of anon
-  events while the events still fire. A table outside the publication never emits a change event, silently, and the
-  tonight page (M3.4) and the bot (M4.4) are built on those events. `players` is left out; it is not publicly
+- **Realtime.** The `supabase_realtime` publication is exactly `group_live` (`0037`), `group_modes` (`0024`) and
+  `fearless_state` (`0017`) since `0044` (M19.11), which took `lobbies`, `lobby_members`, `splits`, `games`,
+  `game_players` and `ratings` out: `lobby_members` and `splits` have no `group_id`, so every change to them reached
+  any anon subscriber of any group. Those six stay publicly readable through PostgREST under the same RLS; only
+  their change events stopped, and Realtime refuses a subscription to them ("Unable to subscribe to changes with
+  given parameters"). Realtime only puts into a subscriber's payload the columns its role may select, so `0029`
+  keeps `set_by`, `pending_set_by` and `reset_by` out of anon events while the events still fire. A publication
+  column list would not: Realtime's postgres_changes decodes with wal2json and ignores it (verified locally,
+  Realtime v2.73.2, 2026-10-04), so the two tables are published whole. `players` is left out; it is not publicly
   readable.
 - **The live signal, `group_live`** (`0037`, M19.9; decision row 2026-10-04). One row per group, exactly
   `(group_id uuid pk, version bigint, kind text, changed_at timestamptz)` and never another column: no player or
@@ -177,7 +181,7 @@ Also in the schema:
   contract (M19.10): filter `group_id=eq.<id>` (`groupLiveFilter`), parse `new` with `groupLiveRowSchema` from
   `@customs/db/schemas` (strict: a fifth column fails the parse), compare `version` with the version the page
   was rendered at; a DELETE carries only `group_id` (the group was deleted). Background `after()` work (the AI
-  lines) does not bump. The six player and lobby tables stay published until M19.11.
+  lines) does not bump. The six player and lobby tables left the publication in M19.11 (`0044`).
 
 Rules:
 
