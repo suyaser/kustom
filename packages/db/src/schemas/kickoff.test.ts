@@ -25,7 +25,14 @@ describe('kickoffFromRow / kickoffRowOf', () => {
     { kind: 'rolled', blue, red, at, swapped: false },
     { kind: 'rolled', blue: red, red: blue, at, swapped: true },
     { kind: 'custom', blue, red, at, blueWinProb: 0.62, oddsModel: 'kustom' },
-    { kind: 'unrolled', blue: blue.slice(0, 3), red: red.slice(0, 3), at, blueWinProb: 0.5, oddsModel: 'kustom' },
+    {
+      kind: 'unrolled',
+      blue: blue.slice(0, 3),
+      red: red.slice(0, 3),
+      at,
+      blueWinProb: 0.5,
+      oddsModel: 'kustom',
+    },
   ])('round-trips $kind', (record) => {
     expect(kickoffFromRow(kickoffRowOf(record))).toEqual(record);
   });

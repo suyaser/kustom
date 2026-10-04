@@ -125,7 +125,12 @@ export async function writeKickoffAtStart(
       .from('lobby_members')
       .select('player_id, side, is_spectator, players!inner(puuid)')
       .eq('lobby_id', input.lobbyId),
-    client.from('splits').select('blue, red').eq('lobby_id', input.lobbyId).eq('is_chosen', true).maybeSingle(),
+    client
+      .from('splits')
+      .select('blue, red')
+      .eq('lobby_id', input.lobbyId)
+      .eq('is_chosen', true)
+      .maybeSingle(),
   ]);
   if (members.error) throw new Error(`kickoff: member read failed: ${members.error.message}`);
   if (chosen.error) throw new Error(`kickoff: split read failed: ${chosen.error.message}`);
@@ -142,7 +147,9 @@ export async function writeKickoffAtStart(
   }
 
   const split =
-    chosen.data === null ? null : { blue: readAssignments(chosen.data.blue), red: readAssignments(chosen.data.red) };
+    chosen.data === null
+      ? null
+      : { blue: readAssignments(chosen.data.blue), red: readAssignments(chosen.data.red) };
   // Ratings only matter when the record carries odds; a rolled game reads the split's.
   const playing = new Set([...teams.blue, ...teams.red]);
   const ratings = await selectRatings(
@@ -179,7 +186,11 @@ export async function writeKickoffAtStart(
  * post (M21.6) go through, parsed by `kickoffFromRow` so every reader sees the same shape.
  */
 export async function readLobbyKickoff(client: ServiceClient, lobbyId: string): Promise<LobbyKickoff | null> {
-  const { data, error } = await client.from('lobbies').select(KICKOFF_COLUMNS).eq('id', lobbyId).maybeSingle();
+  const { data, error } = await client
+    .from('lobbies')
+    .select(KICKOFF_COLUMNS)
+    .eq('id', lobbyId)
+    .maybeSingle();
   if (error) throw new Error(`kickoff: lobby read failed: ${error.message}`);
   return data === null ? null : kickoffFromRow(data);
 }

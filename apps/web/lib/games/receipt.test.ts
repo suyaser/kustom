@@ -57,9 +57,9 @@ describe('splitSidesOf (M21.4)', () => {
   });
 
   it('different: two people traded, a player missing, or a smaller game that is not the split', () => {
-    expect(splitSidesOf(split(1), seats(['r1', 'b2', 'b3', 'b4', 'b5'], ['b1', 'r2', 'r3', 'r4', 'r5']))).toBe(
-      'different',
-    );
+    expect(
+      splitSidesOf(split(1), seats(['r1', 'b2', 'b3', 'b4', 'b5'], ['b1', 'r2', 'r3', 'r4', 'r5'])),
+    ).toBe('different');
     expect(splitSidesOf(split(1), seats(BLUE, RED.slice(0, 4)))).toBe('different');
     expect(splitSidesOf(split(1), seats(BLUE.slice(0, 3), RED.slice(0, 3)))).toBe('different');
   });
