@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { settleDetached } from '@/lib/afterResponse';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { readAssignments } from '@/lib/discord/assemble';
 import {
@@ -149,10 +150,15 @@ if (stack === null || !ready) {
     return data;
   }
 
+  /** `in_progress` through the real route; answers without waiting for the post (`after()`). */
+  function startOnly(partyId: string, gameId: number, token = tokens.host): Promise<Response> {
+    return postGame(jsonRequest('/api/companion/game', { phase: 'in_progress', gameId, partyId }, token));
+  }
+
+  /** `in_progress`, then wait for the after-response work (the Game on post) to finish. */
   async function start(partyId: string, gameId: number, token = tokens.host) {
-    const response = await postGame(
-      jsonRequest('/api/companion/game', { phase: 'in_progress', gameId, partyId }, token),
-    );
+    const response = await startOnly(partyId, gameId, token);
+    await settleDetached();
     return response.status;
   }
 
@@ -306,6 +312,34 @@ if (stack === null || !ready) {
     expect(await start(partyId, gameId)).toBe(200);
     expect(posts).toHaveLength(attempts);
   });
+
+  it('a slow Discord never delays the in_progress answer or the live signal', async () => {
+    // The fake takes the post and does not answer until the test lets it.
+    const held: ServerResponse[] = [];
+    const { partyId, lobbyId } = await rolledThenSwapped();
+    answer = (response) => held.push(response);
+    const { data: before } = await db.from('group_live').select('version').eq('group_id', groups.g).single();
+    const began = Date.now();
+    const outcome = await Promise.race([
+      startOnly(partyId, testGameId()).then((response) => response.status),
+      new Promise<'timed out'>((resolve) => setTimeout(() => resolve('timed out'), 2_000)),
+    ]);
+    expect(outcome).toBe(200);
+    expect(Date.now() - began).toBeLessThan(2_000);
+    // Answered with the kickoff written and the group already told (the flush did not wait either).
+    expect(await lobbyRow(lobbyId)).toMatchObject({ status: 'in_game', kickoff_kind: 'custom' });
+    const { data: after } = await db.from('group_live').select('version').eq('group_id', groups.g).single();
+    expect(Number(after?.version)).toBe(Number(before?.version) + 1);
+    // The post is still on its way: wait for it to reach the fake, then let it land.
+    for (let waited = 0; held.length === 0 && waited < 5_000; waited += 50) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(held).toHaveLength(1);
+    for (const response of held) response.writeHead(204).end();
+    await settleDetached();
+    expect(posts).toHaveLength(1);
+    expect(titleOf(0)).toBe(GAME_ON_CUSTOM_TITLE);
+  }, 15_000);
 
   it('(5) no channel connected: no message, the post still answers 200', async () => {
     await db.from('discord_config').delete().eq('group_id', groups.g);
