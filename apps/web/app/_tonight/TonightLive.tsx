@@ -3,6 +3,8 @@
 import { ruleKey } from '@customs/core';
 import { useEffect, useRef } from 'react';
 import { createLiveClient } from '@/lib/liveClient';
+import { applyFearlessReset, applyModeRow } from '@/lib/mode/clientStore';
+import { modeRowParsers } from '@/lib/mode/liveRows';
 import { SPIN_BROADCAST, SPIN_BROADCAST_EVENT, SPIN_REVEAL_EVENT, spinDetail } from '@/lib/mode/spinEvents';
 import {
   resetLiveState,
@@ -37,12 +39,25 @@ import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
  * one event that arrives after the game, its players and its ratings are readable: one render, never
  * a half-written game, and another group's activity never reaches this page. The per-table
  * subscriptions are gone; `group_modes` and `fearless_state` are still heard (filtered) for the
- * Mode card's client slice (M19.13) but re-read nothing, because their writers bump too and a render
- * from their earlier row would read the eog half-written. Every row is parsed strictly
- * (`groupLiveRowSchema`) and a row that fails is dropped; a DELETE (the group itself was deleted)
- * re-reads, and the server answers with the group's not-found page.
+ * Mode card's client slice (M19.13): they never start a render themselves, because their writers
+ * bump too and a render from their earlier row would read the eog half-written. Every row is parsed
+ * strictly (`groupLiveRowSchema`) and a row that fails is dropped; a DELETE (the group itself was
+ * deleted, or a mode row went) re-reads, and the server answers with what is true now.
  *
- * **Every change re-reads; no event is trusted to carry state** (M3.4's rule, unchanged): the row
+ * **The client may hold a name-free slice patched from a `postgres_changes` row this channel
+ * received (never from a broadcast). Anything that prints a player's name comes from the server
+ * render** (decision row 2026-10-04, M19.13; narrows M14.69's rule below and the 2026-09-09
+ * "re-read, don't apply payloads" row for this slice only). The slice is the Mode card's state
+ * (`lib/mode/clientStore.ts`): each `group_modes` row goes into the client mode store, gated on its
+ * `version`, and each `fearless_state` row moves the pool's reset time; `set_by`,
+ * `pending_set_by` and `reset_by` are never read into it. So a `mode` bump (Rated, Set mode, Spin)
+ * whose `group_modes` row has arrived re-reads nothing: the card, its controls, the announcer and
+ * the mirror host line follow the store, and the page costs no server render. A `mode` bump still
+ * re-reads when its row does not arrive within {@link MODE_ROW_WAIT_MS}, when a Fearless reset was
+ * heard (the pool, the panel and the `Banned next game` ten are the server's), and while the mode
+ * panel is open over the page (its pool is a server render).
+ *
+ * **Every other change re-reads; no other event is trusted to carry state** (M3.4's rule): the row
  * only says *that* the group moved. The server re-reads with the same loader as the first paint,
  * so the receipt, the poster, the tape and the rail are server components that never ship to the
  * phone, and server-only facts (who would sit out, the calibration line) stay current.
@@ -64,7 +79,8 @@ import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
  * **Never cache a snapshot on the client** (M14.69, code review): every name on the page carries its
  * same-name label (`Ali (2)`), which only the server render folds in (`labelSnapshot` over
  * `loadRosterLabels`). A client-kept or client-patched snapshot would print the bare names, so a
- * change always goes back to the server for the whole page.
+ * change to anything that prints a name always goes back to the server for the whole page. The
+ * Mode card's state is the one exception (above): it prints no name.
  */
 
 /**
@@ -97,6 +113,18 @@ export const COALESCE_MS = REFRESH_DEBOUNCE_MS;
  * sends no bump; its re-read waits this long instead.
  */
 export const PRESS_BUMP_WAIT_MS = 500;
+
+/**
+ * How long a `mode` bump waits for its `group_modes` row before it re-reads the page instead (M19.13).
+ * The route writes the row before it bumps, so the row is normally first; this covers a row that
+ * arrives late, or not at all.
+ */
+export const MODE_ROW_WAIT_MS = 500;
+
+/** The mode panel is open over the page (`/g/<slug>/mode`): its pool is a server render. */
+function modePanelOpen(): boolean {
+  return typeof window !== 'undefined' && /\/mode\/?$/.test(window.location.pathname);
+}
 
 /** No `SUBSCRIBED` this long after mounting reads as down, not as still connecting (5.4). */
 export const CONNECT_TIMEOUT_MS = 8_000;
@@ -168,19 +196,67 @@ export function TonightLive({ groupId, liveVersion = null, lobbyLive, nameless =
     const awaitingBump = new Set<() => void>();
     /** Presses still with their route, and whether a bump has arrived since each began. */
     const pressing = new Set<{ bumped: boolean }>();
-    /** A row (or the version check) says the group is at `version`: re-read if the page is behind. */
-    const offer = (version: number): void => {
-      if (!gate.current.moved(version)) return;
-      // Marked while still held, then let go: the render starts a debounce after this row.
+    /**
+     * Matching `mode` bumps to their `group_modes` rows (M19.13): rows heard that no bump has
+     * claimed yet, bumps still waiting for their row, and whether a Fearless reset was heard. All
+     * three start again with every re-read (the render shows everything heard before it).
+     */
+    const modes = {
+      rowsAhead: 0,
+      bumpsWaiting: 0,
+      timer: null as ReturnType<typeof setTimeout> | null,
+      reset: false,
+    };
+    const rereadAll = (): void => {
+      modes.rowsAhead = 0;
+      modes.bumpsWaiting = 0;
+      modes.reset = false;
+      if (modes.timer !== null) clearTimeout(modes.timer);
+      modes.timer = null;
       refresh.current();
+    };
+    /**
+     * A row (or the version check) says the group is at `version`: re-read if the page is behind,
+     * unless it is a `mode` bump the client mode store has already answered (M19.13).
+     */
+    const offer = (version: number, kind: string | null = null): void => {
+      if (!gate.current.moved(version)) return;
       for (const press of pressing) press.bumped = true;
+      if (kind === 'mode' && !modes.reset && !modePanelOpen()) {
+        if (modes.rowsAhead > 0) modes.rowsAhead -= 1;
+        else {
+          modes.bumpsWaiting += 1;
+          modes.timer ??= setTimeout(() => {
+            modes.timer = null;
+            if (modes.bumpsWaiting > 0) rereadAll();
+          }, MODE_ROW_WAIT_MS);
+        }
+      } else {
+        // Marked while still held, then let go: the render starts a debounce after this row.
+        rereadAll();
+      }
       for (const free of [...awaitingBump]) free();
     };
+    /** A `group_modes` row arrived: it answers a `mode` bump waiting for it, or the next one. */
+    const modeRowHeard = (): void => {
+      if (modes.bumpsWaiting === 0) {
+        modes.rowsAhead += 1;
+        return;
+      }
+      modes.bumpsWaiting -= 1;
+      if (modes.bumpsWaiting === 0 && modes.timer !== null) {
+        clearTimeout(modes.timer);
+        modes.timer = null;
+      }
+    };
+    // The row parsers are a dynamic import: start it now, so the first row finds it loaded.
+    void modeRowParsers();
     /** After a gap (subscribe, reconnect, visible, online): read the row; unknown re-reads. */
     const check = (): void => {
       void readGroupLive(groupId).then((row) => {
         if (cancelled) return;
-        if (row === null) refresh.current();
+        // After a gap the mode rows may have been missed too: a moved version always re-reads.
+        if (row === null) rereadAll();
         else offer(row.version);
       });
     };
@@ -190,7 +266,7 @@ export function TonightLive({ groupId, liveVersion = null, lobbyLive, nameless =
       (payload: { eventType?: string; new?: unknown }) => {
         // The group was deleted: the re-read answers with its not-found page.
         if (payload.eventType === 'DELETE') {
-          refresh.current();
+          rereadAll();
           return;
         }
         // The parser is asked per row: a schema chunk that failed to load is retried next time.
@@ -202,21 +278,50 @@ export function TonightLive({ groupId, liveVersion = null, lobbyLive, nameless =
             return;
           }
           if (row.group_id !== groupId) return;
-          offer(row.version);
+          offer(row.version, row.kind);
         });
       },
     );
-    // Heard for the Mode card's client slice (M19.13); they re-read nothing (see the header).
+    // The Mode card's client slice (M19.13): each row goes into the client mode store; none
+    // starts a render by itself (see the header). A DELETE is never a patch: it re-reads.
     for (const table of ['group_modes', 'fearless_state'] as const) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table, filter: groupLiveFilter(groupId) },
-        () => {},
+        (payload: { eventType?: string; new?: unknown }) => {
+          if (payload.eventType === 'DELETE') {
+            rereadAll();
+            return;
+          }
+          void modeRowParsers().then((parsers) => {
+            if (cancelled || parsers === null) return;
+            if (table === 'group_modes') {
+              const row = parsers.parseModeRow(payload.new);
+              if (row === null) {
+                console.warn('group_modes: dropped a malformed row');
+                return;
+              }
+              if (row.groupId !== groupId) return;
+              applyModeRow(groupId, row.slice);
+              modeRowHeard();
+              return;
+            }
+            const row = parsers.parseFearlessRow(payload.new);
+            if (row === null) {
+              console.warn('fearless_state: dropped a malformed row');
+              return;
+            }
+            if (row.groupId !== groupId) return;
+            applyFearlessReset(groupId, row.resetAt);
+            modes.reset = true;
+          });
+        },
       );
     }
     // M15.5: another admin's Spin, said on the channel so every open page plays the same reveal.
-    // The card itself still comes from the database (`group_modes` above); this only names the rule,
-    // and the reveal plays only once the card's pending rule confirms it (`SpinReveal`).
+    // The card itself still comes from the database (the `group_modes` row above, into the client
+    // mode store); a broadcast never patches it, it only names the rule, and the reveal plays only
+    // once the card's pending rule confirms it (`SpinReveal`).
     channel.on('broadcast', { event: SPIN_BROADCAST }, (message) => {
       const rule = spinDetail({ payload: message.payload });
       if (rule === null) return;
@@ -294,6 +399,7 @@ export function TonightLive({ groupId, liveVersion = null, lobbyLive, nameless =
       window.removeEventListener(TONIGHT_PRESS_EVENT, onPress);
       window.removeEventListener(SPIN_BROADCAST_EVENT, onSpun);
       for (const free of [...awaitingBump]) free();
+      if (modes.timer !== null) clearTimeout(modes.timer);
       void client.removeChannel(channel);
       resetLiveState();
     };

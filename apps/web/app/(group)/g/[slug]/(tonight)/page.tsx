@@ -31,6 +31,7 @@ import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
 import { loadSitOutPreviewOrNone, loadSitOutRuleOrNone } from '@/lib/tonight/sitOutPreview';
 import { hasNamelessRow, tonightHeader, tonightState } from '@/lib/tonight/state';
 import { loadYourNightOrNone } from '@/lib/tonight/yourNight';
+import { readPitchCookie } from '@/lib/versus/pitchCookie';
 import { currentViewerState } from '@/lib/viewer';
 import { TonightLive } from '../../../../_tonight/TonightLive';
 import { TonightView } from '../../../../_tonight/TonightView';
@@ -212,6 +213,7 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
           )
         }
         breakdown={breakdown}
+        pitchCookie={state.kind === 'result' ? await readPitchCookie() : undefined}
       />
       <TonightLive
         groupId={group.id}

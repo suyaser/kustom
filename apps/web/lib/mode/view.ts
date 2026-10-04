@@ -5,6 +5,7 @@ import { availableFearless } from '../fearless/present';
 import type { FearlessChampion, FearlessView } from '../fearless/types';
 import { DISPLAY_LOCALE } from '../night';
 import type { TonightSnapshot } from '../tonight/types';
+import { type NormalNoteFacts, normalNote } from './cardView';
 
 /**
  * The Mode card's and the mode panel's derived facts (M14.30; 05-design.md 8.3, 8.7). Pure, so
@@ -65,27 +66,33 @@ export function poolSinceLabel(resetAt: string | null, timeZone: string): string
     .replace(',', '');
 }
 
-/** How long after a game lands its compare-and-clear write can still arrive (M15.5). */
-export const RECORD_CLEAR_SLACK_MS = 30_000;
+export { RECORD_CLEAR_SLACK_MS } from './cardView';
+
+/** The night's facts behind the members' `Normal mode now.` note (M19.13: the client card reads them). */
+export function normalNoteFactsOf(snapshot: TonightSnapshot): NormalNoteFacts {
+  let lastResultAt: number | null = null;
+  for (const entry of snapshot.tape) {
+    if (entry.result === null) continue;
+    const at = Date.parse(entry.createdAt);
+    if (Number.isFinite(at) && (lastResultAt === null || at > lastResultAt)) lastResultAt = at;
+  }
+  return {
+    nightStart: snapshot.nightStart,
+    lastGameAt: snapshot.lastGameAt ?? null,
+    lastResultAt,
+    finishedNow: snapshot.lobby?.status === 'finished' || snapshot.lobby?.status === 'in_game',
+  };
+}
 
 /**
  * The members' dashed `Normal mode now.` note (M14.30): the group is on Normal, the switch
  * happened tonight, and no game of tonight has started since (a game landing ends the moment).
+ * One function with the client card's (`normalNote`, `cardView.ts`).
  */
 export function normalJustNow(snapshot: TonightSnapshot): boolean {
-  if (snapshot.mode !== 'normal' || snapshot.modeSince === null) return false;
-  // M15.5: a pending rule is what the card shows; the note is about plain Normal.
-  if ((snapshot.modeState?.pending ?? null) !== null) return false;
-  const since = Date.parse(snapshot.modeSince);
-  if (!Number.isFinite(since) || since < Date.parse(snapshot.nightStart)) return false;
-  // M15.5: since 0032 a recorded game writes the card too (the compare-and-clear: a rule game
-  // handing back to Normal, a Rated switch resetting). A write that close to the last game landing
-  // is the server's, not an admin's switch: no `An admin switched off Fearless` note.
-  const landed = snapshot.lastGameAt == null ? Number.NaN : Date.parse(snapshot.lastGameAt);
-  if (Number.isFinite(landed) && since <= landed + RECORD_CLEAR_SLACK_MS) return false;
-  const laterGame = snapshot.tape.some(
-    (entry) => entry.result !== null && Date.parse(entry.createdAt) > since,
-  );
-  const finishedNow = snapshot.lobby?.status === 'finished' || snapshot.lobby?.status === 'in_game';
-  return !laterGame && !finishedNow;
+  return normalNote(normalNoteFactsOf(snapshot), {
+    standing: snapshot.mode,
+    pending: snapshot.modeState?.pending ?? null,
+    since: snapshot.modeSince,
+  });
 }

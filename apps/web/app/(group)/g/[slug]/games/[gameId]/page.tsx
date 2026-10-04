@@ -20,6 +20,8 @@ import { getServiceClient } from '@/lib/supabase';
 import { HEAD_SEPARATOR, renderWebName } from '@/lib/tonight/copy';
 import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
 import { viewerIsAdmin } from '@/lib/tonight/viewer';
+import { readPitchCookie } from '@/lib/versus/pitchCookie';
+import { pitchDismissedFor } from '@/lib/versus/pitchDismiss';
 import { currentViewerState } from '@/lib/viewer';
 import { VersusPitch } from '../../../../../_board/VersusPitch';
 import { GameDetail } from '../../../../../_games/GameDetail';
@@ -68,6 +70,9 @@ export default async function GamePage({ params }: GamePageProps) {
   const { slug, gameId } = await params;
   const group = await requirePageGroup(slug);
   const viewer = await currentViewerState(group.id);
+  // The You-vs-them pitch's dismissal, read here so its first paint is its last (fix-result-cls).
+  const night = tonightStart().toISOString();
+  const pitchCookie = await readPitchCookie();
   // One round (app-perf): the recap and the breakdown are keyed by the URL's id and the group, so
   // they start beside the game; a game of another group is still the 404 below, its extras unused.
   const wellFormed = isGameId(gameId);
@@ -123,7 +128,8 @@ export default async function GamePage({ params }: GamePageProps) {
           // M14.35: the You-vs-them line under a finished game, once a night per browser.
           <VersusPitch
             viewer={viewer.kind === 'linked' ? 'linked' : 'not-linked'}
-            nightKey={tonightStart().toISOString()}
+            nightKey={night}
+            dismissed={pitchDismissedFor(pitchCookie, night)}
             here={here}
             you={groupHref(group, { page: 'you' }) ?? (`/g/${encodeURIComponent(group.slug)}/you` as Route)}
           />

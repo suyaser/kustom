@@ -1,8 +1,10 @@
 'use client';
 
+import { nextGame, type RuleOption } from '@customs/core';
 import type { GroupMode } from '@customs/db/schemas';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { type ModeSlice, useModeSlice } from '@/lib/mode/clientStore';
 import { MODE_ANNOUNCEMENTS } from '@/lib/mode/copy';
 import { type ModeSpeech, modeSpeechLine } from '@/lib/mode/speech';
 import { ANNOUNCE_EVENT } from '@/lib/mode/spinEvents';
@@ -15,17 +17,51 @@ import { ANNOUNCE_EVENT } from '@/lib/mode/spinEvents';
  * game's rule is done. Back to Fearless.`, `Next game is not rated.`) and the Spin reveal's landing
  * (`Spin says: Tanks only.`, from {@link ANNOUNCE_EVENT}). Never on first paint: a live region's
  * initial content is not announced, and the first mode is not a change.
+ *
+ * M19.13: with `live`, the card's facts come from the client mode store (what a `group_modes` row
+ * or a control's answer confirmed, never a tap still in flight), so a mode change with no server
+ * render is still said once.
  */
+export interface AnnouncerLive {
+  groupId: string;
+  slice: ModeSlice;
+  /** The rule locked on tonight's live lobby (balanced, in game), or null. */
+  lockedRule: RuleOption | null;
+  lobbyStatus: string | null;
+  /** The render's `group_modes` read failed: keep the last good state, never announce a stand-in. */
+  readFailed?: boolean | undefined;
+}
+
+const NO_SLICE: ModeSlice = {
+  state: { standing: 'normal', pending: null, ratedOverride: null, version: 0 },
+  updatedAt: null,
+  resetAt: null,
+};
+
 export function Announcer({
   text,
-  mode,
-  speech,
+  mode: serverMode,
+  speech: serverSpeech,
+  live,
 }: {
   text: string;
   mode: GroupMode;
   /** The card's facts (M15.5); absent, only a standing-mode change is said (M14.30). */
   speech?: ModeSpeech | undefined;
+  live?: AnnouncerLive | undefined;
 }) {
+  const merged = useModeSlice(live?.groupId ?? '', live?.slice ?? NO_SLICE, false, live?.readFailed === true);
+  const mode: GroupMode = live === undefined ? serverMode : merged.state.standing;
+  const speech: ModeSpeech | undefined =
+    live === undefined
+      ? serverSpeech
+      : {
+          standing: merged.state.standing,
+          pending: merged.state.pending,
+          nextRated: nextGame(merged.state).rated,
+          lockedRule: live.lockedRule,
+          lobbyStatus: live.lobbyStatus,
+        };
   const lastMode = useRef(mode);
   const lastSpeech = useRef(speech);
   const lastText = useRef(text);

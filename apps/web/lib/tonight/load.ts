@@ -11,6 +11,7 @@ import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
 import { loadCheckNames } from '../mode/clientNames';
 import { type LockRow, lockFromRow } from '../mode/lock';
+import { missingState } from '../mode/state';
 import {
   type GameStampRow,
   loadGameStamp,
@@ -110,13 +111,17 @@ export async function loadTonight(
   const lobbyRow = newestLobby(lobbies);
   const tapeLobbies = pickTapeLobbies(lobbies, nightStart, drawnLobbyId(lobbyRow));
 
-  const [{ lobby, tape }, { mode, modeSince, ...fearless }, { state: modeState }, lastGameAt] =
-    await Promise.all([
-      loadNight(client, lobbyRow, tapeLobbies, groupId, clock),
-      fearlessRead,
-      modeFacts,
-      lastGameAtRead,
-    ]);
+  const [
+    { lobby, tape },
+    { mode, modeSince, ...fearless },
+    { state: modeState, failed: modeReadFailed },
+    lastGameAt,
+  ] = await Promise.all([
+    loadNight(client, lobbyRow, tapeLobbies, groupId, clock),
+    fearlessRead,
+    modeFacts,
+    lastGameAtRead,
+  ]);
 
   return {
     nightStart,
@@ -126,7 +131,8 @@ export async function loadTonight(
     fearless,
     mode,
     modeSince: modeSince ?? null,
-    modeState: modeState ?? { standing: mode, pending: null, ratedOverride: null, version: 0 },
+    modeState: modeState ?? missingState(),
+    modeReadFailed,
     lastGameAt,
     tape,
     // M14.66: companion tokens are not readable with the anon key; the page fills both on the

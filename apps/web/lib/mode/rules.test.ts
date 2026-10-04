@@ -1,5 +1,5 @@
 import type { ChampionFacts, ChampionTable, ModeState, Rng } from '@customs/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { memoryModeStore } from '../testing/modeStore';
 import { championTable, regionIds } from './champions';
 import { type LockInputs, lockFor, lockFromRow, rowFromLock, type StoredLock } from './lock';
@@ -300,6 +300,36 @@ describe('the compare-and-clear after record', () => {
       expect(await clearAfterRecord(t.store, 'g', game)).toBe(false);
       expect(t.writes).toEqual([]);
     }
+  });
+
+  it('audit defect 3: a Rated flip landing mid-clear is retried, and the rule is still used up', async () => {
+    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
+    // An admin flips Rated between the clear's read and its write: the first write loses.
+    t.beforeNextWrite(() =>
+      t.set(state({ pending: { id: 'class', tag: 'Tank' }, ratedOverride: true, version: 8 })),
+    );
+    expect(await clearAfterRecord(t.store, 'g', recordedGame('rift', lock))).toBe(true);
+    // The rule is used up (it would have repeated next game); the flip stays for the next game.
+    expect(t.row()).toEqual(state({ ratedOverride: true, version: 9 }));
+  });
+
+  it("audit defect 3: a rule re-queued mid-clear is retried against the admin's write and survives", async () => {
+    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
+    t.beforeNextWrite(() => t.set(state({ pending: { id: 'class', tag: 'Tank' }, version: 8 })));
+    expect(await clearAfterRecord(t.store, 'g', recordedGame('rift', lock))).toBe(false);
+    expect(t.row()).toEqual(state({ pending: { id: 'class', tag: 'Tank' }, version: 8 }));
+  });
+
+  it('audit defect 3: losing every attempt is logged, never thrown', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
+    const losing = {
+      read: t.store.read,
+      write: async () => false,
+    };
+    expect(await clearAfterRecord(losing, 'g', recordedGame('rift', lock))).toBe(false);
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
   });
 
   it('a second post of the same game is a no-op', async () => {

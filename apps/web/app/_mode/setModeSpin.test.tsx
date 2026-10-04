@@ -7,8 +7,8 @@ import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
 import { SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
+import { type HarnessProps, ModeControlsHarness as ModeControls } from '@/lib/testing/ModeControlsHarness';
 import { Announcer } from '../_tonight/Announcer';
-import { ModeControls, type ModeControlsProps } from './ModeControls';
 
 /**
  * Set mode and Spin answer at once (QA fix 2026-10-04, the Rated switch's pattern).
@@ -19,16 +19,16 @@ import { ModeControls, type ModeControlsProps } from './ModeControls';
  * tests never re-render with new props after a tap unless they say so (the delayed refresh).
  */
 
-const PROPS: ModeControlsProps = {
+/** The card as the page rendered it: Fearless, nothing pending, rated, version 4. */
+const SERVER = { standing: 'fearless', pending: null, ratedOverride: null, version: 4 } as const;
+
+const PROPS: HarnessProps = {
   groupId: ORIGINAL_GROUP.id,
-  mode: 'fearless',
   banned: 0,
   inGame: false,
   redirectTo: '/g/customs',
   resetConfirmHref: '/g/customs/mode/reset',
-  selected: 'fearless',
-  nextRated: true,
-  version: 4,
+  server: SERVER,
 };
 
 function answer(
@@ -105,31 +105,30 @@ describe('Set mode answers on its own', () => {
     expect(bodies(net.mock)).toEqual([{ groupId: ORIGINAL_GROUP.id, mode: 'class:Tank' }]);
   });
 
-  it('M19.3: says Setting… until the new card is on screen, then goes, with focus on the select', async () => {
+  it('M19.13: says Setting… until the route confirms, then goes with focus on the select; no re-read is asked', async () => {
     const tonight = holdTonightRefresh();
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
-    const { rerender } = render(<ModeControls {...PROPS} />);
+    render(<ModeControls {...PROPS} />);
     fireEvent.change(select(), { target: { value: 'class:Tank' } });
     const button = setButton() as HTMLElement;
     button.focus();
     fireEvent.click(button);
-    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
-    expect(tonight.asks).toHaveLength(1);
 
-    // Answered, the old card still up: the button stays, pending, and posts nothing again.
+    // In flight: the button stays, pending, and posts nothing again.
     const pendingButton = screen.getByRole('button', { name: SETTING_MODE });
     expect(pendingButton).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(spinButton());
     fireEvent.submit(select().form as HTMLFormElement);
     expect(net.mock).toHaveBeenCalledTimes(1);
 
-    // The re-read lands (new props), then the button goes and focus is on the select.
-    rerender(<ModeControls {...PROPS} selected="class:Tank" nextRated={false} version={5} />);
-    await act(async () => tonight.land());
-    await waitFor(() => expect(screen.queryByRole('button', { name: SETTING_MODE })).toBeNull());
+    // Answered: the answer is the card (the client mode store), so the button goes at once.
+    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
+    expect(screen.queryByRole('button', { name: SETTING_MODE })).toBeNull();
     expect(setButton()).toBeNull();
     expect(select()).toHaveFocus();
+    // Zero server renders per mode change: the controls ask Tonight for nothing.
+    expect(tonight.asks).toHaveLength(0);
     tonight.stop();
   });
 
@@ -152,12 +151,17 @@ describe('Set mode answers on its own', () => {
     fireEvent.change(select(), { target: { value: 'normal' } });
     fireEvent.click(setButton() as HTMLElement);
     await net.release(answer({ rule: null, rated: true, version: 5, standing: 'normal' }));
-    rerender(<ModeControls {...PROPS} selected="fearless" version={4} />);
+    rerender(<ModeControls {...PROPS} server={SERVER} />);
     expect(select().value).toBe('normal');
     expect(setButton()).toBeNull();
-    rerender(<ModeControls {...PROPS} mode="normal" selected="normal" version={5} />);
+    rerender(<ModeControls {...PROPS} server={{ ...SERVER, standing: 'normal', version: 5 }} />);
     expect(select().value).toBe('normal');
-    rerender(<ModeControls {...PROPS} mode="normal" selected="class:Mage" version={6} />);
+    rerender(
+      <ModeControls
+        {...PROPS}
+        server={{ ...SERVER, standing: 'normal', pending: { id: 'class', tag: 'Mage' }, version: 6 }}
+      />,
+    );
     expect(select().value).toBe('class:Mage');
     expect(setButton()).toBeNull();
   });
@@ -209,7 +213,9 @@ describe('Spin is quiet during its own reveal', () => {
     expect(select().value).toBe('class:Mage');
 
     // The page re-reads the spin; the reveal cycles; then Spin is back.
-    rerender(<ModeControls {...PROPS} selected="class:Mage" version={5} />);
+    rerender(
+      <ModeControls {...PROPS} server={{ ...SERVER, pending: { id: 'class', tag: 'Mage' }, version: 5 }} />,
+    );
     await act(async () => {
       vi.advanceTimersByTime(SPIN_CYCLE_MS - 1);
     });
@@ -223,13 +229,34 @@ describe('Spin is quiet during its own reveal', () => {
     window.removeEventListener(SPIN_REVEAL_EVENT, onReveal);
   });
 
-  it('a page that never re-reads still frees Spin after the reveal wait', async () => {
+  it('M19.13: with no re-read at all, the answer is the card, so Spin frees after the cycle', async () => {
     vi.useFakeTimers();
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
     render(<ModeControls {...PROPS} />);
     fireEvent.click(spinButton());
     await net.release(answer({ rule: 'region', rated: false, version: 5 }, 'region'));
+    await act(async () => {
+      vi.advanceTimersByTime(SPIN_CYCLE_MS - 1);
+    });
+    expect(spinButton()).toHaveAttribute('aria-disabled', 'true');
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(spinButton()).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('an answer without the card (an M14 server) still frees Spin after the reveal wait', async () => {
+    vi.useFakeTimers();
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.click(spinButton());
+    await net.release({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, mode: 'fearless', changed: true, spun: 'region' }),
+    } as Response);
     await act(async () => {
       vi.advanceTimersByTime(SPIN_WAIT_MS);
     });
@@ -290,7 +317,7 @@ describe('said once, by the Announcer (QA fix 2026-10-04)', () => {
     lockedRule: null,
     lobbyStatus: null,
   };
-  const page = (props: Partial<ModeControlsProps>, speech: ModeSpeech) => (
+  const page = (props: Partial<HarnessProps>, speech: ModeSpeech) => (
     <>
       <Announcer text="" mode="fearless" speech={speech} />
       <ModeControls {...PROPS} {...props} />
@@ -311,7 +338,7 @@ describe('said once, by the Announcer (QA fix 2026-10-04)', () => {
     expect(live()).toHaveLength(1);
     rerender(
       page(
-        { selected: 'class:Tank', nextRated: false, version: 5 },
+        { server: { ...SERVER, pending: { id: 'class', tag: 'Tank' }, version: 5 } },
         { ...before, pending: { id: 'class', tag: 'Tank' }, nextRated: false },
       ),
     );
@@ -335,7 +362,9 @@ describe('said once, by the Announcer (QA fix 2026-10-04)', () => {
       }),
     } as Response);
     expect(live()).toHaveLength(1);
-    rerender(page({ nextRated: false, version: 5 }, { ...before, nextRated: false }));
+    rerender(
+      page({ server: { ...SERVER, ratedOverride: false, version: 5 } }, { ...before, nextRated: false }),
+    );
     expect(live()[0]).toHaveTextContent('Next game is not rated.');
     expect(outcome()).toHaveTextContent('Next game is not rated.');
   });

@@ -237,6 +237,11 @@ export interface TonightSnapshot {
    */
   modeState?: ModeState | undefined;
   /**
+   * The `group_modes` read failed (audit, M19.13): `modeState` is a stand-in, never to be shown as
+   * the group's mode. The card keeps the last good state it had and says it could not read it.
+   */
+  modeReadFailed?: boolean | undefined;
+  /**
    * `games.created_at` of the group's newest game (M15.5): a mode write within seconds of it is
    * the server's compare-and-clear, not an admin's switch, so no `Normal mode now.` note.
    */
