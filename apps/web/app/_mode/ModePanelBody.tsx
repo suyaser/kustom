@@ -3,6 +3,7 @@ import type { RoleValue } from '@customs/db';
 import type { GroupMode } from '@customs/db/schemas';
 import type { Route } from 'next';
 import Link from 'next/link';
+import { championRegionMap } from '@/lib/champs/championFacts';
 import { listChampions } from '@/lib/champs/names';
 import { REGION_CREDIT, type RegionId, regionName } from '@/lib/champs/regions';
 import {
@@ -179,6 +180,7 @@ function ClassBody(props: ModePanelBodyProps & { tag: ClassTag; rated: boolean }
         banned={bans}
         within={within}
         emptyLane={emptyLane}
+        regions={championRegionMap(within)}
         initialLane={props.lane}
         viewerLane={props.viewerLane}
         laneHeading={props.heading === 'h1' ? 'h2' : 'h3'}
@@ -211,13 +213,16 @@ function RegionBody(
     first: props.viewerSide === side,
     emptyLane: Object.fromEntries(LANE_ORDER.map((role) => [role, regionEmptyLane(regions[side])])),
   });
+  const blue = pool('blue');
+  const red = pool('red');
   return (
     <>
       <p className="text-sm text-muted-foreground">{regionSentence(regions.blue, regions.red, rated)}</p>
       <FearlessPool
         banned={bansFor(props)}
         // Always blue then red (blue left at ≥1024); the viewer's pool moves first below 1024 only.
-        sides={[pool('blue'), pool('red')]}
+        sides={[blue, red]}
+        regions={championRegionMap([...blue.within, ...red.within])}
         initialLane={props.lane}
         viewerLane={props.viewerLane}
         laneHeading={props.heading === 'h1' ? 'h2' : 'h3'}
@@ -261,12 +266,24 @@ function FearlessBody({
       </p>
       <FearlessPool
         banned={fearless.champions}
+        regions={rosterRegions(fearless)}
         initialLane={lane}
         viewerLane={viewerLane}
         laneHeading={heading === 'h1' ? 'h2' : 'h3'}
       />
     </>
   );
+}
+
+/**
+ * M20.5: the region words for every chip the Fearless pool can draw (the roster, plus any banned id
+ * the roster lacks), built here on the server so the table stays out of the client island.
+ */
+function rosterRegions(fearless: FearlessView) {
+  return championRegionMap([
+    ...listChampions().map((champion) => champion.id),
+    ...fearless.champions.map((champion) => champion.id),
+  ]);
 }
 
 /** Keeps `CLASS_TAGS` in the bundle's graph honest for the type above. */

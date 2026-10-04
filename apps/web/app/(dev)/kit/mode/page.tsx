@@ -1,3 +1,4 @@
+import type { Mode } from '@customs/core';
 import { notFound } from 'next/navigation';
 import { ModePanelBody } from '@/app/_mode/ModePanelBody';
 import { PageGroupProvider } from '@/app/_shell/PageGroup';
@@ -14,7 +15,8 @@ import { parseLane } from '@/lib/mode/view';
  * Dev-only: the mode panel's body as the direct page renders it (M14.30, M15.5), from fixtures, for
  * the states the local data cannot reach without writing to the shared stack: `?mode=normal`,
  * `?pool=empty`, `?lane=<role>`, `?admin=1`; M15.5 `?rule=class:Tank|region|mirror`,
- * `?drawn=1` (region wars after Roll: Ionia vs Noxus), `?side=red` (seated on red), `?rated=0|1`.
+ * `?drawn=1` (region wars after Roll: Ionia vs Noxus; M20.5 `?pair=piltover:zaun` for another pair),
+ * `?side=red` (seated on red), `?rated=0|1`.
  * A 404 in production.
  */
 export default async function KitModePage({
@@ -27,12 +29,14 @@ export default async function KitModePage({
     admin?: string;
     rule?: string;
     drawn?: string;
+    pair?: string;
     side?: string;
     rated?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
-  const { mode, pool, lane, admin, rule, drawn, side, rated } = await searchParams;
+  const { mode, pool, lane, admin, rule, drawn, pair, side, rated } = await searchParams;
+  const [blue = 'ionia', red = 'noxus'] = (pair ?? '').split(':').filter((one) => one.length > 0);
   const group = ORIGINAL_GROUP;
   const standing = mode === 'normal' ? 'normal' : 'fearless';
   const fearless = pool === 'empty' ? { champions: [], resetAt: null, games: 0 } : demoPool(false);
@@ -45,7 +49,7 @@ export default async function KitModePage({
     lock:
       drawn === '1' && pending !== null
         ? {
-            mode: pending.id === 'region' ? { id: 'region', blue: 'ionia', red: 'noxus' } : pending,
+            mode: pending.id === 'region' ? ({ id: 'region', blue, red } as Mode) : pending,
             rated: override ?? pending.id === 'mirror',
             version: 2,
           }

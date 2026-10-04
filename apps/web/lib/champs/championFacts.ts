@@ -8,7 +8,7 @@
  */
 
 import { homeRegions } from './homeRegions';
-import { championRegion, type RegionId, regionChampionIds } from './regions';
+import { championRegion, type RegionId, regionChampionIds, regionName } from './regions';
 import { championTags, taggedChampionIds } from './tags';
 
 export interface ChampionFacts {
@@ -31,4 +31,26 @@ export function championFacts(id: number): ChampionFacts {
 export function championFactEntries(): [number, ChampionFacts][] {
   const ids = [...new Set([...taggedChampionIds(), ...regionChampionIds()])].sort((a, b) => a - b);
   return ids.map((id) => [id, championFacts(id)]);
+}
+
+/**
+ * A champion's regions as the words its chip prints (M20.5, 05-design 8.15): Universe's region
+ * first, then the home(s), each through `regionName`. Unaffiliated with no home, or no row at all
+ * (a champion newer than the table, `Champion 999`), is the empty list: no tag.
+ */
+export function championRegionNames(id: number): readonly string[] {
+  return (regionSet(id) ?? []).map(regionName);
+}
+
+/**
+ * The id -> region words map a pool view hands its client island (M20.5), built on the server so
+ * the region table never ships to the browser. Champions with no tag are left out.
+ */
+export function championRegionMap(ids: Iterable<number>): Record<number, readonly string[]> {
+  const out: Record<number, readonly string[]> = {};
+  for (const id of ids) {
+    const names = championRegionNames(id);
+    if (names.length > 0) out[id] = names;
+  }
+  return out;
 }
