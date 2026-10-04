@@ -1,0 +1,137 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`weekNotesModel > lays out the research week (snapshot) 1`] = `
+{
+  "buffs": {
+    "empty": null,
+    "medals": [
+      {
+        "initials": "RA",
+        "name": "Ramzyinhović",
+        "points": "+212",
+        "record": "5W 2L",
+        "role": "mid",
+        "suffix": null,
+      },
+      {
+        "initials": "SA",
+        "name": "Syndrome Axes",
+        "points": "+140",
+        "record": "6W 3L",
+        "role": "jungle",
+        "suffix": null,
+      },
+      {
+        "initials": "KN",
+        "name": "knifiy",
+        "points": "+88",
+        "record": "4W 3L",
+        "role": "mid",
+        "suffix": null,
+      },
+      {
+        "initials": "XE",
+        "name": "XETA",
+        "points": "+41",
+        "record": "3W 3L",
+        "role": "jungle",
+        "suffix": null,
+      },
+      {
+        "initials": "H4",
+        "name": "H4RDC0R33",
+        "points": "+30",
+        "record": "4W 4L",
+        "role": "top",
+        "suffix": null,
+      },
+    ],
+    "sub": "most points this week",
+    "title": "BUFFS",
+  },
+  "counts": "14 rated games · 4 nights",
+  "footer": "Made by Kustom from this group’s own games. Not affiliated with or endorsed by Riot Games.",
+  "group": "Customs Night",
+  "key": {
+    "line": "Points: Rating won or lost in the week’s games. Mark: most-played role.",
+    "roles": [
+      "top",
+      "jungle",
+      "mid",
+      "adc",
+      "support",
+    ],
+    "title": "KEY",
+  },
+  "nerfs": {
+    "medals": [
+      {
+        "initials": "TS",
+        "name": "TheSHADOWREAPER",
+        "points": "−61",
+        "record": "1W 3L",
+        "role": "support",
+        "suffix": null,
+      },
+      {
+        "initials": "SP",
+        "name": "SugarPapy",
+        "points": "−44",
+        "record": "2W 4L",
+        "role": "adc",
+        "suffix": null,
+      },
+      {
+        "initials": "FH",
+        "name": "FoxHound",
+        "points": "−18",
+        "record": "2W 3L",
+        "role": "top",
+        "suffix": null,
+      },
+    ],
+    "sub": "gave some points back",
+    "title": "NERFS",
+  },
+  "news": {
+    "empty": null,
+    "tiles": [
+      {
+        "label": "FIRST NIGHT",
+        "sub": "joined on Tuesday · settling 5/10",
+        "value": "Chaos",
+      },
+      {
+        "label": "RECORD",
+        "sub": "Most damage, new group best",
+        "value": "Syndrome Axes · 48,213 damage",
+      },
+      {
+        "label": "FIRST PICKS FOR THE GROUP",
+        "sub": "champions nobody here had played before",
+        "value": "Smolder, Aurora, Ambessa +6",
+      },
+    ],
+    "title": "NEW",
+  },
+  "notes": "NOTES",
+  "range": "Sunday 27 Sep to Saturday 3 Oct",
+  "systems": {
+    "empty": null,
+    "tiles": [
+      {
+        "label": "MODE OF THE NIGHT",
+        "sub": "Ionia vs Noxus ×1 · not rated",
+        "value": "Tanks only ×2",
+      },
+      {
+        "label": "FEARLESS",
+        "sub": "12 this week · 138 still open",
+        "value": "34 banned",
+      },
+    ],
+    "title": "SYSTEMS",
+  },
+  "week": "WEEK 12",
+}
+`;

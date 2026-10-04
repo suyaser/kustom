@@ -168,6 +168,30 @@ describe('the awards field', () => {
 });
 
 /**
+ * M14.79: the Sunday post carries the week notes picture as E1's `image` on a public https origin,
+ * addressed by the Sunday the closed week opens on, and none on localhost; the text is the same.
+ */
+describe('the week notes image', () => {
+  const OPTIONS = { now: new Date('2025-09-08T07:00:00Z'), groupId: GROUP_ID, timeZone: 'Africa/Cairo' };
+
+  it('is on E1 from a public origin, for the closed week, and the text is unchanged', async () => {
+    loadStats.mockResolvedValue({ awards: null });
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'http://localhost:3000' });
+    const local = sent as unknown as WebhookPayload;
+    await postClosedWindow(client, WINDOW, { ...OPTIONS, requestOrigin: 'https://kustom.example' });
+    const pictured = sent as unknown as WebhookPayload;
+
+    expect(pictured.embeds[0]?.image).toEqual({ url: 'https://kustom.example/og/g/customs/week/2025-08-31' });
+    expect(local.embeds[0]?.image).toBeUndefined();
+    expect(JSON.stringify(local)).not.toContain('/og/');
+    // Same lines either way: only the links and the picture depend on the origin.
+    expect(pictured.embeds[0]?.fields).toEqual(local.embeds[0]?.fields);
+    expect(pictured.embeds[0]?.description).toBe(local.embeds[0]?.description);
+    expect(pictured.embeds[0]?.footer).toEqual(local.embeds[0]?.footer);
+  });
+});
+
+/**
  * M16.5: the weekly storyline opens the post when present; **without one the post is today's,
  * byte for byte** (no hook, a hook with nothing, a hidden line: all the same request).
  */

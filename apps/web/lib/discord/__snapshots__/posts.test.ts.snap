@@ -541,3 +541,56 @@ exports[`the stack of every post (10.3), as snapshots > weekly with storyline 1`
   "username": "Kustom",
 }
 `;
+
+exports[`the stack of every post (10.3), as snapshots > weekly with week notes 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "color": 9148589,
+      "description": "Ramzyinhović took the week with 212 points from seven games, and Syndrome Axes played the most at nine. FoxHound and SugarPapy kept finding each other on the same side and won one of six.",
+      "title": "AI recap",
+    },
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "Sunday 27 Sep to Saturday 3 Oct · 14 rated games",
+      "fields": [
+        {
+          "name": "Top ten",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
+\`2\` **Syndrome Axes** · +140 · 6W–3L
+\`3\` **knifiy** · +88 · 4W–3L
+\`4\` XETA · +41 · 3W–3L
+\`5\` H4RDC0R33 · +30 · 4W–4L
+\`6\` PRT Khokha · +12 · 3W–3L
+\`7\` FoxHound · -18 · 2W–3L
+\`8\` SugarPapy · -44 · 2W–4L
+\`9\` TheSHADOWREAPER · -61 · 1W–3L
+\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+        },
+        {
+          "name": "Best off-role",
+          "value": "XETA · 4W 1L · 80% · their main is jungle",
+        },
+        {
+          "name": "Cursed duo",
+          "value": "FoxHound and SugarPapy · 1W 5L · 17%",
+        },
+      ],
+      "footer": {
+        "text": "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams.",
+      },
+      "image": {
+        "url": "https://kustom-delta.vercel.app/og/g/customs/week/2026-09-27",
+      },
+      "title": "Last week · board",
+      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=last-week",
+    },
+  ],
+  "username": "Kustom",
+}
+`;

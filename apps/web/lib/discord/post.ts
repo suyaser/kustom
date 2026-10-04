@@ -10,9 +10,16 @@ import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook } from '../ingest
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
 import { loadGroupMode } from '../mode/load';
 import { readLobbyLock } from '../mode/lock';
-import { type ClosedWindow, DEFAULT_NIGHT_TIME_ZONE } from '../night';
+import { type ClosedWindow, civilDayKey, DEFAULT_NIGHT_TIME_ZONE } from '../night';
 import { RECEIPT_ANCHOR } from '../receipt/copy';
-import { gamePageUrl, groupPageUrl, leaderboardPageUrl, modePageUrl, resultBadgeUrl } from '../siteUrl';
+import {
+  gamePageUrl,
+  groupPageUrl,
+  leaderboardPageUrl,
+  modePageUrl,
+  resultBadgeUrl,
+  weekNotesImageUrl,
+} from '../siteUrl';
 import type { AwardRender } from '../stats/awards';
 import { loadStats } from '../stats/load';
 import type { StatsView } from '../stats/types';
@@ -570,6 +577,16 @@ export async function postClosedWindow(
     entries,
     url: group === null ? undefined : leaderboardPageUrl(options.requestOrigin, group.slug, window.kind),
     storyline: storyline ?? undefined,
+    // M14.79: the week notes picture under the board, only from a public https origin.
+    image:
+      group === null
+        ? undefined
+        : weekNotesImageUrl(
+            options.requestOrigin,
+            group.slug,
+            // The Sunday the week opens on (`2026-09-27`), the route's `[weekStart]`.
+            civilDayKey(window.start, options.timeZone ?? DEFAULT_NIGHT_TIME_ZONE),
+          ),
   });
   return postToWebhook(client, payload, `${window.kind} embed`, options);
 }
