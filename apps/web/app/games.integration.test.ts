@@ -353,7 +353,8 @@ if (stack === null) {
       expect(view.blue.seats.every((seat) => seat.delta !== null && seat.vision === 20)).toBe(true);
       const html = renderToStaticMarkup(createElement(GameDetail, { game: view, backHref: '/g/x/games' }));
       expect(html).toContain('The odds were');
-      expect(html).toContain('21 min');
+      // M18.7: digits in mono, words in the text face (`<span class="num">21</span> min`).
+      expect(html.replace(/<[^>]*>/g, '')).toContain('21 min');
     });
 
     it('a backfilled game shows pre-game odds; a missing mu_before says No odds for this game', async () => {

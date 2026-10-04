@@ -388,8 +388,8 @@ if (stack === null) {
       expect(lines).toHaveLength(10);
       // No `ratings` rows in this scratch group, so all ten are settling: the chip follows.
       // Ranks 1 to 3 have the name in bold (M14.61, 05-design 10.6).
-      expect(lines[0]).toBe('`1` **Window0** · +120 · 2W–0L · settling · 2/10');
-      expect(lines.at(-1)).toMatch(/^`10` Window\d · -120 · 0W–2L · settling · 2\/10$/);
+      expect(lines[0]).toBe('`1` **Window0** · +120 · 2W\u2060–\u20600L · settling · 2/10');
+      expect(lines.at(-1)).toMatch(/^`10` Window\d · -120 · 0W\u2060–\u20602L · settling · 2\/10$/);
     });
   });
 
@@ -415,7 +415,7 @@ if (stack === null) {
       // The board: net points first. Window0 netted +212 (the sum of the printed rows, not
       // 1266 → 1478 as one difference, though here they agree because the games chain).
       const board = String(fields[0]?.value ?? '').split('\n');
-      expect(board[0]).toMatch(/^`1` \*\*Window0\*\* · \+212 · \dW–\dL · settling · \d\/10$/);
+      expect(board[0]).toMatch(/^`1` \*\*Window0\*\* · \+212 · \dW\u2060–\u2060\dL · settling · \d\/10$/);
       expect(board.slice(1).every((line) => / · \+0 · /.test(line))).toBe(true);
 
       expect(JSON.stringify(fields)).not.toContain('Most improved');
