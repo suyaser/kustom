@@ -264,7 +264,7 @@ describe('the hero example game (05-design 12)', () => {
         'FIGCAPTION',
       );
       expect(within(figure).getByText('Red won')).toBeInTheDocument();
-      expect(within(figure).getByText('32:40')).toBeInTheDocument();
+      expect(within(figure).getByText('32 min')).toBeInTheDocument();
       expect(within(figure).getByText('Blue 54 percent, Red 46 percent.')).toBeInTheDocument();
 
       const table = within(figure).getByRole('table', { name: 'Example game, lane by lane. Red won.' });
@@ -277,6 +277,20 @@ describe('the hero example game (05-design 12)', () => {
       expect(rowHeaders.map((th) => th.textContent)).toEqual(['top', 'jungle', 'mid', 'adc', 'support']);
       for (const th of rowHeaders) expect(th).toHaveAttribute('scope', 'row');
       expect(table.querySelectorAll('tbody tr')).toHaveLength(5);
+      // 12.3a: explicit roles, so the stacked mode's display change cannot drop the table semantics.
+      expect(table).toHaveAttribute('role', 'table');
+      const allRows = table.querySelectorAll('tr');
+      expect(allRows).toHaveLength(6);
+      for (const tr of allRows) expect(tr).toHaveAttribute('role', 'row');
+      for (const th of table.querySelectorAll('thead th')) expect(th).toHaveAttribute('role', 'columnheader');
+      for (const th of rowHeaders) expect(th).toHaveAttribute('role', 'rowheader');
+      const cells = table.querySelectorAll('td');
+      expect(cells).toHaveLength(10);
+      for (const td of cells) expect(td).toHaveAttribute('role', 'cell');
+      // The stacked row is a container query on the card, in em (12.3a).
+      expect(table.closest('.\\@container')).not.toBeNull();
+      expect(allRows[1]?.className).toContain('@max-[18em]:grid');
+
       // What a screen reader hears, cell by cell: ‹top · Hana, Garen, lost 18 · Omar, Darius, gained 17›.
       const first = within(table).getAllByRole('row')[1] as HTMLElement;
       expect([...first.children].map(spoken)).toEqual([

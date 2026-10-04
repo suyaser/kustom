@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { oddsOf } from '@/components/receipt/model';
 import { ddragonChampionId } from '@/lib/champs/ddragon';
 import { championName } from '@/lib/champs/names';
+import { formatMinutes } from '@/lib/games/duration';
 import { EXAMPLE_NAMES, EXAMPLE_SPLITS } from './example';
 import { EXAMPLE_GAME } from './exampleGame';
 
@@ -44,9 +45,10 @@ describe('the example game', () => {
     ]);
   });
 
-  it('red wins in 32:40 at split 1 odds (blue 54%)', () => {
+  it('red wins in 32 min at split 1 odds (blue 54%)', () => {
     expect(EXAMPLE_GAME.winner).toBe(200);
-    expect(EXAMPLE_GAME.duration).toBe('32:40');
+    expect(EXAMPLE_GAME.durationS).toBe(1_960);
+    expect(formatMinutes(EXAMPLE_GAME.durationS)).toBe('32 min');
     expect(EXAMPLE_GAME.blueWinProb).toBe(split?.blueWinProb);
     expect(oddsOf(EXAMPLE_GAME.blueWinProb)).toMatchObject({ bluePct: 54, redPct: 46 });
   });

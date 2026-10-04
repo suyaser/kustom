@@ -3,7 +3,7 @@ import { EXAMPLE_NAMES, EXAMPLE_SPLITS } from './example';
 
 /**
  * The landing hero's example game (docs/05-design.md section 12): the worked example's split 1
- * (`EXAMPLE_SPLITS[0]`, blue 54%) played out, red winning in 32:40. A fixture, captioned as one;
+ * (`EXAMPLE_SPLITS[0]`, blue 54%) played out, red winning in 32 minutes (32:40 on the clock). A fixture, captioned as one;
  * never live data (12.8). The real game lives in the Proof section's receipt.
  *
  * Each seat names its champion by numeric key (what the code keys on everywhere else) and by Data
@@ -33,8 +33,8 @@ export interface ExampleLane {
 
 export interface ExampleGame {
   winner: 100 | 200;
-  /** Shown as is, mono (12.3). */
-  duration: string;
+  /** Game length in seconds; printed with `formatMinutes` (`32 min`, 6.12), never as a clock. */
+  durationS: number;
   blueWinProb: number;
   lanes: readonly ExampleLane[];
 }
@@ -70,7 +70,7 @@ const PICKS: readonly (readonly [Pick, Pick])[] = [
 
 export const EXAMPLE_GAME: ExampleGame = {
   winner: 200,
-  duration: '32:40',
+  durationS: 1_960,
   blueWinProb: SPLIT.blueWinProb,
   lanes: PICKS.map(([blue, red], i) => {
     const b = SPLIT.blue[i];
