@@ -37,6 +37,37 @@ export const WORKED_ROSTER: readonly WorkedPlayer[] = [
   { name: 'Yuki', r: 1134, mu: 18.9, sigma: 5.0, mainRole: 'support', secondaryRole: 'top' },
 ];
 
+/**
+ * The same ten on the Kustom scale (M18.7 design review), for the dev kit only: each Rating mapped
+ * to `1250 + (r − 1500) × 0.28`, so the order and the roles are the worked example's and the board
+ * reads like the real one at launch (about 1150 to 1415). Tests keep {@link WORKED_ROSTER}.
+ */
+export const KUSTOM_KIT_ROSTER: readonly WorkedPlayer[] = WORKED_ROSTER.map((player) => ({
+  ...player,
+  r: Math.round((1250 + (player.r - 1500) * 0.28) * 10) / 10,
+}));
+
+let activeRoster: readonly WorkedPlayer[] = WORKED_ROSTER;
+
+/** The roster the fixture builders read: {@link WORKED_ROSTER} unless inside {@link withWorkedRoster}. */
+export function workedRoster(): readonly WorkedPlayer[] {
+  return activeRoster;
+}
+
+/**
+ * Build fixtures from another roster (the dev kit's {@link KUSTOM_KIT_ROSTER}). Synchronous and
+ * restored on the way out, so nothing outside `build` ever sees the swap.
+ */
+export function withWorkedRoster<T>(roster: readonly WorkedPlayer[], build: () => T): T {
+  const previous = activeRoster;
+  activeRoster = roster;
+  try {
+    return build();
+  } finally {
+    activeRoster = previous;
+  }
+}
+
 /** Everyone in the worked example is settled (core's test uses the same 20). */
 export const WORKED_GAMES = 20;
 
@@ -46,7 +77,7 @@ export function workedPuuid(name: string): string {
 }
 
 export function workedBalancePlayers(): BalancePlayer[] {
-  return WORKED_ROSTER.map((player) => ({
+  return workedRoster().map((player) => ({
     puuid: workedPuuid(player.name),
     name: player.name,
     r: player.r,
@@ -59,7 +90,7 @@ export function workedBalancePlayers(): BalancePlayer[] {
 
 /** The ten as `lobby_members` rows would arrive, ready for `buildTeamsInput`. */
 export function workedPool(overrides: Partial<PoolMember> = {}): PoolMember[] {
-  return WORKED_ROSTER.map((player, index) => ({
+  return workedRoster().map((player, index) => ({
     playerId: `player-${index}`,
     puuid: workedPuuid(player.name),
     name: player.name,
@@ -78,7 +109,7 @@ export function workedPool(overrides: Partial<PoolMember> = {}): PoolMember[] {
 
 /** puuid to display name, the way `loadNames` returns it. */
 export function workedNames(): Map<string, string | null> {
-  return new Map(WORKED_ROSTER.map((player) => [workedPuuid(player.name), player.name]));
+  return new Map(workedRoster().map((player) => [workedPuuid(player.name), player.name]));
 }
 
 /** `balance()` on the ten, with no previous split. Splits 1, 2, 3 and their sentences. */

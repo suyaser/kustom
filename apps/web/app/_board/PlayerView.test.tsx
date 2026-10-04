@@ -549,6 +549,35 @@ describe('M18.7: the week tab (05-design 11.5, 11.6.3)', () => {
     );
   });
 
+  it('a game with no split compares against the pre-game odds the row prints (design review 6)', () => {
+    const [newest, ...rest] = games;
+    const noSplit = {
+      ...(newest as RecentGame),
+      blueWinProb: null,
+      pickRank: null,
+      ratingsBefore: { blue: [], red: [] },
+      odds: {
+        botBluePct: null,
+        ratingBluePct: 44,
+        differ: false,
+        pointsBluePct: 44,
+        ratingBlueWinProb: 0.44,
+      },
+    };
+    draw(weekPlayer({ recent: [noSplit, ...rest] }), { viewerPuuid: HANA });
+    expect(withoutSrOnly(openPanel('gained 13 this week. Why?'))).toHaveTextContent(
+      /^Your side won as the 56% favourite/,
+    );
+  });
+
+  it('says `your` all-time number on your own page and `their` on anybody else (design review 1)', () => {
+    const { unmount } = draw(weekPlayer(), { viewerPuuid: HANA });
+    expect(screen.getByText(/Rating is your all-time number/)).toBeInTheDocument();
+    unmount();
+    draw(weekPlayer());
+    expect(screen.getByText(/Rating is their all-time number/)).toBeInTheDocument();
+  });
+
   it('a paged week (no weekTotal) drops the total row', () => {
     const { container } = draw(weekPlayer({ weekTotal: null }));
     expect(container.querySelector('[data-slot="week-total"]')).toBeNull();

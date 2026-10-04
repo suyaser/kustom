@@ -1,11 +1,19 @@
 import type { Mode } from '@customs/core';
 import { notFound } from 'next/navigation';
 import { PageGroupProvider } from '@/app/_shell/PageGroup';
-import { TONIGHT_STATES, type TonightStateKey, tonightStateFixture } from '@/app/_tonight/fixtures';
+import {
+  TONIGHT_STATES,
+  type TonightStateFixture,
+  type TonightStateKey,
+  tonightStateFixture,
+  VIEWER_PUUID,
+} from '@/app/_tonight/fixtures';
 import { TonightView } from '@/app/_tonight/TonightView';
 import { AiRecap } from '@/components/ai/AiRecap';
 import { Shell } from '@/components/shell/Shell';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
+import { displayDelta } from '@/lib/ratingDisplay';
+import { KUSTOM_KIT_ROSTER, withWorkedRoster } from '@/lib/testing/workedExample';
 import { tonightHeader, tonightState } from '@/lib/tonight/state';
 import type { TapeEntry } from '@/lib/tonight/types';
 import { KitLive } from './KitLive';
@@ -29,6 +37,47 @@ const TAPE_RULES: readonly { rule: Mode; rated: boolean }[] = [
   { rule: { id: 'region', blue: 'ionia', red: 'noxus' }, rated: false },
   { rule: { id: 'mirror' }, rated: true },
 ];
+
+/** A week on the Kustom scale for `Top this week`: distinct points and records, best first. */
+const KIT_TOP_WEEK: readonly { points: number; wins: number; losses: number }[] = [
+  { points: 41, wins: 5, losses: 1 },
+  { points: 33, wins: 4, losses: 2 },
+  { points: 24, wins: 4, losses: 3 },
+  { points: 17, wins: 3, losses: 2 },
+  { points: 9, wins: 3, losses: 3 },
+];
+
+/**
+ * M18.7 (design review): the parts of a fixture the roster swap cannot reach. Your night is the
+ * tape's two wins at K 16 (+8, +9) plus the viewer's change on the poster, and `Top this week` gets
+ * distinct week points; every other number came from the Kustom-scale roster through core.
+ */
+function kustomScale(fixture: TonightStateFixture): TonightStateFixture {
+  const seats = fixture.snapshot.lobby?.result;
+  const viewerSeat =
+    seats === null || seats === undefined
+      ? undefined
+      : [...seats.blue, ...seats.red].find((seat) => seat.puuid === VIEWER_PUUID);
+  const posterDelta =
+    viewerSeat === undefined || viewerSeat.rBefore === null || viewerSeat.rAfter === null
+      ? null
+      : displayDelta(viewerSeat.rBefore, viewerSeat.rAfter);
+  return {
+    ...fixture,
+    topPlayers: fixture.topPlayers.map((row, index) => {
+      const week = KIT_TOP_WEEK[index];
+      return week === undefined ? row : { ...row, ...week, games: week.wins + week.losses };
+    }),
+    ...(fixture.yourNight === undefined || fixture.yourNight === null
+      ? {}
+      : {
+          yourNight: {
+            ...fixture.yourNight,
+            ratingDelta: posterDelta === null ? 2 : 8 + 9 + posterDelta,
+          },
+        }),
+  };
+}
 
 function withRules(entries: readonly TapeEntry[]): TapeEntry[] {
   return entries.map((entry, index) => {
@@ -59,29 +108,49 @@ export default async function KitTonightPage({
     gap?: string;
     tape?: string;
     host?: string;
+    scale?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const { state } = await params;
-  const { names, viewer, mode, pool, just, rule, rated, queued, nodraw, recap, night, gap, tape, host } =
-    await searchParams;
+  const {
+    names,
+    viewer,
+    mode,
+    pool,
+    just,
+    rule,
+    rated,
+    queued,
+    nodraw,
+    recap,
+    night,
+    gap,
+    tape,
+    host,
+    scale,
+  } = await searchParams;
   if (!(TONIGHT_STATES as readonly string[]).includes(state)) notFound();
 
   // `?mode=normal`, `?pool=empty`, `?just=1` (switched to Normal tonight): the Mode card's variants (M14.30).
-  const built = tonightStateFixture(state as TonightStateKey, {
-    realNames: names !== 'worked',
-    now: Date.now(),
-    mode: mode === 'normal' ? 'normal' : 'fearless',
-    pool: pool === 'empty' ? 'empty' : 'demo',
-    normalJustNow: just === '1',
-    // M15.5: `?rule=class:Tank|region|mirror`, `?rated=0|1`, `?queued=class:Mage`, `?nodraw=1`.
-    rule,
-    rated: rated === '1' ? true : rated === '0' ? false : undefined,
-    queued,
-    noDraw: nodraw === '1',
-    // M14.59: `?gap=1`, the bot's odds and the rating's round differently (the poster names both).
-    oddsGap: gap === '1',
-  });
+  // M18.7: the Kustom scale by default (Ratings about 1150 to 1415, K 16 changes); `?scale=worked`
+  // keeps the worked example's OpenSkill-era numbers.
+  const build = () =>
+    tonightStateFixture(state as TonightStateKey, {
+      realNames: names !== 'worked',
+      now: Date.now(),
+      mode: mode === 'normal' ? 'normal' : 'fearless',
+      pool: pool === 'empty' ? 'empty' : 'demo',
+      normalJustNow: just === '1',
+      // M15.5: `?rule=class:Tank|region|mirror`, `?rated=0|1`, `?queued=class:Mage`, `?nodraw=1`.
+      rule,
+      rated: rated === '1' ? true : rated === '0' ? false : undefined,
+      queued,
+      noDraw: nodraw === '1',
+      // M14.59: `?gap=1`, the bot's odds and the rating's round differently (the poster names both).
+      oddsGap: gap === '1',
+    });
+  const built = scale === 'worked' ? build() : kustomScale(withWorkedRoster(KUSTOM_KIT_ROSTER, build));
   // M15.19: `?tape=rules` names a rule on each earlier game (Tanks only and region wars not rated,
   // then a rated mirror match), as the tape draws them.
   const taped =
