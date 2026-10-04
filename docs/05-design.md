@@ -4258,3 +4258,46 @@ No existing hero copy changes. `HERO_TITLE_SET`, `HERO_SUB` and both buttons sta
    part of this sign-off.
 5. A screen reader reads the table row by row, with the champion names.
 6. The Riot notice is still in the footer of `/` and `/about`.
+
+## 13. In game with the kickoff teams (M21.5, ruled 2026-10-05)
+
+From `in_progress` the in-game block draws the teams that started (M21 rules in `docs/02-milestones.md`). The
+strip, the answer band, the Mode card, the sit-out card and 5.1's seat states are unchanged; only the three
+things below are new. Nothing else is added: no badge, no `Custom teams` chip (the receipt explains fairness).
+
+### 13.1 The receipt in game: one shape for all three kinds
+
+`Odds at kickoff` is always 5.5's **compact** receipt, whatever the kind, so the card does not change shape
+when the room swapped two people:
+
+| Kind | Bar | Verdict (bold, 19px) | Line under it (muted `--fs-sm`, the reason slot) | Disclosure |
+|---|---|---|---|---|
+| `rolled` | compact, the split's odds (turned round on swapped sides) | `oddsSentence` as today | the off-role line as today | none |
+| `custom` | compact, the stored kickoff odds | `oddsSentence` **without** `This was the fairest split these ten allow.` (the bot did not pick these teams; call it with a rank above 1 or a named helper) | `Teams changed in the lobby after the roll, so these are the odds for the teams playing now.` | none |
+| `unrolled` | compact, the stored kickoff odds | as `custom` | `Kustom didn't pick these teams. Odds from everyone's ratings going in.` | none |
+| not rated, `custom` or `unrolled` (M15.18) | none | none | `No odds for this game.` | none |
+
+- No `The center line marks 50–50` caption in game (5.5 compact: the tick explains itself, and the caption
+  is the full receipt's teaching line).
+- **No `How the bot decided` in game for any kind.** 5.5's compact rule (no chips, no disclosure) holds; the
+  rolled run returns in the finished poster's disclosure when the game ends, as it does today.
+- **Not rated, no odds:** the line sits **inside** the receipt frame under the `Odds at kickoff` title, not as
+  bare text between the strip and the team cards. The frame keeps the slot where every other night has odds, so
+  the page does not jump when the next game is rated.
+- The changed line at 375 wraps to two lines under the verdict, at 1440 one line; `text-pretty`, no other
+  styling. It is the reason, not a warning: no colour, no icon.
+
+### 13.2 A changed side's team card
+
+A side whose five are not the split's five has no lanes until the end of game:
+
+- **No role cell at all.** When every seat on the card has no role, the card's rows drop the role column
+  (`grid-template-columns: minmax(0,1fr) auto`) and the name starts at the card padding (`--card-pad`), not
+  after an empty 52/60px gutter. An empty gutter reads as missing data. A side that kept the split's five keeps
+  5.1's role cell; the two cards may then start their names at different x, which is correct (they say
+  different things).
+- **Order: Rating, highest first**, ties by name. Not lane order (unknown), not join order.
+- Seat height, the `YOU` states, `settling` and `new` chips are 5.1's. No `off-role` chip (there is no lane to
+  be off).
+- The answer band says `YOU on RED` with no `, playing <role>` (already built).
+- At the end of game the result's seats bring the real lanes back; no in-game guess at lanes from the split.
