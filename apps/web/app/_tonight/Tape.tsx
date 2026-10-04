@@ -1,7 +1,7 @@
 import type { Mode } from '@customs/core';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useId } from 'react';
+import { EntityLink } from '@/components/links/EntityLink';
 import { CompactReceipt } from '@/components/receipt';
 import { Chip } from '@/components/ui/chip';
 import { SideGlyph } from '@/components/ui/side-glyph';
@@ -146,13 +146,12 @@ function Tile({ entry, number, group }: { entry: TapeEntry; number: number; grou
       {href === null ? (
         <div className="flex min-h-11 rounded-control border border-border bg-raised">{body}</div>
       ) : (
-        <Link
-          prefetch={false}
+        <EntityLink
           href={href}
           className="flex min-h-11 rounded-control border border-border bg-raised hover:border-border-strong"
         >
           {body}
-        </Link>
+        </EntityLink>
       )}
     </li>
   );

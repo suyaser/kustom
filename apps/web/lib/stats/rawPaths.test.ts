@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { inParallel } from '../chunks';
 import { gameModeFromRaw } from '../games/queue';
-import { inParallel, rawFromPaths } from './load';
+import { rawFromPaths } from './load';
 import { rawFactsFromUnknown } from './rawFacts';
 
 /**

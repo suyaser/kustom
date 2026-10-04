@@ -1,5 +1,5 @@
 import type { RoleValue, SideValue } from '@customs/db';
-import { inChunks } from '../chunks';
+import { mapChunks } from '../chunks';
 import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, type QueueKind } from '../games/queue';
 import type { GamesHistoryView } from '../games/types';
 import { gamesHistoryView } from '../games/view';
@@ -570,7 +570,7 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
   const rows: ScoreboardRow[] = [];
 
   // Side by side, a few at a time, and appended in chunk order (the sequential loop's order).
-  const pages = await inParallel(inChunks(gameIds), async (chunk) => {
+  const pages = await mapChunks(gameIds, async (chunk) => {
     const { data, error } = await client
       .from('game_players')
       .select(
@@ -628,7 +628,7 @@ async function loadChosenWinProbs(
   const odds = new Map<string, number>();
   if (lobbyIds.length === 0) return odds;
 
-  const pages = await inParallel(inChunks(lobbyIds), async (chunk) => {
+  const pages = await mapChunks(lobbyIds, async (chunk) => {
     const { data, error } = await client
       .from('splits')
       .select('lobby_id, blue_win_prob')
@@ -657,7 +657,7 @@ async function loadChosenWinProbs(
 async function loadPlayers(client: PublicClient, playerIds: readonly string[]): Promise<StatsPlayer[]> {
   const players: StatsPlayer[] = [];
 
-  const pages = await inParallel(inChunks(playerIds), async (chunk) => {
+  const pages = await mapChunks(playerIds, async (chunk) => {
     const { data, error } = await client
       .from('players_public')
       .select('id, puuid, display_name, game_name, main_role')
@@ -695,33 +695,4 @@ function withRange<Q extends { gte(column: string, value: string): Q; lt(column:
   if (range.start !== null) next = next.gte(column, range.start.toISOString());
   if (range.end !== null) next = next.lt(column, range.end.toISOString());
   return next;
-}
-
-/**
- * How many chunk reads one loader keeps in flight. A 2,000-game window is 23 scoreboard chunks;
- * all at once would be a burst on the shared PostgREST pool for one page view.
- */
-const CHUNK_CONCURRENCY = 6;
-
-/**
- * `work` over every item, at most {@link CHUNK_CONCURRENCY} at a time, answers in item order (so
- * the rows come back in the order the old one-after-another loops appended them). The first
- * failure rejects, as the loops' first throw did.
- */
-export async function inParallel<T, R>(
-  items: readonly T[],
-  work: (item: T) => Promise<R>,
-  limit: number = CHUNK_CONCURRENCY,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const lane = async () => {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await work(items[index] as T);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
-  return results;
 }

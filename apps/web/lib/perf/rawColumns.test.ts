@@ -21,9 +21,6 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
   'lib/ingest/rating.ts': { count: 1, why: 'Ingest: the one game being rated.' },
   'lib/ingest/backfill.ts': { count: 1, why: 'Ingest: the backfill batch being compared.' },
   'lib/ingest/copyRawStats.ts': { count: 1, why: 'One-off repair script (M7.7).' },
-  // stats-perf is removing this one (`loadWindowGames` with the game mode, 8 MB on `/you`). Delete
-  // the entry when it merges.
-  'lib/stats/load.ts': { count: 1, why: 'Pending stats-perf.' },
 };
 
 function bareRawSelects(): { file: string; line: number; select: string }[] {

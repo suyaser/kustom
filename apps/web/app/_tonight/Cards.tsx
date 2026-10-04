@@ -1,6 +1,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import { type ReactNode, useId } from 'react';
+import { EntityLink } from '@/components/links/EntityLink';
 import { NameText } from '@/components/names/name-text';
 import { CompactReceipt } from '@/components/receipt';
 import { buttonVariants } from '@/components/ui/button';
@@ -110,6 +111,7 @@ export function TopFive({
           TOP_WINDOW
         ) : (
           <Link
+            prefetch="auto"
             href={boardHref}
             className="inline-flex min-h-11 items-center text-sm font-bold text-primary-text underline underline-offset-3"
           >
@@ -122,7 +124,11 @@ export function TopFive({
         <div className="flex flex-col items-start gap-3 px-(--card-pad) pb-(--card-pad)">
           <p className="text-sm text-muted-foreground">{TOP_EMPTY}</p>
           {fallbackHref === null || fallback === null ? null : (
-            <Link href={fallbackHref as Route} className={cn(buttonVariants({ variant: 'secondary' }))}>
+            <Link
+              prefetch="auto"
+              href={fallbackHref as Route}
+              className={cn(buttonVariants({ variant: 'secondary' }))}
+            >
               {SEE_FALLBACK[fallback]}
             </Link>
           )}
@@ -164,9 +170,9 @@ export function TopFive({
                 {href === null ? (
                   <div className={rowClass}>{inner}</div>
                 ) : (
-                  <Link prefetch={false} href={href} className={cn(rowClass, 'hover:bg-accent')}>
+                  <EntityLink href={href} className={cn(rowClass, 'hover:bg-accent')}>
                     {inner}
-                  </Link>
+                  </EntityLink>
                 )}
               </li>
             );
@@ -195,6 +201,7 @@ export function DailyCard({ mystery, group }: { mystery: MysteryPageState | null
 
   return (
     <Link
+      prefetch="auto"
       href={href}
       data-slot="daily-card"
       className="flex min-h-(--row-min-h) items-center gap-3 rounded-card border border-border bg-card p-(--card-pad) hover:border-border-strong"
@@ -273,13 +280,12 @@ export function LastGameCard({
           )}
           {result.award === null ? null : <AwardLine award={result.award} group={group} />}
           {href === null ? null : (
-            <Link
-              prefetch={false}
+            <EntityLink
               href={href}
               className="mt-1 inline-flex min-h-11 items-center text-sm font-bold underline underline-offset-3"
             >
               {SEE_THE_GAME}
-            </Link>
+            </EntityLink>
           )}
         </div>
       </div>
@@ -318,13 +324,12 @@ export function AwardLine({
 function PlayerLinkOrText({ name, href }: { name: PlayerName; href: Route | null }) {
   if (href === null) return <span className="[overflow-wrap:anywhere]">{renderWebName(name)}</span>;
   return (
-    <Link
-      prefetch={false}
+    <EntityLink
       href={href}
       className="inline-flex min-h-11 items-center underline decoration-1 underline-offset-3 [overflow-wrap:anywhere] hover:decoration-2"
     >
       {renderWebName(name)}
-    </Link>
+    </EntityLink>
   );
 }
 
@@ -388,7 +393,7 @@ export function EmptyGroup({ isAdmin, group }: { isAdmin: boolean; group: PageGr
         <div className="flex flex-col items-start gap-3 px-(--card-pad) pb-(--card-pad)">
           <p className="text-base">{EMPTY_GROUP_ADMIN_BODY}</p>
           {adminHref === null ? null : (
-            <Link href={adminHref} className={buttonVariants({ variant: 'default' })}>
+            <Link prefetch="auto" href={adminHref} className={buttonVariants({ variant: 'default' })}>
               {FINISH_SETUP}
             </Link>
           )}

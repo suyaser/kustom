@@ -45,16 +45,28 @@ export async function mapChunks<T>(
   ids: readonly string[],
   read: (chunk: string[]) => PromiseLike<T>,
 ): Promise<T[]> {
-  const chunks = inChunks(ids);
-  const results = new Array<T>(chunks.length);
+  return inParallel(inChunks(ids), read);
+}
+
+/**
+ * `work` over every item, at most `limit` (default six) at a time, answers in item order (so rows
+ * come back in the order a one-after-another loop would have appended them). The first failure
+ * rejects, as such a loop's first throw did. {@link mapChunks} is this over {@link inChunks}.
+ */
+export async function inParallel<T, R>(
+  items: readonly T[],
+  work: (item: T) => PromiseLike<R>,
+  limit: number = CHUNK_CONCURRENCY,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
   let next = 0;
-  const worker = async (): Promise<void> => {
-    while (next < chunks.length) {
+  const lane = async (): Promise<void> => {
+    while (next < items.length) {
       const index = next;
       next += 1;
-      results[index] = await read(chunks[index] as string[]);
+      results[index] = await work(items[index] as T);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunks.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
   return results;
 }

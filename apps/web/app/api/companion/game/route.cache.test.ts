@@ -110,21 +110,30 @@ describe('POST /api/companion/game: the Stats cache', () => {
   it("expires the game's group on a new game", async () => {
     stub.ingest = stored({ created: true });
     expect((await POST(post())).status).toBe(200);
-    expect(stub.expired).toEqual([['stats', GROUP], ['games', GROUP]]);
+    expect(stub.expired).toEqual([
+      ['stats', GROUP],
+      ['games', GROUP],
+    ]);
   });
 
   it('expires the group on a repeat post of its own game (ban enrichment lands on this path)', async () => {
     stub.ingest = stored({ created: false });
     stub.rate = async () => ({ rated: false, reason: 'already-rated', claimed: 0 });
     expect((await POST(post())).status).toBe(200);
-    expect(stub.expired).toEqual([['stats', GROUP], ['games', GROUP]]);
+    expect(stub.expired).toEqual([
+      ['stats', GROUP],
+      ['games', GROUP],
+    ]);
   });
 
   it("expires the game's own group, not the token's, when they differ", async () => {
     const other = '00000000-0000-4000-8000-0000000000bb';
     stub.ingest = stored({ groupId: other });
     await POST(post());
-    expect(stub.expired).toEqual([['stats', other], ['games', other]]);
+    expect(stub.expired).toEqual([
+      ['stats', other],
+      ['games', other],
+    ]);
   });
 
   it('expires the group on a backfilled game (stored, not rated)', async () => {
@@ -134,7 +143,10 @@ describe('POST /api/companion/game: the Stats cache', () => {
     };
     const body = { ...eogBody({ gameId: 7_000_002, puuids: PUUIDS }), source: 'backfill' };
     expect((await POST(post(body))).status).toBe(200);
-    expect(stub.expired).toEqual([['stats', GROUP], ['games', GROUP]]);
+    expect(stub.expired).toEqual([
+      ['stats', GROUP],
+      ['games', GROUP],
+    ]);
   });
 
   it("expires nothing on another group's game (a foreign duplicate writes nothing)", async () => {
@@ -149,7 +161,10 @@ describe('POST /api/companion/game: the Stats cache', () => {
       throw new Error('fold failed');
     };
     await expect(POST(post())).rejects.toThrow('fold failed');
-    expect(stub.expired).toEqual([['stats', GROUP], ['games', GROUP]]);
+    expect(stub.expired).toEqual([
+      ['stats', GROUP],
+      ['games', GROUP],
+    ]);
   });
 
   it('expires nothing when nothing was stored', async () => {

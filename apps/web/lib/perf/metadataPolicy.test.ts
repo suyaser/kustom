@@ -20,9 +20,14 @@ const ALLOWED_LOADS: Record<string, { calls: readonly string[]; why: string }> =
     calls: ['loadTodayMysteryKind'],
     why: "One row, read only (never the page's load, which builds the day and touches the session).",
   },
-  // tonight-perf is replacing these two with a title read (2026-10-04). Delete on merge.
-  'app/(group)/g/[slug]/p/[puuid]/page.tsx': { calls: ['loadPlayer'], why: 'Pending tonight-perf.' },
-  'app/(group)/g/[slug]/games/[gameId]/page.tsx': { calls: ['loadGame'], why: 'Pending tonight-perf.' },
+  'app/(group)/g/[slug]/p/[puuid]/page.tsx': {
+    calls: ['loadPlayerHead'],
+    why: "`lib/og/heads.ts`: the player row, then three one-row group checks side by side (the page's 404 rule, so another group's PUUID never titles this group's page).",
+  },
+  'app/(group)/g/[slug]/games/[gameId]/page.tsx': {
+    calls: ['loadGameHead'],
+    why: '`lib/og/heads.ts`: one `games` row scoped to the group.',
+  },
 };
 
 function metadataLoads(): { file: string; line: number; call: string }[] {

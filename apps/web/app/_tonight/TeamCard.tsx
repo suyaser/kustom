@@ -1,8 +1,8 @@
 import { type DeltaReason, SETTLING_GAMES } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import type { Route } from 'next';
-import Link from 'next/link';
 import { useId } from 'react';
+import { EntityLink } from '@/components/links/EntityLink';
 import { NameText } from '@/components/names/name-text';
 import { Chip } from '@/components/ui/chip';
 import { SideGlyph } from '@/components/ui/side-glyph';
@@ -191,13 +191,12 @@ function Seat({
           // The whole seat is the target (≥ 64px, 05-design 5.1), through a stretched link: the
           // name stays the link's accessible name. The one other control is a finished seat's
           // change (M14.58), raised above the link.
-          <Link
-            prefetch={false}
+          <EntityLink
             href={href}
             className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring"
           >
             <NameText name={seat.name} suffix={seat.nameSuffix} />
-          </Link>
+          </EntityLink>
         )}
         {you ? <span className="sr-only">{YOU_SR}</span> : null}
       </span>

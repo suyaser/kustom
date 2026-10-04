@@ -63,7 +63,10 @@ describe('POST /api/admin/ratings/reset: the Stats cache', () => {
     });
     const response = await route(post());
     expect(response.status).toBe(200);
-    expect(stub.expired).toEqual([['stats', GROUP], ['games', GROUP]]);
+    expect(stub.expired).toEqual([
+      ['stats', GROUP],
+      ['games', GROUP],
+    ]);
   });
 
   it('expires nothing when the reset is refused', async () => {

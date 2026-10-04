@@ -25,24 +25,12 @@ const ENTITY_HREF =
   /page:\s*'(player|game)'|\b(playerHref\w*|gameHref\w*|playerPath|pickTwo\w*|playerPage)\b|links\.(game|player)\(|\/p\/|\/games\/\$\{/;
 
 /**
- * Files other lanes own and are fixing in their own branches (2026-10-04): Tonight (`tonight-perf`:
- * its cards, tape and team cards, and the Games list rows), Stats (`stats-perf`) and the mode panel
- * (the mode QA lane). Listed by file, never by directory, so a new file is checked from day one.
+ * Files another lane owns and is fixing in its own branch: the mode panel (the mode QA lane; the
+ * Tonight, Games and Stats entries went when tonight-perf and stats-perf merged). Listed by file,
+ * never by directory, so a new file is checked from day one.
  * **Delete an entry once its lane has merged**; an entry that no longer has a violation is fine.
  */
-const PENDING_OTHER_LANES = new Set([
-  'app/_tonight/Cards.tsx',
-  'app/_tonight/Strip.tsx',
-  'app/_tonight/Tape.tsx',
-  'app/_tonight/TeamCard.tsx',
-  'app/_tonight/TonightView.tsx',
-  'app/_games/GamesList.tsx',
-  'app/_stats/parts.tsx',
-  'app/_stats/records-parts.tsx',
-  'app/_stats/StatsFrame.tsx',
-  'app/_mode/ModeCard.tsx',
-  'app/_mode/ModePanelBody.tsx',
-]);
+const PENDING_OTHER_LANES = new Set(['app/_mode/ModeCard.tsx', 'app/_mode/ModePanelBody.tsx']);
 
 interface LinkUse {
   file: string;

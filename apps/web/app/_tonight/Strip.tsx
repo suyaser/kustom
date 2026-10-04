@@ -197,6 +197,7 @@ function Answer({ answer }: { answer: NonNullable<AnswerBand> }) {
             <>
               {' '}
               <Link
+                prefetch="auto"
                 // Intent on it preloads the panel's sprite sheets (M14.45, `SpriteIntent` in the Mode card).
                 data-warm-sprites=""
                 id={answer.jump.id}

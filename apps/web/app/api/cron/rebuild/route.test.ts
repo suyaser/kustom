@@ -89,7 +89,10 @@ describe('GET /api/cron/rebuild', () => {
     expect(stub.expired).toEqual([]);
 
     expect((await GET(get('Bearer secret-value'))).status).toBe(200);
-    expect(stub.expired).toEqual([['stats', '00000000-0000-4000-8000-00000000000b'], ['games', '00000000-0000-4000-8000-00000000000b']]);
+    expect(stub.expired).toEqual([
+      ['stats', '00000000-0000-4000-8000-00000000000b'],
+      ['games', '00000000-0000-4000-8000-00000000000b'],
+    ]);
 
     stub.expired = [];
     stub.fail = true;

@@ -162,11 +162,12 @@ owned by the other lanes are listed by name as pending; delete each entry when i
 
 - **Per request:** `requirePageGroup`, the session reads, `readGroupModeRow` (React `cache`), plus
   Next's `fetch` memoisation for identical GETs.
-- **Across requests:** only `cachedGroupCalibration` (`lib/games/calibrationCache.ts`):
-  `unstable_cache`, key `['group-calibration-v1', groupId]`, tag `games:<groupId>`
+- **Across requests:** this lane's `cachedGroupCalibration` (`lib/games/calibrationCache.ts`):
+  `cachedRead` (`lib/cache/cached.ts`), key `group-calibration-v1` + groupId, tag `games:<groupId>`
   (`lib/cache/tags.ts` `groupTag`), `revalidate: 300` as a backstop for writes outside Next (the
-  `rebuild-ratings` script). Anon reads only; nothing per viewer, nothing live.
-- **Invalidation** (`lib/cache/invalidate.ts` `invalidateGroup(kind, groupId)`,
+  `rebuild-ratings` script). Anon reads only; nothing per viewer, nothing live. (Since the
+  integration of the three lanes, one cache module serves Tonight's and Stats' slices too.)
+- **Invalidation** (`lib/cache/tags.ts` `invalidateGroup(groupId, kinds)`,
   `revalidateTag(tag, { expire: 0 })`, never throws): the eog ingest (`ingestEogGame`), the rating fold
   (`rateStoredGame`), the rebuild (`rebuildRatings`), Roll (`balanceLobby`) and Reroll (`promoteSplit`).
   All are library calls inside the platform routes, so no route changed.

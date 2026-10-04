@@ -2,6 +2,7 @@ import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { RoleIcon } from '@/app/_icons/RoleIcon';
+import { EntityLink } from '@/components/links/EntityLink';
 import type { HistoryGame } from '@/lib/games/types';
 import {
   moreGamesLabel,
@@ -268,9 +269,9 @@ const LINK = cn(
 /** `This game`: the one custom a number came from, on its game page. */
 export function GameLink({ game, links }: { game: Pick<HistoryGame, 'id'>; links: StatsLinks }) {
   return (
-    <Link href={links.game(game.id) as Route} prefetch={false} className={cn(LINK, 'w-fit')}>
+    <EntityLink href={links.game(game.id) as Route} className={cn(LINK, 'w-fit')}>
       {THIS_GAME}
-    </Link>
+    </EntityLink>
   );
 }
 
