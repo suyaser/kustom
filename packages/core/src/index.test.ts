@@ -32,7 +32,8 @@ describe('core skeleton', () => {
       'SPIN_FAMILIES',
       'STANDING_MODES',
       'UNAFFILIATED',
-      // M15.2 lifecycle: compare and clear once a game is recorded.
+      // M15.2 lifecycle: compare and clear once a game is recorded. Deprecated by M20.6's
+      // `transition`; the lifecycle names go when apps/web moves (M20.7, M20.8).
       'afterRecord',
       // The MVP / ACE adjustment (M7.8), applied to a fold's result and never inside the fold.
       'applyMvpAceBonus',
@@ -74,6 +75,8 @@ describe('core skeleton', () => {
       // M14.58 / M14.59 (a): the probability the fold stores per side; predictWin, one function.
       'foldWinProbability',
       'gameStamp',
+      // M20.6 the one mode transition: hand back into empty fields only (teams down, remake, ARAM).
+      'handBack',
       // A player's main and backup read off their own games (M5.16); M5.17 stores the pair.
       'inferRoles',
       // The role model's one predicate, for the surfaces that mark an off-role line (M3.1).
@@ -84,12 +87,18 @@ describe('core skeleton', () => {
       // M18.1: K from the player's own rated games on the track (32 down to 16).
       'kFor',
       'lockAtRoll',
+      // M20.6: this game's Rated (the moved switch, else the locked mode's default).
+      'lockRated',
+      // M20.6: redraw or set a side on this game's region pair.
+      'lockTransition',
       'modeFamily',
       'modePool',
       'modeRatedDefault',
       // Who carried each side (M7.8): the MVP won, the ACE did not.
       'mvpAce',
       'nextGame',
+      // M20.6: the next game's Rated (the switch, else the next mode's default).
+      'nextRated',
       'nextSplit',
       // M14.4: STRATEGY §4.3's band for a `blue_win_prob`; the copy stays in apps/web.
       'oddsBand',
@@ -109,6 +118,8 @@ describe('core skeleton', () => {
       'rateGame',
       // M18.1: one game folded on one Kustom track.
       'rateGameKustom',
+      // M20.6: a recorded game's stamp: the lock if there is one, otherwise the pending state.
+      'recordGame',
       'regionOpenCounts',
       'regionPool',
       // The resolver behind it, for the tonight page's `<override> · <old main>` row (M3.6).
@@ -125,6 +136,10 @@ describe('core skeleton', () => {
       // M18.11: 200 games, 0 < b < 0.8, at most every 30 days (injected clock).
       'shouldAdoptOddsPair',
       'startState',
+      // M20.6 Roll: the rule, its pair and Rated move onto the lobby's lock.
+      'take',
+      // M20.6: every admin action on the mode row, as a patch of only the fields it sets.
+      'transition',
       // M14.4: why the runner-up ranked lower, from `off_role_count` and `gap` (STRATEGY §4.4).
       'whyLower',
       // M18.1: the one Kustom odds function, logistic(a + b * gap / 400).

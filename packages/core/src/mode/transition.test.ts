@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionPair, RuleOption } from './model';
 import { pairDrawable } from './pool';
-import { type Rng } from './spin';
+import type { Rng } from './spin';
 import { seeded, sequence, setRoster, syntheticRoster } from './testRoster';
 import {
   handBack,
@@ -13,10 +13,10 @@ import {
   nextRated,
   type PendingRule,
   type RecordInput,
-  recordGame,
   type RowPatch,
-  take,
+  recordGame,
   type TransitionContext,
+  take,
   transition,
 } from './transition';
 
@@ -50,7 +50,12 @@ const mirror = { id: 'mirror' } as const;
 const regionPick: RuleOption = { id: 'region' };
 const ioniaNoxus = { id: 'region', blue: 'ionia', red: 'noxus' } as const satisfies PendingRule;
 
-const row = (over: Partial<ModeRow> = {}): ModeRow => ({ standing: 'normal', pending: null, rated: null, ...over });
+const row = (over: Partial<ModeRow> = {}): ModeRow => ({
+  standing: 'normal',
+  pending: null,
+  rated: null,
+  ...over,
+});
 const apply = (state: ModeRow, patch: RowPatch): ModeRow => ({ ...state, ...patch });
 
 function patchOf(state: ModeRow, action: ModeAction, context = ctx()): RowPatch {
@@ -120,7 +125,10 @@ describe('transition: each action returns only the fields it sets (the row)', ()
         });
       } else {
         it('redraw and set-side: refused, region wars is not pending', () => {
-          expect(transition(prior, { type: 'redraw' }, ctx())).toEqual({ ok: false, refusal: 'no-region-rule' });
+          expect(transition(prior, { type: 'redraw' }, ctx())).toEqual({
+            ok: false,
+            refusal: 'no-region-rule',
+          });
           expect(transition(prior, { type: 'set-side', side: 'blue', region: 'zaun' }, ctx())).toEqual({
             ok: false,
             refusal: 'no-region-rule',
@@ -133,7 +141,10 @@ describe('transition: each action returns only the fields it sets (the row)', ()
 
 describe('transition: picks and Spin', () => {
   it('a rule with too few open is refused, unless it is the rule already pending', () => {
-    expect(transition(row(), { type: 'pick', rule: mages }, ctx())).toEqual({ ok: false, refusal: 'too-few-open' });
+    expect(transition(row(), { type: 'pick', rule: mages }, ctx())).toEqual({
+      ok: false,
+      refusal: 'too-few-open',
+    });
     expect(patchOf(row({ pending: mages, rated: true }), { type: 'pick', rule: mages })).toEqual({
       pending: mages,
       rated: null,
@@ -153,6 +164,18 @@ describe('transition: picks and Spin', () => {
     });
   });
 
+  it('region wars reads only the region list it is given (the list the draw reads)', () => {
+    const narrow: TransitionContext = { ...ctx(), regions: ['demacia', 'ionia'] };
+    expect(transition(row(), { type: 'pick', rule: regionPick }, narrow)).toEqual({
+      ok: false,
+      refusal: 'too-few-open',
+    });
+    expect(transition(row(), { type: 'spin', previous: tanks, blocked: [mirror] }, narrow)).toEqual({
+      ok: false,
+      refusal: 'nothing-to-spin',
+    });
+  });
+
   it('Fearless bans count only on a Fearless night', () => {
     // Under Normal the same pool is ignored: region wars is playable.
     expect(patchOf(row(), { type: 'pick', rule: regionPick }, ctx(sequence(0, 0), NO_PAIR)).pending).toEqual(
@@ -162,7 +185,11 @@ describe('transition: picks and Spin', () => {
 
   it('the drawn pair reads the bans: a short region is never drawn', () => {
     // Ionia down to 7: blue candidates noxus, targon, zaun.
-    const patch = patchOf(row({ standing: 'fearless' }), { type: 'pick', rule: regionPick }, ctx(sequence(0, 0), [IONIA_ONE, IONIA_TWO]));
+    const patch = patchOf(
+      row({ standing: 'fearless' }),
+      { type: 'pick', rule: regionPick },
+      ctx(sequence(0, 0), [IONIA_ONE, IONIA_TWO]),
+    );
     expect(patch.pending).toEqual({ id: 'region', blue: 'noxus', red: 'targon' });
   });
 
@@ -181,7 +208,9 @@ describe('transition: picks and Spin', () => {
 
   it('Spin skips the previous rule and anything blocked; nothing left is a refusal', () => {
     // Previous Tank: class has no playable option left (Mage is short), so region then mirror.
-    expect(patchOf(row(), { type: 'spin', previous: tanks, blocked: [regionPick] }, ctx(sequence(0)))).toEqual({
+    expect(
+      patchOf(row(), { type: 'spin', previous: tanks, blocked: [regionPick] }, ctx(sequence(0))),
+    ).toEqual({
       pending: mirror,
       rated: null,
     });
@@ -235,7 +264,12 @@ describe('redraw and set-side (row and lock, one rule)', () => {
       [['ionia', 'noxus'], 1],
       [['zaun'], 9],
     ]);
-    const context: TransitionContext = { roster: shared, regions: ['ionia', 'noxus', 'zaun'], fearlessPool: [], rng: sequence(0) };
+    const context: TransitionContext = {
+      roster: shared,
+      regions: ['ionia', 'noxus', 'zaun'],
+      fearlessPool: [],
+      rng: sequence(0),
+    };
     const state = row({ pending: { id: 'region', blue: 'ionia', red: 'zaun' } });
     expect(transition(state, { type: 'set-side', side: 'red', region: 'noxus' }, context)).toEqual({
       ok: false,
@@ -250,7 +284,9 @@ describe('redraw and set-side (row and lock, one rule)', () => {
       ok: true,
       lock: { standing: 'normal', mode: { id: 'region', blue: 'ionia', red: 'targon' }, rated: null },
     });
-    expect(lockTransition({ ...lock, rated: true }, { type: 'set-side', side: 'blue', region: 'zaun' }, ctx())).toEqual({
+    expect(
+      lockTransition({ ...lock, rated: true }, { type: 'set-side', side: 'blue', region: 'zaun' }, ctx()),
+    ).toEqual({
       ok: true,
       lock: { standing: 'normal', mode: { id: 'region', blue: 'zaun', red: 'noxus' }, rated: true },
     });
@@ -258,17 +294,38 @@ describe('redraw and set-side (row and lock, one rule)', () => {
 
   it('on a lock: the lock standing decides whether Fearless bans count', () => {
     const fearlessLock: ModeLock = { ...lock, standing: 'fearless' };
-    expect(lockTransition(fearlessLock, { type: 'set-side', side: 'blue', region: 'targon' }, ctx(sequence(0), [TARGON_ONE]))).toEqual({
+    expect(
+      lockTransition(
+        fearlessLock,
+        { type: 'set-side', side: 'blue', region: 'targon' },
+        ctx(sequence(0), [TARGON_ONE]),
+      ),
+    ).toEqual({
       ok: false,
       refusal: 'region-short',
     });
-    expect(lockTransition(lock, { type: 'set-side', side: 'blue', region: 'targon' }, ctx(sequence(0), [TARGON_ONE])).ok).toBe(true);
+    expect(
+      lockTransition(
+        lock,
+        { type: 'set-side', side: 'blue', region: 'targon' },
+        ctx(sequence(0), [TARGON_ONE]),
+      ).ok,
+    ).toBe(true);
   });
 
   it('on a lock without region wars: refused', () => {
     const tanksLock: ModeLock = { standing: 'normal', mode: tanks, rated: null };
-    expect(lockTransition(tanksLock, { type: 'redraw' }, ctx())).toEqual({ ok: false, refusal: 'no-region-rule' });
-    expect(lockTransition({ ...tanksLock, mode: { id: 'normal' } }, { type: 'set-side', side: 'red', region: 'zaun' }, ctx())).toEqual({
+    expect(lockTransition(tanksLock, { type: 'redraw' }, ctx())).toEqual({
+      ok: false,
+      refusal: 'no-region-rule',
+    });
+    expect(
+      lockTransition(
+        { ...tanksLock, mode: { id: 'normal' } },
+        { type: 'set-side', side: 'red', region: 'zaun' },
+        ctx(),
+      ),
+    ).toEqual({
       ok: false,
       refusal: 'no-region-rule',
     });
@@ -299,7 +356,11 @@ describe('take (Roll): the rule, its pair and Rated move into the lock', () => {
   });
 
   it('a pair that still passes is locked exactly', () => {
-    const state = row({ standing: 'fearless', pending: { id: 'region', blue: 'noxus', red: 'targon' }, rated: true });
+    const state = row({
+      standing: 'fearless',
+      pending: { id: 'region', blue: 'noxus', red: 'targon' },
+      rated: true,
+    });
     expect(take(state, ctx(sequence(0.99, 0.99), [IONIA_ONE, IONIA_TWO]))).toEqual({
       lock: { standing: 'fearless', mode: { id: 'region', blue: 'noxus', red: 'targon' }, rated: true },
       patch: { pending: null, rated: null },
@@ -361,7 +422,12 @@ describe('handBack: per field, only into empty fields', () => {
   });
 
   it('twice equals once', () => {
-    for (const state of [row(), row({ pending: tanks }), row({ rated: true }), row({ pending: mirror, rated: false })]) {
+    for (const state of [
+      row(),
+      row({ pending: tanks }),
+      row({ rated: true }),
+      row({ pending: mirror, rated: false }),
+    ]) {
       const once = apply(state, handBack(state, lock));
       expect(handBack(once, lock)).toEqual({});
     }
@@ -403,7 +469,12 @@ describe('handBack: per field, only into empty fields', () => {
 
 describe('recordGame: the lock if there is one, otherwise the pending state', () => {
   const lock: ModeLock = { standing: 'fearless', mode: ioniaNoxus, rated: null };
-  const game = (over: Partial<RecordInput>): RecordInput => ({ kind: 'rift', lock: null, live: true, ...over });
+  const game = (over: Partial<RecordInput>): RecordInput => ({
+    kind: 'rift',
+    lock: null,
+    live: true,
+    ...over,
+  });
 
   it('a Rift game from a rolled lobby stamps the lock and writes nothing to the row', () => {
     const state = row({ standing: 'fearless', pending: tanks, rated: true });
@@ -411,7 +482,9 @@ describe('recordGame: the lock if there is one, otherwise the pending state', ()
       stamp: { standing: 'fearless', mode: ioniaNoxus, rated: false, checked: true },
       patch: {},
     });
-    expect(recordGame(state, game({ lock: { standing: 'normal', mode: { id: 'normal' }, rated: false } }))).toEqual({
+    expect(
+      recordGame(state, game({ lock: { standing: 'normal', mode: { id: 'normal' }, rated: false } })),
+    ).toEqual({
       stamp: { standing: 'normal', mode: { id: 'normal' }, rated: false, checked: false },
       patch: {},
     });
@@ -518,7 +591,11 @@ describe('property: no reachable state is a region rule without a valid pair', (
   };
   const validPair = (rule: PendingRule | null) =>
     rule?.id !== 'region' ||
-    (typeof rule.blue === 'string' && typeof rule.red === 'string' && rule.blue !== rule.red && REGIONS.includes(rule.blue as never) && REGIONS.includes(rule.red as never));
+    (typeof rule.blue === 'string' &&
+      typeof rule.red === 'string' &&
+      rule.blue !== rule.red &&
+      REGIONS.includes(rule.blue as never) &&
+      REGIONS.includes(rule.red as never));
 
   it('over 300 random sequences with Roll, hand-backs and records in between', () => {
     const rng = seeded(6);
@@ -540,7 +617,11 @@ describe('property: no reachable state is a region rule without a valid pair', (
           state = apply(state, recordGame(state, { kind: 'rift', lock, live: true }).patch);
           lock = null;
         } else if (r < 0.25 && lock !== null) {
-          const changed = lockTransition(lock, rng() < 0.5 ? { type: 'redraw' } : { type: 'set-side', side: 'red', region: 'zaun' }, context);
+          const changed = lockTransition(
+            lock,
+            rng() < 0.5 ? { type: 'redraw' } : { type: 'set-side', side: 'red', region: 'zaun' },
+            context,
+          );
           if (changed.ok) lock = changed.lock;
         } else {
           const result = transition(state, ACTIONS(rng), context);
@@ -548,7 +629,8 @@ describe('property: no reachable state is a region rule without a valid pair', (
             const written = result.patch.pending;
             // A pair written by an action passes the draw rule at that moment.
             if (written?.id === 'region' && written !== state.pending) {
-              const counted = state.standing === 'fearless' || result.patch.standing === 'fearless' ? bans : [];
+              const counted =
+                state.standing === 'fearless' || result.patch.standing === 'fearless' ? bans : [];
               expect(pairDrawable(written.blue, written.red, ROSTER, counted)).toBe(true);
             }
             state = apply(state, result.patch);
