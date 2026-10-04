@@ -371,8 +371,8 @@ export function buildGameFacts(input: GameFactsInput, optedOut: ReadonlySet<stri
       const streak = seat.history?.winStreak ?? null;
       if (streak !== null && streak >= WIN_STREAK_MIN) {
         values.push(value('wins in a row', streak, 'streak'));
-        if (seat.history?.longestStreak === true)
-          claims.push(claim('max', 'their longest run of wins in a row in the group'));
+        // 2026-10-04: `run` alone, so a line that copies the claim never says `in a row` twice.
+        if (seat.history?.longestStreak === true) claims.push(claim('max', 'their longest run in the group'));
       }
     } else {
       // The losing side (M16.16): only numbers they earned -- top 2 in the game for that stat (the
@@ -443,6 +443,27 @@ export const WEEK_BOARD_ROWS = 5;
 export const WEEK_STREAK_MIN = 3;
 /** A week won game for game becomes a claim from this many games (M16.13). */
 export const WEEK_PERFECT_MIN = 5;
+/**
+ * The margin at the top of the week (A/B read, 2026-10-04; every provider): 1st place this many
+ * points or fewer ahead of 2nd is a close race; at least {@link CLEAR_LEAD_POINTS} ahead, and a
+ * quarter more than 2nd's points, is a clear lead. In between is neither, and the checker allows
+ * neither closeness words (`a squeeze`) nor margin words (`ran away`) without the matching note.
+ * Only the note reaches the model, never the gap as a number: a printed `N points ahead of the
+ * runner-up` was copied verbatim into line after line, and the checker needs only the note.
+ */
+export const CLOSE_RACE_POINTS = 5;
+export const CLEAR_LEAD_POINTS = 20;
+export const CLOSE_RACE_NOTE = 'close race at the top: first and second place were a few points apart';
+export const CLEAR_LEAD_NOTE = 'clear lead at the top: first place finished well ahead of second place';
+
+/** The week's margin note for 1st place's points over 2nd's, or null when it is neither. */
+export function weekMarginNote(first: number, second: number): string | null {
+  const gap = first - second;
+  if (gap < 0) return null;
+  if (gap <= CLOSE_RACE_POINTS) return CLOSE_RACE_NOTE;
+  if (gap >= CLEAR_LEAD_POINTS && gap >= 0.25 * Math.max(0, second)) return CLEAR_LEAD_NOTE;
+  return null;
+}
 
 export function buildWeekFacts(input: WeekFactsInput, optedOut: ReadonlySet<string>): FactList | null {
   const top = input.board.slice(0, WEEK_BOARD_ROWS);
@@ -475,11 +496,21 @@ export function buildWeekFacts(input: WeekFactsInput, optedOut: ReadonlySet<stri
   const mostGamesRows = input.board.filter((row) => row.games === maxGames);
   const mostGames = maxGames > 0 && mostGamesRows.length === 1 ? (mostGamesRows[0] ?? null) : null;
 
+  // The margin at the top (2026-10-04): 1st's net points over 2nd's, both from the board.
+  const pointsOf = (row: (typeof input.board)[number] | undefined) =>
+    row === undefined ? undefined : input.climbs.find((entry) => entry.playerId === row.playerId)?.climb;
+  const firstPoints = pointsOf(input.board[0]);
+  const secondPoints = pointsOf(input.board[1]);
+  const marginNote =
+    firstPoints !== undefined && secondPoints !== undefined && firstPoints > 0
+      ? weekMarginNote(firstPoints, secondPoints)
+      : null;
+
   const facts: Omit<AiFact, 'id'>[] = [
     {
       token: null,
       side: null,
-      notes: ['the closed week of custom games'],
+      notes: ['the closed week of custom games', ...(marginNote !== null ? [marginNote] : [])],
       champions: [],
       values: [value('rated games in the week', input.ratedGames, 'games')],
       claims: [],
@@ -1019,6 +1050,14 @@ export function renderFact(fact: AiFact): string {
   return renderFactWith(fact, {});
 }
 
+/** `1st`, `2nd`, `3rd`, `4th`, `11th`, `22nd`. */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  const ending = n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+  return `${n}${ending}`;
+}
+
 /** {@link renderFact}, with damage in thousands (`29.9k`) when asked: what the game prompt prints. */
 export function renderFactWith(fact: AiFact, options: { thousands?: boolean }): string {
   const parts: string[] = [`${fact.id}:`];
@@ -1033,7 +1072,10 @@ export function renderFactWith(fact: AiFact, options: { thousands?: boolean }): 
     ...fact.champions.map((name) => `champion ${name}`),
     ...fact.values.map((v) =>
       v.of === undefined
-        ? `${options.thousands === true && v.unit === 'damage' ? thousands(v.value) : formatNumber(v.value)} ${v.label}`
+        ? v.unit === 'place'
+          ? // 2026-10-04: a place prints with its ending (`1st place`), the way the line must write it.
+            `${ordinal(v.value)} ${v.label}`
+          : `${options.thousands === true && v.unit === 'damage' ? thousands(v.value) : formatNumber(v.value)} ${v.label}`
         : `${formatNumber(v.value)} of ${formatNumber(v.of)} ${v.label}`,
     ),
     ...fact.claims.map((c) => c.text),
