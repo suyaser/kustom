@@ -8,6 +8,7 @@ import {
 } from '@customs/db';
 import { supersedeLobbyCommands } from '../commands/queue';
 import type { CompanionIdentity } from '../companionAuth';
+import type { LiveChanges } from '../live/bump';
 import { ACTIVE_LOBBY_STATUSES, assertLegalTransition, isActiveLobbyStatus } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
 import { ensureMemberships } from './memberships';
@@ -37,7 +38,12 @@ import { carryRoleOverrides } from './roleCarry';
  *    goes back to `open`, because the teams on the board were made for people who are no
  *    longer the people here, and `updated_at` moves either way — which is what lets a roll
  *    that checked the old roster lose its compare-and-set instead of balancing the new one.
- *    `lobby_members` and `players` are written on every post and neither touches the row.
+ *    Neither `lobby_members` nor `players` touches the row.
+ * 3. **a post that changed nothing writes nothing** (M19.8, superseding the 2026-09-08 "written on
+ *    every accepted lobby post" row): each `lobby_members` row is compared with the stored one and
+ *    only a new row, a gone row, or a moved side or spectator flag is written; a Riot ID is
+ *    written only when it moved (`ensurePlayers`). The answer says whether anything was written
+ *    (`wrote`), which is what decides the route's `group_live` bump (M19.9).
  *
  * `recheckInMs` is still in the answer, for the companions already installed, and is always
  * `null`: it only ever existed to measure the ten seconds.
@@ -45,6 +51,14 @@ import { carryRoleOverrides } from './roleCarry';
 
 export interface LobbyIngestResult {
   lobbyId: string;
+  /** The lobby's group: the party's owner, which is not always the token's (M13.3). */
+  groupId: string;
+  /**
+   * True when this post wrote any row: the lobby (a new cycle, a name, a password, the reporter,
+   * the status), a `lobby_members` row, a role carry, or a player's Riot ID. False for a repeated
+   * post and for another group's party. The route bumps `group_live` on it (M19.9).
+   */
+  wrote: boolean;
   status: LobbyStatusValue;
   /** False when the party's live row was already known — the idempotent case. */
   created: boolean;
@@ -176,6 +190,11 @@ export interface LobbyIngestOptions {
   groupId: string;
   /** Injected in tests: the rank staleness check (M2.4) and the role carry (M3.6) read it. */
   now?: Date;
+  /**
+   * The request's live signal (M19.9): the lobby's group is touched `lobby` as each write lands,
+   * so the route's `withLiveSignal` bumps it even when a later step throws.
+   */
+  live?: LiveChanges;
 }
 
 /**
@@ -211,12 +230,19 @@ export async function ingestLobby(
     throw error;
   }
   const { lobby, created } = upserted;
+  // The request's live signal (M19.9), noted as each write lands rather than from the answer, so a
+  // post that throws part way (a member upsert, the membership insert) still bumps what it wrote.
+  const touch = () => options.live?.touch(lobby.groupId, 'lobby');
+  if (upserted.wrote) touch();
 
   // Frozen (M2.9): the lobby is in a game or done, so the roster is a record of what
   // happened. Report what is stored and write nothing to `lobby_members`.
   if (isRosterFrozen(lobby.status)) {
     return {
       lobbyId: lobby.id,
+      groupId: lobby.groupId,
+      // A frozen roster still takes a rename or a new password on the `lobbies` row.
+      wrote: upserted.wrote,
       status: lobby.status,
       created,
       memberCount: await countMembers(client, lobby.id),
@@ -232,11 +258,11 @@ export async function ingestLobby(
   const stored = created ? null : rosterIdentity(await selectMemberPuuids(client, lobby.id));
   const rosterChanged = posted !== stored;
 
-  // The members are always written, whether or not the identity moved: a friend swapping side
-  // or stepping into the spectator slot has to land in `lobby_members` (the seat plan reads
-  // it) and a Riot ID that changed has to land in `players` (M1.7). Neither touches
-  // `lobbies`, so neither restarts the clock — only the write below does that.
-  const diff = await replaceMembers(client, lobby.id, payload, lobby.groupId);
+  // The members are compared whether or not the identity moved: a friend swapping side or
+  // stepping into the spectator slot has to land in `lobby_members` (the seat plan reads it) and
+  // a Riot ID that changed has to land in `players` (M1.7). Only what moved is written (M19.8).
+  // Neither touches `lobbies`, so neither restarts the clock — only the write below does that.
+  const diff = await replaceMembers(client, lobby.id, payload, lobby.groupId, touch);
   const memberCount = diff.count;
 
   // A role for tonight lasts the night and lives on the player (M3.6): every row this post
@@ -257,6 +283,10 @@ export async function ingestLobby(
 
   return {
     lobbyId: lobby.id,
+    groupId: lobby.groupId,
+    // A roster change always writes a member row, so `diff.wrote` covers the clock restart and
+    // the role carry (both only run when members were written or inserted).
+    wrote: upserted.wrote || diff.wrote,
     status,
     created,
     memberCount,
@@ -278,6 +308,8 @@ async function foreignPartyAnswer(
 ): Promise<LobbyIngestResult> {
   return {
     lobbyId: lobby.id,
+    groupId: lobby.groupId,
+    wrote: false,
     status: lobby.status,
     created: false,
     memberCount: await countMembers(client, lobby.id),
@@ -393,6 +425,8 @@ interface LobbyRowResult {
   lobby: ExistingLobby;
   /** True when this post started a cycle: an unseen party, or the night's next game (M2.14). */
   created: boolean;
+  /** True when this post wrote the `lobbies` row: a new cycle, or a patch below. */
+  wrote: boolean;
 }
 
 /**
@@ -422,7 +456,7 @@ async function upsertLobby(
     // `lobbies_active_party_idx` is partial, so there is no constraint for `on conflict` to
     // infer. The unique violation below is the race, and it is handled by re-reading.
     const { data, error } = await client.from('lobbies').insert(insert).select(LOBBY_COLUMNS).single();
-    if (!error && data) return { lobby: toExistingLobby(data), created: true };
+    if (!error && data) return { lobby: toExistingLobby(data), created: true, wrote: true };
     if (error && error.code !== UNIQUE_VIOLATION) {
       throw new Error(`ingestLobby: insert failed: ${error.message}`);
     }
@@ -433,7 +467,7 @@ async function upsertLobby(
     const raced = await selectActiveLobby(client, payload.partyId);
     if (raced === null) throw new Error('ingestLobby: lobby vanished after a conflicting insert');
     if (raced.groupId !== groupId) throw new ForeignPartyRace(raced);
-    return { lobby: raced, created: false };
+    return { lobby: raced, created: false, wrote: false };
   }
 
   const patch: LobbyUpdate = {};
@@ -457,10 +491,10 @@ async function upsertLobby(
       .select(LOBBY_COLUMNS)
       .single();
     if (error) throw new Error(`ingestLobby: update failed: ${error.message}`);
-    return { lobby: toExistingLobby(data), created: false };
+    return { lobby: toExistingLobby(data), created: false, wrote: true };
   }
 
-  return { lobby: existing, created: false };
+  return { lobby: existing, created: false, wrote: false };
 }
 
 /** A `lobbies` row, as everything downstream of the party-id lookup wants to read it. */
@@ -612,11 +646,21 @@ export interface MemberDiff {
    * to exactly these, so a tap that has just landed on an existing row is never overwritten.
    */
   inserted: string[];
+  /**
+   * True when any `lobby_members` row was inserted, changed or deleted, or a player's Riot ID
+   * was refreshed (M19.8). False for a post that matches what is stored.
+   */
+  wrote: boolean;
 }
 
 /**
  * The reported list replaces whatever we had: members who left are deleted, members who
  * stayed keep their `role` and `role_override` (M3.6 owns those columns).
+ *
+ * **Only what moved is written** (M19.8): the stored rows are read first, and the delete runs
+ * only when somebody left, the upsert only for a row that is new or whose side or spectator flag
+ * moved. The same post twice writes nothing the second time, so it sends no Realtime event and no
+ * `group_live` bump.
  *
  * It also reports the diff, because a role for tonight outlives a row: `roleCarry.ts` puts an
  * override back onto a row this post created, from the party's previous cycle inside the night
@@ -627,7 +671,10 @@ async function replaceMembers(
   lobbyId: string,
   payload: CompanionLobbyPayload,
   groupId: string,
+  /** Called as each write lands (M19.9: the route's live signal survives a later throw). */
+  touch: () => void = () => {},
 ): Promise<MemberDiff> {
+  let refreshed = false;
   const playerIds = await ensurePlayers(
     client,
     payload.members.map((member) => ({
@@ -636,6 +683,12 @@ async function replaceMembers(
       gameName: member.gameName,
       tagLine: member.tagLine,
     })),
+    {
+      onRefresh: () => {
+        refreshed = true;
+        touch();
+      },
+    },
   );
 
   const rows = new Map<string, LobbyMemberInsert>();
@@ -652,36 +705,70 @@ async function replaceMembers(
 
   const keep = [...rows.keys()];
 
-  // Read before the write, so an insert can be told from an update: only a row this post
-  // creates gets the player's role for tonight copied onto it (M3.6).
-  const before = await selectMemberIds(client, lobbyId);
+  // Read before the write, so an insert can be told from an update (only a row this post creates
+  // gets the player's role for tonight copied onto it, M3.6) and an unchanged row from a moved
+  // one (M19.8).
+  const before = await selectStoredMembers(client, lobbyId);
   const inserted = keep.filter((playerId) => !before.has(playerId));
+  const gone = [...before.keys()].filter((playerId) => !rows.has(playerId));
+  const changed = [...rows.values()].filter((row) => memberRowMoved(before.get(row.player_id), row));
 
-  const remove = client.from('lobby_members').delete().eq('lobby_id', lobbyId);
-  const { error: deleteError } = await (keep.length === 0
-    ? remove
-    : remove.not('player_id', 'in', `(${keep.map((id) => `"${id}"`).join(',')})`));
-  if (deleteError) throw new Error(`ingestLobby: member delete failed: ${deleteError.message}`);
+  if (gone.length > 0) {
+    // Everyone not on the posted list, not only the rows read above: a row a concurrent post
+    // added a moment ago goes too, exactly as the whole-list replace always did.
+    const remove = client.from('lobby_members').delete().eq('lobby_id', lobbyId);
+    const { error: deleteError } = await (keep.length === 0
+      ? remove
+      : remove.not('player_id', 'in', `(${keep.map((id) => `"${id}"`).join(',')})`));
+    if (deleteError) throw new Error(`ingestLobby: member delete failed: ${deleteError.message}`);
+    touch();
+  }
 
-  if (keep.length > 0) {
+  if (changed.length > 0) {
     const { error } = await client
       .from('lobby_members')
-      .upsert([...rows.values()], { onConflict: 'lobby_id,player_id' });
+      .upsert(changed, { onConflict: 'lobby_id,player_id' });
     if (error) throw new Error(`ingestLobby: member upsert failed: ${error.message}`);
+    touch();
   }
 
   // Playing is joining (M13.3): everyone on this group's roster is a member of it from now on.
-  // `on conflict do nothing`, so an admin stays an admin.
-  await ensureMemberships(client, groupId, keep);
+  // `on conflict do nothing`, so an admin stays an admin. Asked for the rows this post created
+  // only (M19.8): everybody else was made a member by the post that created their row, so a
+  // repeated post sends no write at all. (Somebody an admin removed mid-lobby is a member again
+  // from the game's end-of-game block, which ensures the whole scoreboard.)
+  await ensureMemberships(client, groupId, inserted);
 
-  return { count: keep.length, inserted };
+  return { count: keep.length, inserted, wrote: refreshed || gone.length > 0 || changed.length > 0 };
 }
 
-/** Who already has a row in this lobby, before the post is applied. */
-async function selectMemberIds(client: ServiceClient, lobbyId: string): Promise<Set<string>> {
-  const { data, error } = await client.from('lobby_members').select('player_id').eq('lobby_id', lobbyId);
+/** A `lobby_members` row as stored: the two columns a post can move. */
+export interface StoredMember {
+  side: LobbyMemberInsert['side'];
+  isSpectator: boolean;
+}
+
+/** True when the posted row is new or moved a column the post owns (side, spectator flag). */
+export function memberRowMoved(stored: StoredMember | undefined, posted: LobbyMemberInsert): boolean {
+  if (stored === undefined) return true;
+  return (
+    (stored.side ?? null) !== (posted.side ?? null) || stored.isSpectator !== (posted.is_spectator ?? false)
+  );
+}
+
+/** Who already has a row in this lobby, and how it is seated, before the post is applied. */
+async function selectStoredMembers(
+  client: ServiceClient,
+  lobbyId: string,
+): Promise<Map<string, StoredMember>> {
+  const { data, error } = await client
+    .from('lobby_members')
+    .select('player_id, side, is_spectator')
+    .eq('lobby_id', lobbyId);
   if (error) throw new Error(`ingestLobby: member read failed: ${error.message}`);
-  return new Set((data ?? []).map((row) => row.player_id));
+  return new Map(
+    (data ?? []).map((row) => [row.player_id, { side: row.side, isSpectator: row.is_spectator }] as const),
+  );
 }
 
 async function countMembers(client: ServiceClient, lobbyId: string): Promise<number> {

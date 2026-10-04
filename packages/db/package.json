@@ -27,9 +27,10 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@supabase/supabase-js": "2.115.0",
     "@types/node": "26.5.0",
+    "tsx": "4.23.13",
     "typescript": "5.9.3",
-    "vitest": "5.0.0",
-    "tsx": "4.23.13"
+    "vitest": "5.0.0"
   }
 }

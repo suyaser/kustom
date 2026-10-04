@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { isLobbyMember, isRosterFrozen, RANK_STALE_MS } from './lobby';
+import { isLobbyMember, isRosterFrozen, memberRowMoved, RANK_STALE_MS } from './lobby';
 import { isDisplayNameAutomatic } from './players';
+
+describe('memberRowMoved (M19.8: a post writes only the rows that moved)', () => {
+  const row = { lobby_id: 'l', player_id: 'p', side: 100 as const, is_spectator: false };
+
+  it('is true for a row the lobby does not have yet', () => {
+    expect(memberRowMoved(undefined, row)).toBe(true);
+  });
+
+  it('is false for the same side and flag', () => {
+    expect(memberRowMoved({ side: 100, isSpectator: false }, row)).toBe(false);
+  });
+
+  it('is true for a side swap, a spectator flag, or a side going unknown', () => {
+    expect(memberRowMoved({ side: 200, isSpectator: false }, row)).toBe(true);
+    expect(memberRowMoved({ side: 100, isSpectator: true }, row)).toBe(true);
+    expect(memberRowMoved({ side: 100, isSpectator: false }, { ...row, side: null })).toBe(true);
+    expect(memberRowMoved({ side: null, isSpectator: false }, { ...row, side: null })).toBe(false);
+  });
+});
 
 /**
  * The pure parts of lobby ingest: who may report a lobby (M1.8), when its roster stops

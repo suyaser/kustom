@@ -1011,6 +1011,42 @@ export type Database = {
           },
         ]
       }
+      group_live: {
+        Row: {
+          changed_at: string
+          group_id: string
+          kind: string
+          version: number
+        }
+        Insert: {
+          changed_at?: string
+          group_id: string
+          kind: string
+          version?: number
+        }
+        Update: {
+          changed_at?: string
+          group_id?: string
+          kind?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_live_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_live_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_memberships: {
         Row: {
           ai_opt_out: boolean
@@ -1873,6 +1909,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      bump_group_live: {
+        Args: { p_group: string; p_kind: string }
+        Returns: number
       }
       create_group: {
         Args: {

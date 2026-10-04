@@ -8,6 +8,7 @@ import { removeMember } from '@/lib/admin/members';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
 import { invalidateGroup } from '@/lib/cache/tags';
+import { bumpGroupLive } from '@/lib/live/bump';
 
 /** The success notice. Platform's words, listed in the M14.11 report for product to replace. */
 export const MEMBER_REMOVED = 'Removed from the group.';
@@ -40,6 +41,8 @@ export async function handleMemberRemove(
   }
 
   invalidateGroup(context.groupId, ['roster', 'admins']);
+  // Tonight's live signal (M19.9), after the removal's one write.
+  await bumpGroupLive(context.client, context.groupId, 'roster');
   if (context.form) return redirectBack(context.request, back, { notice: MEMBER_REMOVED });
 
   return context.respond(

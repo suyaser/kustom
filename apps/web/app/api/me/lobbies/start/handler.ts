@@ -3,6 +3,7 @@ import type { NextResponse } from 'next/server';
 // that queues `switch_side` (M4.1). A side-effect import, exactly as on the companion routes:
 // with this line removed the press still queues its `create_lobby` and nothing else happens.
 import '@/lib/commands/register';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
 import { openingOnPcLine, type StartLobbyOptions, startLobby } from '@/lib/lobbyStart';
 import { NOT_IN_THIS_GROUP, START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
 import { type MeContext, type MeRouteOptions, withViewerAuth } from '@/lib/me/route';
@@ -46,16 +47,28 @@ export async function handleStartLobby(
   // A linked player who is not in this group (M13.4). Never a press on another group's PCs.
   if (context.role === null) return context.fail(403, NOT_IN_THIS_GROUP);
 
-  const result = await startLobby(
-    context.client,
-    // The presser comes from the **session**, never from the body: whose client opens a lobby is
-    // a real decision, and a body that could name someone else would be a request to open a
-    // lobby on a stranger's PC.
-    //
-    // The group is the body's, checked above against the presser's membership (M13.4);
-    // `startLobby` picks only that group's tokens (M13.3).
-    { pressedByPlayerId: presser.playerId, groupId: context.groupId },
-    { timeZone: nightTimeZone(), ...options },
+  // Tonight's live signal (M19.9): once the `create_lobby` command is queued every open Tonight of
+  // this group shows the lobby opening. The command row is this request's last write; the bump
+  // follows it, and also a throw after it landed.
+  const result = await withLiveSignal(context.client, (live) =>
+    noteWrite(
+      live,
+      context.groupId,
+      'lobby',
+      () =>
+        startLobby(
+          context.client,
+          // The presser comes from the **session**, never from the body: whose client opens a lobby
+          // is a real decision, and a body that could name someone else would be a request to open
+          // a lobby on a stranger's PC.
+          //
+          // The group is the body's, checked above against the presser's membership (M13.4);
+          // `startLobby` picks only that group's tokens (M13.3).
+          { pressedByPlayerId: presser.playerId, groupId: context.groupId },
+          { timeZone: nightTimeZone(), ...options },
+        ),
+      (started) => started.ok,
+    ),
   );
 
   // One of the four sentences, every one of them a 409 and none of them a write. `context.fail`

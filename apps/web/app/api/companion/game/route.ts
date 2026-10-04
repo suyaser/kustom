@@ -1,13 +1,15 @@
 import { scrubRawEogBlock } from '@customs/db';
 import {
+  type CompanionGamePayload,
   companionGamePayloadSchema,
   companionGameResponseSchema,
   hasWinningTeam,
   NO_WINNING_TEAM_MESSAGE,
 } from '@customs/db/schemas';
+import type { NextResponse } from 'next/server';
 import { scheduleGameLine } from '@/lib/ai/afterIngest';
 import { invalidateGroup } from '@/lib/cache/tags';
-import { withCompanionAuth } from '@/lib/companionRoute';
+import { type CompanionContext, withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import {
   CUSTOM_GAME_TYPE,
@@ -16,6 +18,7 @@ import {
   isCustomGame,
   isParticipant,
 } from '@/lib/ingest/game';
+import { type LiveChanges, noteWrite, withLiveSignal } from '@/lib/live/bump';
 // Registers the Discord listeners on `hooks.ts` at module load (M3.1, M3.3). Side-effect
 // import: remove it and this route behaves identically, minus the message.
 import '@/lib/ingest/discord';
@@ -82,177 +85,208 @@ export const maxDuration = 60;
  * game with fewer than six of its players already members of the token's group is not stored
  * at all: the answer is a 2xx with `created: false`, `reason: 'not-this-group'` and
  * `skippedNotThisGroup: 1`, and the next daily scan offers it again.
+ *
+ * **Live signal (M19.9).** One `group_live` bump per group this post changed, after every write
+ * (the game, its players, the fold's ratings, the lobby's `finished`, the rule's clear and the
+ * Discord post): `game` for an eog that wrote anything, `lobby` for an `in_progress` that moved
+ * its lobby and for a lobby the idle sweep moved. A second companion's identical block writes
+ * nothing and bumps nothing. `after()` work (the AI line) is not waited for and does not bump.
  */
-export const POST = withCompanionAuth(
-  companionGamePayloadSchema,
-  async (payload, { client, identity, request }) => {
-    // The same sweep the lobby route runs: two hours idle and a lobby is given up on, as
-    // `abandoned` if it never started and as `dropped` if its game never reported (M5.11).
-    await sweepIdleLobbies(client, new Date());
+export const POST = withCompanionAuth(companionGamePayloadSchema, async (payload, context) =>
+  withLiveSignal(context.client, (live) => handleGamePost(payload, context, live)),
+);
 
-    if (payload.phase === 'in_progress') {
-      const lobby = payload.partyId ? await selectActiveLobby(client, payload.partyId) : null;
-      if (lobby !== null) {
-        // From here the roster is history (M2.9), and it stays history: the only way out of
-        // `in_game` is `finished` (the eog block) or `dropped` (the two-hour sweep, M5.11).
-        await moveLobbyLogged(
-          client,
-          { lobbyId: lobby.id, from: ['open', 'balanced'], to: 'in_game' },
-          `game ${payload.gameId} in_progress`,
-        );
-      }
+async function handleGamePost(
+  payload: CompanionGamePayload,
+  { client, identity, request }: CompanionContext,
+  live: LiveChanges,
+): Promise<NextResponse> {
+  // The same sweep the lobby route runs: two hours idle and a lobby is given up on, as
+  // `abandoned` if it never started and as `dropped` if its game never reported (M5.11).
+  await sweepIdleLobbies(client, new Date(), live);
 
-      return jsonOk(companionGameResponseSchema, {
-        ok: true,
-        phase: 'in_progress',
-        created: false,
-        gameId: null,
-        lobbyId: lobby?.id ?? null,
-        participants: 0,
-      });
-    }
-
-    if (!isCustomGame(payload)) {
-      return jsonError(422, `gameType must be ${CUSTOM_GAME_TYPE}`);
-    }
-
-    if (!hasWinningTeam(payload)) {
-      return jsonError(422, NO_WINNING_TEAM_MESSAGE);
-    }
-
-    const duplicate = findDuplicateParticipant(payload);
-    if (duplicate !== null) {
-      return jsonError(422, 'the same puuid appears twice in participants');
-    }
-
-    // A backfilled game is one this player played months ago, so M2.8's lobby fallback cannot
-    // apply to it: nobody sat out a round of a game there is no lobby row for. The token's
-    // player must be on the scoreboard or nothing is written (M5.1, `04-decisions.md`).
-    const backfill = payload.source === 'backfill';
-    const onScoreboard = isParticipant(payload, identity.puuid);
-
-    // M2.8: a friend who sits out a round and watches is a real reporter. Their PUUID is not on
-    // the scoreboard, but it is in `lobby_members` for the lobby this game was played from
-    // (spectators are in the client's `members[]`, confirmed on 16.17 by M2.13).
-    if (
-      !onScoreboard &&
-      (backfill ||
-        !(await isLobbyMemberOfGame(client, payload.partyId ?? null, identity.playerId, payload.startedAt)))
-    ) {
-      return jsonError(403, 'a companion may only report a game its own player was in');
-    }
-
-    // The group comes from the token (M13.3); `ingestEogGame` decides where the game lands:
-    // an id stored anywhere keeps its group, a live game follows its lobby, and a backfilled one
-    // needs six of its ten to be members of the token's group.
-    const ingested = await ingestEogGame(
-      client,
-      { ...payload, raw: scrubRawEogBlock(payload.raw) },
-      { groupId: identity.groupId },
-    );
-
-    if (ingested.outcome === 'skipped-not-this-group') {
-      // A 2xx, so the companion drops its queue file: nothing is wrong with the game, it is just
-      // not this group's yet. Nothing was stored, so the next daily scan offers it again.
-      console.info(
-        `backfill: game ${payload.gameId} skipped for group ${identity.groupId}: ${ingested.members} of ${payload.participants.length} are members`,
-      );
-      return jsonOk(companionGameResponseSchema, {
-        ok: true,
-        phase: 'eog',
-        created: false,
-        gameId: null,
-        lobbyId: null,
-        participants: 0,
-        rated: false,
-        reason: NOT_THIS_GROUP_REASON,
-        skippedNotThisGroup: 1,
-      });
-    }
-    const result = ingested;
-
-    // The fold: ten rows, five a side, over five minutes, and exactly once per game (M2.5).
-    //
-    // Never for a backfilled game (M5.1): ratings are a fold in `started_at` order and backfill
-    // delivers games out of order by definition, so the four `game_players` rating columns stay
-    // null and `ratings` does not move until the daily `/api/cron/rebuild` (M14.63) folds the
-    // group. The answer is still a 2xx with `created` — a 2xx is what lets the companion
-    // delete its queue file.
-    //
-    // Never for another group's game either (M13.3): that post is a no-op, and the fold reads
-    // and writes the game's own group's ratings when its own companions post it.
-    let fold: Awaited<ReturnType<typeof rateStoredGame>>;
-    try {
-      fold = backfill
-        ? BACKFILL_NOT_RATED
-        : result.foreignDuplicate
-          ? FOREIGN_DUPLICATE_NOT_RATED
-          : await rateStoredGame(client, result.gameId);
-    } finally {
-      // The group's Stats and games caches (top five, last game, roster labels, calibration): a
-      // game stored, rated, renamed or given its bans changes them. In a `finally`, so a fold that
-      // throws after the game was stored still expires them (the retry that follows the 500
-      // expires them again once the fold lands).
-      if (!result.foreignDuplicate) invalidateGroup(result.groupId, ['stats', 'games']);
-    }
-
-    // A lobby that is already `finished` (the second companion's post) or that the sweep
-    // abandoned between resolving it and here claims nothing and says so in the log.
-    //
-    // `dropped` is in the `from` list on purpose (M5.11): a block that sat in a companion's
-    // queue file for days still closes the lobby it was played from, so the row leaves M5.5's
-    // missed list by itself and the night's later cycles are untouched.
-    if (result.lobbyId !== null && !result.foreignDuplicate) {
-      await moveLobbyLogged(
+  if (payload.phase === 'in_progress') {
+    const lobby = payload.partyId ? await selectActiveLobby(client, payload.partyId) : null;
+    if (lobby !== null) {
+      // From here the roster is history (M2.9), and it stays history: the only way out of
+      // `in_game` is `finished` (the eog block) or `dropped` (the two-hour sweep, M5.11).
+      const moved = await moveLobbyLogged(
         client,
-        { lobbyId: result.lobbyId, from: ['open', 'balanced', 'in_game', 'dropped'], to: 'finished' },
-        `game ${result.gameId}`,
+        { lobbyId: lobby.id, from: ['open', 'balanced'], to: 'in_game' },
+        `game ${payload.gameId} in_progress`,
       );
-    }
-
-    // M3.3's seam. Only the post that actually did something announces it, so two companions in
-    // one game produce one result. A backfilled game announces nothing at all: it is unrated
-    // until a rebuild, and a result embed for a custom from three weeks ago would read as
-    // tonight's game in the channel (M5.1).
-    if (!backfill && (result.created || fold.rated)) {
-      await emitGameFinished({
-        gameId: result.gameId,
-        lobbyId: result.lobbyId,
-        // Discord posts to the game's group's channel (M13.3), not the token's.
-        groupId: result.groupId,
-        rated: fold.rated,
-        // `not-rated` still gets a result post (M15.6): the rule line lives there.
-        reason: fold.reason,
-        // Only used for the result embed's `url` (M3.3).
-        requestOrigin: siteOrigin(request),
-      });
-    }
-
-    // M16.4: the game's AI recap line, after the result is announced and without holding this
-    // answer or the post: `after()` runs it once the response is sent, and nothing it does can
-    // fail ingest. Live games of the game's own group only; a repeat post is a no-op (no call).
-    if (!backfill && !result.foreignDuplicate) {
-      scheduleGameLine({ groupId: result.groupId, gameId: result.gameId });
-    }
-
-    // The rule is used up (M15.3, R1): compare-and-clear on the card's version, after the result is
-    // announced. Only a Rift game from a locked lobby consumes; anything queued after Roll moved
-    // the version and survives. Run on every post of the game's own group, not only the first:
-    // the version makes a repeat a no-op, and a first post that died here is finished by the
-    // retry (a throw is a 500, so the companion posts again).
-    if (!result.foreignDuplicate) {
-      await clearAfterRecord(supabaseModeStore(client), result.groupId, result.modeRecord);
+      if (moved) live.touch(lobby.groupId, 'lobby');
     }
 
     return jsonOk(companionGameResponseSchema, {
       ok: true,
+      phase: 'in_progress',
+      created: false,
+      gameId: null,
+      lobbyId: lobby?.id ?? null,
+      participants: 0,
+    });
+  }
+
+  if (!isCustomGame(payload)) {
+    return jsonError(422, `gameType must be ${CUSTOM_GAME_TYPE}`);
+  }
+
+  if (!hasWinningTeam(payload)) {
+    return jsonError(422, NO_WINNING_TEAM_MESSAGE);
+  }
+
+  const duplicate = findDuplicateParticipant(payload);
+  if (duplicate !== null) {
+    return jsonError(422, 'the same puuid appears twice in participants');
+  }
+
+  // A backfilled game is one this player played months ago, so M2.8's lobby fallback cannot
+  // apply to it: nobody sat out a round of a game there is no lobby row for. The token's
+  // player must be on the scoreboard or nothing is written (M5.1, `04-decisions.md`).
+  const backfill = payload.source === 'backfill';
+  const onScoreboard = isParticipant(payload, identity.puuid);
+
+  // M2.8: a friend who sits out a round and watches is a real reporter. Their PUUID is not on
+  // the scoreboard, but it is in `lobby_members` for the lobby this game was played from
+  // (spectators are in the client's `members[]`, confirmed on 16.17 by M2.13).
+  if (
+    !onScoreboard &&
+    (backfill ||
+      !(await isLobbyMemberOfGame(client, payload.partyId ?? null, identity.playerId, payload.startedAt)))
+  ) {
+    return jsonError(403, 'a companion may only report a game its own player was in');
+  }
+
+  // The group comes from the token (M13.3); `ingestEogGame` decides where the game lands:
+  // an id stored anywhere keeps its group, a live game follows its lobby, and a backfilled one
+  // needs six of its ten to be members of the token's group.
+  // A throw part way (the game stored, its players not) may already have written: bump the token's
+  // group, where a game with no lobby lands (M19.9). The retry then finishes and bumps again.
+  const ingested = await noteWrite(
+    live,
+    identity.groupId,
+    'game',
+    () =>
+      ingestEogGame(
+        client,
+        { ...payload, raw: scrubRawEogBlock(payload.raw) },
+        { groupId: identity.groupId },
+      ),
+    () => false,
+  );
+
+  if (ingested.outcome === 'skipped-not-this-group') {
+    // A 2xx, so the companion drops its queue file: nothing is wrong with the game, it is just
+    // not this group's yet. Nothing was stored, so the next daily scan offers it again.
+    console.info(
+      `backfill: game ${payload.gameId} skipped for group ${identity.groupId}: ${ingested.members} of ${payload.participants.length} are members`,
+    );
+    return jsonOk(companionGameResponseSchema, {
+      ok: true,
       phase: 'eog',
-      created: result.created,
+      created: false,
+      gameId: null,
+      lobbyId: null,
+      participants: 0,
+      rated: false,
+      reason: NOT_THIS_GROUP_REASON,
+      skippedNotThisGroup: 1,
+    });
+  }
+  const result = ingested;
+  // Noted now, flushed at the very end: a fold that throws below still leaves a stored game.
+  if (!result.foreignDuplicate && result.wrote) live.touch(result.groupId, 'game');
+
+  // The fold: ten rows, five a side, over five minutes, and exactly once per game (M2.5).
+  //
+  // Never for a backfilled game (M5.1): ratings are a fold in `started_at` order and backfill
+  // delivers games out of order by definition, so the four `game_players` rating columns stay
+  // null and `ratings` does not move until the daily `/api/cron/rebuild` (M14.63) folds the
+  // group. The answer is still a 2xx with `created` — a 2xx is what lets the companion
+  // delete its queue file.
+  //
+  // Never for another group's game either (M13.3): that post is a no-op, and the fold reads
+  // and writes the game's own group's ratings when its own companions post it.
+  let fold: Awaited<ReturnType<typeof rateStoredGame>>;
+  try {
+    fold = backfill
+      ? BACKFILL_NOT_RATED
+      : result.foreignDuplicate
+        ? FOREIGN_DUPLICATE_NOT_RATED
+        : await rateStoredGame(client, result.gameId);
+  } finally {
+    // The group's Stats and games caches (top five, last game, roster labels, calibration): a
+    // game stored, rated, renamed or given its bans changes them. In a `finally`, so a fold that
+    // throws after the game was stored still expires them (the retry that follows the 500
+    // expires them again once the fold lands).
+    if (!result.foreignDuplicate) invalidateGroup(result.groupId, ['stats', 'games']);
+  }
+
+  // A lobby that is already `finished` (the second companion's post) or that the sweep
+  // abandoned between resolving it and here claims nothing and says so in the log.
+  //
+  // `dropped` is in the `from` list on purpose (M5.11): a block that sat in a companion's
+  // queue file for days still closes the lobby it was played from, so the row leaves M5.5's
+  // missed list by itself and the night's later cycles are untouched.
+  let lobbyFinished = false;
+  if (result.lobbyId !== null && !result.foreignDuplicate) {
+    lobbyFinished = await moveLobbyLogged(
+      client,
+      { lobbyId: result.lobbyId, from: ['open', 'balanced', 'in_game', 'dropped'], to: 'finished' },
+      `game ${result.gameId}`,
+    );
+  }
+
+  // M3.3's seam. Only the post that actually did something announces it, so two companions in
+  // one game produce one result. A backfilled game announces nothing at all: it is unrated
+  // until a rebuild, and a result embed for a custom from three weeks ago would read as
+  // tonight's game in the channel (M5.1).
+  if (!backfill && (result.created || fold.rated)) {
+    await emitGameFinished({
       gameId: result.gameId,
       lobbyId: result.lobbyId,
-      participants: result.participants,
+      // Discord posts to the game's group's channel (M13.3), not the token's.
+      groupId: result.groupId,
       rated: fold.rated,
+      // `not-rated` still gets a result post (M15.6): the rule line lives there.
       reason: fold.reason,
+      // Only used for the result embed's `url` (M3.3).
+      requestOrigin: siteOrigin(request),
     });
-  },
-);
+  }
+
+  // M16.4: the game's AI recap line, after the result is announced and without holding this
+  // answer or the post: `after()` runs it once the response is sent, and nothing it does can
+  // fail ingest. Live games of the game's own group only; a repeat post is a no-op (no call).
+  if (!backfill && !result.foreignDuplicate) {
+    scheduleGameLine({ groupId: result.groupId, gameId: result.gameId });
+  }
+
+  // The rule is used up (M15.3, R1): compare-and-clear on the card's version, after the result is
+  // announced. Only a Rift game from a locked lobby consumes; anything queued after Roll moved
+  // the version and survives. Run on every post of the game's own group, not only the first:
+  // the version makes a repeat a no-op, and a first post that died here is finished by the
+  // retry (a throw is a 500, so the companion posts again).
+  let ruleCleared = false;
+  if (!result.foreignDuplicate) {
+    ruleCleared = await clearAfterRecord(supabaseModeStore(client), result.groupId, result.modeRecord);
+  }
+
+  // The game's group hears this post once, after everything above (`withLiveSignal` flushes when
+  // this returns): only when something was written, so the second companion's post is silent.
+  if (!result.foreignDuplicate && (result.wrote || fold.claimed > 0 || lobbyFinished || ruleCleared)) {
+    live.touch(result.groupId, 'game');
+  }
+
+  return jsonOk(companionGameResponseSchema, {
+    ok: true,
+    phase: 'eog',
+    created: result.created,
+    gameId: result.gameId,
+    lobbyId: result.lobbyId,
+    participants: result.participants,
+    rated: fold.rated,
+    reason: fold.reason,
+  });
+}

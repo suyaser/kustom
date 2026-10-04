@@ -9,6 +9,7 @@ import {
   FEARLESS_RESET_SKIPPED,
 } from '@/lib/fearless/copy';
 import { resetFearless } from '@/lib/fearless/reset';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type FearlessResetRequest, fearlessResetRequestSchema, fearlessResetResponseSchema } from './schema';
 
@@ -26,13 +27,21 @@ export async function handleFearlessReset(
   context: AdminContext,
 ): Promise<NextResponse> {
   const back = safeNextPath(input.redirectTo) ?? context.redirectTo;
-  const { resetAt } = await resetFearless(context.client, {
-    playerId: context.admin.playerId,
-    groupId: context.groupId,
-  });
-  const outcome = await postFearlessReset(context.client, {
-    requestOrigin: siteOrigin(context.request),
-    groupId: context.groupId,
+  // Tonight's live signal (M19.9), flushed after the reset and its Discord post, and also when the
+  // post throws: the card's pool emptied either way.
+  const { resetAt, outcome } = await withLiveSignal(context.client, async (live) => {
+    const reset = await noteWrite(
+      live,
+      context.groupId,
+      'mode',
+      () => resetFearless(context.client, { playerId: context.admin.playerId, groupId: context.groupId }),
+      () => true,
+    );
+    const posted = await postFearlessReset(context.client, {
+      requestOrigin: siteOrigin(context.request),
+      groupId: context.groupId,
+    });
+    return { resetAt: reset.resetAt, outcome: posted };
   });
   const message = outcome.reason === FEARLESS_SKIPPED_NORMAL ? FEARLESS_RESET_NOTICE : notice(outcome.status);
 
