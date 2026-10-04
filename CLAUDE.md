@@ -81,6 +81,7 @@ pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] [--group <slug
                              # M14.18: folds only games with started_at >= groups.ratings_since
                              # (the owner's Reset ratings epoch; null = every game).
 pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
+pnpm --filter web perf-tonight-taps --playwright <path> [--delay 40] [--cpu 4] [--port 3171] [--web <app dir>] [--start yes]  # M19.3: Tonight in a real browser on the local stack only (needs a build): renders per event and per tap, pending-until-screen-changed (dead window), INP, another group's night (M19.10), a pending Start a lobby with --start yes (M19.17); scratch group + scratch auth user, deleted after
 pnpm --filter web backfill-game-facts [--dry-run] [--group <slug>] [--hosted]
                              # 0041 (db-perf): writes game_facts (rawFactsFromUnknown of games.raw) for
                              # every game without a row and recomputes rows below GAME_FACTS_VERSION

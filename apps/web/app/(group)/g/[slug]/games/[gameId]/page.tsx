@@ -106,7 +106,14 @@ export default async function GamePage({ params }: GamePageProps) {
       breakdown={breakdown}
       recap={
         recap === null ? null : (
-          <AiRecap recap={recap} groupId={group.id} canHide={viewerIsAdmin(viewer)} hideRedirect={here} />
+          <AiRecap
+            recap={recap}
+            groupId={group.id}
+            canHide={viewerIsAdmin(viewer)}
+            hideRedirect={here}
+            // M19.17: a linked viewer's waiter asks the small recap read, not the page.
+            pollGameId={viewer.kind === 'linked' ? gameId : undefined}
+          />
         )
       }
       afterScoreboard={

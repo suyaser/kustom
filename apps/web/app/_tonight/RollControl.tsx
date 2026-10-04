@@ -4,7 +4,7 @@ import { type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { groupHome } from '@/lib/nav';
 import { asSentence, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
-import { requestTonightRefresh } from '@/lib/tonight/live';
+import { beginTonightPress } from '@/lib/tonight/live';
 import { rollRosterKey } from '@/lib/tonight/state';
 import type { MemberView } from '@/lib/tonight/types';
 import { usePageGroup } from '../_shell/PageGroup';
@@ -28,7 +28,8 @@ import { usePageGroup } from '../_shell/PageGroup';
  * JavaScript runs. Every answer — teams up, or any refusal — asks the page to re-read
  * (`onSettled`): a 409 is usually the roster having moved, and the admin should be looking at
  * the new one before pressing again. A refusal is printed in the route's own words and is never
- * fatal; the button stays.
+ * fatal; the button stays. **Pending until the screen changes** (M19.3): the button is quiet from
+ * the press until the re-read it asked for has landed, not merely until the route answered.
  */
 export function RollControl({
   lobbyId,
@@ -54,23 +55,30 @@ export function RollControl({
     if (pending || rosterKey === '') return;
     setPending(true);
     setFailed(null);
+    // Tonight holds its renders until this answers: the route's own rows and the answer are one
+    // render, not one mid-write and one after (M19.3).
+    const press = beginTonightPress();
     try {
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId: group.id, rosterKey }),
       });
+      const answeredAt = Date.now();
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
         setFailed(errorOf(body));
       }
       // Teams up or a refusal, the page is now behind the server: re-read it. Realtime would
-      // deliver the teams too; asking keeps the answer from waiting on a socket.
+      // deliver the teams too; asking keeps the answer from waiting on a socket, and is the one
+      // render for both (M19.3). The button stays quiet
+      // until the new screen is on, so a second press never names the old roster.
       onSettled?.();
-      requestTonightRefresh();
+      await press.answered(answeredAt);
     } catch {
       setFailed(ROLL_UNREACHABLE);
     } finally {
+      press.release();
       setPending(false);
     }
   }

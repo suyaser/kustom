@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import {
   CONFIRM_MAKE_ADMIN_BODY,
   CONFIRM_MAKE_MEMBER_BODY,
@@ -21,7 +20,8 @@ import { ConfirmAction } from './ConfirmAction';
 /**
  * A member row's buttons (STRATEGY 3.5), each behind its confirm, each posting to its M14.11 route
  * with the page's group. Visible 44px buttons that wrap, never a `⋯` menu (05-design 5.12). The page
- * refreshes after a success, so the row redraws from the database rather than from a guess.
+ * refreshes after a success (`ConfirmAction`'s own refresh, held pending until it lands: M19.3), so the
+ * row redraws from the database rather than from a guess.
  */
 export function MemberActions({
   groupId,
@@ -34,9 +34,6 @@ export function MemberActions({
   name: string;
   actions: readonly MemberAction[];
 }) {
-  const router = useRouter();
-  const done = () => router.refresh();
-
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((action) => {
@@ -52,7 +49,6 @@ export function MemberActions({
                 actionLabel={MAKE_ADMIN_LABEL}
                 url="/api/admin/members/role"
                 payload={{ groupId, playerId, role: 'admin' }}
-                onDone={done}
               />
             );
           case 'make-member':
@@ -66,7 +62,6 @@ export function MemberActions({
                 actionLabel={MAKE_MEMBER_LABEL}
                 url="/api/admin/members/role"
                 payload={{ groupId, playerId, role: 'member' }}
-                onDone={done}
               />
             );
           case 'make-owner':
@@ -80,7 +75,6 @@ export function MemberActions({
                 actionLabel={MAKE_OWNER_LABEL}
                 url="/api/admin/owner/transfer"
                 payload={{ groupId, playerId }}
-                onDone={done}
               />
             );
           case 'remove':
@@ -94,7 +88,6 @@ export function MemberActions({
                 actionLabel={REMOVE_LABEL}
                 url="/api/admin/members/remove"
                 payload={{ groupId, playerId }}
-                onDone={done}
               />
             );
         }

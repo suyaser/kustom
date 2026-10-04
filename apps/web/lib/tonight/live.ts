@@ -65,12 +65,87 @@ export function useLiveState(): LiveState {
 export const TONIGHT_REFRESH_EVENT = 'kustom:tonight-refresh';
 
 /**
- * Ask the tonight page to re-read now (a roll, a role tap, a self-link, a lobby start were
- * answered). `TonightLive` listens; with no tonight page mounted nothing happens. An event rather
- * than a router call so a control never depends on where it is rendered.
+ * What rides on {@link TONIGHT_REFRESH_EVENT} (M19.3). `answeredAt` is when the route answered
+ * (`Date.now()`), so a render that started after it is known to show the write; `TonightLive`
+ * sets `answered` with the promise of the render that covers it. A bare `Event` (no detail) is an
+ * ask made now with nobody waiting.
  */
-export function requestTonightRefresh(): void {
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event(TONIGHT_REFRESH_EVENT));
+export interface TonightRefreshDetail {
+  answeredAt: number;
+  answered: Promise<void> | null;
+}
+
+/**
+ * Ask the tonight page to re-read (M19.3): returns the promise of the render that covers the
+ * write, or `null` when no tonight page is mounted. `TonightLive` answers through the event, so a
+ * control never depends on where it is rendered.
+ */
+export function askTonight(answeredAt: number = Date.now()): Promise<void> | null {
+  if (typeof window === 'undefined') return null;
+  const detail: TonightRefreshDetail = { answeredAt, answered: null };
+  window.dispatchEvent(new CustomEvent<TonightRefreshDetail>(TONIGHT_REFRESH_EVENT, { detail }));
+  return detail.answered;
+}
+
+/**
+ * A press was answered (a roll, a reroll, a lobby start, a mode change): ask the tonight page to
+ * re-read and wait until the new screen is on. Pass the time the route answered; a render already
+ * running since then is joined, not repeated (one render per tap). Resolves at once with no
+ * tonight page mounted (`/admin`, a test).
+ */
+export function requestTonightRefresh(answeredAt: number = Date.now()): Promise<void> {
+  return askTonight(answeredAt) ?? Promise.resolve();
+}
+
+/** The event a control fires as its press leaves for the route (M19.3). */
+export const TONIGHT_PRESS_EVENT = 'kustom:tonight-press';
+
+/**
+ * What rides on {@link TONIGHT_PRESS_EVENT}: `TonightLive` sets `release` to its hold's release.
+ * `answered` is true when the route answered (its own `group_live` bump is on the way, M19.10), false
+ * when the press failed or needs no re-read.
+ */
+export interface TonightPressDetail {
+  release: ((answered: boolean) => void) | null;
+}
+
+/** One press, from the tap to the screen it changed (M19.3). */
+export interface TonightPress {
+  /**
+   * The route answered at `answeredAt`: ask for the render that shows it and let the page's
+   * renders go again. Resolves when that render has committed (at once with no tonight page).
+   */
+  answered(answeredAt?: number): Promise<void>;
+  /** The press failed or needs no re-read: let the page's renders go again. Safe to call twice. */
+  release(): void;
+}
+
+/**
+ * A press is leaving for its route (Roll, Reroll, Start a lobby, Set mode, Spin, Rated): Tonight
+ * holds its renders until the press answers, so the route's own Realtime rows and its answer
+ * become one render instead of one mid-write and one after (M19.3). Call `answered` with the
+ * answer's time, or `release` when there is nothing to re-read; the hold also ends by itself.
+ */
+export function beginTonightPress(): TonightPress {
+  const detail: TonightPressDetail = { release: null };
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<TonightPressDetail>(TONIGHT_PRESS_EVENT, { detail }));
+  }
+  let open = true;
+  const letGo = (answered: boolean): void => {
+    if (!open) return;
+    open = false;
+    detail.release?.(answered);
+  };
+  return {
+    answered(answeredAt = Date.now()) {
+      // Ask first, then let go: the release then starts the one render the ask is waiting on.
+      const answered = requestTonightRefresh(answeredAt);
+      letGo(true);
+      return answered;
+    },
+    release: () => letGo(false),
+  };
 }
 
 /** The Tonight tab's dot: a live lobby **and** a subscribed channel, never one without the other. */

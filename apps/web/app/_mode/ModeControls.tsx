@@ -64,7 +64,7 @@ import {
   standingNotice,
 } from '@/lib/mode/ruleNotices';
 import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
-import { requestTonightRefresh } from '@/lib/tonight/live';
+import { beginTonightPress, type TonightPress } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
 
 const MODE_ACTION = '/api/admin/mode';
@@ -84,8 +84,9 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  *   Fearless is a disabled option with ` (too few open)`. Picking Normal or Fearless clears a
  *   pending rule (R1). The button shows once the choice differs; without JS it is always there.
  *   With JS a confirmed choice **answers on its own** (QA fix 2026-10-04, like the Rated switch):
- *   the route's answer becomes the select's value at its version, so the button goes away at once
- *   and cannot re-post the same choice while the page re-reads.
+ *   the route's answer becomes the select's value at its version, so the button cannot re-post the
+ *   same choice while the page re-reads; it says `Setting…` until the new card is on screen, then
+ *   goes (M19.3: pending until the screen changes).
  * - **`Spin`** (M15.5, R3): the server picks; the card reveals the answer here and on every open
  *   page (the Realtime broadcast). Without JS it is a form post and the page reloads on the result.
  *   With JS it stays quiet (`aria-disabled`) from the tap until its own reveal has played (the page
@@ -200,25 +201,47 @@ export function ModeControls({
     action: string,
     body: Record<string, unknown>,
     kind: 'mode' | 'spin' | 'rated',
-  ): Promise<{ ok: true; spun: RuleOption | null; next: NextGame | null } | { ok: false; status: number }> {
+  ): Promise<
+    | { ok: true; spun: RuleOption | null; next: NextGame | null; answeredAt: number; press: TonightPress }
+    | { ok: false; status: number }
+  > {
     setPending(kind);
     setFailed(null);
     setSaid(null);
+    // A refusal frees the control at once; a success keeps it pending until the caller's re-read
+    // has landed (`settle`, M19.3). Tonight holds its renders until the route answers, so the
+    // `group_modes` row and the answer are one render.
+    const press = beginTonightPress();
     try {
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId, ...body }),
       });
-      if (!response.ok) return { ok: false, status: response.status };
+      const answeredAt = Date.now();
+      if (!response.ok) {
+        press.release();
+        setPending(null);
+        return { ok: false, status: response.status };
+      }
       const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
       const spun = parsed.success && parsed.data.spun !== undefined ? ruleOptionOf(parsed.data.spun) : null;
-      return { ok: true, spun, next: parsed.success ? (parsed.data.next ?? null) : null };
+      return { ok: true, spun, next: parsed.success ? (parsed.data.next ?? null) : null, answeredAt, press };
     } catch {
-      return { ok: false, status: 0 };
-    } finally {
+      press.release();
       setPending(null);
+      return { ok: false, status: 0 };
     }
+  }
+
+  /**
+   * After a confirmed Set mode or Spin: ask Tonight to re-read and stay pending until the new card
+   * is on screen (M19.3), so the button never wakes over the old card. With no Tonight page mounted
+   * this resolves at once.
+   */
+  async function settle(press: TonightPress, answeredAt: number): Promise<void> {
+    await press.answered(answeredAt);
+    setPending(null);
   }
 
   async function setMode(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -232,8 +255,6 @@ export function ModeControls({
       return;
     }
     confirm(choice, result.next);
-    // The button goes with the confirmed choice: keep focus on the select, never <body>.
-    selectRef.current?.focus();
     const rule = ruleOptionOf(choice as ModeChoice);
     // The rule's default rated flag is the server's; the card and the announcer say it on refresh.
     setSaid(
@@ -241,7 +262,9 @@ export function ModeControls({
         ? standingNotice(choice as GroupMode, current !== mode)
         : ruleChosenNotice(rule, modeRatedDefault(rule.id)),
     );
-    requestTonightRefresh();
+    await settle(result.press, result.answeredAt);
+    // The button goes once the new card is on: keep focus on the select, never <body>.
+    selectRef.current?.focus();
   }
 
   async function spin(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -260,7 +283,7 @@ export function ModeControls({
       window.dispatchEvent(new CustomEvent(SPIN_REVEAL_EVENT, { detail: { rule, source: 'local' } }));
       window.dispatchEvent(new CustomEvent(SPIN_BROADCAST_EVENT, { detail: { rule } }));
     }
-    requestTonightRefresh();
+    await settle(result.press, result.answeredAt);
   }
 
   /** A Set mode or Spin the route confirmed: the select's value, and the switch reset with it (R1). */
@@ -288,10 +311,14 @@ export function ModeControls({
     const written = result.next?.version ?? (version ?? 0) + 1;
     setRatedLocal({ kind: 'confirmed', rated: answer, version: written });
     setSaid(ratedNotice(answer));
-    requestTonightRefresh();
+    // The switch already shows the route's answer (its own handback), so it is free at once; the
+    // re-read joins any render already running since the answer (M19.3).
+    setPending(null);
+    void result.press.answered(result.answeredAt);
   }
 
-  const showSet = !hydrated || choice !== current;
+  // `Setting…` stays up until the new card is on screen (M19.3), then goes with the confirmed choice.
+  const showSet = !hydrated || choice !== current || pending === 'mode';
   const spinBusy = pending === 'spin' || spinHeld !== null;
   // Design round 1: `Next game: Mages only.` already says it; don't repeat `Changes apply…` under it.
   const afterRoll = inGame && nextLine === null;
@@ -472,14 +499,17 @@ function ResetFearless({
   async function reset(): Promise<void> {
     setPending(true);
     setError(null);
+    const press = beginTonightPress();
     try {
       const response = await fetch(RESET_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId }),
       });
+      const answeredAt = Date.now();
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
+        press.release();
         setError(MODE_CHANGE_FAILED);
         setPending(false);
         return;
@@ -495,8 +525,12 @@ function ResetFearless({
       done.current = true;
       setOpen(false);
       setPending(false);
-      requestTonightRefresh();
+      // Not held open until the re-read lands: the re-read removes this dialog's trigger with the
+      // bans, and a dialog unmounted while open would drop the focus to <body>. The outcome line
+      // is focused on close instead. The ask still joins a render already running (M19.3).
+      void press.answered(answeredAt);
     } catch {
+      press.release();
       setError(MODE_CHANGE_FAILED);
       setPending(false);
     }

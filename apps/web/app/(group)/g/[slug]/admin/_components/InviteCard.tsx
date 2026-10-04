@@ -1,7 +1,6 @@
 'use client';
 
 import { inviteRotateResponseSchema } from '@customs/db/schemas';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { CopyButton } from '@/app/join/_components/CopyButton';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +15,7 @@ import {
   NO_INVITE_LINE,
 } from '@/lib/admin/homeCopy';
 import { COPY_LINK_LABEL } from '@/lib/groups/pageCopy';
+import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
 import { ConfirmAction } from './ConfirmAction';
 
 /** What the card shows: the link, none yet, or the operator's masked line (STRATEGY 3.3). */
@@ -43,7 +43,7 @@ export function InviteCard({
   invite: InviteView;
   canRotate: boolean;
 }) {
-  const router = useRouter();
+  const { refresh } = useCommittedRefresh();
   const [url, setUrl] = useState<string | null>(invite.state === 'shown' ? invite.url : null);
 
   return (
@@ -79,7 +79,8 @@ export function InviteCard({
                   const parsed = inviteRotateResponseSchema.safeParse(body);
                   if (parsed.success)
                     setUrl(new URL(`/join/${encodeURIComponent(parsed.data.code)}`, origin).toString());
-                  router.refresh();
+                  // The new link is already on the card; the dialog closes once the page agrees.
+                  return refresh();
                 }}
               />
             ) : null}

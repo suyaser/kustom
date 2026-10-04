@@ -2,10 +2,11 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FEARLESS_RESET_BUTTON, FEARLESS_RESET_POSTED } from '@/lib/fearless/copy';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
-import { MODE_CHANGE_FAILED, SET_MODE } from '@/lib/mode/copy';
+import { MODE_CHANGE_FAILED, SET_MODE, SETTING_MODE } from '@/lib/mode/copy';
 import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
 import { SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
+import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { Announcer } from '../_tonight/Announcer';
 import { ModeControls, type ModeControlsProps } from './ModeControls';
 
@@ -102,6 +103,34 @@ describe('Set mode answers on its own', () => {
     expect(outcome()).toHaveTextContent('Next game: Class wars, tanks only. Not rated.');
     fireEvent.submit(select().form as HTMLFormElement);
     expect(bodies(net.mock)).toEqual([{ groupId: ORIGINAL_GROUP.id, mode: 'class:Tank' }]);
+  });
+
+  it('M19.3: says Setting… until the new card is on screen, then goes, with focus on the select', async () => {
+    const tonight = holdTonightRefresh();
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    const { rerender } = render(<ModeControls {...PROPS} />);
+    fireEvent.change(select(), { target: { value: 'class:Tank' } });
+    const button = setButton() as HTMLElement;
+    button.focus();
+    fireEvent.click(button);
+    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
+    expect(tonight.asks).toHaveLength(1);
+
+    // Answered, the old card still up: the button stays, pending, and posts nothing again.
+    const pendingButton = screen.getByRole('button', { name: SETTING_MODE });
+    expect(pendingButton).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(spinButton());
+    fireEvent.submit(select().form as HTMLFormElement);
+    expect(net.mock).toHaveBeenCalledTimes(1);
+
+    // The re-read lands (new props), then the button goes and focus is on the select.
+    rerender(<ModeControls {...PROPS} selected="class:Tank" nextRated={false} version={5} />);
+    await act(async () => tonight.land());
+    await waitFor(() => expect(screen.queryByRole('button', { name: SETTING_MODE })).toBeNull());
+    expect(setButton()).toBeNull();
+    expect(select()).toHaveFocus();
+    tonight.stop();
   });
 
   it('the Rated switch takes the route answer with it (a rule resets it to the rule default)', async () => {

@@ -23,6 +23,7 @@ import {
 import { loadCalibrationOrNone } from '@/lib/tonight/calibration';
 import { withHostPresence } from '@/lib/tonight/hosts';
 import { labelSnapshot, lobbyPeople } from '@/lib/tonight/labels';
+import { loadLiveVersionOrNone } from '@/lib/tonight/liveVersion';
 import { loadTonight } from '@/lib/tonight/load';
 import { loadLobbyPassword, maySeeLobbyPassword, withLobbyPassword } from '@/lib/tonight/lobbyPassword';
 import { loadLobbyStartOrNone } from '@/lib/tonight/lobbyStart';
@@ -39,8 +40,8 @@ import { TonightView } from '../../../../_tonight/TonightView';
  * somebody pastes in WhatsApp at 21:40.
  *
  * **Server-rendered, every state, every time.** The first paint answers "is the night happening and
- * am I in it" with no spinner and no login; `TonightLive` then subscribes to this group's Realtime
- * changes and asks for this render again (`router.refresh()`) on each one. So everything here is the
+ * am I in it" with no spinner and no login; `TonightLive` then subscribes to this group's live signal
+ * (`group_live`, M19.10) and asks for this render again (`router.refresh()`) when it moves. So everything here is the
  * one definition of the page, first paint and live update alike, and the receipt, poster, tape and
  * rail are server components that never ship to the phone.
  *
@@ -105,7 +106,9 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
   );
   // Awaited in the second wave; never unhandled if the first wave throws before it gets there.
   lobbyStartRead.catch(() => undefined);
-  const [anonSnapshot, viewer, top, mystery, admins, hostPresence] = await Promise.all([
+  // M19.10: the group's live version, read beside the night and never newer than it (`liveVersion.ts`).
+  const renderStart = Date.now();
+  const [anonSnapshot, viewer, top, mystery, admins, hostPresence, liveVersion] = await Promise.all([
     loadTonight(client, { nightStart: tonightStart(), timeZone, groupId: group.id }),
     viewerRead,
     loadTopBoardCachedOrNone({
@@ -119,6 +122,7 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
     loadAdminNamesCachedOrNone(group.id),
     // M14.66: who hosts and whether any is up, so idle can name who to ask before a tap.
     loadHostPresenceCachedOrNone(group.id, now),
+    loadLiveVersionOrNone(client, group.id, renderStart),
   ]);
   // M14.69: the lobby list and the team cards print the same same-name labels as the board,
   // computed now from the (cached) roster and tonight's people; only a newcomer costs a read.
@@ -171,7 +175,6 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
       state.kind === 'result' ? loadGameBreakdownOrNone(client, state.result.gameId) : Promise.resolve(null),
     ]);
   const lastNight = lastGame ? nightStart(new Date(lastGame.startedAt), timeZone) : null;
-  const startPending = lobbyStart?.status === 'pending' || lobbyStart?.status === 'sent';
 
   return (
     <>
@@ -196,14 +199,25 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
         renderedAt={Date.now()}
         modeNotice={{ notice: one(query.notice), error: one(query.error) }}
         yourNight={yourNight}
-        aiRecap={recap === null ? null : <AiRecap recap={recap} groupId={group.id} />}
+        aiRecap={
+          recap === null ? null : (
+            <AiRecap
+              recap={recap}
+              groupId={group.id}
+              // M19.17: a linked viewer's waiter asks the small recap read, not the page.
+              pollGameId={
+                viewer.kind === 'linked' && state.kind === 'result' ? state.result.gameId : undefined
+              }
+            />
+          )
+        }
         breakdown={breakdown}
       />
       <TonightLive
         groupId={group.id}
+        liveVersion={liveVersion}
         lobbyLive={header.live}
         nameless={hasNamelessRow(state, snapshot.tape)}
-        startPending={startPending}
       />
     </>
   );

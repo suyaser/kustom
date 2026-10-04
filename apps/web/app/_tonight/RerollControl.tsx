@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { NO_MORE_SPLITS } from '@/lib/admin/rerollCopy';
 import { groupHome } from '@/lib/nav';
 import { asSentence, REROLL_FAILED, REROLL_LABEL, REROLL_UNREACHABLE } from '@/lib/tonight/copy';
-import { requestTonightRefresh } from '@/lib/tonight/live';
+import { beginTonightPress } from '@/lib/tonight/live';
 import { nextRerollSplit } from '@/lib/tonight/state';
 import type { SplitChoice } from '@/lib/tonight/types';
 import { usePageGroup } from '../_shell/PageGroup';
@@ -46,20 +46,27 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
     if (pending) return;
     setPending(true);
     setFailed(null);
+    // Tonight holds its renders until this answers: the route's own rows and the answer are one
+    // render, not one mid-write and one after (M19.3).
+    const press = beginTonightPress();
     try {
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId: group.id, splitId: next.id }),
       });
+      const answeredAt = Date.now();
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
         setFailed(errorOf(body));
       }
-      requestTonightRefresh();
+      // Quiet until the promoted split is on screen (M19.3): `next` comes from these props, so a
+      // press before the re-read would post the same `splitId` again.
+      await press.answered(answeredAt);
     } catch {
       setFailed(REROLL_UNREACHABLE);
     } finally {
+      press.release();
       setPending(false);
     }
   }
