@@ -1,0 +1,17 @@
+{
+  "name": "command-nack--invite--no-lobby",
+  "kind": "request",
+  "target": "api",
+  "route": "command-nack",
+  "patch": "16.17",
+  "fixtures": [],
+  "scenario": "command-invite-no-lobby",
+  "note": "No lobby open (GET lobby 404): nack no_lobby, nothing written.",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack",
+  "commandKind": "invite",
+  "body": {
+    "error": "no_lobby",
+    "retryable": false
+  }
+}

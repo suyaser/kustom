@@ -8,7 +8,7 @@ import type { PlayerName } from './types';
  * (2026-10-03). A night with no admin online stalls at ten; naming who can roll is the fix that
  * was chosen, and it changes nobody's permissions.
  *
- * **The group's admins** (M13.4): `group_memberships.role = 'admin'` in the page's group, oldest
+ * **The group's admins** (M13.4): `admin` or `owner` memberships (M14.11) in the page's group, oldest
  * player first. Read with the service role on the server — the role column is not public — and
  * only the names reach the page, which is the same fact the strip has always printed.
  *

@@ -1,0 +1,5 @@
+// QA probe, pasted into the browser: unbroken names, 44px targets, no horizontal scroll.
+async () => { await document.fonts.ready; const out={broken:[],small:[],hscroll: document.documentElement.scrollWidth > innerWidth, h: document.documentElement.scrollHeight};
+ document.querySelectorAll('.pname,.nm,.tile .mvp').forEach(el=>{ const w=el.clientWidth; const cs=getComputedStyle(el); el.textContent.replace('MVP','').trim().split(/\s+/).forEach(word=>{const s=document.createElement('span'); s.style.cssText='position:absolute;white-space:nowrap;visibility:hidden'; s.style.font=cs.font; s.style.fontStretch=cs.fontStretch; s.textContent=word; document.body.appendChild(s); const sw=s.getBoundingClientRect().width; if(sw>w+0.5) out.broken.push(word+' '+Math.round(sw)+'>'+w); s.remove();});});
+ document.querySelectorAll('a,summary,button').forEach(el=>{const r=el.getBoundingClientRect(); if(r.width>0&&(r.height<44||r.width<44)&&!el.classList.contains('skip')) out.small.push((el.textContent.trim()||el.getAttribute('aria-label')).slice(0,20)+' '+Math.round(r.width)+'x'+Math.round(r.height));});
+ return out; }

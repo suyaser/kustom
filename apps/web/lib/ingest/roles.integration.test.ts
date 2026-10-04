@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { eogBody, ROLES_IN_ORDER, testGameId, testPuuids } from '@/lib/testing/fixtures';
+import { snapshotGroupModes } from '@/lib/testing/groupModes';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { rollForTest } from '@/lib/testing/roll';
 
@@ -23,9 +24,7 @@ import { rollForTest } from '@/lib/testing/roll';
  *    counted total does not move; the players the split put on their own role gain one.
  * The third claim — that `rebuild-ratings` reaches the same pairs from scratch and is
  * idempotent — lives in `rebuild.integration.test.ts`, because it is the file that already owns
- * a season of its own. **This one deliberately starts no season**: the active season is a
- * singleton in a shared database, and two files moving it is a class of flake rather than a
- * test. Every row here is namespaced by a run id and deleted at the bottom.
+ * a group of its own. Every row here is namespaced by a run id and deleted at the bottom.
  *
  * Skipped, not failed, without the stack (`pnpm db:start`).
  */
@@ -125,7 +124,14 @@ if (stack === null) {
     return ingestLobby(db, payload, ownerPlayerId, { groupId: ORIGINAL_GROUP_ID, now });
   }
 
+  /**
+   * Rolled lobbies here record games in the real `customs` group, and since M15.3 each one runs
+   * compare-and-clear on its Mode card. Put the card back the way this file found it.
+   */
+  let restoreGroupModes: () => Promise<void> = async () => {};
+
   beforeAll(async () => {
+    restoreGroupModes = await snapshotGroupModes(db, ORIGINAL_GROUP_ID);
     const ids = await ensurePlayers(
       db,
       puuids.map((puuid) => ({ puuid })),
@@ -154,6 +160,7 @@ if (stack === null) {
   });
 
   afterAll(async () => {
+    await restoreGroupModes();
     // The database is shared with every other integration file, so leaving it as we found it is
     // part of the test. `ratings` first: it references the players.
     await db.from('games').delete().in('lcu_game_id', allGameIds);

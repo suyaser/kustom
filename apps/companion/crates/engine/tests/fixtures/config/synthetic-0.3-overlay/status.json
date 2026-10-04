@@ -1,0 +1,10 @@
+{
+  "mode": "overlay",
+  "state": "waiting",
+  "phase": null,
+  "playerName": null,
+  "overlayUrl": "http://127.0.0.1:52123/",
+  "overlayVisible": false,
+  "error": null,
+  "updatedAt": "2026-10-02T23:41:07.512Z"
+}

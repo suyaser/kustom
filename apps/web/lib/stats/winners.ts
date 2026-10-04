@@ -23,13 +23,13 @@ export const NO_AWARD_WINNERS: AwardWinners = new Map();
 /**
  * The winners of a window's awards, by puuid.
  *
- * Empty for every window that hands nothing out — `This week` and `This month`, which are still
+ * Empty for every window that hands nothing out — `This week`, which is still
  * running (M5.4: *an award that changes every night is a statistic, not an award*), and
  * `All time`, which has no block at all — and empty for a closed window where nobody cleared a
  * minimum. Those are one case for the caller: no badge anywhere.
  *
  * **The order of each winner's list is the awards' order**, because the blocks are walked in the
- * order `awardBlocks` built them (`Most improved`, `Best off-role`, `Cursed duo`) and nothing
+ * order `awardBlocks` built them (`Best off-role`, `Cursed duo`) and nothing
  * here sorts. A reader comparing two badged rows meets the same sequence on both.
  *
  * A player named twice inside one block — both halves of two tied duos, say — collects that

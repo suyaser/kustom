@@ -1,11 +1,13 @@
+import { NAMELESS_PLAYER } from '../discord/embeds';
+
 /**
  * The one place that turns a `players` row into something a human reads (M1.7).
  *
  * Every admin surface uses it, so no page can invent its own fallback and end up showing a
  * blank cell or a bare PUUID fragment where another page shows a name. The chain is
- * `display_name`, then the Riot ID, then a PUUID fragment as a last resort — a row first seen
- * in an end-of-game block has no `gameName` at all until a lobby or rank post names it, so the
- * last resort is reachable and has to read as an identifier rather than as nothing.
+ * `display_name`, then the Riot ID, then `Someone` -- a row first seen in an end-of-game block has
+ * no `gameName` at all until a lobby or rank post names it, so the last resort is reachable. It is
+ * the same word every friend-facing surface uses, never a PUUID fragment (admin round 2).
  *
  * Pure and string-only: unit-tested next to the other admin rules, not through a page.
  */
@@ -17,13 +19,8 @@ export interface NameableRow {
   tagLine?: string | null;
 }
 
-/** The first eight characters of a PUUID: enough to recognise a row, short enough to read. */
-export function shortPuuid(puuid: string): string {
-  return puuid.length <= 12 ? puuid : `${puuid.slice(0, 8)}…`;
-}
-
 /**
- * `Hamoodi`, else `Ahmed#EUW`, else `a1b2c3d4…`.
+ * `Hamoodi`, else `Ahmed#EUW`, else `Someone` (`NAMELESS_PLAYER`; admin round 2: never a PUUID fragment).
  *
  * Whitespace-only values count as absent: an admin who saves a name of spaces gets the Riot ID
  * back rather than an empty cell (the route stores null for that, but a row written before this
@@ -39,5 +36,5 @@ export function playerLabel(row: NameableRow): string {
     return tagLine ? `${gameName}#${tagLine}` : gameName;
   }
 
-  return shortPuuid(row.puuid);
+  return NAMELESS_PLAYER;
 }

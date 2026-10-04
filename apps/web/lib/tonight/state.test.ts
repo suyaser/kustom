@@ -15,6 +15,7 @@ import { fillingSentence } from './copy';
 import {
   anySeatOnTheWrongSide,
   hasNamelessRow,
+  lobbyAround,
   rollRosterKey,
   rollStage,
   tonightHeader,
@@ -41,7 +42,7 @@ describe('the strip headline, one per state', () => {
     expect(strip.headline).toBe('NOBODY IN YET');
     expect(strip.count).toBeNull();
     expect(strip.sentence).toBe(
-      'When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.',
+      'When ten are in a custom lobby with Kustom running, an admin rolls and the bot picks the teams.',
     );
     expect(strip.live).toBe(false);
   });
@@ -77,7 +78,7 @@ describe('the strip headline, one per state', () => {
     );
 
     expect(strip.headline).toBe('GAME OVER');
-    expect(strip.sentence).toBe('Ratings are updated. The leaderboard has the rest.');
+    expect(strip.sentence).toBe('Ratings are updated. The board has the rest.');
     expect(strip.live).toBe(false);
   });
 
@@ -279,6 +280,10 @@ describe('the roll (2026-10-03)', () => {
     const first = nine[0];
     if (first === undefined) throw new Error('fixture has no members');
     expect(rollStage(lobbyView({ members: [...nine, { ...first }] }))).toBe('waiting');
+    // M14.45: the header counts the same people the stage does, never `10`.
+    const doubled = lobbyView({ members: [...nine, { ...first }] });
+    expect(lobbyAround(doubled.members)).toBe(9);
+    expect(tonightHeader(tonightState(snapshot(doubled))).count).toBe(9);
   });
 
   it('sends the key the route recomputes, whatever order the page drew them in', () => {

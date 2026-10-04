@@ -32,7 +32,7 @@ const PATHS: Record<RoleValue, readonly string[]> = {
 export function RoleIcon({ role, size = 14 }: { role: RoleValue; size?: number }) {
   return (
     <svg
-      className="cn-role-icon"
+      className="shrink-0"
       width={size}
       height={size}
       viewBox="0 0 24 24"

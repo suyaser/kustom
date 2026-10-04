@@ -13,19 +13,13 @@ import { postWebhookPayload, resetWebhookWarning, WEBHOOK_TIMEOUT_MS } from './w
  */
 
 const PAYLOAD: WebhookPayload = {
-  embeds: [
-    {
-      color: 1,
-      title: 'Teams are set',
-      fields: [],
-      footer: { text: 'Kustom · more on the tonight page' },
-      timestamp: '2026-09-08T20:15:00.000Z',
-    },
-  ],
+  username: 'Kustom',
+  embeds: [{ color: 1, title: 'Teams are set' }],
 };
 
 interface Recorded {
   method: string;
+  path: string;
   contentType: string | undefined;
   body: unknown;
 }
@@ -48,6 +42,7 @@ class FakeDiscord {
         const raw = Buffer.concat(chunks).toString('utf8');
         this.requests.push({
           method: request.method ?? '',
+          path: request.url ?? '',
           contentType: request.headers['content-type'],
           body: raw.length > 0 ? JSON.parse(raw) : null,
         });
@@ -174,6 +169,18 @@ describe('postWebhookPayload', () => {
     expect(outcome.status).toBe('failed');
     expect(outcome.httpStatus).toBeNull();
     expect(discord.requests).toHaveLength(2);
+  });
+
+  it('never follows a redirect: it is a network error, retried once, then failed', async () => {
+    // A 307 keeps the method and body, so following it would hand the payload (and, off
+    // discord.com, the token in the URL) to wherever `location` points.
+    discord.answer((_request, response) => response.writeHead(307, { location: '/stolen' }).end());
+
+    const outcome = await postWebhookPayload(url, PAYLOAD, { sleep });
+
+    expect(outcome).toEqual({ status: 'failed', httpStatus: null, reason: 'TypeError', attempts: 2 });
+    expect(discord.requests.map((request) => request.path)).toEqual(['/webhook', '/webhook']);
+    expect(slept).toEqual([500]);
   });
 
   it('returns a failure for a host that is not there, and throws nothing', async () => {

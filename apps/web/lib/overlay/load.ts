@@ -40,6 +40,7 @@ export async function loadOverlay(client: PublicClient, options: LoadOverlayOpti
 
   return overlayView({
     viewerPuuid: options.puuid,
+    mode: fearless.mode,
     fearless: fearless.champions,
     resetAt: fearless.resetAt,
     lobby:

@@ -117,7 +117,38 @@ describe('what a tape row carries', () => {
       durationS: 1_864,
       aram: false,
       rated: true,
+      // No stat lines in this source: no MVP rather than a guess (M14.9).
+      mvp: null,
+      // M15.19: no rule columns in this source.
+      rule: null,
     });
+  });
+
+  it('carries the rule a checked game was played under (M15.19), and none for an unchecked one', () => {
+    const game = source().games[0] as TapeSource['games'][number];
+    const tanks = source({
+      games: [{ ...game, rule: 'class', rule_class_tag: 'Tank', rule_checked: true }],
+      gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', mu_before: null, mu_after: null })),
+    });
+    expect(assembleTape(tanks, CLOCK)[0]?.result).toMatchObject({
+      rated: false,
+      rule: { id: 'class', tag: 'Tank' },
+    });
+    const region = source({
+      games: [
+        { ...game, rule: 'region', rule_region_blue: 'ionia', rule_region_red: 'noxus', rule_checked: true },
+      ],
+    });
+    expect(assembleTape(region, CLOCK)[0]?.result?.rule).toEqual({
+      id: 'region',
+      blue: 'ionia',
+      red: 'noxus',
+    });
+    // A remake under the rule was never checked: not called a tanks game.
+    const remake = source({
+      games: [{ ...game, rule: 'class', rule_class_tag: 'Tank', rule_checked: false }],
+    });
+    expect(assembleTape(remake, CLOCK)[0]?.result?.rule).toBeNull();
   });
 
   it('gives a dropped lobby no result', () => {

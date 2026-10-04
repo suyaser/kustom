@@ -1,0 +1,3 @@
+# Unit tests may unwrap; shipped code may not (crates/engine/Cargo.toml [lints.clippy]).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

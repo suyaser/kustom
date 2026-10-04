@@ -28,8 +28,8 @@ export const dynamic = 'force-dynamic';
  * by the next scan.
  *
  * This route writes nothing. The games themselves go to `POST /api/companion/game` with
- * `source: 'backfill'`, which stores them and does not rate them: `pnpm --filter web
- * rebuild-ratings` (M5.2) is what turns a batch into ratings.
+ * `source: 'backfill'`, which stores them and does not rate them: the daily
+ * `/api/cron/rebuild` (M14.63) folds the group the next morning.
  */
 export const POST = withCompanionAuth(companionBackfillScanRequestSchema, async (payload, { client }) => {
   const unknown = await selectUnknownGameIds(client, payload.gameIds);

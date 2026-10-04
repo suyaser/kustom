@@ -10,7 +10,7 @@ import type {
   MysterySuspect,
 } from '@/lib/mystery/types';
 import { ensureStoredVisitorId } from '@/lib/mystery/visitor';
-import { MysteryView } from './MysteryView';
+import { MysteryView, SHARE_TEXT_ID } from './MysteryView';
 
 /**
  * The interactive half of Daily Mystery. The server paints the first state; this
@@ -25,6 +25,7 @@ export function MysteryLive({ initial }: { initial: MysteryPageState }) {
   const [revealing, setRevealing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -122,8 +123,12 @@ export function MysteryLive({ initial }: { initial: MysteryPageState }) {
     try {
       await navigator.clipboard.writeText(text);
       setShareCopied(true);
+      setShareFailed(false);
     } catch {
+      // No clipboard (an in-app browser, an old phone): select the visible text and say how.
       setShareCopied(false);
+      setShareFailed(true);
+      selectShareText();
     }
   }, [state]);
 
@@ -135,6 +140,7 @@ export function MysteryLive({ initial }: { initial: MysteryPageState }) {
       revealing={revealing}
       submitting={submitting}
       shareCopied={shareCopied}
+      shareFailed={shareFailed}
       error={error}
       now={now}
       onSelect={onSelect}
@@ -144,6 +150,16 @@ export function MysteryLive({ initial }: { initial: MysteryPageState }) {
       onShare={() => void onShare()}
     />
   );
+}
+
+function selectShareText(): void {
+  const node = document.getElementById(SHARE_TEXT_ID);
+  const selection = window.getSelection();
+  if (node === null || selection === null) return;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function applyClue(

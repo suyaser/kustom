@@ -1,4 +1,5 @@
 import { balance, displayRating, isOffRole, type Role, rateGame } from '@customs/core';
+import type { StoredSplit } from '@/components/receipt/types';
 import { EMPTY_FEARLESS } from '../fearless/types';
 import type {
   LobbyView,
@@ -41,6 +42,8 @@ export function workedMembers(count = WORKED_ROSTER.length): MemberView[] {
     // Long enough ago that the three-second "just joined" marker is off by default.
     joinedAt: JOINED_LONG_AGO,
     rating: displayRating(player.mu),
+    // Everybody in the worked example is a regular: well past settling (M14.9).
+    ratedGames: 40,
     // **Nobody has been placed by default** (M4.11). A lobby that has just been balanced is a
     // lobby nobody has moved in yet, so the fixture's honest value is `null` — which keeps the
     // side line on screen, the state every test written before M4.11 was written against.
@@ -62,6 +65,7 @@ export function extraMember(overrides: Partial<MemberView> = {}): MemberView {
     isSpectator: true,
     joinedAt: JOINED_LONG_AGO,
     rating: 1300,
+    ratedGames: 40,
     // A spectator has no side in the client at all: the one row `switch_side` can never move.
     side: null,
     ...overrides,
@@ -118,7 +122,22 @@ export function workedTeams(options: TeamsFixtureOptions = {}): TeamsView {
     sitters: options.sitters ?? [],
     blueWinProb: split.blueWinProb,
     splits,
+    stored: storedRun(balanced, chosen),
   };
+}
+
+/** A balance run as the loader stores it (M14.9): every split's columns, best first. */
+export function storedRun(balanced: ReturnType<typeof balance>, chosen: number): StoredSplit[] {
+  return balanced.splits.map((split, index) => ({
+    rank: index + 1,
+    isChosen: index === chosen,
+    blueWinProb: split.blueWinProb,
+    gap: split.gap,
+    offRoleCount: split.offRoleCount,
+    blue: split.blue,
+    red: split.red,
+    explanation: balanced.explanations[index] ?? '',
+  }));
 }
 
 /**
@@ -163,9 +182,11 @@ export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
       side,
       muBefore: (side === 100 ? before.blue : before.red)[index]?.mu ?? null,
       muAfter: (side === 100 ? after.blue : after.red)[index]?.mu ?? null,
+      sigmaBefore: (side === 100 ? before.blue : before.red)[index]?.sigma ?? null,
     }));
 
   return {
+    gameId: 'game-1',
     winningSide: 200,
     durationS: 2_052,
     blueWinProb: teams.blueWinProb,
@@ -194,6 +215,7 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
     isSpectator: false,
     joinedAt: JOINED_LONG_AGO,
     rating: displayRating(player.mu),
+    ratedGames: 40,
     side: null,
   }));
 
@@ -244,6 +266,7 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
         rank: index + 1,
         isChosen: index === 0,
       })),
+      stored: storedRun(balanced, 0),
     },
   };
 }
@@ -256,6 +279,7 @@ export function lobbyView(overrides: Partial<LobbyView> = {}): LobbyView {
     // bot opened has both; `lobbyName: null` is the lobby somebody made by hand before M4.2.
     lobbyName: 'Customs 08 Sep #1',
     lobbyPassword: '4821',
+    startedAt: null,
     members: workedMembers(),
     teams: null,
     result: null,
@@ -270,10 +294,13 @@ export function snapshot(lobby: LobbyView | null, overrides: Partial<TonightSnap
     // What `formatNightLabel` answers for {@link FIXTURE_NIGHT_START} in the group's own zone:
     // the slug is formatted on the server and travels in the snapshot (M3.18).
     nightLabel: 'Tuesday 8 September',
-    seasonActive: true,
     fearless: EMPTY_FEARLESS,
+    mode: 'fearless',
+    modeSince: null,
     nightClock: FIXTURE_NIGHT_CLOCK,
     tape: [],
+    hostNames: [],
+    hostSeenRecently: true,
     ...overrides,
   };
 }
@@ -288,8 +315,16 @@ export function tapeEntry(overrides: Partial<TapeEntry> = {}): TapeEntry {
     createdAt: '2026-09-08T19:41:00.000Z',
     clock: '22:41',
     status: 'finished',
-    result: { gameId: 'tape-game-1', winningSide: 200, durationS: 1_864, aram: false, rated: true },
+    result: {
+      gameId: 'tape-game-1',
+      winningSide: 200,
+      durationS: 1_864,
+      aram: false,
+      rated: true,
+      mvp: null,
+    },
     blueWinProb: 0.46,
+    rank: 1,
     sitters: [],
     ...overrides,
   };

@@ -1,0 +1,38 @@
+{
+  "name": "lobby--lobby--two-players",
+  "kind": "request",
+  "target": "api",
+  "route": "lobby",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/lobby--two-players",
+    "16.17/current-summoner"
+  ],
+  "scenario": "lobby-two-players",
+  "note": "Two members, one on each side (membership of customTeam100/200 by puuid, never members[].teamId). The friend's name lookup 404s: null names, and no re-post since nothing changed.",
+  "method": "POST",
+  "path": "/api/companion/lobby",
+  "body": {
+    "partyId": "e3c69392-a134-43cb-97ae-8add18c72494",
+    "lobbyName": "PRT Empty's Game",
+    "lobbyPassword": null,
+    "members": [
+      {
+        "puuid": "34151cbd-d9f8-5dad-9dc8-c6a8e253c0de",
+        "summonerId": 47890856,
+        "gameName": "PRT Empty",
+        "tagLine": "EUNE",
+        "side": 100,
+        "isSpectator": false
+      },
+      {
+        "puuid": "c04e977c-133a-5d94-9fd3-6202f8beec4c",
+        "summonerId": 53574489,
+        "gameName": null,
+        "tagLine": null,
+        "side": 200,
+        "isSpectator": false
+      }
+    ]
+  }
+}

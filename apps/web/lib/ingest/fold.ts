@@ -1,8 +1,11 @@
 import {
   applyMvpAceBonus,
+  foldWinProbability,
   type MvpAce,
   mvpAce,
   type PerformancePlayer,
+  type PerformanceScore,
+  performanceScores,
   type Rating,
   type RatingChange,
   type Role,
@@ -17,10 +20,10 @@ import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
  *
  * Ten rows plus the ratings that went in plus the winning side, in; the ratings that came out,
  * out. No database, no clock: everything either side of this — reading `ratings`, claiming the
- * null `mu_after` columns, batching a whole season's writes — belongs to its caller.
+ * null `mu_after` columns, batching a whole group's writes — belongs to its caller.
  *
  * There are exactly two callers, and that is the point: `rating.ts` folds one game as it lands
- * and `rebuild.ts` folds every game of a season from seeds. "The rebuild reproduces the
+ * and `rebuild.ts` folds every game of a group from seeds. "The rebuild reproduces the
  * incremental fold exactly" is a fact about this file being the only implementation, not a
  * hope about two copies staying in step. The gate below has to be shared for the same reason:
  * a game the live fold skipped and the rebuild rated would move numbers nobody played for.
@@ -31,7 +34,8 @@ import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
  *   seconds, nobody twice. That is the universe `countedGames` folds for `/stats`, `/fun`,
  *   `/p/[puuid]` and the board's streak, and an ARAM night belongs in it: it was played, it has
  *   a scoreboard, and M5.26 settled that `/stats` and the rating fold stay mixed.
- * - {@link gateRatedGame} — "and may it move the rating?" Everything above **and** the map. Only
+ * - {@link gateRatedGame} — "and may it move the rating?" Everything above **and** the map **and**
+ *   `games.rated` (M15.3: a not-rated mode game is played and counted, never rated). Only
  *   `rating.ts` and `rebuild.ts` call it, and nothing on any page does.
  *
  * Folding the mode into `gateGame` instead would have emptied `/fun?queue=aram` — that page
@@ -163,7 +167,7 @@ export function gateGame<T extends FoldGatePlayer>(players: readonly T[], durati
  * `game-mode` is only ever produced by {@link gateRatedGame}: it is not a reason a game fails to
  * count on `/stats`, which is exactly the point of there being two gates.
  */
-export type RatedSkipReason = FoldSkipReason | 'game-mode';
+export type RatedSkipReason = FoldSkipReason | 'game-mode' | 'not-rated';
 
 export type RatedGate<T extends FoldGatePlayer = FoldPlayer> =
   | { ok: true; blue: T[]; red: T[] }
@@ -201,16 +205,41 @@ export function gateRatedGame<T extends FoldGatePlayer>(
   players: readonly T[],
   durationS: number,
   raw: unknown,
+  /**
+   * `games.rated` (M15.3, `0032`): false for a game played not rated (a class or region wars game,
+   * or an admin's Rated switch). Required, so neither rating caller can forget it: a game the live
+   * fold skipped and the rebuild rated would move numbers nobody played for.
+   */
+  rated: boolean,
 ): RatedGate<T> {
   const gate = gateGame(players, durationS);
   if (!gate.ok) return gate;
   if (!isRatedMode(raw)) return { ok: false, reason: 'game-mode' };
+  if (!rated) return { ok: false, reason: 'not-rated' };
   return gate;
 }
 
 /**
+ * What the fold did to one player in one game (M14.58, M14.59; stored on `game_players` by
+ * `0034`): the rating that came out, and the three facts that explain its size.
+ */
+export interface FoldOutcome {
+  /** The rating after the game, MVP/ACE bonus included: what `mu_after` / `sigma_after` store. */
+  after: Rating;
+  /** `rateGame`'s `mu` before the bonus (`base_mu_after`). Equal to `after.mu` with no award. */
+  baseMuAfter: number;
+  /**
+   * The win probability the fold's model gave this player's side, from the exact befores handed
+   * to `rateGame` (`foldWinProbability`, the balancer's own `predictWin`; `fold_p`).
+   */
+  foldP: number;
+  /** The award that moved this rating (`award`). `none` includes a game nobody could be scored in. */
+  award: 'mvp' | 'ace' | 'none';
+}
+
+/**
  * One game's new ratings, by player id. `before` must hold a rating for all ten — a seed, or
- * what the season has given them so far; whose job that is differs between the two callers.
+ * what the group's games have given them so far; whose job that is differs between the two callers.
  *
  * Three steps, and the second and third are M7.9:
  *
@@ -222,18 +251,23 @@ export function gateRatedGame<T extends FoldGatePlayer>(
  * With no award, step 3 hands back exactly what step 1 produced, so a game stored before the
  * stat columns existed — or a backfilled one that knows nobody's role — rates digit for digit
  * as it did before this function learned about the bonus.
+ *
+ * Since M14.58 it also returns, per player, what the three steps were made of (the side's odds,
+ * the base `mu_after`, the award), which both callers store beside `mu_after`; {@link foldGame}
+ * is the ratings alone.
  */
-export function foldGame(
+export function foldGameOutcomes(
   blue: readonly FoldRatedPlayer[],
   red: readonly FoldRatedPlayer[],
   before: ReadonlyMap<string, Rating>,
   winningSide: SideValue,
-): Map<string, Rating> {
-  const rated = rateGame(
-    blue.map((player) => mustGet(before, player.playerId)),
-    red.map((player) => mustGet(before, player.playerId)),
-    winningSide,
-  );
+): Map<string, FoldOutcome> {
+  const blueBefore = blue.map((player) => mustGet(before, player.playerId));
+  const redBefore = red.map((player) => mustGet(before, player.playerId));
+  const rated = rateGame(blueBefore, redBefore, winningSide);
+  // One probability per side, from the same ten ratings `rateGame` just read (M14.59 (a)).
+  const blueP = foldWinProbability(blueBefore, redBefore, 100);
+  const redP = foldWinProbability(blueBefore, redBefore, 200);
 
   // Blue then red, the order the two arrays were handed to core, so the index of a player in
   // `ten` is the index of their rating in the matching half of `rated`.
@@ -244,12 +278,32 @@ export function foldGame(
     after: index < blue.length ? mustIndex(rated.blue, index) : mustIndex(rated.red, index - blue.length),
   }));
 
-  const adjusted = applyMvpAceBonus(changes, gameAward(ten, winningSide));
+  const award = gameAward(ten, winningSide);
+  const adjusted = applyMvpAceBonus(changes, award);
 
-  const after = new Map<string, Rating>();
+  const out = new Map<string, FoldOutcome>();
   ten.forEach((player, index) => {
-    after.set(player.playerId, mustChange(adjusted, index).after);
+    out.set(player.playerId, {
+      after: mustChange(adjusted, index).after,
+      baseMuAfter: mustChange(changes, index).after.mu,
+      foldP: player.side === 100 ? blueP : redP,
+      award: award?.mvp === player.puuid ? 'mvp' : award?.ace === player.puuid ? 'ace' : 'none',
+    });
   });
+  return out;
+}
+
+/** {@link foldGameOutcomes}, the ratings alone: one game's new ratings, by player id. */
+export function foldGame(
+  blue: readonly FoldRatedPlayer[],
+  red: readonly FoldRatedPlayer[],
+  before: ReadonlyMap<string, Rating>,
+  winningSide: SideValue,
+): Map<string, Rating> {
+  const after = new Map<string, Rating>();
+  for (const [playerId, outcome] of foldGameOutcomes(blue, red, before, winningSide)) {
+    after.set(playerId, outcome.after);
+  }
   return after;
 }
 
@@ -269,6 +323,16 @@ export function foldGame(
  */
 export function gameAward(players: readonly FoldAwardPlayer[], winningSide: SideValue): MvpAce | null {
   return mvpAce(players.map(toPerformancePlayer), winningSide);
+}
+
+/**
+ * Every player's M7 performance score for one game (core's `performanceScores` over the same
+ * rename {@link gameAward} uses), or `null` when a component is missing. Same contract as
+ * {@link gameAward}: hand it a game {@link gateGame} passed. Your night (M14.36) picks the
+ * viewer's best game with it.
+ */
+export function gameScores(players: readonly FoldAwardPlayer[]): PerformanceScore[] | null {
+  return performanceScores(players.map(toPerformancePlayer));
 }
 
 /**

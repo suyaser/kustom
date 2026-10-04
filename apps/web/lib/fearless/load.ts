@@ -1,26 +1,37 @@
 import type { RoleValue, SideValue } from '@customs/db';
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
+import { type GroupMode, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { championName, isRosterChampion } from '../champs/names';
 import { inChunks } from '../chunks';
 import { gameModeFromRaw } from '../games/queue';
+import { loadGroupModeState } from '../mode/load';
 import type { PublicClient } from '../publicClient';
 import { foldFearless } from './fold';
 import { presentFearless, storedChampionNames } from './present';
-import { EMPTY_FEARLESS, FEARLESS_MAX_GAMES, type FearlessView } from './types';
+import { EMPTY_FEARLESS, FEARLESS_MAX_GAMES, type FearlessPool } from './types';
 
 /**
  * The fearless pool, read with whichever client the caller already has (M10).
  *
  * Tonight uses the **anon key**; the Discord post and the admin reset use the service role.
- * Both see the same row: RLS lets anon select `fearless_state`, and the pool itself is a
+ * Both see the same row: RLS lets anon select `fearless_state` (every column but `reset_by` since
+ * `0029`, M14.40, so name the columns; `select('*')` with the anon key is a 42501), and the pool itself is a
  * join over `games` / `game_players`, which are already public. A failed read logs and
- * returns {@link EMPTY_FEARLESS} so the tonight page never 500s over a ban list.
+ * returns an empty pool so the tonight page never 500s over a ban list.
  *
  * **One pool per group** (M13.3): the group's own `fearless_state` row (one per group since
  * `0019`) and the group's own games after its `reset_at`. A group with no row yet has an empty
  * pool, not another group's. `groupId` defaults to the original group for the pages that do not
  * pass one yet (they move with M13.9 to M13.14); every ingest-side caller passes it.
+ *
+ * **The one pool read** (M14.29): only games stamped `games.mode = 'fearless'` count, so a game
+ * recorded while the group was on Normal never joins the list, and the view carries the group's
+ * standing `mode`. Tonight, the Discord post, the reset and the overlay all read this; none of them
+ * re-implements the rule. In Normal the pool is still read (it is the paused list, which the Mode
+ * card counts); whether to show it as bans is the caller's `isFearlessMode(view.mode)`.
  */
+
+/** The `games.mode` stamp that puts a game in the pool. */
+const FEARLESS_GAME_MODE: GroupMode = 'fearless';
 
 interface StateRow {
   reset_at: string;
@@ -44,25 +55,30 @@ interface GameRow {
 export async function loadFearless(
   client: PublicClient,
   groupId: string = ORIGINAL_GROUP_ID,
-): Promise<FearlessView> {
-  const { data: state, error: stateError } = await client
-    .from('fearless_state')
-    .select('reset_at')
-    .eq('group_id', groupId)
-    .maybeSingle();
+): Promise<FearlessPool> {
+  const [{ data: state, error: stateError }, modeState] = await Promise.all([
+    client.from('fearless_state').select('reset_at').eq('group_id', groupId).maybeSingle(),
+    loadGroupModeState(client, groupId),
+  ]);
+  const { mode, since: modeSince } = modeState;
 
   if (stateError) {
     console.error('fearless: reading the cursor failed', stateError.message);
-    return EMPTY_FEARLESS;
+    return { ...EMPTY_FEARLESS, mode, modeSince };
   }
 
   const resetAt = (state as StateRow | null)?.reset_at ?? null;
-  if (resetAt === null) return EMPTY_FEARLESS;
+  if (resetAt === null) return { ...EMPTY_FEARLESS, mode, modeSince };
 
   const { data: rows, error: gamesError } = await client
     .from('games')
     .select('id, started_at, duration_s, raw, game_players(player_id, side, champion_id, role)')
     .eq('group_id', groupId)
+    // M14.29: the mode in force when the game was recorded. Normal games never join the pool.
+    .eq('mode', FEARLESS_GAME_MODE)
+    // M15.3 (R4): only rated games feed the pool. A not-rated class or region game adds nothing;
+    // a rated mirror game under standing Fearless adds its champions like any game.
+    .eq('rated', true)
     .gt('started_at', resetAt)
     .order('started_at', { ascending: true })
     .order('id', { ascending: true })
@@ -70,12 +86,13 @@ export async function loadFearless(
 
   if (gamesError) {
     console.error('fearless: reading games since the cursor failed', gamesError.message);
-    return { champions: [], resetAt };
+    return { mode, modeSince, champions: [], resetAt };
   }
 
   const games = (rows ?? []) as GameRow[];
   const picks = foldFearless(
     games.map((row) => ({
+      id: row.id,
       durationS: row.duration_s,
       gameMode: gameModeFromRaw(row.raw),
       players: asPlayers(row.game_players).map((player) => ({
@@ -88,7 +105,10 @@ export async function loadFearless(
   );
 
   return {
+    mode,
+    modeSince,
     resetAt,
+    games: games.length,
     champions: presentFearless(picks, championName, await clientNames(client, games, picks)),
   };
 }

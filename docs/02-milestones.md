@@ -18,8 +18,12 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M10 Fearless draft | in progress | Opened 2026-09-18 from the user: after each Rift custom, the ten champions locked that game are banned from the next one, the list keeps growing until an admin resets it, and Discord gets the list. **M10.1** is the whole feature: singleton `fearless_state.reset_at` (migration `0017`, seeded to `now()` so history does not flood the first list), pool derived from `game_players.champion_id`, tonight card, Discord embed after the result, admin reset on `/admin`. Companion never auto-bans. **M10.1 landed 2026-09-18** (merged directly via GitHub PR #13, outside the usual dispatch loop) and reviewed the same day: migration is purely additive, the singleton check genuinely prevents a second row, RLS matches the doc comment, and `reset_at default now()` correctly seeds an empty pool rather than flooding it with history. Six non-blocking follow-ups found (a same-lane double-count edge case in `/1v1`'s head-to-head, missing deterministic ordering on the fearless champion list, a silent-truncation risk past 500 games, a missing 401 test on the reset route, a sequential-await hazard between the result and fearless Discord posts, and an untested reset-row-missing race) — none blocking, tracked for a follow-up pass. **Migration `0017` pushed to hosted 2026-09-18**, confirmed applied (`supabase migration list --linked` shows 0001-0017 on both sides), `pnpm db:types` regenerated (one real fix: `fearless_state.id` has no default in the migration, so `Insert.id` is required, not optional — the checked-in type was wrong until this). **M10.2** (2026-09-20): lane groups, A–Z inside each lane, and a find box on `/` so five games are searchable. Companion never auto-bans and still does not read champion select — typing a name is the pick-phase check. **M10.3 landed 2026-09-22**: each lane on `/` ends with who is still open in that lane. A locked champion leaves every lane. Discord stays the ban list. |
 | M11 The night as a broadcast | in progress | Opened 2026-09-23 from the user, who asked to start three of the lead's proposals plus champion icons on the fearless card and nowhere else. **M11.1 landed 2026-09-23**. **M11.3 landed 2026-09-23**: reusable `ResultPoster`, underdog line, `webAwardLine` (Discord markdown escape stays off the page); reviewed clean. **M11.2 landed 2026-09-23**. **M11.4 landed 2026-09-23**: `/og/*` cards, `/g/[gameId]`, Discord + tape links; reviewed clean after the decision row. The four tasks are closed. Product alt strings and a real-data unfurl are leftovers, not a fifth task. **M11.3** was: the underdog line off the stored `blue_win_prob` and the `MVP · ACE` line Discord already posts, reusable on a page of its own. **M11.2** the night tape: tonight's earlier finished and dropped games under the primary block, oldest first, a read of stored rows. **M11.4** share cards: 1200×630 unfurl images for `/`, a new `/g/[gameId]` (no single-game URL exists today) and `/p/[puuid]`, with no Share button. Order M11.1 → M11.3 → M11.2 → M11.4, because the last three all edit the tonight view and loader. No rating, balancer, ingest or schema change in any of them. Icons appear on the fearless card only — not `/fun`, `/games`, `/p`, Discord, share cards or the poster. |
 | M12 Overlay client | in progress | Folded into M6 one-app (2026-09-23): Overlay mode on `Kustom.exe`, not a second product. `GET /api/overlay` stays. Separate `KustomOverlay.exe` retired as a product. |
-| M6 Tray app and polish | in progress | Un-deferred 2026-09-23: one Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes, tray, Floodlit UI. M6.1 absorbs the M12 panel. |
-| M13 More than one group | in progress | Opened 2026-10-03 from the user's settled design (lead's chat). Groups, per-group ratings (one rating per person per group), group admin as a membership role, super-admin as an env list of auth user ids, self-serve creation, invite link plus Kustom pairing, `/g/<slug>/` URLs. M13.1 (product), **M13.2** (schema, `0018`), **M13.3** (companion routes and the ingest fold per group, `0019`) and M13.7 (design) done and pushed; **M13.4** (session and admin routes, crons, group admin, `0020`) done locally, not yet pushed -- code first, then `0020` (see its entry). **M13.5** (create, invite, pair, `0021`) done locally, not yet pushed -- migration first, then code (see its entry). **M13.9** (the `/g/<slug>` shell and tonight page) done locally, not yet deployed. Next: **M13.6**, the operator. Server tasks M13.2 to M13.6 run one at a time; pages M13.10 to M13.12 can run in parallel after M13.9. |
+| M6 Tray app and polish | superseded by M17 | Un-deferred 2026-09-23 as one Tauri `Kustom.exe` with Host and Overlay modes over a Node engine. **Superseded 2026-10-04 by M17** (the Rust companion, no Overlay mode): M6.1's tray, status, Open logs and Start with Windows carry into M17.8; M6.2's unsigned-download note carries into M17.12's copy; M6.3 (smoke on start) is not carried, the post-patch check stays by hand. |
+| M13 More than one group | done | Opened 2026-10-03 from the user's settled design. M13.1 to M13.5, M13.7 and M13.9 done here (M13.4, M13.5 and M13.9 reach hosted with the 2.0 deploy, M14.27). **The rest was folded into M14 and is done there, ticked 2026-10-04:** M13.6 → M14.19, M13.8 → M14.6, M13.10 → M14.15, M13.11 → M14.16 (pages) and M14.10 (Discord links), M13.12 → M14.17, M13.13 → M14.21, M13.14 → M14.22 and M14.23. |
+| M14 Kustom 2.0 | in progress | **2026-10-03 (late): Phase 3 and Phase 4 done: every build and fix task merged (M14.1–M14.31, M14.33–M14.45); M14.26's four slices done, its fixes M14.39–M14.45 merged, `CHANGES.md` written; M14.26 ticks on the user's sign-off; M14.27 is the user's runbook. M14.32 dropped (M17 removes the overlay). **M14.46** (new groups start on Normal, `0030`) done 2026-10-04; **M14.47** (Day/Night switch in the top bar) done 2026-10-04; **M14.48** (month windows removed) done 2026-10-04. Local DB at `0035`. **2026-10-04: M14.46–M14.78 merged except M14.61 (only the user's real-phone Discord check, runbook §3.9) and M14.62 (waiting on the user's ship-together call).** **Admin audit folded 2026-10-04:** M14.50–M14.56 added (M14.54 done; M14.53 lands with or before M15.8); M14.49 dropped by the user (decision row 2026-10-04). One rating number scoped 2026-10-04: M14.57 (every delta is all-time; week boards rank by net points; weekly track retired), M14.58 (why this many points, `0034`), M14.59 (the odds shown are the odds the rating used, option (a)); core and platform halves start now, web halves after M15.5 and M16.4 merge.** Wave 1 landed: M14.6 built (one acceptance waits for M14.13). Opened 2026-10-03: the user approved Phase 2 and chose visual Direction C ("Floodlit Slate"). 27 tasks on branch `redesign-2.0`; local Supabase only, every migration and RLS policy shown to the user before it is applied, production never touched by an agent (M14.27 is the user's runbook). Build order (a) Tonight M14.9 → (b) Board M14.15 → (c) Games M14.16 → (d) create/join/admin M14.21 to M14.23 → (e) landing M14.24. `apps/web` is one serial lane; core (M14.4), `packages/db` (M14.5), companion (M14.6 → M14.13) and docs (M14.2, M14.3) run beside it. Folds in M13.6, M13.8, M13.10 to M13.14. **M14.1** (foundation) dispatched 2026-10-03. **M14.5** done 2026-10-03 (`0022`, local only). The companion exe is rebuilt once, after M14.13 (the last companion engine change; companion UI is out of 2.0, decision row 2026-10-03). **Fearless 2.0 added 2026-10-03** (the user approved 05-design §8 and asked for on/off and Reset on Tonight, admin fearless controls removed), **reshaped the same day into the Mode card** (the user: one `Mode` card on Tonight, a routed panel at `/g/<slug>/mode`, no fearless page; decision row): M14.29 the group's mode + `0024`, M14.30 the Mode card and panel with Fearless as the first panel, M14.31 Discord post linking the panel, M14.32 overlay **deferred** (companion UI); `0023` (M14.11) approved by the user. **Sign-in reasons added 2026-10-03:** M14.33 claim your games, M14.34 `That's me` for a game in the last 12 hours (platform's security call), M14.35 you vs them, M14.36 your night. M14.26's gaps now start at M14.37. **Nav option A chosen by the user 2026-10-03:** five tabs `Tonight · Board · Games · Stats · You`, no More page; new task **M14.7b** (after M14.7, folds in M14.8's footer half); M14.8 (Data Dragon half landed), M14.9, M14.15 (self lens), M14.17 (three-segment Stats), M14.22, M14.24, M14.30, M14.33, M14.35, M14.36 amended. **2026-10-03 (the user): Kustom 0.4.0 is not published; 2.0 deploys with 0.3.x as the download and M14.27 carries no companion release; the Rust companion (M17) is the next release. M14.32 dropped 2026-10-04 (M17 removes the overlay).** |
+| M15 Mode of the night | done (accepted 2026-10-04: M15.1–M15.19 merged; reviewer pass plus product scene walk; three rules live: class wars, region wars, mirror match) | Added 2026-10-03 (the user): class night first (builds the mode card, Spin, the mode panel's pool, Discord line, post-game check), then region wars (static region table seeded once from Meraki, words only), then mirror match (the first rated mode). Unrated by default; never touches champ select; no Ultimate Bravery or kill-race scoring. After M14. **M15.1 done 2026-10-04** (brief `redesign/briefs/m15.1-mode-of-the-night.md`): a rule is one game on top of the standing mode, locked at Roll; Rated switch in any mode (the user's yes); mirror ships with the host opening Blind Pick by hand (M17.17 automates it); no Bo3, no weekdays, no `Rest of tonight`. **2026-10-04: M15.7 (overlay API) dropped** because M17 removes the overlay; the mode's pool is shown only on Tonight's mode panel (M15.5) and linked from Discord (M15.6). No companion work in M15. |
+| M16 Kustom Premium: AI | done for 2.0 (2026-10-04: M16.1–M16.19 merged; the ship blockers M16.15–M16.18 landed; open: M16.20 real-group read after two Premium weeks, which needs the user's export; M16.21 scouting prompt nits, which need spend) | Added 2026-10-03 (the user): a future paid feature, if Kustom succeeds. Game recap line, weekly storyline, player scouting report, behind a per-group premium flag the operator sets with a script (M16.2; never a route, `/ops` read-only); no payments or billing (a future decision). Guardrails: numbers only from the DB with a checker, players sent as P1..P10, opt-outs, caps of $2 per group per month and $20 overall. Needs the user's Anthropic API key. After M15. **M16.1 done 2026-10-04** (brief `redesign/briefs/m16.1-premium-ai.md`): labels `AI recap` / `AI scouting report`; invisible to non-Premium groups; `customs` on as soon as M16.3 lands; landing and `/about` don't mention AI. |
+| M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -8595,16 +8599,26 @@ Acceptance: we know, in numbers, how often somebody comes back after a fortnight
 game back moves them further than anyone else's game does at the same uncertainty — and nobody's rating, board
 position or team changed while we found out.
 
-## M6 Tray app and polish (in progress — un-deferred 2026-09-23)
+## M6 Tray app and polish (superseded by M17, 2026-10-04)
 
 One Tauri `Kustom.exe` with **Host** (token) and **Overlay** (no token) modes. M12's panel lives here.
 
-- [ ] **M6.1** Tauri v2 tray shell + Node engine: mode picker (Host / Overlay), status in tray, open logs, edit
+**Superseded by M17 (2026-10-04).** The Node-engine tray shell is replaced by the Rust companion, and Overlay mode is
+removed. What M17 carries over is named on each task below; nothing here is worked again.
+
+- [x] **M6.1** ~~Tauri v2 tray shell + Node engine: mode picker (Host / Overlay), status in tray, open logs, edit
   token/mode, champ-select panel in both modes. *(in progress 2026-09-23: config `mode`, panel under
   `apps/companion/src/panel`, Floodlit setup UI, Tauri commands for config/engine/overlay window; auto-start
-  with Windows and polished status icons still open)*
-- [ ] **M6.2** Code signing or a clear "unsigned, built from this repo" note on the download page.
-- [ ] **M6.3** Post-patch checklist automation: `smoke` runs on companion start after a client version change and reports shape diffs to the admin.
+  with Windows and polished status icons still open)*~~ **Superseded by M17.8 (2026-10-04):** the tray, status, Open
+  logs and Start with Windows (on by default) carry over into the Rust app; the mode picker, the Node engine and the
+  champ-select panel do not (no Overlay mode).
+- [x] **M6.2** ~~Code signing or a clear "unsigned, built from this repo" note on the download page.~~ **Superseded
+  by M17.12 (2026-10-04):** the note carries over (M17.12's `/download` copy keeps the plain "Windows may not recognise
+  it: More info, Run anyway" line); Authenticode code signing stays out of scope. Updater signing is a separate key,
+  M17.12's.
+- [x] **M6.3** ~~Post-patch checklist automation: `smoke` runs on companion start after a client version change and reports shape diffs to the admin.~~
+  **Superseded by M17 (2026-10-04), not carried:** the shipped app runs no smoke. After a patch the check stays by hand:
+  `pnpm --filter @customs/lcu smoke --diff` and M17.5's dev probe. A real need for automation reopens as `M17.17+`.
 
 ## M13 More than one group (4 to 6 days, needs M11.4 and M6.1's config shape)
 
@@ -8998,8 +9012,8 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > Pages (M13.13, M13.14). The Kustom side of pairing (M13.8). Email invites, per-person invites, invite
     > expiry. Group renames.
 
-- [ ] **M13.6** The operator: super-admin as an auth identity, with a read-only view across groups.
-  *(owner: `platform-engineer`; after M13.5)*
+- [x] **M13.6** The operator: super-admin as an auth identity, with a read-only view across groups.
+  *(owner: `platform-engineer`; after M13.5)* **Folded into M14.19 (2026-10-03); this brief is that task's acceptance.** **Ticked 2026-10-04: delivered by M14.19 (done 2026-10-03).**
 
     > **Brief (product, 2026-10-03)**
     >
@@ -9048,8 +9062,8 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > shown-once treatment. Copy is fixed by the briefs (M13.8, M13.13, M13.14); propose changes back through
     > product rather than in the doc.
 
-- [ ] **M13.8** Kustom knows its groups: pairing, one token per group, and the picker. *(owner:
-  `companion-engineer`; after M13.5 and M13.7)*
+- [x] **M13.8** Kustom knows its groups: pairing, one token per group, and the picker. *(owner:
+  `companion-engineer`; after M13.5 and M13.7)* **Folded into M14.6 (2026-10-03); this brief is that task's acceptance.** **Ticked 2026-10-04: delivered by M14.6 (done 2026-10-03; its last acceptance closed by M14.12 and M14.13).**
 
     > **Brief (product, 2026-10-03)**
     >
@@ -9159,7 +9173,7 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > The other pages (M13.10 to M13.12, M13.14). A group switcher in the shell (a member of two groups uses
     > two links; revisit if asked twice).
 
-- [ ] **M13.10** `/g/<slug>/leaderboard` and `/g/<slug>/p/<puuid>`. *(owner: `web-engineer`; after M13.9)*
+- [x] **M13.10** `/g/<slug>/leaderboard` and `/g/<slug>/p/<puuid>`. *(owner: `web-engineer`; after M13.9)* **Folded into M14.15 (2026-10-03); this brief is that task's acceptance.** **Ticked 2026-10-04: delivered by M14.15 (done 2026-10-03).**
 
     > **Brief (product, 2026-10-03)**
     >
@@ -9176,8 +9190,8 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > (test). (4) The player card's numbers equal the group's `All time` row (M11.4's test, per group). (5)
     > Typecheck, test, lint, build pass.
 
-- [ ] **M13.11** `/g/<slug>/games` and `/g/<slug>/games/<gameId>`; Discord links follow. *(owners:
-  `web-engineer` + `platform-engineer` for `lib/discord/*`; after M13.9)*
+- [x] **M13.11** `/g/<slug>/games` and `/g/<slug>/games/<gameId>`; Discord links follow. *(owners:
+  `web-engineer` + `platform-engineer` for `lib/discord/*`; after M13.9)* **Folded into M14.16 (pages) and M14.10 (Discord links) (2026-10-03); this brief is that task's acceptance.** **Ticked 2026-10-04: delivered by M14.16 and M14.10 (both done 2026-10-03).**
 
     > **Brief (product, 2026-10-03)**
     >
@@ -9192,7 +9206,7 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > prefixed path and every printed field matches the existing snapshots (test). (3) `/g/a/games` lists
     > only A's games (test). (4) Redirects (test). (5) Typecheck, test, lint, build pass.
 
-- [ ] **M13.12** `/g/<slug>/stats`, `/fun`, `/1v1`, `/mystery`. *(owner: `web-engineer`; after M13.9)*
+- [x] **M13.12** `/g/<slug>/stats`, `/fun`, `/1v1`, `/mystery`. *(owner: `web-engineer`; after M13.9)* **Folded into M14.17 (2026-10-03); this brief is that task's acceptance.** **Ticked 2026-10-04: delivered by M14.17 (done 2026-10-03).**
 
     > **Brief (product, 2026-10-03)**
     >
@@ -9204,7 +9218,7 @@ before scoping would let the first stranger who signs up corrupt the original gr
     > A's page (tests). (2) The daily guess in A and B on the same day are different challenges with their
     > own numbers (test). (3) Redirects (test). (4) Typecheck, test, lint, build pass.
 
-- [ ] **M13.13** `/new` and `/join/<code>`. *(owner: `web-engineer`; after M13.5 and M13.9)*
+- [x] **M13.13** `/new` and `/join/<code>`. *(owner: `web-engineer`; after M13.5 and M13.9)* **Folded into M14.21 (2026-10-03); this brief is that task's acceptance.** **Ticked 2026-10-04: delivered by M14.21 (done 2026-10-03).**
 
     > **Brief (product, 2026-10-03)**
     >
@@ -9233,8 +9247,8 @@ before scoping would let the first stranger who signs up corrupt the original gr
     >
     > Out of scope: a marketing landing page; inviting by email or Discord DM.
 
-- [ ] **M13.14** Group admin under `/g/<slug>/admin`, and the operator's `/ops`. *(owner: `web-engineer`;
-  after M13.6 and M13.9; last)* **Added note (lead, 2026-10-03, user request):** the admin shell needs a link
+- [x] **M13.14** Group admin under `/g/<slug>/admin`, and the operator's `/ops`. *(owner: `web-engineer`;
+  after M13.6 and M13.9; last)* **Folded into M14.22 and M14.23 (2026-10-03); this brief is their acceptance, minus seasons and backfill approval (both removed).** **Ticked 2026-10-04: delivered by M14.22 and M14.23 (both done 2026-10-03).** **Added note (lead, 2026-10-03, user request):** the admin shell needs a link
   back to `/g/<slug>` (the tonight page) so an admin can move freely between the two, the way M13.9's shell
   will link an admin forward to admin. Fold into this task's acceptance; no separate task needed.
 
@@ -9266,6 +9280,2967 @@ friends' games move only their own group's ratings, from 1200, with their own fe
 Discord channel. A person in both groups has two ratings that never touch, one League identity, and one
 Kustom that asks which group only when there is more than one. No game counts for two groups, and nobody
 types anything in a night.
+
+---
+
+## M14 Kustom 2.0 (8 to 12 days, needs M13.9; folds in M13.6, M13.8, M13.10 to M13.14)
+
+Opened 2026-10-03. The user approved Phase 2 of the redesign the same day and chose **visual Direction C,
+"Floodlit Slate"** (80% Broadcast, 20% Scrim Night, brighter: `redesign/prototypes/direction-c/README.md`,
+`redesign/screens/c-*.png`). The authorities, in this order when they disagree: the user's Phase 3 brief (below),
+`redesign/STRATEGY.md` (what each screen says and does, product), `docs/05-design.md` (how it looks, designer;
+canonical for 2.0 since 2026-10-03, Direction C written in, section numbers kept from
+`redesign/design-system.md`, which is now a pointer), `AUDIT.md` and `audit/notes/engineering.md` (what is broken
+and where).
+
+**Goal.** Ten friends in Discord voice open the group's link on their phones and, without asking anyone, can
+tell who is in, which side they are on, and why the split is fair. The board's order matches the number on it.
+A stranger who lands on `/` understands Kustom in ten seconds and can start a group in two minutes. Nobody
+types anything in a night, and nothing in this milestone adds a step to the scene.
+
+**Admin audit folded 2026-10-04** (`redesign/admin-audit.md`): M14.50 to M14.56 below. **M14.49 (an interim
+hand-key host flow for 0.3.x) was dropped by the user** (decision row 2026-10-04: new groups are not promoted
+before the Rust companion ships; only `customs` hosts on 0.3.x). The ID stays unused.
+
+**Why now.** The audit scored onboarding 2, performance 3 and clarity 4. Its top problems are presentation and
+plumbing, not the model: fairness is stored but not legible, there are two headline ratings and "Proven 0", the
+phone nav hides pages, history is disconnected, there is no front door, and `/fun` is 58 MB. M13's pages
+(M13.10 to M13.14) were about to be built in the old look at paths that were about to move; they are built
+once, here, in the new one (decision row 2026-10-03).
+
+**The user's Phase 3 brief, kept as acceptance for every task below.**
+
+- Work on branch `redesign-2.0`. **Schema changes on the local Supabase only; production is never migrated in
+  this milestone** (M14.27 is the plan for that, and the user runs it). **Local migrations are pre-approved by
+  the user (2026-10-03, in the lead's chat: "I approve all upcoming migrations, no need to ask, apply them
+  yourself to local")**: the engineer pastes the SQL into the task report, the reviewer must pass it, then the
+  lead applies it to the local stack (`supabase migration up --local`, never a reset) without a further prompt.
+  0022 and 0023 were shown to and approved by the user individually before this. Every task's older "show the
+  user before applying" line reads as this rule. Production is unchanged: never migrated by an agent.
+- **Build order: (a) Tonight → (b) Leaderboard → (c) Game history → (d) Group create/join + admin → (e)
+  Public landing page.** Server tasks slot in front of the screen that needs them.
+- **After each screen:** Playwright screenshots at 375, 768 and 1440 of every state the task lists, saved to
+  `redesign/screens/m14/<screen>-<state>-<width>.png`, checked by `designer` against `docs/05-design.md`. **At most
+  3 fix rounds per screen**; whatever is still wrong after round 3 becomes a new task
+  with an ID, not a fourth round.
+- **Copy:** casual, friendly, a gamer friend explaining. Every friend-facing string a task adds that is not
+  verbatim in `STRATEGY.md` or already shipped is listed in the task report marked **[NEW COPY]**; strings
+  taken from STRATEGY.md that still carry its [NEW COPY] tag are listed too. Product reviews the list before
+  the task is marked done; the user reviews it at the screen's checkpoint.
+- **shadcn/ui on Tailwind v4**, per `docs/05-design.md` §5.0 (what is kept, restyled, banned) and its §7.3
+  token block. Nothing a person must know is only in a toast (toasts are banned anyway).
+- **Riot's notice** on every page, current wording, and only Riot assets the policy allows (M14.8).
+- **Permissions are enforced server-side** (service-role route handlers and `security definer` functions);
+  **RLS read policies are added as defence in depth** (decision row 2026-10-03). No route trusts a role the
+  browser sends.
+
+**Settled inputs (decision rows 2026-10-03), not reopened by any task:** seasons are removed; one public
+`Rating` with a `settling · n/10` chip and boards sorted on Rating; owner / admin / member with exactly one
+owner; member removal (playing is still joining); a per-group owner-only `Reset ratings` (**confirmed by the
+user's Phase 3 brief**, which lists "rating reset" under admin; decision row 2026-10-03); the fairness receipt
+built from `splits` columns only; pre-game odds for split-less games; ~~the four-tab nav and the More hub~~
+**five tabs (`Tonight · Board · Games · Stats · You`) and no More page** (option A, 2026-10-03, M14.7b);
+`/g/customs` as the public demo; groups public by link; one-click Discord connect with paste fallback; an
+admin's Host-mode pairing mints their host token; the landing page says `Free`.
+
+**How the lead parallelises (the user's rule: never two agents in one package at once; a worktree whenever
+two engineers write code at the same time).** The packages are `apps/web`, `apps/companion`, `packages/core`,
+`packages/db`, plus `docs/` and `redesign/` for product and designer. `apps/web` is **one** package even though
+`platform-engineer` owns `app/api` and `web-engineer` the rest, so **every task that writes `apps/web` runs in
+one serial lane**, platform's and web's alternating. Parallelism comes from the other lanes:
+
+| Lane | Tasks, in order |
+|---|---|
+| `apps/web` (serial) | M14.1 → M14.7 → M14.8 (Data Dragon half, landed) → **M14.7b (five tabs, You, footer notice)** → M14.9 (a) → M14.10 → M14.11 (`0023`) → M14.12 → M14.29 (`0024`) → M14.30 (a, Mode card + panel) → M14.31 → M14.14 → M14.15 (b) → M14.16 (c) → M14.17 → M14.18 → M14.19 → M14.20 → M14.21 (d) → M14.33 → M14.34 → M14.35 → M14.36 → M14.22 (d) → M14.23 (d) → M14.24 (e) → M14.25 |
+| `packages/core` | M14.4 (wave 1). Nothing else in core this milestone. |
+| `packages/db` only | M14.5 (wave 1, SQL and its tests only). Every later migration rides an `apps/web` lane task, because each one changes code in the same commit. |
+| `apps/companion` | M14.6 (wave 1, UI as built) → M14.13 (engine only, after M14.12) → ~~the exe rebuild, once, after M14.13~~ (0.4.0 built, never published; M17 replaces it). No companion UI task in M14 (decision row 2026-10-03); M14.32 is deferred. |
+| docs / design | M14.2 and M14.3 (wave 1); designer's screenshot checks inside each screen task; M14.26 at the end |
+
+**Fearless 2.0 (M14.29 to M14.31, added 2026-10-03; reshaped into the Mode card the same day).** M14.29,
+M14.30 and M14.31 all write `apps/web` and so run in the serial lane, in that order: `0024` (M14.29) has to
+follow `0023` (M14.11) and come before M14.14's seasons migration (which becomes `0025`); M14.30 needs M14.29's
+mode and route; M14.31 needs M14.30's copy module and panel URL. They sit after M14.12 so the companion lane's
+M14.13 is not held up. Designer's screenshot checks for M14.30 run beside M14.31. **M14.32 (overlay open-first)
+is deferred, both halves**: the companion UI is out of scope until the user replaces it (decision row
+2026-10-03), and nothing else reads the extra `GET /api/overlay` fields its API half would add.
+
+**Companion UI is out of M14, M15 and M16** (the user, 2026-10-03; decision row): the user will replace the
+companion UI entirely later. Deferred to that rewrite, not dropped: M14.32 (overlay open-first, both halves),
+M14.13's UI parts (a host-pairing screen, the refusal sentences as new UI, Riot's notice inside the app) and
+M15.7's panel display (and M15.10's per-side panel pool). Non-UI engine work stays. **2026-10-04: the rewrite is M17**,
+which carries M14.13's UI parts (M17.2, M17.8) and removes the overlay, so M14.32 and M15.7 are dropped. M14.6's join card and picker
+already shipped and stay as built.
+
+**The companion exe is rebuilt only after every companion change in this milestone has landed** (the user's
+standing instruction): no `build:win`, `build:desktop` or `release` between M14.6 and M14.13. M14.13 (engine
+only) is the last companion task since 2026-10-03 (M14.32 deferred). ~~M14.27 carries the release, which is the
+user's.~~ **Kustom 0.4.0 is not published (the user, decision row 2026-10-03):** 2.0 deploys with 0.3.x as the
+download and M14.27 carries no companion release. The Rust companion (M17) is the next release, the first
+updater-enabled one, and it ships the code pairing and per-group tokens 0.4.0 would have. The server keeps
+accepting 0.3.x until M17 retires it.
+
+**Deploy state going in (not changed by M14).** `main` is ahead of `origin/main`: M13.4 (code + `0020`),
+M13.5 (code + `0021`) and M13.9 are committed and **not deployed**; whether `0020` is applied on hosted is
+**unverified**. **They ship together with 2.0, in one deploy, not before** (the user, 2026-10-03; decision row).
+Their separate orders (M13.4: code first, then `0020`; M13.5: `0021` first, then code) are kept as facts for
+M14.27, which works out the one combined order.
+
+**Out of the whole milestone:** private groups; deleting or renaming a group; banning; cross-posting games;
+champions on in-game seats (no data source: the companion reads the end-of-game block and never champion
+select or the live game for this; Direction C's in-game mock shows them, the build does not); a group
+switcher; Sheets, toasts, tooltips and content modals on public pages (one exception, decision row
+2026-10-03: the mode panel, a routed overlay with its own URL that is also a full page); any companion UI change
+(deferred to the user's companion UI rewrite); any change to the balancer, the rating
+model or what is stored per split; the Riot public API.
+
+- [x] **M14.1** Foundation: Tailwind v4 + shadcn/ui in `apps/web`, Direction C tokens and fonts
+  (`next/font`), restyled base primitives, a dev-only component kit page; existing pages unchanged.
+  *(owner: `web-engineer`; first in the `apps/web` lane; dispatched 2026-10-03 beside M14.2 to M14.6)* Done 2026-10-03 (`8437f8e`): 1.0 pages pixel-identical, /kit 404 in production, review passed round 2.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### What a player sees
+    >
+    > Nothing. Every existing page looks and behaves exactly as before. That is the acceptance.
+    >
+    > ### Shape
+    >
+    > - Tailwind v4 with `@tailwindcss/postcss`, `app/globals.css` per `docs/05-design.md` §2.4 and §7.3 (`@theme
+    >   inline`, the `day` custom variant, no `dark:` variant, shadow scale wiped except `--shadow-overlay`,
+    >   shadcn radii aliased to card / control / chip).
+    > - The token block of `docs/05-design.md` §7.3 (the only file that defines a colour; `c.css` is
+    >   evidence, not a source, §7.6) as the semantic variables, Night as `:root`, Day under `[data-theme="day"]`.
+    > - Fonts through `next/font`: Archivo (display, width 62%, 900), Atkinson Hyperlegible Next (text), Martian
+    >   Mono (numbers and role words), exposed as `--font-display` / `--font-text` / `--font-mono`.
+    > - shadcn initialised (`components.json`, `lib/utils.ts` `cn()`), and the primitives `05-design.md` §5.0
+    >   keeps, restyled as it requires: Button (no `sm`, 44px floor, 2px outline focus, `aria-disabled`
+    >   pending), Card (heading element title, no shadow), Chip (from Badge), Separator, Input / Label /
+    >   Textarea (17px), a styled native select, AlertDialog, Table, reserved frame (from Skeleton, static).
+    > - **Coexistence:** the Floodlit CSS files stay loaded and win on existing pages; Tailwind's preflight
+    >   must not restyle them (scope or layer it so). The new primitives are used by no existing page yet.
+    > - `/dev/kit` (or similar): every primitive in every variant and state, Night and Day. **404 in
+    >   production builds** (not merely unlinked).
+    >
+    > ### Acceptance
+    >
+    > 1. Playwright screenshots of `/g/customs`, `/leaderboard`, `/games`, `/p/<a real puuid>` and `/admin` at
+    >    375 and 1440, before and after, show no visual difference (pixel diff or side-by-side in the report).
+    > 2. `pnpm -r test` passes **with no existing test changed**.
+    > 3. The kit page renders every primitive in Night and Day; the kit page returns 404 under
+    >    `NODE_ENV=production` (test or a `next build && next start` check in the report).
+    > 4. Every focusable primitive shows a 2px outline focus ring; no Button size renders under 44px (checked
+    >    on the kit page with Playwright).
+    > 5. No toast, Sonner, Tooltip, Popover, Sheet, Radix Select or DropdownMenu file is added.
+    > 6. `pnpm -r typecheck`, `pnpm lint`, `pnpm --filter web build` pass; status table updated; decision row
+    >    for anything the docs did not decide (for example how preflight is scoped).
+    >
+    > ### Files
+    >
+    > `apps/web/package.json`, `postcss.config.*`, `app/globals.css`, `app/layout.tsx` (fonts only),
+    > `components/ui/*`, `components.json`, `lib/utils.ts`, the kit route.
+    >
+    > ### Out of scope
+    >
+    > Restyling any page (each screen task does its own). The nav. Deleting Floodlit CSS (M14.25).
+
+- [x] **M14.2** Design system final: `docs/05-design.md` canonical for 2.0, Direction C written in, Floodlit
+  1.0 archived. *(owner: `designer`; wave 1, beside M14.1; docs only; in progress 2026-10-03: `05-design.md`
+  rewritten as "Floodlit Slate", the 1.0 doc moved to `docs/05-design-1.0.md`, `redesign/design-system.md` a
+  pointer)* Done 2026-10-03: `docs/05-design.md` canonical, 1.0 archived as `05-design-1.0.md`.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > - `docs/05-design.md` is the one authority on how 2.0 looks, with Direction C's final values in §7 and
+    >   no **[direction]** placeholder left in §1 to §6. The 1.0 doc keeps its history and says what in it is
+    >   still in force (surface copy, embed layouts) until a 2.0 task rewrites that surface.
+    > - **Nav, reconciled with STRATEGY §2.5 (product's call, which wins):** the same four sections, Tonight ·
+    >   Board · Games · More, in the same order on every width, plus `Admin` (admins) and the account on
+    >   desktop. One breakpoint (§5.11 sets 1024, which matches STRATEGY). No seven-link desktop row and no
+    >   group switcher (Direction C's mock had one; M13.9's decision stands).
+    > - Direction C's self-critique items decided in the doc: solid team headers against §3.3, the `In play` /
+    >   `Picked` chip's use of the accent, the receipt-open phone page length (§5.5 already resolves it).
+    > - **The screenshot check list** every screen task is judged against, as one numbered section: no
+    >   clipped or mid-word-broken names, no target under 44px, no horizontal scroll, one h1, colour never
+    >   alone, contrast per §3, the state headline, a Day-theme spot check.
+    > - The in-game screen without champions on seats (the milestone's out-of-scope line).
+    >
+    > Acceptance: (1) no **[direction]** placeholder left; (2) §5.11 matches STRATEGY §2.5's four sections and
+    > names one breakpoint; (3) the check list exists and M14.9 can cite it by section number; (4) any value
+    > that differs from what M14.1 shipped is listed for M14.7 to apply; (5) every STRATEGY string the doc
+    > changes is routed back through product, not edited in place (copy is STRATEGY's). Out of scope:
+    > per-screen mocks beyond what a screen task asks for.
+
+- [x] **M14.3** Product truth for 2.0: `00-product.md`, decision rows, and the CLAUDE.md edits the lead owes.
+  *(owner: `product`, plus the lead for CLAUDE.md; wave 1)* Done 2026-10-03: `00-product.md` rewritten for 2.0; CLAUDE.md wording below, applied by the lead with M14.11/M14.14/M14.15.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > - `docs/00-product.md` describes 2.0 before engineers build it: seasons gone, one Rating and the settling
+    >   rule, owner / admin / member and removal, the owner's `Reset ratings`, the receipt as the one way
+    >   fairness is shown, onboarding as the data-derived checklist, the landing page and the demo group.
+    > - Decision row: Phase 2 approved and Direction C chosen; the *Phase 2 proposal* rows of 2026-10-03 take
+    >   effect (added with this milestone).
+    > - **CLAUDE.md (the lead edits it; product supplies the words):** "Rank leaderboards on ordinal" becomes
+    >   "Rank boards on Rating (`round(mu * 60)`), with players under 10 rated games in a settling section;
+    >   ordinal stays a core value"; the `apps/discord` repo-map line removed (it does not exist); `seasons`
+    >   removed from the `rebuild-ratings` and `LobbyStatus` notes where M14.14 removes them; the admin
+    >   convention reads `role in ('owner','admin')`. Each lands with the task that makes it true (M14.11,
+    >   M14.14, M14.15), not before.
+    >
+    > Acceptance: `00-product.md` has no sentence 2.0 makes false (product reads it against STRATEGY §0); the
+    > decision row exists; the CLAUDE.md wording is written into this entry for the lead.
+    >
+    > **CLAUDE.md wording for the lead (product, 2026-10-03).** Each edit is an exact replacement; land it in the
+    > commit of the task named, not before. Line numbers are CLAUDE.md as of 2026-10-03.
+    >
+    > 1. **Repo map, line 17 -- true today, land any time (no task needed).** Delete the whole line:
+    >
+    >    ```
+    >    apps/discord     discord.js bot. Only job: voice channel split and presence. Not needed until M4.
+    >    ```
+    >
+    >    (`apps/discord` does not exist; the voice split and the bot were dropped 2026-09-10.)
+    >
+    > 2. **Admin convention, line 120 -- lands with M14.11.** Replace
+    >    `admin routes use the Supabase session and an admin membership (`group_memberships.role = 'admin'`) in
+    >    the request's `groupId`.` with:
+    >
+    >    ```
+    >    admin routes use the Supabase session and an admin-or-owner membership (`group_memberships.role in ('owner','admin')`) in the request's `groupId`. Exactly one `owner` per group; owner-only writes (removing or demoting an admin, handing over ownership, and from M14.18 `Reset ratings`) are checked again inside their `security definer` function.
+    >    ```
+    >
+    >    If M14.11 lands before M14.18, drop `, and from M14.18 `Reset ratings`` and add it back with M14.18.
+    >
+    > 3. **`rebuild-ratings` note, line 49 -- lands with M14.14.** Replace
+    >    `# folds every rated-eligible game of a season in started_at order,` with:
+    >
+    >    ```
+    >                                 # folds every rated-eligible game of a group in started_at order,
+    >    ```
+    >
+    >    That is the only `season` in CLAUDE.md. **The `LobbyStatus` line (117) has no season mention**, so the
+    >    brief's "and `LobbyStatus` notes" is a no-op: leave line 117 as it is.
+    >
+    > 4. **Rating convention, line 119 -- lands with M14.15.** Replace the whole line with:
+    >
+    >    ```
+    >    - Ratings are OpenSkill `{ mu, sigma }`. Balance on `mu`. Rank boards on Rating (`round(mu * 60)`), with players under 10 rated games in a settling section; ordinal (`mu - 2 * sigma`) stays a core value and is never printed.
+    >    ```
+    >
+    > 5. **Optional, with M14.18** (not in the brief's list, offered because it becomes true then): after the
+    >    `rebuild-ratings` note's `# Idempotent.` line, add
+    >
+    >    ```
+    >                                 # M14.18: folds only games after the group's ratings_since (the
+    >                                 # owner's Reset ratings); a group that never reset folds them all.
+    >    ```
+
+- [x] **M14.4** Core helpers for the receipt and the board. *(owner: `core-engineer`; wave 1; `packages/core`
+  only)* Done 2026-10-03 (`18173aa`): plus `favoredSide(p)` (lead's request) so pages do no maths; review passed.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > Pure, tested, no I/O, nothing about the model changes. Each one exists so a page or Discord never does
+    > maths or parses `splits.explanation` (STRATEGY §4.2 rule 5).
+    >
+    > - `describeSwap(chosen, next)` over two stored splits' `blue` / `red` arrays (`{ puuid, role }[]`):
+    >   returns `{ kind: 'one-for-one', a: { puuid, role }, b: { puuid, role }, sameLane: boolean } | { kind:
+    >   'reshuffle', moved: number } | { kind: 'identical' }`. Same logic as `nextBestClause`, which is
+    >   refactored to call it so the sentence and the helper can never disagree.
+    > - `whyLower(chosen, next)`: `'off-role' (with k) | 'gap' (with both gaps) | 'role-costs'`, in STRATEGY
+    >   §4.4's order.
+    > - `oddsBand(p)`: `'even' | 'coin-flip' | 'slight' | 'favored' | 'clear'` for the favored side's rounded
+    >   percentage (50 / 51-53 / 54-57 / 58-62 / 63+). Copy stays in `apps/web`; core returns the band.
+    > - `preGameOdds(blue, red)` from each player's `{ mu, sigma }` going in (`game_players.mu_before` /
+    >   `sigma_before`), via the existing `predictWin`. Returns `null` if any of the ten is missing a value.
+    > - `calibration(games)` over `{ blueWinProb, blueWon }[]`: `{ n, favoredWon, expectedPct, actualPct }`,
+    >   skipping exactly 0.5. Callers choose which games qualify (STRATEGY §4.8); core only counts.
+    > - `SETTLING_GAMES = 10` in `config.ts`, and `isSettling(ratedGames)`. One constant (STRATEGY §5).
+    >
+    > ### Edges
+    >
+    > Splits with duo locks where rank 2 does not exist (`describeSwap` is never called; the page says `This
+    > was the only split that fit.`). Two splits identical up to side swap (`identical`). Fewer than ten
+    > players in a pre-game call (`null`). `calibration([])` (n 0, no division by zero).
+    >
+    > Acceptance: (1) 100% line coverage on the new exports (the package rule); (2) `nextBestClause`'s
+    > existing tests pass unchanged; (3) a table test for `oddsBand` at every boundary (50, 51, 53, 54, 57,
+    > 58, 62, 63, and the same from red's side); (4) `preGameOdds` equals `predictWin` on a fixture;
+    > (5) typecheck, test, lint pass. Out of scope: any copy; any change to `balance()` or `explain()`'s output.
+
+- [x] **M14.5** RLS read policies, as defence in depth. *(owner: `platform-engineer`; wave 1; `packages/db`
+  only; migration)* Done 2026-10-03 (`0022_rls_read_policies.sql`), applied to the local stack only (the user
+  saw the SQL and ran `supabase migration up --local` themselves), not pushed to hosted. Acceptance 1-4 verified:
+  `src/rls.reads.integration.test.ts` (15 tests, real HS256 session JWTs through PostgREST), `pnpm db:types`
+  (two function signatures), `@customs/db` 246/246, typecheck and lint clean on `packages/db`. No existing test
+  changed because of 0022; separately, `schema.integration.test.ts`'s `daily_mysteries` block now writes into a
+  scratch group, because a real local award #1 collided with it.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > The decision row of 2026-10-03: routes and definer functions stay the enforcement point; RLS adds read
+    > policies so a leaked anon key or a future client-side read cannot see what it should not.
+    >
+    > - Definer helpers, locked like the existing ones: `current_player_id()` (the session's player through
+    >   `auth.identities` → `players.discord_id`, `null` when unlinked) and `is_group_admin(group_id)`
+    >   (`role in ('owner','admin')`; written for `owner` now so M14.11 does not have to touch it).
+    > - `authenticated` may SELECT its own `group_memberships` rows. Group admins may SELECT their group's
+    >   `group_memberships` (with roles) and `group_invites`. Nobody else reads either; anon reads nothing new.
+    > - Public tables stay public (groups are public by link). `group_members_public` and `groups_public`
+    >   unchanged.
+    > - No DML granted to anon or authenticated; nothing in `apps/web` changes.
+    >
+    > Acceptance: (1) **the migration and every policy are shown to the user before they are applied**; (2)
+    > integration tests with real JWTs on the local stack: a member reads their own membership and not
+    > another's; an admin of A reads A's invite and members and not B's; a member of A reads no invite; anon
+    > reads neither table; (3) every existing test passes with no change; (4) `pnpm db:types` regenerated if
+    > anything changed; typecheck, test, lint pass. Out of scope: private groups; `lobbies.lobby_password`'s
+    > public read (an open question for the lead, not this task).
+
+- [x] **M14.6** Kustom knows its groups: pairing, one token per group, the picker. *(owner:
+  `companion-engineer`; wave 1; `apps/companion` only; **this is M13.8, folded in unchanged**)* Done 2026-10-03: the deferred acceptance (a pasted token filed under its group) closed by M14.12's `/me` group plus M14.13. **Built 2026-10-03 (`51db6dc`), review passed; Rust shell compiles (`cargo check`). One acceptance waits for M14.12** (`GET /api/companion/me` must return `group: {id, slug, name}`; until then a pasted token is filed only when its PUUID is in one group).
+
+    > **Brief:** M13.8's brief and acceptance, word for word (above, under M13). Two additions:
+    >
+    > - Visuals follow Direction C where the setup screen and panel are restyled at all; no new screens.
+    > - If `GET /api/companion/me` does not already return the token's group, that is a platform change
+    >   routed through the lead into M14.12, and the "paste a new token files it under its group" acceptance
+    >   waits for it.
+    >
+    > No release and no exe build (the milestone's standing rule).
+
+- [x] **M14.7** The 2.0 shell: bottom tab bar, top bar, More hub, branded errors, loading, skip link, one h1.
+  *(owner: `web-engineer`; after M14.1 and M14.2)* Done 2026-10-03 (`76f5a23`, `91c95b1`; review passed round 2). Its More hub was replaced by M14.7b at the user's request. **Built 2026-10-03 (`76f5a23`, review fixes `91c95b1`). The
+  four tabs and the More hub are superseded by M14.7b** (the user chose five tabs and no More, 2026-10-03;
+  decision row); this brief's other acceptance (404s, errors, loading, skip link, one h1) stands as built.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### What a player sees
+    >
+    > - Phones and tablets: a top bar with the wordmark and the group name (wraps, never clipped) and a fixed
+    >   bottom bar `Tonight · Board · Games · More`, icon plus word, current tab marked by weight and an
+    >   indicator, not colour alone. Desktop: one top bar with the same four, then `Admin` (admins) and the
+    >   account (STRATEGY §2.5; `05-design.md` §5.11 puts the cut at 1024). Tonight is a tab again on the
+    >   bottom bar (reverses M13.9's "no Tonight tab" for the bar only; the wordmark still goes home).
+    > - `/g/<slug>/more`: the hub cards of STRATEGY §2.4 (Play, Stats, This group, You), each a link. Pages
+    >   not yet moved link to their current path until their task moves them (`lib/nav.ts`'s table).
+    > - Branded `not-found.tsx` (root and group-scoped, naming what was missing where the route knows it),
+    >   `error.tsx` (`Try again` + back link + digest), `global-error.tsx` (own `<html>`, no app fonts), per
+    >   `05-design.md`
+    >   §5.8. Unknown group: `No group at this link. Check it with whoever sent it.`
+    > - Route `loading.tsx`: the real shell and the page's real h1, `Loading…` with `aria-busy`, reserved
+    >   frames, no shimmer (§5.9).
+    > - A skip link to `<main>` first in the DOM; exactly one `<h1>` per page (the tonight page's is the state
+    >   headline, M14.9).
+    > - The day / night switch moves to More's `You` card.
+    >
+    > ### Edges
+    >
+    > A text input focused on a phone hides the bottom bar. A signed-out visitor sees no `Admin`. A super-admin
+    > who is not an admin sees no `Admin` until M14.23. `?window=foo` anywhere falls back to the default
+    > window, never 404 (fix in each loader as the screen task reaches it; the shell owns the rule's helper).
+    >
+    > ### Acceptance
+    >
+    > 1. Every `/g/<slug>/*` page renders the new shell; no horizontal scroll at 375 (Playwright).
+    > 2. Each tab has `aria-current="page"` on its section; the bar's `<nav aria-label="Main">` precedes
+    >    `<main>` in the DOM (tests).
+    > 3. `/g/nope`, `/g/customs/games/<unknown id>`, `/g/customs/p/<unknown puuid>` render the branded 404 with
+    >    a reason and no React console error (Playwright console check).
+    > 4. An axe run on each shell page reports one h1 and a working skip link.
+    > 5. Screenshots at 375 / 768 / 1440 checked by designer, ≤ 3 rounds; new copy listed.
+    > 6. Tests touched by the shell use role and text queries, not CSS classes (`Shell.test.tsx`, `nav.test.ts`).
+    > 7. Typecheck, test, lint, build pass.
+    >
+    > Out of scope: each page's body. The Riot notice (M14.8, which puts it in this footer).
+
+- [x] **M14.7b** Five tabs, the You page shell, no More; Riot's notice in the footer. *(owner: `web-engineer`;
+  after M14.7, before M14.9; `apps/web` lane; no schema)* Done 2026-10-03 (`d6cfa02`): five tabs, `/g/<slug>/you`, More deleted (308 to /you), Riot notice on every frame with a route-walking test. Review pending at commit time. Added 2026-10-03: the user chose option A of
+  `redesign/nav/proposal.md` (decision row). **Folds in M14.8's footer half** (Riot's notice and M14.8's
+  acceptance 1), since both touch the shell footer.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > Authority: STRATEGY §2.4, §2.5, §2.6 and §6(b3) (revised 2026-10-03), `redesign/nav/proposal.md` §3 option A
+    > and §5 items 1 to 3, the prototype screens `redesign/nav/screens/a-*.png`.
+    >
+    > ### What a player sees
+    >
+    > - **Phones and tablets:** the bottom bar is `Tonight · Board · Games · Stats · You`, icon over word, five
+    >   equal tabs (75px each at 375), current tab marked by the top-edge bar, filled icon, weight and
+    >   `aria-current`. Icons: Tonight (lamp), Board (bars), Games (grid), Stats (trophy), You (a head-and-shoulders
+    >   glyph, never an avatar). The label is `You` signed in or out. The top bar stays wordmark + group name, **no
+    >   `Admin` link on phones**.
+    > - **Desktop (≥ 1024):** `Tonight · Board · Games · Stats` in the middle; on the right `Admin` (admins) and a
+    >   bordered `You` link (signed in) or `You` plus the `Sign in` form (signed out). `You` links to `/g/<slug>/you`,
+    >   never `/more#you`.
+    > - **`/g/<slug>/you`, minimal (this task only):**
+    >   - Signed out: the sign-in pitch, verbatim from STRATEGY §2.4 (`See it from where you stand.` ...), and
+    >     `Sign in with Discord`, returning to `/you`.
+    >   - Signed in, not linked in this group: STRATEGY §2.4's `Which League account is yours?` block, then the
+    >     account card.
+    >   - Signed in and linked: the `Admin` card first for admins and the owner (STRATEGY §6(b3) copy, linking the
+    >     group's admin page by `lib/nav.ts`'s rule), a `See your page` link to `/p/<you>` (your public player
+    >     page), then the account card: the Day / Night switch (moved from More) and `Sign out` (returns to
+    >     `/you`).
+    >   - The h1 is `You`. The page fills out later: your summary in the self lens (M14.15), the welcome card
+    >     (M14.33), You vs them with everyone (M14.35), Your night's line (M14.36), the Daily card with your
+    >     streak (M14.17). Build none of those here.
+    > - **More is deleted:** `app/(group)/g/[slug]/more/` and the `MORE_*` strings go; `/g/<slug>/more` answers
+    >   **308 → `/g/<slug>/you`**, query string carried.
+    > - **Stats tab:** points at the Stats destination by `lib/nav.ts`'s existing unmoved-page rule (the original
+    >   group's `/stats` until M14.17 moves it; omitted for any other group until then, as Board and Games are
+    >   today). `currentMainTab`: `/stats*`, `/fun`, `/1v1` → `stats`; `/you` → `you`; `/mystery`, `/mode` →
+    >   `tonight`; any player page, your own included → `board`; admin pages → none (the desktop `Admin` link
+    >   carries `aria-current`). `lib/nav.ts`'s `fun` and `versus` rows point at `/stats` and `/stats/1v1` as
+    >   their grouped addresses, flipping to moved in M14.17.
+    > - **The redirects for `/fun` and `/1v1` land in M14.17, not here**, because their targets
+    >   (`/g/<slug>/stats`, `/stats/1v1`) do not exist until then and a 308 to a missing page is cached by
+    >   browsers. This task lands `/more` → `/you` only; M14.17 lands STRATEGY §2.6's `fun` and `1v1` rows.
+    > - **The footer of every page** (group pages, Kustom pages, admin, `not-found`, `error`, `global-error`):
+    >   1. **Riot's notice**, the developer-policy boilerplate **verbatim** from M14.8's brief with `Kustom` as the
+    >      product: "Kustom isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games
+    >      or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all
+    >      associated properties are trademarks or registered trademarks of Riot Games, Inc." Small and muted,
+    >      meeting the contrast rules, real text.
+    >   2. `How the bot decides` → `/how`. Until M14.24 builds the real page, `/how` is a minimal Kustom-level page
+    >      (bare shell) carrying More's four `How this works` lines unchanged (`HOW_THIS_WORKS_*` in
+    >      `shellCopy.ts`), so no shipped explanation is lost with More. M14.24 replaces its body.
+    >   3. `Get Kustom` → the releases page as today (never the exe), until `/download` exists (M14.24).
+    >   4. On group pages, `What's Kustom?` → `/about` arrives with M14.24 (STRATEGY §2.2), not here.
+    >
+    > ### Edges
+    >
+    > A signed-out visitor sees no `Admin` anywhere. A super-admin who is not an admin sees no `Admin` until
+    > M14.23. A linked member with no games in this group gets the linked state (the `See your page` link 404s
+    > for nobody: it is omitted until they have a game). A text input focused on a phone still hides the bar. An
+    > old `/g/<slug>/more#you` bookmark lands on `/you` (the fragment survives the redirect in browsers). A group
+    > whose pages have not moved shows `Tonight · You` plus whatever has moved; the bar never shows a dead tab.
+    >
+    > ### Acceptance
+    >
+    > 1. **(M14.8's acceptance 1, moved here.)** Every route's rendered HTML contains Riot's boilerplate verbatim:
+    >    one test walking the route list, including a 404, the error page and `global-error`.
+    > 2. The bar has exactly five links in the order above for the original group (signed in and out), each with
+    >    `aria-current="page"` on its section per the `currentMainTab` table (tests in `nav.test.ts` and
+    >    `Shell.test.tsx`, role/text queries).
+    > 3. `GET /g/customs/more?x=1` returns 308 to `/g/customs/you?x=1` (test); no file under `.../more/` remains
+    >    and no `MORE_` export remains (grep).
+    > 4. `/g/customs/you` renders the signed-out pitch, the not-linked block, and the linked state with and
+    >    without the `Admin` card, by viewer (tests); the theme switch works there and nowhere else.
+    > 5. No `Admin` link in the phone top bar at 375 / 768; present on desktop for admins only (Playwright).
+    > 6. `/how` renders the four `How this works` lines in the bare shell with the footer (test).
+    > 7. No horizontal scroll at 375 with five tabs; screenshots `shell-tabs-*`, `you-signed-out-*`,
+    >    `you-linked-admin-*`, `you-not-linked-*` at 375 / 768 / 1440, designer ≤ 3 rounds; new copy listed.
+    > 8. Typecheck, test, lint, build pass.
+    >
+    > Copy [NEW COPY]: the tab label `Stats` and `You` (as tabs), the You page strings in STRATEGY §2.4 and §6(b3),
+    > `How the bot decides` (as a footer link), `See your page`.
+    >
+    > Files: `lib/nav.ts`, `lib/shellCopy.ts`, `components/shell/*` (`TabIcon` gains `stats` and `you`; `TopBar`,
+    > `Footer`), `app/(group)/g/[slug]/you/`, the deleted `more/`, the `/how` stub, redirects config, the shell
+    > tests.
+    >
+    > Out of scope: the Stats page itself (M14.17); the self lens (M14.15); M14.33 / M14.35 / M14.36's cards;
+    > `/download` and the real `/how` (M14.24); a group switcher; any dropdown, sheet or drawer.
+
+- [x] **M14.8** Riot's notice on every page, and only Riot assets the policy allows. *(owner: `web-engineer`;
+  after M14.7; the companion's half was in M14.13, and since 2026-10-03 only its README notice is: the in-app notice is deferred with the companion UI)* Done 2026-10-03: Data Dragon at pinned 16.19.1 (`616a4a9`..`668560d`) and the footer notice in M14.7b (`d6cfa02`). Locke (805) named and laned (mid) in 16be173; `names.test.ts` now fails if a pinned Data Dragon champion has no name or lane (6e8c08d). **Amended 2026-10-03 (Fearless 2.0, decision row):** icons
+  move from one Data Dragon file per champion to Data Dragon's sprite sheets at the same pin, in M14.30. M14.8
+  closes on its acceptance as written; M14.30 replaces the URL helper and carries acceptance (3) over as sprite
+  cells.
+  **Split 2026-10-03 (option A nav):** the Data Dragon half landed (`616a4a9`..`668560d`: pinned 16.19.1,
+  preconnect, the `champion.json` fixture, the fearless card screenshot; acceptance 2 to 5). **The footer half
+  moved to M14.7b**: Riot's notice in the footer of every page and acceptance 1 (the route-list test) are
+  M14.7b's acceptance now. M14.8 closes on acceptance 2 to 6.
+
+    > **Brief (product, 2026-10-03; sources fetched 2026-10-03)**
+    >
+    > ### What the policies say (quoted)
+    >
+    > Kustom talks to the League client, so Riot's **developer policies** apply, and they carry the "isn't
+    > endorsed" notice. From <https://developer.riotgames.com/policies/general> ("LAST UPDATED: MAY 29,
+    > 2025"), required "in a location that is readily visible to players":
+    >
+    > > "[Your product] isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games
+    > > or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all
+    > > associated properties are trademarks or registered trademarks of Riot Games, Inc."
+    >
+    > The same page lists the assets to use: "Data Dragon, Press Kit, TFT Assets, LOR Assets", and "Using Riot
+    > logos, trademarks etc. from the Press Kit must be limited to those cases where such use is inevitable to
+    > serve the core value of the product."
+    >
+    > The fan-project policy, "Legal Jibber Jabber" (<https://www.riotgames.com/en/legal>, "Last Updated:
+    > August 2018"), has its own notice, "[The title of your Project] was created under Riot Games' 'Legal
+    > Jibber Jabber' policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this
+    > project.", and says "We prohibit the use of our IP in games and apps. Please do not take any part of our
+    > IP (e.g., character appearance, character abilities, maps, icons, items, etc.) and use it in a game or
+    > app." and "you may not use any of our logos or trademarks anywhere in your Project".
+    >
+    > The League Client API page (<https://developer.riotgames.com/docs/lol>): "This service is not officially
+    > supported for use with third party applications." and "Whether you're combining the Riot Games API and
+    > League Client API, or doing something by only using the League Client endpoints, we need to know about
+    > it." (registration through the Developer Portal; a user action, below).
+    >
+    > ### What we do (decision row 2026-10-03)
+    >
+    > - **The footer of every page** (group pages, Kustom pages, admin, errors, `global-error`) carries the
+    >   developer-policy boilerplate verbatim with `Kustom` as the product. `/download` and `/about` carry it
+    >   too. It is small and muted but meets the contrast rules; it is real text, not an image.
+    > - **We do not print the Jibber Jabber notice.** Its own rules forbid icons in apps, and Kustom is an
+    >   app; claiming that policy would claim the one we are not following. We rely on the developer policies
+    >   and registration instead.
+    > - **Champion icons come from Data Dragon only**, at a pinned version
+    >   (`https://ddragon.leagueoflegends.com/cdn/<version>/img/champion/<id>.png`), with a `preconnect`.
+    >   CommunityDragon (`raw.communitydragon.org/latest`, today's source in `lib/champs/names.ts`) is a
+    >   community mirror, not on Riot's list, and `latest` moves under us. Data Dragon is a static CDN, not the
+    >   Riot public API, and needs no key (the "No Riot public API" rule stands). Icons stay where M11.1 put
+    >   them (the fearless card) and nowhere new.
+    > - **No Riot logo, League logo or Riot trademark artwork anywhere** (landing included). The words "League
+    >   of Legends" may describe what Kustom works with; never as a logo or styled mark.
+    >
+    > ### Acceptance
+    >
+    > 1. Every route's rendered HTML contains the boilerplate verbatim (one test walking the route list,
+    >    including a 404 and the error page).
+    > 2. No `communitydragon` string left in `apps/web` outside tests asserting its absence (grep).
+    > 3. Every champion in `lib/champs/names.ts` maps to an image key present in a checked-in Data Dragon
+    >    `champion.json` fixture for the pinned version; tests use the fixture, no network. Wukong and other
+    >    renamed ids covered.
+    > 4. The fearless card renders icons from the pinned Data Dragon version on the local stack (screenshot).
+    > 5. A grep of `apps/web/public` and the landing assets finds no Riot or League logo file.
+    > 6. Typecheck, test, lint, build pass.
+    >
+    > ### The user does (not blocking)
+    >
+    > Register Kustom on the Riot Developer Portal as a League Client API product (the LCU page's "we need to
+    > know about it"). **The user will do this themselves** (decision row 2026-10-03); it does not block this
+    > task, any M14 task or the build, and M14.27 carries it as a user action. The notice is required and shown
+    > either way.
+    >
+    > Out of scope: the companion's notice (README in M14.13; in the app, deferred with the companion UI); Discord embeds (no notice needed there: they link to
+    > pages that carry it).
+
+- [x] **M14.9** **(a) Tonight**: the live page, the teams, the full receipt, Realtime with no refresh.
+  *(owner: `web-engineer`; after M14.4, M14.7, M14.8's Data Dragon half and M14.7b's footer)* Done 2026-10-03 (lane A; code review passed; designer round in progress): Tonight rebuilt on 2.0, every state, the full receipt in balanced/in game/finished, server re-render on Realtime, tab live dot, VersusPitch under the finished poster, copy rows 1/2/13/14/18/24/25. **Amended 2026-10-03
+  (option A nav):** the Daily card is on Tonight in **idle and finished on every width**, a card in the phone stack
+  and not only in the desktop rail (STRATEGY §2.4); acceptance adds a 375 screenshot of each showing it.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > ### What a player sees
+    >
+    > Every state of STRATEGY §6(a), in Direction C (`c-filling`, `c-balanced`, `c-ingame`, `c-receipt`):
+    >
+    > - **Empty group**, **idle** (last result as a compact poster with its receipt, this week's top 5,
+    >   `Start a lobby`; the finished-state sign-in line and Your night are M14.35 / M14.36, not here; fearless is **not** restyled here: today's card stays in place and M14.30 replaces it in
+    >   every state, since `Fearless bans: 34 · Show` is retired by decision row 2026-10-03), **filling** (`6 IN THE LOBBY · Four
+    >   more to go`, one compact roster, the empty seats as one line, `Still needed: jungle, support`),
+    >   **more than ten** (who would sit out, in order), **balanced** (`TEAMS ARE SET`, sit-out card, the
+    >   answer line `YOU on RED, playing support`, the viewer's side first, their row marked by the word `You`,
+    >   the full receipt, two team cards), **in game** (`23 min in` from `started_at`, `ODDS AT KICKOFF`
+    >   receipt, team cards; role and sign-in controls hidden), **finished** (poster: `<Winner> was <p>%.
+    >   <Winner> won.`, `Upset!` under 50%, deltas, MVP / ACE; tape below), **long nights** (`Show 4 earlier
+    >   games` after three), **new player** (`settling · 4/10` on the seat, `New` in the roster),
+    >   **Realtime down** (`Reconnecting…`; the live dot only when the channel is actually subscribed).
+    > - **The receipt component** (`components/receipt/*`), full and compact, exactly per STRATEGY §4.2 to
+    >   §4.7: one headline number (the labelled bar with a 50% tick, `BLUE 54%` / `46% RED`, solid blue,
+    >   hatched red), the banded sentence (from `oddsBand`), chips `Rating gap 45 pts` / `Main roles 10/10` /
+    >   `Bot's pick #1 of 3`, the reason line (from `describeSwap` + `whyLower`), and `How the bot decided` as
+    >   a native `<details>` **open to everybody**, holding the three ranked splits (stacked cards on phones),
+    >   the two explainers, `The bot's note:` + `splits.explanation` verbatim, and the calibration line (from
+    >   M14.4's `calibration`, hidden under 20 games). Receipt copy lives in one module (`lib/receipt/copy.ts`)
+    >   that M14.10 reuses for Discord. **Retired here:** `Teams are N% even.`, the bare `Gap 45`, team totals.
+    > - **Names are never truncated**: they wrap to two lines; role is an icon on phones; the rating sits under
+    >   the name, and is `Rating` (`round(mu * 60)`), never Proven.
+    > - **No refresh, ever:** Realtime re-reads as today (M13.9's filters); the page also re-reads when the tab
+    >   becomes visible again and when the channel reconnects, so a phone that slept shows the current state.
+    >
+    > ### Edges
+    >
+    > Fewer than ten (no roll; filling copy). More than ten (rotation line before rolling; sit-out card after).
+    > Someone leaves after the roll (the lobby state machine already handles it; the receipt follows what is
+    > stored). Companion disconnects mid-lobby (the page shows the last stored state and the live pill goes
+    > `Reconnecting…` only for the page's own channel, not the companion's: no claim about the host). Unknown
+    > player (a PUUID with no name yet shows the existing fallback). A reroll (`Reroll 1 of 2 · pick #2`).
+    > A rank-2 split with closer odds than rank 1 (the reason line must explain it, STRATEGY §4.4). Duo locks
+    > leaving no runner-up (`This was the only split that fit.`).
+    >
+    > ### Performance
+    >
+    > The client island is the live part only: the receipt's disclosure, the poster and the rail render on the
+    > server; the fearless pool and the rail stream behind Suspense. Report the tonight page's client JS before
+    > and after (`next build` output); it must not grow.
+    >
+    > ### Acceptance
+    >
+    > 1. One fixture per state renders its headline and primary action (tests, role/text queries).
+    > 2. The receipt's numbers come only from `splits` columns and M14.4's helpers; a test feeds a split whose
+    >    `explanation` is garbage and the bar, sentence, chips and reason are unchanged.
+    > 3. The receipt shows in balanced, in game and finished (tests); `How the bot decided` renders for a
+    >    signed-out visitor (test).
+    > 4. A Realtime event for the page's group updates the page without reload; `visibilitychange` re-reads;
+    >    the live dot is off until `SUBSCRIBED` (tests on `TonightLive`).
+    > 5. At 375 with the longest real name on the board and a 16-character Riot name, no name is clipped or
+    >    broken mid-word (Playwright, Direction C's `check.js`).
+    > 6. Screenshots of every state at 375 / 768 / 1440 in `redesign/screens/m14/tonight-*`, checked by
+    >    designer, ≤ 3 rounds. New copy listed for review.
+    > 7. Every test under `app/_tonight/` and `app/(group)/g/[slug]/` asserts by role or text, none by CSS
+    >    class; the count of class assertions left repo-wide is in the report.
+    > 8. Client JS for the tonight route does not grow (report). Typecheck, test, lint, build pass.
+    >
+    > Files: `app/(group)/g/[slug]/page.tsx` and its components, `app/_tonight/*`, `components/receipt/*`,
+    > `lib/receipt/*`, `lib/tonight/*` (loader additions only: rated-game counts for settling, all three
+    > splits for everybody, `started_at`).
+    >
+    > Out of scope: Discord (M14.10); the board (M14.15); champions on seats; admin controls beyond restyling
+    > the existing Roll / Reroll / Start buttons.
+
+- [x] **M14.10** The receipt in Discord, Rating in every post, and posts link to the game page. *(owner:
+  `platform-engineer`; after M14.9; `lib/discord/*`)* Done 2026-10-03 (merge `ab071b3`; review passed round 2). Open: the `-#` subtext check on a real Discord channel (needs a scratch webhook from the user); `EXPLANATION_STYLE='italic'` is the fallback.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > - Teams embed **description** is the text receipt of STRATEGY §4.9 (bar of 20 `▰▱` cells, sentence,
+    >   chips line, reason line, core's sentence as `-# ` subtext, falling back to italic if subtext does not
+    >   render in an embed description on desktop, iOS and Android, which the engineer verifies on a real
+    >   channel and reports). Field names become `Blue` and `Red` (totals dropped). Built from
+    >   `lib/receipt/copy.ts`, the same module the page uses.
+    > - Result embed: `Blue was 54%. Blue won.` (+ ` Upset!`), then the existing top-damage clause; its title
+    >   links `/g/<slug>/games/<id>` (M13.11's Discord half, folded here). Every link a post carries is the
+    >   group's.
+    > - Reroll embed: `Reroll 1 of 2. ` prefix, as today.
+    > - Weekly and leaderboard posts print `Rating`, never Proven, and order the all-time list on Rating with
+    >   the settling rule (players under 10 rated games listed after, unnumbered).
+    >
+    > Acceptance: (1) snapshot tests for teams, result, reroll and weekly embeds, updated deliberately, each
+    > under Discord's limits (`guardEmbed`) with the receipt never shed; (2) the result embed's `url` is the
+    > prefixed path for a second group (test); (3) no `Proven` or `ordinal` string in any embed (grep +
+    > test); (4) the subtext check reported; (5) typecheck, test, lint, build pass. Out of scope: the
+    > Discord connect flow (M14.20).
+
+- [x] **M14.11** Owner role and member removal. *(owner: `platform-engineer`; after M14.10; migration `0023`)* Done 2026-10-03 (merge `be4e326`; `0023` approved by the user and applied locally; race test updated `29b6004`). CLAUDE.md admin convention updated.
+  **Migration `0023`: SQL approved by the user 2026-10-03; applied after review** (decision row 2026-10-03).
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > STRATEGY §3.5 and the decision rows of 2026-10-03 (owner role; removal; `customs`'s owner).
+    >
+    > ### Shape
+    >
+    > - Migration: `group_memberships.role` check widens to `owner | admin | member`; a partial unique index
+    >   makes **exactly one owner per group**; `GROUP_ROLES` / `groupRoleSchema` in `packages/db` follow.
+    > - Backfill in the same migration: `customs`'s owner is the `BOOTSTRAP_ADMIN_PUUID` player (the migration
+    >   takes it as a literal the user confirms **before** it is applied; if that player has no membership in
+    >   `customs`, the migration stops with an error rather than guessing); every other group's owner is its
+    >   `created_by`'s linked player; a group whose creator never linked keeps its admins and gets an owner on
+    >   the creator's first pairing.
+    > - `create_group` and `redeem_pairing_code` make the creator `owner` (amends M13.5's "always admin").
+    > - New definer functions (locked, service role only): `set_group_member_role_v2` (admins promote members;
+    >   only the owner demotes an admin; nobody demotes the owner), `transfer_group_ownership(group, to)`
+    >   (owner only, target must be an admin, row-locked, old owner becomes admin), `remove_group_member(group,
+    >   player, actor)` (admins remove members; the owner removes admins; nobody removes the owner; revokes that
+    >   person's tokens **in that group**; keeps their `ratings` row and games).
+    > - An `isAtLeast(role, 'admin')` helper replaces the four exact `=== 'admin'` checks
+    >   (`adminAuth.ts`, `viewer.ts`, `admin/players.ts`, `membership.ts`) and every other one a grep finds.
+    > - Routes (zod in `packages/db`): `POST /api/admin/members/role` (now owner-aware), `POST
+    >   /api/admin/members/remove { groupId, playerId }`, `POST /api/admin/owner/transfer { groupId, playerId
+    >   }`. Refusals in words, for M14.22 to show in place: `Only the owner can do that.`, `The owner can't be
+    >   removed. Hand ownership to an admin first.` **[NEW COPY]**
+    >
+    > ### Edges
+    >
+    > A removed person in the next lobby rejoins as `member` with their old rating (M13.3's lazy membership;
+    > test). Removing the last admin who is not the owner is allowed (the owner remains). Two admins removing
+    > each other at once (row locks; one wins). A removed host's Kustom gets 403 on its next post (existing).
+    >
+    > Acceptance: (1) **the migration is shown to the user before it is applied**, with the owner literal for
+    > `customs`; (2) integration tests for every row of STRATEGY §3.5's table, allowed and refused; (3) one
+    > owner per group enforced by the index (test); (4) a removed member's token 403s and their games and
+    > rating row are untouched; their next lobby re-adds them with that rating (tests); (5) no `=== 'admin'`
+    > left in `apps/web` (grep, test); (6) typecheck, test, lint, build pass. Out of scope: the pages (M14.22);
+    > banning; deleting a group.
+
+- [x] **M14.12** An admin's Host-mode pairing mints their host token (server half). *(owner:
+  `platform-engineer`; after M14.11)* Done 2026-10-03 (merge `f0ff481`; no migration; review passed, code). The pair route mints the host token after `redeem_pairing_code`; `/api/companion/me` returns `group`.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > STRATEGY §3.2 step 4 and its decision row. `POST /api/companion/pair` gains `mode: 'host' | 'overlay'`
+    > (absent = overlay, so 0.2.x and M14.6's Kustom keep working). In host mode, after M13.5's linking rules
+    > (never re-link, never steal), when the code's session is owner or admin of the group **and** the PUUID is
+    > that session's linked player, it mints a host token for that PUUID in that group and returns it once
+    > (`{ group, companionToken }`). Otherwise no token, and the answer says why, in the two sentences of
+    > STRATEGY §3.2 (`This code is for <Admin name>'s League account…`, `You're in. Only admins can set up a
+    > host…`). The admin home's pairing card (M14.22) uses the same six-character code (`POST /api/me/pairing
+    > { groupId }`, allowed for owner and admins). Also: `GET /api/companion/me` returns the token's group if
+    > it does not already (M14.6's note).
+    >
+    > Acceptance: (1) admin + matching PUUID + host → one token in that group, shown once, hashed at rest
+    > (test); (2) member + host → linked, no token, the sentence (test); (3) admin + another account's PUUID →
+    > no token, the sentence (test); (4) overlay or no `mode` → M13.5's behaviour exactly (existing tests
+    > unchanged); (5) zod request / response in `packages/db`; typecheck, test, lint, build pass. Out of
+    > scope: the Kustom side (M14.13); the page (M14.22).
+
+- [x] **M14.13** Kustom engine: host pairing on the wire, and M14.6's carry-overs. *(owner: `companion-engineer`;
+  after M14.6 and M14.12; **engine only, no UI change**; the last companion task in M14, then the exe is rebuilt
+  once)* Done 2026-10-03 (merged; review passed round 2): host pairing on the wire, token filed under its group and masked, atomic tmp+rename config writes under an owner-token lock (timeout fails the write), root-state owner fingerprint closes cross-token replay incl. the 0.2.x/0.3.0 upgrade, a host-token swap waits for the end-of-game post. Kustom 0.4.0 built (`build:host` ran; `Kustom.exe` sha256 2cbafc97…); **not published**: it pairs with M14.12's server, so it ships with the 2.0 deploy (M14.27). **Rescoped 2026-10-03** (the user: companion UI is out of scope, decision row): the host pairing screen
+  and Riot's notice inside the app are deferred to the companion UI rewrite. **Carry-overs from M14.6's review,
+  kept:** guard `fileTokenUnderGroup` (groups.ts) so it removes the top-level token only if it is the one being filed; a leftover root queue can replay under a different token for a multi-group 0.2.x user until M14.12 lands (close it here); the config read-modify-write is unlocked against the one-shot `--pair` process (small window; lock or re-read before write).
+
+    > **Brief (product, 2026-10-03; rescoped the same day)**
+    >
+    > - **Engine:** when Kustom runs in Host mode, the existing pairing request (M14.6's `Join a group` card,
+    >   unchanged) sends `mode: 'host'`; a returned token is saved under that group (masked, never logged,
+    >   M2.19) and the watchers start on it with no paste. This is what makes STRATEGY §3.2 step 4 work, so it
+    >   stays. When the server refuses a token, the engine hands its sentence to whatever error line the
+    >   existing card already shows; **no new screen, no new layout, no new control**. Overlay mode never asks
+    >   for or stores a token.
+    > - The three carry-overs above.
+    > - Riot's developer-policy notice (M14.8's wording, `Kustom` as the product) in `apps/companion/README.md`
+    >   only (a doc, not the app UI); no Riot artwork added anywhere.
+    > - Version bumped.
+    >
+    > Acceptance: (1) fake-API tests for token saved under its group, a refusal passed through, and overlay
+    > unchanged; (2) tests for each carry-over: `fileTokenUnderGroup` leaves a different top-level token alone,
+    > a root queue never replays under another group's token, and a `--pair` write racing the running engine
+    > loses nothing (lock or re-read, tested); (3) the notice text is present verbatim in the README (grep);
+    > (4) **no file under the companion's UI (the Tauri shell's front end, the panel renderer, the setup
+    > screens) changes** (diff check in the report); (5) no new client read or write; LCU calls stay in
+    > `packages/lcu`; (6) `pnpm --filter companion build:host` produces a working exe locally (the check, not a
+    > release); (7) typecheck, test, lint pass. **After this task and only then** the lead runs `build:win`
+    > once; the release (`publish:gh`) is the user's (M14.27).
+    >
+    > Deferred to the companion UI rewrite (not M14, no ID until the rewrite is planned): a host pairing
+    > screen, the two refusal sentences as their own UI, Riot's notice on the setup screen's about area.
+
+- [x] **M14.14** Remove seasons, keeping the active season's data. *(owner: `platform-engineer`; after M14.12;
+  migration; before the board)*
+
+    > **Brief (product, 2026-10-03; step 1 and the data rule rewritten the same day on the user's decision:
+    > "remove seasons, I don't care about old seasons, I care about the current one that has data")**
+    >
+    > STRATEGY §3.6 and the decision rows. Seasons go from the screen, the reads and the schema. **Every row of
+    > the active season (`seasons.is_active`) is kept. Rows that belong to any other season may be deleted.**
+    > This is no longer a lossless-or-stop check; it is a count the user sees before anything is dropped.
+    >
+    > ### Step 1: the drop counts (before any SQL is written)
+    >
+    > A **read-only** query that lists, per table, how many rows the migration would delete: non-active
+    > `seasons`, `games` and `ratings` rows whose `season_id` is not the active season, and every row that goes
+    > with those games (at least `game_players` by cascade and `daily_mysteries` by restrict; the engineer
+    > lists every table that references `games` directly or through a cascade, from the migrations). Also the
+    > active season's id and its own row counts, so the user sees what stays. Starting point:
+    >
+    > ```sql
+    > with a as (select id from seasons where is_active)
+    > select 'active season' t, (select count(*) from a) n
+    > union all select 'seasons to drop', count(*) from seasons where id not in (select id from a)
+    > union all select 'games to drop', count(*) from games where season_id not in (select id from a)
+    > union all select 'game_players to drop', count(*) from game_players gp join games g on g.id = gp.game_id
+    >   where g.season_id not in (select id from a)
+    > union all select 'daily_mysteries blocking', count(*) from daily_mysteries d join games g on g.id = d.game_id
+    >   where g.season_id not in (select id from a)
+    > union all select 'ratings to drop', count(*) from ratings where season_id not in (select id from a)
+    > union all select 'games kept', count(*) from games where season_id in (select id from a)
+    > union all select 'ratings kept', count(*) from ratings where season_id in (select id from a);
+    > ```
+    >
+    > The engineer runs it on the local stack and pastes the result. **The user runs the same query on hosted**
+    > (Supabase SQL editor, read-only; nobody in this milestone runs anything against production) **before
+    > M14.27**, and sees the drop counts. If the active-season count is not exactly 1, stop and report.
+    >
+    > ### Step 2: migration and code, one commit
+    >
+    > - Delete the non-active seasons' rows (dependents first where a key restricts, e.g. `daily_mysteries`;
+    >   the migration's header lists what it deletes and why), then re-key `ratings` to `(group_id, player_id)`;
+    >   drop `games.season_id` and `ratings.season_id`; drop `seasons`, `active_season_id()`, `start_season`,
+    >   `set_active_season`. A guard at the top aborts if there is not exactly one active season.
+    > - Every `season_id` read and filter removed from `lib/board`, `lib/stats`, `lib/ingest` (fold, rebuild,
+    >   balance, roles), `lib/discord`, `lib/admin`, `lib/season.ts` (deleted), `rebuild-ratings`.
+    > - `/admin/seasons` deleted (a web file, deleted here with the lead's say-so because the build breaks
+    >   otherwise) and redirected (308) to the admin home; M2.18's and M3.17's no-season sentences and every
+    >   "season" in copy removed.
+    > - `rebuild-ratings --dry-run` on the local stack reports no change in any active-season rating.
+    >
+    > Acceptance: (1) the step 1 counts for local are in the report, and the hosted run is recorded as the
+    > user's (before M14.27); (2) **the migration is shown to the user before it is applied**, with the drop
+    > counts beside it; (3) after `pnpm db:reset` on a fixture with an active and a non-active season, every
+    > active-season `games` / `game_players` / `ratings` row is unchanged (row counts, sum of mu and sigma) and
+    > every non-active one is gone (integration test); (4) `grep -rni season apps/web packages/db/src` finds
+    > nothing outside migrations and tests asserting absence; (5) `/admin/seasons` 308s (test); (6) typecheck,
+    > test, lint, build pass; CLAUDE.md's season mention handed to the lead (M14.3).
+    > Out of scope: the rating reset (M14.18).
+
+  *Done 2026-10-03 (step 2b merged; review passed):* Tonight has no season reads, `legacySeason.ts`/`lib/season.ts`/balance shims deleted, ratings keyed `(group_id, player_id)`; `0026` applied locally with `0027` and `0028` (local DB at `0028`), `pnpm db:types` no diff, full suite green (web 207 files / 2,395 tests incl. integration), `rebuild-ratings --dry-run` clean. Runbook slots filled. Before hosted: the user runs runbook 1.4's drop counts.
+- [x] **M14.15** **(b) The board and the player page** (folds in M13.10): one Rating, settling, trend, games.
+  *(owner: `web-engineer`; after M14.14; the lead lands the CLAUDE.md convention edit with it)* Done 2026-10-03 (lane B; review passed; designer round 1 fixed): board and player page under `/g/<slug>`, one Rating sorted on Rating, settling section on All time only (week/month one list), self lens on You, `loadPlayerBoard` group-scoped, 308s from `/leaderboard`, `/p/:puuid`, `/og/p/:puuid`. **Later on this
+  page (2026-10-03):** the welcome card (M14.33) and the You-vs-them card (M14.35) sit above the stats; leave
+  room, build neither here. **Amended 2026-10-03 (option A nav, decision row): the self lens.** The player page
+  component takes `lens: 'public' | 'self'`. `/g/<slug>/p/<puuid>` is always the public lens, your own page
+  included (current tab Board). `/g/<slug>/you` renders the self lens for the linked viewer: STRATEGY §6(b3)'s
+  header (name in display, the `YOU` sticker, three tiles: Rating with rank or the settling chip, W-L with games,
+  tonight's change, numbers never wrap), then the same trend and games list as the public page, then the account
+  card M14.7b built. Same loader, same numbers: added acceptance (13) the self lens and the public page of the
+  same player print the same Rating, W-L and games (test); (14) `/you` signed out or not linked keeps M14.7b's
+  states (test); (15) screenshots `you-self-*` at 375 / 768 / 1440 in the same designer rounds.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > M13.10's brief and acceptance (the move to `/g/<slug>/leaderboard` and `/g/<slug>/p/<puuid>`, group
+    > scoping, the 404 for a PUUID with nothing in the group, redirects with query strings, the og card)
+    > **plus** STRATEGY §5 and §6(b):
+    >
+    > - **One number, `Rating`.** Proven is gone from every surface. All windows sort on Rating.
+    > - **Ranked** (10+ rated games in the group, counted since `ratings_since` when M14.18 lands, all games
+    >   before), numbered; **Still settling** below, unnumbered, with `settling · 4/10` and the section line
+    >   `New players' ratings move fast at first. They get a rank after 10 games.` Week windows: one list, no
+    >   settling section (unchanged weekly rating). Players with no rated game in the window are counted under
+    >   the board: `+ 9 people who haven't played a rated game yet.`
+    > - Row: rank, name (wraps), `W–L`, games, Rating, trend arrow + window change (`+43`, not coloured by
+    >   sign). Tap → player page. **No inline expansion** of every game.
+    > - Sort select (native): Rating (default), Games, Win rate; the settling section always stays below.
+    > - Window chips as links with `aria-current`; unknown `?window=` falls back to the default; `All time`
+    >   reads `Since <date>` once a group has reset (wired when M14.18 adds the column).
+    > - Player page: one big `Rating 1512`, the settling chip if any, the trend line (server SVG, `role="img"`),
+    >   `Started at 1200, 37 rated games since.`, games list with the compact receipt per row (M14.9's
+    >   component; pre-game odds from M14.4 where there is no split).
+    > - Empty group: `No rated games yet. The board fills in after your first Summoner's Rift game.` Over 100
+    >   rows: paginate at 100.
+    >
+    > Acceptance: M13.10's five, plus (6) no `Proven` / `ordinal` in rendered HTML (test); (7) the order on
+    > the page equals the order of the printed Ratings within each section (test on real-shaped fixtures,
+    > including the audit's 1361-below-1287 case); (8) a 9-game player is in settling, a 10-game player is
+    > ranked (test); (9) the all-time board's HTML for a 100-player fixture is under 300 KB (no per-row game
+    > lists); (10) screenshots at 375 / 768 / 1440 (week, all time, settling, empty, player page), designer
+    > ≤ 3 rounds, new copy listed; (11) board and player tests use role/text queries; (12) typecheck, test,
+    > lint, build pass. Out of scope: changing how ratings are computed; the weekly rating.
+
+- [x] **M14.16** **(c) Game history and the game page** (folds in M13.11's pages): filters, a receipt on every
+  game, pagination. *(owner: `web-engineer`; after M14.15)* Done 2026-10-03 (lane C; review and designer round 1 passed): `/g/<slug>/games` (filters, 25 per page with a clamped page), the game page (scoreboard + full receipt, ARAM laneless, That's me, VersusPitch), the share card moved, `formatMinutes`. **Later on this page (2026-10-03):** the sign-in line
+  and `That's me` beside the scoreboard (M14.34, M14.35); build neither here.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > M13.11's page half (`/g/<slug>/games`, `/g/<slug>/games/<id>`, cross-group 404, `/og/g/<slug>/games/<id>`,
+    > redirects; Discord links were done in M14.10) **plus** STRATEGY §6(c):
+    >
+    > - Filters in the URL: player (native select of the group's members), date (`Tonight`, `This week`, `This
+    >   month`, `All`), mode (Rift / ARAM). `No games match. Try a wider date range.`
+    > - Each row: date, duration as `21 min` (**never** `21:46`), winner, the compact receipt, the viewer's own
+    >   line if they played; the whole row links to the game page. **25 per page** (links, not infinite scroll).
+    > - Game page: the full receipt (finished variant, disclosure open-able) **and** the scoreboard (KDA,
+    >   damage, gold, CS, vision) and MVP / ACE, on one page.
+    > - Split-less games: pre-game odds (`PRE-GAME ODDS`, `Kustom didn't pick these teams. Odds from
+    >   everyone's ratings going in.`); teams changed after the roll: the other line of STRATEGY §4.10; any
+    >   `mu_before` missing: `No odds for this game.` ARAM: the ARAM label, no rating claims.
+    > - The calibration line at the top of the list (STRATEGY §4.8's qualifying rule, computed in the loader,
+    >   counted by M14.4's `calibration`), hidden under 20 with `Not enough games yet to check the bot's odds
+    >   (<N> of 20).`
+    >
+    > Acceptance: M13.11's page checks, plus (1) each filter narrows the list and survives a reload (tests);
+    > (2) durations format `21 min` everywhere a duration prints, including the tape and the poster (grep for
+    > the old formatter + tests); (3) a backfilled game shows pre-game odds; one with a missing `mu_before`
+    > shows `No odds for this game.` (tests); (4) calibration counts only qualifying games, a changed-teams game
+    > excluded (test); (5) all-time `/games` first page HTML under 300 KB on a 500-game fixture (report);
+    > (6) screenshots (list, filtered, empty, game page rolled / backfilled / ARAM / no odds) at three widths,
+    > designer ≤ 3 rounds, new copy listed; (7) tests use role/text queries; (8) typecheck, test, lint, build
+    > pass. Out of scope: editing or deleting games (admin, M14.23).
+
+- [x] **M14.17** **Stats with three segments** (`Records · Champions · 1v1`) and the daily guess under the
+  group (folds in M13.12). *(owner: `web-engineer`; after M14.16)* Done 2026-10-03 (lane C; review and designer round 1 passed): Stats as Records · Champions · 1v1 (duos fixed, /fun 58 MB → < 350 KB, Records sections as `<details>`), redirects. Daily 2.0 is the new M14.38; By role top-3 follow-up in flight. **Amended 2026-10-03 (option A nav, decision
+  row):** Stats, Fun and 1v1 become one Stats tab with three segments, per STRATEGY §2.4's segment table and
+  §6(b2); the brief below still holds where it does not conflict, and its "on More / More's cards" wording is
+  void (More is gone, M14.7b).
+
+    > **Amendment (product, 2026-10-03), the three-segment page**
+    >
+    > - **URLs:** `Records` at `/g/<slug>/stats` (default), `Champions` at `/g/<slug>/stats/champions`, `1v1` at
+    >   `/g/<slug>/stats/1v1`. Segments are links with `aria-current`, styled as a segmented control (44px,
+    >   equal thirds), working without JS. The window chips are shared and carried in `?window=` across segments;
+    >   unknown `?window=` falls back to the default.
+    > - **What goes where:** Records = One game, CS by role, the habit, the museums, luck, won against the odds
+    >   (from `/stats` and most of `/fun`). Champions = most picked, most banned, fear ban, who they lock,
+    >   one-trick, always a new champ (from `/fun`'s champion half). 1v1 = lane wars, lane bully, dead heat, Pick
+    >   two, and **the one duos block** (best and worst together, nemesis) replacing Stats → Duos and Fun →
+    >   Friends and enemies. No section appears in two segments.
+    > - **Pick two** reads `?a=<puuid>&b=<puuid>` and opens filled (M14.35 links here).
+    > - **Daily** at `/g/<slug>/mystery`, current tab Tonight, reached from Tonight's Daily card, You's Daily
+    >   card (your streak; this task adds that card to `/you`) and the Discord post.
+    > - **Redirects (308, query carried), landed here because the targets now exist:** `/g/<slug>/fun` →
+    >   `/g/<slug>/stats`; `/g/<slug>/1v1` → `/g/<slug>/stats/1v1` (`a`/`b` carried); legacy `/stats`, `/fun` →
+    >   `/g/customs/stats`; `/1v1` → `/g/customs/stats/1v1`; `/mystery` → `/g/customs/mystery`. `lib/nav.ts`'s
+    >   `stats`, `fun`, `versus`, `mystery` rows flip to moved.
+    > - **Acceptance, replacing (5) and (7) below and adding (10) to (12):** (5) each segment's HTML on the
+    >   500-game fixture is **under 1 MB** (the `/fun` cap now applies per segment; report); (7) screenshots of
+    >   the three segments and the daily guess at 375 / 768 / 1440, designer ≤ 3 rounds, new copy listed; (10) the
+    >   redirects above (tests); (11) no section renders in two segments, and only one duos block exists in the
+    >   app (test + grep); (12) `?window=` survives a segment switch and Pick two opens filled from `?a=&b=`
+    >   (tests). (6), the duos test, now runs against the one block.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > M13.12's brief and acceptance, in the new design, reached from the Stats tab (their rows in `lib/nav.ts`
+    > flip; "More's cards" void since 2026-10-03). Plus three audit fixes:
+    >
+    > - **`/fun` payload:** all-time museums are capped (top N per section with a `Show more` link to a paged
+    >   view) so the page's HTML on a 500-game fixture is **under 1 MB** (it is 58 MB on real data today).
+    > - **Duos bug:** Stats → Duos never shows the same pair as best and worst; with fewer than two qualifying
+    >   pairs, only `Best duo` shows (test reproducing the audit's case first).
+    > - `/1v1` selects at 17px (no iOS zoom), native, as the design system says.
+    >
+    > Acceptance: M13.12's four, plus (5) `/fun?window=all` under 1 MB on the fixture (report); (6) the duos
+    > test; (7) screenshots of the four pages at three widths, designer ≤ 3 rounds, new copy listed; (8)
+    > tests use role/text queries; (9) typecheck, test, lint, build pass.
+
+- [x] **M14.18** Reset ratings: the per-group epoch. *(owner: `platform-engineer`; after M14.17; migration)* Code done 2026-10-03 (review passed; `0027` written, applied locally together with `0026` after M14.14 2b): `groups.ratings_since`, `reset_group_ratings()` (owner, busy guard, deletes the group's ratings rows), the route, epoch in the fold (re-checked before the upsert) and rebuild, the owner's card (admins see it disabled), the board's `Since <date>` chip and month line, one Discord post.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > STRATEGY §3.6. `groups.ratings_since timestamptz null`. A definer function `reset_group_ratings(group,
+    > actor)`: owner only; refused while a lobby in the group is live or a game finished in the last 15
+    > minutes (`Finish tonight's game first.`); sets `ratings_since = now()` and folds the group from seeds
+    > counting only games after it (in effect, everyone to 1200). The live fold and `rebuild-ratings --group`
+    > respect `ratings_since`. Route `POST /api/admin/ratings/reset { groupId, confirmSlug }` (the slug must
+    > match, server-checked, not only in the page). Discord: `Ratings were reset. Everyone starts at 1200
+    > again. Top 3 before the reset: …` (the only record). The settling count and the board's `Since <date>`
+    > read `ratings_since`. Games, their stored deltas and the weekly rating are untouched; calibration keeps
+    > every game.
+    >
+    > Acceptance: (1) **the migration is shown to the user before it is applied**; (2) after a reset, every
+    > member's group rating is the seed and a later game folds from there (integration test); (3) `rebuild-
+    > ratings --group` after a reset reproduces the same numbers (test); (4) refused for an admin, for a wrong
+    > slug, with a live lobby, within 15 minutes (tests, each with its sentence); (5) another group untouched
+    > (test); (6) the Discord post fires once (test); (7) typecheck, test, lint, build pass. Out of scope:
+    > per-person resets (never); archives of the old board.
+
+- [x] **M14.19** The operator: super-admin read-only across groups (**M13.6, folded in unchanged**).
+  *(owner: `platform-engineer`; after M14.18)* Done 2026-10-03 (merge `d78a3bb`; review passed; no migration): `SUPER_ADMIN_USER_IDS`, a read gate that falls back to the operator only after the admin gate's 403 (writes never read the list), `GET /api/admin/group` (invite hidden from the operator), `GET /api/ops/groups`, page helpers `requireAdminReader` / `currentOperator` for M14.23.
+
+    > **Brief:** M13.6's brief and acceptance, word for word (above, under M13). One addition from STRATEGY
+    > §3.3: a super-admin who is not the group's admin gets the invite link **masked** in every admin GET
+    > (`Hidden. Only this group's admins can see the invite link.`), test included.
+
+- [x] **M14.20** Connect Discord in one click (OAuth `webhook.incoming`), paste as the fallback. *(owner:
+  `platform-engineer`; after M14.19; the Discord app and hosted Discord sign-in already exist (the user,
+  2026-10-03), so nothing blocks it; its live check needs one small user step, below)* Done 2026-10-03 (lane P1; review passed; `0025` applied locally): connect/callback/test/status routes, HMAC+stored single-use state, test-post recorded (`discord_config.test_post_at/_error`), paste fallback with `sendTestPost`. Live check waits on the user adding `http://localhost:3000/api/admin/discord/callback` (and the production URL) to the Discord app's redirects.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > STRATEGY §3.2 step 2 and its decision row.
+    >
+    > - `GET /api/admin/discord/connect?groupId=` (admin session) redirects to Discord's authorize URL with
+    >   `scope=webhook.incoming`, a `state` that is signed, short-lived, single-use and bound to the session's
+    >   user and the group. `GET /api/admin/discord/callback` verifies `state`, exchanges the code, stores the
+    >   returned webhook in the group's existing webhook field, sends `Kustom is connected. Teams and results
+    >   will show up here.`, records when the test post was sent, and 303s back to `/g/<slug>/admin/discord`.
+    > - Cancelled, denied or failed: back to the page with `Discord wasn't connected. Try again, or paste a
+    >   webhook link instead.` A failed test post keeps Discord's reason for the page.
+    > - Connecting again replaces the webhook. The paste route stays as it is.
+    > - **Reuse the existing sign-in app** (the one whose id and secret are `SUPABASE_AUTH_DISCORD_CLIENT_ID` /
+    >   `SUPABASE_AUTH_DISCORD_SECRET`): one Discord application can hold several OAuth2 redirect URLs, and the
+    >   `webhook.incoming` code exchange uses the same client id and secret. The web server still reads its own
+    >   `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` (server only, in `.env.example`,
+    >   values copied from the sign-in app), because the `SUPABASE_AUTH_*` pair is read by the Supabase CLI for
+    >   the local stack and hosted sign-in is configured in the Supabase dashboard, not on Vercel. The
+    >   `.env.example` lines `# apps/discord (M4)`, `DISCORD_BOT_TOKEN` and `DISCORD_GUILD_ID` go (there is no
+    >   bot).
+    > - **The user's small step, only when the live check is due:** add `http://localhost:3000/api/admin/discord/callback`
+    >   (and, for M14.27, the production `https://<host>/api/admin/discord/callback`) to that app's OAuth2
+    >   redirects in the Discord developer portal. The engineer asks for it through the lead.
+    >
+    > Acceptance: (1) a fake Discord in tests: success stores the webhook and posts once; a forged, expired,
+    > reused or other-group `state` is refused and stores nothing (tests); (2) a non-admin is 403 on both
+    > routes (test); (3) no Discord user token is stored (test / grep); (4) zod for the callback's query and
+    > Discord's token response; (5) **live check on the local stack against a real test channel once the user
+    > has added the local callback URL to the existing app** (report; until then the task is `partial: live check`); (6) typecheck, test,
+    > lint, build pass. Out of scope: a bot; reading channel names (a webhook carries an id only).
+
+- [x] **M14.21** **(d) `/new` and `/join/<code>`** (folds in M13.13), with the two-way join. *(owner:
+  `web-engineer`; after M14.20)* Done 2026-10-03 (lane D; review passed; designer round 2 passed): `/new`, `/join/<code>` (two-way join), the creator's admin home with the data-derived checklist and host card; friendly 401/403 sentences. **Next (2026-10-03):** M14.33 sends every linking path, `/join`'s included, to
+  `/g/<slug>/you?welcome=1` (was `/p/<you>?welcome=1` until the option A nav, 2026-10-03); this task keeps today's success screen and M14.33 swaps the target.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > M13.13's brief and acceptance, in the new design, with STRATEGY §3.3 / §3.4's changes: the creator lands
+    > on `/g/<slug>/admin` as **owner** straight away (no pairing screen first); `/join/<code>` for a signed-in,
+    > unlinked person shows `Which League account is yours?` with two cards, `I have Kustom` (the code, 15
+    > minutes, `That code ran out.` + `New code`) and `I don't` (play a game with the group, then tap your name
+    > on tonight's page; `Open <Group>`); `Copy link` / `Copied` in place; `You're in.` on `?joined=1`.
+    >
+    > Acceptance: M13.13's five, plus (6) the creator's first page is admin with the checklist (test); (7) the
+    > two-card state renders for an unlinked session (test); (8) screenshots of every state at three widths,
+    > designer ≤ 3 rounds, new copy listed; (9) typecheck, test, lint, build pass.
+
+- [x] **M14.22** **(d) Admin home and members** (first half of M13.14): checklist, invite, roles, removal,
+  reset, host setup. *(owner: `web-engineer`; after M14.21)* Done 2026-10-03 (lane D; review and designer passed): admin home (checklist, invite card, Tonight link card, members summary), Members page (owner/admin/member, removal, transfer, all behind AlertDialog), the operator read-only view. Roll/Reroll stay on Tonight (lead). Reset ratings waits for M14.18 (slot). **Amended 2026-10-03 (option A nav):** admins enter
+  from You's `Admin` card (phones), `Admin` in the desktop top bar, and Tonight's controls; the admin pages' back
+  link goes to `/g/<slug>/you`, and the `Admin` card's link flips to `/g/<slug>/admin` when this task moves it.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > M13.14's brief for the admin home, players and backfill-free members list (backfill approval is gone,
+    > decision row 2026-10-03), at `/g/<slug>/admin` and `/g/<slug>/admin/members`, plus STRATEGY §3.1 to §3.6
+    > and §6(d):
+    >
+    > - **`Get your group ready`** checklist, **derived from data only** (no stored progress, no "mark done"):
+    >   group created / Discord connected (a test post landed) / friends invited (one other member) / Kustom
+    >   installed (a host token in this group seen) / first game played. Collapses to `Your group is ready for
+    >   game night.`; a row reopens if its fact stops being true.
+    > - Invite card (`Copy link` / `Copied`, `New link` with confirm `Make a new link`). Tonight shortcuts
+    >   (Roll / Reroll), **each destructive one behind the AlertDialog**. **No mode or fearless control here** (the user,
+    >   2026-10-03: the mode and Reset live on Tonight's Mode card only, M14.30). A link back to `/g/<slug>` (M13.14's
+    >   added note).
+    > - `Set up this PC as host`: the three steps and the pairing code from M14.12.
+    > - Members: role in words (`Owner`, `Admin`, `Member`), last played, games; `Make admin`, `Make member`,
+    >   `Remove from group`, `Make owner` per §3.5, each with its confirm; refusals shown in place, never only
+    >   in a toast. Stacked rows under 768 (§5.12), no clipping.
+    > - `Reset ratings` section at the bottom: owner only, typed-slug confirm, `Finish tonight's game first.`
+    >   in place; admins see it disabled with `Only the owner can reset ratings.`
+    > - States: not an admin (existing page), signed out (sign-in, back here), super-admin read-only (M13.14's
+    >   line; wired fully in M14.23).
+    >
+    > Acceptance: M13.14's (1) to (3) and (5), plus (6) each checklist row flips on its data (tests per row);
+    > (7) every destructive action opens a confirm with initial focus on Cancel (tests); (8) the owner row
+    > has no remove; an admin sees no remove on another admin (tests); (9) the reset is absent for admins and
+    > posts the typed slug for the owner (test); (10) screenshots (fresh group, ready group, members at 375 and
+    > 1440, each confirm), designer ≤ 3 rounds, new copy listed; (11) admin tests use role/text queries; (12)
+    > no mode picker or fearless reset renders on any admin page (test, M14.30's acceptance 13); (13) typecheck,
+    > test, lint, build pass. Out of scope: Discord, Hosts, Games pages and `/ops` (M14.23).
+
+- [x] **M14.23** **(d) Admin Discord, Hosts, Games, and `/ops`** (rest of M13.14). *(owner: `web-engineer`;
+  after M14.22)* Done 2026-10-03 (lane D; review and designer round 1 passed): admin Discord (connect/test/paste, no guild id needed), Hosts (host keys, stop behind confirm), Games (group-scoped), `/ops`; one StackedTable; the 1.0 admin retired with 308s; `/admin/login` restyled (lane B). M13.14 closes.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > - `/g/<slug>/admin/discord`: `Connect Discord` (M14.20), the line about needing webhook permission, `Or
+    >   paste a webhook link instead` opening today's field with the how-to and `Save and send a test post`;
+    >   states not connected / connected (`Done · test post sent <time ago>`) / cancelled / failed (Discord's
+    >   reason). Works without M14.20's live check (paste path).
+    > - `/g/<slug>/admin/hosts` (replaces `/admin/tokens`): mint (shown once), list with last seen, revoke
+    >   **with confirm**. No `revoked_at`, `pnpm`, snowflakes or other developer copy.
+    > - `/g/<slug>/admin/games`: as today, scoped, restyled.
+    > - `/ops`: M13.14's table and read-only admin view for a super-admin (M14.19), 404 for everyone else.
+    > - Redirects (308): `/admin` → `/g/customs/admin`, `/admin/players` → `.../members`, `/admin/tokens` →
+    >   `.../hosts`, `/admin/discord`, `/admin/games`; `/admin/login` keeps working.
+    >
+    > Acceptance: M13.14's (4) and (5), plus (6) revoke has a confirm (test); (7) no developer string from the
+    > audit's list renders (test); (8) the Discord page's four states (tests); (9) screenshots at three widths,
+    > designer ≤ 3 rounds, new copy listed; (10) no mode or fearless control on any of these pages, `/ops` included
+    > (test); (11) typecheck, test, lint, build pass.
+
+- [x] **M14.24** **(e) The public landing page**, `/about`, `/how`, `/download`. *(owner: `web-engineer`;
+  after M14.23)* Done 2026-10-03 (lane E; review passed; designer round 1 fixed): `/` landing (members 307 to their group), `/about`, `/how`, `/download` in `app/(kustom)`; live receipt and counters. Lighthouse perf on `/` 84–91 (borderline; re-measure after M14.25 removes the 1.0 CSS). **Amended 2026-10-03 (option A nav):** `/how` already exists as M14.7b's stub (More's four
+  `How this works` lines); this task replaces its body. The footer's `Get Kustom` flips to `/download`, and
+  group pages' footers gain `What's Kustom?` → `/about` (STRATEGY §2.2, §2.5).
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > STRATEGY §2.2, §2.3 and §6(e), section by section: hero (`Fair teams. No arguments.`, a **real** receipt
+    > from `/g/customs`'s latest rolled game with its date, falling back to the Hana-and-Omar worked example),
+    > the problem, three steps, the proof (receipt with `How the bot decided` open, the demo calibration line
+    > when 20+ games), try it (`Open Customs Night`, live counters rounded down, hidden if unavailable, never
+    > zeros), the companion explained honestly, the final CTA (`Free. Sign in with Discord to start.`), the
+    > FAQ in `<details>`. `/` routing: signed-in member → 307 to their group; signed in, no group → landing
+    > with `Create your group`; signed out with the cookie → landing + `Back to <Group> →`. `/about` never
+    > redirects. `/how` (the receipt explained, FAQ) and `/download` (what it reads and never touches, Windows
+    > only, Host vs Overlay, the release link, Riot's notice) ship with it. No scroll-reveal that renders empty;
+    > no hidden text for AI assistants; no Riot or League logo.
+    >
+    > Acceptance: (1) the four `/` cases (tests, replacing M13.9's `/` → `/g/customs` and `/new` rules, with a
+    > decision row); (2) the hero receipt reads live demo data and falls back when there is no rolled game
+    > (tests); (3) counters hidden when the query fails (test); (4) Lighthouse on `/` at 375: performance and
+    > accessibility each 90+ (report); (5) the page works with JavaScript off (Playwright); (6) screenshots at
+    > three widths of each case, designer ≤ 3 rounds; **every landing string is listed for the user's review**;
+    > (7) typecheck, test, lint, build pass. Out of scope: pricing, analytics, a blog.
+
+- [x] **M14.25** Retire Floodlit: delete the old CSS and the last CSS-class assertions. *(owner:
+  `web-engineer`; after M14.24)*
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > The ~5.2k lines of Floodlit CSS (`tokens.css`, `theme-gaming.css`, `shell.css`, `tonight.css`,
+    > `board*.css`, `admin.css` and the rest) are deleted once no page uses them; the `(site)` route group's
+    > leftovers are gone or redirects; share cards (`/og/*`) restyled to Direction C. The audit counted 414
+    > CSS-class assertions in 21 test files; each screen task migrated its own, and this one finishes the rest.
+    >
+    > Acceptance: (1) zero CSS-class assertions in `apps/web` tests (the grep in the report returns nothing);
+    > (2) no Floodlit stylesheet imported anywhere; (3) every route in STRATEGY §2.6 renders in Direction C
+    > (Playwright sweep at 375 and 1440); (4) an axe sweep over every route with no serious violation; (5)
+    > typecheck, test, lint, build pass.
+
+  *Phase 1 done 2026-10-03 (review passed):* deleted the page-less `(site)` layout, the 1.0 `app/_shell` shell,
+  `LegacyStage`, the orphaned BoardCard/BoardRow/board parts, `shell.css` and six unimported Floodlit stylesheets
+  (3.2k lines; import-graph check, cross-checked against the in-flight Tonight branch). Left for phase 2 (after
+  the Tonight lane merges): `tokens.css`, `theme-gaming.css`, `tonight.css`, the scoped preflight in
+  `globals.css`, the Plex Mono preload, the `current` theme migration, the `/og/*` restyle, dead Tonight-side
+  components (ResultPoster, RoleCell, MysteryTeaser) with their 58 class-assertion lines, and the dead lib
+  modules (`lib/adminPage.ts`, `lib/games/{window,params}.ts`, `lib/overlay/copy.ts`, `lib/admin/rollable.ts`).
+
+  *Phase 2 done 2026-10-03 (review passed; designer rounds 1–2):* `tokens.css`, `theme-gaming.css`, `tonight.css` and the dead Tonight/lib modules deleted; the 2.0 base is global (`kustom2` retired), one CSS chunk (62.5 KB, was 71.9 + 16.7); Plex dropped, Atkinson/Martian/Archivo preloaded; share cards in Direction C (05-design §5.16); display tracking by size; zero CSS-class assertions; 192-shot before/after sweep identical except the receipt kit's background and the tracking fix. Lighthouse `/` mobile median 89 (before 91, within noise), CLS 0. Acceptance (4), the axe sweep, runs in M14.26.
+- [ ] **M14.26** Milestone review and the scene walk. *(owners: `reviewer`, then `product`; after M14.25)*
+
+    > Reviewer: every M14 acceptance against the code, the migrations against the decision rows, and the
+    > permission matrix (STRATEGY §3.5) against the routes. Product: run the app on the local stack and walk
+    > the scene (ten in a lobby via fixtures, roll, game, result, board, history; a stranger from `/` to a new
+    > group to a first game) at 375; every gap becomes `M14.37+` with an acceptance check (M14.29 to M14.32 went to
+    > Fearless 2.0 and M14.33 to M14.36 to the sign-in reasons, 2026-10-03).
+
+- [x] **M14.37** Copy per the product review: every row of `redesign/copy-review.md` (31, all accepted) applied
+  to landing, Tonight, You, Discord and server sentences. *(owner: `web-engineer`; after M14.24)* Done 2026-10-03
+  (two parts merged: landing copy 46667e2, Discord and server copy 291e6b7). The Phase 4 review found three strings
+  the review missed (`IDLE_SENTENCE`, `NO_COMPANION_AROUND`, `tokenPage.ts`); they close in M14.39.
+
+    > Acceptance: (1) every copy-review row is live or its row says why not; (2) `grep -rn "Proven\|favoured\|the
+    > companion" apps/web/lib apps/web/app apps/web/components` finds no friend-facing string (comments allowed);
+    > (3) STRATEGY's four amended strings match the code verbatim.
+
+- [x] **M14.38** Daily 2.0: the daily game in Direction C. *(owner: `web-engineer`; split out of M14.17)* Done
+  2026-10-03 (fff33b7; review and designer rounds passed): Slate card, one h1 and back to Tonight, neutral answer
+  rows, minutes through `lib/games/duration.ts`, visible share, lock-in wraps and asks, champion names.
+
+    > Acceptance: (1) `/g/<slug>/mystery` renders in Direction C at 375/768/1440 with one h1 and no horizontal scroll;
+    > (2) answer rows are colour-neutral until the reveal and the reveal never relies on colour alone; (3) the share
+    > text is visible and copyable without JS; (4) no CSS-class assertions in its tests.
+
+- [x] **M14.39** Phase 4 web fixes. *(owner: `web-engineer`; from M14.26's acceptance review)*
+
+    > (1) `pnpm -r test` exits 0 on the local stack (the share-card Record integration assertion follows M14.25's
+    > `parts`); (2) with JS off, `/g/customs` and `/g/customs/leaderboard` show their real h1 and no `Loading…`
+    > (no streaming `loading.tsx` on a no-JS route); (3) `grep -rn formatDuration apps/web/app apps/web/lib` finds
+    > nothing outside tests, a 34-minute game reads `34 min` in admin Games and Discord output is unchanged; (4)
+    > M14.37's grep is clean; (5) `withAdminAuth` defaults `redirectTo` to the request's own group admin; (6) stale
+    > `shell-more-*` screenshots removed.
+
+  *Done 2026-10-03 (review passed):* share-card Record assertion follows `parts` (`pnpm -r test` exits 0 on the local stack, every package); Tonight's and the Board's `loading.tsx` (and `LoadingView`) removed, no-JS check shows the real h1 on both; admin Games and Discord through `lib/games/duration.ts` (`formatLifeSpan` keeps the mystery clue's seconds); the last `the companion` strings say Kustom; `withAdminAuth`'s default `redirectTo` is the checked group's admin (the ten routes with a hard-coded 1.0 path move in M14.40).
+- [x] **M14.40** Phase 4 platform fixes. *(owner: `platform-engineer`; from M14.26's acceptance review)*
+
+    > (1) An integration test proves a session with an expired access token and a valid refresh token stays signed in
+    > across `/g/<slug>/you` then `/g/<slug>/admin` with refreshed `Set-Cookie` (proxy refreshes on every page that
+    > reads the session), or closes the risk as not a bug with that test; (2) the group's creator (`groups.created_by`),
+    > before linking a player, passes the write gate for Discord connect/test/config and invite rotate in that group
+    > only, and nothing else (tests both ways; lead ruling, STRATEGY §3.1/§3.2 "any order"); (3)
+    > `grep -n -i season docs/01-architecture.md` returns only a history line and its data model lists the `0021`–`0028`
+    > objects; (4) `group_modes.set_by` is hidden from anon or a decision row says why it is harmless.
+
+  *Done 2026-10-03 (review passed):* (1) the sign-out was not real (GoTrue hands a spent parent's client the active token; pinned by `sessionRefresh.integration.test.ts`), but `proxy.ts` now refreshes the session on every page route with an `sb-` cookie anyway; (2) `authorizeSetupWrite` lets the unlinked creator do the four setup writes, pinned by `setupGate.test.ts`; (3) 01-architecture at the 0028 schema, season grep returns the history line; (4) `0029_admin_ids_private.sql` hides `group_modes.set_by` and `fearless_state.reset_by` from anon/authenticated, applied locally; plus every admin form post returns to its own group's admin section, token minting is JSON only (`tokenPage.ts` deleted). Local DB at `0029`.
+- [x] **M14.41** Scene-walk fixes, Tonight and Discord. *(owner: `web-engineer`; after M14.39; from M14.26's
+  scene walk, `redesign/scene-walk.md` gaps 1–6, 12 (Tonight/embed copy), 16)*
+
+    > Acceptance is each gap's own block in `redesign/scene-walk.md`, in short: (1) one Rating per person: Tonight's
+    > top card is `Top this week` with W–L and the week's change, no four-digit number, and a test asserts no name sits
+    > beside two different four-digit numbers on Tonight or in the embeds; (2) Roll teams, Reroll and Start a lobby
+    > are inside the first 812px at 375, clear of the tab bar (Playwright measure); (3) signed out at 375×812, in
+    > balanced and in game, all ten names with their side in words show without scrolling; (4) the sit-out card is
+    > first after the header and the page and the embed share one reason sentence with tie and first-game variants,
+    > unit-tested; (5) every team-card, MVP/ACE and scoreboard name links to its player page with 44px targets, and
+    > the finished poster links its game page; (6) the receipt counts main roles only among players who have one
+    > (`Main roles 6/6 · 4 new`); (12) `1 played`, `Sitting out: Sitting out` fixed; (16) the in-game timer uses the
+    > companion's `startedAt` when stored, else a won't-fix decision row if it needs a migration; (A6, REPORT.md) the
+    > direct `/g/<slug>/mode` page's lanes sit one heading level below its h1 (axe `heading-order` clean).
+
+  *Done 2026-10-03 (review 2 rounds, designer 2 rounds passed):* `Top this week` (W–L and the week's change, no four-digit number; test over Tonight and the teams/result embeds); the strip carries the viewer's one press and, for anyone without an answer band, the ten names as two side rows (at 375×812: presses end ≤ 503, names ≤ 478, tab bar at 751); the sit-out card first with one reason sentence for page and embed (`lib/tonight/sitOut.ts`, skips the host like `selectTen`); seat, MVP/ACE and scoreboard names link, `Full scoreboard` on the poster; live main-role counts (`Main roles 6/6 · 4 new`) and `explanationShown` keeps the bot note from contradicting the chip; `<n> earlier`, `Start the next lobby`, mode lane headings (A6), `Get Kustom ↗`. Gap 16 won't-fix (decision row).
+- [x] **M14.42** Scene-walk fixes, the other pages. *(owner: `web-engineer`; from `redesign/scene-walk.md` gaps 7, 8,
+  9, 11, 12 (games row, host card), 13, 15)*
+
+    > (7) the Egyptian Arabic roast subtitles render for `customs` only (test both groups; the 2026-09-12 row narrowed);
+    > (8) `/download` says `More info, then Run anyway` for SmartScreen and the Overlay line reads `Nothing to set up.`;
+    > (9) `/`, `/about` and `/join/<code>` have link previews (`Join <Group> on Kustom`, a dead code names no group) and
+    > group pages' titles name the group; (11) share cards name the group, the finished Tonight card carries odds and
+    > names, long names never cut off, the player card shows the settling chip; (12) `Red won` once per games row, the
+    > host card no longer points at `Join a group`; (13) the board window carries to the player page, Stats segments
+    > share one default, `Since <date>` only for a group that reset; (15) the kit has `?viewer=unlinked`; plus
+    > REPORT.md A7–A11, G1, G2 (receipt landmark labels, Tonight's tab title, 200% text reflow, `/admin/login` skip link,
+    > `±0` muted, locale on `toLocaleString`).
+
+  *Done 2026-10-03 (review passed; designer 2 rounds):* roast subtitles for `customs` only; /download SmartScreen line; link previews and titles for `/`, `/about`, `/join/<code>` (by slug, never the code) and every group page (`<page> · <Group> · Kustom`); share cards name the group (one line, ellipsis), names shrink to 24 then wrap, settling chip on the Rating row, finished Tonight card in the game layout with the games-row odds; games row names the winner once; board window carries to the player page, Stats opens on All time, `Since` only after a reset; kit `?viewer=unlinked`; A7–A11, G1, G2, the tab bar and h1s at 200% text (soft hyphens: Chromium never auto-hyphenates capitalised words). axe 0 on 16 routes at 375/1440; no horizontal scroll at 200% text on 7 routes.
+- [x] **M14.43** Scene-walk fixes, platform. *(owner: `platform-engineer`; after M14.40; gaps 10, 14 and the host
+  sit-out ruling)*
+
+    > (10) `loadRotation` reads only the group's games (integration test with two groups); (14) the setup checklist
+    > orders the install/link step before anything that waits on it (after M14.40's creator rule, Connect Discord no
+    > longer waits); (host) until a real client proves a spectator host still gets the end-of-game block, the sit-out
+    > rotation never seats out the player whose companion is hosting the lobby (unit test in core; LCU reference row
+    > marked unverified).
+
+  *Done 2026-10-03 (review passed):* `loadGroupPool` reads only the lobby's group (two-group integration test) and reads large id filters in chunks of 100 (fixes a latent `URI too long` on any 11+ roll once a few hundred lobby games are in the window); checklist Create → Discord → Install Kustom → Invite → First game; `selectTen` never seats out the lobby's first reporter (`reported_by_player_id`), so the roll, the Discord post and the Tonight preview agree; LCU spectator end-of-game row marked unverified. The rule lives in `apps/web/lib/ingest/selection.ts` (pure, unit-tested; core has no rotation).
+- [x] **M14.44** Client JS diet. *(owner: `web-engineer`, `platform-engineer` for a zod-free `@customs/db/constants`;
+  after M14.41; from `redesign/quality/REPORT.md` P1, P2, P4, P5)*
+
+    > (1) `StartLobby` reaches no `node:*` module and `lib/lobbyStart.ts`, `lib/companionAuth.ts`,
+    > `lib/groups/pairing.ts`, `lib/discord/connect.ts` carry `import 'server-only'`; Tonight's client JS drops at least
+    > 100 KB gzip; (2) no chunk on `/`, the board, a game page or stats contains `ZodError`, those routes drop at least
+    > 70 KB gzip, and a vitest walks the client import graph and fails on zod outside an allow-list (runs in CI); (3)
+    > Tonight's live channel uses `@supabase/realtime-js` alone (no GoTrue/PostgREST in its chunks), reconnect and
+    > refresh still work; (4) Lighthouse mobile medians of 3 re-measured on the six report routes, board CLS ≤ 0.05.
+
+  *Done 2026-10-03 (review passed):* module JS gzip Tonight 447.1 → 188.9 KB (P1 −121 polyfills, realtime-js alone and the reroll string −45, start-lobby schema loaded on the press −90), `/` 244.7 → 156.0, board/games/game/stats ≈ −92 each with no `ZodError`; Lighthouse mobile medians `/` 92, Tonight 91, board 93 (CLS 0.000), games 93, game 93, stats 92; `lib/clientGraph.test.ts` guards the client graph in CI (it caught M14.42's `?window=` links pulling zod into two client components on the merged tree; fixed in M14.45); Tonight live checked in two tabs with a forced socket drop; additive `@customs/db/constants`.
+- [x] **M14.45** Tonight loads only the champion icons it shows. *(owner: `web-engineer`, designer amends 05-design
+  §8.8; after M14.41; REPORT.md P3)*
+
+    > (1) Tonight (finished, Fearless on) loads ≤ 150 KB of images: per-champion squares, lazy, with width and height;
+    > (2) the six sprite sheets preload only on intent (pointerenter/focus on the Mode card link) and the panel still
+    > paints its icons on open; (3) Tonight's Lighthouse mobile perf median ≥ 88.
+
+  *Done 2026-10-03 (review passed; numbers from the engineer's production-build run on a seeded scratch group, Lighthouse 13.5.0 mobile median of 3):* Tonight (finished, Fearless on) images 825.9 → 11.8 KB (ten ~1 KB WebP squares through the image optimizer, sheets only on intent and when the panel renders); total page 1542 → 469 KB; perf 85 → 90 (needed M14.44's JS diet; the sheets never counted toward LCP); CLS 0.029 → 0.003, filling 0.109 → 0.001 (the live tag re-wrapped the long date; the strip's top line is now fixed at `--chip-h` with the short date). Plus: poster odds name the winner once, off-role sentence only when it adds to the chip, `YOU in the lobby · <role>`, That's me never wraps, repair hint, distinct-PUUID counts everywhere, reroll integration test follows M14.41, and the board window helpers are zod-free for client links (`lib/board/windowKinds.ts`).
+- [x] **M14.46** New groups start on Normal (`0030`). *(owner: `platform-engineer`; the user, 2026-10-03: "new
+  groups should start on normal"; decision row 2026-10-03)* `group_modes.mode` defaults to `'normal'`,
+  `groups_insert_mode()` names `normal` outright, and `games_stamp_mode()`'s fallback for a group with no mode row is
+  `normal`. **Existing groups keep their mode** (`customs` included): no row is rewritten. A read that finds no mode
+  row falls back to Normal (`NEW_GROUP_MODE`), so the page, the stamp and a new group agree. Acceptance: a group
+  created after `0030` opens on Normal; every pre-`0030` group's mode is unchanged; a no-row read and a no-row game
+  stamp both say `normal` (tests). *Done 2026-10-04 (merged `692d347`; review passed): `0030` applied locally, local
+  DB at `0030`; hosted gets it with the 2.0 deploy (M14.27).*
+- [x] **M14.47** The Day/Night switch in the top bar on every page. *(owner: `web-engineer`, `designer` for
+  placement; the user, 2026-10-03; decision row 2026-10-03; merged 2026-10-04, review passed)* The switch sits in the top bar on every page,
+  phone and desktop; the You page keeps its own, and the two stay in sync (one stored preference). Acceptance: the
+  switch is reachable from every page without scrolling, at 375 px and on desktop; flipping it in the top bar flips
+  the You page's and the other way round; no layout shift in the top bar; screenshots both themes, designer signs.
+  *Done 2026-10-04:* a 44px sun/moon toggle named `Switch to Day/Night` sits in the top bar of every page (group
+  shell, bare shell, `/admin/login`), kept in sync with the You page's switch by a `data-theme` observer, and hidden
+  until hydrated.
+- [x] **M14.48** Remove This month and Last month. *(owner: `web-engineer`, `platform-engineer` for the posts and
+  crons; the user, 2026-10-03: "its a useless filter"; decision row 2026-10-03; merged 2026-10-04, review passed)* Gone from every board,
+  every Stats segment, every card and every post (the monthly Discord post included); This week, Last week and All
+  time remain. An old `?window=` month link falls back to the page's default window, never a 404 or an empty board.
+  Acceptance: no month option or month heading on any page, card or post (grep for the copy and the window ids);
+  an old month link renders the default (test); the weekly post and All time are unchanged (snapshots).
+  *Done 2026-10-04:* the month windows are gone from the window type, the board, the player page, Stats, the Games
+  chips (now `Tonight · This week · All`), awards (weekly only; the month minimums retired) and the window cron
+  (closed week only). Old `?window=this-month` / `last-month` links fall back to each page's default.
+  `window_posts` keeps its old `last-month` rows, no migration.
+- [x] **M14.50** Hosts list that names the PC and fades stopped ones. *(owner: `web-engineer`; polish to
+  should-fix; from the admin audit, `redesign/admin-audit.md` §5, 2026-10-04)* A paired host reads
+  `<Account>'s PC` [NEW COPY] (falls back to `Unnamed PC`), never `This PC`, everywhere: Hosts list, the
+  checklist's `Kustom seen on …`, the confirm title. Stopped hosts fold under `Stopped (N)` [NEW COPY] in a native
+  disclosure. A `Last app version` column only if platform confirms the lobby or `/me` call already carries a
+  version (no new contract field without a decision row; otherwise drop it and record why).
+  Acceptance: no `This PC` anywhere (grep plus test); stopped rows are hidden behind the disclosure by default
+  (test); 375 and 1440 screenshots.
+  *Done 2026-10-04 (review passed):* hosts named `<Account>’s PC` (a typed name wins; never a PUUID fragment) on Hosts, the Stop confirm and the checklist; stopped hosts folded under `Stopped (N)`; no app-version column (the server stores none).
+- [x] **M14.51** The creator before linking can always get back to admin. *(owner: `platform-engineer`
+  (`loginViewer`), `web-engineer`; admin audit 2026-10-04)* `/admin/login` sends a session that created a group
+  (`groups.created_by`) and isn't linked to that group's admin home, the same as the post-`/new` landing. The
+  denied help drops `tap your name first` for creators. For everyone else it stays, but it reads `Not linked to a
+  League account yet? Open your group's tonight page and tap your name next time you're in the lobby, or type a
+  code into Kustom.` [NEW COPY].
+  Acceptance: an unlinked creator signing in at `/admin/login` lands on `/g/<slug>/admin` (integration test); a
+  non-creator unlinked session still gets the denied state (test); no admin route's permissions change (the
+  existing setup gate tests unchanged).
+  *Done 2026-10-04 (merged `4d10ac4`).*
+- [x] **M14.52** Members you can find at 375. *(owner: `web-engineer`, `designer`; admin audit 2026-10-04)* Order:
+  owner, admins, then last played, newest first. A `Find someone` [NEW COPY] box filters the list as you type,
+  with no page load and no server call. On phones, each member's actions sit behind one `Change role` / `Remove`
+  row, so each card is one line plus its action, not three buttons.
+  Acceptance: with the 40-member kit, making the 30th member an admin takes at most 3 taps plus typing and no
+  scrolling past one screen (manual walk, screenshot); the order is tested; the filter is tested by role and text
+  queries; every confirm is unchanged (existing tests pass).
+  *Done 2026-10-04 (merged `4d10ac4`):* search with a 44px Clear, `Someone` for nameless rows plus the hint once, `Manage Someone, row <n>`, tags only where names collide, panel order roles / Don't write about / Remove.
+- [x] **M14.53** Admin Games tells why a game isn't rated, and stops sharing the main tab's name. *(owner:
+  `web-engineer`, `platform-engineer` for the reason read; admin audit 2026-10-04; **lands with or before M15.8**,
+  or the first class-wars night fills the admin Games page with `Not yet`)* `Rated` reads `Yes`, `No · ARAM`,
+  `No · <rule name>` (M15's stamp), `No · Rated was off`, `No · too short or not ten players` (the `gateGame`
+  reasons) or `Waiting to be counted` [NEW COPY all], never `Not yet`. The page and its tab are renamed
+  `Recording` [NEW COPY], with the line `Every game Kustom saw, and any it missed.` [NEW COPY]. The Captured intro
+  drops "once they're recalculated" for `Games picked up the next day are counted overnight.` [NEW COPY] if a cron
+  runs `rebuild-ratings`, or else `Games picked up the next day are counted the next time ratings are rebuilt.`
+  (platform says which is true).
+  Acceptance: one test per reason; no `Not yet` in the Rated column (test); the URL stays `/g/<slug>/admin/games`
+  (no link breaks) and the nav label is `Recording`; local data shows the two newest `customs` games with their
+  real reason.
+  *Done 2026-10-04 (review passed):* admin Games is `Recording` (URL unchanged); the Rated column reads `Yes`, `No · ARAM`, `No · not Summoner’s Rift`, `No · <rule>`, `No · Rated was off`, `No · too short or not ten players` or `Waiting to be counted` (from `gateRatedGame` + `modeRatedDefault`), never `Not yet`.
+- [x] **M14.54** Docs say what admin does. *(owner: `product`; docs only; admin audit 2026-10-04, re-scoped by the
+  user's answers of the same day: M14.49 dropped, so there is no interim hand-key step to describe)* STRATEGY §3.2
+  step 4 and §3.3's host row drop "pick `Host`", "switch to Overlay mode" and "manual mint stays as the fallback",
+  and describe pairing by code with the Rust Kustom, with a dated note on the 0.3.x window (only `customs` hosts,
+  new groups not promoted). `00-product.md` "Starting a group" lists the checklist order Create, Discord, Install,
+  Invite. STRATEGY and `redesign/copy-review.md` carry the new `HOST_NOT_ADMIN` sentence `You're in. Only admins
+  can host. Ask an admin to host, or to make you one.` Decision rows: the four 2026-10-04 admin-audit rows.
+  Acceptance: `grep -n "Overlay mode\|pick .Host" redesign/STRATEGY.md` returns only history lines; the product
+  doc order matches `lib/admin/checklist.ts`.
+  *Done 2026-10-04:* STRATEGY §3.1 step 4, §3.2 step 4 (screen, how it works, edge cases, second admin, a new
+  0.3.x-window row), §3.3's host-token row, §6(d)'s host line, and §2.3's Overlay line struck as withdrawn;
+  00-product "Starting a group" reordered to Create, Discord, Install, Invite with the friend's-PC and 0.3.x
+  sentences, and the Premium paragraph says any single AI line can be hidden; copy-review row 9 notes the new
+  sentence. Remaining `Host mode` mentions in STRATEGY are §0 and §7 history (the user's settled answers).
+- [x] **M14.55** Admin home after the checklist folds. *(owner: `web-engineer`, `designer`; admin audit
+  2026-10-04)* Drop the `Tonight` card (Tonight is one tap away in the tab bar, and the card only says Roll lives
+  there). Once a host is seen, the host card folds to `Set up another PC` [NEW COPY] in a native disclosure. Leave
+  a slot in the order for M16.3b's `Kustom Premium` section (Premium groups only). `CONFIRM_MAKE_ADMIN_BODY`
+  becomes `They can roll teams, set the mode or a rule, and open these admin pages.` [NEW COPY].
+  Acceptance: ready-group screenshots at 375 are no taller than the invite card, the host disclosure, the members
+  card and Reset; tests updated by role and text.
+  *Done 2026-10-04 (merged `4d10ac4`).*
+- [x] **M14.56** Retire `POST /api/admin/players`. *(owner: `platform-engineer`; admin audit 2026-10-04; unblocked
+  by the user's answer, decision row 2026-10-04: the display-name override stays dropped)* No 2.0 page posts to
+  it. `set-admin` duplicates `members/role`. `set-roles` and `set-backfill` exist for 1.0 tabs that the 308s
+  already ended. `set-name` and `set-discord` have no 2.0 UI and go with the route (names follow each player's
+  Riot ID). Move `adminRoute.test.ts` and the backfill integration test to another admin route as their fixture,
+  then delete the route, its schema and `ROLES_ARE_INFERRED` / `BACKFILL_IS_ALWAYS_ON`.
+  Acceptance: grep finds no `/api/admin/players`, `set-name` or `set-discord` in `apps/web`; the moved tests pass.
+  *Done 2026-10-04 (review passed):* `POST /api/admin/players` and its set-name / set-discord / set-admin helpers removed; members/role is the only role write; a wrong self-link has no in-app undo (cleared by hand).
+- [x] **M14.57** One rating number everywhere. *(owners: `platform-engineer` for the board, player-page, stats,
+  awards and window-cron loaders; `core-engineer` for removing the weekly track; `web-engineer` for the board and
+  player-page copy; the user's choice 2026-10-04, decision row 2026-10-04; **core and platform start now; the web
+  half lands after M15.5 and M16.4 merge**)* The group's complaint: "when I lost that game I lost only 50, but
+  the game before I lost 120". Part of that is real (M14.58 explains it), and part of it is that one game shows
+  two numbers. From now on every gained or lost number anywhere is the game's all-time `displayDelta`
+  (`displayRating(mu_after) - displayRating(mu_before)`), and nothing else.
+
+    > **Brief (product, 2026-10-04)**
+    >
+    > **What a friend sees.**
+    > - Every per-game delta (Discord result, Tonight poster and team cards, game page, player page on every
+    >   tab, Your night, the weekly post) is the stored all-time delta. The player page's `This week` and
+    >   `Last week` tabs stop swapping rows for the weekly track's pair (`lib/board/load.ts:600,619-626`): the
+    >   same game shows the same number on every tab.
+    > - **`This week` and `Last week` boards rank by net points**: the sum of the printed all-time deltas of
+    >   the player's rated games in the window. Each row: place, name, `+86` (signed, the sorted number, the
+    >   big one), `5W–2L`, and the all-time `settling` chip when the player has one. Column or header label:
+    >   `Points this week` / `Points last week` [NEW COPY]. The board's order matches the number on it.
+    > - **Tie-break**, in order: net points; then more wins; then fewer games (the same points in fewer
+    >   games); then higher all-time Rating; then display name A to Z (stable, never random).
+    > - **No minimum-games rule.** One rated game in the window puts you on the board, as today. Net points
+    >   already keep a one-game player near zero; a minimum would hide the friend who played once, which the
+    >   board has never done. The settling chip on the row says why a newcomer's points run large.
+    > - A player whose games net to zero prints `+0` (never `(0)`, never blank).
+    > - The player page on a week tab shows `+86 this week · 5W–2L` [NEW COPY] beside the all-time
+    >   `Rating 1512`; there is no "week's Rating" any more. Tapping a name on `This week` opens that week with
+    >   the same net number to the digit.
+    > - **One rounding rule for a sum**: a night's or a week's total is the sum of the per-game deltas as
+    >   printed, never a separately rounded `mu` difference. Because each game's `mu_after` is the next game's
+    >   `mu_before`, the two agree whenever the games chain; when they do not (a reset inside the range, a
+    >   backfilled game waiting for `rebuild-ratings`) the sum of the rows wins, so a column always adds up.
+    >   Your night and the player-page Tonight tile call the same function.
+    > - **Weekly awards and the weekly post.** `Most improved` becomes the most net points in the closed week,
+    >   same tie-break, and its line reads `**Most improved** Nadia · +212 · 5W–2L` [NEW COPY] instead of
+    >   `1266 → 1478`. The Sunday post's board is in net-points order with the same row content.
+    > - **A rating reset inside a week** changes nothing here: stored deltas are never rewritten by a reset,
+    >   so the week still sums them (the product doc's "the week's number is untouched" stays true).
+    >
+    > **Retire the weekly track.** Delete `rateGameWeekly`, `config.rating.weekly` (beta 2, tau 0.3), its
+    > export and tests from `packages/core`, and `apps/web/lib/board/weekly.ts` with its tests. Core keeps no
+    > dead code. `provisionalSeed` stays (the fold, rebuild, landing and reset copy use it). Integration tests
+    > that asserted weekly-track numbers (`weekBoard`, `weekAward`, `board`, `stats`, the window cron) are
+    > rewritten to assert net points, not deleted.
+    >
+    > **Edge cases.** ARAM, admin-unrated and unrated-rule games add nothing and count in neither W nor L (as
+    > the board already treats them). A backfilled game stored unrated until `rebuild-ratings` adds nothing
+    > until it is rated. A player with only unrated games in the window is not listed. Old `?window=` links
+    > behave as M14.48 left them.
+    >
+    > **Acceptance.**
+    > 1. `grep -rn "rateGameWeekly\|board/weekly\|rating.weekly" packages apps/web` returns nothing.
+    > 2. Test: for a fixture week, each row's net points equals the sum of that player's per-game
+    >    `displayDelta`s, and the board order follows the tie-break (one test per tie-break step).
+    > 3. Test: the same game prints the same delta on the player page's All time, This week and Last week tabs.
+    > 4. Test: Your night total equals the player Tonight tile, and both equal the sum of the night's rows;
+    >    one fixture where the games do not chain proves the rows win.
+    > 5. Test: `Most improved` is the week's net-points leader, and the window cron's weekly post orders its
+    >    board the same way (snapshot updated).
+    > 6. Local data: the `customs` This week board, read by hand against the game rows, adds up for three players.
+    > 7. `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint`, `pnpm --filter web build` pass.
+    >
+    > **Out of scope.** Any change to the all-time fold, the seed, the MVP/ACE bonus or the balancer; a
+    > settling section on the week boards; a per-night board; new award kinds.
+
+  *Done 2026-10-04 (review passed):* every per-game delta is the all-time `displayDelta` on every surface (player-page week tabs included); week boards rank by net points with W–L (tie-break points, wins, fewer games, Rating, name); totals sum the printed rows (`sumDisplayDeltas`) so Your night and the Tonight tile agree; `rateGameWeekly`, `config.rating.weekly`, `lib/board/weekly.ts` and Most improved retired; Discord week line `` `1` Name · +212 · 5W–2L ``. Board copy ("Points this week") lands with the web half of M14.58.
+- [x] **M14.58** Why this many points. *(owners: `core-engineer` for the reason function and the fold's
+  probability, `platform-engineer` for `0034`, the fold, `rebuild-ratings` and the read, `web-engineer` and
+  `designer` for the tap-to-explain; after M14.57's core half; **core and platform start now; the web half lands
+  after M15.5 and M16.4 merge**)* Every delta a friend can tap says, in one or two short sentences, why it was
+  that size. Today the only per-game text is `As the N% side.`, and nothing stores what moved the number: the
+  MVP/ACE flags are recomputed at read time and the bonus share of a delta is computed nowhere.
+
+    > **Brief (product, 2026-10-04)**
+    >
+    > **What to store** (migration `0034`, additive, nullable, shown to the user before it is applied). Per
+    > `game_players` row, written by the fold in the same write as `mu_after`:
+    > - the win probability the fold's model gave **this player's side** (M14.59's number, from the exact
+    >   before-ratings handed to `rateGame`);
+    > - the base `mu_after` from `rateGame` before any bonus (so base delta and award effect are both exact);
+    > - the award that moved this rating: `mvp`, `ace` or none.
+    > `sigma_before` is already stored. A row with the base `mu_after` null is "stored before `0034`"; none is
+    > a real value, null is unknown, never the same thing. `rebuild-ratings` writes all three on every game it
+    > folds, so after a rebuild every rated game has them; `--dry-run` reports how many rows it would fill.
+    >
+    > **Core.** A pure function from one row's breakdown (result, printed delta, side's probability,
+    > `sigma_before`, base delta, award) to a structured reason: `{ result, points, odds: { pct, stance:
+    > 'favourite' | 'underdog' | 'even' }, certainty: 'new' | 'settling' | 'settled', award: { kind, effect } |
+    > 'none' | 'unknown' }`. `even` is 48% to 52% inclusive. `certainty` comes from `sigma_before` against two
+    > constants in core config, chosen so that a player's tenth rated game from the seed is the first
+    > `settled` one (the same line the settling chip draws). Fully tested, no I/O. Sigma is never a number on
+    > any surface.
+    >
+    > **The words** [NEW COPY all], web renders, at most three short sentences, in this order:
+    > - Lead: `You won 31.` / `You lost 50.` (for another player's row: `Omar won 31.`).
+    > - Odds: favourite won `Your side was the 62% favourite, so a win pays less.`; favourite lost `Your side
+    >   was the 62% favourite, so a loss costs more.`; underdog won `You were the 38% side, so beating the odds
+    >   pays more.`; underdog lost `You were the 38% side, so a loss costs less.`; even `It was an even game.`
+    > - Certainty: new `You're new, so your number moves fast.`; settling `You're still settling, so swings are
+    >   bigger.`; settled `You're settled, so swings are small.`
+    > - Award: MVP `MVP added a quarter.`; ACE `ACE softened it by a fifth.`; none, nothing.
+    >   Example: `You lost 50. Your side was the 62% favourite, so a loss costs more. You're settled, so swings
+    >   are small. ACE softened it by a fifth.`
+    > - Under every explanation, small: `Bigger when you're new or the odds were against you.` [NEW COPY],
+    >   which also covers the part nobody can see (the other nine's certainty), without naming it.
+    >
+    > **Old games** (base `mu_after` null): odds come from core's probability over the ten stored befores,
+    > certainty from `sigma_before`, and the award sentence is replaced by `This game is from before Kustom
+    > kept the bonus, so MVP or ACE isn't included.` [NEW COPY]. A row missing any before says only the lead.
+    >
+    > **Where.** Tap or expand any delta on the game page, the player page rows (every tab) and the Tonight
+    > poster; a native disclosure or an equivalent that works with a keyboard and at 375. Team cards and the
+    > board do not explain (the board's number is a sum; tapping a row opens the player page, where each game
+    > explains itself). **Discord gets nothing per game, and no legend line**: the result post stays as short
+    > as it is, and its game link opens the page where every delta explains itself.
+    >
+    > **Edge cases.** ARAM and unrated games have no delta and no explanation. A game with no award because
+    > roles were unknown (backfill) has award none, not unknown. If the read-time `gatedGameAward` badge and
+    > the stored award ever disagree (stats copied in after the fold, no rebuild yet), the explanation uses the
+    > stored award, because that is what moved the number.
+    >
+    > **Acceptance.**
+    > 1. `0034` applies on a fresh `pnpm db:reset`; `pnpm db:types` regenerated; zod schemas updated.
+    > 2. Test: the fold writes the three fields, and base delta times the award multiplier gives the stored
+    >    delta for the MVP and the ACE of a fixture game (within one display point).
+    > 3. Test: `rebuild-ratings` fills the fields on every rated game and a second run changes nothing.
+    > 4. Core tests: one per stance, certainty band and award, plus `unknown`; the certainty constants put a
+    >    seed player's tenth game in `settled`.
+    > 5. Web tests by role and text: the example sentence above renders for its fixture; an old game renders
+    >    the fallback sentence; no digit of sigma appears (grep the rendered output for `sigma` and a decimal).
+    > 6. 375 and 1440 screenshots of an open explanation on the game page, a player row and the poster.
+    > 7. The Discord result snapshot is unchanged.
+    >
+    > **Out of scope.** Changing any rating math; per-player detail on the other nine's certainty; an
+    > explanation for the week's net sum beyond the rows; Discord changes.
+
+  *Core and platform halves done 2026-10-04 (reviews passed; `0034` applied locally, local `rebuild-ratings` filled 90 rows and a second run is a no-op):* core `explainDelta` / `explainLegacyDelta` / `foldWinProbability`; `game_players.fold_p`, `base_mu_after`, `award`, `rated_games_before` written by the live fold and the rebuild; `lib/breakdown/{read,load}.ts` for the web. **Open:** the web half (tap-to-explain on the game page, player rows, Tonight poster), after M15.5.
+  *Web half done 2026-10-04 (code review passed; design passed after one round; merged):* every rated delta (game page, player and You rows on every tab, Tonight's finished seats) is a 44px button with `aria-expanded` that opens one to four short sentences from core's `explainDelta` / `explainLegacyDelta` (no sigma, no decimals); another player's row names them once, then They/Their; a breakdown read failure shows plain numbers; not-rated games show none. Screens `redesign/screens/m14/m1458-*`.
+- [x] **M14.59** The odds shown are the odds the rating used. *(owners: `core-engineer` for the probability,
+  `platform-engineer` for storing it (it rides `0034` with M14.58), `web-engineer` for the labels; **option (a)
+  chosen**, decision row 2026-10-04; web half after M15.5 and M16.4 merge)* The split's `blue_win_prob` is made
+  at roll time, where a player with no stored rating is rated from their rank (`seedFromRank`); the fold rates
+  that player from `{ mu 20, sigma 12 }`. So the result can say "62% favourite" while the rating moved as if it
+  were 55%.
+
+    > **Brief (product, 2026-10-04)**
+    >
+    > **Choice: (a).** Store the fold's own probability (the M14.58 field; the game's blue probability is the
+    > blue rows' value) and use it for everything about points: the result's odds line and the M14.58
+    > explanation. It changes no rating and needs no rebuild of anyone's number. (b), seeding the fold from
+    > rank, was rejected: it rewrites every new player's history, contradicts the 2026-09-16 decision that
+    > everybody starts at 1200, and still leaves a gap the moment ratings move between the roll and the game.
+    >
+    > **One rule for which number goes where.** Anything that is the bot's claim about its split uses the
+    > bot's odds; anything about rating points uses the rating's odds.
+    > - Bot's odds (`blue_win_prob`): the pre-game receipt, the bot's pick and its alternatives, `Upset!` (the
+    >   bot called it), the calibration line, the M8 "nights the bot said you would lose".
+    > - Rating's odds (stored by the fold): the explanation, and the history and poster result line.
+    > - **When the two round to the same percent**, every surface shows one number, unlabelled, as today.
+    > - **When they differ**, the result line names both, once: `Bot's odds: Blue 57%. For ratings: Blue 61%,
+    >   because new players start at 1200.` [NEW COPY]. If the differing cause is not a new player (ratings
+    >   moved between the roll and the game), the reason reads `because ratings moved since the roll.` [NEW
+    >   COPY]. The receipt before the game keeps its current label and never shows the rating's number (there
+    >   is none until the game ends).
+    > - Games the bot did not pick already show `PRE-GAME ODDS` from the ratings going in; after this task
+    >   that line uses the stored fold number, so it can never disagree with the explanation.
+    >
+    > **Acceptance.**
+    > 1. Core test: the probability function the fold stores equals the balancer's own win probability when
+    >    both are given the same ten ratings (one function, not two).
+    > 2. Test: a fixture with one rank-seeded newcomer shows both labelled numbers on the poster and in game
+    >    history; a fixture with none shows one number.
+    > 3. Test: `Upset!` and the calibration line still read `blue_win_prob` (unchanged snapshots).
+    > 4. Test: for every post-`0034` game, the explanation's percent equals the result line's rating percent.
+    >
+    > **Out of scope.** Seeding the fold from rank; changing how the balancer rates newcomers; Discord copy
+    > (the result post keeps the bot's odds as today).
+  *Platform half done 2026-10-04:* `resultOdds` / `loadGameBreakdowns` give the bot's odds, the rating's odds, whether they differ and why (new players / ratings moved). **Open:** the web labels, with M14.58's web half.
+  *Web done 2026-10-04 (merged with M14.58):* when the points number differs from the bot's, one line under the result reads `For points, <Winner> was N%, because new players start at 1200.` (or `…because ratings moved since the roll.`), hidden when both numbers for the winner sit in the 48–52 even band; pre-game and history odds use the fold's stored number.
+- [x] **M14.60** Admins can unlink a member's Discord (the user, 2026-10-04). *(owner: `web-engineer`; designer
+  and reviewer)* `POST /api/admin/members/unlink-discord` (zod request/response, `withAdminAuth` section
+  `members`) clears `players.discord_id` only; `Unlink Discord` in the Manage panel behind a destructive confirm.
+  *Done 2026-10-04 (code review passed; design passed in two rounds; merged `392233a`):* the owner may unlink
+  anyone but themselves (`Hand ownership to an admin before you unlink your own Discord.`); an admin may unlink
+  members and themselves, never the owner (`ONLY_OWNER_UNLINKS_OWNER`) and never another admin while the group
+  has an owner; a repeat press is 200 `changed: false`; the unlink applies in every group (it lives on
+  `players`). Three confirm bodies: a member links again by tapping their name at their next game; an admin
+  needs the group's invite link to pair Kustom again (self: copy it first). No migration; ids-only log line.
+
+- [ ] **M14.61** Discord posts 2.0: posts that look good, not just carry information (the user, 2026-10-04).
+  *(owner: `platform-engineer` in `apps/web/lib/discord/` plus two `app/og/` routes (avatar, badge); `designer`
+  signs off in at most two rounds; no schema change; after M15.5 merges, and M16.5 rebases its Sunday slot onto it)*
+  Spec: 05-design §10. Teams and result become a stack of embeds (header, a blue side, a red side, a closing
+  block), a ten-cell 🟦/🟥 odds bar, `username: Kustom` with an optional avatar, the group name in the author
+  line, masked links, AI blocks in their own slate embed, `guardEmbed` becomes `guardMessage` (6000 characters
+  per message, §10.12 shedding order), Rating and its change joined by a no-break space. Images only from our own
+  `/og` routes and only when the site has a public address; every post is complete without them. Acceptance:
+  05-design §10.14 (11 checks), including a real post to a scratch channel checked on a phone and a desktop.
+  Lead rulings 2026-10-04: side-coloured embeds and the emoji bar approved (the user asked for looks); no Spin
+  post (M15.1 §4 stands); the B2 result badge ships behind the public-address check; link buttons later.
+  *Merged 2026-10-04 (code review passed after one security round; design passed after one round):* every builder is a stack; `guardMessage` (6000 per message, §10.12 shedding); `username: Kustom` and the `/og/kustom/avatar` route (`?v=2`); the `/og/.../badge` thumbnail only on a result with no rule line; one shared `isLocalOrPrivateHost` rule (trailing dot stripped; local names, dotless hosts, every IPv6 literal, private, CGNAT, link-local and reserved IPv4 refused) for every link and image, images also need https; names and champions escape `[ ] ( ) < > #`; one Sunday storyline path (M16.5's hook feeds `windowSummaryEmbed({storyline})`); `discord.integration` guards only its own posting group and runs 16/16. Open: §10.14 item 10, a real post checked on a phone and a desktop (the user, after deploy). The mode-night tests were moved to the new shapes (`9afe4c6`).
+
+- [x] **M14.62** A new group can set up a host from day one. *(resolved 2026-10-04 by the user: **2.0 and Kustom 1.0 ship together**, so `Get a code` works at launch and no interim hand-key flow is added; the M17.12 admin switch lands before the deploy.)*
+- [x] **M14.63** Games recovered the next day count by the next morning. *(owner: `platform-engineer`; flow audit;
+  decision row)* A daily Vercel cron `/api/cron/rebuild` runs the existing per-group fold for every group with an
+  unrated backfilled game, after the 06:00 boundary, with the existing guards (live lobby, a game in the last 15
+  minutes, exit 2 re-run). Recording reads `Games picked up the next day count toward ratings by the next
+  morning.` Acceptance: integration test (a backfilled game in group B rated after one run; nothing while a lobby is
+  live); `vercel.json` lists the cron; the old sentence is gone.
+  *Done 2026-10-04 (review passed; merged):* `GET /api/cron/rebuild` (`CRON_SECRET`, `15 4 * * *`, after 06:00 Cairo all year) folds each group with a rate-eligible unrated backfill through `rebuildRatings`, guards unchanged, fence re-run up to twice, a 30 s start budget with the rest deferred to tomorrow.
+- [x] **M14.64** The Why? footnote is true for wins and losses. *(owner: `web-engineer`)* `EXPLAIN_FOOTNOTE` =
+  `Upsets and new players move the most.`; render test on a win and a loss, own row and someone else's.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.65** An unlinked friend sees `Which one is you?` first. *(owner: `web-engineer`)* When the viewer is
+  unlinked and someone in the lobby is claimable, the card sits straight under the strip with h2 `Which one is
+  you?`; linked and anonymous orders unchanged (tests).
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.66** No host running says who to ask, before anyone taps. *(owner: `web-engineer`, `platform-engineer`)*
+  The 409 becomes `Nobody's Kustom is running right now. Ask ‹Yasser or Omar› to open it.` (more than 3 or none:
+  `whoever hosts`); with no host seen in 10 minutes the line shows under `Start a lobby` on idle; tests.
+  *Server half merged 2026-10-04:* the 409 names the hosts; `TonightSnapshot.hostNames` / `hostSeenRecently`. The idle line is the web lane's (in progress).
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.67** The landing's steps include installing Kustom. *(owner: `web-engineer`)* `Name it.` / `Connect your
+  Discord channel.` / `Install Kustom on one Windows PC.` / `Send your friends one link.`; test.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.68** Fairness copy names every admin power. *(owner: `web-engineer`)* Append `Before a roll they can also
+  pick the mode and whether the next game is rated, never after.` to the receipt's Nobody picked these teams, `/how`
+  What admins can't do, and the landing's That's it; string tests.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.69** Two people with the same name are told apart. *(owner: `web-engineer`)* Add the tag (`Ali #EUW`), or
+  `Ali (2)` by first game when tags collide too; every board row and Games filter option unique (test).
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.70** An empty This week points somewhere. *(owner: `web-engineer`)* `No games this week yet.` with `See
+  last week` (or `See all time`); tests.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.71** Hosts: `Not seen yet` until first seen. *(owner: `web-engineer`)* Test.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.72** One word: Board. *(owner: `web-engineer`, `platform-engineer` for Discord)* h1 `Board`; `Ratings are
+  updated. The board has the rest.`; landing `The board updates.`; Discord `Last week · board`; no rendered
+  `leaderboard` in user copy (routes may keep it).
+  *Discord half merged 2026-10-04:* `<window> · board`. Web half in progress.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.73** The claim prompt says the group's lobby. *(owner: `web-engineer`)* `Next time you're in the group's
+  lobby, open Tonight and tap That's me.` on You and the join page's "I don't" line; tests.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.74** The owner's own Members row. *(owner: `web-engineer`)* `You're the owner. To step back, make an admin
+  the owner.`; test.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.75** No `Reset ratings` before a rated game. *(owner: `web-engineer`)* Test with `admin-fresh` and
+  `admin-ready`.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.76** `Changes apply from the next game.` once. *(owner: `web-engineer`)* At the top of `Admins and the
+  owner`; exactly one on `/kit/tonight/balanced?viewer=lead`.
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M14.77** Kill participation never over 100%. *(owner: `platform-engineer`)* Clamp, and skip a game whose team
+  kills are below a player's kills plus assists; unit test.
+  *Done 2026-10-04 (merged):* one `killParticipation` helper (null when team kills are 0 or below kills plus assists, else clamped) on the game page, Fun cards, mystery hook and AI facts.
+- [x] **M14.78** The kit gains `viewer=member`. *(owner: `web-engineer`)* So member-only states (no Roll, the
+  waiting line naming admins) can be screenshotted; test.
+
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [ ] **M14.27** Ship 2.0: the deploy plan, run by the user. *(owner: `platform-engineer` writes the
+  runbook; **the user executes every production step**; last)* **No companion release (2026-10-03, the user):
+  0.4.0 is not published; 2.0 ships with 0.3.x and the Rust build (M17) replaces it.** `docs/runbooks/ship-2.0.md`
+  section 5 says so.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > A runbook in `docs/01-architecture.md` (deploy section) and in this entry, nothing applied by an agent:
+    >
+    > **One combined deploy** (the user, 2026-10-03): main's unpushed M13.4, M13.5 and M13.9 ship with 2.0,
+    > not before. The facts the order is built from: M13.4's `0020` was **code first** (migration-first
+    > breaks the deployed M13.3 window cron, daily guess and `/admin/discord`); M13.5's `0021` was **migration
+    > first** (additive; code first 500s its routes); M13.9 is code only. Deploying M13.4's code alone is no
+    > longer a step, so `0020`'s code-first gap cannot be had; and 2.0's code needs every migration from `0020`
+    > up, while 2.0's own (`0022`+, at least the seasons drop) break the deployed M13.3 code. So no order is
+    > gap-free, and the plan is a **short, quiet window, migrations first, then code at once**:
+    >
+    > 1. Before the day: Vercel env set (`DISCORD_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` from the existing
+    >    sign-in app, M14.20; `SUPER_ADMIN_USER_IDS`, M14.19); the production callback URL added to that
+    >    Discord app; the user has seen the hosted seasons drop counts (M14.14 step 1). Hosted Discord sign-in is
+    >    already on (the user, 2026-10-03).
+    > 2. Pick a window with no lobby, no game in the last 15 minutes, and no cron due (not Sunday 06:00, not
+    >    the first of the month, not the daily guess's hour); hosts close Kustom.
+    > 3. The user runs `supabase migration list --linked` and confirms what is applied (settles whether `0020`
+    >    is on hosted); re-runs M14.14's step 1 query and checks the counts match what they approved.
+    > 4. `pnpm db:migrate`: `0020`, `0021`, then 2.0's migrations, in number order, back to back.
+    > 5. Straight after: `redesign-2.0` → `main` as one merge (after M14.26, CI green on the five commands),
+    >    pushed, so Vercel deploys. Until it is live the old code runs on the new schema and may fail; nothing
+    >    played in the window is lost for good, because backfill recovers games.
+    > 6. Hosted `rebuild-ratings --dry-run` (the one M13.3 owes, now on the final schema) reports no unexpected
+    >    change; a smoke pass of `/g/customs`, the board, a game page, admin.
+    >
+    > The runbook's author checks every 2.0 migration against this shape: if one would need code first, it
+    > is split so the schema half can go in step 4. Any step that differs is written out with its reason.
+    >
+    > Also the user's, not blocking anything: register Kustom on the Riot Developer Portal (M14.8).
+    > 5. ~~The companion: `pnpm --filter companion release` (the user), once, after M14.13 (the last companion
+    >    task since 2026-10-03, when M14.32 was deferred with the companion UI), with the version bumped there.~~
+    >    **Removed 2026-10-03 (the user, decision row): 0.4.0 is not published.** 2.0 deploys with 0.3.x as the
+    >    download; the server keeps accepting 0.3.x; the Rust companion (M17) is the next release.
+    >
+    > Acceptance: the runbook exists and the lead has walked the user through it; nothing in it was executed
+    > against production by an agent.
+
+- [x] **M14.28** `lobbies.lobby_password` stops being readable with the anon key. *(owner: `platform-engineer`;
+  **awaiting user**: proposed by the lead 2026-10-03, not in the build order until the user says yes; small,
+  migration)*
+
+    > **Brief (product, 2026-10-03, proposed)**
+    >
+    > The lead reports the lobby password is readable by anyone holding the public anon key. The product says
+    > the name and password show in the Discord post and on the page **for anyone signed in**
+    > (`00-product.md`, Start a lobby), not to every visitor of a public group.
+    >
+    > Acceptance (if approved): (1) an anon-key select on `lobbies`, and an anon Realtime payload for it, carry
+    > no `lobby_password` (test; the engineer picks a column revoke, a view, or a separate table, and says why);
+    > (2) a signed-in member still sees the name and password on the tonight page (server read) and the Discord
+    > post is unchanged (tests); (3) **the migration is shown to the user before it is applied**; (4)
+    > typecheck, test, lint, build pass. Out of scope: rotating or hiding the password from members.
+
+  *Done 2026-10-03 (review passed; security-review blocker closed):* `0028` revokes `lobby_password` from anon and authenticated (other columns granted back); Tonight reads it with the service role in `lib/tonight/lobbyPassword.ts` only for a linked member of the group (`viewer.isMember`), the pending Start-a-lobby read uses the same gate; applied locally.
+- [x] **M14.29** The group's mode (Normal or Fearless), and Reset from Tonight: the server half. *(owner:
+  `platform-engineer`; after M14.12, in the `apps/web` lane; migration `0024`; the UI is M14.30)* Done 2026-10-03 (merge after `5aee39f`; `0024` reviewed and applied locally by the lead under the user's pre-approval; `db:types` no diff; full `pnpm -r test` green). Deploy: apply `0024` before the code (M14.27). **Reshaped
+  2026-10-03** (the user: a generic Mode card replaces the fearless on/off switch; decision row). Fearless "off"
+  is now the mode `Normal`.
+
+    > **Brief (product, 2026-10-03; reshaped the same day)**
+    >
+    > The user (2026-10-03): "we need a way to enable/disable fearless in the tonight page and also be able to
+    > reset it", then "the fearless toggle inside admin should be removed", then: one `Mode` card on Tonight
+    > where admins pick tonight's mode. Not every night is a fearless night. Admins and the owner pick the mode,
+    > and reset fearless, **from Tonight's Mode card and nowhere else**. Members never see either control.
+    >
+    > ### Behaviour (product's; the shape is platform's)
+    >
+    > - **Each group has one current mode. In M14 there are exactly two: `normal` and `fearless`.** M15 adds the
+    >   others (class, region, mirror). Every existing group and every new one starts on `fearless`, so nothing
+    >   changes for anybody until an admin picks `Normal`. The mode stays until an admin changes it (it is the
+    >   group's standing mode, like the old switch). Every open Tonight page sees a change without a refresh.
+    > - **Rated or not, in M14: both modes are rated exactly as today** (Rift rated, ARAM never, M7.1). No rated
+    >   toggle, no rated column and no rating-eligibility change in M14 (decision row 2026-10-03: the toggle comes
+    >   with M15, when a mode can be unrated). The card's `rated` word is derived from the mode, not stored.
+    > - **Normal freezes the fearless pool; Fearless resumes it.** A game recorded while the mode is `normal`
+    >   never joins the ban list, not then and not after Fearless is picked again. Picking Fearless brings back
+    >   the list exactly as it stood, at once. A fresh pool is a separate act: Reset. The mode that counts is the
+    >   one in force **when the server records the game** (the end-of-game block lands), not when the lobby
+    >   opened, so an admin who picks Normal mid-game keeps that game out. A second companion's duplicate post is
+    >   still a no-op, so the stamp is the first write's. A backfilled game takes the mode in force when it is
+    >   recorded.
+    > - **Normal means, everywhere:** the Mode card says `Normal` (M14.30); no fearless Discord post after a game
+    >   (the result post is unchanged); `GET /api/overlay` answers `fearless: { enabled: false, champions: [],
+    >   resetAt }` (`enabled` is `mode === 'fearless'`), so today's panel lists no bans, which is true; the panel
+    >   URL shows Normal with the paused pool's count (M14.30). Changing the mode posts nothing to Discord.
+    > - **Reset reuses the route that exists**: `POST /api/admin/fearless/reset` (M10, scoped by M13.4;
+    >   `withAdminAuth`, zod body `{ groupId, redirectTo? }`, cursor first, Discord post second, JSON or form).
+    >   No new reset route. In Normal it still moves the cursor and skips the Discord post (`post: 'skipped'`);
+    >   the card only offers it in Fearless. After M14.30 no admin page calls it.
+    >
+    > ### Shape (platform picks; product's constraint is that M15 never reshapes it)
+    >
+    > - Migration `0024`: the group's current mode and a per-game mode stamp written at ingest, with backfill.
+    >   The obvious shape is `groups.mode text not null default 'fearless'` (allowed `normal`, `fearless`) and
+    >   `games.mode` stamped at record time, which is also the stamp M15.3 needs ("the mode is stamped on the
+    >   game at record time"); a small `group_modes` table is the alternative. Whatever is picked, **M15 must be
+    >   able to add mode values, a one-game mode on top of the standing one, and a rated stamp by adding (a
+    >   value, a column, a row), never by renaming, retyping or rewriting 0024's columns or rows.** Platform
+    >   says why in the report. **Shown to the user before it is applied** (the standing rule; SQL in the task
+    >   report).
+    > - **The fearless pool after the migration equals the pool before it**, for every group (however old games
+    >   are backfilled).
+    > - `POST /api/admin/mode { groupId, mode: 'normal' | 'fearless', redirectTo? }` → `{ ok: true, mode }`,
+    >   request and response zod in `packages/db` (the mode enum lives there once, so M15 extends one list),
+    >   gated exactly like reset (the owner passes through M14.11's `isAtLeast(role, 'admin')`). Idempotent:
+    >   setting the current mode is a 200 that changes nothing. No `fearless/enabled` route.
+    > - One pool read (`availableFearless` and its loader) counts only games stamped `fearless` and carries the
+    >   group's `mode`; Tonight, the panel, Discord and the overlay all read it, not four copies of the rule.
+    >
+    > ### Edges
+    >
+    > A change during a live lobby or a game (allowed; the game follows the mode at record time). Two admins
+    > changing it at once (last write wins; both pages converge through Realtime). Normal, then Reset, then
+    > Fearless (the pool comes back empty). A member or a signed-out visitor posting either route (403 / 401, as
+    > reset today). A mode value M14 doesn't know (`'class'`) posted to the route (400). An ARAM or a remake
+    > (adds nothing either way). A PUUID in no group asking the overlay (M13.3's empty answer, unchanged, now
+    > with `enabled: false`).
+    >
+    > ### Acceptance
+    >
+    > 1. **The migration is shown to the user before it is applied**; every existing group reads `mode =
+    >    'fearless'` afterwards and its pool is unchanged (tests).
+    > 2. Integration: Fearless, game A, Normal, game B, Fearless: the pool equals the pool after A, and B's
+    >    champions are not in it; B is stamped `normal` (tests). In Fearless throughout, the existing fearless
+    >    tests pass unchanged.
+    > 3. Normal: no fearless embed after a rated Rift game, and the result embed is byte-identical to Fearless
+    >    (test); the mode route itself posts nothing (test). A Normal Rift game rates exactly like a Fearless one
+    >    (test: same fold input, same deltas).
+    > 4. Normal: `GET /api/overlay` returns `enabled: false` and no champions; Fearless: `enabled: true` and
+    >    today's list (tests, zod out). The answer only adds or keeps fields, so the 0.2.x / M14.6 panel still
+    >    parses it (test with the old schema).
+    > 5. The mode route: admin 200, owner 200, member 403, signed out 401, an admin of another group 403,
+    >    malformed body or unknown mode 400; a repeat of the current mode changes nothing (tests).
+    > 6. `POST /api/admin/fearless/reset` in Normal moves the cursor and returns `post: 'skipped'` (test); no
+    >    second reset route and no `fearless/enabled` route exist (grep).
+    > 7. Typecheck, test, lint, build pass.
+    >
+    > Files: `packages/db/supabase/migrations/0024_*.sql`, `packages/db/src/*` (types, schemas, the mode enum),
+    > `app/api/admin/mode/*` (new), `app/api/admin/fearless/reset/handler.ts` (skip the post in Normal),
+    > `app/api/overlay/*`, `lib/fearless/*` (the pool read), `lib/discord/post.ts` (gate the fearless post), the
+    > ingest game write under `app/api/companion/*` (the stamp), `lib/tonight/*` (loader field only).
+    >
+    > Out of scope: every page and control (M14.30); the Discord post's new layout (M14.31); the overlay panel
+    > (deferred with the companion UI); any mode but Normal and Fearless (M15); a rated toggle or a rated column
+    > (M15.1); a schedule ("fearless on Fridays"); a per-lobby mode.
+
+- [x] **M14.30** **(a) The Mode card on Tonight and the mode panel at `/g/<slug>/mode`, with Fearless as the
+  first panel; mode picker and Reset on the card; sprites.** *(owner: `web-engineer`; after M14.29, so also
+  after M14.7b's five tabs (More is gone), M14.8's Data Dragon fixture and M14.9's receipt; `apps/web` lane; no schema change.
+  Amends M14.8's icon approach.)* **Reshaped 2026-10-03** (the user; decision row): no `/g/<slug>/fearless`
+  page, no More card for it, no switch.
+
+    > **Brief (product, 2026-10-03; reshaped the same day)**
+    >
+    > The visual spec is `docs/05-design.md` "Mode card and mode panel" (designer, 2026-10-03), with §8's
+    > Fearless block (8.4), sprites (8.5), accessibility (8.6) and copy (8.7) reused **inside the panel**. Where
+    > §8.2's per-state table and the new section disagree, the new section wins. This brief is the behaviour.
+    >
+    > ### The Mode card (Tonight, everyone)
+    >
+    > - **One card summarises tonight's mode** in every Tonight state, for everyone, except an empty group
+    >   (no game ever), where only admins and the owner see it (so they can pick before the first game).
+    >   Its place and its per-state variant are the designer's section. It carries: the mode's name, `rated`
+    >   (both M14 modes are; no word for "not rated" exists until M15), and a status line: Fearless `138 open ·
+    >   34 banned` (empty pool: `Nothing banned yet. All 172 open.`); Normal `Every champion is open.`
+    > - **Fearless's per-state facts survive as card or panel content** (the designer places them): in game,
+    >   `This game's ten join the ban list when it ends.`; finished, the ten champions this game just banned are
+    >   visible on Tonight (absent for an ARAM or a remake); the empty-pool and reset-moment cards (8.2).
+    > - **Tapping the card opens the panel** (`/g/<slug>/mode`). Balanced, a seated viewer reaches their lane's
+    >   open list in **one tap**: the answer band keeps `What's open for <role>`, now linking
+    >   `/g/<slug>/mode?lane=<role>`, and the panel opens on that lane with `Your lane this game: <role>.`
+    >   A visitor or a viewer sitting out gets `All`.
+    >
+    > ### The mode panel `/g/<slug>/mode[?lane=]` (a real URL)
+    >
+    > - **From Tonight it overlays**: full screen on phones, a dialog on desktop (designer's sizes), Tonight
+    >   stays underneath with its scroll kept; the URL changes to `/g/<slug>/mode`; Back, Escape and the close
+    >   control return to Tonight with focus on the card. Next.js intercepting + parallel routes (an `@modal` slot
+    >   with `(.)mode`, or whatever the engineer finds clean under the `(tonight)` group and `[...rest]`); the
+    >   engineer says which.
+    > - **The same URL loaded directly** (a Discord link, a reload, a pasted link, no JS) **renders as a full page**
+    >   inside the group shell: breadcrumb, h1 = the mode's name, the same content. Never a 404, never a redirect
+    >   to Tonight.
+    > - **Fearless panel:** `Pool since …`, the full block (counts, find box, single-select lane control `All ·
+    >   top · jungle · mid · adc · support`, open chips first, `Banned` folds), five-column board at ≥ 1024.
+    >   `?lane=` pre-selects; an unknown lane falls back to `All`.
+    > - **Normal panel:** `Normal` / `Every champion is open, and games are rated as usual.`; if the paused pool
+    >   has bans, `Fearless is paused with 34 banned. When an admin picks Fearless again, the list picks up where
+    >   it stopped.` `?lane=` is ignored.
+    > - **No control in the panel**: an admin or the owner sees `To change the mode or reset, use the Mode card
+    >   on Tonight.` linking `/g/<slug>#mode`.
+    > - This is the one content dialog on a public page (decision row 2026-10-03): it is allowed because it has
+    >   its own URL and is a full page without JS. Nothing else follows it.
+    >
+    > ### Controls on the card: admins and the owner only
+    >
+    > - **The mode picker** (`Normal` / `Fearless`; designer's control, a segmented control or select, never a
+    >   menu). No confirm (switching loses nothing: picking Fearless again restores the list). Its effect shows
+    >   in place and Tonight's single announcer says it once.
+    > - **`Reset fearless`** while the mode is Fearless and the pool has at least one ban: opens the
+    >   AlertDialog of §5.13 with 8.7's copy, initial focus on Cancel.
+    > - **No rated toggle in M14** (decision row 2026-10-03; M15.1 brings it with the first unrated mode).
+    > - **Switched to Normal, member and visitor view:** the card says Normal; at the moment it changes, a dashed
+    >   note on the card until the next game lands (8.2's reset-card pattern), so nobody wonders where the list
+    >   went. No `What's open for <role>` jump link and no banned-ten in Normal.
+    > - **Off the admin pages:** today's `/admin` dashboard fearless reset (`app/admin/(dashboard)/page.tsx`,
+    >   M10) is removed, and its notice wiring in `lib/admin/notices.ts` if nothing else uses it. M14.22 and
+    >   M14.23 add no mode or fearless control.
+    > - Without JS, the picker and Reset are forms posting the same routes with `redirectTo` back to Tonight;
+    >   the outcome shows in place (toasts are banned). Members and visitors get no form at all, not a
+    >   disabled one.
+    > - **Not in More**: no `Fearless` or `Mode` card in More's `Play` group. *(Void since 2026-10-03: More is
+    >   deleted by M14.7b, which lands first. The rule that holds: the `Mode` card is on Tonight only, not on You
+    >   or Stats.)*
+    > - **Icons from Data Dragon sprite sheets** at the pinned 16.19.1 (8.5): `championSprite(id) → { sheet,
+    >   x, y } | null` from the checked-in `champion.json`, replacing M14.8's one-URL-per-champion helper; the
+    >   pin, the fixture and M14.8's name-only fallback stay. No `loading="lazy"`; the preconnect stays; the six
+    >   sheets get a low-priority preload where the panel or the finished-state ten render.
+    >
+    > ### Copy (product, all [NEW COPY])
+    >
+    > | Where | Copy |
+    > |---|---|
+    > | card label | `Mode` |
+    > | card, Fearless | `Fearless · rated` / `138 open · 34 banned` |
+    > | card, Normal | `Normal · rated` / `Every champion is open.` |
+    > | picker label (admins) | `Tonight's mode` |
+    > | picker sentence, Fearless | `Champions you lock are banned until someone resets.` |
+    > | picker sentence, Normal | `Every champion is open. The fearless list is saved for later.` |
+    > | member note, the moment it goes Normal | `Normal mode now.` / `An admin switched off Fearless, so every champion is open.` |
+    > | announcer | `Mode: Normal. Every champion is open.` / `Mode: Fearless. The ban list picks up where it stopped.` |
+    > | panel, Normal | `Every champion is open, and games are rated as usual.` / `Fearless is paused with <n> banned. When an admin picks Fearless again, the list picks up where it stopped.` |
+    > | panel, admin line | `To change the mode or reset, use the Mode card on Tonight.` |
+    > | panel close (screen-reader name) | `Close` |
+    > | change or reset failed, in place | `Couldn't change that. Try again.` |
+    >
+    > Reset's button (`Reset fearless`, shipped) and its AlertDialog copy are 8.7's. All of it, with 8.7's
+    > table, lives in `lib/fearless/copy.ts` (mode strings in a `lib/mode/copy.ts` beside it, so M15 adds rows).
+    >
+    > ### Acceptance
+    >
+    > 1. One fixture per Tonight state renders the Mode card's variant for that state and no fearless block
+    >    elsewhere on Tonight (role/text tests), in Fearless and in Normal.
+    > 2. Client navigation from the card opens the panel over Tonight with the URL `/g/<slug>/mode`; Back and
+    >    Escape close it, focus returns to the card, Tonight's scroll position is unchanged (Playwright).
+    > 3. Loading `/g/<slug>/mode` and `/g/<slug>/mode?lane=jungle` directly, with JS off, renders a full page with
+    >    one h1, status 200, the shell and Riot's notice (test + Playwright); `/g/<slug>/fearless` is a 404 (test).
+    > 4. Balanced with a seated viewer: `What's open for <role>` opens the panel on their lane with `Your lane
+    >    this game: <role>.`; `All` shows five lanes; a visitor gets `All` (tests).
+    > 5. Typing ignores the lane control, opens every `Banned` fold, hides the per-lane counts; the three answer
+    >    strings are byte-identical to M10.2 / M10.3 (tests).
+    > 6. Every champion in `names.ts` maps to a sprite cell in the fixture; a missing one renders name-only with
+    >    no box; a sheet `error` removes every box (test fires `error`).
+    > 7. No `loading="lazy"` and no `communitydragon` in the fearless code; the preconnect is present (grep +
+    >    test).
+    > 8. At 375 and 320 no chip name breaks mid-word and nothing scrolls sideways, in the panel and the full
+    >    page; 1440 shows the five-column board (Playwright, `check.js`).
+    > 9. The finished-state ten are absent for an ARAM or a remake (test).
+    > 10. An admin and the owner see the picker on the card in every state, and Reset in Fearless with at least
+    >     one ban; a member and a visitor see neither, in markup or as a disabled control (tests, role queries).
+    >     No rated toggle renders for anyone (test).
+    > 11. Picking a mode posts `/api/admin/mode`; another open Tonight page of the group updates without a reload
+    >     (Realtime test) and the announcer says its line; Normal removes the jump link and the banned-ten for
+    >     members in every state (tests).
+    > 12. Reset opens the AlertDialog with focus on Cancel; confirming posts the existing
+    >     `/api/admin/fearless/reset` (test).
+    > 13. **No mode or fearless control renders under `/g/<slug>/admin/*`, `/admin`, or in the panel**: the only
+    >     callers of `fearless/reset` and `admin/mode` under `app/` and `components/` are the Mode card's controls
+    >     (grep test); no Fearless or Mode card on You or Stats (test; was "More has none" before M14.7b).
+    > 14. Screenshots `redesign/screens/m14/tonight-mode-*` (every state in Fearless, Normal for admin and
+    >     member, the picker, the AlertDialog) and `mode-panel-*` (Fearless `All`, one lane, Normal; overlaid on
+    >     Tonight and as a full page) at 375 / 768 / 1440, checked by designer, ≤ 3 rounds.
+    > 15. The tonight route's client JS does not grow against M14.9's reported number (report); the panel's
+    >     code loads only when the panel opens.
+    > 16. New copy listed for review; typecheck, test, lint, build pass.
+    >
+    > Files: `app/(group)/g/[slug]/(tonight)/*`, `app/(group)/g/[slug]/mode/*` (new), the intercepting slot
+    > (new), `app/(group)/g/[slug]/layout.tsx` (the slot), `app/_tonight/*`, the fearless components,
+    > `lib/fearless/*` (`copy.ts`, `present.ts`), `lib/mode/*` (new: copy, the per-mode `rated` word),
+    > `lib/champs/*` (sprites from the existing fixture), `app/admin/(dashboard)/page.tsx` and
+    > `lib/admin/notices.ts` (the reset removed).
+    >
+    > Out of scope: the server (M14.29); Discord (M14.31); the overlay (deferred with the companion UI); modes
+    > other than Normal and Fearless (M15); a rated toggle (M15.1); champions on seats; a Discord post when the
+    > mode changes.
+
+  *Done 2026-10-03 (lane A; review 2 rounds passed; designer rounds 1–3):* Mode card in every state for everyone, routed panel (`@panel/(.)mode`), admin picker and Reset (AlertDialog with JS, admin-only confirm page `/g/<slug>/mode/reset` without), announcer and live regions never inert, Escape closes the top layer only, sprite maths in `championSpriteStyle`; `/g/<slug>/fearless` is a 404.
+- [x] **M14.31** Discord fearless post 2.0: the new names bold, one line per lane, the title links to the mode
+  panel. *(owner: `platform-engineer`; after M14.30, which owns `lib/fearless/copy.ts` and the panel URL;
+  `apps/web` lane; `lib/discord/*`; a follow-up to M14.10, already built)* Done 2026-10-03 (merge `0e3511e`; review passed): the game's new names bold and first, one line per lane, title links `/g/<slug>/mode`, the reset post shares the footer. 05-design §8.12 aligned to what shipped in 9b92b98.
+
+    > **Brief (product, 2026-10-03; link target changed the same day to the panel URL)**
+    >
+    > `docs/05-design.md` §8.8. Still the ban list only, still a second message after the result, accent
+    > `16764774`. `fearlessEmbed` gains the game's own champion ids: per lane, that game's new names come
+    > first and bold, then the rest of the lane, joined with `, `, one line per lane under a non-inline lane
+    > field. Description `Banned next game: <n> more, <total> in all. <open> still open.` with `<n>` the ids the
+    > game actually added (fewer than ten if a lock repeated one already banned); footer `Kustom · tap the title
+    > to see what's still open`; the title links `/g/<slug>/mode` (the mode panel, which a Discord click opens
+    > as a full page). The reset post keeps `Pool cleared. Ban list is empty.` and gains the same link. No post
+    > while the mode is Normal (M14.29).
+    >
+    > Acceptance: (1) a two-game fixture bolds exactly the second game's new ids and leads each lane with them
+    > (snapshot, updated deliberately); (2) a repeat lock makes `<n>` nine, not ten (test); (3) the title URL is
+    > `/g/<slug>/mode` for a second group's slug, and no payload contains `/fearless` as a path (test); (4) at
+    > 172 bans the payload stays inside every embed limit (`limits.ts` guard test) with no lane shed; (5) names
+    > escaped as today (`K'Sante`, `Kai'Sa` pass, markdown characters escaped; test); (6) no icon or CDN string
+    > in any payload (M11.1's test kept); (7) Normal posts nothing (M14.29's test kept green); (8) new copy
+    > listed; typecheck, test, lint, build pass.
+    >
+    > Files: `lib/discord/embeds.ts`, `lib/discord/post.ts`, their tests, the copy in `lib/fearless/copy.ts`.
+    >
+    > Out of scope: the result and teams embeds (M14.10); a post when the mode changes.
+
+- [x] **M14.32** ~~Overlay: open first, for your lane, and off when fearless is off.~~ **Dropped 2026-10-04: M17
+  removes the overlay, so there is no panel to open first.** Was deferred 2026-10-03,
+  both halves (the user: companion UI is out of scope until it is replaced; decision row). The API half
+  (`fearless.open` and `sprite` on `GET /api/overlay`) is deferred with it: nothing but the panel would read
+  those fields. Today's panel keeps working: M14.29 keeps `enabled` on the answer, so in Normal it shows its
+  empty-pool line. The brief below is history only: M17's companion has no champ-select surface.
+
+    > **Brief (product, 2026-10-03), parked**
+    >
+    > `docs/05-design.md` §8.9 B. The 60 seconds before picks are best served on the PC, where the client
+    > already is. Today the panel lists bans; it leads with what's open, for the viewer's lane.
+    >
+    > - **API half (platform):** `GET /api/overlay` adds `fearless.open` (`{ id, name, role, sprite }[]`, from
+    >   the same `availableFearless`) and `sprite` on banned entries; zod in and out; `enabled` from M14.29.
+    >   Only adds fields, so 0.2.x and M14.6's panel keep parsing.
+    > - **Companion half:** the panel's fearless block shows the counts `138 open · 34 banned`; when the
+    >   **posted** split seats the viewer, `Open for you · support` and that lane's open chips (icon 24, the
+    >   panel's 32px mouse rule), a one-line row of the other lanes' open counts that each expand, and bans
+    >   folded per lane. No posted split yet (`Lobby`): every lane, open first. `enabled: false`: no fearless
+    >   block at all. Hides at `GameStart` as today.
+    >
+    > Rules any rewrite keeps: the viewer's lane comes **only** from the posted split in the payload, never from
+    > `/lol-champ-select/*`; sprites from the pinned Data Dragon version, no `communitydragon`; no new client
+    > read or write, LCU calls stay in `packages/lcu`; the API answer only adds fields.
+
+**Reasons to sign in (M14.33 to M14.36, added 2026-10-03).** The user put the top three of
+`redesign/research/login-incentives.md` into 2.0 (decision row 2026-10-03). Each is a **lens**: the same public
+data read from where the signed-in, linked viewer stands. Nothing public goes behind a login, nothing nags
+(no modal, no repeated banner, no confirmshaming), and nothing adds a step to the night. "You" below always
+means the session's linked PUUID in this group.
+
+- [x] **M14.33** Claim your games: every self-linking path lands on your own page. *(owner: `web-engineer`;
+  after M14.21, which builds `/join`; `apps/web` lane; no schema)* Done 2026-10-03 (lane B; review passed): every self-link lands on `/g/<slug>/you?welcome=1` with the welcome card. **Amended 2026-10-03 (option A nav, decision
+  row): the landing is `/g/<slug>/you?welcome=1`, not `/g/<slug>/p/<you>?welcome=1`.** The welcome card sits at
+  the top of You's self lens (M14.15). "Only when the viewer is that player" becomes "only when the viewer is
+  linked": `/you` is always the viewer's own, so there is no other viewer to hide it from; a signed-out or
+  not-linked viewer on `/you?welcome=1` sees M14.7b's states and no card. Acceptance (1) redirects to
+  `/g/<slug>/you?welcome=1`; acceptance (2) reads: a signed-out and a not-linked viewer on that URL see no card,
+  and `/p/<you>?welcome=1` shows no card (test); screenshots are `you-welcome-*`. The rest stands.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > The moment someone links, they see their whole history in one card instead of a bare `You're in.`
+    >
+    > - **Paths:** `That's me` on Tonight; the `/join/<code>` Kustom-code card (STRATEGY §3.4); an admin's
+    >   Host-mode pairing (§3.2 step 4, M14.12 / M14.22's pairing card). Each one, once the link succeeds,
+    >   lands on `/g/<slug>/p/<you>?welcome=1`. An admin linking someone else is **out of scope** (it would
+    >   need a stored "seen it" flag; it lands nowhere new).
+    > - **The card**, top of the player page, only when `?welcome=1` **and** the viewer is that player (anyone
+    >   else opening the URL sees the normal page): `That's you. 83 games, 47 wins, Rating 1512.` A settling
+    >   player gets the chip beside the number (`settling · 4/10`). No games yet: `That's you. No games with
+    >   this group yet. Your first one shows up here.` A link `Back to tonight`. Not a toast; it stays until the
+    >   viewer leaves the page, and `?welcome=1` is dropped from the URL on the first client render so a
+    >   reload or a shared link doesn't replay it.
+    > - `/join`'s "Signed in, not linked" heading gains the reason: `Which League account is yours? Once we
+    >   know, you'll see every game you've played with this group.`
+    >
+    > Acceptance: (1) each of the three paths redirects to the welcome URL for the linked PUUID (tests per
+    > path); (2) the card renders only for the matching viewer (test: another signed-in viewer and a visitor
+    > on the same URL see no card); (3) the numbers are the page's own (games, wins, `Rating` = `round(mu *
+    > 60)`), never a second query that could disagree (test against the page's loader); (4) zero-game and
+    > settling variants (tests); (5) screenshots `player-welcome-*` at 375 / 768 / 1440, designer ≤ 3 rounds;
+    > (6) new copy listed; typecheck, test, lint, build pass.
+    >
+    > Copy [NEW COPY]: `That's you. <n> games, <w> wins, Rating <r>.` / `That's you. No games with this group
+    > yet. Your first one shows up here.` / `Back to tonight` (shipped wording elsewhere) / the `/join` line
+    > above.
+    >
+    > Files: the player page and its loader, `/join` and the `That's me` handler's redirect targets, the
+    > pairing card's success path. Out of scope: admin-made links; any badge or flair.
+
+- [x] **M14.34** "That's me" also offers the players of a game that finished in the last 12 hours. *(owner:
+  `platform-engineer`; after M14.33; `apps/web` lane; **platform decides the security shape**; no schema
+  expected)* Done 2026-10-03 (merge `8817b85`; review passed; accepted, not declined): the claim set is tonight's lobby plus the ten of any game in the group that ended (`started_at + duration_s`) in the last 12 hours; `POST /api/me/link` re-checks it; `claimableSeats` is Lane C's game-page contract.
+
+    > **Brief (product, 2026-10-03, proposed by product from the research's gap)**
+    >
+    > Today `That's me` offers only tonight's lobby members (`claimablePuuids`), on purpose, so a stranger can't
+    > claim someone else. The gap: someone who signs in the next morning from the game page or the Discord link
+    > can't claim themselves, and M14.35's game-page offer would dead-end. Proposal: the claimable set becomes
+    > tonight's lobby members **plus the ten of any game in this group that finished in the last 12 hours**,
+    > still unlinked PUUIDs only, still never re-link and never steal (M13.5's rules), and `That's me` appears on
+    > the game page for those ten as well as on Tonight.
+    >
+    > Platform owns the security call and writes it as a decision row: whether 12 hours is the right window,
+    > whether a claim should need anything more (it does not today for tonight's lobby), and what an admin sees
+    > afterwards (the link already shows on the members page). If platform judges the risk too high, it says
+    > so and this task closes as **declined** with the reason, and M14.35 drops the game-page claim (it keeps
+    > the sign-in line).
+    >
+    > Acceptance (if accepted): (1) a PUUID from a game finished 11 hours ago is claimable, 13 hours ago is not,
+    > a linked PUUID never is, another group's game never is (integration tests); (2) the claim route
+    > re-checks the set server-side, never trusting the page (test); (3) the decision row exists; (4) zod
+    > in/out unchanged or extended in `packages/db`; typecheck, test, lint, build pass.
+    >
+    > Files: `lib/` claimable-set helper, `app/api/me/*` claim route, the game page's loader (field only).
+
+- [x] **M14.35** You vs them: your record with and against anyone, and the 1v1 lane line. *(owner:
+  `web-engineer`; after M14.34 (and M14.15, M14.16, M14.17, M14.30, whose pages it touches); `apps/web` lane; no
+  schema)* Done 2026-10-03 (lane B; review passed): You vs them on another person's page and on You (one fold over `headToHead`), the `VersusPitch` line built; mounting on Tonight (lane A) and the game page (lane C) pending. **Amended 2026-10-03 (option A nav, decision row): two placements, one query.** (a) The card on
+  someone else's player page, as briefed. (b) **On `/you`, the everyone list**: one row per person you've played
+  with or against in this group, name, then `With <w>-<l>` and `Against <w>-<l>` in mono, then one plain line
+  (the card's lane line when there is one); most games together-or-against first; the whole row links to
+  `/g/<slug>/stats/1v1?a=<you>&b=<them>` (M14.17's Pick two, filled). Nobody yet: `Nobody to compare with yet.
+  Play a game and everyone you met shows up here.` [NEW COPY]. The card's numbers and the list's row for the
+  same pair are the same query. The Tonight line's linked variant becomes `Tap anyone to see your record with
+  them, or see everyone on You.` with `You` linking `/you` [NEW COPY]. Added acceptance (9) a row on `/you`
+  equals the card on that player's page, both orders (test); (10) the list renders only for a linked viewer
+  (test); (11) each row's link opens Pick two filled (test); (12) screenshots `you-vs-*` at three widths.
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > The research's "aha": `You and Ana: 9-3 together, 2-6 against.` is something no public page shows, and it
+    > is what friends argue about in voice anyway.
+    >
+    > - **Player page** (another person's, viewer linked in this group): a card above the stats, `You and
+    >   <Name>: <w>-<l> together, <w>-<l> against.` plus, when the 1v1 fold has a lane where the two met, one line
+    >   per such lane: `In lane: top, <Name> leads 5-2.` / `In lane: mid, you lead 4-1.` / `In lane: adc, 3-3.`
+    >   Never played with or against: `You haven't played with or against <Name> yet.` Gendered phrasing is
+    >   never used (we don't know it). Data is the existing partners / rivals / 1v1 folds, counted games only,
+    >   all time in this group.
+    > - **Offered from Tonight after the result** (finished state), one line under the poster: signed out or not
+    >   linked → `Played tonight? Sign in and see how you did against everyone.` (sign-in, then back here, then
+    >   `That's me`); linked → `Tap anyone to see your record with them.` Shown once per night per browser
+    >   (local only; a dismiss `×` hides it for the night). Not shown in a lobby or balanced (no pitch while
+    >   people wait for teams), and not on the board.
+    > - **Offered from the game page**, beside the scoreboard: the same two lines, the same once-per-night rule;
+    >   for a not-linked viewer who played that game and is claimable (M14.34), `That's me` is right there.
+    >
+    > Acceptance: (1) the card renders only for a linked viewer on someone else's page; a visitor, a non-linked
+    > viewer and the player on their own page see no card (tests); (2) its numbers equal the partners / rivals
+    > / 1v1 folds for the pair (test against fixtures, both orders); (3) zero-history and lane-tied variants
+    > (tests); (4) the Tonight line appears only in finished, once per night, and its dismiss sticks until the
+    > night boundary (tests); (5) the game-page line and `That's me` per M14.34's outcome (tests); (6) no
+    > modal, no banner that returns after dismiss (test); (7) screenshots `player-vs-*`, `tonight-finished-
+    > signin-*`, `game-signin-*` at 375 / 768 / 1440, designer ≤ 3 rounds; (8) new copy listed; typecheck, test,
+    > lint, build pass.
+    >
+    > Copy [NEW COPY]: the strings in quotes above.
+    >
+    > Files: the player page and loader, `app/_tonight/*` (one line), the game page. Out of scope: the public
+    > 1v1 page (unchanged); nemesis / duo lines (research #9, not taken).
+
+- [x] **M14.36** Your night: a personal recap on Tonight after your games. *(owner: `web-engineer`; after
+  M14.35; `apps/web` lane; no schema)* **Amended 2026-10-03 (option A nav, decision row):** unchanged on Tonight,
+  plus **the first line also on `/you`** (`Your night: 3 wins, 1 loss, Rating +38.`) under the header, same
+  rules (linked, a counted game tonight, gone at 06:00), same numbers (one loader). Added acceptance (9) the
+  `/you` line equals Tonight's first line and goes at the boundary (test with the injected clock).
+
+    > **Brief (product, 2026-10-03)**
+    >
+    > A reason to open Tonight after the last game, not only before the first. A linked viewer who played at
+    > least one counted game tonight sees, at the top of Tonight in **finished** and **idle** until the night
+    > boundary (06:00, the existing rule): `Your night: 3 wins, 1 loss, Rating +38.` then `Best game: Kai'Sa,
+    > 12/2/8.` (their highest M7 performance score tonight) and, when it happened, `MVP twice.` / `ACE once.`
+    > It updates as each game lands (Realtime, no refresh). We can't know which game is the last, so it is
+    > "so far" while the night runs and the same card after. ARAM games count in wins and losses and say
+    > nothing about Rating (they are never rated); a night of only ARAM reads `Your night: 2 wins, 0 losses.
+    > ARAM, so no Rating change.`
+    >
+    > For someone not signed in or not linked, nothing here: M14.35's finished line is the one pitch.
+    >
+    > Acceptance: (1) renders only for a linked viewer with a game tonight, in finished and idle, gone after
+    > the boundary (tests with an injected clock); (2) wins, losses and the Rating change equal the sum of
+    > tonight's per-game deltas the poster already shows (test); (3) best game picks the top performance score,
+    > ties to the later game (test); (4) MVP / ACE counts and the ARAM-only variant (tests); (5) a new game
+    > landing updates the card without reload (test on `TonightLive`); (6) the tonight route's client JS does
+    > not grow against M14.30's number (report); (7) screenshots `tonight-your-night-*` at 375 / 768 / 1440,
+    > designer ≤ 3 rounds; (8) new copy listed; typecheck, test, lint, build pass.
+    >
+    > Copy [NEW COPY]: the strings in quotes above.
+    >
+    > Files: `app/_tonight/*`, `lib/tonight/*` (loader: the viewer's games tonight). Out of scope: a shareable
+    > image (research #4, "Your week", not taken); AI-written lines (M16).
+
+Acceptance: ten friends open the group's link on their phones while the lobby fills, see who is in without
+scrolling past empty rows, and when an admin taps Roll they see their side first, a bar that says how close it
+is, and, if they care, every split the bot considered. The board's order matches its numbers, new players are
+visibly settling, every game in history shows its odds, and a stranger on `/` understands Kustom, makes a group
+and connects Discord without help. Nobody typed anything in the night, every page carries Riot's notice, and
+production was never touched by an agent.
+
+---
+
+## M15 Mode of the night (needs M14; planned 2026-10-03, briefs at plan level)
+
+Source: `redesign/research/fun-modes.md` (product, 2026-10-03), approved by the user as the plan: class night
+first, then region wars, then mirror match (decision row 2026-10-03). The briefs below are enough to plan and
+order. **The full brief is `redesign/briefs/m15.1-mode-of-the-night.md` (M15.1, done 2026-10-04)**; the task
+acceptance below follows it.
+
+**Amended 2026-10-03 (decision rows):** every mode is **a panel in M14.30's pattern**, picked on Tonight's
+`Mode` card and shown at `/g/<slug>/mode` (an overlay from Tonight, a full page from a link), not its own page or
+wheel page. M14 ships the card with `Normal` and `Fearless` and the group's mode on `0024`; M15 adds options to
+the same card, panels to the same URL and values to the same mode list, never a new route per mode. **Companion
+UI is out of scope** (the user replaces it later): ~~M15 changes `GET /api/overlay` only, and the panel display
+waits for the rewrite.~~ **2026-10-04: the rewrite is M17 and it has no overlay, so M15 does not touch
+`GET /api/overlay` at all (M15.7 dropped); the mode panel on the web is the only place a pool is shown.**
+
+**Goal.** One game in a night that plays differently: an admin picks a mode (or Spin) on the Mode card before
+Roll teams, everyone sees the rule on the card and its panel and in Discord, they play, and the result post says
+who kept the rule.
+Nobody else typed anything.
+
+**Why.** The group asked for nights like Fearless that break the rhythm (all tanks, all ADCs, Ionia vs Noxus).
+The research's lesson: a mode works as **one game that breaks up the night**, not the whole night every night
+(One for All burnout), and pools people choose from feel fair where random champions frustrate.
+
+**Rules for the whole milestone (settled, not reopened by a task):**
+- **Kustom never touches champion select or the game.** A mode is *announced* (Tonight, Discord),
+  *displayed* (the mode panel shows the allowed pool, as it shows Fearless; no overlay, M17 removes it) and *checked afterwards* from the
+  end-of-game block. Kustom never blocks a pick and never reads `/lol-champ-select/*`.
+- **Riot's policy limits** (developer.riotgames.com/docs/lol): never alter the goal of the game (the Nexus
+  decides, so no kill-race or "first to 20" scoring), never remove game decisions or dictate them (so **no
+  Ultimate Bravery**: Kustom never hands one person a champion or build). Kustom narrows a pool the group
+  chose; that is all.
+- **Modes are unrated by default.** Recorded, on the poster and the tape, never rated (the ARAM precedent); a
+  mode is rated only when it leaves League as League, decided per mode by a decision row (mirror match is the
+  first). No second rating track. Unrated mode games add nothing to the Fearless pool (as ARAM).
+- **One tap, optional, by an admin, on Tonight's Mode card**, before Roll teams. A M15 mode lasts **one game**
+  and then the card goes back to the group's standing mode (`Normal` or `Fearless`, M14.29), which is what
+  "back to `Normal`" meant when Fearless was a separate switch. While the standing mode is Fearless, a mode
+  game's pool is still minus the bans (`modePool`). Breaking a rule flags the poster; the result and any rating
+  move stand.
+  Nobody overturns a result.
+- Words only for any Riot-adjacent data: no crests, no region art, no lore text.
+
+**Tasks (IDs fixed; M15.1's brief settles every task below, 2026-10-04).**
+
+  *Done 2026-10-03 (lane A; review passed; designer round 3):* `lib/tonight/yourNight.ts` (one loader for Tonight and You), card under the strip in idle and after the odds box in finished, linked viewers only, refreshes with `TonightLive`; best game via `fold.ts`'s `gameScores`; tonight JS unchanged (449.3 KB gz). Copy: `Your night: 2 wins, 1 loss, Rating +38.`, `…ARAM, so no Rating change.`, `Best game: <champ>, K/D/A.`, `MVP twice.`/`ACE once.`. Open: no screenshot of the `/you` line (needs a session).
+- [x] **M15.1** Product brief and decisions. *(owner: `product`; done 2026-10-04)* Full brief:
+  `redesign/briefs/m15.1-mode-of-the-night.md` (lifecycle, Spin, rated, the check, edge cases, every new string
+  marked [NEW COPY], acceptance per task). `00-product.md` has the rule paragraph; decision rows R1 to R10 of
+  2026-10-04 (R9, R10 are the user's answers).
+    > **Summary.** Two layers: the group's **standing mode** (`Normal` or `Fearless`; new groups `Normal`, `0030`)
+    > and at most one pending **rule** for the next game (`Class wars` x5: Tanks / Marksmen / Mages / Assassins /
+    > Supports only, by any Data Dragon tag; `Region wars`, two regions with 8+ open champions drawn at Roll;
+    > `Mirror match`). Picking Normal or Fearless clears a pending rule. A rule **locks onto the lobby at Roll
+    > teams** (Reroll keeps it, teams coming down drop the copy), is stamped on the game at record, and is then
+    > cleared only if it is still the one locked; remakes, ARAM, no-lobby and dropped games leave it pending.
+    > Changes after Roll are for the next game. **Spin** is the server's pick: a family, then an option; never
+    > tonight's previous rule, an unplayable option, a standing mode, or mirror (until M17 opens Blind Pick).
+    > **Rated** defaults: Normal, Fearless, mirror rated; class and region not rated; an admin flips `Rated` for
+    > the next game in any mode, locked at Roll (the user's yes). A not-rated game is recorded and posted but never
+    > in ratings, the board, calibration, the Fearless pool or role learning. The **check**: broke = a known
+    > champion outside its side's pool (mirror: a lane whose two detected seats differ); unknown never counts as
+    > broke; nothing punitive; the line names champions, never players. Under Fearless the panel's pool is minus
+    > bans; a class under 10 open or a region under 8 is disabled. No per-group on/off, no `Rest of tonight`, no
+    > weekdays, no best of three (the user confirmed). **Mirror**: the host opens a Blind Pick custom by hand;
+    > while it is next, Tonight replaces `Start a lobby` with one host line (the user, Q2).
+- [x] **M15.2** Core: the mode model, Spin and the post-game rule check. *(owner: `core-engineer`; after M15.1;
+  `packages/core`; merged 2026-10-04, review passed)* `Mode` union `normal | fearless | class | region | mirror` with payloads (`class: { tag }`,
+  `region: { blue, red }`, `mirror: {}`); `modeRatedDefault(mode)`; `modePool(mode, roster, fearlessBans)`;
+  `checkMode(mode, seats, table)` (the class or region table passed in) returning per side (mirror: per lane) `kept | broke | unknown` with the champions;
+  `drawSpin(options, previousRule, playable, rng)` and `drawRegions(regions, openCounts, rng)`, randomness
+  injected. Acceptance: tests per mode; class membership by any tag; an unknown champion and a missing position
+  are `unknown`, never `broke`; mirror with two seats on one lane is `unknown`; Spin never returns the previous
+  rule, a standing mode, an unplayable option or mirror, and weights by family (seeded distribution test); the
+  region draw never returns a region under 8 open or `unaffiliated`, nor the same region twice; `modePool`
+  subtracts Fearless bans.
+  *Done 2026-10-04:* `packages/core/src/mode/`: rated defaults plus the admin override in any mode; any-tag class
+  pools and region pools with Fearless subtraction and the 10 / 8 thresholds; Spin (`SPIN_FAMILIES` = class,
+  region; never mirror until M17.17); the region draw; `checkMode(mode, seats, table)` returning kept / broke /
+  unknown per side or per mirror lane; the version-token lifecycle. Decision rows in `04-decisions.md` (cab1b5d).
+- [x] **M15.3** Schema and server: the pending rule, the lock at Roll, the rated stamp, Spin. *(owner:
+  `platform-engineer`; after M15.2; migration, shown to the user before it is applied)* **Extends `0024`, never
+  reshapes it.** Adds rows to `public.modes` (`class`, `region`, `mirror`) and a default-rated fact per mode; a
+  pending rule on the group (mode, payload, rated, who set it); the lobby's copy taken at Roll (mode, payload,
+  rated), **for the standing mode too** (R2: a mid-game mode change no longer touches the running game, so
+  `Changes apply from the next game.` is true; the `0024` trigger stays as the fallback for games with no lobby
+  copy); `games.rated` and the rule payload stamped from the copy; compare-and-clear of the pending rule at
+  record (not on a remake, ARAM or no-lobby game); not-rated games skip the rating fold, the Fearless pool, role
+  learning and calibration in ingest and `rebuild-ratings` alike; `POST /api/admin/mode` extended (rule,
+  rated) and `POST /api/admin/mode/spin` (the server's pick), admin-gated, zod both ways. **No enabled-modes
+  storage** (R5). Acceptance: integration tests for the lock at Roll, Reroll keeping the copy, teams coming
+  down dropping it, a pick after Roll going to the next game, a mid-game standing-mode switch leaving the
+  running game's `games.mode` as rolled, record stamping from the copy, compare-and-clear (a rule queued
+  mid-game survives), remake and ARAM leaving the rule pending, a no-lobby game taking the standing mode, the
+  skip list, `rebuild-ratings` parity with ingest, a not-rated Rift game leaving mains and backups unchanged,
+  Spin chosen on the server; a diff showing `0024`'s columns and rows untouched; every existing rated-eligible
+  game keeps `rated = true` (no rating moves on replay); the migration shown first.
+  *Done 2026-10-04 (review passed; `0032` applied locally; full suite green at `0032`):* the pending rule, Rated override and version on `group_modes`; the lock on `lobbies` taken at Roll (Reroll keeps it, teams coming down drop it by trigger); `games.rule*`, `games.rated`, `rule_check` stamped from the lobby lock (R2: a mid-game switch no longer changes the game); Spin at `/api/admin/mode` and `/api/admin/mode/spin` (CSPRNG, never mirror, never tonight's previous rule); compare-and-clear on the version after record; `games.rated = false` excluded from the fold, rebuild, boards (`mu_after`), calibration, the Fearless pool and role learning. The not-rated result post moves to M15.6.
+- [x] **M15.4** Data Dragon fixture regenerated with `tags` (and `attackrange`), at the M14.8 pin. *(owner:
+  `web-engineer`)* Acceptance: every champion in `names.ts` has its tags; a test pins the any-tag counts at
+  16.19.1 (Tank 46, Marksman 33, Mage 75, Assassin 46, Support 43); every class has at least ten.
+  *Done 2026-10-04 (review passed):* `pnpm --filter web ddragon-fixture` regenerates the 16.19.1 fixture (shape kept, `tags` and `stats.attackrange` added) and `lib/champs/tags.ts`; any-tag counts pinned (Tank 46, Marksman 33, Mage 75, Assassin 46, Support 43).
+- [x] **M15.5** Tonight: the rules on the Mode card and as panels, Spin, the Rated switch, the host line, the
+  poster's rule line. *(owner: `web-engineer`; after M15.3 and M15.4)* The select gains the rule optgroups and
+  disabled `(too few open)` options; `Spin` and the `Rated` switch on the admin row; the card per state with
+  the one-game line and the `Next game:` line; the class, region and mirror panels at `/g/<slug>/mode`
+  (M14.30's pattern); while mirror is next, `Start a lobby` is replaced by the host line (idle and filling);
+  the poster's rule line and `Not rated, so no Rating change.`; the in-card Spin reveal everyone sees from
+  Realtime; M14's `An admin switched off Fearless` note does not appear when a rule game hands back to Normal.
+  No new route, no wheel page. Acceptance: every state of 05-design 8.3 per new mode at 375 and 1440,
+  screenshots; members and visitors get no control; M14.30's seven panel checks per mode; one admin's Spin
+  reaches a second open page with the same result; reduced motion shows the result with no animation; a no-JS
+  Spin works as a form post; the host line shows exactly while mirror is next; the card returns to the standing
+  mode when the game lands; every string in the brief's §4 present, none invented; designer at most 3 rounds.
+- [x] **M15.6** Discord: the rule line on the teams post, the kept/broke line on the result post. *(owner:
+  `platform-engineer`; after M15.3)* Not a separate message. The rule line (or `This game: not rated.`) on the
+  teams post and its Reroll posts, linking `/g/<slug>/mode`; mirror's says `Blind Pick lobby`; the rule line
+  and `Not rated, so no Rating change.` on the result post; a not-rated Rift game gets a result post, ARAM
+  still none. Acceptance: snapshots per mode and per kept / broke / unknown; the limits guard holds with the
+  longest line (three broken names plus an unknown); the link is the panel URL; no new message type.
+  *Done 2026-10-04 (review passed):* `lib/discord/modeLines.ts` builds the teams rule line (or `This game: not rated.`) linking `/g/<slug>/mode` on the post and its Reroll posts (mirror says `Blind Pick lobby`); the result post carries the kept/broke/couldn't-check line from `games.rule_check` (champions only) and `Not rated, so no Rating change.`; a clean not-rated Rift game gets a result post (no fearless list, no MVP/ACE), ARAM and remakes none; existing snapshots unchanged; limits test with three broken names plus an unknown.
+- [x] **M15.7** ~~Overlay API: the mode and its pool on `GET /api/overlay`. *(owner: `platform-engineer`; after
+  M15.3)* Adds `mode` and the mode's pool (minus Fearless) to the answer, only adding fields, so today's panel
+  keeps parsing. **The panel display is deferred to the companion UI rewrite** (decision row 2026-10-03); no
+  `companion-engineer` work and no release in M15. Acceptance: zod both ways, an old-schema parse passes, `normal`
+  and `fearless` answer exactly as after M14.29 (tests).~~ **Dropped 2026-10-04: M17 removes the overlay, so
+  `GET /api/overlay` has no reader that could show a mode.** Nothing moves elsewhere, because the pool is already a
+  Tonight and Discord concern: M15.5's mode panel at `/g/<slug>/mode` shows it, and M15.6's teams post links to that
+  panel. No new task.
+  *Done 2026-10-04 (code review passed; design passed in three rounds; merged `8527d59`):* rule optgroups with disabled `(too few open)`; Spin and the Rated switch on the admin row (container query at 520px); the card per state; class/region/mirror panels; Spin reveal in the status slot, landing only when the card's pending rule matches, the rest of the row hidden while it cycles; host line in note dress; the poster's rule line inside the poster; not-rated strip and seats; Your night counts not-rated Rift games. Rated switch sentences `Next game is rated.` / `Next game is recorded, not rated.`
+- [x] **M15.8** **Class wars** end to end: the first rule, proving M15.2 to M15.6. *(owner: the lead runs it
+  across the above; product walks the scene)* Acceptance: on a fixture night one admin Spin lands on a class
+  (seeded); the card, the panel's pool (minus bans under standing Fearless) and the teams post all say it; Roll
+  locks it; the recorded game is stamped not rated, adds nothing to the Fearless pool, moves no rating and
+  teaches no role; the poster and the result post carry the kept/broke line naming champions only; the card is
+  back on the standing mode; a second game with no new tap is a plain standing-mode game.
+  *Done 2026-10-04 (review passed; no bugs found; merged):* `app/classWars.integration.test.ts` drives a scratch group through the real routes: standing Fearless with 4 tanks banned, a seeded Spin to Tanks only, card / panel (42 open) / teams post, the lock at Roll, a not-rated stamp with no pool, rating or role change and a second companion as a no-op, the champions-only check line on the poster and the result post, the card back on Fearless, then a second game with no tap that rates and grows the pool; admin Recording reads Yes / No · Tanks only / Yes. Kit screens `redesign/screens/m15/m158-*` for product's walk in M15.12.
+- [x] **M15.9** The region table: champion id → region slug, region names as plain words, seeded **once** from
+  Meraki `lolstaticdata` (MIT) with a credit line to Meraki and the LoL Wiki, spot-checked against Universe,
+  **never fetched at runtime**. *(owner: `web-engineer`, or core if it lives in core)* Acceptance: every Data
+  Dragon id at the pin has a row (`unaffiliated` allowed); no crest, art or lore text in the repo; the credit
+  line (`Regions from Meraki's lolstaticdata and the League of Legends Wiki.`) is on the region panel; a test or
+  CI grep shows no runtime fetch.
+  *Done 2026-10-04 (review passed):* `lib/champs/regions.ts` seeded by `pnpm --filter web seed-regions` from Meraki lolstaticdata (build of 2025-08-01) plus Locke (demacia) and Zaahen (unaffiliated) from Universe; matches Universe on all 173; 13 regions with ≥ 8 champions, 21 unaffiliated; `REGION_CREDIT` exported (panel in M15.10); `championFacts.ts` builds core's `ChampionTable`; a test forbids runtime fetch.
+- [x] **M15.10** **Region wars**. *(owners: platform, web; after M15.8 and M15.9)* Not rated by default.
+  Acceptance: the server draws at Roll, Reroll keeps the draw, teams coming down redraw; never a region under 8
+  open (Fearless counted) nor `unaffiliated`, never the same region twice; both posts name the regions; the
+  panel shows both pools, the viewer's side first when seated; per-side check tests, including an
+  `unaffiliated` champion (`broke`) and a champion with no row (`couldn't check`).
+  *Done 2026-10-04 (review passed; merged):* `app/regionWars.integration.test.ts` over the real routes: the draw at Roll counting Fearless bans (pinned RNG, injected in code only), Reroll keeping it, teams coming down redrawing, both posts naming the regions, both pools on the panel with the seated side first and the credit, the per-side check (`unaffiliated` broke, no row couldn't check), not rated and a second companion a no-op. Bug fixed: a champion newer than the Data Dragon pin is named as the client named it on the post and the poster, not `Champion <id>`. Screens `m1510-*`. The never-under-8 / never-unaffiliated rule is covered by core tests.
+- [x] **M15.11** **Mirror match**, the first rated rule: lane opponents play the same champion; the host opens a
+  Blind Pick custom by hand (the user, 2026-10-04). *(owners: platform, web; after M15.8)* Acceptance: picking
+  mirror replaces `Start a lobby` with the host line (idle and filling) and puts `Blind Pick lobby` in the teams
+  post line; Spin never draws mirror; a mirror game rates like a normal game and adds its five champions to
+  Fearless; a broken lane flags the poster and still rates; a lane with no detected position, or two seats on
+  one lane, is `couldn't check`; a mirror game played in a Draft lobby is checked and rated like any other.
+  Follow-up: **M17.17** makes Start a lobby open the Blind Pick custom itself.
+  *Done 2026-10-04 (review passed; merged; no app changes needed):* `app/mirrorMatch.integration.test.ts`: twenty seeded Spins never land on mirror; the host line replaces Start a lobby idle and filling; `Blind Pick lobby. Rated.` on the teams post; a kept game rates and adds its five champions; a broken lane flags the poster and still rates; no position or two seats on a lane is couldn't check; a Draft lobby is checked and rated. Screens `m1511-*`.
+- [x] **M15.12** Review and scene walk. *(owners: `reviewer`, then `product`)* Acceptance: the reviewer's pass,
+  then product walks the brief's scene on a real night or the M15.8 fixture night and the milestone acceptance
+  below; every gap becomes `M15.13+` with an acceptance check. **Amended 2026-10-04 (admin audit):** the walk
+  includes the admin Games page (`Recording` after M14.53): every game of the night shows its real rated reason,
+  and no row reads `Not yet`.
+  *Done 2026-10-04: reviewer pass (one gap, M15.13) and product's scene walk (M15.14–M15.19); all landed, so M15 is accepted.*
+- [x] **M15.13** The admin Recording page names games before a ratings reset. *(owner: `platform-engineer`; from
+  the M15.12 review, 2026-10-04)* `ratedReason` (`lib/admin/games.ts`) says `Waiting to be counted` for a game
+  that started before the group's `ratings_since` epoch (M14.18), which the fold and the rebuild skip as
+  `before-reset`, so it waits forever. Acceptance: a `before-reset` reason with its own copy (designer's words),
+  computed with `countsForRatings`, and a test beside the one-test-per-reason set.
+  *Done 2026-10-04 (lead-checked; merged):* `ratedReason` follows the fold's order (rated, then the gate, then `countsForRatings` with `groups.ratings_since`); a skipped game reads `No · before the ratings reset`; one already rated before the reset keeps `Yes`; unit cases plus a scratch-group integration test.
+- [x] **M15.14** Mirror match on a Fearless night shows the Fearless pool. *(owner: `web-engineer`; from the M15.12
+  walk, 2026-10-04; blocks M15 acceptance)* With standing Fearless and mirror pending or locked the card status
+  reads `Same champion as your lane opponent · <n> open`; balanced, the seated viewer gets `Your lane <role> · <n>
+  open` and `What's open for <role>`; the mirror panel shows the mirror sentence above the Fearless pool with bans
+  folded as Fearless does (M14.30's seven panel checks); in game `This game's champions join the ban list when it
+  ends.`; finished, `Banned next game` lists each champion once; a mirror game on a Normal night is unchanged;
+  screens at 375 and 1440.
+  *Done 2026-10-04 (code and design review passed; merged `0477955c`).*
+- [x] **M15.15** A not-rated game never promises bans, and the finished card says it is about the next game.
+  *(owner: `web-engineer`; from the M15.12 walk; blocks M15 acceptance)* In game, a game locked not rated on
+  standing Fearless shows `This game isn't rated, so it bans nothing.`; finished, `Not rated, so this game banned
+  nothing.` where `Banned next game` would be; the finished card heads its row `Next game` so its `Rated` chip
+  reads as the next game; tests for Rated-off Fearless, region no-draw and rated Fearless (unchanged); screens.
+  *Done 2026-10-04 (merged `0477955c`):* the strip and the card agree in game (test).
+- [x] **M15.16** The mirror host line while filling. *(owner: `web-engineer`)* Idle keeps `MIRROR_HOST_LINE`;
+  filling reads `Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind
+  Pick custom in League and everyone moves to it.`; a test per state; screens.
+  *Done 2026-10-04 (merged `0477955c`):* the missed-invite line stays beside the filling line (lead).
+- [x] **M15.17** A region wars game that could not be drawn is named as such. *(owner: `platform-engineer`; low
+  priority)* The lock and the game record that region wars was attempted (any migration local only); admin
+  Recording reads `No · Region wars couldn't be drawn`; the teams post reads `This game: region wars couldn't be
+  drawn, too few open champions. Not rated.`; tests for the admin labels of region default (`No · Region wars`),
+  mirror rated (`Yes`) and mirror with Rated off (`No · Rated was off`).
+  *Done 2026-10-04 (review passed after one round; merged):* migration `0035` (local only; `lobbies.lock_no_draw`, `games.rule_no_draw`, both false by default, the drop-lock trigger resets the flag, anon select grant like 0032); Recording `No · Region wars couldn't be drawn`; teams post `This game: region wars couldn't be drawn, too few open champions. Not rated.` (or `Rated.` if switched on; no panel link); label tests for region default, mirror rated and mirror Rated off; the no-draw path end to end. The mode-night integration tests now read Discord posts 2.0 (no code bug: wording plus a stale post buffer).
+- [x] **M15.18** No after-the-fact odds on a not-rated game. *(owner: `web-engineer`)* `gameReceiptOf` takes
+  `rated` and returns `none` for a not-rated game whose teams no longer match the chosen split, as for ARAM;
+  rolled odds and `Upset!` stay; the AI recap's `upset` fact is false in the second case; ARAM unchanged; tests.
+  *Done 2026-10-04 (merged `0477955c`).*
+- [x] **M15.19** The tape and game history name the rule. *(owner: `web-engineer`; lead took it 2026-10-04,
+  decision row)* Tape and `/games` rows read `Tanks only · not rated`, `Ionia vs Noxus · not rated`, `Mirror match`
+  (rated), following `ARAM · not rated`; the check line stays off the tape (D6); a test per rule; screens. Also
+  `classSentence`: `Everyone picks a tank this game: any champion Riot lists as a Tank.` (one shape per class,
+  `an assassin`).
+  *Done 2026-10-04 (merged `0477955c`):* an unknown hyphenated region id reads word by word (`Blessed Isles`).
+
+**Questions for the user: answered 2026-10-04** (decision rows of that date). Best of three: no. Themed
+weekdays and `Rest of tonight`: no; one game only. Mirror and Fearless: a rated mirror game adds its five
+champions (R4, one rule: only rated Rift games feed the pool). Blind Pick for mirror: the host makes it by hand;
+M17.17 automates it. Rated switch: yes, any mode, locks at Roll.
+
+**Out of the milestone:** Ultimate Bravery; anything that changes the win condition; captains draft, auctions,
+king of the hill, votes; random champions handed out by Kustom; the other research modes (#4 to #15) until
+asked; region crests or Universe assets; best of three, `Rest of tonight`, themed weekdays and a per-group list
+of rules (the user, 2026-10-04); per-mode records and any rule-breaker stat.
+
+Acceptance: an admin taps `Spin` once on the Mode card, it lands on Tanks, ten friends see `Tanks only · Not
+rated` on the card, its panel and in Discord, they play, the poster says who kept the rule, nobody's Rating moved,
+the Fearless pool did not grow, and the card is back on the standing mode. Nobody else typed or tapped anything.
+
+---
+
+## M16 Kustom Premium: AI (needs M15; future, paid, if Kustom succeeds)
+
+Source: `redesign/research/ai-features.md` (product, 2026-10-03). The user's framing: **planned as a future
+paid "Kustom Premium" feature, if Kustom succeeds.** All three of the research's first features are in:
+the game recap line, the weekly storyline and the player scouting report (decision row 2026-10-03). This
+milestone plans them and their guardrails; **payments and billing are out of scope** and a future decision.
+A per-group premium flag gates everything; nothing here runs for a group without it. **The full brief is
+`redesign/briefs/m16.1-premium-ai.md` (M16.1, done 2026-10-04)**; the task acceptance below follows it.
+
+**Goal.** For a group with Premium on: a game ends, the Discord result post and the game page carry one true,
+specific line of story; on Sunday the weekly post carries a paragraph about the week; each player page has a
+short scouting report, refreshed weekly. Every number in every line is one the database holds. Nobody typed
+anything.
+
+**Why.** The numbers are trusted (the receipt is the trust anchor); what the product lacks is a voice. AI is a
+writer here, never a source. The research's warnings decide the shape: one wrong number turns "the bot is
+rigged" into "the bot lies", so a checker rejects any unmatched line, and a rejected line is no line.
+
+**Guardrails (acceptance for every M16 task):**
+1. **Numbers only from the DB.** The server builds a fact list (`F1: P3, Lee Sin, kills 9, assists 5, team
+   kills 19`); the model writes words from it; a **checker rejects the output if any number, name, champion or
+   percentage in it is not in the facts**. A rejected line falls back to **no line**, never an unchecked one.
+2. **Players sent as `P1..P10`**, names substituted after the check, so no Riot ID or name leaves for a third
+   party. Nothing about other groups is ever in a request.
+3. **Write once, store, never regenerate on view.** One line per game (keyed to the game, idempotent like
+   ingest), one storyline per group-week, one report per player-week. A rating rebuild does not rewrite old
+   lines.
+4. **Opt-outs.** A group admin can turn AI lines off for the group; any player can opt out of being named or
+   described (their report is not generated; lines that would name them are not posted).
+5. **Cost cap.** **$2 per group per month and $20 overall** (the user, 2026-10-04), plus a $20 spend limit in
+   the Anthropic console, and a global kill switch; at a cap the features go quiet and nothing else changes.
+6. **Labelled.** Generated text carries a small `AI recap` (or `AI scouting report`) label (M16.1), and is never inside the receipt, the scoreboard
+   or anything quoted as a fact. Nothing generated before or during a game; nothing about plays we cannot see
+   (no teamfights, Barons or minutes: we read only the end-of-game block).
+
+**Dependencies (user actions and schema, before M16.3):**
+- **An Anthropic API key**: a new secret, created by the user, in Vercel env (Production only, so previews
+  never spend) and optionally `.env.local`, listed in `.env.example` (`ANTHROPIC_API_KEY`), plus a $20 monthly
+  spend limit set in the Anthropic console. User actions, not an agent's.
+- **A table for generated lines** (and the per-group and per-player flags): migrations, each shown to the user
+  before it is applied.
+- **Model choice**, per the research: `claude-haiku-4-5` for volume (the recap line, the scouting report),
+  `claude-sonnet-5-5` for quality (the weekly storyline, one call a week). Prices change; M16.3 records the
+  current ones beside the cap.
+
+**Tasks (IDs fixed; M16.1's brief settles every task below, 2026-10-04).**
+
+- [x] **M16.1** Product brief and decisions. *(owner: `product`; done 2026-10-04)* Full brief:
+  `redesign/briefs/m16.1-premium-ai.md` (framing per surface, the labels, both opt-outs, entitlement, models and
+  cost, guardrails made concrete, edge cases, copy marked [NEW COPY], acceptance per task). `00-product.md` has
+  the Kustom Premium section; decision rows of 2026-10-04 (M16.1 D1 to D8, plus the user's answers row).
+    > **Summary.** A group without Premium sees **nothing**: no upsell, badge, locked toggle, empty slot, and no
+    > mention on `/`, `/about`, `/how` or `/download`. In a Premium group friends see only labelled lines (`AI
+    > recap` on the game line and the weekly storyline, `AI scouting report` on the player page, each with a tap
+    > text saying every number is checked); the word `Premium` reaches only that group's admins (one admin-home
+    > section, `Kustom Premium`, with the `AI lines` switch) and the operator on `/ops`. **Entitlement:**
+    > `groups.premium` default off, flipped only by the operator's service-role script `pnpm --filter web
+    > set-premium <slug> on|off [--cap <usd>]`, never by an HTTP route; `/ops` shows it read-only (the
+    > super-admin stays read-only, M13.6/M14.19). **Opt-out:** per player per group, default written-about,
+    > `Write about me` on the You page; an admin can switch it off for a member, never on; opting out hides
+    > stored lines naming them at once. **Budget (the user, 2026-10-04):** $2 per group per month, $20 overall,
+    > plus a $20 Anthropic console limit; a call is made only if its worst case fits; at the cap the features go
+    > quiet until the 1st (one admin-only line). Estimate about $0.96 per group-month. **Lines** never carry
+    > odds, MVP/ACE or rating numbers; only winners are teased; failure of any kind is silent absence; recap
+    > lines only for live-ingested games, added to the Discord result post by an edit within 15 minutes; admins
+    > can `Hide` a line. **`customs` gets Premium as soon as M16.3 lands** (the user); the landing page and
+    > `/about` do not mention AI.
+- [x] **M16.2** **Premium entitlement: a per-group flag that gates every AI feature, set by an operator
+  script.** *(owner: `platform-engineer`; after M16.1; migration, shown to the user before it is applied)*
+  `groups.premium boolean not null default false` and `premium_changed_at`; no plan, price, expiry or billing
+  column. `pnpm --filter web set-premium <slug> on|off` (reads `apps/web/.env.local` like `mint-token`; added to
+  CLAUDE.md's commands). **No HTTP route writes it, `/ops` included.** Acceptance: every existing group reads off
+  after the migration (test); `set-premium` flips it, is idempotent and stamps `premium_changed_at` (test); a
+  request carrying `premium` to any group-settings route leaves it unchanged for owner, admin, member,
+  signed-out and super-admin (tests); `/ops` shows it read-only; a non-Premium group's Tonight, game page,
+  player page, board, admin home and Discord posts render identically to before the migration (snapshot tests)
+  and the strings `Premium` and `AI recap` appear in none of them (test); every M16 generator and render checks
+  the flag server-side (off means no model call and no line, test per feature).
+  *Done 2026-10-04 (review passed):* `0031_premium_flag.sql` (`groups.premium` default false, `premium_changed_at` stamped by a trigger only on a flip, `ai_monthly_cap_usd` numeric(6,2) default 2.00 within 0..100; service-role only, `groups_public` unchanged), applied locally (local DB at `0031`); `pnpm --filter web set-premium <slug> on|off [--cap <usd>]` refuses any non-local host without `--hosted` and prints the URL first; `lib/premium.ts` (`isPremium` fails closed, cap read null = no budget) with a guard that every `lib/ai/**` file imports it; `/ops` shows Premium read-only. Premium is off for every group, `customs` included, until M16.3.
+- [x] **M16.3** The AI plumbing: the API client, the fact builder, `P1..P10`, the checker, the store, the caps,
+  the kill switch, the group switch and the player opt-out. *(owner: `platform-engineer`; after M16.2 and the
+  user's key; migration for `ai_lines_enabled`, `ai_monthly_cap_usd` (default 2.00), the membership opt-out and
+  the lines table, shown first)* Acceptance: every model call goes through one module; nothing else imports the
+  Anthropic SDK or calls its host (lint or test). The checker rejects fixture lines with one wrong number, one
+  number bound to the wrong player, one spelled-out wrong number, one unknown name, one invented champion, one
+  absolute word without a matching fact, one `because`, one `Baron`, one odds claim, one insult (one test
+  each), and passes a clean fixture. A rejected line is stored `rejected` and shows nowhere (test). No request
+  body contains a name, Riot ID, PUUID, Discord name or group name (test over every prompt builder).
+  Losing-side facts carry no deaths or low stat (test). **The $2 per-group cap and the $20 global cap** each stop
+  calls at the limit, and a call whose worst case would cross a cap is not made (tests with a fake clock and
+  meter). The kill switch and a missing key each stop all calls without failing ingest (tests). Opted-out
+  players are absent from every fact list, and a stored line naming one is not rendered (tests). The group
+  switch off means no call and no render (test). The admin opt-out path can set true and never false (test).
+  Real prices recorded beside the cap. **On merge and deploy, the operator runs `set-premium customs on`**
+  (the user, 2026-10-04) and `customs` reads on; `/`, `/about`, `/how` and `/download` still contain no AI copy
+  (grep).
+  *Done 2026-10-04 (review passed after one round; `0033` applied locally; Premium on for `customs` locally):* `lib/ai/` client (only SDK import, never throws, no key = silent), facts (`{Pn}` tokens only, opted-out players left out, no odds/MVP/rating in game facts, losers only their best numbers), checker (printable ASCII only, numbers/names/champions backed by facts, deny-lists, loser barbs), meter (caps enforced in SQL by `ai_reserve_call` under an advisory lock, worst case reserved, unknown bills kept), store and generation (one row per subject, ≤ 2 attempts, stale pending retaken). Prices read 2026-10-04: Haiku 4.5 $1/$5, Sonnet 5.5 $2/$10; estimate ~$0.40–0.90 per group per month.
+  **Follow-up (product, admin audit 2026-10-04; M16.3 stays ticked):** `/ops` shows a group that hit its cap as
+  `Paused · cap reached` [NEW COPY], per M16.1 §3. Acceptance: a group at its monthly cap reads that on `/ops` and
+  a group under it does not (test). Owner `platform-engineer`, `web-engineer` for `/ops`; land before M16.7.
+- [x] **M16.3b** Premium's admin and player switches, on the page. *(owner: `web-engineer`, after M16.3;
+  `designer` places them; admin audit 2026-10-04)* The admin home's `Kustom Premium` section (M16.1 §1.5 copy
+  verbatim: `AI lines` switch, both state lines, the budget-paused line). Members row `Don't write about <Name>`
+  with its confirm (off only, never on). You's `AI lines about you` block with `Write about me` and both
+  confirmations (§1.4). All of it only when `isPremium` is true, server-side. **Note:** M16.4's admin `Hide`
+  control may already exist from the M16.4 lane by the time this lands; if so, M16.3b reuses it and builds no
+  second one.
+  Acceptance: a non-Premium group's admin home, Members and You render byte-identically (snapshots, M16.2's
+  rule); the admin control can set opt-out and never clear it (test); members never see the section or the row
+  action (tests); screenshots 375/1440; **M16.4 does not merge before this** (guardrail 4: an opt-out nobody can
+  reach is not an opt-out).
+  *Done 2026-10-04 (merged `4d10ac4`, reviews passed after two rounds):* one Kustom Premium card on admin home (merged with M16.4's paused line, single source `loadPremiumSection`); the You page's AI switch with the standing off line; members' `Don't write about <Name>`.
+- [x] **M16.4** **Game recap line** on the Discord result post, Tonight's poster and the game page. *(owner:
+  `platform-engineer` (generation, Discord), `web-engineer` (Tonight, game page); after M16.3;
+  `claude-haiku-4-5`)* Acceptance: one line per live-ingested game while Premium and AI lines are on; none for
+  backfilled games or games from before Premium (tests). Generated after ingest; the result post goes out at
+  today's timing without waiting (test), and is edited to add the labelled line only if it lands within 15
+  minutes (test with a fake clock). The poster and the game page show it when it lands, under the result and
+  above the receipt, never inside it (component tests). Idempotent per game: a second ingest makes no call
+  (test). Discord names escaped with mentions off (test). Admin `Hide` removes it everywhere and members cannot
+  see the control (tests).
+  *Done 2026-10-04 (review passed after one round; mock transports only until the user's API key):* generated in `after()` once the result post is out (`maxDuration = 60` on the game route); Discord gets an in-place edit within 15 minutes (`?wait=true` only for groups with the AI gate open; message id kept in memory); the line shows on Tonight's poster and the game page under the result and above the receipt, labelled `AI recap` with its tap text, live within 3 minutes via a quiet refresher; admins hide it on the game page (`POST /api/admin/ai/hide`); the admin home shows the budget-paused line. Non-Premium pages byte-identical. Watch the first real Premium game's Discord edit.
+- [x] **M16.5** **Weekly storyline** in the Sunday post and on the board's Last week. *(owner:
+  `platform-engineer`; after M16.4; `claude-sonnet-5-5`)* Acceptance: one call per group-week, at most two
+  attempts, stored (test). It opens the Sunday post when present; the post is byte-identical to today's when it
+  is missing (snapshot test). Shown on the board's Last week only (test). No rating rebuild rewrites it (test).
+  Checker and opt-outs as M16.3. **Amended 2026-10-04 (the user, admin audit; decision row):** the storyline on the
+  board's Last week gets the admin `Hide`, the same control as M16.4's: hidden for everyone, board and Sunday post
+  alike if the post has not gone out, and members cannot see the control (tests).
+  *Done 2026-10-04 (code review passed; design passed after one round; merged):* no migration; written on the Sunday cron from the post's own board and stats (Sonnet, 30 s post budget, `after()` finishes it for the board only past that), stored as `ai_lines` kind `week`; embed E0 (slate, `AI recap`) first on the Sunday post, dropped whole past 6000 characters; on the board's Last week inside the header above Sort by, with M16.4's admin Hide; never "this week" (prompt plus a week-only checker rule). Non-Premium posts and boards byte-identical.
+- [x] **M16.6** **Player scouting report**, two or three lines on the player page, refreshed weekly. *(owner:
+  `platform-engineer` (generation), `web-engineer` (page); after M16.5; `claude-haiku-4-5`)* Acceptance:
+  generated on the Sunday job for players with 10+ rated games who played that week, never on a page view
+  (test: rendering a player page makes no call). None for settling or opted-out players (tests). Champion and
+  role figures only from 5+ games (fact builder test). Placed under the header block with `AI scouting report`
+  and its written date (component test). Describes, never prescribes: causal vocabulary is rejected (checker
+  test). **Amended 2026-10-04 (the user, admin audit; decision row):** the scouting report gets the admin `Hide`,
+  the same control as M16.4's: hidden for everyone, and members cannot see the control (tests).
+  *Done 2026-10-04 (code review passed after two rounds; design passed after one; merged):* no migration (`0033`'s `player` kind); written by the window cron in `after()` for every Premium group, Sonnet 5.5, for players with 10+ rated games who played that week (never settling or opted out; their games never read); facts paged and capped, failing closed; a generation deadline and one process-wide limiter of 4; the newest report under the header block on the player page and on You (no Hide there), `AI scouting report` + `Written <day>`; a hidden newest report shows nothing; past tense over the week, never "this week" (checker); pages read AI lines only through read-only modules, enforced by an import-graph test. Spend $0.18 (AI total about $1.11 of $3).
+- [x] **M16.8** AI quality: evaluated and tuned on this group's games (the user, 2026-10-04: "if it doesnt do that we
+  will sack it"; $5 of credit, $3 budget). *(owner: `platform-engineer`; reviewer)* *Done 2026-10-04 (review passed;
+  merged):* verdict **KEEP on Sonnet 5.5**: 4.2 of 5 (funny 3.2, accurate 4.9, tone 4.8) against 2.8 for the M16.3
+  prompt on Haiku 4.5, which wrote box scores. Spend $0.62. Cost per game line $0.0055; about $0.65 per group-month at
+  five games a night, five nights a week (a third of the $2 cap). New story facts (game shape in words, a winner with
+  the most deaths, a losing standout, win streaks, first on a champion, personal bests), a do-not-repeat list of the
+  group's last 6 lines, 10 more loser barbs. Fixed a production bug: Sonnet 5.5 refuses `thinking: disabled`, which
+  would have failed every M16.5 storyline. `pnpm --filter web ai-eval` added. **Limits:** judged on 1 real game plus 15
+  made-up games with the real roster's names (local holds only test seeds; hosted is not read by agents); read the
+  first real Premium night before M16.7 signs off. About 1 storyline in 3 is refused, mostly idioms the checker reads
+  literally; follow-up M16.9. Report: `redesign/quality/ai-eval.md`.
+- [x] **M16.9** Storyline refusals and history reads. *(owner: `platform-engineer`)* Bring the week line's refusal rate
+  well under 1 in 3 without loosening any real check (an allow-list of exact idioms such as `top three` and `made the
+  most of`, or a prompt that avoids them, with tests for each); order and cap the paged history read; skip history
+  reads for opted-out seats; reword the eval header to "no database writes".
+
+  *Done 2026-10-04 (review passed after two rounds; merged):* storylines refused for good went from 3 of 15 to 0 of 15 on the scenario weeks, single refused attempts from 40% to 17%; a closed list of exact idioms (`made the most of`, `at least` + number with no loser and nobody below 3rd named, `top three` and other place idioms that refuse the line when a named player is outside the place); history reads ordered by game and capped at 5,000 games (no partial history); opted-out seats' history never read; the scouting report model is Sonnet 5.5. Spend $0.31 (AI total about $0.93 of the $3 budget).
+- [x] **M16.7** Review. *(owners: `reviewer`, then `product`)* Acceptance: the reviewer walks guardrails 1 to 6
+  and the brief's 4.1 to 4.6 against the code; a month of fixture games (150 games, 4 weeks, 20 players) runs
+  through the fact builder and checker with the rejection rate reported per feature (target under 20%; above
+  it opens a task, it does not relax the checker); cost per group per month reported against the $2 cap;
+  product reads a sample of 30 published lines for tone and every hidden line. Gaps become `M16.8+`.
+  *Reviewer half done 2026-10-04 (FAIL with 5 gaps):* guardrails 1–6 and brief 4.1–4.6 mostly met; on a synthetic month (150 games, 20 players; 120 game lines, 16 storylines, 18 scouting reports sent to Sonnet 5.5) lines lost for good were 4.2% / 12.5% / 5.6%, refused attempts 18% / 42% / 32%; cost about $0.94 per group-month (47% of the $2 cap). Spend $0.96 (AI total about $2.07). Product's tone read pending.
+- [x] **M16.10** `/ops` shows `Paused · cap reached` (the M16.3 follow-up). *(owner: `platform-engineer`, `web-engineer`)*
+  Read from the existing budget status; at the cap it reads the line, under it it doesn't (test).
+  *Done 2026-10-04 (merged).*
+- [x] **M16.11** Numbers and champions bind to the nearest preceding player token. *(owner: `platform-engineer`)*
+  `{P1} had 8 kills on Jarvan IV, and {P2} had 20 kills on Ezreal.` with the figures swapped is rejected; a
+  two-player sentence passes only when every number's and champion's nearest token owns it (tests). Tightens only.
+  *Done 2026-10-04 (merged):* nearest preceding token, else the first following one.
+- [x] **M16.12** Retry paths. *(owner: `platform-engineer`)* Budget and kill-switch refusals are transient for the
+  weekly kinds; the daily window cron re-attempts a closed week's storyline inside its window (never re-posting
+  Discord); tests per path.
+  *Done 2026-10-04 (merged):* weekly budget and kill-switch refusals transient, 6-day window, the window cron's `retryStoredLine` fills the board only; game lines keep one immediate retry.
+- [x] **M16.13** Week and scouting first-attempt refusals. *(owner: `platform-engineer`)* Prompt and few-shot work
+  first (keep the token in every percent sentence; units on every number); a code change only as a reviewed
+  precision change (the player kind's percent is not odds); re-measured on 30+ weeks; no real check relaxed.
+  *Done 2026-10-04 (merged):* week first-attempt refusals 56% to 19%, scouting 22% to 11–17%; a scouting percent is the player's, never odds; `pnpm --filter web ai-eval-month` added.
+- [x] **M16.14** Small checker holes. *(owner: `platform-engineer`)* Reject `stopReason === 'max_tokens'` or a
+  reply without a terminal `. ! ?`; singular units after `1` for every unit the checker knows (kill, death, assist,
+  win, game, point, place), in every kind; tests.
+  *M16.7 product half 2026-10-04: ACCEPT with tasks (lines are safe, friendly 4.8/5; not yet engaging: game line 2.6,
+  storyline 3.2, scouting 1.5). M16.15–M16.18 block the 2.0 ship (lead); M16.19 resolves as keep or cut; M16.20 is the
+  real-group read after two Premium weeks.*
+  *Done 2026-10-04 (merged).*
+- [x] **M16.15** Game recap repetition. *(owner: `platform-engineer`)* Fact builder first, prompt second; no checker
+  relaxed. A win-streak fact only at 5+ wins, or when it is a new longest for that player (and 4+); angle rotation
+  (the angle that led the group's previous published line is dropped next time unless exceptional). Acceptance on a
+  rerun of the M16.7 month: "in a row" in at most 20% of game lines, "from the losing side" in at most 10%, no masked
+  three-word opening above 10%, no two consecutive lines in a group sharing a lead angle (test), "covered the bill"
+  and "respawn timers" each at most 2%, lost-for-good at or under 4.2%; unit tests.
+  *Done 2026-10-04 (merged):* on the 30-game final rerun lost-for-good 0%, "in a row" 16.7%, "losing side" 3.3%, top opening 6.7%, no repeated lead angle; `longest` is an absolute.
+- [x] **M16.16** Losers named only for a good number. *(owner: `platform-engineer`)* A losing player's fact carries
+  a number only if it leads the game, is a group personal best, or is top 2 in the game for that stat; tests; on the
+  rerun no line pairs a loser with "still" or "even" and an unearned number (scripted scan).
+  *Done 2026-10-04 (merged).*
+- [x] **M16.17** Winner-tease limits. *(owner: `platform-engineer`)* Deny-list `got carried`, `carried by`,
+  `script`/`scripting`, `boosted`, `lucky`/`luck`, `hack`; `did the carrying` stays; tests with a pass case and a
+  nearby violation each.
+  *Done 2026-10-04 (merged).*
+- [x] **M16.18** Meta-text and self-correction leaks. *(owner: `platform-engineer`)* Reject words about the writing
+  itself (`tease`, `teased`, `ribbing`, `joke`, `roast`, `rule`, `fact`, `fixed`, sentence-start `wait,`, `here is`)
+  in every kind; the prompt asks for the line only; tests from refused attempts #1, #14, #16, #24; a scan of the
+  month's published lines finds no false positive.
+  *Done 2026-10-04 (merged).*
+- [x] **M16.19** The scouting report earns its place, or is cut. *(owner: `platform-engineer`; product re-reads)*
+  New facts the page doesn't lead with (best duo partner by wins together over 5+ games, the week's best game, a
+  champion new to the pool, a role shift); a losing week is a plain count (`rough`, `tough`, `quiet`, `quieter`,
+  `cold` rejected for the player kind). Acceptance: on 18+ reports no masked opening in more than 3; every report has
+  a fact beyond most-played champion, role and week record; product scores 8 sampled reports 3.0+ engaging and 4.5+
+  friendly. **If it misses, scouting is cut from 2.0** (generation off, page slot removed, decision row).
+  *Done 2026-10-04 (merged; product KEEP at 3.0 engaging / 4.9 friendly; review passed after three rounds):* duo partner, best game of the week, new champion and role shift; a losing week is a plain count; every number and champion binds to its owner and a sentence naming the partner carries duo numbers only. AI spend about $4.15 of $4.50.
+- [ ] **M16.21** Scouting prompt nits. *(owner: `platform-engineer`; from product's M16.19 read; code and prompt,
+  rerun only with the user's go-ahead on spend)* On 18+ reports: no masked sentence pattern in more than 3 reports
+  anywhere in the text; `in the pool of` never; no group-best claim without a group-placing fact; no losing-week
+  report opens with the duo partner; the first-time-champion line is a whole sentence; engaging and friendly do not
+  drop below 3.0 and 4.9. Also (review notes): a partner's number needs `together` or `with {P1}` (`{P2} has 6 wins.` reads as their total).
+- [ ] **M16.20** Real-group read, the sack bar. *(owners: the user for the data, then `product`)* After two real
+  Premium weeks of `customs`, product reads every published line (the user exports them; agents don't read hosted).
+  Bar: game line engaging 3.0+ and repetition 3.0+, zero lines a friend would want hidden; storyline engaging 3.0+;
+  scouting report engaging 3.0+ and zero reports a friend would want hidden (M16.22). Missing it cuts that feature
+  with a decision row.
+
+**Out of the milestone:** payments, billing, pricing, plans (a future decision); the research's other ideas
+(night in three lines, rivalry hook, award citations, spicy mode, tips, Wrapped, mystery clues, Ask Kustom);
+anything generated in champion select or in game; an AI rating or any number a model produced; a Discord bot or
+chatbot.
+
+Acceptance: for a group with Premium on, a game ends and the result post carries one labelled line whose every
+number matches the scoreboard; Sunday's post carries the week's story; a player's page describes them in two
+true lines; a player who opted out is never named; a group without Premium sees exactly today's Kustom; the
+monthly cost stayed under the cap. Nobody typed anything.
+
+---
+
+## M17 Kustom companion, rewritten in Rust (needs M14.13; planned 2026-10-03, runs beside M15 and M16)
+
+Source: the user, 2026-10-03, verbatim: "can we rewrite the companion typescript app fully in rust and remove the
+overlay and only keep a simple companion i can link to my account and choose to switch between groups and show
+current group and an updater". Earlier in the same conversation: `Kustom.exe` is about 95 MB because it carries
+the Node runtime (the Node SEA engine plus the Tauri tray shell) around about 1.2 MB of app code, and the user
+wants a few MB; the user wants auto-updates; and the companion UI was always going to be replaced (that is why
+M14.32 and M14.13's UI parts were deferred, decision row 2026-10-03). This milestone is that replacement. **Kustom
+0.4.0 is not published** (the user, decision row 2026-10-03): 2.0 deploys with 0.3.x as the download, and the first
+Rust release is the next Kustom anyone installs. It is the first updater-enabled version and it ships what 0.4.0
+would have shipped: code pairing that mints a host token (M14.12, M14.13) and one token per group (M14.6).
+
+**The lead's reading of "simple", stated so nobody re-litigates it: the *UI* is minimal, the *job* is not.** The
+companion is the product's core (`docs/00-product.md` principle 2, zero input): it is the only thing that sees the
+lobby, the end-of-game block, ranks and match history. Every host duty the TypeScript engine on `redesign-2.0` does
+(0.4.0's code: built, reviewed, never published) survives the rewrite unchanged in behaviour: the lobby watcher,
+end-of-game capture with its durable queue, rank sync, the server's lobby commands (create lobby, invite, switch
+side) and backfill. What goes is **Overlay mode** (the champ-select panel, the no-token mode, the Edge/app-mode
+window, the local HTTP+SSE panel server) and the console-era surface (the hidden token prompt, the CLI flags). One
+app, one mode: a host.
+
+**Backfill stays (product's decision, recorded as a row by M17.1).** It is the product's only recovery path:
+`00-product.md` says "If Kustom misses a game, backfill recovers it" and the Success section's "a host that happens
+to be restarting right then loses the game to backfill" is a promise, not a nice-to-have. It is background work
+with no UI and no step for anyone, it is already built and tested (`backfill.ts`, 863 lines plus 953 of tests), and
+it is the one thing that makes an updater restart, a crash or a closed laptop lid cost a day's delay instead of a
+game. Dropping it would make every M17 restart a potential lost game, which is the opposite of the reason for the
+rewrite.
+
+**Goal.** A friend who hosts installs one small Kustom, links it with the six-character code from the site, and
+never thinks about it again: it starts with Windows, sits in the tray, shows which group it posts to and whether
+League is connected, records every custom exactly as the TypeScript engine does, and updates itself. The scene is unchanged: ten
+friends in voice, someone opens a lobby, teams appear, they play, ratings move. Nobody typed anything.
+
+**Rules for the whole milestone (settled, not reopened by a task):**
+- **Behaviour parity, not redesign.** Every keep row in the inventory below does what the 0.4.0 code does, to the same
+  server routes, with the same request bodies (M17.3's goldens prove it byte for byte), the same files on disk and
+  the same log format. A behaviour change is a decision row first.
+- **No server contract changes.** The Rust app speaks the existing `/api/companion/*` routes and their zod schemas
+  in `packages/db` as they are on `redesign-2.0`. If the port finds a contract problem it is a platform task with
+  its own ID, not an edit inside a companion task.
+- **Never automate gameplay** (CLAUDE.md hard rule, unchanged): the Rust bridge never reads or writes
+  `/lol-champ-select/*` or in-game state, and the only client writes are the three verified lobby writes.
+- **Verify before you claim.** No Rust code depends on a client endpoint, the TLS pin or the WebSocket framing until
+  it has been exercised by the Rust bridge against a real client (M17.5). Every endpoint in the list below is
+  already `verified` in `docs/03-lcu-reference.md`; what is unverified is our Rust implementation of reaching it.
+- **0.3.x stays the published build until the Windows night passes (M17.13)**, through the 2.0 deploy (M14.27).
+  The server keeps accepting 0.3.x throughout: its top-level token, its no-`mode` pairing (read as overlay, no
+  token), `GET /api/overlay*`. Nothing on the server is removed for old clients until M17.15.
+- **Windows only** (the user, 2026-10-04; decision row). The only published build is the Windows NSIS installer,
+  built in CI. The engine keeps the macOS lockfile default (row 9) for development against the client on this
+  Mac; no macOS build is made or published. Where this section says "macOS" it means development only.
+- **One agent per package.** `apps/companion` is one serial lane (M17.4 to M17.11, then M17.14). Platform, designer
+  and product run beside it.
+
+### Parity inventory (the 0.4.0 code on `redesign-2.0`, `apps/companion/src` unless named)
+
+| # | Behaviour today | Source | Verdict | In Rust |
+|---|---|---|---|---|
+| 1 | Startup, `--version`, `--help`, `--mode host\|overlay`, signal handling | `main.ts` | change | A GUI app with no flags; version shown in the window and tray. `CUSTOMS_NIGHT_CONFIG_DIR` and `CUSTOMS_NIGHT_LOG_LEVEL` stay for development. |
+| 2 | First-run console token prompt, `HiddenLineReader`, bracketed-paste stripping, `--show-token` | `config.ts` | drop | Pairing (row 6) is the way in. A token already in `config.json` (0.2.x top-level or 0.4.0 per group) is still read, through the same 43-character shape check (`cleanTokenInput` semantics); a bad one is "no token" and the app shows the link screen. No paste field. |
+| 3 | Config: location per platform, `apiBase`, `lockfilePath`, `groups[]`, `lastGroupId`, atomic tmp+rename writes under a lock | `config.ts`, `groups.ts` | keep | Same file, same keys, same atomic write. Reads every shape a real install can have: 0.2.x/0.3.x (top-level token, tokenless `groups` from 0.3.x overlay pairings, `mode`) and the 0.4.0 shape on the user's own test machines. `mode` is read and ignored, never written; **unknown keys are preserved** so a person who goes back to 0.3.x during rollout loses nothing. |
+| 4 | Groups this PC knows, the selected group, per-group state dir (`groups/<groupId>/`), 0.2.x legacy-token filing and the root-state owner fingerprint | `groups.ts` | keep | Same dirs and fingerprint rule. Legacy filing reads `GET /api/companion/me`'s `group` only (M14.12); the `GET /api/overlay/groups` fallback is dropped (2.0's `/me` always answers `group`). Groups with no token (0.3.x Overlay pairings) are not shown: they cannot host. |
+| 5 | One group per session; a switch stops every watcher before starting the next; a swap waits while a game is in progress or a block is unposted | `session.ts`, `host.ts` | keep | Same serialisation and the same guard (M14.13). The guard also holds back an updater restart (M17.12). |
+| 6 | Pairing: code plus the PUUID read from `current-summoner`, `POST /api/companion/pair` | `pairing.ts` | change | Always sends `mode: 'host'`. A token comes back: saved under its group, masked, never logged. `hostRefusal` comes back (a member): its sentence is shown, the person is linked and joined on the server, **nothing is saved**, because this app only hosts. 404/409/410/429 sentences shown verbatim. |
+| 7 | Identity on every start, `GET /api/companion/me` | `identity.ts` | keep | Its answer feeds the window's group and name; a 401 shows the server's sentence and the link screen, never a crash. |
+| 8 | Connection state machine `disconnected -> connected -> watching`, reconnect forever with jittered backoff 1 s to 60 s | `connection.ts`, `backoff.ts` | keep | Same states, same probe (`/lol-patch/v1/game-version`), same reset on `watching`. |
+| 9 | Lockfile discovery: `lockfilePath`, last process-found path, platform default, then Windows process list (PowerShell `Get-CimInstance`, `wmic` fallback, command-line `--app-port`/`--remoting-auth-token`), at most once per 15 s | `packages/lcu` `lockfileDiscovery.ts`, `processDiscovery.ts` | keep | Same order. Windows and macOS defaults (macOS for development on this Mac, and for a macOS build if the user wants one). |
+| 10 | HTTPS to 127.0.0.1 pinned to Riot's root (`certs/riotgames.pem`), basic auth `riot:<password>`, WebSocket `[5, "OnJsonApiEvent_..."]` subscribe and URI routing | `packages/lcu` `tls.ts`, `client.ts`, `socket.ts`, `auth.ts` | keep | `pinned` mode (docs/03: pinning works on 16.17 with no legacy digests). Hostname check skipped for `127.0.0.1` only. No `insecure` fallback unless M17.5 shows on a real client that the pin cannot work, and then only as a decision row. |
+| 11 | Every LCU response parsed (zod); mismatch logged with the URI and dropped; `mapLobby`, `mapRank`, end-of-game mapping | `packages/lcu` `schemas.ts`, `mapper.ts` | keep | Typed serde structs; a parse failure is a log line and a drop, never a panic. The mapping is pinned by M17.3's goldens. |
+| 12 | Lobby watcher: one POST in flight, newest wins, retry only while newest, `recheckInMs`, `ranksNeeded` handed to rank sync, 403 stops that party until the next `Create`, connect-time GET | `lobbyWatcher.ts` | keep | Identical rules. |
+| 13 | Game watcher: `in_progress` post at `GameStart`/`InProgress`; `eog` from the WS event held in memory; one GET only at connect when already on the end-of-game screen; drop non-custom and no-winner; dedupe on `gameId` | `gameWatcher.ts` | keep | Identical rules. |
+| 14 | Durable end-of-game queue: `queue/<gameId>.json` written before the first POST, replayed on start, deleted on 2xx or permanent 4xx, capped | `queue.ts` | keep | **Same file format**, so a block 0.3.x queued is replayed by the Rust app on first start (M17.6 test). |
+| 15 | Rank sync: own rank on connect then every 6 h; others only for `ranksNeeded`; `cached-ranked-stats` event as a shortcut; 200 ms pacing | `rankSync.ts` | keep | Identical. |
+| 16 | Command runner: poll `GET /api/companion/commands?clientConnected=` every 5 s; execute-once record; stale; malformed; verification gate; read-before-write executors; ack/nack | `commandRunner.ts`, `executed.ts`, `packages/lcu` `writes.ts` | keep | Same `commands-done.json`, same rule order. The gate stays as a const table (all three `verified` on 16.18); a kind set back to unverified refuses with `endpoint_unverified`. |
+| 17 | `--verify-commands`: the human-run live probe of the three writes, report plus fixtures | `verifyCommands.ts` | move | Out of the shipped app. Moved, unchanged, to a `packages/lcu` dev script in M17.14 before the TypeScript is deleted, so a post-patch re-check is still one command. |
+| 18 | Backfill: match-history walk 60 s after connect then every 6 h, idle phases only, page and detail caps, `backfill.json` cache, `POST /api/companion/backfill/scan`, games through the queue as `source: 'backfill'` | `backfill.ts` | keep | Identical, same cache file (decision above). |
+| 19 | Logging: daily JSON lines in `logs/companion-<date>.log`, pruned, every secret redacted (token, lockfile password, credential-looking keys) | `log.ts`, `packages/lcu` `scrub.ts` | keep | Same directory, file name and one-object-per-line shape, so the README's "send the newest file" still works. |
+| 20 | Logging-only hooks and `composeHooks` isolation | `hooks.ts` | change | Folded into the watchers as log lines; each watcher still isolated (a failing one never stops another). |
+| 21 | `status.json` the Tauri shell polls | `status.ts` | change | Gone: the engine runs in-process and the window reads its state directly. Read once at startup only to notice an old 0.3.x engine still running (M17.6). |
+| 22 | Champ-select panel: phase loop, `GET /api/overlay`, local HTTP+SSE server, Edge app window, window position | `panel/*.ts`, `desktop/overlay/*` | drop | Overlay removed (the user). |
+| 23 | Overlay mode: no-token pairing, `mode: 'overlay'` | `main.ts`, `config.ts`, `groups.ts` | drop | |
+| 24 | Tauri shell spawning the Node engine as a sidecar; setup UI | `src-tauri/src/lib.rs`, `desktop/main.js`, `desktop/src/main.js` | change | Replaced by one Rust app, no sidecar (M17.4, M17.8). |
+| 25 | Node SEA build, esbuild bundle, `publish:gh` | `build/*.ts` | drop | Replaced by `tauri build` and the CI release (M17.12). |
+| 26 | `smoke`, `record-ws`, `timeline-roles`, and the recorded fixtures | `packages/lcu/src/cli/*`, `packages/lcu/fixtures/` | keep | Stay in `packages/lcu` as the developer kit; the fixtures become the Rust tests' inputs. |
+
+**Client endpoints the Rust bridge uses** (all `verified` in docs/03 today): `GET /lol-patch/v1/game-version`,
+`/lol-summoner/v1/current-summoner`, `/lol-summoner/v2/summoners/puuid/{puuid}`, `/lol-ranked/v1/current-ranked-stats`,
+`/lol-ranked/v1/ranked-stats/{puuid}`, `/lol-gameflow/v1/gameflow-phase`, `/lol-gameflow/v1/session`,
+`/lol-lobby/v2/lobby`, `/lol-game-queues/v1/custom`, `/lol-game-queues/v1/queues`,
+`/lol-end-of-game/v1/eog-stats-block`, `/lol-match-history/v1/products/lol/{puuid}/matches`,
+`/lol-match-history/v1/games/{gameId}`; writes `POST /lol-lobby/v2/lobby`, `POST /lol-lobby/v2/lobby/invitations`,
+`POST /lol-lobby/v2/lobby/team/TEAM1|TEAM2`; WebSocket URIs `/lol-lobby/v2/lobby`, `/lol-gameflow/v1/gameflow-phase`,
+`/lol-end-of-game/v1/eog-stats-block`, `/lol-ranked/v1/cached-ranked-stats/{puuid}`. Nothing else. `/system/v1/builds`
+and `alias/lookup` stay smoke-only.
+
+### Architecture
+
+One Tauri 2 app in `apps/companion`, no Node at runtime. A Cargo workspace with two crates, so the engine is tested
+on CI's Linux runner without a webview:
+
+- **`crates/engine`** (library, no Tauri dependency): `lcu/` (lockfile discovery on Windows and macOS including the
+  Windows process-list fallback; HTTPS to `127.0.0.1` with a rustls verifier pinned to Riot's root that skips the
+  hostname check for `127.0.0.1` only; basic auth; WebSocket subscribe and URI routing; typed endpoints), `watch/`
+  (connection machine, lobby, game, queue, rank, commands, executed record, backfill), `api/` (the
+  `/api/companion/*` client: bearer token, the `{ ok, ... }` envelope, retry on network errors and 5xx only, never
+  on 4xx, `User-Agent: customs-night-companion/<version>` as today), `config/` (the file, the 0.3.x/0.4.0 migration, the
+  per-group state dirs, the lock), `log/` (daily JSON, redaction). Async on tokio; clock and filesystem injected so
+  the watcher tests run on a fake clock like the TypeScript ones.
+- **`src-tauri`** (the app): one small window (plain HTML, CSS and a few lines of JS in Direction C, no framework,
+  no bundler), the tray, and Tauri commands that read engine state and call pair, switch group, open logs, restart
+  to update, quit. Plugins: `updater` and `process` (relaunch), `single-instance` (a second launch focuses the
+  first: two engines on one PC would share one queue and one execute-once record), `autostart` (Start with
+  Windows, on by default: M6.1 already accepted it, and a host who forgets to start Kustom is a lost night),
+  `opener` (open the logs folder).
+- **Config** stays `%APPDATA%/customs-night/config.json` (macOS `~/Library/Application Support/customs-night/`),
+  every 0.3.x and 0.4.0 key read, `mode` ignored, unknown keys preserved, state dirs and file formats unchanged (rows 3, 4,
+  14, 16, 18, 19).
+- **Window behaviour:** closing the window hides it to the tray and the engine keeps running; Quit in the tray
+  stops everything (after the same swap guard: an unposted block is written to the queue first, it always is).
+- **Size, measurable:** the NSIS installer is **15 MB or less** and the installed `Kustom.exe` is **20 MB or
+  less** (WebView2 is the system's, installed by the NSIS bootstrapper only where missing). The release workflow
+  prints both numbers and fails above them.
+
+### Contracts: keeping the Rust bodies and the zod schemas in sync
+
+Two checks, because each catches what the other misses:
+
+1. **Golden request bodies, checked against the real zod schemas (the primary check).** Before any Rust watcher is
+   written, a one-off script in the TypeScript engine (M17.4) runs the 0.4.0 mappers and watchers over every
+   recorded fixture in `packages/lcu/fixtures/16.17` and `16.18` (lobby, spectator lobby, two-player lobby, the
+   end-of-game block, ranked stats, match detail, gameflow session, the command payloads) and writes the exact
+   request body each would POST to `apps/companion/contract/golden/<route>--<fixture>.json`, clock fields fixed.
+   The Rust tests feed the same fixtures through the Rust code and must produce JSON-equal bodies. A vitest in
+   `packages/db` (M17.3) parses every golden through the route's real zod schema, so a server schema change that a
+   golden no longer satisfies fails `pnpm -r test` on the TypeScript side, in CI, before anybody runs Kustom.
+   This survives the TypeScript engine's deletion: the goldens and fixtures are files, not code.
+2. **JSON Schema exported from zod (the drift alarm).** `pnpm --filter @customs/db export-schemas` writes
+   `packages/db/json-schema/*.json` with zod 4's `z.toJSONSchema` (input side) for every companion request and
+   response schema; CI regenerates and fails on a diff, so a schema change is visible in the PR. The Rust tests
+   validate every body they produce (not only the golden cases) against the request schema, and parse every
+   response fixture with the Rust structs. Where zod cannot export a schema faithfully (`z.preprocess`,
+   `.refine`, as on `companionLobbyPayloadSchema` and `companionPairResponseSchema`), the export lists it by name
+   and the goldens are the only check for it: no silent `{}`.
+
+### CLAUDE.md impact (needs the user's OK; the user authorised the direction by asking for the rewrite, the text below is still theirs to approve)
+
+Applied by the lead at M17.1, after the user approves it, so M17.5 is never in breach of the rule it replaces.
+Until M17.14, the TypeScript engine still runs through `packages/lcu` and the rule names both.
+
+- **Replaces** "All League client calls live in `packages/lcu`. Nothing else imports `https` or talks to
+  `127.0.0.1`.":
+
+  > **All League client calls in shipped code live in the companion's `lcu` module**
+  > (`apps/companion/crates/engine/src/lcu/`). Nothing else in shipped code reads the lockfile or opens a
+  > connection to `127.0.0.1`. `packages/lcu` is the developer kit (smoke, record-ws, timeline-roles,
+  > verify-commands, and the recorded fixtures the Rust tests read); it may call the client from a developer's
+  > machine, and nothing that ships imports it. The client API is unofficial and breaks on patches; keeping it in
+  > one module keeps a break a one-hour fix.
+
+- **Amends** "Validate every boundary with zod.": "Validate every boundary: zod in TypeScript; in the companion,
+  typed serde structs (no untyped JSON past the parse), with request bodies contract-tested against
+  `packages/db`'s zod schemas (M17.3). Log and drop malformed data; never crash a watcher on a bad payload."
+- **Amends** "Secrets stay out of the repo." with: "The updater's private signing key is the user's alone (a
+  password manager plus one GitHub Actions secret); only its public key is in `tauri.conf.json`."
+- **Definition of done** item 1 gains `cargo test --workspace` and `cargo clippy -- -D warnings` in
+  `apps/companion` for any companion task.
+- **Repo map:** `apps/companion   Kustom desktop app in Rust + Tauri 2: tray, one small window, the host engine (LCU
+  bridge, lobby/game watchers, rank sync, lobby commands, backfill), signed auto-updates. Windows NSIS installer.`
+  `apps/overlay` line removed at M17.14 (until then: `Retired; deleted in M17.14.`). `packages/lcu   Developer kit
+  for the League client: smoke, record-ws, timeline-roles, verify-commands, and the recorded fixtures the companion's
+  Rust tests read. Not shipped.`
+- **Commands:** the `companion` lines (`dev`, `build:win`, `build:host`, `publish:gh`, `release`, `tauri:*`,
+  `build:desktop`, `verify-commands`) are replaced at M17.14 by `cargo tauri dev`, `cargo test --workspace`, the
+  release tag push (M17.12) and `pnpm --filter @customs/lcu verify-commands`.
+
+### Updater and release
+
+- **Signed updates** with the Tauri updater plugin. The update manifest is `latest.json`, a release asset on the
+  public `suyaser/kustom-releases`, read from
+  `https://github.com/suyaser/kustom-releases/releases/latest/download/latest.json`.
+- **The signing key is a user step, never an agent's.** The user runs `pnpm tauri signer generate` on their own
+  machine, keeps the private key and its password in a password manager, and adds them as Actions secrets
+  (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`), plus a fine-grained token with release write
+  on `kustom-releases` (`KUSTOM_RELEASES_TOKEN`). Only the public key goes in `tauri.conf.json`. Losing the private
+  key means every installed Kustom must be reinstalled by hand to get another update; M17.12's runbook says so.
+- **Release pipeline:** a GitHub Actions workflow on `windows-latest`, triggered by a `companion-v*` tag (the user
+  pushes it, as the user publishes today): `cargo test`, `tauri build` (NSIS), sign, size gate, then a release on
+  `kustom-releases` with the installer, its `.sig`, `latest.json` and `README.txt`. This Mac builds macOS only;
+  the user plays on Windows, so Windows is built in CI and nowhere else. The old `publish:gh` stays usable for an
+  emergency 0.3.x re-publish until M17.14.
+- **Update behaviour:** check at start and every 6 hours; download in the background; the window and tray say
+  `Update ready` with a `Restart now` button. It restarts by itself only when League is closed or idle in `None`,
+  with no game in progress and nothing in the queue (the M14.13 swap guard), never in `Lobby`, champ select or a
+  game. A failed check or download is a log line, never a dialog.
+- **Assets and the web:** the installer is published as `Kustom-setup.exe` (a stable name, so
+  `RELEASE_EXE_URL` in `apps/web/lib/nav.ts` points at `releases/latest/download/Kustom-setup.exe`) and, until
+  M17.14, also as `Kustom.exe`, so the link already pasted in every group chat still downloads something that works.
+  The web reads no version number today (every link is `releases/latest`), and M17 adds none. What changes on the
+  web is copy only: `/download`, the join page and the admin host card say "install" not "put it somewhere", drop
+  the 90 MB warnings (`nav.ts`'s comments and `landing/copy.ts`), and the companion README is rewritten for players.
+
+### Migration and rollout
+
+- **0.4.0 is skipped; 0.3.x is the download through the 2.0 deploy** (M14.27, decision row 2026-10-03). The Rust
+  app is `1.0.0`, the first updater-enabled build, and the first Kustom with code pairing and per-group host
+  tokens anyone outside this repo installs. A 0.3.x user installs it once by hand (`Kustom-setup.exe`); every later
+  version arrives by the updater.
+- **First start after 0.3.x:** the Rust app reads the existing `config.json` and state, files a 0.2.x/0.3.x
+  top-level token under its group through `/me` (row 4, with the root-state fingerprint so a root queue never
+  replays under another token), replays any queued block, and starts on that group; a host whose token is already
+  on file links nothing. A 0.3.x install with no token (Overlay mode) opens on Link. If it finds a fresh
+  `status.json` (an old engine still running), it starts no watchers and says `The old Kustom is still running.
+  Close it, then press Retry.`, because two engines on one queue can double-handle a command.
+- **The server keeps accepting 0.3.x** until M17 retires it: top-level tokens, pairing with no `mode` (no token
+  minted, as M14.12 already guarantees), the lobby/game/rank/commands/backfill routes as 0.3.x calls them, and
+  `GET /api/overlay*`. Nothing on the server is removed for 0.3.x before M17.15.
+- **`apps/companion` TypeScript source** (`src/`, `build/`, `desktop/`, the Node `package.json` scripts) and
+  `apps/overlay` are deleted in M17.14, once M17.13 has passed and not before. The built 0.4.0 exe is never
+  published.
+- **Consequence for M14.32 and M15.7:** with the overlay gone, both are dropped (checked 2026-10-04 at M17.1: both
+  entries are ticked as dropped, and nothing moved elsewhere because the mode panel at `/g/<slug>/mode` and the
+  Discord teams post already carry the pool). The mode panel on the web is unaffected.
+
+### Owners and models
+
+`companion-engineer` does the Rust work (M17.4 to M17.11, M17.14). **Recommend running it on opus for this
+milestone, not its usual sonnet.** The lead skill's own rule is opus "where a wrong judgment is expensive and hard
+to detect", and a port of a 4,000-line stateful engine is exactly that: the invariants that matter (queue written
+before the first POST, the end-of-game block taken from the WS event because the GET 404s once someone clicks past,
+execute-once written after the client call and before the ack, one group per session with per-group state, the
+swap guard) fail silently as a lost or double-posted game weeks later, not as a red test. Add a custom rustls
+verifier and async WebSocket handling, new ground for this repo, and the cost of a sonnet miss is higher than the
+cost of opus. `reviewer` stays sonnet. `platform-engineer` owns M17.3, M17.12 (with `web-engineer` for the three
+copy surfaces) and M17.15. `designer` owns M17.2. `product` owns M17.1, the copy and the M17.16 walk. `reviewer`
+reviews every task.
+
+### Tasks
+
+- [x] **M17.1** Product: plan of record. *(owner: `product`; first; docs only; done 2026-10-04)* `00-product.md`: the "Tray app +
+  optional overlay" row and the "everyone else can install the same `Kustom.exe` in Overlay mode" sentence become
+  one small host app with auto-updates; members install nothing. Decision rows: overlay removed; backfill kept (the
+  reason above); pairing is the only way in (no paste field); Start with Windows on by default; the updater's
+  restart rule; `1.0.0` as the first Rust version; the `Kustom-setup.exe` asset name. (M14.32, M15.7 and the 0.4.0
+  skip were settled in the milestones cleanup of 2026-10-03.) The CLAUDE.md text above put to the user through the lead, and applied by the lead on their
+  OK. Acceptance: every row exists; `00-product.md` names no Overlay mode (grep); the user's OK on the CLAUDE.md
+  text is quoted in the M17 status row before M17.5 starts.
+  *Done 2026-10-04:* `00-product.md` step 2, the setup checklist's install step, the features row and the out-of-scope
+  host line now describe one small Windows host app that starts with Windows and updates itself; members install
+  nothing; no Overlay mode anywhere (grep). Decision rows `M17.1:` of 2026-10-04: overlay removed, backfill kept,
+  code pairing only, Start with Windows on, the updater's restart rule, `1.0.0` and `Kustom-setup.exe`, Windows only
+  (the user). M14.32 and M15.7 checked: both dropped. **CLAUDE.md: the user approved the rule (2026-10-04, decision
+  row of that date); the lead applied the LCU hard rule and the repo-map lines in `2feb452`.** Still for the lead to
+  apply from "CLAUDE.md impact" above: the zod/serde boundary amendment and the Definition-of-done cargo lines
+  (before M17.4), the signing-key secrets line (before M17.12), and the commands at M17.14.
+- [x] **M17.2** Design: the companion window and tray in `05-design.md`, Direction C. *(owner: `designer`; beside
+  M17.3 to M17.7; spec `05-design.md` §9 in `ac0c767`; copy signed by product 2026-10-04)* Screens: **Link** (the six-character code field, League must be open, the server's sentences
+  for each refusal including a member's `hostRefusal`); **Home** (current group's name, `Switch group` when the
+  tokens cover two or more, League connected or not, the last game posted with its time, `Update ready · Restart
+  now`, the Riot notice deferred from M14.13); **old engine running** (the one sentence plus Retry). Tray: group
+  name, League status, Switch group submenu, Open Kustom, Open logs, Start with Windows (checkbox), Restart to
+  update (only when ready), Quit. One window size, no settings page. Acceptance: every state above drawn at the
+  window's one size with its exact copy; product signs the copy; nothing in the spec needs a control not listed.
+  *Done 2026-10-04.* **Product's copy sign-off:** every [NEW COPY] line in §9 is signed as written, except these
+  five, where product's version wins over §9 (the designer folds them into §9 before M17.8's screenshots):
+  1. L1 step 1: `On the site, open your group's admin page, find Set up this PC as host, and get a code.` (the
+     card's own title, and "admin page" in lower case as the web says it).
+  2. L7's second line: `You don't need Kustom to play: the host's Kustom records your games. You can quit it from
+     the tray icon.` ("close this" only hides the window to the tray, so it would keep running).
+  3. Last game, none: `No game recorded yet` (with `last-posted.json` this only shows before a PC's first game, so
+     it can say so plainly).
+  4. Announcer: `Game recorded. Red won.` (not "posted": friends say a game is recorded, as the web does).
+  5. L7's first line is the server's new `HOST_NOT_ADMIN` (lead ruling, decision row 2026-10-04): `You're in. Only
+     admins can host. Ask an admin to host, or to make you one.`
+  Lead rulings of 2026-10-04 (decision rows): `last-posted.json` (§9.10 q2, M17.8's scope); the `HOST_NOT_ADMIN`
+  and `HOST_STEP_OPEN` edits go to M17.12 (§9.10 q1, q3); Quit Kustom has no confirmation and lives only in the
+  tray; the desktop is Night only and Night is **1.0 night (V1)**, so `desktop/tokens.css` copies the V1 Night
+  tokens (§9.2's token line amended).
+- [x] **M17.3** Contracts: JSON Schema export and the golden check. *(owner: `platform-engineer`; beside M17.4;
+  `packages/db` and `.github/workflows/ci.yml` only)* `export-schemas` script (zod 4 `toJSONSchema`, input side)
+  for every `/api/companion/*` request and response schema plus pairing; a CI step that regenerates and fails on a
+  diff; the list of schemas that cannot export faithfully, by name; a vitest that parses every file in
+  `apps/companion/contract/golden/` through its route's real schema; a CI job that runs `cargo fmt --check`,
+  `cargo clippy -D warnings` and `cargo test -p engine` on Linux (no webview needed). Acceptance: changing one
+  field's type in `companionLobbyPayloadSchema` fails both the export diff and the golden vitest (shown in the
+  PR); the CI job is green on the M17.4 scaffold.
+  *Done 2026-10-04 (review passed):* 25 companion request/response schemas plus `index.json` in `packages/db/json-schema/` from `pnpm --filter @customs/db export-schemas` (zod 4 input side; `preprocess`, `refine` and trim-before-check marked `x-zod-not-exported`, never dropped; an unrepresentable type stops the export); CI `--check` in the `check` job; the canonical golden test is `packages/db/src/contract/goldens.test.ts` (every API golden incl. the 48-request replay, unknown routes fail, every contract entry exercised); the companion test keeps the client-write and on-disk goldens, the credential guard and freshness (move them into `packages/db` before M17.14 deletes the TS engine).
+- [x] **M17.4** Rust workspace scaffold and the goldens. *(owner: `companion-engineer`; after M17.1's CLAUDE.md
+  OK; first in the companion lane)* The two-crate workspace (`crates/engine`, `src-tauri`) replacing the sidecar
+  shell, an empty window and tray that build on this Mac; the TypeScript golden generator run once over every
+  16.17 and 16.18 fixture, goldens committed under `contract/golden/`. Acceptance: `cargo test --workspace`
+  passes; one golden per route per fixture (lobby, spectator lobby, two-player lobby, `in_progress`, `eog`, own
+  rank, other rank, backfill scan, each ack result); every golden parses under M17.3's vitest; the TypeScript
+  engine is untouched and still ships.
+  *Done 2026-10-04 (review passed):* two-crate workspace in `apps/companion` (`crates/engine` with stub modules `lcu`, `watchers`, `api`, `config`, `queue`, `log`; `src-tauri` = the M6 shell as a member, TS engine still ships); 41 goldens plus a 48-request replay at `crates/engine/tests/goldens/`, written by `pnpm --filter companion make-goldens` from the real TS watchers with injected clocks, checked by every `@customs/db` zod schema (vitest) and by a Rust `deny_unknown_fields` round-trip; CI `engine` job (fmt `-p engine`, clippy `-D warnings`, test, toolchain 1.99.0). 13 TS behaviours M17.6–M17.11 must keep are listed in the M17.4 report; the stale-`partyId` one is a bug to fix (decision row).
+- [ ] **M17.5** The Rust LCU bridge, verified live. *(owner: `companion-engineer`; after M17.4)* Lockfile
+  discovery in row 9's order (Windows and macOS), pinned TLS, basic auth, the WebSocket, and typed reads for every
+  endpoint in the list above, with a dev-only probe (`cargo run --example probe`) that hits each GET and diffs
+  shapes against the fixtures. Acceptance: unit tests on the fixtures for every parse, every lockfile shape and the
+  process-list parser; the probe run against the live client on this Mac, every endpoint and all four WS URIs
+  seen, output pasted under this task; a non-`127.0.0.1` host is refused by the verifier (test); the Windows
+  process-list fallback is exercised in round-trip 1 (M17.12) and its docs/03 row updated then.
+  *Built and merged 2026-10-04 (review passed after one round: config written 0600/0700, response bodies redacted from Debug, redirects off, Authorization sensitive):* `crates/engine/src/lcu/` (lockfile, process discovery with `--install-directory`, `leagueInstallDir`, defaults, `NotFound`; `validate_install_dir` / `save_install_dir`; pinned Riot root, 127.0.0.1 only; typed endpoints; WebSocket with reconnect). **Not ticked:** waits on the user's live probe (`cargo run -p engine --example lcu-probe -- --watch 90` with League open); docs/03 Rust rows stay `unverified (Rust)` until then.
+- [x] **M17.6** Config, migration, state, logging and the API client. *(owner: `companion-engineer`; after M17.5)*
+  Rows 2 to 4, 7, 19 and 21: read every config shape (0.2.x/0.3.x top-level token, 0.3.x tokenless `groups`,
+  `mode: 'overlay'` with no token, 0.4.0 `groups` with tokens), preserve unknown keys, atomic locked writes, the per-group dirs and the
+  legacy fingerprint, the log with redaction, the envelope client with retry rules, `/me` on start, the old-engine
+  check. Acceptance: tests with a real 0.3.x `config.json` and state tree from the user's Windows PC (redacted), plus a
+  0.4.0-shaped one, as fixtures: groups and selection preserved, a queued 0.3.x block replays with its own group's token, a top-level token is filed under its `/me` group, no
+  token ever appears in a log line (grep over a test run's log), unknown keys survive a write.
+  *Done 2026-10-04 (review passed after one round; the user's real 0.3.x tree is optional and still open):* `crates/engine/src/{config,log,api}`: reads every config shape (0.2.x/0.3.x top-level token, tokenless `groups`, `mode: overlay`, 0.4.0 groups, `leagueInstallDir`, `lockfilePath`), keeps unknown keys in order, atomic 0600 writes under a race-safe lock; `boot()` (old-engine check first, which retires 0.x's `status.json` once nothing old is running; top-level token filed under its `/me` group); per-group state and `last-posted.json`; a daily redacted log with a process-wide secret registry (a test greps every log line for every token); the envelope API client with the TS per-route attempt counts, redirects off; queued 0.3.x games posted verbatim, unreadable files quarantined, never deleted. 4 synthetic config trees from the TS writers (`pnpm --filter companion make-config-fixtures`).
+- [ ] **M17.7** Connection machine and the lobby watcher. *(owner: `companion-engineer`; after M17.6)* Rows 8 and
+  12. Acceptance: the TypeScript `connection.test.ts` and `lobbyWatcher.test.ts` cases ported one for one (fake
+  client, fake API, fake clock), the lobby goldens matched byte for byte; live on this Mac: open a custom, see the
+  lobby on local `/g/customs`.
+  *Built and merged 2026-10-04 (review passed after one round):* connection machine (discovery each cycle, version probe, connect reads, reconnect 1–60 s jittered, every await raced against stop, each cycle under `catch_unwind`, bounded channels, `ConnectionStatus { state, league }` incl. `NotRunning { searched }` and `Lost`) and lobby watcher (every Create/Update posted, one in flight, newest-only retry, 403 block, connect-time GET, name lookups, re-post without the password; `LobbySignal::LobbyGone` for M17.9), posting through M17.6's API client; the 16.17 replay equals the 45 golden lobby bodies; lockfile password and its Basic form registered as log secrets. **Not ticked:** the live check on this Mac (a custom showing on local `/g/customs`) waits on League being open.
+- [ ] **M17.8** The app: window, tray, pairing, group switch. *(owner: `companion-engineer`; after M17.7 and
+  M17.2)* Rows 5 and 6, M17.2's screens and tray, autostart, single-instance, close-to-tray; `desktop/tokens.css`
+  copies the **V1 "1.0 night"** Night tokens, not 7.3's slate (decision row 2026-10-04); the additive
+  `groups/<groupId>/last-posted.json` (`{ at, winningSide, durationS }`, written after a 2xx) so Home's Last game
+  survives a restart (decision row 2026-10-04). Acceptance: pairing
+  against local (admin code: token saved under its group, watchers start; member code: refusal sentence, nothing
+  saved); a switch while a game is in progress waits (test); a second launch focuses the first (test or recorded
+  run); screenshots of every M17.2 state, signed off by `designer`; after a restart Home shows the last game from
+  `last-posted.json`, and a missing or malformed file reads `No game recorded yet`, never a crash (test).
+  *Built and merged 2026-10-04 (code review passed; design round 1 pending):* the Tauri app runs the engine in-process (no sidecar): window 400×690 per 05-design §9, tray, pairing by code (`mode: host`), guarded group switch, Can't find League + folder picker + League folder row, Old engine + Retry, update card UI behind an `Updater` trait (plugin is M17.12 part 2), single instance, Start with Windows (on by default once, then the user's choice), close/Esc to tray, Quit in the tray only; version 1.0.0; macOS release binary 9.1 MB. Wired through a `Host` trait until `engine::host` lands. **Not ticked:** designer sign-off, the live pairing check on this Mac, Windows round-trip 1.
+  *Merged 2026-10-04 (`a0a37ce`; code review passed; design round 2 passed the window): the app runs `engine::host` (no LocalHost), the fold rule holds in every state, hollow ring, locale clock, L8c and the folder save-failed strings. Tray r3 merged 2026-10-04: frames picked per scale from the ICOs (16/20/24/32), 16 and 20 px drawn by hand (`apps/companion/scripts/tray-icons.py`). Open: live pairing check, Windows round-trip 1 (also check the tray at 100% and 125%).*
+- [ ] **M17.9** Game watcher and the durable queue. *(owner: `companion-engineer`; after M17.8)* Rows 13 and 14.
+  Acceptance: `gameWatcher.test.ts` and `queue.test.ts` ported one for one; `in_progress` and `eog` goldens
+  matched; kill the process between capture and POST and the block posts on next start (test); live on this Mac: a
+  custom against bots is recorded on local.
+  *Built and merged 2026-10-04 (review passed, no defects):* game watcher (in_progress from one session read, 4 attempts, never queued; `startedAt` = first of GameStart/InProgress; eog from the held socket event; non-custom/no-winner dropped; dedupe across live, queued and disk) and durable queue (written before the post, posted from the file, replayed on start, deleted only on 2xx or 400/403/404/422, over-cap and unreadable files quarantined, never deleted); stale partyId cleared on lobby Delete and disconnect; `last-posted.json` after every eog 2xx; game goldens and the 16.17 replay match. **Not ticked:** live check (a custom vs bots recorded on local) waits on League being open.
+- [x] **M17.10** Rank sync and the command runner. *(owner: `companion-engineer`; after M17.9)* Rows 15 and 16.
+  Acceptance: `rankSync.test.ts`, `commandRunner.test.ts` and `executed.test.ts` ported one for one; rank and ack
+  goldens matched; live on this Mac: `Start a lobby` on local opens a custom, and switch side moves you (invite
+  waits for round-trip 2, it needs a friend).
+  *Merged 2026-10-04 (review passed, `d48e8ad`), with `engine::host::start` -> `HostHandle` as the one seam the window
+  drives. Live check on this Mac pending the user's lcu-probe run.*
+- [x] **M17.11** Backfill. *(owner: `companion-engineer`; after M17.10)* Row 18. Acceptance: `backfill.test.ts`
+  ported one for one; backfill goldens matched; live on this Mac: a fresh state dir finds the past customs local
+  has not seen, and a second pass is a no-op.
+  *Merged 2026-10-04 (review passed, `d48e8ad`); live check pending the user's lcu-probe run.*
+- [ ] **M17.12** Updater, release pipeline, download links. *(owner: `platform-engineer`, `web-engineer` for the
+  three copy surfaces, `product` for the copy; can start after M17.4, finishes after M17.8)* The Windows workflow,
+  the size gate, `latest.json`, the two asset names, `RELEASE_EXE_URL`, the copy changes (keeping the SmartScreen note, from M6.2;
+  plus, ruled 2026-10-04: `HOST_NOT_ADMIN` in `apps/web/lib/groups/copy.ts` becomes `You're in. Only admins can host.
+  Ask an admin to host, or to make you one.`, and `HOST_STEP_OPEN` in `apps/web/lib/admin/homeCopy.ts` loses "pick
+  Host": `Open Kustom with League running.`), the updater plugin wired
+  with the restart rule, and a runbook section (in `docs/runbooks/`) for the user's key generation, secrets and
+  tag push. **User steps:** generate the key, add the three secrets. **Windows round-trip 1:** install the CI
+  build, check both sizes, discovery (default and a non-default install via the process list), pair, a lobby on
+  production `/g/customs`. Acceptance: a tag produces a signed release with all assets; installer 15 MB or less,
+  installed exe 20 MB or less (workflow log); the restart rule tested (no restart in `Lobby`, in game, or with a
+  queued block); round-trip 1 written up under this task.
+  **Amended 2026-10-04 (admin audit; the user's answers, decision rows of that date):** in the same commit that
+  makes 1.0.0 `releases/latest`, the admin side switches too. Remove the hand-key mint UI (`Add a host by hand`,
+  `MintHostForm`, `Copy this key now`, `mintedLine`, `They paste it into Kustom when it asks.`). `POST
+  /api/admin/tokens { action: 'mint' }` answers 410 `Kustom sets itself up with a code now. Open the admin home on
+  the PC's owner's account and tap Get a code.` [NEW COPY] and creates no row (`revoke` stays). The Hosts intro's
+  "someone else's PC" line goes; it becomes `A host is a PC that runs Kustom in the lobby. Each admin sets up their
+  own from the admin home with a code. To host on a friend's PC, make them an admin first.` [NEW COPY].
+  `REVOKE_BODY` becomes `Kustom on that PC stops recording games until someone sets it up again with a code.`
+  [NEW COPY]. The copy list also takes the landing `COMPANION_OVERLAY` string (`lib/landing/copy.ts`) and the
+  `/download` `Overlay mode` / `Host mode` terms. **Before 1.0.0 is tagged,** `apps/companion/README.md` (still
+  0.3.x token-paste copy, shipped as README.txt and as the release notes) is rewritten for the Rust app; product
+  signs it. Added acceptance: no string containing `paste` or `key` renders on any admin page (test over the
+  Hosts and home views); the mint action is a 410 with that sentence and creates no row (integration test);
+  existing keys still post (the 0.3.x acceptance M17 already has); grep for `COMPANION_OVERLAY` and `Overlay mode`
+  in `apps/web/lib` returns nothing; the shipped README and release notes mention no token, no paste and no
+  Overlay.
+  *Part 1 done 2026-10-04 (review passed; actions pinned to SHAs):* `.github/workflows/companion-release.yml` (tag `companion-v*`, dispatch = dry run with a throwaway key, publish guard before the build, size gate 15,000,000/20,000,000 bytes printed and enforced, `latest.json`, draft on `suyaser/kustom-releases` found by listing), `plugins.updater` endpoint + placeholder pubkey, `HOST_NOT_ADMIN` / `HOST_STEP_OPEN` as ruled, the `RELEASE_ASSET` switch (still `Kustom.exe`), runbook `docs/runbooks/companion-release.md`. Left: part 2 (updater plugin + restart rule, after M17.8), the user's key, secrets and pubkey, round-trip 1.
+  *Part 2 done 2026-10-04 (review passed; merged):* `tauri-plugin-updater` (rustls only) checks 20 s after start, every 6 h, 1 h after a failure; a failure is one warn line and no UI; the webview gets no updater permission; restart only when not busy, nothing queued and League idle or closed (`Restart now` while guarded schedules it); 15 tests on the mock runtime with an in-memory throwaway key; README rewritten for 1.0 and signed off by product (no token, paste or overlay); runbook says where the pubkey goes. macOS release binary 9.9 MB. Left: the user's key, secrets and pubkey; Windows round-trip 1 (also confirm Restart now runs the passive NSIS installer and relaunches); the admin mint removal and 410 with the 1.0.0 `releases/latest` commit.
+  *Admin switch done 2026-10-04 for shipping together (review passed; product signed the copy; merged): hand-key mint UI removed; `mint` answers 410 with the code sentence and writes nothing; Hosts intro, `REVOKE_BODY` and `Drop this in your group chat.` reworded; overlay strings gone; `RELEASE_ASSET = Kustom-setup.exe`; `/download` rewritten for 1.0 (admins only); updater public key committed (`ee860bd8`). Left: the tag, the draft check, Windows round-trip 1, publish as latest at the deploy.*
+- [ ] **M17.13** The Windows night: the gate. *(owner: the user, with `companion-engineer`; after M17.11 and
+  M17.12)* **Windows round-trip 2:** host a real night's custom on 1.0.x: `Start a lobby` creates it, the invite
+  goes out, teams roll, sides switch, the game is recorded, ratings move, a backfill pass runs, nobody typed
+  anything. **Round-trip 3:** publish 1.0.(x+1) and watch the installed app update itself after the game. Acceptance:
+  every step seen in production and in the log (pasted, redacted); the game's row is identical in shape to a
+  0.3.x-recorded game (same columns non-null); the update applied without a click and without interrupting a game.
+- [ ] **M17.14** Retire the TypeScript companion. *(owner: `companion-engineer`, `product` for the docs; after
+  M17.13 only)* Move `verifyCommands.ts` into `packages/lcu` as `verify-commands`; delete `apps/companion/src`,
+  `build/`, `desktop/`, the Node scripts and dependencies, and `apps/overlay`; stop attaching the `Kustom.exe` copy;
+  update `01-architecture.md` "Companion", the companion README (player copy through product), docs/03's
+  companion references, and the CLAUDE.md repo map and commands (lead applies). Acceptance: `pnpm -r typecheck`,
+  `pnpm -r test`, `pnpm lint`, `cargo test --workspace` green; no file outside `packages/lcu` and the Rust `lcu`
+  module mentions `127.0.0.1` (grep); `pnpm --filter @customs/lcu verify-commands --help` runs.
+  *Prep done 2026-10-04 (review passed after one round):* the credential guard, the goldens index, the client-write goldens, the token shape and the Riot-line source scan (wider than the Rust test's four substrings, plus the write call-site and `LOBBY_WRITE_PATHS` checks) moved to `packages/db/src/contract/companionGuards.test.ts`, reading only committed files. M17.14 can delete `apps/companion/scripts/goldens/goldens.test.ts`, `scripts/configFixtures.test.ts`, `src/config.test.ts` and `src/commandRunner.test.ts` without losing coverage; only TS freshness goes. Keep `packages/lcu/fixtures/16.18/create-lobby.json` and `lobby-invitations.json`.
+- [ ] **M17.15** Remove the overlay routes. *(owner: `platform-engineer`; after M17.14 and 30 days with no
+  request to `/api/overlay*`, read from Vercel logs by the user)* Delete `GET /api/overlay`, `GET /api/overlay/groups`
+  and `lib/overlay/*`; keep `mode` optional on `POST /api/companion/pair` (absent still means no token, so a 0.3.x
+  that is never updated keeps pairing safely). Ending 0.3.x support entirely is a later decision row, not this task. Acceptance: routes 404; no import of `lib/overlay` remains; the
+  pair route's tests unchanged.
+- [ ] **M17.16** Review: the scene walk. *(owners: `reviewer`, then `product`)* Every parity row against the Rust
+  code; the size numbers; the updater rule; the README read as a friend. Gaps become `M17.18+` with an acceptance
+  check each.
+- [x] **M17.17** Start a lobby opens a Blind Pick custom by itself for a mirror game (added 2026-10-04 from the
+  user's M15.1 answer). *(owners: `platform-engineer` for the command payload, `companion-engineer`; after M15.11
+  and M17.10)* When the next game's rule is mirror, the server's `create_lobby` command asks for blind, and the
+  companion creates the Blind Pick custom (the blind entry already resolves in the LCU kit,
+  `chooseCustomLobbyMutator(…, 'blind')`). Then Tonight drops the host line and keeps `Start a lobby`, and Spin
+  may draw mirror (decision row). Acceptance: on a live client `GET /lol-lobby/v2/lobby` reads back a blind queue
+  after a mirror `create_lobby`, and a draft one otherwise; the command's zod accepts an old payload with no pick
+  type as draft; the host line is gone and Spin's mirror exclusion removed (tests).
+  *Built 2026-10-04 on `worktree-agent-a59fde1ba94bbdcaf` (`da5bd5ff`; code review passed), merged after the live read-back: the user ran `lcu-create-lobby --blind` on macOS 16.19, `queueId 3100`, `SimulPickStrategy`, PASS (docs/03). Spin now draws mirror; the mirror host line is gone.*
+- [x] **M17.18** A member's code copy fits Kustom 1.0. *(owner: `web-engineer`, `companion-engineer`; flow audit)* Join
+  page: `Open Kustom on your PC with League running and type this code where it asks for one:` and no Download line;
+  1.0 Link step 1: `Get a code on the site: admins from Set up your PC as host on the admin home, everyone else from
+  their invite link.`; `Set up this PC as host` becomes `Set up your PC as host` everywhere. Acceptance: no `Join a
+  group` or `Set up this PC as host` in `apps/web/lib` or the companion UI; no download link on the join page.
+  *Companion half merged 2026-10-04 (Link step 1, README); web half in progress.*
+  *Done 2026-10-04 (code and design review passed; merged).*
+- [x] **M17.19** A refused member's Kustom stops starting with Windows. *(owner: `companion-engineer`)* On a
+  `hostRefusal`, autostart turns off; L7's second line: `You don't need Kustom to play: the host's Kustom records your
+  games. It won't start with Windows any more, and you can uninstall it.`; Rust test; reshoot L7.
+  *Done 2026-10-04 (lead-checked; merged): a `hostRefusal` turns Start with Windows off (Rust test); L7 reshot.*
+- [ ] **M17.20** Upgrading from 0.3.x leaves one app starting with Windows. *(owner: the user, in Windows round-trip
+  1)* Install 1.0 over 0.3.x with Start with Windows on, reboot: only 1.0 runs, no Old engine screen, one Run entry.
+
+**Parallel:** M17.1 first (its CLAUDE.md OK gates the lane). Then three lanes at once: designer (M17.2), platform
+(M17.3, then M17.12 from M17.4 on), companion (M17.4 to M17.11 serially: one package, one agent). M17.13, M17.14,
+M17.15 and M17.16 are serial at the end.
+
+**Effort (rough, agent session-hours including review):** M17.1 2, M17.2 3, M17.3 4, M17.4 4, M17.5 8, M17.6 6,
+M17.7 6, M17.8 7, M17.9 6, M17.10 7, M17.11 6, M17.12 7, M17.14 4, M17.15 1, M17.16 3: about **75 hours**, about
+**50 on the critical companion lane**. **Windows round-trips from the user: 3 planned** (M17.12 install and pair,
+M17.13 the night, M17.13 the update), budget **5** for fixes in between. Everything else is verified on this Mac's
+client and the local stack.
+
+**Open questions for the user (at most three):**
+1. **The CLAUDE.md rule change** (the text above): approve as written? (Required before M17.4.)
+2. **macOS build too, or Windows only?** Windows only is the plan; a signed macOS updater build is one more CI job
+   and an Apple notarisation question, and the group plays on Windows.
+(Settled 2026-10-03, not open: 0.4.0 is skipped, decision row.)
+
+Acceptance: a host installs a Kustom of 15 MB or less once, links it with the site's code, sees their group and
+League's status, switches groups if they host for two, and from then on every custom they are in is recorded
+exactly as the TypeScript engine recorded it; when a new version is published it arrives without a click and never mid-game; no
+Node runtime ships, no overlay ships, and nobody typed anything.
 
 ---
 
@@ -9303,6 +12278,77 @@ M13.4 + M13.7 --------------------------- M13.9 (/g/<slug> shell + tonight) --+-
 M13.5 + M13.9 --------------------------- M13.13 (/new, /join)
 M13.6 + M13.9 --------------------------- M13.14 (group admin, /ops; last)
 ```
+
+**M14 (Kustom 2.0)** folds in M13.6, M13.8 and M13.10 to M13.14. The user's rule is one agent per package at a
+time and a worktree whenever two engineers write code at once, so `apps/web` is one serial lane (web and
+platform alternate in it) and the other packages run beside it:
+
+```
+wave 1 (now)   M14.1 foundation (web, apps/web) | M14.2 design system (designer) | M14.3 product docs (product)
+               M14.4 core helpers (core, packages/core) | M14.5 RLS reads (platform, packages/db only)
+               M14.6 Kustom groups = M13.8 (companion, apps/companion)
+
+apps/web lane  M14.1 -- M14.7 shell -- M14.8 Data Dragon -- M14.7b FIVE TABS + /you + Riot notice
+               -- M14.9 (a) TONIGHT -- M14.10 Discord receipt
+               -- M14.11 owner + removal (0023) -- M14.12 host token on pairing -- [mode: M14.29 to M14.31]
+               -- M14.14 remove seasons
+               -- M14.15 (b) BOARD + self lens -- M14.16 (c) GAMES -- M14.17 STATS (3 segments) + mystery -- M14.18 rating reset
+               -- M14.19 operator -- M14.20 Discord connect -- M14.21 (d) /new /join
+               -- [sign-in reasons: M14.33 claim -- M14.34 12h claim -- M14.35 you vs them -- M14.36 your night]
+               -- M14.22 (d) admin home
+               -- M14.23 (d) admin rest + /ops -- M14.24 (e) LANDING -- M14.25 retire Floodlit
+
+needs          M14.7 <- M14.1 + M14.2      M14.7b <- M14.7 + M14.8 (DD half)   M14.15 <- M14.14 + M14.7b
+               M14.9 <- M14.4 + M14.7b + M14.8      M14.35 <- M14.34 + M14.15 + M14.17 (Pick two ?a=&b=)
+               M14.13 <- M14.6 + M14.12    M14.22 <- M14.11 + M14.12 + M14.18  M14.23 <- M14.19 + M14.20
+               M14.29 <- M14.11 + M14.12   M14.30 <- M14.29 (+ M14.7, M14.8, M14.9)
+               M14.31 <- M14.30            (M14.32 deferred with the companion UI, both halves)
+
+mode           (in the apps/web lane, between M14.12 and M14.14)
+               M14.29 group mode + 0024 -- M14.30 (a) MODE CARD + PANEL /g/<slug>/mode (Fearless first), sprites
+               -- M14.31 Discord post -> panel URL
+
+companion      M14.6 (UI as built) ---------- M14.13 engine only (after M14.12) -- 0.4.0 built, NOT published
+               (no companion UI task in M14, M15 or M16: the rewrite is M17; 2.0 ships with 0.3.x)
+end            M14.25 -- M14.26 review + scene walk -- M14.27 ship (the user runs every production step)
+```
+
+**After M14:**
+
+```
+M14.26 + M14.27 -- M15.1 brief -- M15.2 core (mode + check) -- M15.3 schema + server --+-- M15.5 Tonight --\
+                   M15.4 DD tags (beside M15.2, apps/web) ---------------------------\-- M15.6 Discord ---->-- M15.8 CLASS NIGHT
+                                                                                     (M15.7 dropped: no overlay)
+                   M15.9 region table (beside anything) ----------------- M15.8 + M15.9 -- M15.10 REGION WARS
+                   M15.8 ------------------------------------------------ M15.11 MIRROR (rated) -- M15.12 review
+M15 done -- M16.1 brief -- M16.2 premium flag -- [user: Anthropic key] -- M16.3 plumbing + checker + cap
+           -- M16.4 recap line -- M16.5 weekly storyline -- M16.6 scouting report -- M16.7 review
+```
+
+**M17 (Kustom companion in Rust)** needs only M14.13 (the engine it ports) and runs beside M15 and M16: its lane is
+`apps/companion` and CI, and its only `apps/web` touches are M17.12's links and copy and M17.15's deletion.
+
+```
+M14.13 -- M17.1 plan + [user: OK the CLAUDE.md rule] --+-- M17.2 design (designer) ----------------------------\
+                                                       +-- M17.3 JSON Schema + golden check (platform)          |
+                                                       +-- M17.4 scaffold + goldens -- M17.5 LCU bridge (live, Mac)
+                                                           -- M17.6 config/migration/log/API -- M17.7 connection + lobby
+                                                           -- M17.8 WINDOW, TRAY, PAIRING, GROUPS (needs M17.2) --/
+                                                           -- M17.9 game + queue -- M17.10 rank + commands -- M17.11 backfill
+M17.4 -- [user: signing key + secrets] -- M17.12 updater + CI release + links (finishes after M17.8; Windows trip 1)
+M17.11 + M17.12 -- M17.13 WINDOWS NIGHT, the gate (trips 2, 3) -- M17.14 retire TS + apps/overlay
+                -- M17.15 remove /api/overlay* (after 30 quiet days) -- M17.16 review
+```
+
+M15.2 (core) and M15.4 / M15.9 (`apps/web` data tables) run in parallel; M15.5 and M15.6 (M15.7 dropped
+2026-10-04 with the overlay) share `apps/web` and so alternate in its lane. No companion lane in M15. M16 waits for M15 because both change the
+result post and the game page, and the user ordered it last.
+
+M14.5 is the only platform task outside the `apps/web` lane: its migration adds read policies and changes no
+code, so it can run beside M14.1 in its own worktree. Every later migration (M14.11 `0023`, M14.29 `0024` the group's mode, M14.14, M14.18) changes
+code in the same commit and so rides the lane. The server tasks sit where they do so the companion lane can
+finish early (M14.12 unblocks M14.13) and the board is restyled on loaders that no longer read seasons
+(M14.14 before M14.15). Every task with a migration waits for the user to see it before it is applied.
 
 **M3.31** (how even the teams are, as a percentage) is the fourth idea of 2026-09-15 and is not in M8: it is a
 line under the teams on the tonight page, so it sits in M3. It waits only on **M7.2** and **M7.8**, which are

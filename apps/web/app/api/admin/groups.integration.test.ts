@@ -55,9 +55,7 @@ if (stack === null) {
   process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
 
   const { withAdminAuth } = await import('@/lib/adminRoute');
-  const { handleAdminPlayers } = await import('./players/handler');
-  const { adminPlayersRequestSchema } = await import('./players/schema');
-  const { handleAdminTokens } = await import('./tokens/handler');
+  const { handleAdminTokens, MINT_GONE } = await import('./tokens/handler');
   const { adminTokensRequestSchema } = await import('./tokens/schema');
   const { handleDiscordConfig } = await import('./discord-config/handler');
   const { discordConfigRequestSchema } = await import('./discord-config/schema');
@@ -130,13 +128,6 @@ if (stack === null) {
   function everyRoute(discordId: string, groupId: string) {
     const options = as(discordId);
     return {
-      players: () =>
-        call(withAdminAuth(adminPlayersRequestSchema, handleAdminPlayers, options), {
-          groupId,
-          action: 'set-name',
-          playerId: player.zoe,
-          displayName: 'Nope',
-        }),
       tokens: () =>
         call(withAdminAuth(adminTokensRequestSchema, handleAdminTokens, options), {
           groupId,
@@ -265,24 +256,11 @@ if (stack === null) {
         expect([answer.status, answer.json.error]).toEqual([404, NO_SUCH_LOBBY]);
       }
       // B's player under A.
-      for (const run of [underA.players, underA.tokens, underA.memberRole]) {
-        const answer = await run();
-        expect([answer.status, answer.json.error]).toEqual([404, NO_SUCH_MEMBER]);
-      }
-      // `set-backfill` is retired (2026-10-03) and answers 410 before it looks at the player.
-      for (const action of ['set-discord', 'set-admin'] as const) {
-        const extra = action === 'set-discord' ? { discordId: '1' } : { isAdmin: true };
-        const answer = await call(
-          withAdminAuth(adminPlayersRequestSchema, handleAdminPlayers, as(discord.hana)),
-          {
-            groupId: groups.a,
-            action,
-            playerId: player.zoe,
-            ...extra,
-          },
-        );
-        expect([action, answer.status]).toEqual([action, 404]);
-      }
+      const member = await underA.memberRole();
+      expect([member.status, member.json.error]).toEqual([404, NO_SUCH_MEMBER]);
+      // M17.12: a mint is a 410 for any player now, and still writes nothing in B.
+      const mint = await underA.tokens();
+      expect([mint.status, mint.json.error]).toEqual([410, MINT_GONE]);
       // B's token under A.
       const revoke = await call(
         withAdminAuth(adminTokensRequestSchema, handleAdminTokens, as(discord.hana)),
@@ -377,8 +355,13 @@ if (stack === null) {
         call(roleRoute(discord.hana), { groupId: groups.a, playerId: player.omar, role: 'member' }),
         call(roleRoute(discord.omar), { groupId: groups.a, playerId: player.hana, role: 'member' }),
       ]);
-      // Both passed the gate (both were admins when they pressed); the database decided.
-      expect([hanaDemotesOmar.status, omarDemotesHana.status].sort()).toEqual([200, 409]);
+      // Both passed the gate (both were admins when they pressed); the database decided. A is
+      // ownerless, so M13.4's rules hold. Since 0023 (M14.11) set_group_member_role_v2 re-checks
+      // the actor's own role under the group's row lock, so the press that waits finds its actor
+      // already demoted and is refused as no longer an admin (403), before the last-admin check.
+      const answers = [hanaDemotesOmar, omarDemotesHana].sort((x, y) => x.status - y.status);
+      expect(answers.map((a) => a.status)).toEqual([200, 403]);
+      expect(answers[1]?.json).toEqual({ ok: false, error: NOT_A_GROUP_ADMIN });
       expect(await adminsOf(groups.a)).toBe(1);
     });
   });

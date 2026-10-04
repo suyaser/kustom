@@ -23,6 +23,12 @@ const DB_PACKAGE_ROOT = fileURLToPath(new URL('../../../../packages/db/', import
 export interface LocalAuthUsers {
   /** One `auth.users` row per email, ids returned in the same order. */
   create(emails: readonly string[]): string[];
+  /**
+   * One `auth.users` row that can really sign in with `grant_type=password` (M14.40: the session
+   * refresh test needs a genuine access + refresh token pair from GoTrue, which only the token
+   * endpoint hands out; the admin API is the part that refuses the key, not sign-in).
+   */
+  createWithPassword(email: string, password: string): string;
   remove(ids: readonly string[]): void;
 }
 
@@ -79,6 +85,14 @@ export function localAuthUsers(): LocalAuthUsers | null {
         `insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at) values\n${rows};`,
       );
       return ids;
+    },
+    createWithPassword(email, password) {
+      const id = randomUUID();
+      psql(
+        `insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, confirmation_token, recovery_token, email_change_token_new, email_change)
+values (${literal(id)}, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', ${literal(email)}, extensions.crypt(${literal(password)}, extensions.gen_salt('bf')), now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', '', '', '', '');`,
+      );
+      return id;
     },
     remove(ids) {
       if (ids.length === 0) return;

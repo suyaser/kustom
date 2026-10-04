@@ -20,12 +20,14 @@ import {
   LOBBY_ALREADY_OPEN,
   LOBBY_ALREADY_OPENING,
   LOBBY_WRITES_UNVERIFIED,
-  NO_COMPANION_AROUND,
+  noKustomRunningLine,
+  readGroupHostNames,
 } from '@/lib/lobbyStart';
 import { START_LOBBY_NOT_LINKED } from '@/lib/me/copy';
 import { authorizeMe, type MeAuthResult, supabaseMeLookup } from '@/lib/me/identity';
 import { setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
+import { adminNames } from '@/lib/tonight/copy';
 
 /**
  * Start a lobby, against the Supabase CLI local stack (M4.2's rules, M4.13's gate): the real
@@ -77,8 +79,6 @@ if (stack === null) {
   const nightsBefore = (nights: number): string =>
     new Date(NOW.getTime() - nights * 24 * 60 * 60 * 1000).toISOString();
 
-  /** Season 1, seeded by `0001_init.sql` with a fixed id: never the *active* season of a run. */
-  const SEASON_ONE = '00000000-0000-0000-0000-000000000001';
   /**
    * Both kinds green, which is also production since the writes were verified (16.18,
    * 2026-09-12). {@link OFF} is kept because the refusal it causes is still reachable: a patch
@@ -174,8 +174,6 @@ if (stack === null) {
       .insert({
         group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: lcuGameId,
-        // Explicit, never the active season: another file's run may have made its own active.
-        season_id: SEASON_ONE,
         started_at: startedAt,
         duration_s: 1_800,
         winning_side: 100,
@@ -342,7 +340,12 @@ if (stack === null) {
         const response = await press({ gate: ON })(postStart());
 
         expect(response.status).toBe(409);
-        await expect(response.json()).resolves.toEqual({ ok: false, error: NO_COMPANION_AROUND });
+        // M14.66: the sentence names the group's hosts. This file's players are nameless and the
+        // original group's real hosts on the shared stack are whoever they are, so the expected
+        // line is built from the same read; the named and generic forms are pinned in
+        // `startNoHost.integration.test.ts` on a group of its own.
+        const who = adminNames(await readGroupHostNames(db, ORIGINAL_GROUP_ID));
+        await expect(response.json()).resolves.toEqual({ ok: false, error: noKustomRunningLine(who) });
         expect(await commandsOf('create_lobby')).toHaveLength(0);
       } finally {
         await db
@@ -379,7 +382,7 @@ if (stack === null) {
       expect(rows[0]).toMatchObject({
         target_player_id: id('host'),
         status: 'pending',
-        payload: { lobbyName: 'Customs 09 Jun #1', lobbyPassword: '4821' },
+        payload: { lobbyName: 'Customs 09 Jun #1', lobbyPassword: '4821', pickType: 'draft' },
         // The kind's own TTL: a minute is how long somebody stares at a button.
         expires_at: new Date(NOW.getTime() + 60_000).toISOString().replace('.000Z', '+00:00'),
       });
@@ -557,7 +560,7 @@ if (stack === null) {
             targetPlayerId: id('host'),
             groupId: ORIGINAL_GROUP_ID,
             kind: 'create_lobby',
-            payload: { lobbyName: 'Customs 09 Jun #2', lobbyPassword: '1234' },
+            payload: { lobbyName: 'Customs 09 Jun #2', lobbyPassword: '1234', pickType: 'draft' },
           },
         ],
         { now: NOW, gate: ON },
@@ -589,7 +592,11 @@ if (stack === null) {
       if (error) throw new Error(`clearCreates: ${error.message}`);
     }
 
-    const createPayload = (n: number) => ({ lobbyName: `Customs 09 Jun #${n}`, lobbyPassword: '1111' });
+    const createPayload = (n: number) => ({
+      lobbyName: `Customs 09 Jun #${n}`,
+      lobbyPassword: '1111',
+      pickType: 'draft' as const,
+    });
 
     beforeAll(async () => {
       // The night's first lobby finished, so Start is allowed again (M4.2's last edge case).

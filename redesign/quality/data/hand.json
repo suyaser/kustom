@@ -1,0 +1,1790 @@
+{
+ "landmarks": [
+  {
+   "path": "/",
+   "h1": [
+    "Fair teams. No arguments."
+   ],
+   "navs": [
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom: fair teams for your League customs"
+  },
+  {
+   "path": "/about",
+   "h1": [
+    "Fair teams. No arguments."
+   ],
+   "navs": [
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom: fair teams for your League customs"
+  },
+  {
+   "path": "/how",
+   "h1": [
+    "How the bot decides"
+   ],
+   "navs": [
+    "On this page",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "How the bot decides · Kustom"
+  },
+  {
+   "path": "/download",
+   "h1": [
+    "Get Kustom"
+   ],
+   "navs": [
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Get Kustom · Kustom"
+  },
+  {
+   "path": "/new",
+   "h1": [
+    "Start a group"
+   ],
+   "navs": [
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Start a group · Kustom"
+  },
+  {
+   "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+   "h1": [
+    "Customs Night uses Kustom to pick fair teams for your custom"
+   ],
+   "navs": [
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Join a group · Kustom"
+  },
+  {
+   "path": "/g/customs",
+   "h1": [
+    "RED WINS"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [
+    "status/:",
+    "status/polite:Red wins."
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/g/customs/leaderboard",
+   "h1": [
+    "Leaderboard"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Time window",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "This week · Leaderboard · Customs Night · Kustom"
+  },
+  {
+   "path": "/g/customs/p/audit-p01",
+   "h1": [
+    "Jinxed Lad"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Time window",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [
+    "h1->h3"
+   ],
+   "lang": "en",
+   "title": "Jinxed Lad · Customs Night · Kustom"
+  },
+  {
+   "path": "/g/customs/games",
+   "h1": [
+    "Games"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Date",
+    "Map",
+    "About Kustom"
+   ],
+   "live": [
+    "/off:8 games"
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "All · Games · Kustom"
+  },
+  {
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "h1": [
+    "Red won"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Red won · 33 min · Kustom"
+  },
+  {
+   "path": "/g/customs/you",
+   "h1": [
+    "See it from where you stand."
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "You · Kustom"
+  },
+  {
+   "path": "/g/customs/mode",
+   "h1": [
+    "Fearless"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Breadcrumb",
+    "About Kustom"
+   ],
+   "live": [
+    "status/:"
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [
+    "h1->h3"
+   ],
+   "lang": "en",
+   "title": "Fearless | Kustom"
+  },
+  {
+   "path": "/g/customs/stats",
+   "h1": [
+    "Stats"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Section",
+    "Window",
+    "Map",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "This month · Records · Stats · Kustom"
+  },
+  {
+   "path": "/g/customs/stats/champions",
+   "h1": [
+    "Stats"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Section",
+    "Window",
+    "Map",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "This month · Champions · Stats · Kustom"
+  },
+  {
+   "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+   "h1": [
+    "Stats"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Section",
+    "Window",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "All time · 1v1 · Stats · Kustom"
+  },
+  {
+   "path": "/g/customs/mystery",
+   "h1": [
+    "Guess the Award"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Guess the Award · Kustom"
+  },
+  {
+   "path": "/g/customs/admin",
+   "h1": [
+    "Admin"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Admin · Kustom"
+  },
+  {
+   "path": "/admin/login",
+   "h1": [
+    "Kustom admin"
+   ],
+   "navs": [],
+   "live": [],
+   "mains": 1,
+   "skipFirst": null,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Sign in · Kustom admin"
+  },
+  {
+   "path": "/nope",
+   "h1": [
+    "Page not found"
+   ],
+   "navs": [
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/tonight/balanced",
+   "h1": [
+    "TEAMS ARE SET"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [
+    "status/:Live",
+    "status/polite:Teams are set. Blue 54 percent, Red 46 percent. Yo"
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/tonight/in-game",
+   "h1": [
+    "IN GAME"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [
+    "status/:Live",
+    "status/polite:Game started."
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/tonight/finished",
+   "h1": [
+    "RED WINS"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [
+    "status/:",
+    "status/polite:Red wins."
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/tonight/filling",
+   "h1": [
+    "6 IN THE LOBBY"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [
+    "status/:Live",
+    "status/polite:Four more to go."
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/board",
+   "h1": [
+    "Leaderboard"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Time window",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/you",
+   "h1": [
+    "TheSHADOWREAPER"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/onboarding",
+   "h1": [
+    "Start a group"
+   ],
+   "navs": [
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/versus",
+   "h1": [
+    "Baron Nashor Lover"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "Time window",
+    "About Kustom"
+   ],
+   "live": [],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [],
+   "lang": "en",
+   "title": "Kustom"
+  },
+  {
+   "path": "/kit/mode",
+   "h1": [
+    "Fearless"
+   ],
+   "navs": [
+    "Main",
+    "Main",
+    "About Kustom"
+   ],
+   "live": [
+    "status/:"
+   ],
+   "mains": 1,
+   "skipFirst": true,
+   "mainId": true,
+   "jumps": [
+    "h1->h3"
+   ],
+   "lang": "en",
+   "title": "Kustom"
+  }
+ ],
+ "reflow": [
+  {
+   "mode": "320",
+   "path": "/",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/about",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/how",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/download",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/new",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/leaderboard",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/p/audit-p01",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/games",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/you",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/mode",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/stats",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/stats/champions",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/mystery",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/g/customs/admin",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/admin/login",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/nope",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/tonight/balanced",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/tonight/in-game",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/tonight/finished",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/tonight/filling",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/board",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/you",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/onboarding",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/versus",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "320",
+   "path": "/kit/mode",
+   "w": 320,
+   "sw": 320,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/about",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/how",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/download",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/new",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/leaderboard",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/p/audit-p01",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/games",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/you",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/mode",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/stats",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/stats/champions",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/mystery",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/g/customs/admin",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/admin/login",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/nope",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/tonight/balanced",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/tonight/in-game",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/tonight/finished",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/tonight/filling",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/board",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/you",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/onboarding",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/versus",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "zoom200",
+   "path": "/kit/mode",
+   "w": 640,
+   "sw": 640,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/",
+   "w": 375,
+   "sw": 493,
+   "off": [
+    "div.flex flex-col gap-4 lg:pt-6 \"Fair teams. No arguments.Kusto\" r=493",
+    "h1.font-display text-display font-black tracking-[-0. \"Fair teams. No arguments.\" r=493",
+    "p.max-w-[38rem] text-base text-pretty lg:text-md lg: \"Kustom reads your League custo\" r=493",
+    "div.flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap  \"Create your groupSee a real gr\" r=493",
+    "form.flex \"Create your group\" r=493",
+    "button.inline-flex min-h-11 shrink-0 items-center justify \"Create your group\" r=493"
+   ]
+  },
+  {
+   "mode": "text200",
+   "path": "/about",
+   "w": 375,
+   "sw": 493,
+   "off": [
+    "div.flex flex-col gap-4 lg:pt-6 \"Fair teams. No arguments.Kusto\" r=493",
+    "h1.font-display text-display font-black tracking-[-0. \"Fair teams. No arguments.\" r=493",
+    "p.max-w-[38rem] text-base text-pretty lg:text-md lg: \"Kustom reads your League custo\" r=493",
+    "div.flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap  \"Create your groupSee a real gr\" r=493",
+    "form.flex \"Create your group\" r=493",
+    "button.inline-flex min-h-11 shrink-0 items-center justify \"Create your group\" r=493"
+   ]
+  },
+  {
+   "mode": "text200",
+   "path": "/how",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/download",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/new",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/leaderboard",
+   "w": 375,
+   "sw": 400,
+   "off": [
+    "div.flex min-w-48 flex-col gap-1.5 \"Sort byRatingGamesWin rate\" r=400",
+    "label.flex items-center gap-2 text-sm leading-snug font- \"Sort by\" r=400",
+    "div.relative w-full min-w-0 \"RatingGamesWin rate\" r=400",
+    "select.min-h-11 w-full min-w-0 appearance-none rounded-co \"RatingGamesWin rate\" r=400"
+   ]
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/p/audit-p01",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/games",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/you",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/mode",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/stats",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/stats/champions",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/mystery",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/g/customs/admin",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/admin/login",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/nope",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/tonight/balanced",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/tonight/in-game",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/tonight/finished",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/tonight/filling",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/board",
+   "w": 375,
+   "sw": 400,
+   "off": [
+    "div.flex min-w-48 flex-col gap-1.5 \"Sort byRatingGamesWin rate\" r=400",
+    "label.flex items-center gap-2 text-sm leading-snug font- \"Sort by\" r=400",
+    "div.relative w-full min-w-0 \"RatingGamesWin rate\" r=400",
+    "select.min-h-11 w-full min-w-0 appearance-none rounded-co \"RatingGamesWin rate\" r=400"
+   ]
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/you",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/onboarding",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/versus",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  },
+  {
+   "mode": "text200",
+   "path": "/kit/mode",
+   "w": 375,
+   "sw": 375,
+   "off": []
+  }
+ ],
+ "targets": [
+  {
+   "path": "/",
+   "small": []
+  },
+  {
+   "path": "/about",
+   "small": []
+  },
+  {
+   "path": "/how",
+   "small": []
+  },
+  {
+   "path": "/download",
+   "small": []
+  },
+  {
+   "path": "/new",
+   "small": []
+  },
+  {
+   "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+   "small": []
+  },
+  {
+   "path": "/g/customs",
+   "small": []
+  },
+  {
+   "path": "/g/customs/leaderboard",
+   "small": []
+  },
+  {
+   "path": "/g/customs/p/audit-p01",
+   "small": []
+  },
+  {
+   "path": "/g/customs/games",
+   "small": []
+  },
+  {
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "small": []
+  },
+  {
+   "path": "/g/customs/you",
+   "small": []
+  },
+  {
+   "path": "/g/customs/mode",
+   "small": []
+  },
+  {
+   "path": "/g/customs/stats",
+   "small": []
+  },
+  {
+   "path": "/g/customs/stats/champions",
+   "small": []
+  },
+  {
+   "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+   "small": []
+  },
+  {
+   "path": "/g/customs/mystery",
+   "small": []
+  },
+  {
+   "path": "/g/customs/admin",
+   "small": []
+  },
+  {
+   "path": "/admin/login",
+   "small": []
+  },
+  {
+   "path": "/nope",
+   "small": []
+  },
+  {
+   "path": "/kit/tonight/balanced",
+   "small": []
+  },
+  {
+   "path": "/kit/tonight/in-game",
+   "small": []
+  },
+  {
+   "path": "/kit/tonight/finished",
+   "small": []
+  },
+  {
+   "path": "/kit/tonight/filling",
+   "small": []
+  },
+  {
+   "path": "/kit/board",
+   "small": []
+  },
+  {
+   "path": "/kit/you",
+   "small": []
+  },
+  {
+   "path": "/kit/onboarding",
+   "small": []
+  },
+  {
+   "path": "/kit/versus",
+   "small": []
+  },
+  {
+   "path": "/kit/mode",
+   "small": []
+  }
+ ],
+ "truncation": [
+  {
+   "path": "/",
+   "trunc": []
+  },
+  {
+   "path": "/about",
+   "trunc": []
+  },
+  {
+   "path": "/how",
+   "trunc": []
+  },
+  {
+   "path": "/download",
+   "trunc": []
+  },
+  {
+   "path": "/new",
+   "trunc": []
+  },
+  {
+   "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/leaderboard",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/p/audit-p01",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/games",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/you",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/mode",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/stats",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/stats/champions",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/mystery",
+   "trunc": []
+  },
+  {
+   "path": "/g/customs/admin",
+   "trunc": []
+  },
+  {
+   "path": "/admin/login",
+   "trunc": []
+  },
+  {
+   "path": "/nope",
+   "trunc": []
+  },
+  {
+   "path": "/kit/tonight/balanced",
+   "trunc": []
+  },
+  {
+   "path": "/kit/tonight/in-game",
+   "trunc": []
+  },
+  {
+   "path": "/kit/tonight/finished",
+   "trunc": []
+  },
+  {
+   "path": "/kit/tonight/filling",
+   "trunc": []
+  },
+  {
+   "path": "/kit/board",
+   "trunc": []
+  },
+  {
+   "path": "/kit/you",
+   "trunc": []
+  },
+  {
+   "path": "/kit/onboarding",
+   "trunc": []
+  },
+  {
+   "path": "/kit/versus",
+   "trunc": []
+  },
+  {
+   "path": "/kit/mode",
+   "trunc": []
+  }
+ ],
+ "motion": [
+  {
+   "path": "/g/customs",
+   "running": []
+  },
+  {
+   "path": "/kit/tonight/in-game",
+   "running": []
+  },
+  {
+   "path": "/kit/tonight/filling",
+   "running": []
+  },
+  {
+   "path": "/kit/tonight/reroll",
+   "running": []
+  },
+  {
+   "path": "/g/customs/games",
+   "running": []
+  }
+ ],
+ "keyboard": [
+  {
+   "width": 375,
+   "path": "/g/customs",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "summary \"How the bot decided\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"FearlessRated163 open10 bannedSee \" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Played tonight? Sign in and see ho\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Hide for tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Guess the Award #1Most damage to o\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Full board\" ring=outline 2px rgb(244, 246, 250) COVERED",
+    "a \"1Smolder Boulder1342\" ring=outline 2px rgb(244, 246, 250) COVERED",
+    "a \"2Baron Nashor Lover1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"3Lux Aeterna1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"4Teemo Tactics1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"5Yuumi Pls1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"What's Kustom?\" ring=outline 2px rgb(244, 246, 250)",
+    "body"
+   ],
+   "afterSkip": "summary in-main=true \"How the bot decided\""
+  },
+  {
+   "width": 375,
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"All games\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Played tonight? Sign in and see ho\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Hide for tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"What's Kustom?\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"All games\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "a in-main=true \"All games\""
+  },
+  {
+   "width": 375,
+   "path": "/g/customs/leaderboard",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"This week\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Last week\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"This month\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Last month\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"All time\" ring=outline 2px rgb(244, 246, 250)",
+    "select \"RatingGamesWin rate\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"1Rank 1, Smolder Boulder1 game · 1\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"2Rank 2, Baron Nashor Lover1 game \" ring=outline 2px rgb(244, 246, 250)",
+    "a \"3Rank 3, Lux Aeterna1 game · 1W 0L\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"4Rank 4, Teemo Tactics1 game · 1W \" ring=outline 2px rgb(244, 246, 250)",
+    "a \"5Rank 5, Yuumi Pls1 game · 1W 0L13\" ring=outline 2px rgb(244, 246, 250) COVERED",
+    "a \"6Rank 6, Ali2 games · 1W 1L1200 Ra\" ring=outline 2px rgb(244, 246, 250) COVERED",
+    "a \"7Rank 7, Fil02 games · 1W 1L1200 R\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"8Rank 8, Fil12 games · 1W 1L1200 R\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"9Rank 9, Fil22 games · 1W 1L1200 R\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "a in-main=true \"This week\""
+  },
+  {
+   "width": 375,
+   "path": "/new",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "button in-main=true \"Sign in with Discord\""
+  },
+  {
+   "width": 375,
+   "path": "/kit/tonight/balanced",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"What's open for support\" ring=outline 2px rgb(244, 246, 250)",
+    "summary \"How the bot decided\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"FearlessRated138 open35 bannedYour\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"top\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"jungle\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"mid\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"adc\" ring=outline 2px rgb(244, 246, 250) COVERED",
+    "button \"support\" ring=outline 2px rgb(244, 246, 250) COVERED",
+    "a \"REDGame 125 minRed was 47%. Red wo\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Full board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"1TheSHADOWREAPER2088\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"2Ramzyinhović1713\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"3MANOOOOOOOO1638\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"4Jinxed Lad Who Wanders1578\" ring=outline 2px rgb(244, 246, 250) COVERED",
+    "a \"5knifiy1551\" ring=outline 2px rgb(244, 246, 250) COVERED"
+   ],
+   "afterSkip": "a in-main=true \"What's open for support\""
+  },
+  {
+   "width": 1440,
+   "path": "/g/customs",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in\" ring=outline 2px rgb(244, 246, 250)",
+    "summary \"How the bot decided\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"FearlessRated163 open10 bannedSee \" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Played tonight? Sign in and see ho\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Hide for tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Guess the Award #1Most damage to o\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Full board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"1Smolder Boulder1342\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"2Baron Nashor Lover1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"3Lux Aeterna1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"4Teemo Tactics1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"5Yuumi Pls1314\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"What's Kustom?\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "summary in-main=true \"How the bot decided\""
+  },
+  {
+   "width": 1440,
+   "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"All games\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Played tonight? Sign in and see ho\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Hide for tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"What's Kustom?\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "a in-main=true \"All games\""
+  },
+  {
+   "width": 1440,
+   "path": "/g/customs/leaderboard",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"This week\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Last week\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"This month\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Last month\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"All time\" ring=outline 2px rgb(244, 246, 250)",
+    "select \"RatingGamesWin rate\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"1Rank 1, Smolder Boulder1 game · 1\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"2Rank 2, Baron Nashor Lover1 game \" ring=outline 2px rgb(244, 246, 250)",
+    "a \"3Rank 3, Lux Aeterna1 game · 1W 0L\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"4Rank 4, Teemo Tactics1 game · 1W \" ring=outline 2px rgb(244, 246, 250)",
+    "a \"5Rank 5, Yuumi Pls1 game · 1W 0L13\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"6Rank 6, Ali2 games · 1W 1L1200 Ra\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"7Rank 7, Fil02 games · 1W 1L1200 R\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"8Rank 8, Fil12 games · 1W 1L1200 R\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "a in-main=true \"This week\""
+  },
+  {
+   "width": 1440,
+   "path": "/new",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Get Kustom\" ring=outline 2px rgb(244, 246, 250)",
+    "body",
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"Sign in with Discord\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"How the bot decides\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "button in-main=true \"Sign in with Discord\""
+  },
+  {
+   "width": 1440,
+   "path": "/kit/tonight/balanced",
+   "stops": [
+    "a \"Skip to content\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"KUSTOM Customs Night\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Tonight\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Games\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Stats\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"You\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"What's open for support\" ring=outline 2px rgb(244, 246, 250)",
+    "summary \"How the bot decided\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"FearlessRated138 open35 bannedYour\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"top\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"jungle\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"mid\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"adc\" ring=outline 2px rgb(244, 246, 250)",
+    "button \"support\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"REDGame 125 minRed was 47%. Red wo\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"Full board\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"1TheSHADOWREAPER2088\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"2Ramzyinhović1713\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"3MANOOOOOOOO1638\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"4Jinxed Lad Who Wanders1578\" ring=outline 2px rgb(244, 246, 250)",
+    "a \"5knifiy1551\" ring=outline 2px rgb(244, 246, 250)"
+   ],
+   "afterSkip": "a in-main=true \"What's open for support\""
+  }
+ ],
+ "mode": [
+  {
+   "p": "/g/customs",
+   "width": 375,
+   "trigger": "FearlessRated163 open10 bannedSee what's",
+   "open": {
+    "dialog": true,
+    "focus": "H2 Fearless",
+    "url": "/g/customs/mode"
+   },
+   "tabEscapes": 0,
+   "shiftTabEscapes": 0,
+   "after": {
+    "dialog": false,
+    "focus": "A FearlessRated163 open10 bannedSee what's",
+    "url": "/g/customs",
+    "inert": 0
+   }
+  },
+  {
+   "p": "/g/customs",
+   "width": 1440,
+   "trigger": "FearlessRated163 open10 bannedSee what's",
+   "open": {
+    "dialog": true,
+    "focus": "H2 Fearless",
+    "url": "/g/customs/mode"
+   },
+   "tabEscapes": 0,
+   "shiftTabEscapes": 0,
+   "after": {
+    "dialog": false,
+    "focus": "A FearlessRated163 open10 bannedSee what's",
+    "url": "/g/customs",
+    "inert": 0
+   }
+  },
+  {
+   "p": "/kit/tonight/filling",
+   "width": 1440,
+   "trigger": "FearlessRated138 open35 bannedSee what's",
+   "open": {
+    "dialog": false,
+    "focus": "BODY (function(){try{var t=localSto",
+    "url": "/g/customs/mode"
+   },
+   "tabEscapes": 60,
+   "shiftTabEscapes": 20,
+   "after": {
+    "dialog": false,
+    "focus": "BUTTON jungle",
+    "url": "/g/customs/mode",
+    "inert": 0
+   }
+  }
+ ]
+}

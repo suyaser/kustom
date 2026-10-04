@@ -9,6 +9,13 @@ import { DEFAULT_NEXT_PATH, nextCookieOptions, nextUrl, safeNextPath } from './a
  * browser, so it is validated on the way out as if it were not.
  */
 
+describe('the default destination (M14.23 review)', () => {
+  it('is the group-neutral landing, never the bare /admin', () => {
+    expect(DEFAULT_NEXT_PATH).toBe('/');
+    expect(nextUrl(null, 'https://kustom.example').toString()).toBe('https://kustom.example/');
+  });
+});
+
 describe('safeNextPath', () => {
   it('accepts a path on this site', () => {
     for (const value of ['/admin', '/admin/tokens', '/admin/players?q=1', '/', '/admin#top']) {

@@ -14,7 +14,7 @@ export interface Streak {
 
 /**
  * The run at the **front** of the list: `results` is newest first, the way the board reads a
- * season, and the run ends at the first game that went the other way.
+ * group, and the run ends at the first game that went the other way.
  *
  * `null` for a player who has not played, which prints nothing rather than `W0` — there is no
  * streak to be on and a zero in a signed-looking column reads as data.

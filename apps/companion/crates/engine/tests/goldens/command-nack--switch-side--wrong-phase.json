@@ -1,0 +1,17 @@
+{
+  "name": "command-nack--switch-side--wrong-phase",
+  "kind": "request",
+  "target": "api",
+  "route": "command-nack",
+  "patch": "16.17",
+  "fixtures": [],
+  "scenario": "command-wrong-phase",
+  "note": "The phase is InProgress: wrong_phase with the phase, no client call at all.",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack",
+  "commandKind": "switch_side",
+  "body": {
+    "error": "wrong_phase: InProgress",
+    "retryable": false
+  }
+}

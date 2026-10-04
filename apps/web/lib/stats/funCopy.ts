@@ -1,5 +1,7 @@
 import type { RoleValue } from '@customs/db';
 import { winLossLabel } from '../board/copy';
+import { formatMinutes } from '../games/duration';
+import { DEFAULT_NIGHT_TIME_ZONE, DISPLAY_LOCALE, formatDayMonth, nightStart } from '../night';
 import {
   AGAINST_THE_ODDS_PERCENT,
   MIN_AGAINST_THE_ODDS_WINS,
@@ -25,54 +27,52 @@ export const THIS_GAME = 'This game';
 export const SEE_GAMES = 'See games';
 
 export const FIRST_BLOOD_TITLE = 'First Blood Museum';
-export const FIRST_BLOOD_INTRO =
-  'Who opened the map, on which champion, and which night. The block names the killer.';
-export const FIRST_BLOOD_EMPTY = 'No first blood flag in this window.';
+export const FIRST_BLOOD_INTRO = 'Who drew first blood, on which champion, and which night.';
+export const FIRST_BLOOD_EMPTY = 'No first blood recorded in this window.';
 export const FIRST_BLOOD_MOST = 'Most first bloods';
-export const FIRST_BLOOD_MOST_RULE = 'Counted games whose stored block named a killer.';
+export const FIRST_BLOOD_MOST_RULE = 'Games where the client recorded who drew first blood.';
 
 export const FIRST_BLOOD_TAKEN_TITLE = 'First Blood Donated';
 export const FIRST_BLOOD_TAKEN_INTRO =
-  'Who fed the opening kill, on which champion, and which night. Only when the stored block named the death.';
+  'Who gave up first blood, on which champion, and which night. Only games where the client recorded who died.';
 export const FIRST_BLOOD_TAKEN_EMPTY =
-  'No first-blood death flag in this window. The block names the killer; it does not name who died.';
+  'No first-blood death recorded in this window. Older games only say who got the kill.';
 export const FIRST_BLOOD_TAKEN_ONE = '1 first blood taken';
 export const FIRST_BLOOD_TAKEN_MANY = 'first bloods taken';
 
 export const PENTA_TITLE = 'Pentakill Museum';
-export const PENTA_INTRO = 'Who closed five. Counted from the stored pentaKills field.';
+export const PENTA_INTRO = 'Who got five.';
 export const PENTA_EMPTY = 'No pentakill in this window.';
 export const PENTA_ONE = '1 penta';
 export const PENTA_MANY = 'pentas';
 
 export const QUADRA_TITLE = 'Quadrakill Museum';
-export const QUADRA_INTRO = 'Who got four. Counted from the stored quadraKills field.';
+export const QUADRA_INTRO = 'Who got four.';
 export const QUADRA_EMPTY = 'No quadrakill in this window.';
 export const QUADRA_ONE = '1 quadra';
 export const QUADRA_MANY = 'quadras';
 
 export const TRIPLE_TITLE = 'Triple Museum';
-export const TRIPLE_INTRO = 'Who got three. Counted from the stored tripleKills field.';
+export const TRIPLE_INTRO = 'Who got three.';
 export const TRIPLE_EMPTY = 'No triple in this window.';
 export const TRIPLE_ONE = '1 triple';
 export const TRIPLE_MANY = 'triples';
 
 export const DOUBLE_TITLE = 'Double Museum';
-export const DOUBLE_INTRO = 'Who got two. Counted from the stored doubleKills field.';
+export const DOUBLE_INTRO = 'Who got two.';
 export const DOUBLE_EMPTY = 'No double in this window.';
 export const DOUBLE_ONE = '1 double';
 export const DOUBLE_MANY = 'doubles';
 
 export const TURRET_TITLE = 'First Turret';
-export const TURRET_INTRO = 'Who took the first tower. The block names firstTowerKill.';
-export const TURRET_EMPTY = 'No first-tower flag in this window.';
+export const TURRET_INTRO = 'Who took the first tower.';
+export const TURRET_EMPTY = 'No first tower recorded in this window.';
 export const TURRET_ONE = '1 first turret';
 export const TURRET_MANY = 'first turrets';
 
 export const DEATH_HALL_TITLE = 'Death Hall of Fame';
 export const SHORTEST_LIFE = 'Shortest life';
-export const SHORTEST_LIFE_RULE =
-  'Shortest time spent living in one counted game they died in. The in-game first-death clock is not stored.';
+export const SHORTEST_LIFE_RULE = 'The shortest life in one game, counting only games they died in.';
 export const MOST_DEATHS_WINDOW = 'Most deaths';
 export const MOST_DEATHS_WINDOW_RULE = 'Deaths summed over counted games in the window.';
 export const DEATHLESS_STREAK = 'Longest deathless streak';
@@ -131,8 +131,7 @@ export function csValue(cs: number, perMin: number): string {
 export const MOST_KILLS = 'Most kills';
 export const MOST_KILLS_RULE = 'One counted game.';
 export const LONGEST_SPREE = 'Longest killing spree';
-export const LONGEST_SPREE_RULE =
-  'Largest killing spree in one counted game. The stored largestKillingSpree field. At least three.';
+export const LONGEST_SPREE_RULE = 'Biggest killing spree in one game. Three or more.';
 export const MOST_DEATHS = 'Most deaths';
 export const MOST_DEATHS_RULE = 'One counted game.';
 export const MOST_ASSISTS = 'Most assists';
@@ -367,11 +366,11 @@ export function kdaRatioLine(ratio: number, kills: number, deaths: number, assis
 }
 
 export function damageLine(damage: number): string {
-  return `${Math.round(damage).toLocaleString()} damage`;
+  return `${Math.round(damage).toLocaleString(DISPLAY_LOCALE)} damage`;
 }
 
 export function goldLine(gold: number): string {
-  return `${Math.round(gold).toLocaleString()} gold`;
+  return `${Math.round(gold).toLocaleString(DISPLAY_LOCALE)} gold`;
 }
 
 export function csCountLine(cs: number): string {
@@ -386,6 +385,7 @@ export function spreeLine(n: number): string {
   return n === 1 ? '1 kill streak' : `${n} kill streak`;
 }
 
+/** A life span (`Shortest life`), `3:20`: seconds matter there. A game's length is `formatMinutes`. */
 export function minutesLine(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const rest = Math.floor(seconds % 60);
@@ -418,7 +418,16 @@ export function timesLine(count: number): string {
   return count === 1 ? '1 time' : `${count} times`;
 }
 
-export function matchDetail(startedAt: string, durationS: number): string {
-  const day = new Date(startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  return `${day} · ${minutesLine(durationS)}`;
+/**
+ * `22 Aug · 23 min`: the night a record was set and how long the game ran (M14.17: a game's length
+ * is minutes, never a clock time; the date is the server's one formatter in the group's zone, by
+ * the night, never the reader's locale).
+ */
+export function matchDetail(
+  startedAt: string,
+  durationS: number,
+  timeZone: string = DEFAULT_NIGHT_TIME_ZONE,
+): string {
+  const started = new Date(startedAt);
+  return `${formatDayMonth(nightStart(started, timeZone), timeZone)} · ${formatMinutes(durationS)}`;
 }

@@ -1,8 +1,11 @@
-/* global EventSource */
+/* global EventSource, fetch */
 
 const statusEl = document.getElementById('status');
 const livePill = document.getElementById('live-pill');
 const root = document.getElementById('root');
+const groupRow = document.getElementById('group-row');
+const groupLabel = document.getElementById('group-label');
+const groupSelect = document.getElementById('group-select');
 
 const COPY = {
   waiting: 'Waiting for the League client…',
@@ -10,6 +13,8 @@ const COPY = {
   fearlessTitle: 'Fearless',
   fearlessSentence: 'Ban these next game.',
   fearlessEmpty: 'No champions banned yet.',
+  // M13.8, exact. The picker's own labels and the refused-token sentence come from the engine (groups.ts).
+  noGroups: 'Play a game with your group, or ask them for the join link.',
   lobbyTitle: 'This lobby',
   lane: 'lane',
   you: 'you',
@@ -113,7 +118,58 @@ function renderLobby(payload) {
   </section>`;
 }
 
+// The picker as the header shows it (M13.8): null with fewer than two groups, else the label, the options and
+// whether the select is disabled (Host, mid-switch). Pure so the vm test can read it.
+function pickerModel(groups) {
+  if (!groups || !groups.picker) return null;
+  return {
+    label: groups.picker.label,
+    options: groups.picker.options,
+    selectedGroupId: groups.picker.selectedGroupId,
+    disabled: Boolean(groups.switching),
+  };
+}
+
+// What `main` shows for groups instead of, or above, the panel: the zero-groups sentence alone (no fearless,
+// no lobby, not even their headings), or the refused-token sentence as the box that is first in `main`.
+function groupMain(groups) {
+  if (groups?.noGroups) {
+    return { only: `<p class="empty">${esc(COPY.noGroups)}</p>`, lead: '' };
+  }
+  if (groups?.error) {
+    return { only: null, lead: `<p class="error" role="alert">${esc(groups.error)}</p>` };
+  }
+  return { only: null, lead: '' };
+}
+
+let pickerSignature = '';
+
+function renderPicker(groups) {
+  const model = pickerModel(groups);
+  if (!model) {
+    groupRow.hidden = true;
+    pickerSignature = '';
+    return;
+  }
+  groupRow.hidden = false;
+  groupLabel.textContent = model.label;
+  // Rebuild only when the options changed: replacing a <select> under an open menu would close it.
+  const signature = JSON.stringify([model.label, model.options]);
+  if (signature !== pickerSignature) {
+    pickerSignature = signature;
+    groupSelect.innerHTML = model.options
+      .map(
+        (option) =>
+          `<option value="${esc(option.groupId)}"${option.disabled ? ' disabled' : ''}>${esc(option.label)}</option>`,
+      )
+      .join('');
+  }
+  groupSelect.value = model.selectedGroupId ?? '';
+  groupSelect.disabled = model.disabled;
+}
+
 function render(state) {
+  renderPicker(state.groups);
   // Update live pill
   if (state.connected && state.visible) {
     livePill.style.display = 'inline-flex';
@@ -121,32 +177,55 @@ function render(state) {
     livePill.style.display = 'none';
   }
 
+  const mainGroups = groupMain(state.groups);
+
   if (!state.connected) {
     statusEl.textContent = COPY.waiting;
-    root.innerHTML = '';
+    root.innerHTML = mainGroups.only ?? mainGroups.lead;
+    return;
+  }
+
+  if (mainGroups.only) {
+    statusEl.textContent = state.visible
+      ? (state.phase ?? 'Lobby')
+      : state.phase
+        ? `Client: ${state.phase}`
+        : COPY.waiting;
+    root.innerHTML = mainGroups.only;
     return;
   }
 
   if (!state.visible) {
     statusEl.textContent = state.phase ? `Client: ${state.phase}` : COPY.waiting;
-    root.innerHTML = '<p class="empty">Panel hides outside lobby and champion select.</p>';
+    root.innerHTML = `${mainGroups.lead}<p class="empty">Panel hides outside lobby and champion select.</p>`;
     return;
   }
 
   statusEl.textContent = state.phase ?? 'Lobby';
 
   if (state.error) {
-    root.innerHTML = `<p class="empty">${esc(state.error)}</p>`;
+    root.innerHTML = `${mainGroups.lead}<p class="empty">${esc(state.error)}</p>`;
     return;
   }
 
   if (!state.payload) {
-    root.innerHTML = '<p class="empty">Loading…</p>';
+    root.innerHTML = `${mainGroups.lead}<p class="empty">Loading…</p>`;
     return;
   }
 
-  root.innerHTML = renderFearless(state.payload.fearless) + renderLobby(state.payload);
+  root.innerHTML = mainGroups.lead + renderFearless(state.payload.fearless) + renderLobby(state.payload);
 }
+
+groupSelect.addEventListener('change', () => {
+  // The engine answers by pushing new state; nothing is assumed here. A refused pick snaps back on that push.
+  fetch('/group', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ groupId: groupSelect.value }),
+  }).catch((error) => {
+    console.error(error);
+  });
+});
 
 const source = new EventSource('/events');
 source.onmessage = (event) => {

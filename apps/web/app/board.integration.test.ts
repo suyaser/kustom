@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { displayRating, provisionalSeed, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -17,9 +16,13 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  * `provenRating`, the names come out of `players_public` for the ids being rendered, and a
  * player with a null name reaches the page as `Someone` with no puuid anywhere near it.
  *
- * Rows are namespaced by a run id and deleted afterwards; the active season is shared with
- * every other file here, so nothing asserts an absolute rank — only the order of this run's
- * own three players, which is what the rule is about.
+ * Rows are namespaced by a run id, live in a **scratch group of this run's own**, and are deleted
+ * afterwards. The group is what keeps the window counts exact: a local stack in real use holds
+ * the original group's own games (and an interrupted run of this file leaves its own), and a
+ * count read across groups would count them too. `All time` lists every player the group knows,
+ * so nothing asserts an
+ * absolute rank — only the order of this run's own three players, which is what the rule is
+ * about.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -41,15 +44,7 @@ if (stack === null) {
   const { createPublicClient } = await import('@/lib/publicClient');
   const { BoardView } = await import('./_board/BoardView');
   const { PlayerView } = await import('./_board/PlayerView');
-  const { NAMELESS_HINT } = await import('@/lib/tonight/copy');
   const { RATING_EXPLANATION } = await import('@/lib/board/copy');
-  /**
-   * This file is the **board's** half of `/p/[puuid]`. M5.20's sections under the chart are read
-   * through `lib/stats` and are covered against this same stack in
-   * `playerStats.integration.test.ts`, so the renders below pass the empty view and assert
-   * nothing about them.
-   */
-  const { emptyPlayerStats } = await import('@/lib/testing/boardFixtures');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -59,6 +54,8 @@ if (stack === null) {
   const anon = createPublicClient();
 
   const runId = randomUUID().slice(0, 8);
+  /** This run's scratch group: every row below is in it and every read is scoped to it. */
+  const groupId = randomUUID();
   const puuid = {
     zoe: `it-${runId}-lb0`,
     nameless: `it-${runId}-lb1`,
@@ -96,7 +93,7 @@ if (stack === null) {
    * own `now`, because a board that depended on the wall clock of the machine running the
    * suite would pass all week and fail on a Sunday morning.
    */
-  const ALL_TIME = { window: 'all-time' } as const;
+  const ALL_TIME = { window: 'all-time', groupId } as const;
 
   /**
    * The three players M3.5's assertions are pinned on. The window pair below plays its own
@@ -113,9 +110,9 @@ if (stack === null) {
    * players on this board on some days of the year and not others.
    */
   const NOW = new Date('2026-06-10T18:00:00Z');
-  const WEEK = { now: NOW } as const;
-
-  let seasonId = '';
+  const WEEK = { now: NOW, groupId } as const;
+  /** Wednesday 2026-05-20: last week is 10 to 16 May, before the pair's first game (M14.48). */
+  const BEFORE = { now: new Date('2026-05-20T18:00:00Z'), groupId } as const;
   /**
    * The lobby Zoe's newest game was born in, and the split the balancer chose in it: the one
    * fixture in this file with a stored win chance, which is what M5.15's sentence needs.
@@ -144,18 +141,18 @@ if (stack === null) {
   /**
    * Eight more seats for the **window** games below, so those are ten-row games too.
    *
-   * Since M7.3 a week window is folded from scratch with `rateGameWeekly`, which takes five and
-   * five: a two-row fixture game would be skipped by that fold and the week's numbers would be
-   * ten seeds. These are Gold IV like the pair, rated flat at 24 by the stored fold, and nothing
-   * in this file asserts on them.
+   * Ten-row games are the only shape the pipeline produces. These are Gold IV like the pair,
+   * rated flat at 24 by the stored fold (so they net +0 on a week), and nothing in this file
+   * asserts on them.
    */
   const weekFillerPuuids = Array.from({ length: 8 }, (_, index) => `it-${runId}-wfil${index}`);
   const weekFillerIds: string[] = [];
 
   beforeAll(async () => {
-    const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    seasonId = season?.id ?? '';
-    expect(seasonId).not.toBe('');
+    const { error: groupError } = await db
+      .from('groups')
+      .insert({ id: groupId, slug: `it-${runId}`, name: `Board test ${runId}` });
+    expect(groupError).toBeNull();
 
     const { data: players, error } = await db
       .from('players')
@@ -208,18 +205,16 @@ if (stack === null) {
     // the point of the assertions below.
     await db.from('ratings').insert([
       {
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: groupId,
         player_id: playerIds.zoe,
-        season_id: seasonId,
         mu: 25.2,
         sigma: 5,
         games: 2,
         wins: 1,
       },
       {
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: groupId,
         player_id: playerIds.ali,
-        season_id: seasonId,
         mu: 22,
         sigma: 6,
         games: 2,
@@ -227,18 +222,16 @@ if (stack === null) {
       },
       // Where the fold left the window pair after all three of their games.
       {
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: groupId,
         player_id: playerIds.weekly,
-        season_id: seasonId,
         mu: 25.8,
         sigma: 5,
         games: 3,
         wins: 2,
       },
       {
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: groupId,
         player_id: playerIds.other,
-        season_id: seasonId,
         mu: 21.3,
         sigma: 5,
         games: 3,
@@ -252,7 +245,7 @@ if (stack === null) {
     const { data: lobby } = await db
       .from('lobbies')
       .insert({
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: groupId,
         lcu_party_id: `it-${runId}-party`,
         status: 'finished',
         lobby_name: 'Customs 10 Sep #1',
@@ -296,9 +289,8 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           lcu_game_id: Number(`8${(startedAt % 1_000_000_00) * 10 + index}`),
-          season_id: seasonId,
           started_at: new Date(startedAt - game.minutesAgo * 60_000).toISOString(),
           duration_s: 2_000,
           winning_side: game.winning_side,
@@ -314,7 +306,7 @@ if (stack === null) {
 
       await db.from('game_players').insert([
         {
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           game_id: gameId,
           player_id: playerIds.zoe,
           side: 100,
@@ -325,7 +317,7 @@ if (stack === null) {
           sigma_after: 5,
         },
         {
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           game_id: gameId,
           player_id: playerIds.ali,
           side: 200,
@@ -338,7 +330,7 @@ if (stack === null) {
         // On Zoe's side and never rated: the lineup still prints them, and they still have no
         // games of their own.
         {
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           game_id: gameId,
           player_id: playerIds.nameless,
           side: 100,
@@ -347,7 +339,7 @@ if (stack === null) {
         // The other seven seats, so this is a game the gate counts. Rated flat at 25, so they
         // move nobody's numbers and appear in no assertion but Zoe's own lineup.
         ...fillerIds.map((id, seat) => ({
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           game_id: gameId,
           player_id: id,
           side: seat < 3 ? 100 : 200,
@@ -380,9 +372,8 @@ if (stack === null) {
       const { data: row } = await db
         .from('games')
         .insert({
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           lcu_game_id: Number(`9${(startedAt % 1_000_000_00) * 10 + index}`),
-          season_id: seasonId,
           started_at: game.startedAt,
           duration_s: 2_000,
           winning_side: game.winning_side,
@@ -395,7 +386,7 @@ if (stack === null) {
 
       await db.from('game_players').insert([
         {
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           game_id: gameId,
           player_id: playerIds.weekly,
           side: 100,
@@ -406,7 +397,7 @@ if (stack === null) {
           sigma_after: 5,
         },
         {
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           game_id: gameId,
           player_id: playerIds.other,
           side: 200,
@@ -416,9 +407,9 @@ if (stack === null) {
           mu_after: game.otto[1] as number,
           sigma_after: 5,
         },
-        // Four each side, so the weekly fold (M7.3) has five and five to hand to core.
+        // Four each side, so each game is five and five like every game the pipeline writes.
         ...weekFillerIds.map((id, seat) => ({
-          group_id: ORIGINAL_GROUP_ID,
+          group_id: groupId,
           game_id: gameId,
           player_id: id,
           side: seat < 4 ? 100 : 200,
@@ -437,119 +428,74 @@ if (stack === null) {
     }
   });
 
+  /**
+   * Keyed on the scratch group and the run id, never on ids collected during setup, so a setup
+   * that failed halfway still leaves nothing behind. Each delete runs whatever the one before it
+   * returned. `game_players` goes with its game, and `splits` with its lobby (both cascade).
+   */
   afterAll(async () => {
-    if (gameIds.length > 0) await db.from('games').delete().in('id', gameIds);
-    // The splits go with it: `splits.lobby_id` cascades.
-    if (lobbyId !== '') await db.from('lobbies').delete().eq('id', lobbyId);
-    const ids = [...Object.values(playerIds), ...fillerIds, ...weekFillerIds].filter((id) => id !== '');
-    if (ids.length > 0) {
-      await db.from('ratings').delete().in('player_id', ids);
-      await db.from('players').delete().in('id', ids);
-    }
+    await db.from('games').delete().eq('group_id', groupId);
+    await db.from('lobbies').delete().eq('group_id', groupId);
+    await db.from('ratings').delete().eq('group_id', groupId);
+    await db.from('players').delete().like('puuid', `it-${runId}-%`);
+    await db.from('groups').delete().eq('id', groupId);
   });
 
   describe('the board with the anon key', () => {
-    it('orders this run three by Proven, and prints the number it ordered them by', async () => {
+    it('orders this run by Rating, the number it prints, and leaves the unrated seat off', async () => {
       const board = await loadBoard(anon, ALL_TIME);
       const mine = board.rows.filter((row) => PINNED.includes(row.puuid));
 
-      expect(mine.map((row) => row.puuid)).toEqual([puuid.zoe, puuid.ali, puuid.nameless]);
-      // `mu - 2 * sigma`, times sixty: 25.2 - 10 = 15.2, 22 - 12 = 10, and the un-folded seat at
-      // `provisionalSeed()`'s 20 - 24 = -4, floored to 0 by `provenRating` (2026-09-16). Under
-      // the old rule this seat read Diamond I's 1920 / 1520 and sorted *second*; a player with
-      // no customs is not placed by solo queue any more, they are simply unproven.
-      expect(mine.map((row) => row.proven)).toEqual([912, 600, 0]);
-      // And the number people arrive knowing, which is `round(mu * 60)`.
-      expect(mine.map((row) => row.rating)).toEqual([1_512, 1_320, 1_200]);
+      // `round(mu * 60)`: 25.2 and 22. The seat the fold never rated has no rated game in the
+      // group, so it is not a row (M14.15): it is counted under the board instead.
+      expect(mine.map((row) => row.puuid)).toEqual([puuid.zoe, puuid.ali]);
+      expect(mine.map((row) => row.rating)).toEqual([1_512, 1_320]);
+      expect(board.rows.some((row) => row.puuid === puuid.nameless)).toBe(false);
     });
 
-    it('counts the games and the wins the fold recorded, and the run at the front', async () => {
-      const board = await loadBoard(anon, ALL_TIME);
-      const zoe = board.rows.find((row) => row.puuid === puuid.zoe);
-      const ali = board.rows.find((row) => row.puuid === puuid.ali);
-
-      expect(zoe).toMatchObject({ games: 2, wins: 1, losses: 1, settling: true });
-      // Newest game first: Zoe was on the losing side of it, Ali on the winning side.
-      expect(zoe?.streak).toEqual({ kind: 'L', length: 1 });
-      expect(ali?.streak).toEqual({ kind: 'W', length: 1 });
-    });
-
-    it('keeps a seeded player with no games on the board, at the bottom, with `0 games`', async () => {
-      const board = await loadBoard(anon, ALL_TIME);
-      const seeded = board.rows.find((row) => row.puuid === puuid.nameless);
-
-      expect(seeded).toMatchObject({ name: null, games: 0, wins: 0, settling: true });
-      /**
-       * **And the number beside them is the seed, not their rank** (2026-09-16). This player
-       * wears `DIAMOND I` in `players`, which is still what `lib/ingest/balance.ts` would guess
-       * to form tonight's split — the board does not read it. The third line is what makes the
-       * first two a test rather than a coincidence: the rank estimate is a different number, so
-       * these assertions could not pass on either code path by accident.
-       */
-      expect(seeded?.rating).toBe(displayRating(provisionalSeed().mu));
-      expect(seeded?.proven).toBe(0);
-      expect(displayRating(seedFromRank('DIAMOND', 'I').mu)).not.toBe(displayRating(provisionalSeed().mu));
-      /**
-       * **The rated-vs-counted seam, pinned** (M5.21). This player sat on Zoe's side in both
-       * games and the fold rated neither of their rows, so `ratings` says `0 games · 0W 0L`
-       * while the streak — folded over the games the *gate* counts, exactly as `/p/[puuid]`
-       * folds them — says they lost the last one. It is the state a backfill leaves behind
-       * until `rebuild-ratings` runs, and it is documented rather than papered over: a row
-       * whose streak was read from a second, narrower universe was the defect M5.21 removed.
-       */
-      expect(seeded?.streak).toEqual({ kind: 'L', length: 1 });
-    });
-
-    it('leaves the breakdown empty unless the page asks for it', async () => {
+    it("counts the games and the wins the fold recorded, and settles on core's 10", async () => {
       const board = await loadBoard(anon, ALL_TIME);
       const zoe = board.rows.find((row) => row.puuid === puuid.zoe);
 
-      expect(zoe?.breakdown).toEqual([]);
+      expect(zoe).toMatchObject({ games: 2, wins: 1, losses: 1, ratedGames: 2, settling: true });
+      // All time's change is the whole history: from the seed (1200) to today.
+      expect(zoe?.climb).toEqual({ muBefore: provisionalSeed().mu, muAfter: 25.2 });
     });
 
-    it('lists Zoe rated games newest first when the board asks for the expand', async () => {
-      const board = await loadBoard(anon, { ...ALL_TIME, includeBreakdown: true });
-      const zoe = board.rows.find((row) => row.puuid === puuid.zoe);
-      const seeded = board.rows.find((row) => row.puuid === puuid.nameless);
-
-      expect(
-        zoe?.breakdown.map((game) => ({ won: game.won, muBefore: game.muBefore, muAfter: game.muAfter })),
-      ).toEqual([
-        { won: false, muBefore: 25.6, muAfter: 25.2 },
-        { won: true, muBefore: 25, muAfter: 25.6 },
-      ]);
-      // A seed the fold never rated has nothing to open.
-      expect(seeded?.breakdown).toEqual([]);
-    });
-
-    it('renders the nameless row as `Someone`, with the hint once and no puuid', async () => {
+    it('renders the board with no Proven, no ordinal and no puuid as text', async () => {
       const board = await loadBoard(anon, ALL_TIME);
-      const html = renderToStaticMarkup(createElement(BoardView, { board, viewerPuuid: null }));
+      const html = renderToStaticMarkup(
+        createElement(BoardView, {
+          board,
+          viewerPuuid: null,
+          sort: 'rating',
+          page: 1,
+          path: '/g/x/leaderboard',
+          playerHref: (id: string) => `/g/x/p/${id}` as never,
+        }),
+      );
 
       const text = textOf(html);
-      expect(text).toContain('Someone');
-      // Never as text: the puuid is in the row's href, which is how the page is keyed.
-      expect(text).not.toContain(puuid.nameless);
-      expect(text.split(NAMELESS_HINT)).toHaveLength(2);
+      expect(text).not.toMatch(/proven|ordinal/i);
+      expect(text).not.toContain(puuid.zoe);
+      expect(text).toContain('Zoe');
+      expect(displayRating(seedFromRank('DIAMOND', 'I').mu)).not.toBe(displayRating(provisionalSeed().mu));
     });
   });
 
   /**
    * The windowed board (M5.12), against real rows and the anon key.
    *
-   * **The month windows are what this block pins**, and they are the stored fold exactly as
-   * M5.12 shipped it: a window changes which games are looked at, and nothing about the two
-   * numbers or the sort. The two **week** windows read the weekly track since M7.3 — their
-   * membership, their empty states and their dates are here, and everything the weekly fold
-   * computes is in `weekBoard.integration.test.ts`.
+   * The two **week** windows rank by net all-time points since M14.57 — their membership, their
+   * empty states, their sort and their dates are here, and the net-points arithmetic and the
+   * tie-break are in `weekBoard.integration.test.ts`. (The month windows went with M14.48.)
    */
   describe('the board through a window', () => {
     it('lists only the players who played inside it', async () => {
       const lastWeek = await loadBoard(anon, { window: 'last-week', ...WEEK });
       const thisWeek = await loadBoard(anon, { window: 'this-week', ...WEEK });
 
-      // Membership, not order: a week is ordered by the weekly fold (M7.3), and who is on it
-      // is the question this test asks.
+      // Membership, not order: who is on it is the question this test asks.
       const pair = (board: { rows: { puuid: string }[] }): string[] =>
         board.rows
           .map((row) => row.puuid)
@@ -569,55 +515,29 @@ if (stack === null) {
     });
 
     /**
-     * **The board as it stood when the window closed**, on the windows that still read the
-     * stored fold. All three of the pair's games are in June, so `This month` is Wren as of the
-     * last of them — `mu` 25.8 — with the two numbers, the climb and the chip untouched by
-     * M7.3.
+     * M14.57: a week ranks by net points, the sum of the printed all-time deltas. Wren went
+     * +36 then −24 (+12); Otto −36 then +30 (−6). Otto's all-time Rating is far lower too, but
+     * the order is the points, and the points are the sum of the rows.
      */
-    it('is each player as of their last counted game inside the window', async () => {
-      const board = await loadBoard(anon, { window: 'this-month', ...WEEK });
+    it('sorts a week window on net points, the sum of the printed deltas', async () => {
+      const board = await loadBoard(anon, { window: 'last-week', ...WEEK });
       const wren = board.rows.find((row) => row.puuid === puuid.weekly);
-
-      expect(wren?.track).toBe('all-time');
-      expect(wren?.rating).toBe(1_548);
-      // `mu - 2σ` as of that game: 25.8 - 10 = 15.8, times sixty.
-      expect(wren?.proven).toBe(948);
-      expect(wren).toMatchObject({ games: 3, wins: 2, losses: 1 });
-      // The climb is the two mu values, never a formatted delta: 25 in, 25.8 out.
-      expect(wren?.climb).toEqual({ muBefore: 25, muAfter: 25.8 });
+      const otto = board.rows.find((row) => row.puuid === puuid.other);
+      expect(wren).toMatchObject({ track: 'week', points: 12, rating: 1_548, wins: 1, losses: 1 });
+      expect(otto).toMatchObject({ track: 'week', points: -6, rating: 1_278 });
+      const points = board.rows.map((row) => row.points ?? 0);
+      expect(points).toEqual([...points].sort((a, b) => b - a));
     });
 
-    it('opens the month into those rated games when the board asks', async () => {
-      const board = await loadBoard(anon, { window: 'this-month', includeBreakdown: true, ...WEEK });
-      const wren = board.rows.find((row) => row.puuid === puuid.weekly);
-
-      expect(
-        wren?.breakdown.map((game) => ({ won: game.won, muBefore: game.muBefore, muAfter: game.muAfter })),
-      ).toEqual([
-        { won: true, muBefore: 25.2, muAfter: 25.8 },
-        { won: false, muBefore: 25.6, muAfter: 25.2 },
-        { won: true, muBefore: 25, muAfter: 25.6 },
+    it('is one ranked list on a week: only All time has a settling section (lead, 2026-10-03)', async () => {
+      const [week, all] = await Promise.all([
+        loadBoard(anon, { window: 'last-week', ...WEEK }),
+        loadBoard(anon, ALL_TIME),
       ]);
-    });
-
-    it('sorts a month window on Proven, and never on who climbed most', async () => {
-      const board = await loadBoard(anon, { window: 'this-month', ...WEEK });
-      const mine = board.rows.filter((row) => row.puuid === puuid.weekly || row.puuid === puuid.other);
-
-      // Otto climbed in June (22 → 21.3 is a loss, but he took the middle game) and Wren is
-      // still first, because the board sorts on the number it prints.
-      expect(mine.map((row) => row.puuid)).toEqual([puuid.weekly, puuid.other]);
-      expect(mine.map((row) => row.proven)).toEqual([948, 678]);
-    });
-
-    it('carries the whole history into the settling chip, not the window', async () => {
-      const board = await loadBoard(anon, { window: 'this-month', ...WEEK });
-      const wren = board.rows.find((row) => row.puuid === puuid.weekly);
-
-      // Three games in the month and three in the `ratings` row: the chip is a fact about the
-      // rating. (A week window carries no chip at all — M7.3.)
-      expect(wren?.games).toBe(3);
-      expect(wren?.settling).toBe(true);
+      // Three rated games in the group: settling on All time, one ranked list on the week.
+      expect(week.rows.find((row) => row.puuid === puuid.weekly)?.settling).toBe(false);
+      expect(all.rows.find((row) => row.puuid === puuid.weekly)?.settling).toBe(true);
+      expect(week.rows.every((row) => !row.settling)).toBe(true);
     });
 
     /**
@@ -630,96 +550,68 @@ if (stack === null) {
       expect(week.range).toBe('Sunday 31 May to Saturday 6 Jun');
       // Two games last week; the third is in the running one.
       expect(week.games).toBe(2);
-
-      const month = await loadBoard(anon, { window: 'this-month', ...WEEK });
-      expect(month.range).toBe('June');
-      expect(month.games).toBe(3);
     });
 
     it('dates all time from the first counted game there has ever been', async () => {
       const all = await loadBoard(anon, ALL_TIME);
 
       // Other files share this database, so the day is theirs to move; the shape is not.
-      expect(all.range).toMatch(/^Since \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+      expect(all.range).toMatch(/^first game \d{1,2} [A-Z][a-z]{2} \d{4}$/);
       expect(all.games).toBeGreaterThanOrEqual(3);
     });
 
     it('is an empty board for a window nobody played in', async () => {
-      // May: the month before the pair's first game, a closed window with nothing in it.
-      const board = await loadBoard(anon, { window: 'last-month', ...WEEK });
+      // Mid-May: a closed week before the pair's first game, with nothing of theirs in it.
+      const board = await loadBoard(anon, { window: 'last-week', ...BEFORE });
 
-      expect(board.window).toBe('last-month');
+      expect(board.window).toBe('last-week');
       expect(board.rows.filter((row) => row.puuid.startsWith(`it-${runId}-`))).toEqual([]);
     });
 
-    it('leaves the range null when the window has no counted games, so the slot says so', async () => {
+    it('an empty week still prints its dates (M14.70), with no games counted', async () => {
       // 2019: before this product existed, and before any fixture in this repo.
-      const empty = await loadBoard(anon, { window: 'last-month', now: new Date('2019-04-10T18:00:00Z') });
+      const empty = await loadBoard(anon, {
+        window: 'last-week',
+        now: new Date('2019-04-10T18:00:00Z'),
+        groupId,
+      });
 
-      expect(empty).toMatchObject({ range: null, games: 0, rows: [] });
+      expect(empty).toMatchObject({ games: 0, rows: [] });
+      expect(empty.range).toMatch(/^Sunday \d{1,2} [A-Z][a-z]{2} to Saturday \d{1,2} [A-Z][a-z]{2}$/);
     });
   });
 
   describe('the player page through a window', () => {
     /**
-     * **A month window is the stored track** (M5.12), and stays it: M7.16 moved the two *week*
-     * windows onto the weekly fold and left these three alone. This case was written against
-     * `Last week` and reads `This month` since 2026-09-16 — the same three games, the same
-     * assertions, the window that still answers them.
+     * **M14.57, acceptance 3.** The page a board row links to says the row's own number: the
+     * week's net points, beside the all-time Rating, and each recent game's pair is the stored
+     * one, so the same game prints the same delta on every tab.
      */
-    it('counts the window games, plots them, and starts the line where the month found them', async () => {
-      const player = found(await loadPlayerBoard(anon, puuid.weekly, { window: 'this-month', ...WEEK }));
-
-      expect(player).toMatchObject({ window: 'this-month', track: 'all-time', games: 3, wins: 2, losses: 1 });
-      // The range half, alone: the record beside it already carries the count.
-      expect(player.range).toBe('June');
-      // As of their last game inside the month, off the stored `mu_after`.
-      expect(player.rating).toBe(1_548);
-      // The rating carried **into** the window, labelled `start` on the chart.
-      expect(player.reference).toBe(1_500);
-      expect(player.history).toEqual([1_500, 1_536, 1_512, 1_548]);
-      expect(player.recent).toHaveLength(3);
-    });
-
-    /**
-     * **M7.16, acceptance 1 and 3.** The page a board row links to says the row's own number.
-     * Every rating on it is the weekly fold's: the one number, the `start` hairline at the
-     * weekly seed, the series, and each recent game's pair — none of them the stored 1512 this
-     * same fixture reads on the month window above.
-     */
-    it('reads a week window on the weekly track, to the digit on the board row', async () => {
+    it('reads a week window as net points and the all-time Rating, to the digit on the board row', async () => {
       const LAST_WEEK = { window: 'last-week', ...WEEK } as const;
-      const [player, board] = await Promise.all([
+      const [player, board, all] = await Promise.all([
         loadPlayerBoard(anon, puuid.weekly, LAST_WEEK).then(found),
         loadBoard(anon, LAST_WEEK),
+        loadPlayerBoard(anon, puuid.weekly, ALL_TIME).then(found),
       ]);
       const row = board.rows.find((entry) => entry.puuid === puuid.weekly);
 
-      expect(player).toMatchObject({ window: 'last-week', track: 'weekly', games: 2, wins: 1, losses: 1 });
+      expect(player).toMatchObject({ window: 'last-week', track: 'week', games: 2, wins: 1, losses: 1 });
       expect(player.range).toBe('Sunday 31 May to Saturday 6 Jun');
-      // The whole of this task, in one line.
+      expect(player.points).toBe(row?.points);
+      expect(player.points).toBe(12);
+      // The all-time Rating: there is no week's Rating any more.
+      expect(player.rating).toBe(1_548);
       expect(player.rating).toBe(row?.rating);
-      // Not the stored track's answer for the same week, which is what it used to print.
-      expect(player.rating).not.toBe(1_512);
-      // The hairline is the weekly seed — `seedFor`'s, so the neutral 1200 on a row with no
-      // stored seed — and the series starts there and ends at the number above it.
-      expect(player.reference).toBe(displayRating(provisionalSeed().mu));
-      expect(player.history).toHaveLength(3);
-      expect(player.history[0]).toBe(player.reference);
-      expect(player.history.at(-1)).toBe(player.rating);
-      // Both games are listed and both deltas are the weekly ones: the first starts at the
-      // weekly seed, and each picks up where the one before it left off.
+      // The hairline is the all-time rating carried into the week, and the series is all-time.
+      expect(player.reference).toBe(1_500);
+      expect(player.history).toEqual([1_500, 1_536, 1_512]);
+      // Both games listed, each the same pair the All time tab prints for it.
       expect(player.recent).toHaveLength(2);
-      const [newest, oldest] = player.recent;
-      expect(oldest?.muBefore).toBe(provisionalSeed().mu);
-      expect(newest?.muBefore).toBe(oldest?.muAfter);
-      // And the row's own expand agrees with the page's list, game for game.
-      const expand = (await loadBoard(anon, { ...LAST_WEEK, includeBreakdown: true })).rows.find(
-        (entry) => entry.puuid === puuid.weekly,
-      );
-      expect(expand?.breakdown.map((game) => [game.muBefore, game.muAfter])).toEqual(
-        player.recent.map((game) => [game.muBefore, game.muAfter]),
-      );
+      for (const game of player.recent) {
+        const same = all.recent.find((other) => other.gameId === game.gameId);
+        expect([game.muBefore, game.muAfter]).toEqual([same?.muBefore, same?.muAfter]);
+      }
     });
 
     it('is where they are today on `All time`, with the seed line back', async () => {
@@ -727,7 +619,7 @@ if (stack === null) {
 
       expect(player).toMatchObject({ window: 'all-time', games: 3, wins: 2, losses: 1 });
       // Dated from **their** first counted game, because the page is a person's history.
-      expect(player.range).toBe('Since 3 Jun 2026');
+      expect(player.range).toBe('first game 3 Jun 2026');
       expect(player.rating).toBe(1_548);
       // The neutral first seed is mu 20 (2026-09-16), so 1200 — the seed, not the window's
       // start, and no longer the Gold IV on this player's row.
@@ -736,10 +628,13 @@ if (stack === null) {
     });
 
     it('keeps a player who did not play in the window on their own page', async () => {
-      const player = found(await loadPlayerBoard(anon, puuid.weekly, { window: 'last-month', ...WEEK }));
+      const player = found(await loadPlayerBoard(anon, puuid.weekly, { window: 'last-week', ...BEFORE }));
 
       expect(player).toMatchObject({ games: 0, wins: 0, losses: 0, range: null });
-      // Their number is still theirs: the page is a person, and the empty line says the rest.
+      // The page is still theirs and the empty line says the rest: no points this week, and the
+      // all-time Rating is where they are today (M14.57).
+      expect(player.track).toBe('week');
+      expect(player.points).toBe(0);
       expect(player.rating).toBe(1_548);
       expect(player.history).toEqual([]);
       expect(player.recent).toEqual([]);
@@ -747,10 +642,17 @@ if (stack === null) {
   });
 
   describe('the player page with the anon key', () => {
-    it('is the two numbers and the history in started_at order', async () => {
+    it('is the Rating and the history in started_at order', async () => {
       const player = found(await loadPlayerBoard(anon, puuid.zoe, ALL_TIME));
 
-      expect(player).toMatchObject({ name: 'Zoe', rating: 1_512, proven: 912, games: 2, wins: 1 });
+      expect(player).toMatchObject({
+        name: 'Zoe',
+        rating: 1_512,
+        games: 2,
+        wins: 1,
+        settling: true,
+        rank: null,
+      });
       // The rating carried into the first game, then out of each one: oldest first.
       expect(player.history).toEqual([1_500, 1_536, 1_512]);
       // `By role` moved to `lib/stats` with M5.20 and is read there — one fold of one record,
@@ -788,37 +690,33 @@ if (stack === null) {
       expect(player.recent[1]?.blueWinProb).toBeNull();
     });
 
-    it('says why each change is the size it is, in one sentence per row', async () => {
+    it('prints each game with its compact receipt and its change, and the explanation once', async () => {
       const player = found(await loadPlayerBoard(anon, puuid.zoe, ALL_TIME));
-      const text = textOf(
-        renderToStaticMarkup(createElement(PlayerView, { player, stats: emptyPlayerStats() })),
+      const html = renderToStaticMarkup(
+        createElement(PlayerView, {
+          lens: 'public',
+          player,
+          group: { name: 'Group' },
+          viewerPuuid: null,
+          path: `/g/x/p/${puuid.zoe}`,
+          gameHref: (id: string) => `/g/x/games/${id}` as never,
+          allGamesHref: null,
+          timeZone: 'Africa/Cairo',
+        }),
       );
-
-      // Zoe was on blue, and the split the group played gave blue 58%.
-      expect(text).toContain('As the 58% side.');
-      // The backfilled row has no stored chance, so it has no caption at all — and its own
-      // numbers are untouched: 25 → 25.6 is 1500 → 1536.
-      expect(text).toContain('1536');
-      expect(text).not.toContain('As the 50% side.');
-      // The seed line, from the same number the chart's hairline is drawn at.
-      expect(text).toContain(`Started at ${player.reference}, 2 rated games since.`);
-      // And the one line under the list, exactly once.
-      expect(text.split(RATING_EXPLANATION)).toHaveLength(2);
-    });
-
-    it('renders a nameless teammate as `Someone` and never a puuid', async () => {
-      const player = found(await loadPlayerBoard(anon, puuid.zoe, ALL_TIME));
-      const html = renderToStaticMarkup(createElement(PlayerView, { player, stats: emptyPlayerStats() }));
-
       const text = textOf(html);
-      expect(text).toContain('Someone');
+
+      // Zoe was on blue, blue was given 58%, and red won: said from the winner's side.
+      expect(player.recent[0]?.pickRank).toBe(1);
+      expect(text).toContain('Red was 42%. Red won.');
+      // The newest game took Zoe from 25.6 to 25.2: 1536 to 1512, a signed loss with words.
+      expect(text).toContain('1512');
+      expect(text).toContain('−24');
+      expect(text).toContain('lost 24');
+      expect(text).toContain(`Started at ${player.reference}, 2 rated games since.`);
+      expect(text.split(RATING_EXPLANATION)).toHaveLength(2);
+      expect(text).not.toMatch(/proven|ordinal/i);
       expect(text).not.toContain(puuid.nameless);
-      expect(text.split(NAMELESS_HINT)).toHaveLength(2);
-      // The delta is computed at render and adds up with the rating beside it: the newest
-      // game took Zoe from 25.6 to 25.2, which is 1536 to 1512. The delta is one string, so it
-      // reads `(−24)` and not `(`, `−24`, `)`, and a loss is `dim` at 400, never coloured by
-      // sign. Between the two sits the bare number's visually-hidden noun (M3.19).
-      expect(html).toContain('1512<span class="cn-sr"> Rating</span><span class="cn-delta"> (−24)</span>');
     });
 
     it('is nobody for a puuid the database has never met', async () => {

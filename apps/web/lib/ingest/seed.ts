@@ -74,9 +74,7 @@ export function seedColumns(seed: StoredSeed | null): SeedColumns {
  * sigma: 12 }`, the same for everybody. It used to be `seedFromRank(rankTier, rankDivision)`, so
  * a first rated game started a Challenger at mu 35 and an Iron at mu 14 — a 1,260-point gap on
  * the board between two people who had played the same zero customs. **Nothing persisted is
- * seeded from a League rank any more**, and the customs decide the rest. The weekly track folds
- * from this same rule (M7.3), which is the sharper half of the argument: a board that measures
- * one week must not leak a solo-queue rank into it.
+ * seeded from a League rank any more**, and the customs decide the rest.
  *
  * The `sigma` is 12 and not the 10 an unranked player used to get, and that is the second half of
  * the decision rather than a detail: a rating moves in proportion to its own `sigma^2`, so a

@@ -15,6 +15,24 @@ import { roleTier } from './roles';
 import type { Assignment, BalanceInput, BalancePlayer, BalanceResult, Duo, Split } from './types';
 
 export { explain } from './explain';
+/** M14.4: the fairness receipt's facts, so no page parses `explanation` (STRATEGY §4.2 rule 5). */
+export {
+  type Calibration,
+  type CalibrationGame,
+  calibration,
+  describeSwap,
+  type FavoredSide,
+  favoredSide,
+  type OddsBand,
+  oddsBand,
+  preGameOdds,
+  type RankedColumns,
+  type RatingBefore,
+  type SplitTeams,
+  type SwapDescription,
+  type WhyLower,
+  whyLower,
+} from './receipt';
 /**
  * Re-exported for the display surfaces (M3.1's teams embed marks an off-role line; M3.6's
  * tonight page prints an overridden row as `<override> · <old main>`). One rule for "off-role"

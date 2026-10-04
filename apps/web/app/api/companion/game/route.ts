@@ -5,6 +5,7 @@ import {
   hasWinningTeam,
   NO_WINNING_TEAM_MESSAGE,
 } from '@customs/db/schemas';
+import { scheduleGameLine } from '@/lib/ai/afterIngest';
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import {
@@ -26,12 +27,19 @@ import {
   rateStoredGame,
 } from '@/lib/ingest/rating';
 import { moveLobbyLogged, sweepIdleLobbies } from '@/lib/lobbyState';
-import { hasActiveSeason, NO_ACTIVE_SEASON_MESSAGE } from '@/lib/season';
+import { clearAfterRecord } from '@/lib/mode/record';
+import { supabaseModeStore } from '@/lib/mode/state';
 import { siteOrigin } from '@/lib/siteUrl';
 
 // node:crypto hashes the bearer token, so this route is not edge-compatible.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+/**
+ * M16.4: `after()` work is bounded by this function's timeout. The recap can take two model
+ * attempts (20 s each) plus a transient retry and the Discord edit, past a 10-15 s default, so the
+ * route allows 60 s. The companion's answer still goes out at once; only the background task uses it.
+ */
+export const maxDuration = 60;
 
 /**
  * Two posts per game from the companion: `in_progress` when the client enters the game, and
@@ -55,9 +63,6 @@ export const dynamic = 'force-dynamic';
  * - 422 when the same PUUID appears twice on the scoreboard;
  * - 403 when the token's player is neither on the scoreboard nor a member of the lobby this
  *   game was played from, spectators included (M2.8);
- * - 503, naming the missing active season, when there is none: `games.season_id` defaults to
- *   `active_season_id()`, so the insert would fail anyway, and a retryable status keeps the
- *   companion's queue file so the night lands once a season is started (M2.18).
  *
  * The raw block is scrubbed of its chat credentials before it goes anywhere near the database:
  * `games.raw` is public-read under RLS (M2.10, point 11).
@@ -65,8 +70,8 @@ export const dynamic = 'force-dynamic';
  * **`source: 'backfill'` (M5.1)** is the same body walked out of match history months later,
  * and it takes three turns off this path: the participant check has no lobby fallback, the game
  * is linked to no lobby, and the rating fold does not run — the answer says
- * `{ rated: false, reason: 'backfill' }` and `pnpm --filter web rebuild-ratings` (M5.2) is what
- * turns a batch into ratings. Nothing is posted to Discord for one. There is no approval step:
+ * `{ rated: false, reason: 'backfill' }` and the daily `/api/cron/rebuild` (M14.63) folds the
+ * group the next morning. Nothing is posted to Discord for one. There is no approval step:
  * every member's companion may send them (`04-decisions.md`, 2026-10-03, reversing M5.1's
  * gate), and the participant check is what limits a token to games its player played.
  *
@@ -136,16 +141,6 @@ export const POST = withCompanionAuth(
       return jsonError(403, 'a companion may only report a game its own player was in');
     }
 
-    // M2.18. `games.season_id` defaults to `active_season_id()`, so with no active season the
-    // insert below fails on a not-null column and the night is lost to a message about a
-    // constraint. Checked here, before any write: the answer names the thing to do, and 503
-    // keeps the companion's queue file (400/403/404/422 are its permanent refusals), so
-    // starting a season drains the night rather than replaying it from backfill.
-    if (!(await hasActiveSeason(client))) {
-      console.error(`game ${payload.gameId}: no active season; refused before the insert (M2.18)`);
-      return jsonError(503, NO_ACTIVE_SEASON_MESSAGE);
-    }
-
     // The group comes from the token (M13.3); `ingestEogGame` decides where the game lands:
     // an id stored anywhere keeps its group, a live game follows its lobby, and a backfilled one
     // needs six of its ten to be members of the token's group.
@@ -179,8 +174,8 @@ export const POST = withCompanionAuth(
     //
     // Never for a backfilled game (M5.1): ratings are a fold in `started_at` order and backfill
     // delivers games out of order by definition, so the four `game_players` rating columns stay
-    // null and `ratings` does not move until `pnpm --filter web rebuild-ratings` (M5.2) folds
-    // the season. The answer is still a 2xx with `created` — a 2xx is what lets the companion
+    // null and `ratings` does not move until the daily `/api/cron/rebuild` (M14.63) folds the
+    // group. The answer is still a 2xx with `created` — a 2xx is what lets the companion
     // delete its queue file.
     //
     // Never for another group's game either (M13.3): that post is a no-op, and the fold reads
@@ -216,9 +211,27 @@ export const POST = withCompanionAuth(
         // Discord posts to the game's group's channel (M13.3), not the token's.
         groupId: result.groupId,
         rated: fold.rated,
+        // `not-rated` still gets a result post (M15.6): the rule line lives there.
+        reason: fold.reason,
         // Only used for the result embed's `url` (M3.3).
         requestOrigin: siteOrigin(request),
       });
+    }
+
+    // M16.4: the game's AI recap line, after the result is announced and without holding this
+    // answer or the post: `after()` runs it once the response is sent, and nothing it does can
+    // fail ingest. Live games of the game's own group only; a repeat post is a no-op (no call).
+    if (!backfill && !result.foreignDuplicate) {
+      scheduleGameLine({ groupId: result.groupId, gameId: result.gameId });
+    }
+
+    // The rule is used up (M15.3, R1): compare-and-clear on the card's version, after the result is
+    // announced. Only a Rift game from a locked lobby consumes; anything queued after Roll moved
+    // the version and survives. Run on every post of the game's own group, not only the first:
+    // the version makes a repeat a no-op, and a first post that died here is finished by the
+    // retry (a throw is a 500, so the companion posts again).
+    if (!result.foreignDuplicate) {
+      await clearAfterRecord(supabaseModeStore(client), result.groupId, result.modeRecord);
     }
 
     return jsonOk(companionGameResponseSchema, {

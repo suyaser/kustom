@@ -1,27 +1,60 @@
-import type { BoardRow } from '@/lib/board/types';
+import { type Calibration, displayRating, ruleOf } from '@customs/core';
+import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { FairnessReceipt, PreGameReceipt } from '@/components/receipt';
+import type { BoardRow, EmptyWindowFallback } from '@/lib/board/types';
+import { oddsGapSentence } from '@/lib/breakdown/copy';
+import type { GameBreakdown } from '@/lib/breakdown/load';
+import { fearlessWhatsOpen } from '@/lib/fearless/copy';
+import type { PageGroup } from '@/lib/groups/pageGroup';
+import { noKustomRunningLine } from '@/lib/lobbyStartCopy';
+import { modeCardView, selectValue, showsFearlessPool, tooFewOpen } from '@/lib/mode/card';
+import { championTable } from '@/lib/mode/champions';
+import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
+import { ruleLaneLabel } from '@/lib/mode/ruleCopy';
+import type { ModeSpeech } from '@/lib/mode/speech';
+import { bannedByGame, normalJustNow } from '@/lib/mode/view';
 import type { MysteryPageState } from '@/lib/mystery/service';
-import { groupHref } from '@/lib/nav';
-import { NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
+import { groupHome, groupHref } from '@/lib/nav';
+import { displayDelta } from '@/lib/ratingDisplay';
 import {
-  evennessLine,
-  HEAD_SEPARATOR,
-  joinWebNames,
+  adminNames,
   MISSED_INVITE_END,
   MISSED_INVITE_LEAD,
   MISSED_INVITE_PASSWORD,
   NAMELESS_HINT,
-  OFF_ROLE_LEGEND,
-  OFF_ROLE_LEGEND_SUFFIX,
   ROLL_HINT,
-  renderWebName,
-  rerollMarker,
-  SIT_OUT_VIEWER,
-  sitOutGeneral,
+  rollAdminHint,
+  rollerSubLine,
 } from '@/lib/tonight/copy';
+import type { LastGame } from '@/lib/tonight/lastGame';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
+import { tonightRoles } from '@/lib/tonight/roles';
+import {
+  announcement,
+  chosenSplit,
+  gameNumber,
+  noMainCount,
+  offRoleSeats,
+  playedAsRolled,
+  ratingsBefore,
+  receiptNames,
+  viewerSeat,
+} from '@/lib/tonight/screen';
+import {
+  EMPTY_GROUP_MEMBER,
+  FULL_SCOREBOARD,
+  START_NEXT_LOBBY,
+  stripDateLine,
+  winsHeadline,
+  wouldSitOutLine,
+} from '@/lib/tonight/screenCopy';
+import type { SitOutRule } from '@/lib/tonight/sitOut';
 import {
   anySeatOnTheWrongSide,
+  type HeaderView,
   hasNamelessRow,
+  lobbyAround,
   rollStage,
   tonightHeader,
   tonightState,
@@ -30,660 +63,702 @@ import type {
   LobbyView,
   MemberView,
   PlayerName,
-  SeatView,
+  ResultView,
   TeamsView,
   TonightSnapshot,
+  TonightState,
 } from '@/lib/tonight/types';
 import { type ViewerState, viewerIsAdmin, viewerPuuid } from '@/lib/tonight/viewer';
-import { TopOfBoard } from '../_leaderboard/BoardCard';
-import { MysteryTeaser } from '../_mystery/MysteryTeaser';
-import { CompanionCard, HowThisWorksCard } from '../_shell/HowThisWorks';
-import { usePageGroup } from '../_shell/PageGroup';
-import { FearlessCard } from './FearlessCard';
-import { NightTape } from './NightTape';
+import type { YourNight as YourNightData } from '@/lib/tonight/yourNight';
+import { VersusPitch } from '../_board/VersusPitch';
+import { ModeCard, type ModeCardVariant } from '../_mode/ModeCard';
+import { ruleLineOf } from '../_mode/RuleLine';
+import { Announcer } from './Announcer';
+import { AwardLine, DailyCard, EmptyGroup, LastGameCard, SitOutCard, TopFive } from './Cards';
+import { Elapsed } from './Elapsed';
 import { RerollControl } from './RerollControl';
-import { ResultPoster } from './ResultPoster';
-import { RoleCell } from './RoleCell';
 import { RoleTonight } from './RoleTonight';
 import { RollControl } from './RollControl';
-import { SeatRack } from './SeatRack';
+import { Roster } from './Roster';
 import { SideLine } from './SideLine';
 import { StartLobby, StartLobbySignIn } from './StartLobby';
+import { type AnswerBand, Strip } from './Strip';
+import { Tape } from './Tape';
+import { TeamCard, type TeamSeat } from './TeamCard';
+import { YourNight } from './YourNight';
 
 /**
- * The tonight page's markup (M3.4, Floodlit v2 in M3.18). A pure function of one snapshot and
- * who is looking, so every state in `05-design.md`'s table is a component test rather than a
- * night of waiting.
+ * The tonight page, Kustom 2.0 (M14.9; redesign/STRATEGY.md §6(a), docs/05-design.md 5.1 to 5.15).
  *
- * The two rules this file exists to keep, neither of which v2 bends:
+ * **A server component and a pure function of its props**: one snapshot, who is looking, and the
+ * server-only reads beside it (the last game, the calibration, who would sit out). Every state is a
+ * fixture test, and every Realtime event re-renders this on the server (`TonightLive`), so the
+ * receipt, the poster, the tape and the rail never ship as client code. The client islands are the
+ * controls (roll, reroll, start, role), the live tag, the timer and `joined just now`.
  *
- *   - **One primary block**, chosen from `lobbies.status`, replaced in place. The status strip
- *     is always mounted and is the only element that survives every transition.
- *   - **No layout shift inside a state.** A join, a leave, a name arriving and a reroll each
- *     move nothing above the fold: the rack is ten rows at every count, the strip's sentence
- *     has two lines reserved, and both markers are inset shadows rather than borders.
- *
- * The rail is the ≥1080px second column. It never carries state — three static cards — and it
- * is `display: none` below that, where the same two cards are in the footer.
+ * One state headline (the h1), one primary block chosen from `lobbies.status` (`tonightState`),
+ * then the secondary cards. Below 1024 one column; from 1024 a main column and a 340px rail.
  */
-
-/**
- * Marked seats in **one** card at which the off-role icon and word go back to `dim`
- * (`05-design.md`, "The amber threshold"). Three of five is the majority; the mark keeps its
- * shape — underline, dot, hidden word, header legend — and gives up only its colour.
- */
-const OFF_ROLE_COLOUR_LIMIT = 3;
-
 export interface TonightViewProps {
   snapshot: TonightSnapshot;
-  /**
-   * Who is reading, in three states (`lib/tonight/viewer.ts`): anonymous, signed in with no
-   * player row yet, or linked. Decided on the server from the session, and never a claim the
-   * browser makes — every control it draws posts to a route that checks the session again.
-   */
   viewer: ViewerState;
-  /**
-   * The board's first five, for the ≥1080px rail (`loadTopPlayers(client, { limit: 5 })`).
-   * Read once with the page: **the rail never carries state**, so these do not move under a
-   * thumb the way everything in the column beside them does. Empty until a season exists.
-   */
+  group: PageGroup;
+  /** This week's top five (the leaderboard's default window). */
   topPlayers: readonly BoardRow[];
+  /** M14.70: where an empty `Top this week` points (`See last week` / `See all time`). */
+  topFallback?: EmptyWindowFallback | null | undefined;
+  lobbyStart?: LobbyStartView | null | undefined;
+  mystery?: MysteryPageState | null | undefined;
+  /** The admins' names, for `Waiting on … to roll the teams.` at ten or more. */
+  admins?: readonly PlayerName[] | undefined;
+  /** Idle only: the group's last game; `null` is "never played", `undefined` is "not known". */
+  lastGame?: LastGame | null | undefined;
+  /** `Fri 2 Oct`: the last game's day, formatted on the server. */
+  lastGameDate?: string | undefined;
+  /** The group's calibration (M14.4), for `How the bot decided`; absent leaves the line out. */
+  calibration?: Calibration | null | undefined;
+  /** Filling past ten: who the rotation would sit, first first (puuids). */
+  wouldSitOut?: readonly string[] | null | undefined;
+  /** Balanced and in game with somebody sitting: why (`loadSitOutRuleOrNone`, M14.41). */
+  sitOutRule?: SitOutRule | null | undefined;
+  /** The server's clock at render, for the in-game timer's first paint. */
+  renderedAt?: number | undefined;
+  /** M14.36: the linked viewer's night so far (`loadYourNightOrNone`), or absent. */
+  yourNight?: YourNightData | null | undefined;
+  /** A no-JS mode or reset post's outcome (`?notice=` / `?error=`), for the Mode card's admin foot. */
+  modeNotice?: { notice: string | null; error: string | null } | undefined;
+  /** M16.4: the finished game's AI recap (`components/ai/AiRecap`), under the result, above the receipt. */
+  aiRecap?: ReactNode;
   /**
-   * Tonight's newest `create_lobby`, read on the **server** with the service role and only for
-   * a linked viewer (`lib/tonight/lobbyStart.ts`). `null` for everybody else and for a night nobody
-   * has pressed the button on. It is not part of the snapshot on purpose: the snapshot is
-   * re-read in the browser with the anon key, which may not see this table at all.
+   * M14.58 / M14.59: the finished game's stored breakdown (`loadGameBreakdownOrNone`): each seat's
+   * change opens why, and the receipt names the rating's odds when they differ. Absent: plain numbers.
    */
-  lobbyStart?: LobbyStartView | null;
-  /**
-   * Re-read this page's server components. `TonightLive` supplies it; it is how the self-link
-   * (M3.6) turns into a linked viewer — and a footer with `Your games` in it — without a
-   * document load. Undefined everywhere the page is rendered without a router.
-   */
-  onViewerChanged?: (() => void) | undefined;
-  /**
-   * The same re-read, asked for by the press instead of by a self-link: `companion_commands`
-   * is service-role only and in no Realtime publication, so the only way to learn what became
-   * of a `create_lobby` is to ask the server again. Two props and one function, because the
-   * two things they re-read are two different facts that happen to live in one place.
-   */
-  onLobbyStarted?: (() => void) | undefined;
-  /**
-   * Re-read the snapshot now, after an admin's roll press was answered (2026-10-03). A 409 is
-   * usually the roster having moved since the page drew it, and the admin must be looking at
-   * the new one before pressing again; a 200 puts the teams up without waiting on the socket.
-   * `TonightLive` supplies it; undefined where there is no live half.
-   */
-  onRollSettled?: (() => void) | undefined;
-  /**
-   * Today's Daily Mystery (M5.32). Optional so the tonight fixture tests stay a
-   * snapshot of the lobby. The live page always passes one.
-   */
-  mystery?: MysteryPageState | null;
-  /**
-   * The admins' display names, read once with the page (`lib/tonight/admins.ts`). At ten or more
-   * the strip names them — `Waiting on Yasser or Omar to roll the teams.` — and with none it
-   * says `an admin` (2026-10-03). Optional so fixture tests keep the generic sentence.
-   */
-  admins?: readonly PlayerName[];
+  breakdown?: GameBreakdown | null | undefined;
 }
 
-export function TonightView({
-  snapshot,
-  viewer,
-  topPlayers,
-  lobbyStart = null,
-  onViewerChanged,
-  onLobbyStarted,
-  onRollSettled,
-  mystery = null,
-  admins = [],
-}: TonightViewProps) {
-  const group = usePageGroup();
+export function TonightView(props: TonightViewProps) {
+  const { snapshot, viewer, group } = props;
   const state = tonightState(snapshot);
-  const header = tonightHeader(state, admins);
-  const seatViewer = { puuid: viewerPuuid(viewer), isAdmin: viewerIsAdmin(viewer) };
-  /**
-   * M4.10's lobby line is for a **signed-in viewer matched to a player row** and nobody else
-   * (product and the designer, 2026-09-10). The password is not a secret among the twenty
-   * friends who play; it is not for whoever the WhatsApp link was forwarded to.
-   *
-   * It is the `Start a lobby` gate too, since M4.13: the same twenty people, decided once.
-   */
+  const header = tonightHeader(state, props.admins ?? []);
+  const puuid = viewerPuuid(viewer);
+  const isAdmin = viewerIsAdmin(viewer);
   const linked = viewer.kind === 'linked';
-  /**
-   * `Start a lobby` (M4.2), with the button in the one state where pressing it can do
-   * anything: the idle page (the designer, 2026-09-10). From `filling` on a lobby row exists,
-   * so the route can only answer `There is already a lobby open.` — and a control whose only
-   * outcome is a refusal is not a control. `filling` gets the same block without the button:
-   * the invited count, or the sentence for a create that failed.
-   *
-   * **Every linked player, not only an admin** (M4.13): nobody in voice should have to find out
-   * who is an admin to get the night started. A group admin membership can only belong to a row
-   * that is already linked, so an admin keeps it with no special case. Being drawn is still not
-   * permission — the route resolves the session again before it writes, and a forged press gets
-   * the 403 sentence.
-   */
-  const startLobby = linked ? (
-    <StartLobby
-      start={lobbyStart}
-      press={state.kind === 'idle'}
-      around={state.kind === 'filling' ? state.lobby.members.length : 0}
-      onPressed={onLobbyStarted}
+  const emptyGroup = state.kind === 'idle' && props.lastGame === null && snapshot.tape.length === 0;
+  const showDaily = state.kind === 'idle' || state.kind === 'result';
+  const mode = snapshot.mode;
+  const seat =
+    state.kind === 'teams' && state.lobby.status !== 'finished' ? viewerSeat(state.teams, puuid) : null;
+  const variant: ModeCardVariant =
+    state.kind === 'filling'
+      ? 'filling'
+      : state.kind === 'teams'
+        ? state.lobby.status === 'in_game'
+          ? 'in-game'
+          : state.lobby.status === 'balanced'
+            ? 'balanced'
+            : 'idle'
+        : state.kind === 'result'
+          ? 'finished'
+          : 'idle';
+  // M15.5: what the card is about (the lock after Roll, else the next game), one answer for the
+  // card, the answer band, the strip's host line and the announcer.
+  const modeState = snapshot.modeState ?? { standing: mode, pending: null, ratedOverride: null, version: 0 };
+  const bans = snapshot.fearless.champions.map((champion) => champion.id);
+  const table = championTable();
+  const cardView = modeCardView({
+    state: modeState,
+    lobbyStatus: snapshot.lobby?.status ?? null,
+    lock: snapshot.lobby?.lock ?? null,
+    bans,
+    table,
+  });
+  const speech: ModeSpeech = {
+    standing: modeState.standing,
+    pending: modeState.pending,
+    nextRated: modeCardView({ state: modeState, lobbyStatus: null, lock: null, bans, table }).rated,
+    lockedRule: cardView.locked ? ruleOf(cardView.shown) : null,
+    lobbyStatus: snapshot.lobby?.status ?? null,
+  };
+  // Everyone, every state, empty group included (design ruling on §8.2, 2026-10-03).
+  const modeCard = (
+    <ModeCard
+      group={group}
+      mode={mode}
+      fearless={snapshot.fearless}
+      variant={variant}
+      view={cardView}
+      viewerLane={seat?.role ?? null}
+      viewerSide={seat?.side ?? null}
+      bannedNext={
+        state.kind === 'result'
+          ? {
+              champions: bannedByGame(snapshot.fearless, state.result.gameId),
+              gameNumber: gameNumber(snapshot, state),
+              // M15.15: a Rift game played not rated banned nothing, and the card says so.
+              notRated: state.result.stamp?.rift === true && !state.result.stamp.rated,
+            }
+          : null
+      }
+      normalJustNow={normalJustNow(snapshot)}
+      controls={
+        isAdmin
+          ? {
+              inGame: cardView.locked || variant === 'in-game',
+              selected: selectValue(modeState),
+              tooFew: tooFewOpen(modeState, bans, table),
+              nextRated: speech.nextRated,
+              redirectTo: groupHome(group),
+              notice: props.modeNotice?.notice ?? null,
+              error: props.modeNotice?.error ?? null,
+            }
+          : null
+      }
     />
-  ) : null;
-  /**
-   * And the signed-out visitor's way in, on the **idle** page only: the sentence product wrote
-   * for M4.2 and suspended on 2026-09-10, back now that there is a button behind it for anybody
-   * who signs in (M4.13). A signed-in visitor with **no player row** gets neither — they are
-   * signed in, so inviting them to sign in is noise, and `SIGNED_IN_NO_LOBBY` at the foot of
-   * the column already says the true thing to them.
-   */
-  const startSignIn = viewer.kind === 'anonymous' && state.kind === 'idle' ? <StartLobbySignIn /> : null;
+  );
+  const answer = answerBand(state, puuid);
+  const rolls = rollerOf(state, isAdmin);
+  const action = stripAction(props, state, { isAdmin, linked, emptyGroup });
+  const ruleJump =
+    answer !== null && answer.kind === 'seated' && variant === 'balanced'
+      ? showsFearlessPool(cardView)
+        ? fearlessWhatsOpen(answer.role)
+        : ruleLaneLabel(cardView.shown, answer.role, answer.side)
+      : null;
+  // M14.41 (gap 3): the ten by side on the first screen, for whoever has no seated answer band.
+  const names =
+    state.kind === 'teams' &&
+    (state.lobby.status === 'balanced' || state.lobby.status === 'in_game') &&
+    answer?.kind !== 'seated'
+      ? { blue: state.teams.blue.map((seat) => seat.name), red: state.teams.red.map((seat) => seat.name) }
+      : null;
 
-  /**
-   * **The idle page keeps the 44rem column it has at 720px** (M3.30, the designer, from the
-   * M4.7 review). At 1080px the grid hands the main column everything the 20rem rail does not
-   * take, which on a 1280px screen is a 1300px-wide empty rack with `open` at the far left and
-   * a name would be, later, 700px from its rating. `filling`, `balanced` and `result` fill that
-   * width with content and are untouched; the empty rack does not, so it keeps the cap the
-   * grid table gives every other single column.
+  /*
+   * The role card: while the lobby fills and while the teams are up (kept for next game); hidden in
+   * game and after (STRATEGY §6(a)); and on idle for an unlinked friend. M14.65: when that friend
+   * has a row to claim, the card moves straight under the strip as `Which one is you?`.
    */
-  const idle = state.kind === 'idle';
+  const showsRoleCard =
+    state.kind === 'filling' ||
+    (state.kind === 'teams' && state.lobby.status === 'balanced') ||
+    (state.kind === 'idle' && viewer.kind === 'unlinked');
+  const claimFirst =
+    showsRoleCard &&
+    viewer.kind === 'unlinked' &&
+    (snapshot.lobby?.members ?? []).some((member) => viewer.claimable.includes(member.puuid));
 
   return (
-    <div className={idle ? 'cn-grid cn-grid-rail cn-grid-idle' : 'cn-grid cn-grid-rail'}>
-      <main className="cn-col">
-        <StatusStrip snapshot={snapshot} header={header} />
+    <div className="mx-auto w-full max-w-[1180px] px-(--gutter) pt-4 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_var(--rail-w)] lg:items-start lg:gap-5 lg:pt-6">
+      <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
+        <Strip
+          dateLine={stripDateLine(snapshot.nightLabel, gameNumber(snapshot, state))}
+          headline={state.kind === 'result' ? winsHeadline(state.result.winningSide) : header.headline}
+          count={header.count}
+          sub={
+            emptyGroup ? (
+              EMPTY_GROUP_MEMBER
+            ) : rolls !== null ? (
+              // The viewer holds `Roll teams`: never `Waiting on <admins>…` (M14.41 design round 1).
+              rollerSubLine(lobbyAround(rolls.lobby.members))
+            ) : (
+              <SubLine state={state} header={header} renderedAt={props.renderedAt ?? Date.now()} />
+            )
+          }
+          lobbyLive={header.live}
+          meter={state.kind === 'filling' ? Math.min(lobbyAround(state.lobby.members), 10) : null}
+          names={names}
+          action={action}
+          // M15.5 (design round 2): the rule line lives inside the finished poster, under the headline.
+          ruleLine={state.kind === 'result' ? ruleLineOf(state.result.stamp ?? null) : null}
+          answer={
+            // The jump link only while the teams are set (8.3): not in game. M15.5: the rule's label
+            // (`Tanks for support`, `Ionia for support`); mirror and Normal have none.
+            answer !== null && answer.kind === 'seated' && ruleJump !== null
+              ? {
+                  ...answer,
+                  jump: {
+                    href: modePanelHref(group, answer.role),
+                    label: ruleJump,
+                    id: MODE_ANSWER_LINK_ID,
+                  },
+                }
+              : answer
+          }
+        />
+        <Announcer text={announcement(state, header, puuid)} mode={mode} speech={speech} />
 
-        {snapshot.seasonActive ? null : (
-          // Directly under the strip, not at the foot of a 977px page: it is the reason the
-          // numbers below it are not being saved, and a reader who has to scroll to find that
-          // out has already read the numbers. **This page's own sentence** (M3.17): the admin
-          // one ends by naming a page most of the people holding this link cannot open.
-          <p className="cn-notice" role="status">
-            {NO_ACTIVE_SEASON_TONIGHT_MESSAGE}
-          </p>
-        )}
+        {/* M14.65: an unlinked friend with a claimable row sees `Which one is you?` first. */}
+        {claimFirst ? <RoleTonight lobby={snapshot.lobby} viewer={viewer} /> : null}
 
-        {/*
-         * **Above the rack, directly under the strip's sentence** (the designer, 2026-09-10):
-         * ten empty seats are 480px, so a button under them is under the fold on the phone
-         * this page is designed for, and on an idle page it is the only thing to do.
-         */}
-        {idle ? (startLobby ?? startSignIn) : null}
-        {idle ? <Idle /> : null}
-        {state.kind === 'filling' ? (
-          <section className="cn-block">
-            <SeatRack members={state.lobby.members} viewerPuuid={seatViewer.puuid} />
-            <Roll lobby={state.lobby} isAdmin={seatViewer.isAdmin} onSettled={onRollSettled} />
-            {/* The readout, under the rack it is about: how many were invited, or a create
-                that failed. No button — there is a lobby already. **Only while the lobby is
-                still short of ten** (2026-10-03): from ten on `waiting for them to accept` is
-                stale, and it crowded the roll out of a stack of notes under the rack. */}
-            {rollStage(state.lobby) === 'waiting' ? startLobby : null}
-            <MissedInvite lobby={state.lobby} linked={linked} />
-          </section>
+        {/* Your night (M14.36): at the top, under the strip, in idle and finished, linked only. */}
+        {/* Idle: under the strip. Finished: inside the result, after the odds and the awards. */}
+        {linked && props.yourNight != null && state.kind === 'idle' ? (
+          <YourNight night={props.yourNight} />
         ) : null}
+
+        {emptyGroup ? <EmptyGroup isAdmin={isAdmin} group={group} /> : null}
+        {emptyGroup ? modeCard : null}
+        {state.kind === 'idle' && !emptyGroup ? <Idle {...props} /> : null}
+        {state.kind === 'filling' ? (
+          <Filling
+            lobby={state.lobby}
+            viewerPuuid={puuid}
+            linked={linked}
+            lobbyStart={props.lobbyStart ?? null}
+            wouldSitOut={props.wouldSitOut ?? null}
+            rolls={rolls !== null}
+          />
+        ) : null}
+        {state.kind === 'filling' ? modeCard : null}
         {state.kind === 'teams' ? (
-          <TeamsBlock lobby={state.lobby} teams={state.teams} viewer={seatViewer} linked={linked} />
+          <Teams
+            lobby={state.lobby}
+            teams={state.teams}
+            viewerPuuid={puuid}
+            linked={linked}
+            calibration={props.calibration}
+            modeCard={modeCard}
+            sitOutRule={props.sitOutRule ?? null}
+            group={group}
+          />
         ) : null}
         {state.kind === 'result' ? (
-          <ResultPoster
+          <Result
+            lobby={state.lobby}
             result={state.result}
-            explanation={state.teams?.explanation ?? null}
-            viewerPuuid={seatViewer.puuid}
+            teams={state.teams}
+            viewerPuuid={puuid}
+            calibration={props.calibration}
+            yourNight={linked && props.yourNight != null ? <YourNight night={props.yourNight} /> : null}
+            group={group}
+            aiRecap={props.aiRecap ?? null}
+            breakdown={props.breakdown?.gameId === state.result.gameId ? props.breakdown : null}
+          />
+        ) : null}
+        {state.kind === 'result' ? modeCard : null}
+        {state.kind === 'result' ? (
+          // M14.35 (Lane B's contract): under the result poster, the personal 1v1 pitch, once a night.
+          <VersusPitch
+            viewer={linked ? 'linked' : 'not-linked'}
+            nightKey={snapshot.nightStart}
+            here={groupHome(group)}
+            you={groupHref(group, { page: 'you' }) ?? groupHome(group)}
           />
         ) : null}
 
-        {/* M3.10's one quiet line, under the block and never per row. */}
-        {hasNamelessRow(state, snapshot.tape) ? <p className="cn-hint">{NAMELESS_HINT}</p> : null}
-
-        {/*
-         * `Your role tonight` (M3.6), **directly under the rack while the lobby fills**
-         * (2026-10-03). It is the one time-sensitive input on the page — a tap only counts
-         * before the admin rolls — and last in the column it sat under Fearless, thousands of
-         * pixels down a phone. Under the primary block it still cannot move it. In every other
-         * state it stays last (below).
-         */}
-        {state.kind === 'filling' ? (
-          <RoleTonight lobby={snapshot.lobby} viewer={viewer} onViewerChanged={onViewerChanged} />
+        {hasNamelessRow(state, snapshot.tape) ? (
+          <p className="text-sm text-muted-foreground">{NAMELESS_HINT}</p>
         ) : null}
 
-        {/*
-         * The secondary cards, after the primary block **in every state**, the idle page
-         * included (2026-10-03): the column order is the same before and after the first person
-         * joins, so the first join does not reshuffle the page.
-         *
-         * - `teams`: Fearless first and the daily pointer after it. During pick the find box is
-         *   the point, and seventy pixels of teaser between the explanation and it is in the way.
-         * - `result`: the night tape before Fearless. A game just ended, and the night's story is
-         *   what a reader wants then; Fearless matters during pick, not after.
-         * - everything else: the pointer, then Fearless, then the tape.
-         *
-         * The tape (M11.2) never pushes the fearless find box below the fold during pick.
-         */}
-        {state.kind === 'teams' ? (
-          <>
-            <FearlessCard fearless={snapshot.fearless} />
-            <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />
-            <NightTape tape={snapshot.tape} />
-          </>
-        ) : state.kind === 'result' ? (
-          <>
-            <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />
-            <NightTape tape={snapshot.tape} />
-            <FearlessCard fearless={snapshot.fearless} />
-          </>
-        ) : (
-          <>
-            <MysteryTeaser mystery={mystery} className="cn-mystery-teaser-inline" />
-            <FearlessCard fearless={snapshot.fearless} />
-            <NightTape tape={snapshot.tape} />
-          </>
-        )}
+        {/* The role card: while the lobby fills and while the teams are up (kept for next game).
+            Hidden in game and after: no role or sign-in control then (STRATEGY §6(a)). */}
+        {showsRoleCard && !claimFirst ? <RoleTonight lobby={snapshot.lobby} viewer={viewer} /> : null}
+      </div>
 
-        {/*
-         * `Your role tonight`, and the `That's me` list behind it (M3.6). **Last in the
-         * column outside `filling`**, where all it says is that the teams are already set or
-         * how to sign in, so appearing or disappearing cannot move the primary block: five 44px
-         * targets do not fit inside a 44px rack row. It draws nothing at all for the common
-         * case — a visitor who is not signed in and no live lobby.
-         */}
-        {state.kind === 'filling' ? null : (
-          <RoleTonight lobby={snapshot.lobby} viewer={viewer} onViewerChanged={onViewerChanged} />
+      <aside aria-label="Around tonight" className="mt-4 flex min-w-0 flex-col gap-4 lg:mt-0 lg:gap-5">
+        {showDaily ? <DailyCard mystery={props.mystery ?? null} group={group} /> : null}
+        <Tape tape={snapshot.tape} group={group} after={state.kind !== 'idle'} />
+        {emptyGroup ? null : (
+          <TopFive
+            rows={props.topPlayers}
+            group={group}
+            viewerPuuid={puuid}
+            fallback={props.topFallback ?? null}
+          />
         )}
-      </main>
-
-      <aside className="cn-rail" aria-label="About this page">
-        {/* The same five rows as the top of `/leaderboard`, from the same query and the same
-            sort: a rail that disagreed with the page it links to about who is first would be
-            worse than a rail with two cards in it. */}
-        <TopOfBoard
-          rows={topPlayers}
-          viewerPuuid={seatViewer.puuid}
-          playerHref={(puuid) => groupHref(group, { page: 'player', puuid })}
-        />
-        {/* The daily game's one-row pointer (2026-10-03). Static once rendered, so the rail
-            rule holds; below 1080px the same row sits inline in the column instead. */}
-        <MysteryTeaser mystery={mystery} />
-        <HowThisWorksCard />
-        <CompanionCard />
+        {state.kind === 'idle' && !emptyGroup ? modeCard : null}
       </aside>
     </div>
   );
 }
 
-/**
- * The status strip (05-design.md, "The status strip"): slug, headline, live pill, sentence.
- *
- * The `<h1>` is the wordmark in the shell, so the headline here is a `<p>` — there is one page
- * title and it is the product's name, not the state of a lobby.
- */
-function StatusStrip({
-  snapshot,
+function SubLine({
+  state,
   header,
+  renderedAt,
 }: {
-  snapshot: TonightSnapshot;
-  header: ReturnType<typeof tonightHeader>;
+  state: TonightState;
+  header: HeaderView;
+  renderedAt: number;
+}): ReactNode {
+  if (state.kind === 'teams' && state.lobby.status === 'in_game' && state.lobby.startedAt !== null) {
+    return (
+      <>
+        <Elapsed startedAt={state.lobby.startedAt} renderedAt={renderedAt} />
+        {`. ${header.sentence}`}
+      </>
+    );
+  }
+  return header.sentence;
+}
+
+function answerBand(state: TonightState, puuid: string | null): AnswerBand {
+  if (puuid === null) return null;
+  if (state.kind === 'filling') {
+    const member = state.lobby.members.find((one) => one.puuid === puuid);
+    return member === undefined ? null : { kind: 'lobby', mainRole: tonightRoles(member).main };
+  }
+  if (state.kind === 'teams' && state.lobby.status !== 'finished') {
+    const seat = viewerSeat(state.teams, puuid);
+    return seat === null ? null : { kind: 'seated', side: seat.side, role: seat.role };
+  }
+  if (state.kind === 'result') {
+    const row = [...state.result.blue, ...state.result.red].find((one) => one.puuid === puuid);
+    if (row === undefined) return null;
+    return {
+      kind: 'result',
+      side: row.side === 100 ? 'blue' : 'red',
+      won: row.side === state.result.winningSide,
+      delta: row.muBefore === null || row.muAfter === null ? null : displayDelta(row.muBefore, row.muAfter),
+    };
+  }
+  return null;
+}
+
+function Idle(props: TonightViewProps) {
+  const last = props.lastGame;
+  if (last === null || last === undefined) return null;
+  return <LastGameCard last={last} group={props.group} dateLabel={props.lastGameDate ?? ''} />;
+}
+
+/**
+ * The strip's action row (M14.41, scene-walk gap 2): the night's one deliberate press, where the
+ * viewer is already looking. Admins: `Roll teams` once the lobby can be rolled, `Reroll` while the
+ * teams are up. Linked players: `Start a lobby` when nothing is open (idle, finished); a visitor
+ * on an idle page gets the sign-in that leads to it. Nothing new for anybody: each control moved
+ * up from under the roster, the cards or the poster, unchanged.
+ */
+function stripAction(
+  props: TonightViewProps,
+  state: TonightState,
+  viewer: { isAdmin: boolean; linked: boolean; emptyGroup: boolean },
+): ReactNode {
+  if (state.kind === 'filling') {
+    if (rollerOf(state, viewer.isAdmin) === null) return null;
+    const around = lobbyAround(state.lobby.members);
+    const stage = rollStage(state.lobby) === 'repair' ? 'repair' : 'ready';
+    return (
+      <RollControl
+        lobbyId={state.lobby.id}
+        members={state.lobby.members}
+        hint={rollAdminHint(around, sitOutPreview(state.lobby, props.wouldSitOut ?? null), stage)}
+      />
+    );
+  }
+  if (state.kind === 'teams') {
+    return viewer.isAdmin && state.lobby.status === 'balanced' ? (
+      <RerollControl lobbyId={state.lobby.id} splits={state.teams.splits} />
+    ) : null;
+  }
+  if (state.kind === 'result' || (state.kind === 'idle' && !viewer.emptyGroup)) {
+    if (viewer.linked) {
+      return (
+        <StartLobby
+          start={props.lobbyStart ?? null}
+          press={true}
+          around={0}
+          // STRATEGY §6(a): after a result the press is the next game's (M14.41 design round 1).
+          label={state.kind === 'result' ? START_NEXT_LOBBY : undefined}
+          // M14.66: on idle with no host seen in ten minutes, who to ask, before anyone taps.
+          noHostLine={
+            state.kind === 'idle' && !props.snapshot.hostSeenRecently
+              ? noKustomRunningLine(adminNames(props.snapshot.hostNames))
+              : null
+          }
+        />
+      );
+    }
+    if (state.kind === 'idle' && props.viewer.kind === 'anonymous') return <StartLobbySignIn />;
+  }
+  return null;
+}
+
+/** The filling lobby when this viewer holds `Roll teams` (an admin, rollable stage), else `null`. */
+function rollerOf(state: TonightState, isAdmin: boolean): { lobby: LobbyView } | null {
+  if (state.kind !== 'filling' || !isAdmin) return null;
+  const stage = rollStage(state.lobby);
+  return stage === 'ready' || stage === 'repair' ? { lobby: state.lobby } : null;
+}
+
+/** `If the teams rolled now, Chaos and then Mo would sit out.`, or `null` (not past ten, or unknown). */
+function sitOutPreview(lobby: LobbyView, wouldSitOut: readonly string[] | null): string | null {
+  if (wouldSitOut === null) return null;
+  const byPuuid = new Map(lobby.members.map((member) => [member.puuid, member]));
+  return wouldSitOutLine(wouldSitOut.map((one) => byPuuid.get(one)?.name ?? null));
+}
+
+function Filling({
+  lobby,
+  viewerPuuid,
+  linked,
+  lobbyStart,
+  wouldSitOut,
+  rolls,
+}: {
+  lobby: LobbyView;
+  viewerPuuid: string | null;
+  linked: boolean;
+  lobbyStart: LobbyStartView | null;
+  wouldSitOut: readonly string[] | null;
+  /** The viewer holds `Roll teams`: the preview is the button's hint in the strip, not repeated here. */
+  rolls: boolean;
 }) {
+  const stage = rollStage(lobby);
+  const sitLine = rolls ? null : sitOutPreview(lobby, wouldSitOut);
+
   return (
-    <header className="cn-strip">
-      {/*
-       * The line that tells a friend from WhatsApp what they are looking at and when: **the
-       * night, and nothing else** (M5.12, product 2026-09-10). It carried `· Season 1` until
-       * seasons left the friend-facing vocabulary — on the deployment that exists it read
-       * `TUESDAY 9 SEPTEMBER · GAMESD`, which is the user's own season name shouted at twenty
-       * people who never chose it. Formatted on the server, in one locale and the configured
-       * timezone.
-       */}
-      <p className="cn-num cn-slug">{snapshot.nightLabel}</p>
-
-      <p className="cn-headline-row">
-        {header.count === null ? null : <span className="cn-display cn-count">{header.count}</span>}
-        <span className="cn-display cn-headline">{header.headline}</span>
-        {header.live ? <LivePill /> : null}
-      </p>
-
-      {/*
-       * The page's one polite live region, with two lines of `t-sm` reserved: the sentence
-       * changes with the count — the one text that changes without a state change — and the
-       * block under it must not move while it does.
-       */}
-      <p className="cn-sentence" aria-live="polite">
-        {header.sentence}
-      </p>
-    </header>
+    <>
+      <Roster members={lobby.members} viewerPuuid={viewerPuuid} />
+      {sitLine === null ? null : <p className="text-sm">{sitLine}</p>}
+      {/* `Roll teams` is in the strip (M14.41); its hint stays here for whoever waits on it. */}
+      {stage === 'waiting' ? <p className="text-sm text-muted-foreground">{ROLL_HINT}</p> : null}
+      {stage === 'waiting' && linked ? (
+        <StartLobby start={lobbyStart} press={false} around={lobbyAround(lobby.members)} />
+      ) : null}
+      <MissedInvite lobby={lobby} linked={linked} />
+    </>
   );
 }
 
-/**
- * The one glow and the one pulse in the product. The word is the accessible text and the dot
- * is decoration: a pulsing orange circle that nothing names means nothing.
- *
- * It means **the lobby is open**, not that a socket is up. The page has no idea whether the
- * companion is still running and must not pretend to.
- */
-function LivePill() {
-  return (
-    <span className="cn-live">
-      <span className="cn-live-dot" aria-hidden="true" />
-      <span className="cn-num cn-live-word">live</span>
-    </span>
-  );
-}
-
-/**
- * No lobby tonight. The strip has said `NOBODY IN YET` and the shipped sentence; this is an
- * empty rack — the shape the page will have in an hour — and the two cards the desktop rail
- * carries, inline below 1080px, because on a phone there is nothing else to read. Where the
- * rail is on screen they are in it, and `tonight.css` hides the inline pair rather than saying
- * the same two things twice.
- */
-function Idle() {
-  return (
-    <section className="cn-block">
-      <SeatRack members={[]} viewerPuuid={null} />
-      <div className="cn-idle-cards">
-        <HowThisWorksCard />
-        <CompanionCard />
-      </div>
-    </section>
-  );
-}
-
-interface Viewer {
-  puuid: string | null;
-  isAdmin: boolean;
-}
-
-/**
- * `balanced` and `in_game` render the identical block: the sit-out strip, the two cards blue
- * first, then the explanation line. Only the headline word and the live pill differ, and the
- * cards do not re-render, re-fetch or fade on the way between them.
- */
-function TeamsBlock({
+function Teams({
   lobby,
   teams,
-  viewer,
+  viewerPuuid,
   linked,
+  calibration,
+  modeCard,
+  sitOutRule,
+  group,
 }: {
   lobby: LobbyView;
   teams: TeamsView;
-  viewer: Viewer;
+  viewerPuuid: string | null;
   linked: boolean;
+  calibration: Calibration | null | undefined;
+  /** M14.30: directly after the team cards (05-design.md 8.3). */
+  modeCard: ReactNode;
+  sitOutRule: SitOutRule | null;
+  group: PageGroup;
 }) {
-  return (
-    <section className="cn-block">
-      <SitOutNotice sitters={teams.sitters} viewerPuuid={viewer.puuid} />
-      <div className="cn-cards">
-        <TeamCard side="blue" seats={teams.blue} viewerPuuid={viewer.puuid} />
-        <TeamCard side="red" seats={teams.red} viewerPuuid={viewer.puuid} />
-      </div>
-      {/*
-       * The side line (M4.7 (b)), in **`balanced` only** (product, 2026-09-11): once the game has
-       * launched there is no lobby to move in, and `Move to your side in the lobby.` names a room
-       * that no longer exists. The same rule M4.10's line one element down follows, for the same
-       * reason — and `teams` also draws a **finished** game the fold did not rate, with the teams
-       * still up under `GAME OVER`, which the status gate rules out too.
-       *
-       * **And it goes when the sides are right** (M4.11, M4.3's acceptance 7). An instruction
-       * everybody has already followed is a line that teaches a reader to stop reading this
-       * page's lines. The moment the companion's next lobby post has all ten on the sides the
-       * split gave them, the element is gone — not hidden, not a reserved gap — and the
-       * explanation strip closes up under the cards. The cards themselves do not know this
-       * happened: nothing in `TeamCard` reads `liveSide`, so the markup either side of the
-       * change is identical and the one thing that moves on screen is the line itself.
-       */}
-      {lobby.status === 'balanced' && anySeatOnTheWrongSide(teams) ? <SideLine /> : null}
-      <Explanation
-        lobby={lobby}
-        teams={teams}
-        // The control is drawn for an admin while there are teams to reroll. The route checks
-        // the session again before it writes; this only decides whether a button is on screen.
-        showReroll={viewer.isAdmin && lobby.status === 'balanced'}
+  const viewerSits = viewerPuuid !== null && teams.sitters.some((member) => member.puuid === viewerPuuid);
+  const names = receiptNames(lobby, lobby.result);
+  const members = new Map(lobby.members.map((member) => [member.puuid, member]));
+  const seat = viewerSeat(teams, viewerPuuid);
+  const balanced = lobby.status === 'balanced';
+  const inGame = lobby.status === 'in_game';
+  const finishedWinner = lobby.status === 'finished' ? (lobby.result?.winningSide ?? null) : null;
+
+  const receipt =
+    finishedWinner !== null ? (
+      <FairnessReceipt
+        variant="finished"
+        winner={finishedWinner}
+        splits={teams.stored}
+        names={names}
+        noMain={noMainCount(teams, members)}
+        calibration={calibration}
       />
-      {/*
-       * M3.31's one line, **under the explanation strip and not between it and the cards**: it
-       * is a gloss of the strip's first clause, so it reads after the sentence it re-says. Gated
-       * on the status and not on the block, like the lines around it: `teams` also draws an
-       * `in_game` lobby and a **finished** game the fold did not rate, and `Teams are 92% even.`
-       * under either is a line about a decision the night has already closed. (Restored
-       * 2026-10-03: M4.11's commit dropped it with no decision behind it.)
-       */}
-      {lobby.status === 'balanced' ? <Evenness blueWinProb={teams.blueWinProb} /> : null}
-      {/*
-       * `Reroll 1 of 2. Teams changed.` (2026-10-03), to every viewer, while the teams on screen
-       * are not the balancer's first split — what Discord's reroll title already says. Balanced
-       * only: once the game is up the teams on the rift are the teams.
-       */}
-      {lobby.status === 'balanced' ? <RerollMarker splits={teams.splits} /> : null}
-      {/*
-       * Still true while the teams are up and people are moving to their sides, and **gone the
-       * moment the game starts**, when there is nothing left to join (M4.10). `in_game` renders
-       * this same block, so the line is gated on the status and not on the block.
-       */}
-      {lobby.status === 'balanced' ? <MissedInvite lobby={lobby} linked={linked} /> : null}
-    </section>
+    ) : (
+      <FairnessReceipt
+        variant={inGame ? 'in-game' : 'balanced'}
+        splits={teams.stored}
+        names={names}
+        offRole={offRoleSeats(teams)}
+        noMain={noMainCount(teams, members)}
+        calibration={calibration}
+      />
+    );
+
+  return (
+    <>
+      {/* M14.41 (gap 4): the first card after the strip, for everyone (STRATEGY §6(a)). Finished:
+          after the team cards, past tense (05-design 5.15). */}
+      {lobby.status === 'finished' ? null : (
+        <SitOutCard sitters={teams.sitters} viewerSits={viewerSits} rule={sitOutRule} />
+      )}
+      {receipt}
+      <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+        <TeamCard
+          side="blue"
+          seats={teams.blue.map((one) => teamSeat(one, members))}
+          viewerPuuid={viewerPuuid}
+          className={seat?.side === 'blue' ? 'order-first md:order-none' : undefined}
+          group={group}
+        />
+        <TeamCard
+          side="red"
+          seats={teams.red.map((one) => teamSeat(one, members))}
+          viewerPuuid={viewerPuuid}
+          className={seat?.side === 'red' ? 'order-first md:order-none' : undefined}
+          group={group}
+        />
+      </div>
+      {lobby.status === 'finished' ? (
+        <SitOutCard sitters={teams.sitters} viewerSits={viewerSits} finished />
+      ) : null}
+      {balanced && anySeatOnTheWrongSide(teams) ? <SideLine /> : null}
+      {modeCard}
+      {balanced ? <MissedInvite lobby={lobby} linked={linked} /> : null}
+    </>
   );
 }
 
-/**
- * The roll, under the rack while the lobby fills (2026-10-03). Ingest no longer balances, so a
- * full lobby sits at `open` until an admin presses — and a friend watching ten names and no
- * teams is owed the reason. While the lobby is short of ten everybody gets {@link ROLL_HINT}; from
- * ten on an admin gets the button (or the repair press) in its place, and everybody else gets
- * nothing here — the strip's sentence names the admins and carries it alone.
- *
- * Under the rack, never above it: the rack is ten rows at every count, so the line appearing,
- * and the button replacing it at ten, moves nothing a reader is looking at.
- */
-function Roll({
+function teamSeat(seat: TeamsView['blue'][number], members: ReadonlyMap<string, MemberView>): TeamSeat {
+  return {
+    puuid: seat.puuid,
+    name: seat.name,
+    nameSuffix: seat.nameSuffix ?? null,
+    role: seat.role,
+    rating: seat.rating,
+    offRole: seat.offRole,
+    ratedGames: members.get(seat.puuid)?.ratedGames ?? null,
+  };
+}
+
+function Result({
   lobby,
-  isAdmin,
-  onSettled,
+  result,
+  teams,
+  viewerPuuid,
+  calibration,
+  yourNight,
+  group,
+  aiRecap,
+  breakdown,
 }: {
   lobby: LobbyView;
-  isAdmin: boolean;
-  onSettled: (() => void) | undefined;
+  result: ResultView;
+  teams: TeamsView | null;
+  viewerPuuid: string | null;
+  calibration: Calibration | null | undefined;
+  /** M14.36: after the odds box and the award line, before the team cards (design round 3). */
+  yourNight: ReactNode;
+  group: PageGroup;
+  /** M16.4: the AI recap slot, before the receipt and never inside it. */
+  aiRecap: ReactNode;
+  /** M14.58 / M14.59: this game's stored breakdown, or `null`. */
+  breakdown: GameBreakdown | null;
 }) {
-  const stage = rollStage(lobby);
-  if (stage === 'none') return null;
-  const press = isAdmin && (stage === 'ready' || stage === 'repair');
-  // At ten or more the strip's sentence names who can roll (2026-10-03), so the hint under the
-  // rack would only say it a second time. It explains what is coming while the lobby fills.
-  if (!press && stage === 'ready') return null;
+  const odds = breakdown?.odds ?? null;
+  const names = receiptNames(lobby, result);
+  const chosen = teams === null ? null : chosenSplit(teams.stored);
+  const members = new Map(lobby.members.map((member) => [member.puuid, member]));
+  const notRated = result.stamp?.rift === true && !result.stamp.rated;
+  const seats = (side: ResultView['blue']): TeamSeat[] =>
+    side.map((seat) => ({
+      puuid: seat.puuid,
+      name: seat.name,
+      nameSuffix: seat.nameSuffix ?? null,
+      role: seat.role,
+      // M15.5: a game played not rated moved nobody: the seat keeps its Rating (the lobby's), no delta.
+      rating:
+        seat.muAfter !== null
+          ? displayRating(seat.muAfter)
+          : notRated
+            ? (members.get(seat.puuid)?.rating ?? null)
+            : null,
+      offRole: false,
+      ratedGames: members.get(seat.puuid)?.ratedGames ?? null,
+      delta:
+        seat.muBefore === null || seat.muAfter === null ? null : displayDelta(seat.muBefore, seat.muAfter),
+      reason: breakdown?.reasons.get(seat.puuid) ?? null,
+    }));
+
+  const receipt =
+    teams !== null && chosen !== null && playedAsRolled(result, chosen) ? (
+      <FairnessReceipt
+        variant="finished"
+        winner={result.winningSide}
+        // M14.45: the strip's `RED WINS` already names the winner; the poster says the odds only.
+        winnerShown
+        splits={teams.stored}
+        names={names}
+        // Lead ruling (M14.41 design round 1): Tonight's poster counts main roles the way the
+        // balanced receipt did minutes earlier. The game page and history print the stored count.
+        noMain={noMainCount(teams, members)}
+        calibration={calibration}
+        oddsGap={odds === null ? null : oddsGapSentence(odds, result.winningSide)}
+      />
+    ) : (
+      <PreGameReceipt
+        ratingsBefore={ratingsBefore(result)}
+        ratingBlueWinProb={odds?.ratingBlueWinProb ?? null}
+        reason={teams === null ? 'no-split' : 'teams-changed'}
+        winner={result.winningSide}
+        winnerShown
+        rolled={teams === null ? undefined : { splits: teams.stored, names }}
+        calibration={calibration}
+      />
+    );
 
   return (
-    <div className="cn-roll">
-      {press ? (
-        <RollControl lobbyId={lobby.id} members={lobby.members} onSettled={onSettled} />
-      ) : (
-        <p className="cn-hint">{ROLL_HINT}</p>
+    <>
+      {aiRecap}
+      {receipt}
+      {result.award === null ? null : <AwardLine award={result.award} group={group} />}
+      <FullScoreboardLink group={group} gameId={result.gameId} />
+      {yourNight}
+      <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+        <TeamCard
+          side="blue"
+          seats={seats(result.blue)}
+          viewerPuuid={viewerPuuid}
+          won={result.winningSide === 100}
+          group={group}
+        />
+        <TeamCard
+          side="red"
+          seats={seats(result.red)}
+          viewerPuuid={viewerPuuid}
+          won={result.winningSide === 200}
+          group={group}
+        />
+      </div>
+      {teams === null ? null : (
+        <SitOutCard
+          sitters={teams.sitters}
+          viewerSits={viewerPuuid !== null && teams.sitters.some((member) => member.puuid === viewerPuuid)}
+          finished
+        />
       )}
-    </div>
+    </>
   );
 }
 
 /**
- * `Teams are 92% even.` (M3.31): `evenness` of the chosen split's **stored** `blue_win_prob`,
- * the number the explanation's own first clause was written from, so the two can never
- * disagree. No line at all when there is no usable probability.
+ * `Full scoreboard` (M14.41, scene-walk gap 5, [NEW COPY]): the finished poster's link to this
+ * game's own page, where the scoreboard and the full receipt live. A standalone link, 44px tall.
  */
-function Evenness({ blueWinProb }: { blueWinProb: number | null | undefined }) {
-  const line = evennessLine(blueWinProb);
-  if (line === null) return null;
-  return <p className="cn-even">{line}</p>;
-}
-
-/** `Reroll 1 of 2. Teams changed.`, or nothing while the balancer's first split is up. */
-function RerollMarker({ splits }: { splits: TeamsView['splits'] }) {
-  const chosen = splits.find((split) => split.isChosen);
-  const line = rerollMarker(chosen?.rank ?? null, splits.length);
-  if (line === null) return null;
-  return <p className="cn-reroll-marker">{line}</p>;
+function FullScoreboardLink({ group, gameId }: { group: PageGroup; gameId: string }) {
+  const href = groupHref(group, { page: 'game', gameId });
+  if (href === null) return null;
+  return (
+    <Link
+      href={href}
+      className="inline-flex min-h-11 w-fit items-center text-sm font-bold text-primary-text underline underline-offset-3"
+    >
+      {FULL_SCOREBOARD}
+    </Link>
+  );
 }
 
 /**
- * `Missed the invite? The lobby is Customs 09 Sep #1, password 4821.` (M4.10).
- *
- * The one thing on this page that is not a scoreboard: a friend whose invite popup expired, or
- * who opened League late, can join by hand from the client's own lobby list. The name and the
- * password are **data**, so they are mono; the sentence around them is language, so it is
- * Archivo.
- *
- * **Only for a signed-in viewer matched to a player row** (product and the designer,
- * 2026-09-10). The password is not a secret among the twenty people who play, and it is in the
- * Discord embed already — but this page's link gets forwarded, and a page that hands a lobby
- * password to whoever opens it is a page that invites a stranger into the game. Anonymous and
- * signed-in-but-unlinked visitors get **no element at all**, not a hidden one.
- *
- * With no name there is nothing to say — a password with no lobby to type it into is not an
- * instruction — so the whole element is absent, exactly as the copy table says.
+ * `Missed the invite? The lobby is Customs 09 Sep #1, password 4821.` (M4.10): for a signed-in
+ * viewer matched to a player row only; the link gets forwarded, and a password handed to whoever
+ * opens it invites a stranger in. Nothing at all for anyone else, and nothing with no lobby name.
  */
 function MissedInvite({ lobby, linked }: { lobby: LobbyView; linked: boolean }) {
   if (!linked || lobby.lobbyName === null) return null;
-
   return (
-    <p className="cn-missed">
+    <p className="text-sm text-muted-foreground">
       {MISSED_INVITE_LEAD}
-      <span className="cn-num">{lobby.lobbyName}</span>
+      <span className="num font-semibold text-foreground [overflow-wrap:anywhere]">{lobby.lobbyName}</span>
       {lobby.lobbyPassword === null ? null : (
         <>
           {MISSED_INVITE_PASSWORD}
-          {/* One tap selects all four digits on a phone, not one of them. */}
-          <span className="cn-num cn-missed-password">{lobby.lobbyPassword}</span>
+          <span className="num font-semibold text-foreground select-all">{lobby.lobbyPassword}</span>
         </>
       )}
       {MISSED_INVITE_END}
     </p>
-  );
-}
-
-/**
- * Above the cards, never below: if you are sitting out, everything under it is not about you,
- * and you should learn that before you scan for your name. The card is its 3px brand rule and
- * the sentence — no header bar over it, which was the same words twice; the sentences
- * themselves are unchanged.
- */
-function SitOutNotice({
-  sitters,
-  viewerPuuid,
-}: {
-  sitters: readonly MemberView[];
-  viewerPuuid: string | null;
-}) {
-  if (sitters.length === 0) return null;
-  const youSit = viewerPuuid !== null && sitters.some((member) => member.puuid === viewerPuuid);
-
-  return (
-    // No header bar: the 3px brand rule and the sentence are the card (the designer,
-    // 2026-09-09). `SITTING OUT` over `Sitting out this game: …` was the same words twice.
-    <section className="cn-card cn-sitout">
-      <p className="cn-sitout-text">
-        {youSit ? SIT_OUT_VIEWER : sitOutGeneral(joinWebNames(sitters.map((member) => member.name)))}
-      </p>
-    </section>
-  );
-}
-
-/**
- * One side. The 4px side rule is on the **leading edge** — the top when the cards are stacked,
- * the left when they are side by side — the header bar is `raise` with the side colour on the
- * name only, and the body carries the 10% tint. Never a filled side-coloured block behind five
- * names.
- */
-function TeamCard({
-  side,
-  seats,
-  viewerPuuid,
-}: {
-  side: 'blue' | 'red';
-  seats: readonly SeatView[];
-  viewerPuuid: string | null;
-}) {
-  const sum = seats.reduce((total, seat) => total + seat.rating, 0);
-  /**
-   * **The amber threshold, per card** (the designer, 2026-09-10). Three of five is the
-   * majority: below it the marked seats are the minority and colour is the fastest way to find
-   * them, at or above it colour is spread over most of the card and points at nothing — and a
-   * card with four amber role words stops reading as *blue* or *red* and starts reading as *the
-   * amber one*, which puts the marker above the identity of the thing it marks.
-   *
-   * Only the icon-and-word pair gives up its colour. The dotted underline, the dot before the
-   * name, the hidden `off-role` and this header's legend all stay: an underline is a shape and
-   * not a hue, and the explanation line under the cards names every marked seat in a sentence.
-   * Each card counts its own five — a red seat may not change colour because of blue.
-   */
-  const marked = seats.filter((seat) => seat.offRole).length;
-  const many = marked >= OFF_ROLE_COLOUR_LIMIT;
-
-  return (
-    <section className={`cn-card cn-team cn-team-${side}${many ? ' cn-team-many-off' : ''}`}>
-      <header className="cn-card-head cn-team-head">
-        {/* The leading group. The sum stays the header's second and last flex child, so adding
-            the legend cannot move it: blue with no legend and red with one keep their sums on
-            their own card's right edge. */}
-        <div className="cn-team-heading">
-          <h2 className="cn-display cn-side">{side === 'blue' ? 'BLUE' : 'RED'}</h2>
-          {marked === 0 ? null : (
-            <>
-              <span className="cn-num cn-head-sep" aria-hidden="true">
-                {HEAD_SEPARATOR}
-              </span>
-              {/* The key to the amber dot on the rows below, and the header's only amber. */}
-              <p className="cn-num cn-off-legend">
-                <span className="cn-off-dot" aria-hidden="true" />
-                {OFF_ROLE_LEGEND}
-                <span className="cn-sr">{OFF_ROLE_LEGEND_SUFFIX}</span>
-              </p>
-            </>
-          )}
-        </div>
-        <p className="cn-num cn-sum">
-          {sum}
-          <span className="cn-sr"> sum of the five ratings</span>
-        </p>
-      </header>
-      <ul className="cn-seats">
-        {seats.map((seat) => (
-          <li key={seat.puuid} className={seat.puuid === viewerPuuid ? 'cn-seat cn-you' : 'cn-seat'}>
-            <RoleCell role={seat.role} offRole={seat.offRole} />
-            <span className="cn-seat-name">
-              {seat.offRole ? <span className="cn-off-dot" aria-hidden="true" /> : null}
-              {renderWebName(seat.name)}
-              {seat.offRole ? <span className="cn-sr"> off-role</span> : null}
-            </span>
-            <span className="cn-num cn-seat-rating">{seat.rating}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * The explanation strip: `splits.explanation` of the promoted split, **verbatim**, as a single
- * paragraph. Never re-composed from the split's numbers, never chopped into chips, never
- * truncated. Three lines of wrap on a phone is the correct outcome.
- *
- * After a reroll the same element re-renders with the promoted split's stored string, off-role
- * clause and all (M3.7). The reroll control stays here and not in the top bar: the button
- * means "give me a different version of *this sentence*".
- */
-function Explanation({
-  lobby,
-  teams,
-  showReroll,
-}: {
-  lobby: LobbyView;
-  teams: TeamsView;
-  showReroll: boolean;
-}) {
-  return (
-    <div className="cn-card cn-explain">
-      <p className="cn-explain-text">{teams.explanation}</p>
-      {showReroll ? <RerollControl lobbyId={lobby.id} splits={teams.splits} /> : null}
-    </div>
   );
 }

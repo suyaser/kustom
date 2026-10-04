@@ -3,7 +3,15 @@ import type { RatingInsert, SideValue } from '@customs/db';
 import { gameModeFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
-import { type FoldRatedPlayer, foldGame, gateRatedGame, mustGet, type RatedSkipReason } from './fold';
+import {
+  type FoldOutcome,
+  type FoldRatedPlayer,
+  foldGameOutcomes,
+  gateRatedGame,
+  mustGet,
+  type RatedSkipReason,
+} from './fold';
+import { countsForRatings, readRatingsSince } from './ratingsEpoch';
 import { recomputeInferredRoles, roleInferenceFlags } from './roles';
 import { readSeed, type StoredSeed, seedColumns, seedFor } from './seed';
 
@@ -13,10 +21,19 @@ import { readSeed, type StoredSeed, seedColumns, seedFor } from './seed';
  * `rateGame` comes from `@customs/core` and the maths is not repeated here. This file is the
  * claim, the read of the ratings that went in, and the write of the ones that came out — in
  * `started_at` order for one game. The gate and the fold itself are `fold.ts`, shared with the
- * rebuild (M5.2), which replays exactly this for every game of a season.
+ * rebuild (M5.2), which replays exactly this for every game of a group.
  */
 
-export type RatingSkipReason = RatedSkipReason | 'already-rated' | 'backfill' | 'other-group';
+/**
+ * `before-reset` (M14.18): the game started before the group's latest `Reset ratings`
+ * (`groups.ratings_since`), so it is history and never moves today's ratings.
+ */
+export type RatingSkipReason =
+  | RatedSkipReason
+  | 'already-rated'
+  | 'backfill'
+  | 'other-group'
+  | 'before-reset';
 
 export interface RatingFoldResult {
   rated: boolean;
@@ -79,7 +96,7 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   const game = await selectGame(client, gameId);
   const rows = await selectGamePlayers(client, gameId);
 
-  const gate = gateRatedGame(rows, game.durationS, game.raw);
+  const gate = gateRatedGame(rows, game.durationS, game.raw, game.rated);
   if (!gate.ok) {
     console.info(
       `rating: game ${gameId} not rated: ${gate.reason} (${rows.length} rows, ${game.durationS}s, mode ${
@@ -90,6 +107,12 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   }
   const { blue: blueRows, red: redRows } = gate;
 
+  // The group's epoch (M14.18): a game that started before the latest reset is history.
+  if (!countsForRatings(game.startedAt, await readRatingsSince(client, game.groupId))) {
+    console.info(`rating: game ${gameId} not rated: it started before the group's ratings reset`);
+    return { rated: false, reason: 'before-reset', claimed: 0 };
+  }
+
   // Ordered by puuid on both sides, so the arrays handed to core are deterministic and a
   // rebuild (M5.2) reproduces exactly these numbers.
   //
@@ -99,7 +122,6 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   const stored = await selectRatings(
     client,
     rows.map((row) => row.playerId),
-    game.seasonId,
     game.groupId,
   );
 
@@ -136,7 +158,10 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
     );
   }
 
-  const after = foldGame(blueRows, redRows, before, game.winningSide);
+  const outcomes = foldGameOutcomes(blueRows, redRows, before, game.winningSide);
+  const after = new Map<string, Rating>(
+    [...outcomes].map(([playerId, outcome]) => [playerId, outcome.after]),
+  );
 
   // The feedback-loop guard (M5.17), decided here because here is the only place it is
   // knowable: the recompute at the bottom of this function is about to move the very roles it
@@ -156,7 +181,9 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
       row.playerId,
       {
         before: mustGet(before, row.playerId),
-        after: mustGet(after, row.playerId),
+        outcome: mustOutcome(outcomes, row.playerId),
+        // The count the settling chip reads, as it stood when this game was folded (0034).
+        ratedGamesBefore: stored.get(row.playerId)?.games ?? 0,
       },
       roleFlags.get(row.playerId) ?? true,
     );
@@ -176,7 +203,18 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
     );
   }
 
-  await applyRatings(client, game.seasonId, game.groupId, game.winningSide, rows, after, stored, seeds);
+  // The epoch again, right before the `ratings` write (M14.18 review): a reset that landed while
+  // this request was folding has already emptied the group's ratings, and writing this game's
+  // numbers on top would carry a pre-reset game into the new ratings. The claimed columns stay, as
+  // every pre-reset game's do; the rebuild never touches games before the epoch.
+  if (!countsForRatings(game.startedAt, await readRatingsSince(client, game.groupId))) {
+    console.info(
+      `rating: game ${gameId} claimed, but the group's ratings were reset meanwhile; ratings not written`,
+    );
+    return { rated: false, reason: 'before-reset', claimed };
+  }
+
+  await applyRatings(client, game.groupId, game.winningSide, rows, after, stored, seeds);
 
   // The ten who played, and nobody else (M5.17). Deliberately not fatal: the game is rated and
   // the numbers are right, and a pair that failed to move is fixed by the next game these
@@ -195,7 +233,7 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
 }
 
 interface StoredGame {
-  seasonId: string;
+  startedAt: string;
   /** The group whose `ratings` this game moves (M13.3). */
   groupId: string;
   durationS: number;
@@ -208,12 +246,14 @@ interface StoredGame {
    * written before the blob was kept — is Rift, exactly as it was before this column was read.
    */
   raw: unknown;
+  /** `games.rated` (M15.3): false keeps the game out of the fold, and so out of every board. */
+  rated: boolean;
 }
 
 async function selectGame(client: ServiceClient, gameId: string): Promise<StoredGame> {
   const { data, error } = await client
     .from('games')
-    .select('season_id, group_id, duration_s, winning_side, lobby_id, raw')
+    .select('group_id, started_at, duration_s, winning_side, lobby_id, raw, rated')
     .eq('id', gameId)
     .single();
   if (error) throw new Error(`rating: game select failed: ${error.message}`);
@@ -221,12 +261,13 @@ async function selectGame(client: ServiceClient, gameId: string): Promise<Stored
     throw new Error(`rating: game ${gameId} has no winning side`);
   }
   return {
-    seasonId: data.season_id,
     groupId: data.group_id,
+    startedAt: data.started_at,
     durationS: data.duration_s,
     winningSide: data.winning_side,
     lobbyId: data.lobby_id,
     raw: data.raw,
+    rated: data.rated,
   };
 }
 
@@ -276,14 +317,12 @@ interface StoredRating {
 async function selectRatings(
   client: ServiceClient,
   playerIds: readonly string[],
-  seasonId: string,
   groupId: string,
 ): Promise<Map<string, StoredRating>> {
   const { data, error } = await client
     .from('ratings')
     .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
     .eq('group_id', groupId)
-    .eq('season_id', seasonId)
     .in('player_id', playerIds);
   if (error) throw new Error(`rating: ratings select failed: ${error.message}`);
 
@@ -300,9 +339,16 @@ async function selectRatings(
   );
 }
 
+function mustOutcome(outcomes: ReadonlyMap<string, FoldOutcome>, playerId: string): FoldOutcome {
+  const outcome = outcomes.get(playerId);
+  if (outcome === undefined) throw new Error(`rating: the fold returned nothing for player ${playerId}`);
+  return outcome;
+}
+
 /**
- * One row's four rating columns and the role guard, guarded by `mu_after is null`. `false` means
- * somebody else has already written it.
+ * One row's four rating columns, the fold's breakdown (M14.58, `0034`: the side's odds, the base
+ * `mu_after`, the award and the rated-games count) and the role guard, guarded by
+ * `mu_after is null`. `false` means somebody else has already written it.
  *
  * `counts_for_role_inference` rides along with the claim rather than in a pass of its own, so
  * the row that lost the race writes neither and the winner writes both (M5.17).
@@ -311,7 +357,7 @@ async function writeRatingColumns(
   client: ServiceClient,
   gameId: string,
   playerId: string,
-  ratings: { before: Rating; after: Rating },
+  ratings: { before: Rating; outcome: FoldOutcome; ratedGamesBefore: number },
   countsForRoleInference: boolean,
 ): Promise<boolean> {
   const { data, error } = await client
@@ -319,8 +365,12 @@ async function writeRatingColumns(
     .update({
       mu_before: ratings.before.mu,
       sigma_before: ratings.before.sigma,
-      mu_after: ratings.after.mu,
-      sigma_after: ratings.after.sigma,
+      mu_after: ratings.outcome.after.mu,
+      sigma_after: ratings.outcome.after.sigma,
+      fold_p: ratings.outcome.foldP,
+      base_mu_after: ratings.outcome.baseMuAfter,
+      award: ratings.outcome.award,
+      rated_games_before: ratings.ratedGamesBefore,
       counts_for_role_inference: countsForRoleInference,
     })
     .eq('game_id', gameId)
@@ -343,7 +393,6 @@ async function writeRatingColumns(
  */
 async function applyRatings(
   client: ServiceClient,
-  seasonId: string,
   groupId: string,
   winningSide: SideValue,
   rows: readonly GamePlayerRow[],
@@ -357,7 +406,6 @@ async function applyRatings(
     return {
       group_id: groupId,
       player_id: row.playerId,
-      season_id: seasonId,
       mu: rating.mu,
       sigma: rating.sigma,
       games: (previous?.games ?? 0) + 1,
@@ -366,9 +414,7 @@ async function applyRatings(
     };
   });
 
-  // One rating per person per group (`0019`'s primary key).
-  const { error } = await client
-    .from('ratings')
-    .upsert(inserts, { onConflict: 'group_id,player_id,season_id' });
+  // One rating per person per group (`ratings_pkey (group_id, player_id)`, 0026).
+  const { error } = await client.from('ratings').upsert(inserts, { onConflict: 'group_id,player_id' });
   if (error) throw new Error(`rating: ratings upsert failed: ${error.message}`);
 }

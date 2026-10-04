@@ -3,14 +3,15 @@
  * and needs a word, not `35`. The client already stores the name on an end-of-game
  * block; this table covers match-history raw, which only has the id.
  *
- * Not Data Dragon and not an asset pipeline. A missing id prints `Champion ${id}`
- * until the next roster pass adds it.
+ * Not an asset pipeline: names live here, not in a fetched champion.json. A missing id
+ * prints `Champion ${id}` until the next roster pass adds it.
  *
- * `championIconUrl` (M11.1, M12) reads the same ids: a Community Dragon URL for an id this
- * table names, fetched by the browser (or the overlay panel) at runtime. Still no asset
- * pipeline, no vendored PNGs, no proxy. Drawn on the fearless card on `/` and the overlay's
- * fearless block only.
+ * `championIconUrl` (M11.1, M12, M14.8) reads the same ids: a Data Dragon URL at the pinned
+ * version (`ddragon.ts`), fetched by the browser at runtime. Still no asset pipeline, no
+ * vendored PNGs, no proxy. Drawn on the fearless card only.
  */
+
+import { ddragonChampionIconUrl } from './ddragon';
 
 const CHAMPIONS: Record<number, string> = {
   1: 'Annie',
@@ -173,6 +174,7 @@ const CHAMPIONS: Record<number, string> = {
   799: 'Ambessa',
   800: 'Mel',
   804: 'Yunara',
+  805: 'Locke',
   875: 'Sett',
   876: 'Lillia',
   887: 'Gwen',
@@ -199,21 +201,20 @@ export function listChampions(): readonly { id: number; name: string }[] {
     .sort((a, b) => a.id - b.id);
 }
 
-const CHAMPION_ICON_BASE =
-  'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons';
-
 /**
- * Square icon for a named champion, or `null` for an id nobody can name.
+ * Square icon for a named champion, or `null` when there is nothing safe to draw.
  *
  * "Named" is this table **or** the client's own `championName` for the id (`storedName`, off
- * `games.raw`): Community Dragon serves every live champion by numeric id, so a champion newer
- * than this table still has a face as long as the client told us who it is. With neither, the
- * chip is `Champion ${id}` and draws no icon ("The fearless icon exception", unknown id).
+ * `games.raw`), so a champion newer than this table still has a face as long as the client told
+ * us who it is. The icon itself comes from Data Dragon at the pinned version (M14.8), keyed by
+ * its Data Dragon id (Wukong is `MonkeyKing`), so an id the pinned version does not ship draws
+ * nothing rather than a broken image. With no name, the chip is `Champion ${id}` and draws no
+ * icon ("The fearless icon exception", unknown id).
  */
 export function championIconUrl(id: number, storedName: string | null = null): string | null {
   if (!Number.isInteger(id) || id <= 0) return null;
   const named = CHAMPIONS[id] !== undefined || (storedName?.trim() ?? '') !== '';
-  return named ? `${CHAMPION_ICON_BASE}/${id}.png` : null;
+  return named ? ddragonChampionIconUrl(id) : null;
 }
 
 /** A skipped draft slot. Match history stores this as `championId: -1`. */

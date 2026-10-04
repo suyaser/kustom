@@ -1,0 +1,13 @@
+{
+  "name": "commands-poll--connected",
+  "kind": "request",
+  "target": "api",
+  "route": "commands-poll",
+  "patch": "16.18",
+  "fixtures": [],
+  "scenario": "command-create-lobby",
+  "note": "The poll while the client is up. A GET: the golden is the path and query, there is no body.",
+  "method": "GET",
+  "path": "/api/companion/commands?clientConnected=true",
+  "body": null
+}

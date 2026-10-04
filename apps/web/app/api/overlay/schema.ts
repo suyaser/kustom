@@ -50,6 +50,11 @@ export const overlayResponseSchema = z.object({
   ok: z.literal(true),
   viewerPuuid: z.string(),
   fearless: z.object({
+    /**
+     * M14.29: `mode === 'fearless'`. False on Normal, with `champions` empty. Added, not changed:
+     * the 0.2.x / M14.6 panel ignores it and still parses the answer.
+     */
+    enabled: z.boolean(),
     champions: z.array(fearlessChampionSchema),
     resetAt: z.string().nullable(),
   }),
@@ -70,8 +75,14 @@ export type OverlayResponse = z.infer<typeof overlayResponseSchema>;
 
 /**
  * The answer for a PUUID with no group to show (M13.3): not a member of the group asked for,
- * unknown, or in several groups with none named. Nothing banned, no lobby.
+ * unknown, or in several groups with none named. Nothing banned, no lobby, and (M14.29) no
+ * fearless in force.
  */
 export function emptyOverlay(puuid: string): OverlayResponse {
-  return { ok: true, viewerPuuid: puuid, fearless: { champions: [], resetAt: null }, lobby: null };
+  return {
+    ok: true,
+    viewerPuuid: puuid,
+    fearless: { enabled: false, champions: [], resetAt: null },
+    lobby: null,
+  };
 }

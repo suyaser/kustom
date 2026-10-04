@@ -91,8 +91,8 @@ describe('the seed line', () => {
    * game played — so the clause carries the adjective rather than leaving the reader to guess.
    * Pinned against the retired wording, which is what the page said until 2026-09-16.
    */
-  it('never says plain `games since` again, on any of the five windows', () => {
-    const windows: readonly WindowKind[] = ['all-time', 'this-week', 'last-week', 'this-month', 'last-month'];
+  it('never says plain `games since` again, on any of the three windows', () => {
+    const windows: readonly WindowKind[] = ['all-time', 'this-week', 'last-week'];
 
     for (const window of windows) {
       const line = explainRatingStart(workedPlayer('Hana', { window, games: 6, reference: 1469 })) ?? '';
@@ -144,12 +144,12 @@ describe('the seed line', () => {
     expect(explainRatingStart(player)).not.toContain('rated 1 game');
   });
 
-  it('becomes `Started the week` in a week window and `the month` in a month one', () => {
+  it('becomes `Started the week` in either week window', () => {
     const week = workedPlayer('Hana', { window: 'this-week', games: 6, reference: 1469 });
-    const month = workedPlayer('Hana', { window: 'last-month', games: 14, reference: 1469 });
+    const last = workedPlayer('Hana', { window: 'last-week', games: 14, reference: 1469 });
 
     expect(explainRatingStart(week)).toBe('Started the week at 1469, 6 rated games since.');
-    expect(explainRatingStart(month)).toBe('Started the month at 1469, 14 rated games since.');
+    expect(explainRatingStart(last)).toBe('Started the week at 1469, 14 rated games since.');
     // A window names its own calendar and never the whole history: `Started at 1469` would be
     // the all-time sentence, and the week's hairline is where Sunday found them, not a seed.
     expect(explainRatingStart(week)).toContain('the week');

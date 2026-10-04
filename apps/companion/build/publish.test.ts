@@ -43,9 +43,14 @@ describe('friendReadme', () => {
     const text = friendReadme();
     const whole = readFileSync(README_FILE, 'utf8');
     expect(whole.startsWith(text.trimEnd())).toBe(true);
-    expect(text).toContain('# Kustom companion');
+    expect(text).toContain('# Kustom\n');
     expect(text).toContain('## 3. Leave it running');
-    expect(text).toContain('join one of our custom');
+    expect(text).toContain('## Updates');
+    expect(text).toContain('More info');
+    expect(text).toContain('%APPDATA%\\customs-night\\logs');
+    // M17.12: the Rust app has no token to paste and no Overlay mode; this ships as README.txt and the
+    // release notes.
+    expect(text).not.toMatch(/token|paste|overlay/i);
     expect(text).not.toContain('---');
     expect(text).not.toContain('Building it');
     expect(text.endsWith('\n')).toBe(true);

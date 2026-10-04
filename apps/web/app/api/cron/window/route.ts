@@ -1,6 +1,8 @@
 import { type WindowPostKind, windowPostKindSchema } from '@customs/db';
 import { groupIdSchema } from '@customs/db/schemas';
 import { z } from 'zod';
+import { scheduleScouting } from '@/lib/ai/scouting';
+import { scheduleStorylineRetry, weeklyStorylineHook } from '@/lib/ai/storyline';
 import { NO_GAMES_IN_WINDOW, postClosedWindow } from '@/lib/discord/post';
 import { selectWebhookUrl } from '@/lib/discord/webhook';
 import { claimWindowPost, markWindowPosted, recordWindowPostFailure } from '@/lib/discord/windowPosts';
@@ -16,9 +18,20 @@ import { nightTimeZone } from '@/lib/tonight/night';
 // cached.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// M16.5: a Premium group's weekly storyline is written before its post (at most
+// `STORYLINE_POST_BUDGET_MS`, 30 s, then the post goes without it and the line finishes in
+// `after()`). The same ceiling as the game route's recap.
+// M16.6: the scouting reports run in `after()` inside the same limit. `SCOUTING_DEADLINE_MS` from
+// the start of the call is a hard deadline: no player is started within `SCOUTING_START_MARGIN_MS`
+// (22 s) of it, and generation starts no model call (at most 20 s each, retries and second
+// attempts included) that could still be running past it. Four players at a time across all
+// groups; whoever is left waits for the next call.
+export const maxDuration = 60;
+export const SCOUTING_DEADLINE_MS = (maxDuration - 5) * 1000;
 
 /**
- * The week that posts itself, and on the 1st the month (M5.13; the words are M5.10's).
+ * The week that posts itself (M5.13; the words are M5.10's). The month post on the 1st is gone
+ * since M14.48 dropped the month windows; old `last-month` rows in `window_posts` stay as they are.
  *
  * **There is no button anywhere in this product that posts the week.** If a friend has to
  * remember to press something on a Sunday it will be pressed twice one week and never again
@@ -51,8 +64,6 @@ export const dynamic = 'force-dynamic';
  *   never will be. A deployment that was down all Sunday posts last week on Monday, late and
  *   correct: the post's timestamp says when it was sent and its description says which week it
  *   covers.
- * - **`last-month`, on the 1st** — see {@link windowsToConsider}. Week first, so on a Sunday
- *   the 1st the group gets two posts in the order they read in.
  */
 export const groupResultSchema = z.object({
   groupId: groupIdSchema,
@@ -71,32 +82,15 @@ export const responseSchema = z.object({
 });
 
 /**
- * How long after a month closes the monthly post is still worth making: one day, which is
- * exactly "on the 1st".
+ * Which windows this call looks at: the closed week, every call. A week's post is worth making
+ * late (edge case 3), and there is only ever one week that has most recently closed. The closed
+ * month on the 1st was the second until M14.48.
  *
- * A month closes at 06:00 on the 1st in `CUSTOMS_NIGHT_TZ` (M5.9), so the day that follows is
- * the day the closed month is news. It is a freshness rule and not a dedupe one — the dedupe
- * is the table — and it is what keeps the **first ever call**, on a database with a year of
- * history, from posting a month on the 15th because nothing had posted one before.
- *
- * The week has no such rule on purpose: a week's post is worth making late (edge case 3), and
- * there is only ever one week that has most recently closed.
- */
-const MONTH_POST_WINDOW_MS = 24 * 60 * 60 * 1_000;
-
-/**
- * Which windows this call looks at: the closed week, and the closed month while we are inside
- * the day that follows it.
- *
- * Both come from `closedWindow` (M5.9), so the instant this route writes into `window_posts`
- * and the range the board is read through are computed once, in one place.
+ * It comes from `closedWindow` (M5.9), so the instant this route writes into `window_posts` and
+ * the range the board is read through are computed once, in one place.
  */
 export function windowsToConsider(now: Date, timeZone: string): ClosedWindow[] {
-  const windows = [closedWindow('last-week', now, timeZone)];
-  const month = closedWindow('last-month', now, timeZone);
-  const sinceClose = now.getTime() - month.end.getTime();
-  if (sinceClose >= 0 && sinceClose < MONTH_POST_WINDOW_MS) windows.push(month);
-  return windows;
+  return [closedWindow('last-week', now, timeZone)];
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -140,10 +134,29 @@ export async function GET(request: Request): Promise<Response> {
     const client = getServiceClient();
     const groups = await listGroups(client);
     const results: GroupWindowResult[] = [];
-    // One group at a time, in order: each is a handful of reads and at most two posts, and a
+    // One group at a time, in order: each is a handful of reads and at most one post, and a
     // serial loop keeps Discord's per-webhook rate limit and the log readable.
     for (const group of groups) {
       results.push(await postGroupWindows(client, group, windows, { now, timeZone, request }));
+      // M16.6: this week's scouting reports, after the response, for every group (webhook or
+      // not: they live on the player page). Gate first inside; a group without Premium costs one
+      // read. Idempotent: a stored report is never written again.
+      for (const window of windows) {
+        if (window.kind !== 'last-week') continue;
+        // M16.12: a storyline that failed transiently on Sunday gets another go, board only.
+        scheduleStorylineRetry({
+          groupId: group.id,
+          window,
+          timeZone,
+          deadline: now.getTime() + SCOUTING_DEADLINE_MS,
+        });
+        scheduleScouting({
+          groupId: group.id,
+          window,
+          timeZone,
+          deadline: now.getTime() + SCOUTING_DEADLINE_MS,
+        });
+      }
     }
     return jsonOk(responseSchema, { ok: true, groups: results });
   } catch (error) {
@@ -191,12 +204,18 @@ export async function postGroupWindows(
         continue;
       }
 
-      const outcome = await postClosedWindow(client, window, {
-        now,
-        timeZone,
-        requestOrigin: siteOrigin(request),
-        groupId: group.id,
-      });
+      const outcome = await postClosedWindow(
+        client,
+        window,
+        {
+          now,
+          timeZone,
+          requestOrigin: siteOrigin(request),
+          groupId: group.id,
+        },
+        // M16.5: the weekly storyline opens the post for a Premium group; null for every other.
+        { storyline: weeklyStorylineHook() },
+      );
 
       if (outcome.status === 'posted') {
         await markWindowPosted(client, group.id, window, now);

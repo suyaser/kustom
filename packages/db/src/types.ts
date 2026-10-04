@@ -34,6 +34,225 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_calls: {
+        Row: {
+          cost_usd: number | null
+          created_at: string
+          group_id: string | null
+          id: string
+          input_tokens: number | null
+          line_id: string | null
+          model: string
+          outcome: string
+          output_tokens: number | null
+          request_id: string | null
+          reserved_usd: number
+          settled_at: string | null
+        }
+        Insert: {
+          cost_usd?: number | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          input_tokens?: number | null
+          line_id?: string | null
+          model: string
+          outcome?: string
+          output_tokens?: number | null
+          request_id?: string | null
+          reserved_usd: number
+          settled_at?: string | null
+        }
+        Update: {
+          cost_usd?: number | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          input_tokens?: number | null
+          line_id?: string | null
+          model?: string
+          outcome?: string
+          output_tokens?: number | null
+          request_id?: string | null
+          reserved_usd?: number
+          settled_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_calls_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_calls_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_calls_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "ai_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_lines: {
+        Row: {
+          attempts: number
+          cost_usd: number
+          created_at: string
+          fact_hash: string
+          facts: Json
+          game_id: string | null
+          group_id: string
+          hidden_at: string | null
+          hidden_by: string | null
+          id: string
+          input_tokens: number
+          kind: string
+          model: string
+          output_tokens: number
+          player_id: string | null
+          prompt_version: string
+          published_at: string | null
+          reject_reason: string | null
+          status: string
+          subject: string
+          text: string | null
+          token_map: Json
+          updated_at: string
+          week_start: string | null
+        }
+        Insert: {
+          attempts?: number
+          cost_usd?: number
+          created_at?: string
+          fact_hash: string
+          facts: Json
+          game_id?: string | null
+          group_id: string
+          hidden_at?: string | null
+          hidden_by?: string | null
+          id?: string
+          input_tokens?: number
+          kind: string
+          model: string
+          output_tokens?: number
+          player_id?: string | null
+          prompt_version: string
+          published_at?: string | null
+          reject_reason?: string | null
+          status?: string
+          subject: string
+          text?: string | null
+          token_map?: Json
+          updated_at?: string
+          week_start?: string | null
+        }
+        Update: {
+          attempts?: number
+          cost_usd?: number
+          created_at?: string
+          fact_hash?: string
+          facts?: Json
+          game_id?: string | null
+          group_id?: string
+          hidden_at?: string | null
+          hidden_by?: string | null
+          id?: string
+          input_tokens?: number
+          kind?: string
+          model?: string
+          output_tokens?: number
+          player_id?: string | null
+          prompt_version?: string
+          published_at?: string | null
+          reject_reason?: string | null
+          status?: string
+          subject?: string
+          text?: string | null
+          token_map?: Json
+          updated_at?: string
+          week_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_lines_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_lines_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_lines_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_lines_hidden_by_fkey"
+            columns: ["hidden_by"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_lines_hidden_by_fkey"
+            columns: ["hidden_by"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_lines_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_lines_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_settings: {
+        Row: {
+          calls_enabled: boolean
+          global_monthly_cap_usd: number
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          calls_enabled?: boolean
+          global_monthly_cap_usd?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          calls_enabled?: boolean
+          global_monthly_cap_usd?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       companion_commands: {
         Row: {
           acked_at: string | null
@@ -394,6 +613,8 @@ export type Database = {
           lobby_voice_channel_id: string | null
           red_voice_channel_id: string | null
           results_channel_id: string | null
+          test_post_at: string | null
+          test_post_error: string | null
           updated_at: string
           webhook_url: string | null
         }
@@ -405,6 +626,8 @@ export type Database = {
           lobby_voice_channel_id?: string | null
           red_voice_channel_id?: string | null
           results_channel_id?: string | null
+          test_post_at?: string | null
+          test_post_error?: string | null
           updated_at?: string
           webhook_url?: string | null
         }
@@ -416,6 +639,8 @@ export type Database = {
           lobby_voice_channel_id?: string | null
           red_voice_channel_id?: string | null
           results_channel_id?: string | null
+          test_post_at?: string | null
+          test_post_error?: string | null
           updated_at?: string
           webhook_url?: string | null
         }
@@ -431,6 +656,48 @@ export type Database = {
             foreignKeyName: "discord_config_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: true
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discord_connect_states: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          expires_at: string
+          group_id: string
+          state_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          expires_at: string
+          group_id: string
+          state_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          expires_at?: string
+          group_id?: string
+          state_hash?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discord_connect_states_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discord_connect_states_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
             referencedRelation: "groups_public"
             referencedColumns: ["id"]
           },
@@ -492,6 +759,8 @@ export type Database = {
       game_players: {
         Row: {
           assists: number
+          award: string | null
+          base_mu_after: number | null
           champion_id: number | null
           counts_for_role_inference: boolean
           cs: number
@@ -499,6 +768,7 @@ export type Database = {
           damage_to_champs: number
           damage_to_objectives: number | null
           deaths: number
+          fold_p: number | null
           game_id: string
           gold: number
           group_id: string
@@ -506,6 +776,7 @@ export type Database = {
           mu_after: number | null
           mu_before: number | null
           player_id: string
+          rated_games_before: number | null
           role: Database["public"]["Enums"]["player_role"] | null
           side: number
           sigma_after: number | null
@@ -514,6 +785,8 @@ export type Database = {
         }
         Insert: {
           assists?: number
+          award?: string | null
+          base_mu_after?: number | null
           champion_id?: number | null
           counts_for_role_inference?: boolean
           cs?: number
@@ -521,6 +794,7 @@ export type Database = {
           damage_to_champs?: number
           damage_to_objectives?: number | null
           deaths?: number
+          fold_p?: number | null
           game_id: string
           gold?: number
           group_id: string
@@ -528,6 +802,7 @@ export type Database = {
           mu_after?: number | null
           mu_before?: number | null
           player_id: string
+          rated_games_before?: number | null
           role?: Database["public"]["Enums"]["player_role"] | null
           side: number
           sigma_after?: number | null
@@ -536,6 +811,8 @@ export type Database = {
         }
         Update: {
           assists?: number
+          award?: string | null
+          base_mu_after?: number | null
           champion_id?: number | null
           counts_for_role_inference?: boolean
           cs?: number
@@ -543,6 +820,7 @@ export type Database = {
           damage_to_champs?: number
           damage_to_objectives?: number | null
           deaths?: number
+          fold_p?: number | null
           game_id?: string
           gold?: number
           group_id?: string
@@ -550,6 +828,7 @@ export type Database = {
           mu_after?: number | null
           mu_before?: number | null
           player_id?: string
+          rated_games_before?: number | null
           role?: Database["public"]["Enums"]["player_role"] | null
           side?: number
           sigma_after?: number | null
@@ -602,8 +881,16 @@ export type Database = {
           id: string
           lcu_game_id: number
           lobby_id: string | null
+          mode: string | null
+          rated: boolean
           raw: Json
-          season_id: string
+          rule: string | null
+          rule_check: Json | null
+          rule_checked: boolean
+          rule_class_tag: string | null
+          rule_no_draw: boolean
+          rule_region_blue: string | null
+          rule_region_red: string | null
           source: Database["public"]["Enums"]["game_source"]
           started_at: string
           winning_side: number
@@ -615,8 +902,16 @@ export type Database = {
           id?: string
           lcu_game_id: number
           lobby_id?: string | null
+          mode?: string | null
+          rated?: boolean
           raw: Json
-          season_id?: string
+          rule?: string | null
+          rule_check?: Json | null
+          rule_checked?: boolean
+          rule_class_tag?: string | null
+          rule_no_draw?: boolean
+          rule_region_blue?: string | null
+          rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
           started_at: string
           winning_side: number
@@ -628,8 +923,16 @@ export type Database = {
           id?: string
           lcu_game_id?: number
           lobby_id?: string | null
+          mode?: string | null
+          rated?: boolean
           raw?: Json
-          season_id?: string
+          rule?: string | null
+          rule_check?: Json | null
+          rule_checked?: boolean
+          rule_class_tag?: string | null
+          rule_no_draw?: boolean
+          rule_region_blue?: string | null
+          rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
           started_at?: string
           winning_side?: number
@@ -657,10 +960,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "games_season_id_fkey"
-            columns: ["season_id"]
+            foreignKeyName: "games_mode_fkey"
+            columns: ["mode"]
             isOneToOne: false
-            referencedRelation: "seasons"
+            referencedRelation: "modes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_rule_fkey"
+            columns: ["rule"]
+            isOneToOne: false
+            referencedRelation: "modes"
             referencedColumns: ["id"]
           },
         ]
@@ -703,6 +1013,7 @@ export type Database = {
       }
       group_memberships: {
         Row: {
+          ai_opt_out: boolean
           backfill_approved_at: string | null
           backfill_requested_at: string | null
           created_at: string
@@ -711,6 +1022,7 @@ export type Database = {
           role: string
         }
         Insert: {
+          ai_opt_out?: boolean
           backfill_approved_at?: string | null
           backfill_requested_at?: string | null
           created_at?: string
@@ -719,6 +1031,7 @@ export type Database = {
           role?: string
         }
         Update: {
+          ai_opt_out?: boolean
           backfill_approved_at?: string | null
           backfill_requested_at?: string | null
           created_at?: string
@@ -757,26 +1070,134 @@ export type Database = {
           },
         ]
       }
+      group_modes: {
+        Row: {
+          group_id: string
+          mode: string
+          pending_class_tag: string | null
+          pending_rule: string | null
+          pending_set_by: string | null
+          rated_override: boolean | null
+          set_by: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          group_id: string
+          mode?: string
+          pending_class_tag?: string | null
+          pending_rule?: string | null
+          pending_set_by?: string | null
+          rated_override?: boolean | null
+          set_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          group_id?: string
+          mode?: string
+          pending_class_tag?: string | null
+          pending_rule?: string | null
+          pending_set_by?: string | null
+          rated_override?: boolean | null
+          set_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_modes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modes_mode_fkey"
+            columns: ["mode"]
+            isOneToOne: false
+            referencedRelation: "modes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modes_pending_rule_fkey"
+            columns: ["pending_rule"]
+            isOneToOne: false
+            referencedRelation: "modes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modes_pending_set_by_fkey"
+            columns: ["pending_set_by"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modes_pending_set_by_fkey"
+            columns: ["pending_set_by"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modes_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modes_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       groups: {
         Row: {
+          ai_lines_enabled: boolean
+          ai_monthly_cap_usd: number
           created_at: string
           created_by: string | null
           id: string
           name: string
+          premium: boolean
+          premium_changed_at: string | null
+          ratings_since: string | null
           slug: string
         }
         Insert: {
+          ai_lines_enabled?: boolean
+          ai_monthly_cap_usd?: number
           created_at?: string
           created_by?: string | null
           id?: string
           name: string
+          premium?: boolean
+          premium_changed_at?: string | null
+          ratings_since?: string | null
           slug: string
         }
         Update: {
+          ai_lines_enabled?: boolean
+          ai_monthly_cap_usd?: number
           created_at?: string
           created_by?: string | null
           id?: string
           name?: string
+          premium?: boolean
+          premium_changed_at?: string | null
+          ratings_since?: string | null
           slug?: string
         }
         Relationships: []
@@ -789,6 +1210,15 @@ export type Database = {
           lcu_party_id: string
           lobby_name: string | null
           lobby_password: string | null
+          lock_class_tag: string | null
+          lock_mode: string | null
+          lock_no_draw: boolean
+          lock_rated: boolean | null
+          lock_region_blue: string | null
+          lock_region_red: string | null
+          lock_rule: string | null
+          lock_version: number | null
+          locked_at: string | null
           reported_by_player_id: string | null
           status: Database["public"]["Enums"]["lobby_status"]
           updated_at: string
@@ -800,6 +1230,15 @@ export type Database = {
           lcu_party_id: string
           lobby_name?: string | null
           lobby_password?: string | null
+          lock_class_tag?: string | null
+          lock_mode?: string | null
+          lock_no_draw?: boolean
+          lock_rated?: boolean | null
+          lock_region_blue?: string | null
+          lock_region_red?: string | null
+          lock_rule?: string | null
+          lock_version?: number | null
+          locked_at?: string | null
           reported_by_player_id?: string | null
           status?: Database["public"]["Enums"]["lobby_status"]
           updated_at?: string
@@ -811,6 +1250,15 @@ export type Database = {
           lcu_party_id?: string
           lobby_name?: string | null
           lobby_password?: string | null
+          lock_class_tag?: string | null
+          lock_mode?: string | null
+          lock_no_draw?: boolean
+          lock_rated?: boolean | null
+          lock_region_blue?: string | null
+          lock_region_red?: string | null
+          lock_rule?: string | null
+          lock_version?: number | null
+          locked_at?: string | null
           reported_by_player_id?: string | null
           status?: Database["public"]["Enums"]["lobby_status"]
           updated_at?: string
@@ -828,6 +1276,20 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobbies_lock_mode_fkey"
+            columns: ["lock_mode"]
+            isOneToOne: false
+            referencedRelation: "modes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobbies_lock_rule_fkey"
+            columns: ["lock_rule"]
+            isOneToOne: false
+            referencedRelation: "modes"
             referencedColumns: ["id"]
           },
           {
@@ -897,6 +1359,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      modes: {
+        Row: {
+          created_at: string
+          id: string
+          rated_default: boolean
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          rated_default?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rated_default?: boolean
+        }
+        Relationships: []
       }
       pairing_attempts: {
         Row: {
@@ -1040,7 +1520,6 @@ export type Database = {
           mu: number
           ordinal: number | null
           player_id: string
-          season_id: string
           seed_mu: number | null
           seed_rank_division: string | null
           seed_rank_tier: string | null
@@ -1055,7 +1534,6 @@ export type Database = {
           mu: number
           ordinal?: number | null
           player_id: string
-          season_id: string
           seed_mu?: number | null
           seed_rank_division?: string | null
           seed_rank_tier?: string | null
@@ -1070,7 +1548,6 @@ export type Database = {
           mu?: number
           ordinal?: number | null
           player_id?: string
-          season_id?: string
           seed_mu?: number | null
           seed_rank_division?: string | null
           seed_rank_tier?: string | null
@@ -1108,41 +1585,7 @@ export type Database = {
             referencedRelation: "players_public"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "ratings_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "seasons"
-            referencedColumns: ["id"]
-          },
         ]
-      }
-      seasons: {
-        Row: {
-          created_at: string
-          ends_at: string | null
-          id: string
-          is_active: boolean
-          name: string
-          starts_at: string
-        }
-        Insert: {
-          created_at?: string
-          ends_at?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          starts_at?: string
-        }
-        Update: {
-          created_at?: string
-          ends_at?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          starts_at?: string
-        }
-        Relationships: []
       }
       splits: {
         Row: {
@@ -1295,16 +1738,19 @@ export type Database = {
         Row: {
           id: string | null
           name: string | null
+          ratings_since: string | null
           slug: string | null
         }
         Insert: {
           id?: string | null
           name?: string | null
+          ratings_since?: string | null
           slug?: string | null
         }
         Update: {
           id?: string | null
           name?: string | null
+          ratings_since?: string | null
           slug?: string | null
         }
         Relationships: []
@@ -1362,7 +1808,40 @@ export type Database = {
       }
     }
     Functions: {
-      active_season_id: { Args: never; Returns: string }
+      ai_month_spend: {
+        Args: { p_group_id: string; p_month_end: string; p_month_start: string }
+        Returns: {
+          calls_enabled: boolean
+          global_cap_usd: number
+          global_spent_usd: number
+          group_cap_usd: number
+          group_spent_usd: number
+          lines_enabled: boolean
+          premium: boolean
+        }[]
+      }
+      ai_reserve_call: {
+        Args: {
+          p_group_id: string
+          p_line_id?: string
+          p_model: string
+          p_month_end: string
+          p_month_start: string
+          p_worst_case_usd: number
+        }
+        Returns: Json
+      }
+      ai_settle_call: {
+        Args: {
+          p_call_id: string
+          p_cost_usd: number
+          p_input_tokens: number
+          p_outcome: string
+          p_output_tokens: number
+          p_request_id: string
+        }
+        Returns: boolean
+      }
       bootstrap_admin: {
         Args: { p_puuid: string }
         Returns: {
@@ -1407,6 +1886,8 @@ export type Database = {
           outcome: string
         }[]
       }
+      current_player_id: { Args: never; Returns: string }
+      is_group_admin: { Args: { p_group_id: string }; Returns: boolean }
       new_invite_code: { Args: never; Returns: string }
       pairing_attempt: {
         Args: { p_ip_hash: string; p_limit: number; p_window_seconds: number }
@@ -1420,47 +1901,30 @@ export type Database = {
           outcome: string
         }[]
       }
+      remove_group_member: {
+        Args: { p_actor_id: string; p_group_id: string; p_player_id: string }
+        Returns: string
+      }
+      reset_group_ratings: {
+        Args: { p_actor_id: string; p_group_id: string; p_now?: string }
+        Returns: string
+      }
       rotate_group_invite: {
         Args: { p_group_id: string; p_rotated_by: string }
         Returns: string
       }
-      set_active_season: {
-        Args: { p_id: string }
-        Returns: {
-          created_at: string
-          ends_at: string | null
-          id: string
-          is_active: boolean
-          name: string
-          starts_at: string
+      set_group_member_role_v2: {
+        Args: {
+          p_actor_id: string
+          p_group_id: string
+          p_player_id: string
+          p_role: string
         }
-        SetofOptions: {
-          from: "*"
-          to: "seasons"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      set_group_member_role: {
-        Args: { p_group_id: string; p_player_id: string; p_role: string }
         Returns: string
       }
-      start_season: {
-        Args: { p_name: string }
-        Returns: {
-          created_at: string
-          ends_at: string | null
-          id: string
-          is_active: boolean
-          name: string
-          starts_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "seasons"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+      transfer_group_ownership: {
+        Args: { p_actor_id: string; p_group_id: string; p_player_id: string }
+        Returns: string
       }
     }
     Enums: {

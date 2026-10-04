@@ -1,7 +1,7 @@
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
+import { NO_MORE_SPLITS } from '@/lib/admin/rerollCopy';
 import { REROLL_FAILED, REROLL_LABEL, REROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import type { SplitChoice } from '@/lib/tonight/types';
 import { RerollControl } from './RerollControl';
@@ -61,7 +61,6 @@ describe('the reroll control', () => {
     button.focus();
     fireEvent.click(button);
     await waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'));
-    expect(button).toHaveClass('cn-button-quiet');
     expect(button).not.toBeDisabled();
     expect(document.activeElement).toBe(button);
     fireEvent.click(button);
@@ -69,7 +68,6 @@ describe('the reroll control', () => {
 
     release({ ok: true, status: 200, json: async () => ({ ok: true }) } as unknown as Response);
     await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
-    expect(button).not.toHaveClass('cn-button-quiet');
   });
 
   it('is really disabled only on the last split, with the sentence beside it', () => {
@@ -85,7 +83,6 @@ describe('the reroll control', () => {
     fireEvent.click(screen.getByRole('button', { name: REROLL_LABEL }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/^That split is already on the board\.$/);
-    expect(alert).toHaveClass('cn-reroll-note', 'cn-reroll-note-refused');
   });
 
   it('has a sentence of its own for a refusal with none, and for a press that never left', async () => {

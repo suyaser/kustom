@@ -14,6 +14,11 @@ export interface LocalStack {
   url: string;
   anonKey: string;
   serviceRoleKey: string;
+  /**
+   * The HS256 secret the stack's PostgREST verifies JWTs with (M14.5: tests sign real
+   * `authenticated` session tokens with it). Optional so callers that never sign one are unchanged.
+   */
+  jwtSecret?: string;
 }
 
 const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -23,7 +28,8 @@ function fromEnv(): LocalStack | null {
   const anonKey = process.env.SUPABASE_LOCAL_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_LOCAL_SERVICE_ROLE_KEY;
   if (!url || !anonKey || !serviceRoleKey) return null;
-  return { url, anonKey, serviceRoleKey };
+  const jwtSecret = process.env.SUPABASE_LOCAL_JWT_SECRET;
+  return jwtSecret ? { url, anonKey, serviceRoleKey, jwtSecret } : { url, anonKey, serviceRoleKey };
 }
 
 function fromCli(): LocalStack | null {
@@ -50,7 +56,8 @@ function fromCli(): LocalStack | null {
   const anonKey = values.get('ANON_KEY');
   const serviceRoleKey = values.get('SERVICE_ROLE_KEY');
   if (!url || !anonKey || !serviceRoleKey) return null;
-  return { url, anonKey, serviceRoleKey };
+  const jwtSecret = values.get('JWT_SECRET');
+  return jwtSecret ? { url, anonKey, serviceRoleKey, jwtSecret } : { url, anonKey, serviceRoleKey };
 }
 
 /**

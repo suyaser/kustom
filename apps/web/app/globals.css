@@ -1,0 +1,601 @@
+/*
+ * Kustom 2.0, "Floodlit Slate" (docs/05-design.md): tokens, the Tailwind v4 mapping and the base
+ * styles for every page (M14.1; global since M14.25, when the 1.0 stylesheets were deleted).
+ *
+ * How it is put together:
+ *
+ *   1. Tailwind is imported in parts: the theme layer (CSS variables only) and the utilities layer.
+ *      The preflight is not Tailwind's file but the copy in `@layer base` below (v4.3.3), because it
+ *      carries 7.3's element rules (ink, faces, placeholder colour, balanced headings) in the same
+ *      place. It applies to the whole document.
+ *   2. Utilities are generated only from the folders listed in `@source` (`source(none)`), so copy in
+ *      `lib/` or a test file cannot turn a word like `hidden` into a class. Add a folder here when a
+ *      new one holds components.
+ *
+ * Every value is copied from 05-design.md section 7.3. Do not add a hex here that is not there.
+ * Where this file departs from 7.3's paste, it is only in *where* rules apply, never in a value:
+ * the body light is the `bg-page` utility, on the element that is the page; the theme selectors are
+ * `[data-theme]` rather than `:root[data-theme]`, with the derived roles re-declared per boundary;
+ * Tailwind's stock palette, type scale and radii are wiped so only 7.3's exist.
+ */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "tw-animate-css";
+
+@source "../components";
+@source "./(dev)";
+@source "./(group)";
+@source "./_tonight";
+@source "./_mode";
+@source "./_games";
+@source "./_stats";
+@source "./_mystery";
+@source "./new";
+@source "./join";
+@source "./ops";
+@source "./_board";
+@source "./_icons";
+@source "./admin";
+
+/* Night is the default token set, so components never branch on theme. `day:` exists for rare
+   art-direction fixes only (05-design.md 2.4). There is deliberately no `dark:` variant. */
+@custom-variant day (&:where([data-theme="day"], [data-theme="day"] *));
+
+/* The four Radix state variants the kept shadcn components use (shadcn ships them in
+   `shadcn/tailwind.css`; we need these four, not the package). */
+@custom-variant data-open (&:where([data-state="open"]), &:where([data-open]:not([data-open="false"])));
+@custom-variant data-closed (
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"]))
+);
+@custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
+@custom-variant data-vertical (&:where([data-orientation="vertical"]));
+
+/* ---------------------------------------------------------------------------------------------
+ * 7.3 Primitives. Raw values, named by what they are; never read by a component.
+ * Ramp steps: 0 page, 1 card, 2 raised, 3 border, 5 strong border, 7 muted text, 9 text.
+ * ------------------------------------------------------------------------------------------- */
+:root {
+  /* Night neutrals: Floodlit 1.0's deep blue-black (the user's pick, 2026-10-04). The name stayed
+     `slate` so nothing that reads a step had to move; the values are 1.0's, with muted and the
+     strong step lifted to clear AA (05-design.md 3.2). */
+  --p-slate-0: #05070c;
+  --p-slate-1: #0c121a;
+  --p-slate-2: #141b28;
+  --p-slate-3: #2a3344;
+  --p-slate-5: #66738a;
+  --p-slate-7: #8b98ad;
+  --p-slate-9: #f4f7fc;
+
+  --p-paper-0: #e9edf2;
+  --p-paper-1: #ffffff;
+  --p-paper-2: #eef1f5;
+  --p-paper-3: #a9b3c1;
+  --p-paper-5: #7d8898;
+  --p-paper-7: #434c5a;
+  --p-paper-9: #0e1116;
+
+  --p-azure-400: #2e9bff;
+  --p-azure-700: #1563cf;
+  --p-vermilion-400: #ff6b35;
+  --p-vermilion-700: #b5390b;
+
+  --p-amber-400: #ffcf66;
+  --p-amber-800: #7a4f00;
+
+  --p-rose-400: #ff6b8a;
+  --p-rose-700: #b4123c;
+
+  --p-ink: #10141b;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * 2.2 Semantic: shadcn's names plus ours. Night is :root; Day overrides this layer only.
+ * Selectors are `[data-theme]`, not `:root[data-theme]`, so a subtree can carry its own theme.
+ * ------------------------------------------------------------------------------------------- */
+:root,
+[data-theme="night"] {
+  color-scheme: dark;
+
+  --background: var(--p-slate-0);
+  --foreground: var(--p-slate-9);
+  --card: var(--p-slate-1);
+  --card-foreground: var(--p-slate-9);
+  --raised: var(--p-slate-2);
+  --primary: var(--p-amber-400);
+  --primary-foreground: var(--p-ink);
+  --primary-text: var(--p-amber-400);
+  --primary-fill: var(--p-amber-400);
+  --on-primary-fill: var(--p-ink);
+  --muted-foreground: var(--p-slate-7);
+  --destructive: var(--p-rose-400);
+  --border: var(--p-slate-3);
+  --border-strong: var(--p-slate-5);
+  --input: var(--p-slate-5);
+  --team-blue: var(--p-azure-400);
+  --team-red: var(--p-vermilion-400);
+  --on-team: var(--p-ink);
+  --stripe: rgb(16 20 27 / 0.16);
+  --you-wash-amount: 9%;
+  --scrim: rgb(0 0 0 / 0.64);
+  /* 7.3's floodlight: 1.0's two corner lamps (azure top-left, amber top-right, so neither side's
+     colour owns the light) and its 48px pitch grid, painted by `bg-page` over --background. */
+  --page-light:
+    radial-gradient(90% 760px at 8% -140px, rgb(46 155 255 / 0.16), transparent 58%) no-repeat,
+    radial-gradient(80% 700px at 96% -120px, rgb(255 207 102 / 0.12), transparent 52%) no-repeat,
+    repeating-linear-gradient(0deg, transparent 0 47px, rgb(244 247 252 / 0.04) 47px 48px),
+    repeating-linear-gradient(90deg, transparent 0 47px, rgb(244 247 252 / 0.04) 47px 48px);
+}
+
+[data-theme="day"] {
+  color-scheme: light;
+
+  --background: var(--p-paper-0);
+  --foreground: var(--p-paper-9);
+  --card: var(--p-paper-1);
+  --card-foreground: var(--p-paper-9);
+  --raised: var(--p-paper-2);
+  --primary: var(--p-amber-800);
+  --primary-foreground: var(--p-paper-1);
+  --primary-text: var(--p-amber-800);
+  --primary-fill: var(--p-amber-400);
+  --on-primary-fill: var(--p-ink);
+  --muted-foreground: var(--p-paper-7);
+  --destructive: var(--p-rose-700);
+  --border: var(--p-paper-3);
+  --border-strong: var(--p-paper-5);
+  --input: var(--p-paper-5); /* = --border-strong: 3.59 on card, 3.05 on page (6.15, WCAG 1.4.11) */
+  --team-blue: var(--p-azure-700);
+  --team-red: var(--p-vermilion-700);
+  --on-team: var(--p-paper-1);
+  --stripe: rgb(0 0 0 / 0.2);
+  --you-wash-amount: 18%;
+  --scrim: rgb(14 17 22 / 0.48);
+  /* Day keeps its one centred amber glow. */
+  --page-light: radial-gradient(110% 380px at 50% -140px, rgb(122 79 0 / 0.05), transparent 72%) no-repeat;
+}
+
+/* Derived and aliased roles. Re-declared at every theme boundary, because a custom property that
+   reads another is resolved where it is declared: declared on :root only, a Day subtree inside a
+   Night page would inherit Night's mixes. */
+:root,
+[data-theme] {
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+  --secondary: var(--raised);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--raised);
+  --accent: var(--raised);
+  --accent-foreground: var(--foreground);
+  --ring: var(--foreground);
+  --team-blue-tint: color-mix(in srgb, var(--team-blue) 12%, var(--card));
+  --team-red-tint: color-mix(in srgb, var(--team-red) 12%, var(--card));
+  --hatch: repeating-linear-gradient(135deg, var(--stripe) 0 4px, transparent 4px 9px);
+  --hatch-strong: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.28) 0 4px, transparent 4px 9px);
+  --side-block-shade: rgb(0 0 0 / 0.14);
+  --you-wash: color-mix(in srgb, var(--primary-fill) var(--you-wash-amount), var(--card));
+  --live: var(--primary-text);
+  --you: var(--primary-text);
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * 2.3 Component tokens and 2.7 type scale. Same in both themes.
+ * ------------------------------------------------------------------------------------------- */
+:root {
+  --tap: 44px;
+  --seat-min-h: 64px;
+  --row-min-h: 56px;
+  --chip-h: 28px;
+  --role-cell-w: 60px;
+  --thead-h: 54px;
+  --side-block-w: 46px;
+  --winbar-h: 50px;
+  --winbar-h-compact: 40px;
+  --winbar-h-mini: 10px;
+  --side-rule-w: 4px;
+  --tabbar-h: 60px;
+  --topbar-h: 60px;
+  --gutter: 16px;
+  --card-pad: 16px;
+  --rail-w: 340px;
+
+  --fs-2xs: 0.8125rem; /* 13, the floor */
+  --fs-xs: 0.9375rem; /* 15 */
+  --fs-sm: 1rem; /* 16 */
+  --fs-base: 1.0625rem; /* 17 */
+  --fs-md: 1.1875rem; /* 19 */
+  --fs-lg: 1.4375rem; /* 23 -> 26 */
+  --fs-xl: 2rem; /* 32 */
+  --fs-display: 2.875rem; /* 46 -> 64 */
+
+  --dur-press: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 280ms;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --winbar-h: 60px;
+    --winbar-h-compact: 44px;
+    --card-pad: 20px;
+    --fs-lg: 1.625rem; /* 26 */
+    --fs-display: 4rem; /* 64 */
+  }
+}
+
+/* Atkinson's size-matched fallback (05-design.md 4 and 7.3). next/font has no metrics for this family,
+   so `app/fonts.ts` sets `adjustFontFallback: false` and the face is declared here, measured by the
+   designer against Arial. Android has no Arial; it falls through to an unmatched system-ui, which is
+   the accepted residue. */
+@font-face {
+  font-family: "Atkinson Fallback";
+  src: local("Arial"), local("ArialMT");
+  size-adjust: 100.07%;
+  ascent-override: 98.33%;
+  descent-override: 31.58%;
+  line-gap-override: 0%;
+}
+
+/* The three faces, as runtime variables any CSS can read. next/font sets its own variables on <html>
+   (app/fonts.ts: `--font-atkinson`, `--font-martian`, `--font-archivo`); these alias them under the
+   documented names, with the fallback stacks. Unlayered on purpose: it must win over Tailwind's theme layer, which may emit
+   the same names as self-references. */
+:root {
+  --font-text:
+    var(--font-atkinson), "Atkinson Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-archivo), "Arial Narrow", system-ui, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * 2.4 Tailwind mapping. Tailwind's default palette, type scale, radii and shadows are wiped, so
+ * `bg-blue-500`, `text-2xl`, `rounded-lg`-as-Tailwind-meant-it and `shadow-sm` do not exist:
+ * stock code either lands on our tokens or fails to style, visibly.
+ * ------------------------------------------------------------------------------------------- */
+@theme inline {
+  --color-*: initial;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-raised: var(--raised);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
+  --color-primary-fill: var(--primary-fill);
+  --color-on-primary-fill: var(--on-primary-fill);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-team-blue: var(--team-blue);
+  --color-team-red: var(--team-red);
+  --color-team-blue-tint: var(--team-blue-tint);
+  --color-team-red-tint: var(--team-red-tint);
+  --color-on-team: var(--on-team);
+  --color-you-wash: var(--you-wash);
+  --color-live: var(--live);
+  --color-you: var(--you);
+
+  /* The documented face names (05-design.md 4): utilities `font-text` (= `font-sans`, the default),
+     `font-mono`, `font-display`. Their stacks are the runtime variables in the `:root` block above. */
+  --font-sans: var(--font-text);
+  --font-text: var(--font-text);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+
+  --text-*: initial;
+  --text-2xs: var(--fs-2xs);
+  --text-2xs--line-height: 1.3;
+  --text-xs: var(--fs-xs);
+  --text-xs--line-height: 1.4;
+  --text-sm: var(--fs-sm);
+  --text-sm--line-height: 1.45;
+  --text-base: var(--fs-base);
+  --text-base--line-height: 1.5;
+  --text-md: var(--fs-md);
+  --text-md--line-height: 1.25;
+  --text-lg: var(--fs-lg);
+  --text-lg--line-height: 1.25;
+  --text-xl: var(--fs-xl);
+  --text-xl--line-height: 1;
+  --text-display: var(--fs-display);
+  --text-display--line-height: 0.95;
+
+  --shadow-*: initial;
+  --shadow-overlay: 0 16px 48px rgb(0 0 0 / 0.5);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-live: live-pulse 2s ease-in-out infinite;
+}
+
+/* Not inline: literal values, so Tailwind emits the variables and the rounded-* utilities. */
+@theme {
+  --radius-*: initial;
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-chip: 4px;
+  /* shadcn's stock classes read these; aliased so they land on our three steps. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+}
+
+/* The page surface with 7.3's light (`--page-light`: Night's lamps and grid, Day's glow). On the
+   element that is the page (the shell, the kit), never on every 2.0 root: the bars and dialogs are
+   roots too, and carry their own surface. */
+@utility bg-page {
+  background: var(--page-light), var(--background);
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * The base: Tailwind's preflight (v4.3.3) plus 05-design.md's element rules, for the whole
+ * document. Every selector is zero-specificity (`:where()` or a bare `*`), so any utility wins.
+ * ------------------------------------------------------------------------------------------- */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+
+  /* Preflight's `html` rule, plus 7.3's ink and text face. The ink is re-declared on every theme
+     boundary, so a `data-theme="day"` subtree inside a Night page reads Day's foreground. */
+  :where(html, [data-theme]) {
+    color: var(--foreground);
+    font-family: var(--font-text);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* The body size on <body>, never on <html>: there it would move `1rem` from 16px to 17px and
+     every rem-sized token with it. The page colour is what shows under a short page and in the
+     overscroll; the glow is `bg-page`, on the shell. */
+  :where(body) {
+    font-size: var(--fs-base);
+    background-color: var(--background);
+  }
+
+  :where(hr) {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+
+  :where(abbr[title]) {
+    text-decoration: underline dotted;
+  }
+
+  :where(h1, h2, h3, h4, h5, h6) {
+    font-size: inherit;
+    font-weight: inherit;
+    text-wrap: balance;
+  }
+
+  :where(p) {
+    text-wrap: pretty;
+  }
+
+  :where(a) {
+    color: inherit;
+    text-decoration: inherit;
+  }
+
+  :where(b, strong) {
+    font-weight: bolder;
+  }
+
+  :where(code, kbd, samp, pre) {
+    font-family: var(--font-mono);
+    font-size: 1em;
+  }
+
+  :where(small) {
+    font-size: 80%;
+  }
+
+  :where(sub, sup) {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+
+  :where(sub) {
+    bottom: -0.25em;
+  }
+
+  :where(sup) {
+    top: -0.5em;
+  }
+
+  :where(table) {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+
+  :where(progress) {
+    vertical-align: baseline;
+  }
+
+  :where(summary) {
+    display: list-item;
+  }
+
+  :where(ol, ul, menu) {
+    list-style: none;
+  }
+
+  :where(img, svg, video, canvas, audio, iframe, embed, object) {
+    display: block;
+    vertical-align: middle;
+  }
+
+  :where(img, video) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  :where(button, input, select, optgroup, textarea),
+  ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+
+  :where(select:is([multiple], [size])) optgroup {
+    font-weight: bolder;
+  }
+
+  :where(select:is([multiple], [size])) optgroup option {
+    padding-inline-start: 20px;
+  }
+
+  ::file-selector-button {
+    margin-inline-end: 4px;
+  }
+
+  ::placeholder {
+    opacity: 1;
+    color: var(--muted-foreground);
+  }
+
+  :where(textarea) {
+    resize: vertical;
+  }
+
+  ::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+
+  ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+
+  ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+
+  ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+
+  :where(button, input[type="button"], input[type="reset"], input[type="submit"]),
+  ::file-selector-button {
+    appearance: button;
+  }
+
+  ::-webkit-inner-spin-button,
+  ::-webkit-outer-spin-button {
+    height: auto;
+  }
+
+  :where([hidden]:not([hidden="until-found"])) {
+    /* biome-ignore lint/complexity/noImportantStyles: preflight's own rule; [hidden] must beat any display utility */
+    display: none !important;
+  }
+
+  /* 05-design.md 6.7: we draw our own :active, so no grey tap flash and no double-tap zoom wait. */
+  :where(a, button, summary, select, [role="button"]) {
+    touch-action: manipulation;
+  }
+
+  /* 6.1: the focus ring, once. Foreground, outline (survives forced colours), follows radius. */
+  :where(:focus-visible) {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* WCAG 2.4.11: below 1024 the fixed tab bar covers the bottom of the viewport, so a Tab stop
+     scrolls clear of it instead of landing underneath (Phase 4 sweep, M14.26). */
+  @media (width < 64rem) {
+    :where(html) {
+      scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 8px);
+    }
+  }
+
+  :where(.num) {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The shell's <main> takes focus from the skip link (`tabIndex={-1}`, M14.7). It is a landmark, not
+     a control: no ring around the whole page. Focus lands inside it on the next Tab as usual. */
+  :where(main#main):focus,
+  :where(main#main):focus-visible {
+    outline: none;
+  }
+}
+
+/* 2.9: reduced motion, everywhere. */
+/* biome-ignore-start lint/complexity/noImportantStyles: 05-design.md 2.9 and 6.8 must beat every component's motion and fill */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation: none !important;
+    transition-property: opacity !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 6.8: forced colours. Every side fill carries `data-side-fill` (7.3); it drops its hatch and keeps
+   a 1px system border. */
+@media (forced-colors: active) {
+  :where([data-side-fill]) {
+    border: 1px solid CanvasText;
+    background-image: none !important;
+  }
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: see biome-ignore-start */
+
+/* M15.5 (design round 2): while a Spin cycles in the Mode card status slot, everything that already
+   names the result keeps its place but is not shown. Visibility, not display: no layout shift. */
+[data-spin-cycling] [data-spin-hide] {
+  visibility: hidden;
+}

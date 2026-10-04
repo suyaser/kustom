@@ -88,10 +88,10 @@ describe('POST /auth/signin', () => {
     expect(header).toMatch(/Secure/i);
   });
 
-  it('stores /admin for a foreign destination or no form at all', async () => {
+  it('stores / for a foreign destination or no form at all', async () => {
     for (const next of ['https://example.com/x', '//example.com/x', 'admin', '', null]) {
       const response = await signIn(signInRequest(next));
-      expect(response.cookies.get(NEXT_COOKIE_NAME)?.value).toBe('/admin');
+      expect(response.cookies.get(NEXT_COOKIE_NAME)?.value).toBe('/');
       expect(redirectTo(response)).toBe(`${ORIGIN}/auth/callback`);
     }
   });
@@ -149,10 +149,10 @@ describe('GET /auth/callback', () => {
     expect(response.cookies.get('sb-access-token')?.value).toBe('session');
   });
 
-  it('lands on /admin with no cookie at all', async () => {
+  it('lands on / with no cookie at all', async () => {
     const response = await handleAuthCallback(callbackRequest('?code=abc'), { exchangeCode: exchange() });
 
-    expect(location(response).toString()).toBe(`${ORIGIN}/admin`);
+    expect(location(response).toString()).toBe(`${ORIGIN}/`);
   });
 
   it('ignores a destination that is not a path on this site', async () => {
@@ -160,7 +160,7 @@ describe('GET /auth/callback', () => {
       const response = await handleAuthCallback(callbackRequest('?code=abc', next), {
         exchangeCode: exchange(),
       });
-      expect(location(response).toString()).toBe(`${ORIGIN}/admin`);
+      expect(location(response).toString()).toBe(`${ORIGIN}/`);
     }
   });
 

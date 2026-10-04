@@ -1,0 +1,17 @@
+{
+  "name": "command-nack--not-connected",
+  "kind": "request",
+  "target": "api",
+  "route": "command-nack",
+  "patch": "16.17",
+  "fixtures": [],
+  "scenario": "command-not-connected",
+  "note": "A command handed out while there is no client (the real server never does this on false; it is the race of a socket dropping between poll and call): nack not_connected, retryable true, nothing recorded.",
+  "method": "POST",
+  "path": "/api/companion/commands/1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e/nack",
+  "commandKind": "switch_side",
+  "body": {
+    "error": "not_connected: the League client went away before the command ran",
+    "retryable": true
+  }
+}

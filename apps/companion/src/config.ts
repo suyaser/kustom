@@ -7,7 +7,10 @@
  *  - Linux:   `$XDG_CONFIG_HOME/customs-night/config.json` (default `~/.config`)
  *  - any:     `CUSTOMS_NIGHT_CONFIG_DIR` overrides the directory.
  *
- * Shape (M6 one-app): `{ mode: 'host' | 'overlay', apiBase, companionToken? }`, plus an optional
+ * Shape (M6 one-app, M14.6 groups): `{ mode: 'host' | 'overlay', apiBase, companionToken?, groups?, lastGroupId? }`,
+ * where `groups` is `[{ groupId, slug, name, companionToken? }]` (one token per group) and a top-level
+ * `companionToken` is the 0.2.x single token, read as that token's group and filed under it once the server
+ * says which (`groups.ts`). Plus an optional
  * `lockfilePath` for a non-default League install. Host mode requires a companion token (lobby writes).
  * Overlay mode needs no token. A file with a token and no `mode` is treated as host (0.1.x upgrade).
  * The file is written with mode 0600 (owner only; Windows ignores the mode). Nothing else is ever written to
@@ -17,7 +20,17 @@
  * the console of the person typing it.
  */
 
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
@@ -97,25 +110,74 @@ export const companionTokenSchema = z
   .transform(cleanTokenInput)
   .refine(looksLikeCompanionToken, { message: TOKEN_SHAPE_MESSAGE });
 
+/**
+ * One group this PC knows (M13.8): what pairing and `GET /api/overlay/groups` return, plus the host token if
+ * this PC has one for it. A group without a token is still listed (Overlay uses every group; Host shows it as
+ * `(no host token)`).
+ */
+export const groupEntrySchema = z.object({
+  groupId: z.string().min(1),
+  slug: z.string(),
+  name: z.string(),
+  companionToken: companionTokenSchema.optional(),
+});
+
+export type GroupEntry = z.infer<typeof groupEntrySchema>;
+
+/**
+ * The groups of a raw config object, entry by entry: an entry that does not parse (a corrupted token, a
+ * hand edit) is dropped rather than failing the file, so one bad row never costs a friend the others.
+ */
+export function sanitizeGroups(raw: unknown): GroupEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: GroupEntry[] = [];
+  for (const item of raw) {
+    const parsed = groupEntrySchema.safeParse(item);
+    if (parsed.success && !seen.has(parsed.data.groupId)) {
+      seen.add(parsed.data.groupId);
+      out.push(parsed.data);
+    }
+  }
+  return out;
+}
+
+const groupFields = {
+  groups: z.array(groupEntrySchema).optional(),
+  lastGroupId: z.string().min(1).optional(),
+};
+
 export const appModeSchema = z.enum(['host', 'overlay']);
 export type AppMode = z.infer<typeof appModeSchema>;
 
 const lockfilePathSchema = z.string().trim().min(1).optional();
 
 /** Host mode: token required. Writes to the client and the API. */
-export const hostConfigSchema = z.object({
-  mode: z.literal('host'),
-  apiBase: apiBaseSchema,
-  companionToken: companionTokenSchema,
-  /** A non-default League install. Tried before the platform default lockfile paths. */
-  lockfilePath: lockfilePathSchema,
-});
+export const hostConfigSchema = z
+  .object({
+    mode: z.literal('host'),
+    apiBase: apiBaseSchema,
+    /** The 0.2.x single token (no group known yet), or one a paste just wrote. See `groups.ts`. */
+    companionToken: companionTokenSchema.optional(),
+    /** A non-default League install. Tried before the platform default lockfile paths. */
+    lockfilePath: lockfilePathSchema,
+    ...groupFields,
+  })
+  .refine((config) => config.companionToken !== undefined || (config.groups ?? []).some(hasToken), {
+    message: 'host mode needs a companion token',
+    path: ['companionToken'],
+  });
+
+function hasToken(group: GroupEntry): boolean {
+  return group.companionToken !== undefined;
+}
 
 /** Overlay mode: no token. Fearless + lobby synergy panel only. */
 export const overlayModeConfigSchema = z.object({
   mode: z.literal('overlay'),
   apiBase: apiBaseSchema,
   lockfilePath: lockfilePathSchema,
+  ...groupFields,
 });
 
 export const configSchema = z.discriminatedUnion('mode', [hostConfigSchema, overlayModeConfigSchema]);
@@ -130,6 +192,8 @@ export type HostConfigInput = {
   companionToken: string;
   lockfilePath?: string;
   mode?: AppMode;
+  groups?: GroupEntry[];
+  lastGroupId?: string;
 };
 
 export function isHostConfig(config: CompanionConfig): config is HostConfig {
@@ -147,7 +211,18 @@ function withInferredMode(raw: unknown): unknown {
   if (typeof record.companionToken === 'string' && record.companionToken.trim().length > 0) {
     return { ...record, mode: 'host' };
   }
+  if (sanitizeGroups(record.groups).some(hasToken)) {
+    return { ...record, mode: 'host' };
+  }
   return raw;
+}
+
+/** Drops unparseable group entries before the schema sees the file; leaves a file with no `groups` alone. */
+function withSanitizedGroups(raw: unknown): unknown {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const record = raw as Record<string, unknown>;
+  if (record.groups === undefined) return raw;
+  return { ...record, groups: sanitizeGroups(record.groups) };
 }
 
 export interface ConfigEnv {
@@ -227,7 +302,7 @@ export function loadConfig(dir: string): LoadConfigResult {
     const position = error instanceof Error ? /position (\d+)/.exec(error.message)?.[1] : undefined;
     return { status: 'invalid', path, reason: position ? `not JSON (at position ${position})` : 'not JSON' };
   }
-  const parsed = configSchema.safeParse(withInferredMode(raw));
+  const parsed = configSchema.safeParse(withInferredMode(withSanitizedGroups(raw)));
   if (parsed.success) {
     return { status: 'ok', config: parsed.data, path };
   }
@@ -246,6 +321,13 @@ export function loadConfig(dir: string): LoadConfigResult {
     if (record.mode === 'overlay' || record.mode === 'host') {
       partial.mode = record.mode;
     }
+    const groups = sanitizeGroups(record.groups);
+    if (groups.length > 0) {
+      partial.groups = groups;
+    }
+    if (typeof record.lastGroupId === 'string' && record.lastGroupId.length > 0) {
+      partial.lastGroupId = record.lastGroupId;
+    }
     if (typeof record.companionToken === 'string' && record.companionToken.trim().length > 0) {
       reason = 'bad_token';
     }
@@ -253,31 +335,233 @@ export function loadConfig(dir: string): LoadConfigResult {
   return { status: 'missing', path, partial, reason };
 }
 
-/** Writes the config with owner-only permissions. Creates the directory. Throws on I/O failure. */
-export function saveConfig(dir: string, config: CompanionConfig | HostConfigInput): string {
-  const path = configPath(dir);
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const normalized: CompanionConfig =
-    'mode' in config && config.mode === 'overlay'
-      ? overlayModeConfigSchema.parse(config)
-      : hostConfigSchema.parse({
-          mode: 'host',
-          apiBase: config.apiBase,
-          companionToken: (config as HostConfigInput).companionToken,
-          ...('lockfilePath' in config && config.lockfilePath ? { lockfilePath: config.lockfilePath } : {}),
-        });
-  const body = `${JSON.stringify(normalized, null, 2)}\n`;
-  writeFileSync(path, body, { mode: 0o600 });
-  // `mode` only applies when the file is created; a pre-existing file (the partial-config first-run path)
-  // keeps whatever mode it had, so tighten it explicitly. Windows has no POSIX modes; ignore failure there.
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Writes the config atomically: the body goes to `config.json.tmp` and is renamed over the real file, so a
+ * reader (the engine's file poll, another process) sees the old file or the new one, never half of one.
+ * Callers hold the config lock. A rename Windows refuses for a moment (EPERM/EBUSY, an antivirus or a reader
+ * has the file open) is retried.
+ */
+export const STATE_OWNER_FILE = 'legacy-state-owner';
+const ROOT_STATE_NAMES = ['queue', 'backfill.json', 'commands-done.json'] as const;
+
+/** A short, one-way tag of a token: enough to tell two tokens apart, nothing that could be used as one. */
+export function tokenFingerprint(token: string): string {
+  return createHash('sha256').update(token).digest('hex').slice(0, 16);
+}
+
+export function readStateOwner(dir: string): string | null {
   try {
-    chmodSync(path, 0o600);
+    return readFileSync(join(dir, STATE_OWNER_FILE), 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Records who owns the config root's queue, backfill and executed state, once. Never throws. */
+export function recordStateOwner(dir: string, token: string): void {
+  if (readStateOwner(dir) !== null) return;
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileSync(join(dir, STATE_OWNER_FILE), `${tokenFingerprint(token)}\n`, { mode: 0o600, flag: 'wx' });
+  } catch {
+    // Not recorded: the next start asks again.
+  }
+}
+
+/**
+ * The upgrade gap: a 0.2.x/0.3.0 PC has root state captured under its top-level token and no owner record
+ * yet. Before a write replaces that token with a different one, the outgoing token is recorded as the owner,
+ * so the new token can never claim the old token's queue.
+ */
+function protectRootState(dir: string, next: unknown): void {
+  if (readStateOwner(dir) !== null) return;
+  if (!ROOT_STATE_NAMES.some((name) => existsSync(join(dir, name)))) return;
+  let outgoing: unknown;
+  try {
+    outgoing = (JSON.parse(readFileSync(configPath(dir), 'utf8')) as Record<string, unknown>).companionToken;
+  } catch {
+    return;
+  }
+  if (typeof outgoing !== 'string' || outgoing.length === 0) return;
+  const incoming =
+    next && typeof next === 'object' ? (next as Record<string, unknown>).companionToken : undefined;
+  if (incoming !== outgoing) recordStateOwner(dir, outgoing);
+}
+
+function writeConfigBody(dir: string, value: unknown): string {
+  const path = configPath(dir);
+  const tmp = `${path}.tmp`;
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  protectRootState(dir, value);
+  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  // `mode` only applies when the file is created; tighten explicitly. Windows has no POSIX modes.
+  try {
+    chmodSync(tmp, 0o600);
   } catch (error) {
     if (process.platform !== 'win32') {
       throw error;
     }
   }
-  return path;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      renameSync(tmp, path);
+      return path;
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      if ((code !== 'EPERM' && code !== 'EBUSY') || attempt >= 20) {
+        try {
+          unlinkSync(tmp);
+        } catch {
+          // nothing to clean
+        }
+        throw error;
+      }
+      sleepSync(25);
+    }
+  }
+}
+
+/** Writes the config with owner-only permissions. Creates the directory. Throws on I/O failure. */
+export function saveConfig(dir: string, config: CompanionConfig | HostConfigInput): string {
+  const extras = {
+    ...('groups' in config && config.groups && config.groups.length > 0 ? { groups: config.groups } : {}),
+    ...('lastGroupId' in config && config.lastGroupId ? { lastGroupId: config.lastGroupId } : {}),
+    ...('lockfilePath' in config && config.lockfilePath ? { lockfilePath: config.lockfilePath } : {}),
+  };
+  const normalized: CompanionConfig =
+    'mode' in config && config.mode === 'overlay'
+      ? overlayModeConfigSchema.parse({ mode: 'overlay', apiBase: config.apiBase, ...extras })
+      : hostConfigSchema.parse({
+          mode: 'host',
+          apiBase: config.apiBase,
+          ...('companionToken' in config && config.companionToken
+            ? { companionToken: config.companionToken }
+            : {}),
+          ...extras,
+        });
+  return withConfigLock(dir, CONFIG_LOCK_WAIT_MS, () => writeConfigBody(dir, normalized));
+}
+
+/** Thrown by `updateConfig` for a file that exists but is not a JSON object: never overwritten. */
+export class ConfigUnreadableError extends Error {
+  constructor() {
+    super('config.json is not valid JSON; fix or delete it first');
+    this.name = 'ConfigUnreadableError';
+  }
+}
+
+/**
+ * Read-modify-write of the raw config object, keeping every key it does not know about. The group
+ * operations (`groups.ts`) go through this so a pairing never costs a friend their mode, token or lockfile
+ * path. A missing file starts from `{}`; a file that is not a JSON object throws `ConfigUnreadableError`
+ * and is left alone. Throws on I/O failure.
+ */
+export function updateConfig(
+  dir: string,
+  mutate: (raw: Record<string, unknown>) => Record<string, unknown>,
+  options: { waitMs?: number } = {},
+): string {
+  // The read happens inside the lock, so the one-shot `--pair` process and the running engine each see the
+  // other's finished write and never overwrite it with a stale copy (M14.13).
+  return withConfigLock(dir, options.waitMs ?? CONFIG_LOCK_WAIT_MS, () => {
+    let raw: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(configPath(dir), 'utf8'));
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new ConfigUnreadableError();
+      }
+      raw = parsed as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof ConfigUnreadableError) throw error;
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      if (code !== 'ENOENT') throw new ConfigUnreadableError();
+    }
+    return writeConfigBody(dir, mutate(raw));
+  });
+}
+
+/** A lock older than this is a crashed process's; it is broken. */
+export const CONFIG_LOCK_STALE_MS = 10_000;
+/** Waiting longer than this for a live lock fails the write. It is never taken over a live holder. */
+export const CONFIG_LOCK_WAIT_MS = 5_000;
+
+export class ConfigLockTimeoutError extends Error {
+  constructor() {
+    super('config.json is being written by another Kustom process; try again in a moment');
+    this.name = 'ConfigLockTimeoutError';
+  }
+}
+
+export function configLockPath(dir: string): string {
+  return `${configPath(dir)}.lock`;
+}
+
+function errorCode(error: unknown): string {
+  return error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+}
+
+/**
+ * Runs `work` holding `config.json.lock` (an exclusive-create file whose content is this holder's own random
+ * token), so two processes' read-modify-writes and saves take turns. Synchronous like the writes it guards.
+ * Release deletes the file only if it still holds our token, so a lock someone else took after ours was broken
+ * is never deleted by us. A stale lock (a crashed holder) is broken by an atomic rename to a unique name, not
+ * an unlink, so of several waiters only one breaks it. On timeout the write fails with
+ * `ConfigLockTimeoutError`; it never proceeds without the lock.
+ */
+function withConfigLock<T>(dir: string, waitMs: number, work: () => T): T {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const lock = configLockPath(dir);
+  const owner = randomBytes(12).toString('hex');
+  const started = Date.now();
+  for (;;) {
+    try {
+      writeFileSync(lock, owner, { flag: 'wx', mode: 0o600 });
+      break;
+    } catch (error) {
+      if (errorCode(error) !== 'EEXIST') throw error;
+    }
+    let age: number;
+    try {
+      age = Date.now() - statSync(lock).mtimeMs;
+    } catch {
+      continue; // released between the two calls
+    }
+    if (age > CONFIG_LOCK_STALE_MS) {
+      const grave = `${lock}.stale-${randomBytes(6).toString('hex')}`;
+      try {
+        renameSync(lock, grave);
+        // The rename took whatever sat at the path. If it was a fresh lock a faster waiter had just made,
+        // put it back (only if the path is still free) instead of leaving its holder unprotected.
+        try {
+          if (Date.now() - statSync(grave).mtimeMs <= CONFIG_LOCK_STALE_MS && !existsSync(lock)) {
+            renameSync(grave, lock);
+            continue;
+          }
+          unlinkSync(grave);
+        } catch {
+          // nothing to clean
+        }
+      } catch {
+        // someone else broke it first
+      }
+      continue;
+    }
+    if (Date.now() - started > waitMs) throw new ConfigLockTimeoutError();
+    sleepSync(10);
+  }
+  try {
+    return work();
+  } finally {
+    try {
+      if (readFileSync(lock, 'utf8') === owner) unlinkSync(lock);
+    } catch {
+      // already gone
+    }
+  }
 }
 
 /** Overlay-mode save used by the Tauri setup UI (no token ever written). */
@@ -379,6 +663,13 @@ export async function promptFirstRun(options: FirstRunOptions): Promise<HostConf
   const config: HostConfig = { mode: 'host', apiBase, companionToken };
   if (partial.lockfilePath) {
     config.lockfilePath = partial.lockfilePath;
+  }
+  // Groups this PC already learned (a pairing before the token) survive the first-run write.
+  if (partial.groups && partial.groups.length > 0) {
+    config.groups = partial.groups;
+  }
+  if (partial.lastGroupId) {
+    config.lastGroupId = partial.lastGroupId;
   }
   return config;
 }

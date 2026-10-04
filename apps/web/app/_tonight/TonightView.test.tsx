@@ -1,1952 +1,1032 @@
-import { evenness, resolveRoles } from '@customs/core';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
-import type { BoardRow } from '@/lib/board/types';
-import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
+import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
+import { groupHref } from '@/lib/nav';
+import { HOW_SUMMARY, TITLE_BALANCED, TITLE_FINISHED, TITLE_IN_GAME } from '@/lib/receipt/copy';
+import { lobbyView, snapshot, workedMembers, workedTeams } from '@/lib/testing/tonightFixtures';
 import {
-  FEARLESS_BANNED_LABEL,
-  FEARLESS_CARD_SENTENCE,
-  FEARLESS_LANE_FILTER,
-  FEARLESS_SEARCH,
-  FEARLESS_SEARCH_EMPTY,
-  FEARLESS_TITLE,
-  fearlessAvailable,
-  fearlessBanned,
-  fearlessLaneOpen,
-} from '@/lib/fearless/copy';
-import { invitedLine, openingOnPcLine, START_LOBBY_BUTTON } from '@/lib/lobbyStart';
-import { MYSTERY_EMPTY, MYSTERY_GUESS, MYSTERY_TITLE } from '@/lib/mystery/copy';
-import type { MysteryPageState } from '@/lib/mystery/service';
-import { NO_ACTIVE_SEASON_MESSAGE, NO_ACTIVE_SEASON_TONIGHT_MESSAGE } from '@/lib/season';
-import {
-  extraMember,
-  FIXTURE_NIGHT_START,
-  lobbyView,
-  offRoleFixture,
-  seatedOnTheirSides,
-  snapshot,
-  tapeEntry,
-  workedMembers,
-  workedResult,
-  workedTeams,
-} from '@/lib/testing/tonightFixtures';
-import {
-  ALL_FLEXIBLE_HINT,
-  HEAD_SEPARATOR,
-  IDLE_SENTENCE,
-  missedInviteSentence,
+  IN_GAME_SENTENCE,
+  MISSED_INVITE_LEAD,
   NAMELESS_HINT,
-  OFF_ROLE_LEGEND,
-  OFF_ROLE_LEGEND_SUFFIX,
-  ROLL_ADMIN_HINT,
+  REROLL_LABEL,
+  ROLE_CONTROL_HEADING,
   ROLL_HINT,
   ROLL_LABEL,
-  SIGN_IN_LABEL,
-  START_LOBBY_SIGN_IN,
-  sideLine,
-  TAPE_TITLE,
 } from '@/lib/tonight/copy';
-import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import type { SeatView, TeamsView, TonightSnapshot } from '@/lib/tonight/types';
-import type { ViewerState } from '@/lib/tonight/viewer';
-import { TonightView } from './TonightView';
+import {
+  EMPTY_GROUP_ADMIN_TITLE,
+  EMPTY_GROUP_MEMBER,
+  FINISH_SETUP,
+  LAST_GAME_TITLE,
+  NEW_TAG,
+  showEarlierGames,
+  TAPE_TITLE,
+  TOP_TITLE,
+  YOUR_SIDE_TAG,
+} from '@/lib/tonight/screenCopy';
+import { SIT_OUT_VIEWER_LEAD } from '@/lib/tonight/sitOut';
+import {
+  ADMIN_VIEWER,
+  ANON_VIEWER,
+  MEMBER_VIEWER,
+  type TonightStateKey,
+  tonightStateFixture,
+  VIEWER_PUUID,
+} from './fixtures';
+import { TonightView, type TonightViewProps } from './TonightView';
+import { yourNightFirstLine } from './YourNight';
 
 /**
- * The tonight page's states, from fixture data (M3.4, restyled by M3.18).
- *
- * The acceptance checks these stand in for are the ones a night cannot be run to re-check: the
- * copy is product's word for word, the rack is ten rows at every count, the sit-out strip is
- * *above* the cards, a `-0` prints as `(−0)`, and the reroll control exists only for an admin
- * and only while there is a split left to promote. Realtime itself is exercised against the
- * local stack by hand.
- *
- * The page has **no `<h1>`**: the one heading is the shell's wordmark, so the strip's headline
- * is a `<p>` and every assertion here reads text rather than a heading role.
+ * The 2.0 tonight page, one fixture per state (M14.9 acceptance 1 to 3), asserted by role and
+ * text only (acceptance 7). The fixtures are `./fixtures.ts`, the same objects `/kit/tonight/<state>`
+ * renders for the screenshots.
  */
 
-function draw(
-  state: TonightSnapshot,
-  viewer: {
-    puuid?: string;
-    isAdmin?: boolean;
-    topPlayers?: readonly BoardRow[];
-    /** Tonight's `create_lobby`, which only a linked viewer's render is ever given (M4.13). */
-    lobbyStart?: LobbyStartView | null;
-    mystery?: MysteryPageState | null;
-    /** The admins' names the page read with the snapshot (2026-10-03). */
-    admins?: readonly (string | null)[];
-  } = {},
-) {
-  // Anonymous unless the test names a puuid or an admin: `null` used to mean both "signed
-  // out" and "signed in with no player row", and M3.6 needs the two apart
-  // (`lib/tonight/viewer.ts`). An admin with no puuid is a linked viewer who is not in this
-  // lobby — which is what the reroll tests mean by "an admin is looking".
-  const who: ViewerState =
-    viewer.puuid === undefined && viewer.isAdmin !== true
-      ? { kind: 'anonymous' }
-      : {
-          kind: 'linked',
-          puuid: viewer.puuid ?? 'puuid-not-in-this-lobby',
-          isAdmin: viewer.isAdmin ?? false,
-        };
+const NOW = Date.parse('2026-09-08T20:30:00.000Z');
 
-  return render(
-    <TonightView
-      snapshot={state}
-      viewer={who}
-      topPlayers={viewer.topPlayers ?? []}
-      lobbyStart={viewer.lobbyStart ?? null}
-      mystery={viewer.mystery ?? null}
-      admins={viewer.admins ?? []}
-    />,
-  );
+function draw(key: TonightStateKey, overrides: Partial<TonightViewProps> = {}, realNames = false) {
+  const { connection: _connection, ...fixture } = tonightStateFixture(key, { now: NOW, realNames });
+  return render(<TonightView {...fixture} group={ORIGINAL_GROUP} {...overrides} />);
 }
 
-/** A play day for the daily pointer: everything `MysteryTeaser` reads, nothing it does not. */
-const PLAY_DAY: MysteryPageState = {
-  kind: 'play',
-  play: {
-    challengeId: '11111111-1111-4111-8111-111111111111',
-    challengeNumber: 184,
-    day: '2026-09-13',
-    kind: 'mystery',
-    category: 'disaster',
-    expiresAt: '2026-09-13T21:00:00.000Z',
-    hook: {
-      kills: 2,
-      deaths: 11,
-      assists: 4,
-      kda: '2 / 11 / 4',
-      durationS: 1902,
-      durationLabel: '31:42',
-      lines: [],
-    },
-    suspects: [],
-    cluesRevealed: 0,
-    revealedClues: [],
-    clueCount: 5,
-    completed: false,
-  },
-};
+const h1 = () => screen.getByRole('heading', { level: 1 }).textContent;
 
-/**
- * The strip's three lines, in order, as a reader sees them. A line's own parts are joined with
- * a space: the count, the headline and the live pill are three elements with no whitespace
- * between them in the markup, and `11IN THE LOBBYlive` is not what anybody reads.
- */
-function strip(container: HTMLElement): string[] {
-  return [...(container.querySelector('.cn-strip')?.children ?? [])].map((line) => {
-    const parts =
-      line.childElementCount === 0
-        ? [line.textContent ?? '']
-        : [...line.querySelectorAll(':scope > *')].map((part) => part.textContent ?? '');
-    return parts
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0)
-      .join(' ');
-  });
-}
-
-describe('idle: no lobby tonight', () => {
-  it('says the night, the state and the shipped sentence, and shows an empty rack', () => {
-    const { container } = draw(snapshot(null));
-
-    expect(strip(container)).toEqual(['Tuesday 8 September', 'NOBODY IN YET', IDLE_SENTENCE]);
-    // The rack is the idle page's body: ten `open` seats, the shape the page will have later.
-    expect(container.querySelectorAll('.cn-rack-open')).toHaveLength(10);
-    expect(screen.getByText('SEATS · 0 of 10')).toBeInTheDocument();
-    // The v1 idle link is gone: `Leaderboard` is a tab in the shell. One destination, one place.
-    expect(screen.queryByText('Last night and the board')).not.toBeInTheDocument();
-    // Nothing is rendered under the rack at zero: the fact is said once, in the strip.
-    expect(screen.queryByText('Nobody in the lobby yet.')).not.toBeInTheDocument();
-    expect(screen.queryByText(ALL_FLEXIBLE_HINT)).not.toBeInTheDocument();
+describe('every state leads with its headline and its primary action', () => {
+  it('empty group, a member: the one sentence, no poster, no board', () => {
+    draw('empty');
+    expect(h1()).toBe('NOBODY IN YET');
+    expect(screen.getByText(EMPTY_GROUP_MEMBER)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: LAST_GAME_TITLE })).toBeNull();
   });
 
-  /**
-   * M3.30: at 1280 the idle column is 44rem, not the 1300px the two-column grid gives it.
-   * The class is the whole of the mechanism — `tonight.css` caps `.cn-grid-idle > .cn-col`
-   * inside the ≥1080px block — so what a test can check is that it is on the idle page and on
-   * no other, and that the rail's own track is untouched.
-   */
-  it('caps its column at 44rem beside the rail, and only in idle', () => {
-    const { container, unmount } = draw(snapshot(null));
-    expect(container.querySelector('.cn-grid')?.className).toBe('cn-grid cn-grid-rail cn-grid-idle');
-    unmount();
-
-    for (const state of [
-      snapshot(lobbyView({ members: workedMembers(3) })),
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })),
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
-    ]) {
-      const busy = draw(state);
-      expect(busy.container.querySelector('.cn-grid')?.className).toBe('cn-grid cn-grid-rail');
-      busy.unmount();
-    }
-  });
-
-  it('carries the two cards inline, because there is nothing else to read', () => {
-    draw(snapshot(null));
-
-    expect(screen.getAllByText('How this works').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Run the companion').length).toBeGreaterThan(0);
-  });
-
-  /**
-   * The daily game is a one-row pointer to `/mystery` (2026-10-03), not the whole card: inline
-   * **under** the empty rack below 1080px — after the primary block, as in every other state, so
-   * the first join does not reshuffle the column — and in the rail from 1080px (`mystery.css`
-   * hides the inline copy there, as `tonight.css` does for the idle cards).
-   */
-  it('points at the daily game under the empty rack and in the rail, never the whole card', () => {
-    const { container } = draw(snapshot(null), { mystery: PLAY_DAY });
-
-    const inline = container.querySelector('.cn-col > .cn-mystery-teaser');
-    expect(inline).not.toBeNull();
-    expect(inline).toHaveClass('cn-mystery-teaser-inline');
-    expect(inline?.getAttribute('href')).toBe('/mystery');
-    expect(inline?.textContent).toContain('Daily Mystery #184');
-    expect(inline?.textContent).toContain(MYSTERY_GUESS);
-    const col = [...(container.querySelector('.cn-col')?.children ?? [])];
-    const rack = col.findIndex((child) => child.querySelector('.cn-rack-open') !== null);
-    expect(col.indexOf(inline as Element)).toBeGreaterThan(rack);
-
-    const rail = container.querySelector('.cn-rail .cn-mystery-teaser');
-    expect(rail).not.toBeNull();
-    expect(rail).not.toHaveClass('cn-mystery-teaser-inline');
-
-    // The play card's own parts are on `/mystery` only.
-    expect(container.querySelector('.cn-mystery')).toBeNull();
-    expect(container.querySelector('.cn-mystery-suspects')).toBeNull();
-  });
-
-  it('draws no pointer on a day with no game, and no empty card either', () => {
-    const { container } = draw(snapshot(null), {
-      mystery: { kind: 'empty', empty: { empty: true, expiresAt: '2026-09-14T21:00:00.000Z' } },
-    });
-    expect(container.querySelector('.cn-mystery-teaser')).toBeNull();
-    expect(screen.queryByText(MYSTERY_EMPTY)).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: MYSTERY_TITLE })).not.toBeInTheDocument();
-  });
-
-  it('keeps the pointer under the primary block while a lobby is live', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })), {
-      mystery: PLAY_DAY,
-    });
-    const col = [...(container.querySelector('.cn-col')?.children ?? [])];
-    const teams = col.findIndex((child) => child.querySelector('.cn-team') !== null);
-    const pointer = col.findIndex((child) => child.classList.contains('cn-mystery-teaser'));
-    expect(teams).toBeGreaterThan(-1);
-    expect(pointer).toBeGreaterThan(teams);
-  });
-
-  /**
-   * **The slug is the night and nothing else** (M5.12, product 2026-09-10), and the page says
-   * nothing about a season until the one thing a friend can act on is true: that tonight's
-   * games are not being saved. The two cases were separate tests while the slug carried a
-   * season name; there is one line to check now.
-   */
-  it('is the night alone in the slug, and one sentence when games are not being saved', () => {
-    const { container, unmount } = draw(snapshot(null));
-    expect(container.querySelector('.cn-slug')).toHaveTextContent('Tuesday 8 September');
-    expect(container.querySelector('.cn-slug')?.textContent).not.toContain('·');
-    expect(document.body.textContent?.toLowerCase()).not.toContain('season');
-    expect(screen.queryByText(NO_ACTIVE_SEASON_TONIGHT_MESSAGE)).not.toBeInTheDocument();
-    unmount();
-
-    const { container: broken } = draw(snapshot(null, { seasonActive: false }));
-    expect(broken.querySelector('.cn-slug')).toHaveTextContent('Tuesday 8 September');
-    expect(screen.getByText(NO_ACTIVE_SEASON_TONIGHT_MESSAGE)).toBeInTheDocument();
-    // Never the admin sentence: it is written for whoever can open a database console (M3.17).
-    expect(screen.queryByText(NO_ACTIVE_SEASON_MESSAGE)).not.toBeInTheDocument();
-  });
-
-  it('puts the no-season line directly under the status strip, not at the foot of the page', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() }), { seasonActive: false }),
+  it('empty group, an admin: Get your group ready and Finish setup', () => {
+    draw('empty-admin');
+    expect(screen.getByRole('heading', { name: EMPTY_GROUP_ADMIN_TITLE })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: FINISH_SETUP })).toHaveAttribute(
+      'href',
+      groupHref(ORIGINAL_GROUP, { page: 'admin' }) ?? '',
     );
-
-    const main = container.querySelector('main');
-    expect([...(main?.children ?? [])].map((child) => child.className)).toEqual([
-      'cn-strip',
-      'cn-notice',
-      'cn-block',
-      // M3.6's card, and it is deliberately **last**: for a signed-out reader it is the one
-      // control that starts the Discord round trip, and it may never sit above the teams.
-      'cn-card cn-role-card',
-    ]);
   });
 
-  it('carries the no-season line in every state, and in none of them when a season is live', () => {
-    const states = [
-      snapshot(null),
-      snapshot(lobbyView({ members: workedMembers(3) })),
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })),
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
-    ];
-
-    for (const state of states) {
-      const live = draw(state);
-      expect(screen.queryByText(NO_ACTIVE_SEASON_TONIGHT_MESSAGE)).not.toBeInTheDocument();
-      live.unmount();
-
-      const without = draw({ ...state, seasonActive: false });
-      expect(screen.getByText(NO_ACTIVE_SEASON_TONIGHT_MESSAGE)).toBeInTheDocument();
-      without.unmount();
-    }
-  });
-});
-
-describe('filling: the lobby is open', () => {
-  it('counts the people around and seats them in join order with their ratings', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers(3) })));
-
-    expect(strip(container)).toEqual(['Tuesday 8 September', '3 IN THE LOBBY live', 'Seven more to go.']);
-    const rows = [...container.querySelectorAll('.cn-rack-row')];
-    expect(rows.slice(0, 3).map((row) => row.textContent)).toEqual([
-      'Bilaladc · mid1713',
-      'Hanatop · mid1434',
-      'Irisjungle · top1578',
-    ]);
-    // Ten seats, always: the seven that are open are seats and not blank rows.
-    expect(rows).toHaveLength(10);
-    expect(container.querySelectorAll('.cn-rack-open')).toHaveLength(7);
+  it('idle: the last game as a poster, the top five, Start a lobby and the Daily card', () => {
+    draw('idle');
+    expect(h1()).toBe('NOBODY IN YET');
+    const last = screen.getByRole('region', { name: LAST_GAME_TITLE });
+    expect(within(last).getByText(/Red won\./)).toBeInTheDocument();
+    expect(within(last).getByRole('link', { name: 'See the game' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: START_LOBBY_BUTTON })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: TOP_TITLE })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Guess the Award/ })).toBeInTheDocument();
   });
 
-  it('has an empty state that is a rack of ten open seats and one sentence in the strip', () => {
-    const { container } = draw(snapshot(lobbyView({ members: [] })));
-
-    expect(strip(container)[1]).toBe('0 IN THE LOBBY live');
-    expect(strip(container)[2]).toBe('Nobody in the lobby yet.');
-    expect(container.querySelectorAll('.cn-rack-open')).toHaveLength(10);
-    // Said once. The old under-the-rack copy of the same sentence is gone.
-    expect(screen.getAllByText('Nobody in the lobby yet.')).toHaveLength(1);
+  it('idle, signed out: the sign-in line instead of the button', () => {
+    draw('idle', { viewer: ANON_VIEWER });
+    expect(screen.queryByRole('button', { name: START_LOBBY_BUTTON })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sign in with Discord' })).toBeInTheDocument();
   });
 
-  it('puts the eleventh person under the Around divider, not among the ten', () => {
-    const { container } = draw(snapshot(lobbyView({ members: [...workedMembers(), extraMember()] })));
-
-    expect(strip(container)[1]).toBe('11 IN THE LOBBY live');
-    expect(strip(container)[2]).toBe('Ten play, the rest sit out. Waiting on an admin to roll the teams.');
-    const lists = screen.getAllByRole('list');
-    expect(lists).toHaveLength(2);
-    expect(within(lists[1] as HTMLElement).getByText('Deniz')).toBeInTheDocument();
-    expect(screen.getByText('Around')).toBeInTheDocument();
-    // Nothing is reserved for them: the second list is one row long.
-    expect((lists[1] as HTMLElement).querySelectorAll('li')).toHaveLength(1);
-  });
-
-  it('shows no teams, no prediction and no countdown before the balance', () => {
-    draw(snapshot(lobbyView({ members: workedMembers(9) })));
-
-    expect(screen.queryByText('BLUE')).not.toBeInTheDocument();
-    expect(screen.queryByText(/favored/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/waiting/i)).not.toBeInTheDocument();
-  });
-
-  it('marks a member who joined in the last three seconds, and lets it fade', async () => {
-    const [first, ...rest] = workedMembers();
-    if (first === undefined) throw new Error('no member');
-    const { container } = draw(
-      snapshot(lobbyView({ members: [{ ...first, joinedAt: new Date().toISOString() }, ...rest] })),
-    );
-
-    // The marker is always in the DOM — only its opacity changes — so the row never resizes.
-    expect(container.querySelectorAll('.cn-new')).toHaveLength(10);
-    await waitFor(() => expect(container.querySelectorAll('.cn-new-on')).toHaveLength(1));
-    expect(container.querySelectorAll('.cn-new-on')[0]?.closest('li')).toHaveTextContent('Bilal');
-  });
-
-  it('marks nobody when the lobby filled up minutes ago', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })));
-    expect(container.querySelectorAll('.cn-new-on')).toHaveLength(0);
-  });
-
-  it('marks the signed-in viewer, and nobody else', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })), {
-      puuid: 'puuid-hana',
-    });
-
-    const mine = container.querySelectorAll('.cn-you');
-    expect(mine).toHaveLength(1);
-    expect(mine[0]).toHaveTextContent('Hana');
-  });
-});
-
-describe('the role column only appears when it distinguishes', () => {
-  const flexible = workedMembers(6).map((member) => ({
-    ...member,
-    mainRole: null,
-    secondaryRole: null,
-  }));
-
-  it('drops the column and says it once when nobody on screen has a role', () => {
-    const { container } = draw(snapshot(lobbyView({ members: flexible })));
-
-    expect(container.querySelectorAll('.cn-rack-roles')).toHaveLength(0);
-    expect(screen.getAllByText(ALL_FLEXIBLE_HINT)).toHaveLength(1);
-    // Never a column of nine identical grey words.
-    expect(container.textContent).not.toContain('flexible');
-  });
-
-  it('says it once for an admin too: the `Set roles` link went with M5.17', () => {
-    const { container } = draw(snapshot(lobbyView({ members: flexible })), { isAdmin: true });
-
-    expect(screen.getAllByText(ALL_FLEXIBLE_HINT)).toHaveLength(1);
-    // The hint is a sentence, not a signpost. `/admin/players` shows the inferred pair
-    // read-only, so there is no longer a page for an admin to go and set a role on.
-    expect(container.querySelector('.cn-hint a')).toBeNull();
-    expect(container.textContent).not.toContain('Set roles');
-  });
-
-  it('shows the column, with `flexible` on the rows that have none, as soon as one does', () => {
-    const [first, ...rest] = flexible;
-    if (first === undefined) throw new Error('no member');
-    const { container } = draw(snapshot(lobbyView({ members: [{ ...first, mainRole: 'jungle' }, ...rest] })));
-
-    expect(container.querySelectorAll('.cn-rack-roles')).toHaveLength(6);
-    expect(screen.getAllByText('flexible')).toHaveLength(5);
-    expect(screen.queryByText(ALL_FLEXIBLE_HINT)).not.toBeInTheDocument();
-  });
-
-  it('turns the column on for an override alone: a tap is a role on screen', () => {
-    const [first, ...rest] = flexible;
-    if (first === undefined) throw new Error('no member');
-    const { container } = draw(
-      snapshot(lobbyView({ members: [{ ...first, roleOverride: 'adc' }, ...rest] })),
-    );
-
-    expect(container.querySelectorAll('.cn-rack-roles')).toHaveLength(6);
-    // A flexible player who taps has a main for tonight and no backup.
-    expect(container.querySelector('.cn-rack-roles')?.textContent).toBe('adc');
-  });
-});
-
-describe("the rack prints tonight's roles, not the profile's (M3.6)", () => {
-  /** Iris mains jungle with top as her backup, from the worked example. */
-  const iris = workedMembers(3)[2];
-
-  it('shows `<override> · <old main>` for a row that has tapped a role', () => {
-    if (iris === undefined) throw new Error('no member');
-    const { container } = draw(
-      snapshot(lobbyView({ members: [{ ...iris, roleOverride: 'support' }, ...workedMembers(2)] })),
-    );
-
-    // Core's `resolveRoles`, rendered: the tap is the main and the usual main is the backup,
-    // which is exactly what the balancer will do with it.
-    expect(resolveRoles({ ...iris, roleOverride: 'support' })).toEqual({
-      main: 'support',
-      secondary: 'jungle',
-    });
-    expect(container.querySelector('.cn-rack-roles')?.textContent).toBe('support · jungle');
-  });
-
-  it('leaves a row alone when the tap names the role they already main', () => {
-    if (iris === undefined) throw new Error('no member');
-    const { container } = draw(
-      snapshot(lobbyView({ members: [{ ...iris, roleOverride: iris.mainRole }, ...workedMembers(2)] })),
-    );
-
-    // Core treats an override equal to the main as a no-op, so the backup stays.
-    expect(container.querySelector('.cn-rack-roles')?.textContent).toBe('jungle · top');
-  });
-});
-
-describe('teams: balanced and in_game are the same block', () => {
-  const balanced = snapshot(lobbyView({ status: 'balanced', teams: workedTeams() }));
-
-  it('renders the promoted split verbatim, blue first, in lane order', () => {
-    const { container } = draw(balanced);
-
-    expect(strip(container)[1]).toBe('TEAMS ARE SET live');
-    const cards = container.querySelectorAll('.cn-team');
-    expect(cards).toHaveLength(2);
-
-    const blue = cards[0] as HTMLElement;
-    expect(within(blue).getByRole('heading', { level: 2 })).toHaveTextContent('BLUE');
-    expect(within(blue).getByText('7695')).toBeInTheDocument();
+  it('filling: the count in the headline, one roster, the open seats as one line, still needed', () => {
+    draw('filling');
+    expect(h1()).toBe('6 IN THE LOBBY');
+    expect(screen.getAllByText('Four more to go.').length).toBeGreaterThan(0);
+    const roster = screen.getByRole('region', { name: 'In the lobby' });
+    expect(within(roster).getAllByRole('listitem')).toHaveLength(6);
     expect(
-      within(blue)
-        .getAllByRole('listitem')
-        .map((row) => row.textContent),
-    ).toEqual(['topHana1434', 'jungleIris1578', 'midKarim1551', 'adcBilal1713', 'supportTheo1419']);
+      within(roster).getByText('4 open seats. They fill as people join the League lobby.'),
+    ).toBeInTheDocument();
+    expect(within(roster).getByText('Still needed:')).toBeInTheDocument();
+    expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: new RegExp(ROLE_CONTROL_HEADING) })).toBeInTheDocument();
   });
 
-  it('prints the stored explanation as one paragraph, never recomposed', () => {
-    const { container } = draw(balanced);
+  /** True when `a` comes before `b` in the page. */
+  const comesBefore = (a: Element, b: Element) =>
+    Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-    expect(container.querySelector('.cn-explain-text')).toHaveTextContent(
-      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
+  it('M14.65: an unlinked friend with a claimable row sees Which one is you? straight under the strip', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('filling', { now: NOW });
+    const members = fixture.snapshot.lobby?.members ?? [];
+    render(
+      <TonightView
+        {...fixture}
+        group={ORIGINAL_GROUP}
+        viewer={{ kind: 'unlinked', claimable: members.slice(1).map((m) => m.puuid) }}
+      />,
     );
+    const claim = screen.getByRole('heading', { level: 2, name: 'Which one is you?' });
+    const roster = screen.getByRole('region', { name: 'In the lobby' });
+    expect(comesBefore(claim, roster)).toBe(true);
+    // Nothing between the strip's h1 and the card but the strip itself.
+    expect(comesBefore(screen.getByRole('heading', { level: 1 }), claim)).toBe(true);
+    expect(screen.getAllByRole('heading', { name: 'Which one is you?' })).toHaveLength(1);
   });
 
-  it('changes only the headline word and the pill between balanced and in_game', () => {
-    const { container: first } = draw(balanced);
-    const balancedCards = first.querySelector('.cn-cards')?.innerHTML;
-
-    const { container: second } = draw(snapshot(lobbyView({ status: 'in_game', teams: workedTeams() })));
-    expect(strip(second)[1]).toBe('IN GAME live');
-    expect(second.querySelector('.cn-cards')?.innerHTML).toBe(balancedCards);
-  });
-
-  it('draws a role icon beside every role word, and never in place of one', () => {
-    const { container } = draw(balanced);
-
-    const roles = [...container.querySelectorAll('.cn-seat-role')];
-    expect(roles).toHaveLength(10);
-    for (const role of roles) {
-      expect(role.querySelector('svg')).not.toBeNull();
-      expect(role.textContent?.length ?? 0).toBeGreaterThan(0);
-      // The word beside it is the accessible name.
-      expect(role.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
-    }
-  });
-
-  it('marks every off-role row, in words and not only in colour, and says so in the sentence', () => {
-    // Ten friends who all main mid: `balance()` has to put nine of them somewhere else, and
-    // the stored explanation says which (M3.7).
-    const offRole = offRoleFixture();
-    const marked = [...offRole.teams.blue, ...offRole.teams.red].filter((seat) => seat.offRole);
-    expect(marked.length).toBeGreaterThan(0);
-
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'balanced', members: offRole.members, teams: offRole.teams })),
+  it('M14.65: once balanced, the claim card stays first, folded to one line', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('balanced', { now: NOW });
+    const members = fixture.snapshot.lobby?.members ?? [];
+    const { container } = render(
+      <TonightView
+        {...fixture}
+        group={ORIGINAL_GROUP}
+        viewer={{ kind: 'unlinked', claimable: members.slice(1).map((m) => m.puuid) }}
+      />,
     );
-
-    expect(container.querySelectorAll('.cn-off')).toHaveLength(marked.length);
-    // The per-seat hidden word, one per marked seat. Counted through the seats rather than
-    // through `getAllByText`: Testing Library matches an element on its **direct** text nodes,
-    // so the header legend — whose own text node is `off-role`, with the rest in a `cn-sr`
-    // suffix — matches that query too (the designer, 2026-09-10). Both are asserted, neither
-    // is a coincidence.
-    const seatWords = [...container.querySelectorAll('.cn-seat .cn-sr')].filter(
-      (node) => node.textContent?.trim() === 'off-role',
-    );
-    expect(seatWords).toHaveLength(marked.length);
-    expect(screen.getAllByText('off-role')).toHaveLength(marked.length + 2);
-    expect(container.querySelectorAll('.cn-off-legend')).toHaveLength(2);
-    // The clause is the stored string's, rendered verbatim: `N off-role: Name at role, ...`.
-    expect(container.querySelector('.cn-explain-text')?.textContent).toContain(`${marked.length} off-role:`);
+    const claim = screen.getByRole('heading', { level: 2, name: 'Which one is you?' });
+    expect(claim.closest('details')).not.toBeNull();
+    expect(comesBefore(claim, screen.getByRole('region', { name: 'Blue team' }))).toBe(true);
+    expect(container.querySelectorAll('details summary h2')).toHaveLength(1);
   });
 
-  /**
-   * The side line (M4.7 (b)): **one line under both cards**, not one per card, and the sentence
-   * the verification gate chooses. Both of the gate's states are tested in `SideLine.test.tsx`;
-   * what is asserted here is where it sits and which states draw it at all.
-   */
-  describe('the side line under the cards', () => {
-    it('is one line under both cards while the teams are set', () => {
-      const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })));
-      const lines = container.querySelectorAll('.cn-side-line');
+  it('M14.69: a same-name label prints on the team cards, muted', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('balanced', { now: NOW });
+    const lobby = fixture.snapshot.lobby;
+    if (lobby?.teams == null) throw new Error('fixture has no teams');
+    const [first, ...rest] = lobby.teams.blue;
+    if (first === undefined) throw new Error('no seat');
+    const teams = { ...lobby.teams, blue: [{ ...first, name: 'Ali', nameSuffix: '(2)' }, ...rest] };
+    render(
+      <TonightView
+        {...fixture}
+        snapshot={{ ...fixture.snapshot, lobby: { ...lobby, teams } }}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    const blue = screen.getByRole('region', { name: 'Blue team' });
+    expect(within(blue).getByText('(2)')).toHaveClass('font-normal', 'text-muted-foreground');
+  });
 
-      expect(lines).toHaveLength(1);
-      expect(lines[0]?.textContent).toBe(sideLine(SWITCH_SIDE_ENABLED));
-      // Under the cards and above the explanation: an instruction about the seats you have
-      // just read, before the sentence about why they are those seats.
-      const block = [...(container.querySelector('.cn-block')?.children ?? [])];
-      expect(block.findIndex((node) => node.classList.contains('cn-side-line'))).toBe(
-        block.findIndex((node) => node.classList.contains('cn-cards')) + 1,
-      );
-      expect(block.findIndex((node) => node.classList.contains('cn-explain'))).toBeGreaterThan(
-        block.findIndex((node) => node.classList.contains('cn-side-line')),
-      );
+  it('M14.65: linked and anonymous keep the role card where it was, after the roster', () => {
+    const linked = draw('filling');
+    const roster = () => screen.getByRole('region', { name: 'In the lobby' });
+    expect(
+      comesBefore(roster(), screen.getByRole('heading', { name: new RegExp(ROLE_CONTROL_HEADING) })),
+    ).toBe(true);
+    linked.unmount();
+    draw('filling', { viewer: ANON_VIEWER });
+    expect(comesBefore(roster(), screen.getByRole('heading', { name: ROLE_CONTROL_HEADING }))).toBe(true);
+    expect(screen.queryByRole('heading', { name: 'Which one is you?' })).toBeNull();
+  });
+
+  it('M14.65: an unlinked friend with nobody to claim keeps the old place and words', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('filling', { now: NOW });
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} viewer={{ kind: 'unlinked', claimable: [] }} />);
+    expect(screen.queryByRole('heading', { name: 'Which one is you?' })).toBeNull();
+  });
+
+  describe('M14.66: no host running says who to ask, before anyone taps', () => {
+    const away = (hostNames: string[], hostSeenRecently = false) => {
+      const { snapshot: base } = tonightStateFixture('idle', { now: NOW });
+      return { snapshot: { ...base, hostNames, hostSeenRecently } };
+    };
+
+    it('idle, no host seen in ten minutes: the line under Start a lobby names the hosts', () => {
+      draw('idle', { viewer: MEMBER_VIEWER, ...away(['Yasser', 'Omar']) });
+      expect(screen.getByRole('button', { name: START_LOBBY_BUTTON })).toBeInTheDocument();
+      expect(
+        screen.getByText("Nobody's Kustom is running right now. Ask Yasser or Omar to open it."),
+      ).toBeInTheDocument();
     });
 
-    /**
-     * **`balanced` only** (product, 2026-09-11). The game has launched, the lobby is gone, and
-     * `Move to your side in the lobby.` names a room that does not exist — so the line goes with
-     * the lobby, exactly as M4.10's `Missed the invite?` line does in the same block.
-     */
-    it('is gone the moment the game starts, with the same cards still up', () => {
-      const { container } = draw(snapshot(lobbyView({ status: 'in_game', teams: workedTeams() })));
-
-      expect(container.querySelector('.cn-side-line')).toBeNull();
-      // Nothing else about the teams moved: the cards are the balanced ones, unchanged.
-      expect(container.querySelectorAll('.cn-team')).toHaveLength(2);
-      expect(container.querySelector('.cn-explain-text')).not.toBeNull();
+    it('more than three hosts, or none named: whoever hosts', () => {
+      const many = draw('idle', { viewer: MEMBER_VIEWER, ...away(['Yasser', 'Omar', 'Hana', 'Rami']) });
+      expect(
+        screen.getByText("Nobody's Kustom is running right now. Ask whoever hosts to open it."),
+      ).toBeInTheDocument();
+      many.unmount();
+      draw('idle', { viewer: MEMBER_VIEWER, ...away([]) });
+      expect(
+        screen.getByText("Nobody's Kustom is running right now. Ask whoever hosts to open it."),
+      ).toBeInTheDocument();
     });
 
-    it('is gone once the game is over, including on a finish the fold did not rate', () => {
-      // The same block draws an unrated finish with the teams still up (M3.4), and telling
-      // somebody to move to their side after `GAME OVER` is the one place it would be wrong.
-      const unrated = snapshot(
-        lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult({ rated: false }) }),
-      );
-      const { container: over } = draw(unrated);
-      expect(over.querySelector('.cn-side-line')).toBeNull();
-
-      const { container: result } = draw(
-        snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
-      );
-      expect(result.querySelector('.cn-side-line')).toBeNull();
+    it('no line while a host was seen recently, for a visitor, or after a result', () => {
+      const seen = draw('idle', { viewer: MEMBER_VIEWER, ...away(['Yasser'], true) });
+      expect(screen.queryByText(/Nobody's Kustom is running/)).toBeNull();
+      seen.unmount();
+      const anon = draw('idle', { viewer: ANON_VIEWER, ...away(['Yasser']) });
+      expect(screen.queryByText(/Nobody's Kustom is running/)).toBeNull();
+      anon.unmount();
+      const { snapshot: finished } = tonightStateFixture('finished', { now: NOW });
+      draw('finished', {
+        viewer: MEMBER_VIEWER,
+        snapshot: { ...finished, hostNames: ['Yasser'], hostSeenRecently: false },
+      });
+      expect(screen.queryByText(/Nobody's Kustom is running/)).toBeNull();
     });
+  });
 
-    it('is absent before there are sides to move to', () => {
-      const { container: idle } = draw(snapshot(null));
-      expect(idle.querySelector('.cn-side-line')).toBeNull();
+  it('more than ten: who would sit out, in order, before the roll; and the roll for an admin', () => {
+    draw('over-ten');
+    expect(h1()).toBe('12 IN THE LOBBY');
+    expect(screen.getByText('If the teams rolled now, Deniz and then Mo would sit out.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: ROLL_LABEL })).toBeInTheDocument();
+  });
 
-      const { container: filling } = draw(snapshot(lobbyView({ status: 'open' })));
-      expect(filling.querySelector('.cn-side-line')).toBeNull();
-    });
+  it('balanced: TEAMS ARE SET, the answer band, the full receipt, two team cards', () => {
+    draw('balanced');
+    expect(h1()).toBe('TEAMS ARE SET');
+    expect(screen.getByRole('region', { name: TITLE_BALANCED })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Blue team' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Red team' })).toBeInTheDocument();
+    expect(screen.getByText(/, playing support/)).toBeInTheDocument();
+  });
 
-    /**
-     * **And it goes when the sides are right** (M4.11, which is M4.3's acceptance check 7).
-     *
-     * The three cases are one fixture apart: the same balanced lobby, the same ten, the same
-     * split — only where the client has each person sitting differs. That is deliberate, because
-     * the third assertion below is that the cards cannot tell the difference.
-     */
-    describe('once the ten are where the split put them', () => {
-      const balanced = (teams: ReturnType<typeof workedTeams>) =>
-        snapshot(lobbyView({ status: 'balanced', teams }));
+  it('in game: the timer from the start, Odds at kickoff, no role or sign-in control', () => {
+    const { connection: _c, ...live } = tonightStateFixture('in-game', { now: Date.now() });
+    const first = render(<TonightView {...live} group={ORIGINAL_GROUP} />);
+    expect(h1()).toBe('IN GAME');
+    expect(screen.getByText('23 min in')).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(IN_GAME_SENTENCE))).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: TITLE_IN_GAME })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: new RegExp(ROLE_CONTROL_HEADING) })).toBeNull();
+    first.unmount();
+    draw('in-game', { viewer: ANON_VIEWER });
+    expect(screen.queryAllByRole('button', { name: 'Sign in with Discord' })).toHaveLength(0);
+  });
 
-      function cardsMarkup(container: HTMLElement): string {
-        const cards = container.querySelector('.cn-cards');
-        expect(cards).not.toBeNull();
-        return cards?.innerHTML ?? '';
-      }
+  it('finished: RED WINS, the odds were, the result line, deltas, MVP and ACE, Start the next lobby', () => {
+    draw('finished');
+    expect(h1()).toBe('RED WINS');
+    const receipt = screen.getByRole('region', { name: TITLE_FINISHED });
+    // M14.45: the headline names the winner once; the poster says the odds only.
+    expect(within(receipt).getByText(/^(Red was \d+%\.( Upset!)?|50–50\.)$/)).toBeInTheDocument();
+    expect(within(receipt).queryByText(/Red won\./)).toBeNull();
+    expect(screen.getAllByText('MVP').length).toBeGreaterThan(0);
+    expect(screen.getByText('ACE')).toBeInTheDocument();
+    const deltas = ['Blue team', 'Red team'].flatMap((side) =>
+      within(screen.getByRole('region', { name: side })).queryAllByText(/^(gained|lost) \d+$/),
+    );
+    expect(deltas.length).toBe(10);
+    expect(screen.getByRole('button', { name: 'Start the next lobby' })).toBeInTheDocument();
+    expect(screen.getByText('Won')).toBeInTheDocument();
+  });
 
-      it('draws nothing at all when all ten match', () => {
-        const { container } = draw(balanced(seatedOnTheirSides(workedTeams())));
+  it('finished: the viewer strip says their side, won or lost, and their change', () => {
+    draw('finished');
+    const band = screen.getByText(/ · (won|lost)/);
+    expect(band.textContent).toMatch(/on (BLUE|RED) · (won|lost) · (\+|−)\d+/);
+  });
 
-        // Absent, not hidden and not an empty paragraph holding a gap open: the explanation
-        // strip closes up under the cards (`05-design.md`, "the height it leaves behind is not
-        // reserved").
-        expect(container.querySelector('.cn-side-line')).toBeNull();
-        expect(container.textContent).not.toContain(sideLine(SWITCH_SIDE_ENABLED));
-        // Everything else about the block is untouched: this removes a line, not a state.
-        expect(container.querySelectorAll('.cn-cards .cn-team')).toHaveLength(2);
-        expect(container.querySelector('.cn-explain-text')).not.toBeNull();
-      });
+  it('long nights: three games on the tape, the rest behind Show 4 earlier games', () => {
+    draw('long-night');
+    const tape = screen.getByRole('region', { name: TAPE_TITLE });
+    expect(within(tape).getByText(showEarlierGames(4))).toBeInTheDocument();
+    expect(within(tape).getByText('Game 7')).toBeInTheDocument();
+    expect(within(tape).getByText('Game 1')).toBeInTheDocument();
+  });
 
-      it('is back the moment one of the ten is on the wrong side', () => {
-        const teams = workedTeams();
-        const stray = teams.blue[0];
-        expect(stray).toBeDefined();
-        // One blue seat still sitting on red. Nine people being right is not the condition.
-        const { container } = draw(balanced(seatedOnTheirSides(teams, { [stray?.puuid ?? '']: 200 })));
+  it('a new player: settling · 4/10 on their seat', () => {
+    draw('new-player');
+    expect(screen.getByText('settling · 4/10')).toBeInTheDocument();
+    expect(screen.getByText('settling · 0/10')).toBeInTheDocument();
+  });
 
-        const lines = container.querySelectorAll('.cn-side-line');
-        expect(lines).toHaveLength(1);
-        expect(lines[0]?.textContent).toBe(sideLine(SWITCH_SIDE_ENABLED));
-      });
-
-      /**
-       * **The cards are byte-identical across the change** (M4.11's acceptance). Nothing in a
-       * team card reads `liveSide`, so the only DOM that differs between a sorted lobby and a
-       * lobby with one person out of place is the line itself — no name moves, no rating
-       * re-renders, and React's reconciler has nothing to touch inside `.cn-cards` when the
-       * `lobby_members` event lands.
-       */
-      it('changes the line and not one byte of the two cards', () => {
-        const teams = workedTeams();
-        const stray = teams.blue[0];
-        const matched = draw(balanced(seatedOnTheirSides(teams)));
-        const mismatched = draw(balanced(seatedOnTheirSides(teams, { [stray?.puuid ?? '']: 200 })));
-
-        expect(cardsMarkup(mismatched.container)).toBe(cardsMarkup(matched.container));
-        // …and the assertion above is not passing because both are empty.
-        expect(cardsMarkup(matched.container)).toContain('cn-seat');
-        // The one difference between the two documents is the side line.
-        expect(matched.container.querySelector('.cn-side-line')).toBeNull();
-        expect(mismatched.container.querySelector('.cn-side-line')).not.toBeNull();
-      });
-
-      /**
-       * **A side we were never told is not a side that matches.** A spectator among the chosen
-       * ten has `lobby_members.side` null and the queue cannot move them (`switchSide.ts`
-       * clause (c)) — the line is exactly what tells that person to move, so it stays.
-       */
-      it('stays up for a seat the client has not placed', () => {
-        const teams = workedTeams();
-        const unplaced = teams.red[2];
-        expect(unplaced).toBeDefined();
-        const { container } = draw(balanced(seatedOnTheirSides(teams, { [unplaced?.puuid ?? '']: null })));
-
-        expect(container.querySelector('.cn-side-line')).not.toBeNull();
-      });
-
-      /** The default fixture — a lobby nobody has moved in yet — still prints it. */
-      it('is up on a split nobody has moved for', () => {
-        const { container } = draw(balanced(workedTeams()));
-
-        expect(container.querySelectorAll('.cn-side-line')).toHaveLength(1);
-      });
-
-      /** Matched sides do not resurrect the line in the states that never draw it. */
-      it('does not come back in `in_game` because everybody matches', () => {
-        const { container } = draw(
-          snapshot(lobbyView({ status: 'in_game', teams: seatedOnTheirSides(workedTeams()) })),
-        );
-
-        expect(container.querySelector('.cn-side-line')).toBeNull();
-      });
-    });
+  it('a new player in the roster: the New tag', () => {
+    const members = workedMembers(4).map((member, index) =>
+      index === 0 ? { ...member, ratedGames: 0 } : member,
+    );
+    render(
+      <TonightView
+        snapshot={snapshot(lobbyView({ status: 'open', members }))}
+        viewer={ANON_VIEWER}
+        group={ORIGINAL_GROUP}
+        topPlayers={[]}
+      />,
+    );
+    expect(screen.getByText(NEW_TAG)).toBeInTheDocument();
   });
 });
 
-/**
- * The `· off-role` legend in a team card's header, and the amber threshold (the designer,
- * 2026-09-10; `05-design.md`, "Teams").
- *
- * Both rules are **per card**: a card with a marked seat carries the legend, a card without one
- * does not — including when the other card has some — and each card counts its own five before
- * deciding whether the mark keeps its colour.
- */
-describe('the off-role legend and the amber threshold', () => {
-  /** The fixture's split, with each side's marked seats forced to a chosen count. */
-  function withMarked(blue: number, red: number) {
-    const base = offRoleFixture();
-    const mark = (seats: readonly SeatView[], count: number): SeatView[] =>
-      seats.map((seat, index) => ({ ...seat, offRole: index < count }));
-    return {
-      ...base,
-      teams: {
-        ...base.teams,
-        blue: mark(base.teams.blue, blue),
-        red: mark(base.teams.red, red),
+describe('the fairness receipt (STRATEGY §4)', () => {
+  it('shows in balanced, in game and finished', () => {
+    for (const [key, title] of [
+      ['balanced', TITLE_BALANCED],
+      ['in-game', TITLE_IN_GAME],
+      ['finished', TITLE_FINISHED],
+    ] as const) {
+      const { unmount } = draw(key);
+      expect(screen.getByRole('region', { name: title })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('opens How the bot decided to a signed-out visitor, with all three splits', () => {
+    draw('balanced', { viewer: ANON_VIEWER });
+    const summary = screen.getByText(HOW_SUMMARY);
+    expect(summary.closest('details')).not.toBeNull();
+    expect(screen.getByText(/The bot's note:/)).toBeInTheDocument();
+  });
+
+  it('is built from the columns only: a garbage explanation changes nothing but the bot note', () => {
+    const fixture = tonightStateFixture('balanced', { now: NOW });
+    const lobby = fixture.snapshot.lobby;
+    if (lobby?.teams == null) throw new Error('fixture');
+    const garbage = {
+      ...fixture,
+      snapshot: {
+        ...fixture.snapshot,
+        lobby: {
+          ...lobby,
+          teams: {
+            ...lobby.teams,
+            stored: lobby.teams.stored.map((split) => ({ ...split, explanation: 'Red 99%. Gap 9000. lol' })),
+          },
+        },
       },
     };
-  }
-
-  function cards(container: HTMLElement): HTMLElement[] {
-    return [...container.querySelectorAll<HTMLElement>('.cn-cards .cn-team')];
-  }
-
-  function drawTeams(blue: number, red: number) {
-    const fixture = withMarked(blue, red);
-    return draw(snapshot(lobbyView({ status: 'balanced', members: fixture.members, teams: fixture.teams })));
-  }
-
-  it('carries the legend on the card that has a marked seat, and not on the one that has none', () => {
-    const { container } = drawTeams(2, 0);
-
-    const [blue, red] = cards(container);
-    expect(blue?.querySelectorAll('.cn-off-legend')).toHaveLength(1);
-    expect(red?.querySelectorAll('.cn-off-legend')).toHaveLength(0);
+    const read = () => {
+      const receipt = screen.getByRole('region', { name: TITLE_BALANCED });
+      const text = receipt.textContent ?? '';
+      return text.slice(0, text.indexOf(HOW_SUMMARY));
+    };
+    const first = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    const before = read();
+    first.unmount();
+    render(<TonightView {...garbage} group={ORIGINAL_GROUP} />);
+    expect(read()).toBe(before);
+    expect(screen.getByText(/Red 99%\. Gap 9000\. lol/)).toBeInTheDocument();
   });
 
-  it('reads `off-role seats in this card`, with the dot and the middot hidden', () => {
-    const { container } = drawTeams(1, 0);
-
-    const legend = container.querySelector('.cn-off-legend');
-    expect(legend?.textContent).toBe(`${OFF_ROLE_LEGEND}${OFF_ROLE_LEGEND_SUFFIX}`);
-    expect(legend?.querySelector('.cn-off-dot')).toHaveAttribute('aria-hidden', 'true');
-    // The separator is punctuation in its own hidden span, never a CSS `::before`.
-    expect(container.querySelector('.cn-head-sep')).toHaveAttribute('aria-hidden', 'true');
-    expect(container.querySelector('.cn-head-sep')?.textContent).toBe(HEAD_SEPARATOR);
+  it('retires team totals and Teams are N% even', () => {
+    draw('balanced');
+    expect(document.body.textContent).not.toMatch(/% even/);
+    expect(document.body.textContent).not.toMatch(/sum of the five ratings/);
   });
 
-  it('leaves the sum the header last child, legend or no legend', () => {
-    const { container } = drawTeams(2, 0);
+  it('a reroll: Reroll 1 of 2 · pick #2 on the receipt, for everybody', () => {
+    draw('reroll', { viewer: ANON_VIEWER });
+    const receipt = screen.getByRole('region', { name: TITLE_BALANCED });
+    expect(receipt.textContent).toMatch(/Reroll 1 of 2/);
+    expect(receipt.textContent).toMatch(/pick #2/);
+  });
+});
 
-    for (const card of cards(container)) {
-      const head = card.querySelector('.cn-team-head');
-      expect(head?.children).toHaveLength(2);
-      expect(head?.lastElementChild).toHaveClass('cn-sum');
-      expect(head?.firstElementChild).toHaveClass('cn-team-heading');
+describe('which side am I on', () => {
+  it("marks the viewer's seat by the word You, says Your side on their card, and lists it first", () => {
+    draw('balanced');
+    const seat = workedTeams().blue.some((one) => one.puuid === VIEWER_PUUID) ? 'Blue team' : 'Red team';
+    const card = screen.getByRole('region', { name: seat });
+    expect(within(card).getByText(YOUR_SIDE_TAG)).toBeInTheDocument();
+    expect(within(card).getByText('You')).toBeInTheDocument();
+    expect(within(card).getByText('(you)')).toBeInTheDocument();
+  });
+
+  it('tells a sitter first, above the receipt, in the second person', () => {
+    const fixture = tonightStateFixture('balanced', { now: NOW });
+    render(
+      <TonightView
+        {...fixture}
+        viewer={{ kind: 'linked', puuid: 'puuid-deniz', isAdmin: false }}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    const sit = screen.getByText(new RegExp(`^${SIT_OUT_VIEWER_LEAD}`));
+    const receipt = screen.getByRole('region', { name: TITLE_BALANCED });
+    expect(sit.compareDocumentPosition(receipt) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe('controls', () => {
+  it('Reroll for an admin while balanced, never in game', () => {
+    draw('balanced', { viewer: ADMIN_VIEWER });
+    expect(screen.getByRole('button', { name: REROLL_LABEL })).toBeInTheDocument();
+    const { unmount } = draw('in-game', { viewer: ADMIN_VIEWER });
+    expect(screen.getAllByRole('button', { name: REROLL_LABEL })).toHaveLength(1);
+    unmount();
+  });
+
+  it('no Reroll for a member', () => {
+    draw('balanced', { viewer: MEMBER_VIEWER });
+    expect(screen.queryByRole('button', { name: REROLL_LABEL })).toBeNull();
+  });
+
+  it('the missed-invite line for linked viewers only', () => {
+    const anon = draw('balanced', { viewer: ANON_VIEWER });
+    expect(document.body.textContent).not.toContain(MISSED_INVITE_LEAD);
+    anon.unmount();
+    draw('balanced', { viewer: MEMBER_VIEWER });
+    expect(document.body.textContent).toContain(`${MISSED_INVITE_LEAD}Customs 08 Sep #1, password 4821.`);
+  });
+});
+
+describe('Your night (M14.36)', () => {
+  it('shows in idle and finished for a linked viewer with a game tonight', () => {
+    const idle = draw('idle');
+    expect(screen.getByRole('region', { name: 'Your night' })).toHaveTextContent(
+      "Your night: 1 win, 1 loss, Rating −6.Best game: Kai'Sa, 12/2/8.MVP once.",
+    );
+    idle.unmount();
+    draw('finished');
+    expect(screen.getByRole('region', { name: 'Your night' })).toHaveTextContent(
+      "Your night: 2 wins, 1 loss, Rating +38.Best game: Kai'Sa, 12/2/8.MVP once. ACE once.",
+    );
+  });
+
+  it('idle: under the strip, above Last game; finished: after the odds and the awards, before the teams', () => {
+    const follows = (a: Element, b: Element) =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    const idle = draw('idle');
+    expect(
+      follows(
+        screen.getByRole('region', { name: 'Your night' }),
+        screen.getByRole('region', { name: 'Last game' }),
+      ),
+    ).toBe(true);
+    idle.unmount();
+    draw('finished');
+    const night = screen.getByRole('region', { name: 'Your night' });
+    expect(follows(screen.getByRole('region', { name: TITLE_FINISHED }), night)).toBe(true);
+    expect(follows(screen.getByText('ACE'), night)).toBe(true);
+    expect(follows(night, screen.getByRole('region', { name: 'Blue team' }))).toBe(true);
+  });
+
+  it('is not there for a visitor, nor in the other states', () => {
+    const anon = draw('finished', { viewer: ANON_VIEWER });
+    expect(screen.queryByRole('region', { name: 'Your night' })).toBeNull();
+    anon.unmount();
+    const { connection: _c, ...balanced } = tonightStateFixture('balanced', { now: NOW });
+    render(
+      <TonightView {...balanced} yourNight={tonightStateFixture('idle').yourNight} group={ORIGINAL_GROUP} />,
+    );
+    expect(screen.queryByRole('region', { name: 'Your night' })).toBeNull();
+  });
+
+  it('updates in place when the server sends the next game (M14.36 acceptance 5)', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW });
+    const night = fixture.yourNight;
+    if (night == null) throw new Error('fixture');
+    const { rerender } = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    expect(screen.getByText(yourNightFirstLine(night))).toBeInTheDocument();
+    const next = { ...night, wins: night.wins + 1, ratingDelta: (night.ratingDelta ?? 0) + 12 };
+    rerender(<TonightView {...fixture} yourNight={next} group={ORIGINAL_GROUP} />);
+    expect(screen.getByText(yourNightFirstLine(next))).toBeInTheDocument();
+    expect(screen.queryByText(yourNightFirstLine(night))).toBeNull();
+  });
+
+  it('says the same first line Tonight and You use (one function)', () => {
+    const night = tonightStateFixture('idle').yourNight;
+    if (night == null) throw new Error('fixture');
+    draw('idle');
+    expect(screen.getByText(yourNightFirstLine(night))).toBeInTheDocument();
+  });
+});
+
+describe('the Mode card (M14.30)', () => {
+  const states = ['idle', 'filling', 'balanced', 'in-game', 'finished'] as const;
+  const card = () => screen.getByRole('region', { name: /^Mode / });
+
+  it('is on Tonight in every state, in Fearless and in Normal, and no pool block is anywhere else', () => {
+    for (const mode of ['fearless', 'normal'] as const) {
+      for (const key of states) {
+        const { connection: _c, ...fixture } = tonightStateFixture(key, { now: NOW, mode });
+        const { unmount } = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+        expect(within(card()).getByRole('heading', { name: mode === 'fearless' ? 'Fearless' : 'Normal' }));
+        expect(within(card()).getByText('Rated')).toBeInTheDocument();
+        // The pool lives in the panel: no find box and no lane control on Tonight.
+        expect(screen.queryByLabelText('Find a champion')).toBeNull();
+        expect(screen.queryByRole('group', { name: 'Lane' })).toBeNull();
+        unmount();
+      }
     }
   });
 
-  it('never puts the legend on a result card', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'finished', result: workedResult() })));
-
-    expect(container.querySelectorAll('.cn-off-legend')).toHaveLength(0);
+  it('says open first and banned second in Fearless, and Every champion is open. in Normal', () => {
+    const fearless = draw('idle');
+    expect(card().textContent).toMatch(/\d+ open\s*\d+ banned/);
+    fearless.unmount();
+    draw('idle', {}, false);
+    const { connection: _c, ...normal } = tonightStateFixture('idle', { now: NOW, mode: 'normal' });
+    render(<TonightView {...normal} group={ORIGINAL_GROUP} />);
+    expect(screen.getAllByText('Every champion is open.').length).toBeGreaterThan(0);
   });
 
-  /**
-   * Three of five is the majority: below it the marked seats are the minority and colour is
-   * the fastest way to find them; at or above it the colour is a wash. The class is a **colour
-   * override, not a removal** — every marked seat keeps its `.cn-off`, its underline, its dot
-   * and its hidden word on both cards.
-   */
-  it('drops the amber at three marked seats in a card, and only in that card', () => {
-    const { container } = drawTeams(3, 1);
-
-    const [blue, red] = cards(container);
-    expect(blue).toHaveClass('cn-team-many-off');
-    expect(red).not.toHaveClass('cn-team-many-off');
-    expect(blue?.querySelectorAll('.cn-off')).toHaveLength(3);
-    expect(red?.querySelectorAll('.cn-off')).toHaveLength(1);
-    // Both cards still carry the legend: the key survives the threshold.
-    expect(container.querySelectorAll('.cn-off-legend')).toHaveLength(2);
+  it('links its row to the panel; balanced and seated, on the viewer lane, with Your lane', () => {
+    draw('balanced');
+    const link = screen.getByRole('link', { name: /See what.s open/ });
+    expect(link.getAttribute('href')).toMatch(/\/g\/customs\/mode\?lane=support$/);
+    expect(link.textContent).toMatch(/Your lane\s*support/);
   });
 
-  it('keeps the amber at two, and needs no threshold at none', () => {
-    const { container: two } = drawTeams(2, 2);
-    for (const card of cards(two)) expect(card).not.toHaveClass('cn-team-many-off');
+  it("gives the seated viewer one tap from the answer band: What's open for <role>", () => {
+    draw('balanced');
+    expect(screen.getByRole('link', { name: "What's open for support" }).getAttribute('href')).toMatch(
+      /\/mode\?lane=support$/,
+    );
+  });
 
-    const { container: none } = drawTeams(0, 0);
-    expect(none.querySelectorAll('.cn-off-legend')).toHaveLength(0);
-    expect(none.querySelectorAll('.cn-off')).toHaveLength(0);
-    for (const card of cards(none)) expect(card).not.toHaveClass('cn-team-many-off');
+  it('gives a visitor All: no lane on the link and no jump link', () => {
+    draw('balanced', { viewer: ANON_VIEWER });
+    expect(screen.getByRole('link', { name: /See what.s open/ }).getAttribute('href')).toMatch(/\/mode$/);
+    expect(screen.queryByRole('link', { name: /What's open for/ })).toBeNull();
+  });
+
+  it('in Normal: no jump link and no banned ten, for members, in every state', () => {
+    for (const key of states) {
+      const { connection: _c, ...fixture } = tonightStateFixture(key, { now: NOW, mode: 'normal' });
+      const { unmount } = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+      expect(screen.queryByRole('link', { name: /What's open for/ })).toBeNull();
+      expect(screen.queryByText('Banned next game')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('filling: five lane tiles, each opening the panel on its lane', () => {
+    draw('filling');
+    const jungle = within(card()).getByRole('link', { name: /^jungle \d+$/ });
+    expect(jungle.getAttribute('href')).toMatch(/\/mode\?lane=jungle$/);
+  });
+
+  it("in game: This game's ten join the ban list when it ends.", () => {
+    draw('in-game');
+    expect(within(card()).getByText("This game's ten join the ban list when it ends.")).toBeInTheDocument();
+  });
+
+  it('finished: Banned next game leads with the ten this game added', () => {
+    draw('finished');
+    expect(within(card()).getByText('Banned next game')).toBeInTheDocument();
+    expect(within(card()).getByText('from game 3')).toBeInTheDocument();
+  });
+
+  it('finished: no banned ten for a game that added nothing (an ARAM or a remake)', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW });
+    const champions = fixture.snapshot.fearless.champions.filter((c) => c.gameId !== 'game-1');
+    render(
+      <TonightView
+        {...fixture}
+        snapshot={{ ...fixture.snapshot, fearless: { ...fixture.snapshot.fearless, champions } }}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    expect(screen.queryByText('Banned next game')).toBeNull();
+  });
+
+  it('shows the picker to an admin in every state, Reset with a ban, and neither to a member or a visitor', async () => {
+    for (const key of states) {
+      const admin = draw(key, { viewer: ADMIN_VIEWER });
+      // The admin foot is code-split (`ModeControlsLazy`): it arrives a tick after the card.
+      expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reset fearless' })).toBeInTheDocument();
+      // M15.5: Spin and the Rated switch on the admin row.
+      expect(screen.getByRole('switch', { name: 'Rated' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Spin' })).toBeInTheDocument();
+      admin.unmount();
+      for (const viewer of [MEMBER_VIEWER, ANON_VIEWER]) {
+        const other = draw(key, { viewer });
+        expect(screen.queryByRole('combobox', { name: 'Mode' })).toBeNull();
+        expect(screen.queryByRole('switch')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Spin' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Reset fearless' })).toBeNull();
+        expect(screen.queryByRole('form', { name: 'Mode settings' })).toBeNull();
+        other.unmount();
+      }
+    }
+  });
+
+  it('hides Reset with an empty pool and in Normal', async () => {
+    const { connection: _c, ...empty } = tonightStateFixture('idle', { now: NOW, pool: 'empty' });
+    const a = render(<TonightView {...empty} viewer={ADMIN_VIEWER} group={ORIGINAL_GROUP} />);
+    expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset fearless' })).toBeNull();
+    a.unmount();
+    const { connection: _d, ...normal } = tonightStateFixture('idle', { now: NOW, mode: 'normal' });
+    render(<TonightView {...normal} viewer={ADMIN_VIEWER} group={ORIGINAL_GROUP} />);
+    expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset fearless' })).toBeNull();
+  });
+
+  it('empty group: everyone sees it (design ruling on 8.2), the picker for admins only', async () => {
+    const member = draw('empty');
+    expect(screen.getByRole('region', { name: /^Mode / })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Mode' })).toBeNull();
+    member.unmount();
+    draw('empty-admin');
+    expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+  });
+
+  it('switched to Normal tonight: members get the dashed note until a game lands', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('idle', {
+      now: NOW,
+      mode: 'normal',
+      normalJustNow: true,
+    });
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    expect(screen.getByText('Normal mode now.')).toBeInTheDocument();
   });
 });
 
-describe('the sit-out strip', () => {
-  const eleven = snapshot(
-    lobbyView({
-      status: 'balanced',
-      members: [...workedMembers(), extraMember()],
-      teams: workedTeams({ sitters: [extraMember()] }),
-    }),
-  );
-
-  it('sits above the cards: what is under it is not about the person sitting', () => {
-    const { container } = draw(eleven);
-    const blocks = [...container.querySelectorAll('.cn-sitout, .cn-cards, .cn-explain')].map((element) =>
-      element.className.includes('cn-sitout')
-        ? 'cn-sitout'
-        : element.className.includes('cn-cards')
-          ? 'cn-cards'
-          : 'cn-explain',
+describe('edges', () => {
+  it('a player with no name: the fallback word and one hint line', () => {
+    const members = workedMembers(3).map((member, index) =>
+      index === 0 ? { ...member, name: null } : member,
     );
-
-    expect(blocks).toEqual(['cn-sitout', 'cn-cards', 'cn-explain']);
-    // The card is its 3px brand rule and the sentence: no header bar saying the same words
-    // again (the designer, 2026-09-09).
-    expect(screen.queryByText('SITTING OUT')).not.toBeInTheDocument();
-  });
-
-  it('reads the general sentence for everybody who is not sitting', () => {
-    draw(eleven);
-
-    expect(
-      screen.getByText(
-        'Sitting out this game: Deniz. Each game goes to whoever has played least tonight, so they are first in line for the next one.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('reads the second-person one for the viewer who is sitting, and nobody else changes', () => {
-    draw(eleven, { puuid: 'puuid-deniz' });
-
-    expect(
-      screen.getByText(
-        'You are sitting this one out. Each game goes to whoever has played least tonight, so you are first in line for the next one.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('is absent when ten are around and nobody sits', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })));
-    expect(container.querySelector('.cn-sitout')).toBeNull();
-  });
-});
-
-describe('result: the game is over', () => {
-  const finished = snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() }));
-
-  it('leads with the duration, the winner, the odds line and the top damage, in one card', () => {
-    const { container } = draw(finished);
-
-    expect(strip(container)[1]).toBe('GAME OVER');
-    expect(strip(container)[2]).toBe('Ratings are updated. The leaderboard has the rest.');
-
-    const card = container.querySelector('.cn-result');
-    expect([...(card?.querySelectorAll('p') ?? [])].map((line) => line.textContent)).toEqual([
-      '34:12',
-      'RED WINS',
-      // Blue was favored 54% and red won: the underdog's line, in place of the favourite's.
-      'Red was 46%. Red won.',
-      'Top damage: Lena, 47.3k',
-    ]);
-  });
-
-  it('prints one rating per player: the after number and its delta, and no second pair of cards', () => {
-    const { container } = draw(finished);
-
-    expect(container.querySelectorAll('.cn-team')).toHaveLength(2);
-    const blue = container.querySelectorAll('.cn-team')[0] as HTMLElement;
-    expect(
-      within(blue)
-        .getAllByRole('listitem')
-        .map((row) => row.textContent),
-    ).toEqual([
-      'topHana1393 (−41)',
-      'jungleIris1531 (−47)',
-      'midKarim1508 (−43)',
-      'adcBilal1668 (−45)',
-      'supportTheo1372 (−47)',
-    ]);
-  });
-
-  it('rings the winner and drops the loser to a hairline, both structurally', () => {
-    const { container } = draw(finished);
-
-    const cards = [...container.querySelectorAll('.cn-team')];
-    expect(cards[0]?.className).toContain('cn-team-lost');
-    expect(cards[1]?.className).toContain('cn-team-won');
-  });
-
-  it('keeps the sign on a change too small to round: (−0), never (0) and never (+0)', () => {
-    // A rating that fell by less than half a point. `displayDelta` answers -0, which does not
-    // survive JSON — this is why the delta is computed where it is rendered (05-design.md).
-    const result = workedResult();
-    const seat = result.blue[0];
-    if (seat === undefined) throw new Error('no seat');
-    const nudged = { ...result, blue: [{ ...seat, muBefore: 25, muAfter: 24.999 }, ...result.blue.slice(1)] };
-
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: nudged })),
+    render(
+      <TonightView
+        snapshot={snapshot(lobbyView({ status: 'open', members }))}
+        viewer={ANON_VIEWER}
+        group={ORIGINAL_GROUP}
+        topPlayers={[]}
+      />,
     );
-
-    const row = container.querySelector('.cn-team .cn-seat');
-    expect(row?.textContent).toContain('1500 (−0)');
-    // Never `(0)`: one unsigned entry in a column of ten signed ones reads as a bug.
-    expect(container.textContent).not.toContain('(0)');
-    expect(container.textContent).not.toContain('(+0)');
-  });
-
-  it('prints no side sums: a team total of deltas must not be computable from the screen', () => {
-    const { container } = draw(finished);
-
-    // The teams block has them; the result card does not (05-design.md, "Result card").
-    expect(container.querySelectorAll('.cn-sum')).toHaveLength(0);
-    expect(screen.queryByText('6465')).not.toBeInTheDocument();
-  });
-
-  it('keeps the explanation line of the split they played under the result', () => {
-    const { container } = draw(finished);
-    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 54%.');
-  });
-
-  it('shows the teams, no deltas and an empty sentence slot for a game the fold did not rate', () => {
-    const unrated = workedResult({ rated: false });
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: unrated })),
-    );
-
-    expect(strip(container)[1]).toBe('GAME OVER');
-    expect(strip(container)[2]).toBe('');
-    expect(container.querySelector('.cn-delta')).toBeNull();
-    expect(screen.queryByText(/did not count/i)).not.toBeInTheDocument();
-    // The teams they played are still up, with their before ratings.
-    expect(screen.getByText('1434')).toBeInTheDocument();
-  });
-});
-
-describe('a player the database has no name for', () => {
-  const nameless = workedMembers().map((member, index) => (index === 0 ? { ...member, name: null } : member));
-
-  it('renders Someone, with one hint line under the block and never one per row', () => {
-    draw(snapshot(lobbyView({ members: nameless })));
-
-    expect(screen.getAllByText('Someone')).toHaveLength(1);
     expect(screen.getAllByText(NAMELESS_HINT)).toHaveLength(1);
   });
 
-  it('drops the hint as soon as every row has a name', () => {
-    draw(snapshot(lobbyView({ members: workedMembers() })));
-    expect(screen.queryByText(NAMELESS_HINT)).not.toBeInTheDocument();
-  });
-});
-
-describe('the reroll control', () => {
-  const balanced = (chosen: number) =>
-    snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen }) }));
-
-  it('is not drawn for a reader with no session', () => {
-    draw(balanced(0));
-    expect(screen.queryByRole('button', { name: 'Reroll' })).not.toBeInTheDocument();
-  });
-
-  it('is drawn for an admin and names the next split down the list', () => {
-    const { container } = draw(balanced(0), { isAdmin: true });
-
-    expect(screen.getByRole('button', { name: 'Reroll' })).toBeEnabled();
-    expect(container.querySelector('form')).toHaveAttribute('action', '/api/admin/lobbies/lobby-1/reroll');
-    expect(container.querySelector('input[name="splitId"]')).toHaveValue('split-2');
-  });
-
-  it('is disabled on the last split, with the sentence for the friend who presses again', () => {
-    draw(balanced(2), { isAdmin: true });
-
-    expect(screen.getByRole('button', { name: 'Reroll' })).toBeDisabled();
-    expect(screen.getByText(NO_MORE_SPLITS)).toBeInTheDocument();
-  });
-
-  it('is not drawn once the game has started: the teams on the rift are the teams', () => {
-    draw(snapshot(lobbyView({ status: 'in_game', teams: workedTeams() })), { isAdmin: true });
-    expect(screen.queryByRole('button', { name: 'Reroll' })).not.toBeInTheDocument();
-  });
-});
-
-/**
- * `Teams are 92% even.` (M3.31), the one line under the balanced teams — restored 2026-10-03
- * after M4.11's commit dropped it with no decision behind it.
- *
- * The rule the line breaks on is that it is **the stored `blue_win_prob` read a second time**,
- * never a second comparison of the two sides: the line and the explanation's own `Blue favored
- * …%` come from one number, so they cannot disagree the morning after a rating has moved.
- */
-describe('how even the teams are (M3.31)', () => {
-  function withProb(blueWinProb: number, explanation?: string): TeamsView {
-    const teams = workedTeams();
-    return { ...teams, blueWinProb, explanation: explanation ?? teams.explanation };
-  }
-
-  function evenLine(container: HTMLElement): string | null {
-    return container.querySelector('.cn-even')?.textContent ?? null;
-  }
-
-  it('prints the stored probability through core, not a number of its own', () => {
-    const teams = workedTeams();
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams })));
-
-    expect(evenLine(container)).toBe(`Teams are ${evenness(teams.blueWinProb)}% even.`);
-    expect(evenLine(container)).toBe('Teams are 92% even.');
-  });
-
-  it('follows the stored probability even when the ratings on screen say otherwise', () => {
-    const { container } = draw(
-      snapshot(
-        lobbyView({
-          status: 'balanced',
-          teams: withProb(0.7, 'Blue favored 70%. Everyone on a main role. Gap 640.'),
-        }),
-      ),
-    );
-    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 70%.');
-    expect(evenLine(container)).toBe('Teams are 60% even.');
-  });
-
-  it('says `as even as they get` at the top of the scale, never `100% even`', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: withProb(0.5) })));
-    expect(evenLine(container)).toBe('Teams are as even as they get.');
-    expect(container.textContent).not.toContain('100% even');
-  });
-
-  it('prints nothing at all for a split with no stored probability', () => {
-    const missing = { ...workedTeams(), blueWinProb: null as unknown as number };
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: missing })));
-    expect(container.querySelector('.cn-even')).toBeNull();
-    expect(container.querySelector('.cn-explain-text')).toHaveTextContent('Blue favored 54%.');
-  });
-
-  it('sits directly under the explanation strip', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })));
-    const order = [...(container.querySelector('.cn-block')?.children ?? [])].map((child) => child.className);
-    expect(order.indexOf('cn-even')).toBe(order.findIndex((name) => name.includes('cn-explain')) + 1);
-  });
-
-  it('is drawn on the balanced page and nowhere else', () => {
-    const { container: balanced, unmount: a } = draw(
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })),
-    );
-    expect(evenLine(balanced)).toBe('Teams are 92% even.');
-    a();
-
-    const { container: filling, unmount: b } = draw(snapshot(lobbyView({ status: 'open' })));
-    expect(filling.querySelector('.cn-even')).toBeNull();
-    b();
-
-    const { container: inGame, unmount: c } = draw(
-      snapshot(lobbyView({ status: 'in_game', teams: workedTeams() })),
-    );
-    expect(inGame.querySelector('.cn-even')).toBeNull();
-    c();
-
-    // A finish the fold did not rate draws this very block under `GAME OVER`.
-    const { container: unrated, unmount: d } = draw(
-      snapshot(
-        lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult({ rated: false }) }),
-      ),
-    );
-    expect(strip(unrated)[1]).toBe('GAME OVER');
-    expect(unrated.querySelectorAll('.cn-team')).toHaveLength(2);
-    expect(unrated.querySelector('.cn-even')).toBeNull();
-    d();
-
-    const { container: rated } = draw(
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
-    );
-    expect(rated.querySelector('.cn-even')).toBeNull();
-  });
-});
-
-/**
- * `Reroll 1 of 2. Teams changed.` (2026-10-03): the page's half of what Discord's reroll title
- * already says, to every viewer and not only to the admin holding the button.
- */
-describe('the reroll marker', () => {
-  const marker = (container: HTMLElement) =>
-    container.querySelector('.cn-reroll-marker')?.textContent ?? null;
-
-  it('is absent while the balancer’s own split is up', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 0 }) })),
-    );
-    expect(container.querySelector('.cn-reroll-marker')).toBeNull();
-  });
-
-  it('says which reroll it is, to a reader with no session as much as to an admin', () => {
-    const rerolled = snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 1 }) }));
-    const { container: anon, unmount } = draw(rerolled);
-    expect(marker(anon)).toBe('Reroll 1 of 2. Teams changed.');
-    unmount();
-
-    const { container: admin, unmount: done } = draw(rerolled, { isAdmin: true });
-    expect(marker(admin)).toBe('Reroll 1 of 2. Teams changed.');
-    done();
-
-    const { container: last } = draw(
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 2 }) })),
-    );
-    expect(marker(last)).toBe('Reroll 2 of 2. Teams changed.');
-  });
-
-  it('keeps the button labelled Reroll', () => {
-    draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 1 }) })), { isAdmin: true });
-    expect(screen.getByRole('button', { name: 'Reroll' })).toBeInTheDocument();
-  });
-
-  it('is gone once the game has started', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'in_game', teams: workedTeams({ chosen: 1 }) })));
-    expect(container.querySelector('.cn-reroll-marker')).toBeNull();
-  });
-
-  it('sits under the evenness line, below the cards: a reroll moves nothing above it', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams({ chosen: 1 }) })),
-    );
-    const order = [...(container.querySelector('.cn-block')?.children ?? [])].map((child) => child.className);
-    expect(order.indexOf('cn-reroll-marker')).toBe(order.indexOf('cn-even') + 1);
-    expect(order.indexOf('cn-reroll-marker')).toBeGreaterThan(order.indexOf('cn-cards'));
-  });
-});
-
-/**
- * The roll (2026-10-03): where the button is drawn and for whom, and the line that tells
- * everybody else why ten names do not turn into teams by themselves. The press itself is
- * `RollControl.test.tsx`.
- */
-describe('the roll', () => {
-  const roll = { name: ROLL_LABEL } as const;
-
-  it('tells a reader with no session what is coming while the lobby fills, under the rack', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers(7) })));
-
-    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
-    expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
-    // Under the rack, never above it: the rack is ten rows at every count.
-    const block = container.querySelector('.cn-block');
-    const children = [...(block?.children ?? [])].map((child) => child.className);
-    expect(children.indexOf('cn-roll')).toBe(children.indexOf('cn-card cn-rack') + 1);
-  });
-
-  /**
-   * At ten the strip's sentence carries the wait on its own, naming who can roll (2026-10-03);
-   * the hint under the rack would say it a second time, so it is not drawn.
-   */
-  it('leaves a full lobby to the strip for a reader with no session: no hint, no button', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })));
-
-    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
-    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
-    expect(container.querySelector('.cn-roll')).toBeNull();
-    expect(strip(container)[2]).toBe('Waiting on an admin to roll the teams.');
-  });
-
-  it('names the admins in the strip at ten, and falls back to `an admin` with none', () => {
-    const { container, unmount } = draw(snapshot(lobbyView({ members: workedMembers() })), {
-      admins: ['Yasser', 'Omar'],
-    });
-    expect(strip(container)[2]).toBe('Waiting on Yasser or Omar to roll the teams.');
-    unmount();
-
-    const { container: eleven, unmount: done } = draw(
-      snapshot(lobbyView({ members: [...workedMembers(), extraMember()] })),
-      { admins: ['Yasser'] },
-    );
-    expect(strip(eleven)[2]).toBe('Ten play, the rest sit out. Waiting on Yasser to roll the teams.');
-    done();
-
-    const { container: none } = draw(snapshot(lobbyView({ members: workedMembers() })), { admins: [] });
-    expect(strip(none)[2]).toBe('Waiting on an admin to roll the teams.');
-  });
-
-  it('names nobody before ten: the countdown is the whole sentence', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers(9) })), { admins: ['Yasser'] });
-    expect(strip(container)[2]).toBe('One more to go.');
-  });
-
-  it('says the same while the lobby fills, to an admin too: nothing to press yet', () => {
-    draw(snapshot(lobbyView({ members: workedMembers(7) })), { isAdmin: true });
-
-    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
-    expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
-  });
-
-  it('is not a button for a linked player who is not an admin, at any count', () => {
-    const { unmount } = draw(snapshot(lobbyView({ members: workedMembers(7) })), { puuid: 'puuid-somebody' });
-    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
-    expect(screen.getByText(ROLL_HINT)).toBeInTheDocument();
-    unmount();
-
-    // At ten, nothing under the rack: the strip names who can roll.
-    draw(snapshot(lobbyView({ members: workedMembers() })), { puuid: 'puuid-somebody' });
-    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
-    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
-  });
-
-  it('is a button for an admin once ten are in, posting to this lobby', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers() })), { isAdmin: true });
-
-    expect(screen.getByRole('button', roll)).toBeEnabled();
-    expect(screen.getByText(ROLL_ADMIN_HINT)).toBeInTheDocument();
-    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
-    expect(container.querySelector('.cn-roll form')).toHaveAttribute(
-      'action',
-      '/api/admin/lobbies/lobby-1/roll',
-    );
-  });
-
-  it('is a button with more than ten too: the rotation picks who sits out', () => {
-    draw(snapshot(lobbyView({ members: [...workedMembers(), extraMember()] })), { isAdmin: true });
-    expect(screen.getByRole('button', roll)).toBeEnabled();
-  });
-
-  it('repairs a balanced lobby whose roll died before its splits', () => {
-    draw(snapshot(lobbyView({ status: 'balanced', teams: null })), { isAdmin: true });
-    expect(screen.getByRole('button', roll)).toBeEnabled();
-  });
-
-  it('is gone once the teams are up, and with no lobby at all', () => {
-    draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })), { isAdmin: true });
-    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
-    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
-  });
-
-  it('says nothing on the idle page', () => {
-    draw(snapshot(null), { isAdmin: true });
-    expect(screen.queryByRole('button', roll)).not.toBeInTheDocument();
-    expect(screen.queryByText(ROLL_HINT)).not.toBeInTheDocument();
-  });
-
-  it('hands an answered press to the page to re-read', async () => {
-    const settled = vi.fn();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        async () =>
-          ({ ok: false, status: 409, json: async () => ({ ok: false, error: 'x' }) }) as unknown as Response,
-      ),
-    );
-    try {
-      render(
-        <TonightView
-          snapshot={snapshot(lobbyView({ members: workedMembers() }))}
-          viewer={{ kind: 'linked', puuid: 'puuid-not-in-this-lobby', isAdmin: true }}
-          topPlayers={[]}
-          onRollSettled={settled}
-        />,
-      );
-      fireEvent.click(screen.getByRole('button', roll));
-      await waitFor(() => expect(settled).toHaveBeenCalledTimes(1));
-    } finally {
-      vi.unstubAllGlobals();
+  it('one h1 in every state, and long names printed whole', () => {
+    for (const key of ['balanced', 'filling', 'finished', 'idle'] as const) {
+      const { unmount } = draw(key, {}, true);
+      expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+      if (key !== 'idle') expect(screen.getAllByText('SYNDROMEAXESXXXX').length).toBeGreaterThan(0);
+      unmount();
     }
   });
 });
 
-/**
- * `Start a lobby` (M4.2's control, M4.7's placement). Where it is drawn, and for whom — the
- * control's own behaviour is `StartLobby.test.tsx`.
- */
-/** Tonight's `create_lobby` as the page reads it: pending on Hamoodi's PC by default. */
-function startRow(overrides: Partial<LobbyStartView> = {}): LobbyStartView {
-  return {
-    status: 'pending',
-    error: null,
-    hostName: 'Hamoodi',
-    lobbyName: 'Customs 10 Sep #1',
-    lobbyPassword: '4821',
-    invited: 0,
-    ...overrides,
-  };
+/* ---------------------------------------------------------------------------
+ * M14.41: the scene walk's Tonight gaps (redesign/scene-walk.md gaps 1 to 6, 12).
+ * ------------------------------------------------------------------------- */
+
+/** Every four-digit number in an element's text, as a set. */
+function fourDigits(text: string): Set<string> {
+  return new Set(text.match(/(?<![\d.])\d{4}(?![\d.])/g) ?? []);
 }
 
-describe('the Start a lobby control', () => {
-  const startButton = { name: START_LOBBY_BUTTON } as const;
-
-  it('is on the idle page for an admin, above the rack and under the strip', () => {
-    const { container } = draw(snapshot(null), { isAdmin: true });
-
-    expect(screen.getByRole('button', startButton)).toBeInTheDocument();
-    // **Above** the rack, not below it (the designer, 2026-09-10): ten empty seats are 480px,
-    // so a button under them is under the fold on the phone this page is designed for.
-    const column = [...(container.querySelector('.cn-col')?.children ?? [])].map((child) => child.className);
-    expect(column.indexOf('cn-start')).toBeLessThan(column.indexOf('cn-block'));
-    // And the block below it is untouched: rack, then the two explainer cards.
-    const block = container.querySelector('.cn-block');
-    expect([...(block?.children ?? [])].map((child) => child.className)).toEqual([
-      'cn-card cn-rack',
-      'cn-idle-cards',
-    ]);
-  });
-
-  it('is a readout with no button while the lobby fills: there is a lobby already', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers(7) })), {
-      isAdmin: true,
-      lobbyStart: startRow({ status: 'acked', invited: 6 }),
-    });
-
-    // No button: the route could only answer `There is already a lobby open.`
-    expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
-    // The block still carries what is worth saying, under the rack.
-    expect(screen.getByText(invitedLine(6))).toBeInTheDocument();
-    const block = container.querySelector('.cn-block');
-    expect([...(block?.children ?? [])].map((child) => child.className)).toEqual([
-      'cn-card cn-rack',
-      // The roll's line (2026-10-03): seven in, nothing to press, so it says why.
-      'cn-roll',
-      'cn-start',
-      'cn-missed',
-    ]);
-  });
-
-  /**
-   * From ten on the invite readout (`waiting for them to accept`) is stale, and it crowded the
-   * roll out of a stack of up to five notes under the rack (2026-10-03).
-   */
-  it('drops the readout once ten are in, for the admin and for everybody else', () => {
-    for (const isAdmin of [true, false]) {
-      const { container, unmount } = draw(snapshot(lobbyView({ members: workedMembers() })), {
-        puuid: 'puuid-not-in-this-lobby',
-        isAdmin,
-        lobbyStart: startRow({ status: 'acked', invited: 9 }),
-      });
-      expect(container.querySelector('.cn-start')).toBeNull();
-      expect(screen.queryByText(invitedLine(9))).not.toBeInTheDocument();
-      unmount();
-    }
-  });
-
-  it('draws nothing at all while filling when nobody pressed it tonight', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers(7) })), { isAdmin: true });
-
-    expect(container.querySelector('.cn-start')).not.toBeInTheDocument();
-  });
-
-  it('is gone once the teams are set: the only answer left would be a refusal', () => {
-    const teams = workedTeams();
-    draw(snapshot(lobbyView({ status: 'balanced', teams, members: workedMembers() })), {
-      isAdmin: true,
-    });
-
-    expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
-    expect(document.querySelector('.cn-start')).not.toBeInTheDocument();
-  });
-
-  /**
-   * M4.13's acceptance 7, both states and all four viewers, in one place. Who may press is the
-   * whole of what that task changed on this page, and it is four rows of a table.
-   */
-  const VIEWERS: Record<string, ViewerState> = {
-    anonymous: { kind: 'anonymous' },
-    unlinked: { kind: 'unlinked', claimable: [] },
-    linked: { kind: 'linked', puuid: 'puuid-not-in-this-lobby', isAdmin: false },
-    admin: { kind: 'linked', puuid: 'puuid-not-in-this-lobby', isAdmin: true },
-  };
-
-  function drawAs(viewer: ViewerState, state: TonightSnapshot, lobbyStart: LobbyStartView | null = null) {
-    return render(<TonightView snapshot={state} viewer={viewer} topPlayers={[]} lobbyStart={lobbyStart} />);
+/**
+ * No name sits beside two different four-digit numbers anywhere on the page: for every element
+ * whose own text is exactly a player's name, the row around it (its nearest `li`, else `p`) and
+ * every other such row for the same name, together, hold at most one four-digit number.
+ */
+function numbersBesideNames(container: HTMLElement, names: readonly string[]): Map<string, Set<string>> {
+  const seen = new Map<string, Set<string>>();
+  for (const element of Array.from(container.querySelectorAll('*'))) {
+    const own = Array.from(element.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent ?? '')
+      .join('')
+      .trim();
+    if (!names.includes(own)) continue;
+    const row = element.closest('li') ?? element.closest('p');
+    if (row === null) continue;
+    const set = seen.get(own) ?? new Set<string>();
+    for (const n of fourDigits(row.textContent ?? '')) set.add(n);
+    seen.set(own, set);
   }
+  return seen;
+}
 
-  it('is drawn on the idle page for every linked player, admin or not', () => {
-    for (const kind of ['linked', 'admin'] as const) {
-      const { unmount } = drawAs(VIEWERS[kind] as ViewerState, snapshot(null));
-      expect(screen.getByRole('button', startButton)).toBeInTheDocument();
-      // And never the anonymous sentence beside it: they are signed in.
-      expect(document.body.textContent).not.toContain(START_LOBBY_SIGN_IN);
-      unmount();
-    }
+describe('M14.41 gap 1: one Rating per person', () => {
+  it('Top this week shows W-L and the change, never a four-digit number', () => {
+    draw('finished');
+    const top = screen.getByRole('region', { name: TOP_TITLE });
+    expect(fourDigits(top.textContent ?? '').size).toBe(0);
+    expect(within(top).getAllByText('4W 2L')).toHaveLength(5);
+    expect(within(top).getAllByText('gained 58')).toHaveLength(5);
   });
 
-  it('gives a signed-out visitor the sentence and a sign-in button, in idle only', () => {
-    // Back from the 2026-09-10 suspension (M4.13): on an idle page `RoleTonight` draws nothing
-    // at all for this reader, so without it there is no door into the site on the screen.
-    const { unmount } = drawAs(VIEWERS.anonymous as ViewerState, snapshot(null));
-    expect(screen.getByText(START_LOBBY_SIGN_IN)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: SIGN_IN_LABEL })).toBeInTheDocument();
-    // **Never a disabled `Start a lobby`** (M3.20, and the designer's amber-control rules).
-    expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
-    unmount();
-
-    // `filling` is a readout, not a control: there is nothing to sign in for.
-    drawAs(VIEWERS.anonymous as ViewerState, snapshot(lobbyView({ members: workedMembers(7) })));
-    expect(document.querySelector('.cn-start')).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toContain(START_LOBBY_SIGN_IN);
-  });
-
-  it('says nothing at all to a signed-in visitor with no player row, in either state', () => {
-    // They are signed in, so inviting them to sign in is noise; `SIGNED_IN_NO_LOBBY` at the
-    // foot of the column is the true sentence for them and it is already there (M3.6).
-    const { unmount } = drawAs(VIEWERS.unlinked as ViewerState, snapshot(null));
-    expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toContain(START_LOBBY_SIGN_IN);
-    unmount();
-
-    drawAs(
-      VIEWERS.unlinked as ViewerState,
-      snapshot(lobbyView({ members: workedMembers(7) })),
-      startRow({ status: 'acked', invited: 6 }),
-    );
-    expect(document.querySelector('.cn-start')).not.toBeInTheDocument();
-  });
-
-  it('gives both linked viewers the readout while the lobby fills, and nobody else', () => {
-    for (const kind of ['linked', 'admin'] as const) {
-      const { unmount } = drawAs(
-        VIEWERS[kind] as ViewerState,
-        snapshot(lobbyView({ members: workedMembers(7) })),
-        startRow({ status: 'acked', invited: 6 }),
-      );
-      expect(screen.getByText(invitedLine(6))).toBeInTheDocument();
-      expect(screen.queryByRole('button', startButton)).not.toBeInTheDocument();
-      unmount();
-    }
-  });
-
-  it('prints what became of tonight’s press, for the admin who did not make it', () => {
-    draw(snapshot(null), { isAdmin: true, lobbyStart: startRow() });
-
-    expect(screen.getByText(openingOnPcLine('Hamoodi'))).toBeInTheDocument();
-    // And the button goes quiet while the command is live — `aria-disabled`, never the
-    // attribute, so the focus stays where the keyboard left it (the designer, M3.20).
-    const button = screen.getByRole('button', { name: START_LOBBY_BUTTON });
-    expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(button).toHaveClass('cn-button-quiet');
-    expect(button).not.toBeDisabled();
+  it('finished, weekly rating != group rating: no name beside two different four-digit numbers', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW });
+    // Every top-five row's weekly Rating one point off the team cards' group Rating (the walk's 1341 vs 1342).
+    const topPlayers = fixture.topPlayers.map((row) => ({
+      ...row,
+      rating: row.rating + 1,
+      track: 'week' as const,
+    }));
+    const { container } = render(<TonightView {...fixture} topPlayers={topPlayers} group={ORIGINAL_GROUP} />);
+    const names = ['Lena', 'Bilal', 'Rami', 'Iris', 'Karim', 'Omar', 'Hana', 'Theo', 'Nadia', 'Yuki'];
+    const beside = numbersBesideNames(container, names);
+    expect(beside.size).toBe(10);
+    for (const [name, numbers] of beside) expect({ name, n: numbers.size }).toEqual({ name, n: 1 });
   });
 });
 
-/**
- * `Missed the invite? The lobby is Customs 08 Sep #1, password 4821.` (M4.10).
- *
- * Five cases, and the fifth is the one that matters: the password is for the people who play,
- * not for whoever the WhatsApp link was forwarded to (product and the designer, 2026-09-10).
- */
-describe('the lobby a latecomer can still join', () => {
-  const me = workedMembers(1)[0]?.puuid ?? '';
-  const filling = () => snapshot(lobbyView({ members: workedMembers(7) }));
+describe('M14.41 gap 2: the admin press is in the strip', () => {
+  const strip = () => {
+    const header = screen.getByRole('heading', { level: 1 }).closest('header');
+    if (header === null) throw new Error('no strip');
+    return header;
+  };
 
-  it('names the lobby and the password while it fills, for a linked viewer', () => {
-    const { container } = draw(filling(), { puuid: me });
-
-    const line = container.querySelector('.cn-missed');
-    expect(line?.textContent).toBe(missedInviteSentence('Customs 08 Sep #1', '4821'));
-    // The two values a person has to type are mono; the sentence around them is not.
-    expect([...(line?.querySelectorAll('.cn-num') ?? [])].map((node) => node.textContent)).toEqual([
-      'Customs 08 Sep #1',
-      '4821',
-    ]);
-    // One tap selects all four digits on a phone.
-    expect(line?.querySelector('.cn-missed-password')?.textContent).toBe('4821');
+  it('Roll teams (over ten), Reroll (balanced), Start a lobby (finished) sit inside the strip', () => {
+    const over = draw('over-ten', { viewer: ADMIN_VIEWER });
+    expect(within(strip()).getByRole('button', { name: ROLL_LABEL })).toBeInTheDocument();
+    over.unmount();
+    const balanced = draw('balanced', { viewer: ADMIN_VIEWER });
+    expect(within(strip()).getByRole('button', { name: REROLL_LABEL })).toBeInTheDocument();
+    balanced.unmount();
+    draw('finished');
+    expect(within(strip()).getByRole('button', { name: 'Start the next lobby' })).toBeInTheDocument();
   });
 
-  it('drops to the name alone when no companion has told us a password', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers(7), lobbyPassword: null })), {
-      puuid: me,
-    });
+  it('members and visitors get no new element: no roll, no reroll, anywhere', () => {
+    for (const viewer of [MEMBER_VIEWER, ANON_VIEWER]) {
+      for (const key of ['over-ten', 'balanced'] as const) {
+        const { unmount } = draw(key, { viewer });
+        expect(screen.queryByRole('button', { name: ROLL_LABEL })).toBeNull();
+        expect(screen.queryByRole('button', { name: REROLL_LABEL })).toBeNull();
+        unmount();
+      }
+    }
+  });
+});
 
-    expect(container.querySelector('.cn-missed')?.textContent).toBe(
-      missedInviteSentence('Customs 08 Sep #1', null),
-    );
-    expect(container.querySelector('.cn-missed')?.textContent).not.toContain('password');
+describe('M14.41 gap 3: the ten by side, in the strip, for whoever is not seated', () => {
+  it('signed out, balanced and in game: two lists of five names, under BLUE and RED', () => {
+    for (const key of ['balanced', 'in-game'] as const) {
+      const { unmount } = draw(key, { viewer: ANON_VIEWER }, true);
+      const header = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement;
+      const blue = within(header).getByRole('list', { name: 'Blue side' });
+      const red = within(header).getByRole('list', { name: 'Red side' });
+      expect(within(blue).getAllByRole('listitem')).toHaveLength(5);
+      expect(within(red).getAllByRole('listitem')).toHaveLength(5);
+      expect(within(header).getByText('BLUE')).toBeInTheDocument();
+      expect(within(header).getByText('RED')).toBeInTheDocument();
+      // 6.14's long names whole.
+      expect(within(header).getByText('Jinxed Lad Who Wanders')).toBeInTheDocument();
+      unmount();
+    }
   });
 
-  it('is absent, not empty, when we do not know the lobby’s name', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ members: workedMembers(7), lobbyName: null, lobbyPassword: '4821' })),
-      { puuid: me },
-    );
-
-    expect(container.querySelector('.cn-missed')).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toContain('4821');
+  it('a seated linked viewer keeps the answer band, and the strip does not repeat the ten', () => {
+    draw('balanced');
+    const header = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement;
+    expect(within(header).queryByRole('list', { name: 'Blue side' })).toBeNull();
+    expect(within(header).getByText(/, playing support/)).toBeInTheDocument();
   });
 
-  it('is the last line of the primary block while the teams are up, and gone in game', () => {
-    const teams = workedTeams();
-    const balanced = lobbyView({ status: 'balanced', teams, members: workedMembers() });
-    const { container, unmount } = draw(snapshot(balanced), { puuid: me });
+  it('not in the other states', () => {
+    for (const key of ['filling', 'finished', 'idle'] as const) {
+      const { unmount } = draw(key, { viewer: ANON_VIEWER });
+      expect(screen.queryByRole('list', { name: 'Blue side' })).toBeNull();
+      unmount();
+    }
+  });
+});
 
-    // Under the explanation strip, last in the block, above `Your role tonight`.
-    const block = container.querySelector('.cn-block');
-    expect(block?.lastElementChild?.className).toBe('cn-missed');
-    unmount();
-
-    // The game has started: there is nothing left to join.
-    draw(snapshot(lobbyView({ status: 'in_game', teams, members: workedMembers() })), { puuid: me });
-    expect(document.querySelector('.cn-missed')).not.toBeInTheDocument();
+describe('M14.41 gap 4: the sit-out card first, with the reason Discord gives', () => {
+  it('is the first card after the strip, for everyone, naming the rule that decided', () => {
+    for (const viewer of [ANON_VIEWER, MEMBER_VIEWER]) {
+      const { unmount } = draw('balanced', { viewer });
+      const header = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement;
+      const card = screen.getByText(/sits this one out\./);
+      expect(card.textContent).toBe(
+        "Deniz sits this one out. They've gone longest without sitting out, and everyone's played 1 game tonight.",
+      );
+      const receipt = screen.getByRole('region', { name: TITLE_BALANCED });
+      expect(header.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(card.compareDocumentPosition(receipt) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      unmount();
+    }
   });
 
-  it('is drawn for nobody who is not signed in and matched to a player row', () => {
-    const { unmount } = draw(filling());
-    expect(document.querySelector('.cn-missed')).not.toBeInTheDocument();
-    expect(document.body.textContent).not.toContain('4821');
-    unmount();
-
-    // Signed in with Discord, matching no player row: still not one of the twenty.
-    render(
+  it('the sitter reads it in the second person; no rule known prints the lead alone', () => {
+    const fixture = tonightStateFixture('balanced', { now: NOW });
+    const first = render(
       <TonightView
-        snapshot={filling()}
-        viewer={{ kind: 'unlinked', claimable: [] }}
-        topPlayers={[]}
-        lobbyStart={null}
+        {...fixture}
+        viewer={{ kind: 'linked', puuid: 'puuid-deniz', isAdmin: false }}
+        group={ORIGINAL_GROUP}
       />,
     );
-    expect(document.querySelector('.cn-missed')).not.toBeInTheDocument();
-  });
-});
-
-describe('fearless, the ban list', () => {
-  it('is absent while the pool is empty', () => {
-    draw(snapshot(null));
-    expect(document.body.textContent).not.toContain(FEARLESS_TITLE);
-    expect(document.body.textContent).not.toContain(FEARLESS_CARD_SENTENCE);
-  });
-
-  it('lists the champions under their lanes, with the card sentence and the ban count', () => {
-    draw(
-      snapshot(null, {
-        fearless: {
-          resetAt: FIXTURE_NIGHT_START,
-          champions: [
-            { id: 103, name: 'Ahri', role: 'mid' },
-            { id: 222, name: 'Jinx', role: 'adc' },
-          ],
-        },
-      }),
-    );
-    const card = document.querySelector('.cn-fearless');
-    expect(card).not.toBeNull();
-    expect(card?.textContent).toContain(FEARLESS_TITLE);
-    expect(card?.textContent).toContain(FEARLESS_CARD_SENTENCE);
-    expect(card?.textContent).toContain('Ahri');
-    expect(card?.textContent).toContain('Jinx');
-    expect(card?.textContent).toContain('mid');
-    expect(card?.textContent).toContain('adc');
-    expect(card?.textContent).toContain('2 banned.');
-  });
-
-  it('finds a name instantly and says when it is on the list', () => {
-    draw(
-      snapshot(null, {
-        fearless: {
-          resetAt: FIXTURE_NIGHT_START,
-          champions: [
-            { id: 103, name: 'Ahri', role: 'mid' },
-            { id: 222, name: 'Jinx', role: 'adc' },
-          ],
-        },
-      }),
-    );
-    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
-    fireEvent.change(box, { target: { value: 'jinx' } });
-    const card = document.querySelector('.cn-fearless');
-    expect(card?.textContent).toContain(fearlessBanned('Jinx'));
-    expect(card?.textContent).toContain('Jinx');
-    expect(card?.textContent).not.toContain('Ahri');
-    fireEvent.change(box, { target: { value: 'zzz' } });
-    expect(card?.textContent).toContain(FEARLESS_SEARCH_EMPTY);
-  });
-
-  it('lists who is still open in each lane, and says so when the name is exact', () => {
-    draw(
-      snapshot(null, {
-        fearless: {
-          resetAt: FIXTURE_NIGHT_START,
-          champions: [
-            { id: 103, name: 'Ahri', role: 'mid' },
-            { id: 222, name: 'Jinx', role: 'adc' },
-          ],
-        },
-      }),
-    );
-    const card = document.querySelector('.cn-fearless');
-    const open = [...document.querySelectorAll('.cn-fearless-open-chip')].map((chip) => chip.textContent);
-    expect(card?.textContent).toContain(FEARLESS_BANNED_LABEL);
-    expect(open).toContain('Garen');
-    expect(open).toContain('Annie');
-    expect(open).not.toContain('Ahri');
-    expect(open).not.toContain('Jinx');
-
-    const mid = [...(card?.querySelectorAll('.cn-fearless-lane') ?? [])].find((lane) =>
-      lane.querySelector('h3')?.textContent?.includes('mid'),
-    );
-    const midOpen = [...(mid?.querySelectorAll('.cn-fearless-open-chip') ?? [])].map(
-      (chip) => chip.textContent,
-    );
-    expect(mid?.textContent).toContain('Ahri');
-    expect(midOpen).toContain('Annie');
-    expect(midOpen).not.toContain('Garen');
-
-    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
-    fireEvent.change(box, { target: { value: 'garen' } });
-    expect(card?.textContent).toContain(fearlessAvailable('Garen'));
-    expect(card?.textContent).not.toContain('Ahri');
-    expect(card?.textContent).not.toContain(fearlessBanned('Garen'));
-  });
-});
-
-describe('fearless, open first (2026-10-03)', () => {
-  const pool = {
-    resetAt: FIXTURE_NIGHT_START,
-    champions: [
-      { id: 103, name: 'Ahri', role: 'mid' as const },
-      { id: 222, name: 'Jinx', role: 'adc' as const },
-    ],
-  };
-
-  it('stacks the lanes one per row, each headed by its word, role mark and open count', () => {
-    draw(snapshot(null, { fearless: pool }));
-    const column = document.querySelector('.cn-fearless .cn-fearless-lanes');
-    expect(column).not.toBeNull();
-    const lanes = [...(column?.querySelectorAll(':scope > .cn-fearless-lane') ?? [])];
-    expect(lanes.map((lane) => lane.querySelector('h3')?.textContent)).toEqual([
-      'top',
-      'jungle',
-      'mid',
-      'adc',
-      'support',
-    ]);
-    expect(lanes[2]?.querySelector('h3 svg')).toHaveAttribute('aria-hidden', 'true');
-    for (const lane of lanes) {
-      const openChips = lane.querySelectorAll('.cn-fearless-open-chip').length;
-      expect(lane.querySelector('.cn-fearless-lane-count')?.textContent).toBe(fearlessLaneOpen(openChips));
-    }
-  });
-
-  it("shows the open champions first and folds each lane's bans shut until somebody types", () => {
-    draw(snapshot(null, { fearless: pool }));
-    // Open champions are the content: never behind a fold, and before the bans in the lane.
-    const mid = document.querySelectorAll('.cn-fearless-lane')[2];
-    const annie = [...(mid?.querySelectorAll('.cn-fearless-open-chip') ?? [])].find(
-      (chip) => chip.textContent === 'Annie',
-    );
-    expect(annie).toBeDefined();
-    expect(annie?.closest('details')).toBeNull();
-    const fold = mid?.querySelector('details.cn-fearless-banned');
     expect(
-      annie && fold && annie.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-
-    const folds = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-banned')];
-    // Ahri in mid, Jinx in adc: only lanes with a ban carry the fold.
-    expect(folds).toHaveLength(2);
-    for (const banned of folds) {
-      expect(banned.open).toBe(false);
-      const count = Number(banned.querySelector('.cn-fearless-banned-count')?.textContent);
-      expect(count).toBe(banned.querySelectorAll('.cn-fearless-banned-chip').length);
-      expect(banned.querySelector('summary')?.textContent).toContain(FEARLESS_BANNED_LABEL);
-    }
-    expect(fold?.textContent).toContain('Ahri');
-
-    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
-    fireEvent.change(box, { target: { value: 'ahr' } });
-    const opened = [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-banned')];
-    expect(opened.length).toBeGreaterThan(0);
-    expect(opened.every((banned) => banned.open)).toBe(true);
-
-    fireEvent.change(box, { target: { value: '' } });
-    expect(
-      [...document.querySelectorAll<HTMLDetailsElement>('details.cn-fearless-banned')].every(
-        (banned) => !banned.open,
+      screen.getByText(
+        "You are sitting this one out. You've gone longest without sitting out, and everyone's played 1 game tonight. You are first in line for the next one.",
       ),
-    ).toBe(true);
-  });
-
-  it('draws the icon of a champion the loader named from the client, not Champion 804', () => {
-    draw(
-      snapshot(null, {
-        fearless: {
-          resetAt: FIXTURE_NIGHT_START,
-          champions: [
-            { id: 12_345, name: 'Newchamp', role: 'adc', iconUrl: 'https://example.test/12345.png' },
-          ],
-        },
-      }),
-    );
-    const chip = [...document.querySelectorAll('.cn-fearless-list li')].find(
-      (li) => li.textContent === 'Newchamp',
-    );
-    expect(chip?.querySelector('img')?.getAttribute('src')).toBe('https://example.test/12345.png');
+    ).toBeInTheDocument();
+    first.unmount();
+    render(<TonightView {...fixture} sitOutRule={null} group={ORIGINAL_GROUP} />);
+    expect(screen.getByText(/sits this one out\./).textContent).toBe('Deniz sits this one out.');
   });
 });
 
-describe('the night tape (M11.2)', () => {
-  const pool = { resetAt: FIXTURE_NIGHT_START, champions: [{ id: 103, name: 'Ahri', role: 'mid' as const }] };
-  const mainClasses = (container: HTMLElement) =>
-    [...(container.querySelector('main')?.children ?? [])].map((child) => child.className);
-
-  it('two finished and one filling: the rack is primary and the tape has GAME 1 then GAME 2', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ members: workedMembers(3) }), {
-        tape: [tapeEntry({ lobbyId: 'a', clock: '20:10' }), tapeEntry({ lobbyId: 'b', clock: '21:40' })],
-      }),
+describe('M14.41 gap 5: every name is a link', () => {
+  it('finished: ten seat links to their player pages, MVP and ACE, and Full scoreboard', () => {
+    draw('finished');
+    for (const side of ['Blue team', 'Red team']) {
+      const card = screen.getByRole('region', { name: side });
+      const links = within(card).getAllByRole('link');
+      expect(links).toHaveLength(5);
+      for (const link of links) expect(link.getAttribute('href')).toMatch(/^\/g\/customs\/p\/puuid-[a-z]+$/);
+    }
+    // MVP Lena · ACE Iris: their own links beside the stickers (plus the seat and top-five rows).
+    expect(screen.getAllByRole('link', { name: 'Lena' }).length).toBeGreaterThanOrEqual(2);
+    expect(new Set(screen.getAllByRole('link', { name: 'Lena' }).map((l) => l.getAttribute('href')))).toEqual(
+      new Set(['/g/customs/p/puuid-lena']),
     );
-    expect(strip(container)[1]).toBe('3 IN THE LOBBY live');
-    const rows = [...container.querySelectorAll('.cn-tape > li')];
-    expect(rows.map((row) => row.querySelector('.cn-tape-game')?.textContent)).toEqual(['GAME 1', 'GAME 2']);
-  });
-
-  it('one finished and nothing newer: the poster, and no tape', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
+    expect(screen.getAllByRole('link', { name: 'Iris' }).map((l) => l.getAttribute('href'))).toContain(
+      '/g/customs/p/puuid-iris',
     );
-    expect(container.querySelector('.cn-result')).not.toBeNull();
-    expect(container.querySelector('.cn-tape-card')).toBeNull();
-    expect(screen.queryByText(TAPE_TITLE)).not.toBeInTheDocument();
-  });
-
-  it('a newest dropped lobby: the page is idle and the dropped one is the last row', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'dropped', teams: workedTeams() }), {
-        tape: [
-          tapeEntry({ lobbyId: 'a' }),
-          tapeEntry({ lobbyId: 'b' }),
-          tapeEntry({ lobbyId: 'c', status: 'dropped', result: null }),
-        ],
-      }),
+    expect(screen.getByRole('link', { name: 'Full scoreboard' })).toHaveAttribute(
+      'href',
+      groupHref(ORIGINAL_GROUP, { page: 'game', gameId: 'game-1' }) ?? '',
     );
-    expect(strip(container)[1]).toBe('NOBODY IN YET');
-    const rows = [...container.querySelectorAll('.cn-tape > li')];
-    expect(rows).toHaveLength(3);
-    expect(rows[2]?.querySelector('.cn-tape-result')).toHaveTextContent('NO RESULT');
   });
 
-  it('sits after Fearless and directly before Your role tonight while a lobby is live', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'balanced', teams: workedTeams() }), {
-        fearless: pool,
-        tape: [tapeEntry()],
-      }),
-    );
-    expect(mainClasses(container).slice(-3)).toEqual([
-      'cn-block cn-fearless',
-      'cn-card cn-tape-card',
-      'cn-card cn-role-card',
-    ]);
-  });
-
-  it('sits after Fearless on the idle page too, in the main column and never the rail', () => {
-    const { container } = draw(snapshot(null, { fearless: pool, tape: [tapeEntry()] }));
-    const classes = mainClasses(container);
-    expect(classes.indexOf('cn-card cn-tape-card')).toBeGreaterThan(classes.indexOf('cn-block cn-fearless'));
-    expect(classes.at(-1)).toBe('cn-card cn-tape-card');
-    expect(container.querySelector('.cn-rail .cn-tape-card')).toBeNull();
-  });
-
-  it('turns on the nameless hint for a Someone on the tape alone', () => {
-    draw(snapshot(null, { tape: [tapeEntry({ sitters: [null] })] }));
-    expect(screen.getByText(NAMELESS_HINT)).toBeInTheDocument();
-    expect(document.querySelector('.cn-tape')).toHaveTextContent('Sat out: Someone.');
+  it('balanced and in game: the seat names link too, and the reroll still works beside them', () => {
+    for (const key of ['balanced', 'in-game'] as const) {
+      const { unmount } = draw(key, { viewer: ADMIN_VIEWER });
+      expect(within(screen.getByRole('region', { name: 'Blue team' })).getAllByRole('link')).toHaveLength(5);
+      // No nested interactive element: no link holds a button and no button holds a link.
+      for (const link of screen.getAllByRole('link')) expect(link.querySelector('button, a')).toBeNull();
+      unmount();
+    }
   });
 });
 
-/**
- * The column, state by state (2026-10-03). The primary block first in every state, the idle
- * page included, so the first join does not reshuffle what is under it; then:
- *
- * - `filling`: `Your role tonight` straight under the rack — a tap only counts before the roll;
- * - `teams`: Fearless, then the daily pointer — the find box is the point during pick;
- * - `result`: the night tape before Fearless — the night's story, not the ban list;
- * - idle: the pointer, Fearless, the tape.
- */
-describe('the column order, state by state', () => {
-  const pool = { resetAt: FIXTURE_NIGHT_START, champions: [{ id: 103, name: 'Ahri', role: 'mid' as const }] };
-  const column = (container: HTMLElement) => [...(container.querySelector('main')?.children ?? [])];
-  const at = (children: Element[], cls: string) =>
-    children.findIndex((child) => child.classList.contains(cls));
-  const extras = { fearless: pool, tape: [tapeEntry()] };
-
-  it('idle: the primary block first, then the pointer, Fearless and the tape', () => {
-    const { container } = draw(snapshot(null, extras), { isAdmin: true, mystery: PLAY_DAY });
-    const col = column(container);
-    const rack = col.findIndex((child) => child.querySelector('.cn-rack-open') !== null);
-    expect(at(col, 'cn-start')).toBeLessThan(rack);
-    expect(at(col, 'cn-mystery-teaser')).toBe(rack + 1);
-    expect(at(col, 'cn-fearless')).toBe(rack + 2);
-    expect(at(col, 'cn-tape-card')).toBe(rack + 3);
-  });
-
-  it('filling: Your role tonight directly under the rack, above the pointer and Fearless', () => {
-    const { container } = draw(snapshot(lobbyView({ members: workedMembers(7) }), extras), {
-      puuid: workedMembers(1)[0]?.puuid ?? '',
-      mystery: PLAY_DAY,
-    });
-    const col = column(container);
-    const block = col.findIndex((child) => child.querySelector('.cn-rack') !== null);
-    expect(at(col, 'cn-role-card')).toBe(block + 1);
-    expect(at(col, 'cn-mystery-teaser')).toBe(block + 2);
-    expect(at(col, 'cn-fearless')).toBe(block + 3);
-    expect(at(col, 'cn-tape-card')).toBe(block + 4);
-    expect(col.at(-1)).toHaveClass('cn-tape-card');
-  });
-
-  it('teams: Fearless right under the block, the pointer after it, the role card last', () => {
-    const { container } = draw(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() }), extras), {
-      mystery: PLAY_DAY,
-    });
-    const col = column(container);
-    const block = col.findIndex((child) => child.querySelector('.cn-team') !== null);
-    expect(at(col, 'cn-fearless')).toBe(block + 1);
-    expect(at(col, 'cn-mystery-teaser')).toBe(block + 2);
-    expect(at(col, 'cn-tape-card')).toBe(block + 3);
-    expect(col.at(-1)).toHaveClass('cn-role-card');
-  });
-
-  it('result: the night tape before Fearless, the role card last', () => {
-    const { container } = draw(
-      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() }), extras),
-      { mystery: PLAY_DAY },
+describe('M14.41 gap 6: main roles counted only among people who have one', () => {
+  it('Main roles 6/6 · 4 new, said once (the chip, not a second sentence)', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('balanced', { now: NOW });
+    const lobby = fixture.snapshot.lobby;
+    if (lobby?.teams == null) throw new Error('fixture');
+    // Four of the ten with no main role on record, none of them off-role (core: flexible).
+    const fresh = new Set(
+      [...lobby.teams.blue.slice(0, 2), ...lobby.teams.red.slice(0, 2)].map((s) => s.puuid),
     );
-    const col = column(container);
-    const poster = col.findIndex((child) => child.querySelector('.cn-result-head') !== null);
-    expect(poster).toBeGreaterThan(-1);
-    expect(at(col, 'cn-mystery-teaser')).toBe(poster + 1);
-    expect(at(col, 'cn-tape-card')).toBe(at(col, 'cn-mystery-teaser') + 1);
-    expect(at(col, 'cn-fearless')).toBe(at(col, 'cn-tape-card') + 1);
-    // Nothing after Fearless but the role card, when it draws at all.
+    const teams = {
+      ...lobby.teams,
+      blue: lobby.teams.blue.map((seat) => (fresh.has(seat.puuid) ? { ...seat, offRole: false } : seat)),
+      red: lobby.teams.red.map((seat) => (fresh.has(seat.puuid) ? { ...seat, offRole: false } : seat)),
+      stored: lobby.teams.stored.map((split) => ({
+        ...split,
+        offRoleCount: 0,
+        // Core's own all-on-main sentence (explain.ts), which the receipt must not print beside `4 new`.
+        explanation: 'Blue favored 54%. Everyone on a main role. Gap 60.',
+      })),
+    };
+    const members = lobby.members.map((member) =>
+      fresh.has(member.puuid)
+        ? { ...member, mainRole: null, secondaryRole: null, roleOverride: null }
+        : member,
+    );
+    render(
+      <TonightView
+        {...fixture}
+        snapshot={{ ...fixture.snapshot, lobby: { ...lobby, members, teams } }}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    const receipt = screen.getByRole('region', { name: TITLE_BALANCED });
+    expect(receipt.textContent).toMatch(/Main roles 6\/6 · 4 new/);
+    // M14.45: the chip says it, so the sentence `4 people have no main role yet.` goes.
+    expect(receipt.textContent).not.toMatch(/4 people have no main role yet\./);
+    expect(receipt.textContent).not.toMatch(/Main roles 10\/10/);
+    // M14.41 review: the disclosure's bot note follows the chip too.
+    expect(receipt.textContent).not.toContain('Everyone on a main role');
+    expect(receipt.textContent).toContain('Blue favored 54%. 4 new, the rest on a main role. Gap 60.');
+  });
+});
+
+describe('M14.41 gap 12: the tape count', () => {
+  it('says 2 earlier while a game is on the page, and 2 played on an idle page', () => {
+    const finished = draw('finished');
     expect(
-      col.slice(at(col, 'cn-fearless') + 1).every((child) => child.classList.contains('cn-role-card')),
-    ).toBe(true);
+      within(screen.getByRole('region', { name: TAPE_TITLE })).getByText('2 earlier'),
+    ).toBeInTheDocument();
+    finished.unmount();
+    draw('idle');
+    expect(
+      within(screen.getByRole('region', { name: TAPE_TITLE })).getByText('2 played'),
+    ).toBeInTheDocument();
   });
 });
 
-/**
- * The lane filter (2026-10-03): five 44px toggles in the role tap's dress, all on. The open lists
- * stay unfolded — the filter is the fix for the card's length, not a fold.
- */
-describe('fearless, the lane filter', () => {
-  const pool = {
-    resetAt: FIXTURE_NIGHT_START,
-    champions: [
-      { id: 103, name: 'Ahri', role: 'mid' as const },
-      { id: 222, name: 'Jinx', role: 'adc' as const },
-      { id: 99_999, name: 'Champion 99999', role: null },
-    ],
-  };
-  const laneWords = () =>
-    [...document.querySelectorAll('.cn-fearless-lane h3')].map((heading) => heading.textContent);
-  const toggle = (role: string) =>
-    within(screen.getByRole('group', { name: FEARLESS_LANE_FILTER })).getByRole('button', { name: role });
+/* M14.41 design round 1. */
+describe('M14.41 design round 1', () => {
+  const stripOf = () => screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement;
 
-  it('draws five toggles under the find box, all pressed, and every lane', () => {
-    draw(snapshot(null, { fearless: pool }));
-    const group = screen.getByRole('group', { name: FEARLESS_LANE_FILTER });
-    const buttons = within(group).getAllByRole('button');
-    expect(buttons.map((button) => button.textContent)).toEqual(['top', 'jungle', 'mid', 'adc', 'support']);
-    for (const button of buttons) {
-      expect(button).toHaveAttribute('aria-pressed', 'true');
-      expect(button).toHaveClass('cn-role-choice', 'cn-role-on');
-      expect(button).toHaveAttribute('type', 'button');
-    }
-    const search = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
-    expect(search.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(laneWords()).toEqual(['top', 'jungle', 'mid', 'adc', 'support', 'other']);
+  it('over ten, the admin who holds Roll teams never reads Waiting on; the hint is the rotation preview', () => {
+    draw('over-ten', { viewer: ADMIN_VIEWER });
+    const strip = stripOf();
+    expect(strip.textContent).not.toMatch(/Waiting on/);
+    expect(within(strip).getByText('Ten play, the rest sit out.')).toBeInTheDocument();
+    expect(
+      within(strip).getByText('If the teams rolled now, Deniz and then Mo would sit out.'),
+    ).toBeInTheDocument();
+    // Said once: the roster no longer repeats it for the admin.
+    expect(screen.getAllByText('If the teams rolled now, Deniz and then Mo would sit out.')).toHaveLength(1);
+    expect(document.body.textContent).not.toMatch(/Check everyone/);
   });
 
-  it('hides a lane when its toggle is turned off, and brings it back', () => {
-    draw(snapshot(null, { fearless: pool }));
-    fireEvent.click(toggle('top'));
-    expect(toggle('top')).toHaveAttribute('aria-pressed', 'false');
-    expect(toggle('top')).not.toHaveClass('cn-role-on');
-    // A narrowed card is the lanes asked for: `other` is not a lane anybody picks for.
-    expect(laneWords()).toEqual(['jungle', 'mid', 'adc', 'support']);
-    fireEvent.click(toggle('top'));
-    expect(laneWords()).toEqual(['top', 'jungle', 'mid', 'adc', 'support', 'other']);
+  it('over ten, a member keeps Waiting on and the preview under the roster', () => {
+    draw('over-ten', { viewer: MEMBER_VIEWER });
+    expect(stripOf().textContent).toMatch(/Waiting on/);
+    const preview = screen.getByText('If the teams rolled now, Deniz and then Mo would sit out.');
+    expect(stripOf().contains(preview)).toBe(false);
   });
 
-  it('narrows to one lane, and turning the last one off brings all five back', () => {
-    draw(snapshot(null, { fearless: pool }));
-    for (const role of ['top', 'mid', 'adc', 'support']) fireEvent.click(toggle(role));
-    expect(laneWords()).toEqual(['jungle']);
-    // The open chips are still open, not folded.
-    expect(document.querySelectorAll('.cn-fearless-lane .cn-fearless-open-chip').length).toBeGreaterThan(0);
-
-    fireEvent.click(toggle('jungle'));
-    expect(laneWords()).toEqual(['top', 'jungle', 'mid', 'adc', 'support', 'other']);
-    for (const role of ['top', 'jungle', 'mid', 'adc', 'support']) {
-      expect(toggle(role)).toHaveAttribute('aria-pressed', 'true');
-    }
+  it('at exactly ten, the admin reads All ten are in. and the at-ten hint', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('over-ten', { now: NOW });
+    const lobby = fixture.snapshot.lobby;
+    if (lobby === null) throw new Error('fixture');
+    const ten = { ...lobby, members: lobby.members.slice(0, 10) };
+    render(
+      <TonightView
+        {...fixture}
+        snapshot={{ ...fixture.snapshot, lobby: ten }}
+        wouldSitOut={null}
+        viewer={ADMIN_VIEWER}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    const strip = stripOf();
+    expect(within(strip).getByText('All ten are in.')).toBeInTheDocument();
+    expect(within(strip).getByText("Roll once everyone who's staying is in the lobby.")).toBeInTheDocument();
+    expect(strip.textContent).not.toMatch(/Waiting on/);
   });
 
-  it('lets the find box reach a lane that is toggled off, then applies the filter again', () => {
-    draw(snapshot(null, { fearless: pool }));
-    for (const role of ['top', 'jungle', 'adc', 'support']) fireEvent.click(toggle(role));
-    expect(laneWords()).toEqual(['mid']);
+  it('finished: the sit-out card is past tense and after the team cards, on the lobby path too', () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('balanced', { now: NOW });
+    const lobby = fixture.snapshot.lobby;
+    if (lobby?.teams == null) throw new Error('fixture');
+    // A finished lobby with no result row yet: the lobby path (`Teams`) renders it.
+    render(
+      <TonightView
+        {...fixture}
+        snapshot={{ ...fixture.snapshot, lobby: { ...lobby, status: 'finished', result: null } }}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    const card = screen.getByText(/sat this one out\./);
+    const red = screen.getByRole('region', { name: 'Red team' });
+    const blue = screen.getByRole('region', { name: 'Blue team' });
+    expect(red.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(blue.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/sits this one out\./)).toBeNull();
+  });
 
-    const box = screen.getByRole('searchbox', { name: FEARLESS_SEARCH });
-    fireEvent.change(box, { target: { value: 'jinx' } });
-    expect(laneWords()).toEqual(['adc']);
-    expect(document.querySelector('.cn-fearless')?.textContent).toContain(fearlessBanned('Jinx'));
-    expect(document.querySelector('.cn-fearless')?.textContent).not.toContain(FEARLESS_SEARCH_EMPTY);
-
-    fireEvent.change(box, { target: { value: '' } });
-    expect(laneWords()).toEqual(['mid']);
+  it("lead ruling (a): Tonight's finished poster counts main roles like the balanced receipt did", () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW });
+    const lobby = fixture.snapshot.lobby;
+    if (lobby?.teams == null) throw new Error('fixture');
+    const fresh = new Set(
+      [...lobby.teams.blue.slice(0, 2), ...lobby.teams.red.slice(0, 2)].map((x) => x.puuid),
+    );
+    const members = lobby.members.map((m) =>
+      fresh.has(m.puuid) ? { ...m, mainRole: null, secondaryRole: null, roleOverride: null } : m,
+    );
+    const teams = {
+      ...lobby.teams,
+      stored: lobby.teams.stored.map((split) => ({
+        ...split,
+        offRoleCount: 0,
+        explanation: 'Blue favored 54%. Everyone on a main role. Gap 60.',
+      })),
+    };
+    render(
+      <TonightView
+        {...fixture}
+        snapshot={{ ...fixture.snapshot, lobby: { ...lobby, members, teams } }}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    const receipt = screen.getByRole('region', { name: TITLE_FINISHED });
+    expect(receipt.textContent).toMatch(/Main roles 6\/6 · 4 new/);
+    expect(receipt.textContent).not.toContain('Everyone on a main role');
   });
 });
 
-describe('fearless champion icons (M11.1)', () => {
-  function chipNamed(name: string, selector = '.cn-fearless-list li'): HTMLElement {
-    const chip = [...document.querySelectorAll<HTMLElement>(selector)].find((li) => li.textContent === name);
-    if (chip === undefined) throw new Error(`no chip ${name}`);
-    return chip;
-  }
-
-  function drawPool(champions: { id: number; name: string; role: 'mid' | 'adc' | null }[]) {
-    draw(snapshot(null, { fearless: { resetAt: FIXTURE_NIGHT_START, champions } }));
-  }
-
-  it('leads a known banned chip with a decorative 24px icon; the name is the text', () => {
-    drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
-    const chip = chipNamed('Annie', '.cn-fearless-banned-chip');
-    const img = chip.querySelector('img');
-    expect(img).not.toBeNull();
-    expect(img?.getAttribute('src')).toContain('/1.png');
-    expect(img?.getAttribute('alt')).toBe('');
-    expect(img?.getAttribute('width')).toBe('24');
-    expect(img?.getAttribute('height')).toBe('24');
-    expect(img?.getAttribute('loading')).toBe('lazy');
-    expect(img).toHaveClass('cn-fearless-icon');
-    expect(chip.firstChild).toBe(img);
-    expect(chip.textContent).toBe('Annie');
+describe('M14.58 / M14.59 on the finished poster', () => {
+  it("every seat's change opens why it was that size; yours says You", () => {
+    draw('finished');
+    const buttons = ['Blue team', 'Red team'].flatMap((side) =>
+      within(screen.getByRole('region', { name: side })).getAllByRole('button', {
+        name: /^(gained|lost) \d+\. Why\?$/,
+      }),
+    );
+    expect(buttons).toHaveLength(10);
+    for (const button of buttons) expect(button).toHaveAttribute('aria-expanded', 'false');
+    const mine = screen.getAllByRole('listitem').find((item) => item.hasAttribute('data-you')) as HTMLElement;
+    const button = within(mine).getByRole('button', { name: /Why\?$/ });
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(mine).toHaveTextContent(/You (won|lost) \d+\./);
+    expect(mine).toHaveTextContent('Upsets and new players move the most.');
+    expect(mine.textContent).not.toMatch(/sigma|\d\.\d/i);
   });
 
-  it('gives open chips the same icon', () => {
-    drawPool([{ id: 103, name: 'Ahri', role: 'mid' }]);
-    const garen = chipNamed('Garen', '.cn-fearless-open-chip');
-    expect(garen.querySelector('img')?.getAttribute('src')).toContain('/86.png');
+  it("one odds number when the two agree; the points number on the winner's side when they differ", () => {
+    const { unmount } = draw('finished');
+    expect(screen.queryByText(/For points/)).toBeNull();
+    unmount();
+    const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW, oddsGap: true });
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    const receipt = screen.getByRole('region', { name: TITLE_FINISHED });
+    expect(
+      within(receipt)
+        .getByText(/For points, /)
+        .closest('p'),
+    ).toHaveTextContent(
+      /^For points, Red was \d+%, because (new players start at 1200|ratings moved since the roll)\.$/,
+    );
   });
 
-  it('draws no icon for an id the name table does not know', () => {
-    drawPool([{ id: 99_999, name: 'Champion 99999', role: null }]);
-    const chip = chipNamed('Champion 99999');
-    expect(chip.querySelector('img')).toBeNull();
-  });
-
-  it('drops an icon that fails to load and keeps the name', () => {
-    drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
-    const selector = '.cn-fearless-banned-chip';
-    const img = chipNamed('Annie', selector).querySelector('img');
-    expect(img).not.toBeNull();
-    fireEvent.error(img as HTMLImageElement);
-    const chip = chipNamed('Annie', selector);
-    expect(chip.querySelector('img')).toBeNull();
-    expect(chip.textContent).toBe('Annie');
-  });
-
-  it('keeps the find-box sentence text only', () => {
-    drawPool([{ id: 1, name: 'Annie', role: 'mid' }]);
-    fireEvent.change(screen.getByRole('searchbox', { name: FEARLESS_SEARCH }), {
-      target: { value: 'annie' },
-    });
-    const status = document.querySelector('.cn-fearless-hit-copy');
-    expect(status?.textContent).toBe(fearlessBanned('Annie'));
-    expect(status?.querySelector('img')).toBeNull();
-    expect(chipNamed('Annie', '.cn-fearless-hit').querySelector('img')).not.toBeNull();
+  it("a breakdown for another game is ignored (the live refresh can't mix two games)", () => {
+    const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW });
+    render(
+      <TonightView
+        {...fixture}
+        group={ORIGINAL_GROUP}
+        breakdown={fixture.breakdown ? { ...fixture.breakdown, gameId: 'another-game' } : null}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /Why\?$/ })).toBeNull();
   });
 });

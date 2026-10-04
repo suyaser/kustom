@@ -9,10 +9,10 @@ import {
 } from './theme';
 
 describe('parseTheme', () => {
-  it('accepts Day and Night, and maps the old Current name to Night', () => {
+  it('accepts Day and Night only, so the retired Current name falls back to the default', () => {
     expect(parseTheme('day')).toBe('day');
     expect(parseTheme('night')).toBe('night');
-    expect(parseTheme('current')).toBe('night');
+    expect(parseTheme('current')).toBeNull();
     expect(parseTheme('light')).toBeNull();
     expect(parseTheme('')).toBeNull();
     expect(parseTheme(null)).toBeNull();
@@ -27,11 +27,10 @@ describe('the default', () => {
     expect(otherTheme('day')).toBe('night');
   });
 
-  it('writes the same names the bootstrap script reads, and migrates Current', () => {
+  it('writes the same names the bootstrap script reads, and applies nothing else', () => {
     expect(THEME_BOOTSTRAP).toContain(THEME_STORAGE_KEY);
     expect(THEME_BOOTSTRAP).toContain("t==='day'");
     expect(THEME_BOOTSTRAP).toContain("t==='night'");
-    expect(THEME_BOOTSTRAP).toContain("t==='current'");
-    expect(THEME_BOOTSTRAP).toContain("t='night'");
+    expect(THEME_BOOTSTRAP).not.toContain('current');
   });
 });

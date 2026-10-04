@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/command-ack.result.invite",
+  "title": "inviteCommandResultSchema",
+  "description": "POST /api/companion/commands/{id}/ack (request). result when the command is invite.",
+  "type": "object",
+  "properties": {
+    "puuid": {
+      "type": "string",
+      "minLength": 1,
+      "x-zod-not-exported": [
+        "refine"
+      ]
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "summonerId",
+        "puuid"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Accepted"
+      ]
+    }
+  },
+  "required": [
+    "puuid",
+    "method",
+    "state"
+  ]
+}

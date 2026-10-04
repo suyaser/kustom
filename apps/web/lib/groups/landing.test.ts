@@ -3,8 +3,9 @@ import { landingPath } from './landing';
 import { groupSlugFromPath } from './pageGroup';
 
 /**
- * `/` (M13.9 acceptance 3, plus the product owner's no-group case): where the tonight page's old
- * address sends each kind of visitor.
+ * `/` (M13.9 acceptance 3, revised by M14.24 acceptance 1): who the landing page redirects, and
+ * who stays on it (`null`). The page-level half (307, the back bar, `Create your group`) is
+ * `components/landing/landingRoute.test.tsx`.
  */
 
 const member = (...slugs: string[]) => ({
@@ -13,9 +14,9 @@ const member = (...slugs: string[]) => ({
 });
 
 describe('where / sends somebody', () => {
-  it('sends a signed-out visitor to the original group, whatever the cookie says', () => {
-    expect(landingPath({ kind: 'anonymous' }, null)).toBe('/g/customs');
-    expect(landingPath({ kind: 'anonymous' }, 'thursday-flex')).toBe('/g/customs');
+  it('keeps a signed-out visitor on the landing page, whatever the cookie says', () => {
+    expect(landingPath({ kind: 'anonymous' }, null)).toBeNull();
+    expect(landingPath({ kind: 'anonymous' }, 'thursday-flex')).toBeNull();
   });
 
   it("sends a member to the cookie's group when they are in it", () => {
@@ -30,9 +31,9 @@ describe('where / sends somebody', () => {
     expect(landingPath(member('thursday-flex', 'customs'), null)).toBe('/g/thursday-flex');
   });
 
-  it('sends a signed-in person in no group at all to /new, cookie or not', () => {
-    expect(landingPath(member(), null)).toBe('/new');
-    expect(landingPath(member(), 'customs')).toBe('/new');
+  it('keeps a signed-in person in no group at all on the landing page, cookie or not', () => {
+    expect(landingPath(member(), null)).toBeNull();
+    expect(landingPath(member(), 'customs')).toBeNull();
   });
 });
 

@@ -1,0 +1,24 @@
+{
+  "name": "rank--ranked-stats-by-puuid--other",
+  "kind": "request",
+  "target": "api",
+  "route": "rank",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/ranked-stats-by-puuid--other",
+    "16.17/summoner-by-puuid--other"
+  ],
+  "scenario": "rank-other",
+  "note": "The lobby answer listed this puuid in ranksNeeded: GET ranked-stats/{puuid}, then the summoner lookup (the lobby watcher did not know the name), then one post carrying both.",
+  "method": "POST",
+  "path": "/api/companion/rank",
+  "body": {
+    "puuid": "aebd7c57-83d8-551d-a7b2-7caa7e8b1960",
+    "tier": "SILVER",
+    "division": "II",
+    "lp": 1,
+    "queue": "RANKED_SOLO_5x5",
+    "gameName": "XETA",
+    "tagLine": "EUNE"
+  }
+}

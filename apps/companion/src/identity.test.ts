@@ -35,7 +35,13 @@ describe('checkIdentity', () => {
     ]);
     const outcome = await checkIdentity(h.api);
     announceIdentity(outcome, h.logger);
-    expect(outcome).toEqual({ status: 'ok', puuid: PUUID, playerId: PLAYER_ID, displayName: 'PRT Empty' });
+    expect(outcome).toEqual({
+      status: 'ok',
+      puuid: PUUID,
+      playerId: PLAYER_ID,
+      displayName: 'PRT Empty',
+      group: null,
+    });
     expect(h.fake.requests.filter((request) => request.path === '/api/companion/me')).toHaveLength(1);
     const lines = h.logger.lines.filter((line) => line.message === 'signed in as PRT Empty');
     expect(lines).toHaveLength(1);
@@ -43,10 +49,19 @@ describe('checkIdentity', () => {
     expect(JSON.stringify(h.logger.lines)).not.toContain(TOKEN);
   });
 
+  it("reads the token's group when the server says it (M14.12), and is null when it does not", async () => {
+    const group = { id: '5b1f3a52-9c0e-4d7a-8f11-2a6d4e9b7c10', slug: 'duo', name: 'Duo Club' };
+    const h = await setup([
+      { status: 200, body: { ok: true, puuid: PUUID, playerId: PLAYER_ID, displayName: 'Ana', group } },
+    ]);
+    const outcome = await checkIdentity(h.api);
+    expect(outcome).toMatchObject({ status: 'ok', group });
+  });
+
   it('falls back to the puuid when the display name is still null', () => {
-    expect(identityLine({ status: 'ok', puuid: PUUID, playerId: PLAYER_ID, displayName: null })).toBe(
-      `signed in as player ${PUUID} (no display name yet)`,
-    );
+    expect(
+      identityLine({ status: 'ok', puuid: PUUID, playerId: PLAYER_ID, displayName: null, group: null }),
+    ).toBe(`signed in as player ${PUUID} (no display name yet)`);
   });
 
   it('prints one plain sentence naming the admin page on 401, with no stack trace, and does not retry', async () => {

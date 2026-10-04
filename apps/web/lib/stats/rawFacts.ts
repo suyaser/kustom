@@ -1,5 +1,5 @@
 import type { RoleValue, SideValue } from '@customs/db';
-import { roleFromDetectedTeamPosition } from '@customs/db';
+import { roleFromDetectedTeamPosition } from '@customs/db/constants';
 
 /**
  * The extra scoreboard the companion already keeps on `games.raw` and that `/fun`

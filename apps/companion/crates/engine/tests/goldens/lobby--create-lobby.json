@@ -1,0 +1,30 @@
+{
+  "name": "lobby--create-lobby",
+  "kind": "request",
+  "target": "api",
+  "route": "lobby",
+  "patch": "16.18",
+  "fixtures": [
+    "16.18/create-lobby",
+    "16.17/current-summoner"
+  ],
+  "scenario": "lobby-create-lobby",
+  "note": "The lobby the 16.18 create made, posted by a process that did not create it: lobbyPassword null.",
+  "method": "POST",
+  "path": "/api/companion/lobby",
+  "body": {
+    "partyId": "a60654ef-a9f6-4ead-8a9d-9fcad8840621",
+    "lobbyName": "customs-verify",
+    "lobbyPassword": null,
+    "members": [
+      {
+        "puuid": "34151cbd-d9f8-5dad-9dc8-c6a8e253c0de",
+        "summonerId": 47890856,
+        "gameName": "PRT Empty",
+        "tagLine": "EUNE",
+        "side": 100,
+        "isSpectator": false
+      }
+    ]
+  }
+}

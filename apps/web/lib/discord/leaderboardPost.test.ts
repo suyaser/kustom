@@ -17,6 +17,8 @@ function board(overrides: Partial<BoardView> = {}): BoardView {
     rows: workedWindowRows(),
     range: 'Sunday 6 Sep to Saturday 12 Sep',
     games: 6,
+    everRated: true,
+    notPlayed: 0,
     ...overrides,
   };
 }

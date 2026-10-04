@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SEASON_ONE_ID } from './index';
 import { resolveLocalStack } from './localStack';
 import { rosterKey } from './rosterKey';
 import { ORIGINAL_GROUP_ID } from './schemas/groups';
@@ -138,7 +137,7 @@ if (stack === null) {
       expect(rows(updated.body)[0]?.updated_at).not.toBe(rows(before.body)[0]?.updated_at);
     });
 
-    it('inserts a game and defaults it to the active season', async () => {
+    it('inserts a game', async () => {
       const game = await insert('games', {
         group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: gameId,
@@ -150,7 +149,6 @@ if (stack === null) {
       });
       expect(game.status).toBe(201);
       const row = rows(game.body)[0];
-      expect(row?.season_id).toBe(SEASON_ONE_ID);
       expect(row?.source).toBe('eog');
 
       const gamePlayer = await insert('game_players', {
@@ -169,7 +167,6 @@ if (stack === null) {
       const rating = await insert('ratings', {
         group_id: ORIGINAL_GROUP_ID,
         player_id: playerAId,
-        season_id: SEASON_ONE_ID,
         mu: 25,
         sigma: 8.333,
       });
@@ -188,7 +185,6 @@ if (stack === null) {
       const seeded = await insert('ratings', {
         group_id: ORIGINAL_GROUP_ID,
         player_id: playerBId,
-        season_id: SEASON_ONE_ID,
         mu: 24.1,
         sigma: 8.1,
         seed_mu: 23,
@@ -203,10 +199,14 @@ if (stack === null) {
         seed_rank_division: 'IV',
       });
 
-      const half = await rest('service', `ratings?player_id=eq.${playerBId}&season_id=eq.${SEASON_ONE_ID}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ seed_sigma: null }),
-      });
+      const half = await rest(
+        'service',
+        `ratings?player_id=eq.${playerBId}&group_id=eq.${ORIGINAL_GROUP_ID}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ seed_sigma: null }),
+        },
+      );
       expect(half.status).toBe(400);
       expect((half.body as { code?: string }).code).toBe('23514');
     });
@@ -410,16 +410,11 @@ if (stack === null) {
     });
 
     it('lets anon read the public display tables', async () => {
-      for (const table of [
-        'seasons',
-        'lobbies',
-        'lobby_members',
-        'splits',
-        'games',
-        'game_players',
-        'ratings',
-      ]) {
-        const result = await rest('anon', `${table}?select=*&limit=1`);
+      for (const table of ['lobbies', 'lobby_members', 'splits', 'games', 'game_players', 'ratings']) {
+        // `lobbies` by named columns: `lobby_password` is not anon-readable since 0028 (M14.28), so
+        // `select=*` is refused there on purpose.
+        const columns = table === 'lobbies' ? 'id,status,lobby_name' : '*';
+        const result = await rest('anon', `${table}?select=${columns}&limit=1`);
         expect(result.ok, `${table} should be publicly readable`).toBe(true);
       }
     });
@@ -522,10 +517,16 @@ if (stack === null) {
   describe('daily_mysteries', () => {
     const days = [`2032-01-01`, `2032-01-02`, `2032-01-03`, `2032-01-04`, `2032-01-05`, `2032-01-06`];
     let challengeGameId = '';
+    /**
+     * A scratch group of this run's own. Challenge numbers and days are unique per group, and a
+     * local stack in real use holds the original group's own `#1`s (an award #1 broke this block
+     * on 2026-10-03), so these rows never share a group with anybody's data.
+     */
+    const challengeGroupId = crypto.randomUUID();
 
     async function challenge(day: string, extra: Record<string, unknown> = {}): Promise<RestResult> {
       return insert('daily_mysteries', {
-        group_id: ORIGINAL_GROUP_ID,
+        group_id: challengeGroupId,
         day,
         challenge_number: 1,
         game_id: challengeGameId,
@@ -541,12 +542,20 @@ if (stack === null) {
     }
 
     beforeAll(async () => {
+      const group = await insert('groups', {
+        id: challengeGroupId,
+        slug: runId,
+        name: `Schema test ${runId}`,
+      });
+      expect(group.status).toBe(201);
       const found = await rest('service', `games?lcu_game_id=eq.${gameId}&select=id`);
       challengeGameId = String(rows(found.body)[0]?.id ?? '');
     });
 
     afterAll(async () => {
-      await rest('service', `daily_mysteries?day=in.(${days.join(',')})`, { method: 'DELETE' });
+      // Only this run's group: a day filter alone would also delete real challenges on those days.
+      await rest('service', `daily_mysteries?group_id=eq.${challengeGroupId}`, { method: 'DELETE' });
+      await rest('service', `groups?id=eq.${challengeGroupId}`, { method: 'DELETE' });
     });
 
     it('defaults an existing row to the Daily Mystery it already was', async () => {
@@ -581,7 +590,7 @@ if (stack === null) {
       // refused — and is exactly why `Daily Mystery #41` does not become `#43`.
       const both = await rest(
         'service',
-        `daily_mysteries?day=in.(${days[0]},${days[1]})&select=kind,challenge_number`,
+        `daily_mysteries?group_id=eq.${challengeGroupId}&day=in.(${days[0]},${days[1]})&select=kind,challenge_number`,
       );
       expect(rows(both.body)).toHaveLength(2);
       expect(rows(both.body).map((row) => row.challenge_number)).toEqual([1, 1]);
@@ -599,11 +608,23 @@ if (stack === null) {
   });
 
   describe('fearless_state', () => {
-    it('has exactly one row, readable by anon, not writable by anon', async () => {
-      const listed = await rest('anon', 'fearless_state?select=id,reset_at');
-      expect(listed.ok).toBe(true);
-      expect(rows(listed.body)).toHaveLength(1);
-      expect(rows(listed.body)[0]?.id).toBe(1);
+    // Group-scoped, never a whole-table count: the shared local stack holds real groups besides
+    // `customs` (one row each, made by `create_group`) and other files' scratch groups (none,
+    // they insert `groups` directly). `create_group` writing the row is covered by
+    // apps/web/app/api/groups/groups.integration.test.ts.
+    it('has exactly one row for the original group, at most one per group, readable by anon, not writable by anon', async () => {
+      const mine = await rest(
+        'anon',
+        `fearless_state?select=id,group_id,reset_at&group_id=eq.${ORIGINAL_GROUP_ID}`,
+      );
+      expect(mine.ok).toBe(true);
+      expect(rows(mine.body)).toHaveLength(1);
+      expect(rows(mine.body)[0]?.id).toBe(1);
+
+      const all = await rest('anon', 'fearless_state?select=group_id');
+      expect(all.ok).toBe(true);
+      const groupIds = rows(all.body).map((row) => row.group_id);
+      expect(new Set(groupIds).size).toBe(groupIds.length);
 
       const write = await rest('anon', 'fearless_state?id=eq.1', {
         method: 'PATCH',
@@ -611,12 +632,14 @@ if (stack === null) {
       });
       expect(write.ok).toBe(false);
 
+      // No explicit id: the refusal must come from the one-row-per-group key, not from an id
+      // that another group's row happens to hold.
       const extra = await insert('fearless_state', {
         group_id: ORIGINAL_GROUP_ID,
-        id: 2,
         reset_at: new Date().toISOString(),
       });
       expect(extra.ok).toBe(false);
+      expect(JSON.stringify(extra.body)).toContain('fearless_state_group_id_key');
     });
   });
 

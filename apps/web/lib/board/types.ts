@@ -1,166 +1,141 @@
+import type { DeltaReason, RatingBefore } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
+import type { ResultOdds } from '../breakdown/read';
 import type { WindowKind } from '../night';
 import type { PlayerName } from '../tonight/types';
-import type { Streak } from './streak';
 
 /**
- * What `/leaderboard` and `/p/[puuid]` know (M3.5). Loaded on the server with the anon key and
- * rendered there; neither page has a client component.
+ * What the board (`/g/<slug>/leaderboard`) and the player page (`/g/<slug>/p/<puuid>`) know
+ * (M3.5; one Rating since M14.15). Loaded on the server with the anon key, **one group's games and
+ * ratings only** (M13.10), and rendered there.
  *
  * **`BoardRow` does cross the wire** (M3.19): the tonight page's rail renders the board's first
- * five through `TonightLive`, which is a client component, so those rows are serialized into the
- * RSC payload. Everything on the row is a string, a number, a boolean or `null` — including
- * `sortKey`, which is serialized and simply never rendered — so there is nothing here that a
- * `JSON.stringify` would change.
+ * five through a client component, so every field is a string, a number, a boolean or `null`.
  *
- * **Numbers are display numbers, deltas are not.** `proven` and `rating` are what the shared
- * helpers in `lib/ratingDisplay.ts` computed, because the board must print the same integers
- * the embeds print. A rating *change* is carried as the two mu values it comes from and turned
- * into a delta where it is rendered: `-0` is a real value and does not survive a
- * `JSON.stringify` — which, now that these rows do make one, is a rule with teeth rather than a
- * precaution (`05-design.md`, "Rating delta").
- *
- * **`breakdown` is empty on the rail** (M5.30). `/leaderboard` asks the loader for the window's
- * rated games so a row can open; the tonight rail does not, so those five rows stay the same
- * size they were and never grow a `<details>`.
+ * **Numbers are display numbers, deltas are not.** `rating` is `displayRating(mu)` from core, the
+ * same integer every embed prints. A rating *change* is carried as the two mu values it comes from
+ * and turned into a delta where it is rendered (`displayDelta`): `-0` does not survive a
+ * `JSON.stringify`.
  */
 
 /**
- * Which rating track a row's numbers were read from (M7.3).
+ * What a row is ranked on. There is one rating track (M14.57 retired the weekly one); this says
+ * which **board** the row belongs to.
  *
- * - `all-time` — the stored fold: `ratings` on `All time`, and the `mu_after` of the last
- *   counted game in the window on `This month` and `Last month`. Sorted and printed on Proven,
- *   exactly as every board has been since M3.5.
- * - `weekly` — the week folded from scratch from the player's seed with `rateGameWeekly`
- *   (M7.2), on `This week` and `Last week` only. Sorted and printed on **Rating**.
- *
- * **One row never mixes tracks.** `rating`, `sortKey`, `proven` and `climb` all come from the
- * one this field names, and the renderer reads it to decide which number is the row's primary —
- * which is why it travels on the row rather than being inferred from a window the tonight
- * rail's rows do not carry.
+ * - `all-time`: ranked on Rating, the stored fold (`ratings`). Ranked rows and a settling section
+ *   (M14.15).
+ * - `week`: `This week` / `Last week`, ranked on **net points**: the sum of the printed all-time
+ *   deltas of the player's rated games in the window (M14.57). One list, no settling section; the
+ *   row still carries the all-time settling chip ({@link BoardRow.settlingChip}).
  */
-export type RatingTrack = 'all-time' | 'weekly';
+export type RatingTrack = 'all-time' | 'week';
 
-/** One row of the board. `05-design.md`, "Leaderboard row", is the layout for exactly this. */
+/** One row of the board (`05-design.md` 5.2). */
 export interface BoardRow {
   puuid: string;
   /** `null` for a player the database has no name for yet: rendered `Someone` (M3.10). */
   name: PlayerName;
-  /** Which fold the four numbers below came from (M7.3). All four, or none: never a mix. */
+  /**
+   * The same-name suffix (`#EUW`, `(2)`) printed muted after the name, or null/absent when nobody
+   * else in the group prints the same name (M14.69, `lib/names/roster.ts`).
+   */
+  nameSuffix?: string | null | undefined;
+  /** Which board the row is on, and so what it is ranked on (M14.57). Never a mix. */
   track: RatingTrack;
   /**
-   * `round(ordinal * 60)`, floored at zero. The primary number a reader sees — **except on a
-   * week row**, where the primary number is {@link BoardRow.rating} and this one is printed
-   * nowhere at all (M7.3): a week is a handful of games by design, so `- 2σ` is enormous for
-   * every row and largest for whoever played fewest. It is still computed, off the weekly
-   * track, so the row keeps one shape on every window.
+   * Net points in the window (M14.57): the sum of `displayDelta` over the player's rated games in
+   * it (`sumDisplayDeltas`), on `This week` / `Last week`; the week board's sorted number, printed
+   * signed (`+86`, a net zero `+0`). `null` on `All time`.
    */
-  proven: number;
+  points: number | null;
   /**
-   * The raw number this row is ordered by. **Never printed.**
-   *
-   * The `ordinal` (`mu - 2σ`) on an `all-time` row, and the weekly `mu` itself on a `weekly`
-   * one — in both cases the unrounded form of the number the row prints, which is what keeps
-   * the printed column non-increasing as you read down it.
-   *
-   * `proven` is floored at zero, so everybody the board has not seen play yet displays `0`;
-   * ordering on the displayed number would drop those rows onto the name tie-break and shuffle
-   * them. The floor is monotonic, so ordering on this keeps the displayed column
-   * non-increasing anyway.
+   * The unrounded `mu` behind {@link BoardRow.rating}: the tie-break under equal printed Ratings,
+   * so the printed column never goes up as you read down it. **Never printed.**
    */
   sortKey: number;
   /**
-   * `round(mu * 60)`. The number the embeds print beside a name, and **the row's one number on
-   * a week window**, where it is the weekly track's `mu`.
+   * `displayRating(mu)` of the player's **current** all-time rating on every window: All time's
+   * sorted number, and the week board's fourth tie-break (M14.57).
    */
   rating: number;
-  /**
-   * The **window's** counted games (M5.12), which on `All time` is the fold's own total and
-   * therefore `ratings.games` to the number. One field and not two: a row that carried both
-   * would print two game counts on one line, and the reader would have to be told which.
-   */
+  /** The **window's** counted games (on `All time`, `ratings.games`). */
   games: number;
   wins: number;
   losses: number;
   /**
-   * The run at the front of their history. **`All time` only**: in a window the row's line 2
-   * is the window line (`6 games · 4W 2L · +58`), which product fixed and which has no streak
-   * in it. `null` also for a player with no rated games at all.
+   * Rated games in this group, all time (`ratings.games`): what the settling rule counts, in every
+   * window. A player with one game this week and two hundred behind them is not settling.
    */
-  streak: Streak | null;
+  ratedGames: number;
   /**
-   * What the window did to their rating: the two mu values it is computed from, never a
-   * formatted delta (`-0` does not survive the `JSON.stringify` the rail's rows make). `null`
-   * on `All time`, where the row is exactly today's row and gains nothing.
-   *
-   * On a `weekly` row it is the weekly seed to the weekly number at the end of the window —
-   * the same track as the rest of the row, so `6 games · 4W 2L · +58` adds up against the
-   * number printed beside it.
+   * What the history did to their rating, as the two mu values (`displayDelta` at render): on
+   * `All time` the seed the history started from to today's rating. `null` on a week, whose change
+   * is {@link BoardRow.points} (a sum of printed rows, not one mu difference, M14.57).
    */
   climb: Climb | null;
   /**
-   * Fewer than 30 recorded games (M3.8) — **always the all-time count**, in every window. The
-   * chip is a fact about the rating, not about the window: a player with one game this week
-   * and two hundred behind them has not become unsettled by the calendar.
-   *
-   * **Always `false` on a `weekly` row** (M7.3): on a week that is every row, every week, and a
-   * marker on all ten rows marks nothing. `SETTLING_GAMES` and the chip are untouched on
-   * `All time` and the month windows.
+   * In the settling **section**: under core's `SETTLING_GAMES` rated games in the group
+   * (`isSettling(ratedGames)`), on `All time` only. **Always `false` on a week**: week boards are
+   * one ranked list (STRATEGY §5, M14.57).
    */
   settling: boolean;
   /**
-   * The window's rated games, newest first, for the row's expand (M5.30). Empty when the
-   * loader was not asked for them (the rail) and when the player has none (a seed on
-   * `All time`). Rated only: an unrated row does not move the number the expand is explaining.
+   * Whether the row carries the all-time `settling` chip: `isSettling(ratedGames)` on every
+   * window (M14.57: on a week it says why a newcomer's points run large). Equals
+   * {@link BoardRow.settling} on `All time`.
    */
-  breakdown: readonly BoardGame[];
+  settlingChip: boolean;
   /**
-   * The titles of the awards this player won in the window (M8.3), in the awards' own order:
-   * `Most improved`, `Best off-role`, `Cursed duo`. The strings are `lib/stats/copy.ts`'s, as
-   * `awardsView` labelled the blocks — the row prints them and formats nothing.
-   *
-   * **Empty on every window but `Last week` and `Last month`**, which are the only two that hand
-   * anything out (M5.4), empty when nobody cleared a minimum, and empty on the tonight rail,
-   * which asks the loader for a snapshot of tonight rather than a window's story.
+   * The titles of the awards this player won in a **closed** window (M8.3), from `lib/stats`.
+   * Empty everywhere else.
    */
   awards: readonly string[];
 }
 
-/** One rated game on a board row, slim enough to sit under every name on `/leaderboard`. */
-export interface BoardGame {
-  gameId: string;
-  /** `9 Sep`, formatted on the server in the group's zone. */
-  startedLabel: string;
-  durationS: number;
-  won: boolean;
-  side: SideValue;
-  /** The two mu values the delta is computed from, at render. Never a formatted delta. */
-  muBefore: number;
-  muAfter: number;
-}
-
-/** `mu_before` of the first counted game in the window and `mu_after` of the last. */
+/** The two mu values a change is computed from. */
 export interface Climb {
   muBefore: number;
   muAfter: number;
 }
 
 export interface BoardView {
-  /** Which of the five this board was read through. The page's heading is its name. */
+  /** Which of the five this board was read through. */
   window: WindowKind;
-  /** Ordered by `proven` descending. Reading the primary column top to bottom never goes up. */
+  /**
+   * The rows, in the board's order (`lib/board/order.ts`): on the all-time track the ranked rows
+   * by Rating and then the settling rows by Rating; on a week one list by net points (M14.57).
+   */
   rows: BoardRow[];
   /**
-   * The header slot's **range half**, formatted on the server: `Sunday 6 Sep to Saturday 12 Sep`,
-   * `September`, `Since 8 Sep 2025` (M5.12, the designer's slot).
-   *
-   * `null` when the window has no counted games, where the slot prints the window's empty
-   * sentence instead — never both, and never `· 0 games`.
+   * The header slot's range half (`Sunday 6 Sep to Saturday 12 Sep`, `September`, `Since 8 Sep
+   * 2025`). A week always has one (an empty week prints its dates, M14.70); `All time` is `null`
+   * when it has no counted games.
    */
   range: string | null;
-  /** The window's counted games, for the other half of the slot. `0` on an empty window. */
+  /** The window's counted games. `0` on an empty window. */
   games: number;
+  /** Whether the group has any rated game at all: an empty group's board says so (STRATEGY §6(b)). */
+  everRated: boolean;
+  /**
+   * The group's people who are not on this board: members (and anybody with a rating row in the
+   * group) with no rated game in the window (STRATEGY §5, `+ 9 people who haven't played...`).
+   */
+  notPlayed: number;
+  /**
+   * The day of the group's latest `Reset ratings` (`1 Nov`, M14.18), or null/absent for a group that
+   * never reset. `All time`'s chip then reads `Since 1 Nov`.
+   */
+  resetDay?: string | null;
+  /**
+   * Where an empty `This week` points (M14.70): `last-week` when last week has a counted game,
+   * `all-time` otherwise; `all-time` on an empty `Last week`; `null` on a window with games, on
+   * `All time` and on a group with no rated game at all. Absent reads as `all-time` for a week.
+   */
+  fallback?: EmptyWindowFallback | null;
 }
+
+/** The two windows an empty week can point to (M14.70). */
+export type EmptyWindowFallback = 'last-week' | 'all-time';
 
 /** One of the player's own five in a recent game, in lane order. */
 export interface RecentTeammate {
@@ -169,174 +144,103 @@ export interface RecentTeammate {
   role: RoleValue | null;
 }
 
-/**
- * What this player was in one game, when they were one of the two (M7.10).
- *
- * `mvp` is the highest-scoring player on the side that won, `ace` the highest-scoring player on
- * the side that lost — op.gg's two words, because they are the two words this group already
- * uses. There is no third value and no rank: the other eight carry `null`, and no page prints
- * "you were nearly MVP".
- */
+/** This player's place in one game's award (M7.10): MVP on the winning side, ACE on the losing. */
 export type RecentAward = 'mvp' | 'ace';
 
 export interface RecentGame {
   gameId: string;
-  /** ISO 8601. The list is newest first; nothing on the page draws a date axis. */
+  /** ISO 8601. The list is newest first. */
   startedAt: string;
   durationS: number;
   won: boolean;
   side: SideValue;
+  /** The side that won, for the compact receipt (`Blue was 54%. Blue won.`). */
+  winningSide: SideValue;
   /** The player's own role in this game, from the scoreboard. */
   role: RoleValue | null;
-  /** The two mu values the delta is computed from, at render. Never a formatted delta. */
+  /** The two mu values the delta is computed from, at render. `null` on an unrated game. */
   muBefore: number | null;
   muAfter: number | null;
-  /**
-   * `mvp`, `ace`, or `null` — **this player's** place in this game's award (M7.10), beside the
-   * delta it explains: M7.9 gives the MVP a quarter more of what they gained and gives the ACE
-   * a fifth of their loss back, and until this field nothing on the page said which two `+43`s
-   * were not the same `+43`.
-   *
-   * The loader reads it from `gatedGameAward` — the one function that names an MVP in this app,
-   * the one the fold itself applied and the one the Discord result post prints — so the word
-   * here and the name there are one answer about one game.
-   *
-   * `null` is every ordinary row and also every game that has no award: a remake, an ARAM, a
-   * game stored before the stat columns existed, a game one of whose ten has no role. A row
-   * with no word is the normal case and says nothing at all about the player.
-   */
+  /** `mvp`, `ace`, or `null` (M7.10). */
   award: RecentAward | null;
   /**
-   * The chance the balancer gave **blue** in the split the group played (M5.15):
-   * `games.lobby_id` → the lobby's chosen split → `splits.blue_win_prob`. The page turns it
-   * into this player's own side's chance, which is its complement on 200.
-   *
-   * `null` for every game with no stored split — a backfilled game (no lobby), a game whose
-   * lobby row was cleared (`on delete set null`), a game the group played without the bot —
-   * and those rows drop the clause and keep the result and the change. **No row invents a
-   * chance and no row is hidden** (product, 2026-09-10).
+   * Blue's chance in the split the group played (`splits.blue_win_prob` of the chosen split), or
+   * `null` for a game with no stored split.
    */
   blueWinProb: number | null;
+  /** The chosen split's rank (`pick #2` after a reroll), or `null` with no split. */
+  pickRank: number | null;
+  /**
+   * Everyone's rating going in, by side, for a game with no stored split: the compact receipt's
+   * pre-game odds come from core's `preGameOdds` over these (STRATEGY §4.10). `null` when the game
+   * has a split.
+   */
+  ratingsBefore: { blue: RatingBefore[]; red: RatingBefore[] } | null;
+  /** An ARAM: the receipt keeps its line and adds the label; no rating claims. */
+  aram: boolean;
   /** The five on the player's own side, lane order, this player among them. */
   team: RecentTeammate[];
+  /**
+   * Why this game moved their Rating by as much as it did (M14.58): core's structured reason from
+   * the fold's stored breakdown (`basis: 'stored'`), or from the stored befores for a game stored
+   * before `0034` (`legacy`, award `unknown`; `lead-only` when a before is missing). `null` on an
+   * unrated game. The web renders the words (tap-to-explain, after M15.5 / M16.4).
+   */
+  reason?: DeltaReason | null;
+  /**
+   * The result line's odds (M14.59): the bot's split odds and the rating's, whether they round
+   * differently, and why. `null` with neither number.
+   */
+  odds?: ResultOdds | null;
 }
 
-/*
- * `RoleRecord` stood here until M5.20 (2026-09-11) and is **deleted, not moved**.
- *
- * It was this file's own fold of `By role` over the player's *rated* rows, and M5.20 draws that
- * section from `lib/stats` — over the counted games `gateGame` decides, with product's five-row
- * minimum and a percentage. Keeping both would have been two records for one person on one
- * page, disagreeing the day a backfill lands unrated (`04-decisions.md`). The type that
- * replaces it is `PlayerRoleRecord` in `lib/stats/types.ts`.
- */
-
 /**
- * `/p/[puuid]`, read through one window (M3.5, windowed by M5.12).
- *
- * **One shape, not two.** Until 2026-09-10 this was a discriminated union whose second arm was
- * "no season is active": the page then printed a name and one sentence, because ratings were
- * per season and there was no number to show. Seasons are gone (`04-decisions.md`), that
- * sentence is deleted with the button behind it (**M5.14**), and a deployment with no season
- * row has no games either — so the honest page is the ordinary one with the window's empty
- * line on it, exactly like a player who has not played this week.
- *
- * What the union was defending against still holds, enforced differently: the numbers here are
- * never zeros standing in for "we do not know". A player with no games carries the rating the
- * balancer would seed them with — the number `/leaderboard` already shows on their row — and
- * `history` is empty, so no chart is drawn.
+ * One player, in one group, read through one window (M3.5, windowed by M5.12, grouped by M13.10).
  */
 export interface PlayerBoardView {
   puuid: string;
   name: PlayerName;
-  /** Which of the five this page was read through. Its name is beside the picker. */
+  /** As {@link BoardView.resetDay} (M14.18). */
+  resetDay?: string | null;
+  /** Which of the five this page was read through. */
   window: WindowKind;
-  /**
-   * Which fold every rating number below came from (M7.16), under exactly
-   * {@link BoardRow.track}'s rule: `weekly` on `This week` and `Last week`, `all-time` on the
-   * other three. **The page never mixes tracks** — `rating`, `proven`, `reference`, `history`
-   * and the per-game deltas in `recent` are all this one's.
-   *
-   * It exists so that the board row and the page it links to cannot say two numbers about one
-   * week (M7.3's own follow-up): `/leaderboard?window=this-week` sorts and prints the weekly
-   * `Rating`, and this page now prints the same digit.
-   */
+  /** Which board this page is a lens on (M14.57). */
   track: RatingTrack;
   /**
-   * `round(mu * 60)` **as of their last counted game inside the window** — their current
-   * rating on `All time`, and where the month left them on `This month` / `Last month`. With
-   * no counted game in the window it is their current rating: the page is a person, and the
-   * empty line under it is what says the window has nothing in it.
-   *
-   * **On a week window it is the weekly track's** (M7.16): the player's seed folded through
-   * that week's counted games, equal to the digit on their board row, and their weekly **seed**
-   * when the week holds no counted game of theirs — where Sunday put them is the honest answer
-   * to "how was their week" when they did not play it.
+   * `displayRating(mu)` of their **current** all-time rating, on every window: there is no week's
+   * Rating any more (M14.57). The seed for somebody never rated.
    */
   rating: number;
   /**
-   * `round(ordinal * 60)`, from the same game, under the same label the board uses — **and
-   * printed nowhere at all on a week window** (M7.16), the same carve-out the board row has
-   * (M7.3): a week is a handful of games by design, so `- 2σ` is enormous on every page, every
-   * week. It is still computed, off the weekly track, so the view keeps one shape on every
-   * window and nothing here has to be nullable.
+   * Net points in the window, the number their week-board row prints (`+86 this week`), or
+   * `null` on `All time`. A week they did not play is `0`.
    */
-  proven: number;
+  points: number | null;
   /** The window's counted games. `All time` is the fold's own total. */
   games: number;
   wins: number;
   losses: number;
-  /**
-   * The header slot's range half, as on the board — **the range alone**, with no count beside
-   * it (product, 2026-09-10): M5.15's seed line already ends `, 6 rated games since.`, and no page
-   * says one number twice. `null` when this player has nothing to date from.
-   */
+  /** Rated games in this group, all time: what the settling chip counts. */
+  ratedGames: number;
+  /** The header slot's range half, or `null` when they have nothing to date from. */
   range: string | null;
-  /**
-   * The 30-game rule, always on the all-time count (M3.8). Never a fact about the window.
-   *
-   * **Always `false` on a week window** (M7.16), exactly as on a week board row: the chip and
-   * its sentence explain Proven, which a week window does not print, and
-   * {@link WEEK_PLAYER_SENTENCE} is the paragraph that goes in their place. `SETTLING_GAMES`
-   * and the chip are untouched on `All time`, `This month` and `Last month`.
-   */
+  /** `isSettling(ratedGames)` on `All time`; always `false` on a week. */
   settling: boolean;
-  /*
-   * **There is no `seedRank` on this view** (M7.20, 2026-09-16), and this note is here so the next
-   * reader of M5.15's design does not go looking for one. It carried the rank the seed was taken
-   * at, as words, for the seed line's `Seeded from Gold II at 1469.`; M7.19 took the rank off that
-   * sentence, and a view field nothing renders is a promise to a page that does not exist — so it
-   * went with `rankLabel` rather than stay under a comment explaining its own silence.
-   *
-   * The two `ratings.seed_rank_*` columns are **not** gone: they are still written on every new
-   * seed and still say what the client reported the night a history began. What no longer exists
-   * is a formatted copy of them riding into a React tree nobody reads it from.
-   */
   /**
-   * The chart's reference line, in the series' own units: `round(seedMu * 60)` on `All time`,
-   * and the rating carried **into** the window on the other four. {@link PlayerBoardView.window}
-   * decides whether it is labelled `seed` or `start`.
-   *
-   * On a week window it is the **weekly seed** — where the from-scratch fold started this
-   * player on Sunday (M7.16) — under the same `start` label M5.12 gave the window charts. It is
-   * not called a `seed`: that word is a fact about a whole history and stays on `All time`.
+   * Their place among the group's ranked players on `All time` (1 is the top), or `null` while
+   * settling or on any other window. The self lens's `Rating, #3` tile reads it.
+   */
+  rank: number | null;
+  /**
+   * The chart's reference line: the seed on `All time` (`Started at 1200`), the all-time rating
+   * carried into the window on a week (their first game's `mu_before` there; the seed with none).
    */
   reference: number;
   /**
-   * The `Rating` series in `started_at` order, oldest first. Empty for no games.
-   *
-   * **The weekly fold's own steps on a week window** (M7.16), so the line under the number ends
-   * where the number says. A game the weekly fold skipped is not a point on it, exactly as it is
-   * not a row in a board row's expand.
+   * The all-time `Rating` series in `started_at` order, oldest first, over the window's rated
+   * games. Empty for no games.
    */
   history: number[];
-  /**
-   * The window's last few games, rated or not (M3.23).
-   *
-   * **On a week window each game's two mu values are the weekly ones** (M7.16) — the same change
-   * M7.3 made to the board row's expand, for the same reason: a list whose deltas do not add up
-   * to the number above it is a page arguing with itself. The `award` on a row does not move
-   * with the track; it is a fact about who played the game (M7.10).
-   */
+  /** The window's newest games, rated or not, newest first (at most `RECENT_GAMES`). */
   recent: RecentGame[];
 }

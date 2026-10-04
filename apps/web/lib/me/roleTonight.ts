@@ -1,5 +1,5 @@
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
-import { isActiveLobbyStatus } from '../lobbyState';
+import { isActiveLobbyStatus } from '../lobbyRules';
 import { nightEnd } from '../night';
 import type { ServiceClient } from '../supabase';
 // Every sentence these rules answer with is product's, and they all live in one file.

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { STALE_ROSTER } from '@/lib/admin/roll';
 import { lobbyRosterKey } from '@/lib/ingest/lobby';
 import { extraMember, workedMembers } from '@/lib/testing/tonightFixtures';
-import { ROLL_ADMIN_HINT, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
+import { ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import type { MemberView } from '@/lib/tonight/types';
 import { RollControl } from './RollControl';
 
@@ -61,7 +61,7 @@ describe('the roll control', () => {
       lobbyRosterKey(members.map((member) => member.puuid)),
     );
     expect(container.querySelector('input[name="redirectTo"]')).toHaveValue('/g/customs');
-    expect(screen.getByText(ROLL_ADMIN_HINT)).toBeInTheDocument();
+    expect(screen.queryByText(/Check everyone/)).toBeNull();
     expect(screen.getByRole('button', { name: ROLL_LABEL })).toBeEnabled();
   });
 

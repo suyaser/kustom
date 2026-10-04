@@ -19,7 +19,7 @@ const GROUP = '00000000-0000-4000-8000-00000000000a';
 /** The `groupId` each call's session step was handed, so a test can see what the gate checked. */
 let seenGroupIds: (string | null)[] = [];
 
-function route(auth: AdminAuthResult, redirectTo = '/admin/players') {
+function route(auth: AdminAuthResult, redirectTo = '/g/customs/admin/members') {
   return withAdminAuth(
     schema,
     async (input, context) =>
@@ -58,7 +58,7 @@ const admin = {
 };
 
 function jsonPost(body: unknown): Request {
-  return new Request('http://localhost/api/admin/players', {
+  return new Request('http://localhost/api/admin/members/role', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -66,7 +66,7 @@ function jsonPost(body: unknown): Request {
 }
 
 function formPost(fields: Record<string, string>): Request {
-  return new Request('http://localhost/api/admin/players', {
+  return new Request('http://localhost/api/admin/members/role', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields).toString(),
@@ -134,7 +134,7 @@ describe('withAdminAuth', () => {
 
   it('says the body is unreadable, not that the group is missing, for broken JSON', async () => {
     const response = await route({ ok: false, status: 400, error: 'groupId is required' })(
-      new Request('http://localhost/api/admin/players', {
+      new Request('http://localhost/api/admin/members/role', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: '{not json',
@@ -149,7 +149,7 @@ describe('withAdminAuth', () => {
 
     expect(response.status).toBe(303);
     const location = new URL(response.headers.get('location') ?? '');
-    expect(location.pathname).toBe('/admin/players');
+    expect(location.pathname).toBe('/g/customs/admin/members');
     expect(location.searchParams.get('notice')).toBe('saved');
   });
 
@@ -168,5 +168,66 @@ describe('withAdminAuth', () => {
     expect(response.status).toBe(303);
     const location = new URL(response.headers.get('location') ?? '');
     expect(location.searchParams.get('error')).toBe('that form was not valid');
+  });
+});
+
+describe("withAdminAuth's default redirect (M14.39)", () => {
+  /** A client whose only read is `groups.select().eq().maybeSingle()`, answering `row`. */
+  function groupsClient(
+    row: { id: string; slug: string; name: string } | null,
+    fail = false,
+  ): { client: ServiceClient; seen: string[] } {
+    const seen: string[] = [];
+    const fake = {
+      from(table: string) {
+        seen.push(table);
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () =>
+                fail ? { data: null, error: { message: 'down' } } : { data: row, error: null },
+            }),
+          }),
+        };
+      },
+    };
+    return { client: fake as unknown as ServiceClient, seen };
+  }
+
+  function defaultRoute(fakeClient: ServiceClient) {
+    return withAdminAuth(
+      schema,
+      async (_input, context) => context.respond(z.object({ ok: z.literal(true) }), { ok: true }, 'saved'),
+      { getClient: () => fakeClient, authorize: async () => admin },
+    );
+  }
+
+  it("sends a form post back to the request's own group admin, not the original group's", async () => {
+    const { client: fakeClient } = groupsClient({ id: GROUP, slug: 'tuesday-crew', name: 'Tuesday' });
+    const response = await defaultRoute(fakeClient)(formPost({ groupId: GROUP, name: 'ok' }));
+    expect(response.status).toBe(303);
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/g/tuesday-crew/admin');
+    expect(location.searchParams.get('notice')).toBe('saved');
+  });
+
+  it('falls back to the same-origin home when the group cannot be read', async () => {
+    for (const fake of [groupsClient(null), groupsClient(null, true)]) {
+      const response = await defaultRoute(fake.client)(formPost({ groupId: GROUP, name: 'ok' }));
+      expect(response.status).toBe(303);
+      const location = new URL(response.headers.get('location') ?? '');
+      expect(location.origin).toBe('http://localhost');
+      expect(location.pathname).toBe('/');
+    }
+  });
+
+  it('never looks the group up for a JSON caller, and an explicit redirectTo still wins', async () => {
+    const fake = groupsClient({ id: GROUP, slug: 'tuesday-crew', name: 'Tuesday' });
+    const json = await defaultRoute(fake.client)(jsonPost({ groupId: GROUP, name: 'ok' }));
+    expect(json.status).toBe(200);
+    expect(fake.seen).toEqual([]);
+
+    const explicit = await route(admin)(formPost({ groupId: GROUP, name: 'ok' }));
+    expect(new URL(explicit.headers.get('location') ?? '').pathname).toBe('/g/customs/admin/members');
   });
 });

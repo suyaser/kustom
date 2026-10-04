@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MIN_DUO_GAMES } from '../stats/copy';
 import { puuidOf, rosterFor, statsGame } from '../testing/statsFixtures';
-import { type OverlaySeatInput, overlayView, presentOverlayFearless } from './fold';
+import { type OverlaySeatInput, overlayFearless, overlayView, presentOverlayFearless } from './fold';
 
 /**
  * Overlay fold (M12): with/against from headToHead, lane opponent from the posted split.
@@ -38,10 +38,43 @@ function seat(key: string, role: OverlaySeatInput['role'], side: 100 | 200, rati
   };
 }
 
+describe('overlayFearless (M14.29)', () => {
+  const pool = [{ id: 103, name: 'Ahri', role: 'mid' as const }];
+
+  it('Fearless: enabled, with the pool', () => {
+    const block = overlayFearless('fearless', pool, '2026-09-01T00:00:00Z');
+    expect(block.enabled).toBe(true);
+    expect(block.champions.map((champion) => champion.id)).toEqual([103]);
+    expect(block.resetAt).toBe('2026-09-01T00:00:00Z');
+  });
+
+  it('Normal: not enabled, no champions (the paused pool is not sent), the cursor kept', () => {
+    expect(overlayFearless('normal', pool, '2026-09-01T00:00:00Z')).toEqual({
+      enabled: false,
+      champions: [],
+      resetAt: '2026-09-01T00:00:00Z',
+    });
+  });
+
+  it('overlayView carries the block in every lobby state', () => {
+    const view = overlayView({
+      viewerPuuid: puuidOf('omar'),
+      mode: 'normal',
+      fearless: pool,
+      resetAt: null,
+      lobby: { status: 'open', blue: [], red: [], hasPostedTeams: false },
+      games: [],
+      players: [],
+    });
+    expect(view.fearless).toEqual({ enabled: false, champions: [], resetAt: null });
+  });
+});
+
 describe('overlayView', () => {
   it('returns fearless and a null lobby when none is open', () => {
     const view = overlayView({
       viewerPuuid: puuidOf('omar'),
+      mode: 'fearless',
       fearless: [{ id: 103, name: 'Ahri', role: 'mid' }],
       resetAt: '2026-09-01T00:00:00Z',
       lobby: null,
@@ -50,12 +83,13 @@ describe('overlayView', () => {
     });
     expect(view.lobby).toBeNull();
     expect(view.fearless.champions).toHaveLength(1);
-    expect(view.fearless.champions[0]?.iconUrl).toContain('103.png');
+    expect(view.fearless.champions[0]?.iconUrl).toContain('/img/champion/Ahri.png');
   });
 
   it('keeps teams null until a split is posted', () => {
     const view = overlayView({
       viewerPuuid: puuidOf('omar'),
+      mode: 'fearless',
       fearless: [],
       resetAt: null,
       lobby: {
@@ -91,6 +125,7 @@ describe('overlayView', () => {
 
     const under = overlayView({
       viewerPuuid: puuidOf('omar'),
+      mode: 'fearless',
       fearless: [],
       resetAt: null,
       lobby: { status: 'balanced', blue, red, hasPostedTeams: true },
@@ -103,6 +138,7 @@ describe('overlayView', () => {
 
     const ready = overlayView({
       viewerPuuid: puuidOf('omar'),
+      mode: 'fearless',
       fearless: [],
       resetAt: null,
       lobby: { status: 'balanced', blue, red, hasPostedTeams: true },
@@ -123,6 +159,7 @@ describe('overlayView', () => {
     const games = allyGames(1);
     const view = overlayView({
       viewerPuuid: puuidOf('omar'),
+      mode: 'fearless',
       fearless: [],
       resetAt: null,
       lobby: {
@@ -147,7 +184,7 @@ describe('presentOverlayFearless', () => {
       { id: 86, name: 'Garen', role: 'top' },
     ]);
     expect(presented.map((c) => c.name)).toEqual(['Garen', 'Ahri', 'Lux']);
-    expect(presented[0]?.iconUrl).toContain('/86.png');
+    expect(presented[0]?.iconUrl).toContain('/img/champion/Garen.png');
   });
 
   it('keeps the icon the loader resolved from the client name for an id the table lacks', () => {

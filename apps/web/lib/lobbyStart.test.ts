@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   alreadyHasALobbyLine,
   chooseHost,
@@ -12,7 +12,10 @@ import {
   lobbyNameFor,
   NO_CLIENT_ANSWERED,
   NO_COMPANION_AROUND,
+  noKustomRunningLine,
   openingOnPcLine,
+  pickTypeFor,
+  readPickType,
   type StartLobbyState,
   startLobbySentence,
 } from './lobbyStart';
@@ -134,6 +137,28 @@ describe('the refusals, in the order they are decided', () => {
     expect(result).toEqual({ ok: false, status: 409, error: NO_COMPANION_AROUND });
   });
 
+  it('names who to ask when nobody is up: one to three hosts by name, else whoever hosts (M14.66)', () => {
+    const refusal = (hostNames: string[]) =>
+      decideStart(state({ hostNames }), { pressedByPlayerId: 'a', now: NIGHT });
+
+    expect(refusal(['Yasser', 'Omar'])).toEqual({
+      ok: false,
+      status: 409,
+      error: "Nobody's Kustom is running right now. Ask Yasser or Omar to open it.",
+    });
+    expect(refusal(['Omar'])).toMatchObject({
+      error: "Nobody's Kustom is running right now. Ask Omar to open it.",
+    });
+    expect(refusal(['Ali', 'Yasser', 'Omar'])).toMatchObject({
+      error: "Nobody's Kustom is running right now. Ask Ali, Yasser or Omar to open it.",
+    });
+    expect(refusal(['Ali', 'Yasser', 'Omar', 'Hana'])).toMatchObject({ error: NO_COMPANION_AROUND });
+    expect(refusal([])).toMatchObject({ error: NO_COMPANION_AROUND });
+    expect(noKustomRunningLine('Yasser or Omar')).toBe(
+      "Nobody's Kustom is running right now. Ask Yasser or Omar to open it.",
+    );
+  });
+
   it("plans the night's next cycle when it may", () => {
     const result = decideStart(state({ hosts: around, lobbiesTonight: 1 }), {
       pressedByPlayerId: 'a',
@@ -145,7 +170,7 @@ describe('the refusals, in the order they are decided', () => {
       ok: true,
       value: {
         host: around[0],
-        hostName: 'puuid-a',
+        hostName: 'Someone',
         lobbyName: 'Customs 09 Jun #2',
         lobbyPassword: '4821',
         cycle: 2,
@@ -183,7 +208,7 @@ describe('what the page says while the command runs', () => {
 describe('the words', () => {
   it("are product's, verbatim", () => {
     expect(LOBBY_ALREADY_OPEN).toBe('There is already a lobby open.');
-    expect(NO_COMPANION_AROUND).toBe('Nobody has the companion running right now. Start it and try again.');
+    expect(NO_COMPANION_AROUND).toBe("Nobody's Kustom is running right now. Ask whoever hosts to open it.");
     expect(LOBBY_ALREADY_OPENING).toBe('A lobby is already being opened.');
     expect(LOBBY_WRITES_UNVERIFIED).toBe("Opening lobbies isn't verified on this patch yet.");
     expect(openingOnPcLine('Hana')).toBe("Opening a lobby on Hana's PC…");
@@ -194,5 +219,43 @@ describe('the words', () => {
   it('counts the invites in the singular and the plural', () => {
     expect(invitedLine(1)).toBe('Invited 1 friend — waiting for them to accept.');
     expect(invitedLine(7)).toBe('Invited 7 friends — waiting for them to accept.');
+  });
+});
+
+describe('the pick type the press asks for (M17.17)', () => {
+  it('is blind exactly when the next game is a mirror match', () => {
+    expect(pickTypeFor({ id: 'mirror' })).toBe('blind');
+    expect(pickTypeFor(null)).toBe('draft');
+    expect(pickTypeFor({ id: 'region' })).toBe('draft');
+    expect(pickTypeFor({ id: 'class', tag: 'Tank' })).toBe('draft');
+  });
+
+  const clientAnswering = (answer: { data: unknown; error: { message: string } | null }) =>
+    ({
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => answer }) }) }),
+    }) as unknown as Parameters<typeof readPickType>[0];
+
+  it('reads the group card: mirror pending is blind, no row is draft', async () => {
+    const row = {
+      mode: 'normal',
+      pending_rule: 'mirror',
+      pending_class_tag: null,
+      rated_override: null,
+      version: 3,
+    };
+    expect(await readPickType(clientAnswering({ data: row, error: null }), 'g')).toBe('blind');
+    expect(
+      await readPickType(clientAnswering({ data: { ...row, pending_rule: null }, error: null }), 'g'),
+    ).toBe('draft');
+    expect(await readPickType(clientAnswering({ data: null, error: null }), 'g')).toBe('draft');
+  });
+
+  it('a failed read opens the draft lobby the group always had, and says so', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await readPickType(clientAnswering({ data: null, error: { message: 'down' } }), 'g')).toBe(
+      'draft',
+    );
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

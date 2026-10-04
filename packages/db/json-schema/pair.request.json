@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/pair.request",
+  "title": "companionPairRequestSchema",
+  "description": "POST /api/companion/pair (request)",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$"
+    },
+    "puuid": {
+      "type": "string",
+      "minLength": 1,
+      "x-zod-not-exported": [
+        "refine"
+      ]
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "host",
+        "overlay"
+      ]
+    }
+  },
+  "required": [
+    "code",
+    "puuid"
+  ]
+}

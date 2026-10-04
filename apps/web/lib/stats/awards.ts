@@ -1,6 +1,4 @@
-import { displayRating, type Rating } from '@customs/core';
 import type { RoleValue } from '@customs/db';
-import { foldWeeklyRatings, type WeeklyGame } from '../board/weekly';
 import type { WindowKind } from '../night';
 import { formatWebDelta } from '../ratingDisplay';
 import { renderWebName } from '../tonight/copy';
@@ -18,33 +16,23 @@ import {
   cursedDuoLine,
   cursedDuoNobody,
   cursedDuoRule,
-  MOST_IMPROVED,
-  mostImprovedLine,
-  mostImprovedNobody,
-  mostImprovedRule,
   NO_MAIN_ROLE_NOTE,
   pairLabel,
 } from './copy';
 import { compareDuosWorst, compareRecords, duoRecords, winRate } from './fold';
-import type {
-  AwardBlock,
-  AwardLine,
-  AwardsView,
-  PlayerRef,
-  StatsGame,
-  StatsPlayer,
-  StatsRecord,
-} from './types';
+import type { AwardBlock, AwardLine, AwardsView, StatsGame, StatsPlayer, StatsRecord } from './types';
 
 /**
- * The three awards a closed window hands out (M5.4): most improved, best off-role, cursed duo.
+ * The two awards a closed window hands out (M5.4): best off-role and cursed duo. `Most improved`
+ * was retired by M14.57 (lead, 2026-10-04): with the week board ranked by net points and no
+ * minimum, it would always be the board's #1, and two names for one fact read as a bug.
  *
  * **They are computed at request time and never stored.** A late backfill or a rebuild then
  * corrects an award instead of freezing a wrong one in a table forever — which is also what
  * makes the Sunday Discord post and the page it links to agree a week later.
  *
- * **They appear only on a window that has closed.** `Last week` and `Last month` have them;
- * `This week` and `This month` print one line instead, because an award that changes every
+ * **They appear only on a window that has closed.** `Last week` has them; `This week` prints
+ * one line instead, because an award that changes every
  * night is a statistic, not an award; `All time` has no block at all, because a window that
  * never closes has no last night to read them on.
  *
@@ -70,8 +58,7 @@ export const WEB_AWARD_RENDER: AwardRender = { name: renderWebName, delta: forma
 /**
  * Which calendar a window's awards are about, and whether it has closed.
  *
- * `null` is `All time`, which has none: "most improved of all time" is a different question
- * from the one these three ask.
+ * `null` is `All time`, which has none: a window that never closes hands nothing out.
  */
 export function awardPeriod(kind: WindowKind): { period: AwardPeriod; closed: boolean } | null {
   switch (kind) {
@@ -79,42 +66,23 @@ export function awardPeriod(kind: WindowKind): { period: AwardPeriod; closed: bo
       return { period: 'week', closed: false };
     case 'last-week':
       return { period: 'week', closed: true };
-    case 'this-month':
-      return { period: 'month', closed: false };
-    case 'last-month':
-      return { period: 'month', closed: true };
     default:
       return null;
   }
 }
 
 /**
- * Where each player's week began: the seed the weekly track (M7.3) folds from, keyed by
- * `players.id` — the key `foldWeeklyRatings` itself is keyed on.
- *
- * It is the **stored** seed with the player's current rank as the fallback (`lib/ingest/seed.ts`'s
- * `seedFor`), read by the loader and never recomputed here, so the award and the board half of
- * the same Sunday post start a week from one number.
- */
-export type WeeklySeeds = ReadonlyMap<string, Rating>;
-
-/**
- * The awards section for one window: three awards, one line, or nothing at all.
+ * The awards section for one window: two awards, one line, or nothing at all.
  *
  * The games are already the window's counted games (`countedGames`), so this adds no filter of
  * its own — the awards and the numbers above them are read from one list.
  *
- * `seeds` is the week's starting line (M7.4) and is read by `Most improved` alone. A caller on a
- * month window has none and needs none; a caller on a week window that hands over none — a
- * fixture test about a minimum or a tie — falls back to the stored all-time track, which is what
- * every window used before M7.4.
  */
 export function awardsView(
   kind: WindowKind,
   games: readonly StatsGame[],
   players: readonly StatsPlayer[],
   render: AwardRender = WEB_AWARD_RENDER,
-  seeds?: WeeklySeeds,
 ): AwardsView | null {
   const window = awardPeriod(kind);
   if (window === null) return null;
@@ -123,229 +91,18 @@ export function awardsView(
   return {
     kind: 'closed',
     intro: awardsIntro(window.period),
-    blocks: awardBlocks(games, players, window.period, render, seeds),
+    blocks: awardBlocks(games, players, window.period, render),
   };
 }
 
-/** The three, in product's order. Always three, whether or not anybody qualified. */
+/** The two, in product's order. Always two, whether or not anybody qualified. */
 export function awardBlocks(
   games: readonly StatsGame[],
   players: readonly StatsPlayer[],
   period: AwardPeriod,
   render: AwardRender = WEB_AWARD_RENDER,
-  seeds?: WeeklySeeds,
 ): AwardBlock[] {
-  return [
-    mostImproved(games, players, period, render, seeds),
-    bestOffRole(games, players, period, render),
-    cursedDuo(games, players, period, render),
-  ];
-}
-
-/* ---------------------------------------------------------------------------
- * Most improved.
- * ------------------------------------------------------------------------- */
-
-/** What a player did to their Rating across the window, in the numbers the pages printed. */
-export interface Climb extends PlayerRef {
-  games: number;
-  from: number;
-  to: number;
-  delta: number;
-}
-
-/**
- * The biggest climb in Rating **on the all-time track**: `displayRating` of their **last**
- * counted game's `mu_after` minus `displayRating` of their **first** counted game's `mu_before`.
- *
- * This is the month windows' climb, and since M7.4 it is only theirs: a week is
- * {@link weeklyClimbs}, which reads the same quantity off the weekly track.
- *
- * Both numbers come from `game_players`, so it is the subtraction of two numbers the pages
- * actually printed — the delta rule in `00-product.md`, and the same one `displayDelta` keeps
- * for a single game.
- *
- * **A window can hold counted games that carry no rating**: a backfilled game the rebuild has
- * not folded yet counts everywhere else on this page but has no `mu` at either end. The
- * minimum counts counted games, as product wrote it, and the climb is measured between the
- * first and last games that do carry a rating — a player with none has no climb and cannot win.
- */
-export function climbs(games: readonly StatsGame[], players: readonly StatsPlayer[]): Climb[] {
-  const roster = new Map(players.map((player) => [player.playerId, player]));
-  const walked = new Map<string, { games: number; from: number | null; to: number | null }>();
-
-  // `games` is oldest first, so the first `mu_before` seen is the window's first and the last
-  // `mu_after` seen is its last.
-  for (const game of games) {
-    for (const row of game.rows) {
-      const entry = walked.get(row.playerId) ?? { games: 0, from: null, to: null };
-      entry.games += 1;
-      if (entry.from === null && row.muBefore !== null) entry.from = displayRating(row.muBefore);
-      if (row.muAfter !== null) entry.to = displayRating(row.muAfter);
-      walked.set(row.playerId, entry);
-    }
-  }
-
-  const climbed: Climb[] = [];
-  for (const [playerId, entry] of walked) {
-    const player = roster.get(playerId);
-    if (player === undefined || entry.from === null || entry.to === null) continue;
-    climbed.push({
-      puuid: player.puuid,
-      name: player.name,
-      games: entry.games,
-      from: entry.from,
-      to: entry.to,
-      delta: entry.to - entry.from,
-    });
-  }
-  return climbed;
-}
-
-/**
- * The same climb, measured on the **weekly track** (M7.4): the player's weekly seed to the
- * rating that week's games left them on.
- *
- * `Most improved` used to fold the stored `mu_before` / `mu_after` columns on every window, which
- * on a week is the all-time number moving under forty games of history — so the friend who beat
- * their rank hardest over six nights and the friend who played six quiet ones were separated by
- * how sure the model already was about them. A week is now read through the track the board
- * reads it through: everybody starts the week at their seed, `rateGameWeekly` folds the week's
- * games, and the award is the difference between the two ends.
- *
- * **Both ends are `mu`-derived**, exactly as they were, so nothing here reads `sigma` and the
- * printed delta is still the subtraction of two numbers the board printed.
- *
- * **The climb carries the MVP / ACE bonus** (M7.24, user 2026-09-29): the weekly fold scales the
- * MVP's delta by 1.25 and the ACE's by 0.80 in every game it can score, so a week of carrying
- * climbs further here too. That is intended — one fold, not two, and the award has to be the
- * difference between two numbers the board printed — not a side effect.
- *
- * **The fold is M7.3's and is not repeated**: this maps the page's games into the shape
- * `foldWeeklyRatings` reads and asks it. The minimum still counts *counted* games — an unrated
- * backfilled game is on this page and in nobody's rating — and a player the week folded no game
- * for has no climb and cannot win, which is `climbs`' rule for a window with no rated game in it.
- */
-export function weeklyClimbs(
-  games: readonly StatsGame[],
-  players: readonly StatsPlayer[],
-  seeds: WeeklySeeds,
-): Climb[] {
-  const roster = new Map(players.map((player) => [player.playerId, player]));
-  const counted = new Map<string, number>();
-  for (const game of games) {
-    for (const row of game.rows) counted.set(row.playerId, (counted.get(row.playerId) ?? 0) + 1);
-  }
-
-  const climbed: Climb[] = [];
-  for (const [playerId, held] of foldWeeklyRatings(weeklyGames(games), seeds)) {
-    const player = roster.get(playerId);
-    if (player === undefined || held.games.length === 0) continue;
-    const from = displayRating(held.seed.mu);
-    const to = displayRating(held.rating.mu);
-    climbed.push({
-      puuid: player.puuid,
-      name: player.name,
-      games: counted.get(playerId) ?? 0,
-      from,
-      to,
-      delta: to - from,
-    });
-  }
-  return climbed;
-}
-
-/**
- * The window's **rated** games in the shape the weekly fold reads — the same rule
- * `lib/board/load.ts` applies to its own rows: a seat with no `mu_after` is not part of the week,
- * and a game with no rated seat at all (an ARAM night, a backfill the rebuild has not folded) is
- * dropped rather than handed over to be skipped with a warning.
- */
-function weeklyGames(games: readonly StatsGame[]): WeeklyGame[] {
-  return games.flatMap((game) => {
-    const players = game.rows
-      .filter((row) => row.muAfter !== null)
-      // The role and the nine stored numbers ride along (M7.24): the weekly fold carries the
-      // MVP / ACE bonus now, so the climb this award reads is the week's adjusted one — the
-      // same number the board row prints. `/stats`' own read already selects every column.
-      .map((row) => ({
-        playerId: row.playerId,
-        puuid: row.puuid,
-        side: row.side,
-        role: row.role,
-        kills: row.kills,
-        deaths: row.deaths,
-        assists: row.assists,
-        damageToChamps: row.damageToChamps,
-        gold: row.gold,
-        cs: row.cs,
-        visionScore: row.visionScore,
-        damageSelfMitigated: row.damageSelfMitigated,
-        damageToObjectives: row.damageToObjectives,
-      }));
-    if (players.length === 0) return [];
-    return [
-      {
-        gameId: game.id,
-        startedAt: game.startedAt,
-        lcuGameId: lcuGameIdOf(game.lcuGameId),
-        winningSide: game.winningSide,
-        players,
-      },
-    ];
-  });
-}
-
-/**
- * The fold's second sort key as a number. `StatsGame` carries the bigint as it was read (a
- * number) or as text (a fixture); anything that is not a finite number is `null`, which the fold
- * treats as the unbroken tie it is rather than sorting on `NaN`.
- */
-function lcuGameIdOf(value: string | number | null | undefined): number | null {
-  if (value === null || value === undefined) return null;
-  const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function mostImproved(
-  games: readonly StatsGame[],
-  players: readonly StatsPlayer[],
-  period: AwardPeriod,
-  render: AwardRender,
-  seeds?: WeeklySeeds,
-): AwardBlock {
-  const minimum = AWARD_MINIMUMS[period].mostImproved;
-  /**
-   * **A week is the weekly track, a month is the all-time one** (M7.4, product 2026-09-15). The
-   * month windows keep the stored climb exactly as they have it: a month of nightly customs is
-   * about the thirty games the all-time rating already settles over, which is the same ruling
-   * that keeps `This month` sorting on Proven (M7.3).
-   */
-  const measured =
-    period === 'week' && seeds !== undefined ? weeklyClimbs(games, players, seeds) : climbs(games, players);
-  const eligible = measured.filter((climb) => climb.games >= minimum);
-  const rule = mostImprovedRule(minimum);
-
-  if (eligible.length === 0) {
-    return block(MOST_IMPROVED, rule, [nobody(mostImprovedNobody(minimum, period))], false);
-  }
-
-  // Ties: more games wins; still tied, **both are named**. Nothing after that separates them,
-  // so two people who climbed the same amount over the same number of games both get the award.
-  const best = [...eligible].sort((a, b) => b.delta - a.delta || b.games - a.games)[0] as Climb;
-  const winners = eligible
-    .filter((climb) => climb.delta === best.delta && climb.games === best.games)
-    .sort((a, b) => renderWebName(a.name).localeCompare(renderWebName(b.name)));
-
-  return block(
-    MOST_IMPROVED,
-    rule,
-    winners.map((climb) => ({
-      key: climb.puuid,
-      text: mostImprovedLine(render.name(climb.name), render.delta(climb.delta), climb.from, climb.to),
-    })),
-    true,
-  );
+  return [bestOffRole(games, players, period, render), cursedDuo(games, players, period, render)];
 }
 
 /* ---------------------------------------------------------------------------
@@ -415,7 +172,7 @@ function bestOffRole(
   const winner = offRoleRecords(games, players, minimum)[0];
 
   /**
-   * The note is about **the window's players**, not about the database: a month in which
+   * The note is about **the window's players**, not about the database: a week in which
    * everybody's roles are known says nothing, and one where somebody is flexible explains why
    * they cannot be in this award. Since M5.17 a null main is the inference's `flexible`.
    */

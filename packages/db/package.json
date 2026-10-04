@@ -7,6 +7,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./constants": "./src/constants.ts",
     "./schemas": "./src/schemas/index.ts",
     "./types": "./src/types.ts"
   },
@@ -18,14 +19,17 @@
     "stop": "supabase stop",
     "reset": "supabase db reset",
     "migrate": "supabase db push",
-    "types": "supabase gen types typescript --local > src/types.tmp.ts && mv src/types.tmp.ts src/types.ts || rm -f src/types.tmp.ts"
+    "types": "supabase gen types typescript --local > src/types.tmp.ts && mv src/types.tmp.ts src/types.ts || rm -f src/types.tmp.ts",
+    "export-schemas": "tsx scripts/export-schemas.ts"
   },
   "dependencies": {
     "@customs/core": "workspace:*",
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@types/node": "26.5.0",
     "typescript": "5.9.3",
-    "vitest": "5.0.0"
+    "vitest": "5.0.0",
+    "tsx": "4.23.13"
   }
 }

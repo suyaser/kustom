@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { PAIRING_CODE_ALPHABET, pairingCodeSchema } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
-import { FALLBACK_LINKED_NAME, pairingDiscordLinked } from './copy';
+import { FALLBACK_LINKED_NAME, HOST_NOT_ADMIN, pairingDiscordLinked } from './copy';
 import { clientAddress, generatePairingCode, hashPairingCode } from './pairing';
 
 describe('generatePairingCode', () => {
@@ -48,5 +48,12 @@ describe('pairingDiscordLinked', () => {
     expect(pairingDiscordLinked(null)).toBe(
       `This Discord account is already linked to ${FALLBACK_LINKED_NAME}.`,
     );
+  });
+});
+
+describe('HOST_NOT_ADMIN', () => {
+  it('is the sentence Kustom shows a member on its Link screen, with no overlay to fall back to (M17.12)', () => {
+    expect(HOST_NOT_ADMIN).toBe("You're in. Only admins can host. Ask an admin to host, or to make you one.");
+    expect(HOST_NOT_ADMIN).not.toMatch(/overlay/i);
   });
 });

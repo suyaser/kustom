@@ -4,35 +4,34 @@ exports[`a night, from the tenth join to the result > posts one result embed whe
 {
   "embeds": [
     {
-      "color": 15363945,
-      "description": "Neither side was favored. Top damage: Player9, 22.3k.",
-      "fields": [
-        {
-          "inline": true,
-          "name": "Blue",
-          "value": "\`top\` Player0 · 1088 (-112)
-\`jungle\` Player1 · 1088 (-112)
-\`mid\` Player2 · 1088 (-112)
-\`adc\` Player3 · 1088 (-112)
-\`support\` Player4 · 1088 (-112)",
-        },
-        {
-          "inline": true,
-          "name": "Red",
-          "value": "\`top\` Player5 · 1312 (+112)
-\`jungle\` Player6 · 1312 (+112)
-\`mid\` Player7 · 1312 (+112)
-\`adc\` Player8 · 1312 (+112)
-\`support\` Player9 · 1312 (+112)",
-        },
-      ],
-      "footer": {
-        "text": "Kustom · game <n>",
+      "author": {
+        "name": "Customs Night · game <n>",
       },
-      "timestamp": "<timestamp>",
-      "title": "Red wins · 32:00",
+      "color": 16739125,
+      "description": "50–50. Red won.
+Top damage: Player9, 22.3k.",
+      "title": "Red wins · 32 min",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Player0** · 1088 (-112)
+\`jungle\` **Player1** · 1088 (-112)
+\`mid\` **Player2** · 1088 (-112)
+\`adc\` **Player3** · 1088 (-112)
+\`support\` **Player4** · 1088 (-112)",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Player5** · 1312 (+112)
+\`jungle\` **Player6** · 1312 (+112)
+\`mid\` **Player7** · 1312 (+112)
+\`adc\` **Player8** · 1312 (+112)
+\`support\` **Player9** · 1312 (+112)",
+      "title": "🟥 RED",
     },
   ],
+  "username": "Kustom",
 }
 `;
 
@@ -40,42 +39,51 @@ exports[`a night, from the tenth join to the result > posts one teams embed on b
 {
   "embeds": [
     {
-      "color": 14721854,
-      "description": "Even 50%. Everyone on a main role. Gap 0. Next best: swap Player4 and Player5, gap 0.",
+      "author": {
+        "name": "Customs Night · Fearless",
+      },
+      "color": 16764774,
+      "description": "**Blue 50%** · **50% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Dead even.",
       "fields": [
         {
           "name": "Seats",
           "value": "You'll be moved to your side — if not, move yourself.",
         },
         {
-          "inline": true,
-          "name": "Blue · 6000",
-          "value": "\`top\` Player0 · 1200
-\`jungle\` Player1 · 1200
-\`mid\` Player2 · 1200
-\`adc\` Player3 · 1200
-\`support\` Player4 · 1200",
-        },
-        {
-          "inline": true,
-          "name": "Red · 6000",
-          "value": "\`top\` Player5 · 1200
-\`jungle\` Player6 · 1200
-\`mid\` Player7 · 1200
-\`adc\` Player8 · 1200
-\`support\` Player9 · 1200",
-        },
-        {
           "name": "Lobby",
           "value": "\`customs-night\`",
         },
       ],
-      "footer": {
-        "text": "Kustom",
-      },
-      "timestamp": "<timestamp>",
       "title": "Teams are set",
     },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Player0** · 1200
+\`jungle\` **Player1** · 1200
+\`mid\` **Player2** · 1200
+\`adc\` **Player3** · 1200
+\`support\` **Player4** · 1200",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Player5** · 1200
+\`jungle\` **Player6** · 1200
+\`mid\` **Player7** · 1200
+\`adc\` **Player8** · 1200
+\`support\` **Player9** · 1200",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 0 pts · No main roles yet · Bot's pick #1 of 3
+Next best: swap Player4 (support) and Player5 (top). 50–50, and it scored a hair worse overall (repeated teams, recent fills or rounding).
+-# Even 50%. No main roles yet. Gap 0. Next best: swap Player4 and Player5, gap 0.",
+      "title": "How the bot decided",
+    },
   ],
+  "username": "Kustom",
 }
 `;

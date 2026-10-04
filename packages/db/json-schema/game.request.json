@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/game.request",
+  "title": "companionGamePayloadSchema",
+  "description": "POST /api/companion/game (request)",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "const": "in_progress"
+        },
+        "gameId": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^\\d+$",
+              "x-zod-not-exported": [
+                "refine"
+              ]
+            }
+          ]
+        },
+        "partyId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "x-zod-not-exported": [
+                "normalised"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "phase",
+        "gameId"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "const": "eog"
+        },
+        "gameId": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^\\d+$",
+              "x-zod-not-exported": [
+                "refine"
+              ]
+            }
+          ]
+        },
+        "partyId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "x-zod-not-exported": [
+                "normalised"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "default": "eog",
+          "type": "string",
+          "enum": [
+            "eog",
+            "backfill"
+          ]
+        },
+        "gameType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "durationS": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "winningSide": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 100
+                },
+                {
+                  "type": "number",
+                  "const": 200
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "participants": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "puuid": {
+                "type": "string",
+                "minLength": 1,
+                "x-zod-not-exported": [
+                  "refine"
+                ]
+              },
+              "side": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 100
+                  },
+                  {
+                    "type": "number",
+                    "const": 200
+                  }
+                ]
+              },
+              "role": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "top",
+                      "jungle",
+                      "mid",
+                      "adc",
+                      "support"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "championId": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "kills": {
+                "default": 0,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "deaths": {
+                "default": 0,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "assists": {
+                "default": 0,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "gold": {
+                "default": 0,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "damageToChamps": {
+                "default": 0,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cs": {
+                "default": 0,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "visionScore": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "damageSelfMitigated": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "damageToObjectives": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "win": {
+                "default": null,
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "gameName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tagLine": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "summonerId": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-zod-not-exported": [
+                          "refine"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^\\d*$",
+                        "x-zod-not-exported": [
+                          "normalised"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "puuid",
+              "side"
+            ]
+          }
+        },
+        "raw": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "phase",
+        "gameId",
+        "startedAt",
+        "durationS",
+        "winningSide",
+        "participants",
+        "raw"
+      ]
+    }
+  ]
+}

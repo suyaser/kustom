@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/command-ack.result.create_lobby",
+  "title": "createLobbyCommandResultSchema",
+  "description": "POST /api/companion/commands/{id}/ack (request). result when the command is create_lobby; any other result is a 422.",
+  "type": "object",
+  "properties": {
+    "partyId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lobbyName": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "partyId",
+    "lobbyName"
+  ]
+}

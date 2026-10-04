@@ -1,5 +1,6 @@
 import { companionMeResponseSchema } from '@customs/db/schemas';
 import { withCompanionIdentity } from '@/lib/companionRoute';
+import { groupSummaryById } from '@/lib/groups/create';
 import { jsonError, jsonOk } from '@/lib/http';
 
 // node:crypto hashes the bearer token, so this route is not edge-compatible.
@@ -27,10 +28,16 @@ export const GET = withCompanionIdentity(async (_request, { client, identity }) 
     return jsonError(401, 'companion token has no player');
   }
 
+  // The group this token posts to (M13.3), so Kustom can file a pasted token under it (M14.6,
+  // M14.12). `companion_tokens.group_id` is a foreign key, so a missing group is our bug: a 500.
+  const group = await groupSummaryById(client, identity.groupId);
+  if (group === null) throw new Error('companion me: the token group is not readable');
+
   return jsonOk(companionMeResponseSchema, {
     ok: true,
     puuid: identity.puuid,
     playerId: identity.playerId,
     displayName: data.display_name,
+    group,
   });
 });

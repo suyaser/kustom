@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { NAMELESS_PLAYER } from '../discord/embeds';
 import { maskSecret } from './discordConfig';
-import { playerLabel, shortPuuid } from './playerName';
+import { playerLabel } from './playerName';
 import {
   ADMIN_PLAYERS_PAGE_SIZE,
   normalizeSearch,
@@ -8,15 +9,15 @@ import {
   parsePageParam,
   playerSearchFilter,
 } from './players';
-import { escapeHtml, renderMintedTokenPage } from './tokenPage';
 
 /** The rules the admin pages enforce that are not the database's to enforce. */
 
 /*
  * `isSelfDemotion` (M1.6's "you cannot remove your own admin flag") is gone with M13.4: admin is a
  * membership role per group, and the rule that keeps a group from locking itself out is now "never
- * the last admin", enforced by `set_group_member_role` and tested against the local stack in
- * `app/api/admin/members.integration.test.ts`.
+ * the last admin", and since M14.11 the owner rules, enforced by `set_group_member_role_v2` and
+ * tested against the local stack in `app/api/admin/groups.integration.test.ts` and
+ * `app/api/admin/owner.integration.test.ts`.
  */
 
 describe('playerLabel', () => {
@@ -36,9 +37,9 @@ describe('playerLabel', () => {
     expect(playerLabel({ puuid: PUUID, displayName: null, gameName: 'Ahmed', tagLine: null })).toBe('Ahmed');
   });
 
-  it('falls back to a PUUID fragment for a player first seen in an eog block', () => {
+  it('reads Someone for a player first seen in an eog block, never a PUUID fragment', () => {
     // No `gameName` reaches the API from an end-of-game block, so this row really happens.
-    expect(playerLabel({ puuid: PUUID, displayName: null, gameName: null })).toBe('a1b2c3d4…');
+    expect(playerLabel({ puuid: PUUID, displayName: null, gameName: null })).toBe(NAMELESS_PLAYER);
   });
 
   it('treats a blank name as no name at all', () => {
@@ -46,7 +47,7 @@ describe('playerLabel', () => {
       'Ahmed#EUW',
     );
     expect(playerLabel({ puuid: PUUID, displayName: null, gameName: '  ', tagLine: 'EUW' })).toBe(
-      'a1b2c3d4…',
+      NAMELESS_PLAYER,
     );
   });
 
@@ -61,10 +62,12 @@ describe('playerLabel', () => {
   });
 });
 
-describe('shortPuuid', () => {
-  it('keeps a short value whole and truncates a real PUUID', () => {
-    expect(shortPuuid('short')).toBe('short');
-    expect(shortPuuid('a'.repeat(78))).toBe('aaaaaaaa…');
+describe('a nameless player (admin round 2)', () => {
+  it('reads Someone, never a PUUID fragment', () => {
+    const puuid = 'a'.repeat(78);
+    expect(playerLabel({ puuid, displayName: null, gameName: null })).toBe(NAMELESS_PLAYER);
+    expect(playerLabel({ puuid, displayName: ' ', gameName: '', tagLine: 'EUW' })).toBe('Someone');
+    expect(playerLabel({ puuid, displayName: null, gameName: null })).not.toContain('aaaa');
   });
 });
 
@@ -86,76 +89,6 @@ describe('maskSecret', () => {
   it('is null for nothing at all', () => {
     expect(maskSecret(null)).toBeNull();
     expect(maskSecret('   ')).toBeNull();
-  });
-});
-
-describe('renderMintedTokenPage', () => {
-  it('shows the token once and escapes everything else', () => {
-    const html = renderMintedTokenPage({
-      token: 'tok_abc123',
-      puuid: '<script>alert(1)</script>',
-      label: 'omar & "the laptop"',
-      backTo: '/admin/tokens',
-    });
-
-    expect(html.split('tok_abc123')).toHaveLength(2);
-    expect(html).not.toContain('<script>');
-    expect(html).toContain('&lt;script&gt;');
-    expect(html).toContain('omar &amp; &quot;the laptop&quot;');
-    expect(html).toContain('href="/admin/tokens"');
-  });
-
-  it('escapes the five characters that matter', () => {
-    expect(escapeHtml(`<>&"'`)).toBe('&lt;&gt;&amp;&quot;&#39;');
-  });
-
-  /**
-   * M1.9. These sentences are product's, and the page is the only instructions the friend
-   * installing the companion gets, so they are asserted character for character — a reworded
-   * "paste it into the first-run prompt" is what this task existed to remove.
-   */
-  it("carries product's copy verbatim, in order, with the token still in it", () => {
-    const html = renderMintedTokenPage({
-      token: 'tok_verbatim',
-      puuid: 'puuid-hana',
-      label: null,
-      backTo: '/admin/tokens',
-    });
-
-    const sentences = [
-      '<h1>Companion token</h1>',
-      '<p><strong>Copy it now.</strong> This is the only time it is shown — we only keep a scrambled copy, so we cannot show it to you again. Lost it? Mint another and revoke this one.</p>',
-      '<p>Start the companion and paste this in when it asks. It remembers it, so you only do this once.</p>',
-      '<p class="muted">It saves it in %APPDATA%/customs-night/config.json if you ever need to find it.</p>',
-    ];
-    for (const sentence of sentences) {
-      expect(html).toContain(sentence);
-    }
-
-    // In order, and each exactly once.
-    const positions = sentences.map((sentence) => html.indexOf(sentence));
-    expect(positions).toEqual([...positions].sort((a, b) => a - b));
-    for (const sentence of sentences) {
-      expect(html.split(sentence)).toHaveLength(2);
-    }
-
-    // The token block sits between the "copy it now" line and the "start the companion" one,
-    // and the token itself is still there exactly once.
-    expect(html).toContain('<code>tok_verbatim</code>');
-    expect(html.split('tok_verbatim')).toHaveLength(2);
-    const tokenAt = html.indexOf('tok_verbatim');
-    expect(tokenAt).toBeGreaterThan(positions[1] ?? -1);
-    expect(tokenAt).toBeLessThan(positions[2] ?? -1);
-
-    // The PUUID and Label list is unchanged, and still between the token and the instructions.
-    expect(html).toContain('<dt>PUUID</dt><dd>puuid-hana</dd>');
-    expect(html).toContain('<dt>Label</dt><dd>no label</dd>');
-    expect(html.indexOf('<dt>PUUID</dt>')).toBeGreaterThan(tokenAt);
-    expect(html.indexOf('<dt>Label</dt>')).toBeLessThan(positions[2] ?? -1);
-
-    // The wording this replaced must be gone, not merely joined by the new sentences.
-    expect(html).not.toContain('first-run prompt');
-    expect(html).not.toContain('Only its hash is stored');
   });
 });
 

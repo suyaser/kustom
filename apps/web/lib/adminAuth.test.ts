@@ -117,6 +117,16 @@ describe('authorizeAdmin', () => {
     }
   });
 
+  it("lets the group's owner through: an owner is an admin and more (M14.11)", async () => {
+    const result = await authorizeAdmin({
+      resolveSessionUser: async () => user(),
+      lookupPlayerByDiscordId: async () => player(),
+      lookupGroupRole: async () => 'owner',
+      groupId: GROUP_A,
+    });
+    expect(result).toMatchObject({ ok: true, admin: { groupId: GROUP_A } });
+  });
+
   it('looks the player up by the snowflake on the identity, and returns them', async () => {
     const lookup = vi.fn(async () => player());
     const roleLookup = vi.fn(roles);

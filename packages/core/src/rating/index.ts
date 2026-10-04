@@ -2,16 +2,15 @@
  * Rating model: OpenSkill, default Plackett-Luce, two teams of five.
  * Spec: docs/01-architecture.md "Rating model" and the M1.3 / M7.2 briefs in docs/02-milestones.md.
  *
- * Two channels over one model: `rateGame` is the all-time rating that forms teams and is
- * stored, and `rateGameWeekly` (M7.2) is the weekly track, tuned by `config.rating.weekly`
- * and folded from scratch each week by the board. Neither ever sees the other's numbers.
+ * One channel: `rateGame` is the all-time rating that forms teams and is stored. The M7.2
+ * weekly track was retired in M14.57 (one rating number everywhere, 2026-10-04).
  *
- * Pure. No clock, no I/O. Both folds are functions of their arguments only.
+ * Pure. No clock, no I/O. The fold is a function of its arguments only.
  */
 
 import type { Options } from 'openskill';
 import { predictWin as openskillPredictWin, rate as openskillRate } from 'openskill';
-import { config, type RankDivision, type RankTier } from '../config';
+import { config, type RankDivision, type RankTier, SETTLING_GAMES } from '../config';
 import type { Rating, Side } from '../types';
 
 const { rating: cfg } = config;
@@ -65,8 +64,7 @@ export function seedFromRank(
 /**
  * **Where every rating starts**: `{ mu: 20, sigma: 12 }`, the same for everybody (2026-09-16).
  *
- * The one first-seed value, for the all-time fold, for the rebuild and for the weekly track's
- * Sunday reseed. It takes no arguments **on purpose** — there is nothing about a player that can
+ * The one first-seed value, for the all-time fold and for the rebuild. It takes no arguments **on purpose** — there is nothing about a player that can
  * change it, which is the whole decision in one signature. A caller that wants to seed from a
  * League rank is asking the wrong question; `seedFromRank` is still there for the balancer's
  * live guess, and nothing persists that.
@@ -96,6 +94,18 @@ export function displayRating(mu: number): number {
   return Math.round(mu * cfg.displayMultiplier);
 }
 
+/**
+ * Whether a player with `ratedGames` rated games is still settling (M14.4, STRATEGY §5):
+ * fewer than `SETTLING_GAMES`. The caller counts the games (since the group's last rating
+ * reset); core only compares. Throws on a negative, fractional or non-finite count.
+ */
+export function isSettling(ratedGames: number): boolean {
+  if (!(Number.isInteger(ratedGames) && ratedGames >= 0)) {
+    throw new Error(`isSettling: ratedGames must be a whole number >= 0, got ${ratedGames}`);
+  }
+  return ratedGames < SETTLING_GAMES;
+}
+
 function assertTeam(team: readonly Rating[], side: 'blue' | 'red', caller: string): void {
   if (team.length !== TEAM_SIZE) {
     throw new Error(`${caller}: ${side} must have exactly five ratings, got ${team.length}`);
@@ -115,12 +125,8 @@ type Tuning = Pick<Options, 'beta' | 'tau'>;
  */
 const ALL_TIME_TUNING: Tuning = {};
 
-/** The weekly channel's tuning (M7.2), from the one place it lives. */
-const WEEKLY_TUNING: Tuning = { beta: cfg.weekly.beta, tau: cfg.weekly.tau };
-
 /**
- * One fold of one finished game, shared by both channels. The only difference between them
- * is `tuning`; the shape, the order and the five-a-side rule are identical.
+ * One fold of one finished game: the shape, the order and the five-a-side rule.
  *
  * OpenSkill's `rank` is a placing, so the winner gets 1 and the loser 2.
  */
@@ -145,8 +151,7 @@ function fold(
  * cannot draw, and a remake is not a game (the API drops it before this call).
  *
  * **These numbers are pinned** by M1.3's tests and by every stored `mu_after`. Nothing about
- * this function's maths may change without a rebuild; the weekly track (below) exists exactly
- * so that it does not have to.
+ * this function's maths may change without a rebuild.
  */
 export function rateGame(
   blue: readonly Rating[],
@@ -154,24 +159,6 @@ export function rateGame(
   winningSide: Side,
 ): { blue: Rating[]; red: Rating[] } {
   return fold(blue, red, winningSide, ALL_TIME_TUNING, 'rateGame');
-}
-
-/**
- * Rate one finished game for the weekly track (M7.2): the same model and the same signature
- * as `rateGame`, tuned by `config.rating.weekly` to move sooner over the handful of games a
- * week holds.
- *
- * It is a second, independent number. It never forms teams, it is never stored on
- * `game_players`, and it is folded from scratch over one week's games by its caller (M7.3),
- * which also decides who is in the week at all — a player with no games in the window is
- * never handed to this function. Five and five, or it throws, exactly like `rateGame`.
- */
-export function rateGameWeekly(
-  blue: readonly Rating[],
-  red: readonly Rating[],
-  winningSide: Side,
-): { blue: Rating[]; red: Rating[] } {
-  return fold(blue, red, winningSide, WEEKLY_TUNING, 'rateGameWeekly');
 }
 
 /**

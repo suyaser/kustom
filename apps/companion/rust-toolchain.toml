@@ -1,0 +1,7 @@
+# The toolchain every Kustom build uses: this Mac, CI (.github/workflows/ci.yml) and the Windows release
+# build (M17.12). Pinned so a new clippy lint cannot turn `-D warnings` red overnight; bump it on purpose,
+# together with the `toolchain:` in ci.yml.
+[toolchain]
+channel = "1.99.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

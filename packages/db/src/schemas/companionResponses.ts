@@ -6,6 +6,7 @@ import {
   puuidSchema,
   sideSchema,
 } from './common';
+import { groupSummarySchema } from './invites';
 
 /**
  * What `/api/companion/*` answers. These live here, beside the request schemas, so
@@ -37,6 +38,12 @@ export const companionMeResponseSchema = z.object({
   playerId: z.uuid(),
   /** `players.display_name`, null until a name is known (M1.7). For a log line, nothing else. */
   displayName: z.string().nullable(),
+  /**
+   * The one group this token posts to (`companion_tokens.group_id`, M13.3), so Kustom can file a
+   * pasted token under it (M14.6). Always sent since M14.12; Kustom's own parser keeps it optional
+   * for servers older than that.
+   */
+  group: groupSummarySchema,
 });
 
 /**
@@ -216,7 +223,7 @@ export const COMPANION_COMMAND_TTL_MS = {
  * optional; absent means `COMMANDS_POLL_INTERVAL_MS`.
  *
  * `payload` per kind (`companionCommandPayloadSchemas`):
- * - `create_lobby`: `{ lobbyName: string(1..30), lobbyPassword: string(4..16) }`
+ * - `create_lobby`: `{ lobbyName: string(1..30), lobbyPassword: string(4..16), pickType?: 'draft' | 'blind' }` (pickType absent = draft)
  * - `invite`: `{ puuid, summonerId: string | null }` (digits; null when the server has none)
  * - `switch_side`: `{ targetSide: 100 | 200 }`
  * The companion applies the kind's schema itself and nacks `malformed_payload` for a kind it does not know or
@@ -263,9 +270,14 @@ export const commandFailureReasonSchema = z.enum([
   'malformed_payload',
 ]);
 
+/** The pick type of the custom a `create_lobby` opens (M17.17). Mirror match asks for blind. */
+export const lobbyPickTypeSchema = z.enum(['draft', 'blind']);
+
 export const createLobbyCommandPayloadSchema = z.object({
   lobbyName: z.string().trim().min(1).max(30),
   lobbyPassword: z.string().min(4).max(16),
+  /** Absent on a payload queued before M17.17: that is draft, the only lobby Start a lobby made. */
+  pickType: lobbyPickTypeSchema.default('draft'),
 });
 
 export const inviteCommandPayloadSchema = z.object({

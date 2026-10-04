@@ -2,15 +2,17 @@ import { LOST, WON } from '../board/copy';
 import type { RecentAward } from '../board/types';
 import { windowRangeLabel } from '../board/window';
 import { championLabel } from '../champs/names';
-import { formatDamage, formatDuration } from '../discord/embeds';
+import { formatDamage } from '../discord/embeds';
 import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
 import { formatDayMonth, type WindowKind, type WindowRange } from '../night';
 import { csCountLine, kdaLine } from '../stats/funCopy';
+import { killParticipationPercent } from '../stats/killParticipation';
 import type { StatsGame, StatsPlayer, StatsRow } from '../stats/types';
 import type { PlayerName } from '../tonight/types';
 import { focusMetaLine, resultForWinner, scoreLine, teamHeading } from './copy';
 import { withDisplayRoles } from './displayRoles';
+import { formatMinutes } from './duration';
 import { GAMES_QUEUE, matchesQueue, type QueueKind } from './queue';
 import type { GamesHistoryView, HistoryGame, HistorySeat, HistoryTeam } from './types';
 
@@ -109,7 +111,7 @@ export function historyGameOf(
     id: game.id,
     startedAt: game.startedAt,
     startedLabel: formatDayMonth(new Date(game.startedAt), timeZone),
-    durationLabel: formatDuration(game.durationS),
+    durationLabel: formatMinutes(game.durationS),
     winningSide: game.winningSide,
     result:
       focusSeat === undefined
@@ -225,7 +227,8 @@ function seatOf(
   game: StatsGame,
   award: RecentAward | null,
 ): HistorySeat {
-  const kp = teamKills === 0 ? null : Math.round(((row.kills + row.assists) / teamKills) * 100);
+  // M14.77: never over 100%, and null for a side whose rows do not add up.
+  const kp = killParticipationPercent(row.kills, row.assists, teamKills);
 
   return {
     puuid: row.puuid,
@@ -240,6 +243,7 @@ function seatOf(
     gold: row.gold,
     damageToChamps: row.damageToChamps,
     cs: row.cs,
+    vision: row.visionScore,
     goldLabel: formatDamage(row.gold),
     damageLabel: formatDamage(row.damageToChamps),
     csLabel: csCountLine(row.cs),

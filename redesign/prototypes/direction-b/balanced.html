@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customs Night · Teams are set</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link rel="stylesheet" href="theme.css">
+<style type="text/tailwindcss">
+@theme {
+  --color-bg: #1D1B18;      /* warm graphite page */
+  --color-card: #28241F;    /* card surface */
+  --color-card-2: #332E28;  /* raised / chip */
+  --color-line: #4A433A;    /* borders */
+  --color-ink: #1A1714;     /* text on colour blocks */
+  --color-fg: #F4EEE4;      /* primary text */
+  --color-muted: #BDB2A2;   /* secondary text */
+  --color-faint: #9A8F80;   /* tertiary text */
+  --color-blue: #4FA9FF;    /* BLUE side, azure */
+  --color-red: #FF7452;     /* RED side, vermilion-coral */
+  --color-butter: #FFD24D;  /* you / live / picked */
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --radius: 1.25rem;
+}
+</style>
+</head>
+<body class="bg-bg font-sans text-fg antialiased">
+<a href="#app" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-butter focus:px-4 focus:py-2 focus:text-ink">Skip to content</a>
+<div id="app"></div>
+<script>window.STATE = "balanced";</script>
+<script src="kit.js"></script>
+</body>
+</html>

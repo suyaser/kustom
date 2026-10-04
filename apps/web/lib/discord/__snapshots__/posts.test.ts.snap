@@ -1,0 +1,543 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the stack of every post (10.3), as snapshots > fearless 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "Banned next game: 10 more, 34 in all. 139 still open.",
+      "fields": [
+        {
+          "inline": false,
+          "name": "top · 7",
+          "value": "**Aatrox**, **Gnar**, Camille, Darius, Fiora, Garen, Jax",
+        },
+        {
+          "inline": false,
+          "name": "jungle · 6",
+          "value": "**Lee Sin**, **Vi**, Graves, Kha'Zix, Sylas, Viego",
+        },
+        {
+          "inline": false,
+          "name": "mid · 7",
+          "value": "**Ahri**, **Syndra**, Akali, Orianna, Viktor, Yasuo, Zed",
+        },
+        {
+          "inline": false,
+          "name": "adc · 6",
+          "value": "**Jinx**, **Kai'Sa**, Caitlyn, Ezreal, Miss Fortune, Vayne",
+        },
+        {
+          "inline": false,
+          "name": "support · 8",
+          "value": "**Nautilus**, **Thresh**, Blitzcrank, Leona, Lulu, Lux, Morgana, Pyke",
+        },
+      ],
+      "footer": {
+        "text": "Tap the title to see what's still open",
+      },
+      "title": "Fearless",
+      "url": "https://kustom-delta.vercel.app/g/customs/mode",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > fearless reset 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "Fearless reset. Every champion is open again.",
+      "title": "Fearless",
+      "url": "https://kustom-delta.vercel.app/g/customs/mode",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > nightly 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "fields": [
+        {
+          "name": "Top ten",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
+\`2\` **Syndrome Axes** · +140 · 6W–3L
+\`3\` **knifiy** · +88 · 4W–3L
+\`4\` XETA · +41 · 3W–3L
+\`5\` H4RDC0R33 · +30 · 4W–4L
+\`6\` PRT Khokha · +12 · 3W–3L
+\`7\` FoxHound · -18 · 2W–3L
+\`8\` SugarPapy · -44 · 2W–4L
+\`9\` TheSHADOWREAPER · -61 · 1W–3L
+\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+        },
+      ],
+      "footer": {
+        "text": "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams.",
+      },
+      "title": "This week · board",
+      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=this-week",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > ratings reset 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "Ratings were reset. Everyone starts at 1200 again. Top 3 before the reset: Ramzyinhović, Syndrome Axes and knifiy.",
+      "title": "Ratings reset",
+      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=all-time",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > result 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 4",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 51%. Red won.
+Top damage: Syndrome Axes, 31.4k.
+**MVP** Syndrome Axes · **ACE** Ramzyinhović",
+      "thumbnail": {
+        "url": "https://kustom-delta.vercel.app/og/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12/badge",
+      },
+      "title": "Red wins · 31 min",
+      "url": "https://kustom-delta.vercel.app/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1210 (-14)
+\`jungle\` **XETA** · 1363 (-15)
+\`mid\` **Ramzyinhović** · 2625 (-13)
+\`adc\` **SugarPapy** · 1203 (-15)
+\`support\` **Used2BeATahmMain** · 1305 (-17)",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1546 (+15)
+\`jungle\` **Syndrome Axes** · 2305 (+14)
+\`mid\` **knifiy** · 1470 (+16)
+\`adc\` **PRT Khokha** · 1302 (+15)
+\`support\` **TheSHADOWREAPER** · 1277 (+15)",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > result not rated 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 4",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 51%. Red won.
+Tanks only: Blue kept the rule. Red: Jinx isn't a tank.
+Not rated, so no Rating change.
+Top damage: Syndrome Axes, 31.4k.",
+      "title": "Red wins · 31 min",
+      "url": "https://kustom-delta.vercel.app/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound**
+\`jungle\` **XETA**
+\`mid\` **Ramzyinhović**
+\`adc\` **SugarPapy**
+\`support\` **Used2BeATahmMain**",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33**
+\`jungle\` **Syndrome Axes**
+\`mid\` **knifiy**
+\`adc\` **PRT Khokha**
+\`support\` **TheSHADOWREAPER**",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > result with recap 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 4",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 51%. Red won.
+Top damage: Syndrome Axes, 31.4k.
+**MVP** Syndrome Axes · **ACE** Ramzyinhović",
+      "thumbnail": {
+        "url": "https://kustom-delta.vercel.app/og/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12/badge",
+      },
+      "title": "Red wins · 31 min",
+      "url": "https://kustom-delta.vercel.app/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1210 (-14)
+\`jungle\` **XETA** · 1363 (-15)
+\`mid\` **Ramzyinhović** · 2625 (-13)
+\`adc\` **SugarPapy** · 1203 (-15)
+\`support\` **Used2BeATahmMain** · 1305 (-17)",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1546 (+15)
+\`jungle\` **Syndrome Axes** · 2305 (+14)
+\`mid\` **knifiy** · 1470 (+16)
+\`adc\` **PRT Khokha** · 1302 (+15)
+\`support\` **TheSHADOWREAPER** · 1277 (+15)",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 9148589,
+      "description": "Syndrome Axes put 31.4k into champions and Red closed it out in 31 minutes.",
+      "title": "AI recap",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > teams 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "**Blue 49%** · **51% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "fields": [
+        {
+          "name": "Sitting out",
+          "value": "Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight.",
+        },
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set",
+      "url": "https://kustom-delta.vercel.app/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1224
+\`jungle\` **XETA** · 1378
+\`mid\` **Ramzyinhović** · 2638
+\`adc\` **SugarPapy** · 1218
+\`support\` **Used2BeATahmMain** · 1322",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1531
+\`jungle\` **Syndrome Axes** · 2291
+\`mid\` **knifiy** · 1454
+\`adc\` **PRT Khokha** · 1287
+\`support\` **TheSHADOWREAPER** · 1262",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
+-# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
+      "title": "How the bot decided",
+      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > teams reroll 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "**Blue 49%** · **51% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "fields": [
+        {
+          "name": "Sitting out",
+          "value": "Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight.",
+        },
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set · reroll 1 of 2",
+      "url": "https://kustom-delta.vercel.app/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1224
+\`jungle\` **XETA** · 1378
+\`mid\` **Ramzyinhović** · 2638
+\`adc\` **SugarPapy** · 1218
+\`support\` **Used2BeATahmMain** · 1322",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1531
+\`jungle\` **Syndrome Axes** · 2291
+\`mid\` **knifiy** · 1454
+\`adc\` **PRT Khokha** · 1287
+\`support\` **TheSHADOWREAPER** · 1262",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
+-# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
+      "title": "How the bot decided",
+      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > teams rule 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "**This game: tanks only.** Not rated. [See the tanks](https://kustom-delta.vercel.app/g/customs/mode)
+**Blue 49%** · **51% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "fields": [
+        {
+          "name": "Sitting out",
+          "value": "Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight.",
+        },
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set",
+      "url": "https://kustom-delta.vercel.app/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1224
+\`jungle\` **XETA** · 1378
+\`mid\` **Ramzyinhović** · 2638
+\`adc\` **SugarPapy** · 1218
+\`support\` **Used2BeATahmMain** · 1322",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1531
+\`jungle\` **Syndrome Axes** · 2291
+\`mid\` **knifiy** · 1454
+\`adc\` **PRT Khokha** · 1287
+\`support\` **TheSHADOWREAPER** · 1262",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
+-# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
+      "title": "How the bot decided",
+      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > the test post: content only, as Kustom 1`] = `
+{
+  "allowed_mentions": {
+    "parse": [],
+  },
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "content": "Kustom is connected. Teams and results will show up here.",
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > weekly 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "Sunday 27 Sep to Saturday 3 Oct · 14 rated games",
+      "fields": [
+        {
+          "name": "Top ten",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
+\`2\` **Syndrome Axes** · +140 · 6W–3L
+\`3\` **knifiy** · +88 · 4W–3L
+\`4\` XETA · +41 · 3W–3L
+\`5\` H4RDC0R33 · +30 · 4W–4L
+\`6\` PRT Khokha · +12 · 3W–3L
+\`7\` FoxHound · -18 · 2W–3L
+\`8\` SugarPapy · -44 · 2W–4L
+\`9\` TheSHADOWREAPER · -61 · 1W–3L
+\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+        },
+        {
+          "name": "Best off-role",
+          "value": "XETA · 4W 1L · 80% · their main is jungle",
+        },
+        {
+          "name": "Cursed duo",
+          "value": "FoxHound and SugarPapy · 1W 5L · 17%",
+        },
+      ],
+      "footer": {
+        "text": "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams.",
+      },
+      "title": "Last week · board",
+      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=last-week",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the stack of every post (10.3), as snapshots > weekly with storyline 1`] = `
+{
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "color": 9148589,
+      "description": "Ramzyinhović took the week with 212 points from seven games, and Syndrome Axes played the most at nine. FoxHound and SugarPapy kept finding each other on the same side and won one of six.",
+      "title": "AI recap",
+    },
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom-delta.vercel.app/g/customs",
+      },
+      "color": 16764774,
+      "description": "Sunday 27 Sep to Saturday 3 Oct · 14 rated games",
+      "fields": [
+        {
+          "name": "Top ten",
+          "value": "\`1\` **Ramzyinhović** · +212 · 5W–2L
+\`2\` **Syndrome Axes** · +140 · 6W–3L
+\`3\` **knifiy** · +88 · 4W–3L
+\`4\` XETA · +41 · 3W–3L
+\`5\` H4RDC0R33 · +30 · 4W–4L
+\`6\` PRT Khokha · +12 · 3W–3L
+\`7\` FoxHound · -18 · 2W–3L
+\`8\` SugarPapy · -44 · 2W–4L
+\`9\` TheSHADOWREAPER · -61 · 1W–3L
+\`10\` Chaos · -96 · 1W–4L · settling · 4/10",
+        },
+        {
+          "name": "Best off-role",
+          "value": "XETA · 4W 1L · 80% · their main is jungle",
+        },
+        {
+          "name": "Cursed duo",
+          "value": "FoxHound and SugarPapy · 1W 5L · 17%",
+        },
+      ],
+      "footer": {
+        "text": "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams.",
+      },
+      "title": "Last week · board",
+      "url": "https://kustom-delta.vercel.app/g/customs/leaderboard?window=last-week",
+    },
+  ],
+  "username": "Kustom",
+}
+`;

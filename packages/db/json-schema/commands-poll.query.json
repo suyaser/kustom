@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/commands-poll.query",
+  "title": "companionCommandsQuerySchema",
+  "description": "GET /api/companion/commands (query). The query string as an object of strings: ?clientConnected=true|false.",
+  "type": "object",
+  "properties": {
+    "clientConnected": {
+      "type": "string",
+      "enum": [
+        "true",
+        "false"
+      ]
+    }
+  },
+  "required": [
+    "clientConnected"
+  ]
+}

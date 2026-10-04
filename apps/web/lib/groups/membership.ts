@@ -64,7 +64,7 @@ export async function lobbyInGroup(
 }
 
 /**
- * The group's admins' display names, oldest player row first (the order the strip has always
+ * The group's admins' display names -- the owner counts as one (M14.11) -- oldest player row first (the order the strip has always
  * used) -- the tonight strip's `Waiting on Yasser or Omar to roll the teams.` (2026-10-03), per
  * group since M13.4. Service role: the role column is not public, and only the names leave the
  * server. Sorted here rather than in the query: ordering a to-one embed in PostgREST sorts inside
@@ -75,7 +75,7 @@ export async function groupAdminNames(client: ServiceClient, groupId: string): P
     .from('group_memberships')
     .select('players!inner(display_name, game_name, created_at)')
     .eq('group_id', groupId)
-    .eq('role', 'admin');
+    .in('role', ['owner', 'admin']);
   if (error) throw new Error(`group admin lookup failed: ${error.message}`);
   return [...(data ?? [])]
     .sort((a, b) => a.players.created_at.localeCompare(b.players.created_at))

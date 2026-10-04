@@ -1,0 +1,20 @@
+{
+  "name": "command-ack--switch-side--already",
+  "kind": "request",
+  "target": "api",
+  "route": "command-ack",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/lobby--two-players"
+  ],
+  "scenario": "command-switch-side-already",
+  "note": "Already on side 100: acked without a client write.",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack",
+  "commandKind": "switch_side",
+  "body": {
+    "result": {
+      "side": 100
+    }
+  }
+}

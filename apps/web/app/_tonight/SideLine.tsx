@@ -45,5 +45,5 @@ export interface SideLineProps {
 }
 
 export function SideLine({ switchSideEnabled = SWITCH_SIDE_ENABLED }: SideLineProps) {
-  return <p className="cn-side-line">{sideLine(switchSideEnabled)}</p>;
+  return <p className="text-sm text-muted-foreground">{sideLine(switchSideEnabled)}</p>;
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type Database, SEASON_ONE_ID } from '@customs/db';
+import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -81,7 +81,6 @@ if (stack === null) {
   const cycleGameId = gameId + 4;
   const oldCycleGameId = gameId + 5;
   const watchedGameId = gameId + 6;
-  const noSeasonGameId = gameId + 7;
   const gameIds = [
     gameId,
     rejectedGameId,
@@ -90,7 +89,6 @@ if (stack === null) {
     cycleGameId,
     oldCycleGameId,
     watchedGameId,
-    noSeasonGameId,
   ];
 
   let ownerToken = '';
@@ -748,11 +746,10 @@ if (stack === null) {
     it('keeps the raw block and fills the rating columns in (M2.5)', async () => {
       const { data: game } = await db
         .from('games')
-        .select('id, raw, source, season_id')
+        .select('id, raw, source')
         .eq('lcu_game_id', gameId)
         .single();
       expect(game?.source).toBe('eog');
-      expect(game?.season_id).toBe(SEASON_ONE_ID);
       expect(game?.raw).toMatchObject({ gameType: 'CUSTOM_GAME' });
 
       // Ten players, five a side, over five minutes: the fold ran on the way through.
@@ -774,7 +771,6 @@ if (stack === null) {
       const { count } = await db
         .from('ratings')
         .select('player_id', { count: 'exact', head: true })
-        .eq('season_id', SEASON_ONE_ID)
         .in(
           'player_id',
           (rows ?? []).map((row) => row.player_id),
@@ -921,11 +917,18 @@ if (stack === null) {
         .select('id, display_name')
         .eq('puuid', puuids[0] ?? '')
         .single();
+      const { data: group } = await db
+        .from('groups')
+        .select('id, slug, name')
+        .eq('id', ORIGINAL_GROUP_ID)
+        .single();
       expect(await response.json()).toEqual({
         ok: true,
         puuid: puuids[0],
         playerId: owner?.id,
         displayName: owner?.display_name ?? null,
+        // M14.12: the token's group, the shape Kustom's `companionMeWithGroupSchema` reads.
+        group,
       });
     });
 
@@ -1054,73 +1057,6 @@ if (stack === null) {
 
       const { data } = await db.from('players').select('rank_tier').eq('puuid', rankPuuid).single();
       expect(data?.rank_tier).toBe('PLATINUM');
-    });
-  });
-  /**
-   * M2.18. `games.season_id` is `not null default public.active_season_id()`, so with no active
-   * season every insert of the night fails on a constraint, after the game, on a serverless
-   * function. This is the one state that has to be driven for real: the whole point is what the
-   * route does *before* it writes.
-   *
-   * The active season is global to this database, not something a run id can namespace, which
-   * is why `fileParallelism` is false and why Season 1 goes back in `afterAll` through
-   * `set_active_season` — one transaction, never a window with no season at all (the M1.6
-   * pattern). This block is last in the file so nothing else runs while the season is out.
-   */
-  describe('POST /api/companion/game with no active season (M2.18)', () => {
-    beforeAll(async () => {
-      const { error } = await db.from('seasons').update({ is_active: false }).eq('id', SEASON_ONE_ID);
-      if (error) throw new Error(`deactivating Season 1 failed: ${error.message}`);
-    });
-
-    afterAll(async () => {
-      // Restored whatever happened above: the stack is shared with every other integration file.
-      const { error } = await db.rpc('set_active_season', { p_id: SEASON_ONE_ID });
-      if (error) throw new Error(`restoring Season 1 failed: ${error.message}`);
-
-      const { data } = await db.from('seasons').select('id').eq('is_active', true);
-      expect(data?.map((row) => row.id)).toEqual([SEASON_ONE_ID]);
-    });
-
-    it('refuses the post with a sentence naming the missing season row, and writes nothing', async () => {
-      const response = await postGame(post(eogBody({ gameId: noSeasonGameId, puuids, partyId }), ownerToken));
-
-      expect(response.status).toBe(503);
-      expect(await response.json()).toEqual({
-        ok: false,
-        // Reworded by M5.14 (product, 2026-09-10): season creation is gone, so this is a
-        // broken deployment and the sentence names the fault instead of a page action.
-        error: 'Games cannot be saved: the database is missing its one season row.',
-      });
-      // Nothing about the game, and nothing the fold could half-write.
-      expect(await countGames(noSeasonGameId)).toBe(0);
-    });
-
-    it('is a retryable status, so the companion keeps its queue file', () => {
-      // The companion deletes a queued game on 400, 403, 404 and 422 only
-      // (`PERMANENT_REFUSALS`, apps/companion/src/gameWatcher.ts). 503 keeps the file, so
-      // starting a season drains the night instead of leaving it to backfill.
-      expect([400, 403, 404, 422]).not.toContain(503);
-    });
-
-    it('still accepts the in_progress ping, which writes no game', async () => {
-      const response = await postGame(
-        post({ phase: 'in_progress', gameId: noSeasonGameId, partyId }, ownerToken),
-      );
-
-      expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ ok: true, phase: 'in_progress' });
-    });
-
-    it('refuses a payload the route would refuse anyway with its own reason', async () => {
-      // The season check sits after the payload rules, so a bad block still gets the 422 that
-      // tells the companion what is wrong with it.
-      const response = await postGame(
-        post(eogBody({ gameId: noSeasonGameId, puuids, gameType: 'MATCHED_GAME' }), ownerToken),
-      );
-
-      expect(response.status).toBe(422);
-      expect(await response.json()).toEqual({ ok: false, error: 'gameType must be CUSTOM_GAME' });
     });
   });
 }

@@ -1,0 +1,17 @@
+{
+  "name": "command-nack--switch-side--malformed-payload",
+  "kind": "request",
+  "target": "api",
+  "route": "command-nack",
+  "patch": "16.17",
+  "fixtures": [],
+  "scenario": "command-malformed-payload",
+  "note": "A payload its kind's schema refuses: malformed_payload with the zod issue text (the first three issues, path: message).",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack",
+  "commandKind": "switch_side",
+  "body": {
+    "error": "malformed_payload: targetSide: Invalid input",
+    "retryable": false
+  }
+}

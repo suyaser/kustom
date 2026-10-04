@@ -45,6 +45,7 @@ export function presentFearless(
         name: nameOf(pick.id, storedName),
         role: pick.role,
         iconUrl: championIconUrl(pick.id, storedName),
+        ...(pick.gameId === undefined ? {} : { gameId: pick.gameId }),
       };
     })
     .sort(compareFearless);

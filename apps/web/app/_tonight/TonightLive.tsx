@@ -1,37 +1,41 @@
 'use client';
 
+import { ruleKey } from '@customs/core';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import type { BoardRow } from '@/lib/board/types';
-import type { MysteryPageState } from '@/lib/mystery/service';
-import { createPublicClient } from '@/lib/publicClient';
-import { loadTonight } from '@/lib/tonight/load';
-import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import { hasNamelessRow, tonightState } from '@/lib/tonight/state';
-import type { PlayerName, TonightSnapshot } from '@/lib/tonight/types';
-import type { ViewerState } from '@/lib/tonight/viewer';
-import { TonightView } from './TonightView';
+import { useEffect, useRef, useTransition } from 'react';
+import { createLiveClient } from '@/lib/liveClient';
+import { SPIN_BROADCAST, SPIN_BROADCAST_EVENT, SPIN_REVEAL_EVENT, spinDetail } from '@/lib/mode/spinEvents';
+import { resetLiveState, setLiveState, TONIGHT_REFRESH_EVENT } from '@/lib/tonight/live';
 
 /**
- * The live half of the tonight page (M3.4).
+ * The live half of the tonight page (M3.4; rebuilt for 2.0 in M14.9).
  *
- * The server rendered the first paint with real content, so the WhatsApp link never opens on a
- * spinner. This attaches after hydration, subscribes to `postgres_changes` on the published
- * tables, and re-reads the same snapshot the server built whenever one of them
- * moves. React then replaces the primary block in place: no append, no scroll, no refetch of
- * anything the reader is not looking at.
+ * The server renders the whole page, every state, with real content, so the WhatsApp link never
+ * opens on a spinner. This attaches after hydration, subscribes to `postgres_changes` on the
+ * published tables for **this group** (M13.9's filters), and on any change asks the server for the
+ * page again with `router.refresh()`. React swaps the new server payload in place: no document
+ * load, no scroll, client state (a pressed role, an open `How the bot decided`) kept.
  *
- * **Every event re-reads; no event is trusted to carry state.** A `postgres_changes` payload
- * is one row of one table, and every state on this page is five joins wide — the newest lobby,
- * its members, its promoted split, its game. Re-reading is one round trip on a page nobody is
- * scrolling, and it means the live path and the first paint can never disagree.
+ * **Every event re-reads; no event is trusted to carry state** (M3.4's rule, unchanged). What
+ * changed in M14.9 is *who* re-reads: the server, with the same loader as the first paint, instead
+ * of the browser running the loader with the anon key. So the receipt, the poster, the tape and
+ * the rail are server components that never ship to the phone (the brief's "the client island is
+ * the live part only"), and server-only facts (who would sit out, the calibration line) stay
+ * current on the same refresh. Decision row proposed in the M14.9 report.
  *
- * If the socket drops, `supabase-js` reconnects by itself and we re-read once on the way back
- * up. No banner, no toast, no "reconnecting…": the design has no toasts, and a page that
- * shouts at 1 a.m. about a socket is worse than a page that is quietly a few seconds stale.
+ * It also re-reads when the tab becomes visible again and whenever the channel (re)subscribes, so a
+ * phone that slept shows the current state. The connection state is published to `lib/tonight/live`
+ * for the strip's live tag and the Tonight tab's dot; neither says `Live` until `SUBSCRIBED`.
+ *
+ * It renders nothing.
+ *
+ * **Never cache a snapshot on the client** (M14.69, code review): every name on the page carries its
+ * same-name label (`Ali (2)`), which only the server render folds in (`labelSnapshot` over
+ * `loadRosterLabels`). A client-kept or client-patched snapshot would print the bare names, so a
+ * change always goes back to the server for the whole page.
  */
 
-/** Published in migration 0001, and publicly readable. `players` is in neither list. */
+/** Published, publicly readable, and group-scoped or reached through a group-scoped lobby. */
 const LIVE_TABLES = [
   'lobbies',
   'lobby_members',
@@ -40,19 +44,20 @@ const LIVE_TABLES = [
   'game_players',
   'ratings',
   'fearless_state',
+  // M14.29's mode (0024 publishes it): a mode change shows on the Mode card without a reload.
+  'group_modes',
 ] as const;
 
 type LiveTable = (typeof LIVE_TABLES)[number];
 
 /**
- * The published tables that carry `group_id` (M13.2). Their events are filtered to the page's
- * group **by the server** (`group_id=eq.<id>`), so a game landing in another group -- its `games`
- * row, its ten `game_players`, the fold's `ratings`, its lobby going `finished` -- never reaches
- * this page and never re-reads it (M13.9).
+ * The published tables that carry `group_id` (M13.2, M14.29). Their events are filtered to the
+ * page's group **by the server** (`group_id=eq.<id>`), so a game landing in another group never
+ * reaches this page and never re-renders it (M13.9).
  *
- * `lobby_members` and `splits` reach their group through their lobby and have no column to
- * filter on, so they stay unfiltered: another group's lobby filling or rolling costs this page a
- * re-read of its own group's snapshot, which can only come back unchanged. Correct, and cheap.
+ * `lobby_members` and `splits` reach their group through their lobby and have no column to filter
+ * on, so they stay unfiltered: another group's lobby filling costs this page one re-render that
+ * comes back unchanged. Correct, and cheap.
  */
 const GROUP_SCOPED: ReadonlySet<LiveTable> = new Set([
   'lobbies',
@@ -60,6 +65,7 @@ const GROUP_SCOPED: ReadonlySet<LiveTable> = new Set([
   'game_players',
   'ratings',
   'fearless_state',
+  'group_modes',
 ]);
 
 export interface LiveSubscription {
@@ -75,210 +81,145 @@ export function liveSubscriptions(groupId: string): LiveSubscription[] {
   );
 }
 
-/** Ten members joining at once is one re-read, not ten. */
-const COALESCE_MS = 120;
+/** Ten members joining at once is one re-render, not ten. */
+export const COALESCE_MS = 150;
+
+/** No `SUBSCRIBED` this long after mounting reads as down, not as still connecting (5.4). */
+export const CONNECT_TIMEOUT_MS = 8_000;
 
 /**
- * How often the page re-reads names while any row says `Someone`.
- *
- * `players` is service-role only and is in no Realtime publication, so a name arriving is the
- * one change that will never turn up as an event (M3.10 promises it replaces itself live).
- * The timer stops as soon as no row is nameless.
+ * How often the page re-reads while any name on it says `Someone`: `players` is in no publication,
+ * so a name arriving is the one change that never turns up as an event (M3.10).
  */
-const NAME_REREAD_MS = 60_000;
+export const NAME_REREAD_MS = 60_000;
 
 /**
- * How often the page asks the server what became of a pending `create_lobby` (M4.2).
- *
- * **A poll, not a subscription, and not by choice.** `companion_commands` has no RLS policy at
- * all and is in no Realtime publication (`0001_init.sql`) — the browser may not read that table
- * with the anon key and will never be sent an event about it — so the only way to learn that
- * the host's client answered is to ask this route's server components again. Five seconds is
- * the companion's own poll interval, so the page cannot be more than one companion tick behind
- * the client, and the command lives sixty seconds, so this runs at most a dozen times and only
- * for the one admin who pressed the button.
+ * How often the page asks what became of a pending `create_lobby` (M4.2): `companion_commands` is
+ * service-role only and in no publication, so a poll, at the companion's own five seconds, for the
+ * one viewer who pressed the button and only while the command is live.
  */
-const START_POLL_MS = 5_000;
+export const START_POLL_MS = 5_000;
 
 export interface TonightLiveProps {
-  /**
-   * The page's group (M13.9): every re-read is this group's snapshot, and the Realtime
-   * subscription only hears this group's rows ({@link liveSubscriptions}).
-   */
   groupId: string;
-  initial: TonightSnapshot;
-  /** Who is reading, decided on the server from the session (`lib/viewer.ts`). */
-  viewer: ViewerState;
-  /**
-   * The rail's `Top of the board`, read on the server with the page. It is **not** re-read on a
-   * Realtime event: the rail never carries state, and a board that reshuffled itself while
-   * somebody was reading the teams beside it would be the one thing on the page that moves for
-   * no reason a reader can see.
-   */
-  topPlayers: readonly BoardRow[];
-  /**
-   * Tonight's newest `create_lobby`, read on the server for a linked viewer only. Re-read by
-   * `router.refresh()` — see {@link START_POLL_MS} — and never by the snapshot's own re-read,
-   * which is made with the anon key and cannot see that table.
-   */
-  lobbyStart?: LobbyStartView | null;
-  mystery?: MysteryPageState | null;
-  /**
-   * The admins' display names (`lib/tonight/admins.ts`), read once with the page for the strip's
-   * `Waiting on … to roll the teams.` Not re-read on a Realtime event: who the admins are does
-   * not change during a night.
-   */
-  admins?: readonly PlayerName[];
+  /** A lobby is filling, set or in game (the server's `tonightHeader(...).live`). */
+  lobbyLive: boolean;
+  /** Some name on the page is still the fallback word. */
+  nameless?: boolean | undefined;
+  /** Tonight's `create_lobby` is pending or sent (linked viewers only). */
+  startPending?: boolean | undefined;
 }
 
 export function TonightLive({
   groupId,
-  initial,
-  viewer,
-  topPlayers,
-  lobbyStart = null,
-  mystery = null,
-  admins = [],
+  lobbyLive,
+  nameless = false,
+  startPending = false,
 }: TonightLiveProps) {
-  const [snapshot, setSnapshot] = useState(initial);
   const router = useRouter();
   const [, startTransition] = useTransition();
-  /**
-   * Who the viewer is comes from the **session**, on the server, so the self-link (M3.6) is
-   * the one change on this page that Realtime cannot deliver: it writes `players.discord_id`,
-   * which is in no publication and which the browser may not read. `router.refresh()` re-reads
-   * this route's server components — the page's viewer and the shell's footer — in place. It
-   * is not a navigation: no document load, no scroll, and the pressed control keeps focus.
-   */
-  const onViewerChanged = useCallback(() => {
-    startTransition(() => router.refresh());
+  const refresh = useRef<() => void>(() => {});
+
+  // Coalesced: a burst of events, or an event racing a visibility change, is one refresh.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    refresh.current = () => {
+      if (timer !== null) return;
+      timer = setTimeout(() => {
+        timer = null;
+        startTransition(() => router.refresh());
+      }, COALESCE_MS);
+    };
+    return () => {
+      if (timer !== null) clearTimeout(timer);
+      refresh.current = () => {};
+    };
   }, [router]);
-  /**
-   * The same re-read, for the same reason: `companion_commands` is service-role only, so the
-   * answer to "did the lobby open?" is a server render and not an event. One function, two
-   * callers, so a press and a self-link cannot end up refreshing two different things.
-   */
-  const refreshServer = onViewerChanged;
-  const startPending = lobbyStart?.status === 'pending' || lobbyStart?.status === 'sent';
 
   useEffect(() => {
-    if (!startPending) return;
-    const timer = setInterval(refreshServer, START_POLL_MS);
-    return () => clearInterval(timer);
-  }, [startPending, refreshServer]);
-  const refresh = useRef<() => void>(() => {});
-  const nightStart = initial.nightStart;
-  /**
-   * The slug the **server** formatted, carried through every re-read. The browser has no
-   * `CUSTOMS_NIGHT_TZ`, so formatting it here would quietly use the default zone and could
-   * change the weekday under the reader a second after the first paint (M3.18, reviewer).
-   */
-  const nightLabel = initial.nightLabel;
-  /** The zone's offset for the night, for the tape's clocks, by the same rule (M11.2). */
-  const [nightClock] = useState(initial.nightClock);
+    setLiveState({ lobbyLive, mounted: true });
+  }, [lobbyLive]);
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let inFlight = false;
-    let again = false;
-    const client = createPublicClient();
-
-    const schedule = (): void => {
-      if (cancelled || timer !== null) return;
-      timer = setTimeout(() => {
-        timer = null;
-        void run();
-      }, COALESCE_MS);
-    };
-
-    const run = async (): Promise<void> => {
-      // One read at a time. Events that land while one is in flight collapse into a single
-      // follow-up, so a burst of ten inserts cannot queue ten round trips.
-      if (inFlight) {
-        again = true;
-        return;
-      }
-      inFlight = true;
-      try {
-        const next = await loadTonight(client, {
-          nightStart: new Date(nightStart),
-          nightLabel,
-          nightClock,
-          groupId,
-        });
-        if (!cancelled) setSnapshot(next);
-      } catch (error) {
-        // The last snapshot stays on the screen. A failed read is not something to announce.
-        console.error('tonight: re-reading the page failed', error);
-      } finally {
-        inFlight = false;
-        if (again && !cancelled) {
-          again = false;
-          schedule();
-        }
-      }
-    };
-
-    refresh.current = schedule;
+    // realtime-js alone, anon key (M14.44): the island only listens.
+    const client = createLiveClient();
+    setLiveState({ connection: 'connecting', mounted: true });
+    const timeout = setTimeout(() => {
+      if (!cancelled) setLiveState({ connection: 'reconnecting' });
+    }, CONNECT_TIMEOUT_MS);
 
     const channel = client.channel(`tonight:${groupId}`);
+    const onChange = (): void => refresh.current();
     for (const { table, filter } of liveSubscriptions(groupId)) {
       channel.on(
         'postgres_changes',
         filter === undefined
           ? { event: '*', schema: 'public', table }
           : { event: '*', schema: 'public', table, filter },
-        schedule,
+        onChange,
       );
     }
-    channel.subscribe((status) => {
-      // The first subscribe and every reconnect land here: re-read once, say nothing.
-      if (status === 'SUBSCRIBED') schedule();
+    // M15.5: another admin's Spin, said on the channel so every open page plays the same reveal.
+    // The card itself still comes from the database (`group_modes` above); this only names the rule,
+    // and the reveal plays only once the card's pending rule confirms it (`SpinReveal`).
+    channel.on('broadcast', { event: SPIN_BROADCAST }, (message) => {
+      const rule = spinDetail({ payload: message.payload });
+      if (rule === null) return;
+      const detail = { rule: ruleKey(rule), source: 'broadcast' };
+      window.dispatchEvent(new CustomEvent(SPIN_REVEAL_EVENT, { detail }));
     });
+    channel.subscribe((status) => {
+      if (cancelled) return;
+      if (status === 'SUBSCRIBED') {
+        clearTimeout(timeout);
+        setLiveState({ connection: 'live' });
+        // The first subscribe and every reconnect: anything that moved while we were not
+        // listening is on the page after one re-read.
+        refresh.current();
+        return;
+      }
+      // CHANNEL_ERROR, TIMED_OUT, CLOSED: realtime-js retries by itself; say so until it is back.
+      setLiveState({ connection: 'reconnecting' });
+    });
+
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') refresh.current();
+    };
+    const onAsked = (): void => refresh.current();
+    const onSpun = (event: Event): void => {
+      const rule = spinDetail(event);
+      if (rule === null) return;
+      void channel.send({ type: 'broadcast', event: SPIN_BROADCAST, payload: { rule: ruleKey(rule) } });
+    };
+    window.addEventListener(SPIN_BROADCAST_EVENT, onSpun);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
+    window.addEventListener(TONIGHT_REFRESH_EVENT, onAsked);
 
     return () => {
       cancelled = true;
-      if (timer !== null) clearTimeout(timer);
+      clearTimeout(timeout);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onVisible);
+      window.removeEventListener(TONIGHT_REFRESH_EVENT, onAsked);
+      window.removeEventListener(SPIN_BROADCAST_EVENT, onSpun);
       void client.removeChannel(channel);
+      resetLiveState();
     };
-  }, [groupId, nightStart, nightLabel, nightClock]);
-
-  /** A roll press was answered: re-read the snapshot now (`TonightView`'s `onRollSettled`). */
-  const onRollSettled = useCallback(() => refresh.current(), []);
-
-  const nameless = hasNamelessRow(tonightState(snapshot), snapshot.tape);
+  }, [groupId]);
 
   useEffect(() => {
     if (!nameless) return;
-
-    const reread = (): void => refresh.current();
-    const onVisible = (): void => {
-      if (document.visibilityState === 'visible') reread();
-    };
-
-    const interval = setInterval(reread, NAME_REREAD_MS);
-    window.addEventListener('focus', onVisible);
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', onVisible);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+    const interval = setInterval(() => refresh.current(), NAME_REREAD_MS);
+    return () => clearInterval(interval);
   }, [nameless]);
 
-  return (
-    <TonightView
-      snapshot={snapshot}
-      viewer={viewer}
-      topPlayers={topPlayers}
-      lobbyStart={lobbyStart}
-      onViewerChanged={onViewerChanged}
-      onLobbyStarted={refreshServer}
-      onRollSettled={onRollSettled}
-      mystery={mystery}
-      admins={admins}
-    />
-  );
+  useEffect(() => {
+    if (!startPending) return;
+    const interval = setInterval(() => refresh.current(), START_POLL_MS);
+    return () => clearInterval(interval);
+  }, [startPending]);
+
+  return null;
 }

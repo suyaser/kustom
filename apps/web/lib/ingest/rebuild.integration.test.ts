@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { config, provisionalSeed, rateGame } from '@customs/core';
-import { type Database, SEASON_ONE_ID } from '@customs/db';
+import { config, displayRating, foldWinProbability, provisionalSeed, rateGame } from '@customs/core';
+import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { eogBody, ROLES_IN_ORDER, testGameId, testPuuids } from '@/lib/testing/fixtures';
+import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -14,9 +15,10 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  * ingest path the companion uses — because the claim being tested is that the rebuild
  * reproduces the *live* fold, and a hand-inserted row would not be that fold.
  *
- * The file runs in a **season of its own**, started at the top and handed back at the bottom:
- * a rebuild is a season-wide operation, so it cannot be namespaced by row the way every other
- * integration test here is. Season 1 is snapshotted and asserted untouched.
+ * The file runs in a **group of its own** (M14.14: a rebuild is a
+ * group-wide operation), created at the top and deleted at the bottom: a rebuild cannot be
+ * namespaced by row the way every other integration test here is. The original group's ratings
+ * are snapshotted and asserted untouched.
  *
  * Skipped, not failed, when the stack is not running (`pnpm db:start`).
  */
@@ -43,7 +45,7 @@ if (stack === null) {
   // The one place in the app that names an MVP (M7.9), imported here so the test asks the
   // fold's own question rather than reimplementing the score.
   const { gameAward } = await import('./fold');
-  const { loadBoard, loadPlayerBoard } = await import('@/lib/board/load');
+  const { loadPlayerBoard } = await import('@/lib/board/load');
   const { createPublicClient } = await import('@/lib/publicClient');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
@@ -53,7 +55,6 @@ if (stack === null) {
   const runId = randomUUID().slice(0, 8);
   const puuids = testPuuids(runId);
   const ownerPuuid = puuids[0] as string;
-  const seasonName = `it-${runId} rebuild`;
 
   const base = testGameId();
   const liveGameIds = [base + 1, base + 2, base + 3];
@@ -88,9 +89,26 @@ if (stack === null) {
   ];
 
   let token = '';
-  let seasonId = '';
+  /** This file's own group: every game it posts lands here, and every rebuild folds only this. */
+  let groupId = '';
   let playerIds: string[] = [];
-  let seasonOneRatings = '';
+  let originalGroupRatings = '';
+
+  /**
+   * Every rating column and the fold breakdown (M14.58, `0034`), nulled together: the shape a
+   * row has before any fold rated it. `0034`'s check refuses a breakdown on a row with no
+   * `mu_after`, so wiping the four rating columns alone is not a state the table allows.
+   */
+  const WIPED = {
+    mu_before: null,
+    sigma_before: null,
+    mu_after: null,
+    sigma_after: null,
+    fold_p: null,
+    base_mu_after: null,
+    award: null,
+    rated_games_before: null,
+  };
 
   function post(body: unknown): Request {
     return new Request('http://localhost/api/companion/game', {
@@ -102,14 +120,18 @@ if (stack === null) {
 
   /**
    * A canonical dump of everything the rebuild is allowed to write: every rating column of
-   * every `game_players` row of this season's games, and every `ratings` row. Ordered and
+   * every `game_players` row of this group's games, and every `ratings` row. Ordered and
    * serialised, so "byte-identical" is one `expect`.
    */
   async function dump(): Promise<string> {
     const { data: rows, error } = await db
       .from('game_players')
-      .select('game_id, player_id, mu_before, sigma_before, mu_after, sigma_after, games!inner(season_id)')
-      .eq('games.season_id', seasonId)
+      // The fold breakdown (M14.58, `0034`) is part of what the rebuild writes, so it is part of
+      // "two runs are byte-identical" too.
+      .select(
+        'game_id, player_id, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before',
+      )
+      .eq('group_id', groupId)
       .order('game_id')
       .order('player_id');
     if (error) throw new Error(error.message);
@@ -120,7 +142,7 @@ if (stack === null) {
       // writes (M5.7): "two runs are byte-identical" has to include the seed, or the second
       // run could quietly move where somebody's history starts.
       .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
-      .eq('season_id', seasonId)
+      .eq('group_id', groupId)
       .order('player_id');
     if (ratingsError) throw new Error(ratingsError.message);
 
@@ -134,7 +156,7 @@ if (stack === null) {
    * runs of the same chain and are exact. These compare two *different* chains: the live fold
    * folds each game from ratings it read back out of Postgres — which prints a `double
    * precision` to fifteen significant digits and so hands back that double **rounded** — while
-   * a from-scratch rebuild folds the whole season in memory. `rebuild.ts`'s `RATING_EPSILON`
+   * a from-scratch rebuild folds the whole group in memory. `rebuild.ts`'s `RATING_EPSILON`
    * says exactly this, and acts on it: rows inside the tolerance are deliberately left alone,
    * which is why a dump taken after a rebuild still holds the live fold's last digit. The two
    * chains agreeing to fifteen printed digits was luck, not a promise; nine decimals of `mu` is
@@ -146,11 +168,11 @@ if (stack === null) {
     );
   }
 
-  async function dumpSeasonOne(): Promise<string> {
+  async function dumpOriginalGroup(): Promise<string> {
     const { data, error } = await db
       .from('ratings')
       .select('player_id, mu, sigma, games, wins, updated_at')
-      .eq('season_id', SEASON_ONE_ID)
+      .eq('group_id', ORIGINAL_GROUP_ID)
       .order('player_id');
     if (error) throw new Error(error.message);
     return JSON.stringify(data);
@@ -170,15 +192,15 @@ if (stack === null) {
   }
 
   function rebuild(options: Partial<Parameters<typeof rebuildRatings>[1]> = {}) {
-    return rebuildRatings(db, { groupId: ORIGINAL_GROUP_ID, seasonId, force: true, ...options });
+    return rebuildRatings(db, { groupId, force: true, ...options });
   }
 
-  /** The four seed columns of this season's `ratings` rows, ordered (M5.7). */
+  /** The four seed columns of this group's `ratings` rows, ordered (M5.7). */
   async function seedRows() {
     const { data, error } = await db
       .from('ratings')
       .select('player_id, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
-      .eq('season_id', seasonId)
+      .eq('group_id', groupId)
       .order('player_id');
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -211,43 +233,30 @@ if (stack === null) {
       .update({ rank_tier: 'DIAMOND', rank_division: 'IV' })
       .in('id', playerIds.slice(3, 5));
 
+    groupId = (await createTestGroups(db, runId, ['rebuild'] as const)).rebuild;
+    await setTestMembership(db, groupId, ids.get(ownerPuuid) ?? '', 'member');
+
     const { token: raw, tokenHash } = mintCompanionToken();
     await db.from('companion_tokens').insert({
-      group_id: ORIGINAL_GROUP_ID,
+      group_id: groupId,
       player_id: ids.get(ownerPuuid) ?? '',
       token_hash: tokenHash,
       label: `it-${runId}-rebuild`,
     });
     token = raw;
 
-    seasonOneRatings = await dumpSeasonOne();
-
-    // A season of this file's own: the rebuild folds a whole season, so isolating it by row is
-    // not possible and isolating it by season is exact.
-    const { data: season, error } = await db.rpc('start_season', { p_name: seasonName });
-    if (error) throw new Error(`start_season: ${error.message}`);
-    seasonId = (season as unknown as { id: string }[])[0]?.id ?? (season as unknown as { id: string }).id;
-    expect(seasonId).toBeTruthy();
+    originalGroupRatings = await dumpOriginalGroup();
   });
 
   /**
    * **The stack is handed back the way it was found, including when a case above failed**
-   * (M3.29). Two `it-<run> rebuild` seasons were left behind on 2026-09-10 by runs that failed
-   * mid-file, and the reason was not that this hook did not run — it did — but that it deleted
-   * the file's games *by id*, and a case that fails before its own cleanup leaves a game this
-   * list does not name (the fence game is inserted inside a case and deleted at the end of it).
-   * `games.season_id` has no `on delete cascade`, so the season delete then failed silently on
-   * a foreign key and left an inactive season on a shared database forever.
-   *
-   * So: delete **every game of this season**, whatever inserted it, and shout if the season
-   * still will not go. Every step runs even if an earlier one throws, and the active season is
-   * put back first, because a stack with no active season breaks every other file in the suite.
+   * (M3.29). Every step runs even if an earlier one throws: this run's games by id (a case that
+   * fails before its own cleanup can leave one), then everything the test group owns, then the
+   * players.
    */
   afterAll(async () => {
     const problems: string[] = [];
-    // `PromiseLike`, because a PostgREST builder is a thenable and not a `Promise`, and this
-    // has to take one without awaiting it first: the point of the helper is that every step
-    // runs whatever the one before it did.
+    // `PromiseLike`, because a PostgREST builder is a thenable and not a `Promise`.
     const attempt = async (what: string, step: () => PromiseLike<unknown>) => {
       try {
         const result = (await step()) as { error?: { message?: string } | null } | null;
@@ -257,32 +266,9 @@ if (stack === null) {
       }
     };
 
-    // Season 1 back in one statement (0002), so there is never a window with no active season.
-    await attempt('restoring season 1', () => db.rpc('set_active_season', { p_id: SEASON_ONE_ID }));
-    if (seasonId !== '') {
-      // By season, not by id: a case that failed before its own cleanup leaves a game behind,
-      // and one such row is enough to make the season undeletable.
-      await attempt('deleting this season’s games', () =>
-        db.from('games').delete().eq('season_id', seasonId),
-      );
-    }
     await attempt('deleting this run’s games', () => db.from('games').delete().in('lcu_game_id', allGameIds));
-    if (seasonId !== '') {
-      await attempt('deleting this season’s ratings', () =>
-        db.from('ratings').delete().eq('season_id', seasonId),
-      );
-      await attempt('deleting this season', () => db.from('seasons').delete().eq('id', seasonId));
-    }
+    await attempt('deleting the test group', () => deleteTestGroups(db, [groupId]));
     await attempt('deleting this run’s players', () => db.from('players').delete().in('puuid', puuids));
-
-    // The season really is gone: a silent failure here is what M3.29 was raised for, so it is
-    // an error the next run reads rather than a row the next person finds by hand. `seasonId`
-    // is empty only when `beforeAll` failed before starting one, and then there is nothing to
-    // look for — and nothing to shout about that is not already failing louder.
-    if (seasonId !== '') {
-      const { data: left } = await db.from('seasons').select('id, name').eq('id', seasonId);
-      if ((left ?? []).length > 0) problems.push(`the season ${seasonName} is still there`);
-    }
     if (problems.length > 0) throw new Error(`rebuild cleanup: ${problems.join('; ')}`);
   });
 
@@ -438,17 +424,14 @@ if (stack === null) {
 
     it('produces the same numbers as if the four games had arrived in order', async () => {
       // The proof that arrival order does not matter: wipe every rating column and rating row
-      // for the season and fold from scratch. Same answer.
+      // for the group and fold from scratch. Same answer.
       const ordered = await dump();
 
-      const { data: games } = await db.from('games').select('id').eq('season_id', seasonId);
+      const { data: games } = await db.from('games').select('id').eq('group_id', groupId);
       for (const game of games ?? []) {
-        await db
-          .from('game_players')
-          .update({ mu_before: null, sigma_before: null, mu_after: null, sigma_after: null })
-          .eq('game_id', game.id);
+        await db.from('game_players').update(WIPED).eq('game_id', game.id);
       }
-      await db.from('ratings').delete().eq('season_id', seasonId);
+      await db.from('ratings').delete().eq('group_id', groupId);
 
       const result = await rebuild();
       expect(result.ok).toBe(true);
@@ -511,7 +494,7 @@ if (stack === null) {
   describe('no lock', () => {
     it('refuses while a game has just landed, and runs with --force', async () => {
       // The games above were all posted seconds ago, which is exactly what the guard is for.
-      const refused = await rebuildRatings(db, { groupId: ORIGINAL_GROUP_ID, seasonId });
+      const refused = await rebuildRatings(db, { groupId });
       expect(refused.ok).toBe(false);
       if (refused.ok) return;
       expect(refused.code).toBe('guard');
@@ -524,13 +507,12 @@ if (stack === null) {
       const partyId = `it-party-${runId}-guard`;
       const { data: lobby } = await db
         .from('lobbies')
-        .insert({ group_id: ORIGINAL_GROUP_ID, lcu_party_id: partyId, status: 'balanced' })
+        .insert({ group_id: groupId, lcu_party_id: partyId, status: 'balanced' })
         .select('id')
         .single();
 
       const refused = await rebuildRatings(db, {
-        groupId: ORIGINAL_GROUP_ID,
-        seasonId,
+        groupId,
         now: new Date(Date.now() + 3_600_000),
       });
       expect(refused.ok).toBe(false);
@@ -550,9 +532,8 @@ if (stack === null) {
       const result = await rebuild({
         afterSnapshot: async () => {
           const { error } = await db.from('games').insert({
-            group_id: ORIGINAL_GROUP_ID,
+            group_id: groupId,
             lcu_game_id: fenceGameId,
-            season_id: seasonId,
             started_at: '2026-09-08T20:00:00.000Z',
             duration_s: 1_500,
             winning_side: 100,
@@ -597,14 +578,11 @@ if (stack === null) {
 
       // And the answer does not depend on the order the rows come back in: wipe and refold.
       const ordered = await dump();
-      const { data: games } = await db.from('games').select('id').eq('season_id', seasonId);
+      const { data: games } = await db.from('games').select('id').eq('group_id', groupId);
       for (const game of games ?? []) {
-        await db
-          .from('game_players')
-          .update({ mu_before: null, sigma_before: null, mu_after: null, sigma_after: null })
-          .eq('game_id', game.id);
+        await db.from('game_players').update(WIPED).eq('game_id', game.id);
       }
-      await db.from('ratings').delete().eq('season_id', seasonId);
+      await db.from('ratings').delete().eq('group_id', groupId);
       expect((await rebuild()).ok).toBe(true);
       expect(within(await dump())).toBe(within(ordered));
     });
@@ -612,14 +590,17 @@ if (stack === null) {
 
   describe('a ratings row nobody played for', () => {
     it('is reported and left alone, and only --prune deletes it', async () => {
-      // Somebody who has a rating in this season but no rated game in it: what a deleted game,
-      // or a season carried forward by hand, leaves behind.
+      // Somebody who has a rating in this group but no rated game in it: what a deleted game
+      // leaves behind.
       const strayPuuid = `it-${runId}-stray`;
       const ids = await ensurePlayers(db, [{ puuid: strayPuuid }]);
       const strayId = ids.get(strayPuuid) as string;
-      await db
-        .from('ratings')
-        .insert({ group_id: ORIGINAL_GROUP_ID, player_id: strayId, season_id: seasonId, mu: 25, sigma: 8 });
+      await db.from('ratings').insert({
+        group_id: groupId,
+        player_id: strayId,
+        mu: 25,
+        sigma: 8,
+      });
 
       const reported = await rebuild();
       expect(reported.ok).toBe(true);
@@ -749,20 +730,10 @@ if (stack === null) {
     });
   });
 
-  describe('seasons', () => {
-    it('leaves every other season alone', async () => {
+  describe('other groups', () => {
+    it('leaves every other group alone', async () => {
       expect((await rebuild()).ok).toBe(true);
-      expect(await dumpSeasonOne()).toBe(seasonOneRatings);
-    });
-
-    it('says so, and writes nothing, for a season id that does not exist', async () => {
-      const result = await rebuildRatings(db, {
-        groupId: ORIGINAL_GROUP_ID,
-        seasonId: randomUUID(),
-        force: true,
-      });
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.code).toBe('no-season');
+      expect(await dumpOriginalGroup()).toBe(originalGroupRatings);
     });
   });
 
@@ -802,7 +773,7 @@ if (stack === null) {
       const { error } = await db
         .from('ratings')
         .update({ seed_mu: null, seed_sigma: null, seed_rank_tier: null, seed_rank_division: null })
-        .eq('season_id', seasonId);
+        .eq('group_id', groupId);
       if (error) throw new Error(error.message);
       const emptied = await dump();
 
@@ -821,7 +792,7 @@ if (stack === null) {
       expect(formatRebuildReport(run.report)).toContain('seeds         10 stored for the first time');
 
       // The ranks have not moved, so the backfill puts back exactly what the first fold wrote —
-      // and nothing else about the season changed on the way.
+      // and nothing else about the group changed on the way.
       expect(await seedRows()).toEqual(seeded);
       expect(await dump()).toBe(before);
 
@@ -875,7 +846,7 @@ if (stack === null) {
   /**
    * ARAM never rates (M7.1), from the rebuild's side.
    *
-   * **Last in the file on purpose**: every case above counts the season's games, and this one
+   * **Last in the file on purpose**: every case above counts the group's games, and this one
    * adds one to it.
    */
   describe('the map (M7.1)', () => {
@@ -885,14 +856,14 @@ if (stack === null) {
     }
 
     it('skips an ARAM, leaves its columns null, and moves nobody else by a digit', async () => {
-      // Settle the season first. The case above posted a game, let it rate, and then deleted
+      // Settle the group first. The case above posted a game, let it rate, and then deleted
       // it, so the stored `ratings` still count a game that is gone — true of this file and of
       // nothing this case is about.
       expect((await rebuild()).ok).toBe(true);
 
       const before = JSON.parse(await dump()) as { rows: { game_id: string }[]; ratings: unknown[] };
       const dry = await rebuild({ dryRun: true });
-      if (!dry.ok) throw new Error(`the season would not fold: ${dry.message}`);
+      if (!dry.ok) throw new Error(`the group would not fold: ${dry.message}`);
       const consideredBefore = dry.report.considered;
 
       const response = await postGame(
@@ -951,7 +922,7 @@ if (stack === null) {
       }
     });
 
-    it('is still idempotent with an ARAM in the season', async () => {
+    it('is still idempotent with an ARAM in the group', async () => {
       const first = await rebuild();
       expect(first.ok).toBe(true);
       const afterFirst = await dump();
@@ -1083,7 +1054,7 @@ if (stack === null) {
       expect(rows.find((row) => row.puuid === award.mvp)?.side).toBe(100);
       expect(rows.find((row) => row.puuid === award.ace)?.side).toBe(200);
 
-      // Acceptance 3: the rebuild replays the same season and writes nothing, because it
+      // Acceptance 3: the rebuild replays the same group and writes nothing, because it
       // reaches the same MVP from the same columns.
       const before = await dump();
       const result = await rebuild();
@@ -1093,7 +1064,7 @@ if (stack === null) {
       expect(result.report.ratingRowsChanged).toBe(0);
       expect(await dump()).toBe(before);
 
-      // Acceptance 4: and a second run is byte-identical with the bonus in the season.
+      // Acceptance 4: and a second run is byte-identical with the bonus in the group.
       expect((await rebuild()).ok).toBe(true);
       expect(await dump()).toBe(before);
     });
@@ -1147,7 +1118,7 @@ if (stack === null) {
      * adjusted delta reaches both surfaces with **no change to either page**. What this case
      * pins is that the number they carry is the amplified one and not `rateGame`'s.
      */
-    it('carries the adjusted delta onto the board expand and the player page, unchanged', async () => {
+    it('carries the adjusted delta onto the player page, unchanged', async () => {
       const anon = createPublicClient();
       const rows = await foldRows(bonusGameId);
       const award = gameAward(rows, 100);
@@ -1156,38 +1127,238 @@ if (stack === null) {
       const plain = plainFold(rows, 100).get(award.mvp) as { mu: number };
       const { data: game } = await db.from('games').select('id').eq('lcu_game_id', bonusGameId).single();
 
-      const board = await loadBoard(anon, { window: 'all-time', includeBreakdown: true });
-      const boardRow = board.rows.find((row) => row.puuid === award.mvp);
-      const expanded = boardRow?.breakdown.find((entry) => entry.gameId === (game?.id ?? ''));
-      expect([expanded?.muBefore, expanded?.muAfter]).toEqual([mvp.before.mu, mvp.after.mu]);
-
-      const page = await loadPlayerBoard(anon, award.mvp, { window: 'all-time' });
+      // The board no longer opens into a game list (M14.15); the player page carries the pair.
+      const page = await loadPlayerBoard(anon, award.mvp, { window: 'all-time', groupId });
       const recent = page?.recent.find((entry) => entry.gameId === (game?.id ?? ''));
       expect([recent?.muBefore, recent?.muAfter]).toEqual([mvp.before.mu, mvp.after.mu]);
 
-      // And that shared pair is the amplified one: bigger than the gain `rateGame` alone gave.
-      const shown = (expanded?.muAfter as number) - (expanded?.muBefore as number);
+      // And that pair is the amplified one: bigger than the gain `rateGame` alone gave.
+      const shown = (recent?.muAfter as number) - (recent?.muBefore as number);
       expect(shown).toBeGreaterThan(plain.mu - mvp.before.mu);
       expect(shown).toBeCloseTo((plain.mu - mvp.before.mu) * (1 + config.rating.mvp.bonusFraction), 12);
     });
 
     it('re-folds both games from scratch to the same numbers, in either arrival order', async () => {
       // The strongest form of "the two folds cannot disagree": wipe every rating column in the
-      // season and let the rebuild alone produce them. The bonus has to come back on exactly
+      // group and let the rebuild alone produce them. The bonus has to come back on exactly
       // the same two rows of exactly the same game.
       const live = await dump();
 
-      const { data: games } = await db.from('games').select('id').eq('season_id', seasonId);
+      const { data: games } = await db.from('games').select('id').eq('group_id', groupId);
       for (const game of games ?? []) {
-        await db
-          .from('game_players')
-          .update({ mu_before: null, sigma_before: null, mu_after: null, sigma_after: null })
-          .eq('game_id', game.id);
+        await db.from('game_players').update(WIPED).eq('game_id', game.id);
       }
-      await db.from('ratings').delete().eq('season_id', seasonId);
+      await db.from('ratings').delete().eq('group_id', groupId);
 
       expect((await rebuild()).ok).toBe(true);
       expect(within(await dump())).toBe(within(live));
+    });
+  });
+
+  /**
+   * **The fold breakdown** (M14.58, M14.59, `0034`): the live fold stores, per row, the odds it
+   * used for the row's side, the base `mu_after` before the MVP/ACE bonus, the award, and the
+   * player's rated games before the game; `rebuild-ratings` fills the same four for every game it
+   * folds, and a second run changes nothing. Last in the file: it reads the games the MVP block
+   * above added.
+   */
+  describe('the fold breakdown (M14.58)', () => {
+    async function breakdownRows(lcuGameId: number) {
+      const { data: game } = await db.from('games').select('id').eq('lcu_game_id', lcuGameId).single();
+      const { data, error } = await db
+        .from('game_players')
+        .select(
+          'side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, base_mu_after, fold_p, award, rated_games_before, players!inner(puuid)',
+        )
+        .eq('game_id', game?.id ?? '');
+      if (error) throw new Error(error.message);
+      return (data ?? [])
+        .map((row) => ({
+          playerId: row.players.puuid,
+          puuid: row.players.puuid,
+          side: row.side as 100 | 200,
+          role: row.role,
+          kills: row.kills,
+          deaths: row.deaths,
+          assists: row.assists,
+          damageToChamps: row.damage_to_champs,
+          gold: row.gold,
+          cs: row.cs,
+          visionScore: row.vision_score,
+          damageSelfMitigated: row.damage_self_mitigated,
+          damageToObjectives: row.damage_to_objectives,
+          before: { mu: row.mu_before as number, sigma: row.sigma_before as number },
+          muAfter: row.mu_after as number,
+          baseMuAfter: row.base_mu_after,
+          foldP: row.fold_p,
+          award: row.award,
+          ratedGamesBefore: row.rated_games_before,
+        }))
+        .sort((a, b) => (a.puuid < b.puuid ? -1 : 1));
+    }
+
+    /** Rated games each player had in the group before `lcuGameId`, from the stored rows. */
+    async function ratedBefore(lcuGameId: number): Promise<Map<string, number>> {
+      const { data: target } = await db
+        .from('games')
+        .select('started_at, lcu_game_id')
+        .eq('lcu_game_id', lcuGameId)
+        .single();
+      const { data, error } = await db
+        .from('game_players')
+        .select('mu_after, players!inner(puuid), games!inner(started_at, lcu_game_id)')
+        .eq('group_id', groupId)
+        .not('mu_after', 'is', null);
+      if (error) throw new Error(error.message);
+      const counts = new Map<string, number>();
+      for (const row of data ?? []) {
+        const earlier =
+          row.games.started_at < (target?.started_at ?? '') ||
+          (row.games.started_at === target?.started_at && row.games.lcu_game_id < (target?.lcu_game_id ?? 0));
+        if (earlier) counts.set(row.players.puuid, (counts.get(row.players.puuid) ?? 0) + 1);
+      }
+      return counts;
+    }
+
+    it('is written by the live fold: the side s odds, the base mu_after, the award and the count', async () => {
+      const rows = await breakdownRows(bonusGameId);
+      expect(rows).toHaveLength(10);
+      const award = gameAward(rows, 100);
+      if (award === null) throw new Error('expected this game to have an MVP');
+      const blue = rows.filter((row) => row.side === 100).map((row) => row.before);
+      const red = rows.filter((row) => row.side === 200).map((row) => row.before);
+      const counts = await ratedBefore(bonusGameId);
+
+      for (const row of rows) {
+        // The odds the fold used, from the exact befores it handed rateGame (one function, M14.59).
+        expect(row.foldP).toBeCloseTo(foldWinProbability(blue, red, row.side), 12);
+        expect(row.award).toBe(row.puuid === award.mvp ? 'mvp' : row.puuid === award.ace ? 'ace' : 'none');
+        expect(row.ratedGamesBefore).toBe(counts.get(row.puuid) ?? 0);
+        if (row.award === 'none') expect(row.baseMuAfter).toBe(row.muAfter);
+      }
+      // Blue's and red's odds are one probability from two sides.
+      const blueP = rows.find((row) => row.side === 100)?.foldP as number;
+      const redP = rows.find((row) => row.side === 200)?.foldP as number;
+      expect(blueP + redP).toBeCloseTo(1, 12);
+
+      // Acceptance 2: base delta times the award multiplier gives the stored delta, for the MVP and
+      // the ACE, within one display point.
+      for (const [puuid, factor] of [
+        [award.mvp, 1 + config.rating.mvp.bonusFraction],
+        [award.ace, 1 - config.rating.mvp.aceReliefFraction],
+      ] as const) {
+        const row = rows.find((candidate) => candidate.puuid === puuid) as (typeof rows)[number];
+        const base = displayRating(row.baseMuAfter as number) - displayRating(row.before.mu);
+        const stored = displayRating(row.muAfter) - displayRating(row.before.mu);
+        expect(Math.abs(base * factor - stored)).toBeLessThanOrEqual(1);
+        expect(base).not.toBe(stored);
+      }
+    });
+
+    it('is filled by the rebuild for rows stored before 0034, reported on a dry run, then still', async () => {
+      const filled = await dump();
+      const { data: rated, error } = await db
+        .from('game_players')
+        .select('game_id, player_id')
+        .eq('group_id', groupId)
+        .not('mu_after', 'is', null);
+      expect(error).toBeNull();
+      const ratedCount = (rated ?? []).length;
+      expect(ratedCount).toBeGreaterThan(0);
+
+      // What every row looked like before 0034: rated, no breakdown.
+      const { error: wipeError } = await db
+        .from('game_players')
+        .update({ fold_p: null, base_mu_after: null, award: null, rated_games_before: null })
+        .eq('group_id', groupId);
+      expect(wipeError).toBeNull();
+      const legacy = await dump();
+
+      const dry = await rebuild({ dryRun: true });
+      expect(dry.ok).toBe(true);
+      if (!dry.ok) return;
+      expect(dry.report.breakdownsFilled).toBe(ratedCount);
+      expect(formatRebuildReport(dry.report)).toContain(
+        `breakdowns    ${ratedCount} game_players rows to fill for the first time (0034)`,
+      );
+      expect(await dump()).toBe(legacy);
+
+      const run = await rebuild();
+      expect(run.ok).toBe(true);
+      if (!run.ok) return;
+      expect(run.report.breakdownsFilled).toBe(ratedCount);
+      expect(run.report.gamePlayerRowsChanged).toBe(ratedCount);
+      // Exactly what the live fold had written.
+      expect(within(await dump())).toBe(within(filled));
+
+      const { count: missing } = await db
+        .from('game_players')
+        .select('game_id', { count: 'exact', head: true })
+        .eq('group_id', groupId)
+        .not('mu_after', 'is', null)
+        .is('base_mu_after', null);
+      expect(missing).toBe(0);
+
+      // Acceptance 3: a second run changes nothing.
+      const afterFirst = await dump();
+      const second = await rebuild();
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      expect(second.report.breakdownsFilled).toBe(0);
+      expect(second.report.gamePlayerRowsChanged).toBe(0);
+      expect(await dump()).toBe(afterFirst);
+    });
+
+    /** The read the web will use (M14.58 tap-to-explain, M14.59 result line), with the anon key. */
+    it('reads back as a stored reason per player and the rating s odds, on the game and the player page', async () => {
+      const anon = createPublicClient();
+      const { loadGameBreakdowns } = await import('@/lib/breakdown/load');
+      const { data: game } = await db.from('games').select('id').eq('lcu_game_id', bonusGameId).single();
+      const gameId = game?.id ?? '';
+      const breakdown = (await loadGameBreakdowns(anon, [gameId])).get(gameId);
+      expect(breakdown).toBeDefined();
+      // No lobby, so no bot odds: the rating's number is the one shown.
+      expect(breakdown?.odds).toMatchObject({ botBluePct: null, differ: false, reason: null });
+      expect(breakdown?.reasons.size).toBe(10);
+
+      const rows = await breakdownRows(bonusGameId);
+      const award = gameAward(rows, 100);
+      if (award === null) throw new Error('expected an MVP');
+      for (const row of rows) {
+        const reason = breakdown?.reasons.get(row.puuid);
+        expect(reason?.basis).toBe('stored');
+        if (reason?.basis !== 'stored') continue;
+        const sidePct =
+          row.side === 100
+            ? breakdown?.odds?.ratingBluePct
+            : 100 - (breakdown?.odds?.ratingBluePct as number);
+        expect(reason.odds.pct).toBe(sidePct);
+        if (row.puuid === award.mvp) expect(reason.award).toMatchObject({ kind: 'mvp' });
+        if (row.puuid === award.ace) expect(reason.award).toMatchObject({ kind: 'ace' });
+      }
+
+      const page = await loadPlayerBoard(anon, award.mvp, { window: 'all-time', groupId });
+      const recent = page?.recent.find((entry) => entry.gameId === gameId);
+      expect(recent?.reason).toEqual(breakdown?.reasons.get(award.mvp));
+      expect(recent?.odds).toEqual(breakdown?.odds);
+    });
+
+    it('leaves a skipped game s rows with no breakdown at all', async () => {
+      const { data, error } = await db
+        .from('game_players')
+        .select('mu_after, fold_p, base_mu_after, award, rated_games_before')
+        .eq('group_id', groupId)
+        .is('mu_after', null);
+      expect(error).toBeNull();
+      expect((data ?? []).length).toBeGreaterThan(0);
+      for (const row of data ?? []) {
+        expect([row.fold_p, row.base_mu_after, row.award, row.rated_games_before]).toEqual([
+          null,
+          null,
+          null,
+          null,
+        ]);
+      }
     });
   });
 }

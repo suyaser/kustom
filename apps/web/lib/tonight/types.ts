@@ -1,5 +1,9 @@
+import type { LockedMode, Mode, ModeState } from '@customs/core';
 import type { LobbyStatusValue, RoleValue, SideValue } from '@customs/db';
+import type { GroupMode } from '@customs/db/schemas';
+import type { StoredSplit } from '@/components/receipt/types';
 import type { FearlessView } from '../fearless/types';
+import type { GameStampView } from '../mode/types';
 import type { NightClock } from '../night';
 
 /**
@@ -20,6 +24,11 @@ export type PlayerName = string | null;
 export interface MemberView {
   puuid: string;
   name: PlayerName;
+  /**
+   * The same-name suffix (`#EUW`, `(2)`) printed muted after the name, or null/absent when nobody
+   * else in the group prints the same name (M14.69, `lib/names/roster.ts`).
+   */
+  nameSuffix?: string | null | undefined;
   mainRole: RoleValue | null;
   secondaryRole: RoleValue | null;
   roleOverride: RoleValue | null;
@@ -31,8 +40,14 @@ export interface MemberView {
    * upserts the row without touching `created_at`, so it stays the first sighting.
    */
   joinedAt: string;
-  /** `displayRating(mu)` for the active season, seeded from rank when there is no row. */
+  /** `displayRating(mu)` from the group's rating, seeded from rank when there is no row. */
   rating: number;
+  /**
+   * Rated games in this group (`ratings.games`), for the settling chip and the roster's `New`
+   * (M14.9; core's `isSettling`). 0 for somebody the fold has never rated here; `null` when the
+   * page cannot know (a fixture with no rating data), and then no chip is drawn rather than a false one.
+   */
+  ratedGames: number | null;
   /**
    * `lobby_members.side`: where the **client** has this person sitting right now, `100` blue,
    * `200` red, and `null` for a spectator or somebody the client has not placed (M4.11).
@@ -49,6 +64,11 @@ export interface MemberView {
 export interface SeatView {
   puuid: string;
   name: PlayerName;
+  /**
+   * The same-name suffix (`#EUW`, `(2)`) printed muted after the name, or null/absent when nobody
+   * else in the group prints the same name (M14.69, `lib/names/roster.ts`).
+   */
+  nameSuffix?: string | null | undefined;
   role: RoleValue;
   rating: number;
   /** Core's `isOffRole`, never a re-derived `role !== mainRole`. */
@@ -84,19 +104,33 @@ export interface TeamsView {
   blueWinProb: number;
   /** Every stored split of this lobby, best first: what a reroll can promote. */
   splits: SplitChoice[];
+  /**
+   * The same run with its numeric columns and parsed tens (M14.9), best first: the fairness
+   * receipt's only input besides names. Never re-derived from the seats.
+   */
+  stored: StoredSplit[];
 }
 
 /** One row of the result card. The two mu values, not a delta: see the note at the top. */
 export interface ResultSeatView {
   puuid: string;
   name: PlayerName;
+  /**
+   * The same-name suffix (`#EUW`, `(2)`) printed muted after the name, or null/absent when nobody
+   * else in the group prints the same name (M14.69, `lib/names/roster.ts`).
+   */
+  nameSuffix?: string | null | undefined;
   role: RoleValue | null;
   side: SideValue;
   muBefore: number | null;
   muAfter: number | null;
+  /** `game_players.sigma_before`: with `muBefore`, the pre-game odds of a split-less game (M14.9). */
+  sigmaBefore: number | null;
 }
 
 export interface ResultView {
+  /** `games.id` (M14.30: the fearless pool's champions this game added carry it). */
+  gameId: string;
   winningSide: SideValue;
   durationS: number;
   /** The chosen split's odds, or `null` when the game was played without a stored split. */
@@ -107,7 +141,13 @@ export interface ResultView {
    * result post and `/p/[puuid]` call on the same columns. `null` for a game with no award, and
    * the poster then prints no line at all.
    */
-  award: { mvp: PlayerName; ace: PlayerName } | null;
+  award: {
+    mvp: PlayerName;
+    ace: PlayerName;
+    /** M14.41: whose page the name links to (`/g/<slug>/p/<puuid>`). Absent in older fixtures. */
+    mvpPuuid?: string | undefined;
+    acePuuid?: string | undefined;
+  } | null;
   blue: ResultSeatView[];
   red: ResultSeatView[];
   /**
@@ -117,6 +157,11 @@ export interface ResultView {
    * the fold did not rate").
    */
   rated: boolean;
+  /**
+   * The game's mode stamp (M15.5, `0032`): its rule, `games.rated` and the stored check, for the
+   * poster's rule line and `Not rated, so no Rating change.`. Absent or null: none to say.
+   */
+  stamp?: GameStampView | null | undefined;
 }
 
 export interface LobbyView {
@@ -133,12 +178,22 @@ export interface LobbyView {
    * rule). **Not a secret**: it goes in the Discord embed and is read out in voice.
    */
   lobbyPassword: string | null;
+  /**
+   * ISO 8601: when the game started, for `23 min in` (M14.9). `lobbies.updated_at` of an `in_game`
+   * row (the `in_progress` post sets it), `null` in every other status.
+   */
+  startedAt: string | null;
   /** In join order, oldest first. Newest is appended; the list never reorders. */
   members: MemberView[];
   /** The promoted split, when there is one. */
   teams: TeamsView | null;
   /** The lobby's game, when it has finished one. */
   result: ResultView | null;
+  /**
+   * The mode the lobby locked at Roll teams (M15.3 / M15.5, `lobbies.lock_*`), for a balanced or
+   * in-game lobby. Absent or null: no lock (a lobby set before `0032`), and the card shows the next game.
+   */
+  lock?: LockedMode | null | undefined;
 }
 
 export interface TonightSnapshot {
@@ -158,18 +213,28 @@ export interface TonightSnapshot {
    */
   nightLabel: string;
   /**
-   * False prints `NO_ACTIVE_SEASON_TONIGHT_MESSAGE` — tonight's games are not being saved.
-   *
-   * **The name that went with it is gone** (M5.12): the slug is the night alone, so nothing on
-   * this page reads a season's name and the snapshot no longer carries one.
-   */
-  seasonActive: boolean;
-  /**
    * Champions this group has locked since an admin last cleared the fearless pool (M10).
    * Empty until the next counted Rift custom lands after the cursor. Derived from
    * `game_players.champion_id`; the snapshot just carries the folded list.
    */
   fearless: FearlessView;
+  /**
+   * The group's standing mode (M14.29). On `normal`, {@link fearless} is the paused pool, not bans
+   * in force. The Mode card (M14.30) reads both.
+   */
+  mode: GroupMode;
+  /** When the mode was last set (`group_modes.updated_at`, M14.30), or `null`. */
+  modeSince: string | null;
+  /**
+   * The Mode card's state (M15.5, `0032`): the standing mode, the pending rule, the Rated switch and
+   * the version. Absent in older fixtures: read as {@link mode} with nothing pending.
+   */
+  modeState?: ModeState | undefined;
+  /**
+   * `games.created_at` of the group's newest game (M15.5): a mode write within seconds of it is
+   * the server's compare-and-clear, not an admin's switch, so no `Normal mode now.` note.
+   */
+  lastGameAt?: string | null | undefined;
   /**
    * The configured zone's offset for this night, from the server (`lib/night.ts`). It travels so
    * the browser's re-read prints the tape's clocks the way the server did, without `Intl`.
@@ -181,6 +246,21 @@ export interface TonightSnapshot {
    * block is still {@link TonightState}. Empty on a night with nothing behind the current block.
    */
   tape: TapeEntry[];
+  /**
+   * The group's hosts by name (M14.66): every player with an unrevoked companion token of the
+   * group, oldest first, nameless ones dropped (`readGroupHostNames` in `lib/lobbyStart.ts`).
+   * Feeds `noKustomRunningLine(adminNames(hostNames))` under `Start a lobby` on idle.
+   *
+   * Tokens are service-role only, so the anon {@link loadTonight} answers `[]` and the page fills
+   * it on the server (`withHostPresence`).
+   */
+  hostNames: string[];
+  /**
+   * Whether any of the group's tokens was seen in the last ten minutes (`HOST_WINDOW_MS`, the
+   * press's own host window): false means a press would answer the no-host 409, so idle shows
+   * the line before anyone taps. The anon {@link loadTonight} answers true (unknown: no line).
+   */
+  hostSeenRecently: boolean;
 }
 
 /** One row of the night tape. Everything on it is decided on the server; nothing is a rating. */
@@ -200,9 +280,18 @@ export interface TapeEntry {
     aram: boolean;
     /** Every scoreboard row carries both mu values: `loadResult`'s rule. */
     rated: boolean;
+    /** `gatedGameAward`'s MVP by name (M14.9), or `null`: no award, or a name nobody has. */
+    mvp: PlayerName;
+    /**
+     * M15.19: the rule the game was played under (`games.rule*`, only when `rule_checked`: a Rift
+     * game under the rule), for `Tanks only · not rated` on the tile. Null or absent: no rule.
+     */
+    rule?: Mode | null | undefined;
   } | null;
   /** The chosen split's stored odds, or `null` with no split: no evenness line, no underdog line. */
   blueWinProb: number | null;
+  /** The chosen split's rank (M14.9): `pick #2` after a reroll. `null` with no split. */
+  rank: number | null;
   /** Members who were not in the chosen split's ten, in join order. `TeamsView.sitters`' rule. */
   sitters: PlayerName[];
 }

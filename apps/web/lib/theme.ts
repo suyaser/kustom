@@ -1,7 +1,8 @@
 /**
- * Public-page themes. Day and Night are the same gaming look; Night is the default.
+ * Public-page themes: Day and Night, two palettes of one look; Night is the default.
  *
- * A stored `current` from the short-lived third option is treated as Night.
+ * Anything else stored under the key (the short-lived 1.0 `current`, retired in M14.25) is ignored,
+ * which lands on the server-rendered default, Night.
  */
 
 export const THEME_STORAGE_KEY = 'cn-theme';
@@ -20,6 +21,12 @@ export const THEME_LABELS: Readonly<Record<ThemeKind, string>> = {
   night: 'Night',
 };
 
+/** The top bar's icon toggle (M14.47), named for the theme it switches to. */
+export const THEME_SWITCH_TO_LABEL: Readonly<Record<ThemeKind, string>> = {
+  day: 'Switch to Day',
+  night: 'Switch to Night',
+};
+
 /** Phone chrome, one hex per theme. */
 export const THEME_COLOR: Readonly<Record<ThemeKind, string>> = {
   day: '#e8eef6',
@@ -27,14 +34,13 @@ export const THEME_COLOR: Readonly<Record<ThemeKind, string>> = {
 };
 
 /**
- * Inline, before first paint. `beforeInteractive` in the root layout. A leftover
- * `current` becomes Night so a refresh cannot land on a theme the toggle no longer offers.
+ * Inline, before first paint, in the root layout. Only a stored `day` or `night` is applied, so a
+ * refresh cannot land on a theme the switch does not offer.
  */
-export const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t==='current')t='night';if(t==='day'||t==='night')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+export const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t==='day'||t==='night')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
 export function parseTheme(value: string | null | undefined): ThemeKind | null {
   if (value === 'day' || value === 'night') return value;
-  if (value === 'current') return 'night';
   return null;
 }
 

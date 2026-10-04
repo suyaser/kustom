@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { type Database, SEASON_ONE_ID } from '@customs/db';
+import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LAST_ADMIN } from '@/lib/admin/members';
-import { playerLabel, shortPuuid } from '@/lib/admin/playerName';
+import { playerLabel } from '@/lib/admin/playerName';
 import { ADMIN_PLAYERS_PAGE_SIZE, listAdminPlayers } from '@/lib/admin/players';
-import { listAdminTokens } from '@/lib/admin/tokens';
+import { listAdminTokens, mintTokenForPlayer } from '@/lib/admin/tokens';
 import {
   type AdminAuthResult,
   authorizeAdmin,
@@ -20,6 +19,7 @@ import {
   mintCompanionToken,
   supabaseTokenLookup,
 } from '@/lib/companionAuth';
+import { NAMELESS_PLAYER } from '@/lib/discord/embeds';
 import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { lobbyBody } from '@/lib/testing/fixtures';
@@ -58,15 +58,13 @@ if (stack === null) {
   process.env.BOOTSTRAP_ADMIN_PUUID = '';
   process.env.BOOTSTRAP_ADMIN_DISCORD_ID = '';
 
-  const { handleAdminPlayers, ROLES_ARE_INFERRED } = await import('./players/handler');
-  const { adminPlayersRequestSchema } = await import('./players/schema');
-  const { handleAdminTokens } = await import('./tokens/handler');
+  const { handleAdminTokens, MINT_GONE } = await import('./tokens/handler');
   const { adminTokensRequestSchema } = await import('./tokens/schema');
-  const { handleDiscordConfig } = await import('./discord-config/handler');
+  const { discordConfigHandler, handleDiscordConfig } = await import('./discord-config/handler');
+  const { WEBHOOK_NOT_RECOGNISED } = await import('@/lib/discord/webhookInfo');
   const { discordConfigRequestSchema } = await import('./discord-config/schema');
 
   // The real route exports, environment and all: these are what answer an anonymous request.
-  const { POST: postPlayersRoute } = await import('./players/route');
   const { POST: postTokensRoute } = await import('./tokens/route');
   const { POST: postDiscordRoute } = await import('./discord-config/route');
 
@@ -127,12 +125,6 @@ if (stack === null) {
   }
 
   const routes = {
-    players: (user: SessionUserLike | null) =>
-      withAdminAuth(adminPlayersRequestSchema, handleAdminPlayers, {
-        getClient: () => db,
-        authorize: authorizeAs(user),
-        redirectTo: '/admin/players',
-      }),
     tokens: (user: SessionUserLike | null) =>
       withAdminAuth(adminTokensRequestSchema, handleAdminTokens, {
         getClient: () => db,
@@ -147,27 +139,13 @@ if (stack === null) {
       }),
   };
 
-  async function playerRow(playerId: string) {
-    const { data, error } = await db
-      .from('players')
-      .select('id, discord_id, main_role, secondary_role')
-      .eq('id', playerId)
-      .single();
-    if (error) throw new Error(error.message);
-    return data;
-  }
-
-  /** The member's role in a group, or null when they are not in it. */
-  async function roleIn(groupId: string, playerId: string): Promise<string | null> {
-    const { data, error } = await db
-      .from('group_memberships')
-      .select('role')
-      .eq('group_id', groupId)
-      .eq('player_id', playerId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data?.role ?? null;
-  }
+  /** The paste route with Discord faked: what `GET /api/webhooks/<id>/<token>` answers. */
+  const discordPasteRoute = (user: SessionUserLike | null, fetchImpl: typeof fetch) =>
+    withAdminAuth(discordConfigRequestSchema, discordConfigHandler({ fetchImpl }), {
+      getClient: () => db,
+      authorize: authorizeAs(user),
+      redirectTo: '/admin/discord',
+    });
 
   beforeAll(async () => {
     const ids = await ensurePlayers(db, [{ puuid: adminPuuid }, { puuid: memberPuuid }]);
@@ -238,11 +216,6 @@ if (stack === null) {
   }
 
   afterAll(async () => {
-    // **Nothing to restore any more** (M5.14): this file used to start and end seasons through
-    // the route it tested, so it had to put Season 1 back in one transaction before deleting
-    // the rows it had made. With no route there is no such state to unwind, and the seasons
-    // table is left exactly as it was found.
-
     // The groups' rows go first — the lobby with them: `lobby_members` cascades from it, and
     // deleting the players while a lobby still points at them would cascade rows out from under
     // the next assertion.
@@ -253,26 +226,15 @@ if (stack === null) {
       .delete()
       .in('puuid', [adminPuuid, memberPuuid, namedPuuid]);
     if (playerError) throw new Error(`cleanup: deleting players failed: ${playerError.message}`);
-
-    // The database is shared with every other integration file, so leaving it as we found it is
-    // part of the test, not an afterthought.
-    const { data: active, error: activeError } = await db.from('seasons').select('id').eq('is_active', true);
-    if (activeError) throw new Error(`cleanup: checking the active season failed: ${activeError.message}`);
-    expect(active?.map((row) => row.id)).toEqual([SEASON_ONE_ID]);
   });
 
   describe('the gate', () => {
-    const body = {
-      action: 'set-roles',
-      playerId: '11111111-1111-4111-8111-111111111111',
-      mainRole: '',
-      secondaryRole: '',
-    };
+    // M14.56 retired the players route these used to post to; the gate answers before the body.
+    const body = { action: 'revoke', tokenId: '11111111-1111-4111-8111-111111111111' };
 
     it('answers 401 to an anonymous request on every admin route', async () => {
       // The real exports, with no cookies at all: this is what a curl gets.
-      // `postSeasonsRoute` was here until M5.14 removed the route it imported.
-      for (const route of [postPlayersRoute, postTokensRoute, postDiscordRoute]) {
+      for (const route of [postTokensRoute, postDiscordRoute]) {
         const response = await route(post(body));
         expect(response.status).toBe(401);
         await expect(response.json()).resolves.toEqual({ ok: false, error: 'sign in required' });
@@ -297,7 +259,7 @@ if (stack === null) {
     });
 
     it('answers 403 to a session whose Discord id matches no player', async () => {
-      const response = await routes.players(sessionUser('000000000000000000'))(post(body));
+      const response = await routes.tokens(sessionUser('000000000000000000'))(post(body));
 
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({
@@ -307,31 +269,8 @@ if (stack === null) {
     });
   });
 
-  describe('roles are inferred, not set (M5.17)', () => {
-    it('answers 410 with a sentence and writes nothing', async () => {
-      // Somebody's roles, as a recompute would have left them. The route must not touch them.
-      await db
-        .from('players')
-        .update({ main_role: 'jungle', secondary_role: 'mid', roles_counted: 12 })
-        .eq('id', memberPlayerId);
-
-      const response = await routes.players(sessionUser(adminDiscordId))(
-        post({ action: 'set-roles', playerId: memberPlayerId, mainRole: 'top', secondaryRole: null }),
-      );
-
-      expect(response.status).toBe(410);
-      await expect(response.json()).resolves.toEqual({ ok: false, error: ROLES_ARE_INFERRED });
-      expect(await playerRow(memberPlayerId)).toMatchObject({
-        main_role: 'jungle',
-        secondary_role: 'mid',
-      });
-    });
-  });
-
   describe('the display name (M1.7)', () => {
-    it('follows the Riot ID, holds an admin override through a rename, and follows it again once cleared', async () => {
-      const route = routes.players(sessionUser(adminDiscordId));
-
+    it('follows the Riot ID, through a rename (no admin override since M14.56)', async () => {
       // 1. The client names them. The row does not exist yet: this creates it.
       const created = await postLobby(namesLobby('Ahmed'));
       expect(created.status).toBe(200);
@@ -345,35 +284,12 @@ if (stack === null) {
       if (error) throw new Error(error.message);
       namedPlayerId = player.id;
 
-      // 2. The admin sets the name the group actually uses.
-      const set = await route(
-        post({ action: 'set-name', playerId: namedPlayerId, displayName: '  Hamoodi  ' }),
-      );
-      expect(set.status).toBe(200);
-      await expect(set.json()).resolves.toEqual({
-        ok: true,
-        action: 'set-name',
-        playerId: namedPlayerId,
-      });
-      // Trimmed on the way in, so a stray space cannot silently break the "is it automatic" test.
-      expect(await nameColumns(namedPuuid)).toMatchObject({ display_name: 'Hamoodi' });
-
-      // 3. Riot ID changes. `game_name` moves; the admin's name does not.
+      // 2. Riot ID changes, twice. The name follows each time.
       expect((await postLobby(namesLobby('AhmedTheSecond'))).status).toBe(200);
       expect(await nameColumns(namedPuuid)).toMatchObject({
         game_name: 'AhmedTheSecond',
-        display_name: 'Hamoodi',
+        display_name: 'AhmedTheSecond',
       });
-
-      // 4. The admin clears the field. An empty form field posts "" and stores null.
-      const cleared = await route(post({ action: 'set-name', playerId: namedPlayerId, displayName: '' }));
-      expect(cleared.status).toBe(200);
-      expect(await nameColumns(namedPuuid)).toMatchObject({ display_name: null });
-
-      // 5. Back on automatic: the next report refills it, and a later rename follows again.
-      expect((await postLobby(namesLobby('AhmedTheSecond'))).status).toBe(200);
-      expect(await nameColumns(namedPuuid)).toMatchObject({ display_name: 'AhmedTheSecond' });
-
       expect((await postLobby(namesLobby('AhmedTheThird'))).status).toBe(200);
       expect(await nameColumns(namedPuuid)).toMatchObject({
         game_name: 'AhmedTheThird',
@@ -381,36 +297,28 @@ if (stack === null) {
       });
     });
 
-    it('refuses a name no team sheet could hold, and changes nothing', async () => {
-      const before = await nameColumns(namedPuuid);
-
-      const response = await routes.players(sessionUser(adminDiscordId))(
-        post({ action: 'set-name', playerId: namedPlayerId, displayName: 'x'.repeat(41) }),
-      );
-
-      expect(response.status).toBe(400);
-      expect(await nameColumns(namedPuuid)).toEqual(before);
-    });
-
     it('gives every row on both pages something readable, PUUID fragment included', async () => {
-      // The three rungs of the chain on rows that really exist: an admin's override, a Riot ID
-      // with no override, and a player first seen without a name at all — which is exactly how
+      // The three rungs of the chain on rows that really exist: a stored display name (a 1.0
+      // override, written by hand here since M14.56 retired the route), a Riot ID with no
+      // override, and a player first seen without a name at all — which is exactly how
       // `memberPuuid` was created, and how a PUUID first seen in an eog block arrives.
-      await routes.players(sessionUser(adminDiscordId))(
-        post({ action: 'set-name', playerId: memberPlayerId, displayName: 'Omar' }),
-      );
+      const { error: nameError } = await db
+        .from('players')
+        .update({ display_name: 'Omar' })
+        .eq('id', memberPlayerId);
+      if (nameError) throw new Error(nameError.message);
 
       // Searched by this run's puuid prefix, not read off page one: the stack is shared and
       // the page is fifty rows deep (M3.25).
-      const { rows } = await listAdminPlayers(db, groups.a, null, { search: `it-${runId}` });
+      const { rows } = await listAdminPlayers(db, groups.a, { search: `it-${runId}` });
       const named = rows.find((row) => row.id === namedPlayerId);
       const member = rows.find((row) => row.id === memberPlayerId);
       if (!named || !member) throw new Error('the players this test set up are missing');
 
       expect(playerLabel(member)).toBe('Omar');
       expect(playerLabel(named)).toBe('AhmedTheThird');
-      // No override and no Riot ID: the last resort, and it is an identifier, not a blank.
-      expect(playerLabel({ ...member, displayName: null })).toBe(shortPuuid(member.puuid));
+      // No override and no Riot ID: `Someone`, never a blank and never a PUUID fragment (admin round 2).
+      expect(playerLabel({ ...member, displayName: null })).toBe(NAMELESS_PLAYER);
       expect(playerLabel({ ...named, displayName: null })).toBe('AhmedTheThird#EUW');
 
       // Every row on the page renders as something.
@@ -429,76 +337,74 @@ if (stack === null) {
       }
 
       // Put the member row back the way the other tests found it.
-      await routes.players(sessionUser(adminDiscordId))(
-        post({ action: 'set-name', playerId: memberPlayerId, displayName: '' }),
-      );
-    });
-  });
-
-  describe('the Discord link', () => {
-    it('links and unlinks a Discord id', async () => {
-      const route = routes.players(sessionUser(adminDiscordId));
-      const newId = `${memberDiscordId}7`;
-
-      expect(
-        (await route(post({ action: 'set-discord', playerId: memberPlayerId, discordId: newId }))).status,
-      ).toBe(200);
-      expect(await playerRow(memberPlayerId)).toMatchObject({ discord_id: newId });
-
-      expect(
-        (await route(post({ action: 'set-discord', playerId: memberPlayerId, discordId: '' }))).status,
-      ).toBe(200);
-      expect(await playerRow(memberPlayerId)).toMatchObject({ discord_id: null });
-
-      // Put it back for the tests below.
-      await route(post({ action: 'set-discord', playerId: memberPlayerId, discordId: memberDiscordId }));
-    });
-
-    it('refuses a Discord id that already belongs to someone else', async () => {
-      const response = await routes.players(sessionUser(adminDiscordId))(
-        post({ action: 'set-discord', playerId: memberPlayerId, discordId: adminDiscordId }),
-      );
-
-      expect(response.status).toBe(409);
-      expect(await playerRow(memberPlayerId)).toMatchObject({ discord_id: memberDiscordId });
-    });
-  });
-
-  describe('the admin flag, which is the role in the group (M13.4)', () => {
-    it('promotes and demotes a member of the group, and writes nothing on players', async () => {
-      const route = routes.players(sessionUser(adminDiscordId));
-
-      expect(
-        (await route(post({ action: 'set-admin', playerId: memberPlayerId, isAdmin: true }))).status,
-      ).toBe(200);
-      expect(await roleIn(groups.a, memberPlayerId)).toBe('admin');
-
-      expect(
-        (await route(post({ action: 'set-admin', playerId: memberPlayerId, isAdmin: 'false' }))).status,
-      ).toBe(200);
-      expect(await roleIn(groups.a, memberPlayerId)).toBe('member');
-      // B is untouched by anything done in A.
-      expect(await roleIn(groups.b, memberPlayerId)).toBeNull();
-    });
-
-    it('refuses to demote the last admin of the group, themselves included', async () => {
-      const response = await routes.players(sessionUser(adminDiscordId))(
-        post({ action: 'set-admin', playerId: adminPlayerId, isAdmin: false }),
-      );
-
-      expect(response.status).toBe(409);
-      await expect(response.json()).resolves.toEqual({ ok: false, error: LAST_ADMIN });
-      expect(await roleIn(groups.a, adminPlayerId)).toBe('admin');
+      await db.from('players').update({ display_name: null }).eq('id', memberPlayerId);
     });
   });
 
   describe('companion tokens', () => {
-    it('stores only the hash, and revoking makes the companion auth refuse it', async () => {
+    it('mint is a 410 with the code sentence and creates no row, JSON or form (M17.12)', async () => {
+      const route = routes.tokens(sessionUser(adminDiscordId));
+      const countRows = async (): Promise<number> => {
+        const { count, error } = await db
+          .from('companion_tokens')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_id', groups.a);
+        if (error) throw new Error(error.message);
+        return count ?? 0;
+      };
+      const before = await countRows();
+
+      // The 0.3.x Hosts page's exact body, and the bare action: both refused the same way.
+      for (const body of [
+        { action: 'mint', playerId: memberPlayerId, label: `it-${runId}` },
+        { action: 'mint' },
+      ]) {
+        const answer = await route(post(body));
+        expect(answer.status).toBe(410);
+        const json = (await answer.json()) as { error: string; token?: unknown };
+        expect(json.error).toBe(MINT_GONE);
+        expect(json.error).toBe(
+          "Kustom sets itself up with a code now. Open the admin home on the PC's owner's account and tap Get a code.",
+        );
+        expect(json.token).toBeUndefined();
+      }
+
+      const form = await route(
+        new Request('http://localhost/api/admin/x', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'http://localhost' },
+          body: new URLSearchParams({
+            action: 'mint',
+            groupId: groups.a,
+            playerId: memberPlayerId,
+          }).toString(),
+        }),
+      );
+      expect(form.status).toBeGreaterThanOrEqual(300);
+      expect(form.status).toBeLessThan(400);
+      expect(new URL(form.headers.get('location') ?? '', 'http://localhost').searchParams.get('error')).toBe(
+        MINT_GONE,
+      );
+
+      expect(await countRows()).toBe(before);
+
+      // Still the admin gate first: a member is 403, not told about codes.
+      const asMember = await routes.tokens(sessionUser(memberDiscordId))(post({ action: 'mint' }));
+      expect(asMember.status).toBe(403);
+      expect(await countRows()).toBe(before);
+    });
+
+    it('a key minted before 1.0 still posts, stores only the hash, and revoking makes the companion auth refuse it', async () => {
       const route = routes.tokens(sessionUser(adminDiscordId));
 
-      const minted = await route(post({ action: 'mint', playerId: memberPlayerId, label: `it-${runId}` }));
-      expect(minted.status).toBe(200);
-      const body = (await minted.json()) as { ok: true; tokenId: string; token: string };
+      // How a 0.3.x key or a 1.0 pairing came to exist: `mintTokenForPlayer`, now only reached by pairing.
+      const minted = await mintTokenForPlayer(db, {
+        playerId: memberPlayerId,
+        label: `it-${runId}`,
+        groupId: groups.a,
+      });
+      if (!minted.ok) throw new Error(minted.error);
+      const body = { tokenId: minted.value.tokenId, token: minted.value.token };
       expect(body.token.length).toBeGreaterThan(20);
 
       const { data: row, error } = await db
@@ -546,7 +452,8 @@ if (stack === null) {
   describe('discord config', () => {
     it('saves the row, keeps the webhook when the field is empty, and clears it on request', async () => {
       const route = routes.discord(sessionUser(adminDiscordId));
-      const webhook = 'https://discord.com/api/webhooks/123456789/it-secret-value';
+      // Shaped like a real link (M14.26 parses and rebuilds every stored one).
+      const webhook = 'https://discord.com/api/webhooks/123456789012345678/it-secret-value_abcdefghij';
 
       const saved = await route(
         post({
@@ -642,42 +549,126 @@ if (stack === null) {
         .single();
       expect(mine?.results_channel_id).toBe('999');
     });
-  });
 
-  /**
-   * **There is no seasons route left to test** (M5.14, 2026-09-10). `POST /api/admin/seasons`,
-   * the form, the `Start` button and M3.9's typed confirmation are gone with the thing they
-   * guarded; the block that lived here started and ended seasons against this database, which
-   * is why the cleanup below no longer has any to restore. `public.start_season()` stays in
-   * the database, unreachable — an applied migration is never edited.
-   */
-  describe('season creation', () => {
-    it('is not reachable: nothing in the app can make a second season row', async () => {
-      const { count, error } = await db.from('seasons').select('id', { count: 'exact', head: true });
-      if (error) throw new Error(error.message);
+    it('an explicit guild id still stores the link rebuilt, and refuses one that does not parse (M14.26)', async () => {
+      const route = routes.discord(sessionUser(adminDiscordId));
+      const hookId = '523456789012345679';
+      const hookToken = 'ExplicitToken_abcdefghijklmnopqrstuvwxyz';
+      const canonical = `https://discord.com/api/webhooks/${hookId}/${hookToken}`;
+      const body = (webhookUrl: string) =>
+        post({
+          guildId,
+          webhookUrl,
+          resultsChannelId: '',
+          lobbyVoiceChannelId: '',
+          blueVoiceChannelId: '',
+          redVoiceChannelId: '',
+        });
+      const storedUrl = async () => {
+        const { data } = await db
+          .from('discord_config')
+          .select('webhook_url')
+          .eq('group_id', groups.a)
+          .single();
+        return data?.webhook_url ?? null;
+      };
 
-      // Whatever this deployment has, this file adds none — and no route can.
-      expect(count ?? 0).toBeGreaterThanOrEqual(1);
-      expect(Object.keys(routes)).not.toContain('seasons');
+      const saved = await route(body(`${canonical}?wait=true`));
+      expect(saved.status).toBe(200);
+      expect(await storedUrl()).toBe(canonical);
+
+      for (const bad of [`${canonical}/../../x`, `${canonical}/extra`]) {
+        const refused = await route(body(bad));
+        expect(refused.status).toBe(400);
+        const text = await refused.text();
+        expect(JSON.parse(text)).toMatchObject({ ok: false, error: WEBHOOK_NOT_RECOGNISED });
+        expect(text).not.toContain(hookToken);
+      }
+      expect(await storedUrl()).toBe(canonical);
     });
 
-    it('leaves exactly one active season for every other file sharing this database', async () => {
-      const { data, error } = await db.from('seasons').select('id').eq('is_active', true);
-      if (error) throw new Error(error.message);
+    it('a pasted link with no guild id: the server and channel come from Discord, a dead link saves nothing', async () => {
+      const hookId = '523456789012345678';
+      const hookToken = 'PastedToken_abcdefghijklmnopqrstuvwxyz-0123';
+      const pastedGuild = '623456789012345678';
+      const pastedChannel = '723456789012345678';
+      const asked: string[] = [];
+      const discordKnows: typeof fetch = async (input) => {
+        asked.push(String(input));
+        return Response.json({
+          id: hookId,
+          guild_id: pastedGuild,
+          channel_id: pastedChannel,
+          token: hookToken,
+        });
+      };
+      const body = {
+        // `'unknown'` is what the admin page sent before this fix: still read as absent.
+        guildId: 'unknown',
+        webhookUrl: `https://discordapp.com/api/webhooks/${hookId}/${hookToken}`,
+        resultsChannelId: '',
+        lobbyVoiceChannelId: '',
+        blueVoiceChannelId: '',
+        redVoiceChannelId: '',
+      };
 
-      expect(data).toHaveLength(1);
+      const saved = await discordPasteRoute(sessionUser(adminDiscordId), discordKnows)(post(body));
+      expect(saved.status).toBe(200);
+      const savedBody = (await saved.json()) as { guildId: string; resultsChannelId: string };
+      expect(savedBody).toMatchObject({ guildId: pastedGuild, resultsChannelId: pastedChannel });
+      expect(asked).toEqual([`https://discord.com/api/webhooks/${hookId}/${hookToken}`]);
+      const { data: row } = await db
+        .from('discord_config')
+        .select('guild_id, webhook_url, results_channel_id')
+        .eq('group_id', groups.a)
+        .single();
+      expect(row).toEqual({
+        guild_id: pastedGuild,
+        // Rebuilt from the parts, on discord.com, whatever host was pasted.
+        webhook_url: `https://discord.com/api/webhooks/${hookId}/${hookToken}`,
+        results_channel_id: pastedChannel,
+      });
+
+      const discordDoesNot: typeof fetch = async () =>
+        Response.json({ message: 'Unknown Webhook', code: 10015 }, { status: 404 });
+      const refused = await discordPasteRoute(
+        sessionUser(adminDiscordId),
+        discordDoesNot,
+      )(
+        post({
+          ...body,
+          guildId: undefined,
+          webhookUrl: `https://discord.com/api/webhooks/${hookId}/OtherToken_abcdefghijklmnopqrstu`,
+        }),
+      );
+      expect(refused.status).toBe(400);
+      const refusedBody = await refused.text();
+      expect(JSON.parse(refusedBody)).toMatchObject({ ok: false, error: WEBHOOK_NOT_RECOGNISED });
+      expect(refusedBody).not.toContain('OtherToken');
+      const { data: unchanged } = await db
+        .from('discord_config')
+        .select('guild_id, webhook_url')
+        .eq('group_id', groups.a)
+        .single();
+      expect(unchanged?.webhook_url).toBe(`https://discord.com/api/webhooks/${hookId}/${hookToken}`);
+
+      // No guild id and no new link: the stored server is kept, and Discord is not asked.
+      asked.length = 0;
+      const kept = await discordPasteRoute(
+        sessionUser(adminDiscordId),
+        discordKnows,
+      )(post({ ...body, guildId: '', webhookUrl: '', resultsChannelId: pastedChannel }));
+      expect(kept.status).toBe(200);
+      expect(asked).toEqual([]);
+      expect(((await kept.json()) as { guildId: string }).guildId).toBe(pastedGuild);
     });
   });
 
   describe('the players list the page renders', () => {
-    it('carries the active season rating and the Discord id', async () => {
-      const { data: season } = await db.from('seasons').select('id').eq('is_active', true).single();
-      const seasonId = season?.id ?? SEASON_ONE_ID;
-
+    it("carries the group's rating and the Discord id", async () => {
       const { error } = await db.from('ratings').upsert({
         group_id: groups.a,
         player_id: memberPlayerId,
-        season_id: seasonId,
         mu: 24,
         sigma: 6,
         games: 3,
@@ -689,7 +680,6 @@ if (stack === null) {
       const { error: otherError } = await db.from('ratings').upsert({
         group_id: groups.b,
         player_id: memberPlayerId,
-        season_id: seasonId,
         mu: 30,
         sigma: 3,
         games: 9,
@@ -697,7 +687,7 @@ if (stack === null) {
       });
       if (otherError) throw new Error(otherError.message);
 
-      const { rows } = await listAdminPlayers(db, groups.a, seasonId, { search: `it-${runId}` });
+      const { rows } = await listAdminPlayers(db, groups.a, { search: `it-${runId}` });
       const member = rows.find((row) => row.id === memberPlayerId);
 
       expect(member?.rating).toEqual({ mu: 24, sigma: 6, games: 3, wins: 2 });
@@ -709,7 +699,7 @@ if (stack === null) {
     });
 
     it("lists the group's members only", async () => {
-      const { rows } = await listAdminPlayers(db, groups.b, null, { search: `it-${runId}` });
+      const { rows } = await listAdminPlayers(db, groups.b, { search: `it-${runId}` });
       expect(rows.map((row) => row.id)).toEqual([adminPlayerId]);
     });
   });
@@ -778,7 +768,7 @@ if (stack === null) {
     }, 60_000);
 
     it('reads fifty rows, and says how many there are in total', async () => {
-      const page = await listAdminPlayers(db, groups.a, null);
+      const page = await listAdminPlayers(db, groups.a);
 
       expect(page.rows).toHaveLength(ADMIN_PLAYERS_PAGE_SIZE);
       expect(page.pageSize).toBe(ADMIN_PLAYERS_PAGE_SIZE);
@@ -790,8 +780,8 @@ if (stack === null) {
     });
 
     it('still has the row that sorts past the thousandth, on the page it belongs to', async () => {
-      const first = await listAdminPlayers(db, groups.a, null);
-      const last = await listAdminPlayers(db, groups.a, null, { page: first.pageCount });
+      const first = await listAdminPlayers(db, groups.a);
+      const last = await listAdminPlayers(db, groups.a, { page: first.pageCount });
 
       const seat = last.rows.findIndex((row) => row.puuid === needlePuuid);
       expect(seat).toBeGreaterThanOrEqual(0);
@@ -802,7 +792,7 @@ if (stack === null) {
     });
 
     it('finds it by display name', async () => {
-      const page = await listAdminPlayers(db, groups.a, null, { search: `zzz ${runId}` });
+      const page = await listAdminPlayers(db, groups.a, { search: `zzz ${runId}` });
 
       expect(page.total).toBe(1);
       expect(page.rows.map((row) => row.puuid)).toEqual([needlePuuid]);
@@ -810,10 +800,10 @@ if (stack === null) {
     });
 
     it('finds it by PUUID prefix, and a prefix that names the whole batch finds the batch', async () => {
-      const one = await listAdminPlayers(db, groups.a, null, { search: needlePuuid });
+      const one = await listAdminPlayers(db, groups.a, { search: needlePuuid });
       expect(one.rows.map((row) => row.puuid)).toEqual([needlePuuid]);
 
-      const batch = await listAdminPlayers(db, groups.a, null, { search: bulkPrefix });
+      const batch = await listAdminPlayers(db, groups.a, { search: bulkPrefix });
       expect(batch.total).toBe(BULK);
       expect(batch.rows).toHaveLength(ADMIN_PLAYERS_PAGE_SIZE);
       expect(batch.rows.every((row) => row.puuid.startsWith(bulkPrefix))).toBe(true);
@@ -821,20 +811,20 @@ if (stack === null) {
 
     it('reads an underscore as a character, not as a wildcard', async () => {
       // The PUUID prefix and the display name, because both go through the same escape.
-      const byPuuid = await listAdminPlayers(db, groups.a, null, { search: underscorePuuid });
+      const byPuuid = await listAdminPlayers(db, groups.a, { search: underscorePuuid });
       expect(byPuuid.rows.map((row) => row.puuid)).toEqual([underscorePuuid]);
       expect(byPuuid.total).toBe(1);
 
-      const byName = await listAdminPlayers(db, groups.a, null, { search: `Under_score ${runId}` });
+      const byName = await listAdminPlayers(db, groups.a, { search: `Under_score ${runId}` });
       expect(byName.rows.map((row) => row.puuid)).toEqual([underscorePuuid]);
 
       // And the row it would have swept up with it is still findable on its own.
-      const other = await listAdminPlayers(db, groups.a, null, { search: otherPuuid });
+      const other = await listAdminPlayers(db, groups.a, { search: otherPuuid });
       expect(other.rows.map((row) => row.puuid)).toEqual([otherPuuid]);
     });
 
     it('answers a search nobody matches with an empty page, not an error', async () => {
-      const page = await listAdminPlayers(db, groups.a, null, { search: `no-such-player-${runId}` });
+      const page = await listAdminPlayers(db, groups.a, { search: `no-such-player-${runId}` });
 
       expect(page.rows).toEqual([]);
       expect(page.total).toBe(0);
@@ -842,7 +832,7 @@ if (stack === null) {
     });
 
     it('clamps a page past the end onto the last one', async () => {
-      const page = await listAdminPlayers(db, groups.a, null, { search: bulkPrefix, page: 9_999 });
+      const page = await listAdminPlayers(db, groups.a, { search: bulkPrefix, page: 9_999 });
 
       expect(page.page).toBe(page.pageCount);
       expect(page.rows.length).toBeGreaterThan(0);

@@ -6,8 +6,10 @@ import { ORIGINAL_GROUP_ID } from './schemas/groups';
 
 /**
  * What `0020_group_keys_web_and_defaults_off.sql` does (M13.4): the last single-group keys go, the
- * ten temporary `group_id` defaults go, `discord_config` becomes one row per group, and
- * `set_group_member_role` refuses to leave a group with no admin.
+ * ten temporary `group_id` defaults go, and `discord_config` becomes one row per group. The role
+ * writer 0020 added (`set_group_member_role`) is dropped by `0023` (M14.11); the last block below
+ * applies 0021 to 0023 on top and checks its replacement, `set_group_member_role_v2`, with
+ * `transfer_group_ownership` and `remove_group_member`.
  *
  * Like `groups.backfill.integration.test.ts`, this builds its own scratch database inside the
  * local stack's Postgres container, because the interesting part is a database that held data
@@ -259,47 +261,129 @@ if (container === null) {
       });
     });
 
-    describe('set_group_member_role', () => {
-      const setRole = (playerId: string, role: string, groupId = ORIGINAL_GROUP_ID) =>
-        one(`select public.set_group_member_role('${groupId}', '${playerId}', '${role}')`);
-      const roleOf = (playerId: string) =>
+    describe('after 0021 to 0023: set_group_member_role_v2 and the owner functions (M14.11)', () => {
+      const OWNED = 'd0000000-0000-0000-0000-000000000003';
+
+      beforeAll(() => {
+        // The two auth objects 0022's helpers reference, which the scratch database's stub auth
+        // schema does not have. Only their shape matters: nobody signs in here.
+        psql(
+          scratch,
+          `create table if not exists auth.identities (
+             user_id uuid, provider text, provider_id text);
+           create or replace function auth.uid() returns uuid language sql stable as 'select null::uuid';`,
+        );
+        const later = readdirSync(MIGRATIONS_DIR)
+          .filter((name) => /^\d{4}_.*\.sql$/.test(name) && name > KEYS_MIGRATION && name < '0024')
+          .sort();
+        for (const name of later) psql(scratch, migration(name), true);
+        // The original group has no owner (M13.4 rules); a third group has one: Zoe owns it, Hana
+        // is its admin, Omar its member.
+        psql(
+          scratch,
+          `insert into public.groups (id, slug, name) values ('${OWNED}', 'owned-group', 'Owned');
+           insert into public.group_memberships (group_id, player_id, role) values
+             ('${OWNED}', '${ids.zoe}', 'owner'),
+             ('${OWNED}', '${ids.hana}', 'admin'),
+             ('${OWNED}', '${ids.omar}', 'member');`,
+        );
+      }, 120_000);
+
+      const setRole = (actor: string, playerId: string, role: string, groupId: string = ORIGINAL_GROUP_ID) =>
+        one(`select public.set_group_member_role_v2('${groupId}', '${actor}', '${playerId}', '${role}')`);
+      const roleOf = (playerId: string, groupId: string = ORIGINAL_GROUP_ID) =>
         one(
-          `select role from public.group_memberships where group_id = '${ORIGINAL_GROUP_ID}' and player_id = '${playerId}'`,
+          `select coalesce((select role from public.group_memberships where group_id = '${groupId}' and player_id = '${playerId}'), 'none')`,
         );
 
-      it('refuses to demote the only admin, and writes nothing', () => {
-        expect(setRole(ids.hana, 'member')).toBe('last_admin');
+      it('dropped the old set_group_member_role', () => {
+        expect(
+          one(
+            `select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = 'public' and p.proname = 'set_group_member_role'`,
+          ),
+        ).toBe('0');
+      });
+
+      it('in a group with no owner, refuses to demote the only admin, and writes nothing', () => {
+        expect(setRole(ids.hana, ids.hana, 'member')).toBe('last_admin');
         expect(roleOf(ids.hana)).toBe('admin');
       });
 
-      it('promotes a member, then lets either admin step down while one remains', () => {
-        expect(setRole(ids.omar, 'admin')).toBe('ok');
-        expect(setRole(ids.omar, 'admin')).toBe('unchanged');
-        expect(setRole(ids.hana, 'member')).toBe('ok');
+      it('in a group with no owner, promotes a member, then lets either admin step down while one remains', () => {
+        expect(setRole(ids.hana, ids.omar, 'admin')).toBe('ok');
+        expect(setRole(ids.hana, ids.omar, 'admin')).toBe('unchanged');
+        expect(setRole(ids.omar, ids.hana, 'member')).toBe('ok');
         expect(roleOf(ids.hana)).toBe('member');
         // Omar is now the last one.
-        expect(setRole(ids.omar, 'member')).toBe('last_admin');
+        expect(setRole(ids.omar, ids.omar, 'member')).toBe('last_admin');
         expect(roleOf(ids.omar)).toBe('admin');
+        // And Hana, a member now, may change nobody's role.
+        expect(setRole(ids.hana, ids.hana, 'admin')).toBe('forbidden');
       });
 
       it('answers not_member for a player outside the group, and for a group that does not exist', () => {
-        expect(setRole(ids.zoe, 'admin')).toBe('not_member');
-        expect(setRole(ids.hana, 'admin', ids.other)).toBe('not_member');
-        expect(setRole(ids.hana, 'admin', 'e0000000-0000-0000-0000-000000000009')).toBe('not_member');
+        expect(setRole(ids.omar, ids.zoe, 'admin')).toBe('not_member');
+        expect(setRole(ids.omar, ids.hana, 'admin', 'e0000000-0000-0000-0000-000000000009')).toBe(
+          'not_member',
+        );
       });
 
-      it('refuses a role outside the union', () => {
-        expect(() => setRole(ids.hana, 'owner')).toThrow(/role must be member or admin/);
+      it('refuses a role outside member | admin: ownership only moves by transfer', () => {
+        expect(() => setRole(ids.omar, ids.hana, 'owner')).toThrow(/role must be member or admin/);
       });
 
-      it('is not callable by anon or authenticated', () => {
+      it('in a group with an owner, only the owner demotes an admin, and nobody demotes the owner', () => {
+        expect(setRole(ids.hana, ids.omar, 'admin', OWNED)).toBe('ok');
+        expect(setRole(ids.hana, ids.omar, 'member', OWNED)).toBe('owner_only');
+        expect(setRole(ids.hana, ids.zoe, 'member', OWNED)).toBe('is_owner');
+        expect(setRole(ids.zoe, ids.zoe, 'admin', OWNED)).toBe('is_owner');
+        expect(setRole(ids.zoe, ids.omar, 'member', OWNED)).toBe('ok');
+        expect(roleOf(ids.omar, OWNED)).toBe('member');
+      });
+
+      it('transfer_group_ownership: owner only, to an admin, and the old owner stays an admin', () => {
+        const transfer = (actor: string, to: string) =>
+          one(`select public.transfer_group_ownership('${OWNED}', '${actor}', '${to}')`);
+        expect(transfer(ids.hana, ids.hana)).toBe('owner_only');
+        expect(transfer(ids.zoe, ids.omar)).toBe('not_admin');
+        expect(transfer(ids.zoe, ids.zoe)).toBe('unchanged');
+        expect(transfer(ids.zoe, ids.hana)).toBe('ok');
+        expect(roleOf(ids.hana, OWNED)).toBe('owner');
+        expect(roleOf(ids.zoe, OWNED)).toBe('admin');
+        expect(transfer(ids.hana, ids.zoe)).toBe('ok');
+      });
+
+      it('remove_group_member: admins remove members, the owner removes admins, nobody removes the owner', () => {
+        const remove = (actor: string, playerId: string) =>
+          one(`select public.remove_group_member('${OWNED}', '${actor}', '${playerId}')`);
+        expect(remove(ids.hana, ids.zoe)).toBe('is_owner');
+        expect(remove(ids.omar, ids.hana)).toBe('forbidden');
+        expect(remove(ids.hana, ids.omar)).toBe('ok');
+        expect(roleOf(ids.omar, OWNED)).toBe('none');
+        expect(remove(ids.hana, ids.omar)).toBe('not_member');
+        expect(remove(ids.zoe, ids.hana)).toBe('ok');
+        expect(roleOf(ids.hana, OWNED)).toBe('none');
+      });
+
+      it('one owner per group, by the index', () => {
+        expect(() =>
+          psql(
+            scratch,
+            `insert into public.group_memberships (group_id, player_id, role) values ('${OWNED}', '${ids.omar}', 'owner')`,
+          ),
+        ).toThrow(/group_memberships_one_owner_idx/);
+      });
+
+      it.each([
+        ['set_group_member_role_v2', `'${ORIGINAL_GROUP_ID}', '${ids.omar}', '${ids.hana}', 'admin'`],
+        ['transfer_group_ownership', `'${OWNED}', '${ids.zoe}', '${ids.hana}'`],
+        ['remove_group_member', `'${OWNED}', '${ids.zoe}', '${ids.omar}'`],
+      ])('%s is not callable by anon or authenticated', (fn, args) => {
         for (const role of ['anon', 'authenticated']) {
-          expect(() =>
-            psql(
-              scratch,
-              `set role ${role}; select public.set_group_member_role('${ORIGINAL_GROUP_ID}', '${ids.hana}', 'admin')`,
-            ),
-          ).toThrow(/permission denied/);
+          expect(() => psql(scratch, `set role ${role}; select public.${fn}(${args})`)).toThrow(
+            /permission denied/,
+          );
         }
       });
     });

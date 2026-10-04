@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { displayRating, ordinal, type Rating, rateGameWeekly, seedFromRank } from '@customs/core';
+import { displayRating } from '@customs/core';
 import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
@@ -9,25 +9,25 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * **The weekly board** (M7.3), against the Supabase CLI local stack.
+ * **The week boards rank by net points** (M14.57, rewritten from M7.3's weekly-track file), against
+ * the Supabase CLI local stack.
  *
- * `This week` and `Last week` are not the stored rating read through a date filter any more:
- * they are a second fold, from each player's seed, over that week's rated games, with M7.2's
- * `rateGameWeekly`. What this file proves, and a unit test cannot, is that the fold reads the
- * rows the board counts, through RLS and the anon key, and that the page built out of them
- * prints the number it sorted on and no Proven anywhere.
+ * `This week` and `Last week` sum each player's **printed all-time deltas** over the window's rated
+ * games (`displayDelta(mu_before, mu_after)` per row) and rank on that sum, with product's
+ * tie-break: net points, more wins, fewer games, higher all-time Rating, name A to Z. What this file
+ * proves, and a unit test cannot, is that the loader reads the rows the board counts, through RLS
+ * and the anon key, that the player page on every tab prints the same delta for the same game, and
+ * that an unrated game adds nothing.
  *
- * **The fixture is two players and the eighteen around them.**
+ * **The fixture is ten players over three rated games and one ARAM this week, one game last week.**
+ * Every row's `mu` pair is written by hand in display units (`n / 60`), so the expected numbers are
+ * stated here rather than computed by the code under test:
  *
- * - **Zoya** plays twice this week and wins both, alongside four much stronger friends against
- *   five much weaker ones — so her two wins are worth little each.
- * - **Adel** plays all eight of his nights and takes four, against opponents seeded like him.
- *
- * Their `ratings` rows are identical, down to the seed, and their names put Adel first on any
- * board that has to fall back to the name tie-break. So `All time` reads `Adel, Zoya` and the
- * week reads `Zoya, Adel` — and Adel's weekly **Proven** is the higher of the two, because
- * eight games shrink a sigma four games cannot. The week puts Zoya first anyway. That is the
- * decision M7.3 exists to carry out, and this fixture is the one shape that can fail it.
+ * - `Pia` and `Quinn` tie on points (+35), wins and games; Pia's all-time Rating is higher.
+ * - `Amy` and `Zed` tie on everything but the name (−35, same Rating): Amy first.
+ * - `Sol` is settling (3 rated games) and **does not chain**: a reset sits between game 1 and game 2,
+ *   so his rows sum to +90 while his first-to-last `mu` difference is only +10. The rows win.
+ * - `Nell` nets exactly zero: `+0`.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -35,7 +35,7 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
 const stack = await resolveLocalStack();
 
 if (stack === null) {
-  describe.skip('the weekly board against the local Supabase stack', () => {
+  describe.skip('the week boards against the local Supabase stack', () => {
     it('needs the local stack: run `pnpm db:start`', () => {
       expect(true).toBe(true);
     });
@@ -47,272 +47,156 @@ if (stack === null) {
 
   const { loadBoard, loadPlayerBoard } = await import('@/lib/board/load');
   const { createPublicClient } = await import('@/lib/publicClient');
+  const { displayDelta } = await import('@/lib/ratingDisplay');
   const { BoardView } = await import('./_board/BoardView');
   const { PlayerView } = await import('./_board/PlayerView');
-  const { emptyPlayerStats } = await import('@/lib/testing/boardFixtures');
-  const {
-    PROVEN_LABEL,
-    RATING_LABEL,
-    SETTLING_CHIP,
-    SETTLING_SENTENCE,
-    SETTLING_SENTENCE_PLAYER,
-    WEEK_BOARD_SENTENCE,
-    WEEK_PLAYER_SENTENCE,
-    WINDOW_EMPTY,
-  } = await import('@/lib/board/copy');
+  const { SETTLING_SECTION_LINE, WEEK_BOARD_SENTENCE_SHORT, WEEK_PLAYER_SENTENCE } = await import(
+    '@/lib/board/copy'
+  );
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const anon = createPublicClient();
-
   const runId = randomUUID().slice(0, 8);
 
-  /**
-   * Wednesday 2026-03-11, 20:00 Cairo: this week is Sunday the 8th 06:00 to Sunday the 15th
-   * (M5.9, anchored on Sunday by M5.34). A fixed week in the past, like every other window
-   * fixture in this app, so the board does not depend on the day the suite runs.
-   */
+  /** Wednesday 2026-03-11, 20:00 Cairo: this week is Sunday the 8th to Sunday the 15th (M5.9). */
   const NOW = new Date('2026-03-11T18:00:00Z');
-  const WEEK = { now: NOW } as const;
+  const WEEK = { now: NOW, groupId: ORIGINAL_GROUP_ID } as const;
   const THIS_WEEK = { window: 'this-week', ...WEEK } as const;
   const LAST_WEEK = { window: 'last-week', ...WEEK } as const;
-  const THIS_MONTH = { window: 'this-month', ...WEEK } as const;
-  const ALL_TIME = { window: 'all-time' } as const;
-
-  const id = (suffix: string): string => `it-${runId}-${suffix}`;
-
-  /** The two the acceptance cases are about. `Adel` sorts first on any name tie-break. */
-  const ZOYA = id('zoya');
-  const ADEL = id('adel');
-  /** Zoya's four friends and the five they beat; Adel's four and the five he splits with. */
-  const ZOYA_MATES = Array.from({ length: 4 }, (_, index) => id(`zm${index}`));
-  const ZOYA_OPPS = Array.from({ length: 5 }, (_, index) => id(`zo${index}`));
-  const ADEL_MATES = Array.from({ length: 4 }, (_, index) => id(`am${index}`));
-  const ADEL_OPPS = Array.from({ length: 5 }, (_, index) => id(`ao${index}`));
+  const ALL_TIME = { window: 'all-time', groupId: ORIGINAL_GROUP_ID } as const;
 
   /**
-   * One rank per player, and **the rank is the whole fixture**: the weekly fold seeds from it,
-   * so the ranks below are what make Zoya's two wins small and Adel's eight games ordinary.
+   * One player: name, the display rating their chain starts at this week, the three deltas of this
+   * week's rated games (blue wins game 1 and 3, red wins game 2), their stored all-time Rating and
+   * rated-game count. `reset` restarts the chain before game 2 at the given display number.
    */
-  const RANK: Readonly<Record<string, readonly [string, string]>> = {
-    [ZOYA]: ['GOLD', 'IV'],
-    [ADEL]: ['GOLD', 'IV'],
-    ...Object.fromEntries(ZOYA_MATES.map((puuid) => [puuid, ['MASTER', 'IV'] as const])),
-    ...Object.fromEntries(ZOYA_OPPS.map((puuid) => [puuid, ['IRON', 'IV'] as const])),
-    ...Object.fromEntries(ADEL_MATES.map((puuid) => [puuid, ['GOLD', 'IV'] as const])),
-    ...Object.fromEntries(ADEL_OPPS.map((puuid) => [puuid, ['GOLD', 'IV'] as const])),
-  };
-
-  const EVERYONE = Object.keys(RANK);
-  const seedOf = (puuid: string): Rating => {
-    const rank = RANK[puuid] as readonly [string, string];
-    return seedFromRank(rank[0], rank[1]);
-  };
-
-  const NAMES: Readonly<Record<string, string>> = {
-    [ZOYA]: 'Zoya',
-    [ADEL]: 'Adel',
-  };
-
-  /**
-   * **Nadia, who did not play** (M7.16's fifth acceptance). She is not on either week's board —
-   * membership is the games — but her page exists, and on a week window it has to read the
-   * weekly seed her stored `ratings` row was folded from rather than the number that row holds
-   * now. The two are deliberately far apart: Gold IV's seed against a stored mu of 30.
-   */
-  const IDLE = id('idle');
-  const IDLE_SEED = seedFromRank('GOLD', 'IV');
-  const IDLE_STORED = { mu: 30, sigma: 4 } as const;
-
-  /** Where the stored fold left them: **identical for Zoya and Adel**, which is the point. */
-  const STORED = { mu: 27.5, sigma: 5.5 } as const;
-
-  interface Fixture {
-    startedAt: string;
-    blue: readonly string[];
-    red: readonly string[];
-    winningSide: 100 | 200;
+  interface Seat {
+    name: string;
+    start: number;
+    deltas: readonly [number, number, number];
+    stored: number;
+    games: number;
+    reset?: number;
   }
 
-  const zoyaGame = (startedAt: string, winningSide: 100 | 200): Fixture => ({
-    startedAt,
-    blue: [ZOYA, ...ZOYA_MATES],
-    red: ZOYA_OPPS,
-    winningSide,
-  });
-
-  const adelGame = (startedAt: string, winningSide: 100 | 200): Fixture => ({
-    startedAt,
-    blue: [ADEL, ...ADEL_MATES],
-    red: ADEL_OPPS,
-    winningSide,
-  });
-
-  /** Zoya: two games, two wins. Adel: eight games, `L W L W W L W L` — 4W 4L. */
-  const THIS_WEEK_GAMES: Fixture[] = [
-    zoyaGame('2026-03-09T19:00:00Z', 100),
-    zoyaGame('2026-03-09T20:00:00Z', 100),
-    adelGame('2026-03-09T19:30:00Z', 200),
-    adelGame('2026-03-09T20:30:00Z', 100),
-    adelGame('2026-03-10T19:00:00Z', 200),
-    adelGame('2026-03-10T20:00:00Z', 100),
-    adelGame('2026-03-10T21:00:00Z', 100),
-    adelGame('2026-03-11T19:00:00Z', 200),
-    adelGame('2026-03-11T20:00:00Z', 100),
-    adelGame('2026-03-11T21:00:00Z', 200),
+  const SEATS: readonly Seat[] = [
+    // Blue: 2W 1L.
+    { name: 'Pia', start: 1500, deltas: [30, -20, 25], stored: 1535, games: 40 },
+    { name: 'Quinn', start: 1400, deltas: [30, -20, 25], stored: 1435, games: 40 },
+    { name: 'Rhea', start: 1300, deltas: [40, -10, 30], stored: 1360, games: 40 },
+    { name: 'Tam', start: 1300, deltas: [10, -30, 10], stored: 1290, games: 40 },
+    { name: 'Sol', start: 1200, deltas: [80, -60, 70], stored: 1210, games: 3, reset: 1200 },
+    // Red: 1W 2L.
+    { name: 'Zed', start: 1450, deltas: [-30, 20, -25], stored: 1450, games: 40 },
+    { name: 'Amy', start: 1450, deltas: [-30, 20, -25], stored: 1450, games: 40 },
+    { name: 'Ugo', start: 1350, deltas: [-40, 10, -30], stored: 1290, games: 40 },
+    { name: 'Vik', start: 1250, deltas: [-10, 30, -10], stored: 1260, games: 40 },
+    { name: 'Nell', start: 1350, deltas: [-20, 40, -20], stored: 1350, games: 40 },
   ];
 
-  /** Two games in the week before, so `Last week` is a board of its own: one each. */
-  const LAST_WEEK_GAMES: Fixture[] = [
-    zoyaGame('2026-03-03T19:00:00Z', 100),
-    adelGame('2026-03-04T19:00:00Z', 200),
-  ];
+  const puuidOf = (name: string) => `it-${runId}-${name.toLowerCase()}`;
+  const mu = (display: number) => display / 60;
+  const WINNERS = [100, 200, 100] as const;
+  const THIS_WEEK_AT = ['2026-03-09T19:00:00Z', '2026-03-10T19:00:00Z', '2026-03-11T19:00:00Z'];
+  const ARAM_AT = '2026-03-11T20:00:00Z';
+  const LAST_WEEK_AT = '2026-03-03T19:00:00Z';
 
-  const ALL_GAMES = [...LAST_WEEK_GAMES, ...THIS_WEEK_GAMES];
-
-  /**
-   * The week, folded here from the two things the rule is made of: the seed each player starts
-   * on, and `rateGameWeekly` applied in `started_at` order over that window's games.
-   *
-   * Written out rather than imported from the loader, so the test states the contract instead
-   * of asserting that the loader agrees with itself.
-   */
-  function expectedWeek(games: readonly Fixture[]): Map<string, Rating> {
-    const current = new Map<string, Rating>(EVERYONE.map((puuid) => [puuid, seedOf(puuid)]));
-
-    for (const fixture of [...games].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))) {
-      // Each side by puuid ascending, the order both folds hand to core.
-      const blue = [...fixture.blue].sort();
-      const red = [...fixture.red].sort();
-      const rated = rateGameWeekly(
-        blue.map((puuid) => current.get(puuid) as Rating),
-        red.map((puuid) => current.get(puuid) as Rating),
-        fixture.winningSide,
-      );
-      blue.forEach((puuid, index) => {
-        current.set(puuid, rated.blue[index] as Rating);
-      });
-      red.forEach((puuid, index) => {
-        current.set(puuid, rated.red[index] as Rating);
-      });
-    }
-    return current;
+  /** Each seat's three `mu` pairs, in display units, chained unless the seat resets. */
+  function pairsOf(seat: Seat): { before: number; after: number }[] {
+    const pairs: { before: number; after: number }[] = [];
+    let at = seat.start;
+    seat.deltas.forEach((delta, index) => {
+      if (index === 1 && seat.reset !== undefined) at = seat.reset;
+      pairs.push({ before: at, after: at + delta });
+      at += delta;
+    });
+    return pairs;
   }
+
+  /** The contract, stated here: net points are the sum of the printed per-game deltas. */
+  const expectedPoints = (seat: Seat): number =>
+    pairsOf(seat).reduce((sum, pair) => sum + displayDelta(mu(pair.before), mu(pair.after)), 0);
+
+  /** Product's order, stated here: points, wins, fewer games, Rating, name. */
+  const EXPECTED_ORDER = ['Sol', 'Rhea', 'Pia', 'Quinn', 'Vik', 'Nell', 'Tam', 'Amy', 'Zed', 'Ugo'];
 
   const ids = new Map<string, string>();
   const gameIds: string[] = [];
-  let seasonId = '';
 
   beforeAll(async () => {
-    const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    seasonId = season?.id ?? '';
-    expect(seasonId).not.toBe('');
-
     const { data: players, error } = await db
       .from('players')
-      .insert(
-        EVERYONE.map((puuid) => {
-          const rank = RANK[puuid] as readonly [string, string];
-          return {
-            puuid,
-            display_name: NAMES[puuid] ?? `Seat ${puuid.slice(-3)}`,
-            rank_tier: rank[0],
-            rank_division: rank[1],
-          };
-        }),
-      )
+      .insert(SEATS.map((seat) => ({ puuid: puuidOf(seat.name), display_name: seat.name })))
       .select('id, puuid');
     expect(error).toBeNull();
     for (const row of players ?? []) ids.set(row.puuid, row.id);
 
-    /**
-     * **One stored rating for everybody**, with the seed the fold started them from written on
-     * the row (M5.7): the weekly fold reads that pair first and the live rank columns only for
-     * a player who has never been rated, which is what makes a closed week reproducible.
-     */
-    await db.from('ratings').insert(
-      EVERYONE.map((puuid) => {
-        const seed = seedOf(puuid);
-        const rank = RANK[puuid] as readonly [string, string];
-        return {
-          group_id: ORIGINAL_GROUP_ID,
-          player_id: ids.get(puuid) as string,
-          season_id: seasonId,
-          mu: STORED.mu,
-          sigma: STORED.sigma,
-          games: 40,
-          wins: 20,
-          seed_mu: seed.mu,
-          seed_sigma: seed.sigma,
-          seed_rank_tier: rank[0],
-          seed_rank_division: rank[1],
-        };
-      }),
+    const { error: ratingsError } = await db.from('ratings').insert(
+      SEATS.map((seat) => ({
+        group_id: ORIGINAL_GROUP_ID,
+        player_id: ids.get(puuidOf(seat.name)) as string,
+        mu: mu(seat.stored),
+        sigma: 5,
+        games: seat.games,
+        wins: Math.floor(seat.games / 2),
+      })),
     );
+    expect(ratingsError).toBeNull();
 
-    // Nadia: a roster row and a stored rating, and not one game in either week.
-    const { data: idle } = await db
-      .from('players')
-      .insert({ puuid: IDLE, display_name: 'Nadia', rank_tier: 'GOLD', rank_division: 'IV' })
-      .select('id')
-      .single();
-    ids.set(IDLE, idle?.id ?? '');
-    await db.from('ratings').insert({
-      group_id: ORIGINAL_GROUP_ID,
-      player_id: idle?.id ?? '',
-      season_id: seasonId,
-      mu: IDLE_STORED.mu,
-      sigma: IDLE_STORED.sigma,
-      games: 40,
-      wins: 25,
-      seed_mu: IDLE_SEED.mu,
-      seed_sigma: IDLE_SEED.sigma,
-      seed_rank_tier: 'GOLD',
-      seed_rank_division: 'IV',
-    });
-
-    /**
-     * The stored `mu_after` is deliberately **flat and identical for everybody**: it is what
-     * makes "the week is not the stored track" a claim the numbers themselves can prove.
-     */
     const stamp = Date.now() % 1_000_000;
-    for (const [index, fixture] of ALL_GAMES.entries()) {
-      const { data: row } = await db
+    const insertGame = async (
+      index: number,
+      startedAt: string,
+      winningSide: 100 | 200,
+      rows: (seat: Seat, seatIndex: number) => { mu_before: number | null; mu_after: number | null },
+      aram = false,
+    ) => {
+      const { data: game, error: gameError } = await db
         .from('games')
         .insert({
           group_id: ORIGINAL_GROUP_ID,
-          lcu_game_id: Number(`7${stamp}${String(index).padStart(2, '0')}`),
-          season_id: seasonId,
-          started_at: fixture.startedAt,
-          duration_s: 2_000,
-          winning_side: fixture.winningSide,
-          raw: { gameMode: 'CLASSIC' },
+          lcu_game_id: Number(`8${stamp}${String(index).padStart(2, '0')}`),
+          started_at: startedAt,
+          duration_s: 1_800,
+          winning_side: winningSide,
+          raw: { gameMode: aram ? 'ARAM' : 'CLASSIC' },
         })
         .select('id')
         .single();
-      const gameId = row?.id ?? '';
+      expect(gameError).toBeNull();
+      const gameId = game?.id ?? '';
       gameIds.push(gameId);
-
-      await db.from('game_players').insert(
-        [...fixture.blue, ...fixture.red].map((puuid, seat) => ({
+      const { error: rowsError } = await db.from('game_players').insert(
+        SEATS.map((seat, seatIndex) => ({
           group_id: ORIGINAL_GROUP_ID,
           game_id: gameId,
-          player_id: ids.get(puuid) as string,
-          side: seat < 5 ? 100 : 200,
-          role: ['top', 'jungle', 'mid', 'adc', 'support'][seat % 5] as string as
-            | 'top'
-            | 'jungle'
-            | 'mid'
-            | 'adc'
-            | 'support',
-          mu_before: STORED.mu,
-          sigma_before: STORED.sigma,
-          mu_after: STORED.mu,
-          sigma_after: STORED.sigma,
+          player_id: ids.get(puuidOf(seat.name)) as string,
+          side: seatIndex < 5 ? 100 : 200,
+          role: (['top', 'jungle', 'mid', 'adc', 'support'] as const)[seatIndex % 5] ?? 'top',
+          sigma_before: 5,
+          sigma_after: 5,
+          ...rows(seat, seatIndex),
         })),
       );
+      expect(rowsError).toBeNull();
+    };
+
+    // Last week: one rated game, blue wins, twelve points a seat either way.
+    await insertGame(0, LAST_WEEK_AT, 100, (seat, seatIndex) => ({
+      mu_before: mu(seat.start - 100),
+      mu_after: mu(seat.start - 100 + (seatIndex < 5 ? 12 : -12)),
+    }));
+    // This week: three rated games.
+    for (const [index, at] of THIS_WEEK_AT.entries()) {
+      await insertGame(index + 1, at, WINNERS[index] as 100 | 200, (seat) => {
+        const pair = pairsOf(seat)[index] as { before: number; after: number };
+        return { mu_before: mu(pair.before), mu_after: mu(pair.after) };
+      });
     }
+    // And an ARAM: never rated, so it adds nothing and counts in neither W nor L.
+    await insertGame(4, ARAM_AT, 100, () => ({ mu_before: null, mu_after: null }), true);
   });
 
   afterAll(async () => {
@@ -327,333 +211,166 @@ if (stack === null) {
   /** This run's own rows; the database is shared with every other integration file here. */
   const mine = <T extends { puuid: string }>(rows: readonly T[]): T[] =>
     rows.filter((row) => row.puuid.startsWith(`it-${runId}-`));
+  const seatOf = (puuid: string) => SEATS.find((seat) => puuidOf(seat.name) === puuid) as Seat;
 
-  describe('the weekly fold', () => {
-    it('is the seed folded through the week, not the stored rating', async () => {
+  describe('net points', () => {
+    /** Acceptance 2, first half: each row's number is the sum of its printed per-game deltas. */
+    it('is the sum of each player s printed all-time deltas in the week', async () => {
       const board = await loadBoard(anon, THIS_WEEK);
-      const expected = expectedWeek(THIS_WEEK_GAMES);
-      const zoya = board.rows.find((row) => row.puuid === ZOYA);
-
-      expect(zoya?.track).toBe('weekly');
-      expect(zoya?.rating).toBe(displayRating((expected.get(ZOYA) as Rating).mu));
-      // And it is nowhere near the stored number every one of these rows carries in `ratings`.
-      expect(zoya?.rating).not.toBe(displayRating(STORED.mu));
-      // The climb is the weekly seed to the weekly end: both ends on the one track.
-      expect(zoya?.climb).toEqual({
-        muBefore: seedOf(ZOYA).mu,
-        muAfter: (expected.get(ZOYA) as Rating).mu,
-      });
-    });
-
-    /**
-     * **Acceptance 1.** Zoya and Adel have identical `ratings` rows, so `All time` can only
-     * separate them by name — and it puts Adel first. The week, which is the only thing that
-     * differs, puts Zoya first.
-     */
-    it('orders two identical all-time ratings by the week they each had', async () => {
-      const [week, all] = await Promise.all([loadBoard(anon, THIS_WEEK), loadBoard(anon, ALL_TIME)]);
-
-      const two = (board: { rows: { puuid: string }[] }): string[] =>
-        board.rows.map((row) => row.puuid).filter((puuid) => puuid === ZOYA || puuid === ADEL);
-
-      expect(
-        all.rows.filter((row) => row.puuid === ZOYA || row.puuid === ADEL).map((row) => row.rating),
-      ).toEqual([displayRating(STORED.mu), displayRating(STORED.mu)]);
-      expect(two(all)).toEqual([ADEL, ZOYA]);
-      expect(two(week)).toEqual([ZOYA, ADEL]);
-    });
-
-    /**
-     * **Acceptance 5, and the whole reason a week sorts on Rating.** Zoya went 2W 0L in two
-     * games; Adel went 4W 4L in eight. Adel's weekly `sigma` is the smaller for having played
-     * four times as many, so his weekly **Proven** is the higher of the two — and the board
-     * still puts Zoya first, because a week is ordered by `Rating` and by nothing else. This
-     * test fails the moment anything reads `sigma` to order a week window.
-     */
-    it('puts a clean two-game week above a longer patchy one, Proven notwithstanding', async () => {
-      const board = await loadBoard(anon, THIS_WEEK);
-      const expected = expectedWeek(THIS_WEEK_GAMES);
-      const zoyaWeek = expected.get(ZOYA) as Rating;
-      const adelWeek = expected.get(ADEL) as Rating;
-
-      // The fixture's own claim, in both numbers: Zoya's weekly mu is the higher and her
-      // weekly ordinal is the lower. That pair is what makes this test worth having.
-      expect(zoyaWeek.mu).toBeGreaterThan(adelWeek.mu);
-      expect(ordinal(zoyaWeek)).toBeLessThan(ordinal(adelWeek));
-
       const rows = mine(board.rows);
-      const zoya = rows.findIndex((row) => row.puuid === ZOYA);
-      const adel = rows.findIndex((row) => row.puuid === ADEL);
+      expect(rows).toHaveLength(SEATS.length);
 
-      expect(zoya).toBeLessThan(adel);
-      expect(rows[zoya]).toMatchObject({ games: 2, wins: 2, losses: 0 });
-      expect(rows[adel]).toMatchObject({ games: 8, wins: 4, losses: 4 });
-      // The printed numbers, both ways round: Rating puts Zoya first, Proven would not.
-      expect((rows[zoya] as (typeof rows)[number]).rating).toBeGreaterThan(
-        (rows[adel] as (typeof rows)[number]).rating,
-      );
-      expect((rows[zoya] as (typeof rows)[number]).proven).toBeLessThan(
-        (rows[adel] as (typeof rows)[number]).proven,
-      );
-    });
-
-    /**
-     * **Acceptance 6.** Every rating number on a week row is the weekly track's, `sortKey` is
-     * the weekly `mu` itself, and the rows come back in non-increasing `rating` order — so the
-     * printed order matches the printed number.
-     */
-    it('carries the weekly track in `rating`, `sortKey` and `proven`, and sorts on it', async () => {
-      const board = await loadBoard(anon, THIS_WEEK);
-      const expected = expectedWeek(THIS_WEEK_GAMES);
-
-      for (const row of mine(board.rows)) {
-        const weekly = expected.get(row.puuid) as Rating;
-        expect(row.track).toBe('weekly');
-        expect(row.sortKey).toBeCloseTo(weekly.mu, 9);
-        expect(row.rating).toBe(displayRating(weekly.mu));
-        expect(row.proven).toBe(Math.max(0, displayRating(ordinal(weekly))));
-        // No chip on a week, ever: on a week that would be every row, every week.
-        expect(row.settling).toBe(false);
-      }
-
-      const ratings = board.rows.map((row) => row.rating);
-      for (const [index, rating] of ratings.entries()) {
-        expect(rating).toBeLessThanOrEqual(ratings[index - 1] ?? rating);
+      for (const row of rows) {
+        const seat = seatOf(row.puuid);
+        expect(row.track).toBe('week');
+        expect(row.points).toBe(expectedPoints(seat));
+        // The ARAM is not a game here: three rated games, and the W–L of those three.
+        expect(row.games).toBe(3);
+        expect(row.wins + row.losses).toBe(3);
+        // Rating is the all-time one, from `ratings`.
+        expect(row.rating).toBe(seat.stored);
       }
     });
 
-    it('opens a week row into the weekly deltas, never the stored ones', async () => {
-      const board = await loadBoard(anon, { ...THIS_WEEK, includeBreakdown: true });
-      const zoya = board.rows.find((row) => row.puuid === ZOYA);
+    it('lets the rows win for a player whose games do not chain, and prints a net zero as +0', async () => {
+      const rows = mine((await loadBoard(anon, THIS_WEEK)).rows);
+      const sol = rows.find((row) => row.puuid === puuidOf('Sol'));
+      const nell = rows.find((row) => row.puuid === puuidOf('Nell'));
 
-      expect(zoya?.breakdown).toHaveLength(2);
-      // The expand explains the number above it: the oldest game starts at the weekly seed and
-      // each game picks up where the one before it left off.
-      const games = zoya?.breakdown ?? [];
-      const oldest = games[games.length - 1];
-      const newest = games[0];
-      expect(oldest?.muBefore).toBe(seedOf(ZOYA).mu);
-      expect(newest?.muBefore).toBe(oldest?.muAfter);
-      expect(newest?.muAfter).not.toBe(STORED.mu);
+      expect(sol?.points).toBe(90);
+      // One mu difference from his first game to his last would have said +10.
+      const pairs = pairsOf(seatOf(puuidOf('Sol')));
+      expect(displayDelta(mu(pairs[0]?.before ?? 0), mu(pairs[2]?.after ?? 0))).toBe(10);
+      expect(Object.is(nell?.points, 0)).toBe(true);
     });
 
-    /**
-     * **Acceptance 2.** `Last week` is a closed board and has to read the same on Tuesday as it
-     * did on Sunday — including after somebody's rank moves, which is why the fold prefers the
-     * seed stored on the `ratings` row to the live `players.rank_*` columns (M5.7).
-     */
-    it('reads the same closed week after a rank moves', async () => {
-      const before = await loadBoard(anon, LAST_WEEK);
-
-      await db.from('players').update({ rank_tier: 'DIAMOND', rank_division: 'I' }).eq('puuid', ZOYA);
-      const after = await loadBoard(anon, LAST_WEEK);
-      const rank = RANK[ZOYA] as readonly [string, string];
-      await db.from('players').update({ rank_tier: rank[0], rank_division: rank[1] }).eq('puuid', ZOYA);
-
-      expect(mine(after.rows)).toEqual(mine(before.rows));
+    /** Acceptance 2, second half: the order follows the tie-break, one pair per step it reaches. */
+    it('orders the board by net points, then wins, then fewer games, then Rating, then name', async () => {
+      const rows = mine((await loadBoard(anon, THIS_WEEK)).rows);
+      expect(rows.map((row) => seatOf(row.puuid).name)).toEqual(EXPECTED_ORDER);
     });
 
-    it('is only the week its games are in: last week is its own fold', async () => {
-      const [thisWeek, lastWeek] = await Promise.all([
-        loadBoard(anon, THIS_WEEK),
-        loadBoard(anon, LAST_WEEK),
-      ]);
-      const expected = expectedWeek(LAST_WEEK_GAMES);
-      const zoya = lastWeek.rows.find((row) => row.puuid === ZOYA);
-
-      expect(lastWeek.games).toBe(LAST_WEEK_GAMES.length);
-      expect(zoya?.rating).toBe(displayRating((expected.get(ZOYA) as Rating).mu));
-      // Two weeks, two folds, one seed each: the same player, two different numbers.
-      expect(zoya?.rating).not.toBe(thisWeek.rows.find((row) => row.puuid === ZOYA)?.rating);
+    it('keeps one list on a week, with the all-time settling chip on the settling player', async () => {
+      const rows = mine((await loadBoard(anon, THIS_WEEK)).rows);
+      expect(rows.every((row) => row.settling === false)).toBe(true);
+      expect(rows.filter((row) => row.settlingChip).map((row) => seatOf(row.puuid).name)).toEqual(['Sol']);
     });
 
-    /**
-     * **Acceptance 3, from the other side.** The month window over exactly these games is the
-     * stored fold: the flat `mu_after` every row was written with, Proven from the same pair,
-     * and the chip decided by the `ratings` row.
-     */
-    it('leaves the month windows on the stored track', async () => {
-      const board = await loadBoard(anon, THIS_MONTH);
-      const zoya = board.rows.find((row) => row.puuid === ZOYA);
+    it('reads last week as its own window', async () => {
+      const board = await loadBoard(anon, LAST_WEEK);
+      const rows = mine(board.rows);
+      expect(rows).toHaveLength(SEATS.length);
+      for (const row of rows) {
+        const blue = SEATS.indexOf(seatOf(row.puuid)) < 5;
+        expect(row.points).toBe(blue ? 12 : -12);
+        expect(row).toMatchObject({ games: 1, wins: blue ? 1 : 0, losses: blue ? 0 : 1 });
+      }
+    });
 
-      expect(zoya?.track).toBe('all-time');
-      expect(zoya?.rating).toBe(displayRating(STORED.mu));
-      expect(zoya?.proven).toBe(Math.max(0, displayRating(ordinal(STORED))));
-      // 40 games on the `ratings` row: past the threshold, so no chip.
-      expect(zoya?.settling).toBe(false);
+    it('leaves All time on Rating, with no points', async () => {
+      const board = await loadBoard(anon, ALL_TIME);
+      const pia = board.rows.find((row) => row.puuid === puuidOf('Pia'));
+      expect(pia).toMatchObject({ track: 'all-time', points: null, rating: 1535 });
     });
   });
 
-  /**
-   * **Acceptance 7 and 8**, on the page: a week board prints the weekly `Rating` as its one
-   * number — no Proven column, label or small-type second number — carries no `settling` chip,
-   * and says the week's own sentence under it.
-   */
-  describe('the week board as a page', () => {
-    const render = async (window: 'this-week' | 'last-week' | 'this-month') => {
-      const board = await loadBoard(anon, { window, ...WEEK });
-      return renderToStaticMarkup(createElement(BoardView, { board, viewerPuuid: null }));
-    };
+  describe('the player page on every tab', () => {
+    const page = async (name: string, window: 'this-week' | 'last-week' | 'all-time') =>
+      loadPlayerBoard(
+        anon,
+        puuidOf(name),
+        window === 'all-time' ? ALL_TIME : window === 'this-week' ? THIS_WEEK : LAST_WEEK,
+      );
 
-    /** React escapes the apostrophe in the copy; a reader sees the sentence, so decode it. */
-    const textOf = (html: string): string => html.replace(/&#x27;|&#39;/g, "'").replace(/<[^>]*>/g, ' ');
-
-    it('prints the weekly Rating as the row one number and no Proven at all', async () => {
-      const [html, board] = await Promise.all([render('this-week'), loadBoard(anon, THIS_WEEK)]);
-      const zoya = board.rows.find((row) => row.puuid === ZOYA);
-
-      expect(html).toContain(`${zoya?.rating}<span class="cn-sr"> ${RATING_LABEL}</span>`);
-      // Not in the legend, not as a label, not visually hidden on a row: nowhere.
-      expect(html).not.toContain(PROVEN_LABEL);
-      // And the one number is not printed a second time in small type under itself.
-      expect(html).not.toContain('cn-row-rating');
-      // The legend over the column names the number that is in it.
-      expect(html).toContain(`<span class="cn-num cn-legend">${RATING_LABEL}</span>`);
-    });
-
-    it('is the week sentence under the board, and no chip on any row', async () => {
-      for (const window of ['this-week', 'last-week'] as const) {
-        const text = textOf(await render(window));
-
-        // Character for character, from `lib/board/copy.ts`, and exactly once.
-        expect(text.split(WEEK_BOARD_SENTENCE)).toHaveLength(2);
-        expect(text).not.toContain(SETTLING_SENTENCE);
-        expect(text).not.toContain(SETTLING_CHIP);
-      }
-    });
-
-    it('still prints Proven and its sentence on the month window', async () => {
-      const html = await render('this-month');
-
-      expect(html).toContain(PROVEN_LABEL);
-      expect(html).toContain('cn-row-rating');
-      expect(textOf(html)).not.toContain(WEEK_BOARD_SENTENCE);
-    });
-  });
-
-  /**
-   * **`/p/[puuid]` on the same week** (M7.16). The board row said `1612`, the page a tap later
-   * said `1730`, and a friend's only honest reading was that one of the two was a bug. Both
-   * surfaces read `foldWeeklyRatings` now, and this block is the claim that they agree — over
-   * this whole fixture week, not one lucky row.
-   */
-  describe('the player page on the same week', () => {
-    /** React escapes the apostrophe in the copy; a reader sees the sentence, so decode it. */
-    const textOf = (html: string): string => html.replace(/&#x27;|&#39;/g, "'").replace(/<[^>]*>/g, ' ');
-
-    const page = async (puuid: string, window: 'this-week' | 'last-week' | 'this-month' | 'all-time') =>
-      loadPlayerBoard(anon, puuid, window === 'all-time' ? ALL_TIME : { window, ...WEEK });
-
-    /**
-     * **Acceptance 1**, for every player on the week and both windows: the number on the page
-     * is the digit on the row, and so are the record and the end of the chart.
-     */
-    it('is the board row, to the digit, for every player on the week', async () => {
-      for (const window of ['this-week', 'last-week'] as const) {
-        const board = await loadBoard(anon, { window, ...WEEK });
-        const rows = mine(board.rows);
-        expect(rows).toHaveLength(EVERYONE.length);
-
-        const pages = await Promise.all(rows.map((row) => page(row.puuid, window)));
-        for (const [index, row] of rows.entries()) {
-          const player = pages[index];
-          expect(player?.track).toBe('weekly');
-          expect(player?.rating).toBe(row.rating);
-          expect(player?.games).toBe(row.games);
-          expect(player?.wins).toBe(row.wins);
-          expect(player?.losses).toBe(row.losses);
-          // The chart is the weekly fold's: it starts at the weekly seed and ends at the one
-          // number above it. No chip on a week, on either surface.
-          expect(player?.reference).toBe(displayRating(seedOf(row.puuid).mu));
-          expect(player?.history[0]).toBe(player?.reference);
-          expect(player?.history.at(-1)).toBe(row.rating);
-          expect(player?.settling).toBe(false);
-          // And it is nowhere near the stored number every one of these rows carries.
-          expect(player?.rating).not.toBe(displayRating(STORED.mu));
+    /** Acceptance 3: the same game prints the same delta on All time, This week and Last week. */
+    it('prints the same delta for the same game on every tab', async () => {
+      for (const seat of SEATS) {
+        const [all, thisWeek, lastWeek] = await Promise.all([
+          page(seat.name, 'all-time'),
+          page(seat.name, 'this-week'),
+          page(seat.name, 'last-week'),
+        ]);
+        const byGame = new Map((all?.recent ?? []).map((game) => [game.gameId, game]));
+        const weekGames = [...(thisWeek?.recent ?? []), ...(lastWeek?.recent ?? [])];
+        expect(weekGames).toHaveLength(5);
+        for (const game of weekGames) {
+          const same = byGame.get(game.gameId);
+          expect(same).toBeDefined();
+          expect([game.muBefore, game.muAfter]).toEqual([same?.muBefore, same?.muAfter]);
         }
       }
     });
 
-    /** **Acceptance 3**: the deltas under the number are the weekly ones, and they add up. */
-    it('lists the week own deltas under it, not the stored ones', async () => {
-      const player = await page(ZOYA, 'this-week');
-      const games = player?.recent ?? [];
-
-      expect(games).toHaveLength(2);
-      const [newest, oldest] = games;
-      expect(oldest?.muBefore).toBe(seedOf(ZOYA).mu);
-      expect(newest?.muBefore).toBe(oldest?.muAfter);
-      expect(displayRating(newest?.muAfter as number)).toBe(player?.rating);
-      // The stored rows are all flat at `STORED.mu`, so a page reading them would print a
-      // column of zero deltas.
-      expect(newest?.muBefore).not.toBe(newest?.muAfter);
+    it('carries the board row s net points, W–L and the all-time Rating, to the digit', async () => {
+      const rows = mine((await loadBoard(anon, THIS_WEEK)).rows);
+      const pages = await Promise.all(rows.map((row) => page(seatOf(row.puuid).name, 'this-week')));
+      for (const [index, row] of rows.entries()) {
+        const player = pages[index];
+        expect(player).toMatchObject({
+          track: 'week',
+          points: row.points,
+          games: row.games,
+          wins: row.wins,
+          losses: row.losses,
+          rating: row.rating,
+        });
+      }
     });
 
-    /**
-     * **Acceptance 5.** Nadia played neither week. Her page reads the seed her history was
-     * folded from — where Sunday put her — and the window's own empty line, not the 1800 her
-     * `ratings` row holds.
-     */
-    it('reads the weekly seed and the empty line for somebody who did not play', async () => {
-      const player = await page(IDLE, 'this-week');
+    it('is All time with no points on the all-time tab', async () => {
+      const player = await page('Pia', 'all-time');
+      expect(player).toMatchObject({ track: 'all-time', points: null, rating: displayRating(mu(1535)) });
+    });
+  });
 
-      expect(player).toMatchObject({ track: 'weekly', games: 0, wins: 0, losses: 0, range: null });
-      expect(player?.rating).toBe(displayRating(IDLE_SEED.mu));
-      expect(player?.rating).not.toBe(displayRating(IDLE_STORED.mu));
-      expect(player?.reference).toBe(displayRating(IDLE_SEED.mu));
-      expect(player?.history).toEqual([]);
-      expect(player?.recent).toEqual([]);
+  describe('as pages', () => {
+    /** React escapes the apostrophe in the copy; a reader sees the sentence, so decode it. */
+    const textOf = (html: string): string => html.replace(/&#x27;|&#39;/g, "'").replace(/<[^>]*>/g, ' ');
 
-      const html = renderToStaticMarkup(
-        createElement(PlayerView, {
-          player: player as NonNullable<typeof player>,
-          stats: emptyPlayerStats(),
-        }),
-      );
-      expect(textOf(html)).toContain(WINDOW_EMPTY['this-week']);
-      // Still the week's sentence: the number on the screen is a weekly one either way.
-      expect(textOf(html)).toContain(WEEK_PLAYER_SENTENCE);
-      // And on `All time` she is her stored rating again, with nothing about her week on it.
-      const allTime = await page(IDLE, 'all-time');
-      expect(allTime?.track).toBe('all-time');
-      expect(allTime?.rating).toBe(displayRating(IDLE_STORED.mu));
+    it('prints the week sentence under a week board and no settling section', async () => {
+      for (const window of ['this-week', 'last-week'] as const) {
+        const board = await loadBoard(anon, { window, ...WEEK });
+        const text = textOf(
+          renderToStaticMarkup(
+            createElement(BoardView, {
+              board,
+              viewerPuuid: null,
+              sort: 'rating',
+              page: 1,
+              path: '/g/customs/leaderboard',
+              playerHref: (id: string) => `/g/customs/p/${id}` as never,
+            }),
+          ),
+        );
+        expect(text.split(WEEK_BOARD_SENTENCE_SHORT)).toHaveLength(2);
+        expect(text).not.toContain(SETTLING_SECTION_LINE);
+      }
     });
 
-    /**
-     * **Acceptance 2 and 4**, on the rendered page: no Proven anywhere on a week window, the
-     * week's own third-person sentence in its place, and the month window untouched.
-     */
-    it('prints one number and no Proven on a week, and the page M3.5 shipped on a month', async () => {
-      const draw = async (window: 'this-week' | 'last-week' | 'this-month') => {
-        const player = await page(ZOYA, window);
-        return renderToStaticMarkup(
-          createElement(PlayerView, {
-            player: player as NonNullable<typeof player>,
-            stats: emptyPlayerStats(),
-          }),
+    it('prints the week note on a player s week tab and not on All time', async () => {
+      const draw = async (window: 'this-week' | 'all-time') => {
+        const player = await loadPlayerBoard(
+          anon,
+          puuidOf('Pia'),
+          window === 'all-time' ? ALL_TIME : THIS_WEEK,
+        );
+        return textOf(
+          renderToStaticMarkup(
+            createElement(PlayerView, {
+              lens: 'public' as const,
+              player: player as NonNullable<typeof player>,
+              group: { name: 'Customs Night' },
+              viewerPuuid: null,
+              path: `/g/customs/p/${puuidOf('Pia')}`,
+              gameHref: () => null,
+              allGamesHref: null,
+              timeZone: 'Africa/Cairo',
+            }),
+          ),
         );
       };
-
-      for (const window of ['this-week', 'last-week'] as const) {
-        const html = await draw(window);
-        const text = textOf(html);
-
-        // Not as a label, not as a second number, not in small type: nowhere.
-        expect(html).not.toContain(PROVEN_LABEL);
-        expect(text).not.toContain(SETTLING_CHIP);
-        expect(text).not.toContain(SETTLING_SENTENCE_PLAYER);
-        // The week's own sentence, character for character, exactly once — and in the third
-        // person, so it is not the board's.
-        expect(text.split(WEEK_PLAYER_SENTENCE)).toHaveLength(2);
-        expect(text).not.toContain(WEEK_BOARD_SENTENCE);
-        expect(text).not.toContain(SETTLING_SENTENCE);
-        // The one number, in the primary slot, under the label that names it.
-        expect(html).toContain('cn-number cn-number-primary');
-      }
-
-      const month = await draw('this-month');
-      expect(month).toContain(PROVEN_LABEL);
-      expect(textOf(month)).not.toContain(WEEK_PLAYER_SENTENCE);
+      expect(await draw('this-week')).toContain(WEEK_PLAYER_SENTENCE);
+      expect(await draw('all-time')).not.toContain(WEEK_PLAYER_SENTENCE);
     });
   });
 }

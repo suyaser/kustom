@@ -173,7 +173,12 @@ if (stack === null) {
           createElement(
             PageGroupProvider,
             { group: { id: groupIds[key], slug: slugs[key], name: `it ${runId} ${key}` } },
-            createElement(TonightView, { snapshot, viewer: { kind: 'anonymous' }, topPlayers: [] }),
+            createElement(TonightView, {
+              snapshot,
+              viewer: { kind: 'anonymous' },
+              group: { id: groupIds[key], slug: slugs[key], name: `it ${runId} ${key}` },
+              topPlayers: [],
+            }),
           ),
         );
 
@@ -182,7 +187,11 @@ if (stack === null) {
         expect(html).not.toContain(`${other.toUpperCase()}0`);
         // Every in-app link stays inside the group (acceptance 4, over the page body).
         for (const [, href] of html.matchAll(/href="([^"]*)"/g)) {
-          expect(href?.startsWith(`/g/${slugs[key]}`) || href?.startsWith('https://'), href).toBe(true);
+          // `/how` is Kustom's own page (the receipt's `More on how it works`), not another group's.
+          expect(
+            href?.startsWith(`/g/${slugs[key]}`) || href?.startsWith('https://') || href === '/how',
+            href,
+          ).toBe(true);
         }
       });
     }

@@ -23,7 +23,7 @@
  * ------------------------------------------------------------------------- */
 
 /** A non-admin body naming somebody else (403). Decided before any read. */
-export const ROLE_TAP_NOT_YOURS = "That is not you. Only an admin can set somebody else's role.";
+export const ROLE_TAP_NOT_YOURS = "That's not you. Only an admin can set somebody else's role.";
 
 /** The lobby is finished, dropped, abandoned or gone (404, 409). */
 export const ROLE_TAP_NO_LOBBY = 'That lobby is over. You can set a role when the next one opens.';
@@ -64,8 +64,12 @@ export const LINK_TAKEN = 'Someone is already linked to that player.';
 export const LINK_ALREADY_LINKED =
   'You already picked yourself. An admin can undo it if it was the wrong name.';
 
-/** `That's me` on somebody who is not in tonight's lobby (403). */
-export const LINK_NOT_IN_LOBBY = "You can only pick somebody who is in tonight's lobby.";
+/**
+ * `That's me` on somebody outside the claim set (403): not in tonight's lobby and not in a game
+ * of this group that ended in the last 12 hours (M14.34, `lib/me/claimable.ts`).
+ */
+export const LINK_NOT_CLAIMABLE =
+  "You can only pick somebody from tonight's lobby or a game in the last 12 hours.";
 
 /* ---------------------------------------------------------------------------
  * Every group-scoped route (M13.4)

@@ -1,4 +1,5 @@
 import { type RoleTonightRequest, roleTonightRequestSchema, roleTonightResponseSchema } from '@customs/db';
+import { isAtLeast } from '@customs/db/schemas';
 import type { NextResponse } from 'next/server';
 import { NOT_IN_THIS_GROUP, ROLE_TAP_NOT_LINKED } from '@/lib/me/copy';
 import {
@@ -49,8 +50,9 @@ async function handle(
   const store = options.store ? options.store(context) : supabaseRoleTonightStore(context.client);
   const result = await setRoleTonight(
     store,
-    // Admin of **this** group (M13.4): an admin of another group is a member here, nothing more.
-    { ...player, isAdmin: context.role === 'admin' },
+    // Admin (or owner, M14.11) of **this** group (M13.4): an admin of another group is a member
+    // here, nothing more.
+    { ...player, isAdmin: isAtLeast(context.role, 'admin') },
     { groupId: context.groupId, lobbyId: input.lobbyId, role: input.role, puuid: input.puuid },
     // The night this preference belongs to ends at 06:00 in the deployment's zone, and the
     // route is the only place that knows which zone that is.

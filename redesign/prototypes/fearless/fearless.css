@@ -1,0 +1,145 @@
+/* Fearless (2.0) prototype, on top of ../direction-c/c.css. Values per docs/05-design.md "Fearless (2.0)".
+   Not app code: the app takes tokens from 05-design.md 7.3 only. */
+
+:root { --dd: "https://ddragon.leagueoflegends.com/cdn/16.19.1/img/sprite"; }
+
+/* ---------- Icon: Data Dragon sprite, 48px cells drawn at 24 (crisp at 2x) ---------- */
+.ico { width: 24px; height: 24px; flex: none; display: block; border-radius: var(--radius-chip);
+       background-size: 240px 72px; background-repeat: no-repeat; }
+.s0 { background-image: url(https://ddragon.leagueoflegends.com/cdn/16.19.1/img/sprite/champion0.png); }
+.s1 { background-image: url(https://ddragon.leagueoflegends.com/cdn/16.19.1/img/sprite/champion1.png); }
+.s2 { background-image: url(https://ddragon.leagueoflegends.com/cdn/16.19.1/img/sprite/champion2.png); }
+.s3 { background-image: url(https://ddragon.leagueoflegends.com/cdn/16.19.1/img/sprite/champion3.png); }
+.s4 { background-image: url(https://ddragon.leagueoflegends.com/cdn/16.19.1/img/sprite/champion4.png); }
+.s5 { background-image: url(https://ddragon.leagueoflegends.com/cdn/16.19.1/img/sprite/champion5.png); }
+
+/* ---------- Card ---------- */
+.fearless { padding: 16px; scroll-margin-top: 12px; }
+.fl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
+.fl-head .card-title { font-size: 19px; }
+.fl-head .link, .fl-foot .link { font-size: 16px; color: var(--foreground); }
+.counts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin-top: 6px; }
+.c-open { font-size: 17px; font-weight: 700; }
+.c-open b { font-family: var(--font-mono); font-stretch: 85%; font-weight: 600; font-size: 32px; line-height: 1; margin-right: 4px; letter-spacing: -0.02em; }
+.c-ban { font-size: 15px; color: var(--muted-foreground); }
+.c-ban b { font-family: var(--font-mono); font-stretch: 85%; font-weight: 600; font-size: 19px; color: var(--muted-foreground); margin-right: 4px; }
+.fl-sub { margin-top: 6px; font-size: 16px; color: var(--muted-foreground); text-wrap: pretty; }
+
+/* ---------- Tools: find + lane control ---------- */
+.tools { display: grid; gap: 12px; margin-top: 14px; }
+.find { display: grid; gap: 4px; }
+.find-l { font-size: 15px; font-weight: 700; }
+.find input { width: 100%; min-height: 44px; font: inherit; font-size: 17px; color: var(--foreground); background: var(--background);
+              border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 12px; }
+.find input::placeholder { color: var(--muted-foreground); opacity: 1; }
+.find input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.segctl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.seg-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 8px;
+           background: transparent; color: var(--muted-foreground); border: 1px solid var(--border); border-radius: var(--radius-control);
+           font-family: var(--font-mono); font-stretch: 85%; font-size: 15px; font-weight: 500; cursor: pointer; touch-action: manipulation; }
+.seg-btn[data-lane="all"] { font-family: var(--font-text); font-stretch: 100%; font-weight: 700; }
+.seg-btn svg { width: 20px; height: 20px; flex: none; }
+.seg-btn[aria-pressed="true"] { background: var(--foreground); color: var(--card); border-color: var(--foreground); font-weight: 600; }
+.youlane { margin-top: 10px; font-size: 16px; color: var(--muted-foreground); display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.youlane b { font-family: var(--font-mono); font-stretch: 85%; color: var(--foreground); font-weight: 600; }
+.linkbtn { background: none; border: 0; padding: 0; min-height: 44px; font: inherit; font-weight: 700; color: var(--foreground);
+           text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.hitline { font-size: 19px; font-weight: 700; margin-top: 10px; }
+.hitline:empty { display: none; }
+
+/* ---------- Lanes ---------- */
+.lanes { margin-top: 8px; }
+.lane { padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--border);
+        content-visibility: auto; contain-intrinsic-size: auto 520px; }
+.lane-h { display: flex; align-items: center; gap: 10px; }
+.lane-h svg { width: 24px; height: 24px; flex: none; color: var(--foreground); }
+.lane-word { font-family: var(--font-mono); font-stretch: 88%; font-weight: 600; font-size: 23px; line-height: 1.1; letter-spacing: 0.01em; }
+.lane-count { margin-left: auto; font-size: 15px; color: var(--muted-foreground); white-space: nowrap; }
+.lane-count b { font-family: var(--font-mono); font-stretch: 85%; font-weight: 600; font-size: 19px; color: var(--foreground); margin-right: 3px; }
+
+.openlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 12px; }
+.chip-open { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 4px 6px 4px 5px;
+             background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius-chip);
+             font-size: 17px; font-weight: 600; line-height: 1.2; overflow-wrap: break-word; }
+.bans { margin-top: 10px; }
+.bans > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px;
+                  font-size: 15px; font-weight: 700; color: var(--muted-foreground); }
+.bans > summary::-webkit-details-marker { display: none; }
+.bans > summary b { font-family: var(--font-mono); font-stretch: 85%; font-weight: 600; font-size: 15px; }
+.bans > summary .chev { transition: transform 200ms cubic-bezier(.2,.8,.2,1); }
+.bans[open] > summary .chev { transform: rotate(180deg); }
+.banlist { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 4px; }
+.chip-ban { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 3px 9px 3px 4px;
+            border: 1px solid var(--border); border-radius: var(--radius-chip); background: transparent;
+            font-size: 15px; font-weight: 400; color: var(--muted-foreground); }
+.chip-ban .ico { opacity: 0.55; }
+.is-hit { background: var(--foreground) !important; color: var(--card) !important; border-color: var(--foreground) !important; }
+.is-hit .ico { opacity: 1; }
+li[hidden], .lane[hidden] { display: none; }
+
+/* ---------- Tonight line (idle, in game) ---------- */
+.fl-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 12px 16px; min-height: 56px; text-decoration: none; }
+.fl-line-t { font-weight: 700; font-size: 17px; grid-column: 1; }
+.fl-line-c { grid-column: 1; font-size: 15px; color: var(--muted-foreground); }
+.fl-line-c b { font-family: var(--font-mono); font-stretch: 85%; font-weight: 600; color: var(--foreground); font-size: 16px; }
+.fl-line-s { grid-column: 1; font-size: 15px; color: var(--muted-foreground); }
+.fl-line-a { grid-column: 2; grid-row: 1 / span 3; font-weight: 700; font-size: 16px; text-decoration: underline; text-underline-offset: 3px; }
+.dotsep { padding: 0 2px; }
+
+/* ---------- Filling: lane counts as links ---------- */
+.fl-compact .find { margin-top: 14px; }
+.lanecounts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.lanecount { display: grid; justify-items: center; gap: 2px; min-height: 64px; padding: 8px 2px; text-decoration: none;
+             border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); }
+.lanecount svg { width: 20px; height: 20px; color: var(--muted-foreground); }
+.lc-w { font-family: var(--font-mono); font-stretch: 78%; font-size: 13px; color: var(--muted-foreground); }
+.lanecount b { font-family: var(--font-mono); font-stretch: 85%; font-weight: 600; font-size: 19px; line-height: 1; }
+
+/* ---------- Finished: banned next game ---------- */
+.nb { margin-top: 10px; }
+.nb-row { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+.nb-row:first-child { border-top: 0; }
+.nb-lane { display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--font-mono); font-stretch: 75%; font-size: 13px; color: var(--muted-foreground); }
+.nb-lane svg { width: 22px; height: 22px; }
+.nb-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.fl-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 6px; }
+.fl-foot .link { font-size: 16px; }
+
+/* ---------- Empty and reset ---------- */
+.fl-empty, .fl-reset { border-style: dashed; border-color: var(--border-strong); }
+.empty-l { margin-top: 8px; font-size: 16px; text-wrap: pretty; }
+
+/* ---------- The page ---------- */
+.pagehead { margin: 8px 0 16px; }
+.crumb { font-size: 15px; color: var(--muted-foreground); }
+.crumb a { text-underline-offset: 3px; }
+.h1 { font-family: var(--font-text); font-weight: 700; font-size: 32px; line-height: 1.1; margin-top: 2px; }
+.since { margin-top: 6px; font-size: 16px; color: var(--muted-foreground); }
+.fl-page .fearless { margin-top: 0; }
+.admin-reset { margin-top: 16px; padding: 16px; display: grid; gap: 4px; justify-items: start; }
+.btn-secondary { margin-top: 10px; min-height: 44px; padding: 0 16px; font: inherit; font-weight: 700; font-size: 17px;
+                 color: var(--foreground); background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius-control); }
+
+/* ---------- States sheet ---------- */
+.statelist { display: grid; gap: 10px; max-width: 760px; }
+.state-tag { margin-top: 18px; font-family: var(--font-mono); font-stretch: 80%; font-size: 13px; color: var(--muted-foreground); }
+
+/* ---------- Wider ---------- */
+@media (min-width: 768px) {
+  .segctl { grid-template-columns: repeat(6, auto); justify-content: start; }
+  .seg-btn { padding: 0 14px; }
+  .tools { grid-template-columns: minmax(240px, 360px) 1fr; align-items: end; }
+}
+@media (min-width: 1024px) {
+  .fearless { padding: 20px; }
+  .openlist { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
+  /* The page with every lane: a draft board, one column per lane, top to support. */
+  .lanes.board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 20px; align-items: start; }
+  .lanes.board .lane { margin-top: 16px; }
+  .lanes.board .openlist { grid-template-columns: 1fr; }
+  .lanes.board .lane-h { flex-wrap: wrap; row-gap: 2px; }
+  .tools { grid-template-columns: minmax(260px, 380px) auto; }
+}
+@media (forced-colors: active) { .is-hit { outline: 2px solid CanvasText; } .seg-btn[aria-pressed="true"] { outline: 2px solid Highlight; } }
+.youlane[hidden] { display: none; }
+.lanes.searching .lane-count { display: none; }

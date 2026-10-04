@@ -624,6 +624,33 @@ describe('CommandRunner: create_lobby', () => {
     expectAck(h, ID_A, { partyId: 'party-created-0001', lobbyName: 'Customs 09 Sep #1' });
   });
 
+  it('M17.17: pickType blind resolves queueId 3100 off the same fixtures; an explicit draft and an old payload both send 3110', async () => {
+    const dialogFixture = fixtureBody('custom-game-queues', '16.18');
+    const queuesFixture = fixtureBody('game-queues', '16.18');
+    const sent: Record<string, number> = {};
+    for (const [label, payload] of [
+      ['blind', { lobbyName: 'Customs 09 Sep #1', lobbyPassword: LOBBY_PASSWORD, pickType: 'blind' }],
+      ['draft', { lobbyName: 'Customs 09 Sep #1', lobbyPassword: LOBBY_PASSWORD, pickType: 'draft' }],
+      ['old', { lobbyName: 'Customs 09 Sep #1', lobbyPassword: LOBBY_PASSWORD }],
+    ] as const) {
+      const h = await setup({
+        world: { customQueues: dialogFixture, gameQueues: queuesFixture },
+        apiRoutes: {
+          [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby(ID_A, { payload })]), empty],
+          [`POST ${commandAckPath(ID_A)}`]: [okAck],
+        },
+      });
+      await h.runner.pollNow();
+      const posted = JSON.parse(h.lcuPosts()[0]?.body ?? '') as {
+        customGameLobby: { configuration: { mutators: { id: number } } };
+        queueId: number;
+      };
+      expect(posted.customGameLobby.configuration.mutators.id).toBe(posted.queueId);
+      sent[label] = posted.queueId;
+    }
+    expect(sent).toEqual({ blind: 3100, draft: 3110, old: 3110 });
+  });
+
   it('nacks client_rejected with the dialog list, and posts nothing, when neither the dialog nor the queue list names a draft entry', async () => {
     const h = await setup({
       world: {

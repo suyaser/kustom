@@ -1,21 +1,28 @@
-import { type Assignment, displayRating, isOffRole, type Role } from '@customs/core';
+import { type Assignment, displayRating, isOffRole, type Mode, type Role, resolveRoles } from '@customs/core';
 import type { SideValue } from '@customs/db';
+import { type RuleCheck, ruleCheckSchema, ruleModeOf } from '@customs/db/schemas';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
-import { type FoldPerformance, gatedGameAward } from '../ingest/fold';
+import { matchesQueue } from '../games/queue';
+import { type FoldPerformance, gatedGameAward, gateGame } from '../ingest/fold';
 import type { PoolMember, SeatMove } from '../ingest/selection';
+import { loadCheckNames } from '../mode/clientNames';
 import { displayDelta } from '../ratingDisplay';
+import { groupPageUrl, kustomAvatarUrl } from '../siteUrl';
 import type { ServiceClient } from '../supabase';
+import { sitOutRule } from '../tonight/sitOut';
 import type {
   PlayerName,
+  PostIdentity,
   PromotedSplit,
   ResultAward,
   ResultEmbedInput,
   ResultPlayer,
   SeatLine,
-  SitOutReason,
   TeamsEmbedInput,
   TeamsPlayer,
+  TeamsReceipt,
 } from './embeds';
+import type { TeamsModeInput } from './modeLines';
 
 /**
  * Rows and events in, embed inputs out (M3.1, M3.3).
@@ -44,12 +51,27 @@ export interface TeamsSource {
    * this interface unchanged.
    */
   promoted?: PromotedSplit | undefined;
+  /**
+   * The stored split columns the receipt is drawn from (M14.10), read by `loadLobbyReceipt`.
+   * Absent or `null` leaves the description core's sentence alone.
+   */
+  receipt?: TeamsReceipt | null | undefined;
+  /**
+   * The lobby's mode lock taken at Roll (M15.6), read by `loadTeamsMode`. Absent or `null` (a
+   * balance with no lock, or a lock that could not be read) prints no rule line.
+   */
+  mode?: TeamsModeInput | null | undefined;
 }
 
 export interface EmbedContext {
-  /** The tonight page, or `undefined` when there is no honest URL to post (M3.1). */
+  /** The group's name and links, and the avatar (M14.61, 05-design 10.2). */
+  identity: PostIdentity;
+  /** E1's title link (the group's page, or the game's), or `undefined` with no honest URL (M3.1). */
   url?: string | undefined;
-  timestamp: string;
+  /** The teams post's E4 link, `/g/<slug>#how-the-bot-decided` (M14.61). */
+  receiptUrl?: string | undefined;
+  /** The result post's thumbnail, only on a public origin (05-design 10.11 B2). */
+  badgeUrl?: string | undefined;
   /**
    * M4.3's gate, for the teams embed's side line. Left out in production, where the value is
    * {@link SWITCH_SIDE_ENABLED} read at post time: the same flag that decides whether a
@@ -57,6 +79,8 @@ export interface EmbedContext {
    * cannot promise a switch the server does not make. Tests pass it to see the other line.
    */
   switchSideEnabled?: boolean | undefined;
+  /** The group's mode panel, `/g/<slug>/mode`, for the teams post's rule line (M15.6). */
+  modeUrl?: string | undefined;
 }
 
 export type NameLookup = ReadonlyMap<string, PlayerName>;
@@ -94,6 +118,7 @@ export function buildTeamsInput(
         // Core's rule, not a copy of it: the scorer, the explanation and this line agree
         // about who is off-role because all three ask the same function.
         offRole: isOffRole(member, role),
+        noMain: resolveRoles(member).main === null,
       };
     });
 
@@ -101,38 +126,25 @@ export function buildTeamsInput(
     blue: side(source.split.blue),
     red: side(source.split.red),
     explanation: source.explanation,
+    receipt: source.receipt ?? null,
     sitOut:
       source.sitters.length === 0
         ? null
         : {
             names: source.sitters.map((member) => names.get(member.puuid) ?? null),
-            reason: sitOutReason(source),
+            rule: sitOutRule(source.playing, source.sitters),
           },
     seats: source.seatMoves.map((move) => toSeatLine(move, names)),
     switchSideEnabled: context.switchSideEnabled ?? SWITCH_SIDE_ENABLED,
     lobby: { name: source.lobbyName, password: source.lobbyPassword },
     promoted: source.promoted,
+    identity: context.identity,
     url: context.url,
-    timestamp: context.timestamp,
+    receiptUrl: context.receiptUrl,
+    ...(source.mode === undefined || source.mode === null
+      ? {}
+      : { mode: source.mode, modeUrl: context.modeUrl }),
   };
-}
-
-/**
- * Which of the three clauses is true of this pool (M2.15, M3.12).
- *
- * Not tied on games: somebody has played more than the rest and that is why they sit. Tied,
- * and somebody around has sat out before: the second key of `compareForSitOut` decided it, so
- * "longest since they last sat out" is the reason. Tied with **nobody** carrying a sit-out —
- * the first balance of a night, and of the group — and the comparator has fallen through to
- * PUUID order; there is no history to point at, so the clause says exactly that instead of
- * claiming one (product, 2026-09-09).
- *
- * The pool is the ten plus the sitters: everyone around, which is what the comparator ordered.
- */
-export function sitOutReason(source: Pick<TeamsSource, 'playing' | 'sitters' | 'tiedOnGames'>): SitOutReason {
-  if (!source.tiedOnGames) return 'most-games';
-  const around = [...source.playing, ...source.sitters];
-  return around.every((member) => member.lastSitOutAt === null) ? 'first-sit-out' : 'longest-since';
 }
 
 function toSeatLine(move: SeatMove, names: NameLookup): SeatLine {
@@ -150,6 +162,12 @@ export interface ResultSource {
   blueWinProb: number | null;
   /** ISO 8601: when the game ended (`started_at + duration_s`). */
   endedAt: string;
+  /** `games.rated` (M15.3): false for a game played not rated (a rule's default, or the switch). */
+  rated: boolean;
+  /** Summoner's Rift (`raw.gameMode` CLASSIC or missing, M7.1): ARAM never gets a result post. */
+  rift: boolean;
+  /** The rule played (`games.rule*`) and its stored check (`games.rule_check`), or `null`. */
+  rule: { mode: Mode; check: RuleCheck; names?: Readonly<Record<number, string>> } | null;
   players: readonly ResultSourcePlayer[];
 }
 
@@ -182,6 +200,8 @@ export interface ResultSourcePlayer {
  * companion in the same game produces no second message.
  */
 export function buildResultInput(source: ResultSource, context: EmbedContext): ResultEmbedInput | null {
+  if (!source.rated) return buildNotRatedInput(source, context);
+
   const rated = source.players.filter(
     (player): player is ResultSourcePlayer & { muBefore: number; muAfter: number } =>
       player.muBefore !== null && player.muAfter !== null,
@@ -197,10 +217,6 @@ export function buildResultInput(source: ResultSource, context: EmbedContext): R
     delta: displayDelta(player.muBefore, player.muAfter),
   });
 
-  const top = [...source.players].sort(
-    (a, b) => b.damage - a.damage || (a.puuid < b.puuid ? -1 : a.puuid > b.puuid ? 1 : 0),
-  )[0];
-
   return {
     winningSide: source.winningSide === 100 ? 100 : 200,
     durationS: source.durationS,
@@ -208,11 +224,54 @@ export function buildResultInput(source: ResultSource, context: EmbedContext): R
     red: rated.filter((player) => player.side === 200).map(toPlayer),
     award: resultAward(source),
     blueWinProb: source.blueWinProb,
-    topDamage: top === undefined || top.damage <= 0 ? null : { name: top.name, damage: top.damage },
+    topDamage: topDamage(source),
     gameNumber: source.gameNumber,
+    // A rated rule game (mirror match, or a rule switched to rated) carries its check line.
+    ...(source.rule === null ? {} : { mode: { rated: true, rule: source.rule } }),
+    identity: context.identity,
     url: context.url,
-    timestamp: context.timestamp,
+    badgeUrl: context.badgeUrl,
   };
+}
+
+/**
+ * A game played **not rated** (M15.6, brief D5): unlike ARAM it gets a result post, because the
+ * rule line lives there. Only a clean Rift ten — the gate the fold would have used had the game
+ * been rated (ten rows, five a side, over five minutes, Rift) — so a remake, a short game and an
+ * ARAM still get none. The columns print names alone, there is no MVP and ACE (nobody's delta was
+ * amplified), and the description says `Not rated, so no Rating change.`
+ */
+function buildNotRatedInput(source: ResultSource, context: EmbedContext): ResultEmbedInput | null {
+  if (!source.rift || !gateGame(source.players, source.durationS).ok) return null;
+  const toPlayer = (player: ResultSourcePlayer): ResultPlayer => ({
+    puuid: player.puuid,
+    name: player.name,
+    role: player.role,
+    rating: null,
+    delta: null,
+  });
+  return {
+    winningSide: source.winningSide === 100 ? 100 : 200,
+    durationS: source.durationS,
+    blue: source.players.filter((player) => player.side === 100).map(toPlayer),
+    red: source.players.filter((player) => player.side === 200).map(toPlayer),
+    award: null,
+    blueWinProb: source.blueWinProb,
+    topDamage: topDamage(source),
+    gameNumber: source.gameNumber,
+    mode: { rated: false, rule: source.rule },
+    identity: context.identity,
+    url: context.url,
+    badgeUrl: context.badgeUrl,
+  };
+}
+
+/** The single highest damage of the game, ties broken by puuid; `null` when nobody dealt any. */
+function topDamage(source: ResultSource): { name: PlayerName; damage: number } | null {
+  const top = [...source.players].sort(
+    (a, b) => b.damage - a.damage || (a.puuid < b.puuid ? -1 : a.puuid > b.puuid ? 1 : 0),
+  )[0];
+  return top === undefined || top.damage <= 0 ? null : { name: top.name, damage: top.damage };
 }
 
 /**
@@ -288,8 +347,9 @@ export function teamsPuuids(source: TeamsSource): string[] {
 export async function loadResultSource(client: ServiceClient, gameId: string): Promise<ResultSource | null> {
   const { data: game, error } = await client
     .from('games')
-    // No `seasons!inner(name)`: a season's name is printed on no surface any more (M5.12).
-    .select('id, lobby_id, started_at, duration_s, winning_side')
+    .select(
+      'id, group_id, lobby_id, started_at, duration_s, winning_side, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, rule_check, raw->gameMode',
+    )
     .eq('id', gameId)
     .maybeSingle();
   if (error) throw new Error(`discord: game lookup failed: ${error.message}`);
@@ -309,6 +369,9 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
   if (playerError) throw new Error(`discord: game_players lookup failed: ${playerError.message}`);
 
   const splitRoles = await loadSplitRoles(client, game.lobby_id);
+  const rule = storedRule(gameId, game);
+  // M15.10: a checked champion newer than the pin is named as the client named it.
+  const names = rule === null ? {} : await loadCheckNames(client, gameId, rule.check);
 
   const players: ResultSourcePlayer[] = (rows ?? [])
     .filter((row) => row.side === 100 || row.side === 200)
@@ -340,11 +403,46 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
   return {
     winningSide: game.winning_side,
     durationS: game.duration_s,
-    gameNumber: await countGamesThrough(client, game.started_at),
+    gameNumber: await countGamesThrough(client, game.group_id, game.started_at),
     blueWinProb: splitRoles.blueWinProb,
     endedAt: new Date(Date.parse(game.started_at) + game.duration_s * 1_000).toISOString(),
+    rated: game.rated,
+    rift: matchesQueue(typeof game.gameMode === 'string' ? game.gameMode : null, 'sr'),
+    rule: rule === null || Object.keys(names).length === 0 ? rule : { ...rule, names },
     players,
   };
+}
+
+/**
+ * The game's rule and its stored verdict (`0032`), or `null` for a standing-mode game, a game
+ * whose check never ran, or a stored verdict this build cannot read (logged and dropped: the
+ * post goes out without the check line rather than not at all).
+ */
+export function storedRule(
+  gameId: string,
+  row: {
+    rule: string | null;
+    rule_class_tag: string | null;
+    rule_region_blue: string | null;
+    rule_region_red: string | null;
+    rule_checked: boolean;
+    rule_check: unknown;
+  },
+): { mode: Mode; check: RuleCheck } | null {
+  if (!row.rule_checked) return null;
+  const mode = ruleModeOf({
+    rule: row.rule,
+    classTag: row.rule_class_tag,
+    regionBlue: row.rule_region_blue,
+    regionRed: row.rule_region_red,
+  });
+  if (mode === null) return null;
+  const check = ruleCheckSchema.safeParse(row.rule_check);
+  if (!check.success) {
+    console.error(`discord: game ${gameId} has a rule_check this build cannot read; posting without it`);
+    return null;
+  }
+  return { mode, check: check.data };
 }
 
 /** The chosen split of the lobby this game was played from: who played where, and the odds. */
@@ -376,21 +474,133 @@ async function loadSplitRoles(
  * 2026-09-10). Counted rather than stored, so it stays right after a backfill inserts an older
  * game (M5.1).
  *
- * **No season filter.** There is one `seasons` row and nothing can make a second (M5.14), so
- * the filter only ever narrowed the count on a deployment that pressed the removed button —
- * where it would have restarted the group's game numbering at 1 for no reason a friend could
- * see. Every game up to and including this one, and that is the whole rule.
+ * Every game of **this game's group** up to and including this one (M14.10: a second
+ * group's first game is its game 1, not the original group's count plus one).
  */
-async function countGamesThrough(client: ServiceClient, startedAt: string): Promise<number | null> {
+async function countGamesThrough(
+  client: ServiceClient,
+  groupId: string,
+  startedAt: string,
+): Promise<number | null> {
   const { count, error } = await client
     .from('games')
     .select('id', { count: 'exact', head: true })
+    .eq('group_id', groupId)
     .lte('started_at', startedAt);
   if (error) {
     console.error(`discord: counting the group's games failed: ${error.message}`);
     return null;
   }
   return count ?? null;
+}
+
+/** One stored `splits` row, as `loadLobbyReceipt` reads it. */
+export interface StoredSplitRow {
+  id: string;
+  rank: number;
+  blue: unknown;
+  red: unknown;
+  gap: number;
+  off_role_count: number;
+  blue_win_prob: number;
+}
+
+/**
+ * The teams embed's receipt from a lobby's stored splits (M14.10): the posted one, the one ranked
+ * directly below it, and how many there are. Pure. `null` when the posted split is not among the
+ * rows or its sides do not read as five a side: a receipt about a split we cannot read is worse
+ * than core's sentence alone.
+ */
+export function toReceipt(rows: readonly StoredSplitRow[], postedSplitId: string): TeamsReceipt | null {
+  const read = (row: StoredSplitRow) => ({
+    rank: row.rank,
+    blue: readAssignments(row.blue),
+    red: readAssignments(row.red),
+    gap: row.gap,
+    offRoleCount: row.off_role_count,
+    blueWinProb: row.blue_win_prob,
+  });
+  const posted = rows.find((row) => row.id === postedSplitId);
+  if (posted === undefined) return null;
+  const chosen = read(posted);
+  if (chosen.blue.length !== 5 || chosen.red.length !== 5) return null;
+  if (!(chosen.blueWinProb >= 0 && chosen.blueWinProb <= 1)) return null;
+  const below = rows.find((row) => row.rank === posted.rank + 1);
+  const next = below === undefined ? null : read(below);
+  return { chosen, next, splitCount: rows.length };
+}
+
+/**
+ * Every split a lobby stored, by rank: the numeric columns the receipt reads and nothing else
+ * (never `explanation`, STRATEGY §4.2 rule 5). `null` when the read fails: the post goes out with
+ * core's sentence alone rather than not at all.
+ */
+export async function loadLobbyReceipt(
+  client: ServiceClient,
+  lobbyId: string,
+  postedSplitId: string,
+): Promise<TeamsReceipt | null> {
+  const { data, error } = await client
+    .from('splits')
+    .select('id, rank, blue, red, gap, off_role_count, blue_win_prob')
+    .eq('lobby_id', lobbyId)
+    .order('rank', { ascending: true });
+  if (error) {
+    console.error(`discord: reading the lobby's splits for the receipt failed: ${error.message}`);
+    return null;
+  }
+  return toReceipt(data ?? [], postedSplitId);
+}
+
+/**
+ * A group's `/g/<slug>` segment, for every link its posts carry (M13.11, M14.10). `null` when the
+ * group is gone or the read fails, and the post goes out with no link rather than a link to
+ * another group's page.
+ */
+export async function loadGroupSlug(client: ServiceClient, groupId: string): Promise<string | null> {
+  try {
+    const { data, error } = await client.from('groups').select('slug').eq('id', groupId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.slug ?? null;
+  } catch (error) {
+    console.error('discord: group slug lookup failed', error);
+    return null;
+  }
+}
+
+/** A group as its posts name it (M14.61): the `/g/<slug>` segment and the display name. */
+export interface PostGroup {
+  slug: string;
+  name: string;
+}
+
+/**
+ * The group's slug and name, for every post's links and author line (M14.61). `null` when the
+ * group is gone or the read fails: the post goes out with no author and no link, never another
+ * group's.
+ */
+export async function loadPostGroup(client: ServiceClient, groupId: string): Promise<PostGroup | null> {
+  try {
+    const { data, error } = await client.from('groups').select('slug, name').eq('id', groupId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data === null ? null : { slug: data.slug, name: data.name };
+  } catch (error) {
+    console.error('discord: group lookup failed', error);
+    return null;
+  }
+}
+
+/**
+ * A post's {@link PostIdentity} from its group and the request origin (05-design 10.2): the
+ * author names the group and links `/g/<slug>`, and the avatar is sent only on a public origin.
+ * Pure.
+ */
+export function postIdentity(group: PostGroup | null, origin: string | null | undefined): PostIdentity {
+  return {
+    groupName: group?.name ?? null,
+    groupUrl: group === null ? undefined : groupPageUrl(origin, group.slug),
+    avatarUrl: kustomAvatarUrl(origin),
+  };
 }
 
 const ROLE_VALUES: readonly string[] = ['top', 'jungle', 'mid', 'adc', 'support'];

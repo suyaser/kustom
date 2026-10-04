@@ -3,19 +3,23 @@ import type { ServiceClient } from '../supabase';
 import { loadAdminNames } from './admins';
 
 /**
- * The admins' names for the strip (2026-10-03, per group since M13.4): the group's `admin`
- * memberships, oldest player first, display name before game name, `null` for a row with
- * neither. Never the old global flag on `players`.
+ * The admins' names for the strip (2026-10-03, per group since M13.4): the group's `admin` and
+ * `owner` memberships (M14.11: the owner can roll too), oldest player first, display name before
+ * game name, `null` for a row with neither. Never the old global flag on `players`.
  */
 
 function client(result: { data: unknown; error: { message: string } | null }) {
-  const calls: { from?: string; eq: [string, unknown][] } = { eq: [] };
+  const calls: { from?: string; filters: [string, string, unknown][] } = { filters: [] };
   const chain = {
     select: () => chain,
     eq: (column: string, value: unknown) => {
-      calls.eq.push([column, value]);
-      // The second filter is the last call of the chain: answer it.
-      return calls.eq.length === 2 ? Promise.resolve(result) : chain;
+      calls.filters.push(['eq', column, value]);
+      return chain;
+    },
+    // The role filter is the last call of the chain: answer it.
+    in: (column: string, value: unknown) => {
+      calls.filters.push(['in', column, value]);
+      return Promise.resolve(result);
     },
   };
   return {
@@ -30,7 +34,7 @@ function client(result: { data: unknown; error: { message: string } | null }) {
 }
 
 describe('loadAdminNames', () => {
-  it("reads the group's admins oldest first and names each the way the page does", async () => {
+  it("reads the group's admins and owner oldest first and names each the way the page does", async () => {
     const { client: fake, calls } = client({
       data: [
         { players: { display_name: null, game_name: 'Omar', created_at: '2026-09-02' } },
@@ -41,9 +45,9 @@ describe('loadAdminNames', () => {
     });
     expect(await loadAdminNames(fake, 'group-a')).toEqual(['Yasser', 'Omar', null]);
     expect(calls.from).toBe('group_memberships');
-    expect(calls.eq).toEqual([
-      ['group_id', 'group-a'],
-      ['role', 'admin'],
+    expect(calls.filters).toEqual([
+      ['eq', 'group_id', 'group-a'],
+      ['in', 'role', ['owner', 'admin']],
     ]);
   });
 

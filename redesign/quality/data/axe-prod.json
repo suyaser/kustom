@@ -1,0 +1,1042 @@
+[
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/about",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/how",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/download",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/new",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/ops",
+  "status": 404,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/leaderboard",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/p/audit-p01",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": ".overflow-hidden.rounded-card.text-card-foreground:nth-child(1) > .auto-rows-min.pt-\\(--card-pad\\).has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[minmax\\(0\\,1fr\\)_auto\\] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/you",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/mode",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": "section[aria-label=\"top\"] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats/champions",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/mystery",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/members",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/discord",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/hosts",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/admin/login",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 375,
+  "base": "prod",
+  "path": "/nope",
+  "status": 404,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/about",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/how",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/download",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/new",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/ops",
+  "status": 404,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/leaderboard",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/p/audit-p01",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": ".overflow-hidden.rounded-card.text-card-foreground:nth-child(1) > .auto-rows-min.pt-\\(--card-pad\\).has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[minmax\\(0\\,1fr\\)_auto\\] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/you",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/mode",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": "section[aria-label=\"top\"] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats/champions",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/mystery",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/members",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/discord",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/hosts",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/admin/login",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "night",
+  "width": 1440,
+  "base": "prod",
+  "path": "/nope",
+  "status": 404,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/about",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/how",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/download",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/new",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/ops",
+  "status": 404,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/leaderboard",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/p/audit-p01",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": ".overflow-hidden.rounded-card.text-card-foreground:nth-child(1) > .auto-rows-min.pt-\\(--card-pad\\).has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[minmax\\(0\\,1fr\\)_auto\\] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/you",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/mode",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": "section[aria-label=\"top\"] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats/champions",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/mystery",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/members",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/discord",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/hosts",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/g/customs/admin/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/admin/login",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 375,
+  "base": "prod",
+  "path": "/nope",
+  "status": 404,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/about",
+  "status": 200,
+  "violations": [
+   {
+    "id": "landmark-unique",
+    "impact": "moderate",
+    "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+    "nodes": [
+     {
+      "target": "section[aria-labelledby=\"_S_1_\"]",
+      "summary": "Fix any of the following: |   The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/how",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/download",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/new",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/join/IlghJ3G9Sn6w1lQJGo70vg",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/ops",
+  "status": 404,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/leaderboard",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/p/audit-p01",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": ".overflow-hidden.rounded-card.text-card-foreground:nth-child(1) > .auto-rows-min.pt-\\(--card-pad\\).has-data-\\[slot\\=card-action\\]\\:grid-cols-\\[minmax\\(0\\,1fr\\)_auto\\] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/you",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/mode",
+  "status": 200,
+  "violations": [
+   {
+    "id": "heading-order",
+    "impact": "moderate",
+    "help": "Heading levels should only increase by one",
+    "nodes": [
+     {
+      "target": "section[aria-label=\"top\"] > h3",
+      "summary": "Fix any of the following: |   Heading order invalid"
+     }
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats/champions",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/stats/1v1?a=audit-p01&b=audit-p02",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/mystery",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/members",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/discord",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/hosts",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/g/customs/admin/games",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/admin/login",
+  "status": 200,
+  "violations": []
+ },
+ {
+  "theme": "day",
+  "width": 1440,
+  "base": "prod",
+  "path": "/nope",
+  "status": 404,
+  "violations": []
+ }
+]

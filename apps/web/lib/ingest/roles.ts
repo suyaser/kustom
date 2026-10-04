@@ -238,6 +238,9 @@ async function selectRatedRoleGames(
         .select('player_id, game_id, role, counts_for_role_inference, games!inner(started_at)')
         .in('player_id', chunk)
         .not('mu_after', 'is', null)
+        // M15.3: a game played not rated never teaches a role (R4; a tanks-only game must not
+        // make anybody a top main). The fold never rates one, so this only says it twice.
+        .eq('games.rated', true)
         .order('player_id', { ascending: true })
         .order('game_id', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
@@ -296,7 +299,7 @@ async function selectStoredRoles(
 /**
  * Every `players.id`, for the rebuild (M5.17).
  *
- * The rebuild recomputes **everybody**, not only the players with a game in the season it
+ * The rebuild recomputes **everybody**, not only the players with a game in the group it
  * folded: an M1-era hand-set pair on somebody who has never played is exactly the row the
  * brief's "overwritten by the first recompute" is about, and nothing else will ever visit it.
  * They come out flexible with `roles_counted = 0`, which is what the balancer already does with

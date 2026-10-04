@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GROUP_SLUG_PATTERN, isReservedGroupSlug } from '../constants';
 
 /**
  * Groups (M13). A group is its own world -- lobbies, games, ratings, fearless list, daily guess,
@@ -10,15 +11,9 @@ import { z } from 'zod';
  * cannot drift.
  */
 
-/**
- * The group everything that existed before M13 belongs to, with the fixed id `0018_groups.sql`
- * gives it. Its slug is `customs` and its name `Customs Night`.
- *
- * It was the temporary column default of every `group_id` until M13.4's `0020` dropped them; it
- * is still what the pages that have not moved under `/g/<slug>` yet (M13.9 to M13.14) send as
- * their `groupId`.
- */
-export const ORIGINAL_GROUP_ID = '00000000-0000-0000-0000-000000000001';
+// `ORIGINAL_GROUP_ID`, `RESERVED_GROUP_SLUGS` and `GROUP_SLUG_PATTERN` are defined in
+// `../constants` (M14.44, zod-free so a browser can have them) and re-exported here unchanged.
+export { GROUP_SLUG_PATTERN, ORIGINAL_GROUP_ID, RESERVED_GROUP_SLUGS } from '../constants';
 
 /**
  * A `groups.id` in a request (M13.4). Every `/api/me/*` and `/api/admin/*` request carries one
@@ -33,26 +28,36 @@ export const ORIGINAL_GROUP_ID = '00000000-0000-0000-0000-000000000001';
  */
 export const groupIdSchema = z.guid();
 
-/** `group_memberships.role`: the discriminated union, never a boolean. */
-export const GROUP_ROLES = ['member', 'admin'] as const;
+/**
+ * `group_memberships.role`: the discriminated union, never a boolean. Lowest first, so the order
+ * is the rank {@link isAtLeast} compares (M14.11: `owner` above `admin`). Exactly one `owner` per
+ * group (`group_memberships_one_owner_idx`, `0023`).
+ */
+export const GROUP_ROLES = ['member', 'admin', 'owner'] as const;
 
 export const groupRoleSchema = z.enum(GROUP_ROLES);
 
 export type GroupRole = z.infer<typeof groupRoleSchema>;
 
 /**
- * Words the app's own routes use under `/g/` or at the root, refused as slugs. The same list as
- * `groups_slug_not_reserved`. `og` and `g` already fail the length rule; they are listed so the
- * list is the list.
+ * True when `role` is `minimum` or above it. `isAtLeast(role, 'admin')` is the admin gate -- an
+ * owner is an admin and more -- and replaces every exact `role === 'admin'` (M14.11). `null` (not a
+ * member) is never at least anything.
  */
-export const RESERVED_GROUP_SLUGS = ['new', 'join', 'admin', 'api', 'og', 'auth', 'ops', 'g'] as const;
+export function isAtLeast(role: GroupRole | null | undefined, minimum: GroupRole): boolean {
+  if (role === null || role === undefined) return false;
+  return GROUP_ROLES.indexOf(role) >= GROUP_ROLES.indexOf(minimum);
+}
 
 /**
- * 3 to 32 lowercase letters, digits and dashes, not starting or ending with a dash -- the same
- * pattern as `groups_slug_shape`. The 32-character cap is load-bearing: a uuid is 36, so a slug
- * can never look like the `/g/<gameId>` links M11.4 already put in Discord.
+ * The roles `POST /api/admin/members/role` may set. Not `owner`: ownership only moves by
+ * `POST /api/admin/owner/transfer`, so there is always exactly one.
  */
-export const GROUP_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+export const ASSIGNABLE_GROUP_ROLES = ['member', 'admin'] as const;
+
+export const assignableGroupRoleSchema = z.enum(ASSIGNABLE_GROUP_ROLES);
+
+export type AssignableGroupRole = z.infer<typeof assignableGroupRoleSchema>;
 
 /**
  * A group's `/g/<slug>` path segment. No trimming and no lowercasing: the check constraint does
@@ -65,7 +70,7 @@ export const groupSlugSchema = z
     GROUP_SLUG_PATTERN,
     'slug is 3 to 32 lowercase letters, digits and dashes, not starting or ending with a dash',
   )
-  .refine((value) => !(RESERVED_GROUP_SLUGS as readonly string[]).includes(value), 'slug is a reserved word');
+  .refine((value) => !isReservedGroupSlug(value), 'slug is a reserved word');
 
 export type GroupSlug = z.infer<typeof groupSlugSchema>;
 

@@ -10,7 +10,6 @@ import {
   withoutAwardColumns,
 } from '../testing/statsFixtures';
 import { blueWon, redWon } from './copy';
-import { parseFocusPuuid } from './params';
 import type { HistoryGame, HistorySeat } from './types';
 import { gamesHistoryView, historyGameOf } from './view';
 
@@ -107,6 +106,25 @@ describe('gamesHistoryView', () => {
     expect(game?.red.seats[0]?.kp).toBe(84);
   });
 
+  it('prints no kill participation for a side whose kills do not cover a takedown line (M14.77)', () => {
+    // Blue's rows add up to 3 kills, but Hana alone took part in 11: the rows are short, so no
+    // `367%` and no confident `100%` either.
+    const short = tenPlayerGame({
+      id: 'short',
+      at: '2026-09-10T20:00:00Z',
+      lcuGameId: '3',
+      winner: 100,
+      blue: [
+        { key: 'hana', role: 'top', kills: 2, deaths: 1, assists: 9 },
+        { key: 'iris', role: 'jungle', kills: 1, deaths: 0, assists: 1 },
+      ],
+    });
+    const blue = history([short]).items[0]?.blue.seats ?? [];
+    expect(blue.find((seat) => seat.name === 'Hana')?.kp).toBeNull();
+    // Iris's own line fits inside the side's kills, so hers stays: 2 of 3.
+    expect(blue.find((seat) => seat.name === 'Iris')?.kp).toBe(67);
+  });
+
   it('filters to one player and switches the result to their own', () => {
     const view = history([early, late], { focusPuuid: 'u-lena' });
     expect(view.items).toHaveLength(2);
@@ -172,21 +190,6 @@ describe('gamesHistoryView', () => {
     });
     expect(abyss.queue).toBe('aram');
     expect(abyss.items.map((game) => game.id)).toEqual(['aram']);
-  });
-});
-
-describe('parseFocusPuuid', () => {
-  it('treats a missing parameter as the group list', () => {
-    expect(parseFocusPuuid(undefined)).toBeUndefined();
-  });
-
-  it('refuses a repeated parameter and a placeholder', () => {
-    expect(parseFocusPuuid(['a', 'b'])).toBeNull();
-    expect(parseFocusPuuid('00000000-0000-0000-0000-000000000000')).toBeNull();
-  });
-
-  it('keeps a real puuid', () => {
-    expect(parseFocusPuuid('u-lena')).toBe('u-lena');
   });
 });
 

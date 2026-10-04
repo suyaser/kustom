@@ -16,7 +16,9 @@ import { groupIdSchema, groupRoleSchema, groupSlugSchema } from './groups';
  *   with no `players` row yet gets a six-character code, types it into Kustom, and Kustom sends it
  *   with the PUUID it reads from League. The PUUID always comes from the client, never typed.
  *
- * Joining never mints a companion token (decision 2026-09-23: tokens are for hosts).
+ * Joining never mints a companion token (decision 2026-09-23: tokens are for hosts), with one
+ * exception: an owner or admin pairing their own League account from Kustom in Host mode gets one
+ * (M14.12, decision 2026-10-03).
  */
 
 // ---------------------------------------------------------------------------
@@ -98,9 +100,9 @@ export const createGroupResponseSchema = z.object({
   ok: z.literal(true),
   group: groupSummarySchema,
   /**
-   * `admin` when the session was already linked to a player, who is now the group's first admin.
-   * `null` for an unlinked creator: the group has no admin until they pair (`POST /api/me/pairing`
-   * with this `group.id`), and that pairing makes them one.
+   * `owner` (M14.11; `admin` before) when the session was already linked to a player, who now
+   * owns the group. `null` for an unlinked creator: the group has no owner until they pair
+   * (`POST /api/me/pairing` with this `group.id`), and that pairing makes them it.
    */
   role: groupRoleSchema.nullable(),
 });
@@ -135,7 +137,7 @@ export type JoinGroupRequest = z.infer<typeof joinGroupRequestSchema>;
 export const joinGroupResponseSchema = z.object({
   ok: z.literal(true),
   group: groupSummarySchema,
-  /** The caller's role now. An admin who opens the link stays admin. */
+  /** The caller's role now. An admin who opens the link stays admin; the creator ends up owner while the group has none. */
   role: groupRoleSchema,
   /** `joined` when this call made the membership; `already_member` when it was there. */
   outcome: z.enum(['joined', 'already_member']),
@@ -198,19 +200,57 @@ export type PairingStatusResponse = z.infer<typeof pairingStatusResponseSchema>;
 // POST /api/companion/pair  (no token)
 // ---------------------------------------------------------------------------
 
+/**
+ * Which Kustom is pairing (M14.12). `host`: Kustom runs in Host mode and will save a companion token
+ * if the server mints one. `overlay`, or no `mode` at all (Kustom 0.2.x and M14.6's build): M13.5's
+ * pairing exactly, never a token.
+ */
+export const COMPANION_PAIR_MODES = ['host', 'overlay'] as const;
+export const companionPairModeSchema = z.enum(COMPANION_PAIR_MODES);
+export type CompanionPairMode = z.infer<typeof companionPairModeSchema>;
+
 export const companionPairRequestSchema = z.object({
   code: pairingCodeSchema,
   /** Read by Kustom from `current-summoner` on the PC it runs on. Never typed by a person. */
   puuid: puuidSchema,
+  /** Absent means `overlay` (M14.12), so every Kustom built before it keeps working unchanged. */
+  mode: companionPairModeSchema.optional(),
 });
 
 export type CompanionPairRequest = z.infer<typeof companionPairRequestSchema>;
 
-export const companionPairResponseSchema = z.object({
-  ok: z.literal(true),
-  /** The group Kustom adds to its config (M13.8): `You're in <Group>.` */
-  group: groupSummarySchema,
-});
+/**
+ * A companion token as minted (`apps/web/lib/companionAuth.ts`): 32 random bytes, base64url, so 43
+ * characters. Only ever in the one response that mints it; the database holds its SHA-256.
+ */
+export const companionTokenSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{43}$/, 'a companion token is 43 base64url characters');
+
+/**
+ * `{ ok: true, group }`, plus in host mode exactly one of:
+ *
+ * - `companionToken`: the session behind the code is the group's owner or an admin and the PUUID is
+ *   their own linked League account, so a host token for that PUUID in that group was minted (decision
+ *   2026-10-03). Shown once: Kustom saves it under `group` and never logs it.
+ * - `hostRefusal`: the person was linked and joined, but is not an admin, so no token. The sentence
+ *   Kustom shows on its existing error line (STRATEGY §3.2).
+ *
+ * Overlay mode and no mode answer `{ ok: true, group }` only. The other host refusal (an admin's code
+ * with another League account signed in) is not a success at all: it is the 409 envelope, nothing is
+ * linked and the code stays usable.
+ */
+export const companionPairResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    /** The group Kustom adds to its config (M13.8): `You're in <Group>.` */
+    group: groupSummarySchema,
+    companionToken: companionTokenSchema.optional(),
+    hostRefusal: z.string().min(1).optional(),
+  })
+  .refine((answer) => answer.companionToken === undefined || answer.hostRefusal === undefined, {
+    message: 'a pair answer carries a token or a host refusal, never both',
+  });
 
 export type CompanionPairResponse = z.infer<typeof companionPairResponseSchema>;
 

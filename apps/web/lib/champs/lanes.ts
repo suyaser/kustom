@@ -171,6 +171,7 @@ export const CHAMPION_LANES: Record<number, RoleValue> = {
   799: 'top',
   800: 'mid',
   804: 'adc',
+  805: 'mid',
   875: 'top',
   876: 'jungle',
   887: 'top',

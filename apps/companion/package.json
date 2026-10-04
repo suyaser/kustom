@@ -1,6 +1,6 @@
 {
   "name": "companion",
-  "version": "0.2.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,8 +18,8 @@
     "tauri": "node build/with-cargo.mjs tauri",
     "tauri:dev": "node build/with-cargo.mjs tauri dev",
     "tauri:build": "node build/with-cargo.mjs tauri build",
-    "build:desktop": "tsx build/sea.ts --target win-x64 && node -e \"require('fs').copyFileSync('dist/Kustom.exe','dist/kustom-engine.exe')\" && node build/with-cargo.mjs tauri build",
-    "desktop:sync": "node -e \"const fs=require('fs');const p=require('path');const d=p.join('desktop','dist');fs.mkdirSync(d,{recursive:true});for (const f of ['index.html','main.js']) fs.copyFileSync(p.join('desktop',f), p.join(d,f));\""
+    "make-goldens": "tsx scripts/make-goldens.ts",
+    "make-config-fixtures": "tsx scripts/make-config-fixtures.ts"
   },
   "dependencies": {
     "@customs/db": "workspace:*",

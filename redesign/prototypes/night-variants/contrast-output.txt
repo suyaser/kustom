@@ -1,0 +1,123 @@
+== C: bg=#1A1F29 card=#262D3A raised=#313948 border=#566173 strong=#7A8597 fg=#F4F6FA muted=#CBD2DD
+   bg      #1A1F29 oklch(0.239, 0.021, 264.1)
+   card    #262D3A oklch(0.296, 0.026, 262.7)
+   raised  #313948 oklch(0.344, 0.029, 262.9)
+   border  #566173 oklch(0.49, 0.032, 260.2)
+   strong  #7A8597 oklch(0.614, 0.03, 260.3)
+   fg      #F4F6FA oklch(0.973, 0.006, 264.5)
+   muted   #CBD2DD oklch(0.862, 0.017, 259.4)
+  card vs page                                 1.19  separation (border carries it)
+  raised vs card                               1.19  
+  border vs card                               2.21  decorative hairline
+  border vs page                               2.64  decorative hairline
+  border-strong vs card                        3.71  >= 3 (states, inputs)
+  foreground on page                          15.26  >= 4.5
+  foreground on card                          12.78  >= 4.5
+  foreground on raised                        10.73  >= 4.5
+  muted on page                               10.85  >= 4.5 (C rule 7)
+  muted on card                                9.09  >= 4.5 (C rule 7)
+  muted on raised                              7.63  >= 4.5 (C rule 7)
+  muted on you-wash #3a3c3e                    7.28  >= 4.5 (C rule 7)
+  amber text on card                           9.46  >= 4.5
+  amber text on raised                         7.94  >= 4.5
+  blue text on page                            5.70  >= 4.5
+  blue text on card                            4.77  >= 4.5
+  blue on raised (text banned)                 4.01  >= 3 non-text
+  red text on page                             5.82  >= 4.5
+  red text on card                             4.88  >= 4.5
+  red on raised (text banned)                  4.09  >= 3 non-text
+  foreground on blue tint #273a52             10.70  >= 4.5
+  foreground on red tint #403439              10.98  >= 4.5
+  blue tint vs card                            1.19  
+  red tint vs card                             1.16  
+  ink on blue fill / red fill                  6.37  unchanged
+  muted on glow peak #2a2b2d                   9.31  >= 4.5
+  blue text on glow peak                       4.89  >= 4.5
+  red text on glow peak                        5.00  >= 4.5
+== V1: bg=#05070C card=#0C121A raised=#141B28 border=#2A3344 strong=#5D6A80 fg=#F4F7FC muted=#8B98AD lamps=1
+   bg      #05070C oklch(0.128, 0.013, 263.6)
+   card    #0C121A oklch(0.18, 0.019, 255.8)
+   raised  #141B28 oklch(0.222, 0.028, 262.4)
+   border  #2A3344 oklch(0.32, 0.033, 262.9)
+   strong  #5D6A80 oklch(0.522, 0.038, 260.9)
+   fg      #F4F7FC oklch(0.975, 0.007, 260.7)
+   muted   #8B98AD oklch(0.676, 0.034, 260.0)
+  card vs page                                 1.07  separation (border carries it)
+  raised vs card                               1.09  
+  border vs card                               1.48  decorative hairline
+  border vs page                               1.59  decorative hairline
+  border-strong vs card                        3.44  >= 3 (states, inputs)
+  foreground on page                          18.77  >= 4.5
+  foreground on card                          17.51  >= 4.5
+  foreground on raised                        16.07  >= 4.5
+  muted on page                                6.90  >= 4.5 (C rule 7)
+  muted on card                                6.44  >= 4.5 (C rule 7)
+  muted on raised                              5.91  >= 4.5 (C rule 7)
+  muted on you-wash #222321                    5.41  >= 4.5 (C rule 7)
+  amber text on card                          12.86  >= 4.5
+  amber text on raised                        11.81  >= 4.5
+  blue text on page                            6.96  >= 4.5
+  blue text on card                            6.49  >= 4.5
+  blue on raised (text banned)                 5.96  >= 3 non-text
+  red text on page                             7.11  >= 4.5
+  red text on card                             6.63  >= 4.5
+  red on raised (text banned)                  6.09  >= 3 non-text
+  foreground on blue tint #102235             15.02  >= 4.5
+  foreground on red tint #291d1d              15.19  >= 4.5
+  blue tint vs card                            1.17  
+  red tint vs card                             1.15  
+  ink on blue fill / red fill                  6.37  unchanged
+  muted on blue lamp peak #0c1f33              5.71  >= 4.5
+  border vs blue lamp peak                     1.31  decorative
+  blue text on blue lamp peak                  5.76  >= 4.5
+  red text on blue lamp peak                   5.88  >= 4.5
+  amber text on blue lamp peak                11.41  >= 4.5
+  muted on amber lamp peak #231f17             5.62  >= 4.5
+  border vs amber lamp peak                    1.29  decorative
+  blue text on amber lamp peak                 5.66  >= 4.5
+  red text on amber lamp peak                  5.79  >= 4.5
+  amber text on amber lamp peak               11.23  >= 4.5
+== V2: bg=#0B1321 card=#162033 raised=#222D41 border=#49576E strong=#728096 fg=#F4F6FA muted=#CAD3E1 lamps=1
+   bg      #0B1321 oklch(0.187, 0.031, 261.1)
+   card    #162033 oklch(0.244, 0.039, 262.6)
+   raised  #222D41 oklch(0.297, 0.04, 262.0)
+   border  #49576E oklch(0.454, 0.042, 260.3)
+   strong  #728096 oklch(0.596, 0.038, 259.4)
+   fg      #F4F6FA oklch(0.973, 0.006, 264.5)
+   muted   #CAD3E1 oklch(0.864, 0.022, 259.2)
+  card vs page                                 1.14  separation (border carries it)
+  raised vs card                               1.18  
+  border vs card                               2.23  decorative hairline
+  border vs page                               2.54  decorative hairline
+  border-strong vs card                        4.07  >= 3 (states, inputs)
+  foreground on page                          17.19  >= 4.5
+  foreground on card                          15.06  >= 4.5
+  foreground on raised                        12.77  >= 4.5
+  muted on page                               12.32  >= 4.5 (C rule 7)
+  muted on card                               10.80  >= 4.5 (C rule 7)
+  muted on raised                              9.16  >= 4.5 (C rule 7)
+  muted on you-wash #2b3038                    8.79  >= 4.5 (C rule 7)
+  amber text on card                          11.15  >= 4.5
+  amber text on raised                         9.46  >= 4.5
+  blue text on page                            6.42  >= 4.5
+  blue text on card                            5.63  >= 4.5
+  blue on raised (text banned)                 4.77  >= 3 non-text
+  red text on page                             6.56  >= 4.5
+  red text on card                             5.75  >= 4.5
+  red on raised (text banned)                  4.87  >= 3 non-text
+  foreground on blue tint #192f4b             12.53  >= 4.5
+  foreground on red tint #322933              12.93  >= 4.5
+  blue tint vs card                            1.20  
+  red tint vs card                             1.16  
+  ink on blue fill / red fill                  6.37  unchanged
+  muted on blue lamp peak #112945              9.75  >= 4.5
+  border vs blue lamp peak                     2.01  decorative
+  blue text on blue lamp peak                  5.08  >= 4.5
+  red text on blue lamp peak                   5.19  >= 4.5
+  amber text on blue lamp peak                10.07  >= 4.5
+  muted on amber lamp peak #282a29             9.57  >= 4.5
+  border vs amber lamp peak                    1.98  decorative
+  blue text on amber lamp peak                 4.99  >= 4.5
+  red text on amber lamp peak                  5.10  >= 4.5
+  amber text on amber lamp peak                9.89  >= 4.5
+team luminance ratio 1.03 dE normal/protan/deutan/tritan [35.5, 27.3, 31.4, 33.8]

@@ -358,3 +358,25 @@ export const HOOK_CS = 'CS';
 export const HOOK_DURATION = 'Game';
 export const HOOK_DAMAGE_TAKEN = 'Damage taken';
 export const HOOK_DAMAGE = 'Damage';
+
+/* Kustom 2.0 (M14.38): the daily page. */
+
+/** A revealed clue's label: `Clue 2 · Champion`. */
+export const CLUE_WORD = 'Clue';
+
+/** Step back out of `Lock in`. */
+export const MYSTERY_BACK = 'Back';
+
+/** Over the visible share text: what Copy result puts on the clipboard. */
+export const MYSTERY_SHARE_TITLE = 'For the group chat';
+
+/** The page's back link. */
+export const BACK_TO_TONIGHT = 'Tonight';
+
+/** Before the lock is confirmed (M14.38 design): a question, not `Locked in`. */
+export function lockInQuestion(name: string): string {
+  return `Lock in ${name}?`;
+}
+
+/** When the browser would not copy: the share text is selected for a manual copy. */
+export const MYSTERY_SHARE_MANUAL = 'Select the text above and copy it.';

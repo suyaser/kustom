@@ -1,6 +1,7 @@
 import { LOST, WON } from '../board/copy';
 import { sideWinChance } from '../board/explain';
 import { championName } from '../champs/names';
+import { formatMinutes } from '../games/duration';
 import type { HistoryGame } from '../games/types';
 import { historyGameOf } from '../games/view';
 import { LANE_ORDER } from '../laneOrder';
@@ -161,6 +162,7 @@ import {
   ZERO_X,
   ZERO_X_RULE,
 } from './funCopy';
+import { killParticipation } from './killParticipation';
 import { playerFacts, type RawPlayerFacts, stealLine } from './rawFacts';
 import type {
   FunBloodGroup,
@@ -235,8 +237,14 @@ function teamKills(game: StatsGame, side: StatsRow['side']): number {
   return game.rows.filter((row) => row.side === side).reduce((sum, row) => sum + row.kills, 0);
 }
 
-function kp(row: StatsRow, game: StatsGame): number {
-  return takedowns(row) / Math.max(1, teamKills(game, row.side));
+/** M14.77: 0 to 1, or null for a side whose kills are fewer than this row's takedowns (skipped). */
+function kp(row: StatsRow, game: StatsGame): number | null {
+  return killParticipation(row.kills, row.assists, teamKills(game, row.side));
+}
+
+/** A play's KP, for a list already filtered to plays that have one. */
+function kpOf(play: Play): number {
+  return kp(play.row, play.game) ?? 0;
 }
 
 function won(row: StatsRow, game: StatsGame): boolean {
@@ -719,20 +727,26 @@ export function funFactsView(
       GHOST,
       GHOST_RULE,
       pickMin(
-        plays.filter((play) => teamKills(play.game, play.row.side) >= GHOST_TEAM_KILLS),
-        (play) => kp(play.row, play.game),
+        plays.filter(
+          (play) =>
+            teamKills(play.game, play.row.side) >= GHOST_TEAM_KILLS && kp(play.row, play.game) !== null,
+        ),
+        kpOf,
       ),
-      (play) => kpLine(Math.round(kp(play.row, play.game) * 100)),
+      (play) => kpLine(Math.round(kpOf(play) * 100)),
     ),
     rec(
       'glue',
       GLUE,
       GLUE_RULE,
       pickMax(
-        plays.filter((play) => teamKills(play.game, play.row.side) >= GLUE_TEAM_KILLS),
-        (play) => kp(play.row, play.game),
+        plays.filter(
+          (play) =>
+            teamKills(play.game, play.row.side) >= GLUE_TEAM_KILLS && kp(play.row, play.game) !== null,
+        ),
+        kpOf,
       ),
-      (play) => kpLine(Math.round(kp(play.row, play.game) * 100)),
+      (play) => kpLine(Math.round(kpOf(play) * 100)),
     ),
   ];
 
@@ -751,7 +765,7 @@ export function funFactsView(
     holders:
       longest === undefined || longestMvp === null
         ? []
-        : [holder(longestMvp.player, minutesLine(longest.durationS), longest, bind)],
+        : [holder(longestMvp.player, formatMinutes(longest.durationS), longest, bind)],
     empty: NOBODY_THIS,
   });
 
@@ -765,7 +779,7 @@ export function funFactsView(
     holders:
       shortest === undefined || shortestSeat === null
         ? []
-        : [holder(shortestSeat.player, minutesLine(shortest.durationS), shortest, bind)],
+        : [holder(shortestSeat.player, formatMinutes(shortest.durationS), shortest, bind)],
     empty: NOBODY_THIS,
   });
 

@@ -1,5 +1,5 @@
-import { formatDayMonth, formatMonthName, type WindowKind, type WindowRange } from '../night';
-import { awardPeriod, awardsView, WEB_AWARD_RENDER, type WeeklySeeds } from './awards';
+import { formatDayMonth, type WindowKind, type WindowRange } from '../night';
+import { awardsView, WEB_AWARD_RENDER } from './awards';
 import { awardWonLine, weekOfLabel } from './copy';
 import {
   averageGameMinutes,
@@ -13,6 +13,7 @@ import {
   playerStreaks,
 } from './fold';
 import type { DuoRecord, PartnerRecord, PlayerStatsView, StatsGame, StatsPlayer, StatsRecord } from './types';
+import { splitBestWorst } from './view';
 
 /**
  * The sections under the rating chart on `/p/[puuid]` (M5.20), assembled from the **same list
@@ -49,12 +50,6 @@ export interface PlayerStatsInput {
   capped: boolean;
   cap: number;
   timeZone?: string | undefined;
-  /**
-   * The week's seeds (M7.4), straight from the same loader read. This page hands out no award of
-   * its own — it reads whether the group's award names this person — so the one thing it must not
-   * do is compute `Most improved` over a different track from `/stats` and name somebody else.
-   */
-  seeds?: WeeklySeeds | undefined;
 }
 
 export function playerStatsView(input: PlayerStatsInput): PlayerStatsView {
@@ -106,8 +101,9 @@ export function playerStatsView(input: PlayerStatsInput): PlayerStatsView {
    * partners over the bar, so it is the common case and not the edge.
    */
   const ranked = [...partners].sort(compareRecordsWithSelf);
-  const best = ranked.slice(0, PARTNERS_SHOWN);
-  const rest = ranked.slice(PARTNERS_SHOWN);
+  // The Stats duos' split (M14.17's `splitDuos` rule, M14.35): the better half, rounded up, at most
+  // three; the worst of the rest. Never the same partner in both lists.
+  const { best, worst } = splitBestWorst(ranked, PARTNERS_SHOWN, compareRecordsWorst);
 
   return {
     ...empty,
@@ -121,7 +117,7 @@ export function playerStatsView(input: PlayerStatsInput): PlayerStatsView {
      * ordered rate ascending, then games descending, so a partner they have lost eleven with
      * outranks one they have lost four with.
      */
-    worstPartners: [...rest].sort(compareRecordsWorst).slice(0, PARTNERS_SHOWN),
+    worstPartners: worst,
     streaks,
     averageMinutes: averageGameMinutes(mine),
     awards: awardsWon(input, counted),
@@ -200,13 +196,13 @@ function asPair(record: StatsRecord): DuoRecord {
  *
  * The awards are `awardsView`'s — the same three blocks `/stats` prints and the Sunday post
  * carries — computed over the window's whole list, because an award is a fact about the group's
- * month and not about one page. This only reads whether the winner is the person whose page
+ * week and not about one page. This only reads whether the winner is the person whose page
  * this is: a most-improved line is keyed on their puuid, a cursed-duo line on both halves.
  *
- * `This week`, `This month` and `All time` hand out nothing, so they print nothing here.
+ * `This week` and `All time` hand out nothing, so they print nothing here.
  */
 function awardsWon(input: PlayerStatsInput, counted: readonly StatsGame[]): string[] {
-  const awards = awardsView(input.window, counted, input.players, WEB_AWARD_RENDER, input.seeds);
+  const awards = awardsView(input.window, counted, input.players, WEB_AWARD_RENDER);
   if (awards === null || awards.kind !== 'closed') return [];
 
   const period = awardPeriodLabel(input);
@@ -220,17 +216,11 @@ function awardsWon(input: PlayerStatsInput, counted: readonly StatsGame[]): stri
 }
 
 /**
- * `September`, or `week of 1 Sep`: which calendar the award was won in.
- *
- * The month's name is the window slot's own (`formatMonthName`), so the line and the range half
- * above it name one month with one string; the week says which Sunday it started on rather than
+ * `week of 1 Sep`: which week the award was won in, by the Sunday it started on rather than
  * repeating the slot's `Sunday 6 Sep to Saturday 12 Sep`, which is product's own form.
  */
 function awardPeriodLabel(input: PlayerStatsInput): string {
-  const period = awardPeriod(input.window);
   // Only a closed window reaches here, and every closed window is bounded (M5.9).
   const start = input.range.start as Date;
-  return period?.period === 'month'
-    ? formatMonthName(start, input.timeZone)
-    : weekOfLabel(formatDayMonth(start, input.timeZone));
+  return weekOfLabel(formatDayMonth(start, input.timeZone));
 }

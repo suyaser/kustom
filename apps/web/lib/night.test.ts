@@ -6,12 +6,10 @@ import {
   DEFAULT_NIGHT_TIME_ZONE,
   formatClock,
   formatDayMonthYear,
-  formatMonthName,
   formatNightLabel,
   formatWeekRange,
   isInWindow,
   isValidTimeZone,
-  monthStart,
   NIGHT_START_HOUR,
   nextCivilMidnight,
   nightClock,
@@ -283,48 +281,12 @@ describe("the boundaries the week's anchor did not move", () => {
     expect(nightEnd(evening, CAIRO).toISOString()).toBe('2026-09-10T03:00:00.000Z');
   });
 
-  it('leaves the civil day and the month where they were', () => {
+  it('leaves the civil day where it was', () => {
     expect(civilDayStart(evening, CAIRO).toISOString()).toBe('2026-09-08T21:00:00.000Z');
-    expect(monthStart(evening, CAIRO).toISOString()).toBe('2026-09-01T03:00:00.000Z');
   });
 
-  it('leaves the month and all-time ranges byte-identical', () => {
-    expect(windowRange('this-month', evening, CAIRO)).toEqual({
-      start: new Date('2026-09-01T03:00:00.000Z'),
-      end: new Date('2026-10-01T03:00:00.000Z'),
-    });
-    expect(windowRange('last-month', evening, CAIRO)).toEqual({
-      start: new Date('2026-08-01T03:00:00.000Z'),
-      end: new Date('2026-09-01T03:00:00.000Z'),
-    });
+  it('leaves the all-time range byte-identical', () => {
     expect(windowRange('all-time', evening, CAIRO)).toEqual({ start: null, end: null });
-  });
-});
-
-describe('the month a game belongs to', () => {
-  it('gives a 02:00 game on the 1st to the month that is ending, and 07:00 to the new one', () => {
-    // 2026-09-01 02:00 Cairo = 2026-08-31T23:00Z. The month that is ending opened 2026-08-01
-    // at 06:00 Cairo = 03:00Z.
-    expect(monthStart(new Date('2026-08-31T23:00:00Z'), CAIRO).toISOString()).toBe(
-      '2026-08-01T03:00:00.000Z',
-    );
-    expect(monthStart(new Date('2026-09-01T04:00:00Z'), CAIRO).toISOString()).toBe(
-      '2026-09-01T03:00:00.000Z',
-    );
-  });
-
-  it('starts and ends at 06:00 local through a 31-day month, a 30-day month and February', () => {
-    for (const instant of [
-      // January (31), April (30), February (28) and the leap February of 2028 (29).
-      '2026-01-20T18:00:00Z',
-      '2026-04-20T18:00:00Z',
-      '2026-02-20T18:00:00Z',
-      '2028-02-20T18:00:00Z',
-    ]) {
-      const range = windowRange('this-month', new Date(instant), CAIRO);
-      expect(wallClock(range.start as Date)).toMatch(/-01 06:00$/);
-      expect(wallClock(range.end as Date)).toMatch(/-01 06:00$/);
-    }
   });
 });
 
@@ -332,16 +294,11 @@ describe('windowRange', () => {
   /** Wednesday 2026-09-09, 21:00 Cairo (18:00Z): a normal night in the middle of a week. */
   const now = new Date('2026-09-09T18:00:00Z');
 
-  it('ends this week and this month in the future, so a game tonight is inside them', () => {
+  it('ends this week in the future, so a game tonight is inside it', () => {
     const week = windowRange('this-week', now, CAIRO);
     expect(week.start?.toISOString()).toBe('2026-09-06T03:00:00.000Z');
     expect(week.end?.toISOString()).toBe('2026-09-13T03:00:00.000Z');
     expect(isInWindow(now, week)).toBe(true);
-
-    const month = windowRange('this-month', now, CAIRO);
-    expect(month.start?.toISOString()).toBe('2026-09-01T03:00:00.000Z');
-    expect(month.end?.toISOString()).toBe('2026-10-01T03:00:00.000Z');
-    expect(isInWindow(now, month)).toBe(true);
   });
 
   it('puts last week directly against this week, with no gap and no overlap', () => {
@@ -355,14 +312,6 @@ describe('windowRange', () => {
     expect(isInWindow(boundary, last)).toBe(false);
     expect(isInWindow(boundary, current)).toBe(true);
     expect(isInWindow(new Date(boundary.getTime() - 1), last)).toBe(true);
-  });
-
-  it('puts last month directly against this month', () => {
-    const last = windowRange('last-month', now, CAIRO);
-    const current = windowRange('this-month', now, CAIRO);
-
-    expect(last.end?.getTime()).toBe(current.start?.getTime());
-    expect(last.start?.toISOString()).toBe('2026-08-01T03:00:00.000Z');
   });
 
   it('is nulls for all time, and takes every game there has ever been', () => {
@@ -404,7 +353,7 @@ describe('daylight saving', () => {
   it('still opens every window at 06:00 local across both changes', () => {
     for (const instant of [...acrossSpring, ...acrossAutumn]) {
       const now = new Date(instant);
-      for (const kind of ['this-week', 'last-week', 'this-month', 'last-month'] as const) {
+      for (const kind of ['this-week', 'last-week'] as const) {
         const range = windowRange(kind, now, CAIRO);
         expect(wallClock(range.start as Date)).toMatch(/ 06:00$/);
         expect(wallClock(range.end as Date)).toMatch(/ 06:00$/);
@@ -452,14 +401,6 @@ describe('the window that just closed', () => {
     expect(week.key).toBe('2026-09-27T03:00:00.000Z');
     // The bounds are the same ones every page reads the window through.
     expect(week.start.getTime()).toBe(windowRange('last-week', sundayMorning, CAIRO).start?.getTime());
-  });
-
-  it('is the one month that just closed, never a backlog of them', () => {
-    const month = closedWindow('last-month', sundayMorning, CAIRO);
-
-    expect(month.start.toISOString()).toBe('2026-09-01T03:00:00.000Z');
-    expect(month.end.toISOString()).toBe('2026-10-01T03:00:00.000Z');
-    expect(month.key).toBe(month.start.toISOString());
   });
 
   it('does not move while the window it names stays closed', () => {
@@ -520,13 +461,6 @@ describe('what a window is called', () => {
     expect(formatWeekRange(week.start as Date, week.end as Date, CAIRO)).not.toContain('Sept ');
   });
 
-  it('names a month by its name and nothing else', () => {
-    expect(formatMonthName(range('this-month').start as Date, CAIRO)).toBe('September');
-    expect(formatMonthName(range('last-month').start as Date, CAIRO)).toBe('August');
-    // No year: a month window is this one or the one before it, never a year ago.
-    expect(formatMonthName(range('this-month').start as Date, CAIRO)).not.toMatch(/\d/);
-  });
-
   /** The one window form that can reach a year, so the one that carries one. */
   it('dates all time from a day, a month and a year', () => {
     expect(formatDayMonthYear(new Date('2025-09-08T18:00:00Z'), CAIRO)).toBe('8 Sep 2025');
@@ -534,9 +468,9 @@ describe('what a window is called', () => {
   });
 
   it('reads every one of them in the zone it is given', () => {
-    // 00:30 on the 1st in Cairo is still the 31st in New York, and the month's name follows.
-    const newYear = new Date('2026-08-31T22:30:00Z');
-    expect(formatMonthName(newYear, CAIRO)).toBe('September');
-    expect(formatMonthName(newYear, 'America/New_York')).toBe('August');
+    // 01:30 on the 1st in Cairo is still the 31st in New York, and the date follows.
+    const newMonth = new Date('2026-08-31T22:30:00Z');
+    expect(formatDayMonthYear(newMonth, CAIRO)).toBe('1 Sep 2026');
+    expect(formatDayMonthYear(newMonth, 'America/New_York')).toBe('31 Aug 2026');
   });
 });

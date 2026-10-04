@@ -13,13 +13,15 @@
  * `--mode host|overlay` (forces mode for this run when config is missing / for overlay first write).
  */
 
+import { watchFile } from 'node:fs';
 import { ApiClient, healthCheck } from './api.js';
 import {
   type AppMode,
+  apiBaseSchema,
   type CompanionConfig,
   configDir,
+  configPath,
   DEFAULT_API_BASE,
-  type HostConfig,
   isHostConfig,
   loadConfig,
   logsDir,
@@ -28,9 +30,19 @@ import {
   saveOverlayModeConfig,
   stdioPrompt,
 } from './config.js';
+import {
+  fetchOverlayGroups,
+  hostStateDirFor,
+  mergeServerGroups,
+  overlayGroupParam,
+  resolveTopLevelToken,
+} from './groups.js';
 import { startHost } from './host.js';
 import { type CompanionLogger, createFileLogger, errorFields, isLogLevel } from './log.js';
+import { pairWithCode } from './pairing.js';
+import { readCurrentPuuid } from './panel/lcu.js';
 import { startPanel } from './panel/run.js';
+import { GroupSession } from './session.js';
 import { writeStatus } from './status.js';
 import { runVerifyCommands } from './verifyCommands.js';
 import { COMPANION_VERSION } from './version.js';
@@ -50,6 +62,10 @@ export function usage(): string {
     '  --mode host|overlay',
     '                  pick a mode when no config exists yet (overlay writes a token-free config)',
     '  --show-token    show the token as you type it at the first-run prompt (host mode)',
+    '  --pair CODE [--api-base URL]',
+    '                  join a group with the code from the join page: reads who is signed into League,',
+    '                  sends both, saves the group, prints one JSON line (the setup window uses this)',
+    '  --pair-check    print {"ready":true|false}: is League open and signed in (setup window)',
     '  --verify-commands',
     '                  verify the lobby writes against the running client; no API call, no token needed',
     '',
@@ -136,6 +152,67 @@ async function resolveConfig(
   }
 }
 
+/** `--pair-check`: `{ ready }`, whether League is open and says who is signed in. The setup window's sentence. */
+async function runPairCheck(dir: string): Promise<number> {
+  const loaded = loadConfig(dir);
+  const lockfilePath =
+    loaded.status === 'ok'
+      ? loaded.config.lockfilePath
+      : loaded.status === 'missing'
+        ? loaded.partial.lockfilePath
+        : undefined;
+  const who = await readCurrentPuuid(lockfilePath ? { lockfilePath } : {});
+  console.log(JSON.stringify({ ready: who.ok }));
+  return 0;
+}
+
+/** `--pair CODE`: one JSON line on stdout, `{ ok, message, group? }`, and nothing else. Exit 0 whatever the answer. */
+async function runPair(args: readonly string[], dir: string): Promise<number> {
+  const code = flagValue(args, '--pair') ?? '';
+  const loaded = loadConfig(dir);
+  const known =
+    loaded.status === 'ok' ? loaded.config : loaded.status === 'missing' ? loaded.partial : undefined;
+  const flagBase = flagValue(args, '--api-base');
+  const base = apiBaseSchema.safeParse(flagBase ?? known?.apiBase ?? DEFAULT_API_BASE);
+  if (loaded.status === 'invalid' || !base.success) {
+    console.log(
+      JSON.stringify({
+        ok: false,
+        message:
+          loaded.status === 'invalid'
+            ? 'Kustom could not read its settings file. Open the logs folder and fix or delete config.json.'
+            : 'That server address is not valid.',
+      }),
+    );
+    return 0;
+  }
+  // Host mode asks for a host token; Overlay (and a PC with no mode chosen yet) never does (M14.13).
+  const mode: AppMode =
+    parseModeFlag(args) ??
+    (loaded.status === 'ok'
+      ? loaded.config.mode
+      : loaded.status === 'missing'
+        ? loaded.partial.mode
+        : undefined) ??
+    'overlay';
+  const outcome = await pairWithCode({
+    apiBase: base.data,
+    code,
+    configDir: dir,
+    mode,
+    ...(known?.lockfilePath ? { lockfilePath: known.lockfilePath } : {}),
+  });
+  console.log(
+    // Never the token: it is in the config file and nowhere else.
+    JSON.stringify(
+      outcome.ok
+        ? { ok: true, message: outcome.message, group: outcome.group }
+        : { ok: false, message: outcome.message, ...(outcome.group ? { group: outcome.group } : {}) },
+    ),
+  );
+  return 0;
+}
+
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
   if (args.includes('--version') || args.includes('-v')) {
@@ -147,6 +224,12 @@ async function main(): Promise<number> {
     return 0;
   }
   const dir = configDir();
+  if (args.includes('--pair-check')) {
+    return runPairCheck(dir);
+  }
+  if (args.includes('--pair')) {
+    return runPair(args, dir);
+  }
   if (args.includes('--verify-commands') || process.env.CUSTOMS_NIGHT_VERIFY_COMMANDS === '1') {
     const loaded = loadConfig(dir);
     const lockfilePath =
@@ -177,14 +260,30 @@ async function main(): Promise<number> {
   });
 
   const showToken = args.includes('--show-token') || process.env.CUSTOMS_NIGHT_SHOW_TOKEN === '1';
-  const config = await resolveConfig(dir, logger, showToken, modeFlag);
+  let config = await resolveConfig(dir, logger, showToken, modeFlag);
   if (config === null) {
     await holdWindowOpen();
     return 1;
   }
+  const reload = (): CompanionConfig | null => {
+    const result = loadConfig(dir);
+    return result.status === 'ok' ? result.config : null;
+  };
+
+  // A token at the top level (a 0.2.x file, or a fresh paste) is filed under the group the server says it is
+  // for. Before the watchers start: the group decides which state directory they use.
+  if (isHostConfig(config) && config.companionToken) {
+    logger.addSecret(config.companionToken);
+    const filed = await resolveTopLevelToken({ configDir: dir, config, logger });
+    if (filed !== null) config = reload() ?? config;
+  }
+  for (const group of config.groups ?? []) {
+    if (group.companionToken) logger.addSecret(group.companionToken);
+  }
+  const startConfig: CompanionConfig = config;
 
   writeStatus(dir, {
-    mode: config.mode,
+    mode: startConfig.mode,
     state: 'starting',
     phase: null,
     playerName: null,
@@ -193,21 +292,72 @@ async function main(): Promise<number> {
     error: null,
   });
 
+  // One group per session (M13.8). Host: the watchers run on the selected group's token and a switch stops
+  // them first. Overlay: the selection only changes which group the panel reads for.
+  let panelRef: Awaited<ReturnType<typeof startPanel>> | null = null;
+  const session = new GroupSession({
+    mode: startConfig.mode,
+    configDir: dir,
+    initial: startConfig,
+    reload,
+    logger: logger.child({ component: 'groups' }),
+    onState: (state) => panelRef?.setGroups(state),
+    onSelected: () => panelRef?.refetch(),
+    ...(isHostConfig(startConfig)
+      ? {
+          startHost: (group, onTokenRefused) => {
+            if (group.token === undefined) throw new Error('no host token for this group');
+            logger.info('posting tonight to a group', { slug: group.slug || null });
+            return startHost({
+              apiBase: startConfig.apiBase,
+              token: group.token,
+              lockfilePath: startConfig.lockfilePath,
+              stateDir: hostStateDirFor(dir, group),
+              logger,
+              onTokenRefused,
+            });
+          },
+        }
+      : {}),
+  });
+
   let overlayUrl: string | null = null;
   const panel = await startPanel(
     dir,
     {
-      apiBase: config.apiBase,
-      ...(config.lockfilePath ? { lockfilePath: config.lockfilePath } : {}),
+      apiBase: startConfig.apiBase,
+      ...(startConfig.lockfilePath ? { lockfilePath: startConfig.lockfilePath } : {}),
     },
     {
       openWindow: true,
       log: (message, fields) => {
         logger.warn(message, fields ?? {});
       },
+      group: () => {
+        const selected = session.selected();
+        const state = session.state();
+        return { groupId: overlayGroupParam(selected), skip: state.noGroups };
+      },
+      onGroupPick: (groupId) => {
+        void session.select(groupId);
+      },
+      onPuuid: (puuid) => {
+        if (startConfig.mode !== 'overlay') return;
+        // Overlay refreshes its list from the server on start, so a friend who joined by playing sees the
+        // group with zero setup. A failed answer changes nothing.
+        void fetchOverlayGroups(startConfig.apiBase, puuid, { logger: logger.child({ component: 'groups' }) })
+          .then(async (listed) => {
+            if (listed === null) return;
+            mergeServerGroups(dir, startConfig.apiBase, listed);
+            await session.adoptServerGroups();
+          })
+          .catch((error: unknown) => {
+            logger.warn('could not refresh the group list', errorFields(error));
+          });
+      },
       onState: (state) => {
         writeStatus(dir, {
-          mode: config.mode,
+          mode: startConfig.mode,
           state: state.connected ? (state.visible ? 'watching' : 'waiting') : 'disconnected',
           phase: state.phase,
           playerName: null,
@@ -218,10 +368,11 @@ async function main(): Promise<number> {
       },
     },
   );
+  panelRef = panel;
   overlayUrl = panel.url;
 
   writeStatus(dir, {
-    mode: config.mode,
+    mode: startConfig.mode,
     state: 'waiting',
     phase: null,
     playerName: null,
@@ -232,24 +383,34 @@ async function main(): Promise<number> {
   // Tauri watches stdout for this line to open the overlay webview.
   console.info(`OVERLAY_READY ${panel.url}`);
 
-  let host: ReturnType<typeof startHost> | null = null;
-  if (isHostConfig(config)) {
-    logger.addSecret(config.companionToken);
-    const api = new ApiClient({
-      apiBase: config.apiBase,
-      token: config.companionToken,
-      logger: logger.child({ component: 'api' }),
-    });
-    const health = await api.health();
+  if (isHostConfig(startConfig)) {
+    const probe = new ApiClient({ apiBase: startConfig.apiBase, logger: logger.child({ component: 'api' }) });
+    const health = await probe.health();
     if (health === null) {
-      logger.info('api reachable', { apiBase: config.apiBase });
+      logger.info('api reachable', { apiBase: startConfig.apiBase });
     } else {
-      logger.warn('api not reachable now; calls will retry', { apiBase: config.apiBase, reason: health });
+      logger.warn('api not reachable now; calls will retry', {
+        apiBase: startConfig.apiBase,
+        reason: health,
+      });
     }
-    host = startHost(config as HostConfig, dir, logger);
   } else {
     logger.info('overlay mode: panel only (no companion token)');
   }
+  await session.start();
+
+  // A pairing runs in a one-shot `--pair` process and writes the config. Watch the file, so a host token it
+  // saved starts the watchers with no paste and no restart (M14.13). Polling: it works the same on every OS.
+  watchFile(configPath(dir), { interval: 1500, persistent: false }, () => {
+    const latest = reload();
+    if (latest === null) return;
+    if (isHostConfig(latest)) {
+      for (const group of latest.groups ?? []) {
+        if (group.companionToken) logger.addSecret(group.companionToken);
+      }
+    }
+    void session.adoptConfig();
+  });
 
   let signals = 0;
   const onSignal = (signal: NodeJS.Signals): void => {
@@ -259,10 +420,12 @@ async function main(): Promise<number> {
       process.exit(130);
     }
     logger.info('shutting down', { signal });
-    host?.stop();
-    void panel.stop().then(() => {
-      process.exit(0);
-    });
+    void session
+      .stop()
+      .then(() => panel.stop())
+      .then(() => {
+        process.exit(0);
+      });
   };
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
@@ -273,15 +436,9 @@ async function main(): Promise<number> {
     logger.error('unhandled rejection (continuing)', errorFields(reason));
   });
 
-  if (host !== null) {
-    await host.run;
-  } else {
-    // Overlay-only: stay alive until signal.
-    await new Promise<void>(() => undefined);
-  }
-
-  await panel.stop();
-  logger.info('stopped');
+  // Stay alive until a signal: a refused token or a switch can leave no watcher running, and the picker is
+  // how the person gets back.
+  await new Promise<void>(() => undefined);
   return 0;
 }
 

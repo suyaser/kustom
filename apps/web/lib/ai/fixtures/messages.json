@@ -1,0 +1,23 @@
+[
+  {
+    "id": "msg_01RecordedGameLine",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-haiku-4-5-20251001",
+    "content": [
+      {
+        "type": "text",
+        "text": "{P2} put up 9 kills and 0 deaths on Lee Sin as Blue won in 31 minutes."
+      }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 1164,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 31,
+      "service_tier": "standard"
+    }
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "name": "command-ack--switch-side",
+  "kind": "request",
+  "target": "api",
+  "route": "command-ack",
+  "patch": "16.18",
+  "fixtures": [
+    "16.18/create-lobby",
+    "16.18/lobby-team"
+  ],
+  "scenario": "command-switch-side",
+  "note": "The local player on 100 moves to 200. The read-back lobby is DERIVED in memory from 16.18/create-lobby (the local player moved to customTeam200): no capture of the after-state exists.",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack",
+  "commandKind": "switch_side",
+  "body": {
+    "result": {
+      "side": 200
+    }
+  }
+}

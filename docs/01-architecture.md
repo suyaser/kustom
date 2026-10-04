@@ -46,28 +46,29 @@ never holds a database credential; it holds a per-player companion token.
 
 ## Data model
 
-Postgres, managed by Supabase migrations in `packages/db/supabase/migrations/`. `0001_init.sql` is the whole
-schema below; the listing is kept in step with it.
+Postgres, managed by Supabase migrations in `packages/db/supabase/migrations/`. The listing below is the schema
+after `0028` (plus `0029`'s column grants, M14.40, under Security); it is kept in step with the migrations, and each
+later change is tagged with the file that made it.
 
 ```sql
-seasons        (id, name, starts_at, ends_at, is_active, created_at)
 players        (id, puuid unique, summoner_id, game_name, tag_line, display_name,
                 discord_id null, is_admin, main_role, secondary_role,
                 roles_inferred_at null, roles_counted,          -- 0010, M5.17
                 rank_tier, rank_division, rank_lp, rank_updated_at, created_at)
-ratings        (group_id, player_id, season_id, mu, sigma,         -- group_id 0018, M13
+ratings        (group_id, player_id, mu, sigma,                  -- group_id 0018, M13
                 ordinal generated (mu - 2 * sigma) stored, games, wins,
                 seed_mu null, seed_sigma null,                  -- 0012, M5.7
                 seed_rank_tier null, seed_rank_division null,   -- 0012, M5.7
-                updated_at)  pk (group_id, player_id, season_id) -- 0019, M13.3: one rating per person per group
-                             index (season_id, ordinal desc)
+                updated_at)  pk (group_id, player_id)           -- 0026, M14.14: one rating per person per group
+                             index (group_id, ordinal desc)
 lobbies        (id, lcu_party_id, status, reported_by_player_id, lobby_name, lobby_password,
                 created_at, updated_at)  unique (lcu_party_id) where status in (open, balanced, in_game)
 lobby_members  (lobby_id, player_id, side null, role null, role_override null, is_spectator, created_at)
 splits         (id, lobby_id, rank, blue jsonb, red jsonb, gap, blue_win_prob, score, off_role_count,
                 is_chosen, explanation, roster_key, created_at)
-games          (id, lcu_game_id unique, lobby_id null, season_id, started_at, duration_s, winning_side,
-                source 'eog' | 'backfill', raw jsonb, created_at)
+games          (id, lcu_game_id unique, lobby_id null, group_id, started_at, duration_s, winning_side,
+                source 'eog' | 'backfill', mode -> modes.id,    -- mode 0024, M14.29: stamped at insert
+                raw jsonb, created_at)  index (group_id, started_at desc)   -- 0026
 game_players   (game_id, player_id, side, role null, champion_id, kills, deaths, assists, gold, damage_to_champs,
                 cs, mu_before null, sigma_before null, mu_after null, sigma_after null,
                 counts_for_role_inference,                      -- 0010, M5.17
@@ -78,20 +79,33 @@ companion_commands (id, target_player_id, kind, payload jsonb, status, created_a
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
 discord_config (group_id pk, guild_id, webhook_url, results_channel_id,   -- pk group_id 0020, M13.4
                 lobby_voice_channel_id, blue_voice_channel_id, red_voice_channel_id,
+                test_post_at null, test_post_error null,        -- 0025, M14.20
                 created_at, updated_at)   -- one row per group; two groups may share a guild
+discord_connect_states (state_hash pk -- sha256 of the OAuth state nonce, group_id, auth_user_id,
+                created_at, expires_at -- 10 min, used_at)      -- 0025, M14.20
 window_posts   (group_id, kind, window_start, claimed_at, posted_at, attempts, reason)
                 pk (group_id, kind, window_start)                 -- 0011, per group 0020
 daily_mysteries (id, group_id, day, kind, challenge_number, ...)  -- 0013/0016;
                 unique (group_id, day), unique (group_id, kind, challenge_number)   -- 0020
-groups         (id, slug unique, name, created_by null, created_at)                -- 0018, M13
-group_memberships (group_id, player_id, role 'member' | 'admin', created_at,
+groups         (id, slug unique, name, created_by null -- an auth.users id, not a player,
+                ratings_since null,                             -- 0027, M14.18
+                created_at)                                     -- 0018, M13
+group_memberships (group_id, player_id, role 'owner' | 'admin' | 'member', created_at,   -- owner 0023, M14.11
                 backfill_requested_at, backfill_approved_at -- unread since 2026-10-03)  pk (group_id, player_id)
+                unique (group_id) where role = 'owner'          -- 0023: at most one owner per group
+modes          (id pk -- 'normal' | 'fearless', created_at)    -- 0024, M14.29; M15 adds rows
+group_modes    (group_id pk, mode -> modes.id default 'normal', set_by null -> players.id,
+                updated_at)                                     -- 0024, M14.29: one standing mode per group;
+                                                                -- 0030, M14.46: a new group starts on 'normal'
+                                                                -- (was 'fearless'); existing rows kept their mode
 group_invites  (group_id pk, code unique -- 22 url-safe chars, stored as is, rotated_at, rotated_by)  -- 0021, M13.5
 pairing_codes  (code_hash pk -- sha256 of 6 chars, group_id, auth_user_id, discord_id, created_at,
                 expires_at -- 15 min, used_at)                                        -- 0021, M13.5
 pairing_attempts (id, ip_hash, attempted_at) -- the per-address limit on POST /api/companion/pair  -- 0021
 
 players_public view (players minus discord_id; still carries the retired is_admin, unread since M13.4)
+groups_public view (id, slug, name, ratings_since)  -- 0018, ratings_since 0027; never created_by
+group_members_public view (group_id, player_id)     -- 0018; never role
 ```
 
 **`group_id` on the ten tables** (`ratings`, `lobbies`, `games`, `game_players`, `companion_tokens`,
@@ -107,13 +121,36 @@ Also in the schema:
   `companion_command_kind` (`create_lobby`, `invite`, `switch_side`), `companion_command_status` (`pending`,
   `sent`, `acked`, `failed`). The generated types then carry the same unions `packages/core` declares. `side`
   stays a smallint with a check, because 100 and 200 are the client's numbers, not a vocabulary of ours.
-- **Season 1** is inserted by `0001_init.sql`, active, with the fixed id `00000000-0000-0000-0000-000000000001`
-  (exported as `SEASON_ONE_ID`), so ratings and games always have a season to hang off.
-- **Functions.** `active_season_id()` (the default for `games.season_id`), `bootstrap_admin(puuid)` (idempotent
-  insert-or-promote, service role only, called by the API on start with `BOOTSTRAP_ADMIN_PUUID`), and
-  `set_updated_at()` (the trigger behind every `updated_at`).
+- **Functions.** Every `security definer` function is `set search_path = ''`, has execute revoked from public,
+  anon and authenticated, and is granted to the service role only (the two RLS helpers are the exception, below).
+  Each is the whole of one write, so a route never composes a write out of several statements.
+  - `bootstrap_admin(puuid)`: insert-or-link the `BOOTSTRAP_ADMIN_PUUID` player, called on the first admin or
+    companion request of every process. Since `0023` it makes that player the **owner** of `customs` while
+    `customs` has no owner, and otherwise leaves every membership alone (it never demotes an owner).
+  - Groups and pairing (`0021`, owner rules `0023`): `create_group(slug, name, created_by, player)` (a linked
+    creator's membership is `owner`), `new_invite_code()`, `rotate_group_invite(group, rotated_by)` (also expires
+    every unused pairing code a non-creator got through the old link), `redeem_pairing_code(code_hash, puuid)`
+    (the creator's pairing makes them `owner` while the group has none), `pairing_attempt(ip_hash, limit,
+    window)` (the per-address limit).
+  - Owner-only writes (`0023`, M14.11), each re-checking the actor's role under the group's row lock:
+    `set_group_member_role_v2(group, actor, player, role)` (replaced `0020`'s `set_group_member_role`, dropped),
+    `transfer_group_ownership(group, actor, player)`, `remove_group_member(group, actor, player)` (deletes the
+    membership and revokes that player's companion tokens in the group). A group with no owner yet keeps
+    M13.4's rules: its admins manage admins, and its last admin can be neither demoted nor removed.
+  - `reset_group_ratings(group, actor, now)` (`0027`, M14.18): owner only; refused while a lobby is live or a
+    game landed in the last 15 minutes; sets `groups.ratings_since` and deletes the group's `ratings` rows.
+    Returns `ok | not_found | forbidden | owner_only | busy`.
+  - Triggers: `set_updated_at()` (every `updated_at`), `companion_token_add_membership()` (`0019`),
+    `groups_insert_mode()` (every new group gets its `group_modes` row, `0024`; on `normal` since `0030`), `games_stamp_mode()` (stamps
+    `games.mode` from the group's `group_modes.mode` when the insert names none, `0024`),
+    `discord_config_clear_test_post()` (clears both test-post columns whenever `webhook_url` changes, `0025`).
+  - RLS helpers (`0022`): `current_player_id()` and `is_group_admin(group)`, executable by `authenticated` too,
+    because a function called inside a policy runs as the querying role. Both answer only about the caller's own
+    verified session.
 - **Realtime.** The `supabase_realtime` publication covers `lobbies`, `lobby_members`, `splits`, `games`,
-  `game_players` and `ratings`. A table outside the publication never emits a change event, silently, and the
+  `game_players`, `ratings`, `fearless_state` (`0017`) and `group_modes` (`0024`). Realtime only puts into a
+  subscriber's payload the columns its role may select, so `0028` (and `0029`) keep the hidden columns out of anon
+  events while the events still fire. A table outside the publication never emits a change event, silently, and the
   tonight page (M3.4) and the bot (M4.4) are built on those events. `players` is left out; it is not publicly
   readable.
 
@@ -126,8 +163,16 @@ Rules:
   `dropped` or `abandoned`. A game post resolves to the newest row that already existed when the game started, so a late
   end-of-game block stays on the lobby it was played from. Closed rows are never rewritten or reused.
 - A player row is created lazily the first time a PUUID appears in a lobby or a game. Discord linking is optional
-  and done by an admin (`/admin/players`) or self-service via Discord OAuth.
-- `ratings` is per season. Ratings never reset: there is one season row, and the board is viewed through automatic time windows (week, month, all time; M5.9, M5.12). `ordinal` is a
+  and self-service: tapping your name (`/api/me/link`) or host pairing. The admin link (`/admin/players`) is
+  retired (M14.56).
+- History: seasons (a table, a `season_id` key on `ratings` and `games`, `active_season_id()`) existed from `0001`
+  until `0026` (M14.14) kept the active one's rows and dropped the concept.
+- `ratings` is one row per person per group, keyed `(group_id, player_id)` (`0026`, M14.14). A group's ratings
+  reset only when its owner presses `Reset ratings` (`reset_group_ratings`, `0027`): the group's rows are deleted
+  and `groups.ratings_since` is set, so the live fold and `rebuild-ratings` rate only games with
+  `started_at >= ratings_since` and start everyone from the seed; older games keep their stored rating columns.
+  Otherwise the board is viewed through automatic time windows (This week, Last week, All time; M5.9, M5.12;
+  the month windows were removed in M14.48). `ordinal` is a
   stored generated column so the leaderboard sorts in one index scan and SQL cannot disagree with
   `packages/core` about the formula; `packages/core` stays the only place that computes a rating.
 - `ratings.seed_mu` / `seed_sigma` are the `{ mu, sigma }` the **first fold that rated this player** started
@@ -260,8 +305,23 @@ OpenSkill, default Plackett-Luce model, two teams of five.
 - Balance on `mu`. Leaderboard sorts on `ordinal = mu - 2 * sigma`. Display rating is `round(mu * 60)`.
   **The two week windows are the one carve-out** (M7.3, user 2026-09-15): `This week` and `Last week` sort and
   print the weekly channel's `Rating` (`round(mu * 60)`) and print no Proven at all, because a week is a handful
-  of games and the `- 2σ` subtraction would rank a 4W 4L week above a clean 2W 0L one. `All time`, `This month`
-  and `Last month` sort on `ordinal`, for ever.
+  of games and the `- 2σ` subtraction would rank a 4W 4L week above a clean 2W 0L one. `All time` sorts on
+  `Rating` with players under 10 rated games in a settling section (M14.4); there are no month windows (M14.48).
+- `SETTLING_GAMES = 10` (`config.rating.settlingGames`); boards rank players at >= 10 rated games (M14.4,
+  `isSettling`).
+- **Why this many points** (M14.58, `rating/explain.ts`). `explainDelta` turns one row's stored breakdown (the
+  side's fold probability, `sigma_before`, optional rated-game count, `mu_before`, base and final `mu_after`,
+  award, result) into structure: `points` and `basePoints` (both differences of displayed Ratings, so
+  `points = basePoints + award.effect`), `odds { pct, stance }` with `even` at 48-52% on `favoredSide`'s
+  rounding, `certainty` (`new` / `settling` / `settled`) and `award { kind, effect, fraction } | 'none'`.
+  Certainty: a rated-game count decides when given (games 1-3 `new`, game 10 the first `settled`, the chip's
+  line); otherwise `sigma_before` > 10.6 is `new`, <= 8.4 is `settled` (`config.rating.explain`, fitted so a
+  seed newcomer in M1.3's reference lobby reads new for three games and settles on the tenth).
+  `explainLegacyDelta` covers pre-`0034` rows: odds from the ten stored befores, `award: 'unknown'`, or
+  `lead-only` when any before is missing. The stored probability is `foldWinProbability` = `predictWin` over the
+  exact befores handed to `rateGame` (M14.59 option (a), one function with the balancer). It is not OpenSkill's
+  internal Plackett-Luce share that scales the update (a logistic of the same mu gap, e.g. 57% where `predictWin`
+  says 62%); the two always name the same favourite, which is all the sentence claims, and a test pins that.
 - A game is rated only when its stored row has ten `game_players`, five a side, `duration_s` over 300
   seconds, **and its `games.raw` names Summoner's Rift** — `CLASSIC` or no mode at all, since every night
   captured before the companion stored one was Rift (M5.26, M7.1). M1.5 stores every `CUSTOM_GAME` block,
@@ -280,28 +340,27 @@ OpenSkill, default Plackett-Luce model, two teams of five.
   `game_players`. Ratings are a pure fold over games ordered by `started_at`, so they can be rebuilt from scratch
   after a backfill or a model change (`pnpm --filter web rebuild-ratings`).
 
-### Two channels: all-time and weekly (M7.2)
+### One channel (M14.57; the weekly track M7.2 is retired)
 
-There are two folds of the same model and no more. `rateGame` is the all-time channel: it forms teams, it is what
-`game_players` stores, and its numbers are pinned byte for byte by a test — it passes OpenSkill no options, so a
-tuning change can never reach it by accident. `rateGameWeekly` is the weekly channel (M7.2): the same signature,
-five and five in and out, throwing on anything else, tuned by `config.rating.weekly` and read only through
-`apps/web/lib/board/weekly.ts`, which folds it from scratch from the seed over one week's games (M7.3). It
-never forms teams, is never persisted, and nothing under `apps/web/lib/ingest/` may import it.
-
-Two surfaces read that fold and they are the two halves of one Sunday post: the `this-week` / `last-week` board,
-and **`Most improved` on a week window** (M7.4) — the award is the player's weekly seed to where the week left
-them, which is "who climbed furthest from where everyone starts" instead of a difference of two stored `mu`
-columns that a month of history barely moves. (Before 2026-09-16 that seed came from the player's League rank
-and the line read "who beat their rank hardest this week"; it is one shared starting number now, which also
-means people with identical weeks tie and the block names all of them.) Both ends are `mu`-derived, so the award never reads `sigma` and a week's climb is
-still the subtraction of two printed numbers. Month windows keep the stored climb for ever, and the award's two
-neighbours (`Best off-role`, `cursed duo`) read games and roles and no rating at all.
+There is one fold: `rateGame`. It forms teams, it is what `game_players` stores, and its numbers are pinned byte
+for byte by a test (it passes OpenSkill no options, so a tuning change can never reach it by accident). The
+separate weekly track (`rateGameWeekly`, `config.rating.weekly`, `apps/web/lib/board/weekly.ts`) is deleted
+(M14.57, decision row 2026-10-04): every per-game gain or loss on every surface is the all-time `displayDelta`,
+and the `this-week` / `last-week` boards rank by **net points**, the sum of those printed per-game deltas in the
+window (`sumDisplayDeltas`), with W–L; tie-break points, more wins, fewer games, higher all-time Rating, name.
+`Most improved` is retired with it (it would always be the board's #1); the weekly awards are `Best off-role` and
+`Cursed duo`, which read games and roles and no rating at all.
 
 | | `beta` (luck in one game) | `tau` (uncertainty added back per game) |
 | --- | --- | --- |
-| all-time (`rateGame`) | OpenSkill default `25 / 6` ≈ 4.17 | OpenSkill default `25 / 300` ≈ 0.083 |
-| weekly (`rateGameWeekly`) | **2.00** | **0.30** |
+| `rateGame` | OpenSkill default `25 / 6` ≈ 4.17 | OpenSkill default `25 / 300` ≈ 0.083 |
+
+**Why a game moved by as much as it did (M14.58, `0034`).** The fold stores, per `game_players` row, the win
+probability it used for that side (`fold_p`, core `foldWinProbability` = the balancer's `predictWin` over the
+exact befores), the `mu_after` before the MVP/ACE bonus (`base_mu_after`), the `award` (mvp / ace / none) and
+`rated_games_before`. Core `explainDelta` turns that into odds stance, certainty (games 1–3 new, the 10th
+settled, as the chip) and the award's effect; `explainLegacyDelta` covers rows from before `0034` (odds and
+certainty only). `rebuild-ratings` fills and re-checks all four.
 
 **What the weekly channel is for is that it moves, not that it makes up its mind sooner.** The three measured
 numbers, all pinned in `rating/index.test.ts` so a later `openskill` patch that moves them fails loudly (M7.2
@@ -333,7 +392,7 @@ per game, `P0`'s side wins every game); on that setup `mu` passes the field's 23
 to game 23, and below 2.00 the curve is flat, so there is nothing left to buy. `tau` is the stronger lever and it
 pays for movement by refusing to converge: at `tau` 0.30 `sigma` reaches 5.00 in game 30, at 0.45 in game 59, and
 from about **0.46 upward it never reaches 5.00 at all** (measured to 500 games). 0.30 is a knee and not a ceiling —
-it keeps the week responsive while still settling inside a horizon a season can reach. Far past it the board stops
+it keeps the week responsive while still settling inside a horizon a group's history can reach. Far past it the board stops
 being about the week: at `tau` 10 one game moves a settled player **100 display points** and, for a settled player
 trading wins and losses, `sigma` climbs instead of falling (10.5 after one game, 30.3 by game 10, about 74 by game
 200), which is a board about the last game.
@@ -411,7 +470,7 @@ mean the weights differ game to game, which is a second model.
 Nothing here requires a side to hold five distinct roles: buckets are read per player, and a side with two
 supports and no top is scored as it comes. The balancer's view of roles is not involved.
 
-The adjustment is applied **after** `rateGame` (or `rateGameWeekly`) and never inside it, so the base rating maths
+The adjustment is applied **after** `rateGame` and never inside it, so the base rating maths
 stays untouched and independently testable — `applyMvpAceBonus` takes the fold's `{ puuid, before, after }` and
 gives back the same ten. With `delta = after.mu - before.mu`:
 
@@ -457,8 +516,8 @@ and wins MVP under these weights, having lost it under M7.8's single vector, and
 who is exactly mid-table on the other six wins MVP on objective damage alone, having lost it under M7.13's six.
 
 **Where it is applied (M7.9): inside `foldGame` in `apps/web/lib/ingest/fold.ts`, once.** That function is the
-one implementation both rating callers share — `rating.ts` folds a game as it lands, `rebuild.ts` replays a whole
-season — so a game the live fold amplified and a rebuild did not is not a bug that can happen. It calls
+one implementation both rating callers share — `rating.ts` folds a game as it lands, `rebuild.ts` replays a group's
+whole history — so a game the live fold amplified and a rebuild did not is not a bug that can happen. It calls
 `performanceScores` → `mvpAce` → `applyMvpAceBonus` in that order and writes the adjusted `mu` into the same four
 `game_players` columns as before: **no new column, no stored marker, nothing about the award is written down**.
 Both callers select the nine stat columns and `role` for this and read them for nothing else; `lib/stats/fold.ts`
@@ -466,10 +525,7 @@ still gates with the three-field `FoldPlayer`, because "did a game happen" never
 
 Two consequences worth naming. **The surfaces needed no change**: `/leaderboard`'s expand and `/p/[puuid]`'s
 recent games print `mu_after - mu_before` off the stored row, so the adjusted delta reached them the day the fold
-started writing it. And **the weekly track (M7.3) does not carry the bonus**: `lib/board/weekly.ts` is a second,
-read-time fold over the same *games* — it only ever sees seats the all-time fold rated — but its numbers are
-`rateGameWeekly`'s over a week's own seeds, and a `WeeklyPlayer` carries no stat line to score. Giving the week
-the bonus too would mean selecting those ten columns on the board's own query, and is not something M7.9 did.
+started writing it. Week boards (M14.57) sum those same stored deltas, so the bonus counts there too; the separate weekly fold that once skipped it is retired.
 
 **Where it is named (M7.10): two surfaces, one function, at read time.** Nothing distinguishes an amplified
 `mu_after` from a plain one once it is stored — that was checked, and it is why `fold.ts` exports `gameAward` at
@@ -488,7 +544,7 @@ remake, a four-minute surrender and an ARAM (four null rating columns, for ever)
 print, which falls back to the stored split when the client reported no position: the fold read the column, so a
 game with no MVP in the fold must have none on a page, or a post would name a player whose delta was never
 amplified. And **the read is the same query, wider** — nine more integer columns on a select that was already
-being made — never a second round trip; the board's own season-wide read of `game_players` is left alone, because
+being made — never a second round trip; the board's own all-time read of `game_players` is left alone, because
 it prints no award and would be carrying those columns for a thousand games to say so.
 
 ## Balancer (`packages/core/balance`)
@@ -570,11 +626,33 @@ pair into the same `players.main_role` / `secondary_role` the balancer already r
   `game_players.counts_for_role_inference` is the guard's input, written at fold time by the same update that
   claims the rating columns — it defaults to true, which is the honest answer for every game we did not balance.
 - **When it runs** (`lib/ingest/roles.ts`): after a rated fold, for the ten who played, and at the end of
-  `rebuild-ratings`, for everybody with a game in the season. Nowhere else — no cron, no button, no recompute on
-  page load. It reads a player's rated games across every season, because a role is a fact about a person. Only
+  `rebuild-ratings`, for everybody with a game in the group. Nowhere else — no cron, no button, no recompute on
+  page load. It reads a player's rated games across every group, because a role is a fact about a person. Only
   rows whose pair, count or stamp actually move are written, so a second rebuild changes nothing; a failure after
   a rated fold is logged and swallowed, because the game is rated and the next game or rebuild fixes the pair.
-  `/admin/players` shows the pair read-only and `POST /api/admin/players` answers 410 to `set-roles`.
+  No admin surface sets roles; the 1.0 players page and its write route are retired (M14.23, M14.56).
+
+## Mode model (`packages/core/mode`, M15.2)
+
+The standing mode (`normal` | `fearless`) and at most one **rule** for the next game (`class` with a
+`CLASS_TAGS` tag, `region`, `mirror`), per the M15.1 brief. Champion facts (Data Dragon tags, region slug) are
+input as a `ChampionTable` keyed by `champion_id`; core imports no fixture.
+
+- `config.modes.ratedDefault`: normal, fearless, mirror rated; class, region not rated. An admin may flip Rated
+  for the next game in any mode; choosing a mode or rule resets it.
+- Pools: a class counts **any** tag; `modePool(mode, roster, fearlessBans)` subtracts the bans the caller passes
+  (pass none on a Normal night). `rulePlayable`: a class needs `config.modes.classMinOpen = 10` open; region
+  wars needs two regions (never `unaffiliated`) with `config.modes.regionMinOpen = 8` open; mirror always.
+- `drawSpin(options, previousRule, playable, rng)`: a family uniformly from `SPIN_FAMILIES` (`class`, `region`,
+  `mirror`; M17.17), then an option; never the previous rule, an unplayable option or a standing mode. Mirror joined
+  once Start a lobby began opening the Blind Pick lobby itself. `drawRegions(regions, openCounts, rng)`: blue, then red from the
+  rest. Both sort candidates by a stable key; `rng` returns `[0, 1)` or the draw throws `RangeError`.
+- `checkMode(mode, seats, table)`: per side `kept` | `broke` | `unknown` with champion keys (mirror: per lane).
+  A champion with no tags or no region row is `unknown`, never `broke`; seats carry no player.
+- Lifecycle: `chooseStanding` / `chooseRule` / `setRated` move a `version`; `lockAtRoll` copies the effective
+  mode and rated flag with that version (a Reroll passes the existing lock back); `afterRecord` clears the rule
+  and the switch only for a Rift game with a lock whose version still matches, so anything changed after Roll
+  survives. Remake, ARAM and no-lobby games consume nothing; a dropped lobby is no record at all.
 
 ## Lobby lifecycle (server side)
 
@@ -615,7 +693,11 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   puuid. "Tonight" runs 06:00 to 06:00 in `CUSTOMS_NIGHT_TZ`, and a sit-out is derived, never stored — a
   `lobby_members` row of a lobby that reached `in_game` or `finished` with no `game_players` row for its game.
   When the chosen ten include somebody in the spectator slot, each sitter is paired with the person taking
-  their seat; the API only says so, it never moves anyone.
+  their seat; the API only says so, it never moves anyone. Both numbers count **the lobby's group only**
+  (M14.43): another group's games move neither games tonight nor the last sit-out. **The lobby's host never
+  sits** (M14.43): the player whose companion first reported the lobby (`lobbies.reported_by_player_id`)
+  is taken out of the sitting end and plays, until a real client shows that a spectator still gets the
+  end-of-game block (`03-lcu-reference.md`, unverified).
 - The `lastSplit` passed to the balancer is the five puuids on one side of the most recent chosen split whose
   lobby had the same ten players as tonight's; if there is no such split, `lastSplit` is null.
 - Discord posting happens from the API on state transitions, through the webhook stored in `discord_config`.
@@ -675,8 +757,8 @@ watching: on lobby event -> POST /api/companion/lobby
   group's. `/` is a permanent redirect (`lib/groups/landing.ts`): signed out to `/g/customs`, a member to the
   `kustom_group` cookie's group (written by `proxy.ts` on every group page, followed only when the session's
   player is a member) or their oldest group, a signed-in person in no group to `/new`.
-- `/leaderboard` The board through one of five windows: by ordinal on `All time` and the two months, and by the
-  weekly `Rating` on `This week` (the default) and `Last week`, which are folded from each player's seed at read
+- `/leaderboard` The board through one of three windows: by `Rating` with a settling section on `All time`, and by
+  the weekly `Rating` on `This week` (the default) and `Last week`, which are folded from each player's seed at read
   time (M7.3) — the stored one, else `provisionalSeed()`, never their League rank. Wins, games, streak.
 - `/p/[puuid]` Player page: rating history chart, role record, recent games.
 - `/admin` Discord OAuth gated, admin membership (`group_memberships.role = 'admin'`) in the page's group — the
@@ -695,8 +777,8 @@ watching: on lobby event -> POST /api/companion/lobby
   `context.groupId` and nothing else: a lobby, player or token outside it is **404**, never 403, so an admin of
   A does not learn which of B's ids exist. `POST /api/admin/members/role { groupId, playerId, role }` promotes
   or demotes a member through `set_group_member_role` (`0020`), which locks the group's row and refuses to
-  demote the last admin (409 `This group needs at least one admin.`); `/admin/players`' `set-admin` is the same
-  write. `players.is_admin` is read by nothing (`lib/groups/isAdminUnread.test.ts` walks the sources).
+  demote the last admin (409 `This group needs at least one admin.`); it is the only role write since M14.56
+  retired the players route. `players.is_admin` is read by nothing (`lib/groups/isAdminUnread.test.ts` walks the sources).
 - **Crons loop over groups** (M13.4): `cron/leaderboard`, `cron/window` and `cron/mystery` serve every group,
   oldest first, each on its own — one group's failure is its own line in the response and the next group
   still runs. `window_posts` is claimed per `(group_id, kind, window_start)` and a group with no webhook gets
@@ -722,13 +804,16 @@ watching: on lobby event -> POST /api/companion/lobby
     player and one player per session**: only a member of tonight's newest non-`abandoned` lobby may be
     claimed, a player who already carries a `discord_id` is neither offered nor accepted (409), the write is
     conditional on `discord_id is null` so the race cannot double-link, and `players_discord_id_key` catching a
-    session that already has a player is the same 409 rather than a 500. Undoing a link stays an admin's job on
-    `/admin/players`.
+    session that already has a player is the same 409 rather than a 500. Undoing a link has no in-app path
+    since M14.56: it is cleared by hand (`players.discord_id` to null).
   - Which members may be claimed is decided **on the server** with the service role
     (`apps/web/lib/me/claimable.ts`): `discord_id` is not readable with the anon key, so the page is handed the
     PUUIDs of the unclaimed members only and never learns who is linked to what.
   - `POST /api/me/lobbies/start` is `Start a lobby` (M4.2's rules, moved onto this class by M4.13): one
-    `create_lobby` command for the host the server picked, with the invites following off its ack. The presser
+    `create_lobby` command for the host the server picked (payload `{ lobbyName, lobbyPassword, pickType }`, M17.17:
+    `pickType` is `blind` when the group's next rule is mirror match and `draft` otherwise; a payload without it
+    reads as draft, and the companion resolves that entry from the client's own custom-queue list), with the
+    invites following off its ack. The presser
     is `context.me.player.playerId` from the session and never the body, which carries nothing but a
     `redirectTo` for the no-JavaScript path; a session with no player row is a 403 with
     `START_LOBBY_NOT_LINKED` rather than a 500. **There is no admin branch**: an admin of the group is a member
@@ -782,11 +867,39 @@ watching: on lobby event -> POST /api/companion/lobby
   redacts `mucJwtDto` and `multiUserChatPassword` before the insert (`scrubRawEogBlock`, M2.10). The
   companion may redact them too; the server is the one that has to, because old companion binaries keep
   running for months.
-- Supabase Row Level Security: public read on `seasons`, `ratings`, `lobbies`, `lobby_members`, `splits`, `games`
-  and `game_players`, plus `players` through the `players_public` view. `companion_tokens`,
-  `companion_commands`, `discord_config`, `group_invites`, `pairing_codes` and `pairing_attempts` have no read
-  policy at all. Writes only through the service role
-  used by the API.
+- Supabase Row Level Security is on for every table. Writes only through the service role used by the API and
+  the locked definer functions; anon and authenticated hold no insert, update, delete or truncate anywhere.
+  - **Public read** (anon and authenticated, `using (true)`): `ratings`, `lobbies`, `lobby_members`, `splits`,
+    `games`, `game_players`, `fearless_state`, `modes`, `group_modes`; and three views that run as their owner
+    so they can read a base table anon cannot: `players_public` (`players` without `discord_id`),
+    `groups_public` (`id, slug, name, ratings_since`, never `created_by`) and `group_members_public`
+    (`group_id, player_id`, never `role`: who is in a group is the leaderboard, who runs it is not).
+  - **Column grants inside a public table.** `lobbies.lobby_password` (`0028`, M14.28): anon and authenticated
+    get SELECT on every other column, so a select naming it, or `select=*`, is a 42501, and anon Realtime
+    payloads carry no password; the server reads it with the service role for linked members only.
+    `group_modes.set_by` and `fearless_state.reset_by` (`0029_admin_ids_private.sql`, M14.40, applied
+    locally): the same pattern, because with `players_public` a player id names a group's admin. A column
+    added to any of the three tables later is private until granted.
+  - **Signed-in reads** (`0022`, M14.5, defence in depth; the app still reads with the service role):
+    `group_memberships` (a session reads its own rows; a group's owner or admin reads every row of that group)
+    and `group_invites` (a group's owner or admin reads its invite), through `current_player_id()` and
+    `is_group_admin()`. anon gains nothing.
+  - **No read policy at all** (service role only): `players` (anon gets a 401), `groups`, `companion_tokens`,
+    `companion_commands`, `discord_config`, `discord_connect_states`, `window_posts`, `daily_mysteries` and its
+    tables, `pairing_codes`, `pairing_attempts`.
+- `discord_connect_states` (`0025`, M14.20) stores only the sha256 of the OAuth `state` nonce, bound to the auth
+  user and group that pressed `Connect Discord`, ten minutes, single use (the callback's one conditional update);
+  the URL's state also carries an HMAC over (nonce, group, user) keyed from the Discord client secret. The
+  `webhook.incoming` exchange's access and refresh tokens are dropped, never stored; only the webhook is kept.
+- Admin writes go through `authorizeAdmin` (an `owner` or `admin` membership in the request's group). Four
+  **setup writes** go through `authorizeSetupWrite` instead (M14.40): Connect Discord (connect and callback), the
+  Discord test post, `discord-config` and the invite rotate also accept the session whose auth user id is the
+  group's `groups.created_by` while no player is linked to its Discord account, so a creator can connect Discord
+  and share the invite before pairing. It is an allow-list pinned by `lib/setupGate.test.ts`; host tokens,
+  roles, remove, transfer, reset, mode and roll never read `created_by`.
+- Sessions: `proxy.ts` refreshes the Supabase session on every page navigation that carries an `sb-` cookie
+  (M14.40; not `/api`, `/auth`, `/og`, `_next` or static files) and writes the rotated tokens onto the response, because
+  a server component cannot write cookies.
 - Public reads of players go through the `players_public` view, which is `players` without `discord_id`. It
   still carries the retired `is_admin`, which nothing reads since M13.4: the tonight page decides whether to draw
   the roll and reroll controls on the server from the viewer's membership role, and names the group's admins
@@ -801,3 +914,15 @@ watching: on lobby event -> POST /api/companion/lobby
 - CI (`.github/workflows/ci.yml`) runs `pnpm install --frozen-lockfile`, `pnpm -r typecheck`, `pnpm lint`, `pnpm -r test` and `pnpm --filter web build` on ubuntu-latest for every pull request and every push to `main`, on the Node in `.nvmrc` and the pnpm in `packageManager`; it needs no secrets, and with no Supabase local stack on the runner the `*.integration.test.ts` files skip.
 - Vercel free tier and Supabase free tier are enough. The bot needs a small always-on box (Fly.io free allowance).
 - Backups: Supabase daily. `games.raw` makes everything else reproducible.
+
+
+### Mode of the night (M15.3, `0032`)
+
+`group_modes` carries the standing mode (`normal` / `fearless`), the one pending rule (`pending_rule`, `pending_class_tag`), the admin's
+Rated override and a `version` that every card write bumps (compare-and-set). Roll copies the card onto the lobby (`lobbies.lock_*`: the
+standing mode in `lock_mode`, the rule, the drawn regions, `lock_rated`, `lock_version`); Reroll keeps it; a `balanced → open` trigger drops
+it. A recorded game is stamped from that lock, not from the card at record time: `games.mode` stays the **standing** mode, the rule lives in
+`games.rule*`, `games.rated` is fixed at insert, and `rule_check` holds core's kept / broke / unknown verdict (champion keys only). After
+record the pending rule and override clear only if the card's version still equals the lock's. A game with `rated = false` never reaches the
+fold or `rebuild-ratings` (`gateRatedGame` → `not-rated`, also a rebuild fence), so it has no `mu_after` and stays off the boards,
+calibration, the Fearless pool (`mode = 'fearless' and rated`) and role learning.

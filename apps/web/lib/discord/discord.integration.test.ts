@@ -11,8 +11,11 @@ import { FEARLESS_TITLE } from '../fearless/copy';
 import { loadFearless } from '../fearless/load';
 import { ensurePlayers } from '../ingest/players';
 import { nightStart } from '../night';
+import { explanationShown } from '../receipt/copy';
 import { siteOrigin } from '../siteUrl';
 import { eogBody, testGameId } from '../testing/fixtures';
+import { snapshotGroupModes } from '../testing/groupModes';
+import { pinTestGroupMode } from '../testing/groups';
 import { resolveLocalStack } from '../testing/localStack';
 import { rollForTest } from '../testing/roll';
 import { sideLine } from './embeds';
@@ -50,6 +53,7 @@ if (stack === null) {
   const { POST: postLobby } = await import('@/app/api/companion/lobby/route');
   const { POST: postGame } = await import('@/app/api/companion/game/route');
   const { resetWebhookWarning } = await import('./webhook');
+  const { postFearlessPool, postResultForGame } = await import('./post');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -200,31 +204,44 @@ if (stack === null) {
     });
   }
 
-  /** The fields of the single embed of a post, by name. */
+  /** The fields of a post's first embed (E1, M14.61), by name. */
   function fieldsOf(index: number): Record<string, string> {
     const embed = ((posts[index]?.body.embeds ?? []) as Record<string, unknown>[])[0];
     const fields = (embed?.fields ?? []) as { name: string; value: string }[];
     return Object.fromEntries(fields.map((field) => [field.name, field.value]));
   }
 
-  /** The ten lines of the two side fields, whose names carry a sum that is not the subject. */
+  /**
+   * The ten lines of the two side embeds, `🟦 BLUE` and `🟥 RED` (M14.61; no team totals since
+   * M14.10), with the bold markers around the names taken off.
+   */
   function teamLines(index: number): string[] {
-    return Object.entries(fieldsOf(index))
-      .filter(([name]) => name.startsWith('Blue · ') || name.startsWith('Red · '))
-      .flatMap(([, value]) => value.split('\n'));
+    const embeds = (posts[index]?.body.embeds ?? []) as { title?: string; description?: string }[];
+    return embeds
+      .filter((embed) => embed.title === '🟦 BLUE' || embed.title === '🟥 RED')
+      .flatMap((embed) => String(embed.description).split('\n'))
+      .map((line) => line.replaceAll('**', ''));
   }
 
-  /** Field-for-field stable: the timestamp and the season's game count are not. */
+  /** Field-for-field stable: the running game count in the author line is not (M14.61). */
   function normalise(body: Record<string, unknown>): unknown {
-    const embeds = (body.embeds as Record<string, unknown>[]).map((embed) => ({
-      ...embed,
-      timestamp: '<timestamp>',
-      footer: { text: String((embed.footer as { text: string }).text).replace(/game \d+/, 'game <n>') },
-    }));
+    const embeds = (body.embeds as Record<string, unknown>[]).map((embed) => {
+      const author = embed.author as { name: string } | undefined;
+      return author === undefined
+        ? embed
+        : { ...embed, author: { ...author, name: author.name.replace(/game \d+/, 'game <n>') } };
+    });
     return { ...body, embeds };
   }
 
+  /**
+   * Rolled lobbies here record games in the real `customs` group, and since M15.3 each one runs
+   * compare-and-clear on its Mode card. Put the card back the way this file found it.
+   */
+  let restoreGroupModes: () => Promise<void> = async () => {};
+
   beforeAll(async () => {
+    restoreGroupModes = await snapshotGroupModes(db, ORIGINAL_GROUP_ID);
     await ensurePlayers(
       db,
       allPuuids.map((puuid) => ({ puuid })),
@@ -261,15 +278,22 @@ if (stack === null) {
     await new Promise<void>((resolve) => listening.listen(0, '127.0.0.1', resolve));
     webhookUrl = `http://127.0.0.1:${(listening.address() as AddressInfo).port}/webhook`;
 
-    // Leftovers from an interrupted run would win the "oldest row with a webhook" rule.
+    // Leftovers from an interrupted run of this file (its own `it-` guild ids only).
     await db.from('discord_config').delete().like('guild_id', 'it-%');
+    // The guard was global while posts read the oldest webhook row of any group (pre-M13.3).
+    // Since M13.3 `selectWebhookUrl` reads the posting group's own row only (`group_id` is the
+    // primary key since 0020), so another group's real webhook (a user's own group on a shared
+    // local stack) can neither be used here nor receive anything: refuse only when the group
+    // this file posts as already has a webhook, which this test would otherwise post past or
+    // clobber. The second-group case below proves the read stays inside the posting group.
     const { count } = await db
       .from('discord_config')
       .select('guild_id', { count: 'exact', head: true })
+      .eq('group_id', ORIGINAL_GROUP_ID)
       .not('webhook_url', 'is', null);
     if ((count ?? 0) > 0) {
       throw new Error(
-        'a discord_config row with a webhook already exists; this test would not be the one used',
+        'the original group already has a discord_config webhook; this test would not be the one used',
       );
     }
 
@@ -286,6 +310,7 @@ if (stack === null) {
   });
 
   afterAll(async () => {
+    await restoreGroupModes();
     await db.from('discord_config').delete().eq('guild_id', guildId);
     await db
       .from('games')
@@ -326,17 +351,30 @@ if (stack === null) {
 
       const first = await postGame(request(body));
       expect(first.status).toBe(200);
-      expect(posts).toHaveLength(1);
 
-      const posted = posts[0]?.body ?? {};
+      // The result may be followed by the fearless-pool embed (M10.1): it is posted whenever
+      // the original group's pool is non-empty, and that pool is every game of that group
+      // after `fearless_state.reset_at` -- including real rows on a local stack that is not
+      // freshly reset (2026-10-03: an audit seed's game made it non-empty and this case
+      // counted two posts). This game's own `started_at` is fixed in the past, so it is never
+      // what fills the pool. Count the result posts, and allow nothing else but fearless.
+      const titleOf = (post: (typeof posts)[number]) =>
+        ((post.body.embeds ?? []) as Record<string, unknown>[])[0]?.title;
+      const results = posts.filter((post) => titleOf(post) !== FEARLESS_TITLE);
+      expect(results).toHaveLength(1);
+      expect(posts.length).toBeLessThanOrEqual(2);
+      const afterFirst = posts.length;
+
+      const posted = results[0]?.body ?? {};
+      expect(posts[0]?.body).toBe(posted);
       const embed = (posted.embeds as Record<string, unknown>[])[0];
-      expect(embed?.title).toBe('Red wins · 32:00');
+      expect(embed?.title).toBe('Red wins · 32 min');
       expect(normalise(posted)).toMatchSnapshot();
 
       // The second companion in the same game: stored, rated and posted by nobody.
       const second = await postGame(request(body));
       expect(second.status).toBe(200);
-      expect(posts).toHaveLength(1);
+      expect(posts).toHaveLength(afterFirst);
     });
   });
 
@@ -486,7 +524,7 @@ if (stack === null) {
       // sat out` was true here and vacuous — the comparator had fallen through to puuid order.
       const fields = fieldsOf(0);
       expect(fields['Sitting out']).toBe(
-        'Sitting out: Player0 — nobody has sat out before, so somebody had to be first.',
+        'Player0 sits this one out. First game of the night, so somebody has to be first.',
       );
       // The move, then M4.3's side line. The whole pipeline runs here, so the sentence is the
       // one the shipped gate picks: `sideLine(SWITCH_SIDE_ENABLED)`, not a literal that has to
@@ -500,13 +538,13 @@ if (stack === null) {
       expect(lines.some((line) => line.includes('Player10 ·'))).toBe(true);
     });
 
-    it('goes back to the most-games clause once one game has been played (M3.12)', async () => {
+    it('names the tie at the cut once one game has been played, never most games (M3.12, M14.41)', async () => {
       const members = eleven.map((puuid, index) => ({ puuid, isSpectator: index === 10 }));
       const first = party('eleven-night');
       const balanced = await driveToBalanced(first, members, elevenToken);
       const lobbyId = await lobbyIdOf(balanced);
       expect(fieldsOf(0)['Sitting out']).toBe(
-        'Sitting out: Player0 — nobody has sat out before, so somebody had to be first.',
+        'Player0 sits this one out. First game of the night, so somebody has to be first.',
       );
 
       // The ten play it out. `el00` was in the lobby and not in the game, which is what a
@@ -570,14 +608,17 @@ if (stack === null) {
       // `undefined` again.
       expect(((posts[2]?.body.embeds ?? []) as Record<string, unknown>[])[0]?.title).toBe(FEARLESS_TITLE);
 
-      // Same eleven, next lobby of the night. They are no longer tied on games, so the clause
-      // is the plain one and the person sitting is somebody who has just played.
+      // Same eleven, next lobby of the night. The person sitting is somebody who has just played.
       const second = party('eleven-night-2');
       await driveToBalanced(second, members, elevenToken);
 
       expect(posts).toHaveLength(4);
       const fields = fieldsOf(3);
-      expect(fields['Sitting out']).toBe('Sitting out: Player1 — most games tonight.');
+      // M14.41 (scene-walk gap 4): Player1 has one game, and so do the nine who play beside the
+      // newcomer, so `most games` would be false. Level at the cut, nobody's sit-out between them.
+      expect(fields['Sitting out']).toBe(
+        'Player1 sits this one out. Tied on 1 game tonight, so somebody has to be first.',
+      );
       expect(fields.Seats).toBe(`Swap: Player1 out, Player10 in.\n${sideLine(SWITCH_SIDE_ENABLED)}`);
     });
   });
@@ -618,6 +659,8 @@ if (stack === null) {
           .from('fearless_state')
           .insert({ group_id: data.id, reset_at: '2020-01-01T00:00:00.000Z' });
         if (cursor.error) throw new Error(cursor.error.message);
+        // M14.46: a new group starts on Normal since 0030; these build on the fearless pool.
+        await pinTestGroupMode(db, data.id, 'fearless');
       }
       const config = await db
         .from('discord_config')
@@ -646,6 +689,7 @@ if (stack === null) {
       const both = [groups.two, groups.three];
       await db.from('discord_config').delete().eq('guild_id', `${guildId}-two`);
       await db.from('games').delete().in('group_id', both);
+      await db.from('lobbies').delete().in('group_id', both);
       await db.from('ratings').delete().in('group_id', both);
       await db.from('companion_tokens').delete().in('group_id', both);
       await db.from('fearless_state').delete().in('group_id', both);
@@ -673,6 +717,9 @@ if (stack === null) {
       expect(printed).toContain('Kayle');
       // Champion 103 is in the original group's pool from the cases above, never in this one.
       expect(printed).not.toContain('Ahri');
+      // The hook names the game, so its ten are the bold ones (M14.31): a fresh pool is all ten.
+      expect(fearless?.description).toMatch(/^Banned next game: 10 more, 10 in all\. \d+ still open\.$/);
+      expect(printed).toContain('**Annie**');
 
       const pool = await loadFearless(db, groups.two);
       expect(pool.champions.map((champion) => champion.id).sort((a, b) => a - b)).toEqual([
@@ -682,11 +729,141 @@ if (stack === null) {
       expect(JSON.stringify(await loadFearless(db))).toBe(originalPool);
     });
 
+    it("links the result to the game's page under its own group's slug, and counts that group's games (M14.10)", async () => {
+      const played = await postGame(request(ownChampionsBody(gameNumber(), twoPuuids), groupTokens.two));
+      expect(played.status).toBe(200);
+      const { data: game, error } = await db
+        .from('games')
+        .select('id')
+        .eq('group_id', groups.two)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (error) throw new Error(error.message);
+      posts.length = 0;
+
+      // The route's own post had a localhost origin and so no link; ask again from a real one.
+      const outcome = await postResultForGame(db, game.id, { requestOrigin: 'https://kustom.example' });
+      expect(outcome.status).toBe('posted');
+      expect(posts.map((post) => post.path)).toEqual(['/webhook-two']);
+      const embed = ((posts[0]?.body.embeds ?? []) as Record<string, unknown>[])[0];
+      expect(embed?.url).toBe(`https://kustom.example/g/it-${runId}-dc-two/games/${game.id}`);
+      expect(JSON.stringify(embed)).not.toMatch(/proven|ordinal/i);
+      // The author line counts group two's games only: the previous case and this one (M14.61).
+      const { count } = await db
+        .from('games')
+        .select('id', { count: 'exact', head: true })
+        .eq('group_id', groups.two);
+      expect((embed?.author as { name: string } | undefined)?.name).toBe(`dc two · game ${count}`);
+      // A public origin: the badge and the avatar come along (05-design 10.11).
+      expect((embed?.thumbnail as { url: string } | undefined)?.url).toBe(
+        `https://kustom.example/og/g/it-${runId}-dc-two/games/${game.id}/badge`,
+      );
+      expect(posts[0]?.body.avatar_url).toBe('https://kustom.example/og/kustom/avatar?v=2');
+      expect(posts[0]?.body.username).toBe('Kustom');
+    });
+
+    it("links both fearless posts to that group's mode panel and bolds only the game's own adds (M14.31)", async () => {
+      // A second game on the same ten champions adds nothing; then a game that locks 11 to 19
+      // plus a repeat of 1 adds exactly nine.
+      const repeat = ownChampionsBody(gameNumber(), twoPuuids);
+      (repeat.participants as Record<string, unknown>[]).forEach((participant, index) => {
+        participant.championId = index === 0 ? 1 : index + 10;
+      });
+      const played = await postGame(request(repeat, groupTokens.two));
+      expect(played.status).toBe(200);
+      const { data: game, error } = await db
+        .from('games')
+        .select('id')
+        .eq('group_id', groups.two)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (error) throw new Error(error.message);
+      posts.length = 0;
+
+      const outcome = await postFearlessPool(db, {
+        groupId: groups.two,
+        gameId: game.id,
+        requestOrigin: 'https://kustom.example',
+      });
+      expect(outcome.status).toBe('posted');
+      const embed = ((posts[0]?.body.embeds ?? []) as Record<string, unknown>[])[0];
+      expect(embed?.url).toBe(`https://kustom.example/g/it-${runId}-dc-two/mode`);
+      expect(String(embed?.description)).toMatch(/^Banned next game: 9 more, 19 in all\. /);
+      const printed = JSON.stringify(posts[0]?.body);
+      expect(printed).not.toContain('/fearless');
+      // Annie (1) was the repeat: not bold. Champion 11 (Master Yi) is new: bold.
+      expect(printed).not.toContain('**Annie**');
+      expect(printed).toContain('Annie');
+      expect(printed).toContain('**Master Yi**');
+    });
+
     it('posts nothing anywhere for a group with no webhook configured', async () => {
       const played = await postGame(request(ownChampionsBody(gameNumber(), threePuuids), groupTokens.three));
       expect(played.status).toBe(200);
       expect(await played.json()).toMatchObject({ created: true, rated: true });
       expect(posts).toEqual([]);
+    });
+
+    it('a rule game rolled in the group: the rule line on the teams post, and a result post though not rated (M15.6)', async () => {
+      // Class wars, Tanks only, pending on the scratch group: its default is not rated.
+      const { data: card, error: cardError } = await db
+        .from('group_modes')
+        .select('version')
+        .eq('group_id', groups.two)
+        .single();
+      if (cardError) throw new Error(cardError.message);
+      const pending = await db
+        .from('group_modes')
+        .update({
+          pending_rule: 'class',
+          pending_class_tag: 'Tank',
+          rated_override: null,
+          version: card.version + 1,
+        })
+        .eq('group_id', groups.two);
+      if (pending.error) throw new Error(pending.error.message);
+
+      const id = party('mode-two');
+      const balanced = await driveToBalanced(id, twoPuuids, groupTokens.two);
+      expect(balanced.status).toBe(200);
+      expect(posts.map((post) => post.path)).toEqual(['/webhook-two']);
+      const teams = ((posts[0]?.body.embeds ?? []) as Record<string, unknown>[])[0];
+      // A localhost origin carries no link, so the line ends at the rated word.
+      expect(String(teams?.description).split('\n')[0]).toBe('**This game: tanks only.** Not rated.');
+      posts.length = 0;
+
+      const body = eogBody({
+        gameId: gameNumber(),
+        puuids: twoPuuids,
+        partyId: id,
+        startedAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const played = await postGame(request(body, groupTokens.two));
+      expect(played.status).toBe(200);
+      expect(await played.json()).toMatchObject({ created: true, rated: false, reason: 'not-rated' });
+
+      // One post: the result, no fearless list (a not-rated game adds nothing to the pool).
+      expect(posts.map((post) => post.path)).toEqual(['/webhook-two']);
+      const result = ((posts[0]?.body.embeds ?? []) as Record<string, unknown>[])[0];
+      const lines = String(result?.description).split('\n');
+      // One line per fact (05-design 10.5): odds, the rule check, not rated, then the top damage.
+      expect(lines).toContain('Not rated, so no Rating change.');
+      expect(lines.indexOf('Not rated, so no Rating change.')).toBeGreaterThan(
+        lines.findIndex((line) => line.startsWith('Tanks only: ')),
+      );
+      expect(lines.some((line) => line.startsWith('Tanks only: '))).toBe(true);
+      // Names alone on the side embeds, never a number, and the check line names no player.
+      const sides = ((posts[0]?.body.embeds ?? []) as { title?: string; description?: string }[]).slice(1);
+      expect(sides.map((side) => side.title)).toEqual(['🟦 BLUE', '🟥 RED']);
+      for (const side of sides) expect(side.description).not.toMatch(/\d{3,}|\(/);
+      expect(lines.find((line) => line.startsWith('Tanks only: '))).not.toMatch(/it-/);
+
+      // The second companion in the same game posts nothing.
+      const again = await postGame(request(body, groupTokens.two));
+      expect(again.status).toBe(200);
+      expect(posts).toHaveLength(1);
     });
   });
 
@@ -715,10 +892,19 @@ if (stack === null) {
       );
       expect(split?.explanation).not.toContain('Unknown');
 
-      // The stored sentence is quoted, not recomposed, and the line above it says the same
-      // word: one message cannot call one player two things (M3.15).
-      const embed = ((posts[0]?.body.embeds ?? []) as Record<string, unknown>[])[0];
-      expect(embed?.description).toBe(split?.explanation);
+      // The stored sentence is quoted, not recomposed, as the receipt's last line (M14.10), and
+      // the reason line and the columns say the same word: one message cannot call one player
+      // two things (M3.15).
+      // E4, `How the bot decided` (M14.61): the chips, the reason line and core's sentence.
+      const embed = ((posts[0]?.body.embeds ?? []) as Record<string, unknown>[])[3];
+      const description = String(embed?.description).split('\n');
+      // M14.41 review: all ten are flexible (no main on record), so the printed line swaps core's
+      // `Everyone on a main role.` for the chip's `No main roles yet.`; the stored row is untouched.
+      expect(description.at(-1)).toBe(`-# ${explanationShown(split?.explanation ?? '', 10)}`);
+      expect(description.at(-1)).toBe(
+        '-# Even 50%. No main roles yet. Gap 0. Next best: swap Someone and Player5, gap 0.',
+      );
+      expect(description.filter((line) => line.startsWith('Next best')).join('')).toContain('Someone');
       expect(teamLines(0).filter((line) => line.includes('Someone ·'))).toHaveLength(1);
 
       // `Someone` is a word we print, never a row we write.

@@ -11,7 +11,7 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  * **The award badge on a board row** (M8.3), against the Supabase CLI local stack.
  *
  * The unit tests either side of this one prove the two halves: `lib/stats/winners.test.ts` that
- * the winners are read out of `awardsView`'s own blocks, and `app/_leaderboard/BoardRow.test.tsx`
+ * the winners are read out of `awardsView`'s own blocks, and `app/_board/BoardView.test.tsx`
  * that a row prints the list it is handed. What only a database can show is the wiring — that
  * `/leaderboard`'s loader, reading through RLS with the anon key, badges the rows **the award
  * lines on `/stats` name**, and that the three windows which hand nothing out are untouched.
@@ -58,7 +58,7 @@ if (stack === null) {
    */
   const NOW = new Date('2026-02-18T18:00:00Z');
   const ZONE = 'Africa/Cairo';
-  const AT = { now: NOW, timeZone: ZONE } as const;
+  const AT = { now: NOW, timeZone: ZONE, groupId: ORIGINAL_GROUP_ID } as const;
   const LAST_WEEK = { window: 'last-week', ...AT } as const;
 
   /** The five who lose every game together — the cursed duo, several times over. */
@@ -80,10 +80,6 @@ if (stack === null) {
   const gameIds: string[] = [];
 
   beforeAll(async () => {
-    const { data: container } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    const containerId = container?.id ?? '';
-    expect(containerId).not.toBe('');
-
     const { data: players, error } = await db
       .from('players')
       .insert(
@@ -105,7 +101,6 @@ if (stack === null) {
         .insert({
           group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`8${stamp}${String(index).padStart(2, '0')}`),
-          season_id: containerId,
           started_at: startedAt,
           duration_s: 2_000,
           winning_side: 200,
@@ -201,30 +196,38 @@ if (stack === null) {
     it('prints the words on the page itself', async () => {
       const board = await loadBoard(anon, { ...LAST_WEEK, includeAwards: true });
       const html = renderToStaticMarkup(
-        createElement(BoardView, { board: { ...board, rows: mine(board.rows) }, viewerPuuid: null }),
+        createElement(BoardView, {
+          board: { ...board, rows: mine(board.rows) },
+          viewerPuuid: null,
+          sort: 'rating',
+          page: 1,
+          path: '/g/customs/leaderboard',
+          playerHref: (id: string) => `/g/customs/p/${id}` as never,
+        }),
       );
 
-      expect(html).toContain('cn-row-awards');
       expect(html).toContain(CURSED_DUO);
-      // A label, never a control: no link and no button anywhere in the run.
-      for (const run of html.match(/<p class="cn-row-awards">.*?<\/p>/g) ?? []) {
-        expect(run).not.toMatch(/<a |<button|tabindex/);
-      }
+      // A label, never a control: a chip inside the row's one link, no button, no second link.
+      const list = html.replace(/<noscript>.*?<\/noscript>/gs, '').replace(/<form.*?<\/form>/gs, '');
+      expect(list).not.toMatch(/<button|tabindex/);
+      expect(html).not.toMatch(/<a [^>]*>(?:(?!<\/a>).)*<a /s);
     });
   });
 
   describe('the windows that hand nothing out', () => {
     /**
-     * `This week`, `This month` and `All time` have no awards (M5.4) — so even asked for them,
+     * `This week` and `All time` have no awards (M5.4) — so even asked for them,
      * the loader comes back with none and the board is the one it drew before M8.3.
      */
     it('carry no badge even when the page asks for them', async () => {
-      for (const window of ['this-week', 'this-month'] as const) {
-        const board = await loadBoard(anon, { window, ...AT, includeAwards: true });
-        expect(board.rows.every((row) => row.awards.length === 0)).toBe(true);
-      }
+      const week = await loadBoard(anon, { window: 'this-week', ...AT, includeAwards: true });
+      expect(week.rows.every((row) => row.awards.length === 0)).toBe(true);
 
-      const all = await loadBoard(anon, { window: 'all-time', includeAwards: true });
+      const all = await loadBoard(anon, {
+        window: 'all-time',
+        includeAwards: true,
+        groupId: ORIGINAL_GROUP_ID,
+      });
       expect(all.rows.every((row) => row.awards.length === 0)).toBe(true);
     });
 

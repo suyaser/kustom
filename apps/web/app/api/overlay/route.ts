@@ -40,6 +40,7 @@ export async function GET(request: Request): Promise<Response> {
       ok: true,
       viewerPuuid: view.viewerPuuid,
       fearless: {
+        enabled: view.fearless.enabled,
         champions: [...view.fearless.champions],
         resetAt: view.fearless.resetAt,
       },

@@ -7,13 +7,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { eogBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
+import { snapshotGroupModes } from '@/lib/testing/groupModes';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { rollForTest } from '@/lib/testing/roll';
 
 /**
  * `gamesSinceLastFill` (M7.6) against the Supabase CLI local stack, end to end: a real lobby,
  * a real split, a real end-of-game block whose positions are the ones the split handed out,
- * and then `loadPool` reading the number back out of the flags the fold wrote.
+ * and then `loadGroupPool` reading the number back out of the flags the fold wrote.
  *
  * Nothing here sets `counts_for_role_inference` by hand. That is the point: the fact this task
  * reads is M5.17's, written at fold time, and a fixture that stamped it itself would prove
@@ -49,7 +50,7 @@ if (stack === null) {
 
   const { POST: postGame } = await import('@/app/api/companion/game/route');
   const { ingestLobby } = await import('./lobby');
-  const { activeSeasonId, loadPool } = await import('./balance');
+  const { loadGroupPool } = await import('./balance');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -112,14 +113,7 @@ if (stack === null) {
    * assertion that the ten-player early return in `loadRotation` does not reach this number.
    */
   async function gamesSinceLastFill(): Promise<Map<string, number | null>> {
-    const pool = await loadPool(
-      db,
-      lobbyId,
-      await activeSeasonId(db),
-      new Date(),
-      TIME_ZONE,
-      ORIGINAL_GROUP_ID,
-    );
+    const pool = await loadGroupPool(db, lobbyId, new Date(), TIME_ZONE, ORIGINAL_GROUP_ID);
     expect(pool).toHaveLength(10);
     return new Map(pool.map((member) => [member.puuid, member.gamesSinceLastFill ?? null]));
   }
@@ -142,7 +136,14 @@ if (stack === null) {
     expect((await response.json()).rated).toBe(true);
   }
 
+  /**
+   * Rolled lobbies here record games in the real `customs` group, and since M15.3 each one runs
+   * compare-and-clear on its Mode card. Put the card back the way this file found it.
+   */
+  let restoreGroupModes: () => Promise<void> = async () => {};
+
   beforeAll(async () => {
+    restoreGroupModes = await snapshotGroupModes(db, ORIGINAL_GROUP_ID);
     const ids = await ensurePlayers(
       db,
       puuids.map((puuid) => ({ puuid })),
@@ -172,6 +173,7 @@ if (stack === null) {
   });
 
   afterAll(async () => {
+    await restoreGroupModes();
     // The database is shared with every other integration file, so leaving it as we found it is
     // part of the test.
     await db.from('games').delete().in('lcu_game_id', allGameIds);

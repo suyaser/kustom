@@ -152,26 +152,9 @@ export interface CompanionLobbyPayloadInput {
 // POST /api/companion/game
 // ---------------------------------------------------------------------------
 
-/**
- * `detectedTeamPosition` (end-of-game block) to our role vocabulary. Anything else — `""`,
- * missing, `NONE`, a value we have not seen — is `null`, and `role` is nullable everywhere
- * for exactly that reason. A role is **never** inferred from the champion (M2.10, point 7).
- *
- * Exported so the mapper in `packages/lcu` uses this table rather than a second copy of it.
- */
-export const DETECTED_TEAM_POSITION_ROLES: Readonly<Record<string, RoleValue>> = {
-  TOP: 'top',
-  JUNGLE: 'jungle',
-  MIDDLE: 'mid',
-  BOTTOM: 'adc',
-  UTILITY: 'support',
-};
-
-/** The role for a `detectedTeamPosition`, or null for anything we do not recognise. */
-export function roleFromDetectedTeamPosition(position: string | null | undefined): RoleValue | null {
-  if (typeof position !== 'string') return null;
-  return DETECTED_TEAM_POSITION_ROLES[position.trim().toUpperCase()] ?? null;
-}
+// `detectedTeamPosition` to a role: defined in `../constants` (M14.44, zod-free so a browser can
+// have it) and re-exported here, where every caller has always found it.
+export { DETECTED_TEAM_POSITION_ROLES, roleFromDetectedTeamPosition } from '../constants';
 
 /**
  * One participant's line of the end-of-game block, already flattened by the mapper. Bot

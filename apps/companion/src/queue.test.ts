@@ -139,3 +139,17 @@ describe('GameQueue', () => {
     expect(dropped[0]?.fields.gameId).toBe('4000970000');
   });
 });
+
+describe('per-group state directories (M13.8)', () => {
+  it("a block queued in one group's directory is invisible to another group's queue", () => {
+    const root = tempDir();
+    const groupA = join(root, 'groups', 'group-a');
+    const groupB = join(root, 'groups', 'group-b');
+    const a = new GameQueue({ configDir: groupA, logger: createMemoryLogger() });
+    const b = new GameQueue({ configDir: groupB, logger: createMemoryLogger() });
+    a.write(payloadFor(4000969091), new Date().toISOString());
+    expect(a.list().map((entry) => entry.gameId)).toEqual(['4000969091']);
+    expect(b.list()).toEqual([]);
+    expect(b.has(4000969091)).toBe(false);
+  });
+});

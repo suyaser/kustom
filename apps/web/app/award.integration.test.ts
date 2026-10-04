@@ -47,8 +47,8 @@ if (stack === null) {
   const anon = createPublicClient();
 
   const runId = randomUUID().slice(0, 8);
-  const ALL_TIME = { window: 'all-time' } as const;
-  const CONTEXT = { timestamp: '2026-09-15T21:00:00.000Z' };
+  const ALL_TIME = { window: 'all-time', groupId: ORIGINAL_GROUP_ID } as const;
+  const CONTEXT = { identity: { groupName: 'Award Test' } };
 
   /**
    * Ten seats. Red wins, so the **MVP** comes off red and the **ACE** off blue.
@@ -111,7 +111,6 @@ if (stack === null) {
 
   const puuidOf = (key: string): string => `it-${runId}-${key}`;
   const playerIds = new Map<string, string>();
-  let seasonId = '';
   let gameId = '';
   /** The second game: the same ten, one vision score missing. No MVP anywhere. */
   let holedGameId = '';
@@ -122,7 +121,6 @@ if (stack === null) {
       .insert({
         group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: lcuGameId,
-        season_id: seasonId,
         started_at: startedAt,
         duration_s: 2_000,
         winning_side: 200,
@@ -155,10 +153,6 @@ if (stack === null) {
   }
 
   beforeAll(async () => {
-    const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    seasonId = season?.id ?? '';
-    expect(seasonId).not.toBe('');
-
     const { data: players, error } = await db
       .from('players')
       .insert(
@@ -241,11 +235,13 @@ if (stack === null) {
       expect(source).not.toBeNull();
       const input = buildResultInput(source as NonNullable<typeof source>, CONTEXT);
 
-      // The post: two display names, one line, under the two columns.
+      // The post: two display names, one line, the last of E1 (M14.61), labels bold.
       expect(input?.award).toEqual({ mvp: 'red-adc', ace: 'blue-jungle' });
-      expect(resultEmbed(input as NonNullable<typeof input>).embeds[0]?.fields[2]?.value).toBe(
-        'MVP red-adc · ACE blue-jungle',
-      );
+      expect(
+        resultEmbed(input as NonNullable<typeof input>)
+          .embeds[0]?.description?.split('\n')
+          .at(-1),
+      ).toBe('**MVP** red-adc · **ACE** blue-jungle');
 
       // The page: the same two people, as a word on their own row, from the anon read.
       expect((await recentOf('red-adc', gameId))?.award).toBe('mvp');
@@ -263,8 +259,10 @@ if (stack === null) {
       const input = buildResultInput(source as NonNullable<typeof source>, CONTEXT);
 
       expect(input?.award).toBeNull();
-      // Acceptance 2: no field, and the post is the two columns it has always been.
-      expect(resultEmbed(input as NonNullable<typeof input>).embeds[0]?.fields).toHaveLength(2);
+      // Acceptance 2: no award line, and the post is the header and the two sides.
+      const post = resultEmbed(input as NonNullable<typeof input>);
+      expect(post.embeds).toHaveLength(3);
+      expect(post.embeds[0]?.description ?? '').not.toContain('MVP');
       expect((await recentOf('red-adc', holedGameId))?.award).toBeNull();
       expect((await recentOf('blue-jungle', holedGameId))?.award).toBeNull();
     });

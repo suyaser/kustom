@@ -142,4 +142,40 @@ describe('ApiClient', () => {
     const problem = await healthCheck()(`http://127.0.0.1:${port}`);
     expect(problem).not.toBeNull();
   });
+
+  it('sends no authorization header when it has no token (the pair route)', async () => {
+    fake = await startFakeApi({
+      routes: { 'POST /api/companion/pair': [{ status: 200, body: { ok: true, value: 1 } }] },
+    });
+    const instance = new ApiClient({ apiBase: fake.baseUrl, logger: createMemoryLogger(), timeoutMs: 2_000 });
+    await instance.post('/api/companion/pair', { code: 'K7QM4X' }, okSchema);
+    expect(fake.requests[0]?.authorization).toBeUndefined();
+  });
+
+  it('reports a 403 once through onRefused, and a 401 too, but never a 404', async () => {
+    fake = await startFakeApi({
+      routes: {
+        'GET /api/companion/a': [{ status: 403, body: { ok: false, error: 'no longer a member' } }],
+        'GET /api/companion/b': [{ status: 404, body: { ok: false, error: 'nope' } }],
+      },
+    });
+    const seen: number[] = [];
+    const { client: api } = client(fake, { onRefused: (status) => seen.push(status) });
+    await api.get('/api/companion/a', okSchema);
+    await api.get('/api/companion/a', okSchema);
+    await api.get('/api/companion/b', okSchema);
+    expect(seen).toEqual([403]);
+  });
+
+  it('sends nothing once its session is stopped (a group switch cannot be followed by an old-token post)', async () => {
+    fake = await startFakeApi({
+      routes: { 'POST /api/companion/game': [{ status: 200, body: { ok: true, value: 1 } }] },
+    });
+    const stop = new AbortController();
+    const { client: api } = client(fake, { signal: stop.signal });
+    stop.abort();
+    const result = await api.post('/api/companion/game', { gameId: 1 }, okSchema);
+    expect(result).toMatchObject({ ok: false, reason: 'network' });
+    expect(fake.requests).toHaveLength(0);
+  });
 });

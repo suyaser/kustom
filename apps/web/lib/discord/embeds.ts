@@ -1,39 +1,66 @@
-import type { Role, Side } from '@customs/core';
-import {
-  gamesLabel,
-  LEADERBOARD_LABEL,
-  SETTLING_SENTENCE_SHORT,
-  WEEK_BOARD_SENTENCE_SHORT,
-} from '../board/copy';
+import { type Role, SETTLING_GAMES, type Side } from '@customs/core';
+import { AI_RECAP_LABEL } from '../ai/recapCopy';
+import { gamesLabel, WEEK_BOARD_SENTENCE_SHORT } from '../board/copy';
 import type { RatingTrack } from '../board/types';
 import {
+  FEARLESS_POST_FOOTER,
   FEARLESS_RESET_DESCRIPTION,
   FEARLESS_TITLE,
-  fearlessDescription,
   fearlessLaneTitle,
+  fearlessPostDescription,
 } from '../fearless/copy';
-import { groupFearless } from '../fearless/present';
+import { availableFearless, groupFearless } from '../fearless/present';
 import type { FearlessChampion } from '../fearless/types';
+import { formatMinutes } from '../games/duration';
 import { inLaneOrder } from '../laneOrder';
-import { type FieldLine, fieldValue, guardEmbed, KEEP_LAST_STANDING } from './limits';
+import {
+  barPercents,
+  explanationShown,
+  HOW_SUMMARY,
+  oddsSentence,
+  type ReceiptSplit,
+  reasonLine,
+  receiptChips,
+  resultOddsLine,
+} from '../receipt/copy';
+import { type SitOutRule, sitOutLine } from '../tonight/sitOut';
+import { type DraftEmbed, type DraftField, type DraftLine, guardMessage, KEEP_LAST_STANDING } from './limits';
+import { type ResultModeInput, resultModeLines, type TeamsModeInput, teamsModeLine } from './modeLines';
 
 /**
- * The Discord embeds, as pure functions (M3.1 teams, M3.3 result).
+ * The Discord posts, as pure functions (M3.1 teams, M3.3 result; posts 2.0 since M14.61).
  *
  * Nothing in this file reads the database, the clock or the environment: it takes plain data
- * — names, roles, display ratings, an explanation string, a timestamp — and returns the JSON
- * body of a webhook POST. `webhook.ts` is the only I/O, `assemble.ts` is the only place that
- * turns rows into these inputs, and both of those are testable because this one is not.
+ * (names, roles, display ratings, an explanation string, the group's name and links) and returns
+ * the JSON body of a webhook POST. `webhook.ts` is the only I/O, `assemble.ts` and `post.ts` turn
+ * rows into these inputs, and both of those are testable because this one is not.
  *
- * The layout, the field names, the colours and every string are `docs/05-design.md`
- * ("Discord embeds") and the sit-out copy is M2.15's, verbatim. Neither is a suggestion: an
- * engineer who wants different wording asks product for it.
+ * The layout, the colours and every string are `docs/05-design.md` section 10 ("Discord posts"),
+ * and every sentence is quoted from the copy modules the pages print from (receipt, sit-out,
+ * mode, fearless, board, stats). An engineer who wants different wording asks product for it.
+ *
+ * **A post is a stack of embeds** (05-design 10.3): teams and result are a header, a blue side,
+ * a red side and a closing block; everything else is one embed. Only the header (E1) carries the
+ * author line and the page link; the side embeds never carry a `url`, because Discord merges
+ * embeds that share one into a gallery. Every post goes out as `Kustom`.
  */
 
-/** Bar colours, as the integers the API passes (`05-design.md`, dark palette). */
-export const ACCENT_COLOR = 14_721_854;
-export const BLUE_COLOR = 7_054_839;
-export const RED_COLOR = 15_363_945;
+/**
+ * Bar colours, as the integers the API passes: Direction C's night values (05-design 10.2).
+ * Amber `#FFCF66` for the parts that are neither side's, `#2E9BFF` blue and `#FF6B35` red for a
+ * side's own embed and a win's header, and slate `#8B98AD` for blocks written by AI.
+ */
+export const ACCENT_COLOR = 16_764_774;
+export const BLUE_COLOR = 3_054_591;
+export const RED_COLOR = 16_739_125;
+export const SLATE_COLOR = 9_148_589;
+
+/** The webhook name on every post (05-design 10.2): a pasted `Captain Hook` still posts as Kustom. */
+export const KUSTOM_USERNAME = 'Kustom';
+
+/** The side embeds' titles (05-design 10.4) [NEW COPY]. The only place, with the bar, emoji appear. */
+export const BLUE_SIDE_TITLE = '🟦 BLUE';
+export const RED_SIDE_TITLE = '🟥 RED';
 
 /**
  * A display name we have, or `null` for a player the database has never been told about.
@@ -53,6 +80,9 @@ export const NAMELESS_PLAYER = 'Someone';
 /** `05-design.md`: truncate a display name at 32 characters with an ellipsis. */
 const MAX_NAME_LENGTH = 32;
 
+/** U+00A0. Joins a Rating to its change on a seat line, so a wrap never splits the two (10.4). */
+export const NBSP = ' ';
+
 /* ---------------------------------------------------------------------------
  * The side line (M4.3's copy, M4.7 (b)'s placement; `05-design.md`, "Teams embed", and the
  * tonight-page copy table's two rows of 2026-09-11).
@@ -63,24 +93,16 @@ const MAX_NAME_LENGTH = 32;
  *
  * **One definition, and this is it.** The tonight page prints the same two sentences under the
  * team cards, and `lib/tonight/copy.ts` re-exports these three so the page keeps importing its
- * copy from its own copy file. That file already imports {@link NAMELESS_PLAYER} from here,
- * which is the same direction and the same reason: a string two surfaces print lives in the
- * module with no Next and no DOM in front of it (`04-decisions.md`, 2026-09-11).
+ * copy from its own copy file.
  * ------------------------------------------------------------------------- */
 
-/**
- * The gate is **off** — no `switch_side` row is queued for anybody, so the only thing that can
- * put a player on their side is the player. Not what production prints since 16.18 (2026-09-12),
- * when the row went green; it is what it prints again if a patch breaks the path.
- */
+/** The gate is **off**: no `switch_side` row is queued for anybody. */
 export const SIDE_LINE_MANUAL = 'Move to your side in the lobby.';
 
 /**
- * The gate is **on**, which it has been since 16.18 (2026-09-12), so this is the live sentence.
- * It still ends with `move yourself`, because a companion that is closed,
- * offline, or looking at a side that already holds five moves nobody (M4.3, "the bounce") — and
- * the embed is posted at the moment of balancing, before any companion has polled, so it can
- * only ever say what is about to happen.
+ * The gate is **on** (since 16.18, 2026-09-12), so this is the live sentence. It still ends with
+ * `move yourself`, because a companion that is closed, offline, or looking at a full side moves
+ * nobody (M4.3, "the bounce").
  */
 export const SIDE_LINE_AUTO = "You'll be moved to your side — if not, move yourself.";
 
@@ -95,30 +117,94 @@ export interface EmbedField {
   inline?: boolean;
 }
 
+/** One embed as Discord takes it. Keys are only present when they say something. */
 export interface Embed {
   color: number;
-  title: string;
+  author?: { name: string; url?: string };
+  title?: string;
   url?: string;
   description?: string;
-  fields: EmbedField[];
-  footer: { text: string };
-  timestamp: string;
+  fields?: EmbedField[];
+  thumbnail?: { url: string };
+  footer?: { text: string };
 }
 
-/** The body of a webhook POST. One embed; we never post content or mentions. */
+/**
+ * The body of a webhook POST: Kustom's name, the avatar when the site has a public address, and
+ * a stack of embeds (or, for the test post alone, `content`). We never post mentions.
+ */
 export interface WebhookPayload {
+  username: string;
+  avatar_url?: string;
+  content?: string;
   embeds: Embed[];
 }
 
 /**
- * The one exit from this file (M4.12).
- *
- * Every builder returns through here, so Discord's limits are applied once, in `limits.ts`,
- * on the assembled embed — where the 6000-character total can be seen at all. Below the limits
- * it is the identity, which is why no snapshot in this directory moved when it landed.
+ * Who a post is from and where its author line goes (05-design 10.2): the group's name, its
+ * `/g/<slug>` page, and the avatar URL. Every URL is `undefined` when there is no honest one
+ * (no slug, or a localhost origin); `groupName` is `null` when the group could not be read, and
+ * the post then goes out with no author line rather than not at all.
  */
-function payload(embed: Embed): WebhookPayload {
-  return { embeds: [guardEmbed(embed)] };
+export interface PostIdentity {
+  groupName: string | null;
+  groupUrl?: string | undefined;
+  avatarUrl?: string | undefined;
+}
+
+/**
+ * The give-way order of 05-design 10.12, as `shed` ranks for {@link guardMessage}: lowest goes
+ * first when a message is over 6,000 characters. A line with no rank is never shed.
+ */
+export const SHED = {
+  /** Teams: core's sentence in E4, then E4's reason line, then the `Seats` moves, then `Sitting out`. */
+  teamsSubtext: 1,
+  teamsReason: 2,
+  teamsMoves: 3,
+  teamsSitOut: 4,
+  /** Result: the AI recap (whole), then the award line, then the top damage. */
+  recap: 1,
+  award: 2,
+  topDamage: 3,
+  /** Weekly: the AI storyline (whole), then a tie's later names, then board rows from the bottom. */
+  storyline: 1,
+  tieNames: 2,
+  boardRows: 3,
+} as const;
+
+/** The author line of a post's first embed, or nothing when the group's name is unknown. */
+function authorOf(identity: PostIdentity, suffix?: string): DraftEmbed['author'] {
+  if (identity.groupName === null) return undefined;
+  const name = suffix === undefined ? identity.groupName : `${identity.groupName} · ${suffix}`;
+  return identity.groupUrl === undefined ? { name } : { name, url: identity.groupUrl };
+}
+
+/**
+ * The one exit from this file. Every builder returns through here, so the webhook identity is set
+ * once and Discord's limits are applied once, on the whole message, in `limits.ts`. Below the
+ * limits the guard is the identity.
+ */
+function message(identity: PostIdentity, embeds: readonly DraftEmbed[]): WebhookPayload {
+  return {
+    username: KUSTOM_USERNAME,
+    ...(identity.avatarUrl === undefined ? {} : { avatar_url: identity.avatarUrl }),
+    embeds: guardMessage(embeds),
+  };
+}
+
+/** Drops the `author` key when there is none, so a payload never carries `author: undefined`. */
+function withAuthor(embed: DraftEmbed, author: DraftEmbed['author']): DraftEmbed {
+  return author === undefined ? embed : { ...embed, author };
+}
+
+/**
+ * An AI-written block (05-design 10.2, 10.5, 10.6): its own slate embed, labelled `AI recap`.
+ * The result post's recap is appended as E4 by the 15-minute edit (`aiEdit.ts`); the Sunday
+ * storyline (M16.5) is E0 above the board. `text` arrives Discord-ready (escaped, like
+ * `discordRecapText`). Shed whole, first, if a message is ever over the limit.
+ */
+export function aiRecapEmbed(text: string, shed: number = SHED.recap): DraftEmbed {
+  return { color: SLATE_COLOR, title: AI_RECAP_LABEL, description: text, shed };
 }
 
 export interface TeamsPlayer {
@@ -129,18 +215,12 @@ export interface TeamsPlayer {
   rating: number;
   /** Not on a main role in this split (core's `isOffRole`). */
   offRole: boolean;
+  /**
+   * No main role on record (core's `resolveRoles(...).main === null`), M14.41: not counted as
+   * on-main in the receipt chip (`Main roles 6/6 · 4 new`). Absent reads as `false`.
+   */
+  noMain?: boolean | undefined;
 }
-
-/**
- * Why the sitters are sitting. M2.15's two clauses, plus M3.12's third one for the first
- * balance of a night.
- *
- * `first-sit-out` is the case where everyone around is tied on games tonight *and* nobody
- * around has a sit-out on record: the comparator has fallen through to PUUID order, so
- * `longest-since` would be stating a fact about a history that does not exist and sending the
- * reader looking for a night they sat out that never happened (product, 2026-09-09).
- */
-export type SitOutReason = 'most-games' | 'longest-since' | 'first-sit-out';
 
 export type SeatLine =
   /** Somebody leaves the ten and somebody takes their slot. */
@@ -149,35 +229,56 @@ export type SeatLine =
   | { kind: 'open-slot'; mover: PlayerName };
 
 export interface TeamsEmbedInput {
+  /** The group's name and links (05-design 10.2). */
+  identity: PostIdentity;
   /** Five, lane order enforced here anyway. */
   blue: readonly TeamsPlayer[];
   red: readonly TeamsPlayer[];
   /** `splits.explanation`, verbatim. Never recomposed, never shortened. */
   explanation: string;
-  /** Only when somebody sits. */
-  sitOut: { names: readonly PlayerName[]; reason: SitOutReason } | null;
+  /**
+   * The stored split columns the receipt is built from (M14.10, STRATEGY §4.9): the split in
+   * play, the one ranked directly below it, and how many the lobby stored. `null` when they could
+   * not be read: E1 then has no labels, bar or verdict, and E4 is core's sentence alone.
+   */
+  receipt: TeamsReceipt | null;
+  /**
+   * Only when somebody sits. `rule` is why (`lib/tonight/sitOut.ts`, M14.41): the same rule and
+   * sentence the tonight page's card prints; `null` claims no reason.
+   */
+  sitOut: { names: readonly PlayerName[]; rule: SitOutRule | null } | null;
   /** Only when somebody has to move, which is not the same question. */
   seats: readonly SeatLine[];
   /**
    * M4.3's gate (`lib/commands/gate.ts`, read at post time by `buildTeamsInput`). It decides
-   * **which** of the two side sentences the `Seats` field ends with, never whether there is
-   * one. Required rather than optional: a caller that forgot it would quietly promise a switch
-   * nobody queued.
+   * **which** of the two side sentences the `Seats` field ends with, never whether there is one.
    */
   switchSideEnabled: boolean;
   lobby: { name: string | null; password: string | null };
   /**
-   * Which of the lobby's stored splits this post is, and how many the lobby has (M3.2).
-   *
-   * Absent for a fresh balance, which is always rank 1 and keeps the plain title. A reroll
-   * passes the promoted split's rank so the title says how far down the list the group has
-   * gone; nothing else about the embed changes.
+   * Which of the lobby's stored splits this post is, and how many the lobby has (M3.2). Absent
+   * for a fresh balance, which keeps the plain title.
    */
   promoted?: PromotedSplit | undefined;
-  /** The tonight page, or `undefined` when there is no honest URL to post. */
+  /** E1's title link: the group's tonight page, `/g/<slug>`, or `undefined`. */
   url?: string | undefined;
-  /** ISO 8601. Injected, so this function has no clock. */
-  timestamp: string;
+  /** E4's title link: `/g/<slug>#how-the-bot-decided`, or `undefined`. */
+  receiptUrl?: string | undefined;
+  /**
+   * The lobby's mode lock, taken at Roll (M15.6): the rule line at the top of E1's description,
+   * and (M14.61) the standing mode for the author line.
+   */
+  mode?: TeamsModeInput | null | undefined;
+  /** The group's mode panel, `/g/<slug>/mode`, which the rule line links. */
+  modeUrl?: string | undefined;
+}
+
+/** The teams post's receipt: the posted split, the next one down, and the lobby's count. */
+export interface TeamsReceipt {
+  chosen: ReceiptSplit;
+  /** `rank + 1` of the same lobby, or `null` when the posted split is the last one stored. */
+  next: ReceiptSplit | null;
+  splitCount: number;
 }
 
 /** `splits.rank` of the split being posted, and how many splits the lobby stored. */
@@ -191,19 +292,15 @@ export interface ResultPlayer {
   name: PlayerName;
   /** `null` when neither the scoreboard nor the split says where they played. */
   role: Role | null;
-  /** `displayRating(muAfter)`. */
-  rating: number;
-  /** `displayRating(muAfter) - displayRating(muBefore)`, from `displayDelta`. */
-  delta: number;
+  /** `displayRating(muAfter)`; `null` on a game played not rated (M15.6), whose line has no number. */
+  rating: number | null;
+  /** `displayRating(muAfter) - displayRating(muBefore)`, from `displayDelta`; `null` with `rating`. */
+  delta: number | null;
 }
 
 /**
- * Who carried each side, as two names (M7.10).
- *
- * **Both or neither.** Core hands back an MVP and an ACE together or hands back nothing, and
- * this type says the same thing: there is no half-line naming a winner's best player and
- * nobody on the other side. A name is a {@link PlayerName}, so a player the database has never
- * been told about is `Someone` here exactly as they are in the columns above.
+ * Who carried each side, as two names (M7.10). **Both or neither**: core hands back an MVP and
+ * an ACE together or nothing.
  */
 export interface ResultAward {
   /** The highest-scoring player on the **winning** side. */
@@ -213,16 +310,15 @@ export interface ResultAward {
 }
 
 export interface ResultEmbedInput {
+  /** The group's name and links (05-design 10.2). */
+  identity: PostIdentity;
   winningSide: Side;
   durationS: number;
   blue: readonly ResultPlayer[];
   red: readonly ResultPlayer[];
   /**
-   * The MVP and the ACE, or `null` for a game that has none (M7.10).
-   *
-   * Required rather than optional, like {@link TeamsEmbedInput.switchSideEnabled}: the answer is
-   * `gameAward`'s and a caller that forgot to ask would silently print the post the group had
-   * before the bonus existed, which is the one failure nobody would notice.
+   * The MVP and the ACE, or `null` for a game that has none (M7.10). Required rather than
+   * optional: a caller that forgot to ask would silently drop the line.
    */
   award: ResultAward | null;
   /** The chosen split's `blue_win_prob`, or `null` when this game had no stored split. */
@@ -230,72 +326,87 @@ export interface ResultEmbedInput {
   /** The single highest `damage_to_champs`, or `null` when the block carried none. */
   topDamage: { name: PlayerName; damage: number } | null;
   /**
-   * Which game this is, counted from the group's first, or `null` when it could not be
-   * counted. **Not a season's game number** (M5.12, product 2026-09-10): there is one running
-   * history and the count reads it, so game 47 is the forty-seventh custom this group played.
+   * Which game this is, counted from the group's first, or `null` when it could not be counted
+   * (M5.12): the author line then names the group alone.
    */
   gameNumber: number | null;
+  /**
+   * The game's mode (M15.6): the rule check line and `Not rated, so no Rating change.`, under the
+   * odds line. Absent reads as a rated game with no rule.
+   */
+  mode?: ResultModeInput | undefined;
+  /** E1's title link: the game's page, or `undefined`. */
   url?: string | undefined;
-  timestamp: string;
+  /** The result badge (05-design 10.11 B2), only on a public origin. */
+  badgeUrl?: string | undefined;
 }
 
-/** One line of the nightly board. Ordered before it gets here, never after. */
+/** One line of a board post. Ordered before it gets here, never after. */
 export interface LeaderboardEntry {
   puuid: string;
   name: PlayerName;
-  /**
-   * **The number the board sorted on, which is the only one this line prints**: Proven
-   * (`round(ordinal * 60)`) on `All time` and the month windows, and the weekly `Rating`
-   * (`round(mu * 60)` off the week's own fold) on `This week` and `Last week` (M7.3).
-   *
-   * One field and not two, for the reason the web row has one big number: where only one
-   * number fits it is the one the order is made of, because a list ordered by a number it does
-   * not show is exactly the complaint this rule exists to prevent.
-   */
-  score: number;
+  /** **`Rating`, `round(mu * 60)`**, the all-time track's (M14.10, STRATEGY §5). */
+  rating: number;
+  /** The window's counted games. */
   games: number;
+  /** A week line's numbers (M14.57), absent on `All time`. */
+  week?: WeekEntry | undefined;
+}
+
+/** What a week board line prints after the name (M14.57): `+86 · 5W–2L`, then the settling chip. */
+export interface WeekEntry {
+  points: number;
+  wins: number;
+  losses: number;
+  /** Rated games in the group while still settling, or `null` for a settled player. */
+  settlingGames: number | null;
+}
+
+/**
+ * A player still settling on an all-time board post (M14.10, STRATEGY §5): fewer than
+ * `SETTLING_GAMES` rated games in the group, listed after the ranked lines and unnumbered.
+ */
+export interface SettlingEntry {
+  puuid: string;
+  name: PlayerName;
+  rating: number;
+  /** Rated games in the group (`ratings.games`), under `SETTLING_GAMES`. */
+  ratedGames: number;
 }
 
 export interface LeaderboardEmbedInput {
-  /**
-   * The window's own name — `This week` (M5.12), never a season's name. The title reads
-   * `This week · leaderboard`, in the same five words the picker and the board heading use.
-   */
+  identity: PostIdentity;
+  /** The window's own name — `This week` (M5.12). */
   windowLabel: string;
-  /**
-   * Which fold the entries' `score` came from (M7.3). It picks the footer and nothing else:
-   * a week post explains the week's restart, every other post explains Proven.
-   */
+  /** Which fold the entries' `rating` came from (M7.3). */
   track: RatingTrack;
-  /** Already ordered, descending, by the number they carry. {@link TOP_N} is the most printed. */
+  /** Ranked, already ordered. {@link TOP_N} is the most printed. */
   entries: readonly LeaderboardEntry[];
+  /** Still settling (all-time track only), by Rating, unnumbered. */
+  settling?: readonly SettlingEntry[] | undefined;
   /** The board, or `undefined` when there is no honest URL to post. */
   url?: string | undefined;
-  timestamp: string;
 }
 
 /**
- * The footer under a board post: Proven's sentence, or the week's (M7.3).
- *
- * Neither string is edited into the other and neither interpolates a game count — the week does
- * not claim to settle, and `All time` and the month windows say exactly what they said before.
+ * The all-time board post's footer (M14.10, STRATEGY §5's section line): why some players are
+ * listed unnumbered. The count is core's `SETTLING_GAMES`, never a literal.
  */
+export const SETTLING_FOOTER =
+  `New players' ratings move fast at first. They get a rank after ${SETTLING_GAMES} games.` as const;
+
+/** The settling section's field name (STRATEGY §5's heading). */
+export const SETTLING_FIELD = 'Still settling';
+
+/** The footer under a board post: the settling line, or the week's (M7.3). */
 export function boardFooter(track: RatingTrack): string {
-  return track === 'weekly' ? WEEK_BOARD_SENTENCE_SHORT : SETTLING_SENTENCE_SHORT;
+  return track === 'week' ? WEEK_BOARD_SENTENCE_SHORT : SETTLING_FOOTER;
 }
 
-/** `05-design.md`, "Nightly leaderboard embed": at most ten lines print. */
+/** At most ten lines print. */
 export const TOP_N = 10;
 
-/**
- * The field's name **follows the count** (M3.22, product 2026-09-09).
- *
- * With eight players seeded, the shipped post read `Top ten` over eight lines — a field that
- * names a number the list does not have, in a channel where the whole group can count the
- * lines. `Top ten` is the name only when ten of them print; any shorter board is `The board`,
- * which is true at any length and is the destination's own noun in a sentence
- * (`Ratings are updated. The leaderboard has the rest.`).
- */
+/** `Top ten` only when ten lines print (M3.22); any shorter board is `The board`. */
 export const TOP_N_FIELD = 'Top ten';
 export const BOARD_FIELD = 'The board';
 
@@ -304,313 +415,152 @@ export function leaderboardFieldName(lines: number): string {
   return lines === TOP_N ? TOP_N_FIELD : BOARD_FIELD;
 }
 
+/** Ranks printed with the name in bold on a board post (05-design 10.6) [NEW STYLE]. */
+export const BOLD_RANKS = 3;
+
+/* ---------------------------------------------------------------------------
+ * Teams (05-design 10.4)
+ * ------------------------------------------------------------------------- */
+
 /**
- * The teams embed: two columns with role and display rating, the explanation verbatim, the
- * sit-out copy when somebody sits, the side line, and the lobby name and password so a
- * straggler can get in.
+ * The teams post: E1 amber (the odds, `Sitting out`, `Seats`, `Lobby`), E2 `🟦 BLUE`, E3 `🟥 RED`
+ * (five seat lines each, lane order), E4 amber `How the bot decided` (chips, the reason line,
+ * core's sentence). The rotation and the lobby sit in E1 because a latecomer needs them before
+ * the teams; the nerd lines close the stack, still verbatim.
  */
 export function teamsEmbed(input: TeamsEmbedInput): WebhookPayload {
-  const blue = inLaneOrder(input.blue);
-  const red = inLaneOrder(input.red);
-
-  // The rotation goes first (`05-design.md`, revised 2026-09-09): "Swap: Omar out, Nadia in."
-  // is the one line in the message that has to happen before anybody can play, and behind ten
-  // rating lines plus a wrapped explanation it was landing below the fold on a phone. Discord
-  // groups only *consecutive* inline fields, so a block field in front of Blue and Red does not
-  // break their pairing. `Sitting out` is still only there when somebody sits; `Seats` is now
-  // always there, because M4.3's side line lives in it.
-  const fields: EmbedField[] = [];
+  const fields: DraftField[] = [];
 
   if (input.sitOut !== null && input.sitOut.names.length > 0) {
     fields.push({
       name: 'Sitting out',
-      value: fieldValue([sitOutLine(input.sitOut.names, input.sitOut.reason)]),
+      value: [{ text: sitOutValue(input.sitOut.names, input.sitOut.rule), shed: SHED.teamsSitOut }],
     });
   }
-  // The `Seats` field is on every teams embed, because the side line is (`05-design.md`,
-  // "Teams embed", designer 2026-09-11: "the side line is the last line of `Seats`… it always
-  // prints"). The moves keep the top of the field — a `Swap:` line names two people who must
-  // act, and it is still the line that has to happen before anybody can play — and the side
-  // line closes the block, because it is addressed to all ten. Order is specific, then general;
-  // there is no `Sides` field, which would be a heading over one sentence about seats.
-  //
-  // **The side line outranks the move lines** (M4.12). Eleven around with escapable Riot IDs is
-  // ten `Swap:` lines of up to 144 characters each, which is over the 1024-character field limit
-  // and a 400 on the whole post. So the move lines are droppable and the side line is not: the
-  // field loses its lowest `Swap:` lines to a single `…`, and the sentence addressed to all ten
-  // is the last line standing.
+  // The `Seats` field is on every teams post, because the side line is. The moves keep the top
+  // of the field and give way first; the side line, addressed to all ten, is the survivor (M4.12).
   fields.push({
     name: 'Seats',
-    value: fieldValue([
-      ...input.seats.map(seatLine),
+    value: [
+      ...input.seats.map((move): DraftLine => ({ text: seatLine(move), shed: SHED.teamsMoves })),
       { text: sideLine(input.switchSideEnabled), keep: KEEP_LAST_STANDING },
-    ]),
+    ],
   });
+  const lobby = lobbyFieldValue(input.lobby);
+  if (lobby !== null) fields.push({ name: 'Lobby', value: [lobby] });
 
-  fields.push(
-    { name: `Blue · ${sumRatings(blue)}`, value: fieldValue(blue.map(teamsLine)), inline: true },
-    { name: `Red · ${sumRatings(red)}`, value: fieldValue(red.map(teamsLine)), inline: true },
+  const standing = input.mode?.standing;
+  const header: DraftEmbed = withAuthor(
+    {
+      color: ACCENT_COLOR,
+      title: teamsTitle(input.promoted),
+      ...(input.url === undefined ? {} : { url: input.url }),
+      ...optionalDescription(teamsHeaderLines(input)),
+      fields,
+    },
+    authorOf(input.identity, standing === 'fearless' ? FEARLESS_TITLE : undefined),
   );
 
-  const lobby = lobbyFieldValue(input.lobby);
-  if (lobby !== null) fields.push({ name: 'Lobby', value: fieldValue([lobby]) });
+  return message(input.identity, [
+    header,
+    sideEmbed(BLUE_COLOR, BLUE_SIDE_TITLE, inLaneOrder(input.blue).map(teamsLine)),
+    sideEmbed(RED_COLOR, RED_SIDE_TITLE, inLaneOrder(input.red).map(teamsLine)),
+    {
+      color: ACCENT_COLOR,
+      title: HOW_SUMMARY,
+      ...(input.receiptUrl === undefined ? {} : { url: input.receiptUrl }),
+      description: receiptLines(input),
+    },
+  ]);
+}
 
-  return payload({
-    color: ACCENT_COLOR,
-    title: teamsTitle(input.promoted),
-    ...(input.url === undefined ? {} : { url: input.url }),
-    description: input.explanation,
-    fields,
-    // With no url the title is not a link, so the footer must not promise one
-    // (`05-design.md`): telling a friend to tap something that is not there is worse than
-    // saying nothing.
-    footer: { text: teamsFooter(input.url) },
-    timestamp: input.timestamp,
-  });
+/** A side's embed: its colour, its title in words and emoji, five lines. Never a `url`. */
+function sideEmbed(color: number, title: string, lines: readonly string[]): DraftEmbed {
+  return { color, title, ...optionalDescription(lines) };
+}
+
+function optionalDescription(lines: readonly (string | DraftLine)[]): {
+  description?: (string | DraftLine)[];
+} {
+  return lines.length === 0 ? {} : { description: [...lines] };
 }
 
 /**
- * The result embed: who won, how long it took, the top damage, and what it did to each
- * player's rating.
- *
- * The two columns keep their side's position — blue first, always — so "my column" is in the
- * same place it was in the teams embed. There is no team total of deltas and there never will
- * be one: the two sides do not sum to zero, and printing that invites an argument about a
- * thing that is working correctly (`00-product.md`, "The numbers on the screen").
+ * E1's description (05-design 10.4): the mode line when there is one, then the receipt's two
+ * labels, the ten-cell bar and the banded verdict. With no stored receipt it is the mode line or
+ * nothing. Never shed.
  */
-export function resultEmbed(input: ResultEmbedInput): WebhookPayload {
-  const winner = input.winningSide === 100 ? 'Blue' : 'Red';
-  const description = [favoredClause(input.blueWinProb), topDamageClause(input.topDamage)]
-    .filter((clause) => clause !== null)
-    .join(' ');
-
-  return payload({
-    color: input.winningSide === 100 ? BLUE_COLOR : RED_COLOR,
-    title: `${winner} wins · ${formatDuration(input.durationS)}`,
-    ...(input.url === undefined ? {} : { url: input.url }),
-    ...(description.length > 0 ? { description } : {}),
-    fields: [
-      { name: 'Blue', value: fieldValue(inLaneOrder(input.blue).map(resultLine)), inline: true },
-      { name: 'Red', value: fieldValue(inLaneOrder(input.red).map(resultLine)), inline: true },
-      // One line, under the two columns, and **only when there is one** (M7.10). A game the
-      // score cannot be computed for — a column stored before migration `0014`, a role the
-      // client never reported — adds no field at all, and the post is byte-identical to the
-      // one this group has been reading since M3.3.
-      ...(input.award === null
-        ? []
-        : [{ name: AWARD_FIELD_NAME, value: fieldValue([awardLine(input.award)]) }]),
-    ],
-    footer: { text: resultFooter(input.gameNumber) },
-    timestamp: input.timestamp,
-  });
+export function teamsHeaderLines(input: Pick<TeamsEmbedInput, 'receipt' | 'mode' | 'modeUrl'>): string[] {
+  const modeLine =
+    input.mode === undefined || input.mode === null ? null : teamsModeLine(input.mode, input.modeUrl);
+  const lines = modeLine === null ? [] : [modeLine];
+  if (input.receipt === null) return lines;
+  const { chosen } = input.receipt;
+  return [
+    ...lines,
+    oddsLabels(chosen.blueWinProb),
+    oddsBar(chosen.blueWinProb),
+    oddsSentence(chosen.blueWinProb, chosen.rank),
+  ];
 }
 
 /**
- * The two words in front of the two names (M7.10, product's copy).
- *
- * Upper case because they are op.gg's terms and the group reads them there every day; not
- * `Mvp`, not `mvp`, and never a trophy, a medal, a colour or a `#1` beside them. Pinned by code
- * point in `embeds.test.ts`.
+ * E4's description: the receipt's lines 3 to 5 (05-design 5.5), verbatim: the chips, the reason
+ * line when there is one, and core's sentence as subtext. Core's sentence goes first and the
+ * reason second if the message is ever over the limit; the chips stay. With no stored receipt it
+ * is core's sentence alone, as plain text.
  */
-export const MVP_LABEL = 'MVP';
-export const ACE_LABEL = 'ACE';
+export function receiptLines(
+  input: Pick<TeamsEmbedInput, 'receipt' | 'explanation' | 'blue' | 'red'>,
+): (string | DraftLine)[] {
+  const noMain = [...input.blue, ...input.red].filter((p) => p.noMain === true).length;
+  const explanation = explanationShown(input.explanation, noMain);
+  if (input.receipt === null) return [explanation];
+  const { chosen, next, splitCount } = input.receipt;
+  const names = new Map([...input.blue, ...input.red].map((player) => [player.puuid, player.name]));
+  const reason = reasonLine(chosen, next, splitCount, (puuid) => renderName(names.get(puuid) ?? null));
+  return [
+    receiptChips(chosen, splitCount, noMain).join(' · '),
+    ...(reason === null ? [] : [{ text: reason, shed: SHED.teamsReason }]),
+    { text: explanationLine(explanation), shed: SHED.teamsSubtext },
+  ];
+}
+
+/** Cells in the text bar: 10% each (05-design 10.4). */
+export const BAR_CELLS = 10;
+
+export const BLUE_CELL = '🟦';
+export const RED_CELL = '🟥';
 
 /**
- * `MVP Lena · ACE Rami` — product's line, verbatim and in that order (M7.10).
- *
- * Two names, a middle dot, and nothing else: no score, no percentage, no emoji, nothing for the
- * other eight and no "nearly MVP" anywhere. The MVP comes first because the winning side does.
- * Names go through {@link renderName}, so a long Riot ID is truncated at 32 characters and
- * escaped exactly as it is in the two columns above it.
+ * Blue's cells of the ten: the printed blue percentage over ten, an exact half rounded **towards
+ * 5** so neither side gains a cell from rounding, clamped to 1..9 so each side keeps one (the web
+ * bar's clamp). Built on the label's integer percentage, so the bar can never disagree with the
+ * number printed above it.
  */
-export function awardLine(award: ResultAward): string {
-  return `${MVP_LABEL} ${renderName(award.mvp)} · ${ACE_LABEL} ${renderName(award.ace)}`;
+export function blueCells(blueWinProb: number): number {
+  const { blue } = barPercents(blueWinProb);
+  const tenths = blue % 10;
+  const floor = (blue - tenths) / 10;
+  const cells = tenths > 5 ? floor + 1 : tenths < 5 ? floor : floor >= 5 ? floor : floor + 1;
+  return Math.min(BAR_CELLS - 1, Math.max(1, cells));
+}
+
+/** `🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥`: blue's cells from the left, red's after. */
+export function oddsBar(blueWinProb: number): string {
+  const blue = blueCells(blueWinProb);
+  return BLUE_CELL.repeat(blue) + RED_CELL.repeat(BAR_CELLS - blue);
+}
+
+/** `**Blue 49%** · **51% Red**`: the receipt's two labels with the bar taken out. */
+export function oddsLabels(blueWinProb: number): string {
+  const { blue, red } = barPercents(blueWinProb);
+  return `**Blue ${blue}%** · **${red}% Red**`;
 }
 
 /**
- * The award field's name: a zero-width space, which is Discord's way of writing a field with no
- * heading (M7.10).
- *
- * Product asked for **one line under the existing block** and wrote no heading for it, and this
- * agent does not write product's copy. A field is the only place in an embed that is *under*
- * the two inline columns — the description is above them and the footer belongs to
- * `Kustom · game 47` — and Discord rejects a field whose name is the empty string. So the name
- * is a character that takes no room and says nothing, and the line reads as a line.
- *
- * It is also, deliberately, the **last** field: `guardEmbed` gives ground from the last field
- * backwards when an embed is over 6000 characters, so the lowest-priority line of the post is
- * the first to go and the ten rating rows are never cut to make room for it (M4.12).
- */
-export const AWARD_FIELD_NAME = '​';
-
-/**
- * The nightly board (M3.5, `05-design.md`, "Nightly leaderboard embed").
- *
- * **One field, block, no columns.** A ranked list is a single column by nature and inline
- * fields would break it across a row.
- *
- * The number after the name is **the one the board is ordered by**, because where only one
- * number fits it has to be the one the order is made of — a list ordered by a number it does
- * not show is exactly the complaint this rule exists to prevent (M3.5 brief). That is Proven
- * (`round(ordinal * 60)`) on `All time` and the month windows, and on the two week windows it
- * is the weekly `Rating` (M7.3), which the nightly post prints because the nightly post reads
- * `This week`.
- *
- * **The title names the window, not a season** (M5.12): `This week · leaderboard`, linking to
- * `?window=this-week`. A season name in a Discord title was always going to read as
- * `gamesd · leaderboard` on the deployment that exists; more to the point, "the season" is no
- * longer a thing the product has. The field-name rule (M3.22) and the ten-line cap are
- * untouched.
- *
- * The footer is one short sentence, on **every** one of these posts and not just the first: a
- * post without it is a post that invites the question again (M3.8). Which sentence follows the
- * number above it — Proven's on an all-time board, the week's restart on a week one (M7.3). There
- * is no `settling` chip per line — it would double the length of the two lines that are already
- * about the newest players.
- */
-export function leaderboardEmbed(input: LeaderboardEmbedInput): WebhookPayload {
-  const entries = input.entries.slice(0, TOP_N);
-
-  return payload({
-    color: ACCENT_COLOR,
-    title: `${input.windowLabel} · ${LEADERBOARD_LABEL.toLowerCase()}`,
-    ...(input.url === undefined ? {} : { url: input.url }),
-    fields: [{ name: leaderboardFieldName(entries.length), value: boardValue(entries) }],
-    footer: { text: boardFooter(input.track) },
-    timestamp: input.timestamp,
-  });
-}
-
-/**
- * The board's field value: ten ranked lines, cut from the **bottom** if ten escaped 32-character
- * names do not fit in 1024 (M4.12).
- *
- * Every line is one rank, so the drop order is the rank order reversed and the field keeps its
- * top rows — which is the only sensible thing a list ordered by Proven can lose. `…` under the
- * last row it kept says the rest are on the page the title links to.
- */
-function boardValue(entries: readonly LeaderboardEntry[]): string {
-  return fieldValue(entries.map(leaderboardLine));
-}
-
-/** `` `1` Lena · 1548 · 41 games ``. The rank is in code, like a role, so the column reads. */
-function leaderboardLine(entry: LeaderboardEntry, index: number): string {
-  return `\`${index + 1}\` ${renderName(entry.name)} · ${entry.score} · ${gamesLabel(entry.games)}`;
-}
-
-/**
- * One award line of the closed window's post (M5.4, M5.10).
- *
- * **Filled since M5.4 landed**: `lib/discord/post.ts` reads the closed window through
- * `loadStats` and hands three of these over, computed by the same pure functions the page
- * prints. `windowSummaryEmbed` still prints the field only when it is given some, which is what
- * keeps a failed stats read a post of the board alone rather than no post at all.
- *
- * The line is **quoted from the awards, never re-derived here** — including the sentence an
- * award nobody won prints (`Nobody played 6 games this week.`), so the block always has three
- * labels and the group can see the bar it missed. A tie carries its winners as one string with
- * a newline in it, so the bold label prints once and the second name hangs under the first.
- */
-export interface WindowAward {
-  /** `Most improved`. Rendered bold, at the front of the line. */
-  label: string;
-  /** `Nadia · +212 · 1266 → 1478`, or the "nobody qualifies" sentence, verbatim. */
-  line: string;
-}
-
-/** The awards block's field name (M5.10). */
-export const AWARDS_FIELD = 'Awards';
-
-export interface WindowSummaryEmbedInput {
-  /** `Last week` or `Last month` — {@link WINDOW_LABELS}, the same words the picker uses. */
-  windowLabel: string;
-  /**
-   * `Sunday 6 Sep to Saturday 12 Sep · 14 rated games`: the window's own dates and the board's
-   * own count, composed by `boardSlotLine` in `post.ts` — the same formatter and therefore the
-   * same string as the slot under the picker on the page this post links to (M5.12, named by
-   * M7.18). The builder prints what it is given and knows nothing about either count.
-   */
-  description: string;
-  /** Which fold the entries came from (M7.3): `weekly` on the Sunday post, `all-time` monthly. */
-  track: RatingTrack;
-  /** The window's board, in its own order. {@link TOP_N} is the most that will print. */
-  entries: readonly LeaderboardEntry[];
-  /** M5.4's three lines when they exist. Undefined or empty prints no field at all. */
-  awards?: readonly WindowAward[] | undefined;
-  /** `/leaderboard?window=last-week`, or `undefined` when there is no honest URL to post. */
-  url?: string | undefined;
-  /** When the post was made — not when the window closed; the description says that. */
-  timestamp: string;
-}
-
-/**
- * The post a closed week or month makes of itself (M5.10, fired by M5.13).
- *
- * Sunday morning: nobody is in voice, nobody opened anything, and there is a post in the
- * channel that says who won the week. It is the nightly embed's twin and shares its rules on
- * purpose — the same colour, the same ten-line cap, the same field-name rule (M3.22), the same
- * footer — with two differences that are the whole task:
- *
- * - **the description**, which names the window's own days and the count it counted (`Sunday 6 Sep
- *   to Saturday 12 Sep · 14 rated games`), because a post that arrives unasked has to say which
- *   seven days it is about — and, since M7.18, which of the two counts the group can compare it
- *   with is on it;
- * - **the awards field**, when there are awards to print (see {@link WindowAward}).
- *
- * The board is the **window's** board (M5.12): the players who played inside it, each with
- * their rating as of their last counted game in it, which is what makes Sunday's post
- * reproducible on Tuesday and after a late backfill.
- *
- * `week` and `month` appear nowhere in this function: the noun arrives in `windowLabel` and in
- * `description`, so the monthly post is this builder with different strings and not a copy.
- */
-export function windowSummaryEmbed(input: WindowSummaryEmbedInput): WebhookPayload {
-  const entries = input.entries.slice(0, TOP_N);
-  const awards = input.awards ?? [];
-
-  return payload({
-    color: ACCENT_COLOR,
-    title: `${input.windowLabel} · ${LEADERBOARD_LABEL.toLowerCase()}`,
-    ...(input.url === undefined ? {} : { url: input.url }),
-    description: input.description,
-    fields: [
-      { name: leaderboardFieldName(entries.length), value: boardValue(entries) },
-      ...(awards.length === 0 ? [] : [{ name: AWARDS_FIELD, value: fieldValue(awards.flatMap(awardLines)) }]),
-    ],
-    footer: { text: boardFooter(input.track) },
-    timestamp: input.timestamp,
-  });
-}
-
-/** `**Most improved** Nadia · +212 · 1266 → 1478`. The label is bold; the rest is quoted. */
-function windowAwardLine(award: WindowAward): string {
-  return `**${award.label}** ${award.line}`;
-}
-
-/**
- * An award as ranked lines: **the winner's first line is a keeper, the tie's rest are not**
- * (M4.12).
- *
- * A ten-way tie arrives as one `line` with nine newlines in it and can push the block past 1024
- * on its own. Dropping from the bottom of a tie leaves every label present with its bold head
- * and its first winner — three awards, three answers — and one `…` where the other names were.
- * Losing a whole award to a tie in the one above it would be the wrong three lines to lose.
- */
-function awardLines(award: WindowAward): FieldLine[] {
-  return windowAwardLine(award)
-    .split('\n')
-    .map((text, index) => (index === 0 ? { text, keep: KEEP_LAST_STANDING } : text));
-}
-
-/**
- * `Teams are set`, and `Teams are set · reroll 1 of 2` when an admin has promoted split 2
- * (M3.2, `05-design.md` "The title on a reroll").
- *
- * Split 1 keeps the plain title, including when an admin promotes it back: it is the teams
- * the balancer chose, whatever route it took to be on the board again. The count comes from
- * how many splits the lobby actually stored — core returns three, so it reads `of 2` — rather
- * than from a literal, because a lobby that stored fewer must not promise a reroll it has not
- * got.
+ * `Teams are set`, and `Teams are set · reroll 1 of 2` when an admin has promoted split 2 (M3.2).
+ * The count comes from how many splits the lobby actually stored.
  */
 export function teamsTitle(promoted: PromotedSplit | undefined): string {
   if (promoted === undefined || promoted.rank <= 1) return 'Teams are set';
@@ -618,38 +568,101 @@ export function teamsTitle(promoted: PromotedSplit | undefined): string {
   return `Teams are set · reroll ${promoted.rank - 1} of ${rerolls}`;
 }
 
-/** `` `top` Hana · 1434 `` , plus ` · off-role` on the line of whoever is off it. */
+/** `` `top` **Hana** · 1434 ``, plus ` · off main role` on the line of whoever is off it. */
 function teamsLine(player: TeamsPlayer): string {
-  return `\`${player.role}\` ${renderName(player.name)} · ${player.rating}${player.offRole ? ' · off-role' : ''}`;
+  return `\`${player.role}\` **${renderName(player.name)}** · ${player.rating}${player.offRole ? ' · off main role' : ''}`;
 }
 
-/** `` `adc` Bilal · 1667 (-46) ``. The same shape as a teams line, on purpose. */
-function resultLine(player: ResultPlayer): string {
-  const role = player.role === null ? '' : `\`${player.role}\` `;
-  return `${role}${renderName(player.name)} · ${player.rating} (${formatDelta(player.delta)})`;
+/* ---------------------------------------------------------------------------
+ * Result (05-design 10.5)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The result post: E1 in the winner's colour (who won and how long, then one line per fact: the
+ * odds, the rule check, not rated, the top damage, the MVP and ACE), then E2 and E3 with each
+ * player's new Rating and its change. No team total of deltas, ever (`00-product.md`).
+ */
+export function resultEmbed(input: ResultEmbedInput): WebhookPayload {
+  const winner = input.winningSide === 100 ? 'Blue' : 'Red';
+  const odds = input.blueWinProb === null ? null : resultOddsLine(input.blueWinProb, input.winningSide);
+  const damage = topDamageLine(input.topDamage);
+  const description: (string | DraftLine)[] = [
+    ...(odds === null ? [] : [odds]),
+    ...(input.mode === undefined ? [] : resultModeLines(input.mode)),
+    ...(damage === null ? [] : [{ text: damage, shed: SHED.topDamage }]),
+    ...(input.award === null ? [] : [{ text: awardLineBold(input.award), shed: SHED.award }]),
+  ];
+
+  const header: DraftEmbed = withAuthor(
+    {
+      color: input.winningSide === 100 ? BLUE_COLOR : RED_COLOR,
+      title: `${winner} wins · ${formatMinutes(input.durationS)}`,
+      ...(input.url === undefined ? {} : { url: input.url }),
+      ...optionalDescription(description),
+      // The badge narrows E1; a game with a rule carries the check line, so it goes without
+      // (design review, M14.61): the rule line keeps the full width.
+      ...(input.badgeUrl === undefined || input.mode?.rule != null
+        ? {}
+        : { thumbnail: { url: input.badgeUrl } }),
+    },
+    authorOf(input.identity, input.gameNumber === null ? undefined : `game ${input.gameNumber}`),
+  );
+
+  return message(input.identity, [
+    header,
+    sideEmbed(BLUE_COLOR, BLUE_SIDE_TITLE, inLaneOrder(input.blue).map(resultLine)),
+    sideEmbed(RED_COLOR, RED_SIDE_TITLE, inLaneOrder(input.red).map(resultLine)),
+  ]);
 }
 
 /**
- * `+43`, `-46`, and `+0` / `-0` for a change too small to round to a point.
- *
- * Signed always: `(0)` never appears, because one unsigned entry in a column of ten signed
- * ones reads as a bug (`05-design.md`, "Rating delta"). ASCII `-`, not U+2212 — Discord has no
- * font control and these lines get copy-pasted. `-0 >= 0` is true in JavaScript, so the
- * negative zero has to be asked about by identity before anything else looks at the sign.
+ * The two words in front of the two names (M7.10, product's copy). Upper case because they are
+ * op.gg's terms; never a trophy, a medal, a colour or a `#1` beside them.
+ */
+export const MVP_LABEL = 'MVP';
+export const ACE_LABEL = 'ACE';
+
+/**
+ * `MVP Lena · ACE Rami` — product's words, verbatim and in that order (M7.10). The web poster
+ * prints this plain line (`webAwardLine`); the Discord post prints {@link awardLineBold}.
+ */
+export function awardLine(award: ResultAward): string {
+  return `${MVP_LABEL} ${renderName(award.mvp)} · ${ACE_LABEL} ${renderName(award.ace)}`;
+}
+
+/** `**MVP** Lena · **ACE** Rami` (05-design 10.5): the same words, only the two labels bold. */
+export function awardLineBold(award: ResultAward): string {
+  return `**${MVP_LABEL}** ${unbroken(award.mvp)} · **${ACE_LABEL}** ${unbroken(award.ace)}`;
+}
+
+/**
+ * A name for E1's fact lines (top damage, MVP and ACE): rendered as everywhere, with its inner
+ * spaces as U+00A0 so a narrow column (the badge beside it at 375) never splits `Syndrome Axes`
+ * over two lines (design review, M14.61). Seat lines and the plain `awardLine` keep plain spaces.
+ */
+function unbroken(name: PlayerName): string {
+  return renderName(name).replaceAll(' ', NBSP);
+}
+
+/**
+ * `` `adc` **Bilal** · 1667 (-46) ``: the teams line's shape with the change in parentheses,
+ * joined to the Rating by a no-break space so a wrap moves the whole number (10.4). A game played
+ * not rated moved nobody: the name alone, never a made-up `+0`.
+ */
+function resultLine(player: ResultPlayer): string {
+  const role = player.role === null ? '' : `\`${player.role}\` `;
+  const name = `**${renderName(player.name)}**`;
+  if (player.rating === null || player.delta === null) return `${role}${name}`;
+  return `${role}${name} · ${player.rating}${NBSP}(${formatDelta(player.delta)})`;
+}
+
+/**
+ * `+43`, `-46`, and `+0` / `-0` for a change too small to round to a point. Signed always; ASCII
+ * `-`, not U+2212, because these lines get copy-pasted.
  */
 export function formatDelta(delta: number): string {
   if (Object.is(delta, -0)) return '-0';
   return delta >= 0 ? `+${delta}` : String(delta);
-}
-
-/** `34:12`, and `1:02:03` for the long ones. */
-export function formatDuration(durationS: number): string {
-  const total = Math.max(0, Math.round(durationS));
-  const hours = Math.floor(total / 3_600);
-  const minutes = Math.floor((total % 3_600) / 60);
-  const seconds = total % 60;
-  const pad = (value: number): string => String(value).padStart(2, '0');
-  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
 }
 
 /** `47.3k` over a thousand, the plain number below it. */
@@ -659,14 +672,8 @@ export function formatDamage(damage: number): string {
 
 /**
  * The name as it is printed: the display name, truncated at 32 characters, or `Someone` for a
- * player the database has no name for yet (M3.10). The fallback is a rendering rule and
- * nothing else — it is never written to `players`.
- *
- * A name is **text, not markup**. Riot IDs carry underscores and asterisks, and one stray
- * backtick closes the role's code span and swallows the rest of the field. So the markdown
- * characters are backslash-escaped — **last**, on the already-truncated string, so an escape
- * can never be sliced away from the character it belongs to and the 32 characters stay the 32
- * characters a reader sees (`05-design.md`, 2026-09-09).
+ * player the database has no name for yet (M3.10). Markdown characters are backslash-escaped
+ * **last**, on the already-truncated string, so an escape is never sliced away.
  */
 export function renderName(name: PlayerName): string {
   const trimmed = (name ?? '').trim();
@@ -675,84 +682,288 @@ export function renderName(name: PlayerName): string {
   return escapeMarkdown(cut);
 }
 
-/** Backtick, `*`, `_`, `~`, `|` and the backslash itself. There is no name we want italicised. */
-function escapeMarkdown(value: string): string {
-  return value.replace(/([`*_~|\\])/g, '\\$1');
-}
-
 /**
- * `Kustom · game 47`, and `Kustom` alone when the count could not be taken (M5.12, product
- * 2026-09-10; `05-design.md`, "Result embed").
- *
- * It used to be `Season 1 · game 47`. Seasons left the friend-facing vocabulary with the
- * window picker, and the last place the word survived was this footer — where it read as
- * `gamesd · game 47` on the deployment that exists. **The count keeps its meaning**: it is
- * every game this group has played up to this one, which is what it always counted, because
- * there has only ever been one season row for it to count inside.
- *
- * The bare name is right and needs no apology (product, 2026-09-09, for the same footer): a
- * count we could not take is simply not printed. Never `game ?`, never `game 0`, never a
- * sentence explaining that something did not add up.
+ * Backtick, `*`, `_`, `~`, `|`, the backslash, and (M14.61 r2) the link and heading syntax
+ * `[ ] ( ) < > #`: a name or champion can never become a masked link, a `<@&role>` / `<#channel>`
+ * mention, or a heading. There is no name we want italicised, linked or pinged.
  */
-function resultFooter(gameNumber: number | null): string {
-  return gameNumber === null ? 'Kustom' : `Kustom · game ${gameNumber}`;
+function escapeMarkdown(value: string): string {
+  return value.replace(/([`*_~|\\[\]()<>#])/g, '\\$1');
+}
+
+function topDamageLine(top: { name: PlayerName; damage: number } | null): string | null {
+  if (top === null) return null;
+  return `Top damage: ${unbroken(top.name)}, ${formatDamage(top.damage)}.`;
+}
+
+/* ---------------------------------------------------------------------------
+ * Boards (05-design 10.6, 10.7)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The nightly board (M3.5, 05-design 10.7): one amber embed, author, the window in the title
+ * (linked), the ranked field with the top three bold, the `Still settling` field on the all-time
+ * track, and the footer sentence on every post.
+ */
+export function leaderboardEmbed(input: LeaderboardEmbedInput): WebhookPayload {
+  return message(input.identity, [
+    withAuthor(
+      {
+        color: ACCENT_COLOR,
+        title: boardTitle(input.windowLabel),
+        ...(input.url === undefined ? {} : { url: input.url }),
+        fields: boardFields(input.entries, input.track, input.settling),
+        footer: { text: boardFooter(input.track) },
+      },
+      authorOf(input.identity),
+    ),
+  ]);
 }
 
 /**
- * The fearless-draft list (M10): unique champions since the last admin reset, banned from
- * the next custom. A second message after the result, never stuffed into it — the result is
- * about ratings and this is about tomorrow's bans.
- *
- * Accent bar, same as teams: the list is neither side's. Empty pool is not posted; the
- * reset path has its own embed.
+ * The word the board posts call the board (M14.72: one word, Board, everywhere a friend reads it;
+ * the routes keep `/leaderboard`).
+ */
+export const BOARD_WORD = 'board';
+
+/** `Last week · board`: the window the picker names, then {@link BOARD_WORD}. */
+function boardTitle(windowLabel: string): string {
+  return `${windowLabel} · ${BOARD_WORD}`;
+}
+
+/**
+ * The board's fields: the ranked lines (M3.22's name rule), then `Still settling` when the
+ * all-time track has anybody under `SETTLING_GAMES` (M14.10). A week never prints the second.
+ */
+function boardFields(
+  ranked: readonly LeaderboardEntry[],
+  track: RatingTrack,
+  settling: readonly SettlingEntry[] | undefined,
+): DraftField[] {
+  const entries = ranked.slice(0, TOP_N);
+  const unranked = track === 'week' ? [] : (settling ?? []).slice(0, TOP_N);
+  const fields: DraftField[] = [];
+  // A board of nobody but newcomers is a settling list alone, never an empty `The board`.
+  if (entries.length > 0 || unranked.length === 0) {
+    fields.push({
+      name: leaderboardFieldName(entries.length),
+      // Row 1 is never shed; the rest give way from the bottom (05-design 10.12).
+      value: entries.map((entry, index) => {
+        const text = leaderboardLine(entry, index);
+        return index === 0 ? text : { text, shed: SHED.boardRows };
+      }),
+    });
+  }
+  if (unranked.length > 0) {
+    fields.push({ name: SETTLING_FIELD, value: unranked.map(settlingLine) });
+  }
+  return fields;
+}
+
+/**
+ * `` `1` **Lena** · 1548 · 41 games `` on `All time`; `` `1` **Nadia** · +212 · 5W–2L `` on a
+ * week (M14.57), with `· settling · 4/10` after it for a player still settling. Ranks 1 to 3 have
+ * the name in bold (05-design 10.6).
+ */
+function leaderboardLine(entry: LeaderboardEntry, index: number): string {
+  const name = renderName(entry.name);
+  const rank = `\`${index + 1}\` ${index < BOLD_RANKS ? `**${name}**` : name}`;
+  if (entry.week === undefined) return `${rank} · ${entry.rating} · ${gamesLabel(entry.games)}`;
+  return `${rank} · ${weekLineTail(entry.week)}`;
+}
+
+/** `+212 · 5W–2L`, and `· settling · 4/10` for a player still settling (M14.57). */
+export function weekLineTail(week: WeekEntry): string {
+  const head = `${formatDelta(week.points)} · ${week.wins}W–${week.losses}L`;
+  return week.settlingGames === null ? head : `${head} · settling · ${week.settlingGames}/${SETTLING_GAMES}`;
+}
+
+/** `Nadia · 1290 · settling · 4/10`: no rank, never bold, and the page's chip in words. */
+function settlingLine(entry: SettlingEntry): string {
+  return `${renderName(entry.name)} · ${entry.rating} · settling · ${entry.ratedGames}/${SETTLING_GAMES}`;
+}
+
+/**
+ * One award of the closed window's post (M5.4, M5.10), quoted from the awards, never re-derived:
+ * including the sentence an award nobody won prints. A tie carries its winners as one string
+ * with a newline in it.
+ */
+export interface WindowAward {
+  /** `Best off-role`: the award's own field name on the post (05-design 10.6). */
+  label: string;
+  /** The award's line(s), or the "nobody qualifies" sentence, verbatim. */
+  line: string;
+}
+
+export interface WindowSummaryEmbedInput {
+  identity: PostIdentity;
+  /** `Last week` — the same words the picker uses. */
+  windowLabel: string;
+  /** `Sunday 6 Sep to Saturday 12 Sep · 14 rated games`, from `boardSlotLine`. */
+  description: string;
+  /** Which board the entries came from: `week` on the Sunday post (M14.57). */
+  track: RatingTrack;
+  /** The window's board, in its order. {@link TOP_N} is the most that will print. */
+  entries: readonly LeaderboardEntry[];
+  /** Still settling (all-time track only). */
+  settling?: readonly SettlingEntry[] | undefined;
+  /** M5.4's lines when they exist. Undefined or empty prints no award fields. */
+  awards?: readonly WindowAward[] | undefined;
+  /** `/leaderboard?window=last-week`, or `undefined`. */
+  url?: string | undefined;
+  /**
+   * **M16.5's slot** (05-design 10.6, 10.14 check 8): the week's AI storyline, Discord-ready
+   * (escaped like the recap), shown as E0, a slate `AI recap` embed above the board. Absent gives
+   * exactly the board-only post.
+   */
+  storyline?: string | undefined;
+}
+
+/**
+ * The post a closed week makes of itself (M5.10, fired by M5.13; 05-design 10.6): (E0, the AI
+ * storyline, only when given one) and E1, the board: author, title (linked), the window's days,
+ * the ranked field with the top three bold, one block field per award (name = the award's label),
+ * and the footer sentence.
+ */
+export function windowSummaryEmbed(input: WindowSummaryEmbedInput): WebhookPayload {
+  const awards = input.awards ?? [];
+  const board: DraftEmbed = withAuthor(
+    {
+      color: ACCENT_COLOR,
+      title: boardTitle(input.windowLabel),
+      ...(input.url === undefined ? {} : { url: input.url }),
+      description: input.description,
+      fields: [...boardFields(input.entries, input.track, input.settling), ...awards.map(awardField)],
+      footer: { text: boardFooter(input.track) },
+    },
+    authorOf(input.identity),
+  );
+  return message(input.identity, withStoryline(board, input.storyline));
+}
+
+/**
+ * A storyline is at most 600 characters before escaping (M16.1 brief 4.4) and escaping at most
+ * doubles it: anything longer is not a storyline this build wrote, and the post goes out without
+ * it (M16.5's rule, kept).
+ */
+export const STORYLINE_MAX = 1_200;
+
+/**
+ * The Sunday stack: the storyline's slate E0 first when there is one (M16.5), then the board.
+ * No line, a blank one or one over {@link STORYLINE_MAX} gives the board alone; past 6000 the
+ * message guard drops E0 whole before any board line (05-design 10.12).
+ */
+export function withStoryline(board: DraftEmbed, storyline: string | null | undefined): DraftEmbed[] {
+  const text = storyline?.trim() ?? '';
+  return text.length === 0 || text.length > STORYLINE_MAX
+    ? [board]
+    : [aiRecapEmbed(text, SHED.storyline), board];
+}
+
+/**
+ * An award as its own block field (05-design 10.6): the label is the field's name, the value its
+ * line(s), verbatim. The winner's first line is never shed; a tie's later names give way.
+ */
+function awardField(award: WindowAward): DraftField {
+  return {
+    name: award.label,
+    value: award.line
+      .split('\n')
+      .map((text, index) =>
+        index === 0 ? { text, keep: KEEP_LAST_STANDING } : { text, shed: SHED.tieNames },
+      ),
+  };
+}
+
+/* ---------------------------------------------------------------------------
+ * Fearless (05-design 10.8, 8.12)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The fearless-draft list (M10, laid out by M14.31 per 05-design 8.12, restyled by 10.8): unique
+ * champions since the last admin reset, banned from the next custom. A second message after the
+ * result, never stuffed into it. One block field per lane named with its count (`top · 7`), the
+ * lane's names on one line: this game's new ones first and bold, A–Z, then the rest A–Z.
  */
 export interface FearlessEmbedInput {
+  identity: PostIdentity;
+  /** The whole pool after the game, as `loadFearless` answers it. */
   champions: readonly FearlessChampion[];
-  timestamp: string;
-  url?: string;
+  /** Ids the game this post is about added to the pool: the bold ones, and `<n>` in the description. */
+  added: ReadonlySet<number>;
+  url?: string | undefined;
 }
 
 export function fearlessEmbed(input: FearlessEmbedInput): WebhookPayload {
-  return payload({
-    color: ACCENT_COLOR,
-    title: FEARLESS_TITLE,
-    ...(input.url === undefined ? {} : { url: input.url }),
-    description: fearlessDescription(input.champions.length),
-    fields: groupFearless(input.champions).map((group) => ({
-      name: fearlessLaneTitle(group.role),
-      value: fieldValue(group.champions.map((champion) => champion.name)),
-    })),
-    footer: { text: teamsFooter(input.url) },
-    timestamp: input.timestamp,
-  });
+  const added = input.champions.filter((champion) => input.added.has(champion.id)).length;
+  return message(input.identity, [
+    withAuthor(
+      {
+        color: ACCENT_COLOR,
+        title: FEARLESS_TITLE,
+        ...(input.url === undefined ? {} : { url: input.url }),
+        description: fearlessPostDescription(
+          added,
+          input.champions.length,
+          availableFearless(input.champions).length,
+        ),
+        fields: groupFearless(input.champions).map((group) => {
+          const fresh = group.champions.filter((champion) => input.added.has(champion.id));
+          const rest = group.champions.filter((champion) => !input.added.has(champion.id));
+          return {
+            name: fearlessLaneField(group.role, group.champions.length),
+            value: [
+              [
+                ...fresh.map((champion) => `**${escapeMarkdown(champion.name)}**`),
+                ...rest.map((champion) => escapeMarkdown(champion.name)),
+              ].join(', '),
+            ],
+            inline: false,
+          };
+        }),
+        ...fearlessFooter(input.url),
+      },
+      authorOf(input.identity),
+    ),
+  ]);
+}
+
+/** `top · 7`: the lane's title and how many it holds (05-design 10.8) [NEW COPY]. */
+export function fearlessLaneField(role: Parameters<typeof fearlessLaneTitle>[0], count: number): string {
+  return `${fearlessLaneTitle(role)} · ${count}`;
 }
 
 export interface FearlessResetEmbedInput {
-  timestamp: string;
-  url?: string;
+  identity: PostIdentity;
+  url?: string | undefined;
 }
 
 export function fearlessResetEmbed(input: FearlessResetEmbedInput): WebhookPayload {
-  return payload({
-    color: ACCENT_COLOR,
-    title: FEARLESS_TITLE,
-    ...(input.url === undefined ? {} : { url: input.url }),
-    description: FEARLESS_RESET_DESCRIPTION,
-    fields: [],
-    footer: { text: teamsFooter(input.url) },
-    timestamp: input.timestamp,
-  });
+  return message(input.identity, [
+    withAuthor(
+      {
+        color: ACCENT_COLOR,
+        title: FEARLESS_TITLE,
+        ...(input.url === undefined ? {} : { url: input.url }),
+        description: FEARLESS_RESET_DESCRIPTION,
+      },
+      authorOf(input.identity),
+    ),
+  ]);
 }
 
 /**
- * `Kustom · more on the tonight page`, or just the name when there is no link (M3.21).
- *
- * The product is **Kustom** on every friend-facing surface; the repo's codename stays in
- * `CLAUDE.md`, the docs and the package names, and appears nowhere under `apps/web`.
+ * The pool post: the title opens the mode panel, so the footer says to tap it. With no link there
+ * is no promise and no footer. The reset post has none either way (design review, M14.61): its one
+ * sentence says the list is empty, and there is nothing open to go and look at that it does not say.
  */
-function teamsFooter(url: string | undefined): string {
-  return url === undefined ? 'Kustom' : 'Kustom · more on the tonight page';
+function fearlessFooter(url: string | undefined): { footer?: { text: string } } {
+  return url === undefined ? {} : { footer: { text: FEARLESS_POST_FOOTER } };
 }
+
+/* ---------------------------------------------------------------------------
+ * Small shared pieces
+ * ------------------------------------------------------------------------- */
 
 /** `Sara and Deniz`, `Sara, Deniz and Ali` (M2.15). */
 export function joinNames(names: readonly PlayerName[]): string {
@@ -761,17 +972,33 @@ export function joinNames(names: readonly PlayerName[]): string {
   return `${rendered.slice(0, -1).join(', ')} and ${rendered[rendered.length - 1]}`;
 }
 
-/** M2.15's and M3.12's copy, verbatim. Product owns all three; none is composed elsewhere. */
-function sitOutLine(names: readonly PlayerName[], reason: SitOutReason): string {
-  return `Sitting out: ${joinNames(names)} — ${SIT_OUT_CLAUSES[reason]}.`;
+/**
+ * One amber embed for a one-off notice (ratings reset): the identity, the author, a linked title
+ * and a sentence. No footer, no timestamp (05-design 10.10).
+ */
+export function noticeEmbed(input: {
+  identity: PostIdentity;
+  title: string;
+  description: string;
+  url?: string | undefined;
+}): WebhookPayload {
+  return message(input.identity, [
+    withAuthor(
+      {
+        color: ACCENT_COLOR,
+        title: input.title,
+        ...(input.url === undefined ? {} : { url: input.url }),
+        description: input.description,
+      },
+      authorOf(input.identity),
+    ),
+  ]);
 }
 
-/** The three clauses. Words from `05-design.md`, "Sit-out fields"; nothing derives them. */
-const SIT_OUT_CLAUSES: Readonly<Record<SitOutReason, string>> = {
-  'most-games': 'most games tonight',
-  'longest-since': 'longest since they last sat out',
-  'first-sit-out': 'nobody has sat out before, so somebody had to be first',
-};
+/** The `Sitting out` field's value (M14.41): the name first, then the page's reason sentence. */
+function sitOutValue(names: readonly PlayerName[], rule: SitOutRule | null): string {
+  return sitOutLine(rule, { who: joinNames(names), plural: names.length > 1 });
+}
 
 /** M2.15's two seat lines, verbatim. */
 function seatLine(move: SeatLine): string {
@@ -780,11 +1007,9 @@ function seatLine(move: SeatLine): string {
 }
 
 /**
- * `` `customs-night` · password `4471` ``.
- *
- * The password half is dropped when the client did not report one — which is every lobby
- * until M4.1 creates them itself — and the whole field is absent when the name is unknown
- * too. Never empty, never the word "unknown" (M3.1 acceptance check 5).
+ * `` `customs-night` · password `4471` ``. The password half is dropped when the client did not
+ * report one, and the whole field is absent when the name is unknown too. Never empty, never the
+ * word "unknown" (M3.1 acceptance check 5).
  */
 function lobbyFieldValue(lobby: { name: string | null; password: string | null }): string | null {
   const name = lobby.name?.trim() ?? '';
@@ -795,20 +1020,8 @@ function lobbyFieldValue(lobby: { name: string | null; password: string | null }
 }
 
 /**
- * `Blue was favored 54%.` Past tense, because the game has been played; the teams embed's
- * present-tense clause is core's and this one is not a recomposition of it — it is the same
- * number said about a game that is over.
- *
- * The coin flip is `Neither side was favored.` and not core's `Even 50%.` (M3.11, product
- * 2026-09-09): under the headline `Red wins · 34:12`, beside a full past-tense sentence,
- * *even, 50%* reads as a scoreline before it reads as a prediction — and on a first night,
- * everyone unrated and every split gap 0, it is the first result sentence the group ever
- * reads. The number goes with it, because 50 is what "neither" means. Core's fragment in the
- * teams explanation is untouched and stays core's.
- *
- * Exported because the tonight page's result card prints the same sentence (M3.4): the page
- * and the message must not invent a fifth number format between them (`05-design.md`, "The
- * four number formats").
+ * `Blue was favored 54%.` The 1.0 result clause. **No longer posted** (M14.10): kept, unchanged,
+ * only because `lib/board/explain.test.ts` still pins it.
  */
 export function favoredClause(blueWinProb: number | null): string | null {
   if (blueWinProb === null) return null;
@@ -819,14 +1032,8 @@ export function favoredClause(blueWinProb: number | null): string | null {
 }
 
 /**
- * `Red was 38%. Red won.` — the result poster's odds line when the winner was the underdog
- * (M11.3, product's copy), and `null` when it was not, which is the caller's cue to print
- * {@link favoredClause} instead. One line or the other, never both: the same stored number said
- * about the side that won.
- *
- * **Underdog is the winner's rounded share below 50**, rounded exactly as `favoredClause`
- * rounds, so the two lines can never disagree about which side was favoured. A coin flip is not
- * an upset and keeps `Neither side was favored.`
+ * `Red was 38%. Red won.` when the winner was the underdog (M11.3), `null` when it was not.
+ * Rounded exactly as {@link favoredClause} rounds.
  */
 export function underdogClause(blueWinProb: number | null, winningSide: Side): string | null {
   if (blueWinProb === null) return null;
@@ -837,16 +1044,17 @@ export function underdogClause(blueWinProb: number | null, winningSide: Side): s
   return `${name} was ${share}%. ${name} won.`;
 }
 
-function topDamageClause(top: { name: PlayerName; damage: number } | null): string | null {
-  if (top === null) return null;
-  return `Top damage: ${renderName(top.name)}, ${formatDamage(top.damage)}.`;
-}
-
 /**
- * The number beside the side's name: the sum of five display ratings. It is not the gap —
- * the gap is computed on effective (role-adjusted) skill and lives in the explanation, which
- * is the only place the word appears.
+ * How core's sentence is set at the end of E4: Discord subtext (`-# `), which renders small and
+ * grey. If a client is found not to render subtext inside an embed description, flip this to
+ * `'italic'` and the line becomes `*…*`; nothing else changes.
  */
-function sumRatings(players: readonly TeamsPlayer[]): number {
-  return players.reduce((total, player) => total + player.rating, 0);
+export const EXPLANATION_STYLE: 'subtext' | 'italic' = 'subtext';
+
+/** Core's sentence, verbatim, as the receipt's last line (STRATEGY §4.2 rule 6). */
+export function explanationLine(
+  explanation: string,
+  style: 'subtext' | 'italic' = EXPLANATION_STYLE,
+): string {
+  return style === 'subtext' ? `-# ${explanation}` : `*${explanation}*`;
 }

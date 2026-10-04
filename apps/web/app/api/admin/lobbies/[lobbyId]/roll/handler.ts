@@ -1,3 +1,4 @@
+import type { Rng } from '@customs/core';
 import type { NextResponse } from 'next/server';
 // Registers the command queue's `balanced` listener on `hooks.ts` at module load (M4.1): a roll
 // is what fires `emitLobbyBalanced` now, so this route is what puts `switch_side` rows on the
@@ -27,6 +28,7 @@ export async function handleRoll(
   input: RollRequest,
   context: AdminContext,
   now: Date = new Date(),
+  rng?: Rng,
 ): Promise<NextResponse> {
   const back = safeNextPath(input.redirectTo) ?? context.redirectTo;
 
@@ -43,6 +45,8 @@ export async function handleRoll(
     now,
     timeZone: readServerEnv().CUSTOMS_NIGHT_TZ,
     requestOrigin: siteOrigin(context.request),
+    // Region wars' draw (M15.3): the server's RNG unless a test pins it (M15.10).
+    ...(rng === undefined ? {} : { rng }),
   });
 
   if (!result.ok) {
@@ -69,11 +73,12 @@ export async function handleRoll(
 /** The route, with the lobby id from the path already in hand. */
 export function rollRoute(
   lobbyId: string,
-  options: AdminRouteOptions & { now?: () => Date } = {},
+  options: AdminRouteOptions & { now?: () => Date; rng?: Rng } = {},
 ): (request: Request) => Promise<NextResponse> {
-  const { now, ...routeOptions } = options;
-  return withAdminAuth(rollRequestSchema, (input, context) => handleRoll(lobbyId, input, context, now?.()), {
-    redirectTo: '/admin',
-    ...routeOptions,
-  });
+  const { now, rng, ...routeOptions } = options;
+  return withAdminAuth(
+    rollRequestSchema,
+    (input, context) => handleRoll(lobbyId, input, context, now?.(), rng),
+    { ...routeOptions },
+  );
 }

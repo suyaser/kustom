@@ -1,50 +1,110 @@
-# Kustom companion
+# Kustom
 
-This little app watches your League client and tells the bot who is in the lobby and who won, so nobody
-has to pick teams or report scores. It only reads the client — it never plays for you and never clicks
-anything in a game.
+Kustom is a small Windows app for the friend who hosts your group's customs. It sits next to the League client,
+tells the site who is in the lobby and who won, and opens the custom and sends the invites when someone taps
+**Start a lobby** on the site. Nobody has to pick teams or report scores. It never plays for you: it stays out
+of champ select and out of the game.
 
-## 1. Download it
+Only one PC per lobby needs it, and it has to be an admin's. Everyone else just plays and installs nothing.
 
-Get `Kustom.exe` from the link in the group chat —
-<https://github.com/suyaser/kustom-releases/releases/latest/download/Kustom.exe>, which always
-gives you the newest one — and put it somewhere you will find it again. Your desktop is fine. You do not
-need a GitHub account.
+## 1. Install it
 
-Windows may say it does not recognise the app. Click **More info**, then **Run anyway**. It says that
-about anything that is not from a big company.
+Download `Kustom-setup.exe` from the Kustom site (your group's admin page has a **Download Kustom** link) and
+double-click it. It installs just for you, so it never asks for an administrator password, and it opens Kustom
+when it is done. You do not need a GitHub account.
 
-## 2. Paste your token
+Windows may warn you because Kustom isn't signed yet. Click **More info**, then **Run anyway**.
 
-Double-click it. The first time, it asks for a token. If it is your first time, join one of our custom
-lobbies first so the bot knows you exist, then ask for the token. Whoever runs the admin page makes one for
-you and sends it over — ask them for it. Paste it in and press Enter. You will not see it as you type; that
-is on purpose.
+## 2. Link it to your group
 
-It remembers the token, so this is the only time you do this.
+Kustom asks for a code the first time. Get a code on the site: admins from **Set up your PC as
+host** on the admin home, everyone else from their invite link. Open League and sign in with your own account, then type the six letters and
+numbers into Kustom and press **Link**.
+
+When it works, Kustom shows **Recording for** and your group's name. That is all the setup there is.
+
+If you are in more than one group, link each one the same way (**Link another group** in Kustom) and pick
+the one you are hosting with **Switch group**.
 
 ## 3. Leave it running
 
-That is the whole job. Play League as usual. When you are in a custom lobby with the others, the teams
-show up in Discord on their own, and the result lands on the site when the game ends.
+That is the whole job. Kustom lives in the tray, next to the clock, and starts with Windows. Play League as
+usual. When you are in a custom lobby with the others, the site shows who is in. Once everyone is there, an
+admin taps **Roll teams** and the teams show up on the site and in Discord. The result lands on its own when
+the game ends, and Kustom shows it under **Last game**.
 
-Keep the window open while you play. Closing it breaks nothing — you just stop being the one reporting —
-but if nobody has it open when a game ends, that game is not counted.
+Closing the window just tucks Kustom into the tray. To stop it, right-click the tray icon and choose **Quit
+Kustom**. If it is not running when a game ends, Kustom usually finds that game later in League's match
+history, so it turns up late instead of never.
+
+## Updates
+
+Kustom updates itself. It downloads the update in the background and restarts on its own at a quiet moment.
+It never restarts while you are in a lobby, in champ select or in a game, or while a finished game is still
+waiting to be sent, so an update can't cost you a game. If you open Kustom while an update is waiting, it shows
+**Update ready** with a **Restart now** button. Press it at a bad moment and Kustom restarts right after the
+game instead.
 
 ## If something looks wrong
 
-The app writes down everything it did. Press Windows+R, paste `%APPDATA%\customs-night\logs`, press
-Enter, and send the newest file to whoever set this up. There are no passwords in it.
+If Kustom says **Can't find League**, open League, or press **Browse…** and pick your League of Legends folder.
 
-Your token is in `%APPDATA%\customs-night\config.json`. Do not paste that file anywhere; it is yours.
+If Kustom says the old Kustom is still running, close the old one (look in the tray by the clock, or for its
+own window), then press **Retry**.
+
+Kustom writes down everything it did, and none of it is secret. In Kustom, press **Open logs**, or press
+Windows+R, type `%APPDATA%\customs-night\logs` and press Enter. Send the newest file to whoever set up your
+group.
+
+Kustom isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 
 ---
 
 ## Building it (for us)
 
-Everything above the rule is the friend-facing copy from the M2.6 brief in `docs/02-milestones.md`, verbatim;
-`build/publish.ts` ships it beside the download as `README.txt`. Change it there and here together, or not at
-all. What follows is for whoever builds and publishes the exe.
+Everything above the rule is the friend-facing copy: `scripts/release` ships it beside the installer as
+`README.txt` and as the release notes. Change it here only. What follows is for whoever builds and publishes.
+
+### The Rust app (M17, 1.0.0 on)
+
+```
+src-tauri/src/lib.rs      Tauri glue: plugins, the window's events, the tray, the webview's commands
+src-tauri/src/app.rs      the controller: model, host status, Restart now; no Tauri types, so tests fake the shell
+src-tauri/src/model.rs    every screen as data (docs/05-design.md section 9)
+src-tauri/src/updater.rs  the update schedule and the real updater (below)
+crates/engine/            the host engine as a library: lockfile discovery, LCU, watchers, API client, queue
+```
+
+```
+cargo test --workspace                                   # from apps/companion
+cargo clippy --workspace --all-targets -- -D warnings
+pnpm --filter companion tauri:dev                        # CUSTOMS_NIGHT_CONFIG_DIR=<dir> for a scratch config
+pnpm --filter companion tauri:build                      # the NSIS installer
+```
+
+Releases are built by CI on a `companion-v<version>` tag and drafted on `suyaser/kustom-releases`; the steps,
+the signing key and the secrets are in `docs/runbooks/companion-release.md`.
+
+**Updates (M17.12).** `tauri-plugin-updater` reads `latest.json` from
+`https://github.com/suyaser/kustom-releases/releases/latest/download/latest.json`, downloads the installer
+and checks its minisign signature against `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`. The first
+check is 20 s after start, then every 6 hours (an hour after a failed check). A failed check is one `warn`
+line in the log (`update check failed`, with `kind` of `network`, `not-found`, `signature` or `other`) and
+nothing in the window. A verified download makes the update card; installing and relaunching happens only
+when `may_restart` (`model.rs`) allows it: League closed or idle in `None`, no game in progress, nothing
+queued. `Restart now` while that is false schedules the restart for the moment it clears. On Windows the
+installer runs passive (a progress bar, no questions) and relaunches Kustom.
+
+The public key in `tauri.conf.json` is a **placeholder** until the user generates the real one (runbook steps
+1 and 3). With the placeholder every check that finds a newer release fails as `signature` in the log, which is
+the safe failure; the release workflow refuses to publish while it is a placeholder.
+
+The updater tests (`src-tauri/tests/updater.rs`) run the real plugin on Tauri's mock runtime against a local
+HTTP server, with an installer signed by a throwaway minisign key made in memory.
+
+### The TypeScript engine (0.3.x; retired by M17.14)
+
+Kept until the Windows night (M17.13) has passed. Everything below this line describes it, not the Rust app.
 
 ```
 src/main.ts          startup, flags (--version, --help), signals

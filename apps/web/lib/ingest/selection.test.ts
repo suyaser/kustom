@@ -103,6 +103,69 @@ describe('selectTen', () => {
   });
 });
 
+/**
+ * M14.43, lead ruling 2026-10-03: until a real client shows a spectator host still gets the
+ * end-of-game block, the rotation never seats out the player whose companion hosts the lobby.
+ */
+describe('selectTen never seats out the host', () => {
+  it('the host plus exactly ten others: the host plays and the next in line sits', () => {
+    // The host is first in the rotation by every rule (most games tonight).
+    const around = [...pool(10), member('host', { gamesTonight: 9, isHost: true })];
+    const selection = selectTen(around);
+
+    expect(selection.playing.map((m) => m.puuid)).toContain('host');
+    expect(selection.playing).toHaveLength(10);
+    // Without the host, the first of the others by the comparator: all tied, so puuid order.
+    expect(selection.sitters.map((m) => m.puuid)).toEqual(['p00']);
+  });
+
+  it('with twelve around, the two sitters are the first two who are not the host', () => {
+    const around = [
+      ...pool(9),
+      member('host', { gamesTonight: 5, isHost: true }),
+      member('busy', { gamesTonight: 4 }),
+      member('busier', { gamesTonight: 3 }),
+    ];
+    expect(selectTen(around).sitters.map((m) => m.puuid)).toEqual(['busy', 'busier']);
+  });
+
+  it('a host in the spectator slot is moved in, and the seat plan pairs them with a sitter', () => {
+    const around = [
+      ...pool(10).map((m, i) => ({ ...m, lastSitOutAt: 5_000 + i })),
+      member('host', { side: null, isSpectator: true, lastSitOutAt: null, isHost: true }),
+    ];
+    const selection = selectTen(around);
+
+    expect(selection.playing.map((m) => m.puuid)).toContain('host');
+    expect(selection.sitters.map((m) => m.puuid)).toEqual(['p00']);
+    expect(planSeats(selection).map((move) => [move.mover.puuid, move.sitter?.puuid])).toEqual([
+      ['host', 'p00'],
+    ]);
+  });
+
+  it('changes nothing when the host would have played anyway, or nobody is marked', () => {
+    const plain = [...pool(10), member('busy', { gamesTonight: 2 })];
+    const hosted = plain.map((m) => (m.puuid === 'p03' ? { ...m, isHost: true } : m));
+    expect(selectTen(hosted)).toEqual({
+      ...selectTen(plain),
+      playing: selectTen(plain).playing.map((m) => (m.puuid === 'p03' ? { ...m, isHost: true } : m)),
+    });
+    expect(selectTen(hosted).sitters.map((m) => m.puuid)).toEqual(['busy']);
+  });
+
+  it('keeps the playing ten in sit-out order and never more or fewer than ten', () => {
+    for (let extra = 0; extra <= 5; extra += 1) {
+      const around = [...pool(10 + extra), member('host', { gamesTonight: 7, isHost: true })];
+      const selection = selectTen(around);
+      expect(selection.playing).toHaveLength(10);
+      expect(selection.sitters).toHaveLength(extra + 1);
+      expect(selection.playing.map((m) => m.puuid)).toContain('host');
+      const sorted = [...selection.playing].sort(compareForSitOut);
+      expect(selection.playing).toEqual(sorted);
+    }
+  });
+});
+
 describe('planSeats', () => {
   it('pairs each sitter with the spectator taking their slot, in order', () => {
     const around = [

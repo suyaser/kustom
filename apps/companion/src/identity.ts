@@ -6,11 +6,22 @@
  * carry on. This call never blocks the watcher or the queue; it is one attempt, and its answer is a log line.
  */
 
-import { companionMeResponseSchema } from '@customs/db/schemas';
+import type { GroupSummary } from '@customs/db/schemas';
+import { companionMeResponseSchema, groupSummarySchema } from '@customs/db/schemas';
 import { type ApiClient, describeFailure } from './api.js';
 import type { CompanionLogger } from './log.js';
 
 export const ME_API_PATH = '/api/companion/me';
+
+/**
+ * `GET /api/companion/me`, plus the token's group when the server says it (M14.12 adds `group` to the answer;
+ * M14.6 reads it as optional so a server that does not send it yet still parses, and the token is then filed
+ * by the PUUID's only group or stays the 0.2.x single token). Assumed shape: `group: { id, slug, name }`,
+ * the `groupSummarySchema` every other group-bearing answer uses.
+ */
+export const companionMeWithGroupSchema = companionMeResponseSchema.extend({
+  group: groupSummarySchema.optional(),
+});
 
 export type IdentityOutcome =
   | {
@@ -18,6 +29,8 @@ export type IdentityOutcome =
       readonly puuid: string;
       readonly playerId: string;
       readonly displayName: string | null;
+      /** The group this token posts to, when the server said (see `companionMeWithGroupSchema`). */
+      readonly group: GroupSummary | null;
     }
   /** The API answered and said no to this token: 401 or 403. */
   | { readonly status: 'refused'; readonly httpStatus: number; readonly error: string }
@@ -29,7 +42,7 @@ export const TOKEN_REFUSED_SENTENCE =
 
 export async function checkIdentity(api: ApiClient): Promise<IdentityOutcome> {
   // Quiet: this function prints the one sentence itself, so the client's own 401 line would be a second one.
-  const result = await api.request('GET', ME_API_PATH, undefined, companionMeResponseSchema, 1, {
+  const result = await api.request('GET', ME_API_PATH, undefined, companionMeWithGroupSchema, 1, {
     quiet: true,
   });
   if (result.ok) {
@@ -38,6 +51,7 @@ export async function checkIdentity(api: ApiClient): Promise<IdentityOutcome> {
       puuid: result.data.puuid,
       playerId: result.data.playerId,
       displayName: result.data.displayName,
+      group: result.data.group ?? null,
     };
   }
   if (result.reason === 'http' && (result.status === 401 || result.status === 403)) {

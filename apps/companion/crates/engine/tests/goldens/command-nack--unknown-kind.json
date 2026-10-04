@@ -1,0 +1,17 @@
+{
+  "name": "command-nack--unknown-kind",
+  "kind": "request",
+  "target": "api",
+  "route": "command-nack",
+  "patch": "16.17",
+  "fixtures": [],
+  "scenario": "command-unknown-kind",
+  "note": "A kind the companion does not know: malformed_payload, not retryable.",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack",
+  "commandKind": "dodge",
+  "body": {
+    "error": "malformed_payload: unknown kind \"dodge\"",
+    "retryable": false
+  }
+}

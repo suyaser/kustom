@@ -1,0 +1,464 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the result post, one snapshot per verdict > broke 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 52",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 45%. Red won. Upset!
+Tanks only: Blue kept the rule. Red: Jinx and Ashe aren't tanks.
+Not rated, so no Rating change.
+Top damage: Lena, 31.2k.",
+      "title": "Red wins · 31 min",
+      "url": "https://kustom.example/g/customs/games/g-52",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana**
+\`jungle\` **Iris**
+\`mid\` **Omar**
+\`adc\` **Lena**
+\`support\` **Sara**",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami**
+\`jungle\` **Nadia**
+\`mid\` **Bilal**
+\`adc\` **Deniz**
+\`support\` **Ali**",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the result post, one snapshot per verdict > kept 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 52",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 45%. Red won. Upset!
+Tanks only: both sides kept the rule.
+Not rated, so no Rating change.
+Top damage: Lena, 31.2k.",
+      "title": "Red wins · 31 min",
+      "url": "https://kustom.example/g/customs/games/g-52",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana**
+\`jungle\` **Iris**
+\`mid\` **Omar**
+\`adc\` **Lena**
+\`support\` **Sara**",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami**
+\`jungle\` **Nadia**
+\`mid\` **Bilal**
+\`adc\` **Deniz**
+\`support\` **Ali**",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the result post, one snapshot per verdict > mirror, rated 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 52",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 45%. Red won. Upset!
+Mirror match: kept in 4 lanes. Mid: Ahri vs Syndra.
+Top damage: Lena, 31.2k.",
+      "title": "Red wins · 31 min",
+      "url": "https://kustom.example/g/customs/games/g-52",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1500 (-20)
+\`jungle\` **Iris** · 1500 (-20)
+\`mid\` **Omar** · 1500 (-20)
+\`adc\` **Lena** · 1500 (-20)
+\`support\` **Sara** · 1500 (-20)",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami** · 1520 (+20)
+\`jungle\` **Nadia** · 1520 (+20)
+\`mid\` **Bilal** · 1520 (+20)
+\`adc\` **Deniz** · 1520 (+20)
+\`support\` **Ali** · 1520 (+20)",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the result post, one snapshot per verdict > normal, not rated 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 52",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 45%. Red won. Upset!
+Not rated, so no Rating change.
+Top damage: Lena, 31.2k.",
+      "title": "Red wins · 31 min",
+      "url": "https://kustom.example/g/customs/games/g-52",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana**
+\`jungle\` **Iris**
+\`mid\` **Omar**
+\`adc\` **Lena**
+\`support\` **Sara**",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami**
+\`jungle\` **Nadia**
+\`mid\` **Bilal**
+\`adc\` **Deniz**
+\`support\` **Ali**",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the result post, one snapshot per verdict > unknown 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 52",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 45%. Red won. Upset!
+Ionia vs Noxus: Blue kept the rule. Red: Garen isn't from Noxus. Red: couldn't check Champion 100799.
+Not rated, so no Rating change.
+Top damage: Lena, 31.2k.",
+      "title": "Red wins · 31 min",
+      "url": "https://kustom.example/g/customs/games/g-52",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana**
+\`jungle\` **Iris**
+\`mid\` **Omar**
+\`adc\` **Lena**
+\`support\` **Sara**",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami**
+\`jungle\` **Nadia**
+\`mid\` **Bilal**
+\`adc\` **Deniz**
+\`support\` **Ali**",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the teams post, one snapshot per mode > class wars 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "**This game: tanks only.** Not rated. [See the tanks](https://kustom.example/g/customs/mode)",
+      "fields": [
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set",
+      "url": "https://kustom.example/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1500
+\`jungle\` **Iris** · 1510
+\`mid\` **Omar** · 1520
+\`adc\` **Lena** · 1530
+\`support\` **Sara** · 1540",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami** · 1550
+\`jungle\` **Nadia** · 1560
+\`mid\` **Bilal** · 1570
+\`adc\` **Deniz** · 1580
+\`support\` **Ali** · 1590",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Blue favored 52%. Everyone on a main role.",
+      "title": "How the bot decided",
+      "url": "https://kustom.example/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the teams post, one snapshot per mode > fearless, not rated 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "**This game: not rated.**",
+      "fields": [
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set",
+      "url": "https://kustom.example/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1500
+\`jungle\` **Iris** · 1510
+\`mid\` **Omar** · 1520
+\`adc\` **Lena** · 1530
+\`support\` **Sara** · 1540",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami** · 1550
+\`jungle\` **Nadia** · 1560
+\`mid\` **Bilal** · 1570
+\`adc\` **Deniz** · 1580
+\`support\` **Ali** · 1590",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Blue favored 52%. Everyone on a main role.",
+      "title": "How the bot decided",
+      "url": "https://kustom.example/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the teams post, one snapshot per mode > mirror match 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "**This game: mirror match, same champion as your lane opponent.** Blind Pick lobby. Rated. [How it works](https://kustom.example/g/customs/mode)",
+      "fields": [
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set",
+      "url": "https://kustom.example/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1500
+\`jungle\` **Iris** · 1510
+\`mid\` **Omar** · 1520
+\`adc\` **Lena** · 1530
+\`support\` **Sara** · 1540",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami** · 1550
+\`jungle\` **Nadia** · 1560
+\`mid\` **Bilal** · 1570
+\`adc\` **Deniz** · 1580
+\`support\` **Ali** · 1590",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Blue favored 52%. Everyone on a main role.",
+      "title": "How the bot decided",
+      "url": "https://kustom.example/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the teams post, one snapshot per mode > normal, not rated 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "**This game: not rated.**",
+      "fields": [
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set",
+      "url": "https://kustom.example/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1500
+\`jungle\` **Iris** · 1510
+\`mid\` **Omar** · 1520
+\`adc\` **Lena** · 1530
+\`support\` **Sara** · 1540",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami** · 1550
+\`jungle\` **Nadia** · 1560
+\`mid\` **Bilal** · 1570
+\`adc\` **Deniz** · 1580
+\`support\` **Ali** · 1590",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Blue favored 52%. Everyone on a main role.",
+      "title": "How the bot decided",
+      "url": "https://kustom.example/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`the teams post, one snapshot per mode > region wars 1`] = `
+{
+  "avatar_url": "https://kustom.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://kustom.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "**This game: region wars.** Blue picks from Ionia, Red from Noxus. Not rated. [See both pools](https://kustom.example/g/customs/mode)",
+      "fields": [
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "Teams are set",
+      "url": "https://kustom.example/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1500
+\`jungle\` **Iris** · 1510
+\`mid\` **Omar** · 1520
+\`adc\` **Lena** · 1530
+\`support\` **Sara** · 1540",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Rami** · 1550
+\`jungle\` **Nadia** · 1560
+\`mid\` **Bilal** · 1570
+\`adc\` **Deniz** · 1580
+\`support\` **Ali** · 1590",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Blue favored 52%. Everyone on a main role.",
+      "title": "How the bot decided",
+      "url": "https://kustom.example/g/customs#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;

@@ -1,11 +1,12 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
-import { startLobbyResponseSchema } from '@/app/api/me/lobbies/start/schema';
-import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStart';
-import { PLAYERS_PER_GAME } from '@/lib/lobbyState';
+import { Button } from '@/components/ui/button';
+import { PLAYERS_PER_GAME } from '@/lib/lobbyRules';
+import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStartCopy';
 import { groupHome } from '@/lib/nav';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
+import { requestTonightRefresh } from '@/lib/tonight/live';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { usePageGroup } from '../_shell/PageGroup';
 
@@ -73,9 +74,17 @@ export interface StartLobbyProps {
    * that has to be polled rather than subscribed to.
    */
   onPressed?: (() => void) | undefined;
+  /** The button's words; default `Start a lobby`. Finished passes `Start the next lobby`. */
+  label?: string | undefined;
+  /**
+   * M14.66: `Nobody's Kustom is running right now. Ask … to open it.`, under the button on idle when
+   * no host has been seen for ten minutes, so the friend knows who to ask before they tap. Any
+   * progress line or refusal takes the slot instead (a refused press says the same thing).
+   */
+  noHostLine?: string | null | undefined;
 }
 
-export function StartLobby({ start, press, around, onPressed }: StartLobbyProps) {
+export function StartLobby({ start, press, around, onPressed, label, noHostLine = null }: StartLobbyProps) {
   const group = usePageGroup();
   const [inFlight, setInFlight] = useState(false);
   /** The route's own sentence for a refused press, until the next press clears it. */
@@ -116,6 +125,10 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
 
     setInFlight(true);
     setRefused(null);
+    // The response schema (and zod with it) loads on the press, beside the request, not with the
+    // page (M14.44): zod is 86 KB gzip, and every phone that opens Tonight paid for it up front.
+    // A chunk that fails to load costs only the host's name for a moment (see below).
+    const schemaLoad = import('@/app/api/me/lobbies/start/schema').catch(() => null);
     try {
       // The body decides nothing (`start/schema.ts`): no host, no name, no password, no mode.
       const response = await fetch(START_ACTION, {
@@ -136,11 +149,13 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
       // **The route's own response schema**, not a hand-read of two fields: one shape,
       // validated at both ends of the wire. A 200 the schema does not recognise names nobody,
       // and the server re-read a moment later fills the sentence in.
-      const answer = startLobbyResponseSchema.safeParse(body);
-      if (answer.success) setPressedHost(answer.data.host.name);
+      const schema = await schemaLoad;
+      const answer = schema?.startLobbyResponseSchema.safeParse(body);
+      if (answer?.success) setPressedHost(answer.data.host.name);
       // The row is service-role only, so the page asks the **server** for it again rather than
       // waiting for an event that will never come.
       onPressed?.();
+      requestTonightRefresh();
     } catch {
       setRefused(START_LOBBY_OFFLINE);
     } finally {
@@ -153,19 +168,15 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
   if (!press && sentence === null && invited === null) return null;
 
   return (
-    <div className="cn-start">
+    <div data-slot="start-lobby" className="flex flex-col items-start gap-2">
       {press ? (
-        <form className="cn-start-form" method="post" action={START_ACTION} onSubmit={submit}>
+        <form className="w-full" method="post" action={START_ACTION} onSubmit={submit}>
           {/* Only the no-JavaScript path reads this. The route re-validates it as a path. */}
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="redirectTo" value={groupHome(group)} />
-          <button
-            className={quiet ? 'cn-button cn-button-quiet' : 'cn-button'}
-            type="submit"
-            aria-disabled={quiet || undefined}
-          >
-            {START_LOBBY_BUTTON}
-          </button>
+          <Button type="submit" pending={quiet} className="w-full sm:w-auto">
+            {label ?? START_LOBBY_BUTTON}
+          </Button>
         </form>
       ) : null}
       {/*
@@ -178,13 +189,16 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
        */}
       {sentence === null ? null : (
         <p
-          className={refused === null ? 'cn-start-note' : 'cn-start-note cn-start-note-refused'}
+          className={refused === null ? 'text-sm text-muted-foreground' : 'text-sm font-bold'}
           role={refused === null ? 'status' : 'alert'}
         >
           {sentence}
         </p>
       )}
-      {invited === null ? null : <p className="cn-hint">{invited}</p>}
+      {invited === null ? null : <p className="text-sm text-muted-foreground">{invited}</p>}
+      {press && sentence === null && noHostLine !== null ? (
+        <p className="text-sm text-muted-foreground">{noHostLine}</p>
+      ) : null}
     </div>
   );
 }
@@ -208,14 +222,14 @@ export function StartLobby({ start, press, around, onPressed }: StartLobbyProps)
 export function StartLobbySignIn() {
   const group = usePageGroup();
   return (
-    <div className="cn-start">
-      <p className="cn-start-note">{START_LOBBY_SIGN_IN}</p>
-      <form method="post" action={SIGN_IN_ACTION} className="cn-signin">
+    <div data-slot="start-lobby" className="flex flex-col items-start gap-2">
+      <p className="text-sm text-muted-foreground">{START_LOBBY_SIGN_IN}</p>
+      <form method="post" action={SIGN_IN_ACTION} className="w-full">
         {/* Back to the tonight page, not to `/admin`, which is where a sign-in defaults. */}
         <input type="hidden" name="next" value={groupHome(group)} />
-        <button type="submit" className="cn-button">
+        <Button type="submit" variant="secondary" className="w-full sm:w-auto">
           {SIGN_IN_LABEL}
-        </button>
+        </Button>
       </form>
     </div>
   );

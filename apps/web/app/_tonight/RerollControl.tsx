@@ -1,9 +1,11 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
-import { NO_MORE_SPLITS } from '@/lib/admin/reroll';
+import { Button } from '@/components/ui/button';
+import { NO_MORE_SPLITS } from '@/lib/admin/rerollCopy';
 import { groupHome } from '@/lib/nav';
 import { asSentence, REROLL_FAILED, REROLL_LABEL, REROLL_UNREACHABLE } from '@/lib/tonight/copy';
+import { requestTonightRefresh } from '@/lib/tonight/live';
 import { nextRerollSplit } from '@/lib/tonight/state';
 import type { SplitChoice } from '@/lib/tonight/types';
 import { usePageGroup } from '../_shell/PageGroup';
@@ -54,6 +56,7 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
         const body: unknown = await response.json().catch(() => null);
         setFailed(errorOf(body));
       }
+      requestTonightRefresh();
     } catch {
       setFailed(REROLL_UNREACHABLE);
     } finally {
@@ -62,11 +65,11 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
   }
 
   return (
-    <form className="cn-reroll" method="post" action={action} onSubmit={submit}>
+    <form className="flex flex-col items-start gap-2" method="post" action={action} onSubmit={submit}>
       {next === null ? (
         // The last split is on the board, so the group has seen the whole list. The route
         // answers the same sentence to a press that gets through anyway (M3.2).
-        <p className="cn-reroll-note">{NO_MORE_SPLITS}</p>
+        <p className="text-sm text-muted-foreground">{NO_MORE_SPLITS}</p>
       ) : (
         <>
           <input type="hidden" name="splitId" value={next.id} />
@@ -75,18 +78,17 @@ export function RerollControl({ lobbyId, splits }: { lobbyId: string; splits: re
           <input type="hidden" name="redirectTo" value={groupHome(group)} />
         </>
       )}
-      <button
-        className={pending ? 'cn-button cn-button-quiet' : 'cn-button'}
+      <Button
         type="submit"
+        variant="secondary"
         disabled={next === null}
-        aria-disabled={pending || undefined}
+        pending={pending}
+        className="w-full sm:w-auto"
       >
         {REROLL_LABEL}
-      </button>
+      </Button>
       {failed === null ? null : (
-        // `text` at 600, like the roll's and the start control's refusals: the answer to a
-        // press has to be found without hunting.
-        <p className="cn-reroll-note cn-reroll-note-refused" role="alert">
+        <p className="text-sm font-bold" role="alert">
           {failed}
         </p>
       )}

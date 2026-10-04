@@ -7,10 +7,13 @@ import type { NameLookup } from './assemble';
 import {
   buildResultInput,
   buildTeamsInput,
+  postIdentity,
   type ResultSource,
   readAssignments,
+  type StoredSplitRow,
   type TeamsSource,
   teamsPuuids,
+  toReceipt,
 } from './assemble';
 import { resultEmbed } from './embeds';
 import { resultPayload } from './post';
@@ -20,7 +23,7 @@ import { resultPayload } from './post';
  * the queries have their own coverage in `discord.integration.test.ts`.
  */
 
-const CONTEXT = { url: 'https://customs.example', timestamp: '2026-09-08T20:15:00.000Z' };
+const CONTEXT = { identity: postIdentity(null, null), url: 'https://customs.example' };
 
 function teamsSource(overrides: Partial<TeamsSource> = {}): TeamsSource {
   const result = workedBalance();
@@ -101,52 +104,54 @@ describe('buildTeamsInput', () => {
     expect(buildTeamsInput(teamsSource(), workedNames(), CONTEXT).sitOut).toBeNull();
   });
 
-  it('names the sitters and picks the reason clause from tiedOnGames', () => {
-    const sitters = [sitter('puuid-sara'), sitter('puuid-deniz')];
-    const names = new Map([...workedNames(), ['puuid-sara', 'Sara'], ['puuid-deniz', 'Deniz']]);
+  it('names the sitters and picks the reason from the rotation, at the cut (M14.41)', () => {
+    const sitters = [sitter('puuid-aa-sara'), sitter('puuid-deniz')];
+    const names = new Map([...workedNames(), ['puuid-aa-sara', 'Sara'], ['puuid-deniz', 'Deniz']]);
 
     const most = buildTeamsInput(teamsSource({ sitters }), names, CONTEXT);
-    expect(most.sitOut).toEqual({ names: ['Sara', 'Deniz'], reason: 'most-games' });
+    expect(most.sitOut).toEqual({ names: ['Sara', 'Deniz'], rule: { kind: 'most-games' } });
 
-    // Tied on games, and one of the ten has sat out before: that history is the reason.
-    const playing = workedPool();
-    const withHistory = playing.map((member, index) =>
+    // Level on games; one of the ten sat out recently, but the nine others never did, so at the
+    // cut the puuid broke it: nobody to tell apart.
+    const playing = workedPool().map((member, index) =>
       index === 0 ? { ...member, lastSitOutAt: 1_757_000_000_000 } : member,
     );
     const tied = buildTeamsInput(
-      teamsSource({ sitters, tiedOnGames: true, playing: withHistory }),
+      teamsSource({ sitters: [sitter('puuid-aa-sara', 0)], tiedOnGames: true, playing }),
       names,
       CONTEXT,
     );
-    expect(tied.sitOut?.reason).toBe('longest-since');
+    expect(tied.sitOut?.rule).toEqual({ kind: 'first', games: 0, everyone: true });
+
+    // Everyone at the cut has sat out before, the sitter longest ago: history decided.
+    const allSat = buildTeamsInput(
+      teamsSource({
+        sitters: [sitter('puuid-aa-sara', 0, 1_000)],
+        tiedOnGames: true,
+        playing: workedPool({ lastSitOutAt: 2_000 }),
+      }),
+      names,
+      CONTEXT,
+    );
+    expect(allSat.sitOut?.rule).toEqual({ kind: 'longest-since', games: 0, everyone: true });
   });
 
   /**
-   * M3.12. The three clauses, and the boundary between the last two: `longest-since` is only
-   * true once somebody around has actually sat out, and on the first balance of a night that
-   * is nobody.
+   * The walk's game 2 (scene-walk gap 4): ten on one game each, a newcomer on none. The old
+   * whole-pool `tiedOnGames` flag said `most games tonight`; the sitter played no more than the
+   * nine he was level with, so the reason is the tie-break, never `most games`.
    */
-  it('says nobody has sat out before when the pool is tied and carries no sit-out at all', () => {
-    const sitters = [sitter('puuid-sara', 0)];
-    const names = new Map([...workedNames(), ['puuid-sara', 'Sara']]);
-
-    const first = buildTeamsInput(teamsSource({ sitters, tiedOnGames: true }), names, CONTEXT);
-    expect(first.sitOut).toEqual({ names: ['Sara'], reason: 'first-sit-out' });
-
-    // One sit-out anywhere in the pool — here the sitter's own — and the clause goes back.
-    const sat = buildTeamsInput(
-      teamsSource({ sitters: [sitter('puuid-sara', 0, 1_757_000_000_000)], tiedOnGames: true }),
+  it('never says most games when the sitter is level with the people who play', () => {
+    const playing = workedPool({ gamesTonight: 1 }).map((member, index) =>
+      index === 0 ? { ...member, gamesTonight: 0 } : member,
+    );
+    const names = new Map([...workedNames(), ['puuid-aa-ramzy', 'Ramzy']]);
+    const input = buildTeamsInput(
+      teamsSource({ sitters: [sitter('puuid-aa-ramzy', 1)], playing, tiedOnGames: false }),
       names,
       CONTEXT,
     );
-    expect(sat.sitOut?.reason).toBe('longest-since');
-  });
-
-  it('never reaches for the first-night clause when somebody has played more tonight', () => {
-    // Not tied is answered before any history is looked at: M3.12 only refines the tie.
-    const sitters = [sitter('puuid-sara', 3)];
-    const names = new Map([...workedNames(), ['puuid-sara', 'Sara']]);
-    expect(buildTeamsInput(teamsSource({ sitters }), names, CONTEXT).sitOut?.reason).toBe('most-games');
+    expect(input.sitOut?.rule).toEqual({ kind: 'first', games: 1, everyone: false });
   });
 
   it('turns a seat move with a sitter into a swap and one without into an open slot', () => {
@@ -241,6 +246,9 @@ function resultSource(overrides: Partial<ResultSource> = {}): ResultSource {
     gameNumber: 3,
     blueWinProb: 0.5,
     endedAt: '2026-09-08T21:00:00.000Z',
+    rated: true,
+    rift: true,
+    rule: null,
     players,
     ...overrides,
   };
@@ -252,7 +260,7 @@ describe('buildResultInput', () => {
     expect(input?.blue[0]).toMatchObject({ rating: 1470, delta: -30 });
     expect(input?.red[0]).toMatchObject({ rating: 1530, delta: 30 });
     for (const player of [...(input?.blue ?? []), ...(input?.red ?? [])]) {
-      expect(player.rating - player.delta).toBe(1500);
+      expect((player.rating ?? Number.NaN) - (player.delta ?? Number.NaN)).toBe(1500);
     }
   });
 
@@ -279,32 +287,74 @@ describe('buildResultInput', () => {
     expect(buildResultInput({ ...source, players }, CONTEXT)?.topDamage?.name).toBe('A');
   });
 
-  it('timestamps the game, not the post', () => {
-    const input = buildResultInput(resultSource(), { ...CONTEXT, timestamp: '2026-09-08T21:00:00.000Z' });
-    expect(input?.timestamp).toBe('2026-09-08T21:00:00.000Z');
+  it('carries the identity it is given, and no timestamp: Discord shows when it was posted (M14.61)', () => {
+    const identity = postIdentity({ slug: 'customs', name: 'Customs Night' }, 'https://customs.example');
+    const input = buildResultInput(resultSource(), { ...CONTEXT, identity });
+    expect(input?.identity).toEqual({
+      groupName: 'Customs Night',
+      groupUrl: 'https://customs.example/g/customs',
+      avatarUrl: 'https://customs.example/og/kustom/avatar?v=2',
+    });
+    expect(input).not.toHaveProperty('timestamp');
   });
 });
 
-describe('resultPayload (M11.4)', () => {
+describe('resultPayload (M11.4, under the group since M13.11 / M14.10)', () => {
   const GAME_ID = '0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12';
+  const CUSTOMS = { slug: 'customs', name: 'Customs Night' };
 
-  it("links the title to the game's own page and prints exactly what the old post printed", () => {
-    const embed = resultPayload(resultSource(), GAME_ID, 'https://customs.example')?.embeds[0];
-    expect(embed?.url).toBe(`https://customs.example/g/${GAME_ID}`);
+  it("links the title to the game's own page under its group, and the link changes nothing printed", () => {
+    const embed = resultPayload(resultSource(), GAME_ID, CUSTOMS, 'https://customs.example')?.embeds[0];
+    expect(embed?.url).toBe(`https://customs.example/g/customs/games/${GAME_ID}`);
 
-    const input = buildResultInput(resultSource(), { url: 'https://customs.example', timestamp: '' });
+    const input = buildResultInput(resultSource(), {
+      identity: postIdentity(CUSTOMS, 'https://customs.example'),
+      url: 'https://customs.example',
+    });
     if (input === null) throw new Error('fixture');
-    const before = resultEmbed({ ...input, timestamp: resultSource().endedAt }).embeds[0];
-    const { url: _new, ...printed } = embed ?? {};
-    const { url: _old, ...printedBefore } = before ?? {};
+    const before = resultEmbed(input).embeds[0];
+    const { url: _new, thumbnail: _badge, ...printed } = embed ?? { color: 0 };
+    const { url: _old, ...printedBefore } = before ?? { color: 0 };
     expect(printed).toEqual(printedBefore);
   });
 
-  it('carries no link from a localhost origin, and nothing for an unrated game', () => {
-    expect(resultPayload(resultSource(), GAME_ID, 'http://localhost:3000')?.embeds[0]?.url).toBeUndefined();
+  it('names the group and the game in the author line, and sends the badge on a public origin (M14.61)', () => {
+    const payload = resultPayload(resultSource(), GAME_ID, CUSTOMS, 'https://customs.example');
+    expect(payload?.username).toBe('Kustom');
+    expect(payload?.avatar_url).toBe('https://customs.example/og/kustom/avatar?v=2');
+    expect(payload?.embeds[0]?.author).toEqual({
+      name: `Customs Night · game ${resultSource().gameNumber}`,
+      url: 'https://customs.example/g/customs',
+    });
+    expect(payload?.embeds[0]?.thumbnail).toEqual({
+      url: `https://customs.example/og/g/customs/games/${GAME_ID}/badge`,
+    });
+  });
+
+  it("is the second group's own prefixed path for a second group's game (M14.10 acceptance 2)", () => {
+    const embed = resultPayload(
+      resultSource(),
+      GAME_ID,
+      { slug: 'b-team', name: 'B Team' },
+      'https://customs.example',
+    )?.embeds[0];
+    expect(embed?.url).toBe(`https://customs.example/g/b-team/games/${GAME_ID}`);
+    expect(embed?.thumbnail?.url).toBe(`https://customs.example/og/g/b-team/games/${GAME_ID}/badge`);
+  });
+
+  it('carries no link, no avatar and no badge from a localhost origin, none with no group, and nothing for an unrated game', () => {
+    const local = resultPayload(resultSource(), GAME_ID, CUSTOMS, 'http://localhost:3000');
+    expect(local?.embeds[0]?.url).toBeUndefined();
+    expect(local?.embeds[0]?.thumbnail).toBeUndefined();
+    expect(local?.avatar_url).toBeUndefined();
+    expect(local?.embeds[0]?.author).toEqual({ name: `Customs Night · game ${resultSource().gameNumber}` });
+    const orphan = resultPayload(resultSource(), GAME_ID, null, 'https://customs.example')?.embeds[0];
+    expect(orphan).not.toHaveProperty('url');
+    expect(orphan).not.toHaveProperty('author');
+    expect(orphan).not.toHaveProperty('thumbnail');
     const source = resultSource();
     const players = source.players.map((player) => ({ ...player, muAfter: null }));
-    expect(resultPayload({ ...source, players }, GAME_ID, 'https://customs.example')).toBeNull();
+    expect(resultPayload({ ...source, players }, GAME_ID, CUSTOMS, 'https://customs.example')).toBeNull();
   });
 });
 
@@ -438,5 +488,43 @@ describe('readAssignments', () => {
     ).toEqual([{ puuid: 'a', role: 'top' }]);
     expect(readAssignments(null)).toEqual([]);
     expect(readAssignments({ puuid: 'a' })).toEqual([]);
+  });
+});
+
+describe('toReceipt (M14.10)', () => {
+  const { splits } = workedBalance();
+  const rows: StoredSplitRow[] = splits.map((split, index) => ({
+    id: `split-${index + 1}`,
+    rank: index + 1,
+    blue: split.blue,
+    red: split.red,
+    gap: split.gap,
+    off_role_count: split.offRoleCount,
+    blue_win_prob: split.blueWinProb,
+  }));
+
+  it("is the posted split, the one ranked below it, and the lobby's count, off the columns", () => {
+    const receipt = toReceipt(rows, 'split-1');
+    expect(receipt?.splitCount).toBe(3);
+    expect(receipt?.chosen).toEqual({
+      rank: 1,
+      blue: splits[0]?.blue,
+      red: splits[0]?.red,
+      gap: splits[0]?.gap,
+      offRoleCount: splits[0]?.offRoleCount,
+      blueWinProb: splits[0]?.blueWinProb,
+    });
+    expect(receipt?.next?.rank).toBe(2);
+  });
+
+  it('pairs a reroll with the split below it, and the last split with nobody', () => {
+    expect(toReceipt(rows, 'split-2')?.next?.rank).toBe(3);
+    expect(toReceipt(rows, 'split-3')?.next).toBeNull();
+  });
+
+  it('is null for a split it was not given, or one whose sides do not read as five a side', () => {
+    expect(toReceipt(rows, 'nope')).toBeNull();
+    const broken = rows.map((row) => (row.rank === 1 ? { ...row, blue: [{ puuid: 'x' }] } : row));
+    expect(toReceipt(broken, 'split-1')).toBeNull();
   });
 });

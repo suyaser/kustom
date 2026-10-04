@@ -1,10 +1,21 @@
-import { NextResponse } from 'next/server';
-import { renderMintedTokenPage } from '@/lib/admin/tokenPage';
-import { mintTokenForPlayer, revokeToken } from '@/lib/admin/tokens';
-import type { AdminContext } from '@/lib/adminRoute';
-import { type AdminTokensRequest, mintTokenResponseSchema, revokeTokenResponseSchema } from './schema';
+import type { NextResponse } from 'next/server';
+import { revokeToken } from '@/lib/admin/tokens';
+import { type AdminContext, type AdminRouteOptions, withAdminAuth } from '@/lib/adminRoute';
+import { type AdminTokensRequest, adminTokensRequestSchema, revokeTokenResponseSchema } from './schema';
 
-/** See `app/api/admin/players/handler.ts` for why the handler is not inside `route.ts`. */
+/**
+ * Hand-minted host keys are gone (M17.12, shipped with Kustom 1.0): Kustom links itself with a code from the
+ * admin home's `Set up your PC as host`, so `{ action: 'mint' }` is a 410 with this sentence and writes
+ * nothing, JSON or form. Existing keys keep posting; `revoke` stays. [NEW COPY]
+ */
+export const MINT_GONE =
+  "Kustom sets itself up with a code now. Open the admin home on the PC's owner's account and tap Get a code.";
+
+/**
+ * Separate from `route.ts` because a Next route file may only export HTTP verbs, and the
+ * integration tests need the handler with a fake session wrapped around it (there is no way to
+ * drive a real Discord OAuth flow from vitest).
+ */
 export async function handleAdminTokens(
   input: AdminTokensRequest,
   context: AdminContext,
@@ -20,47 +31,14 @@ export async function handleAdminTokens(
     );
   }
 
-  const result = await mintTokenForPlayer(context.client, {
-    playerId: input.playerId,
-    label: input.label,
-    // The request's group, already checked: the session is an admin of it (M13.4).
-    groupId: context.groupId,
-  });
-  if (!result.ok) return context.fail(result.status, result.error);
+  // `mint` (M17.12): refused after the admin gate and before any read or write, so a stale Hosts tab or
+  // an old script learns where host setup lives now and no `companion_tokens` row is created.
+  return context.fail(410, MINT_GONE);
+}
 
-  const minted = result.value;
-  if (context.form) {
-    // Not a redirect: a token in a query string would land in browser history and every proxy
-    // log between here and the admin's phone. This response is the only place it exists.
-    return new NextResponse(
-      renderMintedTokenPage({
-        token: minted.token,
-        puuid: minted.puuid,
-        label: minted.label,
-        backTo: context.redirectTo,
-      }),
-      {
-        status: 200,
-        headers: {
-          'content-type': 'text/html; charset=utf-8',
-          'cache-control': 'no-store, max-age=0',
-          'referrer-policy': 'no-referrer',
-        },
-      },
-    );
-  }
-
-  return context.respond(
-    mintTokenResponseSchema,
-    {
-      ok: true,
-      action: 'mint',
-      tokenId: minted.tokenId,
-      playerId: minted.playerId,
-      puuid: minted.puuid,
-      label: minted.label,
-      token: minted.token,
-    },
-    'token minted',
-  );
+/** The route, a form post going back to the checked group's Hosts page (M14.40). */
+export function adminTokensRoute(
+  options: AdminRouteOptions = {},
+): (request: Request) => Promise<NextResponse> {
+  return withAdminAuth(adminTokensRequestSchema, handleAdminTokens, { section: 'hosts', ...options });
 }

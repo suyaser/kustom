@@ -1,0 +1,43 @@
+[package]
+name = "engine"
+version = "0.0.0"
+description = "Kustom's host engine: League client bridge, watchers, durable queue and the companion API client"
+edition = "2024"
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync", "fs", "net", "io-util", "process"] }
+reqwest = { workspace = true, features = ["json", "http2", "rustls-no-provider"] }
+rustls = { workspace = true, features = ["ring", "std", "tls12"] }
+# The LCU WebSocket runs over our own rustls stream (`client_async`), so no TLS feature of its own.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+base64 = "0.22"
+serde.workspace = true
+# `preserve_order`: config.json is rewritten with its keys in the order the person (or 0.3.x) left them.
+serde_json = { workspace = true, features = ["preserve_order"] }
+tracing.workspace = true
+# The log's sink is a `tracing` layer (M17.6): every module logs with the `tracing` macros and the layer
+# writes the redacted daily JSON lines. Registry only: no fmt, no env-filter, no ANSI.
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "std"] }
+# The root-state owner fingerprint (`legacy-state-owner`): sha256 of the token, first 16 hex digits, as
+# `config.ts` `tokenFingerprint` writes it. Already in the workspace's lockfile through Tauri.
+sha2 = "0.10.9"
+
+[dev-dependencies]
+# The paused clock for the API client's retry tests, and a local TCP server for the real transport's test.
+tokio = { workspace = true, features = ["net", "io-util", "test-util"] }
+rcgen = "0.14"
+tempfile = "3"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+# A panic in a watcher is a lost game weeks later; the engine logs and drops instead (CLAUDE.md).
+unwrap_used = "warn"
+expect_used = "warn"

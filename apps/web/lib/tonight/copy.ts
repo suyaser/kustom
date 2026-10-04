@@ -1,6 +1,6 @@
 import { evenness } from '@customs/core';
 import { ACE_LABEL, MVP_LABEL, NAMELESS_PLAYER, type PlayerName } from '../discord/embeds';
-import { PLAYERS_PER_GAME } from '../lobbyState';
+import { PLAYERS_PER_GAME } from '../lobbyRules';
 
 /**
  * Every sentence the tonight page says, in one file, spelled the way product and
@@ -47,7 +47,7 @@ export const HEADLINE_FINISHED = 'GAME OVER';
  * height the strip reserves.
  */
 export const IDLE_SENTENCE =
-  'When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.';
+  'When ten are in a custom lobby with Kustom running, an admin rolls and the bot picks the teams.';
 
 /**
  * Nobody has joined yet — said **once**, in the strip, and never again under the rack. A rack
@@ -59,7 +59,7 @@ export const BALANCED_SENTENCE = 'Split by rating and role. Nobody picked the te
 
 export const IN_GAME_SENTENCE = 'Ratings move when it ends.';
 
-export const FINISHED_SENTENCE = 'Ratings are updated. The leaderboard has the rest.';
+export const FINISHED_SENTENCE = 'Ratings are updated. The board has the rest.';
 
 /**
  * Eleven or more around, before the roll: who sits out is the bot's rotation, not the admin's
@@ -258,12 +258,36 @@ export const ROLL_LABEL = 'Roll teams';
 export const ROLL_HINT = 'Once everyone who is staying is in, an admin rolls the teams.';
 
 /**
- * Beside the admin's button: the press names the roster on screen, so look before pressing. The
- * second sentence is what an admin with eleven in the lobby needs: no kicking, the rotation sits
- * people out.
+ * The strip's sub-line for the viewer who holds `Roll teams` (M14.41 design round 1): never
+ * `Waiting on <admins>…`, which is everyone else's line. Over ten it is {@link OVERFULL_LEAD}
+ * alone; at exactly ten, `All ten are in.` ([NEW COPY]).
  */
-export const ROLL_ADMIN_HINT =
-  'Check everyone who is staying is in, then roll. Past ten, the bot picks who sits out.';
+export const ALL_TEN_IN = 'All ten are in.';
+export function rollerSubLine(around: number): string {
+  return around > 10 ? OVERFULL_LEAD : ALL_TEN_IN;
+}
+
+/**
+ * The hint above the admin's button (M14.41 design round 1). It says only what the sub-line does
+ * not: over ten, the rotation preview (`If the teams rolled now, Chaos and then Mo would sit out.`,
+ * passed in, the roster's own line); at ten, `Roll once everyone who's staying is in the lobby.`
+ * ([NEW COPY]). The old `Check everyone…` line is gone: there is nothing to check off.
+ */
+export const ROLL_AT_TEN_HINT = "Roll once everyone who's staying is in the lobby.";
+/**
+ * `repair` (a balanced lobby with no teams drawn: a roll that died between its claim and its
+ * splits) gets its own line (M14.45 [NEW COPY]): the lobby already rolled once, so the at-ten
+ * line does not fit.
+ */
+export const ROLL_REPAIR_HINT = "The last roll didn't finish. Roll again to make the teams.";
+export function rollAdminHint(
+  around: number,
+  preview: string | null,
+  stage: 'ready' | 'repair' = 'ready',
+): string | null {
+  if (stage === 'repair') return ROLL_REPAIR_HINT;
+  return around > 10 ? preview : ROLL_AT_TEN_HINT;
+}
 
 /** The press never reached the route. */
 export const ROLL_UNREACHABLE = 'That did not reach the server. Nothing was rolled.';
@@ -303,18 +327,10 @@ export function evennessLine(blueWinProb: number | null | undefined): string | n
   return score === 100 ? EVENNESS_PERFECT : `Teams are ${score}% even.`;
 }
 
-/**
- * The sit-out strip (05-design.md, "Sit-out notice"; product, 2026-09-08 — final).
- *
- * Two versions and no third: the general one, and the second-person one for a viewer who is
- * signed in, linked, and one of the people sitting. Nobody else's strip changes.
+/*
+ * The sit-out strip's words moved to `./sitOut.ts` (M14.41): one rule and one reason sentence for
+ * the page and the Discord teams embed, which used to say different things on a tie.
  */
-export function sitOutGeneral(names: string): string {
-  return `Sitting out this game: ${names}. Each game goes to whoever has played least tonight, so they are first in line for the next one.`;
-}
-
-export const SIT_OUT_VIEWER =
-  'You are sitting this one out. Each game goes to whoever has played least tonight, so you are first in line for the next one.';
 
 /** `05-design.md`: truncate a display name at 32 characters with an ellipsis. */
 const MAX_NAME_LENGTH = 32;
@@ -446,9 +462,17 @@ export const ROLE_SIGN_IN = 'Sign in with Discord to pick your role.';
 
 export const SIGN_IN_LABEL = 'Sign in with Discord';
 
-/** Above the list of tonight's members, for a signed-in visitor who matches no player row. */
-export const PICK_YOURSELF =
-  'Which one of these is you? Pick yourself once and the page knows you from now on.';
+/**
+ * The claim card's h2 (M14.65, flow audit): the question is the card's title, and the card sits
+ * straight under the strip for a signed-in visitor who matches no player row.
+ */
+export const PICK_YOURSELF_TITLE = 'Which one is you?';
+
+/** Beside that title on the folded card once the teams are set (lead ruling, M14.65): it opens the list. */
+export const PICK_YOURSELF_OPEN = 'Pick yourself';
+
+/** Under that title, above the list of tonight's members (the question moved into the h2, M14.65). */
+export const PICK_YOURSELF = 'Pick yourself once and the page knows you from now on.';
 
 /** On every row of that list. */
 export const THATS_ME = "That's me";

@@ -1,22 +1,31 @@
 # Product
 
+This document describes **Kustom 2.0** (milestone M14, branch `redesign-2.0`), written on 2026-10-03 before
+it is built so engineers build to it. Where the live site still differs (Proven on the board, the seasons
+page, the evenness line), the site is behind and this document is the target. `docs/02-milestones.md` says
+which M14 task makes each part true.
+
 ## One line
 
 A referee for our nightly League of Legends customs: it sees who is in the lobby, splits them into two fair teams
 with real roles, keeps ratings from actual results, and ends the argument before it starts.
 
-The product is called **Kustom**; `Customs Night` is the codename used in this repo.
+The product is called **Kustom**; `Customs Night` is the codename used in this repo, and the name of the
+original group.
 
 ## Who it is for
 
 Ten to twenty friends, rotating roster, ranks from Bronze to Master, some people one-trick a role. Discord for
 comms, WhatsApp for "are we playing tonight". No organizer wants a job. One or two people are willing to run a
-small desktop app.
+small Windows app. Everyone opens links on their phones.
 
 It was built for one such group and since 2026-10-03 (M13) any other group can have their own: somebody signs
-in, names it, and sends one link. Every group is its own world — its own ratings, board, fearless list, daily
-guess, Discord channel and admins — and nothing in one leaks into another. The rest of this document describes
-one group's night, because that is still what every group's night is.
+in with Discord, names it, and sends one link. Every group is its own world — its own ratings, board, fearless
+list, daily guess, Discord channel, owner and admins — and nothing in one leaks into another. The rest of this
+document describes one group's night, because that is still what every group's night is.
+
+Not for (yet): public in-house servers with strangers, other games, groups where nobody has Windows, and
+anyone who wants captains or manual picks.
 
 ## The problem
 
@@ -25,123 +34,257 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 
 ## Principles
 
-1. **The bot is the referee.** No human picks teams. Ever.
+1. **The bot is the referee.** No human picks teams. Ever. Not the owner, not the admins, not the host.
 2. **Zero input.** Nobody checks in, nobody reports results. The client already knows who is in the lobby and
    who won; the companion reads it. Any manual step will be skipped by someone, and skipped steps corrupt ratings.
    The one deliberate exception is **when** to balance (2026-10-03): an admin taps Roll teams once everyone who is
-   staying is in (with more than ten, the bot's rotation decides who sits out). A skipped roll costs nothing but a wait — no teams, no game, nothing to corrupt — and who plays with
-   whom is still the bot's call, never the admin's.
-3. **Fair by numbers, but explained.** Every split posts its predicted win chance, the rating gap, whether anyone
-   is off-role, and the next-best alternative. "The bot is rigged" needs a number to argue with.
-4. **Discord is a display, not a form.** Teams, results, and leaderboards appear where people already look, and
-   so does the week when it ends. Nothing requires typing a command. (Splitting voice was dropped at the user's
-   request on 2026-09-10; the group talks in one channel.)
+   staying is in (with more than ten, the bot's rotation decides who sits out). A skipped roll costs nothing but
+   a wait — no teams, no game, nothing to corrupt — and who plays with whom is still the bot's call, never the
+   admin's.
+3. **Fair by numbers, and it shows its work.** Every split comes with one **receipt** (below): the win chance,
+   the rating gap, how many people are off their main role, and the other splits the bot turned down. "The bot
+   is rigged" needs a number to argue with, and the receipt is the only way the product shows fairness, so
+   every screen says it the same way.
+4. **Nobody can hand-edit a rating.** Yours moves when a game ends, and only then. No page, route or script
+   sets one person's number. The owner can start the whole group over at once (Reset ratings, below), never
+   one person.
+5. **Discord is a display, not a form.** Teams, results, and boards appear where people already look, and so
+   does the week when it ends. Nothing requires typing a command. (Splitting voice was dropped at the user's
+   request on 2026-09-10; the group talks in one channel, and there is no Discord bot.)
 
 ## The nightly loop
 
-1. People gather in Discord voice as usual. (A "7 around" post was planned; it needed a bot process and the
-   bot was dropped with the voice split on 2026-09-10, so the WhatsApp thread still answers that one itself.)
+1. People gather in Discord voice as usual. (The WhatsApp thread still answers "are we playing tonight".)
 2. The lobby opens. Somebody taps **Start a lobby** on the tonight page and a custom appears on whoever already
-   has the companion running — nobody picks the host, the name or the password — and an invite popup goes out to
+   has Kustom running — nobody picks the host, the name or the password — and an invite popup goes out to
    everyone who has been around lately (M4.2). Opening one by hand in the client still works exactly as it
-   always did. Either way, somebody in that lobby is running the companion, because that is what the rest of the
-   night reads.
-3. The companion keeps the roster current as people join, leave and step into the spectator slot. When
-   everyone who is staying is in, an admin taps **Roll teams** on the tonight page (the page names the admins
-   while it waits, so the room knows whose phone to ping); the server balances exactly the roster
-   that admin was looking at and posts Blue and Red with roles, win chance, and a one-line why. Nothing
-   balances by itself any more (2026-10-03): the automatic version fired the moment ten were present and still,
-   and on a real night that was too often the wrong ten. If somebody leaves after the roll, the teams come down
-   and the next game needs another tap.
-4. Players switch to their side (companion can do it for them, see M4). Game starts.
-5. At end of game the companion captures the full stats block. Ratings move. Leaderboard updates. What each
-   person plays is counted too, so their main and backup follow the games they actually play. The ten
-   champions they locked are added to the **fearless** pool and those champs are banned from the next
-   custom. Discord posts the ban list, grouped by the lane each was first locked in. The tonight page leads
-   with the other half: under each lane, **who is still open** in it, as full chips with the champion's
-   small square icon beside the name (M11.1; the name is still the text, and a missing icon just leaves the
-   name), and that lane's bans folded shut underneath behind a count (2026-10-03). Five lane toggles at the
-   top of the card narrow it to the lanes a reader cares about. The find box checks a pick without
-   scrolling: a banned name says it is on the ban list, an open name says it is still available, and typing
-   reaches every lane and every fold. The list keeps growing until an admin resets it.
+   always did. Either way, somebody in that lobby is running Kustom, because that is what the rest of the night
+   reads.
+3. Kustom keeps the roster current as people join, leave and step into the spectator slot. The tonight page
+   shows who is in and what is still missing (`6 IN THE LOBBY · Four more to go`). When everyone who is staying
+   is in, an admin taps **Roll teams** on the tonight page (the page names the admins while it waits, so the room
+   knows whose phone to ping); the server balances exactly the roster that admin was looking at and posts Blue
+   and Red with roles and the receipt. Nothing balances by itself (2026-10-03): the automatic version fired the
+   moment ten were present and still, and on a real night that was too often the wrong ten. If somebody leaves
+   after the roll, the teams come down and the next game needs another tap.
+4. Everyone opens the link and sees, without asking, which side they are on and in what role
+   (`YOU on RED, playing support`), and why the split is fair. Players switch to their side (Kustom can do it
+   for them, M4). Game starts. The page counts the minutes and keeps the receipt up as `ODDS AT KICKOFF`.
+5. At end of game Kustom captures the full stats block. Ratings move. The board updates. What each person plays
+   is counted too, so their main and backup follow the games they actually play. The ten champions they locked
+   are added to the **fearless** pool and those champs are banned from the next custom. Discord posts the ban
+   list, bolding the ten that just joined. On the tonight page one **Mode** card says what tonight is
+   (Kustom 2.0, M14.30): `Fearless · rated` with what's open (`138 open · 34 banned`), or `Normal · rated` when
+   every champion is open. Tapping it opens the mode's panel at `/g/<slug>/mode` (over the page on a phone, the
+   same address as a full page from a Discord link): for Fearless, the whole pool by lane, open champions first
+   as chips with the champion's small square icon beside the name, each lane's bans folded underneath, and a
+   find box that checks a pick without scrolling. Once teams are set, `What's open for <role>` opens it on the
+   lane you were just given; after a game, the ten just banned show on the page. The list keeps growing until
+   an admin resets it. Not every night is a fearless night: an admin picks **Normal** on the Mode card, and
+   then nobody sees a ban list and games don't add to it; picked again, Fearless picks up where it stopped.
+   Both are rated as usual.
+   Some games are played under a **rule** (M15). Before Roll teams an admin picks one on the Mode card, or taps
+   **Spin** and the server picks one so nobody can be accused of choosing: `Class wars` (everyone picks from one
+   class, `Tanks only`), `Region wars` (each side picks from its own region, drawn when teams are rolled, `Ionia`
+   vs `Noxus`), and `Mirror match` (your lane opponent plays your champion; until Kustom can open one itself,
+   the host opens a Blind Pick custom by hand, and Tonight says so where `Start a lobby` usually is; Spin
+   leaves mirror out until then). Everyone sees the rule on the card, its panel (the allowed champions, minus
+   the Fearless bans on a Fearless night) and the teams post. A rule lasts **one game**: it locks when teams are
+   rolled, and once that game is recorded the card is back on the group's standing mode, Normal or Fearless.
+   Kustom never stops a pick: after the game the poster and the result post say which side kept the rule,
+   naming champions, not people (`Blue kept the rule. Red: Jinx isn't a tank.`). Breaking it changes nothing:
+   the result stands. Class and region games are **not rated** by default (mirror match is rated); an admin can
+   flip `Rated` for the next game, in any mode, before teams are rolled, never after. A not-rated game is
+   recorded and posted like any other, but it moves no rating, adds nothing to the Fearless pool and teaches
+   nobody a role. A mode change made after teams are rolled is for the next game.
 6. If more than ten showed up, the server posts who sits: whoever has played most tonight, and between
    equals whoever has gone longest without sitting. On the first game of a night nobody has done either, so
    the post says as much — somebody has to be first — and from the second game on the rotation has real
    history to work from.
-7. The tonight page keeps the night (M11). The finished game stays up as a poster — who won, and when the
-   underdog won, by how much the numbers had them down — until the next lobby opens; then it moves into a
-   short log of tonight's earlier games under whatever is happening now. A link to tonight, to one game, or
-   to a person's page unfurls as a picture wherever it is pasted. Nobody presses Share; there is no Share.
+7. The tonight page keeps the night (M11). The finished game stays up as a poster — who won, what the odds
+   were, `Upset!` when the underdog won, the rating changes, MVP and ACE — until the next lobby opens; then it
+   moves into a short log of tonight's earlier games under whatever is happening now (after three, the rest
+   fold behind `Show 4 earlier games`). The page updates by itself; nobody refreshes. A link to tonight, to one
+   game, or to a person's page unfurls as a picture wherever it is pasted. Nobody presses Share; there is no
+   Share.
 
-## The things a person can change
+## The receipt: how fairness is shown
 
-Everything else happens without anybody touching it. These exist because the docs accepted them (Roll teams
-since 2026-10-03), and each is one tap:
+One component, everywhere a split appears: the tonight page while teams are set, **in game**, and after the
+result; every game in history; the game page; the teams post in Discord; and the landing page. It is built
+only from the numbers stored with each split, never by reading the bot's sentence back, so it can never claim
+a reason the data does not have. "To balance top lane" is not something the bot knows, so the receipt never
+says it.
 
-- **Start a lobby** (M4.2, every linked player since M4.13). The first tap of the night, and the only one that is optional:
-  whoever has the companion running can open a custom from their client the way they always have. Pressing the
-  button instead opens one on somebody's PC — the server picks whose, the most recently seen friend whose
-  companion has been up in the last ten minutes — with a name like `Customs 09 Sep #1` and a four-digit password
-  neither of them chose, and then sends an invite to everyone who has been around this week. The name and the
-  password are printed in the Discord post and on the page for anyone signed in, so whoever missed the popup
-  joins by hand. If
-  nobody's companion is running there is nothing to open and the page says exactly that. There are no fields on
-  it: no mode, no name, no password, because each of those is a step. Two people tapping at once get one lobby.
-  Anybody who has picked themselves out of a lobby once sees the button — which is the twenty people who play,
-  and nobody has to find out who the admins are to get the night started. A visitor who is not signed in is
-  offered the sign-in instead; whoever the link was forwarded to gets neither. The group has not yet started a
-  night this way in front of anybody, so the first real press is still ahead of us.
-- **Roll teams** (admins, 2026-10-03). Everyone who is staying is in the lobby and an admin taps once (with
-  eleven or more, the rotation sits people out; nobody trims the lobby by hand); the server
-  balances that roster and posts the teams. The tap names the roster the admin saw, so if somebody joined or
-  left in the second before it, nothing is rolled and the page shows the new roster to tap again. Tapping twice
-  posts once. With fewer than ten there is nothing to roll. Somebody leaving after the roll takes the teams
-  down, and the next game is another tap.
-- **Reroll** (M3.2, admins). Teams are posted and somebody wants a different night. One tap promotes the
-  second split, one more promotes the third, and then it stops: three splits come out of the balancer and
-  there is no fourth. A reroll posts a new message in Discord saying which reroll it is; it never edits the
-  old one, never changes who is playing, and never picks at random. The tonight page says it too, to
-  everybody, under the teams: `Reroll 1 of 2. Teams changed.` When the list runs out, the way to get
-  different teams is to change who is in the lobby and roll again.
-- **Role for tonight** (M3.6). A friend taps a role on the tonight page and the balancer treats it as their
-  main for the rest of the night, with their usual main as the backup. Nobody sets their roles anywhere else:
-  their main and backup are read from what they actually play (M5.16, M5.17), so this tap is also how a person
-  steers that — play a role on purpose for a week and it becomes your main. Being *filled* into a role never
-  changes it. It is a preference, not a lock: the
-  teams can still put them somewhere else and the explanation line says so when they do. A tap after teams
-  are already posted is kept for the next game rather than redoing the teams people have already moved for —
-  the referee does not reopen a decision because one player changed their mind.
-- **Reset fearless** (M10, admins). The ban list is zero-input: every counted Rift custom appends its ten
-  champs, Discord gets the list, nobody types a name. Clearing it is the one tap, on `/admin`, because
-  "the pool starts over" is a night-level call the same way reroll is. The companion never auto-bans;
-  Riot's line is that we do not touch champion select. Humans ban from the list.
+- **One headline number: win chance.** A bar with both sides labelled in words and numbers, `BLUE 54%` and
+  `46% RED`, with a mark at 50% so a coin flip looks like one. Colour never carries it alone.
+- **A plain sentence** by how far apart the odds are: `Dead even.`, `Basically a coin flip.`, `Close. Blue has
+  a slight edge.`, `Blue is favored.`, and from 63% up `Blue is clearly favored.` (on the bot's first pick it
+  adds `This was the fairest split these ten allow.`, which is true because it scored best of all 126).
+- **Three chips:** `Rating gap 100 pts` (always with its unit), `Main roles 10/10` or `2 off main role`, and
+  `Bot's pick #1 of 3` (`Reroll 1 of 2 · pick #2` after a reroll).
+- **A reason line** naming who would change in the next-best split and why it lost: more people off their
+  main role, or a bigger rating gap, or, when the stored numbers do not say which, that it scored a hair worse
+  overall (repeated teams, recent fills or rounding). When the runner-up had closer odds than the pick, the line always explains it, because that is
+  the most "rigged"-looking thing the receipt can show.
+- **`How the bot decided`**, open to everybody (it used to be admin-only): the three splits the bot kept, in
+  order, with their odds, gaps and off-role counts; why win chance and rating gap can disagree (win chance
+  also counts how sure the bot is about each player; the gap is what it balances on); the bot's own sentence
+  word for word; and the group's **calibration line**.
+- **Calibration:** `The side the bot favored won 27 of 48 games (56%). It expected about 55%.` — over every
+  rated Summoner's Rift game the bot rolled where the ten who played are the ten it rolled. It compares to what
+  the bot expected, not to 50%, because a 55% favourite should win about 55% of the time. Hidden until a group
+  has 20 such games (`Not enough games yet to check the bot's odds (12 of 20).`). A rating reset does not wipe
+  it: those were still the bot's calls.
+- **Games the bot did not pick** (recovered from match history, played without a roll, or teams changed in
+  the lobby after the roll) get `PRE-GAME ODDS` from everyone's ratings going in, with a line saying Kustom did
+  not pick these teams. No gap, no chips, no pick number, because none exist. A game where some of those
+  ratings are missing says `No odds for this game.` and nothing else.
+- **In history** the receipt is one line and a thin bar: `Blue was 54%. Blue won.`, with an `Upset` tag under
+  50%.
 
-## More than one group
+Retired on 2026-10-03 because each said fairness a second, different way: `Teams are N% even.`, the bare
+`Gap 45`, and team rating totals on cards and in Discord.
 
-Decided 2026-10-03 (M13). None of this adds a step to anybody's night; it adds two one-time steps to the
-start of a group's life.
+## The things a person can change on a night
 
-- **Starting a group.** Anyone signed in types a name and a link (`/g/<link>`) once. They are the group's
-  first admin. The link never changes, because people paste it.
-- **Joining.** The group's admins share one invite link. Somebody the site already knows taps `Join`.
-  Somebody it does not gets a six-letter code to type into Kustom once, so the site learns which League
-  account is theirs from the client itself and never from typing a name. And somebody who never opens the
-  link at all still becomes part of the group by playing a game with it, exactly as a new face in the lobby
-  always has: **playing is joining.** The link is how a person gets the web taps (Start a lobby, Role for
-  tonight) and how a brand-new group gets its first people before its first game.
+Everything else happens without anybody touching it. These exist because the docs accepted them, and each is
+one tap:
+
+- **Start a lobby** (M4.2, every linked player since M4.13). The first tap of the night, and the only one that
+  is optional: whoever has Kustom running can open a custom from their client the way they always have.
+  Pressing the button instead opens one on somebody's PC — the server picks whose, the most recently seen friend
+  whose Kustom has been up in the last ten minutes — with a name like `Customs 09 Sep #1` and a four-digit
+  password neither of them chose, and then sends an invite to everyone who has been around this week. The name
+  and the password are printed in the Discord post and on the page for anyone signed in, so whoever missed the
+  popup joins by hand. If nobody's Kustom is running there is nothing to open and the page says exactly that.
+  There are no fields on it: no mode, no name, no password, because each of those is a step. Two people tapping
+  at once get one lobby. Anybody who has picked themselves out of a lobby once sees the button, and nobody has
+  to find out who the admins are to get the night started. A visitor who is not signed in is offered the
+  sign-in instead.
+- **Roll teams** (admins and the owner). Everyone who is staying is in the lobby and an admin taps once (with
+  eleven or more, the rotation sits people out; nobody trims the lobby by hand); the server balances that
+  roster and posts the teams. The tap names the roster the admin saw, so if somebody joined or left in the
+  second before it, nothing is rolled and the page shows the new roster to tap again. Tapping twice posts once.
+  With fewer than ten there is nothing to roll.
+- **Reroll** (M3.2, admins and the owner). One tap promotes the bot's second pick, one more its third, and
+  then it stops: three splits come out of the balancer and there is no fourth. A reroll posts a new message in
+  Discord saying which reroll it is; it never edits the old one, never changes who is playing, and never picks
+  at random. The receipt's pick chip says it to everybody (`Reroll 1 of 2 · pick #2`), and `How the bot
+  decided` shows which of the three is now in play. When the list runs out, the way to get different teams is
+  to change who is in the lobby and roll again.
+- **Role for tonight** (M3.6, anybody linked). A friend taps a role on the tonight page and the balancer treats
+  it as their main for the rest of the night, with their usual main as the backup. Nobody sets their roles
+  anywhere else: their main and backup are read from what they actually play (M5.16, M5.17), so this tap is
+  also how a person steers that — play a role on purpose for a week and it becomes your main. Being *filled*
+  into a role never changes it. It is a preference, not a lock: the teams can still put them somewhere else
+  and the receipt says when they do. A tap after teams are already posted is kept for the next game rather
+  than redoing the teams people have already moved for.
+- **Reset fearless, and fearless on/off** (M10, M14.29/M14.30; admins and the owner, **on the tonight page
+  only**, never in admin). The ban list is zero-input: every counted Rift custom appends its ten champs,
+  Discord gets the list, nobody types a name. Clearing it is one tap on the tonight page, behind a confirm, because "the pool starts over" is a night-level call the same way reroll is. Kustom never
+  auto-bans; Riot's line is that we do not touch champion select. Humans ban from the list. The off switch
+  needs no confirm because it loses nothing: off freezes the list, on brings it back as it was.
+- **A rule for the next game, Spin, and Rated** (M15; admins and the owner, on the tonight page only). Picking
+  Normal or Fearless clears a pending rule. Changes made after Roll teams are for the next game.
+
+## Owner, admins and members
+
+Every group has **exactly one owner**, any number of admins, and members (2026-10-03). Playing in a lobby
+with the group makes you a member; nobody has to be let in.
+
+| Can | Member | Admin | Owner |
+|---|---|---|---|
+| Start a lobby, Role for tonight | yes | yes | yes |
+| Roll teams, Reroll, mode, rule, Spin, Rated and Reset fearless (on tonight) | | yes | yes |
+| Invite link, Discord, host setup | | yes | yes |
+| Make a member an admin | | yes | yes |
+| Remove a member | | yes | yes |
+| Remove an admin, or make an admin a member | | | yes |
+| Reset ratings | | | yes |
+| Hand ownership to an admin | | | yes |
+
+- **The owner is whoever created the group.** For the original group it is the bootstrap admin. The owner
+  cannot be removed or made a member; to step back, they hand ownership to an admin (`Make owner`) and stay an
+  admin themselves. So a group always has someone who cannot be locked out by another admin.
+- **Removing someone** (`Remove from group`) is for people who left and for alt accounts. They leave the board;
+  any host they ran for this group stops posting; their games, and their name on those games, stay in history.
+  It is not a ban: **playing is still joining**, so if they turn up in one of the group's lobbies again they are
+  back, with the rating they had. Banning is not a thing.
+- Every refusal is said in words where the tap happened (`Only the owner can do that.`, `The owner can't be
+  removed. Hand ownership to an admin first.`), never only in a pop-up that disappears.
+- **The person who runs the deployment** can look at any group to help it and change nothing. They do not see
+  a group's invite link.
+
+## Starting a group
+
+A new group's owner does four one-time things, none of them during a night, and none of them adds a step to
+anybody else's night.
+
+1. **Create the group** (`/new`): a name and a link (`/g/<link>`), typed once. The link never changes, because
+   people paste it. They land straight on their group's admin home as its owner.
+2. **Connect Discord**: one button, `Connect Discord`. Discord's own page asks which server and channel; Kustom
+   keeps the channel's webhook (not anybody's Discord login) and sends a test post: `Kustom is connected. Teams
+   and results will show up here.` Anyone who would rather can paste a webhook link instead. Skipping it is
+   fine: the site works without Discord, teams and results just only show there.
+3. **Install Kustom on one PC**: download the installer (Windows), run it, and with League open type the
+   six-character code the admin home shows. Kustom is one small app that sits in the tray, starts with Windows
+   and updates itself, so after this nobody touches it again (M17). Kustom learns which League account is the admin's from the client
+   itself, and because they are an admin it sets that PC up as a host with no token to copy. This is the one
+   step a group cannot skip: without Kustom in the lobby nothing is recorded. A second admin does the same on
+   their own PC; two hosts is normal.
+   To host on a friend's PC, make that friend an admin; they pair their own PC with their own code. Until the
+   Rust Kustom (1.0.0, M17) is the download, the 0.3.x app cannot become a host from a code, so only `customs`
+   hosts in that window and new groups are not promoted (the user, 2026-10-04).
+4. **Invite players**: copy the group's one invite link into the group chat. Optional, because friends also
+   join by playing.
+
+These live as one checklist at the top of the admin home, `Get your group ready`. Each row says `To do` or
+`Done` and why it matters. **The checklist is worked out from what has actually happened** — a test post
+landed, another person is in the group, a host has been seen, a game was recorded — never from somebody
+pressing "done", so it cannot lie and a second admin sees the same thing. When Kustom has been seen and the
+first game is in, it folds to one line, `Your group is ready for game night.`, and a row only reopens if its
+fact stops being true (the webhook is deleted in Discord, every host is revoked).
+
+## Joining a group
+
+- **Playing is joining.** Somebody who never opens a link still becomes part of the group by playing a game
+  with it, exactly as a new face in the lobby always has: balanced, rated and on the board.
+- **The invite link** is for the web taps (Start a lobby, Role for tonight) and for a brand-new group's first
+  people. Somebody the site already knows taps `Join`. Somebody it does not is asked `Which League account is
+  yours?` and given two ways, neither of which is typing a name: type a six-character code into Kustom (if they
+  have it), or just play a game with the group and tap their own name on the tonight page next time they are in
+  the lobby. Most friends will never install Kustom, so the second way is the usual one.
 - **One person, one identity, one rating per group.** Your League account is you everywhere. Your rating is
-  not: a group is a pool of people, and how you do against these friends says nothing about how you do
-  against those. A person new to a second group starts there at 1200 like anybody else, and their number in
-  the first group does not move. Your main and backup roles are about what you play, so they follow you.
-- **A game belongs to one group.** If two groups' hosts are in the same custom, the group whose companion saw
-  the lobby first gets it; the other companion does nothing. Nobody's game is counted twice.
+  not: how you do against these friends says nothing about how you do against those. A person new to a second
+  group starts there at 1200 like anybody else, and their number in the first group does not move. Your main
+  and backup roles are about what you play, so they follow you.
+- **A game belongs to one group.** If two groups' hosts are in the same custom, the group whose Kustom saw the
+  lobby first gets it; the other does nothing. Nobody's game is counted twice.
 - **Kustom asks which group only when there is a choice.** One group: nothing changes. More than one: the
   panel says `Posting tonight to:` (or `Tonight's group:` when it is not hosting) with the last one picked.
-- **Admins are per group.** An admin of one group has no view of another. The person who runs the deployment
-  can look at any group to help it and change nothing.
-- **Every group's pages are under its own link**, public by link the way the original group's always were.
-  There is no list of groups anywhere. The original group is `/g/customs`, and every link it ever pasted
-  still lands where it used to.
+
+## Where things are
+
+- **Every group is public by link**, the way the original group's pages always were: anyone with the link can
+  read its tonight page, board, games and players without signing in. There is no list of groups anywhere.
+  Private groups are not in 2.0.
+- **A group's space** is `/g/<link>`, with five sections in the same order on a phone's bottom bar and a
+  laptop's top bar: **Tonight**, **Board**, **Games**, **Stats**, **You**. There is no More page. Stats holds
+  the records, the champions and the one-vs-ones as three parts of one page. You is your own page seen from
+  where you stand: your numbers, your record with and against everyone, your night, and Admin for admins; if
+  you're not signed in, it tells you what signing in shows you. The daily guess and tonight's mode are cards on
+  Tonight. How the bot decides and getting Kustom are links at the bottom of every page. A new feature goes on
+  the page where its moment is (tonight, records, you, one game), never a sixth tab.
+- **The front door** is `/`. A stranger sees a landing page that explains Kustom in ten seconds — `Fair teams.
+  No arguments.` — with a real receipt from the original group's latest game, the three steps, what the app
+  reads and never touches, `Create your group`, and `Free. Sign in with Discord to start.` A signed-in member of
+  a group goes straight to their group instead; a regular has no reason to see a pitch every night. The same
+  page is always at `/about`, and `/how` and `/download` explain the bot and the app.
+- **`/g/customs` is the demo.** The original group is public anyway, so the landing page links it (`See a real
+  group`) and quotes its live receipt and calibration line. Every link the group ever pasted still lands where
+  it used to.
+- Every page, and Kustom itself, carries Riot's standard notice that Kustom is not endorsed by Riot Games.
 
 ## Being filled
 
@@ -151,9 +294,9 @@ now bigger for somebody who was filled in their last game and shrinks back to no
 (M7.5, M7.6). A person filled on Tuesday is the last choice to be filled on Wednesday.
 
 It is a price, not a rule. If one person in the lobby is the only one who has ever played jungle, they play
-jungle, and the explanation line says they are off-role exactly as it does today. The referee prices the
-unfairness; it does not refuse the night. Nobody taps anything for this and nothing about it appears on a
-screen — being filled still never changes what the model thinks your main is.
+jungle, and the receipt says they are off their main role. The referee prices the unfairness; it does not
+refuse the night. Nobody taps anything for this — being filled still never changes what the model thinks your
+main is.
 
 ## Worked example
 
@@ -177,7 +320,7 @@ they are part of the picture of who these people are; since 2026-09-16 nobody's 
 | Theo | Gold III | 1419 | support | adc |
 | Yuki | Bronze II | 1134 | support | top |
 
-Nobody types anything. This appears in Discord:
+Nobody types anything. An admin taps Roll teams and this appears in Discord and on the page:
 
 | | Blue | Red |
 |---|---|---|
@@ -187,111 +330,184 @@ Nobody types anything. This appears in Discord:
 | adc | Bilal | Lena |
 | support | Theo | Yuki |
 
-> Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.
+```
+Blue 54% ▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱ 46% Red
+Close. Blue has a slight edge.
+Rating gap 100 pts · Main roles 10/10 · Bot's pick #1 of 3
+Next best: swap the top players, Hana and Omar. That's Blue 57%, with a bigger rating gap (170 vs 100 pts).
+Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.
+```
 
-Everyone got the role they main. The two sides are 100 rating points apart out of about 7,600 a side. Lena is
-the best player in the room and she is on the weaker side on paper, which is the sort of thing that used to
-take ten minutes of arguing. If someone still wants a different night, reroll gives the "swap Hana and Omar"
-teams instead, and then one more after that. There is no fourth.
+(The last line is the bot's own sentence, kept word for word, small, under the receipt.)
 
-## The numbers on the screen
+Everyone got the role they main. Lena is the best player in the room and she is on the weaker side on paper,
+which is the sort of thing that used to take ten minutes of arguing. If someone still wants a different night,
+reroll gives the "swap Hana and Omar" teams instead, and then one more after that. There is no fourth.
+
+## The rating
 
 The model keeps one rating per player in each group, `{ mu, sigma }` — `mu` is what it thinks you are,
-`sigma` is how sure it is. (A person in two groups has two, and they never touch; see "More than one group".) It is the only rating that forms teams, and it is never reset. (The two week windows on the
-leaderboard are read through a second, throwaway number that starts over every Sunday; that is further down,
-and it touches nothing here.) Two numbers come out of the real one, and they have fixed names everywhere in
-the product:
+`sigma` is how sure it is. (A person in two groups has two, and they never touch.) It is the only rating that
+forms teams, and since 2026-10-04 it is the only rating there is: every point gained or lost on every surface
+is this rating's change (the week's separate number was retired, M14.57).
 
-- **Rating** is `round(mu * 60)`. It sits beside your name in the teams embed, the result embed and the
-  tonight page, and it is what the balancer works from.
-- **Proven** is `round(ordinal * 60)`, where `ordinal = mu - 2 * sigma`. It is the leaderboard's number. The
-  board sorts on Proven and shows it as the primary column, with Rating underneath in smaller type, so the
-  order on the page always matches the number the page is showing. Proven is deliberately cautious: it sits
-  below your Rating by how unsure the model still is about you, so the player the board has watched least
-  carries the biggest subtraction. That gap shrinks as you play and settles after about 30 games. It does
-  not close — a settled player is still a few hundred points below their Rating, and is meant to be. The
-  page says all of that in one sentence rather than leaving people to guess.
+**There is one number on every screen: `Rating`, which is `round(mu * 60)`** (2026-10-03). It sits beside your
+name on the teams, the result, the board, your page and every Discord post, it is what the balancer works
+from, and **every board is sorted on it**, so the order on the page always matches the number on the page.
+The cautious second number the board used to sort on (`Proven`) is gone from every surface: it read 0 for
+nearly half the real board and put a 1361 under a 1287.
+
+**New players get a rank after 10 rated games.** What stops a lucky newcomer from topping the board is not a
+hidden subtraction but a section you can see. The `All time` board has two parts:
+
+1. **Ranked**: everyone with 10 or more rated games in this group (since the last rating reset, if there was
+   one), numbered, sorted by Rating.
+2. **Still settling**: everyone under 10, below, sorted by Rating, not numbered, each with `settling · 4/10`.
+   The section says why: `New players' ratings move fast at first. They get a rank after 10 games.`
+
+People with no rated game in the window are not listed; the board counts them underneath (`+ 9 people who
+haven't played a rated game yet.`). A newcomer's seat on the teams carries the same `settling` chip, which is
+also why the win chance can differ from what the Ratings suggest: the bot is less sure of them, and win chance
+counts that. Ten is the number for now (the user, 2026-10-03); it is one constant.
 
 **Everybody starts on the same number, and the first few nights move it fast** (2026-09-16). A new player's
 Rating begins at 1200 whether they are Iron or Challenger in solo queue — this board is about customs, and on
-your first night nobody here has any evidence about you, including your rank. What the model *does* say about
-a newcomer is that it is unsure, and it is more unsure of you than of anyone it has watched: that is why your
-first few games swing your number hard — roughly 110 points a game, against about 30 for someone thirty games
-in — and why it calms down by itself as the nights add up. There is no placement mode and nothing to finish;
-it is one number being uncertain and then getting less uncertain.
+your first night nobody here has any evidence about you, including your rank. The model is more unsure of you
+than of anyone it has watched, so your first games swing your number hard — roughly 110 points a game, against
+about 30 for someone thirty games in — and it calms down by itself as the nights add up. That is why ten games
+is enough for a rank. There is no placement mode and nothing to finish.
 
-**The two week windows are the one place that rule is different** (2026-09-15, M7.3). `This week` and `Last
-week` sort on **Rating** — the week's own Rating, from the week's own number — and print that as their one
-number; no Proven appears on a week board at all. A week is a handful of games by design, so Proven's
-subtraction there is enormous for everybody and biggest for whoever played least: it would rank a 4W 4L week
-above a clean 2W 0L one for the sole reason that the longer week is "more proven", which is the same
-confusing kind of fairness that opened M7. Playing more still counts — each further game moves your weekly
-number less than the one before it, which is how the model works and is true whatever the board sorts on — it
-just is not charged twice. `All time`, `This month` and `Last month` are unchanged: Proven is the number and
-the sort.
-
-**And a person's own page says the same thing the row said** (2026-09-16, M7.16). Tap a name on `This week`
-and the page opens on that same week: the one number it shows is the week's, to the digit, with the week's
-chart under it and the week's change on every game in the list — no Proven, because the board printed none
-either. Switch the page to `All time` and both numbers are back. Until that landed the row said one number
-and the page said another, both true and neither labelled, which is the same argument this whole milestone
-was opened to end.
+**A person's page says the same thing the row said** (M7.16). It shows one big number, `Rating 1512`, the
+settling chip if any, a trend line, `Started at 1200, 37 rated games since.`, and their games, each with its
+one-line receipt. Tap a name on `This week` and the page opens on that same week, with the week's net points
+(`+86 this week · 5W–2L`) to the digit. A game prints the same change on every tab of the page.
 
 A printed change is always the difference of the two displayed numbers — `1469` becoming `1512` prints
-`(+43)`, never a separately rounded figure that makes the row fail to add up.
+`(+43)`, never a separately rounded figure that makes the row fail to add up. A night's or a week's total is
+the sum of the changes as printed, so a column always adds up (M14.57).
+
+**Every change says why it was that size** (M14.58, 2026-10-04). The group noticed a loss costing 50 one game
+and 120 the next. Both were right, and tapping either change says why in a sentence or three: whether your side
+was the favourite (a favourite's loss costs more, an underdog's win pays more), whether you are new, settling or
+settled (new players swing hard), and whether MVP or ACE changed it. Sigma is never a number anywhere; the words
+are new, settling and settled. The odds in that sentence are the odds the rating itself used, which can differ
+from the bot's odds at the roll when someone new is in the game (the bot guesses a newcomer from their rank; the
+rating starts everyone at 1200). When the two differ, the result names both, once, and says why (M14.59).
+Discord carries no explanation: the result post stays short and its link opens the page where every change
+explains itself.
 
 **Only Summoner's Rift customs move the number.** The group plays ARAM some nights and those games are
-recorded like any other — they are on the game history, in the records, on a person's own page — but they
-never touch a rating. A mode with no lanes and no roles was never what the balancer is trying to measure,
-and until 2026-09-15 it was quietly counted, which is a bug and not a policy (M7.1).
-
-Two things follow from that, and they are what a person actually meets. **Discord posts no result for an ARAM
-night** — a result post is what a game did to ten ratings, and an ARAM does nothing to any of them — so the
-teams go up as usual and the channel is quiet afterwards. And **the leaderboard leaves those games out of its
-count and its record**, because it is a rating board and its record sits beside a climb those games did not
-move, while `/stats`, `/fun`, `/games` and the sections on a person's own page keep counting them, because they
-are about what the group played. Neither number is wrong. Until **M7.18** neither page says which one it is
-showing, which is the one part of this a friend can reasonably read as a mistake. Every count that can be
-compared with a different count on another screen now says `rated games` when that is what it counted — the
-board's slot line and both board posts from M7.18, and a person's own page from **M7.22** (decided 2026-09-16,
-one word, not yet on the site), where the line that says where their rating started reads `Started at 1200,
-37 rated games since.` directly above the sections that count everything they played.
+recorded like any other — they are in game history, in the records, on a person's own page — but they never
+touch a rating (M7.1). So **Discord posts no result for an ARAM night**, and **the board leaves those games out
+of its count and its record**, while Stats, Fun, Games and a person's page keep counting them, because those
+are about what the group played. Every count that can be compared with a different count on another screen
+says `rated games` when that is what it counted.
+A Rift game an admin marked not rated, or played under a rule that is not rated (M15), is treated the same way,
+except that Discord still posts its result, because the rule's line lives there. It still counts for the weekly
+awards (best off-role, cursed duo) and last week's labels on the board, which read the same games Stats does:
+a rule changes which champions people play, not who played which lane or who lost together. The bot's odds
+for its rolled teams stay on the poster, the game page and the tape, `Upset!` included, because they were
+posted before the game; odds worked out afterwards for teams that changed after the roll are not shown, as
+for ARAM (M15.12).
 
 **Carrying is worth a little more.** The best player on the winning side keeps about a quarter more of what
 they gained, and the best player on the losing side gives back about a fifth less. Best means the highest
 score on a seven-part reading of that game: kills and assists against deaths, damage to champions, gold,
-vision, damage soaked, CS, and damage to towers, dragons and barons. The first six count for everybody, near
-enough the shape op.gg's MVP and ACE use; the seventh counts for the jungler and nobody else. Everyone is read
-against the other nine people who were actually in that game, never against some average player somewhere
-else. **What weighs most depends on the role you played** (2026-09-15, M7.13): vision is most
-of a support's score and almost none of a carry's, damage to champions is most of a carry's, and a jungler is
-read somewhere between the two, plus the one number nobody else is scored on: what they took off the map
-(M7.14). Top, mid and adc are read the same way as each other, because the game's own
-record does not reliably say which of top and mid somebody was. It is a small adjustment made after
-the model has rated the game, it never turns a win into a loss or the other way round, and it leaves Proven's
-"how sure are we" half alone: a good night is not the same thing as certainty (M7.8).
+vision, damage soaked, CS, and damage to towers, dragons and barons. The first six count for everybody; the
+seventh counts for the jungler and nobody else. Everyone is read against the other nine people who were in
+that game. **What weighs most depends on the role you played** (M7.13): vision is most of a support's score and
+almost none of a carry's, damage to champions is most of a carry's, and a jungler is read somewhere between,
+plus what they took off the map (M7.14). Top, mid and adc are read the same way, because the game's own record
+does not reliably say which of top and mid somebody was. It is a small adjustment made after the model has
+rated the game, it never turns a win into a loss or the other way round, and it leaves the model's "how sure
+are we" half alone: a good night is not the same thing as certainty (M7.8). Since M14.58 the award that moved
+a rating is kept with the game, so the explanation names the award that actually counted.
 
-**It moves your week too.** The two week windows are read through their own throwaway number, folded from the
-week's own games, and that fold keeps the same bonus the real rating does: carrying a game on Tuesday moves your
-real rating a little further and moves your week a little further too, by the same quarter, and the same fifth
-back for the best player on the losing side. It is the same reading of the same game, not a second opinion, so
-the `MVP` beside a game on your page is always the game that moved your week further. The week's `Most improved`
-counts it too, because it is measured on that same weekly number. Teams are still formed from the real rating
-alone (M7.24, 2026-09-29, reversing the 2026-09-16 decision that the week would never carry it).
-
-**A game where we do not know who played what has no best player.** The companion reads everybody's role off
-the end-of-game screen, so a night the companion watched has all ten. A game recovered from someone's match
-history later does not — the client's history does not say who played support — and on those games nobody is
-named and nobody keeps anything extra. Guessing a role to hand somebody a bonus is the sort of thing this
-product refuses everywhere else, and it refuses it here too. **The result post names
-both of them** and a person's own page says which of their games they carried, because a number that moves
-differently for two people on the same winning team has to say why (M7.10).
+**A game where we do not know who played what has no best player.** Kustom reads everybody's role off the
+end-of-game screen, so a night it watched has all ten. A game recovered from someone's match history later
+does not — the client's history does not say who played support — and on those games nobody is named and
+nobody keeps anything extra. Guessing a role to hand somebody a bonus is the sort of thing this product refuses
+everywhere else. **The result post names both of them** and a person's page says which of their games they
+carried, because a number that moves differently for two people on the same winning team has to say why
+(M7.10).
 
 **Rating changes do not sum to zero across the two teams.** Movement scales with how unsure the model is
 about each player, so five players it barely knows move further than five it has watched for a month: a
-result can be `-228` on one side and `+231` on the other. Both sides were rated correctly; the totals were
-never meant to match. That is why no surface ever prints a team total of rating changes — it would be a
-number that looks wrong every night while being right.
+result can be `-228` on one side and `+231` on the other. Both sides were rated correctly. That is why no
+surface ever prints a team total.
+
+## The week and all time
+
+**There are no seasons** (2026-10-03, the user: "what does a season mean, we work weekly now"). No season
+names, no season page, no archive of past boards, and the word does not appear anywhere a friend can read it.
+The week is the fresh start the group actually plays for.
+
+The board opens on **This week** — Sunday 06:00 to Sunday 06:00, the same 06:00 boundary that decides which
+night a game belongs to, because the group plays past midnight — and offers **Last week** and **All time**
+beside it (This month and Last month were removed on 2026-10-04, M14.48: the user found them a useless
+filter). A window changes who is on the board and what their record and their climb over those days were. It
+never changes anybody's rating: **a window is a filter over games, not a rating event.**
+
+**The week board ranks by points won this week** (2026-10-04, the user; M14.57). A board headed *This week*
+that ordered people by where they stand after a year would not be telling them about their week. So `This
+week` and `Last week` sort on net points: the sum of the rating changes from your rated games in that week,
+the same numbers printed beside those games everywhere else, with your record beside it (`+86 · 5W–2L`). Ties
+go to more wins, then fewer games, then the higher Rating, then the name. One rated game puts you on the board;
+there is no minimum, because a one-game week sits near zero by itself. It is one list with no settling section,
+but a newcomer's row keeps its `settling` chip, which is why their points run large. (Until 2026-10-04 the week
+had a second rating of its own that restarted every Sunday; it showed a different change for the same game
+than every other screen, and it is gone.)
+
+**The week starts on Sunday** (2026-09-15), because that is when this group's week starts — Egypt works Sunday
+to Thursday. A range reads `Sunday 13 Sep to Saturday 19 Sep`. A night is still 06:00 to 06:00.
+
+Every Sunday, the week that just closed posts itself to Discord — its final
+board, in points order, and its three awards (most improved, which is the week's most points; best off-role; cursed duo) — with nobody pressing
+anything. That is the whole of what people wanted from seasons: something that ends, and something to win by
+Friday. Daily was asked about and turned down: one to three games is not a board.
+
+### Reset ratings (the owner, rarely)
+
+The real rating is folded game by game from the group's first captured custom, and nothing restarts it except
+one deliberate action: the owner's **Reset ratings**, at the bottom of the admin home (2026-10-03). It is for a
+group that wants to start over, not for a normal week.
+
+- Everyone's group rating goes back to 1200 from that moment. Never one person's.
+- It is the one place in the product that asks for typing: the owner types the group's link to unlock the
+  button, under `Everyone's rating goes back to 1200. Games stay in history. This can't be undone.`
+- It is refused while a lobby is live or a game finished in the last 15 minutes: `Finish tonight's game first.`
+- Discord gets `Ratings were reset. Everyone starts at 1200 again. Top 3 before the reset: …`, which is the
+  only record of the old board; the site keeps no archive.
+- Afterwards `All time` reads `Since <date>` and settling counts games since it. Game history, the rating changes printed on old games, the week's points and the
+  calibration line are untouched.
+- Admins see the section greyed out with `Only the owner can reset ratings.`
+
+## Kustom Premium (M16)
+
+Some groups have **Kustom Premium**, switched on by the person who runs Kustom (with a script, never a button);
+nobody pays for it, and Kustom is still free. The landing page and `/about` don't mention it. In a Premium
+group, an AI writes a little story on top of numbers Kustom already has: one line under each game's result (on Tonight's poster, the game page and the Discord result post), a
+paragraph at the top of the Sunday post (and on the board's Last week), and two or three lines on each
+regular's page, rewritten every Sunday. Every line is labelled `AI recap` or `AI scouting report`, and every
+number in it is checked against the database before it is shown; a line that fails the check simply does
+not appear. It never says the odds, never talks about anything Kustom cannot see, and only teases the side
+that won. Any player can turn off `Write about me` on their You page (or ask an admin to), and admins can
+switch AI lines off for the whole group or hide any single line: a game's recap, the weekly story or a
+scouting report. A group without Premium sees none of this:
+no banner, no locked button, no mention. Nobody types anything for any of it.
+
+How the lines sound (product, M16.7 tone read). They sound like a friend who was watching. A winner can be
+teased about their numbers in that game: `mostly there for moral support` and `a very generous support` are
+fine. A line never says a winner got carried, got lucky, was boosted or was scripting, and it never says a run
+of wins wasn't earned. Someone who lost is named only for a number that was actually good: the most in the
+game, or their best in the group. They are never praised with a straight face for a low number (`still dropped
+3 kills`). A scouting report gives a losing week as the plain count (`6 wins in 18 games`), never with `rough`,
+`tough` or `quiet`; a winning week can be called warm. Lines that sit next to each other should not read alike.
+A night's five recaps should not all lead with a win streak or `from the losing side`. A streak is worth a line
+when it is news, not every time someone wins three games.
+
+AI spend is capped at $2 per group a month and $20 across every group; at a cap the lines go quiet until the
+1st and nothing else changes. The original group, `customs`, has Premium from the day it lands.
 
 ## Features by milestone
 
@@ -304,115 +520,81 @@ See `02-milestones.md` for the build order. In product terms:
 | Balanced teams posted to Discord with explanation | M3 |
 | Results and ratings captured from end-of-game, no reporting | M2, M3 |
 | Tonight page and leaderboard on the web, phone-friendly | M3 |
-| Companion creates the lobby and invites the ten | M4 |
+| Kustom creates the lobby and invites the ten | M4 |
 | Auto side switch | M4 |
 | Discord voice split and "N around" presence | ~~M4~~ dropped 2026-09-10 |
-| Backfill every past custom from the client's match history | M5 |
-| This week / this month / all time on the board, awards, role and duo stats | M5 |
+| Backfill every past custom from the client's match history, for every member, no approval step | M5, M13 |
+| This week / last week / all time on the board, weekly awards, role and duo stats | M5, months removed in M14.48 |
 | Game history with per-player KDA, damage, gold and CS (Summoner's Rift by default, ARAM toggle) | M5 |
 | Daily Mystery: one accountless "who was it?" guess per civil day | M5 |
 | ARAM is recorded and never rated | M7 |
-| A second rating for the week, on the weekly board only | M7 |
+| ~~A second rating for the week, on the weekly board only~~ | M7, retired in M14.57: the week ranks by points won |
+| Every rating change says why it was that size; the odds shown are the odds the rating used | M14.58, M14.59 |
 | Filled last game, last to be filled this game | M7 |
 | MVP and ACE keep a little more of the result, and the post names them | M7 |
-| How even the teams are, as a percentage, under the teams on the tonight page while they are set (restored 2026-10-03 after a regression) | M3.31 |
+| ~~How even the teams are, as a percentage~~ | M3.31, retired by the receipt in M14 |
 | Who beats you and who you win with, on the fun page | M8 |
 | The nights the bot said you would lose and you did not | M8 |
 | Last week's award winners labelled on the board | M8 |
 | Guess the Award: a second daily guess, alternating days with Daily Mystery | M8 |
 | One vs one: who wins each lane, and any two people head to head | M8.5 |
 | Fearless draft: champs played since the last reset are banned next game | M10 |
-| Champion icons on the fearless card, and only there | M11 |
+| Champion icons on the fearless card | M11 |
+| Tonight's mode on one card (Normal or Fearless), its panel opens on your lane, at its own link | M14.29 to M14.31 |
+| Reasons to sign in: claim your games, you vs them, your night | M14.33 to M14.36 |
+| A rule for one game (class wars, region wars, mirror match), not rated by default, Spin, a Rated switch | M15 |
+| Kustom Premium: AI recap line, weekly storyline, scouting report, behind a per-group flag the operator sets; capped at $2 a group a month; no billing yet | M16 (built; review open, M16.7) |
 | The result as a poster; tonight's earlier games kept on the page | M11 |
 | A picture when a link to tonight, a game or a player is pasted | M11 |
 | Asking the database whether coming back after a break really breaks the rating | M9.1 |
 | Widening the model's doubt about a player who has been away | M9.2, not scoped: it waits on M9.1's numbers |
-| Tray app + optional overlay in one Kustom.exe (Host / Overlay modes) | M6 + M12 |
+| Kustom: one small Windows app for hosts (tray, starts with Windows, links with a code, updates itself); no overlay | M6 + M12, rewritten in Rust in M17 |
 | More than one group: start one, invite with a link, ratings per group, `/g/<link>` pages | M13 |
+| The receipt on every split, in history and in Discord; calibration; pre-game odds | M14 |
+| One Rating everywhere, boards sorted on it, the settling section | M14 |
+| No seasons | M14 |
+| Owner, admins and members; removing a member; the owner's Reset ratings | M14 |
+| Tonight · Board · Games · Stats · You, on phones and laptops; no More page | M14.7b |
+| The `Get your group ready` checklist, one-click Discord connect, host setup by code | M14 |
+| The landing page, `/how`, `/download`, and `/g/customs` as the demo | M14 |
 
-Backfill (M5) reads the client's own match history, and M0 confirmed it can: customs are in there
-(17 of 21 games in the first capture). Two details shape it. The history *list* names only the person whose
-client it is, so backfill fetches each game's detail page to learn the other nine. And nobody has yet checked
-how far back the window reaches (M5.6), so "every past custom" honestly means "every custom still in the
-history of someone who runs the companion".
-
-## The week, the month, and all time
-
-Ratings never reset. There is one number per player per group, folded game by game from the first custom this
-group ever captured to the one they played last night, and nothing a person or an admin can press starts it over.
-
-What used to be a season is now a **window the same board is read through**. The leaderboard opens on **This
-week** — Sunday 06:00 to Sunday 06:00, the same 06:00 boundary that decides which night a game belongs to,
-because the group plays past midnight — and offers **Last week**, **This month**, **Last month** and **All
-time** beside it. A window changes who is on the board and what their record and their climb over those days
-were. It never changes anybody's rating, because **a window is a filter over games, not a rating event**.
-That is precisely why it can happen every single week without costing the number its meaning: a weekly reset
-would leave everyone permanently "settling", and a board where nobody has settled is a board nobody believes.
-
-**The week has a number of its own** (M7.2 to M7.4). The group's objection was fair: a board headed *This
-week* that ordered people by where they stand after a year is not telling them about their week. So the two
-week windows are read through a second rating that starts everyone at their seed again every Sunday at
-06:00 and follows only that week's games. (Until 2026-09-16 that seed was your League rank; it is the same
-starting number for everybody now, because a board about the week should not have a solo-queue rank
-in it.) Starting over every Sunday is what makes it quick: a game moves
-your week about three times as far as a game moves a settled all-time rating, so Tuesday night is still
-visible on Thursday's board. What it does **not** do is settle inside a week — a handful of games is not
-enough for any model to be sure of anybody. It is also why the two week windows **sort on Rating and not on
-Proven** — the one exception in the product, written out under "The numbers on the screen" above. The week
-board says exactly that under itself, in place of the
-sentence the other windows carry about Proven, and it is the one board in the product with no `settling`
-marker on any row: everybody on a week is still settling, always, and a word printed on all ten rows tells
-nobody anything. That is also the answer to the paragraph above — a board where nobody has settled is a
-board nobody believes, so the week does not claim anybody has. It is a second
-number, not a reset: the real rating is still folded from the first custom
-this group ever captured, it is still what forms teams, and nothing about the week ever reaches the balancer.
-`This month`, `Last month` and `All time` are the real number, as they have always been. One tap moves between
-them and the page says which one you are looking at.
-
-**The week starts on Sunday** (2026-09-15), because that is when this group's week starts — Egypt works
-Sunday to Thursday — and the product is built for their week and not for a calendar standard's. Sunday 06:00
-to Sunday 06:00, so a range reads `Sunday 13 Sep to Saturday 19 Sep`. The night boundary and the month are
-untouched by that: a night is still 06:00 to 06:00 and a month is still the month.
-
-Every Sunday and every first of the month, the window that just closed posts itself to Discord — its final
-board and its three awards (most improved, best off-role, cursed duo) — with nobody pressing anything. That is
-the whole of what people wanted from seasons: something that ends, and something to win by Friday.
-
-Daily was asked about and turned down. One to three games is not a board, and three awards computed on two
-games is noise with a trophy on it.
-
-Under all of that the database keeps one `season` row as the container every game points at. It was created
-once, by the first migration; its name is never printed on a page or in a post; and there is no button anywhere
-that makes a second one.
+Backfill reads the client's own match history, and M0 confirmed it can: customs are in there (17 of 21 games in
+the first capture). The history *list* names only the person whose client it is, so backfill fetches each
+game's detail page to learn the other nine. Nobody has yet checked how far back the window reaches (M5.6), so
+"every past custom" honestly means "every custom still in the history of someone who runs Kustom".
 
 ## Explicitly out of scope
 
 - Any Riot public API usage. Custom match data is not available there and we do not need ranked data from it.
-  Champion icons are not that API: they are the game's own static images from Community Dragon, looked up by
-  the champion id we already store, with no key and no player data (2026-09-23).
-- Asking every friend to run a **host** companion. Host mode still needs a token and opens lobbies;
-  one or two people keep that. Everyone else installs the **same** `Kustom.exe` in Overlay mode
-  (no token) for the fearless panel during lobby and champion select.
-- Manual result reporting. If the companion misses a game, backfill (M5) recovers it.
+  Champion icons are not that API: they are the game's own static images from Riot's Data Dragon at a pinned
+  version, looked up by the champion id we already store, with no key and no player data (2026-10-03). No Riot
+  or League logos anywhere.
+- Asking every friend to run a **host**. One or two people per group install Kustom; everyone else installs
+  nothing. There is no overlay and no champion-select panel (removed in M17): the fearless pool and a rule's
+  pool live on the tonight page's mode panel and in Discord. Kustom is Windows only (M17); a Mac friend plays
+  and is recorded through the host's PC like anybody else.
+- Manual result reporting. If Kustom misses a game, backfill recovers it.
 - WhatsApp bot. There is no legitimate group-bot API. The tonight page link is the WhatsApp integration.
-- Slack. Not until someone asks twice. It would be a single webhook.
-- Anything touching champion select or gameplay. The fearless list is for humans to ban; the companion never auto-bans.
-- Counting one game for two groups, moving a game between groups, merging groups, renaming a group's link, a
-  public list of groups, and a group in another timezone (every group's night and week run on the same clock
-  for now). M13 reserved all of these on 2026-10-03.
+- A Discord bot, and Slack (not until someone asks twice; it would be a single webhook).
+- Anything touching champion select or gameplay. The fearless list is for humans to ban; Kustom never
+  auto-bans. Champions on the in-game teams are not shown either: Kustom reads the end-of-game screen, never
+  the live game.
+- Private groups, deleting or renaming a group, renaming a group's link, banning a person, a group switcher,
+  a public list of groups, counting one game for two groups, moving a game between groups, merging groups,
+  and a group in another timezone (every group's night and week run on the same clock for now).
+- Pricing. Kustom is free.
 
 ## Success
 
 - Zero team arguments in a week of nightly games.
 - Lobby open to game start under three minutes.
-- Every game played with a companion user present is in the database with no human action. The client
-  only keeps the end-of-game stats block while that screen is up, so "present" means running at the
-  final whistle. A companion that happens to be restarting right then loses the game to backfill —
-  still no human action, just a day later.
-- Ratings visibly converge: a player's predicted win chance across their last twenty games averages near 50%.
-- A new player rises in strength faster than they rise on the board. Their Rating settles in about ten
-  nightly games, but the leaderboard sorts on Proven, the deliberately cautious number
-  (`ordinal = mu - 2 * sigma`), which stays behind Rating and takes roughly a month of nightly games to
-  settle there. That is on purpose: the board makes you prove it. (This is about `All time` and the month
-  windows. The two week windows sort on Rating and ask a different question — how your week went — and
-  nobody proves anything in a week.)
+- A friend who opens the link in voice can tell, without asking, whether they are in, which side they are on,
+  and why the split is fair.
+- A stranger who lands on `/` understands Kustom in ten seconds and can start a group in two minutes.
+- Every game played with a host present is in the database with no human action. The client only keeps the
+  end-of-game stats block while that screen is up, so "present" means running at the final whistle. A host
+  that happens to be restarting right then loses the game to backfill — still no human action, just a day
+  later.
+- Ratings visibly converge, and the calibration line says so: the side the bot favored wins about as often as
+  the bot expected.
+- A new player's Rating settles in about ten nightly games, and that is when they get a rank on the board.

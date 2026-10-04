@@ -1,10 +1,12 @@
-import { BalanceError } from '@customs/core';
+import { BalanceError, type Rng } from '@customs/core';
 import type { LobbyStatusValue } from '@customs/db';
 import { type BalanceOutcome, balanceLobby } from '../ingest/balance';
 import { emitLobbyBalanced } from '../ingest/hooks';
 import { lobbyRosterKey, selectMemberPuuids } from '../ingest/lobby';
 import { SelectionError } from '../ingest/selection';
 import { moveLobby, PLAYERS_PER_GAME } from '../lobbyState';
+import { lockLobbyAtRoll } from '../mode/lock';
+import { serverRng } from '../mode/rng';
 import type { ServiceClient } from '../supabase';
 import { idSchema } from './formValues';
 import { NO_SUCH_LOBBY } from './reroll';
@@ -66,10 +68,13 @@ export interface RollInput {
   timeZone: string;
   /** Carried to the `balanced` hook for the embed's `url` (M3.1). Nothing is written from it. */
   requestOrigin: string | null;
+  /** Region wars' draw at Roll (M15.3). Tests pin it; production uses the server's RNG. */
+  rng?: Rng;
 }
 
 interface RollLobbyRow {
   id: string;
+  groupId: string;
   status: LobbyStatusValue;
   lobbyName: string | null;
   lobbyPassword: string | null;
@@ -161,6 +166,16 @@ async function balanceClaimed(
   input: RollInput,
 ): Promise<AdminWriteResult<RollOutcome>> {
   try {
+    // The mode locks onto the lobby before the teams are made (M15.3, R1/R2), so the teams post
+    // (the `balanced` hook) and the game recorded from this lobby both read the copy. A repair
+    // roll keeps the copy it finds. If the balance fails below, the lobby goes back to `open`,
+    // which drops the copy in the database (`lobbies_drop_mode_lock`).
+    await lockLobbyAtRoll(client, {
+      lobbyId: lobby.id,
+      groupId: lobby.groupId,
+      now: input.now,
+      rng: input.rng ?? serverRng,
+    });
     const outcome = await balanceLobby(client, lobby, input.now, input.timeZone);
     console.info(`lobby ${lobby.id} rolled: ${outcome.explanation} (${outcome.sitters.length} sitting out)`);
     // Discord (M3.1) and the switch_side queue (M4.1). Each listener's failure is its own line
@@ -184,13 +199,14 @@ async function balanceClaimed(
 async function readLobby(client: ServiceClient, lobbyId: string): Promise<RollLobbyRow | null> {
   const { data, error } = await client
     .from('lobbies')
-    .select('id, status, lobby_name, lobby_password, updated_at')
+    .select('id, group_id, status, lobby_name, lobby_password, updated_at')
     .eq('id', lobbyId)
     .maybeSingle();
   if (error) throw new Error(`rollLobby: lobby lookup failed: ${error.message}`);
   if (!data) return null;
   return {
     id: data.id,
+    groupId: data.group_id,
     status: data.status,
     lobbyName: data.lobby_name,
     lobbyPassword: data.lobby_password,

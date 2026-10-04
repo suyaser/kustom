@@ -3,11 +3,18 @@
 import { ROLES } from '@customs/core';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
 import { type MouseEvent, type ReactNode, useEffect, useId, useState } from 'react';
-import { isActiveLobbyStatus } from '@/lib/lobbyState';
+import { NameText } from '@/components/names/name-text';
+import { Button } from '@/components/ui/button';
+import { welcomeHref } from '@/lib/board/hrefs';
+import { isActiveLobbyStatus } from '@/lib/lobbyRules';
 import { groupHome } from '@/lib/nav';
 import {
+  HEAD_SEPARATOR,
+  isNameless,
   LINK_OFFLINE,
   PICK_YOURSELF,
+  PICK_YOURSELF_OPEN,
+  PICK_YOURSELF_TITLE,
   ROLE_CONTROL_HEADING,
   ROLE_CONTROL_HINT,
   ROLE_SIGN_IN,
@@ -19,6 +26,7 @@ import {
   SIGNED_IN_NO_LOBBY,
   THATS_ME,
 } from '@/lib/tonight/copy';
+import { requestTonightRefresh } from '@/lib/tonight/live';
 import type { LobbyView, MemberView } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import { RoleIcon } from '../_icons/RoleIcon';
@@ -63,6 +71,16 @@ import { usePageGroup } from '../_shell/PageGroup';
  */
 
 const ROLE_TAP_ACTION = '/api/me/role-tonight';
+
+/** The card every state of this control sits in (5.0 Card, level 1). */
+const CARD = 'flex flex-col gap-3 rounded-card border border-border bg-card p-(--card-pad)';
+
+/** A role toggle (5.0 Chip that acts): 44px, `aria-pressed` carries the state, not colour alone. */
+const ROLE_CHOICE = [
+  'inline-flex min-h-11 items-center gap-1.5 rounded-control border border-border-strong bg-raised px-3 font-mono text-sm font-medium text-muted-foreground font-stretch-85%',
+  'transition-[background-color,border-color,color,scale] duration-(--dur-fast) ease-out active:scale-[.98]',
+  'aria-pressed:border-foreground aria-pressed:bg-accent aria-pressed:font-bold aria-pressed:text-foreground',
+].join(' ');
 const LINK_ACTION = '/api/me/link';
 const SIGN_IN_ACTION = '/auth/signin';
 
@@ -86,9 +104,14 @@ export function RoleTonight({ lobby, viewer, onViewerChanged }: RoleTonightProps
     // which those are.
     const claimable = (lobby?.members ?? []).filter((member) => viewer.claimable.includes(member.puuid));
     return claimable.length === 0 ? (
-      <p className="cn-hint">{SIGNED_IN_NO_LOBBY}</p>
+      <p className="text-sm text-muted-foreground">{SIGNED_IN_NO_LOBBY}</p>
     ) : (
-      <PickYourself members={claimable} onLinked={onViewerChanged} />
+      <PickYourself
+        members={claimable}
+        onLinked={onViewerChanged}
+        // Lead ruling (M14.65): once the teams are set the card folds to one line that opens.
+        collapsed={lobby?.status === 'balanced'}
+      />
     );
   }
 
@@ -110,11 +133,11 @@ function RoleCard({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
 
   return (
-    <section className="cn-card cn-role-card" aria-labelledby={id}>
+    <section className={CARD} aria-labelledby={id}>
       {/* Archivo, not the mono micro-label: a card title is language. A heading, because
           heading navigation is how a screen-reader user finds the only control on this page
           (the designer, 2026-09-10). */}
-      <h2 className="cn-card-title" id={id}>
+      <h2 className="text-md font-bold" id={id}>
         {title}
       </h2>
       {children}
@@ -176,11 +199,25 @@ function RolePicker({
   }
 
   return (
-    <section className="cn-card cn-role-card" aria-labelledby={titleId}>
-      <h2 className="cn-card-title" id={titleId}>
-        {roleCardTitle(seat.name)}
+    <section className={CARD} aria-labelledby={titleId}>
+      <h2
+        className="text-md font-bold [overflow-wrap:anywhere]"
+        id={titleId}
+        aria-label={roleCardTitle(seat.name)}
+      >
+        {isNameless(seat.name) ? (
+          roleCardTitle(seat.name)
+        ) : (
+          // Under 768 the name takes its own line with no `·` (M14.41 design round 1); from 768 one
+          // line, `Your role tonight · Bilal`, as before. The heading's name is that line either way.
+          <>
+            {ROLE_CONTROL_HEADING}
+            <span aria-hidden="true" className="max-md:hidden">{` ${HEAD_SEPARATOR} `}</span>
+            <span className="block md:inline">{renderWebName(seat.name)}</span>
+          </>
+        )}
       </h2>
-      <form className="cn-role-choices" method="post" action={ROLE_TAP_ACTION} aria-labelledby={titleId}>
+      <form className="flex flex-wrap gap-2" method="post" action={ROLE_TAP_ACTION} aria-labelledby={titleId}>
         <input type="hidden" name="lobbyId" value={lobbyId} />
         {/* Only the no-JavaScript path reads this. The route re-validates it as a path here. */}
         <input type="hidden" name="groupId" value={group.id} />
@@ -195,11 +232,11 @@ function RolePicker({
               // Tapping the chosen role clears it: `''` is the form's way of saying null, and
               // it is the only way out — there is no separate Clear button.
               value={selected ? '' : role}
-              className={selected ? 'cn-role-choice cn-role-on' : 'cn-role-choice'}
+              className={ROLE_CHOICE}
               aria-pressed={selected}
               onClick={(event) => void submit(event, selected ? null : role)}
             >
-              <RoleIcon role={role} />
+              <RoleIcon role={role} size={16} />
               {role}
             </button>
           );
@@ -208,16 +245,28 @@ function RolePicker({
       {/* Directly under the words it belongs to and above the hint, in `text`: a refusal that
           sits below a grey explanation is a refusal nobody reads (the designer, 2026-09-10). */}
       {failed === null ? null : (
-        <p className="cn-role-error" role="alert">
+        <p className="text-sm font-bold" role="alert">
           {failed}
         </p>
       )}
       {/* **One hint per state.** `open` says what a tap is worth; from `balanced` on it says
           what it is worth *now*, and the two never stack. */}
-      <p className="cn-hint">{status === 'open' ? ROLE_CONTROL_HINT : ROLE_TEAMS_ALREADY_SET}</p>
+      <p className="text-sm text-muted-foreground">
+        {status === 'open' ? ROLE_CONTROL_HINT : ROLE_TEAMS_ALREADY_SET}
+      </p>
     </section>
   );
 }
+
+/**
+ * Where `That's me` goes once the link succeeds (M14.33): a full navigation to the welcome URL.
+ * An object so a test can stand in for the browser's `location`.
+ */
+export const linkLanding = {
+  go(href: string): void {
+    window.location.assign(href);
+  },
+};
 
 /**
  * `That's me`, once (M3.6, "Picking yourself, once").
@@ -229,9 +278,12 @@ function RolePicker({
 function PickYourself({
   members,
   onLinked,
+  collapsed = false,
 }: {
   members: readonly MemberView[];
   onLinked?: (() => void) | undefined;
+  /** The lobby is balanced: one line, `Which one is you? Pick yourself`, that opens to the list. */
+  collapsed?: boolean;
 }) {
   const group = usePageGroup();
   const [failed, setFailed] = useState<string | null>(null);
@@ -253,55 +305,77 @@ function PickYourself({
         return;
       }
       setClaimed(puuid);
-      // The session is linked from now on, and that is a fact the **server** holds: this asks
-      // for the page's server components again so the rack marks the row and the footer grows
-      // its `Your games` link. Not a navigation: no document load, and the focus stays.
+      // The session is linked from now on: land on the You tab's welcome card (M14.33), which
+      // shows the whole history in one card. `onLinked` still refreshes the page underneath in
+      // case the navigation is slow.
       onLinked?.();
+      requestTonightRefresh();
+      linkLanding.go(welcomeHref(group));
     } catch {
       setFailed(LINK_OFFLINE);
     }
   }
 
-  return (
-    <RoleCard title={ROLE_CONTROL_HEADING}>
-      <p className="cn-hint" id={listId}>
+  const body = (
+    <>
+      <p className="text-sm text-muted-foreground" id={listId}>
         {PICK_YOURSELF}
       </p>
-      <ul className="cn-pick-list" aria-labelledby={listId}>
+      <ul className="flex flex-col" aria-labelledby={listId}>
         {members.map((member) => (
-          <li key={member.puuid} className="cn-pick-row">
-            <span className="cn-pick-name">{renderWebName(member.name)}</span>
-            <form method="post" action={LINK_ACTION}>
+          <li
+            key={member.puuid}
+            className="flex min-h-(--row-min-h) items-center justify-between gap-3 border-t border-border py-2"
+          >
+            <span className="min-w-0 font-bold [overflow-wrap:anywhere]">
+              <NameText name={member.name} suffix={member.nameSuffix} />
+            </span>
+            {/* M14.45: the button never wraps; a long name wraps beside it instead. */}
+            <form method="post" action={LINK_ACTION} className="shrink-0">
               <input type="hidden" name="puuid" value={member.puuid} />
               <input type="hidden" name="groupId" value={group.id} />
-              <input type="hidden" name="redirectTo" value={groupHome(group)} />
-              <button
+              <input type="hidden" name="redirectTo" value={welcomeHref(group)} />
+              <Button
                 type="submit"
-                className="cn-pick-button"
+                variant="secondary"
+                className="whitespace-nowrap"
                 onClick={(event) => void submit(event, member.puuid)}
               >
                 {/* The name is in the row beside the button in reading order, but a screen
                     reader moving button to button hears ten identical labels without it. */}
                 {THATS_ME}
-                <span className="cn-sr">{`: ${renderWebName(member.name)}`}</span>
-              </button>
+                <span className="sr-only">{`: ${renderWebName(member.name)}`}</span>
+              </Button>
             </form>
           </li>
         ))}
       </ul>
       {failed === null ? null : (
-        <p className="cn-role-error" role="alert">
+        <p className="text-sm font-bold" role="alert">
           {failed}
         </p>
       )}
       {claimed === null ? null : (
         // The list is about to be replaced by the role control on the next server render. This
         // is the one line that says the tap landed while that is in flight.
-        <p className="cn-hint" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           {`You are ${renderWebName(members.find((member) => member.puuid === claimed)?.name ?? null)}.`}
         </p>
       )}
-    </RoleCard>
+    </>
+  );
+
+  if (!collapsed) return <RoleCard title={PICK_YOURSELF_TITLE}>{body}</RoleCard>;
+  return (
+    <details className="rounded-card border border-border bg-card">
+      <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded-card p-(--card-pad) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+        <h2 className="text-md font-bold">{PICK_YOURSELF_TITLE}</h2>{' '}
+        <span className="text-sm font-bold text-primary-text underline underline-offset-3">
+          {PICK_YOURSELF_OPEN}
+        </span>
+      </summary>
+      <div className="flex flex-col gap-3 px-(--card-pad) pb-(--card-pad)">{body}</div>
+    </details>
   );
 }
 
@@ -314,13 +388,13 @@ function SignIn() {
   const group = usePageGroup();
   return (
     <RoleCard title={ROLE_CONTROL_HEADING}>
-      <p className="cn-hint">{ROLE_SIGN_IN}</p>
-      <form method="post" action={SIGN_IN_ACTION} className="cn-signin">
+      <p className="text-sm text-muted-foreground">{ROLE_SIGN_IN}</p>
+      <form method="post" action={SIGN_IN_ACTION}>
         {/* Back to the tonight page, not to `/admin`, which is where a sign-in defaults. */}
         <input type="hidden" name="next" value={groupHome(group)} />
-        <button type="submit" className="cn-button">
+        <Button type="submit" variant="secondary" className="w-full sm:w-auto">
           {SIGN_IN_LABEL}
-        </button>
+        </Button>
       </form>
     </RoleCard>
   );

@@ -47,18 +47,13 @@ if (stack === null) {
 
   const runId = randomUUID().slice(0, 8);
   const puuid = `it-${runId}-seed`;
-  const ALL_TIME = { window: 'all-time' } as const;
+  const ALL_TIME = { window: 'all-time', groupId: ORIGINAL_GROUP_ID } as const;
 
   /** Where this player started, and where they are now: the two must not be the same rank. */
   const SEED = seedFromRank('GOLD', 'II');
-  let seasonId = '';
   let playerId = '';
 
   beforeAll(async () => {
-    const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    seasonId = season?.id ?? '';
-    expect(seasonId).not.toBe('');
-
     // Gold when they first played; Diamond now, because ranks move and that is the point.
     const { data: player, error } = await db
       .from('players')
@@ -71,7 +66,6 @@ if (stack === null) {
     await db.from('ratings').insert({
       group_id: ORIGINAL_GROUP_ID,
       player_id: playerId,
-      season_id: seasonId,
       mu: 27.4,
       sigma: 5,
       games: 12,
@@ -105,7 +99,7 @@ if (stack === null) {
       .from('ratings')
       .update({ seed_mu: null, seed_sigma: null, seed_rank_tier: null, seed_rank_division: null })
       .eq('player_id', playerId)
-      .eq('season_id', seasonId);
+      .eq('group_id', ORIGINAL_GROUP_ID);
 
     const player = await loadPlayerBoard(anon, puuid, ALL_TIME);
     // With no stored seed there is nothing to read but the rule for a first one, and since

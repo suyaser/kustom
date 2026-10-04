@@ -1,11 +1,9 @@
 import type { Role } from '@customs/core';
-import { isGroupMember } from '../groups/membership';
+import { type GroupRole, groupRoleSchema, isAtLeast } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
-import { NO_SUCH_MEMBER, setMemberRole } from './members';
-import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
 /**
- * Reads and writes behind `/admin/players`.
+ * Reads behind the retired 1.0 players page (its writes were retired in M14.56).
  *
  * Every function takes the service-role client as its first argument: the pages and the route
  * handlers pass the one they were given, and the integration tests pass one built from the
@@ -34,7 +32,9 @@ export interface AdminPlayerRow {
   gameName: string | null;
   tagLine: string | null;
   discordId: string | null;
-  /** `group_memberships.role = 'admin'` in the listed group (M13.4). */
+  /** The member's role in the listed group (M13.4; `owner` since M14.11). */
+  role: GroupRole;
+  /** `admin` or `owner` in the listed group: `isAtLeast(role, 'admin')`. */
   isAdmin: boolean;
   /**
    * Inferred from play (M5.17), never set here: the most and second-most frequent role over
@@ -49,7 +49,7 @@ export interface AdminPlayerRow {
   rankTier: string | null;
   rankDivision: string | null;
   rankLp: number | null;
-  /** The active season's rating, or null when the player has never been rated. */
+  /** The group's rating, or null when the player has never been rated. */
   rating: AdminRating | null;
 }
 
@@ -132,7 +132,7 @@ function escapeIlike(search: string): string {
  * be looking at, and **prefix** on the PUUID.
  *
  * Prefix and not contains on the PUUID because that is how a PUUID is ever quoted — the first
- * characters, the same fragment `shortPuuid` prints — and an unanchored `ilike` on a 78-character
+ * characters, the same eight-character fragment the admin list once printed — and an unanchored `ilike` on a 78-character
  * random string is a sequential scan for nothing.
  */
 export function playerSearchFilter(search: string): string {
@@ -177,7 +177,6 @@ export function parsePageParam(raw: string | null | undefined): number {
 export async function listAdminPlayers(
   client: ServiceClient,
   groupId: string,
-  seasonId: string | null,
   { search, page = 1, pageSize = ADMIN_PLAYERS_PAGE_SIZE }: AdminPlayersQuery = {},
 ): Promise<AdminPlayersPage> {
   const cleanedSearch = normalizeSearch(search);
@@ -188,7 +187,7 @@ export async function listAdminPlayers(
     let query = client
       .from('players')
       .select(
-        'id, puuid, display_name, game_name, tag_line, discord_id, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, ratings(season_id, group_id, mu, sigma, games, wins), group_memberships!inner(group_id, role)',
+        'id, puuid, display_name, game_name, tag_line, discord_id, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, ratings(group_id, mu, sigma, games, wins), group_memberships!inner(group_id, role)',
         { count: 'exact' },
       )
       // The group's members only (`!inner`), with the group's rating and role (M13.3, M13.4:
@@ -200,9 +199,6 @@ export async function listAdminPlayers(
       .range(from, from + size - 1);
 
     if (cleanedSearch !== null) query = query.or(playerSearchFilter(cleanedSearch));
-    // Filters the embedded rating, not the players: a player with no rating this season still
-    // has a row on this page.
-    if (seasonId !== null) query = query.eq('ratings.season_id', seasonId);
 
     const { data, error, count } = await query;
     // PostgREST answers a range whose offset is past the end with 416 `PGRST103` rather than
@@ -239,7 +235,7 @@ export async function listAdminPlayers(
   const { data, total } = result ?? { data: [], total: 0 };
 
   return {
-    rows: data.map(toAdminPlayerRow(seasonId)),
+    rows: data.map(toAdminPlayerRow),
     total,
     page: resolvedPage,
     pageCount: pageCountFor(total, size),
@@ -249,49 +245,48 @@ export async function listAdminPlayers(
 }
 
 /**
- * One selected row into the shape the page renders. Curried on the season so the mapping and
- * the "which rating is this player's" rule stay in one place for however many pages there are.
+ * One selected row into the shape the page renders. The embedded `ratings` is already filtered to
+ * the group, so it holds at most one row (one rating per person per group).
  */
-function toAdminPlayerRow(seasonId: string | null) {
-  return (row: {
-    id: string;
-    puuid: string;
-    display_name: string | null;
-    game_name: string | null;
-    tag_line: string | null;
-    discord_id: string | null;
-    main_role: Role | null;
-    secondary_role: Role | null;
-    roles_counted: number;
-    roles_inferred_at: string | null;
-    rank_tier: string | null;
-    rank_division: string | null;
-    rank_lp: number | null;
-    ratings: { season_id: string; mu: number; sigma: number; games: number; wins: number }[];
-    group_memberships: { role: string }[];
-  }): AdminPlayerRow => {
-    const rating = row.ratings.find((entry) => seasonId === null || entry.season_id === seasonId) ?? null;
-    const membership = row.group_memberships[0] ?? null;
-    return {
-      id: row.id,
-      puuid: row.puuid,
-      displayName: row.display_name,
-      gameName: row.game_name,
-      tagLine: row.tag_line,
-      discordId: row.discord_id,
-      isAdmin: membership?.role === 'admin',
-      mainRole: row.main_role,
-      secondaryRole: row.secondary_role,
-      rolesCounted: row.roles_counted,
-      rolesInferredAt: row.roles_inferred_at,
-      rankTier: row.rank_tier,
-      rankDivision: row.rank_division,
-      rankLp: row.rank_lp,
-      rating:
-        rating === null
-          ? null
-          : { mu: rating.mu, sigma: rating.sigma, games: rating.games, wins: rating.wins },
-    };
+function toAdminPlayerRow(row: {
+  id: string;
+  puuid: string;
+  display_name: string | null;
+  game_name: string | null;
+  tag_line: string | null;
+  discord_id: string | null;
+  main_role: Role | null;
+  secondary_role: Role | null;
+  roles_counted: number;
+  roles_inferred_at: string | null;
+  rank_tier: string | null;
+  rank_division: string | null;
+  rank_lp: number | null;
+  ratings: { mu: number; sigma: number; games: number; wins: number }[];
+  group_memberships: { role: string }[];
+}): AdminPlayerRow {
+  const rating = row.ratings[0] ?? null;
+  const membership = row.group_memberships[0] ?? null;
+  // A role the union does not know (a hand-edited row) reads as a plain member: it grants nothing.
+  const role = groupRoleSchema.catch('member').parse(membership?.role ?? 'member');
+  return {
+    id: row.id,
+    puuid: row.puuid,
+    displayName: row.display_name,
+    gameName: row.game_name,
+    tagLine: row.tag_line,
+    discordId: row.discord_id,
+    role,
+    isAdmin: isAtLeast(role, 'admin'),
+    mainRole: row.main_role,
+    secondaryRole: row.secondary_role,
+    rolesCounted: row.roles_counted,
+    rolesInferredAt: row.roles_inferred_at,
+    rankTier: row.rank_tier,
+    rankDivision: row.rank_division,
+    rankLp: row.rank_lp,
+    rating:
+      rating === null ? null : { mu: rating.mu, sigma: rating.sigma, games: rating.games, wins: rating.wins },
   };
 }
 
@@ -322,114 +317,4 @@ export function formatInferredRoles(
         ? [player.mainRole]
         : [player.mainRole, player.secondaryRole];
   return [...pair, from].join(' · ');
-}
-
-export interface SetPlayerDisplayNameInput {
-  /** The request's group: a player who is not a member of it is a 404 (M13.4). */
-  groupId: string;
-  playerId: string;
-  /** `null` (the form posts `""`) puts the row back on automatic. */
-  displayName: string | null;
-}
-
-/**
- * The name the group actually calls someone (M1.7).
- *
- * This is the only override there is: `ensurePlayers` fills `display_name` from the Riot
- * `gameName` and keeps following it *while it still equals the stored `game_name`*, so writing
- * anything else here freezes the name against every later rename, and writing null hands it
- * back to the client at the next report (`lib/ingest/players.ts`, `isDisplayNameAutomatic`).
- *
- * Nothing here compares the new name to `game_name`: setting the name to exactly the current
- * `gameName` is indistinguishable from automatic *by design* — that is the whole rule, and it
- * degrades to "you typed what it already says", not to a lost override.
- */
-export async function setPlayerDisplayName(
-  client: ServiceClient,
-  input: SetPlayerDisplayNameInput,
-): Promise<AdminWriteResult<string>> {
-  if (input.displayName !== null && input.displayName.length > 40) {
-    return writeFailed(400, 'that name is too long for a team sheet; keep it under 40 characters');
-  }
-  if (!(await isGroupMember(client, input.groupId, input.playerId))) {
-    return writeFailed(404, NO_SUCH_MEMBER);
-  }
-
-  const { data, error } = await client
-    .from('players')
-    .update({ display_name: input.displayName })
-    .eq('id', input.playerId)
-    .select('id')
-    .maybeSingle();
-
-  if (error) throw new Error(`setPlayerDisplayName failed: ${error.message}`);
-  if (data === null) return writeFailed(404, 'no such player');
-  return writeOk(data.id);
-}
-
-export interface SetPlayerDiscordIdInput {
-  /** The request's group: a player who is not a member of it is a 404 (M13.4). */
-  groupId: string;
-  playerId: string;
-  /** `null` unlinks. */
-  discordId: string | null;
-}
-
-/**
- * Links or unlinks a Discord id. `players.discord_id` is unique, so linking one that already
- * belongs to someone else is a 409 rather than a database error page: an admin who mistypes a
- * snowflake should be told, not shown a stack trace.
- */
-export async function setPlayerDiscordId(
-  client: ServiceClient,
-  input: SetPlayerDiscordIdInput,
-): Promise<AdminWriteResult<string>> {
-  if (!(await isGroupMember(client, input.groupId, input.playerId))) {
-    return writeFailed(404, NO_SUCH_MEMBER);
-  }
-  if (input.discordId !== null) {
-    const { data: holder, error: holderError } = await client
-      .from('players')
-      .select('id, puuid')
-      .eq('discord_id', input.discordId)
-      .maybeSingle();
-    if (holderError) throw new Error(`setPlayerDiscordId lookup failed: ${holderError.message}`);
-    if (holder && holder.id !== input.playerId) {
-      return writeFailed(409, `that Discord id is already linked to ${holder.puuid}`);
-    }
-  }
-
-  const { data, error } = await client
-    .from('players')
-    .update({ discord_id: input.discordId })
-    .eq('id', input.playerId)
-    .select('id')
-    .maybeSingle();
-
-  if (error) throw new Error(`setPlayerDiscordId failed: ${error.message}`);
-  if (data === null) return writeFailed(404, 'no such player');
-  return writeOk(data.id);
-}
-
-export interface SetPlayerAdminInput {
-  groupId: string;
-  playerId: string;
-  isAdmin: boolean;
-}
-
-/**
- * `/admin/players`' admin toggle (M1.6), which since M13.4 is the member's role **in the request's
- * group** and nothing else — the same write, and the same rules, as `POST /api/admin/members/role`
- * (`./members.ts`): a non-member is a 404 and demoting the group's last admin is a 409.
- */
-export async function setPlayerAdmin(
-  client: ServiceClient,
-  input: SetPlayerAdminInput,
-): Promise<AdminWriteResult<string>> {
-  const result = await setMemberRole(client, {
-    groupId: input.groupId,
-    playerId: input.playerId,
-    role: input.isAdmin ? 'admin' : 'member',
-  });
-  return result.ok ? writeOk(result.value.playerId) : result;
 }

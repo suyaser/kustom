@@ -10,6 +10,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+import type { GroupPanelState } from '../session.js';
 
 export interface OverlayUiState {
   waiting: boolean;
@@ -18,7 +20,11 @@ export interface OverlayUiState {
   connected: boolean;
   error: string | null;
   payload: unknown | null;
+  /** The group picker, the zero-groups sentence and a refused-token sentence (M13.8). Null before the first push. */
+  groups: GroupPanelState | null;
 }
+
+const groupPickSchema = z.object({ groupId: z.string().min(1).max(100) });
 
 declare const __OVERLAY_UI_HTML__: string | undefined;
 declare const __OVERLAY_UI_CSS__: string | undefined;
@@ -57,6 +63,7 @@ export class OverlayServer {
     connected: false,
     error: null,
     payload: null,
+    groups: null,
   };
   private readonly clients = new Set<ServerResponse>();
 
@@ -146,9 +153,35 @@ export class OverlayServer {
       });
       return;
     }
+    if (url === '/group' && req.method === 'POST') {
+      // JSON only: a cross-origin page cannot send this content type without a preflight, which this server
+      // never answers, so a web page open in the same browser cannot flip the group.
+      if (!(req.headers['content-type'] ?? '').startsWith('application/json')) {
+        res.writeHead(415);
+        res.end();
+        return;
+      }
+      let raw = '';
+      req.on('data', (chunk: Buffer) => {
+        raw += chunk.toString('utf8');
+      });
+      req.on('end', () => {
+        res.writeHead(204);
+        res.end();
+        try {
+          const parsed = groupPickSchema.safeParse(JSON.parse(raw));
+          if (parsed.success) this.onGroupPick?.(parsed.data.groupId);
+        } catch {
+          // ignore
+        }
+      });
+      return;
+    }
     res.writeHead(404);
     res.end('not found');
   }
+
+  onGroupPick: ((groupId: string) => void) | null = null;
 
   onPosition: ((position: { x: number; y: number }) => void) | null = null;
 }

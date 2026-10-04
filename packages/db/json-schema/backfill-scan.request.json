@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/backfill-scan.request",
+  "title": "companionBackfillScanRequestSchema",
+  "description": "POST /api/companion/backfill/scan (request)",
+  "type": "object",
+  "properties": {
+    "gameIds": {
+      "minItems": 1,
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
+  },
+  "required": [
+    "gameIds"
+  ]
+}

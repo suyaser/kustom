@@ -7,9 +7,15 @@ import { jsonError, jsonOk, parseJsonBody } from '@/lib/http';
 import { getServiceClient, type ServiceClient } from '@/lib/supabase';
 
 /**
- * `POST /api/companion/pair { code, puuid }` (M13.5): Kustom sends the code a person typed and the
- * PUUID it reads from League on that PC. **The one companion route with no token** -- the person
- * pairing has none, and joining never mints one (decision 2026-09-23).
+ * `POST /api/companion/pair { code, puuid, mode? }` (M13.5; host mode M14.12): Kustom sends the
+ * code a person typed and the PUUID it reads from League on that PC. **The one companion route with
+ * no token** -- the person pairing has none.
+ *
+ * `mode: 'overlay'` or no mode is M13.5 exactly: `{ ok, group }`, never a token. `mode: 'host'`
+ * links the same way and then, when the code's session is the group's owner or an admin and the
+ * PUUID is their own linked account, mints a host token and returns it **once** as
+ * `companionToken`; a member gets `hostRefusal` instead (`lib/groups/pairing.ts`, decision row
+ * 2026-10-03). The token is in this response and nowhere else: never logged, stored as SHA-256.
  *
  * Order: the rate limit first (10 a minute per address, every attempt counted, a malformed one
  * too), then the body, then `redeem_pairing_code`. Every refusal is the envelope with the sentence
@@ -46,11 +52,19 @@ export function companionPairRoute(options: PairRouteOptions = {}) {
       const body = await parseJsonBody(request, companionPairRequestSchema);
       if (!body.ok) return body.response;
 
-      const result = await redeemPairingCode(client, body.data.code, body.data.puuid);
+      const mode = body.data.mode ?? 'overlay';
+      const result = await redeemPairingCode(client, body.data.code, body.data.puuid, mode);
       if (!result.ok) return jsonError(result.status, result.error);
 
-      return jsonOk(companionPairResponseSchema, { ok: true, group: result.value.group });
+      const { group, companionToken, hostRefusal } = result.value;
+      return jsonOk(companionPairResponseSchema, {
+        ok: true,
+        group,
+        ...(companionToken === undefined ? {} : { companionToken }),
+        ...(hostRefusal === undefined ? {} : { hostRefusal }),
+      });
     } catch (error) {
+      // Never the token: nothing above throws with it in the message.
       console.error('companion pair failed', error);
       return jsonError(500, 'internal error');
     }

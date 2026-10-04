@@ -6,11 +6,13 @@ import { linkSelf, type SelfLinkStore, supabaseSelfLinkStore } from '@/lib/me/se
 import { nightTimeZone } from '@/lib/tonight/night';
 
 /**
- * `POST /api/me/link` (M3.6, "Picking yourself, once"): a signed-in visitor claims one of
- * tonight's lobby members as themselves, once, with no admin involved.
+ * `POST /api/me/link` (M3.6, "Picking yourself, once"; widened by M14.34): a signed-in visitor
+ * claims one of tonight's lobby members, or one of the ten of a game of the group that ended in
+ * the last 12 hours, as themselves, once, with no admin involved.
  *
  * It writes `players.discord_id` and nothing else. Which rows may be claimed is decided here
- * from the body's group's tonight lobby (M13.4), never from anything else in the body, and a row
+ * from the body's group's tonight lobby and recent games (M13.4, M14.34), never from anything
+ * else in the body, and a row
  * that is already linked is refused with product's sentence. No membership is asked of the
  * visitor — they have no player row yet — and `context.role` is not read.
  */

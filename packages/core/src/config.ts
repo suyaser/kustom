@@ -101,40 +101,15 @@ export const config = {
     provisionalSigma: 12,
     /** Leaderboard ordinal is `mu - ordinalSigmaWeight * sigma`. */
     ordinalSigmaWeight: 2,
+    /**
+     * Rated games before a player is ranked on the board (M14.4, STRATEGY §5). Under this they
+     * sit in the unnumbered `Still settling` section with a `settling · n/10` chip. Ten because
+     * `00-product.md` says a Rating settles in about ten nightly games; read it as
+     * `SETTLING_GAMES`, below, never as a literal 10 in a page.
+     */
+    settlingGames: 10,
     /** Display rating is `round(mu * displayMultiplier)`. Also the unit the balancer scores in. */
     displayMultiplier: 60,
-    /**
-     * The weekly track (M7.2): `rateGameWeekly`'s OpenSkill options, and the only place they
-     * live. Read by nothing else — the all-time channel (`rateGame`) passes no options at all
-     * and must keep producing the numbers already stored on `game_players`.
-     *
-     * Measured (see `rating/index.test.ts` and `01-architecture.md`): one game moves a fresh
-     * Sunday seed about 79 display points and a settled player about 32, against 77 and 29 on
-     * the all-time channel, and on M1.3's convergence setup `sigma` drops below 5.00 in game
-     * 30 against the all-time channel's 36. The week is worth having because it *moves* — the
-     * Sunday reseed (M7.3) is most of that — not because it settles sooner.
-     */
-    weekly: {
-      /**
-       * How much luck OpenSkill assumes in one game. Its default is `25 / 6` (about 4.17);
-       * the week halves it, so a result carries about twice the information and a week's
-       * games move the number sooner. Below about 2.00 the curve flattens: a player's `mu`
-       * step is `sigma^2 * (1 - p) / c` with `c = sqrt(sum of the ten sigmas squared +
-       * 2 * beta^2)`, so beta accounts for roughly 35 of a `c^2` near 214 and the ten
-       * players' sigmas dominate it. Nothing left to buy below here, and swing to pay for it.
-       */
-      beta: 2,
-      /**
-       * Uncertainty added back before each game, so the Thursday games still move a number
-       * the Sunday and Monday games have already tightened. OpenSkill's default is `25 / 300`
-       * (0.083). A knee, not a ceiling: `sigma` still reaches 5.00 at 0.35 (game 34), 0.40
-       * (game 39) and 0.45 (game 59), and stops reaching it at all from about 0.46 up
-       * (measured to 500 games). The weekly board sorts on `ordinal = mu - 2 * sigma`, so a
-       * sigma that never converges is a Proven column that never means anything; 0.30 keeps
-       * the week responsive and still settles.
-       */
-      tau: 0.3,
-    },
     /**
      * Which weight vector each role is scored on (M7.13). **This map is named here and
      * nowhere else**: a second copy is how top quietly stops being a carry.
@@ -223,6 +198,42 @@ export const config = {
       bonusFraction: 0.25,
       aceReliefFraction: 0.2,
     },
+    /**
+     * "Why this many points" (M14.58): the bands `explainDelta` reads. Words only; sigma is never
+     * printed.
+     *
+     * **Odds stance.** The side's percent is `favoredSide`'s rounding (the receipt's), so a red
+     * row is 100 minus the receipt's blue percent. `even` is `evenPct.low` to `evenPct.high`
+     * inclusive (the brief's 48-52); above is `favourite`, below is `underdog`. It is wider than
+     * `oddsBand`'s `even` (exactly 50) on purpose: the sentence is about whether the odds changed
+     * the size of the swing, and at 52% they barely did.
+     *
+     * **Certainty.** With the player's rated-game count before this game, the count decides and
+     * nothing else, so the sentence can never contradict the `settling · n/10` chip: games
+     * 1 to `newGames` are `new`, then `settling`, and game `SETTLING_GAMES` (ten; nine before it)
+     * is the first `settled` one.
+     *
+     * Without a count, `sigma_before` decides: above `newSigmaAbove` is `new`, at or below
+     * `settledSigmaAtOrBelow` is `settled`, `settling` between. The two numbers are fitted to
+     * M1.3's reference lobby (a `provisionalSeed` newcomer among nine settled Gold IVs, mu 23
+     * sigma 3.5, losing and winning in turn), where `sigma_before` is:
+     *
+     * | game | 1 | 2 | 3 | **4** | ... | 9 | **10** | 11 |
+     * |---|---|---|---|---|---|---|---|---|
+     * | `sigma_before` | 12.000 | 11.378 | 10.848 | 10.355 | ... | 8.559 | 8.286 | 8.039 |
+     *
+     * 10.6 sits between games 3 and 4, 8.4 between games 9 and 10, so that newcomer reads new
+     * for three games, settling for six, and settled from the tenth, the same line the chip draws
+     * (`rating/explain.test.ts` pins it). A streak or a looser lobby shifts sigma by a game or
+     * two either way; a group whose whole history starts from seeds together keeps sigma above 10
+     * for weeks, which is why the count wins whenever the caller has it.
+     */
+    explain: {
+      evenPct: { low: 48, high: 52 },
+      newGames: 3,
+      newSigmaAbove: 10.6,
+      settledSigmaAtOrBelow: 8.4,
+    },
   },
   balance: {
     /**
@@ -270,6 +281,24 @@ export const config = {
     /** Fewer counted games than this and the player is flexible (`main: null`). Three is not one lucky fill. */
     minGames: 3,
   },
+  modes: {
+    /**
+     * Whether a game is rated when nobody flips the switch (M15, brief D5). Normal, Fearless and
+     * mirror match are ordinary League; class wars and region wars play off-meta pools that must
+     * not move a rating or teach a role. An admin may flip it for the next game in any mode.
+     */
+    ratedDefault: { normal: true, fearless: true, class: false, region: false, mirror: true },
+    /** A class with fewer open champions than this (Fearless bans counted) cannot be picked or spun (D7). */
+    classMinOpen: 10,
+    /**
+     * A region needs at least this many open champions to be drawn for region wars (R8): five leaves
+     * the last picker no choice and often no support.
+     */
+    regionMinOpen: 8,
+  },
 } as const;
 
 export type Config = typeof config;
+
+/** The one settling threshold (STRATEGY §5): `config.rating.settlingGames` under its board name. */
+export const SETTLING_GAMES: number = config.rating.settlingGames;

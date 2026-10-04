@@ -1,0 +1,311 @@
+{
+  "about": "JSON Schema (zod 4 toJSONSchema, input side) of every /api/companion/* request and response schema in @customs/db/schemas (M17.3). GENERATED: do not hand-edit. This folder is the drift alarm: CI regenerates it and fails on a diff. The real contract is the goldens in apps/companion/crates/engine/tests/goldens/, parsed through the zod schemas by packages/db/src/contract/goldens.test.ts.",
+  "generator": "packages/db/scripts/export-schemas.ts (pnpm --filter @customs/db export-schemas; --check to verify)",
+  "notExportedKey": "x-zod-not-exported",
+  "notExportedKinds": {
+    "preprocess": "z.preprocess: the server rewrites the value before checking it (companionLobbyPayloadSchema drops bot and placeholder members first). The schema shown is what is checked after the rewrite.",
+    "refine": ".refine / .superRefine: a code check with no JSON Schema form (a placeholder puuid, a safe-integer bound, a token-or-refusal rule).",
+    "normalised": ".trim() (or another overwrite) before a length or pattern check: zod checks the normalised string, JSON Schema checks the raw one.",
+    "custom": "z.custom: a code-only type."
+  },
+  "schemas": [
+    {
+      "file": "error.response.json",
+      "route": "every /api/companion/* route",
+      "side": "response",
+      "schema": "companionErrorResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "me.response.json",
+      "route": "GET /api/companion/me",
+      "side": "response",
+      "schema": "companionMeResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "pair.request.json",
+      "route": "POST /api/companion/pair",
+      "side": "request",
+      "schema": "companionPairRequestSchema",
+      "notExported": [
+        {
+          "pointer": "/properties/puuid",
+          "kinds": [
+            "refine"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "pair.response.json",
+      "route": "POST /api/companion/pair",
+      "side": "response",
+      "schema": "companionPairResponseSchema",
+      "notExported": [
+        {
+          "pointer": "/",
+          "kinds": [
+            "refine"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lobby.request.json",
+      "route": "POST /api/companion/lobby",
+      "side": "request",
+      "schema": "companionLobbyPayloadSchema",
+      "notExported": [
+        {
+          "pointer": "/",
+          "kinds": [
+            "preprocess"
+          ]
+        },
+        {
+          "pointer": "/properties/partyId",
+          "kinds": [
+            "normalised"
+          ]
+        },
+        {
+          "pointer": "/properties/members/items/properties/puuid",
+          "kinds": [
+            "refine"
+          ]
+        },
+        {
+          "pointer": "/properties/members/items/properties/summonerId/anyOf/0/anyOf/0",
+          "kinds": [
+            "refine"
+          ]
+        },
+        {
+          "pointer": "/properties/members/items/properties/summonerId/anyOf/0/anyOf/1",
+          "kinds": [
+            "normalised"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lobby.response.json",
+      "route": "POST /api/companion/lobby",
+      "side": "response",
+      "schema": "companionLobbyResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "game.request.json",
+      "route": "POST /api/companion/game",
+      "side": "request",
+      "schema": "companionGamePayloadSchema",
+      "notExported": [
+        {
+          "pointer": "/anyOf/0/properties/gameId/anyOf/1",
+          "kinds": [
+            "refine"
+          ]
+        },
+        {
+          "pointer": "/anyOf/0/properties/partyId/anyOf/0",
+          "kinds": [
+            "normalised"
+          ]
+        },
+        {
+          "pointer": "/anyOf/1/properties/gameId/anyOf/1",
+          "kinds": [
+            "refine"
+          ]
+        },
+        {
+          "pointer": "/anyOf/1/properties/partyId/anyOf/0",
+          "kinds": [
+            "normalised"
+          ]
+        },
+        {
+          "pointer": "/anyOf/1/properties/participants/items/properties/puuid",
+          "kinds": [
+            "refine"
+          ]
+        },
+        {
+          "pointer": "/anyOf/1/properties/participants/items/properties/summonerId/anyOf/0/anyOf/0",
+          "kinds": [
+            "refine"
+          ]
+        },
+        {
+          "pointer": "/anyOf/1/properties/participants/items/properties/summonerId/anyOf/0/anyOf/1",
+          "kinds": [
+            "normalised"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "game.response.json",
+      "route": "POST /api/companion/game",
+      "side": "response",
+      "schema": "companionGameResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "rank.request.json",
+      "route": "POST /api/companion/rank",
+      "side": "request",
+      "schema": "companionRankPayloadSchema",
+      "notExported": [
+        {
+          "pointer": "/properties/puuid",
+          "kinds": [
+            "refine"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "rank.response.json",
+      "route": "POST /api/companion/rank",
+      "side": "response",
+      "schema": "companionRankResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "backfill-scan.request.json",
+      "route": "POST /api/companion/backfill/scan",
+      "side": "request",
+      "schema": "companionBackfillScanRequestSchema",
+      "notExported": []
+    },
+    {
+      "file": "backfill-scan.response.json",
+      "route": "POST /api/companion/backfill/scan",
+      "side": "response",
+      "schema": "companionBackfillScanResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "commands-poll.query.json",
+      "route": "GET /api/companion/commands",
+      "side": "query",
+      "schema": "companionCommandsQuerySchema",
+      "notExported": []
+    },
+    {
+      "file": "commands-poll.response.json",
+      "route": "GET /api/companion/commands",
+      "side": "response",
+      "schema": "companionCommandsResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "commands-poll.payload.create_lobby.json",
+      "route": "GET /api/companion/commands",
+      "side": "response",
+      "schema": "createLobbyCommandPayloadSchema",
+      "notExported": [
+        {
+          "pointer": "/properties/lobbyName",
+          "kinds": [
+            "normalised"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "commands-poll.payload.invite.json",
+      "route": "GET /api/companion/commands",
+      "side": "response",
+      "schema": "inviteCommandPayloadSchema",
+      "notExported": [
+        {
+          "pointer": "/properties/puuid",
+          "kinds": [
+            "refine"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "commands-poll.payload.switch_side.json",
+      "route": "GET /api/companion/commands",
+      "side": "response",
+      "schema": "switchSideCommandPayloadSchema",
+      "notExported": []
+    },
+    {
+      "file": "command-ack.request.json",
+      "route": "POST /api/companion/commands/{id}/ack",
+      "side": "request",
+      "schema": "companionCommandAckRequestSchema",
+      "notExported": []
+    },
+    {
+      "file": "command-ack.result.create_lobby.json",
+      "route": "POST /api/companion/commands/{id}/ack",
+      "side": "request",
+      "schema": "createLobbyCommandResultSchema",
+      "notExported": []
+    },
+    {
+      "file": "command-ack.result.invite.json",
+      "route": "POST /api/companion/commands/{id}/ack",
+      "side": "request",
+      "schema": "inviteCommandResultSchema",
+      "notExported": [
+        {
+          "pointer": "/properties/puuid",
+          "kinds": [
+            "refine"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "command-ack.result.switch_side.json",
+      "route": "POST /api/companion/commands/{id}/ack",
+      "side": "request",
+      "schema": "switchSideCommandResultSchema",
+      "notExported": []
+    },
+    {
+      "file": "command-ack.response.json",
+      "route": "POST /api/companion/commands/{id}/ack",
+      "side": "response",
+      "schema": "companionCommandAckResponseSchema",
+      "notExported": []
+    },
+    {
+      "file": "command-nack.request.json",
+      "route": "POST /api/companion/commands/{id}/nack",
+      "side": "request",
+      "schema": "companionCommandNackRequestSchema",
+      "notExported": [
+        {
+          "pointer": "/properties/error",
+          "kinds": [
+            "normalised"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "command-nack.reason.json",
+      "route": "POST /api/companion/commands/{id}/nack",
+      "side": "request",
+      "schema": "commandFailureReasonSchema",
+      "notExported": []
+    },
+    {
+      "file": "command-nack.response.json",
+      "route": "POST /api/companion/commands/{id}/nack",
+      "side": "response",
+      "schema": "companionCommandAckResponseSchema",
+      "notExported": []
+    }
+  ]
+}

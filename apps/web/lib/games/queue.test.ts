@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { gamesHref, gamesQuery } from './href';
 import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, parseQueue } from './queue';
 
 describe('parseQueue', () => {
@@ -48,25 +47,5 @@ describe('matchesQueue', () => {
     expect(matchesQueue('CLASSIC', 'aram')).toBe(false);
     expect(matchesQueue(null, 'aram')).toBe(false);
     expect(matchesQueue('KIWI', 'aram')).toBe(false);
-  });
-});
-
-describe('gamesQuery', () => {
-  it('omits the default queue so a Rift URL stays short', () => {
-    expect(gamesQuery({ queue: 'sr' })).toEqual({});
-    expect(gamesQuery({ focusPuuid: 'u-lena', queue: 'sr' })).toEqual({ p: 'u-lena' });
-  });
-
-  it('keeps ARAM and a focus across the picker', () => {
-    expect(gamesQuery({ queue: 'aram' })).toEqual({ queue: 'aram' });
-    expect(gamesQuery({ focusPuuid: 'u-lena', queue: 'aram' })).toEqual({
-      p: 'u-lena',
-      queue: 'aram',
-    });
-  });
-
-  it('builds the Everyone link without the person', () => {
-    expect(gamesHref('this-week', { queue: 'sr' })).toBe('/games?window=this-week');
-    expect(gamesHref('this-week', { queue: 'aram' })).toBe('/games?window=this-week&queue=aram');
   });
 });

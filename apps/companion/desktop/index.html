@@ -1,229 +1,138 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kustom</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      color-scheme: dark;
-      --cn-bg: #0B0E14;
-      --cn-surface: #141923;
-      --cn-raise: #1D2431;
-      --cn-line: #2A3140;
-      --cn-text: #EEF2F8;
-      --cn-dim: #94A0B2;
-      --cn-blue: #4C9AFF;
-      --cn-red: #FF6B63;
-      --cn-brand: #FFB13C;
-      --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
-      --sp-2: 8px;
-      --sp-3: 12px;
-      --sp-4: 16px;
-      --sp-5: 24px;
-      --font-sans: 'Archivo', 'Helvetica Neue', Arial, system-ui, sans-serif;
-      --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-      font-family: var(--font-sans);
-      font-size: 14px;
-      line-height: 1.5;
-      background: var(--cn-bg);
-      color: var(--cn-text);
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background:
-        radial-gradient(120% 70% at 50% -15%, color-mix(in srgb, var(--cn-brand) 5%, transparent), transparent 65%),
-        var(--cn-bg);
-    }
-    header {
-      padding: var(--sp-5) var(--sp-5) var(--sp-4);
-      border-bottom: 1px solid var(--cn-line);
-    }
-    .wordmark {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      margin-bottom: var(--sp-2);
-    }
-    .wordmark::first-letter { color: var(--cn-brand); }
-    .subtitle { font-size: 13px; color: var(--cn-dim); }
-    main { flex: 1; padding: var(--sp-5); overflow-y: auto; }
-    .form-group { margin-bottom: var(--sp-5); }
-    label {
-      display: block;
-      margin-bottom: var(--sp-2);
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .mode-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--sp-3);
-    }
-    .mode-card {
-      text-align: left;
-      padding: var(--sp-4);
-      background: var(--cn-surface);
-      border: 1px solid var(--cn-line);
-      border-radius: 10px;
-      box-shadow: var(--cn-lit);
-      color: var(--cn-text);
-      cursor: pointer;
-      width: 100%;
-    }
-    .mode-card[aria-pressed="true"] {
-      border-color: var(--cn-brand);
-      background: color-mix(in srgb, var(--cn-brand) 8%, var(--cn-surface));
-    }
-    .mode-card strong {
-      display: block;
-      font-size: 15px;
-      margin-bottom: 4px;
-    }
-    .mode-card span {
-      font-size: 12px;
-      color: var(--cn-dim);
-      line-height: 1.35;
-    }
-    input[type="password"],
-    input[type="text"] {
-      width: 100%;
-      padding: 10px 12px;
-      background: var(--cn-surface);
-      border: 1px solid var(--cn-line);
-      border-radius: 8px;
-      box-shadow: var(--cn-lit);
-      color: var(--cn-text);
-      font-family: var(--font-mono);
-      font-size: 13px;
-    }
-    input:focus { outline: none; border-color: var(--cn-brand); }
-    .help-text {
-      margin-top: var(--sp-2);
-      font-size: 12px;
-      color: var(--cn-dim);
-      line-height: 1.4;
-    }
-    button.primary, button.secondary-button {
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 8px;
-      font-family: var(--font-sans);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 120ms, opacity 120ms;
-    }
-    button.primary {
-      background: var(--cn-brand);
-      color: var(--cn-bg);
-    }
-    button.primary:hover, button.secondary-button:hover { opacity: 0.9; }
-    button.primary:active, button.secondary-button:active { transform: scale(0.985); }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    .status-card {
-      padding: var(--sp-4);
-      background: var(--cn-surface);
-      border: 1px solid var(--cn-line);
-      border-radius: 10px;
-      box-shadow: var(--cn-lit);
-      margin-bottom: var(--sp-4);
-    }
-    .status-label {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--cn-dim);
-      margin-bottom: var(--sp-2);
-    }
-    .status-value { font-size: 17px; font-weight: 600; }
-    .status-value.state { font-family: var(--font-mono); font-size: 16px; }
-    .actions { display: flex; flex-direction: column; gap: var(--sp-3); }
-    .secondary-button {
-      background: var(--cn-raise);
-      color: var(--cn-text);
-      border: 1px solid var(--cn-line);
-    }
-    .error {
-      padding: var(--sp-3);
-      background: color-mix(in srgb, var(--cn-red) 10%, var(--cn-surface));
-      border: 1px solid color-mix(in srgb, var(--cn-red) 55%, var(--cn-line));
-      border-radius: 8px;
-      color: var(--cn-text);
-      font-size: 13px;
-      margin-bottom: var(--sp-4);
-    }
-    .hidden { display: none; }
-  </style>
-</head>
-<body>
-  <header>
-    <h1 class="wordmark">Kustom</h1>
-    <p class="subtitle" id="subtitle">Pick how this PC runs</p>
-  </header>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kustom</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <!-- Kustom's window (05-design §9). Every word comes from the Rust view model (src-tauri/src/model.rs);
+         this file is structure only, painted by app.js. -->
+    <header class="top">
+      <svg class="lockup" role="img" aria-label="Kustom" viewBox="0 0 93 22" width="93" height="22" focusable="false">
+        <rect x="0" y="0" width="5" height="22" rx="2" class="lockup-bar" />
+        <path transform="translate(13 2.77)" class="lockup-word" d="M0.96 16.46V-0.05H5.35V6.6L7.7 -0.05H12.24L9.34 7.22L12.36 16.46H7.56L6.36 11.21L5.35 12.53V16.46Z M18.77 16.75Q17.16 16.75 15.98 16.21Q14.81 15.67 14.18 14.4Q13.56 13.13 13.56 10.94V-0.05H17.95V11.18Q17.95 12.02 18.07 12.52Q18.19 13.01 18.72 13.01Q19.27 13.01 19.42 12.52Q19.56 12.02 19.56 11.18V-0.05H23.95V10.94Q23.95 13.13 23.33 14.4Q22.7 15.67 21.55 16.21Q20.4 16.75 18.77 16.75Z M31.08 16.75Q30 16.75 29.06 16.54Q28.13 16.32 27.41 15.76Q26.69 15.19 26.28 14.18Q25.87 13.18 25.87 11.57Q25.87 11.52 25.87 11.34Q25.87 11.16 25.9 11.06H30.07Q30.07 11.18 30.07 11.32Q30.07 11.45 30.07 11.57Q30.07 12.19 30.19 12.5Q30.31 12.82 30.5 12.92Q30.7 13.03 30.94 13.03Q31.1 13.03 31.22 12.98Q31.34 12.94 31.44 12.84Q31.54 12.74 31.6 12.6Q31.66 12.46 31.68 12.26Q31.7 12.07 31.7 11.86Q31.7 11.4 31.46 11.09Q31.22 10.78 30.83 10.54Q30.43 10.3 29.93 10.07Q29.42 9.84 28.88 9.58Q28.34 9.31 27.84 8.94Q27.34 8.57 26.94 8.02Q26.54 7.46 26.3 6.7Q26.06 5.93 26.06 4.87Q26.06 3.43 26.47 2.44Q26.88 1.44 27.6 0.83Q28.32 0.22 29.22 -0.07Q30.12 -0.36 31.1 -0.36Q32.09 -0.36 32.95 -0.12Q33.82 0.12 34.46 0.65Q35.11 1.18 35.48 2.06Q35.86 2.95 35.86 4.25V4.94H31.73V4.66Q31.73 4.25 31.69 3.97Q31.66 3.7 31.54 3.55Q31.42 3.41 31.13 3.41Q30.89 3.41 30.74 3.53Q30.6 3.65 30.55 3.85Q30.5 4.06 30.5 4.34Q30.5 4.85 30.74 5.21Q30.98 5.57 31.39 5.82Q31.8 6.07 32.3 6.3Q32.81 6.53 33.34 6.79Q33.86 7.06 34.37 7.42Q34.87 7.78 35.28 8.3Q35.69 8.83 35.93 9.58Q36.17 10.32 36.17 11.35Q36.17 13.15 35.56 14.35Q34.94 15.55 33.82 16.15Q32.69 16.75 31.08 16.75Z M40.54 16.46V3.74H37.37V-0.05H48.05V3.74H44.93V16.46Z M55.54 16.75Q53.52 16.75 52.21 15.89Q50.9 15.02 50.26 13.14Q49.61 11.26 49.61 8.21Q49.61 5.16 50.26 3.28Q50.9 1.39 52.21 0.53Q53.52 -0.34 55.54 -0.34Q57.55 -0.34 58.87 0.53Q60.19 1.39 60.83 3.28Q61.46 5.16 61.46 8.21Q61.46 11.26 60.83 13.14Q60.19 15.02 58.87 15.89Q57.55 16.75 55.54 16.75ZM55.54 12.98Q56.04 12.98 56.33 12.77Q56.62 12.55 56.76 12.16Q56.9 11.76 56.95 11.2Q57 10.63 57 9.94V6.48Q57 5.78 56.95 5.23Q56.9 4.68 56.76 4.27Q56.62 3.86 56.33 3.65Q56.04 3.43 55.54 3.43Q55.03 3.43 54.74 3.65Q54.46 3.86 54.31 4.27Q54.17 4.68 54.12 5.23Q54.07 5.78 54.07 6.48V9.94Q54.07 10.63 54.12 11.2Q54.17 11.76 54.31 12.16Q54.46 12.55 54.74 12.77Q55.03 12.98 55.54 12.98Z M63.62 16.46V-0.05H69.67L70.56 5.78Q70.63 6.26 70.73 6.96Q70.82 7.66 70.93 8.36Q71.04 9.07 71.11 9.62H71.35Q71.42 9.17 71.52 8.5Q71.62 7.82 71.71 7.12Q71.81 6.41 71.88 5.81L72.72 -0.05H78.62V16.46H74.47V11.71Q74.47 10.42 74.52 9.34Q74.57 8.26 74.62 7.48Q74.66 6.7 74.66 6.36H74.45Q74.4 6.65 74.33 7.04Q74.26 7.44 74.2 7.8Q74.14 8.16 74.09 8.4L72.79 16.46H69.46L68.16 8.4Q68.14 8.16 68.06 7.8Q67.99 7.44 67.93 7.04Q67.87 6.65 67.82 6.36H67.61Q67.66 6.96 67.69 7.86Q67.73 8.76 67.75 9.77Q67.78 10.78 67.78 11.71V16.46Z" />
+      </svg>
+      <span class="version" id="version"></span>
+    </header>
 
-  <main>
-    <div id="setup-screen">
-      <div class="form-group">
-        <fieldset class="mode-fieldset">
-          <legend>Mode</legend>
-        <div class="mode-row">
-          <button type="button" class="mode-card" id="mode-host" aria-pressed="true">
-            <strong>Host</strong>
-            <span>Paste a token. Opens lobbies, posts results, and shows the panel.</span>
-          </button>
-          <button type="button" class="mode-card" id="mode-overlay" aria-pressed="false">
-            <strong>Overlay</strong>
-            <span>No token. Fearless bans and lobby synergy during champ select.</span>
-          </button>
+    <div class="scroll" id="scroll">
+    <main id="main">
+      <!-- Link (9.4) -->
+      <section id="screen-link" class="screen" hidden>
+        <button type="button" class="link-button back" id="link-back" hidden></button>
+        <!-- biome-ignore lint/a11y/useHeadingContent: app.js fills every heading from the Rust view model -->
+        <h1 id="link-heading"></h1>
+        <ol class="steps">
+          <li id="link-step-1"></li>
+          <li id="link-step-2"></li>
+        </ol>
+        <form id="link-form" class="link-form" novalidate>
+          <!-- biome-ignore lint/a11y/noLabelWithoutControl: app.js fills the label text from the Rust view model -->
+          <label for="code" id="code-label"></label>
+          <input id="code" class="code" type="text" inputmode="text" autocomplete="off" spellcheck="false"
+            autocapitalize="characters" aria-describedby="link-slot" />
+          <button type="submit" class="primary" id="link-button"></button>
+          <div id="link-slot" class="slot slot-3"></div>
+        </form>
+      </section>
+
+      <!-- Home (9.5) -->
+      <section id="screen-home" class="screen" hidden>
+        <div class="card update-card" id="update-card" hidden>
+          <p id="update-text"></p>
+          <button type="button" class="primary" id="restart-now"></button>
+          <p id="update-line" class="line" role="status"></p>
         </div>
-        </fieldset>
-      </div>
 
-      <div class="form-group" id="token-group">
-        <label for="token-input">Companion token</label>
-        <input type="password" id="token-input" placeholder="Paste from /admin" autocomplete="off" />
-        <p class="help-text">Admins mint one token per host PC. Never share it.</p>
-      </div>
+        <div class="card group-card">
+          <!-- biome-ignore lint/a11y/useHeadingContent: app.js fills every heading from the Rust view model -->
+          <h1 class="group-heading"><span class="label" id="recording-for"></span> <span class="group-name" id="group-name"></span></h1>
+          <p class="linked-line" id="linked-line" hidden></p>
+          <div id="switcher" class="switcher" hidden>
+            <!-- biome-ignore lint/a11y/noLabelWithoutControl: app.js fills the label text from the Rust view model -->
+            <label for="group-select" id="switch-label"></label>
+            <select id="group-select" aria-describedby="switch-line"></select>
+            <p id="switch-line" class="line" role="status"></p>
+          </div>
+          <button type="button" class="link-button" id="link-another"></button>
+        </div>
 
-      <div class="form-group">
-        <label for="api-input">API address</label>
-        <input type="text" id="api-input" value="https://kustom-delta.vercel.app" placeholder="https://kustom-delta.vercel.app" />
-      </div>
+        <div class="card status-card">
+          <div class="row league-row" id="league-row">
+            <span class="row-label" id="league-label"></span>
+            <span class="row-value">
+              <svg class="dot" id="league-dot" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
+                <circle cx="6" cy="6" r="5" class="dot-solid" />
+                <circle cx="6" cy="6" r="4.25" class="dot-ring" />
+              </svg>
+              <span id="league-text"></span>
+            </span>
+          </div>
+          <div class="cant-find" id="cant-find" hidden>
+            <p class="cant-find-title">
+              <span class="row-label" id="cant-find-label"></span>
+              <span class="row-value">
+                <svg class="dot" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
+                  <circle cx="6" cy="6" r="4.25" class="dot-ring" />
+                </svg>
+                <strong id="cant-find-title"></strong>
+              </span>
+            </p>
+            <p id="cant-find-line"></p>
+            <div class="buttons">
+              <button type="button" class="secondary" id="browse" aria-describedby="league-slot"></button>
+              <button type="button" class="secondary" id="try-again" aria-describedby="league-slot"></button>
+            </div>
+            <p class="muted" id="cant-find-hint"></p>
+          </div>
+          <div id="league-slot" class="slot" hidden></div>
+          <div class="row last-row">
+            <span class="row-label" id="last-label"></span>
+            <span class="row-value" id="last-value"></span>
+          </div>
+        </div>
 
-      <div id="error-message" class="error hidden"></div>
-      <button type="button" class="primary" id="save-button">Save and start</button>
+        <button type="button" class="primary wide" id="open-tonight"></button>
+
+        <div class="folder-row">
+          <span class="folder-label" id="folder-label"></span>
+          <span class="folder-value" id="folder-value"></span>
+          <button type="button" class="link-button" id="change-folder" aria-describedby="folder-slot"></button>
+        </div>
+        <div id="folder-slot" class="slot" hidden></div>
+      </section>
+
+      <!-- Old engine still running (9.6) -->
+      <section id="screen-old" class="screen" hidden>
+        <!-- biome-ignore lint/a11y/useHeadingContent: app.js fills every heading from the Rust view model -->
+        <h1 id="old-heading"></h1>
+        <p class="lead" id="old-line"></p>
+        <p class="muted" id="old-help"></p>
+        <button type="button" class="primary wide" id="retry" aria-describedby="old-slot"></button>
+        <div id="old-slot" class="slot slot-1"></div>
+      </section>
+
+      <!-- Restarting (9.5.4) -->
+      <section id="screen-restarting" class="screen restarting" hidden>
+        <p role="status" id="restarting-text"></p>
+      </section>
+    </main>
+
+    <footer id="footer">
+      <div class="footer-row">
+        <!-- biome-ignore lint/a11y/noLabelWithoutControl: wraps its checkbox; app.js fills the text -->
+        <label class="check"><input type="checkbox" id="autostart" /> <span id="autostart-label"></span></label>
+        <button type="button" class="link-button" id="open-logs"></button>
+      </div>
+      <p class="note" id="closing-note" hidden></p>
+      <p class="note" id="riot-notice"></p>
+    </footer>
     </div>
 
-    <div id="running-screen" class="hidden">
-      <div class="status-card">
-        <div class="status-label">Mode</div>
-        <div class="status-value" id="status-mode">—</div>
-      </div>
-      <div class="status-card">
-        <div class="status-label">Status</div>
-        <div class="status-value state" id="status-state">Starting</div>
-      </div>
-      <div class="status-card">
-        <div class="status-label">Phase</div>
-        <div class="status-value" id="status-phase">—</div>
-      </div>
-      <div class="actions">
-        <button type="button" id="logs-button" class="secondary-button">Open logs</button>
-        <button type="button" id="edit-button" class="secondary-button">Change mode / token</button>
-        <button type="button" id="quit-button" class="secondary-button">Quit</button>
-      </div>
-    </div>
-  </main>
-
-  <script src="./main.js"></script>
-</body>
+    <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+  </body>
 </html>

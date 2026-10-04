@@ -1,12 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Kustom",
-  "version": "0.1.5",
+  "version": "1.0.0",
   "identifier": "night.customs.kustom",
   "build": {
-    "frontendDist": "../desktop/dist",
-    "beforeDevCommand": "pnpm desktop:sync",
-    "beforeBuildCommand": "pnpm desktop:sync"
+    "frontendDist": "../desktop"
   },
   "app": {
     "withGlobalTauri": true,
@@ -14,36 +12,34 @@
       {
         "label": "main",
         "title": "Kustom",
-        "width": 480,
-        "height": 620,
+        "width": 400,
+        "height": 690,
         "resizable": false,
+        "maximizable": false,
+        "minimizable": true,
         "center": true,
         "decorations": true,
-        "visible": true,
-        "skipTaskbar": false
+        "visible": false,
+        "theme": "Dark",
+        "backgroundColor": "#05070C"
       }
     ],
     "security": {
-      "csp": null
-    },
-    "trayIcon": {
-      "id": "main",
-      "iconPath": "icons/icon.png",
-      "tooltip": "Kustom",
-      "iconAsTemplate": false
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost"
     }
   },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "icon": ["icons/icon.png"],
-    "resources": {
-      "../dist/kustom-engine.exe": "kustom-engine.exe"
-    }
+    "icon": ["icons/icon.png", "icons/icon.ico"]
   },
   "plugins": {
-    "shell": {
-      "open": true
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZBMjg3NzJFMUI0RUYyMEYKUldRUDhrNGJMbmNvK2o3V045b2JzbDNwL2lTQ1pLQmNZMVoyV1M4ZTg4bmI5Slk4V01Cb3BZWDgK",
+      "endpoints": ["https://github.com/suyaser/kustom-releases/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

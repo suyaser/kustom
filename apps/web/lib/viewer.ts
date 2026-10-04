@@ -1,4 +1,4 @@
-import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
+import { isAtLeast, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
 import { discordIdFromUser, supabaseSessionUser } from './adminAuth';
@@ -22,7 +22,7 @@ import { ANONYMOUS_VIEWER, type ViewerState } from './tonight/viewer';
  * anything, so this is a rendering decision and never the gate. A client that lied about it
  * would get a 403 from the route.
  *
- * **Admin of the page's group** (M13.4): `group_memberships.role = 'admin'` in the group the page
+ * **Admin of the page's group** (M13.4): an `admin` or `owner` membership (M14.11) in the group the page
  * shows -- the `/g/<slug>` group since M13.9, and the original group for the pages that have not
  * moved yet (the default). The same check the admin routes make, so a control is drawn exactly
  * for the people the route will let through.
@@ -128,7 +128,13 @@ export const currentViewerState: (groupId?: string) => Promise<ViewerState> = ca
 
     try {
       const role = await supabaseGroupRole(getServiceClient())(session.playerId, groupId);
-      return { kind: 'linked', puuid: session.puuid, isAdmin: role === 'admin' };
+      return {
+        kind: 'linked',
+        puuid: session.puuid,
+        isAdmin: isAtLeast(role, 'admin'),
+        isOwner: role === 'owner',
+        isMember: role !== null,
+      };
     } catch (error) {
       // The role is what draws two controls and a tab. Failing to read it draws none of them
       // and keeps the "you" rule, rather than turning a linked reader anonymous.

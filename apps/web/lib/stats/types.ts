@@ -178,7 +178,7 @@ export interface AwardLine {
 }
 
 export interface AwardBlock {
-  /** `Most improved`. Bold at the front of the line in Discord, a label on the page. */
+  /** `Best off-role`. Bold at the front of the line in Discord, a label on the page. */
   label: string;
   /** `Biggest climb in Rating from a first game to a last one, over at least 15 games.` */
   rule: string;
@@ -289,7 +289,7 @@ export interface FunPool {
   empty: string;
 }
 
-/** A ranked season table — first-blood totals still use this shape. */
+/** A ranked all-time table — first-blood totals still use this shape. */
 export interface FunTable {
   id: string;
   title: string;
@@ -352,7 +352,7 @@ export interface RoleCsPair {
   lowest: FunHolder | null;
 }
 
-/** One single-game (or season-habit) record. Empty holders print {@link empty}. */
+/** One single-game (or all-time habit) record. Empty holders print {@link empty}. */
 export interface FunRecord {
   id: string;
   title: string;
@@ -566,8 +566,8 @@ export interface PlayerStatsView {
   /** The mean of `duration_s` over their counted games, to the minute. Never `0`, never `NaN`. */
   averageMinutes: number | null;
   /**
-   * One line per award this player won in a **closed** window: `Most improved, September.`
-   * Empty on `This week`, `This month` and `All time`, which hand out nothing.
+   * One line per award this player won in a **closed** window: `Cursed duo, week of 6 Sep.`
+   * Empty on `This week` and `All time`, which hand out nothing.
    */
   awards: string[];
   /** True when the window holds more games than the read's cap, which prints one line. */

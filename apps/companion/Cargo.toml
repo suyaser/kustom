@@ -1,0 +1,40 @@
+# Kustom's Cargo workspace (M17.4).
+#
+#   crates/engine   the host engine as a library: no Tauri, no webview, so CI tests it on a plain Linux
+#                   runner (`cargo test -p engine`). Modules are stubs until M17.5 to M17.11 fill them.
+#   src-tauri       the Tauri 2 app. Until M17.8 it is still the M6 tray shell that spawns the TypeScript
+#                   engine as a sidecar (`pnpm --filter companion tauri:dev` / `build:desktop` keep working);
+#                   it already depends on `engine`, and M17.8 replaces its body with the Rust app.
+#
+# One lockfile and one `target/` for both, here in `apps/companion/`.
+[workspace]
+resolver = "3"
+members = ["crates/engine", "src-tauri"]
+
+[workspace.package]
+rust-version = "1.85"
+
+# Shared pins. Caret requirements on a known-good minor; `Cargo.lock` (committed) is the exact pin.
+[workspace.dependencies]
+engine = { path = "crates/engine" }
+# Async runtime. Features are chosen per crate.
+tokio = { version = "1.53", default-features = false }
+# HTTP for the companion API (M17.6) and, with a preconfigured rustls config, the League client (M17.5).
+# `rustls-no-provider`: the crypto provider is `ring` (smaller than aws-lc-rs; the installer has a 15 MB
+# budget), installed once at startup by the engine. No native-tls, no OpenSSL.
+reqwest = { version = "0.13", default-features = false }
+rustls = { version = "0.23", default-features = false }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+tracing = "0.1.44"
+
+# Release profile for the shipped exe. Profiles only take effect at the workspace root, so this moved
+# here from `src-tauri/Cargo.toml` unchanged.
+[profile.release]
+# `unwind`, not `abort` (M17.7): the connection machine contains a panicking cycle and a watcher task that
+# panics dies alone; with `abort` either would take the whole host down and lose the night.
+panic = "unwind"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

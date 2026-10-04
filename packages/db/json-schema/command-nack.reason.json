@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/command-nack.reason",
+  "title": "commandFailureReasonSchema",
+  "description": "POST /api/companion/commands/{id}/nack (request). The word before the first ':' of error. The route stores error verbatim and does not refuse an unknown word.",
+  "type": "string",
+  "enum": [
+    "not_connected",
+    "wrong_phase",
+    "no_lobby",
+    "not_custom_lobby",
+    "already_in_lobby",
+    "not_on_a_team",
+    "side_full",
+    "endpoint_unverified",
+    "client_rejected",
+    "expired",
+    "malformed_payload"
+  ]
+}

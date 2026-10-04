@@ -88,34 +88,44 @@ describe('isRatedMode', () => {
 
 describe('gateRatedGame', () => {
   it('rates a Rift custom, and one whose block named no mode', () => {
-    expect(gateRatedGame(ten(), 1_800, raw('CLASSIC')).ok).toBe(true);
-    expect(gateRatedGame(ten(), 1_800, raw(null)).ok).toBe(true);
-    expect(gateRatedGame(ten(), 1_800, null).ok).toBe(true);
+    expect(gateRatedGame(ten(), 1_800, raw('CLASSIC'), true).ok).toBe(true);
+    expect(gateRatedGame(ten(), 1_800, raw(null), true).ok).toBe(true);
+    expect(gateRatedGame(ten(), 1_800, null, true).ok).toBe(true);
   });
 
   it('never rates an ARAM, however long it was', () => {
-    expect(gateRatedGame(ten(), 1_800, raw('ARAM'))).toEqual({ ok: false, reason: 'game-mode' });
-    expect(gateRatedGame(ten(), 4_000, raw('ARAM'))).toEqual({ ok: false, reason: 'game-mode' });
+    expect(gateRatedGame(ten(), 1_800, raw('ARAM'), true)).toEqual({ ok: false, reason: 'game-mode' });
+    expect(gateRatedGame(ten(), 4_000, raw('ARAM'), true)).toEqual({ ok: false, reason: 'game-mode' });
   });
 
   it('never rates a mode we have never seen', () => {
     for (const mode of ['KIWI', 'URF', 'NEXUSBLITZ', 'CLASIC']) {
-      expect(gateRatedGame(ten(), 1_800, raw(mode))).toEqual({ ok: false, reason: 'game-mode' });
+      expect(gateRatedGame(ten(), 1_800, raw(mode), true)).toEqual({ ok: false, reason: 'game-mode' });
     }
   });
 
   it('reports the older reason first, so a nine-player ARAM is still participant-count', () => {
     // The skip counters in a rebuild report only grow a new column; nothing moves between the
     // four that were already there.
-    expect(gateRatedGame(ten().slice(0, 9), 1_800, raw('ARAM'))).toEqual({
+    expect(gateRatedGame(ten().slice(0, 9), 1_800, raw('ARAM'), true)).toEqual({
       ok: false,
       reason: 'participant-count',
     });
-    expect(gateRatedGame(ten(), 300, raw('ARAM'))).toEqual({ ok: false, reason: 'duration' });
+    expect(gateRatedGame(ten(), 300, raw('ARAM'), true)).toEqual({ ok: false, reason: 'duration' });
+  });
+
+  it('never rates a game stamped not rated (M15.3), and reports it after the map', () => {
+    expect(gateRatedGame(ten(), 1_800, raw('CLASSIC'), false)).toEqual({ ok: false, reason: 'not-rated' });
+    expect(gateRatedGame(ten(), 1_800, null, false)).toEqual({ ok: false, reason: 'not-rated' });
+    // An ARAM stays `game-mode` and a short game `duration`, whatever its rated stamp.
+    expect(gateRatedGame(ten(), 1_800, raw('ARAM'), false)).toEqual({ ok: false, reason: 'game-mode' });
+    expect(gateRatedGame(ten(), 300, raw('CLASSIC'), false)).toEqual({ ok: false, reason: 'duration' });
+    // gateGame (the "a game happened" universe: Stats, Fun, Games) still counts it.
+    expect(gateGame(ten(), 1_800).ok).toBe(true);
   });
 
   it('hands back exactly what gateGame did when it passes', () => {
-    expect(gateRatedGame(ten(), 1_800, raw('CLASSIC'))).toEqual(gateGame(ten(), 1_800));
+    expect(gateRatedGame(ten(), 1_800, raw('CLASSIC'), true)).toEqual(gateGame(ten(), 1_800));
   });
 });
 
@@ -185,7 +195,7 @@ describe('foldGame and the MVP / ACE bonus', () => {
 
   /** The gate both callers go through, and the two arrays it hands the fold. */
   function gated(players: readonly FoldRatedPlayer[]) {
-    const gate = gateRatedGame(players, 1_800, raw('CLASSIC'));
+    const gate = gateRatedGame(players, 1_800, raw('CLASSIC'), true);
     if (!gate.ok) throw new Error(`expected a rated gate, got ${gate.reason}`);
     return gate;
   }

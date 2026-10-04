@@ -1,0 +1,30 @@
+{
+  "name": "lobby--lobby",
+  "kind": "request",
+  "target": "api",
+  "route": "lobby",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/lobby",
+    "16.17/current-summoner"
+  ],
+  "scenario": "lobby",
+  "note": "One member on side 100, no spectator, the own name from current-summoner, lobbyPassword null (this process did not create the party). summonerId is the client's number.",
+  "method": "POST",
+  "path": "/api/companion/lobby",
+  "body": {
+    "partyId": "e3c69392-a134-43cb-97ae-8add18c72494",
+    "lobbyName": "PRT Empty's Game",
+    "lobbyPassword": null,
+    "members": [
+      {
+        "puuid": "34151cbd-d9f8-5dad-9dc8-c6a8e253c0de",
+        "summonerId": 47890856,
+        "gameName": "PRT Empty",
+        "tagLine": "EUNE",
+        "side": 100,
+        "isSpectator": false
+      }
+    ]
+  }
+}

@@ -52,7 +52,6 @@ if (stack === null) {
   const puuids = Array.from({ length: 10 }, (_, i) => `it-${runId}-m84-${i}`);
   const playerIds = new Map<string, string>();
   const gameIds: string[] = [];
-  let seasonId = '';
   const dayKeys = Array.from({ length: DAYS }, (_, i) =>
     new Date(Date.UTC(2031, 2, 1) + i * 86_400_000).toISOString().slice(0, 10),
   );
@@ -80,21 +79,6 @@ if (stack === null) {
   }
 
   beforeAll(async () => {
-    /**
-     * A container of this run's own, never the active one. The daily games read every game
-     * whatever season it is in, but a rebuild reads one season — so twenty invented customs
-     * in the active container would land in `rebuild.integration.test.ts`'s fold, which runs
-     * beside this file.
-     */
-    const { data: container, error: seasonError } = await db
-      .from('seasons')
-      .insert({ name: `daily games ${runId}`, is_active: false })
-      .select('id')
-      .single();
-    expect(seasonError).toBeNull();
-    seasonId = container?.id ?? '';
-    expect(seasonId).not.toBe('');
-
     const { data: players, error } = await db
       .from('players')
       .insert(puuids.map((puuid, i) => ({ puuid, display_name: `Seat ${i}` })))
@@ -109,7 +93,6 @@ if (stack === null) {
         .insert({
           group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`9${stamp}${String(index).padStart(2, '0')}`),
-          season_id: seasonId,
           // Inside the walk's own window, newest first.
           started_at: new Date(Date.UTC(2031, 1, 1) + index * 3_600_000).toISOString(),
           duration_s: 1_900 + index,
@@ -158,7 +141,6 @@ if (stack === null) {
     if (gameIds.length > 0) await db.from('games').delete().in('id', gameIds);
     const ids = [...playerIds.values()];
     if (ids.length > 0) await db.from('players').delete().in('id', ids);
-    if (seasonId !== '') await db.from('seasons').delete().eq('id', seasonId);
   });
 
   describe('fourteen consecutive civil days', () => {

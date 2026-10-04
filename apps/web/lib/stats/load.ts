@@ -1,15 +1,13 @@
 import type { RoleValue, SideValue } from '@customs/db';
-import { isWeekWindow } from '../board/weekly';
 import { inChunks } from '../chunks';
 import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, type QueueKind } from '../games/queue';
 import type { GamesHistoryView } from '../games/types';
 import { gamesHistoryView } from '../games/view';
-import { readSeed, type StoredSeed, seedFor } from '../ingest/seed';
 import { type WindowKind, type WindowRange, windowRange } from '../night';
 import type { PublicClient } from '../publicClient';
 import type { VersusView } from '../versus/types';
 import { versusView } from '../versus/view';
-import { type AwardRender, awardPeriod, awardsView, WEB_AWARD_RENDER, type WeeklySeeds } from './awards';
+import { type AwardRender, awardPeriod, awardsView, WEB_AWARD_RENDER } from './awards';
 import { countedGames, playerStreaks } from './fold';
 import { assembleFunFacts } from './funView';
 import { playerStatsView } from './player';
@@ -83,7 +81,7 @@ export interface StatsOptions {
   /**
    * Only this group's games (M13.3). Absent reads every game, which is what the pages still do
    * until M13.9 to M13.12 pass their group; the champ-select overlay passes it today. Filters the
-   * games read and nothing else: the week seeds are not group-scoped here (pages, M13.9+).
+   * games read and nothing else.
    */
   groupId?: string | undefined;
 }
@@ -138,6 +136,48 @@ export async function loadStats(client: PublicClient, options: StatsOptions): Pr
 }
 
 /**
+ * Stats → Records (M14.17): `/stats`' fold and `/fun`'s records from **one** read. The `/stats`
+ * half counts every map, as it always has; the `/fun` half is the queue's games only, as it always
+ * has. The group's games only when `groupId` is given (the pages always give it).
+ */
+export async function loadRecordsSegment(
+  client: PublicClient,
+  options: StatsOptions,
+): Promise<{ stats: StatsView; fun: FunFactsView }> {
+  const queue = options.queue ?? GAMES_QUEUE;
+  const read = await readWindow(client, options, { withGameMode: true, withOdds: true });
+  return {
+    stats: statsView({ ...read, awardRender: options.awardRender }),
+    fun: assembleFunFacts(
+      { ...read, games: read.games.filter((game) => matchesQueue(game.gameMode, queue)) },
+      queue,
+    ),
+  };
+}
+
+/**
+ * Stats → 1v1 (M14.17): lane wars and Pick two (`versusView`, Rift only), and the one duos block:
+ * best and worst together from `/stats`' `duoRecords` (every map, as before) and nemesis from
+ * `/fun`'s fold over the Rift games. One read.
+ */
+export async function loadVersusSegment(
+  client: PublicClient,
+  options: StatsOptions,
+): Promise<{ versus: VersusView; stats: StatsView; fun: FunFactsView }> {
+  const read = await readWindow(client, options, { withGameMode: true });
+  const rift = read.games.filter((game) => matchesQueue(game.gameMode, 'sr'));
+  return {
+    versus: versusView({
+      ...read,
+      ...(options.leftPuuid === undefined ? {} : { leftPuuid: options.leftPuuid }),
+      ...(options.rightPuuid === undefined ? {} : { rightPuuid: options.rightPuuid }),
+    }),
+    stats: statsView(read),
+    fun: assembleFunFacts({ ...read, games: rift }, 'sr'),
+  };
+}
+
+/**
  * The games and people of one window, with no page fold on top (M12).
  *
  * The overlay composes same-side and against records for the live lobby's ten; it needs the
@@ -146,8 +186,10 @@ export async function loadStats(client: PublicClient, options: StatsOptions): Pr
 export async function loadWindowGames(
   client: PublicClient,
   options: StatsOptions,
+  /** `withGameMode` for a caller that drops ARAM (M14.35's You vs them, via `versusGames`). */
+  extras: { withGameMode?: boolean } = {},
 ): Promise<{ games: readonly StatsGame[]; players: readonly StatsPlayer[] }> {
-  const read = await readWindow(client, options);
+  const read = await readWindow(client, options, extras);
   return { games: read.games, players: read.players };
 }
 
@@ -176,7 +218,7 @@ export async function loadPlayerStats(
  * Every player's runs through the window (M5.21), for a caller that wants the streak and none
  * of the rest of the page: `/leaderboard`'s `All time` row and the rail behind it.
  *
- * **The board's `L2` is this list.** It used to be a third read — the season's last 200 games,
+ * **The board's `L2` is this list.** It used to be a third read — the group's last 200 games,
  * ordered by `started_at` alone — so a player whose last game was older than the group's most
  * recent 200 had no streak on their row and a real one on their own page, and two games
  * sharing an instant could order differently in the two reads. One read, one order
@@ -198,13 +240,13 @@ export async function loadStreaks(client: PublicClient, options: StatsOptions): 
  * the rest of the page: `/leaderboard`'s badges.
  *
  * **The awards are `awardsView`'s, over this loader's own read.** Same window, same gate
- * (`countedGames`), same week seeds, same three blocks — the ones `/stats` prints and the Sunday
+ * (`countedGames`), same two blocks — the ones `/stats` prints and the Sunday
  * post carries — so a badge on a row can only ever name the person the award line names. Nothing
  * about an award is decided here and no award is computed twice: the board asks this and matches
  * puuids.
  *
- * **A window that hands nothing out makes no query at all.** `This week` and `This month` are
- * still running and `All time` has no block (M5.4, `awardPeriod`), so those three return the
+ * **A window that hands nothing out makes no query at all.** `This week` is still running and
+ * `All time` has no block (M5.4, `awardPeriod`), so those two return the
  * empty map before the read — which is why the board they draw is the board they drew before
  * this existed, down to the byte.
  */
@@ -219,7 +261,6 @@ export async function loadAwardWinners(client: PublicClient, options: StatsOptio
       countedGames(read.games),
       read.players,
       options.awardRender ?? WEB_AWARD_RENDER,
-      read.seeds,
     ),
   );
 }
@@ -252,23 +293,11 @@ async function readWindow(
     client,
     newest.map((game) => game.id),
   );
-  const people = await loadPlayers(
+  const players = await loadPlayers(
     client,
     rows.map((row) => row.playerId),
   );
-  const players = people.players;
   const roster = new Map(players.map((player) => [player.playerId, player]));
-
-  /**
-   * **The week's starting line** (M7.4), read on the two week windows and on no other.
-   *
-   * `Most improved` measures a week on the weekly track, which begins at the seed the all-time
-   * fold started this player's history from — `lib/ingest/seed.ts`'s rule, the same one
-   * `lib/board/load.ts` applies to the week's board — so the award and the board half of one
-   * Sunday post start the week from one number. A month window reads none of this and makes no
-   * extra query.
-   */
-  const seeds = isWeekWindow(window) ? await loadWeeklySeeds(client, players, people.ranks) : undefined;
 
   /**
    * The chance the balancer posted on the night, per lobby (M8.2), and only for the page that
@@ -318,7 +347,7 @@ async function readWindow(
     rows: byGame.get(game.id) ?? [],
   }));
 
-  return { window, games, players, range, capped, cap, timeZone: options.timeZone, seeds };
+  return { window, games, players, range, capped, cap, timeZone: options.timeZone };
 }
 
 /** What one window's read comes back with, before anything counts it. */
@@ -345,7 +374,7 @@ interface GameRow {
 /**
  * The window's games, newest first, up to `limit`, paged at PostgREST's thousand.
  *
- * **The window is a filter in the query, not in memory** (M5.12): `Last month` on a year of
+ * **The window is a filter in the query, not in memory** (M5.12): `All time` on a year of
  * history read through the cap would otherwise come back empty.
  */
 async function loadGames(
@@ -495,8 +524,8 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
  * The chance the balancer gave blue, per lobby: the **chosen** split's `blue_win_prob` (M8.2).
  *
  * The same read `lib/board/load.ts` makes for the per-game expand (M5.30), spelled again here
- * rather than exported from it — the latitude {@link selectSeasonId} and {@link withRange} already
- * take, and for the same reason: that file keeps its queries private and an export would be a seam
+ * rather than exported from it — the latitude {@link withRange} already
+ * takes, and for the same reason: that file keeps its queries private and an export would be a seam
  * between two loaders. What must not drift is the *rule*, and the rule is one line of SQL:
  * `is_chosen`, `blue_win_prob`, and nothing derived.
  *
@@ -536,14 +565,13 @@ async function loadChosenWinProbs(
  * Read **by the ids on the scoreboards**, never as "everybody": this page is about the people
  * who played in the window, and a player who has never played is in none of its numbers.
  */
-async function loadPlayers(client: PublicClient, playerIds: readonly string[]): Promise<RosterRead> {
+async function loadPlayers(client: PublicClient, playerIds: readonly string[]): Promise<StatsPlayer[]> {
   const players: StatsPlayer[] = [];
-  const ranks = new Map<string, RankPair>();
 
   for (const chunk of inChunks(playerIds)) {
     const { data, error } = await client
       .from('players_public')
-      .select('id, puuid, display_name, game_name, main_role, rank_tier, rank_division')
+      .select('id, puuid, display_name, game_name, main_role')
       .in('id', chunk);
     if (error) throw new Error(`stats: player lookup failed: ${error.message}`);
 
@@ -556,109 +584,9 @@ async function loadPlayers(client: PublicClient, playerIds: readonly string[]): 
         name: row.display_name ?? row.game_name ?? null,
         mainRole: row.main_role,
       });
-      ranks.set(row.id, { rankTier: row.rank_tier, rankDivision: row.rank_division });
     }
   }
-  return { players, ranks };
-}
-
-/** The rank the client last read for somebody. Both `null` is unranked, which is an answer. */
-interface RankPair {
-  rankTier: string | null;
-  rankDivision: string | null;
-}
-
-/**
- * The roster, and the ranks beside it.
- *
- * The ranks stay **out of {@link StatsPlayer}** on purpose: nothing this page prints is a rank,
- * and the one thing that reads them is the week's seed fallback below. Carrying them here keeps
- * that one read from being a second trip to `players_public`.
- */
-interface RosterRead {
-  players: StatsPlayer[];
-  ranks: Map<string, RankPair>;
-}
-
-/**
- * Where each of the window's players started their week (M7.4), keyed by `players.id`.
- *
- * **The stored seed, and their current rank only when there is none** — `seedFor`, M5.7's rule,
- * which is why `Last week` reads the same on Tuesday as it did on Sunday and reads the same again
- * after somebody's rank moves. It is the rule `lib/board/load.ts` applies to the same week, so
- * the award and the board cannot disagree about where a week began.
- *
- * A database with no season row has no games and therefore no week; the seeds are then every
- * player's rank, which nothing will fold anything over.
- */
-async function loadWeeklySeeds(
-  client: PublicClient,
-  players: readonly StatsPlayer[],
-  ranks: ReadonlyMap<string, RankPair>,
-): Promise<WeeklySeeds> {
-  const seasonId = await selectSeasonId(client);
-  const stored =
-    seasonId === null
-      ? new Map<string, StoredSeed>()
-      : await loadStoredSeeds(
-          client,
-          seasonId,
-          players.map((player) => player.playerId),
-        );
-
-  return new Map(
-    players.map((player) => {
-      const rank = ranks.get(player.playerId);
-      const seed = seedFor(
-        stored.get(player.playerId) ?? null,
-        rank?.rankTier ?? null,
-        rank?.rankDivision ?? null,
-      );
-      return [player.playerId, seed.rating];
-    }),
-  );
-}
-
-/**
- * The one season row's id, or `null` for a database that is missing it.
- *
- * Spelled again here rather than exported from `lib/board/load.ts`, which keeps its queries
- * private — the same latitude {@link withRange} takes, and for the same reason: two small reads
- * of a table with one row in it cannot drift, and an export would be a seam between two loaders.
- */
-async function selectSeasonId(client: PublicClient): Promise<string | null> {
-  const { data, error } = await client
-    .from('seasons')
-    .select('id')
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(`stats: season lookup failed: ${error.message}`);
-  return data?.id ?? null;
-}
-
-/** The four seed columns of a set of `ratings` rows. A player with no row has no stored seed. */
-async function loadStoredSeeds(
-  client: PublicClient,
-  seasonId: string,
-  playerIds: readonly string[],
-): Promise<Map<string, StoredSeed>> {
-  const seeds = new Map<string, StoredSeed>();
-
-  for (const chunk of inChunks(playerIds)) {
-    const { data, error } = await client
-      .from('ratings')
-      .select('player_id, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
-      .eq('season_id', seasonId)
-      .in('player_id', chunk);
-    if (error) throw new Error(`stats: seed lookup failed: ${error.message}`);
-
-    for (const row of data ?? []) {
-      const seed = readSeed(row);
-      if (seed !== null) seeds.set(row.player_id, seed);
-    }
-  }
-  return seeds;
+  return players;
 }
 
 /**

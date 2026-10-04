@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   companionPairRequestSchema,
+  companionPairResponseSchema,
+  companionTokenSchema,
   createGroupRequestSchema,
   GROUP_NAME_RULE,
   GROUP_SLUG_RULE,
@@ -40,6 +42,37 @@ describe('pairing codes (M13.5)', () => {
         .success,
     ).toBe(false);
     expect(companionPairRequestSchema.safeParse({ code: 'K7QM4X', puuid: '' }).success).toBe(false);
+  });
+
+  it('takes an optional mode, host or overlay, and nothing else (M14.12)', () => {
+    const body = { code: 'K7QM4X', puuid: 'abc-123' };
+    expect(companionPairRequestSchema.parse(body).mode).toBeUndefined();
+    expect(companionPairRequestSchema.parse({ ...body, mode: 'host' }).mode).toBe('host');
+    expect(companionPairRequestSchema.parse({ ...body, mode: 'overlay' }).mode).toBe('overlay');
+    expect(companionPairRequestSchema.safeParse({ ...body, mode: 'admin' }).success).toBe(false);
+  });
+});
+
+describe('companionPairResponseSchema (M14.12)', () => {
+  const group = { id: '00000000-0000-0000-0000-000000000001', slug: 'customs', name: 'Customs' };
+  const token = 'A'.repeat(43);
+
+  it('is { ok, group } for overlay, plus a token or a host refusal in host mode', () => {
+    expect(companionPairResponseSchema.safeParse({ ok: true, group }).success).toBe(true);
+    expect(companionPairResponseSchema.safeParse({ ok: true, group, companionToken: token }).success).toBe(
+      true,
+    );
+    expect(companionPairResponseSchema.safeParse({ ok: true, group, hostRefusal: 'No.' }).success).toBe(true);
+  });
+
+  it('never carries both, and a token is 43 base64url characters', () => {
+    expect(
+      companionPairResponseSchema.safeParse({ ok: true, group, companionToken: token, hostRefusal: 'No.' })
+        .success,
+    ).toBe(false);
+    expect(companionTokenSchema.safeParse('A'.repeat(42)).success).toBe(false);
+    expect(companionTokenSchema.safeParse(`${'A'.repeat(42)}=`).success).toBe(false);
+    expect(companionTokenSchema.safeParse(`${'a'.repeat(21)}-_${'9'.repeat(20)}`).success).toBe(true);
   });
 });
 

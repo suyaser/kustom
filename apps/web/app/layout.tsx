@@ -1,38 +1,10 @@
-import { Archivo, IBM_Plex_Mono } from 'next/font/google';
-import Script from 'next/script';
 import type { ReactNode } from 'react';
 import { siteMetadataBase } from '@/lib/og/meta';
 import { THEME_BOOTSTRAP, THEME_COLOR, THEME_DEFAULT } from '@/lib/theme';
-import './tokens.css';
-import './theme-gaming.css';
-
-/**
- * The two families of `docs/05-design.md`: Archivo for anything read as language, IBM Plex
- * Mono for anything read as data. They are exposed as CSS variables and composed into
- * `--cn-font-sans` / `--cn-font-mono` in `tokens.css`, which is where the fallback stacks live.
- *
- * Archivo is loaded as a **variable font with the width axis** (Floodlit, "Type"), which buys
- * the display cut — `wdth` 118 at weight 800, the wordmark, the lobby count and the result
- * headline — with no second download. `.cn-display` in `tokens.css` is the only place that
- * asks for it; if the axis ever fails to load the page falls back to plain Archivo 800 and
- * loses a little character and nothing else.
- *
- * `display: 'swap'` because the first paint carries content: a friend opening the WhatsApp
- * link should read the teams in the fallback face rather than wait for a webfont.
- */
-const archivo = Archivo({
-  subsets: ['latin'],
-  axes: ['wdth'],
-  display: 'swap',
-  variable: '--cn-font-archivo',
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '600'],
-  display: 'swap',
-  variable: '--cn-font-plex-mono',
-});
+// The three webfonts, and why each is loaded the way it is.
+import { fontVariables } from './fonts';
+// Kustom 2.0's tokens, Tailwind and the base styles (M14.1; the only stylesheet since M14.25).
+import './globals.css';
 
 /**
  * The product is **Kustom** (M3.21): the wordmark, the browser tab and the WhatsApp link
@@ -58,16 +30,21 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${archivo.variable} ${plexMono.variable}`}
-      data-theme={THEME_DEFAULT}
-      suppressHydrationWarning
-    >
+    <html lang="en" className={fontVariables} data-theme={THEME_DEFAULT} suppressHydrationWarning>
       <body>
-        <Script id="cn-theme" strategy="beforeInteractive">
-          {THEME_BOOTSTRAP}
-        </Script>
+        {/*
+          The theme, before first paint: a blocking inline script, first in <body>, so it runs before
+          anything below it is painted. Raw HTML on a hidden wrapper rather than `next/script` or a
+          <script> element (M14.7): when a page or layout calls notFound(), Next renders this layout on
+          the client, and React warns on every <script> element it creates there ("Encountered a script
+          tag..."). React never creates this one: on the server it is markup, and on the client it is an
+          innerHTML string, whose script does not run again (the server copy already did).
+        */}
+        <div
+          hidden
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: THEME_BOOTSTRAP is a constant
+          dangerouslySetInnerHTML={{ __html: `<script id="cn-theme">${THEME_BOOTSTRAP}</script>` }}
+        />
         {children}
       </body>
     </html>

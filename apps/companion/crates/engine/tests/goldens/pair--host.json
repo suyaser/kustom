@@ -1,0 +1,19 @@
+{
+  "name": "pair--host",
+  "kind": "request",
+  "target": "api",
+  "route": "pair",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/current-summoner"
+  ],
+  "scenario": "pair-host",
+  "note": "The person typed \" k7q-m4x \": the code is upper-cased and stripped to the alphabet, the puuid is current-summoner's, mode \"host\" (M17 always sends it). No bearer token on this route.",
+  "method": "POST",
+  "path": "/api/companion/pair",
+  "body": {
+    "code": "K7QM4X",
+    "puuid": "34151cbd-d9f8-5dad-9dc8-c6a8e253c0de",
+    "mode": "host"
+  }
+}

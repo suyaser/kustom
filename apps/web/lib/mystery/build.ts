@@ -1,7 +1,8 @@
 import type { PerformancePlayer } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import { mysteryPublicHookSchema } from '@customs/db/schemas';
-import { formatDuration } from '../discord/embeds';
+import { formatMinutes } from '../games/duration';
+import { killParticipationPercent } from '../stats/killParticipation';
 import {
   awardHookLines,
   awardStatNumber,
@@ -258,7 +259,8 @@ function mysteryHook(
   const teamKills = game.seats
     .filter((row) => row.side === seat.side)
     .reduce((sum, row) => sum + row.kills, 0);
-  const kp = teamKills <= 0 ? null : Math.round(((seat.kills + seat.assists) / teamKills) * 100);
+  // M14.77: never over 100%, and no KP line for a side whose rows do not add up.
+  const kp = killParticipationPercent(seat.kills, seat.assists, teamKills);
   return baseHook(game, seat, [
     ...hookLines({
       category,
@@ -289,7 +291,7 @@ function baseHook(game: BuildGame, seat: BuildSeat, lines: MysteryHookLine[]): M
     assists: seat.assists,
     kda: kdaLine(seat.kills, seat.deaths, seat.assists),
     durationS: game.durationS,
-    durationLabel: formatDuration(game.durationS),
+    durationLabel: formatMinutes(game.durationS),
     lines,
   };
 }

@@ -44,6 +44,7 @@ if (stack === null) {
   const { loadBoard, loadPlayerBoard } = await import('@/lib/board/load');
   const { createPublicClient } = await import('@/lib/publicClient');
   const { PlayerView } = await import('./_board/PlayerView');
+  const { PlayerStats } = await import('./_board/PlayerStats');
   const { formatStreak } = await import('@/lib/board/streak');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
@@ -57,8 +58,18 @@ if (stack === null) {
 
   /** Wednesday 15 July 2026: `Last week` is then Sunday 5 July to Saturday 11 July (M5.34). */
   const NOW = new Date('2026-07-15T18:00:00Z');
-  const LAST_WEEK = { window: 'last-week', now: NOW, timeZone: 'Africa/Cairo' } as const;
-  const ALL_TIME = { window: 'all-time', now: NOW, timeZone: 'Africa/Cairo' } as const;
+  const LAST_WEEK = {
+    window: 'last-week',
+    now: NOW,
+    timeZone: 'Africa/Cairo',
+    groupId: ORIGINAL_GROUP_ID,
+  } as const;
+  const ALL_TIME = {
+    window: 'all-time',
+    now: NOW,
+    timeZone: 'Africa/Cairo',
+    groupId: ORIGINAL_GROUP_ID,
+  } as const;
 
   /**
    * Eight games in that week, seen from `pn0` — the person whose page this is.
@@ -109,10 +120,6 @@ if (stack === null) {
   const gameIds: string[] = [];
 
   beforeAll(async () => {
-    const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    const seasonId = season?.id ?? '';
-    expect(seasonId).not.toBe('');
-
     const { data: players, error } = await db
       .from('players')
       .insert([
@@ -139,7 +146,6 @@ if (stack === null) {
         .insert({
           group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`88${runIdNumber()}${index}`),
-          season_id: seasonId,
           // Monday the 6th through Thursday the 9th, inside last week's Sunday-06:00 bounds.
           started_at: `2026-07-0${6 + Math.floor(index / 2)}T${index % 2 === 0 ? '19' : '21'}:00:00Z`,
           duration_s: night.durationS,
@@ -171,7 +177,7 @@ if (stack === null) {
       );
     }
 
-    await seedTheGap(seasonId);
+    await seedTheGap();
   });
 
   /**
@@ -180,7 +186,7 @@ if (stack === null) {
    * Bulk inserts, because 250 round trips against the local stack is a minute of waiting for a
    * fixture nothing asserts on directly: one `games` insert, then the scoreboards in chunks.
    */
-  async function seedTheGap(seasonId: string): Promise<void> {
+  async function seedTheGap(): Promise<void> {
     const START = Date.parse('2026-07-13T07:00:00Z');
     const { data: rows, error } = await db
       .from('games')
@@ -188,7 +194,6 @@ if (stack === null) {
         Array.from({ length: FILLER_GAMES }, (_, index) => ({
           group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`77${runIdNumber()}${index}`),
-          season_id: seasonId,
           started_at: new Date(START + index * 5 * 60_000).toISOString(),
           duration_s: 1_800,
           winning_side: 100,
@@ -205,7 +210,7 @@ if (stack === null) {
         player_id: playerIds.get(key) as string,
         side: seat < 5 ? 100 : 200,
         role: LANES[seat % 5] as (typeof LANES)[number],
-        // Flat: these games move nobody, so `Most improved` is still the one who climbed.
+        // Flat: these games move nobody.
         mu_before: 25,
         sigma_before: 5,
         mu_after: 25,
@@ -236,8 +241,7 @@ if (stack === null) {
    * streak on the board row one number. A fixture that rated a 300-second game would be
    * asserting against a state the pipeline cannot produce.
    *
-   * `Pn0` climbs 1266 → 1478 across the week and nobody else moves, so `Last week` has exactly
-   * one most improved and their page is the one that says so.
+   * `Pn0` climbs 1266 → 1478 across the week and nobody else moves.
    */
   function ratings(key: string, index: number, durationS: number) {
     if (durationS <= 300) {
@@ -296,7 +300,10 @@ if (stack === null) {
       const stats = await loadPlayerStats(anon, puuidOf('pn0'), LAST_WEEK);
       const named = stats.bestPartners.map((partner) => partner.name);
 
-      expect(named).toEqual(['Pn1', 'Pn2', 'Pn3']);
+      // Three partners clear the bar; the split (M14.35, `splitBestWorst`) puts the better half,
+      // rounded up, in Best together and the rest in Worst together. Nobody is in both.
+      expect(named).toEqual(['Pn1', 'Pn2']);
+      expect(stats.worstPartners.map((partner) => partner.name)).toEqual(['Pn3']);
       expect(stats.bestPartners[0]).toMatchObject({ games: 7, wins: 3, losses: 4 });
       // Four games together, and three: neither is a partner, at either end of the list.
       const all = [...stats.bestPartners, ...stats.worstPartners].map((partner) => partner.name);
@@ -307,22 +314,19 @@ if (stack === null) {
     });
 
     /**
-     * Acceptance 7: the winner's page says so, and nobody else's does.
-     *
-     * **The winner is the week's own climb** (M7.4): `Pn4` spent four nights on blue and three
-     * on red and finished 6W 1L, which is the best week anybody had here, so the weekly fold
-     * puts them furthest above their seed. `Pn0`'s stored columns moved 1266 → 1478 in the same
-     * week and are not read on a week window at all — they are 3W 4L, and a week's award is
-     * about the week.
+     * Acceptance 7: the winner's page says so, and nobody else's does. Since M14.57 the week
+     * hands out two awards (`Most improved` is retired), and in this fixture nobody has a main, so
+     * the one awarded is the cursed duo: the worst pair that shared a side four times or more.
      */
-    it('gives the most improved line to the one who climbed, and to nobody else', async () => {
-      const [winner, other] = await Promise.all([
-        loadPlayerStats(anon, puuidOf('pn4'), LAST_WEEK),
-        loadPlayerStats(anon, puuidOf('pn0'), LAST_WEEK),
-      ]);
+    it('gives the award line to the people the award names, and never a Most improved line', async () => {
+      const pages = await Promise.all(KEYS.map((key) => loadPlayerStats(anon, puuidOf(key), LAST_WEEK)));
+      const named = pages.filter((stats) => stats.awards.includes('Cursed duo, week of 5 Jul.'));
 
-      expect(winner.awards).toContain('Most improved, week of 5 Jul.');
-      expect(other.awards).not.toContain('Most improved, week of 5 Jul.');
+      expect(named.length).toBeGreaterThanOrEqual(2);
+      expect(named.length).toBeLessThan(KEYS.length);
+      for (const stats of pages) {
+        expect(stats.awards.some((line) => line.startsWith('Most improved'))).toBe(false);
+      }
     });
 
     it('is the mean of their own games, to the minute, and never zero', async () => {
@@ -358,10 +362,8 @@ if (stack === null) {
         loadBoard(anon, ALL_TIME),
         loadPlayerStats(anon, puuidOf('pn0'), ALL_TIME),
       ]);
-      const row = board.rows.find((entry) => entry.puuid === puuidOf('pn0'));
-
-      expect(row?.streak).toBeDefined();
-      expect(stats.streaks?.current).toEqual(row?.streak);
+      // The board row no longer carries a streak (M14.15); the player page's is `lib/stats`' own.
+      expect(board.window).toBe('all-time');
       expect(formatStreak(stats.streaks?.current as { kind: 'W' | 'L'; length: number })).toBe('L3');
       // And the two the window holds, hand-computed off the fixture: W W L W · L L L.
       expect(stats.streaks?.longestWin).toBe(2);
@@ -392,6 +394,22 @@ if (stack === null) {
     return value as T;
   }
 
+  /** The player page's props, public lens, with the records rendered as the page renders them. */
+  const viewProps = (
+    player: import('@/lib/board/types').PlayerBoardView,
+    stats: import('@/lib/stats/types').PlayerStatsView,
+  ) => ({
+    lens: 'public' as const,
+    player,
+    group: { name: 'Customs Night' },
+    viewerPuuid: null,
+    stats: createElement(PlayerStats, { stats, playerHref: (id: string) => `/g/customs/p/${id}` as never }),
+    path: `/g/customs/p/${player.puuid}`,
+    gameHref: () => null,
+    allGamesHref: null,
+    timeZone: 'Africa/Cairo',
+  });
+
   describe('the page itself', () => {
     it('renders the sections under the chart, with no puuid anywhere in its text', async () => {
       const [board, stats] = await Promise.all([
@@ -399,7 +417,7 @@ if (stack === null) {
         loadPlayerStats(anon, puuidOf('pn0'), LAST_WEEK),
       ]);
       const player = found(board);
-      const html = renderToStaticMarkup(createElement(PlayerView, { player, stats }));
+      const html = renderToStaticMarkup(createElement(PlayerView, viewProps(player, stats)));
       const text = html.replace(/<[^>]*>/g, ' ');
 
       for (const title of ['By role', 'By side', 'Partners', 'Streaks']) {
@@ -410,17 +428,16 @@ if (stack === null) {
       expect(text).toContain('0W 1L');
       expect(text).toContain('L3');
       expect(text).toContain('Average game 31 min.');
-      /**
-       * **`Pn0` won nothing this week** (M7.4): they went 3W 4L, and the award a week hands out
-       * is the weekly climb. Their page draws no award line, which is the same rule read from
-       * the other end — this line is only ever on the page of somebody the group's award names.
-       */
+      // `Most improved` is retired (M14.57): no page names it.
       expect(text).not.toContain('Most improved');
-      // And never the delta: the award's own three-part line is on `/stats` and in the post.
-      expect(text).not.toContain('+212');
+      // M14.57 web: the week's net points sit beside the all-time Rating, once, as
+      // `+212 last week · 3W 4L` (no award line, no `1266 → 1478`).
+      expect(text.match(/\+212/g)).toHaveLength(1);
+      expect(text).toMatch(/\+212\s+gained 212\s+last week ·\s+3\s*W\s+4\s*L/);
+      expect(text).not.toContain('→');
       // A partner's name is a link to their page; the puuid is in the href and nowhere a
       // reader reads.
-      expect(html).toContain(`/p/${puuidOf('pn1')}`);
+      expect(html).toContain(`/g/customs/p/${puuidOf('pn1')}`);
       expect(text).not.toContain(puuidOf('pn0'));
       expect(text).not.toContain('NaN');
     });
@@ -431,18 +448,18 @@ if (stack === null) {
      * award's own three-part line is on `/stats` and in the Sunday post (M5.20's copy table).
      */
     it('carries the award line on the page of whoever won the week', async () => {
-      const [board, stats] = await Promise.all([
-        loadPlayerBoard(anon, puuidOf('pn4'), LAST_WEEK),
-        loadPlayerStats(anon, puuidOf('pn4'), LAST_WEEK),
-      ]);
+      const pages = await Promise.all(KEYS.map((key) => loadPlayerStats(anon, puuidOf(key), LAST_WEEK)));
+      const index = pages.findIndex((stats) => stats.awards.includes('Cursed duo, week of 5 Jul.'));
+      expect(index).toBeGreaterThanOrEqual(0);
+      const key = KEYS[index] as string;
+      const board = await loadPlayerBoard(anon, puuidOf(key), LAST_WEEK);
       const player = found(board);
-      const text = renderToStaticMarkup(createElement(PlayerView, { player, stats })).replace(
-        /<[^>]*>/g,
-        ' ',
-      );
+      const text = renderToStaticMarkup(
+        createElement(PlayerView, viewProps(player, pages[index] as (typeof pages)[number])),
+      ).replace(/<[^>]*>/g, ' ');
 
-      expect(text).toContain('Most improved, week of 5 Jul.');
-      expect(text).not.toContain('Biggest climb in Rating');
+      expect(text).toContain('Cursed duo, week of 5 Jul.');
+      expect(text).not.toContain('Most improved');
     });
 
     it('draws no section at all on a window this player did not play', async () => {
@@ -452,7 +469,7 @@ if (stack === null) {
         loadPlayerStats(anon, puuidOf('pn0'), options),
       ]);
       const player = found(board);
-      const html = renderToStaticMarkup(createElement(PlayerView, { player, stats }));
+      const html = renderToStaticMarkup(createElement(PlayerView, viewProps(player, stats)));
       const text = html.replace(/<[^>]*>/g, ' ');
 
       // The window's own sentence, and nothing drawn over it.

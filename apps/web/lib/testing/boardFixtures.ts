@@ -1,23 +1,18 @@
-import { displayRating, seedFromRank } from '@customs/core';
-import { SETTLING_GAMES } from '../board/copy';
+import { displayRating, isSettling, seedFromRank } from '@customs/core';
 import { sortBoardRows } from '../board/order';
-import type { BoardGame, BoardRow, BoardView, PlayerBoardView, RecentGame } from '../board/types';
+import type { BoardRow, BoardView, PlayerBoardView, RecentGame } from '../board/types';
 import type { WindowKind } from '../night';
-import { provenRating, provenSortKey } from '../ratingDisplay';
-import { CURSED_DUO, MOST_IMPROVED } from '../stats/copy';
+import { BEST_OFF_ROLE, CURSED_DUO } from '../stats/copy';
 import type { PartnerRecord, PlayerStatsView } from '../stats/types';
 import { WORKED_ROSTER, workedPuuid } from './workedExample';
 
 /**
  * The worked example as `/leaderboard` and `/p/[puuid]` see it (M3.5).
  *
- * The same ten friends and the same `mu`/`sigma` as every other fixture in this repo, so the
- * Proven numbers here are the ones printed in `docs/05-design.md`'s nightly embed — Lena
- * `1548`, Nadia `654`, Yuki `534` — and a snapshot of the embed is comparable with the design
- * doc line for line. Nothing is hand-computed: `provenRating` and `displayRating` do it.
- *
- * The game counts are the design doc's illustrative ones (the docs pin none), which is what
- * puts Nadia and Yuki under thirty and therefore under the `settling` chip.
+ * The same ten friends and the same `mu`/`sigma` as every other fixture in this repo. Nothing is
+ * hand-computed: `displayRating` does it. The game counts are illustrative (the docs pin none) and
+ * all over core's `SETTLING_GAMES`, so the worked board is all ranked; a test that wants the
+ * settling section overrides `ratedGames` and `settling` on a row (`settlingRow`).
  */
 
 export const WORKED_GAMES: Readonly<Record<string, number>> = {
@@ -51,16 +46,16 @@ export function workedBoardRows(): BoardRow[] {
         puuid: workedPuuid(player.name),
         name: player.name,
         track: 'all-time' as const,
-        proven: provenRating({ mu: player.mu, sigma: player.sigma }),
-        sortKey: provenSortKey({ mu: player.mu, sigma: player.sigma }),
+        points: null,
+        sortKey: player.mu,
         rating: displayRating(player.mu),
         games,
         wins,
         losses: games - wins,
-        streak: games === 0 ? null : ({ kind: 'L', length: 2 } as const),
+        ratedGames: games,
         climb: null,
-        settling: games < SETTLING_GAMES,
-        breakdown: [],
+        settling: isSettling(games),
+        settlingChip: isSettling(games),
         // `All time` hands out no award (M5.4), so this board carries none.
         awards: [],
       };
@@ -76,44 +71,40 @@ export function workedBoard(overrides: Partial<BoardView> = {}): BoardView {
     // The group's first night, and the fold's own count of what it has played since.
     range: 'Since 8 Sep 2025',
     games: 312,
+    everRated: true,
+    notPlayed: 0,
     ...overrides,
   };
 }
 
 /**
- * The same ten as one **window's** board (M5.12): six games each, a 4W 2L record, and a climb
- * that is a real pair of mu values rather than a formatted number — the row computes the delta
- * at render, like every other delta in this product.
- *
- * **Two shapes, because there are two tracks** (M7.3). A month window is the stored fold, sorted
- * and printed on Proven, byte-identical to what M5.12 shipped. A week window is the weekly
- * track: the same ten `mu` values read as the week's own fold, so the row prints `Rating`,
- * orders on the raw weekly `mu`, carries no `settling` chip, and climbs from its weekly seed.
+ * The same ten as one **week's** board (M5.12, net points since M14.57): six games each, a 4W 2L
+ * record, the all-time Rating and +58 net points each (a week's order on equal points falls through
+ * the tie-break to Rating, `lib/board/order.ts`).
  */
 export function workedWindowRows(window: WindowKind = 'this-week'): BoardRow[] {
-  const weekly = window === 'this-week' || window === 'last-week';
+  const week = window === 'this-week' || window === 'last-week';
 
   return sortBoardRows(
     WORKED_ROSTER.map((player) => {
-      const rating = { mu: player.mu, sigma: player.sigma };
+      const games = WORKED_GAMES[player.name] ?? 0;
       return {
         puuid: workedPuuid(player.name),
         name: player.name,
-        track: weekly ? ('weekly' as const) : ('all-time' as const),
-        proven: provenRating(rating),
-        // The number the board sorted on, unrounded: the weekly `mu` on a week, the `ordinal`
-        // on a month.
-        sortKey: weekly ? rating.mu : provenSortKey(rating),
+        track: week ? ('week' as const) : ('all-time' as const),
+        // +58 each: the sum of their six printed deltas. Equal points, equal records and equal
+        // games, so the order falls through to the all-time Rating, as the all-time board's.
+        points: week ? 58 : null,
+        sortKey: player.mu,
         rating: displayRating(player.mu),
         games: 6,
         wins: 4,
         losses: 2,
-        streak: null,
-        // +58 at the display multiplier of 60: `mu` 23.9 to 24.87 is 1434 to 1492.
-        climb: { muBefore: 23.9, muAfter: 24.87 },
-        // No chip on a week, ever (M7.3); the all-time count still decides it on a month.
-        settling: weekly ? false : (WORKED_GAMES[player.name] ?? 0) < SETTLING_GAMES,
-        breakdown: [],
+        ratedGames: games,
+        climb: week ? null : { muBefore: 23.9, muAfter: 24.87 },
+        // Only All time has a settling section (lead, 2026-10-03); the chip is the all-time one.
+        settling: false,
+        settlingChip: isSettling(games),
         /**
          * **No badge unless a test asks for one** (M8.3). Only a closed window hands an award
          * out, and even there most rows win nothing: the default board is the board as it was
@@ -127,7 +118,7 @@ export function workedWindowRows(window: WindowKind = 'this-week'): BoardRow[] {
 }
 
 /**
- * The same window's board with the awards handed out (M8.3): `Most improved` to one row and
+ * The same window's board with the awards handed out (M8.3): `Best off-role` to one row and
  * `Cursed duo` to both halves of a pair — so the fixture holds a row with two badges, a row with
  * one, and eight with none, which is the shape of an ordinary closed week.
  *
@@ -137,7 +128,7 @@ export function workedWindowRows(window: WindowKind = 'this-week'): BoardRow[] {
  */
 export function badgedWindowRows(window: WindowKind = 'last-week'): BoardRow[] {
   const won: Readonly<Record<string, readonly string[]>> = {
-    [workedPuuid('Nadia')]: [MOST_IMPROVED, CURSED_DUO],
+    [workedPuuid('Nadia')]: [BEST_OFF_ROLE, CURSED_DUO],
     [workedPuuid('Yuki')]: [CURSED_DUO],
   };
 
@@ -149,15 +140,16 @@ export function workedWindowBoard(window: WindowKind = 'this-week'): BoardView {
     window,
     rows: workedWindowRows(window),
     // The week `05-design.md`'s copy table prints, and the count the ten rows add up to.
-    range:
-      window === 'this-month' || window === 'last-month' ? 'September' : 'Sunday 6 Sep to Saturday 12 Sep',
+    range: 'Sunday 6 Sep to Saturday 12 Sep',
     games: 6,
+    everRated: true,
+    notPlayed: 0,
   };
 }
 
 /** The same board with nothing in the window: the slot prints the sentence and no card. */
 export function emptyWindowBoard(window: WindowKind = 'last-week'): BoardView {
-  return { window, rows: [], range: null, games: 0 };
+  return { window, rows: [], range: null, games: 0, everRated: true, notPlayed: 0 };
 }
 
 /** One player's page, built from the same roster. `Hana` by default: 37 games, no chip. */
@@ -183,11 +175,13 @@ export function workedPlayer(name = 'Hana', overrides: Partial<PlayerBoardView> 
     // page reads `track` and not `window` to decide which number it prints (M7.16).
     track: 'all-time',
     rating,
-    proven: provenRating({ mu: player.mu, sigma: player.sigma }),
+    points: null,
     games,
     wins,
     losses: games - wins,
-    settling: games < SETTLING_GAMES,
+    ratedGames: games,
+    settling: isSettling(games),
+    rank: 4,
     range: 'Since 8 Sep 2025',
     reference: seed,
     // A short walk that ends where the roster says they are, so the chart's last point and the
@@ -281,18 +275,9 @@ export function emptyPlayerStats(window: WindowKind = 'all-time'): PlayerStatsVi
   };
 }
 
-/** One rated game under a board row (M5.30). Dates are already formatted, like the loader. */
-export function workedBoardGame(overrides: Partial<BoardGame> = {}): BoardGame {
-  return {
-    gameId: 'game-1',
-    startedLabel: '8 Sep',
-    durationS: 2_052,
-    won: false,
-    side: 100,
-    muBefore: 23.9,
-    muAfter: 23.2,
-    ...overrides,
-  };
+/** A worked row moved under the settling line: `ratedGames` rated games in the group. */
+export function settlingRow(row: BoardRow, ratedGames: number): BoardRow {
+  return { ...row, ratedGames, settling: isSettling(ratedGames) };
 }
 
 export function workedRecentGame(overrides: Partial<RecentGame> = {}): RecentGame {
@@ -302,6 +287,7 @@ export function workedRecentGame(overrides: Partial<RecentGame> = {}): RecentGam
     durationS: 2_052,
     won: false,
     side: 100,
+    winningSide: 200,
     role: 'top',
     muBefore: 23.9,
     muAfter: 23.2,
@@ -311,6 +297,9 @@ export function workedRecentGame(overrides: Partial<RecentGame> = {}): RecentGam
     // The split the group played gave blue 58%: Hana was on 100 and lost as the favourite,
     // which is the second of product's two worked sentences (M5.15).
     blueWinProb: 0.58,
+    pickRank: 1,
+    ratingsBefore: null,
+    aram: false,
     team: [
       { puuid: workedPuuid('Hana'), name: 'Hana', role: 'top' },
       { puuid: workedPuuid('Iris'), name: 'Iris', role: 'jungle' },

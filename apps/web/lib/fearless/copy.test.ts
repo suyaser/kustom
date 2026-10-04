@@ -33,23 +33,24 @@ describe('fearless copy', () => {
     expect(fearlessLaneTitle(null)).toBe(FEARLESS_OTHER);
     expect(fearlessBanned('Ahri')).toBe('Ahri is on the ban list.');
     expect(FEARLESS_OPEN).toBe('still open');
-    expect(FEARLESS_BANNED_LABEL).toBe('banned');
+    expect(FEARLESS_BANNED_LABEL).toBe('Banned');
     expect(fearlessBannedCount(79)).toBe('79 banned.');
     expect(fearlessLaneOpen(24)).toBe('24 open');
     expect(fearlessLaneOpen(0)).toBe('none open');
     // The card leads with the open champions, so it does not say "ban these" over them.
     expect(FEARLESS_CARD_SENTENCE).not.toBe(FEARLESS_SENTENCE);
-    expect(fearlessAvailable('Garen')).toBe('Garen is still available.');
+    expect(fearlessAvailable('Garen')).toBe('Garen is still open.');
     expect(FEARLESS_SEARCH).toBe('Find a champion');
     expect(FEARLESS_SEARCH_EMPTY).toBe('No champion matches.');
   });
 
   it('names the reset outcomes the admin route greps for', () => {
-    expect(FEARLESS_RESET_NOTICE).toBe('Fearless pool cleared.');
+    // Copy review rows 13 (2026-10-03): the notice echoes the `Reset fearless` button.
+    expect(FEARLESS_RESET_NOTICE).toBe('Fearless reset.');
     expect(FEARLESS_RESET_POSTED).toContain('Posted to Discord.');
-    expect(FEARLESS_RESET_SKIPPED).toContain('No webhook is configured');
-    expect(FEARLESS_RESET_FAILED).toContain('the pool is empty');
-    expect(FEARLESS_RESET_DESCRIPTION).toBe('Pool cleared. Ban list is empty.');
+    expect(FEARLESS_RESET_SKIPPED).toContain("Discord isn't connected");
+    expect(FEARLESS_RESET_FAILED).toContain('every champion is open again');
+    expect(FEARLESS_RESET_DESCRIPTION).toBe('Fearless reset. Every champion is open again.');
   });
 
   it('is floodlit: no emoji, no GG, no auto-ban promise', () => {

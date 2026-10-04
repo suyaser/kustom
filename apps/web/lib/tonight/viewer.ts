@@ -23,7 +23,17 @@ export type ViewerState =
    * not offered. No Discord id and no fact about who is linked reaches the browser.
    */
   | { kind: 'unlinked'; claimable: readonly string[] }
-  | { kind: 'linked'; puuid: string; isAdmin: boolean };
+  | {
+      kind: 'linked';
+      puuid: string;
+      isAdmin: boolean;
+      isOwner?: boolean;
+      /**
+       * A member of the page's group (any role). Linked means the person has a player row, not that
+       * they belong to this group; tonight's lobby password is for members only (M14.28).
+       */
+      isMember?: boolean;
+    };
 
 /** Nobody is signed in, which is the ordinary case and the one the page is designed for. */
 export const ANONYMOUS_VIEWER: ViewerState = { kind: 'anonymous' };
@@ -36,7 +46,7 @@ export function viewerPuuid(viewer: ViewerState): string | null {
 /**
  * Decided on the server from the session (`lib/viewer.ts`). It draws the reroll control, and
  * nothing else on this page: the admin's role tap on somebody else's row was struck from M3.6
- * on 2026-09-10 and moves to `/admin/players` with M3.25, while `POST /api/me/role-tonight`
+ * on 2026-09-10 (admins see roles under `/g/<slug>/admin/members` since M14.23), while `POST /api/me/role-tonight`
  * keeps honouring an admin's `puuid`. It is never the gate — the route behind the control
  * checks the session again before it writes.
  */

@@ -1,6 +1,6 @@
 import { windowRangeLabel } from '../board/window';
 import type { WindowKind, WindowRange } from '../night';
-import { type AwardRender, awardsView, WEB_AWARD_RENDER, type WeeklySeeds } from './awards';
+import { type AwardRender, awardsView, WEB_AWARD_RENDER } from './awards';
 import { DUOS_SHOWN } from './copy';
 import {
   averageGameMinutes,
@@ -15,7 +15,7 @@ import {
   playersWhoPlayed,
   roleBlocks,
 } from './fold';
-import type { StatsGame, StatsPlayer, StatsView } from './types';
+import type { DuoRecord, StatsGame, StatsPlayer, StatsView } from './types';
 
 /**
  * The whole of `/stats`, assembled from a list of games — **pure**, so the page's own shape is
@@ -39,12 +39,6 @@ export interface StatsInput {
   timeZone?: string | undefined;
   /** The web's glyphs by default; the Sunday post passes Discord's. */
   awardRender?: AwardRender | undefined;
-  /**
-   * Where each player's week started (M7.4), keyed by `players.id`. The loader reads it on the
-   * two week windows and on no other, because `Most improved` is the one number on this page
-   * that a week measures on the weekly track.
-   */
-  seeds?: WeeklySeeds | undefined;
 }
 
 export function statsView(input: StatsInput): StatsView {
@@ -82,13 +76,40 @@ export function statsView(input: StatsInput): StatsView {
     averageMinutes: averageGameMinutes(counted),
     roles: roleBlocks(counted, players),
     noRoleGames: noRoleGames(counted),
-    bestDuos: duos.slice(0, DUOS_SHOWN),
-    // The same list read from the other end, not the best five reversed: a pair can be in
-    // neither list, and with fewer than ten qualifying pairs it can be in both.
-    worstDuos: [...duos].sort(compareDuosWorst).slice(0, DUOS_SHOWN),
+    ...splitDuos(duos),
     longestWin: longestStreak(streaks, 'W'),
     longestLoss: longestStreak(streaks, 'L'),
     onAStreak: onAStreak(streaks),
-    awards: awardsView(input.window, counted, players, input.awardRender ?? WEB_AWARD_RENDER, input.seeds),
+    awards: awardsView(input.window, counted, players, input.awardRender ?? WEB_AWARD_RENDER),
+  };
+}
+
+/**
+ * Best and worst together, **never the same pair in both** (M14.17, the audit's duos bug: with
+ * fewer than ten qualifying pairs the two lists used to overlap, so one pair could be a group's
+ * best and worst duo at once). The ranked list is cut in two: the better half (rounded up, at most
+ * five) is `Best together`, and the worst of what is left (at most five) is `Worst together`. One
+ * qualifying pair is a best duo and nothing else.
+ */
+export function splitDuos(duos: readonly DuoRecord[]): { bestDuos: DuoRecord[]; worstDuos: DuoRecord[] } {
+  const { best, worst } = splitBestWorst(duos, DUOS_SHOWN, compareDuosWorst);
+  return { bestDuos: best, worstDuos: worst };
+}
+
+/**
+ * The rule {@link splitDuos} applies, for any list already ranked best first (M14.35 reuses it for
+ * the player page's Partners): the better half, rounded up and at most `shown`, is the best list;
+ * the worst of the rest, at most `shown`, read with `compareWorst`, is the worst list. Nobody is in
+ * both.
+ */
+export function splitBestWorst<T>(
+  ranked: readonly T[],
+  shown: number,
+  compareWorst: (a: T, b: T) => number,
+): { best: T[]; worst: T[] } {
+  const bestCount = Math.min(shown, Math.ceil(ranked.length / 2));
+  return {
+    best: ranked.slice(0, bestCount),
+    worst: [...ranked.slice(bestCount)].sort(compareWorst).slice(0, shown),
   };
 }

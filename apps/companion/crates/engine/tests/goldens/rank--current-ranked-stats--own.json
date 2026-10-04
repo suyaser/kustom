@@ -1,0 +1,24 @@
+{
+  "name": "rank--current-ranked-stats--own",
+  "kind": "request",
+  "target": "api",
+  "route": "rank",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/current-ranked-stats",
+    "16.17/current-summoner"
+  ],
+  "scenario": "rank-own",
+  "note": "Own rank on the first connect: queueMap.RANKED_SOLO_5x5 verbatim (tier, division, leaguePoints), the own Riot ID from current-summoner. wins/losses are never sent.",
+  "method": "POST",
+  "path": "/api/companion/rank",
+  "body": {
+    "puuid": "34151cbd-d9f8-5dad-9dc8-c6a8e253c0de",
+    "tier": "SILVER",
+    "division": "IV",
+    "lp": 30,
+    "queue": "RANKED_SOLO_5x5",
+    "gameName": "PRT Empty",
+    "tagLine": "EUNE"
+  }
+}

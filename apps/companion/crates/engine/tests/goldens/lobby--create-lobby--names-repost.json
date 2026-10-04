@@ -1,0 +1,30 @@
+{
+  "name": "lobby--create-lobby--names-repost",
+  "kind": "request",
+  "target": "api",
+  "route": "lobby",
+  "patch": "16.18",
+  "fixtures": [
+    "16.18/create-lobby",
+    "16.17/summoner-by-puuid"
+  ],
+  "scenario": "command-create-lobby-names-repost",
+  "note": "QUIRK of the 0.4.0 engine: the names re-post (repostWithNames) maps the lobby without passwordFor, so lobbyPassword is null here although the previous post carried it. Harmless (the server never clears on null). Parity keeps it unless a decision row says otherwise.",
+  "method": "POST",
+  "path": "/api/companion/lobby",
+  "body": {
+    "partyId": "a60654ef-a9f6-4ead-8a9d-9fcad8840621",
+    "lobbyName": "customs-verify",
+    "lobbyPassword": null,
+    "members": [
+      {
+        "puuid": "34151cbd-d9f8-5dad-9dc8-c6a8e253c0de",
+        "summonerId": 47890856,
+        "gameName": "PRT Empty",
+        "tagLine": "EUNE",
+        "side": 100,
+        "isSpectator": false
+      }
+    ]
+  }
+}

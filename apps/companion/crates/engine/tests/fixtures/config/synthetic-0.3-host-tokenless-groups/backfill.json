@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "lastRunAt": "2026-10-02T20:00:00.000Z",
+  "deepestBegIndex": 40,
+  "knownGameIds": [
+    4000969091,
+    4000901234
+  ],
+  "pendingGameIds": [],
+  "resumeBegIndex": null
+}

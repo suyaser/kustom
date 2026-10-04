@@ -1,0 +1,175 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { DDRAGON_ORIGIN, DDRAGON_VERSION } from '../lib/champs/ddragonPin.ts';
+
+/**
+ * `pnpm --filter web ddragon-fixture [--from <champion.json>]` (M15.4).
+ *
+ * Regenerates, from Data Dragon's `champion.json` at the pin in `lib/champs/ddragonPin.ts`:
+ *
+ * - `lib/champs/fixtures/ddragon-<version>-champion.json`: the fixture every champion table is
+ *   tested against, trimmed to `id`, `key`, `name`, `image.full/sprite/x/y` (M14.8, M14.30) plus
+ *   `tags` and `stats.attackrange` (M15.4). Blurbs, titles, info and the other stats are dropped.
+ * - `lib/champs/tags.ts`: numeric champion key -> Data Dragon tags (in Data Dragon's order, the
+ *   first is the primary class) and base attack range, the table class wars reads (M15.4).
+ *
+ * Source: `https://ddragon.leagueoflegends.com/cdn/<version>/data/en_US/champion.json`, Riot's
+ * static CDN (no key; not the Riot public API). `--from` reads a saved copy instead, so a pin
+ * bump can be reviewed offline. The output is deterministic: champions in Data Dragon's order (ids
+ * compared case-insensitively), fields in a fixed order, so running it twice changes nothing.
+ *
+ * This is a build-time tool. Nothing under `app/`, `components/` or `lib/` imports it
+ * (`lib/champs/regions.test.ts` checks), and the app never loads `champion.json` at runtime.
+ * After a pin bump also regenerate `spriteCells.ts`, the id table in `ddragon.ts`, `names.ts`,
+ * `lanes.ts` and the region table (`scripts/seed-regions.ts`); their tests fail until you do.
+ */
+
+const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
+const FIXTURE = join(WEB, 'lib', 'champs', 'fixtures', `ddragon-${DDRAGON_VERSION}-champion.json`);
+const TAGS = join(WEB, 'lib', 'champs', 'tags.ts');
+const SOURCE_URL = `${DDRAGON_ORIGIN}/cdn/${DDRAGON_VERSION}/data/en_US/champion.json`;
+
+const CLASS_TAGS = ['Assassin', 'Fighter', 'Mage', 'Marksman', 'Support', 'Tank'] as const;
+
+interface SourceChampion {
+  id: string;
+  key: string;
+  name: string;
+  image: { full: string; sprite: string; x: number; y: number };
+  tags: string[];
+  stats: { attackrange: number };
+}
+
+interface Source {
+  type: string;
+  format: string;
+  version: string;
+  data: Record<string, SourceChampion>;
+}
+
+function fail(message: string): never {
+  console.error(`ddragon-fixture: ${message}`);
+  process.exit(1);
+}
+
+function check(source: unknown): Source {
+  const s = source as Source;
+  if (!s || typeof s !== 'object' || typeof s.data !== 'object') fail('not a champion.json');
+  if (s.version !== DDRAGON_VERSION) fail(`version ${s.version}, the pin is ${DDRAGON_VERSION}`);
+  for (const [name, c] of Object.entries(s.data)) {
+    const ok =
+      typeof c.id === 'string' &&
+      /^\d+$/.test(c.key) &&
+      typeof c.name === 'string' &&
+      typeof c.image?.full === 'string' &&
+      typeof c.image.sprite === 'string' &&
+      Number.isInteger(c.image.x) &&
+      Number.isInteger(c.image.y) &&
+      Array.isArray(c.tags) &&
+      c.tags.length > 0 &&
+      c.tags.every((t) => (CLASS_TAGS as readonly string[]).includes(t)) &&
+      typeof c.stats?.attackrange === 'number';
+    if (!ok) fail(`unexpected shape for ${name}: ${JSON.stringify(c).slice(0, 200)}`);
+  }
+  return s;
+}
+
+/** JSON with two-space indent and string arrays on one line, which is what Biome keeps. */
+function serialise(value: unknown): string {
+  return `${JSON.stringify(value, null, 2).replace(/\[\n\s+("[^"\n]*"(?:,\n\s+"[^"\n]*")*)\n\s+\]/g, (_, items: string) => `[${items.split(/,\n\s+/).join(', ')}]`)}\n`;
+}
+
+function trimmed(source: Source) {
+  // Data Dragon's own order (ids compared case-insensitively), so a regeneration diffs cleanly.
+  const byId = (c: SourceChampion) => c.id.toLowerCase();
+  const champions = Object.values(source.data).sort((a, b) =>
+    byId(a) < byId(b) ? -1 : byId(a) > byId(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+  );
+  const data: Record<string, unknown> = {};
+  for (const c of champions) {
+    data[c.id] = {
+      id: c.id,
+      key: c.key,
+      name: c.name,
+      image: { full: c.image.full, sprite: c.image.sprite, x: c.image.x, y: c.image.y },
+      tags: [...c.tags],
+      stats: { attackrange: c.stats.attackrange },
+    };
+  }
+  return { type: source.type, format: source.format, version: source.version, data };
+}
+
+function tagsModule(source: Source): string {
+  const champions = Object.values(source.data).sort((a, b) => Number(a.key) - Number(b.key));
+  const tagRows = champions.map((c) => `  ${c.key}: [${c.tags.map((t) => `'${t}'`).join(', ')}], // ${c.id}`);
+  const rangeRows = champions.map((c) => `  ${c.key}: ${c.stats.attackrange}, // ${c.id}`);
+  return `/**
+ * Data Dragon class tags and base attack range per champion, at the pinned version (M15.4).
+ *
+ * Generated by \`scripts/ddragon-fixture.ts\` from Data Dragon's \`champion.json\` at ${source.version},
+ * together with \`fixtures/ddragon-${source.version}-champion.json\`; \`tags.test.ts\` checks the two agree,
+ * so a pin bump regenerates both. Do not edit by hand.
+ *
+ * Keyed by the numeric champion key (what \`game_players.champion_id\` and the client carry). Tags
+ * keep Data Dragon's order, so the first is the primary class; class wars counts **any** tag
+ * (decision R8). Plain data, no imports: client panels may read it.
+ */
+
+/** The six classes Data Dragon tags champions with. Class wars offers five (no Fighter). */
+export type ChampionClassTag = ${CLASS_TAGS.map((t) => `'${t}'`).join(' | ')};
+
+export const CHAMPION_CLASS_TAGS: readonly ChampionClassTag[] = [
+${CLASS_TAGS.map((t) => `  '${t}',`).join('\n')}
+];
+
+const CHAMPION_TAGS: Readonly<Record<number, readonly ChampionClassTag[]>> = {
+${tagRows.join('\n')}
+};
+
+const CHAMPION_ATTACK_RANGE: Readonly<Record<number, number>> = {
+${rangeRows.join('\n')}
+};
+
+/** A champion's Data Dragon tags, primary first; \`null\` for a key the pin does not ship (unknown). */
+export function championTags(id: number): readonly ChampionClassTag[] | null {
+  return Object.hasOwn(CHAMPION_TAGS, id) ? (CHAMPION_TAGS[id] ?? null) : null;
+}
+
+/** A champion's base attack range (\`stats.attackrange\`); \`null\` for a key the pin does not ship. */
+export function championAttackRange(id: number): number | null {
+  return Object.hasOwn(CHAMPION_ATTACK_RANGE, id) ? (CHAMPION_ATTACK_RANGE[id] ?? null) : null;
+}
+
+/** Every key the table has, ascending. */
+export function taggedChampionIds(): number[] {
+  return Object.keys(CHAMPION_TAGS)
+    .map(Number)
+    .sort((a, b) => a - b);
+}
+`;
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const fromIndex = args.indexOf('--from');
+  let raw: unknown;
+  if (fromIndex >= 0) {
+    const path = args[fromIndex + 1];
+    if (!path) fail('--from needs a path');
+    raw = JSON.parse(readFileSync(path, 'utf8'));
+  } else {
+    const response = await fetch(SOURCE_URL);
+    if (!response.ok) fail(`${SOURCE_URL} answered ${response.status}`);
+    raw = await response.json();
+  }
+  const source = check(raw);
+  writeFileSync(FIXTURE, serialise(trimmed(source)));
+  writeFileSync(TAGS, tagsModule(source));
+  console.log(`ddragon-fixture: ${Object.keys(source.data).length} champions at ${source.version}`);
+  console.log(`  wrote ${FIXTURE}`);
+  console.log(`  wrote ${TAGS}`);
+}
+
+await main();

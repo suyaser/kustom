@@ -1,4312 +1,3001 @@
-# Design
+# Design: Kustom 2.0, "Floodlit Slate"
 
-Owner: `designer`. This document is the source of truth for tokens, type, copy shape and layout across
-`apps/web` and the Discord embeds. If a UI task disagrees with this file, this file is wrong or the task is —
-say which, do not invent a third answer.
+Owner: `designer`. Status: **canonical** from 2026-10-03 (Phase 3 of the 2.0 redesign). The user chose
+**Direction C, "Floodlit Slate"**: 80% Broadcast (A) and 20% Scrim Night (B), brighter, more contrast
+(`04-decisions.md`, 2026-10-03).
 
-## Who is looking at this, and where
+**Night is "1.0 night" since 2026-10-04** (the user's pick from `redesign/night-variants.md`, decision row
+2026-10-04): C's slate Night read as bland, so Night went back to Floodlit 1.0's deep blue-black page, its two
+corner lamps and its 48px pitch grid. The components, team colours, amber, type, spacing and Day are all C's.
+Secondary text is held to AA, not C's 7:1 (3.2). 7.3 holds the values.
 
-A phone, held at arm's length, in a dark room, opened from a WhatsApp link, while the person is already in
-Discord voice and about to be in a game. They have three questions, in this order:
+**This file is the single source of truth for the design system.** `redesign/design-system.md` is now a
+pointer to it, and its section numbers are kept here unchanged so earlier references still land. The token
+block the engineer copies into `apps/web/app/globals.css` (Tailwind v4 `@theme` + shadcn variables) is
+**section 7.3**, and no other file defines a colour. The prototype `redesign/prototypes/direction-c/c.css` is
+evidence, not a source: where it and this file differ, this file wins (the differences are listed in 7.6).
 
-1. **Am I in, and which side?**
-2. **Why these teams?**
-3. **What happened?**
+Inputs: `AUDIT.md`, `audit/notes/frontend.md`, `audit/notes/screens.md`, the Floodlit 1.0 doc (now
+`docs/05-design-1.0.md`), `redesign/prototypes/direction-c/` and its screenshots `redesign/screens/c-*.png`.
+Content and copy come from `redesign/STRATEGY.md`. Wherever this file shows words in `‹angle quotes›`, they
+are placeholders. **Copy per STRATEGY.md.**
 
-Everything below is ordered by those three questions. **Night is the default theme** (2026-09-13): the
-gaming look after dark. Day is the same system in light. Phone widths are the design width; the desktop
-layout adds a second column and a rail, not a bigger phone.
+### What changed from Floodlit 1.0, and why
 
-Tone, **amended 2026-09-09 by the user's own calibration**: *"it should look like an actual gaming product,
-modern, something like Blitz and so, with its own character and style."* v1 read this as a scoreboard in a
-friend's living room and built something so restrained it looked unfinished. The corrected tone is a **games
-product for twenty friends**: dense, lit, confident, and still honest. Plain nouns, real numbers, no hype;
-never "GG", never "EPIC", never a broadcast lower-third — but also never a bare list on a black field. The
-subject has a vocabulary — `top jungle mid adc support`, blue 100 and red 200, ranks, ratings — and that
-vocabulary is the content. It is never decoration. The system that carries it is **Floodlit**, next.
+| 1.0 (Floodlit, 2026-09-09) | 2.0 (Floodlit Slate) | Why |
+|---|---|---|
+| Near-black page, hairline borders, muted text around 7:1 | C shipped a lighter **slate** page (`#1A1F29`). **Since 2026-10-04 Night is 1.0's deep blue-black again** (`#05070C` page, `#0C121A` card, 1.48:1 hairlines), with 1.0's two corner lamps and grid; muted text lifted to `#8B98AD` (≥ 5.4:1 everywhere) and every control edge on `--border-strong` (≥ 3:1) | The user first called the dark direction "too dark or hard to see" and got slate, then called slate "a little bland" and chose 1.0's background back, knowing the trade (3.2). What carries legibility now is AA text everywhere and 3:1 control edges, not a light page. |
+| Side shown by hue; equal luminance | Equal luminance kept; side also shown by **word, glyph (◣/◥) and texture** (blue solid, red hatched) | The audit: sides could not be told apart in greyscale. Brightening one side would make it look favoured. |
+| Team colours `#4ea3ff` / `#ff6f68` | Azure `#2E9BFF` / vermilion `#FF6B35` (Day `#1563CF` / `#B5390B`) | +28% protan, +25% deutan separation. |
+| Amber `#E0A33E` meant live, you, off-role, winner, reroll and links | Amber `#FFCF66` means **live, you and the primary action** only | Six meanings made "you" and "just joined" identical. The new amber passes the separation-from-red constraints (3.4). |
+| Archivo Expanded (`wdth` 118) display, Inter-family text | **Archivo condensed** (`wdth` 62, 900) for the headline and side names only; **Atkinson Hyperlegible Next** text; **Martian Mono** numbers | Names like `H4RDC0R33` need 0/O and 1/l/I distinct; the condensed cut gives the scoreboard voice without shouting every label. |
+| Hairline-tinted team cards | **Solid colour-blocked team header** with ink text; seats stay on the card (3.3) | "Which side am I on" answers itself at arm's length. |
+| One radius, scrolling phone tabs, toasts, skeletons | 8/6/4 radii, bottom tab bar, no toasts, static reserved frames (5.0, 5.9, 5.11) | Audit findings: tabs past the fold, a bright shimmer in a dark room. |
+| 1.0's colour tables | **Void.** They were already stale against `tokens.css` (audit). | Section 7.3 is the only token source. |
 
-## Floodlit — the v2 system (2026-09-09)
+### Where the 1.0 sections went
 
-**Supersedes** the `Palette`, `Type` and `Spacing, size, motion` sections below, and the tonight-page half of
-`Components`. Those sections are kept, retitled `v1 — superseded`, because the embed sections and several
-component rules still quote them and because a superseded decision is worth more than a deleted one. **Where
-v1 and this section disagree, this section wins.** The Discord embed sections are untouched: Discord has no
-CSS and nothing here reaches it.
+`docs/05-design-1.0.md` is the Floodlit 1.0 doc, moved unchanged. **Its Palette, Type, Space/shape, Themes,
+`tokens.css` v2, and "Implementation notes" token block are void**: any colour, font or size in it is
+superseded by this file. Its **surface specs and copy** (Discord embed field layouts, the daily game, fearless,
+groups and invites, `/stats`, the player page, copy tables) still describe what ships, and stay in
+force until a 2.0 milestone rewrites that surface. **Share cards** were rewritten in M14.25: 5.16 is their
+spec, and the 1.0 "Share cards" section is void except for the frame geometry 5.16 cites. Code comments that cite "05-design.md" for one of those
+surfaces now mean `05-design-1.0.md`. When the two disagree on anything visual, this file wins.
+**Fearless** has its 2.0 spec in section 8, "Mode card and mode panel" (settled 2026-10-03; Fearless is the
+first mode, there is no fearless page; the 1.0 fearless text stays in force until the task in 8.13 A lands).
 
-Why there is a v2 at all: the deployed page (screenshot, 2026-09-09, 430px) renders v1 faithfully and reads as
-unfinished. No wordmark, no date, no navigation, one unexplained number per row, the word `flexible` nine
-times, and 449px of empty reserved card. The user's own words on what it should be instead: *"it should look
-like an actual gaming product, modern, something like Blitz and so, with its own character and style."* v1 was
-restrained to the point of having no character. This one has one, and the character is named so that every
-later choice has something to be checked against.
+### Tools used, and where
 
-### The character, in one sentence
+| Tool | What I used it for | What I kept |
+|---|---|---|
+| **ui-ux-pro-max** `--design-system "gaming esports stats scoreboard dark" --density 8` | A baseline to argue against | **Rejected.** It returned neon purple `#7C3AED` with a rose CTA on `#0F0F23`, Russo One / Chakra Petch, and "3D & Hyperrealism". That is the generic neon/purple gaming look the user banned. I wrote it down as the thing to avoid. |
+| ui-ux-pro-max `--domain typography` ("condensed sports scoreboard", "geometric friendly bold sans") | Display-face candidates per direction | Barlow Condensed, Bebas Neue, Space Grotesk and Outfit came back. All are common defaults and were rejected; Archivo condensed won (section 4). |
+| ui-ux-pro-max `--domain ux` ("skeleton loading", "color not only", "truncate text wrap names", "live badge count screen reader", "native select mobile", "bottom navigation") | Rules | Essential text truncation is Critical: wrap, never clamp. Colour is never the only signal. Async count changes go in one atomic `role="status"`, not a bare live number. Reserve space for async content (CLS). Fixed nav needs matching body padding. Chips that act are buttons with `aria-pressed`. |
+| ui-ux-pro-max `--stack shadcn`, `--stack nextjs` | Stack rules | Semantic CSS variables exposed through `@theme inline`, a complete `:root` scheme plus an override scheme, and `loading.tsx` with Suspense streaming. Its advice to "use Sonner" and to prefer "Radix Select over native" is **overridden** in 5.0, with reasons. |
+| **frontend-design** SKILL.md | Direction discipline | Ground choices in the subject: the side glyphs come from the map, the hatch from Discord's block characters, the type from players' names. Spend boldness in one place: the win-split bar is the memorable element and everything else is quiet. Its list of AI defaults is checked in 1.3. |
+| Own scripts (Python, scratchpad) | WCAG contrast; Machado-2009 protan/deutan/tritan simulation at severity 1.0, measured in OKLab; greyscale luminance ratios | Every colour number in section 3. |
 
-> **Floodlit: a dark stadium after dark — near-black ink, one warm light overhead, and the ten names lit up
-> under it in blue and red.**
+---
 
-Five rules fall straight out of it, and every visual decision in this section is one of them:
+## 1. Principles
 
-1. **The light comes from above, and there is one of it.** Surfaces are lit on their top edge (a 1px inner
-   highlight) and sit on a background that is faintly warmer at the top of the page than at the bottom. There
-   is exactly one glow in the product — the live pill — because there is one lamp.
-2. **Ink, not grey.** The background is a blue-black at `#0B0E14`, not a neutral charcoal, so the two side
-   colours sit on something that belongs to them. Never `#000`: pure black smears text on an OLED phone.
-3. **Colour is a team, a state, or nothing.** Blue is side 100, red is side 200, amber is the light — live,
-   you, off-role, the winner's ring, the control you may press. There is no fourth colour and no decorative
-   use of the first three.
-4. **Dense, like a stats site.** Rows are tight, numbers are tabular, labels are small and always present. A
-   card that shows five facts is better than a card that shows one fact large. The only large type in the
-   product is a result and a count.
-5. **Structure over ornament.** Rules, tints, rings and one gradient. No glass blur, no neon, no crest, no
-   emoji, no purple. **No splash art, no loading-screen art, no portrait crop, no decorative champion art —
-   anywhere.** The single exception is a 24×24 square champion icon leading the name on a fearless chip on `/`
-   (M11, "The fearless icon exception" below). Any other surface that wants a champion icon needs its own named
-   exception written into this file by the designer before code. "The fearless card has them" is not a
-   precedent.
+### 1.1 Carried over from Floodlit, unchanged
 
-### Palette
+1. **Colour means a team, a state, or nothing.** Blue is side 100. Red is side 200. The accent is the light:
+   live, you, and the one primary action. Destructive is a state, and it only appears in admin. There is no
+   decorative colour.
+2. **Deltas are not coloured by sign.** No green for gains, no red for losses. Red already means side 200.
+   The sign and the weight carry it (5.3).
+3. **Numbers are tabular mono.** Every rating, percentage, gap, count, duration and rank. Never proportional.
+4. **Neither side looks favoured.** Blue and red stay matched in luminance (1.03:1 Night, 1.06:1 Day). The favoured side
+   is never bolder, bigger, brighter or first by emphasis. Blue is on the left because the client lists it
+   first, and for no other reason.
+5. **One explanation string.** The sentence from `packages/core` is shown verbatim. The visual layer sits
+   beside it, built from the stored numbers (`blue_win_prob`, `gap`, off-role count). It never parses the
+   sentence and never re-derives a number differently.
+6. **No champion art, crests, avatars or emoji.** The fearless 24px icon exception carries over as written in
+   `docs/05-design-1.0.md` ("The fearless icon exception").
 
-Nine named tokens per theme, up from seven. The two new ones are the reason the page can look built: a second
-surface to raise things onto, and a line colour that is a colour rather than an alpha guess.
+### 1.2 What changes, and why
 
-| Token | Role | Dark | Light |
+| Floodlit rule | 2.0 rule | Why |
+|---|---|---|
+| Equal-luminance sides, and colour carries the side | **Equal luminance stays, but colour never carries the side alone.** Every side surface has the word `BLUE`/`RED` or the side glyph (◣ blue, ◥ red). Every filled side area also has a texture: blue solid, red hatched. | The audit found the sides can't be told apart in greyscale. Raising one side's brightness would make it look favoured. So the separation comes from shape and texture, and the hue is tuned for colour-vision deficiency (3.3). |
+| Amber means live, you, off-role, the winner's ring, the reroll button and links | **The accent means three things: live, you, and the primary action.** Off-role becomes a word plus a dashed chip. Links are underlined foreground text. The focus ring is foreground, not accent. | Six meanings for one colour made "you" and "just joined" identical (audit: high). With fewer meanings, the accent is unambiguous. |
+| No skeletons, no toasts, one gradient, one glow (Night now has two lamps and a grid, 7.1) | Rewritten in 5.0 as a shadcn keep/restyle/ban list, each with a reason. Route loading uses a **static shell**. | shadcn is adopted, so the bans have to name components, not vibes. |
+| Role icon always with its word | Kept, with a narrow team-card layout so both fit at 375 (5.1) | The audit's #4 problem was names cut off. The fix is layout, not deleting the word. |
+| Wide display cut at 800 (Archivo `wdth` 118) | **Archivo condensed** (`wdth` 62, wght 900), for the headline and side names only. Text and mono in section 4. | Scoreboard voice in the two places it belongs; every other label is sentence case in the text face. |
+| Phone nav: horizontally scrolling tabs | Bottom tab bar on phones, top nav from 768 px (5.11) | Tabs were hidden past the fold ("D" for Daily). |
+| `t-base` 17 px | Kept at 17 px. Inputs and selects are never under 16 px. | iOS zooms on a 14 px select (`/1v1`). |
+
+### 1.3 Anti-defaults (the frontend-design checklist, applied)
+
+- No cream and serif, no acid green on black, no purple gradient, no glass, no neon glow, no "3D".
+- No tracked ALL-CAPS eyebrow above every heading. Upper case is allowed only for the side words and the
+  display headline (a scoreboard), never for labels. Card titles are sentence case in the text face.
+- No `01 / 02 / 03` markers unless the content is a sequence. The three candidate splits are ranked, so they
+  can be numbered.
+- No `→` appended to buttons. A button says its verb.
+- No hover-lift cards, no fade-up on scroll, and no soft grey shadow under every card.
+- Middle-dot meta strings (`94 games · 58W 36L`) are used only where they replace a table row on a phone. They
+  are a choice here, not chrome.
+
+---
+
+## 2. Token architecture
+
+Three layers. Components only ever read **component** or **semantic** tokens, never primitives and never hex.
+
+```
+primitive   raw values, named by what they are      --p-azure-400, --p-slate-1, --p-amber-400
+   ↓
+semantic    named by role (shadcn names + ours)     --background, --card, --team-blue, --live
+   ↓
+component   named by the part that uses them        --seat-min-h, --winbar-h, --tabbar-h, --radius-card
+   ↓
+Tailwind    @theme inline maps semantic → utilities  bg-card, text-team-blue, rounded-card
+```
+
+The theme is set by `data-theme="night" | "day"` on `<html>`, written before paint by the existing
+`THEME_BOOTSTRAP`. **Night is `:root`** (dark first). Day overrides the semantic layer only. Primitives and
+component tokens never change per theme. Both themes come from one primitive set.
+
+**Every value lives in the one block in section 7.3.** Sections 2.1 to 2.4 explain the layers and roles; they
+carry no hex of their own.
+
+### 2.1 Primitives
+
+Raw values, named by what they are: `--p-slate-*` (night neutrals), `--p-paper-*` (day neutrals),
+`--p-azure-*` / `--p-vermilion-*` (teams), `--p-amber-*` (the light), `--p-rose-*` (destructive), `--p-ink`
+(the dark text that sits on fills). Ramp steps: 0 = page, 1 = card, 2 = raised, 3 = border, 5 = strong
+border, 7 = muted text, 9 = text. Values: 7.3.
+
+### 2.2 Semantic (shadcn variables, plus ours)
+
+| Variable | Night | Day | Role |
 |---|---|---|---|
-| `bg` | Page ink. Blue-black. | `#0B0E14` | `#EEF1F6` |
-| `surface` | Cards, rows, strips. | `#141923` | `#FFFFFF` |
-| `raise` | The layer above a card: card headers, chips, tabs, the top bar, empty seats' contrast partner. | `#1D2431` | `#DAE2ED` |
-| `line` | Every hairline and card border. A real colour, so borders are the same on all three surfaces. | `#2A3140` | `#D5DCE7` |
-| `text` | Everything you are meant to read. | `#EEF2F8` | `#10141B` |
-| `dim` | Labels, counts, secondary lines. Never a player's name, never a rating. | `#94A0B2` | `#556072` |
-| `blue` | Side 100. | `#4C9AFF` | `#1F5FC4` |
-| `red` | Side 200. | `#FF6B63` | `#B4302B` |
-| `brand` | Amber. The light. Live state, "you", off-role, the reroll control, the winner's ring, the wordmark's one lit letterform, links. **Renamed from `accent`; every rule that said `accent` now says `brand`, unchanged.** | `#FFB13C` | `#8A5A0B` |
+| `--background` | slate-0 | paper-0 | page |
+| `--foreground` | slate-9 | paper-9 | body text, names, ratings |
+| `--card` / `--card-foreground` | slate-1 / slate-9 | paper-1 / paper-9 | cards, rows, team seats |
+| `--raised` | slate-2 | paper-2 | **ours.** Level 2: chips, the answer band, tape tiles, card headers that are not a side |
+| `--popover` / `--popover-foreground` | `--card` | `--card` | the AlertDialog (popovers are banned, 5.0). It is `--card`, not `--raised`, because Day's destructive text on raised is 4.27 |
+| `--primary` / `--primary-foreground` | amber-400 / ink | amber-800 / paper-1 | the one primary action per view (button fill and its label) |
+| `--primary-text` | amber-400 | amber-800 | **ours.** The light as text or outline: the `How the bot decided` summary, the you-row outline, the nav indicator, links that are the view's action |
+| `--primary-fill` / `--on-primary-fill` | amber-400 / ink | amber-400 / ink | **ours.** Small amber fills that keep their colour in Day: the `Live` tag, the `YOU` sticker. In Day they add a 1px `--primary-text` inset edge (amber on white is 1.46) |
+| `--secondary` / `--secondary-foreground` | `--raised` / slate-9 | `--raised` / paper-9 | secondary buttons (edge `--border-strong`: the fill is only 1.09 off the card in Night, so the edge is what marks the button, 6.15) |
+| `--muted` / `--muted-foreground` | `--raised` / slate-7 | `--raised` / paper-7 | labels, meta. **Never a player name or a rating.** |
+| `--accent` / `--accent-foreground` | `--raised` / slate-9 | `--raised` / paper-9 | **shadcn's hover/pressed surface, kept neutral.** It is *not* our amber. Our amber is `--primary*`, `--live`, `--you` |
+| `--destructive` | rose-400 | rose-700 | admin destructive actions, error text |
+| `--border` | slate-3 | paper-3 | card borders, seat dividers, the hairline. **Decorative only**: every card has one (card vs page is 1.07 Night), but it never is the only edge of a control (6.15) |
+| `--border-strong` | slate-5 | paper-5 | **ours.** The receipt frame, dashed "not yet" states (sit-out, open seats, settling, empty states), the tab-bar top edge, and **the edge of every outlined or filled-raised control** (secondary and outline buttons, toggle chips, window and segment pickers, the theme switch, lane tiles, disclosure boxes; 6.15) |
+| `--input` | slate-5 | paper-5 | input, select and search borders (= `--border-strong` in both themes, ≥ 3:1, 3.2, 6.15) |
+| `--ring` | slate-9 | paper-9 | **focus ring = foreground**, so it never looks like the you mark or a side |
+| `--team-blue` / `--team-red` | azure-400 / vermilion-400 | azure-700 / vermilion-700 | side 100 / 200: fills, glyphs, 4px rules |
+| `--on-team` | ink | paper-1 (white) | **ours.** The only colour that sits on a team fill |
+| `--team-blue-tint` / `--team-red-tint` | 12% team over `--card` | same | a side wash behind a row (never behind side-coloured text, 3.3) |
+| `--stripe` | ink at 16% | black at 20% | **ours.** The dark stripe of the red hatch |
+| `--hatch` | `repeating-linear-gradient(135deg, var(--stripe) 0 4px, transparent 4px 9px)` | same | **ours.** Laid over every red fill |
+| `--you-wash` | 9% amber over `--card` | 18% amber over `--card` | **ours.** The viewer's seat/row background |
+| `--live` / `--you` | `var(--primary-text)` | same | aliases, so there is no fourth hue |
+| `--page-light` | azure lamp 16% top-left + amber lamp 12% top-right + 48px grid at 4% | one amber-800 glow at 5% | **ours.** What `bg-page` paints over `--background` (7.1, 7.3) |
+| `--scrim` | `rgb(0 0 0 / .64)` | `rgb(14 17 22 / .48)` | behind the AlertDialog |
 
-Contrast, measured (WCAG 2.1, computed 2026-09-09 — not eyeballed):
+Tints, wash and hatch are derived with `color-mix` against `--card` or laid over the fill, so they follow the
+theme with no new hex. **Do not add hex outside 7.3.**
 
-| | on `bg` dark | on `surface` dark | on `raise` dark | on `surface` light | on `raise` light |
-|---|---|---|---|---|---|
-| `text` | 17.19 | 15.67 | 13.86 | 18.45 | 14.13 |
-| `dim` | 7.29 | 6.65 | 5.88 | 6.36 | 4.87 |
-| `blue` | 6.78 | 6.18 | 5.47 | 6.01 | 4.61 |
-| `red` | 6.93 | 6.32 | 5.59 | 6.18 | 4.73 |
-| `brand` | 10.68 | 9.73 | 8.60 | 5.92 | 4.53 |
+### 2.3 Component tokens
 
-Everything passes AA on every surface in both themes. **Blue and red are within 0.15 of each other in dark**
-(6.18 / 6.32, against v1's 1.1 spread): if one side were brighter, that side would read as the favoured one
-before anybody read a number. `brand` at 9.73 is deliberately the brightest thing on a dark page — it is the
-lamp, and it is only ever on a few square centimetres at a time.
+Named by the part that uses them, the same in both themes. Values (in 7.3): `--tap` 44, `--seat-min-h` 64,
+`--row-min-h` 56, `--chip-h` 28, `--role-cell-w` 60, `--thead-h` 54, `--side-block-w` 46, `--winbar-h` 50
+(≥1024: 60), `--winbar-h-compact` 40 (≥1024: 44), `--winbar-h-mini` 10, `--side-rule-w` 4, `--tabbar-h` 60,
+`--topbar-h` 60, `--gutter` 16 (≥768: 24), `--card-pad` 16 (≥1024: 20), `--rail-w` 340, `--radius-card` 8,
+`--radius-control` 6, `--radius-chip` 4.
 
-Light's three layers were 1.08 apart against dark's 1.24, which is why the light top bar and every light card
-header nearly vanished on the rendered page (designer's review of M3.18). `#DAE2ED` puts them 1.15 apart and
-every colour stays above 4.5 on it.
+### 2.4 Tailwind v4 mapping
 
-**Derived values. Do not add hex; derive.**
+The `@theme inline` block is part of 7.3, so the mapping and the values are one paste. Rules for it:
+- No `dark:` variant: Night is the default token set, so components never branch on theme. `day:` exists
+  (`@custom-variant day`) for rare art-direction fixes only.
+- Spacing uses **Tailwind v4's default `--spacing: 0.25rem`** (a 4 px base). Use `p-3` (12), `gap-4` (16),
+  `mt-6` (24), `mt-8` (32), `mt-12` (48). No custom spacing scale; the named gaps are component tokens.
+- `--shadow-*: initial` wipes Tailwind's shadow scale; only `--shadow-overlay` exists (5.0).
+- shadcn's components read `--radius-{sm,md,lg,xl}`; they are aliased to our three steps so stock code lands
+  on ours.
 
-```
-blue tint      color-mix(in srgb, var(--cn-blue) 10%, var(--cn-surface))
-red tint       color-mix(in srgb, var(--cn-red) 10%, var(--cn-surface))
-brand tint     color-mix(in srgb, var(--cn-brand) 12%, var(--cn-surface))
-blue line      color-mix(in srgb, var(--cn-blue) 55%, var(--cn-line))
-red line       color-mix(in srgb, var(--cn-red) 55%, var(--cn-line))
-pressed        color-mix(in srgb, var(--cn-text) 8%, var(--cn-raise))
-lit            inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent)     /* the top-edge highlight */
-glow           0 0 0 4px color-mix(in srgb, var(--cn-brand) 14%, transparent) /* the live pill, and nothing else */
-```
+### 2.5 Spacing rhythm
 
-**The one gradient in the product.** The shell carries a single soft radial at the top, the floodlight:
+| Use | Value |
+|---|---|
+| inside a chip | 4 × 8 |
+| between a row's lines (name / meta) | 2 |
+| between seat rows | 0, divided by a 1px `--border` hairline |
+| card padding | `--card-pad` (16 / 20 from 1024) |
+| between cards in a stack | 16 (phone) / 20 (≥1024) |
+| between page sections | 32 (phone) / 48 |
+| page gutter | `--gutter` (16 / 24) |
 
-```css
-background:
-  radial-gradient(120% 70% at 50% -15%, color-mix(in srgb, var(--cn-brand) 5%, transparent), transparent 65%),
-  var(--cn-bg);
-```
+### 2.6 Radius
 
-5% amber over 65% of the fold. It is felt, not seen, and it is what stops a 1400px desktop viewport from
-being a flat black field. It is fixed to the shell, does not scroll, and is the only `linear`/`radial-gradient`
-allowed anywhere in `apps/web`. No purple, no teal, no two-stop brand ramp behind a hero. The M11 share cards
-paint this same amber floodlight into their PNG ("Share cards" below). That is the same light drawn in a
-second medium, not a second gradient. Nothing else gets a gradient: not a chip, not a tape, not a poster.
+Three steps, never one radius on everything (that is the SaaS-card tell): **card 8, control 6, chip 4**.
+Controls include buttons, inputs, the candidate-split cards, tape tiles and the full win bar's outer ends
+(6). Chips include stickers, side pills, the tape-tile side block and the mini bar's outer ends (4). The win
+bar's inner split, hairlines and the 4px side rule are square. Focus outlines follow the element's radius.
+Nothing is a pill (999) except the live dot and the tab-bar notification dot.
 
-**Colour rules that survive v1 unchanged, and are still the ones people break:**
+### 2.7 Type scale (phone → ≥1024 where it changes)
 
-- A side colour is a rule, a text colour, a ring, or a tint at 10%. **Never a filled block behind five names.**
-- **Rating deltas are never coloured by sign.** No green. A gain is `text` at 600, a loss is `dim` at 400, both
-  always signed. Green-for-good collides with `red` meaning side 200.
-- Nothing pulses but the live dot. Nothing shimmers. There are no skeletons.
-
-### Type
-
-Two families. Archivo is loaded as a **variable font with the width axis**, which buys a display cut with no
-second download: `next/font/google` supports `axes` on variable families.
-
-| Family | Role | How | Fallback |
-|---|---|---|---|
-| **Archivo** (`wght` 400–800, `wdth` 100–125) | Everything read as language, plus the display cut. Normal width for names, copy and labels; **`wdth` 118 at weight 800 for display** — the result headline, the lobby count, the wordmark. A wide grotesque at 800 is a scoreboard face; it is also not what an AI page looks like, which is a thin serif or a geometric sans. | `Archivo({ subsets:['latin'], axes:['wdth'], display:'swap', variable:'--cn-font-archivo' })` | `'Helvetica Neue', Arial, system-ui, sans-serif` |
-| **IBM Plex Mono** (400, 600) | Everything read as data: ratings, deltas, gap, percentages, duration, rank, role words, lobby password, PUUID fragments. Tabular figures, a distinguishable `1`/`l`, a real minus. | unchanged from v1 | `ui-monospace, 'SF Mono', Menlo, monospace` |
-
-The split is still the whole system: **number or role → mono; person or sentence → Archivo.** Every numeric run
-sets `font-variant-numeric: tabular-nums`.
-
-The display cut is one utility, used in four places and nowhere else:
-
-```css
-.cn-display {
-  font-family: var(--cn-font-sans);
-  font-variation-settings: 'wdth' 118;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.02;
-}
-```
-
-If the `wdth` axis is a problem in `next/font` for any reason, the fallback is plain Archivo 800 with
-`letter-spacing: -0.02em` and the page loses a little character and nothing else. Do not substitute a second
-family for it.
-
-#### Scale
-
-Root 16px. Body 17px — the page is read at arm's length. Nothing that carries meaning goes below 12px.
-
-| Token | Phone | ≥720px | Line height | Used for |
+| Token | Phone | ≥1024 | Face | Use |
 |---|---|---|---|---|
-| `t-xs` | 12px | 12px | 1.35 | role words, chips, legends, per-row meta, nav tabs |
-| `t-sm` | 14px | 14px | 1.4 | deltas, duration, the status sentence, footer |
-| `t-base` | 17px | 17px | 1.5 | body, the explanation line, sit-out copy |
-| `t-md` | 19px | 19px | 1.25 | player names in rows, ratings |
-| `t-lg` | 24px | 26px | 1.2 | side names, card and section headings |
-| `t-xl` | 32px | 36px | 1.1 | the wordmark's home for growth; secondary headlines |
-| `t-display` | 44px | 56px | 1.02 | **two things only**: the lobby count and the result headline. (The pairing code borrows the size, set in mono and not in the display cut. It is the one other large thing, and it is named in "The pairing code" under M13.) |
+| `--fs-2xs` | 13 | 13 | mono / text 700 | **floor.** Role words, tab-bar labels, settling chip. Nothing that carries meaning goes smaller. |
+| `--fs-xs` | 15 | 15 | text | row meta (`94 games · 58W 36L`), chip labels, `Your side`, captions under the bar |
+| `--fs-sm` | 16 | 16 | text | secondary lines: the reason line, sit-out sentence, strip sub-line, footnotes, deltas |
+| `--fs-base` | 17 | 17 | text | body, buttons, the `How the bot decided` summary. **Inputs and selects: 17 (≥16, no iOS zoom).** |
+| `--fs-md` | 19 | 19 | text 700 / mono 600 | player names, seat ratings (mono 600 at `font-stretch` 82% for width), card titles (text 700). **There is no 18 step**: anything drawn at 18 in the prototypes is `md` |
+| `--fs-lg` | 23 | 26 | text 700 | the verdict sentence (`Basically a coin flip.`), h2 on pages without a strip |
+| `--fs-xl` | 32 | 32 | display | side names in the team header; the h1 of non-tonight pages (text face 700 there, 5.8) |
+| `--fs-display` | 46 | 64 | display | the strip headline (`TEAMS ARE SET`, `6 OF 10 IN`) and the result headline (`RED WINS`) |
 
-Weights: 400 body, 500 labels, 600 names and numbers that matter, 800 display only. **No 300, ever.**
+Mono runs inside a chip or key/value may set 1 to 2px smaller than the text beside them (Martian is wide;
+`font-stretch: 78–88%` narrows it), never below 13. Weights: text 400 body, 700 names and emphasis; mono
+500/600; display 900 (800 inside the bar and pills). No 300. `text-wrap: balance` on h1/h2, `text-wrap:
+pretty` on paragraphs.
 
-Letter-spacing: `-0.02em` on `t-display`, `-0.01em` on `t-lg` and `t-xl`, `0.06em` on mono role words and
-`0.08em` on mono micro-labels (`live`, `open`, legends), which are always lower case — `top`, `adc`, never
-`TOP`. **Upper case is allowed on the display cut only** (`BLUE WINS`), because that is a scoreboard and not a
-role.
+### 2.8 Elevation
 
-### Space, shape, elevation, motion
+Dark UIs get depth from lightness and edges, not blur.
 
-4px base, unchanged: `sp-1` 4, `sp-2` 8, `sp-3` 12, `sp-4` 16, `sp-5` 24, `sp-6` 32, `sp-7` 48, `sp-8` 64.
-
-- Radius: `10px` on cards, `8px` on inner rows and buttons, `4px` on chips, `0` on hairlines. Softer than v1's
-  6px because cards are now layered and a tight radius on a stack reads as a table.
-- **Every card is: `surface` fill, 1px `line` border, `lit` inner top highlight.** That trio is the whole
-  elevation system. There is no shadow anywhere else; a dark UI gets depth from a lit edge, not from a blur.
-- `raise` is the layer *inside* a card: the card's header bar, chips, the nav tabs, the top bar itself.
-- Every tappable thing is at least **44 × 44px**, including role taps (M3.6), the reroll button, the nav tabs
-  and every footer link.
-- Motion: `opacity 150ms ease` for anything appearing, `background-color 120ms` and `transform: scale(.985)`
-  on press for buttons and tabs, a 2s opacity cycle on the live dot. Nothing else moves.
-  `prefers-reduced-motion: reduce` drops all of it including the pulse.
-
-### Iconography
-
-Inline SVG, drawn in this repo, `currentColor`, 24×24 viewBox, `stroke-width: 2`, round caps and joins, no
-fill. One component, `apps/web/app/_icons/RoleIcon.tsx`, five paths. **The icon never appears without its
-word** — it is an anchor for the eye in a dense row, not a replacement for language — and it is always
-`aria-hidden`, because the word beside it is the accessible name.
-
-```
-frame (top/mid/adc only, stroke at 30% opacity)   <rect x="3.5" y="3.5" width="17" height="17" rx="4"/>
-top        M8 16 V8 H16
-mid        M8 16 L16 8
-adc        M8 16 H16 V8
-jungle     M18 6 C9 6 6 9 6 18 C15 18 18 15 18 6 Z     +  M9 15 L15 9
-support    M12 4 L19 7 v5 c0 4 -3 6.5 -7 8 c-4 -1.5 -7 -4 -7 -8 V7 Z
-```
-
-The three lanes sit **inside** the frame with a clear unit of air (8→16, not 6→18). At 14px the old geometry
-left under a pixel between the glyph and the frame's inner edge and the two strokes merged: `top`, `mid` and
-`adc` all read as the same small filled square. The word beside it still carries the meaning; the mark has to
-be worth its 14px.
-
-Sizes: 14px beside a name in a row, 16px in a card header, 20px on `/p/[puuid]`. Colour: `dim` normally,
-`brand` when the seat is off-role, the side colour never — a role is not a team.
-
-**Sides get no icon and no crest.** A side is a 4px rule in its colour on the card's leading edge plus its name
-in the display cut. There is no asset pipeline in this project and there should not be one.
-
-The only other glyph in the product is the live dot: an 8px circle, `brand`, inside a `raise` pill with the
-word `live` in mono `t-xs`. The pill carries the `glow` shadow. That is the one glow.
-
-#### The fearless icon exception (M11, designer 2026-09-23; extended to the overlay by M12)
-
-The places in the product where a champion is drawn: the fearless card on `/`, and the fearless block of the
-optional overlay (M12). Why these places: both are used during pick, and in champion select people recognise
-a face faster than they read a name. Everywhere else a champion is a word: Discord, `/fun`, `/games`, the
-player page, the result poster, the night tape and the share cards. None of those gets an icon, and none gets
-one later without a new exception written here.
-
-**The overlay reuses this exception byte for byte.** Same 24×24 square, same Community Dragon URL from
-`championIconUrl`, same `alt=""`, same opacity rules for banned chips. The overlay does not draw open-lane
-tails and does not have a find box; its fearless block is the ban list alone.
-
-**The object.** A square champion icon, shown as the source delivers it. There is no zoom, no face crop, no
-mask and no frame, because a portrait crop is the "no portrait crop" rule above. Keyed by the numeric
-`FearlessChampion.id`, the same id the name comes from.
-
-| Property | Value |
-|---|---|
-| Rendered size | **24 × 24 CSS px, at every width.** It does not grow on desktop. Ask for a 48px source for 2× screens if the source offers one. `width="24" height="24"` on the element, so the box is reserved before the bytes arrive. |
-| Shape | Square, `border-radius: 4px`. **Never a circle.** A round champion face reads as a ranked emblem or a crest, and crests are banned. |
-| Fit | `object-fit: cover`, `flex: none`, `display: block`. No `transform: scale()` to trim a baked-in border. |
-| Placement | First child of the chip, before the name. Gap `sp-2` (8px). |
-| Loading | `loading="lazy"`, `decoding="async"`. **It does not fade in**: no opacity transition on load, no placeholder fill and no shimmer. The reserved 24px box is empty until the image paints. |
-| `alt` | `alt=""`. The name beside it is the accessible text, and a screen reader must not say "Ahri Ahri". |
-| Glow, ring, shadow | None. Icons do not glow. The live pill is still the only lamp. |
-| Theme | Identical in Day and Night. No filter per theme. |
-
-**The chip, restated for M11.** The markup stays `ul.cn-fearless-list > li`, and the `img` goes inside the
-`li` ahead of the text node. Today's chip is about 31px tall (14px × 1.5 line height, 4px padding, 1px
-border), so a 32px floor changes nothing that already renders:
-
-```css
-.cn-fearless-list li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cn-sp-2);
-  min-height: 32px;
-  padding: 3px 10px;                 /* no icon: the chip as it is today */
-  /* background, border, radius, type: unchanged */
-}
-.cn-fearless-list li:has(> .cn-fearless-icon) {
-  padding-inline-start: 3px;         /* 3 + 1 border + 24 + 3 + 1 = 32px square lead */
-}
-.cn-fearless-icon {
-  width: 24px; height: 24px;
-  flex: none; display: block;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.cn-fearless-banned-chip .cn-fearless-icon { opacity: 0.55; }   /* was the open chip until 2026-10-03 */
-.cn-fearless-hit .cn-fearless-icon { opacity: 1; }
-```
-
-(If `:has()` is unwelcome, put a `cn-fearless-chip-icon` class on the `li` when an image is rendered. Both
-produce the same box.)
-
-| Chip | Icon | Name | Chip dress |
+| Level | Surface | Edge | Used by |
 |---|---|---|---|
-| **Open** (`cn-fearless-open-chip`) — the primary chip since 2026-10-03 | Full opacity | `text`, 600 | `raise` fill, `line` hairline |
-| **Banned** (`cn-fearless-banned-chip`) — reference, inside the closed `banned` fold since 2026-10-03 | **`opacity: 0.55` on the `img` and nothing else.** No `filter: grayscale()`, no desaturate, no tinted overlay: a grey champion is a fourth colour. | `dim`, 500 | Transparent fill, **solid** `line` hairline (dashed means an empty seat on this page) |
-| **Find hit** (`cn-fearless-hit`) | **Full opacity, never recoloured**, even when the hit is an open chip. An icon tinted amber looks like a rendering bug. | `brand`, as today | `brand-tint` fill, `brand` border plus inset ring, as today |
-| **Unknown id** (name falls back to `Champion ${id}`) | **No `img` element.** | As its row | Unchanged, and no reserved blank square |
-| **Image fails to load** | Remove the `img` (`onError` drops it). The chip reflows to name-only once, at load time. Never a broken-image glyph, never alt text in the chip. | As its row | Unchanged |
+| 0 | `--background` | none | page |
+| 1 | `--card` | 1px `--border` | cards, rows, strips |
+| 2 | `--raised` | 1px `--border` | chips, the answer band, tape tiles, the strong-bordered receipt's inner chips |
+| 3 | `--popover` (= `--card`) | 1px `--border-strong` + `--shadow-overlay`, over `--scrim` | AlertDialog only |
 
-**Height, and the 44px rule.** The chips are not controls: they are list items with no handler, and nothing
-on this card is tappable except the find box, which is already 44px. So the 44px floor does not apply. **Every
-chip, including the find hit, is 32px.** Growing the hit chip to 44px would reflow every wrapped row below it
-on each keystroke, in the one box people type into while pick is running. That is a layout shift under a
-thumb, which "The tonight page v2" forbids. If a chip ever becomes tappable, every chip goes to 44px at once,
-not just one state.
+The top bar and the tab bar are level 1 (`--card`), with a `--border` bottom edge and a `--border-strong` top
+edge respectively. There is no per-card edge treatment: no top highlight (A) and no offset "sticker" drop (B).
+The texture lives in the hatch, the colour-blocked headers and the page light (Night's lamps and grid, 7.1).
+In Night the levels are close (card 1.07 over page, raised 1.09 over card, 1.0's look): the hairline separates
+cards, and a control never relies on the level change alone (6.15).
 
-**What does not change.** The A–Z order stays as it is. (The lane words, the fold, the find box's size, the
-count and the sentence were reworked on 2026-10-03: see "Open first, one lane per row" under Fearless.) No gradient or tint sits behind an icon. An icon never appears without its name
-(same rule as `RoleIcon`). No champion appears outside this card.
+### 2.9 Motion
 
-### The app shell
-
-Every page of `apps/web` outside `/admin` gets the same shell. It is what makes the tonight page a page of a
-product rather than a document that happens to be dark.
-
-```
-┌───────────────────────────────────────────────────────────────┐
-│  ▍KUSTOM     Tonight  Leaderboard  Games  Stats  Fun  1v1  Daily   Day Night │
-│   Customs Night        ← the group line, under the wordmark (M13.7, below)    │
-├───────────────────────────────────────────────────────────────┤
-│                                                               │
-│   … page content, on the paper or the ink, under the floodlight … │
-│                                                               │
-├───────────────────────────────────────────────────────────────┤
-│  How this works · Get the companion · Your games              │  footer: dim, t-sm
-└───────────────────────────────────────────────────────────────┘
-```
-
-### Themes — Day and Night (2026-09-13)
-
-Two named looks, one `data-theme` on `<html>`, persisted in `localStorage` as `cn-theme`. Night is the
-default and the `:root` tokens. A `beforeInteractive` script writes the stored name before first paint,
-and the toggle reads `data-theme` after mount so a refresh cannot show Day selected on a Night page.
-A leftover stored `current` becomes Night.
-
-| Name | File | What it is |
+| Token | Value | Allowed for |
 |---|---|---|
-| **Night** (default) | `tokens.css` `:root` / `[data-theme=night]` plus `theme-gaming.css` | The gaming look after dark. |
-| **Day** | `[data-theme=day]` plus the same file | The same system on cool paper. Same Archivo + Plex Mono, same chips and cards. |
+| `--dur-press` | 80ms | `scale(.98)` on press of a button or tab |
+| `--dur-fast` | 140ms | colour and opacity changes, chip state |
+| `--dur-base` | 200ms | disclosure open (height via `interpolate-size` / `::details-content`), team crossfade on reroll |
+| `--dur-slow` | 280ms | AlertDialog in and out (fade + `scale(.97→1)`) |
+| `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | everything above |
+| `live-pulse` | 2s opacity 1 → .35 → 1 | the live dot only. It stops in any state except live. |
+| "just joined" wash | 1.2s, `--you`-free: `--muted` → transparent, once | a newly joined seat (5.1) |
 
-Colour is still a team, a state, or nothing. Day and Night do not add a fourth colour, champion art, glass,
-or a second font. Admin adopts the same tokens and keeps its own shell.
-
-The theme control is one switch in the top bar (`Day` / `Night`), dressed like the nav tabs: Archivo,
-the same size and tracking, the active word underlined in `brand`. One tap flips. Phone: wordmark and
-the switch on the first row, tabs on the second. Desktop: wordmark, tabs, switch. The live pill stays in
-the status strip.
-
-- **Wordmark.** `KUSTOM` in the display cut at `t-md`, upper case, letter-spacing `0.02em`, in `text`,
-  preceded by a 3px × 18px `brand` bar (`▍`). That bar is the lamp and it is the entire logo. No image, no
-  favicon work beyond a 32px version of the bar on ink. **The product is called Kustom** (the user, 2026-09-09:
-  the group says "kustom"); `Customs Night` is the repo's codename and stays in `CLAUDE.md`, the docs and the
-  package names. Every friend-facing surface — wordmark, `<title>`, embed footers, README, console — says
-  Kustom. Six letters at 800 weight is also a better wordmark than thirteen.
-- **Nav.** Tabs, mono `t-xs`, `0.08em`, lower case is wrong here — these are destinations, so Archivo `t-sm`
-  500 in `dim`, the current one in `text` with a 2px `brand` underline. Order: `Tonight`, `Leaderboard`,
-  `Games`, `Stats`, `Fun`, `1v1`, `Daily`, `Companion ↗`. **A tab is rendered only if its route exists**: `Leaderboard` lands with M3.5,
-  `Games` with M5.25, `Stats` with M5.4, `Fun` with M5.24, `1v1` with M8.5, `Daily` with M5.32, `Companion` is external and always there. A nav item that 404s is worse than a missing
-  one. Keep the list in one exported array (`lib/nav.ts`) so no page hand-writes it.
-- **The daily tab is `Daily`, not the name of either game** (renamed 2026-09-16 by M8.4, from `Mystery`).
-  Two games now alternate civil days behind `/mystery` (Daily Mystery and Guess the Award), and this tab is
-  rendered by the shell on **every** page of the site. Naming one game would make the shell state a fact it does
-  not have: the shell has not loaded today's challenge, and it must not spend a query per page view to learn
-  which game it is, so `Mystery` over an award day was the same wrong word printed on six pages at once.
-  `Daily` is true on both days and on a day with no challenge at all. The word lives in `lib/mystery/copy.ts`
-  as `DAILY_LABEL` and `lib/nav.ts` imports it, exactly like `Games`, `Stats` and `Fun` — the tab is still the
-  page's own word, that word just stopped being a title. **`/mystery`'s `<title>` does name the game**
-  (`Guess the Award · Kustom`), because that page has already paid for the load and a tab reading one game over
-  a card reading the other is the page arguing with itself.
-- **Phone.** Two rows: wordmark and the theme switch (44px), then the tab row (44px, tabs left aligned,
-  horizontally scrollable with no scrollbar). Not sticky — a sticky bar costs 88px of a 700px screen on the
-  one page people read in full.
-- **Desktop (≥720px).** One row: wordmark left, tabs, theme switch right.
-- **The live pill is not in the top bar.** It belongs to the status strip, next to the state it describes, and
-  a product has one place for a piece of information. The top bar carries identity, destinations, and the
-  theme switch (`Day` / `Night`).
-- **Footer.** One line of links, `t-sm` `dim`, top border `line`, `sp-6` above it. The date and season are the
-  status strip's slug line and are not repeated here. `Your games` appears only for a signed-in viewer and points at
-  `/p/<their puuid>`. `Get the companion` points at the **releases page**, not the `.exe` — the tonight page
-  is opened on a phone, and a link that starts a 90MB Windows download on a phone is a bug:
-  `https://github.com/suyaser/kustom-releases/releases/latest`. The direct `.../latest/download/Kustom.exe`
-  link stays on `/admin` and in the group chat, where the reader is on the PC that needs it.
-- **`How this works`** is a `<details>` in the footer, closed by default, four short lines. No new route, no
-  new data, and the one place on the page allowed to change height — because a person tapped it. Its summary
-  is dressed exactly like the links beside it, underline included: two amber controls on one row, one
-  underlined and one not, reads as a mistake.
-- **Card titles are language, so they are Archivo**: `t-sm`, 600, `text`, no tracking — `How this works`,
-  `Run the companion`, and any card title after them. Mono `t-xs` `dim` `0.08em` is for legends and states
-  only: `SEATS`, `rating`, `AROUND`, `live`, `open`. A sentence set in 12px tracked mono reads as a code
-  comment and ends up quieter than the prose it introduces.
-
-Shell CSS, in outline:
+Rules: nothing moves on its own except the live dot. Reroll and team changes **crossfade in place** (opacity
+only, no slide), because a sliding name under a thumb is a mis-tap. There is no scroll-triggered animation,
+no number counting up, and no confetti on a win.
 
 ```css
-.cn-shell {                      /* wraps top bar, main, footer */
-  min-height: 100svh;            /* svh, not vh: the phone URL bar must not move the footer */
-  display: flex; flex-direction: column;
-  background: var(--cn-floodlight), var(--cn-bg);
-}
-.cn-topbar { background: var(--cn-raise); border-bottom: 1px solid var(--cn-line); }
-.cn-topbar-inner, .cn-main, .cn-footer-inner {
-  max-width: 76rem; margin: 0 auto; width: 100%;
-  padding-inline: var(--cn-sp-4);
-}
-.cn-main { flex: 1; padding-block: var(--cn-sp-5) var(--cn-sp-7); }
-.cn-footer { margin-top: auto; border-top: 1px solid var(--cn-line); }
-@supports (padding: max(0px)) {
-  .cn-topbar-inner { padding-top: max(0px, env(safe-area-inset-top)); }
-  .cn-footer-inner { padding-bottom: max(var(--cn-sp-5), env(safe-area-inset-bottom)); }
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation: none !important; transition-property: opacity !important;
+                         transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 ```
 
-#### The group in the shell (M13.7, designer 2026-10-03)
+Under reduced motion the live dot is solid and static. The word "Live" is still there, so nothing is lost.
 
-From M13.9 on, every page lives under `/g/<slug>/` and belongs to one group. The shell names that group on
-every page. `KUSTOM` is still the product and the wordmark does not change at all: not its size, its tracking,
-its bar or its theme overrides. The group is a **second line under the wordmark**, and the wordmark plus that
-line make up one lockup.
+---
 
-```
-phone, 390px (first row of the top bar, 44px)
-┌──────────────────────────────────────────────┐
-│ ▍KUSTOM                           DAY  NIGHT │
-│  Customs Night                               │   ← group line, inside the same 44px row
-├──────────────────────────────────────────────┤
-│ TONIGHT  LEADERBOARD  GAMES  STATS  FUN  1V1 │   ← tab row, unchanged
-└──────────────────────────────────────────────┘
+## 3. Colour
 
-desktop, ≥720px (one row, unchanged order)
-│ ▍KUSTOM          TONIGHT  LEADERBOARD  …  DAILY  COMPANION ↗     DAY  NIGHT │
-│  Customs Night                                                             │
-```
+### 3.1 Semantic roles, in one table
 
-The lockup has the same shape at every width. That is deliberate. An inline `KUSTOM │ Customs Night` was
-measured and rejected. On a 390px phone in Night, the wordmark (~135px), the theme switch (~98px) and the
-gaps leave about 96px. `Customs Night` at 14px/600 is about 99px, so the original group's own name would
-truncate. At 720px the tab row already scrolls, and an inline name would push it further off screen. Stacked,
-the name gets the whole width left of the theme switch: about 245px on a phone, which fits roughly 33
-characters before the ellipsis.
-
-| Property | Value |
-|---|---|
-| Element | One `<a>` wrapping both lines (`.cn-wordmark` becomes a two-row grid: bar + `KUSTOM` on row 1, the group line on row 2). One link, one tap target, the full lockup height. |
-| Link target | **`/g/<slug>`**, the group's tonight page. Not `/`: M13.9's acceptance 4 says every link on `/g/a/*` starts with `/g/a/`, and `/` would resolve through a cookie to whichever group was opened last. |
-| Group line type | Archivo, `t-sm`, 600, `text`, line-height 1.2, letter-spacing 0. **Never the display cut, never upper case.** The gaming layer's tracked upper case applies to `.cn-tab` and `.cn-theme-opt`. It must not reach this line. A group's name is a name somebody typed, with their own casing, so it is set the way a player's name is set. |
-| Group line alignment | Left edge aligned with the `K`, not with the bar. Indent by the bar's width plus the wordmark's gap (`calc(4px + 0.65rem)` in Night's gaming layer, `calc(3px + var(--cn-sp-2))` in Day). The lamp lights the product name. The group sits under the letters. |
-| Vertical fit | Night: 24px × 1.02 + 2px + 14px × 1.2 ≈ 44px. Day: 19px × 1.02 + 2px + 16.8px ≈ 38px. Both fit the existing 44px row. The row may grow by a pixel or two at most; it never adds a third row. |
-| Long names | One line, `overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0`. Names run up to 40 characters (M13.5), and the longest lose their tail on a phone. Do not set a `title` (it does nothing on touch). The full name stays in the DOM, so a screen reader reads all of it. |
-| Content | Printed as **text, never markup**, like a Riot ID. If somebody typed an emoji into their group's name, it renders. "No emoji" is a rule about our decoration, not about what friends call themselves. |
-| Accessible name | The link reads `KUSTOM Customs Night`. No `aria-label`. The visible text is the name. |
-| Hover/press | As the wordmark today. Nothing turns amber on hover. The bar is the only amber in the lockup. |
-
-**What the group line is not:**
-
-- **Not a switcher.** It has no chevron and no menu. M13.9 rules out a group switcher: a member of two groups
-  uses two links. A chevron on this line would promise a menu that does not exist.
-- **Not in the status strip.** The strip's slug line stays "the night's date, and nothing else". The group
-  is a fact about the page, and the date is a fact about the night.
-- **Not repeated in the footer.**
-
-**Pages that belong to no group** (`/new`, and `/join/<code>` in every state) get the **bare shell**: the top
-bar with the wordmark and the theme switch, **no group line and no tab row**, and the footer with
-`Get the companion` only. The wordmark there is a plain `<span>`, not a link. Every in-app destination is a
-group's, and a visitor creating or joining a group has no group to be sent to. `/join/<code>` prints the
-inviting group's name inside its card (below), never in the shell: the visitor is not a member yet, and the
-shell's group line means "you are on this group's pages".
-
-**The admin sidebar** (`/g/<slug>/admin/*`, M13.14) uses the same lockup. Row 1 is `▍KUSTOM` plus the `admin`
-chip, unchanged. Row 2 is the group line, same rules, aligned with the `K`. The link target is
-`/g/<slug>/admin`. The sidebar is narrower than the phone bar, so long names truncate sooner there. That is
-fine on a laptop page that already says the group in every heading it acts on.
-
-### Breakpoints and the desktop grid
-
-Three widths, and no fourth:
-
-| Width | Layout |
-|---|---|
-| `< 720px` | One column, full width inside `sp-4` gutters. The design width. |
-| `≥ 720px` | One column, `max-width: 44rem`, centred; team cards go side by side, blue left; gutters `sp-5`. |
-| `≥ 1080px` | **Two columns**: main `minmax(0, 1fr)`, rail `20rem`, gap `sp-6`, the pair centred inside the shell's 76rem. |
-
-The rail is what stops a phone column floating in a black field, and it is never empty:
-
-```
-≥1080px
-┌ main ─────────────────────────────┐ ┌ rail ──────────────┐
-│ status strip                      │ │ Top of the board   │
-│ primary block (seats/teams/result)│ │  5 rows            │
-│                                   │ │                    │
-│                                   │ │ How this works     │
-│                                   │ │  4 lines           │
-│                                   │ │                    │
-│                                   │ │ Run the companion  │
-│                                   │ │  1 line + link     │
-└───────────────────────────────────┘ └────────────────────┘
-```
-
-- `Top of the board` is the leaderboard's first five rows, reusing M3.5's row component and a
-  `loadTopPlayers(client, { limit: 5 })`. It ships **with M3.5**; until then the rail holds the other two
-  cards and nothing looks broken.
-- The rail is `display: none` below 1080px. Its content is duplicated in the footer (`How this works`,
-  `Get the companion`), so a phone loses no information.
-- **The rail never carries state.** No live data that changes under a thumb, no reroll, no role tap. It is
-  three static cards and a board snapshot that refreshes with the page.
-
-### The tonight page v2
-
-The two rules from v1 that do **not** change, and that nothing below is allowed to bend:
-
-- **One primary block**, chosen from `lobbies.status` for the newest non-abandoned lobby tonight, replaced in
-  place. The state table in "The tonight page's three states — one rule" is still the state table.
-- **No layout shift inside a state.** A join, a name arriving, a reroll: none of them may move a pixel that a
-  thumb is already over. v2 keeps this by making the reserved space *content* instead of emptiness.
-
-#### The status strip
-
-Always mounted, the only element that survives every transition, and now three lines instead of one:
-
-```
-TUESDAY 9 SEPTEMBER                               ← slug: mono t-xs, dim, 0.08em, upper case
-9 IN THE LOBBY                          ● live    ← headline: count t-display brand + label t-lg display, upper
-One more to go.                                   ← sentence: t-sm dim, two lines reserved
-```
-
-- The **slug** is the night's date (from `nightStart`, so a 01:00 game still says Tuesday), and **nothing
-  else**. It is the line that tells a friend from WhatsApp what they are looking at and when. Formatted **on
-  the server and in the snapshot**, `Intl.DateTimeFormat('en-GB', { weekday:'long', day:'numeric',
-  month:'long', timeZone: CUSTOMS_NIGHT_TZ })` — a fixed locale and the configured timezone, or the browser
-  re-render disagrees with the server render and the line changes under the reader. **The season name is gone
-  from this line** (M5.12, `04-decisions.md` 2026-09-10): a season is no longer a thing a friend has, so the
-  slug that used to read `TUESDAY 9 SEPTEMBER · SEASON 2` is the date alone in every state. The middot and the
-  half after it go with it — there is no second half to fall back to and nothing takes the slot. The board's
-  own dates live in the window slot on `/leaderboard`, which is a different page and a different line.
-- The **headline** is `<count> IN THE LOBBY` while filling and one word or phrase otherwise:
-  `NOTHING TONIGHT`, `TEAMS ARE SET`, `IN GAME`, `FINAL`. The count is `t-display` in `brand`; the label is
-  `t-lg`, display cut, upper case, `text`.
-- The **live pill** sits at the right end of the headline row: `raise` fill, 4px radius, an 8px `brand` dot on
-  a 2s opacity cycle, the word `live` in mono `t-xs` `0.08em` `dim`, and the `glow` shadow. It is the only
-  glow in the product and the only pulse. It is gone at `finished` and on the idle page. The word is the
-  accessible text; the dot is `aria-hidden`. **The v1 dot with no word is a defect**: a pulsing orange circle
-  that nothing names means nothing.
-- The **sentence** is the page's one polite live region (`aria-live="polite"`) and is given
-  `min-height: calc(2 * 1.4 * var(--cn-t-sm))` so that any sentence up to two lines on a 390px screen changes
-  without moving the block below it. It changes with the count, which is the one text on the page that changes
-  without a state change.
-- The **ten bars of v1 are removed.** The seat rack below says the same thing with names in it.
-
-#### Filling — the seat rack
-
-The v1 list reserved 449px and left it blank, which on a six-person night is four rows of empty card and is
-what "unfinished" looks like. v2 renders **ten seats, always**, and an unfilled seat is a seat.
-
-```
-┌ SEATS · 9 of 10 ─────────────────────── rating ┐   header: raise, 32px, mono t-xs dim
-│  1sec Reloading                           1612 │   44px rows, hairline between
-│  FoxHound                                 1612 │
-│▌ PRT Empty                                1252 │   ▌ = 2px brand inset rule: you
-│  PRT Khokha                               1553 │
-│  Raafat                                   1688 │
-│  Ramzyinhović                             1274 │
-│  Rano of Zaun                             1373 │
-│  SugarPapy                                1576 │
-│  The Single Guy                           1634 │
-│  open                                          │   recessed: bg fill, `open` mono t-xs dim 0.08em
-└────────────────────────────────────────────────┘
-Nobody has a role set, so the balancer treats everyone as flexible.
-```
-
-- The rack is exactly ten rows tall at every count, so the 9 → 10 join replaces `open` with a name and moves
-  nothing. This is the same guarantee as v1's `min-height`, kept as content rather than as a number that has to
-  agree with a font. `10 × 44px + 9px` is still the arithmetic and `rowHeight.test.ts` still guards it — it
-  now also asserts that ten `<li>` are rendered at every count.
-- An empty seat is filled with `var(--cn-bg)` — recessed below the card — so the rack reads as a rack. It is
-  not a skeleton: it does not shimmer, it does not fade, and it is the same on the server and the client.
-- Header: `SEATS · 9 of 10` left, `rating` right, both mono `t-xs` `dim` `0.08em`. **That `rating` legend is
-  the fix for "1612 means nothing".** One 12px word, right-aligned over the column, in exactly the pattern the
-  leaderboard already uses (`Proven · Rating` as a legend, not a header row).
-- Row grid, phone: `[you] name 1fr · role 6.5rem · rating 4.5rem`, gap `sp-4`. The v1 grid was `1fr auto auto`
-  with a 12px gap, which let `flexible` and `1612` collide into one blob against the right edge. Fixed columns
-  give the eye an edge and are what a stats site looks like. **At ≥720px the name column is capped**:
-  `minmax(0, 16rem) · role 10rem · rating minmax(4.5rem, 1fr)`. A `1fr` name on an 830px column is 450px of
-  nothing between a name and its role (measured on the rendered page: a 566px column carrying 124px of text),
-  which is the sparse look this redesign exists to end; the team cards' own `6.5rem 1fr 5.5rem` is the proof of
-  the other way. The rating stays hard right, under its legend.
-- **`flexible` only appears when it distinguishes.** If *no* member on screen has a role, the role column is
-  not rendered at all and one line under the rack says so once. If *some* do, every row shows its roles and
-  the ones with none show `flexible`, because there the word is contrastive information. Nine identical grey
-  words in a column is not information; it looks like a field that failed to load.
-- Roles, when shown: `RoleIcon` at 14px + the role word, mono `t-xs` `dim`; a secondary role follows in the
-  same treatment after a middot, no icon. `top · mid`, never `top / mid` — a slash between two roles reads as
-  a fraction next to a column of numbers. **The role column is 6.5rem below 480px and 10rem above it**, and the
-  second role is `display: none` below 480px — never removed from the DOM, so it stays in the accessible name.
-  10rem is measured, not guessed: `jungle · support` with its icon and gap is 149px at 12px mono with 0.06em. A
-  column that hard-cuts to `suppo` is worse than one that shows the role somebody actually plays.
-- **A role override prints as `<the override> · <their usual main>`** — `support · jungle` — because that is
-  literally what core holds once `resolveRoles` demotes the old main to backup, so the column's existing
-  "main · backup" grammar carries it with nothing new to learn. `support` alone destroys information on the
-  one row the reader cares most about, and at 480 and up it makes that row look like it lost a field while
-  nine rows beside it show two roles. No arrow, no badge, no second colour: the only glyphs on this page are
-  the five role icons and the live dot, and an arrow beside a column of tabular numbers reads as a trend. The
-  `you` rule already says whose row it is. Below 480 the second role is hidden as usual, so the phone is
-  unchanged. `resolveRoles` is exported from `@customs/core` for exactly this (`04-decisions.md`,
-  2026-09-10); `lib/tonight/roles.ts` asks it rather than restating the rule.
-- The "just joined" 2px `brand` inset rule and the permanent "you" rule are unchanged from v1, including the
-  reason they are inset shadows rather than borders.
-- People past the ten sit under the rack, under a `raise` divider labelled `Around`, in the same row shape.
-  Nothing is reserved for them.
-- Empty lobby: the rack renders ten `open` seats and `Nobody in the lobby yet.` sits under it. A rack of ten
-  empty seats is a better empty state than a sentence alone, and it is the same component.
-
-#### Teams
-
-```
-┌────────────────────────────────────────────────┐   card + brand 3px left rule, no header
-│ Sitting out this game: Sara and Deniz. Each    │
-│ game goes to whoever has played least tonight… │
-└────────────────────────────────────────────────┘
-
-┏━━━━━━━━━━━━━━ 4px blue ━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ BLUE                                      7695 ┃  raise header: side name display t-lg blue, sum mono t-md dim
-┠────────────────────────────────────────────────┨
-┃ ◺ top       Hana                          1434 ┃
-┃ ✦ jungle    Iris                          1578 ┃
-┃ ◹ mid       Karim                         1551 ┃
-┃ ◿ adc       Bilal                         1713 ┃
-┃ ⛨ support   Theo                          1419 ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-┏━━━━━━━━━━━━━━ 4px red ━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ RED · ● off-role                          7595 ┃  legend: mono t-xs dim, brand dot; sum unmoved
-┃ ◺ top       Omar                          1469 ┃
-┃ …                                              ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-  Move to your side in the lobby.                    side line: Archivo t-sm dim, `balanced` only
-
-┃ Blue favored 54%. Everyone on a main role.      ┃  explanation: 3px brand left rule, t-base text
-┃ Gap 100. Next best: swap Hana and Omar, gap 170.┃
-┃                                    [ Reroll ]   ┃  admins only, right on ≥720px
-```
-
-- The 4px side rule is on the **leading edge**: the top edge when the cards are stacked (phone), the left edge
-  when they are side by side (≥720px). Same rule, one `border-block-start` / `border-inline-start` swap in the
-  media query.
-- Card body keeps the 10% side tint; header bar is `raise` with the side colour on the name only. **Never a
-  filled side-coloured block behind five names.**
-- Role column: icon + word, `dim`; **off-role turns the icon and word `brand` and adds a dotted underline
-  under the word**, plus the `brand` dot before the name and the visually-hidden `off-role` — colour is never
-  the only signal, and the stored explanation names them in a sentence anyway. The header bar of a card that
-  has any marked seat also carries a `· off-role` legend, and a card with **three or more** marked seats
-  drops the amber from its role words. Both are specified in full in the two sub-sections below, and both are
-  counted **per card**.
-- Lane order, always, top to support. Never sorted by rating. The sum stays a bare number with its
-  visually-hidden `sum of the five ratings` (product, 2026-09-08 — not reopened).
-- The explanation strip is unchanged in every way that matters: `splits.explanation` verbatim, one `<p>`,
-  never recomposed, never truncated, `text` and not `dim`. It gets the v2 card treatment (surface, `line`
-  border, `lit` highlight, 3px `brand` left rule).
-- **The reroll control stays on the explanation strip** and does not move to the top bar. The button means
-  "give me a different version of *this sentence*"; in a header it would be a control with no object. On phone
-  it is full width below the sentence, on ≥720px it is right-aligned beside it. The disabled state and the
-  `No more splits. …` note are unchanged. **In flight it is quiet (`aria-disabled` + `.cn-button-quiet`), never
-  `disabled`** (2026-10-03, the M3.20 rule the roll and `Start a lobby` already follow); the real attribute is
-  only for the spent last split. A refusal is the route's words through `asSentence`, `text` at 600
-  (`.cn-reroll-note-refused`), like the other two amber controls' refusals.
-- **Under the explanation strip, in `balanced` only:** `Teams are 92% even.` (M3.31, `.cn-even`; restored
-  2026-10-03 after M4.11's commit dropped it), then, when the teams on screen are not rank 1,
-  `Reroll 1 of 2. Teams changed.` (`.cn-reroll-marker`, `t-sm` `text`, to every viewer; 2026-10-03). Both are
-  below the cards, so a reroll moves nothing above them.
-- The sit-out strip stays **above** the cards, for v1's reason. It gets the card treatment and the 3px `brand`
-  leading rule and **no header bar**: its own sentence opens `Sitting out this game: …`, and a `SITTING OUT`
-  label above that is the same three words twice, 45px above the fold on the one screen where the second team
-  card is already below it.
-- **The side line sits under both cards and above the explanation strip** (M4.7 (b), designer 2026-09-11):
-  one line for the page, never one per card and never per person, Archivo `t-sm` `dim`, `sp-4` under the
-  second card and `sp-4` over the strip, full width and no border of its own. Its two sentences are product's
-  and are in the copy table above — `Move to your side in the lobby.` when the auto side switch is off, and
-  `You'll be moved to your side — if not, move yourself.` when the gate is on — and which of the two prints is
-  the gate's, not the dress's. It is **`dim` and not `text`, and it never takes a `brand` rule**: it is an
-  instruction about a thing outside this page, and the strip under it is the bot explaining itself, which is
-  the loudest prose the state has. Two ruled blocks stacked would be two things claiming to be the point of
-  the screen, and the one under them is the one worth reading twice. It is drawn in **`balanced` only**
-  (product): once the game launches there is no lobby to move in, so `in_game` prints nothing where it was
-  and the explanation strip closes up under the cards (**M4.11**). The height it leaves behind is not
-  reserved — nothing on this page is waiting to reappear in it.
-
-##### The `· off-role` legend in a team card header (designer, 2026-09-10)
-
-The rendered Floodlit build marks off-role seats inside the rows and says nothing about them in the header, so
-a reader who scans the two headers — which is what the eye does first on a card with a 4px side rule and a
-display-cut side name — learns nothing until they read five rows. The legend is the key to the amber dot, and
-it is the header's only amber.
-
-Markup, and this is the whole change to `TeamCard`'s header in `apps/web/app/_tonight/TonightView.tsx`:
-
-```html
-<header class="cn-card-head cn-team-head">
-  <div class="cn-team-heading">
-    <h2 class="cn-display cn-side">RED</h2>
-    <span class="cn-head-sep" aria-hidden="true">·</span>
-    <p class="cn-num cn-off-legend">
-      <span class="cn-off-dot" aria-hidden="true"></span>
-      off-role<span class="cn-sr"> seats in this card</span>
-    </p>
-  </div>
-  <p class="cn-num cn-sum">7595<span class="cn-sr"> sum of the five ratings</span></p>
-</header>
-```
-
-- **Placement.** After the side name, in reading order, inside a new leading group `.cn-team-heading`. The sum
-  stays the header's second and last flex child. **Adding the legend may not move the sum by a pixel**: blue
-  with no legend and red with one keep their sums on their own card's right edge, which is exactly what
-  `justify-content: space-between` on `.cn-team-head` already does — and it is why the legend goes inside the
-  leading group and not in as a third child. `.cn-team-heading { display: flex; align-items: baseline; gap:
-  var(--cn-sp-2); min-width: 0; }` and `.cn-sum { flex: 0 0 auto; }`.
-- **Separator.** One middot, `·`, in its own `aria-hidden` span, mono `t-xs`, `dim`, with the group's `sp-2`
-  gap on each side. The same separator as the rack header's `SEATS · 9 of 10`; one punctuation mark for one
-  job across the page. **Not a CSS `::before`** — generated content is announced by VoiceOver, and this is
-  punctuation.
-- **Type.** Mono `t-xs`, weight 400, `dim`, letter-spacing `0.08em`, lower case, `white-space: nowrap`. It is a
-  legend and it is dressed exactly like `rating`, `SEATS`, `live` and `open`. **The word is never `brand`.**
-  The one amber in the header is the dot — amber on the word as well would put three amber elements in a
-  32px bar and start the same fight the threshold rule below settles.
-- **The dot.** The same 6px `.cn-off-dot` the marked rows use, `aria-hidden`, `brand`, `vertical-align:
-  middle`, `sp-2` to the word from its own `margin-right`, with the row's reserved-slot margin cancelled in
-  one line: `.cn-off-legend .cn-off-dot { margin-left: 0; }`. One dot definition in `tonight.css`, so the
-  legend is literally the same mark it is a key for.
-- **Baseline.** The legend sits on the side name's baseline, not centred against it: 12px mono hanging off a
-  display-cut `t-lg` is the intended relationship, and `align-items: baseline` on both the header and the
-  group is what produces it.
-- **When it appears.** Exactly when that card has at least one seat with `offRole === true`, in the `balanced`
-  and `in_game` states. **When it disappears:** when that card has none — including when the *other* card has
-  some. It is per card, never per page. It never appears on the result card's team headers (M3.16: the marker
-  is not repeated once the game has been played, and neither is its key), never in the seat rack, and never in
-  an embed — the teams embed already appends ` · off-role` to the player's own line.
-- **No height change.** A reroll that removes the last marked seat removes the legend and the header keeps its
-  height: 12px of mono inside a bar whose height is set by the display-cut side name. This is the no-shift rule
-  and it costs nothing here.
-- **390px.** The header's content box is `390 − 2×16 gutter − 2×12 padding = 334px`. Budget: `BLUE` (the longer
-  name) at `t-lg` 24px ≈ 74px, separator plus its two gaps ≈ 21px, dot plus gap 14px, `off-role` at 12px mono
-  with `0.08em` ≈ 60px, a four-digit sum at mono `t-md` tabular ≈ 46px — about 215px used, ~120px spare. One
-  line at 390, and it is not allowed to become two: `white-space: nowrap` on the legend, `flex: 0 0 auto` on
-  the sum, and the side name never shrinks. Those are budgets, not measurements: check the real thing at 390px
-  with `BLUE` and a five-digit sum before calling it done.
-- **1280px.** The cards are side by side inside the main column (~330px each once the rail takes 20rem), so the
-  budget is the phone's and the same rule holds. At this width the two headers are read as a pair, which is the
-  point: a legend on one and none on the other says at a glance which side is carrying the compromise.
-- **Accessible name: `off-role seats in this card`.** The visible word plus a `cn-sr` suffix ` seats in this
-  card`; the dot and the separator are `aria-hidden`. The plural is a category, like `rating` over a column of
-  many, so nothing pluralises at render. It is deliberately **not** the bare word `off-role`, which straight
-  after `RED` reads as a property of the side; and it is deliberately **not** `aria-hidden` in full, because a
-  listener moving header to header should get the same warning a reader gets before hearing five rows. Each
-  marked row keeps its own hidden `off-role` — that one is per seat, this one is per card, and they do not
-  collide.
-- **Test note.** `TonightView.test.tsx:297` asserts `screen.getAllByText('off-role')` has the marked-seat
-  count. It keeps passing, because the legend's own text content is `off-role seats in this card` and not
-  `off-role` — but that is a coincidence of the accessible name, so the same commit adds an explicit
-  assertion: one `.cn-off-legend` per card that has a marked seat, and none on a card that has not.
-
-##### The amber threshold — three or more marked seats in one card (designer, 2026-09-10)
-
-> **Count the marked seats in one team card. At one or two, the off-role marker is unchanged. At three or
-> more, the role icon and word go back to `dim`. The dotted underline, the `brand` dot before the name, the
-> visually-hidden `off-role` and the header legend all stay.**
-
-| Marked seats in the card | role icon + word | dotted underline | dot before the name | hidden `off-role` | header legend |
-|---|---|---|---|---|---|
-| 0 | `dim`, no underline | — | — | — | absent |
-| 1–2 | `brand` | yes | yes | yes | present |
-| 3–5 | **`dim`** | yes | yes | yes | present |
-
-Only one thing changes at the threshold, and it is the colour of the icon-and-word pair. Nothing is removed.
-
-**Why there is a threshold at all.** A ten-mid-main night puts four amber role words and four amber icons into
-one card. That is more lit area than the card's own 4px side rule and its side name put together, so the card
-stops reading as *blue* or *red* and starts reading as *the amber one* — and side is the first of the three
-questions this page answers ("Am I in, and which side?"), while off-role is part of the second. A marker that
-outranks the identity of the thing it is marking is not a marker.
-
-**Why three.** Three of five is the majority. Below it the marked seats are the minority and colour is the
-fastest way to find them, which is the entire job. At or above it the *unmarked* seats are the minority, and
-colour spread over the majority is a wash rather than a mark — it points at nothing because it points at most
-things. The same arithmetic in the other direction is a nice check: at 3 marked, colouring the two unmarked
-seats instead would be the minority rule again, and it is rejected because inverting a marker's meaning between
-two cards on one screen is worse than dropping its colour on one of them.
-
-**Why the rest survives.** The dotted underline is the non-colour signal that the colour rule has always been
-paired with (`Colour is never the only signal`), and it is still legible under `dim` — an underline is a shape,
-not a hue. The 6px dot per row is ~36px² of amber for five rows against a role word's ~600px², so five dots
-never out-weigh a side rule, and the dots are what the header legend is a key to. The hidden `off-role` is what
-a listener hears and it is not visual at all. And the fact itself is never lost: the explanation line under the
-cards prints `4 off-role: Hana at support, …` verbatim, which is the sentence that actually answers "why me".
-
-**Per card, not per page.** Each card counts its own five seats. A split with 2 marked on blue and 3 on red
-renders blue's role words amber and red's `dim`, on the same screen, and that is correct, not an
-inconsistency: the question a card answers is "which of *these five* seats", the two cards are read one at a
-time, and a page-wide count would let a red seat change colour because of something that happened on blue.
-The threshold is also the same in light and dark — one threshold, not two — because it is about what share of a
-card is marked, not about how loud the amber is.
-
-**Implementation.** One class, one declaration, no new token:
-
-```css
-/* Three or more marked seats in one card: the mark keeps its shape and gives up its colour. */
-.cn-team-many-off .cn-off {
-  color: var(--cn-dim);
-}
-```
-
-`TeamCard` computes `const marked = seats.filter((seat) => seat.offRole).length;`, adds `cn-team-many-off` to
-the card's `<section>` when `marked >= 3`, and renders the legend when `marked >= 1`. `.cn-off` keeps its
-`text-decoration: underline dotted` and its offset, so the underline survives the override, and `RoleIcon`
-draws in `currentColor` so the icon follows the word with no second rule. This rule applies to the **teams
-block only**: the result card does not repeat the marker at all, and the seat rack does not have one.
-
-**Test.** A split with three marked seats on one side and one on the other asserts `cn-team-many-off` on the
-first card's section and not on the second, with `.cn-off` still present on every marked seat of both — the
-class is a colour override, not a removal, and a test that checks `.cn-off` disappeared would be testing the
-wrong rule.
-
-#### Result
-
-```
-┌────────────────────────────────────────────────┐  1px brand ring on the winner's block
-│ RED WINS                                 34:12 │  t-display red · duration mono t-sm dim
-│ Blue was favored 54%.                          │  t-base dim
-│ Top damage: Lena, 47.3k                        │  t-sm, the number in brand
-└────────────────────────────────────────────────┘
-
-┏━ 1px line (lost) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ BLUE                                           ┃
-┃ ◺ top       Hana                  1393  (−41)  ┃
-┃ …                                              ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-┏━ 4px red ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ RED                                            ┃
-┃ ◺ top       Omar                  1510  (+41)  ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-Blue favored 54%. Everyone on a main role. Gap 100. …   ← the split they played, verbatim
-```
-
-Everything M3.16 settled holds: **the result card is the only pair of team cards on this screen**, one rating
-per player per screen, no side sums in a result header, no off-role marker repeated, no team total of deltas,
-deltas never coloured by sign. What v2 changes is only dress:
-
-- The headline is the display cut at `t-display` in the winner's colour, upper case. This is the one place in
-  the product where a colour is large, and it is large for one line.
-- The winning card keeps its 4px side rule **and** gains a 1px `brand` ring; the losing card's rule drops to
-  1px `line`. Two signals, both structural, neither a wash of colour over the page.
-- `Top damage` moves inside the headline card as its third line rather than floating under the two team cards.
-  It is a fact about the game, and the game's card is where facts about the game go.
-- **The header does not repeat the winner.** The strip says `FINAL`; the card says `RED WINS` in 44px forty
-  pixels below it. Two winners on one screen is the same redundancy M3.16 removed for ratings. If product
-  wants the winner in the strip instead, then the card headline drops to `t-lg` — one of the two, never both.
-
-##### The result poster (M11, designer 2026-09-23)
-
-The headline card becomes a scoreboard lockup: **the winner line is the fold**. Today it reads as a small
-header over two tables because the duration shares the winner's row and the facts sit at the same weight as
-the verdict. M11 separates the verdict from the footnotes. It does not add a single new colour, size or
-ornament.
-
-```
-┌▌─────────────────────────────────────────────┐  headline card: cn-card + 4px rule in the WINNER's side colour
-│▌ 34:12                                        │  duration: mono t-xs, dim, 0.08em, tabular. Its own line.
-│▌ RED WINS                                     │  cn-display t-display, winner colour, upper case, full row
-│▌ Red won as the underdog.                     │  underdog line (product copy, only when true): t-base, text, 600
-│▌ ─────────────────────────────────────────── │  1px line hairline, sp-3 above and below
-│▌ Blue was favored 54%.                        │  t-sm dim
-│▌ Top damage: Lena, 47.3k                      │  t-sm text, number mono brand (unchanged)
-│▌                                   Copy link  │  optional footer, see below
-└──────────────────────────────────────────────┘
-┏━ winning team card: 4px side rule + 1px brand ring (unchanged) ━┓
-┗━ losing team card: rule drops to 1px line (unchanged)          ━┛
-explanation line (unchanged)
-```
-
-- **The winner's side rule on the headline card.** A 4px `blue` or `red` rule on the card's leading edge,
-  drawn exactly like a team card's (`inset 4px 0 0` in Night's `theme-gaming.css`, the leading border
-  elsewhere). That rule is what turns the card into that side's scoreboard. The headline card gets **no
-  brand ring**: the ring belongs to the winning five, because the celebration is on the people.
-- **The duration moves above the winner** as a mono slug (`t-xs`, `dim`, `0.08em`). That gives `BLUE WINS`
-  the whole row. At 390px, `BLUE WINS` at 44px in the wide cut uses about 280px, so it never wraps and never
-  fights a right-aligned number. `cn-result-head` stops being a space-between row and becomes a column.
-- **`cn-display` stays the only large type** besides the lobby count. `t-display` does not grow for M11.
-- **Underdog line.** Only when product writes one and the data says so. `t-base`, `text`, 600: the same
-  weight as an explanation sentence. **Not a badge, not `brand`, not gold, not upper case, not `UPSET`.** The
-  sentence itself is the whole treatment.
-- **The hairline** separates the verdict from the footnotes. The prediction drops from `t-base` to `t-sm`, and
-  top damage keeps its dress. Both sit under the rule, so nothing below the rule competes with the verdict.
-- **Five versus five: unchanged.** Two team cards with after ratings and deltas. The winner's 4px rule plus
-  brand ring and the loser's 1px `line` are the whole celebration. No trophy, no crown, no confetti, no
-  `VICTORY`, no side sum of deltas, no team total, no delta coloured by sign.
-- **No champion icons on the poster**, not even beside the top-damage name.
-- **Phone fold.** At 390 × 700, the top bar (88px), the strip (about 150px) and the headline card through its
-  underdog line (about 130px) finish near 370px. The ten names may scroll, and that is accepted.
-- **Motion.** None beyond what the block already does on a state change. No staged reveal and no count-up
-  on the duration.
-- **A copy-link control, if product ships one**, is a text link, not a button. It sits in the headline
-  card's footer, right-aligned, `t-sm` `dim` with the standard underline, and has a 44 × 44 hit area
-  (padding, not a box). It has no fill, no icon and no `brand`. It is never placed in the strip, the rack or
-  the teams state: the nightly loop has one tap (`Start a lobby`), and a share control dressed as a call to
-  action would become a second one.
-
-#### The night tape (M11, designer 2026-09-23)
-
-A quiet log of tonight's finished beats, newest last. It is not a second scoreboard, not a fourth lobby
-state and not a feed. It answers question 3 ("what happened?") for the whole night rather than the last game.
-
-```
-┌ Tonight so far ────────────────────────────────┐  cn-card; title = product's word (see OPEN)
-│ ▪  21:04  Lobby opened.                         │
-│ │                                               │
-│ ▪  21:12  Teams posted.                         │
-│ │                                               │
-│ ▪  21:48  Red won in 34:12.                     │  "Red" in red, 600 — a word, never a block
-│ │                                               │
-│ ▪  22:05  Lobby opened.                         │
-│ │                                               │
-│ ▪  23:40  Lobby dropped.                        │  the whole sentence dim: a non-event
-└────────────────────────────────────────────────┘
-```
-
-- **One card, one column, nothing nested.** `cn-card`, padding `sp-4`, a `cn-card-title` heading, then an
-  `ol.cn-tape`. No card inside it, no chips, no avatars, **no champion icons**, no second colour field. A bare
-  list on the ink breaks the tone amendment, and a card holding cards is a dashboard.
-- **Row.** A grid of `5ch` for the time and `1fr` for the sentence, gap `sp-3`, `align-items: baseline`,
-  `padding-block: sp-1` (a row is about 28px). Rows are not tappable, so no 44px floor applies.
-  - Time: mono `t-xs`, `dim`, tabular, `HH:mm` h23 in `CUSTOMS_NIGHT_TZ`. **Formatted on the server into
-    the snapshot**, exactly like the slug, so the hydrated render cannot disagree with the server render.
-    After midnight it just reads `00:40`. The night's 06:00 boundary already orders the rows.
-  - Sentence: Archivo `t-sm`, `text`, 400. The copy is product's.
-  - **Result beat:** the side word (`Blue` / `Red`) in the side colour at 600, with the rest in `text`. A
-    number in the sentence (a duration) is mono. This is how the rest of the product colours a side in
-    prose: a word, never a filled block, and never both side colours in one row.
-  - **Dropped beat:** the whole sentence in `dim`. It is the one beat the eye should skip.
-  - No row is highlighted as "latest". Nothing in the tape is `brand`.
-- **The spine and the ticks** are drawn in `line` and nothing else, so the live pill stays the only lamp.
-  A 2px spine on the start edge, with a 6px square tick (radius 0) centred on it at each row's first line.
-  The spine is drawn **per row, tick to tick**, so it never overhangs the first or the last tick:
-
-```css
-.cn-tape { list-style: none; margin: 0; padding: 0 0 0 var(--cn-sp-5); }
-.cn-tape li { position: relative; display: grid; grid-template-columns: 5ch 1fr;
-  gap: var(--cn-sp-3); align-items: baseline; padding-block: var(--cn-sp-1);
-  font-size: var(--cn-t-sm); line-height: 1.4; }
-/* T = the tick's centre from the row top = sp-1 + half a t-sm line */
-.cn-tape li::before { content: ""; position: absolute; width: 6px; height: 6px;
-  background: var(--cn-line);
-  inset-inline-start: calc(-1 * var(--cn-sp-5) + 4px);
-  top: calc(var(--cn-sp-1) + 0.7 * var(--cn-t-sm) - 3px); }
-.cn-tape li:not(:last-child)::after { content: ""; position: absolute; width: 2px;
-  background: var(--cn-line);
-  inset-inline-start: calc(-1 * var(--cn-sp-5) + 6px);
-  top: calc(var(--cn-sp-1) + 0.7 * var(--cn-t-sm));
-  bottom: calc(-1 * (var(--cn-sp-1) + 0.7 * var(--cn-t-sm))); }
-```
-
-- **A new row fades in** with `opacity 150ms ease`. It reuses the existing appear transition (`cn-new`) and
-  adds no new keyframes. `prefers-reduced-motion: reduce` drops it. Rows never slide or stagger, and the
-  list never auto-scrolls.
-- **Hidden when there is nothing to log.** No beats means no card, no heading and no empty sentence, the
-  same rule as fearless.
-- **Placement: after Fearless, directly before `Your role tonight`** — except in `result`, where it sits
-  **before** Fearless (2026-10-03: a game just ended and the night's story is the point; Fearless matters
-  during pick), and in `filling`, where `Your role tonight` has moved up under the rack. The fearless find box
-  is a live tool used during pick. By the third game the tape is 10 or more rows (about 300px), and history
-  must not push a live tool below the fold. `Your role tonight` stays last, per M3.6 — **except in
-  `filling`** (2026-10-03), where it sits directly under the rack: a role tap only counts before the roll,
-  and last in the column it was under Fearless, thousands of pixels down a phone. The tape grows only
-  when a beat lands, and every beat is also a state change that already replaces the primary block, so a new
-  row never moves a pixel on its own. **Desktop:** main column, never the rail. The rail never carries state.
-
-#### Idle
-
-The idle page is the one a friend hits at 19:00, and v1 gave it one sentence and one link on an otherwise
-black screen. v2:
-
-- Strip: slug, headline `NOTHING TONIGHT`, no live pill, sentence = the existing M1.10 wording, unchanged:
-  `When ten of you are in a custom lobby with the companion running, the teams show up here.`
-- Primary block: an **empty seat rack**, ten `open` rows, with the header `SEATS · 0 of 10`. It says the same
-  thing the sentence says, in the shape the page will have in an hour, and it gives the idle screen a body.
-- Under it, the two cards the rail carries: `How this works` and `Run the companion`. **Below 1080px only** —
-  at 1080 and up the rail already holds them, and rendering both is the same two cards twice on one screen.
-  One card, one place, per width.
-- The v1 `Last night and the board` link becomes the `Leaderboard` tab in the top bar. One destination, one
-  place.
-
-#### `Start a lobby`, and the lobby a latecomer can still join (M4.7 (a) and M4.10, designer 2026-09-10)
-
-The one tap this product has. 21:00, a friend opens the page from the same WhatsApp link everybody else has,
-and this is the only thing on it they can press. The words are settled in "Copy — `Start a lobby`"; this is
-where the control sits, what it is dressed in, and — the part the first build got wrong — **which states it is
-drawn in at all**.
-
-**Who sees it, from M4.13 (2026-09-15).** Any viewer the session has matched to a player row — that is the
-twenty people who play, admin or not, and nobody has to find out who the admins are to get the night started.
-A signed-out visitor gets the sign-in sentence and its button in `idle` instead (the copy table's own row); a
-signed-in visitor with no player row gets **no element at all**, because `SIGNED_IN_NO_LOBBY` at the foot of
-the column is already the true sentence for them. Being drawn is not permission: `POST /api/me/lobbies/start`
-resolves the session again before it writes.
-
-**It is drawn in `idle` only.** `filling` means a live `lobbies` row exists, and `decideStart` refuses on
-exactly that with `There is already a lobby open.` A control whose only possible answer is a refusal is not a
-control — the same rule that already keeps it off `balanced`, applied one state earlier. In `filling` the block
-still renders, without the button, to carry `Invited 7 friends — waiting for them to accept.` and a failed
-create's nack: those are a readout, and a readout is not a control.
-
-**In `idle` it sits above the rack**, directly under the status strip's sentence. Below it the rack is ten 44px
-rows of `open`, and the button lands at y≈799 on a 390 × 844 phone — under the fold, on the one screen where it
-is the point of the page. The rack in `idle` is a picture of what the page will look like in an hour; the
-button is the thing that makes that happen, and it goes first. In `filling` the readout is **under** the rack,
-because there the rack is content and the line is about the seats in it.
-
-**No card.** No surface, no border, no padding box. A bordered card holding one button and one line is a fourth
-card in an idle column that already carries three, and at 1280 it renders as 1300 × 110px of empty surface with
-a 200px button in one corner — the sparse look Floodlit exists to end. The block is `display: flex;
-flex-direction: column; gap: var(--cn-sp-3)` and nothing else; the `.cn-block` gap above it is its only margin.
-Precedent: the reroll button has no card either — it sits on the strip whose sentence it re-rolls.
-
-**No mark.** Not the 2px `brand` inset rule, which means "this is about you" on the rack row and the role card;
-this is about the night, and a second meaning for one mark is worse than no mark. Not the 3px `brand` leading
-rule, which means "the bot's own sentence" on the explanation and sit-out strips. And not a mark meaning
-"admin": the route was admin-gated only until M3.6's third route class landed, a mark that would have had to be
-removed in a month was never drawn, and M4.13 removed the gate instead.
-
-**The button is the amber `.cn-button`, unchanged** — outline, `brand` text, `radius-row`, 44px, full width
-below 720px and its own width above. It is the amber control on this page, and it never competes with the other
-one: `Start a lobby` is drawn in `idle`, `Reroll` in `balanced`, and the state table makes those disjoint. **It
-is never a filled amber block.** 358 × 44px of solid `brand` is more lit area than the live pill, a winner's
-ring and a 4px side rule put together, it breaks the one-lamp rule, and in light it reads as a warning banner —
-the same reason the sign-in control is an outline.
-
-**The three states, and what tells them apart.** One slot under the button, never a toast, never a banner,
-never the URL. They differ by **weight, not colour**: red would read as side 200 and there is no green in this
-palette.
-
-| State | Line | Type | Live region | The button |
-|---|---|---|---|---|
-| idle, nothing pressed | — | — | — | amber, live |
-| pending / sent | `Opening a lobby on Hana's PC…` | Archivo `t-sm` 400 `text` | `role="status"` | **quiet**: `dim` text, `line` border, `aria-disabled="true"` |
-| refused | one of the route's sentences | Archivo `t-sm` **600** `text` | `role="alert"` | amber, live — a refusal is a thing you retry |
-| acked, filling | `Invited 7 friends — waiting for them to accept.` | Archivo `t-sm` `dim` (`.cn-hint`) | `role="status"` | not drawn |
-
-- **The pending button is quiet but not `disabled`.** A second tap while a create is in flight can only return
-  `A lobby is already being opened.`, so the control must stop looking like an invitation — but `disabled`
-  moves focus off the button that was just pressed, which is the one thing M3.20 exists to prevent.
-  `aria-disabled` plus the `:disabled` dress plus a client-side short-circuit keeps the focus and kills the
-  press.
-- **Success prints nothing.** The lobby appearing is the answer.
-
-##### `Roll teams` — the admin's press in `filling` (designer review, 2026-10-03)
-
-Built in a hurry with the admin roll trigger (commit cd9fe02), reviewed afterwards. It is this block's twin, and
-the review found one real defect. Everything else follows from rules already on this page.
-
-- **Where: under the rack, never above it.** This is the opposite of `Start a lobby`, and on purpose. In `idle`
-  the rack is a picture and the button is the point, so the button goes first. In `filling` the ten names are
-  what the admin has to check before pressing (`Check everyone who is staying is in, then roll. Past ten, the bot
-  picks who sits out.` since 2026-10-03; was `Check these are the right people, then roll.`): read, then
-  press. The rack is ten rows at every count, so the hint appearing, and the button replacing it at ten, moves
-  nothing above it.
-- **Who sees what.** While the lobby is short of ten everybody gets `ROLL_HINT` (`Once everyone who is staying
-  is in, an admin rolls the teams.` since 2026-10-03; was `Once the right ten are in, …`) in the `.cn-hint`
-  dress, Archivo `t-sm` `dim`: it is an aside about somebody else's press. From ten on an admin gets the
-  instruction and the button **in its place**, never both, and **everybody else gets nothing under the rack**
-  (2026-10-03): the strip's sentence names the admins and carries it alone. The `Start a lobby` readout under
-  the rack also goes at ten — `waiting for them to accept` is stale by then. The instruction is `t-sm` 400
-  **`text`**, not `dim`, because it is the one line the admin is meant to act on (the `Missed the invite?`
-  rule).
-- **Order inside the form:** instruction, button, then the one refusal slot. The instruction goes **above** the
-  button here, unlike `Start a lobby`'s progress line, because it is read before the press and not after it.
-- **The button is the amber `.cn-button`**, the same outline and the same widths. The three amber controls are
-  still disjoint by state: `Start a lobby` in `idle`, `Roll teams` in `filling`, `Reroll` in `balanced`.
-- **In flight it is quiet, never `disabled`** (fixed 2026-10-03; the first build set `disabled`). The rule is
-  the same as `Start a lobby`'s pending row: `aria-disabled="true"` plus `.cn-button-quiet` plus the submit
-  short-circuit. A disabled button drops focus to `<body>` at the moment the admin is waiting for the answer,
-  which is what M3.20 forbids. An empty roster key (no members drawn) gets the same quiet dress.
-- **Refusal:** the route's own sentence, given a capital and a full stop, `t-sm` **600** `text`, with
-  `role="alert"`. The button stays amber, because a 409 usually means the roster moved and the next press is
-  the right one. **Success prints nothing.** The teams block replacing the rack is the answer.
-
-##### The number-in-a-sentence rule, and the one thing that breaks it
-
-**A quantity inside a sentence stays in the sentence's family.** The `7` in `Invited 7 friends`, the `1290` and
-the `37` in the seed line, the `58%` in a caption: all Archivo. Mono is for numbers **in a column**, where the
-tabular edge is the job; a mono number mid-Archivo-line changes x-height in the middle of a sentence and reads
-as code.
-
-**A token you have to transcribe is mono, sentence or not.** A lobby name and a four-digit password are not
-quantities being read in passing — they are characters being retyped into another application, which is
-exactly what the Type table already means by listing `lobby password` under mono, and where a distinguishable
-`1`/`l` and `0`/`O` is the whole point. Those two spans, and nothing else inside a sentence.
-
-##### `Missed the invite?` — the lobby line (M4.10)
-
-The invite fan-out runs **once**, on the create ack. There is no second wave and the button is not a doorman,
-so the friend who walks into voice at 21:20, and the one who swiped the popup away, have one way in that does
-not interrupt nine people: the lobby's name and its four digits, read off the page they are already holding.
-The words are product's; the gate is the lead's; this is the slot and the dress.
-
-- **It is not part of the `Start a lobby` block.** It is drawn in `filling` **and `balanced`**, and the control
-  is drawn in `idle`, so they are two objects that only ever share a screen in `filling`. There they stack in
-  that order — the readout about the invites that went out, then the way in for somebody they missed.
-- **Home: the last line of the primary block**, above `Your role tonight`. In `filling` that puts it under the
-  rack; in `balanced` under the explanation strip. One slot, one rule, both states — the alternative is a line
-  that moves between two blocks when the teams land, on the screen where a thumb is already resting.
-- **Gone from `in_game` on.** By then there is nothing to join, and a live password on a finished night is an
-  exposure that buys nobody anything.
-- **Signed-in and matched to a player row, or nothing at all.** An anonymous viewer sees no line; so does a
-  signed-in viewer the page has not matched to a player — the `That's me` list is two blocks below and is the
-  thing for them to do first. A link forwarded out of the group must not carry a live password with it, and a
-  latecomer is by definition one of the twenty who picked himself out of that list once already. This is a
-  **render gate, not a security boundary**: the same rule that decides the rack's `you` mark decides this line,
-  and the password is in the page's data for a viewer the server has already identified.
-- **Dress: one line, no card, no rule, no icon.** Archivo `t-sm` in **`text`** — not `dim`: it is a thing to
-  act on, and the page's grey is for footnotes. `Missed the invite?` opens it, which is what tells the nine who
-  are already in that the rest of the sentence is not for them. The name and the password are mono `t-sm`
-  `text`, tabular, per the rule above. It wraps to two lines at 390px and that is the correct outcome.
-- **`user-select: all` on the password span**, so a tap-and-hold on a phone grabs the four digits and nothing
-  around them. It is the one place in the product where somebody is expected to copy something.
-- **Never a card, never the display cut, never amber.** It is a sentence, not a headline and not a control; the
-  amber on this screen belongs to the reroll button or to nothing.
-
-**`/admin` renders the control and its own lobby line with the same words** — the name and password are
-ungated there, because that page is already behind a session and an admin check. The Floodlit dress of
-the admin area does not rewrite those sentences.
-
-#### `Your role tonight`, and picking yourself (M3.6, designer 2026-09-10)
-
-The one thing on this page a friend can change about themselves. Somebody says in voice "I'll jungle
-tonight", taps `jungle`, puts the phone down. It is a **preference, not a lock**, and no pixel on the card
-may promise more than the balancer delivers. Every word of it is settled in "Copy — the role tap and picking
-yourself"; this section is where those words sit and what they are dressed in.
-
-**Home: a card, last in the main column, outside the primary block.** Never a control inside a rack row — the
-rack is ten 44px rows at every count, five 44px targets do not fit in one, and a row that is structurally
-different for one reader stops being a scoreboard. Never in the rail: the rail never carries state. Being
-last means the card can appear, change state or disappear without moving a pixel a thumb is already over,
-which is the no-shift rule paid for with layout instead of with a reserved height.
-
-**The card is marked as yours**: `box-shadow: inset 2px 0 0 var(--cn-brand)` — the same 2px `brand` inset
-rule that marks your row in the rack, two blocks up. Same mark, same meaning, no new token. **Not** the 3px
-leading rule, which already means "the bot's own sentence" on the explanation and sit-out strips.
-
-**Anatomy**, top to bottom, the same three parts in all three states:
-
-```
-┌ ▌ ───────────────────────────────────────────────┐
-│ Your role tonight · Hana                         │  title: Archivo t-sm 600 text; the name dim 400
-│ [◺ top ] [✦ jungle] [◹ mid ] [◿ adc ] [⛨ support] │  chips: 44px tall, capped at 9rem wide
-│ That is not you. Only an admin can …             │  a refusal, if there was one: t-sm, text
-│ Teams are already set. A role you pick now …     │  the state's one hint: t-sm dim
-└──────────────────────────────────────────────────┘
-```
-
-- **The title is language, so it is Archivo** — `t-sm`, 600, `text`, no tracking, exactly like `How this
-  works` and `Run the companion`. Mono `t-xs` `dim` `0.08em` is for `SEATS`, `rating`, `live` and `open`; a
-  title set in it reads as a code comment and ends up quieter than the control it introduces. The copy
-  table's `Where` column describes this slot as `t-xs` `dim` because that is what the first build shipped —
-  the words in that table are product's and stand, the type here is this section's and supersedes it.
-- **The name after the middot is `dim` at 400**, same family and size, so the title reads as one line with
-  one emphasis. It is absent, middot and all, for a player with no display name.
-- **A refusal goes directly under the chips, above the hint, in `text`** — beside the control that was
-  pressed, never as a banner, never in the URL, never `dim`. Three grey sentences in a stack is where a
-  refusal goes to hide.
-- **One hint per state, never two stacked.** `open` gets the preference sentence, `balanced` and `in_game`
-  get the teams-are-set sentence and nothing else, `finished` and later draw no card at all. Two sentences
-  under a two-line control is more prose than product, and in `balanced` the first of them is about a game
-  that is no longer on screen.
-
-**The chips.**
-
-```css
-.cn-role-choices { display: grid; gap: var(--cn-sp-2);
-                   grid-template-columns: repeat(auto-fit, minmax(6rem, 9rem)); justify-content: start; }
-.cn-role-choice  { min-height: 44px; color: var(--cn-text); background: var(--cn-raise);
-                   border: 1px solid var(--cn-line); border-radius: var(--cn-radius-row); }
-.cn-role-on      { color: var(--cn-brand); background: var(--cn-brand-tint); border-color: var(--cn-brand);
-                   box-shadow: inset 0 0 0 1px var(--cn-brand); }
-```
-
-- **Capped at 9rem, left-aligned.** A `1fr` chip stretches to ~245px in the 1280 main column: five 44×245px
-  bars around a 12px word, which is the sparse look Floodlit exists to end. At 390 the grid breaks 3 + 2 —
-  solo lanes, then bot lane, which is the right place for a lane order to break. At 720 the five fill one
-  row. Lane order always, `top` to `support`, never sorted.
-- **`text` at rest, not `dim`.** The rack prints a `dim` mono role word with a `dim` icon fifty pixels above,
-  and that word is a fact nobody can press. The same treatment cannot also mean "tap me". The icon stays
-  `dim`, so a chip still does not read as a name row; the word carries the affordance. Amber on all five
-  would put five lamps on one card and break the one-lamp rule the chosen chip depends on.
-- **The chosen chip is the whole receipt for a tap.** No toast, no flash, no "saved" — realtime already
-  changes the thing you are looking at. It carries `aria-pressed`, so colour is not the only signal, and
-  tapping it again clears the choice: that is the only way out and there is no Clear button.
-- **The doubled inset edge is a light-mode rule paid for in both themes.** In light, `raise` is `#DAE2ED` and
-  the brand tint is a 12% wash on white, so four unselected chips out-weigh the chosen one and the product's
-  only receipt becomes the palest thing in its own row. A second inset 1px `brand` line makes a 2px edge with
-  no change to the box, and it costs dark nothing.
-
-**Picking yourself, once (`That's me`).** A signed-in viewer with no player row gets the same card: title,
-product's sentence, then **a row list, not a chip grid**. Names are language of varying length, and a grid of
-them is a wall of unequal words with no scanning edge — the rack shape is the right one and these are the
-same people in the same order.
-
-- The row is the rack's: 44px, `line` hairline between, name `t-md` **600** left. A name that is 600 in the
-  rack and 400 forty pixels below it is the same content in two voices.
-- **At ≥720 the row is `minmax(0, 16rem) auto` with `justify-content: start`** — the rack's own name cap at
-  that width. `space-between` at every width puts a name at x=100 and its control at x=1200, nine times over.
-- **The control is a discrete button, not the whole row.** A claim is a one-way door: the route answers a
-  second one with 409 and only an admin can undo it on `/admin/players`. A one-way door does not get a
-  full-width thumb target on a phone in a dark room.
-- It is **dressed like a role chip** — `raise`, `line`, `radius-row`, `t-sm` — and never like the amber
-  reroll button: ten `brand`-outlined bars down one card is a column of lamps pointing at nothing, and these
-  are equal options, which is what the five role words are too.
-- Its accessible name is the label plus the person: a listener moving button to button must not hear nine
-  identical ones.
-- The same nine names appear in the rack above and in this list. That is allowed, once: the two lists answer
-  different questions, the second is below the fold, and it exists for one tap on one night.
-
-**Signed out** is the same card with the same title, holding the settled sentence and one `.cn-button` under
-it. **A button is a label and never a sentence** — no full stop inside a 44px amber outline, which in light
-reads as a warning banner. It is **not disabled**: a dead control that explains why it is dead is worse than
-a live one that fixes it in a tap. The sign-in stays on this card and does **not** move to the top bar — the
-bar carries identity and destinations, a bare `Sign in` there is a control with no object, and here its
-object is forty pixels below it. Reading is never gated; the rest of the page is what everybody else sees.
-
-**Nothing on this card navigates** except the sign-in, which is an OAuth round trip and cannot be done in
-place. Every control is a real form with a real action, intercepted when JavaScript is running.
-
-**Keyboard.** M3.6 is the first screen in the product with a cluster of targets — five chips and up to eleven
-buttons — so it is where the focus ring lands, and the ring is product-wide: see `tokens.css`, v2.
-
-#### Copy — final (product 2026-09-09; two side-line rows added 2026-09-11)
-
-Product has passed every string. `(shipped)` marks a sentence that already exists and is quoted unchanged;
-everything else is final text the engineer types into `apps/web/lib/tonight/copy.ts`, `lib/nav.ts` and the
-shell without asking. **Nine strings changed from the designer's proposal and four differ from what the code
-says today** — the `Status` column names them, so M3.18 knows which are edits and not typos. Layout, order and
-placement are the designer's and are untouched.
-
-| Where | String | Status |
+| Meaning | Token | Never used for |
 |---|---|---|
-| wordmark | `KUSTOM` (the amber bar is the logo, not a word; `Customs Night` is the repo codename and appears on no friend-facing surface) | product 2026-09-09 |
-| strip headline, idle | `NOBODY IN YET` | product 2026-09-09 — **changed**, code says `Nothing tonight` |
-| strip headline, filling | `<n> IN THE LOBBY` | product 2026-09-09 |
-| strip headline, balanced | `TEAMS ARE SET` | product 2026-09-09 — code says `Teams set` |
-| strip headline, in game | `IN GAME` | product 2026-09-09 |
-| strip headline, finished | `GAME OVER` | product 2026-09-09 — **changed**, code says `Final` |
-| sentence, idle | `When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.` | **re-worded 2026-10-03** (product review) — was M1.10's `… the teams show up here.`, false since teams appear only on an admin's `Roll teams`. Names the press and keeps the bot as the one who picks, in the two lines the strip reserves |
-| sentence, 0 in | *(shipped)* `Nobody in the lobby yet.` — in the strip, and **not repeated under the rack** | product 2026-09-09 — **changed** |
-| sentence, 1–9 in | `One more to go.` … `Nine more to go.` (word, not digit — the digit is already 44px above it) | product 2026-09-09 |
-| sentence, 10 in | `Waiting on Yasser or Omar to roll the teams.` — the admins by name, up to three (`Yasser, Omar or Sara`); `Waiting on an admin to roll the teams.` with none on record, a nameless row, or more than three | **names added 2026-10-03** (decision row of that date: transparency, not a permission change). **re-worded 2026-10-03** with the admin roll trigger — was `Teams in a moment.` (product 2026-09-09), which became false once ingest stopped balancing by itself: teams appear only when an admin presses `Roll teams`. Kept as a strip sentence rather than removed: the strip is the page's live line and must hold one at ten, while the roll hint under the rack is not live and is replaced by the button for an admin |
-| sentence, 11+ in | `Ten play, the rest sit out. Waiting on Yasser to roll the teams.` (the same admin naming and fallback as at ten) | **re-worded 2026-10-03** — was `Ten play, the rest sit out this game.` (product 2026-09-09), which on an `open` lobby read as if the ten were already decided; it now says the teams are waiting on the roll |
-| sentence, balanced | `Split by rating and role. Nobody picked the teams.` | product 2026-09-09 — **changed** |
-| sentence, in game | `Ratings move when it ends.` | product 2026-09-09 — **changed** |
-| sentence, finished rated | `Ratings are updated. The leaderboard has the rest.` | product 2026-09-09 — **changed** |
-| sentence, finished unrated | *(none — the slot keeps its height and stays empty; no apology, per v1)* | product 2026-09-09 |
-| side line under the team cards, `balanced` — auto side switch **off** (today, and if the path is never verified) | `Move to your side in the lobby.` | **new**, product 2026-09-11 (words M4.3, placement M4.7 (b)) — kept byte for byte from the M4.3 brief and the decision row of 2026-09-09. **One line under both cards, not one per card**, and never per person: naming who is on the wrong side is stale the second somebody moves. Not drawn in `in_game` — see below |
-| the same line, auto side switch **on** | `You'll be moved to your side — if not, move yourself.` | **new**, product 2026-09-11 (words M4.3, placement M4.7 (b)) — kept byte for byte. Em dash (U+2014) and a straight apostrophe, both as written in the brief. Which of the two prints is the gate's, not the writer's: while `switch_side` is unverified the page may not promise anybody is moved |
-| rack header | `SEATS` · `<n> of 10` · `rating` | product 2026-09-09 |
-| empty seat | `open` | product 2026-09-09 |
-| all-flexible hint | `Nobody has set a role tonight, so the bot can put anyone anywhere.` | product 2026-09-09 — **changed** |
-| all-flexible hint, admin only, appended | ~~`Set roles` (link to `/admin`)~~ — **removed 2026-09-10 with M5.17**: roles are inferred from play and `/admin/players` shows them read-only, so the link pointed at nothing. The hint sentence stands alone, for everybody, admin or not | product 2026-09-09, removed by the lead 2026-09-10 (M5.17) |
-| empty lobby | *(shipped)* `Nobody in the lobby yet.` — one place only, see `sentence, 0 in` | shipped, kept |
-| past the ten | *(shipped)* `Around` | shipped, kept |
-| nameless hint | *(shipped)* `Names fill in after someone's first game.` | shipped, kept |
-| no season | *(shipped, M3.17)* `No season is active, so tonight's games are not being saved. An admin can start one.` | shipped, kept |
-| fearless, title | `Fearless` | product 2026-09-18 (M10) |
-| fearless, sentence | `Ban these next game.` | product 2026-09-18 (M10) |
-| fearless, count | `10 champions.` / `1 champion.` | product 2026-09-18 (M10) |
-| fearless, search | `Find a champion` | product 2026-09-20 (M10.2) |
-| fearless, search empty | `No champion matches.` | product 2026-09-20 (M10.2) |
-| fearless, banned | `Ahri is on the ban list.` | product 2026-09-20 (M10.2) |
-| fearless, lane | `top` / `jungle` / `mid` / `adc` / `support` / `other` | product 2026-09-20 (M10.2) — the app's own lowercase role words |
-| fearless, still open | `still open` | product 2026-09-22 (M10.3) — the label under a lane, after the ban chips, before the champions that lane can still lock |
-| fearless, available | `Garen is still available.` | product 2026-09-22 (M10.3) — the find box, when the exact name is not on the ban list. Open chips are dim and dashed; a search hit paints brand the same way a ban hit does. Discord does not print this list |
-| overlay, fearless title | `Fearless` | product 2026-09-23 (M12) — same word as the tonight card |
-| overlay, fearless sentence | `Ban these next game.` | product 2026-09-23 (M12) — same sentence as the tonight card |
-| overlay, fearless empty | `No champions banned yet.` | product 2026-09-23 (M12) — empty pool; the tonight card's empty state is silent until the first lock |
-| overlay, lobby title | `This lobby` | product 2026-09-23 (M12) |
-| overlay, with | `With 7–2` | product 2026-09-23 (M12) — same-side record past `MIN_DUO_GAMES`; wins–losses |
-| overlay, against | `Against 3–5` | product 2026-09-23 (M12) — opposite-side record past the same floor |
-| overlay, thin record | `Under 5 games together.` | product 2026-09-23 (M12) — below `MIN_DUO_GAMES` for both with and against; one sentence, not two |
-| overlay, lane mark | `lane` | product 2026-09-23 (M12) — mono chip on the posted lane opponent |
-| overlay, waiting | `Waiting for the League client…` | product 2026-09-23 (M12) — lockfile missing |
-| overlay, no lobby | `No lobby yet.` | product 2026-09-23 (M12) — fearless still shows; the roster block is this line |
-| nav | `Tonight` · `Leaderboard` · `Games` · `Stats` · `Fun` · `1v1` · `Daily` · `Companion ↗` | product 2026-09-09 — **changed** from `Get the app`; `Games` added 2026-09-12 (M5.25); `Mystery` added 2026-09-13 (M5.32) and **renamed `Daily` 2026-09-16 (M8.4)** — two games alternate behind that one route and the shell, which renders this row on every page, neither knows nor may pay to learn which one today is; **`1v1` added 2026-09-18 (M8.5)** after `Fun` |
-| footer | `How this works` · `Get the companion` · `Your games` | product 2026-09-09 |
-| how this works, line 1 | `Nobody checks in. The companion app on somebody's PC reads the League lobby and sends who is in it.` | product 2026-09-09 |
-| how this works, line 2 | `When everyone is in, an admin taps Roll teams. Who plays with whom is the bot's call: it makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.` | **re-worded 2026-10-03** (product review) — no string on `/` may say or imply teams appear with no tap; the bot-as-referee half stays beside the roll |
-| how this works, line 3 | `Results come off the end-of-game screen. Nobody reports a score.` | product 2026-09-09 |
-| how this works, line 4 | `Everybody starts on the same rating, and every Summoner's Rift result moves it. Proven is the board's careful version of it and settles after about 30 games.` | **re-worded, product 2026-09-16 (M7.19, step 3 of two)** — was `Your rating starts from your rank and moves with every result. Proven is the board's careful version of it and catches up after about 30 games.`, which was false in three ways at once, and this one string fixes all three: nothing starts from a rank any more (M7.19), an ARAM result moves nothing (M7.1), and `catches up` is the verb M3.19 retired. The designer's proposed string fixed two of the three and kept `starts from your rank`, so it is superseded rather than taken. **Two sentences, not three**: the first-few-nights swing is real and is the answer to "why did my number jump 110?", but the four lines are the whole system in four lines and this one already carries two ideas; the group hears that part in M7.19's own message to them (acceptance 7) and `/p/[puuid]` carries the per-player version. **It does not name ARAM.** Saying which mode counts is true and short; saying which mode does not invites a footer line about a mode this line is not about, and M7.18 is the task that labels the two counts where they actually collide. The line moves from second person to `Everybody` on purpose: the fact that changed is that the start is the same for all ten, and that is not a sentence about you. **The defects this replaces, raised by the designer 2026-09-16 (M7 review), both product's to fix in `lib/shellCopy.ts`, both fixed here.** (1) **`moves with every result` is false since M7.1** — ARAM results move nothing, `00-product.md` says so in a paragraph of its own ("Only Summoner's Rift customs move the number"), and the group was told exactly that on 2026-09-16 when the rebuild ran. This line is in the footer of every page and in the rail card, so it is the product's most-printed claim about ratings and it is the one a player can now catch out. (2) **`catches up` is the word M3.19 ruled out** — `SETTLING_SENTENCE` was rewritten on 2026-09-10 precisely because the gap **settles** and never closes, and this line kept the retired verb, so the two sentences a reader meets on one visit disagree about what Proven does. ~~Proposed, one string fixing both: `Your rating starts from your rank and moves with every Summoner's Rift result. Proven is the board's careful version of it and settles after about 30 games.`~~ — **superseded 2026-09-16 by the string in column 2**, which drops the third falsehood the proposal kept. Nothing about MVP and ACE belongs in it — four lines are the whole system and `/p/[puuid]`'s own explanation carries that one |
-| companion card, title | `Run the companion` | product 2026-09-09 |
-| companion card, body | `Windows only. Most of you run Kustom in Overlay mode, which needs no token. The one or two PCs in Host mode need a token from an admin and stay running while you play.` | **corrected 2026-10-03** — the old body told every player to get a token, untrue since Host / Overlay (2026-09-23 decision row) |
-| companion card, link | `Get the companion` → `https://github.com/suyaser/kustom-releases/releases/latest` | product 2026-09-09 |
-
-**Why the nine changed.** Each one is a rule, not a preference, so the next string is decided the same way.
-
-- **`NOTHING TONIGHT` → `NOBODY IN YET`.** This is the screen a friend hits at 19:00 from a WhatsApp link, and
-  "nothing tonight" reads as *the night is off* to a group that plays every night. It is also false in the
-  other idle case, an abandoned lobby. `NOBODY IN YET` is true in both and invites the reader to be first.
-- **`FINAL` → `GAME OVER`.** The tone line in this document says *never a broadcast lower-third*, and `FINAL`
-  is the lower-third word. `GAME OVER` is the group's own vocabulary and just as short. The winner stays named
-  once, on the result card headline at `t-display` — product does **not** take M3.16's offer to move it up
-  into the strip.
-- **The sentence never repeats the headline.** `Ten in. Teams in a moment.` under a 44px `10 IN THE LOBBY`,
-  and `They are in.` under `IN GAME`, spend the page's one live line saying what the biggest type already
-  said. Both drop their first clause. (The ten-in line was re-worded again on 2026-10-03, to
-  `Waiting on an admin to roll the teams.`, when teams stopped appearing on their own; it still never repeats
-  the headline.)
-- **`Same ten, split by rating and role.` → `Split by rating and role. Nobody picked the teams.`** With eleven
-  around it is not the same ten, so the old line is wrong on exactly the nights the sit-out strip appears. The
-  new second half is the product's promise (principle 1, "the bot is the referee") in four words, and it is the
-  sentence that ends the argument the whole thing exists to end.
-- **0 in the lobby says it once.** The proposal had `Nobody has joined yet.` in the strip and the shipped
-  `Nobody in the lobby yet.` under the rack — the same fact twice, 40px apart. The settled string wins and it
-  goes in the strip, because the strip's sentence slot is mounted in every state and has to hold its two lines
-  anyway. Nothing is rendered under the rack at count 0; a rack of ten `open` seats is the picture.
-- **`the balancer` → `the bot`.** Product calls it the bot on every other surface. "Balancer" is the name of a
-  module in `packages/core`; nobody in the voice channel says it.
-- **`Get the app` → `Companion ↗`.** One thing needs one name, and the name is already fixed by a shipped
-  sentence this redesign may not rewrite ("…with the companion running"). With `Get the companion` in the
-  footer and `Run the companion` on the card, `Get the app` was the only place on the page inventing a second
-  word for the same download. A destination noun also matches the three tabs beside it.
-- **`how this works` line 2 gains the reroll.** Four lines are the whole explanation of the system, and the one
-  human control in it was missing. Admin-only and never random are both said, because "the bot is rigged" is
-  the argument this paragraph exists to pre-empt.
-- **`how this works` line 3/4 swap and line 4 is rewritten.** The order is now the order of a night: lobby,
-  teams, result, rating. The old rating line named `Rating` and `Proven` without saying where a rating comes
-  from or when it can be trusted, which is the actual question a new player asks.
-
-**The four lines are true of the shipped system, claim by claim.**
-
-| Claim | True because |
-|---|---|
-| Nobody checks in; a companion on somebody's PC reads the lobby | M2.3's lobby watcher; `00-product.md`, "Zero input" |
-| Three splits, fairest posted, with win chance and rating gap | M1.4 returns three ranked splits; `splits.explanation` prints both numbers |
-| An admin can step to the next one, nothing is random | M3.2: reroll is admin-only, promotes rank 2 then rank 3, never picks at random, and stops |
-| Results come off the end-of-game screen | M2.5's eog capture; no manual reporting anywhere in the product |
-| Everybody starts on the same rating | `provisionalSeed()` = `{ mu: 20, sigma: 12 }` — 1200 — written as the first seed of every stored rating, all-time and weekly (M7.19, 2026-09-16). `seedFromRank` has one caller left, the balancer's live guess for a face with no customs games, which is never persisted and never printed on a rating surface. **True of the code from 2026-09-16; true of the group's stored numbers once M7.19's hosted re-seed and rebuild have run**, which is the one open step behind this line — the copy is interpolated everywhere it names a number, so no page asserts it before it is true |
-| Every Summoner's Rift result moves it | the fold on every rated game (M2.5, M5.2), gated to Summoner's Rift by M7.1 (2026-09-15) — an ARAM result is recorded and moves nothing, which is `00-product.md`'s own paragraph and what the group was told on 2026-09-16 |
-| Proven settles after about 30 games | `ordinal = mu − 2σ`; `00-product.md`, "that gap shrinks as you play and settles after about 30 games". **`settles`, never `catches up`** — the verb M3.19 retired on 2026-09-10 because σ falls and does not reach zero, so the gap settles and never closes. The board's own sentence was fixed that day; this line kept the retired verb until M7.19's re-word (2026-09-16), and `board.test.ts`'s guard now has a twin on the shell line |
-
-Nothing in the four lines mentions "ten games" for Rating: the page has room for one number, and the number
-worth printing is the one that governs the board people argue about.
-
-**The side line, ruled 2026-09-11 (M4.7 (b)).** Both sentences are **kept, byte for byte**. They were
-settled in the M4.2 and M4.3 briefs and quoted again in the decision row of 2026-09-09, and the same two
-sentences go in the teams embed's `Seats` block, so a rewrite here would be a rewrite in three places to buy a
-reader nothing. Two things that look like exceptions are not:
-
-- **The em dash is house style for this shape.** Every other string in this table avoids one, but the shape
-  *fact, then what you do about it* already carries a dash on every surface where it appears —
-  `Your role is unchanged — tap it again.`, `Nothing changed — tap it again.`,
-  `No lobby was opened — tap it again.`. `You'll be moved to your side — if not, move yourself.` is that
-  shape: the promise, then the fallback when the promise cannot be kept, because a companion that is closed
-  or finds the side already holding five moves nobody and the page cannot know which of the ten that is.
-- **The apostrophe is straight (`'`), not typographic**, matching `isn't`, `Nobody's` and `someone's`
-  everywhere else in these tables and in `copy.ts`.
-
-**It is not drawn in `in_game`, and that is not the designer's call to reverse.** Once the game launches there
-is no lobby to move in, so `Move to your side in the lobby.` names a thing that does not exist for the half
-hour it would sit on the screen. The line belongs to `balanced` only, since M4.7 (b).
-
-**Inside `balanced` the line now goes the moment every seat matches its side** (M4.11, landed 2026-09-15).
-M4.3's acceptance check 7 asked for exactly this: the tonight snapshot carries each member's live
-`lobby_members.side`, and the line is drawn only while at least one of the ten is mismatched or has not yet
-reported a side at all — a seat nobody has placed keeps the line up rather than being read as a match, because
-that is the seat the switch-side queue itself cannot move and the page is the only thing telling them to.
-
-The sit-out strip, the explanation line, the no-season sentence, the `No more splits.` note and every embed
-string are **unchanged**. v2 is a visual redesign; it does not get to rewrite settled sentences.
-
-**One shipped string retires with the shell:** `IDLE_LINK_LABEL` (`Last night and the board`) has no home once
-`Leaderboard` is a tab, as this section's "Idle" already says. Delete the constant with M3.18 rather than
-leaving a dead export in `copy.ts`.
-
-#### Copy — the role tap and picking yourself (M3.6, product 2026-09-10)
-
-Every word M3.6 puts on the tonight page, including the refusals. The control's strings were settled in the
-M3.6 brief on 2026-09-09 and are quoted here unchanged; the refusals are new — the brief covered what the
-route does, not what the friend reads when it says no, so the engineer wrote nine sentences against no doc
-and product rules them here: eight are replaced, one is kept. They live in `apps/web/lib/tonight/copy.ts` (what the page draws) and
-`apps/web/lib/me/copy.ts` (what the routes answer, all of it, in one file — the rules modules and the handler
-import from there and hold no sentence of their own). That is two files and one table; they may not drift.
-
-**The rule for a refusal**, so the next one is written the same way: *say what happened, then say who can
-undo it or what to do next.* Never the database's vocabulary — a friend on a phone has no rows, no ids and no
-player records. Never an apology. Never name a page the reader cannot open (`/admin` is not a fix a non-admin
-can act on; "an admin can" is).
-
-| Where | String | Status |
-|---|---|---|
-| control heading, `t-xs` `dim` above the five role words, on the viewer's own control | `Your role tonight · <name>`, and plain `Your role tonight` when that player has no display name yet | **product 2026-09-10 (M3.6, designer's review)** — the name is added; `· ` is the rack header's separator. Never `· Someone`. The tonight page draws this control for the viewer alone, so there is no second heading to keep it off; if the admin role tap on `/admin/players` (M3.25) ever grows a heading, that page's rows carry their own names and this one is not it |
-| under the control, `open` — the state's one hint | `The bot tries for this one. If the teams need it, you can still end up somewhere else.` | product 2026-09-09 (brief) — shipped verbatim, kept |
-| under the control, `balanced` and `in_game` — the state's one hint | `Teams are already set. A role you pick now is what the bot tries for in the next game.` | **product 2026-09-10 (M3.6, designer's review)** — replaces `Saved for the next game. Teams are already set.`, which was written to stand next to the preference sentence and now stands alone. **M3.6's acceptance check 3 quotes the old words and needs the same edit** |
-| signed out, the card's body sentence | `Sign in with Discord to pick your role.` | product 2026-09-09 (brief) — kept, and it is now the sentence rather than the button, per the designer's card |
-| signed out, the button under it | `Sign in with Discord` | **product 2026-09-10 (M3.6, designer's review)** — new. A button is named for what pressing it does; the reason to press it is the sentence above |
-| above the list, signed in with no player | `Which one of these is you? Pick yourself once and the page knows you from now on.` | product 2026-09-09 (brief) — shipped verbatim, kept |
-| on every row of that list | `That's me` | product 2026-09-09 (brief) — shipped verbatim, kept. Straight apostrophe |
-| signed in with no player and no lobby to pick out of | `Signed in. Open the page while the lobby is up and you can pick yourself out of it.` | product 2026-09-09 (brief) — shipped verbatim, kept |
-| appended to the all-flexible hint, admin only | ~~`Set roles`~~ — **gone 2026-09-10 (M5.17)**, with `SET_ROLES_LINK`. There is no role control to link to: the hint stands alone and the one role a friend can still choose is the card under the rack | product 2026-09-09 (the table above), removed by the lead 2026-09-10 |
-| the tap did not reach the server | `That did not reach the server. Your role is unchanged — tap it again.` | **product 2026-09-10 (M3.6)** — replaces `That did not reach the server. Your role is unchanged.` |
-| `That's me` did not reach the server | `That did not reach the server. Nothing changed — tap it again.` | **product 2026-09-10 (M3.6)** — replaces `That did not reach the server. Nothing changed.` |
-| a non-admin naming somebody else (403) | `That is not you. Only an admin can set somebody else's role.` | **product 2026-09-10 (M3.6)** — replaces `That is not your row. Only an admin can set a role for somebody else.` |
-| the lobby is finished, dropped, abandoned or gone (404, 409) | `That lobby is over. You can set a role when the next one opens.` | **product 2026-09-10 (M3.6)** — replaces `That lobby is over. Nothing to set a role on.` |
-| a linked player who is not in that lobby (409) | `You are not in that lobby. Join it in League and you can pick a role.` | **product 2026-09-10 (M3.6)** — replaces `You are not in that lobby, so there is no row to set.` |
-| a signed-in visitor with no player tapping a role (403) | `Pick yourself out of the list first, then you can set a role.` | **product 2026-09-10 (M3.6)** — replaces `Pick yourself out of the lobby first, then you can set a role.` |
-| a session that already has a player tapping `That's me` (409) | `You already picked yourself. An admin can undo it if it was the wrong name.` | **product 2026-09-10 (M3.6)** — replaces `You are already linked to a player.` |
-| `That's me` on somebody who is not in tonight's lobby (403) | `You can only pick somebody who is in tonight's lobby.` | **product 2026-09-10 (M3.6)** — replaces `Only somebody in tonight’s lobby can be picked.`, curly apostrophe and all |
-| `That's me` or a role tap naming a PUUID no player has (404) | `No player with that id.` | engineer 2026-09-10 — **kept as is**: the page cannot produce this request, so it is the only string here no friend can reach. If it ever becomes reachable it comes back to this table |
-
-**Why the eight changed** (and, from 2026-09-10, the three the designer's review moved). Each is the rule above, applied.
-
-- **No rows.** Three of the eight said `row` — `That is not your row`, `there is no row to set`. `lobby_members`
-  is a table this product deliberately never shows anybody: the whole design is that the lobby is read, not
-  filled in. A friend told "that is not your row" has to guess what a row is before they can guess what went
-  wrong. `That is not you` is the same refusal in words the reader already has.
-- **A refusal ends with what happens next.** `Nothing to set a role on.` is a dead end; `You can set a role
-  when the next one opens.` is the same fact plus the thing that is true in ten minutes, and it is why nobody
-  needs to do anything about it. Same for the two offline sentences: `tap it again` is the whole fix and it
-  was missing.
-- **`Pick yourself out of the lobby first` reads as "leave the lobby".** The brief's own sentence
-  (`…you can pick yourself out of it`) is safe because it follows `Open the page while the lobby is up`; the
-  refusal has no such neighbour and lands on a friend who is standing in a lobby they want to stay in. `out
-  of the list` names the thing on screen — the `That's me` list two blocks up the page.
-- **`You are already linked to a player.` describes the database, not the person.** The reader's fact is that
-  they already tapped `That's me`, and the thing they want to know is whether it can be fixed. Both go in.
-  `Someone is already linked to that player.` is not touched: it is product's from the brief and is pinned by
-  M3.6's acceptance check 3.
-- **`Saved for the next game.` was a receipt on a card that nobody had tapped.** With the hints stacked it
-  followed the preference sentence and read as the answer to a tap; as the state's only hint it is the first
-  thing a friend sees when they open the page after the teams are posted, having tapped nothing — and it
-  tells them a role was saved for them. The replacement is a rule instead of a receipt, true before and after
-  a tap, and it keeps the limiter the stacked sentence used to supply from the line above it: `the bot tries
-  for` is the same verb the `open` hint uses, so the two states speak one vocabulary. The receipt itself is
-  unchanged and is not a sentence — the role word turns `brand`, as the brief settled.
-- **A button is a label, not a sentence.** `Sign in with Discord to pick your role.` is the reason; `Sign in
-  with Discord` is the act. Splitting them is the designer's card, and it costs one new string.
-- **The heading names you, because the phone gets passed around.** A friend hands the phone over so somebody
-  can see the teams, that person taps a role, and it lands on the first friend's row with no way to tell from
-  the screen. `Your role tonight · Hana` is the whole fix and it costs a micro-label six characters. It is
-  suppressed rather than filled with `Someone` when there is no name: a heading that says `· Someone` answers
-  the question with the word that caused it.
-- **Rendered strings use the ASCII apostrophe.** `Only somebody in tonight’s lobby can be picked.` was the one
-  friend-facing string in the app with a curly `’`, against `That's me` and `Names fill in after someone's
-  first game.` two files away. Curly apostrophes stay in comments and test names, where they are prose.
-  Passive voice went with it: it is a friend tapping, so the sentence says `You can only pick`.
-
-Of the control's own copy, six of the brief's eight strings stand byte for byte and `SET_ROLES_LINK` is the
-table above this one finally rendering. The two that moved on 2026-09-10 moved because the designer's review
-changed what stands beside them — a card with one hint per state, and a button under a sentence — not because
-product changed its mind about what the control means. Nothing here promises more than the balancer does,
-which is the one rule the whole block exists to keep.
-
-#### Copy — `Start a lobby` (M4.2, product 2026-09-10; widened by M4.13, 2026-09-15)
-
-Every word the one tap can produce, on either surface, in one table — the tonight page and `/admin` call the
-same route and may not end up saying two different things about one command. The control's own strings were
-settled in the M4.2 brief on 2026-09-09 and are quoted here unchanged; the rows marked **new** are what the
-2026-09-10 and 2026-09-15 passes ruled, where the brief had prose and no string. They live in
-`apps/web/lib/lobbyStart.ts` (everything the route answers with, imported by both surfaces — it moved out of
-`lib/admin/` with the route in M4.13), `apps/web/lib/me/copy.ts` (the not-linked sentence, beside the other
-`/api/me/*` refusals) and `apps/web/lib/tonight/copy.ts` (the two sentences only the browser can know). That is
-three files and one table; they may not drift.
-
-**The rule for a refusal is the M3.6 block's**, unchanged: say what happened, then say who can undo it or what
-to do next. Never the queue's vocabulary — `wrong_phase` and `already_in_lobby` are words for a log, not for a
-friend on a phone.
-
-| Where | String | Status |
-|---|---|---|
-| the button, both surfaces | `Start a lobby` | product 2026-09-09 (brief) — shipped verbatim, kept |
-| while the command is pending or sent | `Opening a lobby on Hana's PC…` — the host the server picked, named while it is pending and not after | product 2026-09-09 (brief) — kept. Real ellipsis, as everywhere else |
-| on success | *(nothing — the member list appearing is the answer, and a toast on top of it is noise)* | product 2026-09-09 (brief) — kept |
-| under the member list while the lobby is filling, until ten are in | `Invited 7 friends — waiting for them to accept.` · `Invited 1 friend — waiting for them to accept.` | product 2026-09-09 (brief) — kept; the singular is the engineer's and is the only form the sentence can take at one |
-| a lobby of tonight is already `open`, `balanced` or `in_game` | `There is already a lobby open.` | product 2026-09-09 (brief) — kept |
-| nobody's companion has been up in the last 10 minutes | `Nobody has the companion running right now. Start it and try again.` | product 2026-09-09 (brief) — kept |
-| a `create_lobby` for tonight is still pending | `A lobby is already being opened.` | product 2026-09-09 (brief) — kept; it is also what the M4.9 unique index answers with |
-| the kind is flagged off by M4.1's gate | `Opening lobbies isn't verified on this patch yet.` | product 2026-09-09 (brief) — kept |
-| the host's client never answered and the command expired | `Nobody's client answered. Try again.` | product 2026-09-09 (brief) — kept, and it is the **only** failure sentence: from the friend holding the phone, a client in champion select and a client that refused the POST are one fact — nothing was created, press it again |
-| the host had made a lobby by hand a minute earlier (`already_in_lobby`) | `Hana already has a lobby open — everyone can join that one.` | product 2026-09-09 (brief) — kept |
-| the press never reached the server | `That did not reach the server. No lobby was opened — tap it again.` | **new**, product 2026-09-10 (M4.2) — the web engineer's sentence, confirmed byte for byte. It is the shape product fixed for `ROLE_TAP_OFFLINE` and `LINK_OFFLINE` — the fact, what is unchanged, then the whole fix — and `No lobby was opened` covers the invites too, because the fan-out only ever hangs off a lobby that exists. The page's own string, not the route's: the route never saw the request |
-| an anonymous visitor, on the **idle** page | `Sign in with Discord to start a lobby.`, with a `Sign in with Discord` button under it | **live since M4.13** (2026-09-15); product 2026-09-09 (brief), suspended 2026-09-10 and back unchanged, which is what keeping it in this table was for. The press has widened to every linked player, so it no longer promises a button the reader cannot press; and the second ground for the suspension was false in the one state it exists in — `RoleTonight` draws **nothing** for a signed-out visitor with no live lobby, so on an idle page there is no other sign-in anywhere on the site. The sentence is the reason and the button is the label, the role card's own signed-out shape. **Never a disabled `Start a lobby`.** `idle` only: `filling` is a readout, not a control |
-| the session expired between the render and the press (401) | `Sign in with Discord to start a lobby.` | **new**, product 2026-09-15 (M4.13) — the one refusal on this control the **page** answers, in its own words. It is the same fact as the row above, so it is the same sentence; the route's own `sign in required` is gate vocabulary and never reaches a screen. Every other refusal still prints the route's words |
-| a signed-in visitor with no player row (403) | `Pick yourself out of the list first, then you can start a lobby.` | **new**, product 2026-09-15 (M4.13) — `START_LOBBY_NOT_LINKED`, in `apps/web/lib/me/copy.ts` beside `ROLE_TAP_NOT_LINKED`, whose shape it is built on: same first clause, one verb changed, because it is the same fact about the same visitor said about a second control. **The page cannot produce this request** — the control is drawn for linked viewers only — so it is the forged-post answer, and that visitor is shown no new copy at all: `SIGNED_IN_NO_LOBBY` at the foot of the column is already the true sentence for them |
-| tonight page, the lobby a friend can still join by hand — **signed-in linked viewers only** | `Missed the invite? The lobby is Customs 09 Sep #1, password 4821.` — without a stored password, `Missed the invite? The lobby is Customs 09 Sep #1.` — with no name, **no line** | **new**, product 2026-09-10 (**M4.10**; the gate is the lead's, after the designer's review) — the name and password in mono, the sentence in Archivo. Drawn in the `filling` and `balanced` states only, and gone from `in_game` on because by then there is nothing to join. **An anonymous visitor is shown nothing**, and so is a signed-in visitor with no player row — the `That's me` list two blocks up is the thing to do first, and it is already on their screen. The designer is right that a forwarded link with a live password on it is a credential, and the late friend is still served: he is one of the twenty, he has picked himself once, and the page has known him since. Placement is the designer's, with M4.7 |
-| `/admin`, under the button | `Customs 09 Sep #1 · password 4821` — the name alone when no password is stored | engineer 2026-09-10 (M4.2) — kept. The plain page reads the row itself, so an admin who reloads still sees what became of tonight's command. Same three shapes as the teams embed's `Lobby` field, minus its code spans |
-| `/admin`, nobody has pressed it tonight | `No lobby has been opened tonight.` | engineer 2026-09-10 (M4.2) — kept: the fact, with the button right above it, which is the admin area's whole voice |
-
-**Why the tonight page prints the name and the password.** The M4.2 brief already ruled it — *"It is not a
-secret: it goes in the Discord embed and on the tonight page"* — and the copy table, not the brief, was what
-went missing, so the control shipped without it. The scene is the argument: the fan-out runs **once**, on the
-create ack, and there is no second wave and no reminder ("the button is not a doorman"). Everyone who walks
-into voice after that, and everyone who dismissed the popup, has exactly one way in that does not interrupt
-nine people — the lobby's name and its four digits, read off the page they are already holding. Without the
-line the group does what it does today: somebody reads the password out loud in voice, which is a step, and
-steps are what this product claims not to have. `Missed the invite?` opens it because it tells the nine who
-are already in that the rest of the sentence is not for them.
-
-It is one lobby's exposure and it expires by itself: a new four-digit password is generated per lobby, and the
-line is gone the moment the game starts. **And from 2026-09-10 it is not on the open page at all** — the lead,
-after the designer's review, gated it to a signed-in viewer the page has matched to a player row. The whole
-worry was a link forwarded out of the group turning into a way in; a line only the group can see is not that,
-and it costs the late friend nothing, because being linked is what the page already needed of him to know who
-he is. Product weighed the open form against a latecomer having to ask; the gated form ends the trade.
-
-### What changes on the leaderboard and the player page (M3.5)
-
-M3.5 is being built against v1 right now. Nothing in its **content** decisions moves — `Proven` is still the
-primary number and the sort key, `Rating` is still on line 2, the two names are still fixed, the legend is
-still a legend and not a sticky header row, the `settling` chip is still a chip, the history chart still plots
-`Rating` and only `Rating`, with the seed line in the same units. What changes is dress, and it is a follow-up
-task, not a reason to stop:
-
-1. **The shell.** `/leaderboard` and `/p/[puuid]` mount the same top bar and footer. This is the biggest single
-   change and it is free if the shell lands as a layout.
-2. **Tokens.** `accent` → `brand`, and the new `raise` and `line` tokens. Rows sit on `surface` inside a card
-   with a `raise` header bar carrying the `Proven` legend, instead of a bare list on the page.
-3. **Type.** `Proven` on line 1 becomes mono `t-md` 600 (unchanged in kind); the player page's current
-   `Proven` number becomes `t-display`. Rank 1 keeps `brand` on the rank number only — no medals.
-4. **Role icons** wherever a role is named on `/p/[puuid]`.
-5. **Extract the row.** The rail on the tonight page renders the board's top five, so M3.5's row must be a
-   component (`app/_leaderboard/BoardRow.tsx`) and its query must take a limit
-   (`loadTopPlayers(client, { limit })`). Building it inline in the page means writing it twice.
-6. **The sparkline stays hand-drawn.** One inline `<svg>`, one `<path>`, 1.5px `brand`, no fill, no points, no
-   grid, no charting library. 140px on phone, 180px in the rail if it ever appears there.
-
-#### The window picker (M5.12, designer 2026-09-10)
-
-Five windows, five links, in the header of `/leaderboard`, `/p/[puuid]` and — with M5.4 — `/stats`, which
-mounts the same component with `This month` selected. The control looks the same on all three pages and the
-words are product's five, unshortened.
-
-**A wrapping row of chips.** Not a segmented control: five two-word labels do not fit in 358px at 390 without
-scrolling or breaking the 44px rule, and a segmented control on two rows reads as broken. Not tabs under the
-title: the shell nav is tabs with a `brand` underline 44px above, and two tab rows on one phone screen is two
-navigations in one visual language — a chip row reads as a filter, which is what this is. **3 + 2 at 390, one
-row from 720px.** The wrap splitting the two month options across rows is accepted: the chosen chip is marked
-and the h1 names it.
-
-**Labels are Archivo `t-sm` 500, not mono.** Same ruling as the shell nav — *"these are destinations, so
-Archivo"* — and the same type rule as everywhere else: `number or role → mono`. `This week` set in mono is a
-terminal string on a page whose every number is already mono, and a capital letter on a mono micro-label is
-forbidden two sections up (`top`, `live`, never `This Week`).
-
-**Where it sits, both pages.** The header strip is three lines and a hairline:
-
-```
-This week Leaderboard                       ← h1: window name t-lg 600, page noun in `dim` (unchanged)
-[This week] [Last week] [This month]
-[Last month] [All time]                     ← the picker, sp-4 under the h1
-SUNDAY 31 AUG TO SATURDAY 6 SEP · 14 RATED GAMES   ← the window slot (the board's form, M7.18;
-                                                     `· 14 GAMES` on /stats, /fun and /games)
-────────────────────────────────────────
-```
-
-On `/p/[puuid]` line 1 is the player's name in the display cut and everything else is identical.
-
-**The window slot holds exactly one of two things, never both and never neither.** The strings are product's
-(copy table, next section) and this is only where they sit:
-
-- the window's **range and count** — `Sunday 6 Sep to Saturday 12 Sep · 14 rated games` on `/leaderboard`
-  (`boardSlotLine`), `Sunday 6 Sep to Saturday 12 Sep · 14 games` on `/stats`, `/fun` and `/games`
-  (`windowSlotLine`), `September · 34 games`, `Since 8 Sep 2025 · 312 games`. **Two formatters, because there are
-  two counts** (M7.18): the board counts the games that moved a rating and the other three count the games the
-  group played, ARAM included, and since M7.1 those are different numbers under the same dates. Both are right,
-  so each says which it is, in one word, on every window and not only on the ones where they differ. The slot
-  dresses both the same. Mono `t-xs` `dim` `0.08em`, upper-cased by
-  the dress and sentence case in the DOM, which is the tonight strip's slug treatment: it is a legend about the
-  thing above it, and it is the answer to "which week". Every window has one, including `All time` — a slot
-  that vanishes on one of five taps reads as broken. **On `/p/[puuid]` the range half prints alone**, because
-  M5.15's seed line already ends `, 6 rated games since.` (M7.22). **`/stats` prints the whole form**, range and count, in the
-  same slot `/leaderboard` does — M5.22 took the count out of that page's two group sentences precisely so that the
-  slot is the one place it appears, and M7.18 is why the two forms are not the same words.
-- when the window has no games, the window's **empty sentence** (`No games last week.`), Archivo `t-base`
-  `dim`, **instead of** the range and never beside it. It lives here and not below the hairline because on
-  `All time` the same slot sits above rows that exist, so it is not a caption of empty content — it is a
-  statement about the window that was just chosen, and the window is the header. **An empty window draws
-  nothing under the hairline**: no board card on `/leaderboard`, and on `/stats` no awards, no group card and
-  no lists (rule 6 of that page's section). `/p/[puuid]` is the one exception and keeps its rating card,
-  because the subject there is a person and their two numbers are current rather than the window's; everything
-  windowed on it is undrawn like the rest. The sentence in the slot is the whole answer, and a card with a
-  legend and nothing under it is a page that looks broken rather than empty. An empty board is then a closed
-  header over an empty page, which is honest.
-
-**Dress.**
-
-```css
-.cn-windows { display: flex; flex-wrap: wrap; gap: var(--cn-sp-2); margin-top: var(--cn-sp-4); }
-.cn-window {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-height: 44px; padding: 0 var(--cn-sp-3); white-space: nowrap;
-  font-family: var(--cn-font-sans); font-size: var(--cn-t-sm); font-weight: 500;
-  color: var(--cn-text); text-decoration: none;
-  background: var(--cn-raise); border: 1px solid var(--cn-line);
-  border-radius: var(--cn-radius-row); transition: background-color 120ms ease;
-}
-.cn-window:hover  { background: var(--cn-pressed); }
-.cn-window:active { background: var(--cn-pressed); transform: scale(.985); }
-.cn-window-on {
-  color: var(--cn-brand); background: var(--cn-brand-tint);
-  border-color: var(--cn-brand); box-shadow: inset 0 0 0 1px var(--cn-brand);
-}
-```
-
-`text` at rest, for the role chips' reason: a row of `dim` words reads as five disabled controls. The doubled
-`brand` edge is the light-mode rule paid for in both themes — in light, `brand-tint` is a 12% wash on white and
-lands *lighter* than the `raise` chips beside it, so the chosen chip is the palest box in its row and that edge
-is the whole receipt. One recipe, both controls, both themes. No `max-width`: the picker is as wide as the
-column it sits in.
-
-**It is five links, and the current one is marked the way the shell marks its own current tab** —
-`aria-current="page"`, not `aria-current="true"`, and still a link, so a keyboard user does not hit a hole
-where the window they are reading should be. `<nav aria-label="Time window">`, because a second unnamed
-landmark beside the shell's is announced as "navigation".
-
-**A row's window line.** `6 games · 4W 2L · +58` closes the meta run on line 2: games, record and climb are one
-window fact and belong in one run, and the right edge of line 2 stays `Rating` under `Proven`, one vertical
-pair of numbers. The climb is **never coloured by sign** — gain `text` 600, loss `dim` 400, always signed — and
-it is **`t-xs`, the size of the run it sits in**: `.cn-row-meta .cn-delta { font-size: inherit; }`, declared in
-`board-parts.css` so the tonight rail's rows get it too. Shipped, it was `t-sm` inside a `t-xs` line, which put
-two type sizes in one row of meta. On `All time` there is no climb and the streak keeps the position.
-
-**The still-settling note sits below the board card**, not between the picker and the first row: with the
-picker in the header it pushed the first name past half the fold on a 390×844 phone, and a sentence about how
-the sort works is read after the numbers, not before them. Still once per page.
-
-#### "How you got here" on `/p/[puuid]` (M5.15, designer 2026-09-10)
-
-Somebody is sure the board is wrong about them. These are the three lines that answer it: where they started,
-what each game did, and why a game is worth what it is worth. They are **prose on a page of tables**, and the
-whole dress question is how prose earns its place beside a column of tabular numbers without becoming a second
-column of them.
-
-The type rule they run on — a quantity in a sentence stays Archivo, a token you have to transcribe is mono — is
-written once, under "The number-in-a-sentence rule", with the `Start a lobby` block. Nothing on this page is a
-token to transcribe, so every number in every sentence here is Archivo: `1290`, `37`, `58%`.
-
-**The seed line: `t-base`, `text`, above the chart, inside the rating card.** It is the first half of the
-answer, not a caption for it. At `t-sm` `dim` — what the first build shipped — it is the quietest text in the
-card it is the point of, wedged between a mono meta line and a mono chart label. `margin-block: var(--cn-sp-3)`
-so it is not glued to either.
-
-**The meta line above it drops its games count when the seed line is present.** `37 games · 19W 18L`
-twenty-four pixels above `…, 37 rated games since.` prints one number twice, which the copy table already forbids for
-the window slot. The record line becomes `19W 18L`; the count lives in the sentence, which is the more useful
-of the two places. At zero games there is no meta line and the seed line has already dropped its clause, so
-nothing here has a second case.
-
-**And the sentence that says which games that record is over sits where the sections start** (M7.18): `The
-record above counts games that moved a rating; everything below counts every game you played, ARAM included.`
-`t-sm` `dim`, one paragraph, between the rating card and `By role` — the seam where the two universes part, and
-the only place on this page either of them is named. It is not a caption on the record and not a note on each
-section. **The meta line itself never carries a count**: the rule above means there is no window and no player
-on which it could, so nothing on that line says `rated` and no code branch pretends otherwise. The one count a
-reader sees above the sections is the seed line's, and **since M7.22 (product, 2026-09-16) it says so in its own
-words**: `Started at 1200, 37 rated games since.` The rule in this paragraph is **kept, not inverted** — the
-count was named where M5.22 already put it, rather than moved back up to the record line, because "since when"
-is what the count is about and the meta line has no "since" in it. See the two seed-line rows of the copy table
-for all five windows.
-
-**The per-game line is a caption on the head above it, and carries only what that head cannot say.** The head
-already prints `Lost`, `1392` and `(−42)`; the line beside it is `As the 58% side.` — their own side's chance,
-and nothing else. A game with no stored chance gets **no line at all**: with the result and the delta gone
-there is nothing left in that form but the head retyped. `not rated` rows keep their three words and no line,
-unchanged.
-
-- **Placement is unchanged and is not reopened**: under the head it explains, above the lineup, inside the game
-  block's leading side rule. It does **not** crowd the 44px lineup rows — it is outside them, and they keep
-  their height. `padding-bottom: var(--cn-sp-2)` so it hangs off the head rather than floating between the head
-  and the first seat.
-- **`t-sm` `dim`, and it stays `dim`.** Once it is four words and not a duplicate it is a caption, and a
-  caption does not compete with the number it is a caption for. This is the one line on the page that is
-  allowed to be quiet, because the head above it is already loud.
-- **It ends in a full stop**, because it is a caption and not a label. Every other run of prose on this page
-  closes the same way; an unstopped fragment in `dim` under a row of numbers reads as text that got cut off.
-  Labels — `rating`, `seed`, `not rated` — are the things without stops, and they are mono.
-
-**The explanation line, once per page, under the list, in the explanation strip's dress.** It is the same
-object as the tonight page's explanation line — the bot saying why it did what it did — so it gets the same
-treatment and no new token: `border-inline-start: 3px solid var(--cn-brand)`, `padding: var(--cn-sp-3)`,
-`t-base`, `var(--cn-text)`. Under the list and not above it, because it answers a question the rows raise.
-It is also now the only line on the page that explains the **size** of a change, since the per-game caption
-gave that job up — which is the argument for it being the loudest of the three and not the quietest.
-
-**It is two sentences in one paragraph since M7.10 (2026-09-16), not two strips.** The MVP / ACE sentence
-follows M5.15's inside the same `<p>` in the same rule: they answer the same question and splitting them would
-draw a second brand rule twenty pixels under the first, which reads as two arguments where there is one. The
-strip grows by a line on a phone and that is the whole visual change. **Both sentences always print** — this
-one is about the model, not about a game, so a player who has never been either one still reads it, and a page
-whose every row is `not rated` still reads it.
-
-**The `MVP` / `ACE` word on a row takes no dress of its own** (`.cn-game-award`): the delta's `t-sm`, the row's
-`--cn-text`, no weight, no background, no border, no icon, no gold. It follows the delta inside the same head,
-`1512 (+43) MVP`, so it is read as the end of that phrase rather than as a badge parked beside it, and it does
-not wrap away from its number. Floodlit has no award colour, and a task that prints two words per game is not
-the place to mint one. It is also the one thing on a game head that is about **who**, not about how much, which
-is exactly why it must not out-shout the number it qualifies.
-
-**The `not rated` footnote keeps `.cn-hint` and stays above it.** Two `dim` paragraphs stacked read as one grey
-block that nobody finishes; a footnote about three rows and the page's whole argument are not the same voice.
-One is `dim` prose, the other is a strip with a brand rule, and the difference is visible before either is
-read.
-
-**Light.** `dim` on light `surface` is 6.36 and the captions hold. Nothing in this section is light-specific
-and there is no second threshold.
-
-#### The per-player sections on `/p/[puuid]` (M5.20, designer 2026-09-11)
-
-The M5.4 brief put them "below the rating chart"; M5.8 drew `/stats`, and this is that recipe read for one
-person instead of for twenty. Five rulings, no new token, and no word product has not already fixed.
-
-**1. The order down the page stands.** Rating card (the two numbers, the record, the seed line, the chart, the
-settling sentence), the award line, `By role` and its footnote, `By side`, `Partners`, `Streaks`, the mean-game
-line, `Recent games`, the explanation strip. Everything the page asserts *about* a person comes before
-everything that *happened* to them, and the explanation strip keeps the last word because it is the one line
-that says why any of it moved. At 390 that is two and a half screens before `Recent games`, so nothing
-collapses, nothing folds behind a tap and no section moves. The band is four cards and two bare sentences; a
-fifth card is the thing to resist.
-
-**2. The award line is a statement, not a caption.** `Most improved, September.` sits between the rating card
-and `By role`, in the flow and not inside the card — the card is M5.15's, and this belongs to the window band
-under it. `t-base`, `text`, **weight 600**, no badge, no icon, no colour (product). The weight is the whole
-ruling: at 400 it is the seed line's dress forty pixels below the seed line, and the page's only honour reads
-as a second caption. `t-lg` stays `/stats`', where three winner lines with numbers in them are the page's
-headline and the name leads each one; here the `<h1>` is already the name.
-
-**3. `By side` keeps its card, and the two names take the two colours.** Two rows are not too few for a card:
-it is `By role`'s twin one row above, with the same record shape and the same five-row minimum, and one line
-holding two records is a table squeezed into a sentence at 390. `Blue` and `Red` are **Archivo, capitalised, at
-the row's `t-sm`** — product's ruling in the copy table above, and the dress follows the word: a side is a name
-read as language, like the partner names in the card below it, and the mono lower-case exception stays the
-roles' alone. They print in `--cn-blue` and `--cn-red` rather than `dim`, because this is the one card in the
-product where a side is the subject of a row rather than a team, so the colour is the content — and this same
-page already paints a game block's leading rule by side. It is not the team card's mark: no tint, no border,
-no chip, two words. Contrast is 6.2 and 6.4 on dark `surface`, 6.1 and 6.2 on light, both clear of the 4.5
-this size asks for.
-
-**4. No name is in both partner lists.** `Theo · 6W 4L · 60%` under `Best together` and again under
-`Worst together` is the fold showing through, and it is the first thing a reader points at. With N qualifying
-partners: `Best together` takes the top `min(3, N)`, `Worst together` takes what is left from the bottom
-(`min(3, N − 3)`), and at N ≤ 3 the card draws `Best together` alone — a ranked list of everyone who qualifies,
-best first, which is exactly what the label claims. With nothing qualifying the card prints
-`Nobody has 5 games with them yet.` **once**, with neither group label over it: one fact, one sentence. No new
-string, and the minimum does not move.
-
-**5. The mean game is a line, not a card.** `Average game 34 min.` in a bordered card of its own is M5.8's
-rule 3 read backwards — that rule gives three orphan sentences a body and says in the same breath that one
-sentence does not need one. It prints in the flow under `Streaks`, `t-base` in `text`, the dress
-`.cn-stats-answer` already carries.
-
-**Roles are M5.8's exception, unchanged, and at the size `/stats` prints them:** mono, lower case, **16px**
-icon and word. A role is one object across two pages, and this one must not print it larger than the page
-beside it.
-
-**The empty window ships as built.** The window's sentence goes in the slot where the range would be, in
-`dim`, the same place and the same dress `/leaderboard` and `/stats` give it — the board is one tap away and
-all three pages say one thing one way. The rating card stays, and the strip keeps its hairline: **M5.8's
-rule 6 is a `/stats` rule**, where the window is the whole subject. Here the subject is a person, their two
-numbers are current rather than the window's, and a page about somebody that prints no number about them is a
-page that failed. Everything windowed — the record line, the seed line, the chart and all six sections — is
-undrawn, which is the rule this page already follows.
-
-**Light.** Nothing here is light-specific. The two side colours are the only new ink and both hold above 6:1
-on white; `dim`, the group labels and the card header bars are unchanged.
-
-#### Copy — the board pages, final (product 2026-09-09)
-
-Every word `/leaderboard` and `/p/[puuid]` say, in one table, the same way the tonight page's strings are
-settled above. They live as one constant each in `apps/web/lib/board/copy.ts` — that file is the code half of
-this table and the two may not drift. `(shipped)` marks a string that already existed and is quoted unchanged;
-the three marked **new** in the 2026-09-09 pass are the ones M3.5, M3.8 and M3.10 wrote against no doc,
-reviewed by product and kept.
-
-**Amended 2026-09-10 (product), for windows, the closed-window post and "how you got here."** Seasons are gone
-(`04-decisions.md`): the board is read through five time windows, so the heading, the nightly title and both
-empty states move, two strings are deleted outright, and the rows for the weekly and monthly post (M5.10), the
-seed and per-game explanation lines (M5.15) and the inferred roles on `/admin/players` (M5.17) are new here.
-The word *season* no longer appears in anything a friend can read. Layout for all of it is **M5.8**'s; the
-words below are fixed.
-
-| Where | String | Status |
-|---|---|---|
-| primary number, label | `Proven` — `round(ordinal * 60)`, the sort key — **on `All time`, `This month` and `Last month` only**; on `This week` and `Last week` the primary number is the weekly `Rating` and Proven is not printed at all | *(shipped, M3.5)*; **week carve-out, product 2026-09-15 (M7.3)** — whichever number decides the order is the number the row has to print, and a week window is ordered by the weekly `Rating` |
-| secondary number, label | `Rating` — `round(mu * 60)`, the number the embeds print — **line 2 on the three Proven windows**; on a week row it is gone from line 2, because it is already the big number on line 1 | *(shipped, M3.5)*; **week carve-out, product 2026-09-15 (M7.3)** — one row never says one number in two type sizes |
-| legend over the one unlabelled number | `Proven` | **amended, designer 2026-09-09** — was `Proven · Rating`; see "Leaderboard row". The code change lands with M3.18 |
-| board heading | the **window's** name (`This week`), with `Leaderboard` beside it in `dim` | **amended, product 2026-09-10 (M5.12)** — was the season's name; seasons are gone (`04-decisions.md`) and the season row's name is never printed to a friend again. `standings` → `Leaderboard` (designer 2026-09-09) is unchanged |
-| nightly embed title | `This week · leaderboard` | **amended, product 2026-09-10 (M5.12)** — the nightly post prints the week's board and links to `?window=this-week` |
-| result embed, footer | `Kustom · game 47` — `Kustom` alone when the count is missing | **amended, product 2026-09-10 (M5.12)** — was `Season 1 · game 47`; the count is unchanged and is the **all-time** game number (every game stored up to this one), never tonight's. See "Result embed" |
-| back link on `/p/[puuid]` | `← Leaderboard`, and deleted when the shell lands | **amended, designer 2026-09-09** — same row |
-| still-settling chip | `settling` | *(shipped, M3.8)* kept |
-| still-settling sentence on `/leaderboard`, once per page | `The board sorts on Proven: your rating, minus how unsure the board still is about you. That gap shrinks as you play and settles after about 30 games.` | **amended, product 2026-09-10 (M3.19); scoped to `/leaderboard` and kept byte for byte, product 2026-09-10 (M3.26)** — the 2026-09-08 pair told a new player they begin at the bottom and rise, which is false on a season's first board, where every row is a rank seed and Proven orders exactly as rank does. The ruling is in `04-decisions.md`; "Still-settling marker (M3.8)" below quotes the same words. **`you` is right here and stays**: everyone reading this board is on it, and the sentence's grip is that the reader finds themselves in it. The player page prints the row below instead; the two are separate constants and neither may be edited into the other. `SETTLING_SENTENCE` keeps this string |
-| still-settling sentence on `/p/[puuid]`, once per page | `The board sorts on Proven: a player's rating, minus how unsure the board still is about them. That gap shrinks as they play and settles after about 30 games.` | **new, product 2026-09-10 (M3.26)** — on Yuki's page `your rating` names the number printed twenty pixels above it, and that number is Yuki's, not the reader's. Same two sentences, same shape, same two interpolations (`Proven` from `PROVEN_LABEL`, `30` from `SETTLING_GAMES`), one pronoun moved, so a reader arriving from the board meets the same explanation and not a second one. **No name is interpolated**: a nameless player is `Someone` (M3.10), and `Someone's rating, minus how unsure the board still is about Someone` is not a sentence a friend would say — nor is the possessive of every name in the group one rule (`Lucas's`). **The M5.15 strip does not replace it**: that strip says why a change is the *size* it is and names neither number, while this one is the only thing on the page that says why Proven sits below Rating and what the `settling` chip beside them means. Placement, and the `settling` gate on printing it at all, are unchanged. A second constant, `SETTLING_SENTENCE_PLAYER` |
-| still-settling sentence, embed footer | `Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.` | **amended, product 2026-09-10 (M3.19)** — `until … has seen about 30 games` said the gap closes then; it never closes. Same ruling row. **Scoped by M7.3 to the windows that still sort on Proven**: the nightly post reads `this-week` and the Sunday post reads `last-week`, so neither of them prints this any more — the row below does. It survives on the monthly post alone |
-| the sentence under the board on a week window, once per page, **instead of** the three rows above | `Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` | **new, product 2026-09-15 (M7.3)** — `This week` is the board's **default window**, so this is the sentence most readers meet and the `Proven` one is now the exception. Four sentences and each is load-bearing: the Sunday restart (why Tuesday is visible on Thursday), which column the order is made of and why it is not the cautious number every other tab shows, that a week is few games and the numbers move hard, and where the settled number lives. **`Every week`, not `This week`** — `Last week` prints the same string, because it is the same track and the same question. No game count is interpolated and the name carries no `SETTLING`: M7.2 measured the weekly track reaching `sigma < 5.00` at game 30, which a group playing one to three games a night never reaches inside a week, so **the week does not claim to settle at all**. **Re-worded 2026-09-16 (M7.21), one clause**: it said `back at their rank`, and M7.19 took the League rank out of every stored seed — `provisionalSeed()`, the same number for everybody — so a week restarts everyone on one rating rather than on their own. `back at their rank` → `on the same rating`, the substitution `WEEK_PLAYER_SENTENCE` settled the same day; **second person is kept**, because every reader of a board is on it. Nothing else in the four sentences moved. `WEEK_BOARD_SENTENCE` in `lib/board/copy.ts`; `SETTLING_SENTENCE*` are untouched and neither may be edited into the other (the M3.26 rule) |
-| the same, embed footer, on the **nightly** post (`this-week`) and the **Sunday** post (`last-week`) | `Every week starts everyone on the same rating on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.` | **new, product 2026-09-15 (M7.3)** — the short form, for the one-line footer. Both week posts say it; only the **monthly** post still carries the Proven footer. **Re-worded 2026-09-16 (M7.21)** with the long form and for the same reason, the same one clause: `back at their rank` → `on the same rating`, second person kept, nothing else touched. A footer already sent to Discord is not edited; the next nightly post carries the new words. `WEEK_BOARD_SENTENCE_SHORT` |
-| legend over the board's one number | `Proven` on `All time`, `This month` and `Last month` · **`Rating`** on `This week` and `Last week` | **amended, designer 2026-09-16 (M7.3)** — the legend names **the number the board sorted on**, whichever track that is, and on a week that is the weekly `Rating` (`round(mu × 60)` off the week's own from-scratch fold). One helper, `boardLegend(track)`, because the legend and the row's own visually-hidden noun have to name the same number. The word `Proven` does not print anywhere on a week board — not in the legend, not on line 2, not in small type |
-| `settling` chip on a week window | *(none — no row carries it on `This week` or `Last week`)* | **new, product 2026-09-15 (M7.3)** — the chip marks the handful of rows the board is least sure of; on a week that is every row, every week, and a marker on all ten rows marks nothing. There is no `WEEK_SETTLING_GAMES` and no second chip. `SETTLING_GAMES` and the chip are byte-identical on the other three windows |
-| the sentence under the chart on `/p/[puuid]` on a week window, once per page, **instead of** the third-person Proven sentence | `Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. This is their rating after this week's games, with nothing taken off for playing only a few. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` | **new, product 2026-09-16 (M7.16)** — the page joined the weekly track, so the paragraph that explains Proven was explaining a number no longer on the screen. **Third person**, because the page may be somebody else's: `WEEK_BOARD_SENTENCE`'s `you` is right on a board, where every reader is on it, and wrong twenty pixels under a number that belongs to whoever's page this is (the M3.26 rule). It carries the board sentence's four load-bearing points and drops its clause about a sort order, because this page sorts nothing. **It does not say `back at their rank`**: M7.19 (2026-09-16) took the League rank out of every stored seed, so a week restarts everyone on one rating. This sentence got that wording first, and **M7.21 carried the same one-clause correction to the two board rows above on 2026-09-16**, so all three week strings now say a week starts everyone on the same rating; they still differ where they must — the person, and the clause about a sort order. Printed on an empty week too, where the number on screen is the weekly seed. `WEEK_PLAYER_SENTENCE` in `lib/board/copy.ts`; `SETTLING_SENTENCE_PLAYER` is untouched and prints byte for byte on `All time`, `This month` and `Last month` |
-| the two numbers on `/p/[puuid]` on a week window | `Rating <n>` alone, in the display cut — **no `Proven`, anywhere** | **new, product 2026-09-16 (M7.16)** — the board row's own carve-out, one tap later and for the same reason: a week is a handful of games by design, so `− 2σ` is enormous on every page every week. The one number is the weekly `Rating` and is the digit on that player's board row. The `settling` chip does not print on a week here either, and the chart's hairline is the weekly seed under the existing `start` label — never `seed`, which stays a fact about a whole history |
-| ~~season active, no games yet~~ | ~~`No games this season yet.`~~ | **deleted, product 2026-09-10 (M5.12)** — replaced by the five window lines below; the word *season* leaves the friend-facing vocabulary |
-| ~~no season is active, on both pages~~ | ~~`No season is active, so there is no board yet. An admin can start one.`~~ | **deleted, product 2026-09-10 (M5.14)** — there is no button behind it any more, and a deployment with no season row has no games either, so the empty-window line is true and enough |
-| a recent game's result, on `/p/[puuid]` | `Won` / `Lost` | **new**, product 2026-09-09 — kept as written |
-| game count | `1 game` · `28 games` | *(shipped)* kept |
-| win–loss record | `13W 15L` | *(shipped)* kept |
-| rating chart, title | `Rating` | *(shipped)* kept |
-| rating chart, reference line | `seed` | *(shipped)* kept |
-| player page sections | `By role` · `Recent games` | *(shipped)* kept |
-| a player with no name | `Someone` | *(shipped, M3.10)* kept |
-| nameless hint, once per page while any row reads `Someone` | `Names fill in after someone's first game.` | *(shipped, M3.10)* kept |
-| rating column, unrated game | `not rated` | **new**, product 2026-09-10 (M3.23) |
-| hint under Recent games, when any row is unrated | `Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.` | **amended, product 2026-09-16 (M7.17)** — was `Some games don't move ratings: too short, short a player, or added from match history and not counted yet.` (new, product 2026-09-10, M3.23). **The defect the designer raised on 2026-09-16 (M7 review) — the list was short one reason — is fixed by this row.** Since M7.1 an ARAM is stored, listed and never rated, and M7.11's rebuild un-rated the four ARAM nights already in the history, so rows read `not rated` for a reason the sentence did not offer, on a page whose whole job is to explain why a number did or did not move. The sentence enumerates, so an unlisted reason reads as a bug rather than a rule. **One word added and nothing else in the sentence touched**: ARAM goes first because it is now the most common of the four, there is no second sentence, and no argument for *why* ARAM does not rate — that lives in `00-product.md` and not in a hint line. **No per-row reason**: M3.23's one vocabulary stands, so `NOT_RATED` is untouched and every unrated row still reads the same three syllables. `NOT_RATED_HINT` in `lib/board/copy.ts`, pinned by code point in `lib/board/board.test.ts`; the prose under "Rating history" below says the same string |
-| nightly embed, field name | `Top ten` when ten lines print, `The board` when fewer | **amended, product 2026-09-10 (M3.22)** — was `Top ten` always; see "Nightly leaderboard embed" |
-| window picker, the five options | `This week` · `Last week` · `This month` · `Last month` · `All time` | **new**, product 2026-09-10 (M5.12) — the same five words are the option, the board heading and the post title |
-| window picker, accessible name (on screen nowhere) | `Time window` | **new**, product 2026-09-10 (M5.12) — the `<nav>`'s `aria-label`, so five links are not announced as a second unnamed "navigation" beside `Leaderboard`. Product's own noun, and true on all three pages; if **M5.8** gives the control a visible heading it is this string, verbatim |
-| window slot, the range half (under the picker) | `Sunday 13 Sep to Saturday 19 Sep` · `Sunday 6 Sep to Saturday 12 Sep` · `September` · `August` · `Since 8 Sep 2025` | **new**, product 2026-09-10 (M5.12, the designer's slot); **the week runs Sunday to Saturday, product 2026-09-15 (M5.34)** — was `Monday 8 Sep to Sunday 14 Sep`, and the only thing that moved is the anchor day, which the formatter derives from the window's own bounds. One per window kind. Weeks name both weekdays and carry the month on both ends (`Sunday 28 Sep to Saturday 4 Oct`); the last day named is the last **night** of the window. Months are the month's name and nothing else — a day range would spell out what a calendar already says. Only `Since …` carries a year, because only it can reach one |
-| window slot, assembled — `/stats`, `/fun`, `/games` | `` `${range} · ${gamesLabel(count)}` `` → `Sunday 6 Sep to Saturday 12 Sep · 14 games`, `September · 34 games`, `Since 8 Sep 2025 · 312 games` | **new**, product 2026-09-10 (M5.12); **week form re-anchored to Sunday, product 2026-09-15 (M5.34)**; **scoped to the three played-count pages, product 2026-09-16 (M7.18)** — the string is **unchanged and `windowSlotLine` is unedited**; what moved is that `/leaderboard` stopped calling it and took the row below instead. The count is the window's counted games (M5.4's universe, `gateGame`, ARAM included per M5.26) and goes through `gamesLabel`, so a one-game week never reads `1 games`. On `/p/[puuid]` the **range half prints alone** — M5.15's seed line already ends `, 6 rated games since.` (M7.22 named that count; this row's own string is untouched by it) and no page says one number twice |
-| window slot, assembled — `/leaderboard` | `` `${range} · ${ratedGamesLabel(count)}` `` → `Sunday 13 Sep to Saturday 19 Sep · 12 rated games`, `September · 34 rated games`, `Since 8 Sep 2025 · 312 rated games`, and `· 1 rated game` at one | **new**, product 2026-09-16 (M7.18) — the board is a rating board and its count is the games that **moved a rating**, which since M7.1 is a smaller number than `/stats`' under the same dates one tab across. Both counts are right; the bug was that neither page said which it was showing, so each says it in one word. **A second formatter (`boardSlotLine`) beside `windowSlotLine` and never a flag on it**: two sentences about two universes that happen to share a shape, and the day one moves the other must not. **The word is never conditional** — on a window with no ARAM in it the two counts are equal and this still reads `rated games`, because a label that appeared only when the numbers differed would teach nobody anything and would read as an error. An **empty window** prints its empty sentence and never `· 0 rated games`. The adjective goes on the noun and not the count: `1 rated game`, never `rated 1 game`. `boardSlotLine` / `ratedGamesLabel` in `lib/board/copy.ts`, pinned by code point in `lib/board/counts.test.ts` |
-| window slot, empty window | the window's own empty sentence, alone — `No games last week.` | **new**, product 2026-09-10 (M5.12) — the slot shows the sentence **instead of** the range, never both and never `· 0 games`. It is the sentence's one place on the page: with it in the slot the board card is not drawn at all, which is how "never a blank card" and "never twice" are both true |
-| empty window, one per kind | `No games this week yet.` · `No games last week.` · `No games this month yet.` · `No games last month.` · `No games yet.` | **new**, product 2026-09-10 (M5.12) — a running window says *yet*, a closed one does not, because nothing more is coming |
-| a row's window line | `6 games · 4W 2L · +58` | **new**, product 2026-09-10 (M5.12) — the window's games, record and climb; absent on `All time`, where the row is today's row |
-| player chart reference line, in a window | `start` (`seed` stays on `All time`) | **new**, product 2026-09-10 (M5.12) — the rating carried into the window is not a seed |
-| weekly / monthly post, title and dates | `Last week · leaderboard` / `Last month · leaderboard`, description `Sunday 6 Sep to Saturday 12 Sep · 14 rated games` | **new**, product 2026-09-10 (M5.10); **week re-anchored to Sunday, product 2026-09-15 (M5.34)**; **the count is named, product 2026-09-16 (M7.18)** — the last day named is the last *night* of the window, and the description is still the board's own slot line composed by the board's own formatter (now `boardSlotLine`), so the post and the page it links to cannot say two things about one window. A sent embed is a record of what was said and is not edited; the next post carries the new words |
-| weekly / monthly post, awards field | `Awards`, then `**Most improved**`, `**Best off-role**`, `**Cursed duo**` with M5.4's winner lines verbatim | **new**, product 2026-09-10 (M5.10) — including the "nobody qualifies" sentence when nobody did |
-| awards, still running | `Awards are handed out when the week ends.` / `… when the month ends.` | **new**, product 2026-09-10 (M5.4) |
-| awards, section intro | `Three awards for the week. Nobody votes; the numbers pick.` / `… for the month. …` | **amended, product 2026-09-10 (M5.4)** — was `Three end-of-season awards.` |
-| an award on `/p/[puuid]` | `Most improved, week of 6 Sep.` / `Most improved, September.` — and the same form for the other two awards: `Best off-role, September.`, `Cursed duo, week of 6 Sep.` | **amended, product 2026-09-10 (M5.4); the other two awards named, product 2026-09-11 (M5.20)** — was `Most improved, Season 1.`. All three read `<award label>, <calendar>.`: the label is interpolated from the award's own constant so this line cannot drift from `/stats` and the weekly post, and the calendar is the window's — `September` from `formatMonthName` on the two month windows, `week of 6 Sep` on the two week ones. A cursed-duo line prints on both halves' pages and names neither the partner nor the record; the full line is on `/stats`. No badge, no icon. See the M5.20 copy table |
-| `/stats` cap line | `Showing the most recent 2000 games.` | **amended, product 2026-09-10 (M5.4)** — was `… of this season.` |
-| `/p/[puuid]`, the sentence where the stats sections begin | `The record above counts games that moved a rating; everything below counts every game you played, ARAM included.` | **new**, product 2026-09-16 (M7.18) — the header's record is folded over the games that moved a rating and every section under the chart (`By role`, the sides, the partners, the streaks, the mean game) is folded over every game the player played, ARAM included. Both are right, they are forty pixels apart, and nothing said so. **Once, at the seam**, not a word on each of the five sections and not a second sentence beside the streak — which stays the one mixed computation it has always been (M5.21) and is covered by the second half of this one. **Second person**, the one place M3.26's third-person rule does not apply: the page is about a person and the reader is usually looking at their own, so `you` names the reader's games and not the number above. A third-person twin for somebody else's page is product's to write if it is ever needed; the code does not grow one. **Not conditional on the player having played an ARAM** — somebody with none reads it and finds it true and dull, which is the correct outcome. It is **absent** on a window with no sections under it, and absent for a player whose whole window was ARAM (no record above it to explain). `PLAYER_COUNTS_SENTENCE` in `lib/board/copy.ts` |
-| the header record on `/p/[puuid]` | `20W 17L` — **no count, and therefore no `rated`, anywhere on this line** | **corrected 2026-09-16 (M7.18 as landed; the reviewer)** — the row that stood here proposed `37 rated games · 20W 17L` and said the count printed "in one case". **There is no such case.** M5.22's rule (two rows down) drops the count whenever the seed line is present, the seed line is present on every window that has a record, and the line itself is absent at zero games — so the count prints on no window, for no player, ever, and the branch M7.18 wrote for it was unreachable code. It is deleted; `ratedGamesLabel` belongs to `boardSlotLine` and to nothing on this page. **So the first clause of M7.18's acceptance 3 — "the header record names the rated count" — is _not met_ by M7.18 as landed**, and saying it was met in a formatter was the same mistake in prose. Only the second clause (the one sentence above the sections) landed. The count a reader actually sees above those sections is the **seed line's** `, 37 games since.` — `player.games`, the rated count, worded as plain `games` directly above played-count sections — which is the ambiguity the task was opened to fix and is still there. Naming it means editing an M7.19-pinned string or inverting M5.22, so it is product's word choice and the designer's placement: **open as M7.22**. **Settled 2026-09-16 (M7.22, product): option (b), and this line is not where it lands.** The record line stays `20W 17L` on every window, for every player, with no count and no `rated` on it — M5.22 is **kept, not inverted**, so the count stays in the sentence that says *since when*, and `PlayerView.tsx` grows no `ratedGamesLabel` import back. What changed is one word in the seed line two rows down: `sinceClause` calls `ratedGamesLabel` instead of `gamesLabel`, so the page's one rated count reads `Started at 1200, 37 rated games since.` (and `Started the week at 1469, 6 rated games since.`, `Started the month at 1469, 14 rated games since.`, `, 1 rated game since.` at one, `Started at 1200.` at zero). The alternative — moving the count up here as `37 rated games · 20W 17L` and dropping the seed line's clause — was refused: it reverses a designer decision to fix a wording problem, and it leaves a count with no `since` in it on a line whose neighbours are a rating and a record |
-| seed line on `/p/[puuid]`, `All time` | `Started at 1200, 37 rated games since.` — and at **zero games the clause is dropped**: `Started at 1200.` | **the count is named, product 2026-09-16 (M7.22, option (b))** — was `Started at 1200, 37 games since.`, and `37` has always been `player.games`, the *rated* count, sitting forty pixels above `By role`, the streaks and the partners, every one of which counts games **played**, ARAM included. That is the ambiguity M7.18 was opened to remove and the one page where it was still live, because M5.22 leaves this line as the only count on the page. `sinceClause` calls `ratedGamesLabel` instead of `gamesLabel`; **`gamesLabel` is unedited** and `windowSlotLine` keeps `/stats`, `/fun` and `/games` byte for byte. One game reads `, 1 rated game since.` — `ratedGamesLabel`'s own rule, never `1 rated games` and never `rated 1 game` — and the zero-games drop below is untouched. **The word is not conditional**: a window with no ARAM in it still says `rated`, for M7.18's reason — a label that showed up only when two numbers differed would read as an error on the day it appeared. **M5.22 is kept, not inverted**: moving the count onto the record line was the other option and was refused, so the meta line still prints `20W 17L` and nothing else. **The clause M7.19 dropped stays dropped** — that rule was about the *rank*, and naming what the count counted is a different sentence's problem. Older notes, still true: **re-worded, product 2026-09-16 (M7.19, step 3 of two)** — was `Seeded from Gold II at 1469, 37 games since.`, which named a rank beside a number that since 2026-09-16 does not come from it. **The rank clause is dropped, not softened.** A rank printed on the one line that explains where a rating came from is read as the reason for it whatever the preposition does — `Diamond I at the time · started at 1200` was considered and refused for that — and this page is a rating surface, where the product's line is that a solo-queue rank says nothing about these customs. `ratings.seed_rank_tier` / `seed_rank_division` are still stored and still say what the client reported the night a history began; they are simply not on a screen. The number is still `player.reference`, the value the chart's hairline is drawn from, so the sentence and the line cannot disagree — and because it is interpolated, not asserted, the line stays true both before the retroactive re-seed (a row still folded from an old rank seed reads its own number) and after it (1200 for everybody). It also now rhymes with the window form below: `Started at …` / `Started the week at …`. **The 2026-09-10 amendment stands unchanged**: at zero games the clause is dropped, because acceptance check 5 forbids a bare `0` on the newest player's page in the same breath as `NaN` and the record line above it already vanishes there; the count goes through ~~`gamesLabel`~~ `ratedGamesLabel` since M7.22, so one game reads `, 1 rated game since.` |
-| seed line on `/p/[puuid]`, in a window | `Started the week at 1469, 6 rated games since.` on `This week` and `Last week` · `Started the month at 1469, 14 rated games since.` on `This month` and `Last month` · **no line at all** in a window the player has no counted game in | **the count is named, product 2026-09-16 (M7.22, option (b))** — the same one-word change as the row above, through the same `sinceClause`, so there is no fifth string and no second rule for a window. **The word is true on the week windows too**: `player.games` is `played.length` there and `played` is filtered on `mu_after not null`, which is the rated universe on every window — checked in `lib/board/load.ts`, not assumed. On a week that count is the weekly fold's, and the wording does not change for it (M7.16). A window with no counted game still prints **no line at all**, so the zero case never meets the new word. Older note, unchanged: **amended, product 2026-09-10 (M5.15)** — product wrote one window sentence and the picker has four windows. `Started the week` on `Last month` names the wrong calendar, and every other window string on this page (the empty lines, the slot's ranges) already says `week` or `month` per kind, so the noun is interpolated off `WindowKind` and there is no fifth string. Nothing prints in an empty window because the chart's reference falls back to the player's **seed** there, and `Started the week at <seed>` would name a number that week never saw — the window's own empty sentence is already on the page and is the true one |
-| a recent game, the chance its side was given | `As the 58% side.` · `As the 42% side.` — and **no line at all** when the game has no stored chance | **amended, product 2026-09-10 (M5.15, the lead after the designer's review)** — was `Won as the 42% side, +43`, which said everything twice: the row head already reads `Lost … 1392 (−42)`, so the sentence beside it repeated the result and re-spelled the delta. What the head cannot say is the only thing left in the line. **It ends in a full stop**: it is a caption, not a label, and every other line of prose on this page closes the same way — a fragment in `dim` with no stop under a row of numbers reads as text that got cut off. The percentage is still **their own side's**, `Math.round(p × 100)` |
-| ~~a recent game with no stored chance~~ | ~~`Won, +43` / `Lost, −31`~~ | **deleted, product 2026-09-10 (M5.15, the lead)** — with the result and the delta gone from the sentence there is nothing left of this form but the row head repeated, so a backfilled game, a game whose lobby row was cleared and a game played without the bot print the head alone. No placeholder, no `—`, and the row is still never hidden. **The Discord embeds are untouched** and keep U+2212 out of their own numbers exactly as they do today; this line lives on one page |
-| the one explanation line under `Recent games` | `Beating the favoured side moves you more than beating the underdog, and the board moves you more while it is still unsure about you.` | **new**, product 2026-09-10 (M5.15) — once per page, not per row. **Its `you` stands, and M3.26 does not touch it** (product, 2026-09-10): it states the rule of the game, which is true of whoever is reading, and it points at no number on the screen — the defect M3.26 fixes was `your rating` naming a figure that belongs to the person whose page it is. Same reading for the nightly embed's short form, which is addressed to a channel where every reader is a player |
-| games cannot be saved, admin and API | `Games cannot be saved: the database is missing its one season row.` | **amended, product 2026-09-10 (M5.14)** — was `… Start a season on the Seasons page.`; there is no such page action now |
-| games are not being saved, tonight page | `Tonight's games are not being saved. Play on — they can be added back from match history later.` | **amended, product 2026-09-10 (M5.14)** — was `An admin can start one.`; backfill is true, and it is the only thing the twenty people holding the link can act on |
-| inferred roles on `/admin/players` (plain page, no dress) | `support · jungle · from 17 games` · `flexible · from 2 games` · `flexible · no games yet` | **new**, product 2026-09-10 (M5.17) — read-only text where two selects used to be |
-| award badge on a `/leaderboard` row, `Last week` and `Last month` only | `Most improved` · `Best off-role` · `Cursed duo` | **no new string, designer 2026-09-15 (M8.3)** — placement only. The three are **imported from `lib/stats/copy.ts`** (`MOST_IMPROVED`, `BEST_OFF_ROLE`, `CURSED_DUO`), never retyped and never re-cased, for the reason that file's own header gives: they are printed on a page *and* in a Discord post, and one surface saying `Cursed duo` while another says `Worst duo` is a bug nobody finds until somebody wins it. This is the second board-page string that lives in `lib/stats/copy.ts` rather than `lib/board/copy.ts`, and it stays there — a copy of an award's title in the board's own file is the drift this row exists to prevent. The badge is the title **alone**: no count, no delta, no partner name, no `#1`, no calendar — `/p/[puuid]`'s `Most improved, September.` carries the calendar because that page has no window heading, and `/leaderboard`'s `h1` already names the window. Nothing is drawn on `This week`, `This month` or `All time`. See "The award badge on a board row" |
-| result embed, the MVP / ACE line (its own last field) | `MVP Lena · ACE Rami` — and **no line and no field at all** for a game with no award | **new, product 2026-09-15 (M7.10)** — two names, a middle dot, and nothing else: no score, no percentage, no emoji, no trophy, no colour and no `#1` (acceptance 6). The score behind the pick is a number a reader can do nothing with and one more thing that can disagree with the post; the names are the whole point. **The MVP is named first because the winning side is.** Both words are upper case — they are op.gg's terms and this group reads them there every day, so never `Mvp`, never `mvp`. Names go through the same `renderName` as every other embed line, so a nameless player is `Someone` and a long Riot ID is truncated at 32 characters and escaped identically. Nothing prints for the other eight and no post says "nearly MVP". `MVP_LABEL` / `ACE_LABEL` / `awardLine` in `lib/discord/embeds.ts`, pinned by code point in `embeds.test.ts`; the field itself is specified in "Result embed" below |
-| a recent game on `/p/[puuid]`, when the reader's page owns the award | `MVP` · `ACE`, beside the delta the row already prints — `1512 (+43) MVP` | **new, product 2026-09-15 (M7.10)** — the word, and nothing around it: **not a badge, not an icon, not a colour of its own**, no trophy, no gold, no `#1`. It is the delta's own size (`--cn-t-sm`) and the row's own `--cn-text`, so it reads as part of the same sentence as the number it follows, which is what it is. Floodlit has no award colour and this is not the place to invent one. **One of two words or nothing**: absent for the other eight players of that game, absent for every game with no award, and absent on a `not rated` row — the same reason no page says "nearly MVP". Same two constants as the embed's labels, a second pair in `lib/board/copy.ts` (`MVP_LABEL`, `ACE_LABEL`); the dress is `.cn-game-award` |
-| a seat on `/games`' opened scoreboard, when `gatedGameAward` named that seat | `MVP` · `ACE`, after the name — `Lena MVP` | **reused, not new (M7.23, 2026-09-29)** — the same `MVP_LABEL` / `ACE_LABEL` from `lib/board/copy.ts` and the same `.cn-game-award` dress as the `/p/[puuid]` row above: the row's `--cn-text`, `--cn-t-sm` (the KDA column's size), no badge, no icon, no colour, no trophy, no `#1`. Exactly two per game — the winning side's MVP and the losing side's ACE — and nothing on any seat of a remake, a nine-player custom, an unrated game, or a game missing a stat column or a stored role. It sits on the name line (a layout-only `.cn-sheet-name` flex row keeps the name's ellipsis and never wraps the word off it). Never on `/fun`'s "This game" sheet, which reuses the component and does not ask for awards |
-| the explanation line under `Recent games`, second sentence | `The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.` | **new, product 2026-09-15 (M7.10)** — it joins the row above **in the same paragraph**, directly after it, not as a second `.cn-explain` block: the reader's question is one question ("why is this number the size it is") and the answer is now two sentences long. **It is about the model, not about a game**, so it prints on every player's page whether or not they have ever been either one — the same rule that makes M5.15's sentence once-per-page rather than once-per-row, and the reason a game with no award still leaves it standing. No maths, no percentage, no formula, no `1.25×`, and **neither word is capitalised into it**: this sentence names the positions, the two labels above name the players. `MVP_EXPLANATION` in `lib/board/copy.ts` |
-
-**Why the three new ones stand.**
-
-- **`No games this season yet.`** is the same shape as the tonight page's `Nobody in the lobby yet.` — the
-  fact, in five words, with nothing to tap. It is true in both of the places it renders: under the heading of
-  a season nobody has played yet, above the rank-seeded rows that all read `0 games`; and on a player page
-  where the chart would be, about that player. One sentence for both is deliberate — a second, longer one
-  ("You have not played yet this season") would be a third empty-state voice on a product that has two.
-- **`No season is active, so there is no board yet. An admin can start one.`** is built like M3.17's tonight
-  sentence — the fact, then who can fix it, nothing to tap — because the two pages are read by the same
-  twenty people from the same WhatsApp link. It is a third constant, not a reuse: `NO_ACTIVE_SEASON_MESSAGE`
-  ends by naming a page nineteen of them cannot open, and the tonight sentence is about tonight's games not
-  being saved, which is not what an empty board is about. Same fact, three readers, three sentences, and none
-  of the three may be edited into another.
-- **`Won` / `Lost`** is this player's own result, because the page is about them: `Red wins` beside their own
-  delta makes a reader work out which side they were on before they can read their own row. Past tense, not
-  the `13W 15L` letters, because the line is one game that happened, not a tally.
-
-**And why `standings` became `Leaderboard`** (designer, 2026-09-09, from the rendered pages). One destination
-had three names on it: the route and the Floodlit nav tab said `Leaderboard`, the page heading and the back
-link said `standings`, and the embed title said `standings` again. `Leaderboard` wins all three, because it is
-already product-approved friend-facing copy — it is the nav tab in the table above this one, and it is the
-noun inside a shipped sentence this redesign may not rewrite (`Ratings are updated. The leaderboard has the
-rest.`). `standings` was invented by this document's own embed section and is in no other surface's
-vocabulary. This is the same rule that turned `Get the app` into `Companion ↗`: one thing, one name.
-
-The board's numbers keep the names `00-product.md` gives them ("The numbers on the screen") and no surface
-invents a third. `Won` and `Lost` are the only strings in this table that do not live in
-`apps/web/lib/board/copy.ts` today — they are two module constants in `app/_board/PlayerView.tsx`, and the
-next engineer to touch that file moves them, so this table has one code half and not two.
-
-#### Copy — `/stats`, the strings the brief did not write (M5.4, product 2026-09-10)
-
-The M5.4 brief fixed every number on this page and most of its words: the awards, the cap line, the no-role
-footnote, the two group lines and the section intros are in the table above or in the brief itself, and the
-window's own words — the five labels, the slot, the five empty sentences — are the board's and are imported,
-never retyped. They live as one constant each in `apps/web/lib/stats/copy.ts`, which is the code half of this
-table exactly as `lib/board/copy.ts` is the code half of the one above it, and the two may not drift: the
-awards are printed on a page **and** in a Discord post, and one of them saying `Cursed duo` while the other
-said `Worst duo` is a bug nobody would find until somebody won it.
-
-What is below is the remainder: the seven strings the web engineer wrote because the brief asked for the line
-and not the words, one pronoun the database cannot know, and one line the brief wrote only in the plural.
-**Of the seven, five keep and two are replaced.** A kept string is
-product's now — it is not "the engineer's, tolerated" — and the `(engineer)` markers in `copy.ts` come out
-with the next touch of that file.
-
-| Where | String | Ruling |
-|---|---|---|
-| the window's third fact, with the two group statements | `12 players played.` — `1 player played.` at one, and **no line at all** in a window with no games | **keep, product 2026-09-10 (M5.4)** — the brief's page order asks the header for "counted games, players who played" and the slot (`September · 34 games`) is fixed byte for byte by M5.10's post, so the players number needs its own sentence and this is the plainest true one. `players` is the app's noun for these twenty people everywhere else on the page (`Players with no main role are not in this one`); `people` would be a second noun for one thing. The singular is the same rule `gamesLabel` follows, and the zero case never renders, because an empty window prints its own sentence in the slot and draws no card |
-| a role block with nobody over the minimum | `Nobody has 5 games on jungle yet.` — the role in the app's own lowercase word, so `adc` and `mid` read as they do in every other line; the `5` interpolated from the same constant the list filters on | **keep, product 2026-09-10 (M5.4)** — the empty-state voice this product already has: the fact, in six words, with nothing to tap (`Nobody in the lobby yet.`, `No games this week yet.`). It names the role rather than saying `here` because the five blocks are read as one column on a phone and a quiet block one thumb-length below its heading has to say what it is quiet about. `yet` is right: it is a running count, and the brief's own quiet-week rule is that no threshold moves to make the page look full |
-| duos, nothing qualifies | `No pair has 5 games together yet.` | **keep, product 2026-09-10 (M5.4)** — same shape, and it is deliberately the award's noun (`No pair played 4 games together this week.`) with the browsing table's number in it, so a reader who meets both lines on one page reads one rule at two bars and not two rules |
-| streaks, the two the window holds | `Longest win streak` · `Longest losing streak` | **keep, product 2026-09-10 (M5.4)** — product's own words out of the brief ("longest win streak and longest losing streak of the season, per player, and on `/stats` the group's best and worst with the holder's name"), promoted to labels in the sentence case the page's other sections use (`Best together`, `By role`). `losing`, not `loss`: it is the streak a person is on, not a column head |
-| streaks, the third block | ~~`On a run now`~~ → `On a streak now` | **replaced, product 2026-09-10 (M5.4)** — see below |
-| streaks, nobody qualifies | ~~`Nobody is on a run of three or more.`~~ → `Nobody is on a streak of 3 or more.` | **replaced, product 2026-09-10 (M5.4)** — see below |
-| best off-role, the winner line | `Omar · 9W 3L · 75% · their main is top` | **keep, product 2026-09-10 (M5.4), and this row supersedes the brief's `his main is top`** — the database holds a PUUID, a name a player can change between two page loads, and no pronoun; `his` is a fact this product does not have about nineteen of the twenty people it prints. `their` is the pronoun the board pages already settled on for the same reason (M3.26's `how unsure the board still is about them`). **Acceptance check 7 of M5.4 reads this row for this line**, not the brief's sentence. Decision row: `04-decisions.md`, 2026-09-10 |
-| the no-role footnote, at one game | `1 game is not in the role numbers — the client did not record who played where. Backfilled games never do.` | **keep, product 2026-09-10 (M5.4)** — the brief wrote the plural only. The count goes through `gamesLabel` like every other count on these pages and the verb follows it, so the one-game night does not read `1 games are`. Everything after the dash is product's, unchanged |
-
-**Why the two replacements stand.**
-
-- **`On a streak now`, not `On a run now`.** The section is `Streaks`, the two labels above it are
-  `Longest win streak` and `Longest losing streak`, the leaderboard row prints `W3`, and the M5.4 brief calls
-  it a streak throughout. `run` is a second noun for the thing the page has already named three times in the
-  same card — the rule that turned `standings` into `Leaderboard`: one thing, one name. It is also the warmer
-  word by accident only: in English "on a run" leans to a winning one, and this block lists `L4` beside `W3`
-  with no comment, which is the point of it.
-- **`Nobody is on a streak of 3 or more.`** Same noun, and the digit because the number is a module constant
-  the block is filtered on — spelled out in the sentence it can drift from the list above it, and the page's
-  other two "not enough yet" lines already print their minimum as a digit (`5 games`). The tonight page's
-  `One more to go.` is not the precedent here: that word exists because the digit is already set 44px above
-  it, and nothing on this page prints this 3 but the `W3` chips the sentence is about.
-
-**The per-player sections on `/p/[puuid]` (M5.20) are not in this table.** Their empty lines and section
-labels are unwritten copy, and they came to product before they shipped, like these did: they are the table
-below, ruled 2026-09-11, and the two rows of this page's own copy that ruling amends are in it too.
-
-#### Copy — the per-player sections on `/p/[puuid]` (M5.20, product 2026-09-11)
-
-The table above ends by saying these strings were not in it and would come to product before they shipped.
-This is that table. M5.20 is a rendering task, so most of what these sections say is imported and never
-re-worded — the window's five labels and five empty sentences, `By role`, `Streaks`, `Best together`,
-`Worst together`, `Longest win streak`, `Longest losing streak`, the cap line, `13W 15L`, `71%`, `W3`. Eight
-strings were left for product. **Seven keep and one is replaced.** They live as one constant each in
-`apps/web/lib/stats/copy.ts` under its own heading and never in `PlayerStats.tsx`, so this table has one code
-half like the two above it; a kept string is product's now — it is not "the engineer's, tolerated" — and the
-`(engineer, for product)` markers in `copy.ts` come out with the next touch of that file.
-
-| Where | String | Ruling |
-|---|---|---|
-| the card under `By role` | `By side` | **keep, product 2026-09-11 (M5.20)** — `By role` is a shipped, product-approved section name on this page and this is its twin: a preposition and the thing, so the two cards read as a pair and M5.8's card-title rule covers both without a new shape. The alternatives were a noun this product uses nowhere (`Side record`) or no card at all — and no card is not available, because the group's blue rate is `/stats`'s headline and is deliberately not repeated here, so this is the one place in the product where a side is a record rather than a team |
-| the two rows of that card | ~~`blue` / `red`~~ → `Blue` / `Red` | **replaced, product 2026-09-11 (M5.20)** — see below |
-| the card of the three best and three worst | `Partners` | **keep, product 2026-09-11 (M5.20)** — it is product's own noun for this list, out of the M5.4 brief (*"`/p/[puuid]` shows that player's three best and three worst partners"*), and it names a different object from `/stats`'s `Duos`: a row there is a pair (`Yuki and Theo`), a row here is one other person, read from the page owner's side of it. `Duos` over a column of single names would be the page asking the reader to do the subtraction. One thing, one name is not broken by two things having two names — and the two lists inside the card keep the pair page's own labels, `Best together` and `Worst together`, which are true of a partner as well as of a pair |
-| partners, nobody over the minimum | `Nobody has 5 games with them yet.` | **keep, product 2026-09-11 (M5.20)** — the page's other "not enough yet" lines in one shape: `Nobody has 5 games on jungle yet.` with the role swapped for the person, the `5` interpolated from the same constant the list filters on so the sentence and the bar cannot drift, and `yet` because it is a running count. **`them` is this page's pronoun and not a slip**: M3.26 settled that a player page is about somebody who is usually not the reader, and the third person makes one string true on your own page and on Yuki's |
-| the first row of `Streaks` | `Current streak` | **keep, product 2026-09-11 (M5.20)** — product's own words out of the brief (*"**Current streak**: the run ending at their most recent counted game, printed `W3` / `L2`"*), promoted to a label beside `Longest win streak` and `Longest losing streak` exactly as those two were, in the same sentence case. It does not collide with `/stats`'s `On a streak now`: that block is the list of everyone on three or more and needs a bar to exist, this row is one person's run and prints `W1` as readily as `W8`, so a shared string would be false on one of the two pages |
-| average game length, per player | `Average game 32 min.` | **keep, product 2026-09-11 (M5.20)** — the group's sentence with its count dropped and a stop in its place, which is this page's settled rule twice over: the meta line gives its games count up to M5.15's seed line, and the window slot prints its range half alone here, both because no page says one number twice. Whenever this line is drawn the player has a counted game in the window, so the seed line above it is already printing `, 37 rated games since.` (M7.22) and the count is on the page exactly once. **Never `0 min` and never `NaN`** — with no counted game the whole band is undrawn. **After ruling (a) below this is the same string as the group's**, so one function serves both pages and there is no second constant to drift from it |
-| an award won, all three of them | `Most improved, week of 6 Sep.` · `Best off-role, September.` · `Cursed duo, September.` | **keep, product 2026-09-11 (M5.20), and the board table's `an award on /p/[puuid]` row is amended to match** — the brief wrote the form once and with one award in it, but wrote it about *"a player who won **an award**"*, so the generalisation is the brief's own sentence read whole. The label is interpolated from the award's own constant (`MOST_IMPROVED`, `BEST_OFF_ROLE`, `CURSED_DUO`), which is what stops this page saying `Best off role` while `/stats` and the weekly post say `Best off-role`. A cursed-duo line prints on both halves' pages and names neither the partner nor the record on purpose: the award's full line, with the pair and the numbers in it, is on `/stats` and in the post, and this line's whole job is to say which award and which calendar. No badge, no icon, unchanged |
-| the no-role footnote, per player | `3 games are not in the role numbers — the client did not record who played where. Backfilled games never do.` — reused byte for byte, with this player's own count | **keep, product 2026-09-11 (M5.20)** — the M5.20 brief asked whether a per-player form was owed and the answer is no. Under a card that is already this player's numbers, a count with no possessive reads as theirs exactly as `13W 15L` does, and a second sentence for one fact is a second sentence to keep in step with the first: `gamesLabel`, the verb that follows it (`1 game is`), and everything after the dash, which is product's and unchanged. A player whose games are all backfilled gets this line as the whole of the card, and that is right — it is a sentence saying why there are no rows, not a card that failed to load |
-
-**Why `Blue` and `Red`, not `blue` and `red`.** Every side this product prints to a friend is capitalised: the
-teams embed's `Blue · 7695`, the result embed's `Blue`, `Blue was favored 54%.`, the team card's header, and
-`/stats`'s own `Blue wins 69% of the time.` one tab away. Roles are lower case in *every* surface, Discord
-included — `top` is the word's form and not a list convention — so taking the case off the role rows instead of
-off the word gives one thing two names on two adjacent pages, which is the defect that turned `standings` into
-`Leaderboard`. The reading that these are "the subject of a data row" is the right instinct applied to the
-wrong word: what makes `top` lower case is that it is `top` everywhere, and what makes this `Blue` is that it
-is `Blue` everywhere. The consequence for the dress is an existing rule and not a new one — a side is a name
-read as language, so Archivo like the names in every other list, and the mono lower-case exception stays the
-roles' alone.
-
-**The two questions the designer parked on the M5.20 row (2026-09-10), ruled.**
-
-**(a) The count comes out of both group statements on `/stats`.** All three of those numbers are the same
-number by construction — the slot, `Blue wins …` and `Average game …` are all `countedGames`' length, passed
-from one field — so the two `· 32 games` halves are not a second fact, not a denominator and not a caveat.
-They are the slot retyped, twice, a few lines under it. This document has already refused exactly this on the
-other page twice (the meta line's count beside the seed line's; the window slot's count beside it), and it is
-refused here at three. Were the statements ever folded over a smaller universe than the slot's — games with a
-stored duration, say — the count would be load-bearing and would stay; they are not, and the day one of them
-is, it prints its own denominator again and this row is amended.
-
-| Where | String | Ruling |
-|---|---|---|
-| `/stats`, the group's side rate | ~~`Blue wins 69% of the time · 32 games`~~ → `Blue wins 69% of the time.` | **amended, product 2026-09-11 (M5.20's copy questions)** — supersedes the M5.4 brief's *"printed with the count"* for this line. The full stop arrives with the count's departure: the trailing ` · 32 games` is what made this a legend rather than a sentence, and the card's third line has been a stopped sentence since M5.4 (`12 players played.`) |
-| `/stats`, the group's average game | ~~`Average game 35 min · 32 games`~~ → `Average game 35 min.` | **amended, product 2026-09-11 (M5.20's copy questions)** — same ruling, same stop; it is now byte for byte the per-player line above, one function on two pages, which is the answer to "why does the group's average say `· 32 games` and mine does not" being that neither does |
-
-The card becomes three parallel stopped sentences — `Blue wins 69% of the time.` / `Average game 35 min.` /
-`12 players played.` — which is what M5.8 drew it as. **Nothing else moves.** The slot keeps
-`SEPTEMBER · 32 GAMES` byte for byte, because M5.10's weekly post is that same string; the cap line is
-untouched; no number changes. **The code half is not M5.20's**, whose out-of-scope forbids touching `/stats`,
-so it ships as its own task with the two call sites, the two signatures and `StatsView`'s tests in it.
-
-**(b) An empty window says its sentence and nothing else.** Silence is right, and the reason is that the page
-is not silent: the picker is on the screen, above the sentence, five links with the chosen one marked, and it
-is the same control on a full window and an empty one. A line that appears only when the page is empty is a
-second navigation that exists only in the failure state, and it would name windows the reader can already see
-and tap. It would also have to know something this page did not read — the nearest window with games is four
-more reads or one unbounded one, on the single page whose read is already capped — and `All time` settles it:
-a group with no games at all has no nearer window to point at, so the pointer's own fallback is silence, on
-exactly the screen it was proposed to rescue. A line that is right on some windows and absent on the rest is
-worse than a page that behaves the same way five times. **The empty sentence and the picker are the whole
-answer**, which is what the board pages already do and what M5.8 drew for this one. If the group ever wants a
-"take me to the last week we played" control it is a feature with a decision row, not a copy fix.
-
-### `/stats` — the window's page (M5.8, designer 2026-09-10)
-
-Four cards down one 44rem column, no rail, nothing to press, opened at work on a Sunday morning rather than in
-a dark room at 21:00. M5.4's plain layout is the right skeleton and this changes six things about it. Every one
-of them is a recipe this product already ships; none is a new token, and no product string moves, splits or
-re-orders.
-
-**1. Two heading levels, and no third.**
-
-- **Card title**, in the card's `raise` header bar: Archivo `t-sm` 600 `text` — `.cn-board-title`, the shell's
-  card-title rule. `Awards`, `By role`, `Duos`, `Streaks`.
-- **Group label**, opening a block inside a card: Archivo `t-sm` 600 `dim` — `Best together`,
-  `Worst together`, `On a streak now`, `Longest win streak`, `Longest losing streak`. Roles are the exception
-  they always are: mono, lower case, icon at **16px** and word, unchanged.
-
-The M5.4 build has this upside down — `.cn-list-title` is mono `t-xs` `dim`, so a card's own name is the
-quietest text inside it and the sub-head is the loudest. Mono micro-labels on this page are legends and data
-(`10W 8L · 56%`, `W10`, `top`), never the name of a section. `/p/[puuid]`'s `By role` and `Recent games` take
-the same swap: two pages, one rule.
-
-**2. The awards card is the page's headline, and it is drawn only when there are awards.**
-
-- **Closed window.** Label Archivo `t-sm` 600 `dim`; the winner line `t-lg` 600 `text`; the "nobody qualifies"
-  line stays `t-base` `dim`; the rule and the no-main-role note drop to `t-xs` `dim`. The winner line is **the
-  biggest language in the product outside a result headline** — three of them, and the name leads each one, so
-  size alone makes the person the headline. It wraps to two lines at 390 on the longest award and that is fine:
-  a statement wraps, a table does not.
-- **The line is one string.** `Sara · +153 · 1314 → 1467` comes from `lib/stats/copy.ts` and the same string
-  goes in the weekly Discord post. It is never split into cells, never re-set in mono, never re-ordered. The
-  number-in-a-sentence rule applies: it is all Archivo.
-- **The card takes the winner's ring** — `border-color: var(--cn-brand)`, the identical mark and meaning as the
-  result's winning team card (`.cn-team-won`) — **and only when at least one of the three was won.** Three
-  "nobody qualifies" sentences behind an amber border is a lie. This ring and the chosen window chip are the
-  page's only amber; that is the one-lamp rule holding on a page with no live state.
-- **Running window: no card.** `Awards are handed out when the month ends.` is a `.cn-hint` in the header
-  strip, under the slot line. A bordered card holding one 14px grey line is the 449px-of-empty-card failure in
-  miniature, and on `This month` — the default — it is the first thing anybody sees.
-- **`All time`: nothing at all**, unchanged.
-
-**3. The group's three statements get a body.** The blue win rate, the average game and `12 players played.` go
-in one card: `surface`, 1px `line`, `lit`, **no header bar**, `sp-3` padding, `t-base` `text`, `sp-2` between
-lines. Three sentences alone on the ink between two cards read as something that failed to load. (One sentence
-does not need a card — the tonight page's sit-out strip is one sentence in one. Three orphans do.)
-
-**4. A streak is a row, not a sentence.** `Longest win streak W10 Nadia` reads label-number-name and parses as a
-person called W10. The two longest become blocks in the shape the third already has:
-
-```
-Streaks
-  Longest win streak
-  Nadia                              W10
-  Longest losing streak
-  Rami                                L6
-  On a streak now
-  Deniz                               W8
-```
-
-Group label, then one row per holder, name left, streak right in mono — a tie prints two rows with the same
-number, which is also how the page says "they are tied" without a word for it.
-
-**5. The rank column stays.** Mono `t-xs` `dim`, 1.5rem, restarting at 1 in every role block, **never `brand`**:
-rank 1 here is not the top of the board and must not borrow the board's mark. Without the column a five-name
-list is a set rather than a ranking, and which of the five is the best jungler this month is the argument this
-page exists to start.
-
-**6. An empty window is one sentence in the header slot, and nothing is drawn under it.** *(Rewritten
-2026-09-11, after M5.23 built it; the first version put the sentence in the body at `t-base` in `text` and
-took the hairline off, and both halves are now false.)* The window's own empty sentence sits where the range and
-count would be — Archivo `t-base` `dim`, in the slot — which is where `/leaderboard` and `/p/[puuid]` have
-always put it, so the one control that changes all three pages is answered in the same place on all three.
-**The strip keeps its hairline on every window**: the rule closes a header, it does not promise a card, and an
-edge that vanishes on one of five taps reads as a page that half-loaded. Under it `/stats` draws **nothing at
-all** — no awards card, no group statements, no role blocks, no duos, no streaks. A bordered card with a
-legend and nothing in it is the strongest "this page broke" signal the shell can produce, and it would be
-drawn on the one screen with the least to say.
-
-**What does not change:** the 44rem column with no rail (this page has nothing per-night to put in one), the
-picker and its slot, the order down the page, the 44px rows, and every word.
-
-### Share cards — Open Graph images (M11, designer 2026-09-23)
-
-1200 × 630 PNGs for WhatsApp and Discord unfurls. They are Floodlit painted into a picture: the same ink, the
-same one light and the same two faces. Nothing that reached a picture is also allowed back onto the site.
-
-**Always Night.** An unfurl has no theme preference and no `data-theme`, and Night is the default. There is no
-Day card.
-
-**The palette is fixed hex, because `ImageResponse` has no CSS variables and no `color-mix()`.** The card uses
-**the shipped Night values in `tokens.css` `[data-theme="night"]`**, not the Floodlit table above. As of
-2026-09-23 the two have drifted (`bg` `#05070C` against `#0B0E14`, `brand` `#FFC857` against `#FFB13C`, and
-others), and the lead has to settle which one is the record. Until then, the unfurl matches the page the tap
-opens. Keep them
-in one constants file (`app/_og/palette.ts`) whose header comment names `tokens.css` as the source. If the
-Night tokens change, this file changes in the same commit.
-
-| Card token | Hex | Use |
-|---|---|---|
-| `bg` | `#05070C` | Fill, the whole card |
-| `line` | `#2A3344` | The one hairline, the losing side's rule |
-| `text` | `#F4F7FC` | Names, headline, the player number |
-| `dim` | `#7D8A9E` | Slug, duration, sentence, labels. Never a name. |
-| `blue` | `#4EA3FF` | Side 100: the winner word, the side label, the winner's rule |
-| `red` | `#FF6F68` | Side 200: the same |
-| `brand` | `#FFC857` | **The wordmark bar only.** No live state exists in a PNG. |
-
-No `surface`, no `raise` and no cards inside the card. The picture is one plane of ink.
-
-**The one light.** A single amber radial at the top, the shell's floodlight at the same 5%, in pixels:
-
-```
-radial-gradient(ellipse 1440px 441px at 600px -95px, rgba(255,200,87,0.05), rgba(255,200,87,0) 65%)
-```
-
-Fade to the same amber at zero alpha, not to `transparent`: some renderers interpolate through black and draw
-a grey band. Shipped Night's second lamp (a blue corner radial) and the pitch grid are **not** painted. A
-blue wash in the corner of a `RED WINS` card is the page taking a side. If the renderer bands or cannot draw
-the ellipse, drop the light entirely. Flat ink is correct and a banded gradient is not.
-
-**Type.** `ImageResponse` (Satori) cannot read a variable font's `wdth` axis and does not take `woff2`. Commit
-static TTFs from Google Fonts (OFL, with `OFL.txt` beside them) under `app/_og/fonts/` and load them from disk.
-**Never fetch fonts from Google at render time**: an unfurl bot that times out on a font request gets no card.
-
-| Card role | Face | Size at 1200px | Notes |
+| Side 100 | `--team-blue` (+ tint, solid texture, ◣) | links, info, "good", focus |
+| Side 200 | `--team-red` (+ tint, hatch texture, ◥) | errors, losses, destructive, "bad" |
+| Live / you / primary action | `--primary`, `--primary-text`, `--primary-fill` (`--live`, `--you` alias the text one) | decoration, headings, a winner, the favoured side, game state (`In play`), a receipt frame |
+| Destructive / error | `--destructive` | anything on a page that shows team colours (3.5) |
+| Read this | `--foreground` | |
+| Label / meta | `--muted-foreground` | names, ratings |
+| Focus | `--ring` (= foreground) | |
+
+There is no success green, no info blue and no warning yellow. "Saved" is a sentence. A refusal is a sentence
+with `role="alert"` in `--foreground`, led by the word ‹Couldn't›.
+
+### 3.2 Contrast: neutrals and accent (measured, WCAG 2.1)
+
+Script: `redesign/prototypes/night-variants/table.py` (C's formulas from `direction-c/contrast.py`; Night is
+V1 "1.0 night", 2026-10-04). "Lamp peak" is the page colour at the brightest point of each lamp, the worst case
+for anything set straight on the page.
+
+| Pair | Night | Day | Target |
 |---|---|---|---|
-| `og-display` | Archivo **Expanded ExtraBold** (static, `wdth` 125, the shipped Night display cut) | 112px, line height 1.0, `-0.02em`, UPPER | Winner word and tonight headline. Fallback: Archivo ExtraBold at normal width. That is the system's own stated fallback, and there is still no second family. |
-| `og-mark` | Archivo Expanded ExtraBold | 28px, `0.14em`, UPPER, `text` | `KUSTOM`, after a 6 × 28px `brand` bar, gap 12px. No glow on the bar. |
-| `og-side` | Archivo Expanded ExtraBold | 28px, `0.12em`, UPPER, side colour | `BLUE` / `RED` over each column |
-| `og-name` | Archivo SemiBold | 34px, `text` | One line. Ellipsis past the column. Never wrap a name. |
-| `og-sentence` | Archivo Medium | 36px, `dim`, line height 1.3 | At most two lines |
-| `og-slug` | IBM Plex Mono Medium | 20px, `0.08em`, UPPER, `dim` | The night's date, the same string as the strip's slug |
-| `og-num` | IBM Plex Mono Medium | 32px, `dim`, tabular | Duration |
-| `og-stat` | IBM Plex Mono SemiBold | 160px, `text`, tabular | The player card's one number |
-| `og-label` | IBM Plex Mono Medium | 24px, `0.08em`, lower case, `dim` | The label under that number, the page's own word |
+| card vs page / raised vs card | 1.07 / 1.09 | 1.18 | the border separates; every card has one |
+| border vs card / vs page | 1.48 / 1.59 | 2.12 | decorative hairline only, never a control's only edge (6.15) |
+| border-strong vs card / page / raised / you-wash | 3.92 / 4.21 / 3.60 / 3.30 | 3.59 | ≥ 3: every control edge and state outline |
+| input vs card / page | 3.92 / 4.21 (= border-strong) | 3.59 / 3.05 (= border-strong) | ≥ 3 in both themes (6.15, WCAG 1.4.11) |
+| foreground on page / card / raised | 18.77 / 17.51 / 16.07 | 18.91 / 16.69 | ≥ 4.5 |
+| **muted-foreground on page** | **6.90** | 7.38 | ≥ 4.5 |
+| **muted-foreground on card** | **6.44** | 8.68 | ≥ 4.5 |
+| **muted-foreground on raised** | **5.91** | 7.66 | ≥ 4.5 |
+| **muted-foreground on the you-wash** | **5.41** | 8.08 | ≥ 4.5 |
+| muted-foreground on lamp peak (azure / amber) | 5.71 / 5.62 | n/a | ≥ 4.5 |
+| primary-text on card / raised | 12.86 / 11.81 | 7.13 / 6.29 | ≥ 4.5 |
+| destructive on card / raised | 6.91 / 6.34 | | ≥ 4.5 |
+| ink on primary-fill (`Live`, `YOU`, primary button) | 12.63 | 12.63 | ≥ 4.5 |
+| Day primary button: white on amber-800 | n/a | 7.13 | ≥ 4.5 |
+| ring vs card | 17.51 | 18.91 | ≥ 3 |
 
-An unfurl is drawn at about a third of its size on a phone. So nothing that must be read goes below 28px
-(which becomes about 9px on screen). The slug and the wordmark are identifiers and may be 20–28px.
+**Rule amended 2026-10-04: all text is at least AA (4.5:1 body, 3:1 large), on every surface it sits on, the
+you-row and the lamp peaks included.** C held secondary text to 7:1 because the user had called the dark
+direction "too dark or hard to see". On 2026-10-04 the user called the brighter slate "bland" and chose
+Floodlit 1.0's deep blue-black back, side by side with a variant that kept 7:1 (`redesign/night-variants.md`,
+V2). That was a knowing choice of the darker look, so the bar is AA, held with margin. 1.0's own dim
+`#7D8A9E` measured 4.51 on the you-wash, so `--p-slate-7` is `#8B98AD`, which gives at least 5.41 everywhere at
+1.0's hue. It still reads as secondary (2.72:1 below the foreground). Day keeps its numbers (all ≥ 7).
 
-**The frame, shared by every card.**
+**The hairline is decorative.** `--border` at 1.48 is the 1.0 look: card edges and dividers. WCAG 1.4.11 needs
+3:1 only where the edge is what identifies a control, and those use `--border-strong` / `--input` (6.15).
 
-```
-48px safe inset on all four sides. Content box x 48–1152, y 48–582.
+### 3.3 Team colours, with the numbers
 
-y 48   ▍KUSTOM                                        TUESDAY 22 SEPTEMBER
-y 104  ─────────────────────────────────────────────────────────────────   2px line, full content width
-y 112–582  the body, vertically centred in this band
-```
+**Chosen pair.** Azure and vermilion, matched in luminance and pushed apart in hue along the axis that
+colour-vision deficiency keeps.
 
-**The centre third is sacred.** WhatsApp crops the preview to a centred square (x 285–915) in several of its
-layouts, and Discord scales the whole card to about 400px wide. **The words that carry the card sit inside
-x 400–800**: the winner word, the tonight headline and the player number. Everything else may be cropped
-away without the card lying.
-
-**Game card** (`/g/[gameId]`, a finished game):
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ ▍KUSTOM                                        TUESDAY 22 SEPTEMBER  │
-│ ──────────────────────────────────────────────────────────────────── │
-│                                                                      │
-│ ▏ BLUE                       RED                             RED █   │   side labels, side colour
-│ ▏ Hana                       WINS                           Omar █   │   winner word 2 lines, red
-│ ▏ Yusuf                                                     Lena █   │
-│ ▏ Karim                      34:12                         Salma █   │   duration og-num dim
-│ ▏ Mo                                                       Tarek █   │
-│ ▏ Nour                                                      Dina █   │
-│   ▏ loser: 2px line                         winner: 8px red █        │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
- x 48–400 blue five     x 400–800 the verdict     x 800–1152 red five
-```
-
-- **Three columns.** Blue on the left, left-aligned. Red on the right, **right-aligned and mirrored**, so the
-  picture is symmetric around the verdict. This is the one place the mirror is allowed, because a poster
-  reads from the middle out and a page reads from the start edge.
-- Each side column carries a rule on its **outer** edge. The **winner's rule is 8px in its side colour**
-  and the **loser's rule is 2px `line`**. That is the site's 4px-versus-1px at poster scale, and it is the
-  whole celebration. Names start 24px in from the rule.
-- Side label (`og-side`), a 24px gap, then five names (`og-name`) on a 56px pitch, in lane order `top`
-  through `support`. **No role words** (the card is read at a third of its size and five mono labels are
-  noise), no ratings, no deltas, no champion.
-- **The verdict:** `BLUE` / `WINS` or `RED` / `WINS` on **two lines**, centred, in the winner's colour at
-  `og-display`. Then a 24px gap and the duration (`og-num`) centred. At 112px the word `WINS` in the wide
-  cut must fit 360px. If the fallback face or a longer word ever breaks that, step the size down to a 96px
-  floor. Never fit the width by condensing.
-- Names in `text` on **both** sides. `dim` is never a player's name, including the losers' names.
-- An **underdog sentence** does not go on the card. It belongs on the page, where it is a sentence with a
-  context.
-
-**Tonight card** (`/`):
-
-- Body: the strip's **headline** (`og-display`, `text`, centred, max-width 720px so it breaks onto two
-  lines, for example `9 IN THE` / `LOBBY`), then a 24px gap, then the strip's **sentence** (`og-sentence`,
-  centred, max-width 880px). Not a screenshot, not the rack, not ten names.
-- **The count is `text`, not `brand`.** On the site the count is amber because it is live. A PNG is a
-  photograph of a moment that the unfurl cache will keep showing after it stops being true, and a stale
-  number must not wear the live colour. No live pill, no dot.
-- Idle night: `NOTHING TONIGHT` and the idle sentence. That is fine, and it is honest.
-
-**Player card** (`/p/[puuid]`):
-
-- Body, centred: the player's name (`og-name` scaled to 72px Archivo SemiBold, one line, ellipsis at
-  1000px), a 16px gap, **the one all-time number the page leads with** (`og-stat`, `text`), then the
-  page's own label for it under it (`og-label`). Nothing else: no record, no chart, no rank, no avatar.
-- The number is never coloured and never signed unless the page signs it.
-
-**Every other route:** the frame with the wordmark alone, centred, at 56px with a 10 × 56px bar. It has no
-slug, because the route is not about a night.
-
-**Never on a card:** champion icons, emoji, QR codes, a URL or a `kustom…` domain line, avatars, rank
-emblems, crests, `VS`, trophies, a second gradient, a drop shadow, a border around the whole card or a
-rounded card inside the card. The small wordmark is the only identity.
-
-**Alt text** (`alt` export per route) is a sentence, and product writes it in the M11 copy table. The
-layout above uses no new chrome words. Every string on a card is one the page already prints.
-
-### More than one group — create, join, invite, pair, pick (M13.7, designer 2026-10-03)
-
-The surfaces M13 adds, besides the group line in the shell (see "The group in the shell" above). Every one of
-them is a step somebody takes **once per group**, never during a night, so none of them earns a new visual
-idea. They are built from three existing things and nothing else:
-
-1. **The admin form** (`admin.css`, "Forms and buttons"): a label above the field in `t-sm` 500 `dim`, a 44px
-   field on `raise` with a `line` border and an 8px radius, a 2px `brand` focus outline offset 2px, a
-   primary write outlined in `brand`, a destructive write outlined in `red-line`, and the answer as an
-   `.admin-notice` / `.admin-error` box beside the control.
-2. **The shown-once box** (`.admin-token`, the minted token): `brand-tint` fill, a border at
-   `color-mix(brand 45%, line)`, the 8px row radius, mono, `word-break: break-all`. Here it carries **the
-   thing you take somewhere else**: the invite link to a group chat, and the pairing code to Kustom. It
-   brings the dress and **not** the "only time it is shown" sentence. The invite link can be seen again
-   (M13.5 stores it as is), and the pairing code is a 15-minute code, not a secret you lose.
-3. **The card**: `surface`, 1px `line`, `lit`, 10px radius, header bar on `raise`.
-
-**Shared CSS, so `/new` and `/join` do not grow a second form system.** `admin.css` scopes its form rules
-under `.admin`, and `/new` and `/join` live outside `/admin`. Lift those rules **verbatim** into
-`apps/web/app/forms.css` under `cn-` names, import it from both, and have `admin.css` use the lifted classes.
-Do not restyle anything while moving it: `cn-field`, `cn-field-label`, `cn-input`, `cn-hint`, `cn-btn`,
-`cn-btn-primary`, `cn-btn-danger`, `cn-answer-ok` (= `.admin-notice`), `cn-answer-err` (= `.admin-error`),
-`cn-once` (= `.admin-token`). If the web engineer prefers to duplicate the dozen rules instead, the result must
-be byte-identical to the admin dress. A page that looks almost like admin is the defect.
-
-**Copy.** Every string below is quoted from the M13.5, M13.8, M13.13 and M13.14 briefs, or is an existing
-product string named with its source. Where the briefs leave a slot with no words, this section marks it
-**`[copy owed]`**. A proposal for those slots has gone to the lead for product. Do not fill a `[copy owed]`
-slot from this file.
-
-#### The one-card page — `/new` and `/join/<code>`
-
-Both pages are the bare shell (no group line, no tabs) around **one card, centred, `width: min(28rem, 100%)`**
-inside the shell's `sp-4` gutters, `sp-6` below the top bar. Same box at every width. There is no rail and no
-second column: a page with one decision on it does not get a desktop layout. The floodlight sits behind it as
-on every page.
-
-```
-┌ card ─────────────────────────────────┐
-│ <card head>                    raise  │  t-lg, Archivo 600, text
-├───────────────────────────────────────┤
-│ <body>                       surface  │  padding sp-4; children stacked, gap sp-4
-└───────────────────────────────────────┘
-```
-
-- The card head is a heading (`h1`), `t-lg`, Archivo 600, `-0.01em`. **Not the display cut.** These pages
-  carry neither a count nor a result.
-- Every button in these cards is **full width**, 44px, `cn-btn-primary` unless stated. A one-card page on
-  a phone has one obvious thumb target.
-- Body copy is `t-base` `text`. Hints and the secondary lines are `t-sm` `dim`.
-- Pending: a pressed button keeps its label, gets `aria-busy="true"`, and a second press while in flight is
-  dropped, not disabled (`AdminForm`'s rule: a control that disables itself loses focus). No spinner, no
-  skeleton.
-- A failure the brief did not attach to a field (network, 500) is a `cn-answer-err` box **under the button**,
-  carrying the route's sentence when there is one.
-
-#### `/new`
-
-**Signed out.** Card head `Start a group`. Body: one `Sign in with Discord` button (the existing sign-in
-string from `/admin/login`), posting to `/auth/signin` with `next=/new`. Nothing else. *(The brief says "the
-sign-in, returning here" and does not say whether the heading shows before sign-in. This design shows it so
-the page says what it is for. Flagged to the lead.)*
-
-**Signed in.**
-
-```
-390px
-┌ Start a group ─────────────────────────┐
-│ Name                                   │  cn-field-label
-│ ┌────────────────────────────────────┐ │
-│ │ Thursday Flex                      │ │  cn-input, Archivo, 44px
-│ └────────────────────────────────────┘ │
-│ What your friends call it.             │  cn-hint
-│                                        │
-│ Link                                   │
-│ ┌──────┬─────────────────────────────┐ │
-│ │ …/g/ │ thursday-flex               │ │  prefix + input, one box, mono
-│ └──────┴─────────────────────────────┘ │
-│ Letters, numbers and dashes. You can't │
-│ change it later.                       │
-│                                        │
-│ ┌────────────────────────────────────┐ │
-│ │               Create               │ │  cn-btn-primary, full width
-│ └────────────────────────────────────┘ │
-└────────────────────────────────────────┘
-```
-
-| Part | Treatment |
-|---|---|
-| Field block | `label` → field → (error) → hint, gap 4px between label and field, `sp-1` between the field and what follows, `sp-5` between the two blocks. The input has `aria-describedby` pointing at its hint and, when present, its error. A field with an error gets `aria-invalid="true"`. |
-| `Name` | `cn-input`, **Archivo** (`t-base`, not the admin `t-sm`: a phone keyboard zooms below 16px on iOS, and this is a phone page). `maxlength="40"`, `autocomplete="off"`, `autocapitalize="words"`. Nothing is set on the value. It is sent as typed, and the server trims it. |
-| `Link` | **One box** in the `cn-input` dress (`raise` fill, `line` border, 8px radius, 44px), holding two children. First, the prefix `…/g/` in mono `t-sm` `dim`, padded `sp-3` on the left, not selectable (`user-select: none`), with no border between it and the input. Second, an `<input>` with no border or background of its own, mono `t-base`, `text`, `flex: 1`. **The focus outline goes on the box** (`:focus-within`), not on the inner input, so the prefix reads as part of the field. Attributes: `maxlength="32"`, `autocapitalize="none"`, `autocorrect="off"`, `spellcheck="false"`, `inputmode="url"` (a phone keyboard with `-` and no auto-capitals). The `label` targets the inner input, so the accessible name is `Link`. |
-| Lowercasing | **On the value**, on every `input` event, with the caret position kept. Not `text-transform: lowercase`: that would show lowercase while sending what was typed, and M13.5's server never rewrites. Lowercase only. Do not turn spaces into dashes or strip characters, because the brief only says "lowercased as typed". A space stays visible and the server's sentence explains it. |
-| Errors | The server's sentence, in a `cn-answer-err` box **directly under the field it belongs to, above that field's hint**. The hint stays, because `You can't change it later.` is still true while the field is wrong. `That link is taken.` and `Use 3 to 32 lowercase letters, numbers or dashes.` go under `Link`. A name-length refusal goes under `Name` *(its sentence is `[copy owed]`: M13.5 gives the 1-to-40 rule but no sentence)*. An error clears when its field is next edited, not on a timer. Focus moves to the first invalid field after the answer arrives. |
-| `Create` | `cn-btn-primary`, full width, `sp-5` above it. |
-
-**After `Create`.** Linked creator: navigate straight to `/g/<slug>/admin`. The invite card is the first thing
-there (below). Unlinked creator: the **same card** becomes the pairing state (next section). Its head becomes
-the group's name as just created, and when the code is used the page goes to `/g/<slug>/admin`, not
-`/g/<slug>`. The card's outer box does not move between the form and the pairing state. Only the body is
-replaced, with the 150ms opacity fade.
-
-#### `/join/<code>` — five renders, three of them states
-
-| Situation | Card head | Body |
+| | Night | Day |
 |---|---|---|
-| Dead code | **No head bar.** The card is body only. | `This link doesn't work anymore. Ask your group for the new one.` in `t-base` `text`. Nothing else: no button, no link. HTTP 404. |
-| Signed out | The group's name | `<Group> uses Kustom to pick fair teams for your customs.` (`t-base`), then the `Sign in with Discord` button, `next=/join/<code>`. |
-| Signed in, already a member | — | No render. Server redirect to `/g/<slug>`. |
-| **Signed in, linked** | The group's name | One button: `Join <Group>`. On success, navigate to `/g/<slug>`. A refusal from `/api/groups/join` (a code rotated while the page was open) replaces the card with the dead-code render. |
-| **Signed in, not linked** | The group's name | The pairing state, below. |
+| Blue (side 100) | **`#2E9BFF`** `oklch(.679 .176 250.9)` | **`#1563CF`** `oklch(.520 .182 258.6)` |
+| Red (side 200) | **`#FF6B35`** `oklch(.705 .193 39.2)` | **`#B5390B`** `oklch(.522 .168 37.3)` |
+| Text on a fill (`--on-team`) | ink `#10141B`: **6.37** on blue, **6.51** on red | white: **5.65** on blue, **5.91** on red |
+| Text on the darkest red-hatch stripe | ink **4.89** (stripe ink 16%) | white **8.08** (stripe black 20%) |
+| As text on page / card / raised | blue 6.96 / 6.49 / 5.96; red 7.11 / 6.63 / 6.09 (lamp peak, worst: 5.66) | blue 4.80 / 5.65 / 4.99; red 5.02 / 5.91 / 5.21 |
+| As text on its own 12% tint | 5.57 / 5.75 (Night passes since V1; the rule below stays, for Day and one rule in both themes) | |
+| Luminance ratio blue:red | **1.03** | **1.06** |
+| CVD ΔE (OKLab ×100) protan / deutan / tritan | 27.3 / 31.4 / 33.8 | 28.1 / 29.4 / 30.3 |
+| Discord int | blue `3054591`, red `16739125` | n/a |
 
-The group's name in the card head is data, not copy: the same text, rules and truncation as the shell's group
-line, except that here it may **wrap to two lines**. It is the page's subject and has the room.
+**Fairness and greyscale.** Luminance stays matched (≤ 1.10, so neither side reads brighter, i.e.
+favoured), and greyscale separation comes from shape and texture, not lightness. In greyscale,
+achromatopsia, a bad projector or forced colours, the side comes from four redundant carriers, at least one
+of which is on every side surface:
 
-`Join <Group>` with a 40-character name is a long button label. It wraps inside the button: `min-height: 44px`,
-`height: auto`, `padding-block: sp-2`, `text-wrap: balance`. Never truncate a button label.
+1. **The word**: `BLUE` / `RED` (team header, side pill, bar segment, tape tile, result headline, history rows).
+2. **The glyph**: ◣ for blue and ◥ for red, from where each base sits on the map. An inline SVG (not a font
+   glyph, not an emoji), `fill: currentColor`, `aria-hidden` beside the word. 13px inline, 18px in a header.
+3. **The texture**: blue fills are solid; red fills carry `--hatch` (45°, a 4px `--stripe` every 9px). The
+   stripe is a dark overlay, not a second red, so text set on the fill stays legible on every stripe (4.89
+   Night, 8.08 Day). The stripe itself is low-contrast against red (1.33 Night, 1.29 Day): visible, but it is
+   carrier 3, and it never ships without carrier 1 or 2 on the same fill. (The draft's 2.88:1 two-red stripe
+   was dropped because ink labels on its dark stripe failed.)
+4. **Position**: blue left or first, red right or second, always. It never counts as a carrier on its own.
 
-#### The pairing code — the waiting state
+**Rule resolved: the solid colour-blocked team header.** Floodlit 1.0 and the 2.0 draft said "never a solid
+block behind five names". C puts a solid side fill behind the side name. The rule is now:
 
-Used by `/join/<code>` (not linked) and by `/new` (unlinked creator). This is the one place in the product
-where a person reads something off one screen (the phone, from WhatsApp) and types it into another (Kustom,
-on the PC). That is the whole justification for the only large non-count, non-result type in the product.
+> **A solid team fill is a label, never a container.** It is allowed on exactly four things: the team-card
+> header band, the side pill (`◥ RED` in the answer line), the win-bar segments, and the tape-tile side
+> block. On a fill, only these may sit: the side word, the glyph, the win %, and the `Your side` tag. All of
+> it is `--on-team`, never `--foreground`, never a side colour, never amber. Display-face words on a fill are
+> ≥ 15px at 800–900. The red fill always carries `--hatch`. **Player names, ratings, chips and rows never sit
+> on a fill**: the seats under the header are `--card`, the fill stops at the header's bottom edge, and no
+> card, row or page section is ever filled with a side colour.
 
-```
-390px
-┌ Thursday Flex ─────────────────────────┐
-│ Open Kustom on your PC with League     │  t-base, text
-│ running, then type this code under     │
-│ Join a group:                          │
-│ ┌────────────────────────────────────┐ │
-│ │                                    │ │
-│ │             K7QM4X                 │ │  cn-once box; code mono 600, t-display size
-│ │                                    │ │
-│ └────────────────────────────────────┘ │
-│ It works for 15 minutes.               │  t-sm, dim   ← the status slot
-│                                        │
-│ Don't have Kustom? Download it         │  t-sm, dim; "Download it" is the link
-└────────────────────────────────────────┘
-```
+Why it holds: the old rule protected two things, legibility of names and "neither side looks favoured". Names
+never touch the fill, and both headers are the same size, weight and fill area at matched luminance, so
+neither is louder. The header's 46px leading block (`--side-block-w`) is the glyph's place: blue darkens the
+fill with 14% black, red uses a denser hatch (28% black stripe) behind the glyph only, never behind text.
 
-| Part | Treatment |
-|---|---|
-| Lead sentence | `Open Kustom on your PC with League running, then type this code under Join a group:` (`t-base`, `text`). `Join a group` is the name of a field in Kustom. Set it in 600 so the eye can find the same words on the PC, with no quotes and no colour. |
-| The code box | `cn-once` dress, `padding: sp-5 sp-4`, `text-align: center`. The code: **IBM Plex Mono 600**, `t-display` size (44px phone, 56px ≥720px), line-height 1, `letter-spacing: 0.12em` (the trailing tracking is trimmed with `margin-right: -0.12em` so it centres), `text` colour, not `brand`: the box is already amber, and the code needs the highest contrast on the page. Six characters at 44px mono are about 190px wide, which fits a 390px phone's 294px of box with room to spare. **One run with no space or dash in the middle.** A visual gap gets typed as a space. The alphabet has no `0 O 1 I`, so Plex Mono's glyphs cannot be misread. |
-| Selecting it | `user-select: all` on the code, so one tap or click selects all six characters. People who opened the link on the PC itself, from Discord, paste instead of type. **No copy button** (the brief gives the code no copy affordance, and a six-character code does not need one). |
-| Accessible text | The code is a `<p>` with `aria-label` spelling it with spaces (`K 7 Q M 4 X`), so a screen reader reads characters, not a word. The visible text stays unspaced. |
-| Status slot | `t-sm` `dim`, `role="status"`, `min-height` of one line, so its changes move nothing. While waiting: `It works for 15 minutes.` It is a fixed sentence. **There is no countdown**: nothing on this page ticks, and nothing pulses. The live dot is the only pulse in the product, and this is not live. |
-| Polling | Silent. Every 3 s (M13.5). There is no "waiting…" indicator, dot or spinner. The code on screen is the indicator. |
-| Expired | The code stays where it was, recoloured `dim`, with no strikethrough, so the box does not change size. The status slot holds the expired line *(`[copy owed]`: the brief gives only the `New code` button)*, and a full-width **`New code`** button (`cn-btn-primary`) appears **under the status slot, in space that was reserved for it** (`min-height: 44px + sp-3` kept empty while waiting), so the download line does not jump. Pressing it puts the new code in the same box at full `text`, restores `It works for 15 minutes.`, and empties the button's slot again. |
-| Used | Navigate (`router.replace`, so Back does not return to a dead code) to `/g/<slug>` from `/join`, or to `/g/<slug>/admin` from `/new`. Then `You're in.` (see "Arriving", next). |
-| Download line | `Don't have Kustom? ` in `dim` plus `Download it` as the link (`cn-link`, `brand`, underlined, offset 4px). It points at the **releases page** (`RELEASES_URL`), never the `.exe`: this card is read on a phone, the same rule as the footer's `Get the companion`. The tap target is padded to 44px tall. *(The brief puts the link on the line without saying which words carry it. This design links only `Download it`. Flagged.)* |
+Rules that come from this:
+- A side colour is a fill under the four-label rule above, a glyph, a 4px rule, a 12% tint, or text.
+- **As text**, a side colour sits on `--card` or `--background` only. Never on `--raised` and never on its
+  own tint (both failed in C's slate Night and stay banned so the rule is one rule in both themes). On a tint,
+  the word is `--foreground` and the side colour is the glyph or rule.
+- **Any win-split bar carries text labels on both ends** (`◣ BLUE 49%` … `51% RED ◥`) and the hatch on red.
+  A bar without labels does not ship.
+- A side named only by its rule must have the word or the glyph within the same card.
 
-A refusal the server gives to Kustom (Discord already linked elsewhere, League account linked to somebody else,
-expired) shows **in Kustom**, which is where the person is typing. The page keeps waiting and does not mirror
-those refusals.
+### 3.4 Accent: amber `#FFCF66`
 
-#### Arriving — `You're in.`
+The accent sits beside vermilion all the time, and under deuteranopia both drift towards yellow. It must meet
+all of these. C went one step lighter than the draft reference `#FFC857`, for margin on both tight limits.
 
-M13.13 says the pairing state "moves to `/g/<slug>` with `You're in.`". The sentence belongs **where the person
-lands**, not on the page they leave. Shown on `/join` before a redirect it would last a frame or hold them on a
-timer, and nothing in this product waits on a timer. So:
+| Constraint | **`#FFCF66`** | ref `#FFC857` | A's `#FFB224` (rejected) |
+|---|---|---|---|
+| luminance ratio vs `--team-red` ≥ **1.8** | **1.94** | 1.84 | 1.57 fails |
+| deutan ΔE vs red ≥ **15** | **16.5** | 15.2 | 11.2 fails |
+| protan / tritan ΔE vs red ≥ 15 | **23.7 / 23.9** | 21.9 / 22.0 | 16.7 / 16.1 |
+| text contrast on `--card` ≥ 4.5 | **9.46** | | |
+| ink on it | **12.63** | | |
+| hue not within 25° of either team hue; no purple; no acid green | **85°** | 83° | 76° |
 
-- The join page navigates to `/g/<slug>?joined=1`. The tonight page renders `You're in.` **server-side** in
-  the slot the no-season sentence uses: top of `main`, directly under the status strip, above the primary
-  block. It is in the first paint, so it shifts nothing.
-- Dress: a `cn-answer-ok` line (brand tint, brand-45% border, 8px radius, `t-sm` `text`, `padding: sp-3
-  sp-4`), `role="status"`. No close button, no timer. On mount the page removes `joined` from the URL with
-  `history.replaceState`, so a refresh, or the link copied from the address bar, does not say it again.
-- The same sentence on `/g/<slug>/admin` after `/new` → pairing.
-- *Whether the one-tap `Join <Group>` path also lands with `You're in.` is not in the brief. This design
-  says yes, the same `?joined=1`, because one way in should look like the other. Flagged to the lead. If
-  product says no, the tap path just navigates.*
+Day: amber as text or outline is `#7A4F00` (7.13 on white, 6.06 on the Day page). Amber fills (`Live`,
+`YOU`) keep `#FFCF66` in Day with ink text and a 1px `#7A4F00` inset edge, because the fill is 1.46 against
+white. The amber never marks anything alone: you has `YOU`, live has `Live`, the action has its verb.
+Discord int: `16764774`.
 
-#### The invite card — top of `/g/<slug>/admin`
+**Rule resolved: `In play`.** The prototype's in-game `In play` chip used the amber, stretching "live, you,
+action". Game state is not connection state: `In play` (and any in-game status word) is a `--raised` chip
+with `--foreground` text and a `--border` edge. Amber in the in-game screen is only the connection `Live` tag
+and the you-row.
 
-The first card on the group's admin home, **full width** (`admin-grid-wide`), above every other card. After
-`/new` it is the only thing the creator needs next.
+### 3.5 Destructive
 
-```
-admin, ≥720px
-┌ Invite your group ───────────────────────────────────────────────┐
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ https://kustom.example/join/q3XbTaLm9VZpR2kYw8sNe-           │ │  cn-once box
-│ └──────────────────────────────────────────────────────────────┘ │
-│ [ [copy owed] ]   [ New link ]                                    │
-└──────────────────────────────────────────────────────────────────┘
+`#FF6B8A` Night (5.08 on the card; 4.27 on raised, so error text never sits on `--raised`) and `#B4123C`
+Day (6.79 on white). It is
+**unavoidably confusable with team red** under CVD (deutan ΔE 8.8, tritan 3.1), so:
+- it appears only in admin and in the AlertDialog, never on a surface that shows team colours
+- a destructive control always has a verb label ("Revoke token") and a warning icon. Colour is the third
+  signal.
 
-390px
-┌ Invite your group ─────────────────────┐
-│ ┌────────────────────────────────────┐ │
-│ │ https://kustom.example/join/       │ │  the code starts line 2
-│ │ q3XbTaLm9VZpR2kYw8sNe-             │ │
-│ └────────────────────────────────────┘ │
-│ [ [copy owed]  ] [ New link ]          │  two buttons, one row, wrap if needed
-└────────────────────────────────────────┘
-```
+### 3.6 Live and state colours
 
-| Part | Treatment |
-|---|---|
-| Card title | `Invite your group`, the admin card head (Archivo `t-sm` 600, the `raise` bar). |
-| The link | The **full absolute URL**, built from the request's origin: the thing that gets pasted has to work when pasted. It sits in the `cn-once` box, mono `t-sm`, with two spans. The origin plus `/join/` is in `dim`. The 22-character code is in `text` 600. A `<wbr>` goes after `/join/`, so on a phone the code starts its own line rather than breaking mid-code. The `dim`/`text` split is also how an admin sees that `New link` worked: the bright half changes. `user-select: all` on the box, so one tap selects the whole URL. That is also the fallback when the clipboard API is unavailable. |
-| Copy affordance | A button, `cn-btn-primary` (copying is the card's main action), **with a word, never an icon alone** (the icon rule). Label `[copy owed]`, and its confirmed state `[copy owed]`. It calls `navigator.clipboard.writeText(url)`. On success the label swaps to the confirmed word for 2 s, then swaps back. The button's `min-width` is set to the wider of the two labels so the swap moves nothing. A visually hidden `role="status"` beside it announces the confirmed word. **No toast** (no toasts in this product). If the clipboard call throws, select the box's text instead and leave the label alone: the selection is the feedback. |
-| `New link` | Destructive (the old link stops), so `cn-btn-danger`: `red-line` outline, never filled. **Confirm in place with a `<details>`**, the product's no-JS disclosure, the one `/games`, the board rows and the footer already use. The `<summary>` is dressed as the `New link` button. Opening it shows, under the button row, `The old link will stop working.` in `t-sm` `text`, then a `cn-btn-danger` submit inside an `AdminForm` posting the rotation. That submit's label is `[copy owed]`: the brief gives the confirm sentence but not the word on the confirming control. Until product rules, it repeats `New link`. Do **not** use `window.confirm()`: it is skipped without JavaScript, and an admin write here has always worked without it. After success `router.refresh()` repaints the box with the new code, and the `<details>` closes. The AdminForm answer line for this write is `[copy owed]` (it needs a `notices.ts` kind). |
-| Read only (super-admin, M13.14) | The card renders with **no `New link`**, the same "every write control absent" rule. *Whether a super-admin should see the live link at all is an open question to the lead: it is a read, but it is also the key to joining the group, which is a write by another door.* |
+There is no new hue. States are the accent, the muted foreground and shape (5.4):
 
-#### Kustom's setup screen — `Join a group`
+| State | Dot | Word colour |
+|---|---|---|
+| connecting | hollow ring, `--muted-foreground`, on a `--raised` tag | muted |
+| live | a `--primary-fill` tag; the dot is `--on-primary-fill`, pulsing | `--on-primary-fill` (ink), text face 700 |
+| stale / offline | hollow ring with a 45° slash, `--muted-foreground`, on a `--raised` tag | muted |
+| in game | the live tag (if connected) beside the headline `IN GAME 14 MIN` | the headline carries the game state |
 
-`apps/companion/desktop/index.html`, the 480 × 620 setup window. It keeps that window's own token block (the
-same nine Floodlit values, already inlined). No new class family: the field reuses the window's `label`,
-input and `.help-text` rules, and its answers reuse `.error` plus one sibling, `.notice`. `.notice` is
-`.error` with `brand` in place of `red`: tint 12% on `surface`, border `color-mix(brand 45%, line)`. That is
-`.admin-notice`'s dress, so it is not a new one.
+### 3.7 Rating up and down
 
-**Placement: the first block on the setup screen, above `Mode`, in its own card.** Card = `surface`, `line`,
-`lit`, 10px radius, `padding: sp-4`, `sp-5` below it. Two reasons:
+Not coloured (Principle 2). Detail in 5.3: a gain is `--foreground` at 600, a loss is `--muted-foreground` at
+400, and both are always signed with a real minus (U+2212).
 
-- It acts **immediately** (below), not on `Save and start`. Everything under it waits for Save. A field mixed
-  in with those would look like it waits too. A separate card says "this one is its own action".
-- A brand-new friend opens Kustom **because** a join page told them to. The code is the reason they are
-  here, and it is only good for 15 minutes. Mode, token and address come after.
+### 3.8 How the tokens support Day (and any later theme)
 
-```
-480px setup window
-┌──────────────────────────────────────────┐
-│ Kustom                                   │  existing header
-│ Pick how this PC runs                    │
-├──────────────────────────────────────────┤
-│ ┌ card ────────────────────────────────┐ │
-│ │ Join a group                         │ │  label (13px 600)
-│ │ ┌──────────────────────────────────┐ │ │
-│ │ │ K7QM4X                           │ │ │  mono 600 20px, tracked
-│ │ └──────────────────────────────────┘ │ │
-│ │ Type the code from the join page.    │ │  .help-text ← the answer slot
-│ └──────────────────────────────────────┘ │
-│ Mode                                     │
-│ [ Host ] [ Overlay ]                     │  existing, unchanged
-│ …                                        │
-└──────────────────────────────────────────┘
-```
+- Only the semantic layer changes. Components have no `day:` classes, except for rare art-direction fixes.
+- Every derived colour (tint, wash) is `color-mix` against `--card`, and the hatch is an overlay, so they
+  re-derive per theme.
+- One neutral ramp for Night (`slate`, holding 1.0's deep blue-black since 2026-10-04), one for Day
+  (`paper`), a Day amber for text (`#7A4F00`), and `--on-team` flips from ink to white. Everything is in 7.3.
+- `color-scheme: dark` / `light` per theme so native controls match. `<meta name="theme-color">`: Night
+  `#05070C`, Day `#E8EEF6` (`lib/theme.ts`).
+- Day is measured (3.2, 3.3). Re-run the script before changing any neutral.
 
-| Part | Treatment |
-|---|---|
-| Field | The window's `input[type=text]` dress, then: mono **600, 20px**, `letter-spacing: 0.2em`, `maxlength="6"`, `autocomplete="off"`, `spellcheck="false"`. **Uppercased on the value as typed**, and characters outside the code alphabet (spaces, dashes) dropped. Both are safe because the alphabet is fixed and upper case (M13.5). No placeholder (none is given, and a fake code reads like a real one). |
-| Sending | **Automatic on the sixth valid character**, and on Enter. There is no button: none is given, and a code field that fills and sends is the familiar shape (an SMS code). While in flight the field is `readOnly` and the slot below keeps its sentence. No spinner. |
-| The slot under the field | One slot, `min-height` of two lines of `.help-text`, so no answer moves `Mode`. In order of precedence: (1) an answer from the last send; (2) League not running: `Open League first, then type the code.` in `.help-text` dress, **shown before typing** (the sentence tells you what to do first). The field stays enabled; if a code is sent with League still closed, the same sentence comes back as the answer; (3) otherwise the hint, `Type the code from the join page.` |
-| Success | `.notice` box in the slot: `You're in <Group>.` The field is cleared. The group is now in the config. In Host mode it has no token yet, which is the picker's `(no host token)` (below). |
-| Refusal | `.error` box in the slot, the **server's sentence verbatim** (the two "already linked" sentences, `That code ran out. Get a new one from the page.`, and whatever the 429 and a never-issued code answer, which M13.5 does not word yet). The field keeps the code, fully selected, so typing replaces it. |
-| Clearing | The next keystroke in the field clears the answer, and the slot falls back to (2) or (3). Never cleared on a timer. |
-| Global error box | The existing `#error-message` above `Save and start` is **not** used for pairing. A pairing answer belongs beside the code that caused it. |
+---
 
-#### The panel's group picker — Host and Overlay
+## 4. Typography
 
-`apps/companion/desktop/overlay/`, the champ-select panel. **It appears only with two or more groups**
-(M13.8). With one group the header is exactly as it is today, and the group is not named, because "nothing
-new if they are in one group" is the acceptance.
+Three roles, all Google Fonts, self-hosted through `next/font/google`, under the OFL.
 
-```
-panel header (.drag, raise), ≥2 groups
-┌──────────────────────────────────────────┐
-│ KUSTOM                                   │
-│ ChampSelect                     ● live   │  existing status row
-│ Posting tonight to: [Customs Night    ▾] │  ← Host
-│ Tonight's group:    [Customs Night    ▾] │  ← Overlay (one or the other, never both)
-└──────────────────────────────────────────┘
-```
+| Role | Face | Why this one, for this product | Fallback |
+|---|---|---|---|
+| **Text**: names, sentences, labels, buttons, nav | **Atkinson Hyperlegible Next** (variable, wght 200–800; use 400/600/700) | The content is player names: `H4RDC0R33`, `MANOOOOOOOO`, `PRT Shou3man`, `1sec Reloading`, `Used2BeATahmMain`. Zero vs O and 1 vs l vs I decide whose name it is. Atkinson was drawn by the Braille Institute for exactly that distinction (distinct `0`/`O`, `1`/`l`/`I`, open apertures). It also reads well at arm's length in a dark room, and it is not Inter, Geist or Space Grotesk. Verified in the C prototype at 19/700, 375 px. | `'Atkinson Fallback'` (a metric-matched local Arial, below), then `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif` |
+| **Mono**: every number, role words, lobby password, durations | **Martian Mono** (variable, wght 100–800, **wdth 75–112.5**; use 500/600) | Wide, squared figures that read like a scoreboard, with a real minus and tabular digits by construction. The **width axis** runs it narrower (`font-stretch` 78–88%) beside the condensed display. Load with `axes: ['wdth']`. Known limit: it narrows less than hoped, so `support` fills the 60px role cell; the cell is 60, not 56. | `ui-monospace, 'SF Mono', Menlo, Consolas, monospace` |
+| **Display**: the strip headline (with its numbers), the result headline, the side names | **Archivo**, condensed: `font-stretch: 62%` (wdth axis 62–125), wght **900**; inside the win bar, side pills and tape tiles `font-stretch` 70%, wght 800–900. Upper case. Tracking by size, as shipped: the strip and result headlines (`--fs-display`) **−0.01em**; page titles and team-card side names (`--fs-xl`) 0.02em; side pills, win-bar labels, tape tiles and chips (`--fs-sm`) 0.04em. | The broadcast lower-third voice of A, from a family with a real width axis, so one file gives the tall headline and the slightly wider bar labels. It continues Floodlit's Archivo (1.0 used the expanded end; 2.0 uses the condensed end). Not Bebas Neue or Barlow Condensed (defaults). **Only** for the headline and side names: card titles, stickers, the `Live` tag, chip labels and nav are the text face. The KUSTOM wordmark is a logo and also uses it. | `'Arial Narrow', system-ui, sans-serif` (with `adjustFontFallback`) |
 
-| Part | Treatment |
-|---|---|
-| Row | A third row in the header, `margin-top: sp-2`, `display: flex; align-items: center; gap: sp-2; flex-wrap: wrap`. At narrow panel widths the select wraps under its label rather than shrinking below 10rem. The row is **`-webkit-app-region: no-drag`** (the header is the window's drag handle, and a select inside a drag region cannot be opened). |
-| Label | A `<label for>` with the exact text by mode: Host **`Posting tonight to:`**, Overlay **`Tonight's group:`**. Archivo 12px 500 `dim`. Language, so **not mono and not upper case**, unlike the section `h2`s. The label is the accessible name of the select. |
-| The control | A **native `<select>`**, dressed like the admin select: `surface` fill (one layer below the `raise` header, so it reads as a control), 1px `line` border, 8px radius, Archivo 13px 600 `text`, `padding: 0 sp-3`, `min-height: 32px`, `flex: 1`, `min-width: 10rem`, focus `2px brand` outline offset 2px. Native, because the panel is a WebView2 window on Windows and the OS menu is the most legible and most keyboard-correct list there is. **32px, not 44px**: the panel is mouse-driven on a desktop and sits beside the client in champion select where height is scarce. It matches the fearless chips' 32px in the same window. This is the panel's rule, not the website's. |
-| Options | Group names as typed, oldest membership first (the server's order), selected = `lastGroupId`. **Host only:** a group with no token on this PC is listed as `<Group> (no host token)` and is a `disabled` option. It is visible, so the host knows why it cannot pick it, and it cannot be picked. Overlay lists every membership. |
-| Switching | **Host:** the select is `disabled` from the change until the new group's watchers report up, then re-enabled. The status row shows whatever the engine reports meanwhile. **Overlay:** the main area re-renders in place for the new group (fearless and lobby blocks swap with the 200ms fade the panel already uses). Nothing else on the header moves. |
-| Token refused | `This token no longer works for <Group>. Ask an admin for a new one.` in the window's `.error` box, **first child of `main`**, not in the header (the header is a drag region, and a sentence there would be hard to select or read). The select stays enabled, so the host picks another group. The box clears when a group is picked. |
-| Overlay, zero groups | No picker row. `main` holds only `Play a game with your group, or ask them for the join link.` in the panel's `.empty` dress. The fearless and lobby sections are not rendered, not even their headings. |
+Rules:
+- **Number or role → mono. Person or sentence → text.** `font-variant-numeric: tabular-nums` on every numeric
+  run, including numbers inside a sentence ("Red was 46%"), so they don't jiggle when realtime updates.
+- Role words stay lower case in mono (`top`, `adc`), tracked 0.04em.
+- **Meta lines split per token** (ruled 2026-10-03): in `94 games · 58W 36L · W5` the numbers are mono and the
+  words, the `W`/`L` letters and the separators are the text face. Only role words are mono letters.
+- Side words (`BLUE`, `RED`) and the strip and result headlines are upper case in the display face. The only
+  other upper case is the `YOU` and `MVP` stickers (text face 700, they are badges) and the wordmark.
+- No faux bold or italic. Load the weights used: text 400/700, mono 500/600, display 800/900 (one variable
+  file with the `wdth` axis).
+- `display: 'swap'`, and a size-matched fallback so the swap does not shift the team card. Martian Mono and
+  Archivo use next/font's `adjustFontFallback` (on by default). **Atkinson Hyperlegible Next cannot**: Next
+  ships no metrics for it ("Failed to find font override values"), so it sets `adjustFontFallback: false`
+  and the app declares its own fallback face in `globals.css` (7.3), measured from the Google Fonts file
+  (wght 400, latin) against Arial with next/font's own method (letter-frequency average width; the
+  overrides are the face's hhea ascent 984 / descent 316 / gap 0 per 1000 upm, divided by size-adjust):
 
-#### Also in M13.14, briefly — they reuse admin patterns as they stand
-
-- **`Make admin` / `Remove admin`** on `/g/<slug>/admin/players`: a per-row `AdminForm`. `Make admin` is a
-  plain `button` (a write, not a primary one: a column of amber outlines down a table is noise). `Remove
-  admin` is `admin-danger` (the admin area's own list already names "remove admin" as destructive). For the
-  last admin the button is **absent**, not disabled, and `This group needs at least one admin.` sits in its
-  cell in `admin-muted`.
-- **Read-only line** (super-admin on a group they are not admin of): `Read only. You are not an admin of
-  this group.` as the first thing in `.admin-content`, above the page header. `t-sm` `dim`, a 1px `line`
-  bottom rule, `padding-block: sp-3`. A hairline and not a box: it is a fact about the view, not an error, and
-  red would claim something went wrong.
-- **`/ops`**: one admin `table` in one wide card, the existing table dress, each group's name linking to its
-  admin home. No new treatment.
-
-#### What these surfaces do not do
-
-- No group avatar, colour, crest or emblem. A group is a name. Blue and red still mean sides, and amber is
-  still the lamp. A per-group accent colour would be a fourth colour.
-- No onboarding carousel, no "step 1 of 3", no progress bar across `/new` → pairing → admin. Each screen says
-  its one thing.
-- No QR code for the invite link. The link goes into a group chat, and that is the whole distribution story.
-- No `navigator.share` button. The admin is on a laptop. Revisit if an admin asks for it from a phone.
-- No countdown, spinner or pulse anywhere in pairing.
-
-### `tokens.css`, v2 — the file to write
-
-```css
-:root {
-  color-scheme: dark light;
-
-  --cn-bg: #0b0e14;
-  --cn-surface: #141923;
-  --cn-raise: #1d2431;
-  --cn-line: #2a3140;
-  --cn-text: #eef2f8;
-  --cn-dim: #94a0b2;
-  --cn-blue: #4c9aff;
-  --cn-red: #ff6b63;
-  --cn-brand: #ffb13c;
-
-  --cn-blue-tint: color-mix(in srgb, var(--cn-blue) 10%, var(--cn-surface));
-  --cn-red-tint: color-mix(in srgb, var(--cn-red) 10%, var(--cn-surface));
-  --cn-brand-tint: color-mix(in srgb, var(--cn-brand) 12%, var(--cn-surface));
-  --cn-blue-line: color-mix(in srgb, var(--cn-blue) 55%, var(--cn-line));
-  --cn-red-line: color-mix(in srgb, var(--cn-red) 55%, var(--cn-line));
-  --cn-pressed: color-mix(in srgb, var(--cn-text) 8%, var(--cn-raise));
-  --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
-  --cn-glow: 0 0 0 4px color-mix(in srgb, var(--cn-brand) 14%, transparent);
-
-  --cn-sp-1: 0.25rem; --cn-sp-2: 0.5rem; --cn-sp-3: 0.75rem; --cn-sp-4: 1rem;
-  --cn-sp-5: 1.5rem;  --cn-sp-6: 2rem;   --cn-sp-7: 3rem;    --cn-sp-8: 4rem;
-
-  --cn-t-xs: 0.75rem;   --cn-t-sm: 0.875rem; --cn-t-base: 1.0625rem;
-  --cn-t-md: 1.1875rem; --cn-t-lg: 1.5rem;   --cn-t-xl: 2rem;
-  --cn-t-display: 2.75rem;
-
-  --cn-radius: 10px;
-  --cn-radius-row: 8px;
-  --cn-radius-chip: 4px;
-
-  --cn-font-sans: var(--cn-font-archivo), "Helvetica Neue", Arial, system-ui, sans-serif;
-  --cn-font-mono: var(--cn-font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --cn-bg: #eef1f6;
-    --cn-surface: #ffffff;
-    --cn-raise: #dae2ed;
-    --cn-line: #d5dce7;
-    --cn-text: #10141b;
-    --cn-dim: #556072;
-    --cn-blue: #1f5fc4;
-    --cn-red: #b4302b;
-    --cn-brand: #8a5a0b;
-    --cn-lit: inset 0 1px 0 color-mix(in srgb, #ffffff 70%, transparent);
+  ```css
+  @font-face {
+    font-family: "Atkinson Fallback";
+    src: local("Arial"), local("ArialMT");
+    size-adjust: 100.07%;
+    ascent-override: 98.33%;
+    descent-override: 31.58%;
+    line-gap-override: 0%;
   }
-}
+  ```
 
-@media (min-width: 720px) {
-  :root { --cn-t-lg: 1.625rem; --cn-t-xl: 2.25rem; --cn-t-display: 3.5rem; }
-}
+  It sits between `var(--font-atkinson)` and `system-ui` in `--font-text`. Arial exists on Windows, macOS and
+  iOS; Android has no file named Arial, so `local()` misses and Android falls through to an unmatched
+  `system-ui` (Roboto), which is the accepted residue. Do not add a Roboto face with guessed numbers.
 
-.cn-display {
-  font-family: var(--cn-font-sans);
-  font-variation-settings: "wdth" 118;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.02;
-}
-
-.cn-card {
-  background: var(--cn-surface);
-  border: 1px solid var(--cn-line);
-  border-radius: var(--cn-radius);
-  box-shadow: var(--cn-lit);
-}
-
-.cn-card-head {
-  background: var(--cn-raise);
-  border-bottom: 1px solid var(--cn-line);
-  border-radius: var(--cn-radius) var(--cn-radius) 0 0;
-}
-
-/* One focus ring for the product. Keyboard only -- a thumb never sees it. */
-:where(a, button, summary, input, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--cn-brand);
-  outline-offset: 2px;
-  border-radius: inherit;
-}
+```ts
+// app/fonts.ts
+import { Archivo, Atkinson_Hyperlegible_Next, Martian_Mono } from 'next/font/google';
+export const text = Atkinson_Hyperlegible_Next({ subsets: ['latin', 'latin-ext'], variable: '--font-atkinson', display: 'swap', adjustFontFallback: false });
+export const mono = Martian_Mono({ subsets: ['latin'], axes: ['wdth'], variable: '--font-martian', display: 'swap' });
+export const display = Archivo({ subsets: ['latin'], axes: ['wdth'], variable: '--font-archivo', display: 'swap' });
+// <html className={`${text.variable} ${mono.variable} ${display.variable}`}>
 ```
 
-**The focus ring is `brand`, 2px, offset 2px, and there is one of it** (designer 2026-09-10, from the M3.6
-review, where the page first grew a cluster of targets: five role chips and up to eleven buttons). It is the
-lamp again, on the one control the reader has moved to, so it needs no fifth colour; the offset keeps it off
-the 1px `line` border it will usually sit next to, and `border-radius: inherit` stops a square ring around a
-rounded chip. It is **not** the `glow` shadow — that belongs to the live pill and nothing else — and it is
-`:focus-visible`, so it never appears under a thumb. `:where()` keeps specificity at zero, so any component
-can override the ring's shape without fighting it. Until this rule lands, the new controls carry the
-browser's own outline, which is a white hairline in one engine and a blue one in another and belongs to
-neither theme. `admin.css` is not touched: the admin area keeps the browser's controls and the browser's
-focus, for the reasons in "The admin area stays plain".
+All three faces keep next/font's default `preload: true`: every page draws all three above the fold (the
+strip headline or a page title, names, numbers). No other webfont is loaded; IBM Plex Mono and the 1.0
+Archivo instances are gone with the 1.0 stylesheets (M14.25). The share cards carry their own static
+TTFs (5.16).
 
-`.cn-num` and `.cn-sr` are unchanged from v1. `themeColor` in `app/layout.tsx` becomes `#0b0e14` / `#eef1f6`.
-`admin.css` is **not** touched: it keeps `color-scheme: light dark`, `.admin { font-family: system-ui }` and
-the browser's own controls, for the reasons in "The admin area stays plain".
+`latin-ext` on text matters: real names include `Ramzyinhović` and `Menaçe`. If a `next/font` export name
+differs, check the generated list; the families are on Google Fonts.
 
-### Implementation list — ranked by what a first-time visitor notices
+The scale is in 2.7.
 
-Build order is not this order: item 4 is the foundation and lands first. This order is impact.
+---
 
-1. **The app shell.** New `apps/web/app/_shell/TopBar.tsx`, `Footer.tsx`, `HowThisWorks.tsx`, `lib/nav.ts`,
-   `app/shell.css`; mounted in `app/layout.tsx` around `{children}`, with `/admin` opting out (it already
-   scopes itself with `.admin`). Wordmark `▍KUSTOM`, tabs for routes that exist, footer links. This is
-   the whole "what is this page and where else can I go" gap in one commit.
-2. **The status strip.** `lib/tonight/state.ts`: `tonightHeader` returns `{ headline, count, sentence, live }`.
-   `lib/tonight/types.ts` + `load.ts`: the snapshot gains `seasonName: string | null` (select `name` alongside
-   `id` in `selectSeasonId`) and `nightLabel: string` (formatted server-side, fixed locale, configured
-   timezone). `TonightView.tsx`: slug line, display headline, live pill, two-line-reserved sentence.
-   `<h1>` becomes the wordmark in the shell, so the strip headline becomes a `<p>` — `TonightView.test.tsx`
-   queries the heading and will need updating in the same commit.
-3. **The seat rack.** New `app/_tonight/SeatRack.tsx` out of `MemberList`; ten rows always; `open` rows on
-   `bg`; header `SEATS · n of 10` and the `rating` legend; fixed row grid; the all-flexible rule and its hint
-   line. `tonight.css` for the rack; `rowHeight.test.ts` gains "ten `<li>` at every count" and keeps its
-   44px arithmetic.
-4. **Tokens and type.** `app/tokens.css` rewritten to the nine tokens, the derived values, `lit`/`glow`, the
-   new scale and the `.cn-display` utility; `app/layout.tsx` adds `axes: ['wdth']` to the Archivo import and
-   the `themeColor` values change to `#0b0e14` / `#eef1f6`. Every existing `--cn-accent` reference becomes
-   `--cn-brand` (grep: `tonight.css`, `TonightView.tsx` has none, `admin.css` must **not** be touched).
-5. **Cards.** The card recipe — `surface`, 1px `line`, `lit` inset, 10px radius, `raise` header bar — applied
-   to the team cards, the sit-out strip, the explanation strip and the result card in `tonight.css`. The 4px
-   side rule moves from `border-top` to the leading edge per breakpoint.
-6. **Role icons.** New `app/_icons/RoleIcon.tsx`, five paths, used in the rack, both team cards and both
-   result cards. `aria-hidden`, always beside the word.
-7. **The result card.** Display headline in the winner's colour, `Top damage` pulled into the headline card,
-   `brand` ring on the winner, 1px `line` on the loser. No content change: M3.16 stands.
-8. **Desktop.** `shell.css`: 76rem shell, `≥720px` one column at 44rem, `≥1080px` `1fr / 20rem` grid with the
-   rail. Rail cards: `How this works`, `Run the companion`, and `Top of the board` when M3.5 lands.
-   `min-height: 100svh` on the shell and `margin-top: auto` on the footer, so the column has an end.
-9. **Safe areas.** `env(safe-area-inset-top)` on the top bar and `-bottom` on the footer. The current page's
-   16px top padding puts the count under a notch.
-10. **The companion link points at the releases page**, `https://github.com/suyaser/kustom-releases/releases/latest`,
-    not at `…/latest/download/Kustom.exe`. This page is opened on a phone.
+## 5. Components
 
-### What to keep — do not rewrite these
+### 5.0 shadcn: keep, restyle, ban
 
-The page is not wrong. It is under-dressed. The engineer should touch presentation and leave the machinery
-alone:
+The old Floodlit bans, rewritten as component decisions. "Restyle" means the shadcn file is generated, then
+edited to our tokens. The listed edits are required.
 
-- `lib/tonight/load.ts` — the loader, its anon-key reads, its rating derivation. It gains two fields
-  (`seasonName`, `nightLabel`) and nothing else.
-- `lib/tonight/state.ts`'s `tonightState` — the state machine and the `finished`-but-unrated fallback are
-  correct and were argued for twice. Only `tonightHeader` grows.
-- `TonightLive` and the Realtime path, including the nameless-name polling condition.
-- `RerollControl` in full: the no-JS form fallback, the named split, the error sentences.
-- Delta computation at render (`-0` does not survive JSON), `displayRating`, `formatDuration`, `formatDamage`,
-  `favoredClause`, `renderWebName`, `joinWebNames`.
-- Every settled string: the sit-out copy, the explanation verbatim rule, the no-season sentence, `No more
-  splits. …`, the idle sentence, `Around`, `Nobody in the lobby yet.`, the nameless hint.
-- The one-primary-block rule, the no-shift rule, the 44px floor, "no numbers in a proportional font", and the
-  list under "What this design does not do" — with one amendment, recorded below.
-
-**Amendment to "What this design does not do".** Two entries are relaxed by Floodlit and no others: there is
-now **one** gradient (the shell's 5% amber floodlight) and **one** glow (the live pill's 14% amber ring). Both
-are named, both are single instances, and both are load-bearing — they are what makes a 1400px viewport look
-lit rather than empty. Everything else on that list stands: no emoji, no cream, no serif display, no purple,
-no teal, no acid green, no glass blur, no champion art, no avatars, no crests, no "VS", no skeletons, no
-toasts, no shimmer.
-
-
-## Palette (v1 — superseded 2026-09-09 by Floodlit)
-
-> Kept for the reasoning, not for the values. `accent` is now `brand`, `#12151A` is now `#0B0E14`, and there
-> are two more tokens. The **rules** in this section — a side colour is a rule or a tint and never a fill,
-> deltas are never coloured by sign, blue and red must sit within about a point of each other in contrast —
-> all survive into v2 unchanged.
-
-Seven named tokens per theme. Everything else in the UI is derived from these with `color-mix()`, so there is
-no eighth colour to keep in step.
-
-| Token | Role | Dark | Light |
-|---|---|---|---|
-| `bg` | Page. A cool near-black, never `#000`: pure black on an OLED phone smears text at arm's length. | `#12151A` | `#F3F4F6` |
-| `surface` | Cards, rows, strips. One step off `bg`, no shadow. | `#1B2027` | `#FFFFFF` |
-| `text` | Everything you are meant to read. | `#E7EAEF` | `#161A20` |
-| `dim` | Labels, counts, secondary lines. Never a player's name, never a rating. | `#97A0AD` | `#5B6573` |
-| `blue` | Side 100. Team names, the card's top rule, the win colour on a blue result. | `#6BA5F7` | `#1F5FC4` |
-| `red` | Side 200. Same jobs on the other side. | `#EA6F69` | `#B4302B` |
-| `accent` | Brass. The one colour that is **neither side**: live state, off-role marker, "you", the reroll control, the rating-history line. | `#E0A33E` | `#8E5B0E` |
-
-Contrast, measured (WCAG 2.1, against `surface`, the worst of the two backgrounds):
-
-| | dark | light |
+| Component | Decision | Why / required edits |
 |---|---|---|
-| `text` | 13.6 | 17.5 |
-| `dim` | 6.2 | 5.9 |
-| `blue` | 6.5 | 6.0 |
-| `red` | 5.4 | 6.2 |
-| `accent` | 7.4 | 5.8 |
+| **Button** | Restyle | Sizes: `default` h-11 (44), `sm` **removed** (no control under 44 on a public page), `icon` size-11. Variants: `default` = primary (one per view), `secondary`, `outline`, `ghost`, `link` (underlined foreground, 44px hit area via padding), `destructive` (admin only). Focus = 2px **outline** in `--ring` with 2px offset, replacing `ring-[3px] ring-ring/50`, because a box-shadow ring vanishes in forced-colours mode. Keep the `aria-disabled` pending pattern (`data-pending`), not `disabled`. |
+| **Card** | Restyle | No `shadow-sm`. `rounded-card`, level 1 per 2.8. `CardTitle` is a real heading element (`h2`/`h3`), not a `div`. |
+| **Badge** | Restyle as **Chip** | Static by default (`span`). If it acts, it becomes a `button` with `aria-pressed` and grows to 44. Variants: `neutral` (`--raised`), `you` (the `YOU` sticker, `--primary-fill`), `mvp` (sticker, `--foreground` fill with `--card` text, never amber), `in-play` (neutral, 3.4), `settling` (dashed outline), `off-role` (dashed outline), `side` (glyph + word). |
+| **Separator** | Keep | |
+| **Input, Label, Textarea** | Restyle | Text 17px (no iOS zoom), h-11, visible `<Label>` always (no placeholder-as-label), focus outline as Button, `aria-invalid` styling via the destructive border **plus** an error sentence under the field. |
+| **Native `<select>`** | **Keep native; ban Radix Select** | The OS picker on iOS/Android is the best phone picker there is. It works without JS, so the `/1v1` GET form stays no-JS, and it adds no client bundle to server pages. Styled: h-11, 17px, `appearance: none` plus our chevron, focus outline. |
+| **AlertDialog** | Keep (restyle) | Every destructive admin action (5.17). |
+| **Dialog** | Restrict | AlertDialog's base, and the one **routed mode panel** (8.6: its own URL, full screen on phones, Esc and Back close it, focus trapped and returned, no nesting). No other content modals on public pages: a plain modal over a live page hides the thing that is changing, has no URL to share, and Back leaves the page instead of closing it. |
+| **Table** | Keep for admin ≥768 | Below 768 it renders as stacked rows (5.16). |
+| **Collapsible / Accordion** | **Ban; use native `<details>`** | Disclosures (fairness "How the bot decided", "How this works") work server-only and without JS, and are announced natively. Styled with `::details-content` and `interpolate-size` for the 200ms open, and an instant open where that's unsupported. |
+| **Tabs / ToggleGroup** | Ban as state; borrow the look | The window and queue pickers stay **links** with `aria-current` (URL-owned state, deep-linkable). Style the links as a segmented control. Board and Stats windows: `This week · Last week · All time`; Games: `Tonight · This week · All` (M14.48 removed the month windows). |
+| **Skeleton** | **Restyle as static "reserved frame"; ban fake text bars and `animate-pulse`** | See 5.9. Only used where the final size is known, to prevent layout shift. Never a shimmer and never a grey stand-in for a sentence. Reason: a moving grey block in a dark room is the brightest motion on the screen, and it promises content of a shape it may not have. |
+| **Sonner / Toast** | **Ban** | Realtime already changes the thing you're looking at. A toast on a phone covers the bottom tab bar, times out before an arm's-length reader finishes, and isn't where the change happened. Results show **in place**: the button's label becomes ‹Copied› / ‹Saved› for 2s, with `role="status"`. |
+| **Tooltip / HoverCard / Popover** | Ban | No hover on touch, and essential information must not hide behind it. Explanations go in `<details>` or inline text. |
+| **Sheet / Drawer (vaul)** | Ban on public pages | Every destination is a tab (5.11); there is no More page or drawer. `/g/<slug>/more` 308s to `/you`. |
+| **NavigationMenu, DropdownMenu, Menubar, ContextMenu** | Ban | Plain links. Admin row actions are visible buttons (5.16). |
+| **Avatar** | Ban | No avatars (Principle 6). |
+| **Progress** | Ban for the win split | A win chance isn't progress. The win-split bar is our own component (5.5). |
+| **Chart (recharts)** | Ban | The rating chart stays a server SVG with `role="img"` and a `<title>`. |
+| **Carousel, Command, Calendar, Slider, Resizable** | Ban until a brief names a need | |
+| **Shadows** | Ban (`--shadow-*: initial`) except `--shadow-overlay` on the AlertDialog | Depth comes from level surfaces and edges (2.8). |
+| **Radii** | shadcn's `--radius-{sm,md,lg,xl}` aliased to our three steps | 8 / 6 / 4 (2.6). |
+| **Radix in server pages** | Avoid | AlertDialog lives in admin and in the Mode card's admin controls on Tonight (8.4.2). Public pages stay server components except the tonight live island and the mode panel's body (8.5). |
 
-All pass AA for body text. `blue` and `red` are deliberately within ~1.2 of each other in ratio: if one side
-were visibly brighter, that side would read as the favoured one before anyone read a number.
+### 5.1 Team card
 
-**Derived values.** Do not add hex; derive.
+The page's first question is "am I in, and which side?". **No name is ever truncated.**
+
+**Anatomy (phone, 375; see `redesign/screens/c-balanced-375.png`)**
 
 ```
-hairline      color-mix(in srgb, var(--cn-text) 14%, transparent)
-blue tint     color-mix(in srgb, var(--cn-blue) 7%, var(--cn-surface))
-red tint      color-mix(in srgb, var(--cn-red) 7%, var(--cn-surface))
-accent tint   color-mix(in srgb, var(--cn-accent) 10%, var(--cn-surface))
-pressed       color-mix(in srgb, var(--cn-text) 8%, var(--cn-surface))
+┌──────┬────────────────────────────────────────┐
+│░░◥░░░│ RED                        [Your side] │  header 54px: solid --team-red + --hatch; 46px block;
+├──────┴────────────────────────────────────────┤  side name display --fs-xl, --on-team; tag --on-team outline
+│  ▢     H4RDC0R33                         1531 │  seat ≥ 64px on --card
+│  top                                          │
+├───────────────────────────────────────────────┤
+│  ⌇     Jinxed Lad Who                    2291 │
+│ jungle Wanders                                │  ← name wraps to line 2; rating stays on line 1
+├───────────────────────────────────────────────┤
+│  ⟋     TheSHADOWREAPER                   1785 │
+│  mid   [off-role]                             │  off-role: dashed chip under the name
+├═══════════════════════════════════════════════┤
+║  ⛉     Used2BeATahmMain                  1262 ║  viewer: --you-wash + 2px --you outline (inset)
+║support [YOU] ┆settling · 9/10┆                ║  YOU sticker + settling chip
+└═══════════════════════════════════════════════┘
 ```
 
-**Colour rules.**
+Row grid: `grid-template-columns: var(--role-cell-w) minmax(0,1fr) auto; column-gap: 8px; align-items: start`.
 
-- A side colour is only ever a **1px to 3px rule, a text colour, or a 7% tint**. Never a filled block behind
-  five names. A saturated fill in a dark room at 11pm is a flashlight.
-- **Rating deltas are never coloured by sign.** No green. A gain is `text` at weight 600, a loss is `dim`, and
-  both always print their sign. Green-for-good would collide with `red` meaning "side 200", and a red number
-  next to a red team is unreadable in every sense.
-- Nothing is a gradient. No shadows except a 1px hairline. No glow.
-
-## Type (v1 — superseded 2026-09-09 by Floodlit)
-
-> The families are the same two and the mono/proportional split is unchanged. What v2 adds is the Archivo
-> width axis as a display cut and a `t-display` step above `t-xl`.
-
-Two families, Google Fonts, loaded through `next/font/google`.
-
-| Family | Role | Weights | Fallback stack |
-|---|---|---|---|
-| **Archivo** | Everything read as language: names, headings, the explanation line, copy. A grotesque with tight sidebearings — it stays legible small and does not look like a dashboard template. | 400, 600, 700 | `'Archivo', 'Helvetica Neue', Arial, system-ui, sans-serif` |
-| **IBM Plex Mono** | Everything read as data: ratings, deltas, gap, win percentage, duration, rank number, role labels, lobby password, PUUID fragments. True tabular figures, a distinguishable `1`/`l`, and a real minus. | 400, 600 | `'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace` |
-
-The split is the whole system: **if it is a number or a role, it is mono; if it is a person or a sentence, it
-is Archivo.** A column of ratings in a proportional font wobbles and a scoreboard that wobbles looks wrong
-before anyone can say why.
-
-Every numeric run also sets `font-variant-numeric: tabular-nums`.
-
-### Scale
-
-Root stays at 16px. Body is 17px because the page is read at arm's length; nothing that carries meaning goes
-below 12px.
-
-| Token | Size | Line height | Used for |
-|---|---|---|---|
-| `t-xs` | 0.75rem / 12px | 1.35 | role labels, `settling` chip, per-row meta (`24 games · 13W 11L`) |
-| `t-sm` | 0.875rem / 14px | 1.4 | rating delta, duration, secondary lines |
-| `t-base` | 1.0625rem / 17px | 1.5 | body, the explanation line, sit-out copy |
-| `t-md` | 1.25rem / 20px | 1.3 | player names in team cards and leaderboard rows, ratings |
-| `t-lg` | 1.625rem / 26px | 1.2 | side headers (`Blue`), section headings |
-| `t-xl` | 2.25rem / 36px | 1.1 | the lobby count (`7`), the result headline (`Red wins`) |
-
-`t-xl` is the only size that changes across breakpoints, and only upward (2.75rem at ≥720px). Everything else
-is the same on a phone and a laptop; a name is not more important on a bigger screen.
-
-Weights: 400 body, 600 names and numbers that matter, 700 only for `t-xl`. No 300, ever — hairline weights
-vanish on a phone at arm's length.
-
-Letter-spacing: `-0.01em` on `t-lg` and above; `0.06em` on mono role labels rendered in lower case, which is
-how they are always rendered (`top`, `jungle`, `adc` — never `TOP`, never `ADC` in caps, because the client
-and the group say them in lower case).
-
-## Spacing, size, motion (v1 — superseded 2026-09-09 by Floodlit)
-
-> The 4px scale and the 44px floor are unchanged. Radii and elevation are not: v2 cards are 10px with a 1px
-> `line` border and a lit top edge, and the max content width is no longer 42rem.
-
-4px base.
-
-| Token | px |
+| Part | Spec |
 |---|---|
-| `sp-1` | 4 |
-| `sp-2` | 8 |
-| `sp-3` | 12 |
-| `sp-4` | 16 |
-| `sp-5` | 24 |
-| `sp-6` | 32 |
-| `sp-7` | 48 |
-| `sp-8` | 64 |
+| Role cell (60px) | Role icon 22px (the existing `RoleIcon` paths) **stacked over** the role word in mono `--fs-2xs` (13px, `font-stretch` 75%). Icon `aria-hidden`; the word is the accessible text. Icon and word are `--muted-foreground`, never a side colour. The role cell is the same in game (no champion tile). |
+| Name | Text face, `--fs-md` (19), 700, `--foreground`. **`overflow-wrap: anywhere; hyphens: none`**, no `line-clamp`, no `text-overflow`, no `nowrap`. Long names push the row taller, never sideways. |
+| Under the name | Zero or more chips, wrapping: `YOU` sticker, `off-role`, `settling · n/10`, `new`. No champion line in any state (see the note under States). |
+| Rating | Mono 18/600, right-aligned, top-aligned with the name's first line. A settling player still shows their number. |
+| Header | **Solid side fill (3.3's four-label rule).** Blue: solid `--team-blue`. Red: `--team-red` + `--hatch`. A 46px leading block holds the 18px glyph (blue: 14% black; red: denser 28% hatch). Then the side name in the display face, `--fs-xl`, upper case, `--on-team`. On the viewer's team only, a `Your side` tag at the right: text face `--fs-xs` 700, `--on-team`, 1.5px `currentColor` border, `--radius-chip`. **No team totals or averages in the header** (STRATEGY section 4) and no win chance (it lives in the receipt only). |
+| Card | `--card`, 1px `--border`, `--radius-card`, `overflow: hidden` so the fill takes the top corners. No separate leading rule: the header fill is the side mark. |
 
-- Page gutter `sp-4` on phone, `sp-5` at ≥720px. Max content width 42rem; the tonight page never gets wider,
-  it centres.
-- Gap between blocks `sp-5`. Gap between rows inside a card `0` — rows are separated by a hairline, not space.
-- Radius: `6px` on cards and strips, `3px` on chips, `0` on hairline dividers. Nothing is a pill.
-- Every tappable thing is at least **44 × 44px**, including the role-override taps (M3.6), the reroll button
-  and the idle page's `Last night and the board` link — a bare inline anchor is about 26px tall and is the one
-  tappable thing on the whole idle screen.
-- Motion: one transition, `opacity 150ms ease`. New rows fade in. Nothing slides, nothing scales, nothing
-  pulses more than a 2s opacity cycle on the single live dot. Honour `prefers-reduced-motion: reduce` by
-  dropping to no transition at all. The page must never move under a thumb that is about to tap.
+**States**
 
-## Components (v1 — the tonight-page entries are superseded by Floodlit)
+| State | Treatment |
+|---|---|
+| Viewer's own seat (**you**) | Four signals: the `YOU` sticker (word; `--primary-fill`, ink text, text face 700 `--fs-xs`, `--radius-chip`, a −2° tilt, no shadow; Day adds the 1px `--primary-text` inset edge), a 2px `--you` outline at `outline-offset: -2px` (shape; an outline, not a box-shadow, so forced colours keep it), the `--you-wash` background, and visually hidden ‹(you)› after the name. Muted text on the wash is 7.28 (3.2). The team header also says `Your side`. |
+| **Just joined** (filling / seat rack) | Different shape and word from "you": a mono `--fs-xs` meta line ‹joined just now› in muted, plus a one-time 1.2s `--muted` background wash that fades to the card colour. **No accent and no outline.** It reverts to plain after 60s. Under reduced motion there is no wash, and the meta line remains. If the joiner *is* the viewer, "you" wins and the meta line still shows. |
+| Off-role | A dashed `off-role` chip (word) under the name. The role word gets a dotted underline. sr: ‹playing off-role›. No accent. |
+| Empty seat (filling) | Dashed `--border-strong` row, role cell present, name slot shows ‹open› in muted. Same height, so a join doesn't shift the page. |
+| Reroll | Both cards crossfade (200ms opacity). A polite live region announces the change (6.4). |
+| In game | Same seats as balanced. Hides role-pick controls. |
+| Winner (result) | The winning card's header adds a `Won` tag (same style as `Your side`, `--on-team`), and the card gets a 2px `--foreground` outline. **Not** a glow and not a bigger fill. The loser's header keeps its fill; nobody is dimmed. |
 
-> Read this section for **what a component contains and why**, which is still current everywhere, and Floodlit
-> for **how it looks**. Where a component below names `accent`, read `brand`. The leaderboard, still-settling
-> and rating-history entries are current for M3.5 with the follow-up listed under "What changes on the
-> leaderboard and the player page".
+**Not built: champions on seats.** The Direction C prototype (c-ingame-*) shows a champion tile and a
+an `Ahri, mid` line per seat in game. 2.0 does not build it: there is no data source, because the companion
+never reads champ select or the live game for this (M14's out-of-scope line; decision 2026-10-03).
+The prototype is wrong on this point, not the build.
 
-### Lobby member list — state "filling"
+**Phone vs desktop.** Below 768 the cards stack, blue first. At 768 and up they sit side by side, blue left,
+each `minmax(0,1fr)`. The name column is narrower here than on a phone (about 160px at 768). The wrap rule
+handles it. Test at 768 with `TheSHADOWREAPER` in every seat.
 
-- Hero: the count, `t-xl` mono, `7` in `accent`, then ` in the lobby` in `t-base` `dim`. Under it, a row of
-  ten 3px bars, `sp-1` apart, filled ones `accent`, empty ones hairline. That row is the whole status at
-  arm's length: you can count it without reading.
-- One row per member, in join order, oldest first. Newest is appended, not prepended — a list that reorders
-  under a thumb is worse than a list you scroll. Everyone in the **same** companion post arrived at the same
-  instant and has no join order between them: break that tie on the **name**, not on a database id, so a first
-  post of seven reads as a list rather than as a shuffle.
-- Row (exactly 44px tall, hairline between): name `t-md` 600 · main role `t-xs` mono `dim`, secondary role
-  after a `/` also `dim` · display rating right-aligned, `t-md` mono tabular. A member with no role declared
-  reads `flexible` in that column, in the same mono `t-xs` `dim` — it is what the balancer will treat them as,
-  and a blank there reads as missing data.
-- A member who joined in the last 3s carries a 2px `accent` left rule, then it fades out on the page's one
-  150ms opacity transition. Draw it as an element that is always there and only changes opacity, never as a
-  border that appears: a row that gains a border gains 2px of width under a thumb.
-- The signed-in viewer's own row: 2px `accent` left rule, permanent, drawn as an inset shadow so it adds no
-  width. Finding yourself is job one.
-- **Reserve ten rows' height from the start**, and reserve it in the row's own units: `10 × 44px` plus the
-  nine hairlines between them. Going from 9 to 10 must not shift the page while someone is reading it, and a
-  reserved height that was guessed from the font instead of the row is a shift of about thirty pixels at the
-  exact moment everybody is looking.
-- People beyond the ten (`is_spectator`) sit under a hairline labelled `Around` in `t-xs` `dim`.
-- Empty: `Nobody in the lobby yet.` in `dim`. Not an illustration, not a spinner.
+**Accessibility.** Each card is a `<section aria-labelledby>` with an `h2` ("Blue team"/"Red team" in the
+accessible name). Seats are an `<ol>` in lane order. Each `li` reads ‹top, Jinxed Lad Who Wanders, rating
+1560›. **shadcn base:** Card (restyled) + Chip. No Radix.
 
-### Team card
+### 5.2 Player row (leaderboard, history, partners)
 
-- Two cards. Stacked on phone, **blue first** (side 100 is the lower number and the client's first side).
-  Side by side at ≥720px, equal width, blue left.
-- Card: `surface` with the side tint, 6px radius, a 3px rule in the side colour along the **top** edge only.
-- Header row: `Blue` in the side colour, `t-lg` 600, and on the right the sum of the five display ratings,
-  mono `t-md` `dim`. Label it `7695` with no word: the header is `Blue` and a number, and the explanation line
-  below owns the word "gap". They are not the same quantity (see "Sums are not the gap" below). Decided
-  (product, 2026-09-08): the side sums stay **bare numbers with no label**, here and in the embed. Give the
-  web number visually-hidden text `sum of the five ratings` so a screen reader is not left with a bare
-  integer.
-- Five rows, always five, **always in lane order** top, jungle, mid, adc, support. Never sorted by rating.
-  That order is `Split.blue` / `Split.red` as stored, so render the array as given.
-- Row: role label, mono `t-xs` `dim`, in a fixed 4.5rem column · name Archivo `t-md` 600 · display rating,
-  mono `t-md`, right-aligned tabular.
-- **Off-role:** the role label turns `accent` and gains a 1px dotted underline, and the row gets an `accent`
-  dot before the name. Colour is never the only signal — the explanation line names the player and the role in
-  words, and the row carries visually-hidden text `off-role`.
-- **You:** 2px `accent` left border on the row.
-- No crest, no "VS", no champion art, no avatars. There is no source for any of it and it would be the first
-  thing that made this look like a template.
-
-### Explanation line
-
-- Sits directly **below** both team cards, full width. Read order on a phone is: my side, my name, then why.
-- A `surface` strip, 2px `accent` left border, `sp-3` padding, text `t-base` in `text` — not `dim`. This
-  sentence is the product's whole argument; it does not get demoted to caption grey.
-- Rendered **verbatim** from `splits.explanation` as a single `<p>`. Never re-composed from the split's
-  numbers, never chopped into badges or chips, never truncated, never ellipsised. Three lines of wrap on a
-  phone is the correct outcome.
-
-  > Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.
-
-- The reroll control (M3.2, admins only) is a ghost button on the right of the strip on wide screens, and a
-  full-width button under it on phone. Label `Reroll`. After the last split it is `disabled` and the strip
-  shows, in `dim` `t-sm`: `No more splits. Change who is in the lobby and roll again, or play these.`
-  (Product copy, 2026-09-08. It is deliberately *not* core's `BalanceError` message
-  `No more splits. Rebalance or play these.` — "rebalance" is not a button on this page, it is what happens
-  when the lobby membership changes, and the friend reading it should be told which.)
-- After a reroll the strip re-renders with the promoted split's stored string (M3.7). Same element, opacity
-  fade, no scroll.
-- **Fill protection has no surface, on purpose** (M7.5 / M7.6, checked by the designer 2026-09-16). Since
-  2026-09-15 an off-role seat costs the balancer more when the same person was filled recently — 240 display
-  points for somebody filled last game, decaying to the flat 120 — so *who* gets filled changes on the nights
-  it matters. Nothing about it prints anywhere: not in this sentence, not on a seat, not on a row, not in the
-  embed. The sentence keeps its shape and still names who is off-role and where (`4 off-role: Hana at support,
-  …`), which is the fact a player can act on; "we owed her a main" is a claim about a night that is not on the
-  screen, and a marker for it would be a second vocabulary on the one line the whole product argues from.
-  **Nothing in this file is owed for M7.5 or M7.6 beyond this paragraph**, and a future reviewer looking for
-  the missing surface should stop here rather than invent one. If the group ever asks why somebody keeps
-  getting support, the answer is a copy task of its own with product's words in it.
-
-### Sit-out notice
-
-- Full-width strip above the team cards, `surface`, 2px `accent` left border, `t-base`.
-- Above, not below: if you are sitting out, everything under it is not about you, and you should learn that
-  before you scan for your name.
-- When the viewer is one of the sitting players the strip leads with a second-person sentence and keeps the
-  `accent` border; nobody else's strip changes.
-- Copy (product, 2026-09-08 — final; the rule behind it is fewest games tonight, then oldest sit-out):
-  - general: `Sitting out this game: Sara and Deniz. Each game goes to whoever has played least tonight, so they are first in line for the next one.`
-  - viewer: `You are sitting this one out. Each game goes to whoever has played least tonight, so you are first in line for the next one.`
-  - Names are joined with `, ` and a final ` and`: `Sara and Deniz`, `Sara, Deniz and Ali`. Any change to
-    these two sentences goes through product.
-
-### Result card
-
-- Headline `Red wins` in the winner's side colour, `t-xl` 700, with the duration beside it in mono `t-sm`
-  `dim`: `34:12`.
-- Second line, `t-base` `dim`: the prediction, kept honest — `Blue was favored 54%.` The bot said a number
-  before the game; it does not get to quietly drop it after.
-- Then the two team cards again, with each row's rating replaced by the **after** rating and a delta chip. The
-  card for the winning side keeps its 3px top rule; the losing side's rule drops to hairline `dim`.
-- **These are the only team cards on the finished screen.** The explanation line of the split they played sits
-  under them; nothing renders a second pair with the before numbers (M3.16, and the state table above).
-- **Same five positions as the teams block, lane order, top to support.** "My row" has to be where it was
-  twenty minutes ago, and the result embed already sorts this way. A player the scoreboard has no role for is
-  printed without one and sorts after the five who have one.
-- **No side sums in the result card's headers.** The sum answers "are these teams even?", which is a question
-  the game has just answered, and a reader who saw `6000` before the game and `6465` after has computed a team
-  total of deltas by subtraction — the one number this page must not put on screen (below). The header of a
-  result card is the side name alone.
-- The off-role marker is **not** repeated here. It described a decision, and the decision has been played; the
-  stored explanation under the cards still names the player and the role in words.
-- One line under the cards, `t-base`: `Top damage: Lena, 47.3k.` with the number in `accent`.
-- No wash of colour over the page, no banner, no confetti. The result is a fact, not an event.
-- **Never print a team total of deltas.** The two sides do not sum to zero — different sigmas and rounding —
-  and a visible imbalance is a free argument about a thing that is working correctly.
-
-### Rating delta
-
-- Mono, `t-sm`, tabular, in parentheses after the new rating: `1512 (+43)`.
-- Always signed. `+` and U+2212 `−` on the web (it is the width of `+` in Plex Mono and aligns in a column);
-  plain ASCII `+` and `-` in Discord, which has no font control and gets copy-pasted.
-- Not coloured by sign: gain is `text` at 600, loss is `dim` at 400.
-- `(0)` never appears — if the delta rounds to zero, print `(+0)` or `(−0)` to match the sign of the mu change,
-  so a column of ten rows never has a stray unsigned entry.
-- Rounding rule: the delta is `displayAfter − displayBefore`, both already rounded — never
-  `round((muAfter − muBefore) * 60)`. Otherwise `1469 + 42 = 1512` is false on the screen. See DECISIONS.
-
-### Leaderboard row
-
-- One row per player, min-height 56px (two lines), hairline between, no zebra striping.
-- **Line 1**, left to right: rank number, mono `t-sm` `dim`, fixed 2.5ch · name Archivo `t-md` 600, single
-  line, ellipsis · **Proven**, mono `t-md` 600, right-aligned, hard against the row's right edge.
-- **Line 2**, `t-xs` `dim`, exactly this order, separated by ` · `:
-
-  ```
-  Rating 1266 · 28 games · 13W 15L · L2 · [settling]
-  ```
-
-  Rating comes **first on line 2 and sits directly under the Proven number**, right-aligned to the same edge,
-  so the two numbers form one vertical pair per row and the eye reads them as one player's two facts rather
-  than as two competing columns. Everything after it (games, W/L, streak, the `settling` chip) is left-aligned
-  under the name. So line 2 is two groups pinned to opposite edges, the same as line 1.
-- **The words print per row, not as column headers.** `Rating` prints inline on every line 2, `Proven` prints
-  nowhere on the row at all — it is the unlabelled primary number, named once in a `t-xs` `dim` legend above
-  the list. Reasons: the list is a stacked card list on a phone, not a table, so a header row scrolls away
-  after four rows and every row below it is then two unexplained numbers; and `Rating` is the number people
-  arrive knowing, so it is the one that needs its name attached where it appears. The legend is not a header
-  row: it does not stick, does not sort, and is not tappable.
-- **The legend is the single word `Proven`, right-aligned over that number, and not `Proven · Rating`**
-  (amended 2026-09-09, from the rendered page). Right-aligned, the two-word legend puts `Rating` directly
-  above the *Proven* column and `Proven` above nothing, which reads as two side-by-side columns when the two
-  numbers are stacked. `Rating` needs no legend because it names itself on every row.
-- `Proven` is never abbreviated and the two numbers are never merged into one cell (`1266 / 654`). They are
-  different quantities on different lines.
-- Rank 1 gets `accent` on the **rank number only**. No medals, no trophies, no emoji, no highlight row.
-- The viewer's own row: 2px `accent` left border. No auto-scroll to it.
-- At ≥720px the row does not become a table. Same two lines, wider gutters. A twenty-person board does not
-  need a table and a table would need the header row this design just removed.
-- **Two numbers, one problem.** The board sorts on `ordinal = mu − 2σ` but the number everyone knows is
-  `round(mu × 60)`. Showing the second while sorting on the first puts visibly out-of-order numbers on the
-  page, which is the exact complaint M3.8 exists to prevent. The design shows **both**, columns labelled:
-  **`Proven`** (`round(ordinal × 60)`, the sort key, primary, right-most) and **`Rating`** (`round(mu × 60)`,
-  `dim`, mono `t-sm`, on line 2). Then the sort matches the primary column exactly, and the still-settling
-  sentence is what explains why a new player's two numbers differ. Accepted by the lead; the names `Proven`
-  and `Rating` are fixed by product (M3.5 brief, `02-milestones.md`) and no surface invents a third name.
-- **Proven never prints below zero.** `ordinal = mu − 2σ` is negative for an unranked seed's first weeks and
-  for any low tier — Iron IV seeds at `-160`, unranked at exactly `0`, and a Bronze player who loses their
-  first two goes under — and a primary column with `-83` in it reads as a broken page before anybody reads the
-  legend. `provenRating` floors at `0` on every surface, web and Discord. Sorting is unchanged: rows tied at
-  `0` fall through to `Rating`, so the column is still non-increasing top to bottom. `0` is also the honest
-  reading — the board has not credited you with anything yet — and the still-settling sentence is what
-  explains it.
-- **A week row has one number, and it is `Rating`** (M7.3, product 2026-09-15; designer's note 2026-09-16).
-  Everything above describes the row on `All time`, `This month` and `Last month`. On `This week` and
-  `Last week` — and `This week` is the board's **default**, so this is the row most readers actually meet —
-  the primary slot on line 1 carries the weekly `Rating` (`round(mu × 60)` off that week's own from-scratch
-  fold), the legend above the column reads `Rating` rather than `Proven`, line 2's small-type `Rating 1266` is
-  **dropped rather than replaced**, and no row carries the `settling` chip. **Nothing on a week board prints
-  Proven in any size.** Three consequences worth stating, because each one is a rule this section otherwise
-  contradicts:
-  - The "two numbers, one problem" paragraph above is the *Proven* board's answer. A week board has no second
-    number to reconcile: it sorts on the number it prints, which is the same rule arrived at from the other end.
-  - The visually-hidden noun beside the primary number follows the legend (`Rating` on a week, `Proven`
-    elsewhere), so a listener is never handed an integer that means something else on the tab next door. The
-    class name `.cn-proven` is the layout's and is not a claim about which number is in it.
-  - **The tonight page's `Top of the board` rail inherits all of it**, because the rail is `LEADERBOARD_WINDOW`
-    — `this-week` — sliced to five. The rail's legend reads `Rating`, its rows carry no chip, and it never
-    badges (M8.3) and never opens (M5.30).
-- **There is a third line, and only on a row that won one of the window's awards** (M8.3, 2026-09-15). It holds
-  labelled badges and nothing else, it is drawn on `Last week` and `Last month` only, and it is never drawn in
-  the tonight rail. Everything about it — the dress, the order of two badges, the wrap — is its own section
-  below, "The award badge on a board row".
-
-### Leaderboard row expand (M5.30) — 2026-09-13
-
-A row with rated games in the open window is a `<details>`, closed by default. The two-line row is the
-summary. Opening it lists those games newest first: `Won` / `Lost`, the night (`9 Sep`), the duration, and
-`1512 (+43)` on the right — the same four facts, the same delta glyphs, the same gain/loss weights as
-`Recent games` on `/p/[puuid]`. No lineup, no chance clause: those stay on the player page a tap on the name
-already opens.
-
-- The control is `<details>`, the same expand `/games` and `/fun` use. No JavaScript. The games are in the
-  first paint.
-- A 5px `dim` triangle sits between the name and Proven so the primary number stays on the right edge, under
-  the legend. The slot is reserved on every row so a seed with nothing to open does not shift that column.
-- The side is the 3px leading rule, blue or red, never a wash behind `Won`.
-- The tonight rail never opens: `loadTopPlayers` does not attach the breakdown.
-- Rated games only. An unrated row does not move the number the expand is explaining.
-- **The games are on the row's own track** (M7.3). On a week window each game's `1512 (+43)` is that game's
-  movement in the *weekly* fold, not the stored all-time one, because the row's total is the weekly number and
-  a row whose total is one track and whose games are another does not add up. **Since M7.16 (2026-09-16) the
-  page agrees with it**: `/p/[puuid]` on a week window prints the same weekly delta for the same game, so the
-  expand and the list a tap later are one answer — the row that used to warn readers about that difference is
-  superseded. ~~The other honest consequence stands: the weekly track does not carry the **MVP / ACE**
-  adjustment at all (M7.9, acceptance 6, waived, and settled as a product decision in M7's close-out audit),
-  so a game somebody was MVP of moves them by the plain amount on a week window, on both surfaces.~~
-  **Superseded 2026-09-29 (M7.24, the user's decision):** the weekly fold carries the same MVP / ACE
-  adjustment the all-time one does, so a game somebody was MVP of moves them 1.25× the plain weekly amount on
-  a week window, on both surfaces, and the `MVP` beside that game on `/p/[puuid]` is always the seat whose
-  weekly delta was amplified. Nothing about the dress changes: it is not marked and should not be — the expand
-  explains the number above it and nothing else. `MVP` stays the one word on the surfaces M7.10 and M7.23 put
-  it on, and it does not move with the track.
-
-### The award badge on a board row (M8.3, designer 2026-09-15)
-
-On `Last week` and `Last month` the winners' rows carry the award's own words. On `This week`, `This month` and
-`All time` nothing is drawn, because those windows have no awards to draw (M5.4: *an award that changes every
-night is a statistic, not an award*), and this task does not invent any. The tonight rail never badges.
-
-**It is a third line, its own run, under the meta.** Not inside line 2's middot run and not beside the name:
+**The whole row is one link** to the player page (or the game page for history). There is no `<details>`
+inside the row and no link nested in a toggle (audit, high). Expanded game lists move to the player page.
 
 ```
- 3  Nadia                              ▾   1548     ← line 1, unchanged
-    12 games · 8W 4L · +153 · W3        Rating 2088 ← line 2, unchanged
-    [Most improved] [Cursed duo]                    ← line 3, only on a row that won something
+┌──────────────────────────────────────────────┐
+│  1   Ramzyinhović                        2638 │  ≥ 56px, one <a>
+│      94 games · 58W 36L · W5             +33  │  meta: --fs-xs muted; delta: 5.3, no arrow
+└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ 24   Used2BeATahmMain                    1322 │
+│      1 game · 1W 0L  ┆settling · 1/10┆        │  (All time: under Still settling, unnumbered)
+└──────────────────────────────────────────────┘
 ```
 
-- **Not in line 2.** `12 games · 8W 4L · +153 · W3 · Most improved` sets an award as the last item of a run of
-  statistics, separated by the same middot, in the same size and colour as the numbers around it — which is
-  precisely the reading M5.4 spent a paragraph refusing. The run is one window fact ("what happened inside the
-  window"); an award is what came out of it. It also fits at 390 only just, so the second badge would wrap
-  inside the meta span and land under the record with `Rating` baseline-aligned to the line above it — the same
-  third line, arrived at by accident and with no control over it.
-- **Not on line 1.** The name is `flex: 1 1 auto` with an ellipsis, and the triangle and the primary number own
-  the right edge. A chip between them buys its width out of the one thing on the row a reader is looking for.
-- **Left-aligned under the name, and line 3 has no right-hand group.** Lines 1 and 2 are each two groups pinned
-  to opposite edges; this one is deliberately not, because there is no second fact to pin. `padding-bottom:
-  var(--cn-sp-2)` on the run, with line 2's existing `padding-bottom: var(--cn-sp-2)` above it, so the badges
-  sit in the row's own rhythm and the row grows from 56px to about 84px. **A badged row being taller than its
-  neighbours is the point**: three rows in twenty carry more, which is how a label earns attention without
-  taking a colour.
+| Part | Spec |
+|---|---|
+| Rank | Mono `--fs-sm`, 3ch, muted. **The top 3 are not coloured gold** (colour means team/state/nothing). Rank 1 to 3 may set in the display face at `--fs-md`: emphasis by type, not hue. |
+| Name | Same wrap rule as 5.1. |
+| Meta | One line that wraps. `94 games · 58W 36L · W5`. **Numbers mono, words and letters text face** (ruled 2026-10-03): `94`, `58`, `36`, `5` in mono; `games`, `W`, `L` and the `·` separators in the text face, all `--fs-xs` muted. A mono `W` beside a mono number reads as one code (`58W`); split, it reads as a count and a word. The same rule holds for every meta line built from counts (history, partners, the player page). |
+| Sections (the board) | **All time only:** the ranked list (10 or more rated games, numbered), then a `Still settling` section below it: same rows, **not numbered**, each with the `settling · n/10` chip (5.6), under STRATEGY §5's section line. **This week and Last week are one list** with no settling section (everyone is settling inside a short window; STRATEGY). The windows are `This week`, `Last week` and `All time`; the month windows were removed in M14.48 (2026-10-04). Players with no rated game in the window are counted under the list, never shown as rows. |
+| Rating | **One public number** (audit #3). Mono `--fs-md` 600. Settling players show a number and the chip, **never 0**. |
+| Delta | The window's change (5.3), under the rating. **No arrow or triangle beside it** (5.3 wins over any older mock: an arrow reads as a side glyph). |
+| History variant | Leading cell: side glyph + `Won`/`Lost` word. Then the date, duration as ‹21 min› (not `21:46`), the odds in words (`Blue was 53%.`, 5.5 compact) and the viewer's delta. It links to `/g/<slug>/games/<id>`. |
+| Viewer's row | `YOU` sticker + `--you-wash` + 2px `--you` outline, as in 5.1. |
 
-**The badge itself: the settling chip's shape, in language's typeface.**
+States: default; `:hover` (≥768) `--accent` surface; `:active` press scale; `:focus-visible` outline on the
+whole row. Desktop may lay the meta inline after the name, but it still wraps instead of truncating.
+Accessibility: the link's accessible name is the visible content in order (rank, name, rating, delta). No
+`aria-label` overriding it. Lists are `<ol>` for ranked boards and `<ul>` for history. **shadcn base:**
+none (plain `<a>`), plus Chip.
+
+### 5.3 Rating change
+
+| Case | Visual | Screen reader |
+|---|---|---|
+| gain | `+33`, mono, `--foreground`, 600 | ‹gained 33› |
+| loss | `−38` (U+2212, not a hyphen), mono, `--muted-foreground`, 400 | ‹lost 38› |
+| zero | `±0`, muted 400 | ‹no change› |
+| not rated | the word ‹not rated›, `--fs-xs` muted | same |
+
+- **Always signed. Never coloured.** No arrows or triangles: they would be read as the side glyphs.
+- Paired with a rating it sits to the right or underneath, `--fs-sm`. In parentheses only inside dense tables.
+- In a sentence the number still renders in mono at the surrounding size.
+- Implemented as `<RatingDelta value={n} />`: the visible text is `aria-hidden`, with a `.sr-only` span.
+
+### 5.4 Live status indicator
+
+**It never says Live unless the realtime channel is `SUBSCRIBED`.** It has two dimensions: the connection
+state and the game state. The game state shows when it's known; the connection shows whenever it isn't live.
+
+```
+[● Live]  Sat 3 Oct, game 4 tonight   amber fill tag, ink dot pulsing (static under reduced motion)
+◌ Connecting…                     hollow ring, muted, no pulse
+⊘ Offline · updated 4 min ago  [Refresh]     hollow ring + slash, muted; button 44px
+● In game · 12 min                connected
+⊘ In game · 12 min · offline  [Refresh]      game known from the last snapshot, channel down
+```
+
+| State | Enter when | Rules |
+|---|---|---|
+| connecting | page load, until `SUBSCRIBED`, max 8s | Shows on first paint (the server can't know). After 8s without a subscription, go to offline. |
+| live | channel `SUBSCRIBED` and the last event or heartbeat < 60s ago | The only pulsing element in the product. |
+| offline (stale) | `CHANNEL_ERROR`, `TIMED_OUT`, `CLOSED`, or no heartbeat for 60s | "Updated N min ago" is computed from the last successful snapshot read. Refresh re-reads (or reloads without JS). It retries in the background, and returns to live by itself. |
+| in game | lobby `in_game` | Elapsed time from `started_at`, ‹12 min›, updated once a minute. **Not** `mm:ss` (reads as a clock; audit #9) and no per-second re-render. Under 1 min: ‹just started›. |
+
+Placement: the **start** of the status strip's top line, before the date (5.10), never in the top bar. The top
+line is a fixed `--chip-h` tall and the date uses the short form (`Sat 3 Oct, game 4 tonight`), so the tag
+appearing, changing state or leaving never re-wraps the line or moves the page (M14.45: CLS 0.066 to 0.003). On
+phones the Tonight tab also carries an 8px amber dot while live. Anatomy: a tag at `--chip-h`,
+`--radius-chip`; live is `--primary-fill` with `--on-primary-fill` dot and word (text face 700, 15px; Day adds
+the 1px `--primary-text` edge); other states are `--raised` with muted text. The dot is SVG `currentColor`
+(survives forced colours). The tag isn't interactive. Refresh is a separate Button.
+
+Accessibility: one `role="status" aria-atomic="true"` element announces **connection changes only**
+("Live", "Offline, last updated 4 minutes ago"). The timer is not in a live region. **shadcn base:** Chip +
+Button.
+
+### 5.5 Fairness receipt
+
+Owned here: the visual and interaction spec. The content is product's (STRATEGY.md); every string below is a
+placeholder. This is the product's memorable element; spend the boldness here and keep everything around it
+quiet.
+
+**Data in:** `blue_win_prob`, `gap`, off-role count, the explanation string (verbatim), the three candidate
+splits (rank, win prob, gap, off-role, the swap that distinguishes each), and the group calibration (favoured
+side's wins / games). All from stored numeric columns.
+
+#### Full (tonight balanced; the game page)
+
+```
+┌─ 1px --border-strong ───────────────────────────┐
+│ Win chance                              Game 4  │  card title, text --fs-md 700, sentence case
+│ ┌─────────────────────┐┊┌─────────────────────┐ │
+│ │ ◣ BLUE 49%          │┊│░░░░░░░░░░ 51% RED ◥░│ │  bar 50px (≥1024: 60): labels INSIDE, --on-team,
+│ └─────────────────────┘┊└─────────────────────┘ │  display 19/900 word + mono 20/700 %; 3px gap
+│              The center line marks 50/50        │  2px --foreground tick crosses the bar ±6px; caption --fs-xs muted
+│ Basically a coin flip.                          │  verdict --fs-lg 700
+│ Next best: swap the bot lane players, …         │  reason --fs-sm muted, names --foreground 700
+│ [Rating gap 45 pts] [Main roles 10/10]          │  chips: --raised, label --fs-xs muted, value mono --foreground
+│ [Bot's pick #1 of 3]                            │
+├─────────────────────────────────────────────────┤
+│ How the bot decided                          ⌄  │  <details>, 52px summary, --primary-text 700
+└─────────────────────────────────────────────────┘
+```
+
+| Part | Spec |
+|---|---|
+| Frame | The one card with a `--border-strong` edge. No amber edge or top rule (the accent is not decoration). |
+| Win-split bar | Two segments sized to the probability, a 3px gap at the split. Blue solid `--team-blue`; red `--team-red` + `--hatch`. Outer ends `--radius-control`, inner ends square. A 2px `--foreground` 50% tick crosses the bar 6px above and below, so 49/51 visibly sits next to even. The labels sit **inside** the segments in `--on-team` (6.37 / 6.51 Night; 4.89 on the darkest stripe; the label is ≥ 19px bold, so even the large-text floor of 3 has margin). Segment widths are clamped so a label always fits: **37/63 below 768** (at 375, `◣ BLUE 7%` needs about 37% of the bar; ruled 2026-10-03 after M14.16's 7% case clipped to `BLUE 7`), **30/70 at ≥ 768**. Only the drawn width is clamped; the labels always print the real percentage. The bar element is `aria-hidden`; a visually hidden sentence before it carries ‹Blue 49 percent, Red 51 percent›. |
+| Labels | Both ends, always: glyph + word + %. The favoured side's label is **not** bolder or larger. |
+| Win chance | **The bar is the only win-chance number.** There is no `Win chance` chip (STRATEGY section 4). |
+| Verdict + reason | Product's banded sentence and reason line, verbatim from STRATEGY.md. The reason's `<why-lower>` is one of three, in STRATEGY §4's order: `with <k> more off their main role`, `with a bigger rating gap (<g2> vs <g1> pts)`, or, when the stored columns don't say which, `and it scored a hair worse overall (repeated teams, recent fills or rounding)`. That last one replaced "ranked lower on role costs" (2026-10-03): the score includes more than role costs, and the numbers beside the old wording could contradict it. Set it at the reason's size and colour, no hedging style. The core explanation string stays verbatim inside the disclosure. |
+| Chips | `Rating gap 45 pts`, `Main roles 10/10`, `Bot's pick #1 of 3` (and ‹Sat out› when someone did). Static `span`s, `--raised`, 1px `--border`, `--radius-chip`, min 34px tall. **Main roles on the live receipt (balanced, in game, the teams embed; M14.41)** counts only players who have a main role on record: `Main roles 6/6 · 4 new` (the count after `·` mono like the rest), `2 off main role · 4 new`, and with all ten new `No main roles yet`. On **Tonight's finished poster** the chip uses the same live count (so the page never contradicts the balanced receipt minutes earlier; lead ruling, M14.41); history (the game page, the games list, the result embed) prints the stored count unchanged. |
+| Off-role line | The sentence under the reason that names who is off their main role (`Everyone's on their main role.`, `Omar is off their main role (support).`, `2 people are off their main role.`, `4 people have no main role yet.`, `Nobody has a main role yet.`; strings in `lib/receipt/copy.ts`). **It shows only when it adds to the chip** (M14.45): exactly one person off-role (the line names them and their lane; the chip only counts), the compact in-game receipt (no chips), or a laneless lobby (no roles chip). Beside a chip that already says it (`Main roles 10/10`, `2 off main role · 4 new`, `No main roles yet`) it is dropped: the page says a thing once. |
+| Disclosure: "How the bot decided" | Native `<details>`. Content order per STRATEGY section 4: the 126-ways intro, the three candidate splits, the disagree explainer, "Nobody picked these teams", the bot's verbatim note (mono `--fs-xs` on `--background`), calibration. |
+| Candidate splits, **≥768** | Three cards in a row (`--radius-control`, `--background` fill, 1px `--border`; the picked one 2px `--primary-text`): rank in mono, odds, a 10px mini bar with tick, a 2-column key/value grid (gap, main roles), the `<why-lower>` reason (wording as above) under a dashed rule. |
+| Candidate splits, **<768** | **Rule resolved (receipt-open page length): one compact `<ol>`, not three stacked cards.** Each split is one list row, at most three lines: line 1 `#1 Picked` / `#2` / `#3` and the odds as text `Blue 49 · 51 Red`; line 2 mono meta `gap 45 pts · main roles 10/10`; line 3 the one-line `<why-lower>` reason (#2, #3 only). Rows are divided by `--border` hairlines; the picked row has a 3px `--primary-text` inline-start rule and the word `Picked` (word + shape, not colour alone). **No mini bars on phone rows**: the full bar above already draws the picked split, and the odds text carries #2 and #3. Calibration keeps its two bars. Acceptance: `receipt.html` at 375 drops from about 4,200px to **≤ 3,000px** total page height, with nothing removed. |
+| Calibration | One line, numbers mono, plus observed vs expected bars (`--foreground` fill vs `--muted-foreground` fill on a `--raised` track). If n < 20: ‹Not enough games yet to check the bot's odds (n of 20)›, never a percentage over a handful of games. 20 is STRATEGY §4.8's threshold and the shipped `CALIBRATION_MIN_GAMES`; it is not the settling threshold (10, 5.6). |
+
+#### Compact (in game, history rows, the tape)
+
+In game, the receipt stays visible as `Odds at kickoff`: the same bar at `--winbar-h-compact` (40, ≥1024 44)
+with labels inside at 17px, the verdict at 19px, no chips and no disclosure. History rows and tape tiles do
+not draw a bar: they say it in words (`Blue was 53%. Red won.`), and the row links to the game page where the
+full receipt lives.
+
+**Games row (ruled 2026-10-03, M14.42 option (a)).** Where the row's title already is the result (`/games`:
+`◥ Red won`), the words drop `<Winner> won.` and print only the odds: `Red was 51%.`, `Blue was 45%.` plus the
+`Upset` chip when the underdog won, `50–50.` on an even split, nothing when the game has no stored odds. The
+side is said once per row. Rows whose title does not name the winning side keep the full sentence: the tape
+tile (`Game 3`, 5.15) and a player's recent games (`Lost`, viewer-relative) still read `Red was 51%. Red won.`
+
+**Tonight's finished poster (M14.45)** uses the games-row form too, because the strip's h1 above it already
+names the winner (`RED WINS`). Its verdict line under `The odds were` reads `Red was 51%.`, `Red was 46%. Upset!`
+when the underdog won (said in the sentence, at the verdict's size; the poster has no Upset chip), or `50–50.`.
+One line, never `Red was 46%. Red won. Upset!` across two.
+
+#### Discord text (teams embed description)
+
+> **M14.61 replaces this layout (section 10, "Discord posts").** Until it ships, this subsection is what the
+> builders print; once it ships, section 10 wins and this text is history. The copy below carries over unless
+> section 10 says otherwise.
+
+As shipped in M14.10. Discord has no CSS and a proportional font, so the receipt is text in the embed's
+**description**, not a field: five lines, in this order.
+
+1. **Bar line:** `**Blue 49%** ▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱ **51% Red**`: the two labels bold at the ends, 20
+   cells of 5% between them, `▰` for blue's share from the left (`round(p_blue × 20)`), `▱` for red's. No inline
+   code (the cells are already even-width in Discord's font), no side colours (the embed colour is the accent),
+   no emoji, no glyph.
+2. **Banded sentence**, verbatim from the receipt copy (`Basically a coin flip.`, `Dead even.` …).
+3. **Chips line:** `Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3` (plus `Sat out` when someone
+   did), joined with ` · `.
+4. **Reason line:** the same `Next best: …` sentence as the page, including the tie wording
+   (`… and it scored a hair worse overall (repeated teams, recent fills or rounding).`).
+5. **Core's sentence** as Discord subtext, `-# <splits.explanation>`, verbatim: small and grey, last, for the
+   people who want the numbers.
+
+There is **no `Win chance` field**: the fields are `Sitting out` (only when somebody sits; the value
+starts at the name and carries the page's own reason sentence, 5.15), `Seats` (the move lines and the side
+line, always), then `Blue` and `Red` inline with one line per seat and **no team totals** (STRATEGY §4.2
+rule 4), then `Lobby` when the lobby has a name. The title links the tonight page's receipt disclosure (`/g/<slug>#how-the-bot-decided`) when there is a
+URL, and only then does the footer promise more there. Role words are the client's (`adc`, not `bot`).
+
+Teams embed, filled (game 4 of the prototype night):
+
+```
+color        16764774  (amber #FFCF66: neither side)
+title        Teams are set                       (links /g/customs#how-the-bot-decided)
+description  **Blue 49%** ▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱ **51% Red**
+             Basically a coin flip.
+             Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+             Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
+             -# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.
+field        Sitting out       (block)
+             Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight.
+field        Seats             (block)
+             You'll be moved to your side — if not, move yourself.
+field        Blue              (inline)          field   Red               (inline)
+             `top` FoxHound · 1224                       `top` H4RDC0R33 · 1531
+             `jungle` XETA · 1378                        `jungle` Syndrome Axes · 2291
+             `mid` Ramzyinhović · 2638                   `mid` knifiy · 1454
+             `adc` SugarPapy · 1218                      `adc` PRT Khokha · 1287
+             `support` Used2BeATahmMain · 1322           `support` TheSHADOWREAPER · 1262
+field        Lobby             (block)
+             `customs-night`
+footer       Kustom · more on the tonight page
+```
+
+Result embed, filled (as shipped). The description is the odds line from the receipt copy, then the top
+damage clause: `Red was 51%. Red won.` when the favourite won, `Red was 46%. Red won. Upset!` when it didn't,
+`50–50. Red won.` on an even split, with `Top damage: <name>, <n>k.` after it. Seat lines are
+`` `role` Name · rating (delta) ``, lane order, the delta always signed in parentheses with an ASCII `-`
+(Discord has no font control and these lines get pasted; the page's U+2212 rule, 5.3, is for the web). No
+team totals. The MVP/ACE line is a block field named U+200B, present only when the game has an award.
+
+```
+color        16739125  (red #FF6B35: the winner's side)
+title        Red wins · 31:04                    (links the game page when a URL is set)
+description  Red was 51%. Red won. Top damage: Syndrome Axes, 31.4k.
+field        Blue (inline)                       field   Red (inline)
+             `top` FoxHound · 1210 (-14)                 `top` H4RDC0R33 · 1546 (+15)
+             `jungle` XETA · 1363 (-15)                  `jungle` Syndrome Axes · 2305 (+14)
+             `mid` Ramzyinhović · 2625 (-13)             `mid` knifiy · 1470 (+16)
+             `adc` SugarPapy · 1203 (-15)                `adc` PRT Khokha · 1302 (+15)
+             `support` Used2BeATahmMain · 1305 (-17)     `support` TheSHADOWREAPER · 1277 (+15)
+field        ​ (U+200B)   MVP Syndrome Axes · ACE Ramzyinhović
+footer       Kustom · game 4
+```
+
+**Accessibility.** The receipt is a `<section aria-labelledby>`. The text order is the visually hidden odds sentence, verdict,
+reason, chips, disclosure, so a screen reader hears ‹Blue 49 percent, Red 51 percent› first. On reroll, the
+receipt is part of the one polite announcement (6.4). **shadcn base:** Card + Chip + native `<details>`. The
+bar is custom (a div with two segments; the hatch is `repeating-linear-gradient`, which is *data texture*,
+not decoration, so it is exempt from the gradient ban). In forced colours: the segments get a 1px
+`CanvasText` border, the hatch drops, and the labels carry it.
+
+### 5.6 Settling / new-player chip
+
+| Chip | Look | Words | When |
+|---|---|---|---|
+| settling | dashed 1px `--muted-foreground` border, transparent fill, `--muted-foreground` text, mono `--fs-2xs`, `--radius-chip` | ‹settling · 9/10› | rated games < the settle threshold (copy and threshold per STRATEGY.md) |
+| new | same dashed style | ‹new› | 0 rated games |
+
+Dashed means "not final" across the product, the same as an empty seat. These chips are never accent (that's
+"you") and never solid. They are static, with no tooltip. The full meaning lives in "How ratings work"
+(linked from the leaderboard footer). The number beside it is still shown: **never "0", never hidden.**
+
+### 5.7 Empty state
+
+One sentence, at most one action, left-aligned, inside the space the content would take. No illustration and
+no icon.
+
+```
+┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐   dashed --border = "nothing here yet"
+  ‹No games this week yet.›
+  [‹See all time›]                        secondary Button, 44px; omitted if there's no next step
+└ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+```
+On the idle tonight page the empty seat rack collapses to **one line** (audit #8), and last night's result
+leads. `role="status"` only when the empty state *replaces* content live. **shadcn base:** none + Button.
+
+### 5.8 Error and 404 pages
+
+`not-found.tsx` (group-scoped and root), `error.tsx`, `global-error.tsx`. **The shell stays**: top bar, the
+tab bar, and the group line when the group is known.
+
+```
+‹Page not found›                          h1, --fs-xl, text face 700 (not display)
+‹There's no game 4821 in Customs Night.›  the reason, specific, --fs-base
+[‹Back to tonight›]  [‹Leaderboard›]      primary + secondary Buttons, 44px, full width < 768
+```
+- 404s name what was missing (game, player, group) where the route knows it. An unknown `?window=` value
+  **falls back to the default window**; it is not a 404. That includes the retired month ids
+  (`this-month`, `last-month`, M14.48): the windows are `This week`, `Last week` and `All time` (Games:
+  `Tonight`, `This week`, `All`), and an old month link opens the page's default.
+- `error.tsx`: ‹Couldn't load this page.›, a `Try again` button that calls `reset()`, the back link, and the
+  error digest in mono `--fs-xs` muted (‹ref a1b2c3›) for reporting. No stack trace and no apology filler.
+- `global-error.tsx` renders its own `<html>` with the inline tokens and the text face fallback stack only,
+  with no app fonts (they may be what failed).
+- Unknown group slug: ‹No group called "xyz".› + `Back to Kustom`.
+
+### 5.9 Route loading state
+
+> **Amended 2026-10-03 (M14.39, Phase 4 review):** Tonight and the Board have **no `loading.tsx`**. A streamed
+> first paint arrives in a `<template>` that never swaps in without JS, so a no-JS phone saw ‹Loading…› forever and lost
+> the no-JS forms (Roll, Reroll, That's me, the Mode card link). They render whole on the server; on a client
+> navigation Next keeps the old page up until the new one is ready (measured 52–104 ms at 375). The text below stands
+> for any future route that is never used without JS; `LoadingView` and ‹Loading…› are currently unused.
+
+**Decision: a static shell, streamed first; no skeletons.** `loading.tsx` per route group renders:
+- the real top bar, tab bar and group line (from the layout, already static)
+- the page's **real h1** (known from the route: ‹Tonight›, ‹Leaderboard›), so the page is oriented at first
+  paint
+- on tonight, the status strip with the live indicator in **connecting** and the headline slot reserved
+- one muted line ‹Loading…› with `aria-busy="true"` on `<main>`, and no spinner
+- below that, **reserved frames**: static `--card` blocks with a 1px border at the real component heights
+  (two team-card frames at a 54px header + 5 × 64px, leaderboard rows at 56px), with no shimmer, no pulse and no grey text
+  bars. This is the restyled shadcn `Skeleton` (5.0).
+
+Why not skeletons: a shimmering grey block is the brightest moving thing in a dark room, and fake text bars
+promise a shape that may not arrive (idle vs balanced tonight). Why reserved frames at all: so the team cards
+land without shifting the page (CLS). Pages should also stream with Suspense: the shell and strip first, the
+fearless pool and rail later.
+
+### 5.10 Status headline strip
+
+The one element on tonight that survives every state.
+
+```
+[● Live]  Sat 3 Oct, game 4 tonight                  ← line 1: live tag (5.4) + date line, --fs-xs muted
+TEAMS ARE SET                                        ← h1, Archivo 62%/900, upper case, --fs-display (46 / 64)
+Split by rating and role. Nobody picked              ← sub-line, --fs-sm muted, 2 lines reserved
+the teams.
+├──────────────────────────────────────────────┤
+[◣ BLUE] H4RDC0R33   Jinxed Lad Who Wanders          ← name rows (no answer band only): side pill + the
+         knifiy   Ramzyinhović   SYNDROMEAXESXXXX      five names in lane order, 700, wrapping
+[◥ RED]  1sec Reloading   MANOOOOOOOO   …
+   — or —
+[YOU] on [◥ RED], playing support                   ← answer band: --raised, 18/600; side pill solid (3.3)
+├──────────────────────────────────────────────┤
+[            Reroll            ]                     ← action row: the viewer's one press, 44px+
+```
+The strip has at most **four rows, in this order**: headline block, then **either** the name rows **or** the
+answer band (never both), then the action row. Each row is optional; a hairline `--border` separates rows.
+
+- The **top line** (live tag + date) is exactly `--chip-h` tall in every state, with or without a tag, and
+  the date is the short form: `Sat 3 Oct, game 4 tonight` (weekday and month abbreviated, no leading zero; the
+  idle line is just `Sat 3 Oct`). At 375 the tag plus the longest date fits on one line, so the tag arriving
+  after `SUBSCRIBED` or dropping to offline never re-wraps it and the headline below never moves (M14.45).
+- The **h1 is the state headline** (fixes no-h1 on tonight): `TEAMS ARE SET`, `IN GAME 14 MIN`, `6 OF 10 IN`,
+  `RED WINS`. Numbers inside it stay in the display face, tabular. The wordmark is not an h1.
+- The **answer band** is the strip's row under the headline whenever the viewer is known and seated: `YOU`
+  sticker, the side pill, the role. It is the first of three "which side am I on" answers above the fold
+  (band, `Your side` header tag, you-row).
+- **Name rows (M14.41)**, balanced and in game only, for a viewer with **no** answer band (signed out,
+  unlinked, sitting out): one row per side, the solid side pill (glyph + word, 3.3) then that side's five
+  names in lane order as one wrapping list (`<ul aria-label="Blue side">`, the pill `aria-hidden`), names 700
+  `--foreground`, separated by a `gap-x-4` gap (no glyph, so no dangling dot at a line end). Names wrap between words and never truncate; at 375 a side may take
+  three lines. **Plain text, not links**: the team cards below are where a name links (one link per person
+  per screen). The sitter is not in these rows; the sit-out card directly under the strip names them.
+  Acceptance (scene walk gap 3): signed out at 375×812, all ten names with their side in words show without
+  scrolling.
+- **Action row (M14.41)**: the viewer's one deliberate press, the strip's last row. `Roll teams` (admin,
+  ten or more, primary), `Reroll` (admin, balanced, secondary), `Start a lobby` (any linked member, idle and
+  finished, primary), or the sign-in button (signed out, idle only). At most one button, full width under
+  768, `w-auto` at ≥ 768, 44px+. An optional one-line hint above the button, `--fs-sm` muted, only when it
+  says something the sub-line doesn't (never restate the sub-line; over ten, the hint is the rotation
+  preview, `If the teams rolled now, Chaos and then PRT Khokha would sit out.`). Members with nothing to
+  press get no action row; the row never holds a link, a select or a second button (role picking stays in
+  `Your role tonight`, mode in the Mode card). Acceptance (gap 2): the press is inside the first 812px at 375,
+  clear of the tab bar.
+- **When the viewer holds the press, the sub-line doesn't wait on someone else**: an admin who sees
+  `Roll teams` never reads `Waiting on <admins> to roll the teams.` above it (that line is for everyone
+  else).
+- **The strip stays the hierarchy.** The headline is the largest type on the page in every state, and
+  nothing in the strip is larger than the band (18/600). Worst case at 375 (an admin over ten, or a signed-out
+  viewer in balanced) is about 500px, so the first card under the strip still starts inside the first
+  screen. A new strip row needs a designer ruling; it is not where new features go.
+- The live tag is on line 1, so the headline gets the full width. A long headline wraps
+  (`text-wrap: balance`) and never truncates.
+- 2 sentence lines are reserved, so a count change doesn't shift what's below.
+- The headline is always `--foreground`, never amber and never a side colour (`RED WINS` is foreground;
+  the winner shows in the team card and the embed colour).
+- Headline changes go through the page's single polite announcer (6.4), not a second live region.
+
+### 5.11 Navigation: bottom tab bar (< 1024) and top nav (≥ 1024)
+
+**Five tabs, no More page** (the user's choice, option A of `redesign/nav/proposal.md`, decision rows of
+2026-10-03; supersedes the four tabs plus More). **Phone and tablet (< 1024)**. C moved the cut from 768 to
+1024: at 768 the tab bar still beats a crowded top row, and the two-column team layout already starts at 768.
+
+```
+┌────────────────────────────────────────┐
+│ ▍KUSTOM │ Customs Night ⌄          [☾] │  top bar 60px, --card, not sticky; wordmark (display) + amber
+└────────────────────────────────────────┘  5×22 bar, group switcher (text 700), Day/Night switch; never clipped
+                 … page …
+┌───────┬───────┬───────┬───────┬───────┐
+│  ◉•   │  ≡    │  ▤    │  ◫    │  ◯    │  tab bar 60px + env(safe-area-inset-bottom), fixed
+│Tonight│ Board │ Games │ Stats │  You  │  icon 24 + label --fs-2xs 700; each tab 20% wide (75px at 375), ≥ 44 tall
+└───────┴───────┴───────┴───────┴───────┘
+```
+- Five tabs: **Tonight · Board · Games · Stats · You**, the same five in the same order on every width.
+  Stats holds Records, Champions and 1v1 as URL segments. You is your own view (the `Admin` card first for
+  admins, Your night, You vs them, the Daily card, its own Day/Night switch and sign out); signed out it is the sign-in pitch, and
+  the label still reads `You`, never `Sign in` or `Me`. Daily and the Mode card sit on Tonight; `How the bot
+  decides` (`/how`) and `Get Kustom` (`/download`) are footer links. **A new feature goes on the page where its
+  moment is; never a sixth tab, never a drawer.**
+- Current tab: any player page (your own included) marks Board; `/mystery` and `/mode` mark Tonight; admin
+  pages mark none. No `Admin` link in the phone top bar.
+- Active: `aria-current="page"`, label `--foreground`, a 3px accent bar on the tab's top edge (shape +
+  position), icon filled. Inactive: `--muted-foreground`. The label is always visible; there are no icon-only
+  tabs.
+- Icons: inline SVG, 24px, `currentColor`, the same stroke family as `RoleIcon`, `aria-hidden`.
+- `<nav aria-label="Main">` comes **before** `<main>` in the DOM, right after the skip link, and is visually fixed at the bottom. `body` gets `padding-bottom: calc(var(--tabbar-h) +
+  env(safe-area-inset-bottom))`.
+- Hide the bar while a text input has focus on a phone (the keyboard covers it anyway, and it jumps above the
+  keyboard on iOS).
+- `--card` surface, a 1px `--border-strong` top edge, and no blur. The Tonight tab carries an 8px amber dot
+  while live (with the `Live` word on the page, so the dot is never the only signal).
+- The active-tab bar is `--primary-text`, so it is `#7A4F00` in Day (amber on white was 1.46).
+
+**Desktop (≥ 1024)**: one top row, 60px: lockup and group switcher left; the same five links `Tonight  Board
+Games  Stats  You`; `Admin` (admins only) and account right. Links are 60px tall, current = `--foreground` + 3px `--primary-text` underline +
+`aria-current`. No tab bar. Not sticky. Content becomes main column + a 340px rail (tape, `Top this week`).
+
+**The Day/Night switch is in the top bar on every page (M14.47)**: at the far end of the bar below 1024px, and
+between `You` and `Sign in` from 1024px up (signed in, where there is no `Sign in`, it is the last item). The
+You page keeps its own switch; both write the one stored preference, so they always agree.
+
+### 5.12 Admin table on mobile
+
+≥768: shadcn Table, restyled (hairline rows, mono numbers, `th scope="col"`).
+<768: **no horizontal scroll and no clipped cells**. Each row renders as a card:
+
+```
+┌──────────────────────────────────────────┐
+│ Raafat                          h3, 600  │  primary cell becomes the heading
+│ Role        admin                        │  <dl>: label --fs-xs muted / value --fs-sm
+│ Token       kst_9f3a2c71d0e4b8a6f15c     │  full value, mono, wraps (overflow-wrap:anywhere)
+│             93e0                         │
+│ Last seen   2 Oct, 21:46                 │
+│ [Revoke token]            [Make member]  │  visible 44px buttons, wrap to rows; no ⋯ menu
+└──────────────────────────────────────────┘
+```
+Long IDs, tokens and snowflakes wrap in mono. Dates use `Intl.DateTimeFormat`. Developer copy (`revoked_at`,
+`pnpm …`) is replaced (copy per STRATEGY.md). One component renders both layouts from the same column
+definitions (`label`, `cell`, `primary?`), so they can't drift.
+
+### 5.13 Destructive-action confirm (AlertDialog)
+
+For revoke token, remove admin, fearless reset, and anything that deletes or demotes.
+
+```
+          ┌───────────────────────────────────┐
+          │ ‹Revoke Raafat's token?›     h2   │  verb + object + question
+          │ ‹Their Kustom stops posting games │  consequence, one or two sentences
+          │  until they get a new one.›       │
+          │                                   │
+          │ [ ⚠ Revoke token ]   destructive  │  verb label, icon; full width on phone
+          │ [   Cancel       ]   secondary    │  **initial focus on Cancel**
+          └───────────────────────────────────┘
+```
+- Phone: buttons stacked full width, 44px, the action above Cancel (Cancel sits nearest the thumb).
+  ≥768: inline, Cancel left, action right.
+- Escape and scrim tap cancel. Focus is trapped (Radix) and returns to the trigger.
+- While pending: the action button is `aria-disabled` with ‹Revoking…›, and the dialog stays open until the
+  result. A failure shows a `role="alert"` sentence inside the dialog.
+- The typed-confirm pattern (Reset ratings) stays for irreversible bulk actions: the action is enabled only when
+  the typed name matches.
+- No-JS: the trigger is a link to a confirm route that renders the same content as a page with a POST form.
+- Motion: fade + scale .97 → 1 at `--dur-slow`; under reduced motion, opacity only.
+
+### 5.14 Smaller shared parts
+
+- **Side tag** (`◣ BLUE`): the glyph SVG + word, used anywhere a side is named in a row.
+- **Window picker**: links styled as a segmented control, 44px, wrap to two rows at 375, `aria-current`.
+- **Disclosure**: native `<details>`, 44px summary with a chevron that rotates 90° (no rotation under reduced
+  motion), and a focus outline on the summary.
+- **Link**: underlined `--foreground`, `text-underline-offset: 3px`. In running text the hit area is the text
+  (inline links are exempt from 44px, WCAG 2.5.8), but **standalone** links get 44px of padding.
+
+### 5.14a Records list (Stats → Records)
+
+Ruled 2026-10-03 (M14.17 round 1: all time was ~24,000px at 375).
+
+- **Don't cap the list and don't put each record behind its own `<details>`.** Every record answers a different question, and the holder is the answer, so it shouldn't take a tap to see it.
+- **Each record is one row link** (to the game), at most 2 lines: line 1 is the record title in the text face, with the value in mono `--fs-md` 600 on the right; line 2 is holder · date · duration, `--fs-xs` muted (numbers mono, words text face, §5.2). The row has no Arabic subtitle line; the section's subtitle stays on the section header. The one-line explainer goes into the row's `title`, and each section ends with one native `<details>`, `How these count`, that lists every record's rule.
+- **Sections:** `One game` is open. Every other section (CS by role, the habit, the museums, luck, won against the odds) is a native `<details>` whose 52px summary shows the section name and its record count in mono.
+- **≥ 1024:** inside each section the rows sit in 2 columns (`grid-cols-2`, hairline between rows, no card per row).
+- **Values never wrap mid-token:** `30.00 KDA · 11/1/19` drops the KDA ratio to line 2 instead of breaking.
+- **Acceptance:** at 375 on all time, ≤ 4,000px with the closed sections closed and ≤ 9,000px with every section open, with nothing removed.
+
+### 5.15 Tonight parts added by C
+
+- **Sit-out note.** A card with a dashed `--border-strong` edge and no fill, a muted 20px icon, the lead with
+  the name in 700 and one reason sentence, `--fs-sm` (`Chaos sits this one out. They've gone longest without
+  sitting out, and everyone's played 1 game tonight.`). **In balanced and in game it is the first card after
+  the strip, for everyone** (M14.41, STRATEGY §6(a); supersedes 1.0's "under the team cards except for the
+  sitter"): with the name rows or the answer band above it, the first screen answers who plays, which side,
+  and who doesn't. For the sitter it reads `You are sitting this one out. <reason> You are first in line for
+  the next one.` **In finished** it is past tense with no reason (`Chaos sat this one out.`) and sits after
+  the team cards, whichever path renders the result: the poster leads a finished page.
+- **The reason sentence** is one `lib/` function shared with the teams embed's `Sitting out` field, and names
+  the rule that actually decided: `They've played the most games tonight.`; a tie broken by sit-outs puts the
+  pronoun first, right after the name, and the tie as its clause (`They've gone longest without sitting out,
+  and everyone's played 1 game tonight.`), so `they` can't be read as `everyone`; nothing to tell them apart,
+  `First game of the night, so somebody has to be first.` The name is said once per card; the reason uses
+  `They've` (several sitters too) or `You've` for the sitter. Counts say `game(s)`, never a bare number.
+- **Top this week** (idle and every other state's lower card; the rail ≥ 1024): rank (mono, muted), name
+  (700, wraps, never truncates) over `4W 2L` (mono `--fs-xs` muted), and the week's change on the right (mono
+  700, signed, not coloured, 5.3). **No four-digit Rating on this card**: the team cards carry each person's
+  Rating, and the same name next to two different four-digit numbers on one page (the walk's gap 1) is the
+  one thing it must not do. Each row is one link to the player page, 48px+. `Full board` link in the header.
+- **Name links (M14.41).** Every team-card seat (balanced, in game, finished) is one link to the player page,
+  **stretched over the seat** (`::after` inset 0 on the name's `<a>`, focus ring drawn on the pseudo-element),
+  so the target is the full seat (`--seat-min-h`, 64px). The name is not underlined inside a seat (the row is the link,
+  like a Board row); hover fills `--accent`. The `YOU` seat keeps its frame and gets no hover fill. MVP / ACE
+  names on the poster are standalone underlined links, `min-h-11`. Nothing interactive sits inside a seat.
+- **Full scoreboard** (finished poster, under the MVP / ACE line): a standalone `--primary-text` 700
+  underlined link, `min-h-11`, to `/g/<slug>/games/<id>`.
+- **Tape tile** (rail, and the page while filling): `--raised`, `--radius-control`, a 54px side block on the
+  left under 3.3's four-label rule (word + glyph, `--on-team`, red hatched), then `Game 3` (700), the
+  duration in mono, `Blue was 53%. Red won.` in muted, and an `MVP` sticker line. The whole tile is one link.
+  The tape's header meta reads `<n> earlier` while a lobby or result is on the page (`1 earlier`, never
+  `1 played`).
+- **Filling rack.** A 10-cell meter (filled cells `--foreground`, empty cells dashed `--border-strong`), the
+  pool as rows of name + role (two columns ≥768), a `Still needed:` line with outlined role chips
+  (`--foreground` 1.5px border, icon + mono role word), and **the empty seats as one dashed line**, not four
+  empty rows.
+
+### 5.16 Share cards (Open Graph images, M14.25)
+
+1200 × 630 PNGs for the WhatsApp and Discord unfurls of Tonight, a game and a player (`app/_og/`). The
+**layout** is 1.0's, kept on purpose: the 48px frame, `▍KUSTOM` and the slug over a 2px line, the centre
+third (x 400–800) holding the words that carry the card, the mirrored three-column game card with the 8px
+winner's rule and the 2px loser's rule, no role words, ratings or champions on the game card
+(`05-design-1.0.md`, "Share cards", geometry only). The **look** is 2.0's, and this section is its spec.
+
+**Colour.** Always Night (an unfurl has no theme). Fixed hex in `app/_og/palette.ts`, copied from 7.3's
+Night primitives; that file and 7.3 change in the same commit. One plane, no cards inside the card.
+
+| Card token | 7.3 source | Hex | Use | On `#05070C` |
+|---|---|---|---|---|
+| `bg` | `--background` | `#05070C` | the whole card | |
+| `line` | `--border` | `#2A3344` | the header rule, the loser's rule | 1.59 (decorative; the side word names the loser) |
+| `text` | `--foreground` | `#F4F7FC` | names, headlines, the player number, record digits | 18.8 |
+| `dim` | `--muted-foreground` | `#8B98AD` | slug, duration, sentence, labels; never a name | 6.90 |
+| `blue` / `red` | `--team-blue` / `--team-red` | `#2E9BFF` / `#FF6B35` | side words, the game verdict, the winner's rule | 6.96 / 7.11 |
+| `brand` | `--primary-text` | `#FFCF66` | the wordmark bar only; no live state exists in a PNG | |
+
+The light is 7.3's Night `--page-light` in pixels for the 1200px card (`OG_LIGHT` in `palette.ts`): the
+azure lamp `radial-gradient(ellipse 1080px 760px at 96px -140px, rgba(46,155,255,0.16), rgba(46,155,255,0) 58%)`,
+the amber lamp `radial-gradient(ellipse 960px 700px at 1152px -120px, rgba(255,207,102,0.12), rgba(255,207,102,0) 52%)`
+and the 48px grid at 4% as two `repeating-linear-gradient`s. Each lamp fades to its own colour at zero alpha,
+never to `transparent`. If a renderer bands it, drop the lamps: flat `bg` is correct, a banded gradient is not.
+
+**Type.** Section 4's three faces as static OFL TTFs in `app/_og/fonts/` (Satori reads no `wdth` axis and no
+`woff2`), cut at the site's settings, read from disk, never fetched at render time.
+
+| Role | Face | Size at 1200 | Notes |
+|---|---|---|---|
+| Wordmark | Archivo condensed (`wdth` 62) 900 | 32, `0.02em`, UPPER | after a 6 × 26 `brand` bar, gap 10 |
+| Verdict / headline | Archivo condensed 900 | 112 (verdict may go to 144), line 0.95, `-0.01em`, UPPER | game verdict in the winner's side colour; Tonight headline in `text` (the strip's colour) |
+| Side word | Archivo condensed 900 | 36, `0.04em`, UPPER, side colour | `BLUE` / `RED` over each column |
+| Name | Atkinson Hyperlegible Next 700 | 34 (player card 72), `text` | shrinks to fit, then wraps; never ellipsis (ruling (c)) |
+| Group line | Atkinson 700 | 24, `text`, one line | beside the wordmark; never shrinks; ellipsis when it doesn't fit (ruling (d)) |
+| Sentence / label | Atkinson 400 | 28–36, `dim` | Tonight sentence max two lines |
+| Slug | Atkinson 700 | 24, `dim`, **sentence case, no tracking** | the page's own string: `Saturday 3 October`, `All time` |
+| Number | Martian Mono (`wdth` 85) 500/600 | duration 32/500 `dim`; player number 160/600 `text`; stat values 32/600 `text` | tabular by construction |
+
+Nothing that must be read goes below 28px (about 9px at Discord's ~400px). The slug, the wordmark and the
+group line are identifiers and may sit at 24–32. A side-column name may shrink to 24 for a pathological
+name only (ruling (c)). Nothing on a card is ever under 24.
+
+**Ruling (a), records split per token.** Section 4's meta-line rule holds on the card: in `1W 0L` the
+digits are Martian Mono 600 and the `W` / `L` letters are Atkinson 700, same size (32), same `text` colour,
+baseline-aligned, no space between a digit and its letter, one space between the pairs, exactly like
+`RecordLine` on the board. The model carries the parts (numbers and letters), not a pre-joined string;
+`Cards.tsx` still composes no copy.
+
+**Ruling (b), side labels stay coloured words, not side pills.** 3.3's four-label rule allows a solid fill
+on the header band, the side pill, the win-bar segments and the tape tile, and the red one always carries
+the hatch. On the card the side word is a column heading over five names, not a pill in a sentence, and
+the picture is downscaled to a third and recompressed: a 9px hatch turns to mush or moiré, and an unhatched
+red block breaks 3.3. Two equal solid blocks would also compete with the verdict, which is the one loud
+thing on the card. The words are 6.96 / 7.11 on the page, the word itself is carrier 1, and the winner's
+8px rule is the celebration. Optional: the ◣ / ◥ glyph (carrier 2) as an inline SVG beside the word, 28px,
+side colour, blue before `BLUE`, red after `RED` (mirrored).
+
+**Ruling (c), names shrink before they wrap, with floors (M14.42).** Every name on a card is a person and
+is never cut off (6.6). Satori has no fit-to-width, so `app/_og/fit.ts` measures and picks the largest whole
+size that fits the box, down to a floor; a name still too wide at the floor wraps, at a space first and
+mid-word only when one word is wider than the box. No `break-all` on anything with spaces in it.
+
+| Text | Base | Floor | Below the floor |
+|---|---|---|---|
+| Side-column name (312px box) | 34 | **24** | two lines at 24, line height 1.05, inside the 56px seat row |
+| Player card name (1000px box) | 72 | 40 | wraps, centred, at most two lines |
+| Pitch / invite headline (1000px box) | 112 | 64 | wraps at spaces, centred, at most two lines |
+
+The side-column floor is 24, not 28 and not 20. 24 is the identifier floor this section already allows the
+slug, and a name is read the same way, as "is that me", not as a sentence. 20 would be about 7px in a
+Discord unfurl, which no longer reads. Real names never reach the floor: League caps a Riot ID name at
+16 characters, the long fixture `TheSHADOWREAPER` fits at 34, and only a name of 14 or more wide caps
+(`WMWMWM…`) goes below about 26. Each name fits on its own, so one long name doesn't shrink the other four.
+
+**Ruling (d), the group line (M14.42).** The card names the group beside `▍KUSTOM`, like the shell's top bar:
+Atkinson 700, 24, `text` (it is the card's identity; the slug on the right stays `dim`), a 20px gap after the
+wordmark. It takes whatever width is left between the wordmark and the slug and **never shrinks**. If it
+were smaller than the slug beside it, the hierarchy would be upside down. It is never under the identifier
+floor and never wraps, because a two-line header would push the body into the frame. When it doesn't fit
+at 24 it ends in an ellipsis on one line (Satori: `overflow: hidden`, `whiteSpace: nowrap`, `textOverflow:
+ellipsis`, a `maxWidth`). That is 6.6's one allowed ellipsis, the group line, and the full name is in the
+unfurl's `og:title` right beside the picture. Group names are capped at 40 characters (migration 0018), and
+`Customs Night`-length names never get near it. The slug never shrinks or cuts. Pitch and invite cards have
+no group line (the invite's group is in its headline).
+
+**Ruling (e), the settling chip on the player card (M14.42).** It is 5.6's chip at card size, with two changes
+the picture forces:
+
+- **A solid outline, not dashed.** A 2px dash downscaled to a third turns into a grey smear, the same
+  reason ruling (b) drops the hatch. The chip is a 2px solid `line` border, transparent fill, padding
+  4 × 16. The word `settling` is Atkinson 700 28 `dim`. The count follows ruling (a): `1/10` in Martian
+  Mono 600 28 `dim`, so the model carries the parts, not a joined label. "Not final" is carried by the
+  word and by the chip being the quietest object near the number. It is never `brand` and never filled.
+- **Radius 6, not a pill.** 2.6 bans 999 everywhere except the live dot and the tab-bar dot. At 1200 the
+  chip uses the control radius (6) so it reads as a chip after the downscale.
+- **It sits on the `Rating` label's row**, to the label's right, 16px gap, centred on the label, and not on
+  a row of its own. A row of its own adds about 62px, and with the group line and a role line the column
+  ran into the header rule and the bottom frame (`m1442-og-player-settling-1200.png`). The number stays the
+  one loud thing, and `Rating  settling · 1/10` reads as one fact.
+
+**Ruling (f), the finished rated Tonight card (M14.42).** It is the game card exactly: the mirrored three
+columns, the five names per side, the winner's 8px rule, the verdict (`RED / WINS`) in the winner's colour.
+The **odds line** goes under the verdict where the game card has the duration: Atkinson 400 28 `dim`,
+centred, 24px above, at most two lines inside the centre column (break at the sentence, so `Upset!` may sit
+alone on line 2). The wording is the games row's (5.5, "Games row"): the verdict already names the winner,
+so the line is `Red was 51%.`, `Red was 46%. Upset!` or `50–50.`, never `Red won.` again. An unrated or
+odds-less finished night shows the duration line instead, like the game card. Idle and filling Tonight
+cards stay headline + sentence.
+
+**Riot-safe.** No Riot or League marks, no champion art or names, no rank emblems. The product is named
+only by the wordmark. The legal notice lives on the page, not in the picture.
+
+---
+
+## 6. Accessibility rules
+
+1. **Focus ring on every interactive element**: `a, button, summary, select, input, textarea,
+   [tabindex]:not([tabindex="-1"])`, `:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }`.
+   Always `outline`, never a box-shadow ring (forced colours). On a team-tinted or accent surface, the 2px
+   offset puts the ring on the card colour, so it stays visible.
+2. **Skip link** first in `<body>`: ‹Skip to content› → `#main`. Visually hidden until focused, then a level-2
+   chip top-left.
+3. **One h1 per page.** Tonight: the state headline. Game page: the result (‹Red wins›). Leaderboard:
+   ‹Leaderboard›. Player: the name. The wordmark is never the h1. Headings don't skip levels.
+4. **One polite announcer per live page** (`role="status" aria-live="polite" aria-atomic="true"`, visually
+   hidden). It speaks one meaningful sentence per change: ‹Teams rerolled. Blue 51 percent, Red 49 percent.
+   You're on Red, mid.› / ‹Game started.› / ‹Red wins.› It never announces bare numbers and never the timer.
+   The connection status (5.4) is the only other status region. Refusals use `role="alert"`.
+5. **Colour is never the only signal.** Side = word or glyph or texture. You = tag + outline. Settling/new =
+   word + dashed. Off-role = word + dashed. Live = word + dot shape. Delta = sign.
+6. **No essential truncation.** Names, headlines, button labels, errors and admin values wrap. The only
+   allowed ellipsis is the group line in the top bar (it is repeated in full in every heading that acts on it),
+   and only when it's over 33 characters.
+7. **Tap targets ≥ 44 × 44** for every standalone control, including chips that act, disclosure summaries,
+   tabs and window links. `touch-action: manipulation` on controls. `-webkit-tap-highlight-color:
+   transparent`, because we draw our own `:active`.
+8. **Forced colours** (`@media (forced-colors: active)`): side glyphs and role icons are `currentColor` SVG,
+   so they survive. Win-bar segments get `border: 1px solid CanvasText` and the hatch drops (labels carry
+   it). The "you" outline uses `outline`, which maps to a system colour. The live dot is SVG. Chips keep a
+   1px border. Test in Windows High Contrast.
+9. **Zoom and reflow**: zoom is never blocked, layouts reflow at 320 CSS px and at 200% text with no
+   horizontal scroll, and `100svh` (not `vh`).
+10. **Forms**: visible labels, errors under the field with `aria-describedby`, inputs at 17px, `inputmode`
+    for numeric codes, `autocomplete="off" spellcheck={false}` on IDs, `…` in placeholders.
+11. **Reduced motion**: 2.9. The live dot goes static and the "just joined" wash is removed.
+12. **Language**: numbers in sentences are mono and tabular. The minus is U+2212. Durations are ‹21 min›.
+    Dates use `Intl.DateTimeFormat`.
+13. **Screen-reader words** on every bare number: sums, ranks, deltas, percentages (5.1–5.5).
+14. **Test names** for every component at 375 and 768: `Used2BeATahmMain`, `TheSHADOWREAPER`, `1sec
+    Reloading`, `MANOOOOOOOO`, `Ramzyinhović`, and a 16-character all-caps name in **every** seat at once.
+15. **Control edges (WCAG 1.4.11), ruled 2026-10-04.** Night's surfaces are 1.0's, so a raised fill is only
+    1.09 off the card and the hairline is 1.48. **Wherever an edge is what tells a person "this is a
+    control", the edge is `--border-strong` (or `--input`), at least 3:1** against what the control sits on:
+    text inputs, selects and the search field (`--input`); secondary and outline buttons; toggle chips (role
+    picker, lane filters); the window chips and the segmented pickers' frame; the theme switch track; the
+    mode card's lane tiles and the panel's close button; the mystery guess buttons and its community
+    disclosure; pagination and empty-state links; the admin section pills. Focus is the 2px `--ring`
+    (foreground, 17.5:1). Disabled controls are exempt (WCAG) and keep `--border`. On the faint hairline
+    stay: card edges, dividers, static chips, read-only code boxes, and **whole-card links** (a tape tile,
+    the daily mystery card), which a person identifies by their content and title, not by an edge. Check:
+    every visible control whose fill is under 3:1 against its surroundings has an edge of at least 3:1, on
+    every public route at 375 and 1440.
+
+---
+
+## 7. Direction tokens: C, "Floodlit Slate"
+
+The user chose C on 2026-10-03. Directions A ("Broadcast") and B ("Scrim Night") are **rejected** as wholes;
+what C kept from each is listed in `redesign/prototypes/direction-c/README.md`, and what was dropped is in 7.5.
+
+### 7.1 Identity, at a glance
+
+| Slot | Value |
+|---|---|
+| Night neutrals | "1.0 night" (since 2026-10-04): page `#05070C`, card `#0C121A`, raised `#141B28`, border `#2A3344`, strong `#66738A`, muted text `#8B98AD`, text `#F4F7FC` |
+| Day neutrals | cool paper: page `#E9EDF2`, card `#FFFFFF`, raised `#EEF1F5`, border `#A9B3C1`, strong `#7D8898`, muted text `#434C5A`, text `#0E1116` |
+| Accent | amber `#FFCF66` (Night text, all fills); `#7A4F00` (Day text and outlines). 3.4 has the passing numbers: 1.94 vs red, deutan ΔE 16.5. |
+| Teams | shared, 3.3: `#2E9BFF` / `#FF6B35` Night, `#1563CF` / `#B5390B` Day; on-team ink `#10141B` / white |
+| Display face | Archivo, `font-stretch` 62%, 900; headline and side names only (section 4) |
+| Radius | card 8, control 6, chip 4 (2.6) |
+| Texture | (1) the red **hatch**: a 4px dark stripe every 9px at 135°, on every red fill; (2) the **solid colour-blocked team header** under 3.3's four-label rule; (3) the **page light**, `--page-light`, the only decorative gradient: in Night, 1.0's two corner lamps (azure 16% top-left, amber 12% top-right) and its 48px pitch grid at 4%; in Day one amber-800 glow at 5%. The azure lamp is ambient light, opposite an amber lamp of the same size, never behind a side label or a side's content, so it does not read as Blue's colour (the exception to 7.2's "no decoration in a side colour", chosen with 1.0's look). No per-card edge highlight, no offset shadow. |
+| Stickers | `YOU` and `MVP` only: radius 4, −2° tilt, no shadow, text face 700. Never on names, numbers or the bar. Under reduced motion the tilt stays (it is not motion). |
+| Discord ints | amber `16764774` (teams), blue `3054591`, red `16739125` (results) |
+
+### 7.2 Renames
+
+From the 2.0 draft of this file (`redesign/design-system.md` before 2026-10-03): `--p-ink-*` → `--p-slate-*`
+(and step 5 added for `--border-strong`); `--p-accent-400/800` → `--p-amber-400/800`; `--team-red-hatch`
+removed (the hatch is now `--stripe` + `--hatch`, an overlay); tints 14% → 12%; `--popover` is `--card`, not
+raised; next/font's own variables are `--font-atkinson`/`--font-martian`/`--font-archivo`, and the
+documented names `--font-text`/`--font-mono`/`--font-display` are now **unlayered `:root` runtime variables**
+holding the full stacks over them (7.3), which `@theme inline` exposes as the utilities `font-text` (=
+`font-sans`, the default), `font-mono` and `font-display`. The `:root` block wins over the theme layer's
+same-named self-references; the radius lines are literal values in a plain `@theme`). New semantic tokens: `--raised`, `--border-strong`,
+`--primary-text`, `--primary-fill`, `--on-primary-fill`, `--on-team`, `--stripe`, `--hatch`, `--hatch-strong`,
+`--side-block-shade`, `--you-wash`, `--glow` (replaced on 2026-10-04 by `--page-light`, per theme).
+
+From the prototype's `c.css`, which used short names (the app uses shadcn's). Copy from 7.3, not from
+`c.css`.
+
+| `c.css` | App token | Why |
+|---|---|---|
+| `--accent` | `--primary` (fill/button) and `--primary-text` (text/outline) | shadcn reserves `--accent` for its neutral hover surface |
+| `--accent-text` | `--primary-text` | |
+| `--accent-fill` / `--on-accent` | `--primary-fill` / `--on-primary-fill` | |
+| `--tint-blue` / `--tint-red` | `--team-blue-tint` / `--team-red-tint` (12%) | the draft's names; `--team-*` prefix groups them |
+| `--muted-foreground: #c5cdd9` | `#CBD2DD` | 7:1 on the you-wash (3.2) |
+| `--glow` Day `rgb(21 99 207 / .06)` | `rgb(122 79 0 / .05)` | the Day glow was team blue, i.e. decoration in a side colour |
+| `.tblock` / `.tside` inline gradients | `--side-block-shade`, `--hatch-strong`; tape tiles use `--hatch` | one hatch token; the tile's 22% stripe was a third variant |
+| `--font-text` | `--font-text` (`:root` stack over next/font var `--font-atkinson`, with `Atkinson Fallback`); utility `font-text` = `font-sans` | the stack lives in an unlayered `:root` block so the theme layer's self-reference cannot shadow it |
+| `--font-display` / `--font-mono` stacks | `--font-display` / `--font-mono` (`:root` stacks over next/font vars `--font-archivo` / `--font-martian`); utilities `font-display` / `font-mono` | same |
+| (none) | `--raised` is kept as is, and shadcn's `--muted`, `--secondary`, `--accent` alias it | |
+
+### 7.3 The token block (copy into `apps/web/app/globals.css`)
+
+This is the only place a colour, radius or size value is defined. Paste it whole.
 
 ```css
-/* An award the window handed out (M8.3). A label, not a control and not a decoration. */
-.cn-row-awards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cn-sp-2);
-  margin: 0;
-  padding-bottom: var(--cn-sp-2);
+@import "tailwindcss";
+@import "tw-animate-css";              /* shadcn's dependency; only fade/zoom are used (2.9) */
+
+@custom-variant day (&:where([data-theme="day"], [data-theme="day"] *));
+
+/* ---------- Primitives (never read by components) ---------- */
+:root {
+  /* Night neutrals: Floodlit 1.0's deep blue-black (2026-10-04); muted and strong lifted for AA / 3:1 */
+  --p-slate-0: #05070C;  --p-slate-1: #0C121A;  --p-slate-2: #141B28;  --p-slate-3: #2A3344;
+  --p-slate-5: #66738A;  --p-slate-7: #8B98AD;  --p-slate-9: #F4F7FC;
+  --p-paper-0: #E9EDF2;  --p-paper-1: #FFFFFF;  --p-paper-2: #EEF1F5;  --p-paper-3: #A9B3C1;
+  --p-paper-5: #7D8898;  --p-paper-7: #434C5A;  --p-paper-9: #0E1116;
+  --p-azure-400: #2E9BFF;      --p-azure-700: #1563CF;
+  --p-vermilion-400: #FF6B35;  --p-vermilion-700: #B5390B;
+  --p-amber-400: #FFCF66;      --p-amber-800: #7A4F00;
+  --p-rose-400: #FF6B8A;       --p-rose-700: #B4123C;
+  --p-ink: #10141B;
 }
 
-.cn-award {
-  border: 1px solid var(--cn-line);
-  border-radius: var(--cn-radius-chip);
-  padding: 0 var(--cn-sp-2);
-  font-family: var(--cn-font-sans);
-  font-size: var(--cn-t-xs);
-  font-weight: 500;
+/* ---------- Semantic: Night (default) ---------- */
+:root {
+  color-scheme: dark;
+  --background: var(--p-slate-0);
+  --foreground: var(--p-slate-9);
+  --card: var(--p-slate-1);
+  --card-foreground: var(--p-slate-9);
+  --raised: var(--p-slate-2);
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+  --primary: var(--p-amber-400);
+  --primary-foreground: var(--p-ink);
+  --primary-text: var(--p-amber-400);
+  --primary-fill: var(--p-amber-400);
+  --on-primary-fill: var(--p-ink);
+  --secondary: var(--raised);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--raised);
+  --muted-foreground: var(--p-slate-7);
+  --accent: var(--raised);                 /* shadcn hover surface, NOT the amber */
+  --accent-foreground: var(--foreground);
+  --destructive: var(--p-rose-400);
+  --border: var(--p-slate-3);
+  --border-strong: var(--p-slate-5);
+  --input: var(--p-slate-5);               /* inputs need 3:1 on Night's dark card (6.15) */
+  --ring: var(--foreground);
+  --team-blue: var(--p-azure-400);
+  --team-red: var(--p-vermilion-400);
+  --on-team: var(--p-ink);
+  --team-blue-tint: color-mix(in srgb, var(--team-blue) 12%, var(--card));
+  --team-red-tint: color-mix(in srgb, var(--team-red) 12%, var(--card));
+  --stripe: rgb(16 20 27 / 0.16);
+  --hatch: repeating-linear-gradient(135deg, var(--stripe) 0 4px, transparent 4px 9px);
+  --hatch-strong: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.28) 0 4px, transparent 4px 9px);
+  --side-block-shade: rgb(0 0 0 / 0.14);
+  --you-wash: color-mix(in srgb, var(--primary-fill) 9%, var(--card));
+  --live: var(--primary-text);
+  --you: var(--primary-text);
+  --scrim: rgb(0 0 0 / 0.64);
+  /* 1.0's floodlight: azure lamp top-left, amber lamp top-right, the 48px pitch grid */
+  --page-light:
+    radial-gradient(90% 760px at 8% -140px, rgb(46 155 255 / 0.16), transparent 58%) no-repeat,
+    radial-gradient(80% 700px at 96% -120px, rgb(255 207 102 / 0.12), transparent 52%) no-repeat,
+    repeating-linear-gradient(0deg, transparent 0 47px, rgb(244 247 252 / 0.04) 47px 48px),
+    repeating-linear-gradient(90deg, transparent 0 47px, rgb(244 247 252 / 0.04) 47px 48px);
+}
+
+/* ---------- Semantic: Day (overrides only) ---------- */
+:root[data-theme="day"] {
+  color-scheme: light;
+  --background: var(--p-paper-0);
+  --foreground: var(--p-paper-9);
+  --card: var(--p-paper-1);
+  --card-foreground: var(--p-paper-9);
+  --raised: var(--p-paper-2);
+  --primary: var(--p-amber-800);
+  --primary-foreground: var(--p-paper-1);
+  --primary-text: var(--p-amber-800);
+  /* --primary-fill and --on-primary-fill stay amber + ink; add a 1px --primary-text inset edge in Day */
+  --muted-foreground: var(--p-paper-7);
+  --destructive: var(--p-rose-700);
+  --border: var(--p-paper-3);
+  --border-strong: var(--p-paper-5);
+  --input: var(--p-paper-5);
+  --team-blue: var(--p-azure-700);
+  --team-red: var(--p-vermilion-700);
+  --on-team: var(--p-paper-1);
+  --stripe: rgb(0 0 0 / 0.2);
+  --you-wash: color-mix(in srgb, var(--primary-fill) 18%, var(--card));
+  --scrim: rgb(14 17 22 / 0.48);
+  --page-light: radial-gradient(110% 380px at 50% -140px, rgb(122 79 0 / 0.05), transparent 72%) no-repeat;
+}
+
+/* ---------- Component tokens (same in both themes) ---------- */
+:root {
+  --tap: 44px;
+  --seat-min-h: 64px;
+  --row-min-h: 56px;
+  --chip-h: 28px;
+  --role-cell-w: 60px;
+  --thead-h: 54px;
+  --side-block-w: 46px;
+  --winbar-h: 50px;
+  --winbar-h-compact: 40px;
+  --winbar-h-mini: 10px;
+  --side-rule-w: 4px;
+  --tabbar-h: 60px;
+  --topbar-h: 60px;
+  --rail-w: 340px;
+  --gutter: 16px;
+  --card-pad: 16px;
+  --fs-2xs: 0.8125rem;  /* 13 */
+  --fs-xs: 0.9375rem;   /* 15 */
+  --fs-sm: 1rem;        /* 16 */
+  --fs-base: 1.0625rem; /* 17 */
+  --fs-md: 1.1875rem;   /* 19 */
+  --fs-lg: 1.4375rem;   /* 23 */
+  --fs-xl: 2rem;        /* 32 */
+  --fs-display: 2.875rem; /* 46 */
+  --dur-press: 80ms; --dur-fast: 140ms; --dur-base: 200ms; --dur-slow: 280ms;
+}
+@media (min-width: 768px)  { :root { --gutter: 24px; } }
+@media (min-width: 1024px) {
+  :root { --card-pad: 20px; --winbar-h: 60px; --winbar-h-compact: 44px;
+          --fs-lg: 1.625rem; /* 26 */ --fs-display: 4rem; /* 64 */ }
+}
+
+/* ---------- Faces (section 4) ---------- */
+/* next/font sets --font-atkinson, --font-martian, --font-archivo on <html>. These are the documented
+   names, unlayered so they win over the theme layer's same-named self-references. */
+@font-face {
+  font-family: "Atkinson Fallback";       /* next/font has no metrics for Atkinson Hyperlegible Next */
+  src: local("Arial"), local("ArialMT");
+  size-adjust: 100.07%; ascent-override: 98.33%; descent-override: 31.58%; line-gap-override: 0%;
+}
+:root {
+  --font-text: var(--font-atkinson), "Atkinson Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-archivo), "Arial Narrow", system-ui, sans-serif;
+}
+
+/* ---------- Tailwind v4 mapping ---------- */
+@theme inline {
+  --color-background: var(--background);   --color-foreground: var(--foreground);
+  --color-card: var(--card);               --color-card-foreground: var(--card-foreground);
+  --color-raised: var(--raised);
+  --color-popover: var(--popover);         --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);         --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
+  --color-primary-fill: var(--primary-fill); --color-on-primary-fill: var(--on-primary-fill);
+  --color-secondary: var(--secondary);     --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);             --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);           --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);           --color-border-strong: var(--border-strong);
+  --color-input: var(--input);             --color-ring: var(--ring);
+  --color-team-blue: var(--team-blue);     --color-team-red: var(--team-red);
+  --color-on-team: var(--on-team);
+  --color-team-blue-tint: var(--team-blue-tint); --color-team-red-tint: var(--team-red-tint);
+  --color-you-wash: var(--you-wash);
+  --color-live: var(--live);               --color-you: var(--you);
+
+  --font-sans: var(--font-text);          /* utilities font-text (= font-sans), font-mono, font-display */
+  --font-text: var(--font-text);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+
+  --text-2xs: var(--fs-2xs);   --text-2xs--line-height: 1.3;
+  --text-xs: var(--fs-xs);     --text-xs--line-height: 1.4;
+  --text-sm: var(--fs-sm);     --text-sm--line-height: 1.45;
+  --text-base: var(--fs-base); --text-base--line-height: 1.5;
+  --text-md: var(--fs-md);     --text-md--line-height: 1.25;
+  --text-lg: var(--fs-lg);     --text-lg--line-height: 1.25;
+  --text-xl: var(--fs-xl);     --text-xl--line-height: 1;
+  --text-display: var(--fs-display); --text-display--line-height: 0.95;
+
+  --shadow-*: initial;
+  --shadow-overlay: 0 16px 48px rgb(0 0 0 / 0.5);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-live: live-pulse 2s ease-in-out infinite;
+}
+
+/* not inline: these are literal values, so Tailwind emits the variables and the rounded-* utilities */
+@theme {
+  --radius-card: 8px;  --radius-control: 6px;  --radius-chip: 4px;
+  --radius-sm: 4px;    --radius-md: 6px;       --radius-lg: 8px;   --radius-xl: 8px;   /* shadcn aliases */
+}
+
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+
+/* ---------- Base ---------- */
+html { background: var(--background); -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--page-light), var(--background);
+  color: var(--foreground);
+  font-family: var(--font-text);
+  font-size: var(--fs-base);
   line-height: 1.5;
-  color: var(--cn-dim);
-  white-space: nowrap;
+}
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation: none !important; transition-property: opacity !important;
+                         transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+@media (forced-colors: active) {
+  [data-side-fill] { border: 1px solid CanvasText; background-image: none !important; }
 }
 ```
 
-- **Archivo, not mono**, and this is the one place it parts company with the `settling` chip it borrows its box
-  from. The type rule is `number or role → mono`; `Most improved` is neither, it is a two-word phrase with a
-  capital letter, and a capital on a mono micro-label is forbidden three sections up (`top`, `live`, `settling`,
-  never `This Week`). The window picker's labels are Archivo for the same reason. The difference is also useful:
-  on `Last month` a row can carry `settling` on line 2 and `Most improved` on line 3, and mono-lowercase versus
-  Archivo-sentence-case is what stops two identical marks from meaning two different things on one row.
-- **`dim`, 1px `line`, `radius-chip` — no colour of its own.** Not `brand`: `brand` is the one lamp, spent on the
-  chosen window chip and the viewer's own row on this page already, and three amber boxes down a board would
-  outrank both. Not blue or red — those are sides. The hairline is not decoration, it is what makes two words in
-  `dim` read as a label rather than as text that wandered out of line 2.
-- **Never a number, an icon, a trophy, a medal, a `#1`, an emoji or a count.** The badge is the award's title and
-  nothing else. `Cursed duo` does not name the partner and `Most improved` does not print `+153`: the line
-  already prints that player's climb, and the full award line with both halves of a duo is `/stats`'s, once.
-- **No tooltip and no `title` attribute.** A tooltip is a hover, the page is read on a phone, and a badge that
-  needs explaining is a badge that should have been a sentence.
+`<meta name="theme-color">`: Night `#05070C`, Day `#E8EEF6`. Every side fill (header, pill, bar segment,
+tile block) carries `data-side-fill` so the forced-colours rule reaches it. Fonts: section 4, with the
+next/font `variable` names `--font-atkinson`, `--font-martian`, `--font-archivo` under the documented
+`--font-text`, `--font-mono`, `--font-display` (`apps/web/app/fonts.ts`; the 1.0 name `--cn-font-archivo`
+went with the 1.0 stylesheets in M14.25).
 
-**Two badges on one row.** A row can win more than one — most improved and cursed duo is the ordinary case, and
-all three is possible. They print in **the awards' own order, always: `Most improved`, `Best off-role`,
-`Cursed duo`** — `awardBlocks`' order, which is `/stats`' order and the Discord post's order. Never sorted by
-anything else, never re-ordered per row, because a reader comparing two badged rows should meet the same
-sequence on both. Each badge is `white-space: nowrap` and the run is `flex-wrap: wrap`, so if a run ever exceeds
-the row it breaks **between** badges and never inside a label.
+**Where `globals.css` departs from this paste (where rules apply, never a value).** Since M14.25 the base is
+global: there is no `kustom2` root class and no scoping. Tailwind is imported as its theme and utilities
+layers, and the preflight is a copy (Tailwind v4.3.3) inside `@layer base` in `globals.css`, every selector
+zero-specificity (`:where()` or bare `*`) so any utility wins. In that copy: ink and text face on
+`:where(html, [data-theme])` (re-declared at every theme boundary); `--fs-base` and
+`background-color: var(--background)` on `body` only (on `html` it would move `1rem`); the placeholder is
+`--muted-foreground`; headings inherit size and weight and balance; links inherit colour and decoration; the
+focus ring above as `:where(:focus-visible)`; `main#main` (the skip-link target) has no ring. **The light is
+not on `body`**: it is the `bg-page` utility (`var(--page-light), var(--background)`), put on the element that
+is the page (the shell, the kit pages), so bars and dialogs keep their own surface. The overscroll and
+anything below a short page show flat `--background`. Theme selectors are `[data-theme]`, not
+`:root[data-theme]`, with the derived roles re-declared per boundary, and Tailwind's stock palette, type
+scale and radii are wiped so only these exist.
 
-**390px.** Content box is `390 − 2×16 gutter − 2×12 row padding = 334px`. Budget, at Archivo 500 12px with 8px
-of padding each side and a 1px border: `Most improved` ≈ 99px, `Best off-role` ≈ 99px, `Cursed duo` ≈ 81px. The
-worst pair is 206px and all three are 295px, so **every case fits on one line at 390** and the wrap rule is
-insurance rather than layout. Those are budgets, not measurements: check the real thing at 390 with two badges
-before calling it done.
+### 7.4 Discord
 
-**1280px.** The board card sits in the same 44rem column, so the run has ~648px and nothing about it changes.
-**The row does not become a table and the badges do not move to the right edge at any width** — one structure at
-both widths, for the rule the row already follows (*at ≥720px the row does not become a table, same lines, wider
-gutters*). A badge that lives on line 3 on a phone and at the end of line 2 on a laptop is two layouts and two
-tests for three rows a week.
-
-**The badge is not a control, and the expand is untouched (M5.30).** The run renders inside `BoardRowLines`,
-after `.cn-row-bottom` — so it is inside the `<summary>` on an expandable row and inside the `<li>` on a row
-with nothing to open, from one place in the component. Consequences, and all three are wanted:
-
-- The whole row, badges included, stays **one** tap target for the `<details>`. The badge enlarges that target
-  rather than competing with it.
-- **No `<a>`, no `<button>`, no `tabindex` inside the run.** An interactive element inside a `<summary>` is a
-  nested control: a thumb landing near it either toggles nothing or navigates by accident. In particular the
-  badge does **not** link to `/stats`, tempting as that is — the brief says the badge is not a control, and the
-  window picker plus the nav already reach that page.
-- It must sit **inside** the summary, not after the `</details>`: outside it, an open row would print its award
-  under the list of games it won the award with, where it reads as a caption on the last game.
-
-**A screen reader** hears the badge as the last words of the row, after the meta: *"Nadia, 1548 Proven, 12
-games, 8W 4L, plus 153, W3, Most improved"*. No `aria-label`, no visually-hidden prefix, no `role` — the words
-are already language, and the window that handed the award out is the `h1` above the board. Both halves of a
-cursed duo are badged and both are on the board, so the pair explains itself: two rows, same two words.
-
-**Edge cases**, all of them falling out of "the loader hands the row its list and the row prints it": no
-qualifying winner means no run and a board byte-identical to today's; a tie means both rows carry the badge; a
-cursed-duo winner who is not on the board is simply not badged and **no ghost row is added**. The word `season`
-appears nowhere in any of it.
-
-**Light and dark.** One recipe. `dim` on `surface` clears 7:1 in both themes at this size, and the `line`
-hairline is the same one already drawn between every two rows, so the badge inherits the board's own edge rather
-than introducing a second one.
-
-### Still-settling marker (M3.8)
-
-- The marker is a chip: the word `settling`, mono `t-xs`, `dim`, 1px hairline border, 3px radius, `sp-1`
-  horizontal padding. No colour, no dot, no emoji, no asterisk. It reads as a label, not a warning.
-- Placed after the meta on line 2 of the leaderboard row, and beside the rating on `/p/[puuid]`.
-- The sentence appears **once per page**, under the leaderboard heading and under the rating chart on the
-  player page — not per row. **From 2026-09-10 (M3.26) the two pages print two different forms**: the
-  second-person one below is `/leaderboard`'s, and `/p/[puuid]` prints the third-person twin in the copy
-  table above, because on somebody else's page `your rating` names their number. Copy (product,
-  2026-09-08; **both sentences amended 2026-09-10**, M3.19 — the old pair said the gap closes at 30 games
-  and that new players start at the bottom, and neither is true; `04-decisions.md`):
-  `The board sorts on Proven: your rating, minus how unsure the board still is about you. That gap shrinks as you play and settles after about 30 games.`
-  Short form, for the one-line Discord footer where two sentences will not fit:
-  `Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.`
-- Both sentences say **settles**, never *catches up*: Proven stays below Rating for good — sigma flattens
-  near 4.5, which is 540 display points on a settled player (Lena, 41 games: Rating `2088`, Proven `1548`).
-  What changes with games is how far below, and most of that movement is in the first 30.
-- Disappears at 30 games with no ceremony.
-
-### Game history (`/games`) — 2026-09-12
-
-The captured customs, newest first, each a collapsed match card that opens into both scoreboards. Same
-window picker as the board, default `This week`. A second chip row under it is **Summoner's Rift** (default)
-and **ARAM** — the same 44px chip recipe, `?queue=aram` when not on Rift. Optional `?p=<puuid>` filters to
-one person and switches the headline from `Blue won` / `Red won` to their own `Won` / `Lost`, with their
-KDA · KP · CS on the collapsed card — the match-history shape, without champion art or item icons
-(Floodlit forbids both, and items are not stored as columns). Expand is a `<details>`, so the scoreboard
-is in the first paint. The toggle stays up on an empty list so a quiet Rift week can still open ARAM.
-
-Columns the companion already stores: role, name, **champion name** (from `champion_id`, no art),
-KDA, damage (bar + compact `k`), gold, CS. Kill
-participation is `(kills + assists) / that side's kills`. A side rule on the card's leading edge; on the
-group list it is the winner's, on a focused list it is that player's. No green, no fill behind `Won`.
-
-`Recent games` on `/p/[puuid]` keeps the last five and links `All games` at this page in the same window.
-
-`/fun` wears the same Rift / ARAM chips, same `?queue=`, same default. CS by role and Objective Thief
-are hidden on ARAM.
-
-Order under the strip: First Blood Museum (killer, champion, night), First Blood Donated only
-when the block named `firstBloodDeath` (hidden when empty — the live blob does not name who
-died), Pentakill / Quadrakill / Triple / Double museums, First Turret, Death Hall of Fame,
-Objective Thief (Rift), Fear Ban, Most banned (Rift), Most picked, Who they lock (one-trick
-vs always a new champ), Luck (lowest KDA on a win / highest KDA on a loss), **Friends and enemies**
-(M8.1, nemesis and best duo), **Won against the odds** (M8.2), then CS by role, one-game records, habits. First blood and vision are no longer printed as missing notes; the killer
-museum is empty only when the stored block named no killer. Deaths and
-`longestTimeSpentLiving` are not a corpse. Multi-kill halls sum the stored count fields; a
-game with two triples is one opening labelled `2 triples`. First Turret is the
-`firstTowerKill` flag, never inferred from gold. Fear Ban is one sentence per person:
-`Omar's Shaco has been banned in 64% of games where they were available (16 of 25).` Most
-banned and Most picked are the lobby's champions, not a person's: `Shaco · 16 bans`,
-`Ahri · 12 picks`. Who they lock ranks people with at least five counted games that named a
-champion: **One-trick** is the highest share on one champion (`Shaco · 100% of 15 games`),
-**Always a new champ** is the most distinct champions (`12 champions · 15 games`). Each row
-is a closed `<details>` that opens **See champs** into `Ahri × 12`. Luck ranks how often
-someone was the lowest KDA on the winning side (**Lucky trash** / المحظوظ طرش) or the
-highest KDA on the losing side (**Most robbed** / المظلوم بزيادة): `2 times`, closed
-`<details>`, **See games** into `0/8/1 · Alistar`.
-
-**Friends and enemies** (M8.1, `صحابه وخصومه`) is two ranked lists in one card, ten rows each. **Nemesis**
-(`اللي دايما بيكسبه`) is per player and one-way — Yuki's nemesis is Lena, Lena's is somebody else: the person
-who has beaten them most, over at least five counted games on opposite sides. The row is `6 of 10` in the mono
-column with `Lost 6 of 10 to Lena.` wrapping under it; the count always carries its denominator, because the
-count alone would be an attendance award. A perfect record against somebody is never a nemesis. **Best duo**
-(`التنائي اللي مبيخسرش`) is `duoRecords` — the same call `Partners` on `/p/[puuid]` makes — printing the same
-pair line, `Lena and Theo · 8W 2L · 80%`. Each row is a closed `<details>` that opens **See games** into the
-customs it was folded from, newest first, each labelled `Won` / `Lost` with its scoreboard. Empty:
-`No pair has 5 games against each other yet.` and `No pair has 5 games together yet.` **Unlike CS by role and
-Objective Thief, this group is not hidden on ARAM** — both lists draw on whatever the `?queue=` read returned.
-
-**Won against the odds** (M8.2, `كسبوا وهما خسرانين`) is a ranked list and a one-game record, both read from
-`splits.blue_win_prob` — the chance the balancer posted for a side *before* the game, never a live recompute,
-so a rebuild cannot move either. The list counts counted customs won when the side's own posted chance was
-under 45%, floored at two such wins (`3 wins`, `See games` into `31% · Won · Tuesday`); the record under it is
-the single least likely win in the window, naming the five who did it (`Blue won at 31%.`). The comparison is
-on the rounded percent the group actually saw that night — the same rounding `sideWinChance` applies on the
-tonight page, the result embed and the recent-games row — not on the raw stored float, so a `0.449` game reads
-`45%` and does not sneak under a heading that says "under 45%". No "upset", no "miracle", no exclamation mark:
-the bot was wrong and the section says so plainly. A backfilled game has no lobby and no split and is in
-neither list — most of the history is backfilled, so this section is thin for a while and says so with its own
-empty sentence (`No counted custom in this window was won from under 45%. Backfilled games have no posted
-chance, so only nights the bot made the teams can be here.`) rather than looking broken; a window with exactly
-one qualifying win prints the record but the list's own second sentence (`Nobody has done it 2 times in this
-window yet.`), since the two thin cases are not the same one.
-
-One-game records include Longest killing spree from `largestKillingSpree`
-(at least three). Every English card title and record name carries an Egyptian 3ameya roast
-facing it on the right in brand (`مين فتحها`, `كنسهم كنس`, `كسب وهو زبالة`) — not فصحى and
-not a translation. Odd rows sit on `raise` so a long museum is a zebra.
-
-The museum is **grouped by the killer**, a hairline between people. One first blood is the row
-itself (champion, night, **This game**). Two or more open **See games** and list each opening.
-Deathless games and Career thief do the same: one counted custom is **This game**; more than one is
-**See games**. A steal names the objective when the block recorded exactly one epic type they also
-killed (`1 dragon steal`); it stays `1 steal` when the type is missing or mixed.
-
-A one-game record (Most kills, a CS high, a museum opening) carries **This game**. The control is
-the summary of a `<details>` — same expand `/games` uses, no JavaScript — and opens both
-scoreboards of that custom, with the record holder's row marked. Habits that are not a list of
-nights stay flat.
-
-The open scoreboard prints roles and sits in lane order. A stored `game_players.role` wins. A
-backfilled null is filled for display only from `games.raw` (`detectedTeamPosition`, Smite, the
-timeline pairs the fixtures did not refute, then the leftover unique lane on a five-seat Rift
-side). Never from the champion. ARAM does not invent lanes. `/stats` and role inference never
-see this fill.
-
-### One vs one (`/1v1`) — 2026-09-18 (M8.5)
-
-Lane 1v1 and any two people head to head. Same shell, same window picker, default `All time`.
-Summoner's Rift only — `countedGames` then `matchesQueue(..., 'sr')`. No ARAM chip: Howling
-Abyss has no lanes.
-
-A lane meeting is exactly one player on each side with that role. Two tops on one side, or a
-missing role, is not a 1v1 and does not count. Each lane prints the five series with the most
-meetings, past three. Winner's name first, `8W 2L · 80%`, both names links. A percentage waits
-for five meetings, the same bar `/stats` uses.
-
-Two spice lists sit above the lanes: **Lane bully** (highest win rate, five meetings, at least
-70%) and **Dead heat** (score within one game, five meetings, longest first).
-
-**Pick two** is a GET form, `?a=` and `?b=` puuids, so the URL is the argument in the chat.
-Two `<select>`s and a Compare button; `onChange` submits when JavaScript is on. Left is `a`,
-right is `b`. The series prints a verdict, a `12–7` score, a brand/line bar, last meeting,
-streak, last-five form as `W W L W L`, mean KDA into each other, the champion
-each locked, same-role rows, and the record when they queued together. Colour is never a side:
-the leader's number is `text` at 600, the trailer is `dim`. Brand is the lead share of the bar.
-
-Every English card title carries an Egyptian 3ameya roast on the right in brand, the same
-dress `/fun` uses.
-
-### Fearless (tonight page, M10) — 2026-09-18, M10.2 2026-09-20
-
-A card on `/`, under Daily Mystery, not in the rail: the list is tonight's constraint, not a
-sidebar fact. Hidden while the pool is empty so an idle night is not a card that says nothing.
-
-- Title `Fearless`, `cn-card-title`. Count on the right in `dim` (`10 banned.` since 2026-10-03; was `10 champions.`).
-- Sentence in `text`: `Still open, by lane. Played champions are banned next game.` since 2026-10-03 (was
-  `Ban these next game.`, which Discord still posts).
-- Find box, 44px, `Find a champion`. Matching names stay; the rest drop. An exact name
-  prints `Ahri is on the ban list.` in brand and paints that chip like a pressed role
-  (`brand` / `brand-tint`). That is the pick-phase check. The companion does not read
-  champion select.
-- Names grouped under lowercase lane words (`top` `jungle` `mid` `adc` `support`), A–Z
-  inside the group. A first lock with no stored role sits under `other`.
-- Names as wrap chips (open chips on `raise` with a `line` hairline; bans quieter, see "Open first" below). **M11: each chip leads with a 24×24 square champion
-  icon.** This is the one exception to "no champion art". Size, opacity, the unknown-id case and the 32px chip
-  height are in "The fearless icon exception" under Iconography, and nothing here overrides it.
-- Unique ids. First-appearance decides membership and the lane heading; display order is
-  lane then name. The companion does not auto-ban; this is a list for humans.
-
-#### Open first, one lane per row (designer, 2026-10-03; supersedes the M10.3 order and the 2026-10-03 grid)
-
-Product owner's read, confirmed: people open this card to see **who they can still pick**, not who is gone.
-Until now the card did the reverse. Bans were the full chips and always shown, and `still open` was a dim,
-dashed tail behind a closed disclosure. That is flipped:
-
-```
-Fearless                                         79 banned.
-Still open, by lane. Played champions are banned next game.
-[ Find a champion                                          ]
-─────────────────────────────────────────────────────────────
-[top]  top                                          24 open
- [Aatrox] [Ambessa] [Camille] [Cho'Gath] [Gangplank] ...      <- open chips, full dress
- banned                                                15  v  <- closed fold, 44px
-─────────────────────────────────────────────────────────────
-[jg]   jungle                                       24 open
- ...
-```
-
-**Emphasis.**
-
-| | Open chip (`cn-fearless-open-chip`) | Banned chip (`cn-fearless-banned-chip`) |
-|---|---|---|
-| Where | Directly under the lane head, always shown | Inside the lane's `banned` `<details>`, **closed by default** |
-| Dress | `raise` fill, `line` hairline, `text` **600** | Transparent, solid `line` hairline, `dim` 500 |
-| Icon | Full opacity | `opacity: 0.55` |
-
-- **Why the bans fold instead of just going dim.** By the end of a night a lane holds about 16 bans and 24 open,
-  so 40 chips. Bans shown dim but unfolded would still be 40% of the card's height. Folded, they cost one 44px
-  row per lane, and the count in that row (`banned  15`) carries what most readers want from it anyway.
-- **The find box still opens every fold**, because a typed exact name has to be found wherever it is. The
-  closed fold stays in the DOM, so find-in-page reaches it as well. A hit chip is the `brand` dress whichever
-  list it sits in.
-- **The banned chip's hairline is solid, not dashed.** On this page a dashed edge means an empty seat. A ban is
-  not an empty seat.
-- **Card copy.** `Ban these next game.` above a list of open champions says the opposite of what sits under it,
-  so the card now says `Still open, by lane. Played champions are banned next game.` (`FEARLESS_CARD_SENTENCE`).
-  The head count reads `79 banned.` in Archivo `dim`. **Discord is unchanged:** its post is still the ban list
-  alone, with `Ban these next game. 79 champions.`
-
-**Hierarchy inside the card. This is the rule; do not re-derive it.** Before, the lane word was `t-xs` `dim`,
-which made it the quietest text on the card, sitting above chips set at `t-sm` 600. The card title was the same
-size as the chips. Nothing read as a heading, which is the "too flat" the product owner saw.
-
-| Level | Element | Type |
-|---|---|---|
-| Card label | `Fearless` | `cn-card-title`: Archivo `t-sm` 600 `text`. **Shared with every card on the page and not changed here.** It labels the card, the same way `Your role tonight` and `Earlier tonight` do. |
-| **Heading** | the lane word (`top` … `support`, `other`) | **IBM Plex Mono `t-base` 600 `text`**, `0.02em`, lower case, with a 16px `RoleIcon`. It is mono because it is a role word (role → mono). |
-| Primary content | open chip names | Archivo `t-sm` 600 `text` on `raise` |
-| Metadata | `24 open` beside the lane word | Mono `t-xs` `dim` `0.06em`, right-aligned, baseline-aligned |
-| Metadata | the `banned` fold row, its count | Archivo `t-xs` 600 `dim` (the micro-label dress), 44px |
-| Reference | banned chip names | Archivo `t-sm` 500 `dim`, no fill |
-| Sentence | card sentence, head count, hit line | `t-sm`: `text` for the sentence, `dim` for the count, `brand` 600 for the hit |
-
-**Why `t-base` and not bigger.** Across the page, a team card's side name is `t-lg` display and a player name
-in a row is `t-md`. Fearless is the evening's constraint, not the teams, so the biggest text inside it sits one
-step below a player's name and one step above its own chips. The find box is `t-base` too, which is also the
-16px floor that stops iOS zooming the page when the box gets focus mid-pick.
-
-**One lane per row, at every width. No grid.** We measured on the live pool (79 bans, 2026-10-03). In the
-16rem grid at 1280px, the main column took three lanes in its first row and two in its second, with an empty
-cell. Each lane had 2 chips per row and up to 20 rows, so the columns ended at different heights. At full width
-(about 800px) a lane is 6 to 7 chips per row, and 24 open fits in 4 rows. On a 390px phone the grid was already
-a single column, so nothing is lost there. Full width also reads `top` to `support` in the same order as the
-team cards, which a reader can follow without reading across columns. **Do not bring the grid back** unless a
-lane routinely holds under about 8 chips.
-
-**No box per lane.** Card, lane box and chip box was three nested borders ("One card, one column, nothing
-nested"). Each lane is separated from the one above it by a 1px `line` top border, padding `sp-4` above it,
-and `sp-1` below when a `banned` fold ends the lane, because the 44px fold row is already that air.
-
-**Known cost.** On a phone, with open always shown, the card is long: about 400px per lane at 24 open. The find
-box is first in the card for exactly that reason. If length becomes a complaint, the next step is a lane filter
-at the top of the card (the five role words as 44px toggles), **not** folding the open lists again.
-
-**Lane filter (built 2026-10-03).** Directly under the find box: the five role words as 44px toggles
-(`.cn-fearless-filter`), in the role tap's own dress (`.cn-role-choice`, `.cn-role-on`, `aria-pressed`) and its
-3 + 2 grid at 390px, inside a `role="group"` named `Lanes to show`. All on by default. Off hides that lane;
-`other` shows only while all five are on. Turning the last one off turns all five back on. **Typing in the find
-box ignores the filter** (a match hidden by a toggle would read as `No champion matches.`), and the toggles
-apply again once the box is empty. Local state only; nothing is posted.
-
-**The card's head is ruled off** (2026-10-03): `.cn-fearless-head` carries `padding-bottom: sp-3` and a 1px
-`line` bottom border, so the `t-base` lane headings read as parts of this card rather than page headings, and
-the first lane drops its own top border.
-
-### The player page (`/p/[puuid]`) — settled 2026-09-09
-
-Order down the page, and nothing else in it: name · record · the two numbers · the `Rating` chart · the
-still-settling sentence · `By role` · `Recent games` · the nameless hint.
-
-**On `This week` and `Last week` it is the same order with one number instead of two** and the week's own
-sentence where the still-settling one goes (M7.16, below).
-
-- **The record is on the page.** `37 games · 20W 17L`, `t-xs` `dim`, directly under the two numbers. The
-  leaderboard row carries it and this page is about one person; a page that shows less about a player than
-  the row that linked to it is a step backwards from the tap that got there.
-- **`No games this season yet.` is about games, not about the chart.** It prints when the player has none. A
-  player with games but nothing plottable gets the section with no chart and no sentence — the page never
-  contradicts the row that linked to it.
-- **`Recent games`, five, newest first.** Per game: the player's own result (`Won` / `Lost`, never the winning
-  side), the duration, **the date** — `9 Sep`, mono `t-sm` `dim`, beside the duration, formatted on the server
-  with the fixed locale and the configured timezone, exactly like the tonight page's slug — and
-  `1392 (−42)` right. A list of results with no dates cannot answer the first question anybody asks of it. The
-  section header carries a right-aligned `rating` legend and the number carries visually-hidden `Rating`, the
-  same rule the board row's bare Proven already follows.
-- **Unrated games are listed, not hidden** (product, 2026-09-10, M3.23). `Recent games` is the last five games the player played, rated or not, in `started_at` order, and an unrated one counts toward the five. Its rating column reads `not rated` — mono `t-sm` `dim`, right-aligned where `1392 (−42)` sits, no delta, no em-dash, no visually-hidden `Rating` on that row — while `Won` / `Lost`, the date and the duration print as normal. A refused game (too short, nine players, a duplicate player) and a backfilled game that `rebuild-ratings` has not folded yet read the same two words; the backfill row gains its number when the rebuild runs. Everything else on the page stays rated-only: the two numbers, the chart, the seed line, `By role` and the `37 games · 20W 17L` record, which is why the record may count fewer games than the list shows. Once per page, only when at least one row reads `not rated`, directly under the list with the nameless hint's placement rule: `Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.` **ARAM joined that list on 2026-09-16 (M7.17)** — since M7.1 an ARAM is stored, listed and never rated, and the four ARAM nights already in the group's history became `not rated` rows when M7.11's rebuild ran, which makes it the most common of the four reasons. The placement rule and the row's own two words are unchanged.
-- **This page reads the weekly track on the two week windows, and the all-time one on the other three**
-  (**M7.16**, landed 2026-09-16; the defect was noted by the designer the same day and was M7.3's own flagged
-  follow-up). Until then `/leaderboard?window=this-week` printed a player's **weekly** Rating as their one
-  number while `/p/<same puuid>?window=this-week` printed their **all-time** Rating and Proven, the `settling`
-  chip and an all-time chart — two numbers for one person and one week, with nothing on either surface naming
-  which track it was showing. The fix is the first of the two the designer offered and the one this page took a
-  position on: **the page reads the same fold the board does**, rather than labelling the contradiction. On
-  `This week` and `Last week` it now shows one number — the weekly `Rating`, equal to the digit on that
-  player's row — **no Proven at all**, no `settling` chip, the weekly fold's chart with the weekly seed under
-  the `start` hairline, the weekly delta on every `Recent games` row inside the window, and
-  `WEEK_PLAYER_SENTENCE` where the Proven sentence would be. The record (`games` / `wins` / `losses`) and the
-  `MVP` / `ACE` word on a row are unchanged, because neither is a fact about a track. `All time`, `This month`
-  and `Last month` are byte-identical to what M5.12 shipped. There is **one weekly fold in the app** and both
-  surfaces call it, which is what makes "equal to the digit on the row" a property of the code.
-- **The five are the player's own side, in lane order**, their own row marked with the `brand` inset rule.
-  **Every other name is a link to that player's page**; the viewed player's own row is plain text. This is the
-  one screen in the product that lists other people by name, and hopping between friends is what the board is
-  for.
-- **A recent game shows its side as a rule, never as a fill** (designer, 2026-09-10, from the rendered page).
-  Each game block carries the 3px side rule on its leading edge and nothing else: the block's headline is
-  `Won` / `Lost`, and a 10% red tint behind the word `Won` teaches a reader that red means lost. The side
-  tint stays on the tonight page's team cards, where "which side?" is the question the card exists to answer;
-  here side is a detail under a result. Same rule in light and dark.
-- **Four of the five names are links, so they have to look like it without a hover** (designer, 2026-09-10,
-  from the rendered page). The teammates carry a `line`-coloured underline at rest, raised to `currentColor`
-  on hover and focus; the viewed player's own row is plain text with no underline. This is the one place in
-  the product where a link is not the only thing in its row and its neighbour is not a link, and the page is
-  read on a phone, which has no hover to reveal anything. And the `brand` inset rule in that lineup marks
-  **one** row — the player whose page this is. It is not also drawn on the signed-in viewer's seat: with
-  twenty friends and five seats the viewer is often in the same lineup, and two identical marks meaning two
-  different things leave a reader unable to tell which row the page is about.
-- **The back link is `← Leaderboard`** until the shell lands, and is deleted then: the `Leaderboard` tab is
-  the same destination, and a page does not carry two ways to one place.
-- **The player's name outranks the section headings.** In Floodlit the name is the display cut, the two
-  numbers are `t-display` and `t-md`, and `By role` and `Recent games` are mono `t-xs` micro-labels in a
-  `raise` card header. The v1 page set the name and both section headings to the same `t-lg` 600 and put the
-  two numbers below all three, which makes the largest type on the page the words `By role`.
-
-### Rating history (`/p/[puuid]`)
-
-- **The plotted series is `Rating` (`round(mu × 60)`) — one series, never Proven.** The chart is titled
-  `Rating` in `t-xs` `dim` above the plot, using the same word as line 2 of the leaderboard row, so the page
-  has exactly two numbers with two names and the chart belongs to one of them.
-
-  Product's reasoning, recorded here so nobody "fixes" it later: a Proven line sags at the start of a player's
-  history for a reason the chart cannot show. Proven falls when σ is high and rises as σ falls, so a new
-  player's Proven line climbs steeply while their actual skill estimate is flat, and a returning player's dips
-  while nothing about them changed. That shape reads as "I got worse" and there is no axis, label or tooltip
-  on a 140px phone chart that can say "that is your uncertainty, not your play". Rating moves only when you
-  win or lose a game, which is the only thing a history chart can honestly claim to be about.
-
-- Consequence: **the seed reference line is in the same units** — a hairline horizontal at
-  `round(seedMu × 60)` with a `t-xs` `dim` label `seed`. Never the seed's ordinal. One unit on one chart.
-- The player's current `Proven` number is not plotted; it appears once as text beside the current Rating, with
-  the `settling` chip when under 30 games, above the chart. The chart shows the journey, the numbers beside it
-  show where the board has them today.
-- A single 1.5px `accent` line, no fill, no points, no grid. X is game index, not date — nights are uneven and
-  a date axis makes a settled player look erratic.
-- Height 140px on phone. No tooltip on hover; the recent-games list underneath is the detail view.
-- Y range is the series min/max padded by 5%, and the seed line is always inside it even when that widens the
-  range. A chart whose reference line is off-screen is a chart with no reference.
-
-## Discord embeds
-
-Checked against the shipped JSON on 2026-09-09 (`apps/web/lib/discord/__snapshots__/embeds.test.ts.snap`,
-M3.1 and M3.3). Both worked examples below — every field name, every line, both colours, both footers, the
-`Red wins · 34:12` title and all ten result deltas — match the snapshot character for character. Where this
-section changed on that date it is called out in place, and the field order of the teams embed is the one
-place the code has to move to meet it.
-
-Constraints this layout is built against, and none of them are negotiable: no custom fonts, no CSS, one accent
-colour per embed (a 4px bar down the left edge), field **name** ≤ 256 and field **value** ≤ 1024 characters,
-25 fields max, 6000 characters total. Inline fields pack up to three per row on desktop and re-wrap on mobile,
-so **every field must make sense read alone**, in any order, on one column. Nothing in this section comes near
-those numbers; **M4.12**'s shared guard sits behind every builder as a last resort and is specified once,
-under "Teams embed", because `Seats` is the one field that grows with the night.
-
-Two consequences that shape everything below:
-
-- **No column alignment.** Discord's proportional font will not align `Hana` and `Karim`, and a fenced code
-  block that does align is a grey slab that scrolls sideways on a phone and kills every other colour on the
-  message. So each line is short and self-contained: a role in inline code, a name, a middot, a number.
-- **Colour is structure, not decoration.** The embed bar is `accent` (brass) for teams — neither side — and
-  the winner's side colour for a result. A teams embed tinted blue would look like a prediction.
-
-Embed bar colours, as the integers the API passes:
+Section 10 (M14.61) adds the two side embeds and a fourth colour, slate, for AI-written blocks (10.2).
 
 | | hex | int |
 |---|---|---|
-| blue (side 100) | `#6BA5F7` | `7054839` |
-| red (side 200) | `#EA6F69` | `15363945` |
-| accent | `#E0A33E` | `14721854` |
+| teams embed (neither side) | `#FFCF66` | `16764774` |
+| blue (side 100) result | `#2E9BFF` | `3054591` |
+| red (side 200) result | `#FF6B35` | `16739125` |
 
-These are the **dark** palette values, because Discord's default is dark and the bar sits on a dark card.
+Night values, because Discord's default is dark. The worked examples are in 5.5.
 
-### Teams embed
+### 7.5 Rejected from A and B
 
-Structure:
+- **A (Broadcast)**: near-black ink page `#0A0C10` and card `#12161C` (too dark, the user's verdict); amber
+  `#FFB224` (fails 3.4); 2px radius everywhere; tracked all-caps card titles; the amber top edge on the
+  receipt; the 1px top-highlight edge; the thin 12px bar with labels above it.
+- **B (Scrim Night)**: warm graphite neutrals; Bricolage Grotesque / Rubik / Gabarito display; 20–24px card
+  radius and 999 chips; the hard offset "sticker" shadow; tilted badges anywhere except `YOU` and `MVP`;
+  amber `#FFD24D`; the team header word in `--foreground` on a tint (C uses a solid fill with `--on-team`).
+- **The draft's** two-red hatch stripe (`--team-red-hatch`, 45% mix), the `Win chance` chip, team totals or
+  averages in the header, and the 4px leading rule on team cards (the header fill replaces it).
 
-```
-color        accent (14721854)
-title        Teams are set
-url          https://<tonight page>          [dropped when the only honest origin is localhost]
-description  <splits.explanation, verbatim>
-field 1      name "Sitting out"   block   value: one sentence           [only if somebody sits]
-field 2      name "Seats"         block   value: any move lines, then the side line   [the side line always prints]
-field 3      name "Blue · 7695"   inline  value: five lines, lane order
-field 4      name "Red · 7595"    inline  value: five lines, lane order
-field 5      name "Lobby"         block   value: name and password      [only if known]
-footer       Kustom · more on the tonight page
-timestamp    now
-```
+### 7.6 Where 2.0 deliberately differs from `c.css`
 
-**The rotation goes above the teams** (revised 2026-09-09, reading the shipped M3.1 JSON; M3.1 shipped these
-two fields *after* `Blue` and `Red`, which is the one place the code and this file disagree). The web puts the
-sit-out strip above the team cards on a stated rule: *if you are sitting out, everything under it is not about
-you, and you should learn that before you scan for your name.* That rule is stronger in Discord, not weaker.
-Ten rating lines plus a wrapped explanation is about one phone screen, so `Swap: Omar out, Nadia in.` — the one
-line in the message that has to happen before anybody can play — was landing below the fold. On a ten-person
-night neither field existed and the embed was byte-identical to what shipped; on an eleven-person night
-everyone else pays two short lines to put the instruction above the fold. Discord groups *consecutive* inline fields, so
-a block field in front of `Blue` and `Red` does not break their pairing. *(Amended 2026-09-11: `Seats` is now
-on every teams post, because the side line below always prints. The rotation lines still come and go with the
-night; the ten-person post gains one sentence in the same field and nothing moves.)*
+The muted text value (7.2; and since 2026-10-04 the whole Night ramp and its light, which are 1.0's, not `c.css`'s), the Day glow (7.2), the `In play` chip (neutral, not amber; 3.4), stickers and the
+`Live` tag in the text face rather than Archivo (section 4), error/destructive never on `--raised` (3.5), the
+dialog on `--card`, and the phone candidate splits as a compact list (5.5). Everything else matches the
+prototype and its screenshots.
 
-**The side line is the last line of `Seats`** (M4.7 (b), placement designer 2026-09-11; the words are
-product's, M4.3, and are the two the tonight page prints). `Move to your side in the lobby.` — or `You'll be
-moved to your side — if not, move yourself.` when the auto side switch is on — closes the block, **under** any
-`Swap:` or `take the open slot` line and never above one: a move line names two people and has to be read
-first, the side line is addressed to all ten. **It always prints**, so `Seats` becomes a field on every teams
-post rather than only on a night somebody rotates, and M3.13's order already puts that field above `Blue` and
-`Red`, which is where an instruction belongs. One line, never per person — naming who is on the wrong side is
-stale the second somebody moves — and no field of its own: a `Sides` heading over one sentence is a heading
-over one sentence, and the sentence is already about seats.
+---
 
-Line format inside a side field, one per role in lane order:
+## 8. Mode card and mode panel (2.0)
 
-```
-`top` Hana · 1434
-```
+Owner: `designer`. Status: **canonical pattern, settled by the user 2026-10-03** ("can we expand the card into a
+big modal… so the user can select mode as normal/fearless/region wars/class wars and if rated or not, and any
+details specific can be extended from the specific card, not its own page"), on the lead's recommendation
+(decision row 2026-10-03, "routed mode panel"). This section **replaces** the earlier §8 "Fearless (2.0)"
+(approved the same morning): Fearless is now the first **mode**, its on/off switch is the mode picker ("off"
+is `Normal`), and **the planned `/g/<slug>/fearless` page is gone**, replaced by one routed panel,
+`/g/<slug>/mode`. What §8 got right is kept below as written: the open-first hierarchy, type sizes, sprites,
+counts, the find box and single-select lane control, and the empty and reset states.
 
-Off-role players get ` · off-role` appended to their own line, so the fact survives being read on its own; the
-description already names them in a sentence.
+Prototype: `redesign/prototypes/mode/` (`python3 build.py`; reuses `../fearless/build.py`'s real roster and
+Data Dragon 16.19.1 sprites; `tags.json` is Data Dragon's `tags` at the same pin). The earlier
+`redesign/prototypes/fearless/` stays as the source of the pool block. Screens, 375 and 1440:
+`redesign/screens/m14/mode-card-states-*.png`, `mode-panel-fearless-*.png` (375 opened on `support`, 1440 on
+`All`), `mode-panel-class-tanks-*.png`, `mode-page-direct-*.png` (the URL opened from a Discord link).
 
-Filled in with the worked example (`docs/00-product.md`, split 1):
+**The user's standing requirements, kept as acceptance:** open champions are primary and banned are
+secondary; one lane per row on phones; type with a real hierarchy, bigger, not uniform; one card per mode
+idea, details in its panel, never a page of its own.
 
-> **Teams are set**
->
-> Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.
->
-> **Seats**
-> Move to your side in the lobby.
->
-> | **Blue · 7695** | **Red · 7595** |
-> |---|---|
-> | `top` Hana · 1434 | `top` Omar · 1469 |
-> | `jungle` Iris · 1578 | `jungle` Rami · 1638 |
-> | `mid` Karim · 1551 | `mid` Nadia · 1266 |
-> | `adc` Bilal · 1713 | `adc` Lena · 2088 |
-> | `support` Theo · 1419 | `support` Yuki · 1134 |
->
-> **Lobby**
-> `customs-night` · password `4471`
->
-> Kustom · more on the tonight page
+**Out of scope, settled 2026-10-03: the companion UI.** The user will replace the companion's UI completely.
+Every overlay spec the earlier §8 proposed (open-first for your lane in the champ-select panel, sprites in
+the panel) is **deferred: companion UI replacement** (8.13 B). The `GET /api/overlay` payload is untouched by
+this section.
 
-The exact strings the API builds:
+### 8.1 Who looks at it, and when
 
-```
-title        Teams are set
-description  Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.
+The night runs in a loop: **finished → filling → balanced → champ select → in game → finished**. A mode
+answers *"what am I allowed to play?"* and its follow-up *"what's left for my lane?"*. Fearless asks it at two
+moments, every other mode at one:
 
-field 2 name   Seats
-field 2 value  Move to your side in the lobby.
+| Moment | Who | Where they are | What they need |
+|---|---|---|---|
+| **Teams set, champ select about to start** (balanced) | all ten, each about one lane | phone in hand in Discord voice | their lane's allowed champions, at once; a yes/no check on one name. **About 60 seconds.** |
+| **A game just ended** (finished, Fearless only) | the people who played | phone, reading the result | which ten just joined the ban list, and how big the pool is now |
+| **Before Roll teams** | an admin or the owner | Tonight, usually the host at the PC | pick tonight's mode, rated or not |
 
-field 3 name   Blue · 7695
-field 3 value  `top` Hana · 1434
-               `jungle` Iris · 1578
-               `mid` Karim · 1551
-               `adc` Bilal · 1713
-               `support` Theo · 1419
+Nobody needs a 172-champion roster on an idle evening or mid-game, so **Tonight carries a card, never the
+pool**. The pool lives one tap away in the panel, which opens on the viewer's lane when they have one.
 
-field 4 name   Red · 7595
-field 4 value  `top` Omar · 1469
-               `jungle` Rami · 1638
-               `mid` Nadia · 1266
-               `adc` Lena · 2088
-               `support` Yuki · 1134
+**We still never read champion select** (CLAUDE.md). A mode is announced (card, Discord), displayed (panel)
+and checked afterwards from the end-of-game block (M15). Nothing ever blocks a pick.
 
-field 5 name   Lobby
-field 5 value  `customs-night` · password `4471`
+### 8.2 The pattern: one card, one routed panel
 
-footer         Kustom · more on the tonight page
-```
+- **One `Mode` card on Tonight** summarises tonight's mode: its name, `Rated` or `Not rated`, and one status
+  line the mode supplies (Fearless `138 open · 34 banned`; Region wars `Ionia vs Noxus`; Class wars
+  `Tanks only`). Admins and the owner change the mode and the rated flag **on the card**; members see the
+  state only. Reset fearless also lives on the card (admins, AlertDialog 5.13).
+- **Tapping the card opens the mode panel** over Tonight: a large dialog at ≥ 1024, full screen below. It
+  holds the mode's detail: for Fearless the pool tool (8.7), for other modes their rule and pool (8.10).
+- **The panel is a URL**, `/g/<slug>/mode` (with `?lane=<role>`). Opened from Tonight it overlays and Back
+  closes it; opened directly (a Discord link, a refresh, a WhatsApp paste) the same URL renders as a full page
+  inside the shell (`mode-page-direct-*.png`). **No nav tab, no More card, no `/fearless` page.**
+- One card, whatever the mode. New modes (M15) add a definition (8.10), not a card, a page or a route.
 
-**Budget, and the last-resort guard** *(amended 2026-09-11 for **M4.12**; the old half-sentence "do not
-truncate the field" is now false, and the half in front of it is not)*. A side field is ~110 characters
-against the 1024 limit, so a name would have to be ~180 characters to threaten it: nothing this section draws
-is expected to be cut, and no layout here is designed around being cut. **The 32-character name rule stands
-and is still the real defence** — a display name is truncated at 32 with `…` at the source, before escaping,
-so the word in `splits.explanation` and the word in the field are the same word.
+**Visibility rule: the card shows in every Tonight state, for everyone, whatever the mode** (lead ruling
+2026-10-03, M14.30 round 1; it replaces this section's earlier "no card for plain `Normal` + `Rated`" rule,
+because the build brief's "every Tonight state, for everyone" wins). In `Normal` the card reads `Normal` ·
+`Rated` · `Every champion is open.`: answering *"what am I allowed to play?"* with "anything" is still an
+answer, and a card that comes and goes with the mode would move the page under people. Admins and the owner
+get the same card plus the controls foot (it is where the picker lives); members and visitors get the card
+with no form. An unrated `Normal` game reads `Normal` · `Not rated`.
 
-Behind it, and only behind it, **M4.12's shared guard** holds every value inside Discord's limits — 1024 a
-field value, 256 a title, 4096 a description, 2048 a footer, 6000 the message — so that a pathological night
-cannot 400 the whole webhook and cost the group the post. It is a guard, not a layout: if it fires on an
-ordinary night, the fix is the line that grew, not the limit. Three rules make it a design decision rather
-than a `slice`:
+### 8.3 The card on Tonight, per state
 
-- **It cuts on line boundaries**, never mid-line and never mid-word. Half of `Swap: Omar out, Nad` is a
-  message that looks corrupted; a missing line is a message with fewer lines in it, which is what actually
-  happened.
-- **It drops the lowest-priority lines first**, so what survives is what the field exists to say: the **side
-  line** in `Seats`, the **first line of each award** in the window post, and the **top rows** of a board. A
-  `Seats` field cut back to its instruction is still an instruction; cut back to nine `Swap:` lines and no
-  instruction it is a list.
-- **One `…` line marks the gap** — the character alone on its own line, **at the cut and not at the end of the
-  field**, plain text, no count and no `and 3 more`. It is the same mark the 32-character name rule uses, so
-  one character means "there was more here" everywhere in the message; a count is a number the reader can do
-  nothing with and one more thing that can be wrong; and putting it where the lines were removed is what says
-  *which* part is missing. Whoever wants the rest opens the tonight page, which the footer already points at.
+Placement follows STRATEGY §6(a)'s order; the card never moves above the strip or the team cards.
 
-**The title on a reroll** (product, 2026-09-09, for M3.2). A reroll is a new message, never an edit of the
-old one, and the title says how far down the list the group has gone: `Teams are set · reroll 1 of 2` for
-split 2, `Teams are set · reroll 2 of 2` for split 3. Split 1 keeps the plain `Teams are set`, including when
-an admin promotes it back. Nothing else about the embed changes — same accent bar, the promoted split's
-explanation verbatim, the same ten. `of 2` is there so the second one reads as the last one without anybody
-having to be told there is no fourth split; the web strip carries the sentence for the friend who presses
-again (`No more splits. …`, above).
+| State | Card body (mode = Fearless; other modes in the last column) | Place | Other modes |
+|---|---|---|---|
+| Empty group | The card for everyone (8.2); admins and the owner also get the picker, so a mode can be set before the first game. | after the empty-state card | same |
+| **Idle** | **Row**: title + chip, `138 open · 34 banned`, `See what's open ›`. 64px min at ≥768; status and action stack at 375. Empty pool: `Nothing banned yet. All 172 open.` | after `Top this week` (5.15) | title + chip, the rule (`Tanks only`), `See the tanks ›` |
+| **Filling / more than ten** | Row + **five lane tiles** (`top 32`, `jungle 34`…; `--raised`, 64px), each a link to the panel on that lane (`/mode?lane=jungle`). The find box moved into the panel. | under the roster and `Still needed:`, before the tape | row; tiles show each lane's allowed count where the mode has a pool |
+| **Balanced** | Row + **your lane**: `◈ Your lane support · 24 open`; the whole row links to `/mode?lane=support`, so the panel **opens on the viewer's lane**. Not seated (visitor, sitting out): no lane line, link to `/mode`, panel opens on `All`. **The answer band's `What's open for support` links to the same URL** and opens the panel. | directly after the team cards (the sit-out note is above the receipt, 5.15) | `Your lane support · 11 tanks`; answer band `Tanks for support` (the mode supplies the label; `Normal` supplies none) |
+| **In game** | Row + `This game's ten join the ban list when it ends.` Admin controls stay, with `Changes apply from the next game.` under the select. | after the team cards | row; the rule |
+| **Finished** | **`Banned next game`** leads the card: meta `from game 4`, five rows (60px role cell + the two chips, blue's seat then red's), footer counts. Then the row, under a muted eyebrow **`Next game`** (text 15 muted), so its chip reads as the next game's (M15.15). Hidden for an ARAM or a remake (they add nothing): the `Next game` row alone. A Rift game played not rated: `Not rated, so this game banned nothing.` where `Banned next game` would be, then the `Next game` row. | directly under the result poster, before the tape | the `Next game` row; the kept/broke line is the poster's (M15.5), not the card's |
+| **Mirror match on a Fearless night** (M15.14) | The card keeps the Fearless pool: mirror is a lane rule, every ban stands. Pending or locked, status `Same champion as your lane opponent · 138 open` (text 700 23) + `This game only. Then back to Fearless.`, action `How it works ›`. Balanced, seated: `◈ Your lane support · 27 open`, answer band `What's open for support`. In game: `This game's champions join the ban list when it ends.` (five, not ten: each lane's two seats locked one champion). Finished: `Banned next game` lists each champion once (one chip per lane). Idle, the strip's host line `Mirror match next. Host: open a Blind Pick custom in League yourself. Start a lobby only makes Draft Pick.`; filling, `Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.` (M15.16; dashed note, lead in 700). On a Normal night, mirror is unchanged: no pool, no counts. | as the state | n/a |
+| **Not rated on a Fearless night** (M15.15) | A game that isn't rated adds nothing to the pool (R4), so no line promises bans. Balanced and in game, under the counts: `This game isn't rated, so it bans nothing.` Finished: see the Finished row. Before Roll, the panel when the next game is not rated: `Still open, by lane. Next game isn't rated, so it bans nothing.`; once the teams are set: `Still open, by lane. This game isn't rated, so it bans nothing.`; empty pool: `Nothing banned yet, so every champion is open. This game isn't rated, so it bans nothing.` (or `Next game isn't rated, …` before Roll). The strip's in-game sentence becomes `Not rated, so no Rating change.` in the same state, so the strip and the card never disagree. | as the state | the rule's own `Not rated: Ratings don't move.` |
+| Balanced, empty pool | Dashed card: `172 open · 0 banned`, `Nothing banned yet, so every champion is open. The ten you lock this game are banned next game.` | as balanced | n/a |
+| Reset moment (Realtime) | Dashed card: `Fresh pool.` + `Raafat reset fearless, so every champion is open again.` · `reset 21:40`, until the next game lands. Announcer: `Fearless reset. Every champion is open again.` | in place | n/a |
+| Mode changed (Realtime) | The card re-renders in place (it never disappears, 8.2); after a switch to Normal, members get a dashed note inside the card (`Back to Normal.` / `An admin set tonight to Normal, so every champion is open.`) until the next game lands. A one-game M15 mode returns to the standing mode after its game, which reads as this same change. Announcer: `Tonight's mode is now Class wars: Tanks only.` | in place | same |
 
-**Names, in every line of both embeds.** One renderer (`renderName`): the newest display name we have,
-trimmed; `Someone` when we have none (M3.10); 31 characters and `…` when it is longer than 32. A blank-looking
-line in a five-line field reads as a bug, which is why the fallback is a word and not an empty string.
-`Someone` is never written to a **row**: `players.display_name` and `players.game_name` stay null, so the
-next sweep or end-of-game block fills the real name in with no migration and no cleanup. It is not only a
-rendering rule, though (amended 2026-09-09, M3.15): it is also the name the API hands the balancer, so it is
-the word inside `splits.explanation` — a stored sentence the embed and the tonight page quote verbatim and may
-never recompose. One word in both places, or one message reads `Someone` on a team line and
-`Next best: swap Unknown and Hana` in the sentence above it. See the 2026-09-09 row in `04-decisions.md`.
+### 8.4 The card, visually
 
-A name is printed as **text, not markup**. Riot IDs carry underscores and asterisks, and a single stray
-backtick closes the role's code span and swallows the rest of the field. Escape `` ` ``, `*`, `_`, `~` and `|`
-with a backslash inside `renderName` — **last**, on the already-truncated string, so a backslash can never be
-sliced away from the character it escapes and the 32 characters stay 32 characters as read. There is no name
-we want rendered as italics.
-
-**The `Lobby` field has three shapes**, and the third one is the code's, recorded here because it was missing:
+#### 8.4.1 Anatomy (375, `mode-card-states-375.png`)
 
 ```
-`customs-night` · password `4471`     both known
-`customs-night`                       no password (every lobby before M4.1)
-Password `4471`                       a password with no name
-(no field at all)                     neither
+┌──────────────────────────────────────────────┐ card, --card, 1px --border, radius 8, overflow hidden
+│ Fearless [Rated]                              │ h2 text 700 19 · rated chip
+│ 138 open   34 banned                          │ status: mono 600 23 + text 15 muted · mono 17 muted
+│ ◈ Your lane support · 24 open                 │ balanced only: icon 20, mono 16 role, mono 16 count
+│ See what's open ›                             │ action, text 700 16 underlined; right column ≥768
+│                     (all of the above is one <a>, the whole row is the target)
+├──────────────────────────────────────────────┤ admin foot: border-top, --raised at 45% over --card
+│ Admins and the owner                          │ mono 13 muted
+│ Mode                                          │ label text 700 15
+│ [ Fearless                                 ⌄ ] [Set mode]   native <select> 44px; button only when changed
+│ (●─) Rated                                    │ M15 only: shadcn Switch, 44px row, 700 17
+│      Next game is rated.                      │ state sentence 15 muted
+│ [ Reset fearless ]                            │ secondary button; Fearless with ≥1 ban only
+└──────────────────────────────────────────────┘
 ```
 
-Never `password: —`, never the word `unknown`, never an empty field. The capital `P` in the third shape is
-correct: there it starts the sentence, where in the first shape it is mid-line after the name.
+- **The row is one link** (`<a href="/g/<slug>/mode?lane=…">`), so the card works without JS (it navigates to
+  the full page). The admin controls are **outside** the link (no interactive element inside an `<a>`).
+- **Rated chip**: `Rated` = neutral chip (`--raised`, solid `--border`, text 700 14); `Not rated` = dashed
+  `--border-strong`, transparent, muted (dashed = "absent", 5.7). Words, never colour alone.
+- **Status line is the mode's level 1**: Fearless's two counts (open first) or the rule as text 700 23
+  (`Tanks only`), or two side names with their glyphs for Region wars (8.10).
+- **Action label** comes from the mode: `See what's open` (Fearless), `See the tanks` (class), `See both
+  pools` (region), `All modes` (Normal, admins).
 
-**When there is no `url`** — a dev machine, or any origin that resolves to localhost, which `tonightPageUrl`
-drops rather than post a link that works for one person — the title is not a link, so the footer must not
-promise one. The footer is then `Kustom` alone. A footer that says "more on the tonight page" over an
-unlinked title is the message telling a friend to tap something that is not there.
+#### 8.4.2 The admin controls
 
-Sit-out fields, when they exist — copy (product, **M2.15**, 2026-09-08; shipped verbatim by M3.1). Two
-independent fields: `Sitting out` answers "who is not playing", `Seats` answers "who has to move", and those
-are not the same question. Each appears only when it has something to say.
+- **Mode: native `<select>`** (5.0's rule: the OS picker is the best phone picker), options `Normal`,
+  `Fearless`, then `<optgroup label="Class wars">` (`Tanks only`, `Marksmen only`, `Mages only`, `Assassins
+  only`, `Supports only`), `<optgroup label="Region wars">` (`Region wars (sides drawn at roll)`). Only the
+  group's enabled modes are listed (M15.1). **No auto-submit on change**: on Windows, arrowing through a closed
+  select fires `change` per option, which would cycle the live mode for everyone. A primary `Set mode` button
+  appears beside it once the selection differs from the current mode; without JS it is always shown (one
+  `<form method="post">` with `redirectTo`). Room is left for M15's `Spin` as a secondary button on this row.
+- **Rated: shadcn `Switch`, M15 only.** Product's 2026-10-03 row: no rated toggle and no rated column in M14;
+  Normal and Fearless are rated exactly as today and the chip is derived from the mode. **In M14 the card shows
+  the chip and no switch.** When M15.1 allows an override, the switch goes here as drawn (no confirm, effect
+  shown in place, said once by the announcer; sentences `Next game is rated.` / `Next game is
+  recorded, not rated.`); choosing an M15 mode sets it to that mode's default. The prototype draws the switch
+  so M15 has its place.
+- **Reset fearless**: secondary button, only while the mode is Fearless and the pool has ≥ 1 ban; opens the
+  AlertDialog of 5.13 (8.11's copy), initial focus on Cancel.
+- **Fearless semantics carry over from M14.29 unchanged**: any mode other than Fearless is "fearless off"
+  (the pool freezes, games add nothing); choosing Fearless again resumes the list where it stopped; a fresh
+  pool is only ever Reset.
+- **In game**: `Changes apply from the next game.` sits under the select; the running game keeps the mode
+  and rated flag it started with (the stamp is the server's, M14.29 / M15.3).
+- Members and visitors get no form at all, not a disabled one.
 
-```
-field 1 name   Sitting out
-field 1 value  Sitting out: Omar — most games tonight.
-               (…and when everyone around has played the same number tonight, the clause is
-                `— longest since they last sat out.` Always "they".)
-               (…and when they are tied on games *and* nobody around has ever sat out — the
-                first balance of a night with a fresh group — the clause is
-                `— nobody has sat out before, so somebody had to be first.`)
+### 8.5 The panel
 
-field 2 name   Seats
-field 2 value  Swap: Omar out, Nadia in.
-               Yuki is playing — take the open slot.      [a mover with nobody to swap with]
-```
+#### 8.5.1 URL and routing
 
-**Three reason clauses, not two** (product, 2026-09-09). `— longest since they last sat out.` is true on the
-first balance of a night — nobody has sat out, so everybody has been waiting the longest possible time — and
-vacuous, which is worse than useless: it states a fact about a history that does not exist, and the friend
-reading it goes looking for the night they sat out and cannot find it. What actually happens on game one is
-that everyone ties on games and on sit-outs and the comparator falls through to PUUID order, which is to say
-it is arbitrary. So the clause says that, in the words a friend would use: `nobody has sat out before, so
-somebody had to be first.` It does not say "random" or "the bot drew a name", because it is neither — the same
-person is picked every time until somebody plays a game, and a friend told it was a draw will ask for another
-one. From the second game of the night on, the two existing clauses are true and this one never appears again.
+- `/g/<slug>/mode`, optional `?lane=top|jungle|mid|adc|support|all`. Built with Next.js **parallel +
+  intercepting routes**: a `@panel` slot in `app/(group)/g/[slug]/layout.tsx` (its `default.tsx` renders
+  nothing), `@panel/(.)mode/page.tsx` renders the overlay when navigated to from Tonight, and
+  `g/[slug]/mode/page.tsx` renders the full page on a hard load. Both render the same `ModePanelBody`.
+  `mode` is a static segment, so it wins over the existing `[...rest]` catch-all. Intercepting matches route
+  segments, not groups, so `(tonight)` does not affect `(.)mode`: the web engineer verifies the soft
+  navigation from `/g/<slug>` in a test.
+- Opened from Tonight it is a **push** (Back closes it). Inside the panel, the lane control and find box are
+  client state and never touch the URL (8.7.4); `?lane=` is only the initial value.
+- `<title>` becomes `<Mode> | Kustom` while open (`Fearless | Kustom`); the OG card for `/mode` is the mode's
+  name and status line (M14.10's OG module).
+- A mode change while the panel is open re-renders it to the new mode in place, with the announcer line
+  (8.3). Pool growth (a game landing) updates the counts in place.
 
-The value repeats the field name (`Sitting out` / `Sitting out: Omar …`) and that repetition stays. Inline
-fields re-wrap and a field can be read alone, quoted alone, or screenshotted alone, so the sentence carries its
-own subject. A field whose value only makes sense under its bold heading is a field that breaks the first time
-Discord re-flows it.
+#### 8.5.2 Phone (< 1024) vs desktop (≥ 1024)
 
-This supersedes the earlier single-sentence version of the sit-out field (`Sara and Deniz` / "Each game goes to
-whoever has played least tonight…"), which stays as it is on the **web** sit-out strip above: the strip is a
-paragraph a friend reads on a page, the embed field is two short lines in a channel. M2.15 is the source of the
-embed copy and `lib/discord/embeds.ts` is the only place it is composed.
-
-Filled in, eleven around, all tied at zero games tonight (this is the case
-`discord.integration.test.ts` pins, with the group's placeholder names):
-
-> **Teams are set**
->
-> Even 50%. Everyone on a main role. Gap 0. Next best: swap Player4 and Player5, gap 0.
->
-> **Sitting out**
-> Sitting out: Player0 — nobody has sat out before, so somebody had to be first.
->
-> **Seats**
-> Swap: Player0 out, Player10 in.
->
-> | **Blue · 6000** | **Red · 6000** |
-> |---|---|
-> | *the ten who are playing, five a side, lane order — Player10 among them and Player0 not* | |
->
-> **Lobby**
-> `customs-night`
->
-> Kustom · more on the tonight page
-
-Two fields, not one line: the sitter reads the first and stops, the mover reads the second and acts, and
-neither has to work out which half of a compound sentence is about them.
-
-**Sums are not the gap.** `7695` and `7595` are the sums of five display ratings. Their difference equals the
-`Gap 100` in the explanation only because nobody here is off-role; the gap is computed on effective
-(role-adjusted) skill. The field name is therefore just `Blue · 7695`, with no label — the embed never claims
-the two numbers are the same thing, and the explanation line is the only place the word "gap" appears.
-
-### Result embed
-
-```
-color        winner's side colour
-title        Red wins · 34:12
-url          https://<tonight page>                          [same localhost rule as the teams embed]
-description  Blue was favored 54%. Top damage: Lena, 47.3k.  [absent when it would be empty]
-field 1      name "Blue"   inline   five lines: new rating and delta
-field 2      name "Red"    inline   five lines: new rating and delta
-field 3      name "​"  (U+200B)      one line: MVP <name> · ACE <name>   [absent entirely when the game has none]
-footer       Kustom · game 47                                ["Kustom" alone if the game cannot be counted]
-timestamp    game end
-```
-
-**Field 3 is the MVP / ACE line (M7.10, added 2026-09-16).** Three things about it are the design and not an
-implementation detail:
-
-- **Its name is a zero-width space (U+200B), not a heading.** Product wrote one line *under* the two columns
-  and wrote no heading for it; a field is the only place in an embed that is under two inline fields (the
-  description is above them, the footer is `Kustom · game 47`'s), and Discord rejects a field whose name is
-  the empty string. The name is therefore a character that takes no room and says nothing, and the line reads
-  as a line. Never a real heading — no `Award`, no `MVP`, no `Standouts`.
-- **It is not inline**, so it sits under the two columns rather than becoming a third one beside them.
-- **It is the last field, and that ordering is load-bearing.** `guardEmbed` sheds from the last field backwards
-  when a post is over Discord's 6000 characters (M4.12), so this is the first thing the post gives up and the
-  ten rating rows are never cut to make room for it.
-
-**Absent entirely, never empty.** A game with no MVP and no ACE — a component missing, a role the client never
-reported, a remake, an ARAM, anything the fold did not rate, any game played before M7.7 — adds **no field at
-all**, and the post is byte-identical to the two-field one this group has read since M3.3. Never an empty
-field, never a dash, never `unknown`, never a heading with nothing under it.
-
-**Amended 2026-09-10 (product, with M5.12): the footer is `Kustom · game 47`, not `Season 1 · game 47`.**
-Seasons are gone from everything a friend reads (`04-decisions.md`), so the left half becomes the product's
-own name — the same word in the same place as the teams embed's `Kustom · more on the tonight page`. Exactly:
-`` `Kustom · game ${gameNumber}` ``, and `Kustom` when `gameNumber` is null. This supersedes the clause in
-**M3.21**'s acceptance that kept `Season 1 · game 12`; the count it was keeping is kept, the container it
-named is not.
-
-**The count is the group's all-time game number**, and that is the only reading it has: every game stored
-with a `started_at` at or before this one, rated or not, counted at the moment the post is written. `game 47`
-means the forty-seventh custom Kustom has on record — **not** the forty-seventh tonight, which is a number
-the tonight page already carries and which the footer would have to run a second query to learn. A game
-backfilled into an older night shifts the numbers after it, and no post is ever edited to match; a footer is
-a stamp on a message, not a row in a table.
-
-`Kustom` alone in the footer is right and needs no apology (product, 2026-09-09, unchanged): the game number
-is a count, and a count we could not take is simply not printed. Never `game ?`, never `game 0`, never a
-sentence explaining that something did not add up. Nobody reading a footer has asked a question yet. It is
-also the fallback the teams embed already has, so the two messages fail the same way.
-
-The embed exists only for a game the rating fold actually rated. A remake, a four-minute surrender, a
-scoreboard that is not five a side, **an ARAM** (M7.1, 2026-09-15: the Howling Abyss is recorded and never
-rated), the second companion's re-post: no message. There is no "no ratings this game" variant, because the
-whole message is what the game did to ten ratings and an embed that says nothing is worse than silence. **The
-teams post is unaffected**, so an ARAM night is a teams post followed by silence — which is the honest shape
-and is not a bug report: the game is on `/games`, on `/fun?queue=aram` and on everybody's own page, and the
-only thing that did not happen is the thing that did not happen to anybody's rating.
-
-Line format, deliberately the same shape as the teams embed so the two messages read as one scoreboard:
-
-```
-`adc` Bilal · 1668 (-45)
-```
-
-Filled in — Red wins the worked example, the underdog at 46%. **These are `rateGame`'s numbers** (M3.3,
-2026-09-08: the earlier hand-computed version of this table was replaced by the output of the `openskill`
-package, pinned as a snapshot in `apps/web/lib/discord/embeds.test.ts`):
-
-> **Red wins · 34:12**
->
-> Blue was favored 54%. Top damage: Lena, 47.3k.
->
-> | **Blue** | **Red** |
-> |---|---|
-> | `top` Hana · 1393 (-41) | `top` Omar · 1510 (+41) |
-> | `jungle` Iris · 1531 (-47) | `jungle` Rami · 1683 (+45) |
-> | `mid` Karim · 1508 (-43) | `mid` Nadia · 1316 (+50) |
-> | `adc` Bilal · 1668 (-45) | `adc` Lena · 2127 (+39) |
-> | `support` Theo · 1372 (-47) | `support` Yuki · 1182 (+48) |
->
-> MVP Lena · ACE Iris
->
-> Kustom · game 47
-
-The shape the hand version predicted survived contact with the package — Nadia at σ 5.10 moves most, Lena at
-σ 4.50 moves least — but every individual number moved by one or two points, which is why nothing here may be
-retyped by hand again. Duration and top damage are still invented; the docs pin no result for the worked
-example.
-
-**The award line on this roster is `MVP Lena · ACE Iris`**, pinned in `embeds.test.ts` against the same worked
-input. Red won, so the MVP is Red's `adc` and the ACE is Blue's `jungle`, and the MVP is named first because
-the winning side is — the same reason Blue's column is printed first whichever side won. Neither name carries
-its role, its score or its delta: the ten lines above already say all three.
-
-**On this roster the two columns do happen to cancel** (−223 and +223), which the hand-computed version did
-not (it had −228 and +231). They are not guaranteed to: movement scales with each player's own σ² and the two
-sides' σ² sums are not equal, so the cancellation here is arithmetic luck, not a property. The rule is
-unchanged and it is a rule about the embed, not about the numbers: **the result embed prints no team totals.**
-
-Losers keep their side's field first-or-second position by side number, never reordered to put the winner
-first: the two embeds must line up so that "my column" is in the same place both times. That includes the
-vertical order inside a column: lane order, top to support, the same five positions as the teams embed. A
-player whose role neither the scoreboard nor the stored split knows is printed without a role — the name
-starts the line — and sorts after the five who have one, so the known rows never move to make room.
-
-**The four number formats, so no surface invents a fifth.**
-
-| | rule | reads |
+| | < 1024 | ≥ 1024 |
 |---|---|---|
-| duration | `m:ss`, and `h:mm:ss` once past the hour. No zero padding on the leading unit, no `min`, no `34m 12s`. | `34:12`, `1:02:03`, `0:59` |
-| delta | signed always, ASCII `+` / `-`, `+0` and `-0` for a change too small to round to a point | `(+43)`, `(-45)`, `(-0)` |
-| damage | one decimal and `k` from a thousand up, the plain integer below it | `47.3k`, `1.0k`, `940` |
-| odds | past tense, the favourite named, whole percent; when nobody was favoured, no number | `Blue was favored 54%.` `Red was favored 58%.` `Neither side was favored.` |
+| Frame | **full screen**, `--card` fill, covers the top bar and the tab bar | **dialog**, `min(1180px, 100vw − 64px)` wide, 32px from the top, max-height `100vh − 64px`, radius 8, 1px `--border-strong`, `--shadow-overlay` (the AlertDialog's exception, extended here) |
+| Behind | nothing visible | Tonight under a scrim `rgb(10 13 18 / .74)`, no blur |
+| Bar | sticky 56px: crumb `Tonight · Mode` (15 muted) left, **`× Close`** right (44px, icon + word, `--raised`, 1px `--border`) | same, padding 24 |
+| Body | scrolls inside the panel (`overscroll-behavior: contain`), padding 16, safe-area bottom | padding 20 24 |
+| Fearless | one lane, 2-column chip grid; `All` stacks lanes | `All` = the five-column draft board (8.7.6) |
+| Head | h2 (h1 on the direct page) text 700 32 + rated chip; `Pool since Thu 1 Oct, 4 games. Every champion locked since then is banned.` | same |
+| Foot | admins: `To change the mode or reset, use the Mode card on Tonight.` (no control in the panel) | same |
 
-The coin flip is the one clause that is **not** core's words. Core's explanation line says `Even 50%.` and
-that is right where it sits — first clause of a present-tense list, before the game, next to `Gap 0.` In the
-result embed the same fragment lands under the headline `Red wins · 34:12`, in a line whose other half is a
-full past-tense sentence, and it reads as a claim about the game that was just played rather than about the
-prediction: *even, 50%* beside *Red wins* is a scoreline until you read it twice. It is also the common case
-on the first night the group ever uses this — everyone unrated, every split gap 0 — so it is the first
-result sentence anybody reads. Product, 2026-09-09: the result embed says `Neither side was favored.` The
-number is dropped with it because 50% is what "neither" means and the percent was only ever there to carry
-the size of the claim. Core's `Even 50%.` in the teams explanation is unchanged and stays core's.
+The panel holds **reading and filtering, never decisions**: no picker, no switch, no Reset inside it (those are
+the card's, and an AlertDialog over a panel would be a nested panel).
 
-**`-0` is a real value and it does not survive JSON.** `displayDelta` returns negative zero for a rating that
-fell by less than half a point, and `formatDelta` asks `Object.is` before it looks at the sign. Anything that
-carries a delta through `JSON.stringify` — an API response, a cached payload — turns `-0` into `0` and prints
-`(+0)` on a row that went down. So a delta is computed where it is rendered and never transported. This is the
-rule the tonight page and `/p/[puuid]` inherit (M3.4, M3.8), not just the embed.
+#### 8.5.3 The direct page
 
-**If the two columns wrap on a phone, drop `inline`.** `` `support` Theo · 1372 (-47) `` is 27 characters, and
-a Discord mobile inline field is about half the message width. If that wraps to two lines, a five-line column
-becomes ten ragged ones and the column stops being a column. The fix in that case is to make both result
-fields full-width block fields — `Blue` above `Red`, five clean lines each — and **not** to shorten the line:
-the role, the name, the new rating and the delta are the entire content. The teams embed's lines are six to
-eight characters shorter and are expected to survive; if they do not, they take the same treatment. Decide this
-by looking at one real post on one real phone, not from the JSON.
+The same body in the shell's `<main>`, under a breadcrumb `Customs Night · Tonight` (links to `/g/<slug>`), h1
+instead of h2, no scrim, no Close button (the breadcrumb and the nav are the way out). Tab bar highlights
+Tonight. If the group has no mode beyond the default, it shows `Normal`'s body (the list of enabled modes,
+one sentence each) rather than a 404, so an old Discord link still lands somewhere true.
 
-### Fearless embed (M10)
+### 8.6 The routed-panel rule (an exception to 5.0's "no content modals")
 
-A second message after the result, never a field on it. Accent bar — the list is neither side's.
+5.0 bans content modals on public pages: a phone modal over a live page hides the thing that is changing,
+has no URL, can't be pasted into WhatsApp, and Back leaves the page instead of closing it. **That ban stands
+for every plain modal.** A content panel is allowed only when **all** of these hold:
 
-```
-color        accent (14721854)
-title        Fearless
-url          https://<tonight page>          [dropped when the only honest origin is localhost]
-description  Ban these next game. 10 champions.
-fields       one block field per non-empty lane, names `top` / `jungle` / `mid` /
-             `adc` / `support` / `other`, value: one name per line, A–Z inside the lane
-             (M10.2; was one `Champions` field in lock order)
-footer       Kustom · more on the tonight page
-timestamp    now
-```
+1. **It is a route.** It has its own URL; loaded directly, that URL renders the same content as a full page in
+   the shell. Its trigger is an `<a href>`, so without JS it is just a link to the page.
+2. **Back closes it, and so do Esc and the `Close` button.** Close is `router.back()` when the panel was
+   pushed from the page behind it, and a link to `/g/<slug>` otherwise (never a dead end).
+3. **Full screen below 1024**, a dialog at ≥ 1024. Never a bottom sheet, never a half-height phone modal.
+4. **Real dialog semantics**: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` its heading; focus moves
+   to the heading on open (`tabindex="-1"`; not the search box, which would pop the phone keyboard), is
+   trapped inside, and **returns to the trigger** on close (the card row or the answer-band link, by id); the
+   page behind is `inert` and does not scroll.
+5. **One at a time.** No panel opens from a panel, no AlertDialog opens over it, no toast.
+6. **Reading and filtering only**: every control that changes shared state stays on the page behind.
+7. **Live stays audible**: Tonight's single announcer lives in the shell outside the `inert` subtree, so
+   Realtime changes are still spoken while the panel is open, and the panel's own content updates in place.
 
-Empty pool is not posted. An admin reset posts the same title with description
-`Pool cleared. Ban list is empty.` and no fields.
+Why this one is allowed: during the 60 seconds before champ select, the pool *is* the thing the player is
+looking at; Tonight behind it has nothing left to change for them (teams are set), and Back returns them to it
+instantly with focus where they left. **Registry: `mode` is the only routed panel.** A second one needs a
+decision row that names which of the seven it meets.
 
-### Nightly leaderboard embed (M3.5)
+### 8.7 Fearless inside the panel
 
-One field, block, no columns — a ranked list is a single column by nature and inline fields would break it
-across a row.
+#### 8.7.1 Anatomy (375, `mode-panel-fearless-375.png`)
 
 ```
-color        accent
-title        This week · leaderboard      <- M5.12: the window, never a season name
-url          https://<leaderboard>?window=this-week
-field 1 name   Top ten          <- only when ten lines print; otherwise `The board`
-field 1 value  `1` Lena · 1548 · 41 games
-               `2` Bilal · 1137 · 44 games
-               ...
-timestamp    the moment the post is made, ISO 8601
-footer       Every week starts everyone on the same rating on Sunday, so these numbers swing, and two clean
-             wins can top a longer patchy week. All time is the settled one, and the one that makes teams.
+┌──────────────────────────────────────────────┐ panel bar, sticky 56
+│ Tonight · Mode                      [× Close] │
+├──────────────────────────────────────────────┤
+│ Fearless [Rated]                              │ heading text 700 32 + chip
+│ Pool since Thu 1 Oct, 4 games. Every champion │ 16 muted
+│ locked since then is banned.                  │
+│ 138 open   34 banned                          │ counts: mono 32 / text 17 700 · mono 19 / text 15 muted
+│ Still open, by lane. Played champions are     │ --fs-sm muted
+│ banned next game.                             │
+│ Find a champion                               │ visible label, text 700 --fs-xs
+│ [ Ahri, Lee Sin, Wukong…                    ] │ search input 44px, 17px
+│ [ All ][ ▢ top ][ ⋀ jungle ]                  │ lane control, 3 + 3 at 375, one row ≥768
+│ [ ▢ mid ][ ▢ adc ][■ support ]                │ pressed = --foreground fill, --card text
+│ Your lane this game: support. Show every lane │ only when opened on the viewer's lane
+│ Ahri is still available.                      │ the answer line, role="status", empty = no box
+│──────────────────────────────────────────────│
+│ ⛉ support                           24 open  │ h3: icon 24 + mono 23/600 · mono 19 + text 15 muted
+│ [▣ Alistar     ] [▣ Bard        ]             │ open grid, 2 columns at 375, chips 40px
+│ …                                             │
+│ Banned 8 ⌄                                    │ <details> closed, 44px summary, muted
+└──────────────────────────────────────────────┘
 ```
 
-**The number in this post is the weekly `Rating`, not Proven** (M7.3, 2026-09-15). The nightly post reads
-`this-week` and the Sunday post reads `last-week`, so both are the weekly track: the figure after the name is
-`round(mu × 60)` off that week's from-scratch fold, the list is ordered by it, and the footer is the week's
-sentence and not Proven's. **Only the monthly post still prints Proven and Proven's footer.** The rule under
-all of it is unchanged and is the reason this section exists: a one-number list shows the number it is ordered
-by. What moved is which number that is, per window, and the two strings cannot be swapped by hand — one
-`boardFooter(track)` picks the footer and one `boardLegend(track)` names the column on the page, so the post
-and the page a tap later cannot disagree about which board the reader is on.
+#### 8.7.2 Type hierarchy (this is the rule; "too uniform" is what it fixes)
 
-The timestamp is what tells a reader scrolling back next week *which* night's board this was; both other
-embeds carry one. This block lists only the fields that carry a design decision — it omits `description` for
-the same reason.
-
-**The field name follows the count** (product 2026-09-10, M3.22). The field is named `Top ten` only when ten
-lines actually print. With fewer than ten it is named `The board`. The trigger is the number of lines, not the
-size of the group: on a night when eight friends are seeded and eight lines print, `Top ten` is a promise the
-post does not keep — that list is not the top of anything, it is everyone. With exactly ten on the board both
-readings are true and `Top ten` is right, which is why the rule is worded on the lines and not on the roster.
-`The board` is not a new word for the page: it is the first two words of the settling sentence both web pages
-already print, and it stays lower case after `The` so it reads as a heading over a list rather than a second
-name for `Leaderboard` (the one-thing-one-name rule the title follows). One constant in
-`apps/web/lib/discord/embeds.ts` (`leaderboardEmbed`).
-
-On a **Proven window** — which, since M7.3, means the monthly post and nothing else — the number after the
-name is the **Proven** number (`round(ordinal × 60)`) and the list is ordered by it, descending. The embed
-prints one number either way: a one-number list must show the number it is ordered by, and a second number in
-a proportional font with no column to sit in is unreadable. `Rating` is on the web page.
-
-The worked example below is that Proven shape, kept because the arithmetic under it is the thing worth
-keeping. **Read it as `Last month · leaderboard`**; a nightly or Sunday post has the same five parts with the
-weekly `Rating` in the number column and the week's footer under it.
-
-Filled in with the worked example's ten (`docs/02-milestones.md` M1.4 table — `ordinal = mu − 2σ`, then
-`× 60`, rounded once). Game counts are illustrative; the docs pin none:
-
-> **Last month · leaderboard**
->
-> **Top ten**
-> `1` Lena · 1548 · 41 games
-> `2` Bilal · 1137 · 44 games
-> `3` Rami · 1062 · 39 games
-> `4` Iris · 990 · 38 games
-> `5` Karim · 987 · 40 games
-> `6` Omar · 917 · 42 games
-> `7` Hana · 882 · 37 games
-> `8` Theo · 831 · 38 games
-> `9` Nadia · 654 · 28 games
-> `10` Yuki · 534 · 24 games
->
-> Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.
-
-The arithmetic, so nobody has to redo it: Lena `34.80 − 2 × 4.50 = 25.80`, `× 60 = 1548`. Omar
-`24.49 − 9.20 = 15.29`, `× 60 = 917.4 → 917`. Iris and Karim land 3 points apart (`990` / `987`) on a `1578` /
-`1551` rating gap of 27 — Proven compresses, and rows will often sit close together. Design for near-ties: the
-number is `t-md` mono tabular and never abbreviated, so `990` above `987` reads as ordered rather than equal.
-
-Note the order is not the Rating order. Nadia (`1266` rating, `654` Proven) sits below Theo (`1419` / `831`)
-on both, but Yuki at `1134` rating is last on Proven by a wider margin than her rating suggests, because her
-σ is the second highest in the room. That is the whole point of the column, and it is why the footer sentence
-ships with every one of these posts and not just the first.
-
-Nadia and Yuki are under 30 games in this example, so on the **web** leaderboard both carry the `settling`
-chip — on a Proven window, which is the window this example is. A week board has no chip on any row (M7.3).
-The embed has no chip on any window: the footer sentence covers the message, and a `(settling)` suffix per
-line would double the length of the two lines that are already about the newest players.
-
-## Implementation notes for the web engineer (v1 — token block superseded by Floodlit)
-
-> The `tokens.css` block below is the **v1** file. The shipped file matches it; Floodlit replaces it. "The
-> admin area", "The tonight page's three states — one rule" and the state table underneath are
-> current and are not superseded. The 2026-09-08 "stays plain" rule is superseded: admin now adopts
-> the tokens and keeps its own shell.
-
-### Tokens as CSS custom properties
-
-New file `apps/web/app/tokens.css`, imported once from `apps/web/app/layout.tsx`. Prefix every custom property
-`--cn-` so nothing collides with a library later.
-
-```css
-:root {
-  color-scheme: dark light;
-
-  --cn-bg: #12151a;
-  --cn-surface: #1b2027;
-  --cn-text: #e7eaef;
-  --cn-dim: #97a0ad;
-  --cn-blue: #6ba5f7;
-  --cn-red: #ea6f69;
-  --cn-accent: #e0a33e;
-
-  --cn-hairline: color-mix(in srgb, var(--cn-text) 14%, transparent);
-  --cn-blue-tint: color-mix(in srgb, var(--cn-blue) 7%, var(--cn-surface));
-  --cn-red-tint: color-mix(in srgb, var(--cn-red) 7%, var(--cn-surface));
-  --cn-accent-tint: color-mix(in srgb, var(--cn-accent) 10%, var(--cn-surface));
-
-  --cn-sp-1: 0.25rem;  --cn-sp-2: 0.5rem;  --cn-sp-3: 0.75rem;  --cn-sp-4: 1rem;
-  --cn-sp-5: 1.5rem;   --cn-sp-6: 2rem;    --cn-sp-7: 3rem;     --cn-sp-8: 4rem;
-
-  --cn-t-xs: 0.75rem;  --cn-t-sm: 0.875rem;  --cn-t-base: 1.0625rem;
-  --cn-t-md: 1.25rem;  --cn-t-lg: 1.625rem;  --cn-t-xl: 2.25rem;
-
-  --cn-radius: 6px;
-  --cn-radius-chip: 3px;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --cn-bg: #f3f4f6;
-    --cn-surface: #ffffff;
-    --cn-text: #161a20;
-    --cn-dim: #5b6573;
-    --cn-blue: #1f5fc4;
-    --cn-red: #b4302b;
-    --cn-accent: #8e5b0e;
-  }
-}
-```
-
-Only the seven change between themes; every derived value follows for free. `color-scheme: dark light` (dark
-first) makes scrollbars, form controls and the pre-paint background follow the same choice, so there is no
-white flash opening the link in a dark room.
-
-There is **no theme toggle** in M3. `prefers-color-scheme` is the whole switch. A toggle needs storage, a
-server/client mismatch guard and a control in the header, and nobody has asked.
-
-### Fonts
-
-`next/font/google` in `apps/web/app/layout.tsx`, exposed as variables, `display: 'swap'`, `subsets: ['latin']`:
-
-```
-Archivo        -> --cn-font-sans   weights 400, 600, 700
-IBM_Plex_Mono  -> --cn-font-mono   weights 400, 600
-```
-
-Put the generated class on `<html>`, and set `font-family: var(--cn-font-sans)` on `body`. Add a `.cn-num`
-utility that sets `font-family: var(--cn-font-mono)` and `font-variant-numeric: tabular-nums`, and use it on
-every rating, delta, gap, percentage, duration, rank number and role label. Fallback stacks are in the Type
-section; put them in the CSS variable, not only in the `next/font` fallback array, so a blocked Google Fonts
-request still lands on Helvetica/Menlo rather than Times.
-
-### The admin area
-
-`/admin` adopts the same nine tokens, type, cards and Day/Night as the rest of the product
-**(2026-09-21; supersedes "The admin area stays plain")**. It keeps its own shell — a sidebar of
-destinations, not the friend-facing top bar — because it is an ops surface for five people on a
-laptop, not a WhatsApp link. Native `<form>` controls stay native; they are dressed with the
-tokens rather than replaced.
-
-Rules that stay:
-
-- No client JavaScript beyond `AdminForm`, `AdminAnswerGroup`, `AdminNav` and the theme switch.
-  Every write is still a real `<form>` posting to `/api/admin/*` (or `/api/me/lobbies/start`).
-- Copy is unchanged. A redesign does not rewrite a sentence an admin has already learned.
-- Colour is still a team, a state, or nothing. Destructive writes (revoke, remove admin, reset
-  fearless) outline in `red`; primary writes (start a lobby, mint, sign in, save) outline in
-  `brand`. Never a filled red block.
-- The public shell stays off this route: `/admin` is still outside `(site)`.
-- `.admin` uses `--cn-font-sans` / `--cn-font-mono`, not `system-ui`. The old system-font rule
-  existed only to keep the area plain after the root layout set Archivo on `body`.
-
-### The tonight page's three states — one rule
-
-M3.4 does not get to invent its own state model. The page renders **exactly one primary block**, chosen from
-`lobbies.status` for the newest non-abandoned lobby today, plus at most one secondary block:
-
-| `lobbies.status` | header strip reads | primary block | secondary block below |
+| Level | Element | Type | Colour |
 |---|---|---|---|
-| no lobby, or `abandoned` | `Nothing tonight` | Idle: one sentence, and a link to the leaderboard | — |
-| `open` | `<n> in the lobby`, live dot | Lobby member list | — |
-| `balanced` | `Teams set`, live dot | Sit-out notice, team cards, explanation line | — |
-| `in_game` | `In game`, live dot | Sit-out notice, team cards, explanation line | — |
-| `finished` | `Final` | Result card: headline, prediction line, the two team cards with **after** ratings and deltas, top damage | The explanation line of the split they played |
+| 0 | panel heading `Fearless` | text 700 **32** (`--fs-xl`) | `--foreground` |
+| 1 | open count `138` | Martian Mono 600, **32** (`--fs-xl`), `font-stretch` 85% | `--foreground` |
+| 2 | lane word `support` | Martian Mono 600, **23** (`--fs-lg`), lower case, 88%, with a 24px `RoleIcon` | `--foreground` |
+| 3 | per-lane `24` and the banned count `34`; the answer line | mono 600 19 / text 700 19 (`--fs-md`) | foreground; banned total `--muted-foreground` |
+| 4 | **open chip names** | text **600, 17** (`--fs-base`) | `--foreground` |
+| 5 | banned chip names; `open` / `banned` words; labels; sentences | text 400 15–16 | `--muted-foreground` |
 
-**The finished state, said once (M3.16, designer, 2026-09-09).** An earlier version of this row listed
-"team cards and the explanation line" as a secondary block *under* the result card, and the "Result card"
-component already puts both team cards inside the result card with the after ratings. Read together they put
-two ratings for the same player on one screen, which is a bug report waiting in voice. Product's rule for M3.4
-is **one rating per player per screen**, and the result card's is the one. So: the finished state renders the
-result card and, under it, the explanation line of the split they played — and nothing else. There is no
-second pair of team cards, before or after. The built page (M3.4) took this answer; this file now says the
-same thing in both places.
+On the card the same ladder runs one step smaller (title 19, count 23, banned 17), so the card never shouts
+louder than the panel. Archivo is not used in modes (display is for the strip headline and side names only).
 
-A `finished` lobby whose game the rating fold did not rate — a remake, a four-minute surrender, **and since
-M7.1 an ARAM** — has no result card to draw: the header reads `Final`, the teams block and the explanation
-line stay up as they were, the strip's sentence slot keeps its height and says nothing, and there are no
-deltas. No banner apologising for it; Discord stays silent about these games too. **This is the only place an
-ARAM night reaches the tonight page, and it is correct**: no headline in the winner's colour, no ratings, no
-`MVP` line, nothing that would read as a rated result. The one thing this state does not do is *say* which of
-the reasons it was, and product has ruled since 2026-09-09 that it should not — the page has no apology to
-make. The reason lives in `00-product.md` ("Only Summoner's Rift customs move the number") and, for a reader
-who goes looking, on `/p/[puuid]`'s `not rated` row, whose hint has named ARAM first among its reasons since
-M7.17 (2026-09-16).
+#### 8.7.3 The chip and the icon
 
-Idle copy (product, 2026-09-08 — final), the same sentence the placeholder page already carries from M1.10 so
-the wording does not change under people when M3.4 lands: `When ten of you are in a custom lobby with the
-companion running, the teams show up here.` Under it, a link reading `Last night and the board`. Nothing
-else: no illustration, no spinner, no "check back later". The header strip already says `Nothing tonight`, so
-the body does not repeat it.
+The icon exception from `05-design-1.0.md` carries over: **24 × 24, square, radius 4, never a circle, no
+crop, no ring, no glow, `aria-hidden`, the name is the accessible text, an icon never appears without its
+name.** Source: Data Dragon sprites (8.8).
 
-**No season active — the tonight page's own sentence (product, 2026-09-09 — final; M3.17).** `/admin`, the
-seasons page and the companion's 503 all say `No season is active, so games cannot be saved. Start a season on
-the Seasons page.` — one constant, `NO_ACTIVE_SEASON_MESSAGE` (M2.18). The tonight page does **not** say that.
-It is the link that gets pasted in WhatsApp, so it is read by the whole group, and it would end by telling
-twenty friends to open a page one of them can open. Its sentence is:
-
-> No season is active, so tonight's games are not being saved. An admin can start one.
-
-Same fact, no instruction the reader cannot follow, and no link to a locked door. It is not a state — it can
-be true while the page is idle, filling, showing teams or showing a result — so it sits at the top of `main`,
-directly under the header strip and above the primary block, in all four states. It is the one element on this
-page that is ever additional to the state table above; it never replaces a block, and it is absent entirely
-whenever a season is active. The treatment is the designer's call; the words are product's, and a change to
-them goes through product.
-
-The rule, in one sentence: **a state change replaces the primary block in place; the page never appends, never
-scrolls itself, and never animates anything but a 150ms opacity fade.** The header strip is always mounted and
-is the only element that survives every transition, so a phone reopened mid-night answers "where are we" in
-one glance without scrolling.
-
-Corollaries the implementation must respect:
-
-- The lobby member list reserves ten rows of height, so the 9→10 transition does not move the page.
-- `balanced` and `in_game` render the identical block. The only difference is the header word and the live
-  dot; the teams do not re-render, do not re-fetch and do not fade.
-- The explanation line is always the stored string of the currently promoted split (`splits.is_chosen`), on
-  every state that shows teams, including after a reroll (M3.7).
-- Realtime updates mutate state, never scroll position or focus. Someone tapping their role (M3.6) when the
-  tenth player joins must not have the page move under their thumb.
-- The header's live dot is the only pulsing element on the page, 2s opacity cycle, `accent`, and it stops at
-  `finished`.
-
-## What this design does not do (amended by Floodlit: one gradient, one glow)
-
-Listed because each one is a thing a page like this drifts into:
-
-- No emoji anywhere — not as section markers, not as side icons, not in embed field names, not for
-  win/loss. The role words are the icons.
-- No cream backgrounds, no serif display face, no purple or teal gradient, no acid green on black, no glass
-  blur, no neon glow, no dark-mode-with-a-single-saturated-accent-everywhere.
-- No champion art, avatars, crests, "VS" badges, or animated win banners. There is no asset pipeline and there
-  should not be one. **Two surfaces, one exception (M11 + M12):** a 24×24 square champion icon on fearless
-  chips on `/` and on the optional overlay's fearless block, loaded by champion id at runtime with no
-  pipeline ("The fearless icon exception"). It covers no other surface.
-- No skeleton shimmer. A dark room does not want a moving grey rectangle; empty states are one sentence.
-- No toasts. Realtime already changes the thing you are looking at.
-- No numbers rendered in a proportional font, ever.
-
-## The daily game — Daily Mystery and Guess the Award (M5.32, extended by M8.4)
-
-One accountless guessing game per civil day, on `/` and `/mystery`. Since M8.4 there are **two** games and
-they alternate civil days: **Daily Mystery** (a standout-or-disastrous stat line, guess whose it is) and
-**Guess the Award** (the best number in one game in one category, guess whose it is). One challenge per day
-either way, so nothing about the card's shape changed: one card, one route, one countdown, one row in
-`daily_mysteries`.
-
-Floodlit's own rules still win: no emoji, no named leaderboard, no purple, no champion art. The visitor is a
-cookie. The League player is the one on the scoreboard. Those are different people and the page never
-pretends otherwise.
-
-**The card never names the rotation.** It does not say "today is award day", does not explain the parity, and
-never promises what tomorrow is — the card is whatever it is, and the two sentences that used to promise
-another *case* or a `Next mystery` were each wrong by exactly one day. The one surface that does name today's
-game is the one that has already loaded it: the card's own heading and `/mystery`'s `<title>`.
-
-- **The day's question is the large type; the hook under it is what changed.** The heading is the category
-  (`Disaster class`, `Most gold`), then the kicker (`The crime` / `The award`), then `Someone in our customs
-  went` and the **KDA in the display cut on both games**, then two or three hook lines. On a mystery day
-  those lines are the category's own (deaths, kill participation, CS, damage taken, duration); on an award
-  day they are exactly two — **the award's own number under its own label**, then the duration. That is the
-  whole above-the-fold card.
-- **Six names, two columns, 44px.** Same button recipe as reroll. A second tap locks the guess. There is
-  no username field. Identical on both games: the question is always *who*.
-- **Clues are a list, not a quiz.** `Clue 1 · Champion` then the word. Reveal is one button under the
-  names. The page never prints a clue the visitor has not asked for. The clue ladder is the same eight
-  types on both games.
-- **After the lock, the card becomes the case file.** Correct / Wrong, `It was <name>`, the full
-  performance, then `Who did everyone blame?` — `Who did everyone pick?` on an award day — as labelled bars,
-  with `Most falsely accused: <name>` / `Most wrong picks: <name>` under them. Nobody is *accused* of winning
-  an award, which is the whole reason those four sentences fork. Community numbers are absent from the play
-  state because they are not in the props.
-- **The award's own number is the first row of the performance panel, and it is never inferred.** It is read
-  off the revealed scoreboard by the same function the hook used, so the day's premise and the day's reveal
-  cannot print two different numbers. Four of the seven awards (gold, vision, mitigation, objectives) are not
-  otherwise rows in that panel, and before M8.4's fix pass those days settled without ever showing the number
-  they were about. The two that *are* rows (damage, CS) print once, in the award's row, and the duplicate
-  below is dropped.
-- **A column the database never stored reads `Not recorded`, never `0`.** Vision score, damage mitigated and
-  objective damage arrived with migrations 0014 / 0015 (M7.7, M7.14); a game older than the backfill has no
-  number, and null is not zero. It prints in `text`, not mono — it is a sentence about the absence of a
-  number, not a number.
-- **First Detective is a sentence, not a medal.** Brand colour, no trophy. Later visitors get `Someone
-  has already claimed today's First Detective.` and never a name. The badge keeps its name on both games
-  (one `first_correct_at` column, one word for whoever gets today right first); only the sentence under it
-  forks, because "solve the mystery" is not what an award day was.
-- **Percentile is a bucket** (`Top 5%` … `Top 50%`) or nothing. Under ten correct guesses the page stays
-  quiet.
-- **Share copies a spoiler-free line.** `Daily Mystery #184 — solved with 1 clue. Top 15%.` or `Guess the
-  Award #7 — solved with 1 clue. Top 15%.` Never the player. Each game counts its own challenges, which is
-  why 0016 moved the unique to `(kind, challenge_number)` and why `#184` and `#7` sit side by side.
-- **Countdown** to the next civil midnight in `CUSTOMS_NIGHT_TZ`, mono, under a hairline. Same clock the
-  rotation uses. Not the 06:00 night boundary. **Its label is `Next game` on both games and on the empty
-  card** — the clock runs to the moment *the other* game starts, so it names neither.
-
-### An award day, drawn
-
-```
-Guess the Award #7                          ← slug, mono t-xs
-Most gold                                   ← t-display, categoryLabel
-THE AWARD                                   ← kicker, t-xs 0.08em dim
-Someone in our customs went
-12 / 2 / 8                                  ← the KDA, display cut, both games
-  Gold                21.4k                 ← the award's own number and label
-  Game                34:12
-Who was it?
-  [ Nadia ] [ Bahaa ] [ Omar ] …            ← six, two columns, 44px
-```
-
-and after the lock:
-
-```
-Guess the Award #7
-Correct
-MOST GOLD · AWARD SETTLED                   ← category, then what became of it
-It was Nadia
-First detective. You are the first person today to name the right player.
-You solved it with 1 clue.
-Top 15%
-
-Your result
-  Today's award is settled      Correct
-  Clues used                    1 clue
-  Solved in                     18 seconds
-  Your guess: Nadia             Yes
-
-12 / 2 / 8
-  Gold                          21.4k       ← the award's row, first
-  Champion                      Nidalee
-  Role                          JUNGLE
-  Damage                        28.9k
-  CS                            241
-  Game                          34:12 · Mon 15 Sep
-  Result                        Won
-
-Today's community
-  Attempts 31 · Correct 19 · Wrong 12 · Accuracy 61.3%
-
-Who did everyone pick?
-  Nadia   ████████████████   61%
-  Bahaa   ███████            26%
-  …
-  Most wrong picks: Bahaa
-
-Next game                       04:11:57
-```
-
-#### Copy — the daily game (M5.32; the award column added 2026-09-16, M8.4)
-
-Every string below is in `apps/web/lib/mystery/copy.ts`. The rule that decided the fork: **a word that names
-the thing being guessed about forks; a word that names the visitor, the mechanic or the scoreboard does not.**
-A crime, a case, a blame are award-day lies; a clue, a guess, a detective, a percentile are true of both.
-
-| Where | Daily Mystery | Guess the Award | Note |
+| Chip | Box | Name | Icon |
 |---|---|---|---|
-| card heading, share prefix | `Daily Mystery #184` | `Guess the Award #7` | `challengeHeading(kind, n)`. Each game counts its own challenges (0016: unique on `(kind, challenge_number)`) |
-| kicker over the hook | `The crime` | `The award` | `gameCopy(kind).kicker` |
-| kicker over the answer | `Case closed` | `Award settled` | `.closedKicker`, printed after the category on one line |
-| result-panel row label | `Today's case is closed` | `Today's award is settled` | `.todayClosed` |
-| distribution heading | `Who did everyone blame?` | `Who did everyone pick?` | `.blame` |
-| line under the bars | `Most falsely accused: Bahaa` | `Most wrong picks: Bahaa` | `mostAccusedLine(kind, name)`. `Most wrongly named` was rejected in M8.4's fix pass: it reads both ways at once |
-| First Detective's sentence | `You are the first person today to solve the mystery correctly.` | `You are the first person today to name the right player.` | `firstDetectiveYou(kind)`. The badge above it is `First detective` on both |
-| share, solved | `Daily Mystery #184 — solved with 1 clue. Top 15%.` | `Guess the Award #7 — solved with 1 clue. Top 15%.` | `zero clues` / `1 clue` / `n clues`; the bucket is dropped when there is none |
-| share, missed | `Daily Mystery #184 — missed it. There's another one tomorrow.` | `Guess the Award #7 — missed it. There's another one tomorrow.` | **changed 2026-09-16 (M8.4)**, both games — it promised another *case*, and under alternation tomorrow is the other game |
-| countdown label | `Next game` | `Next game` | **new 2026-09-16 (M8.4)**, replacing a per-game label. Kind-neutral on purpose: the clock ends when the other game starts |
-| nav tab | `Daily` | `Daily` | **renamed 2026-09-16 (M8.4)** from `Mystery`; see "The app shell". `DAILY_LABEL`, imported by `lib/nav.ts` |
-| a stat the database never stored | `Not recorded` | `Not recorded` | A null M7.7 / M7.14 column on a game older than migrations 0014 / 0015. Never `0`, never an em-dash |
-| the empty day | `No customs to expose yet. Play a few and the first mystery writes itself.` under the heading `Daily Mystery` | *(same)* | Nothing was built, so there is no kind and the card does not guess one. It is the last sentence still naming one game, on the one screen where neither has happened yet; product's string to revisit if a group ever sits on it, not worth a fork today |
-| everything else | `Who was it?` · `Guess now` · `Need help?` · `Reveal a clue` / `Reveal another clue` · `Locked in` · `Lock in <name>` · `Back` · `It was <name>` · `You guessed <name>.` · `Correct` / `Wrong` · `First detective` · `Someone has already claimed today's First Detective.` · `Your result` · `Clues used` · `Solved in` · `Today's community` · `<n>% of today's detectives were fooled.` · `Someone in our customs went` · `Copy result` / `Copied` | *(identical)* | One constant each, not two. `detectives` names the visitor, not the thing they were asked about, so it survives an award day |
+| **Open** (primary) | grid cell, min-height 40, padding `4 6 4 5`, gap 7, `--raised` fill, 1px `--border`, radius 4 | text 600 17, `--foreground`, wraps at spaces (`overflow-wrap: break-word`, never `anywhere`) | full |
+| **Banned** (secondary) | inline chip, natural width, min-height 34, transparent, 1px **solid** `--border` (dashed means an empty seat), radius 4 | text 400 15, `--muted-foreground` | `opacity: .55`, no greyscale filter |
+| **Find hit** | the chip it is, **inverted**: `--foreground` fill, `--card` text | as its row, in `--card` | full |
+| `Banned next game` chips (card, finished) | the open dress | 600 17 | full: here the ban *is* the news |
+| Unknown id or not in the pinned `champion.json` | no icon box at all | as its row | none |
 
-**The seven awards.** The heading is the day's question; the label is what the number is printed under, in
-the hook and again on the reveal. They differ on purpose: `Most vision` is a superlative, `Vision score` is a
-column.
+The hit is inverted, not amber (amber means live, you and the primary action only, 1.2). Chips are not
+controls, so 40px, not 44. Measured at 375: `Heimerdinger` (109px) fits the 150px cell; at 320 the grid drops
+to one column, so no name breaks mid-word.
 
-| Category | Heading (`categoryLabel`) | Stat label (`awardStatLabel`) | Reads as | Null before |
+#### 8.7.4 Find box and lane control
+
+- **Find box**: shadcn Input restyle, `type="search"`, 44px, 17px, `--background` fill, visible label `Find a
+  champion`, placeholder `Ahri, Lee Sin, Wukong…`. Substring match on normalised names; an exact name prints
+  `<Name> is on the ban list.` / `<Name> is still available.`; **typing ignores the lane control and opens
+  every `Banned` fold**; per-lane counts hide while typing; `No champion matches.` when nothing does.
+- **Lane control: single select `All · top · jungle · mid · adc · support`**, `aria-pressed` buttons in a
+  `role="group"` named `Lane`, 44px, `RoleIcon` 20 + mono 15, `All` in the text face 700, pressed = inverted.
+  3 + 3 at 375, one row beside the box ≥ 768. Initial value: `?lane=`, else the viewer's seat in balanced,
+  else `All`. Client state after that, never pushed to the URL.
+
+#### 8.7.5 Banned as secondary, and counts
+
+Each lane ends with a native `<details>` **closed by default** (`Banned` + mono count + chevron, 44px,
+muted); its chips wrap at natural width. `other` (a first lock with no stored role) appears only under `All`.
+Counts read `138 open · 34 banned` everywhere, open first; screen-reader text is the visible text. Totals are
+the roster (172) minus the pool; an id outside the roster counts as banned, not open.
+
+#### 8.7.6 375 vs 1440
+
+| | 375 | ≥ 1024 (dialog) |
+|---|---|---|
+| Tools | label, box, then lane control 3 + 3 | box (260–380px) and the control in one row |
+| One lane | 2-column grid | `minmax(168px,1fr)` → 5–6 columns |
+| `All` | lanes stacked top → support | **draft board: five lane columns**, each a single column of chips, `Banned` fold at its foot (`mode-panel-fearless-1440.png`) |
+
+#### 8.7.7 Empty and reset
+
+Dashed `--border-strong` card (dashed = "not yet", 5.7), one sentence, no find box: the balanced empty pool and
+the reset moment of 8.3. Inside the panel an empty pool shows the same sentence under the counts and every
+lane's full open grid (everything is open), with no `Banned` folds.
+
+### 8.8 Icons and performance
+
+**The panel uses Data Dragon champion sprite sheets, not 172 image files; the Mode card does not.**
+Measured 2026-10-03 on `16.19.1`: **6 sheets** (`img/sprite/champion0–5.png`, 480 × 144, 48px cells), **842 KB total**, against
+~4.9 MB for 173 single 120px icons. A 48px cell is exactly 2× for a 24px box. Coordinates come from M14.8's
+checked-in `champion.json`, keyed by numeric `key` (Wukong is `MonkeyKing`, key 62).
+
+- Markup: `<i class="ico" aria-hidden="true">`, `background-size: 240px 72px`, `background-position: -x/2
+  -y/2`. `championSprite(id) → { sheet, x, y } | null` replaces `championIconUrl`.
+- **Panel: six sheets, never `loading="lazy"`** (the audit's "blank until scrolled"). The sheets are preloaded
+  (`<link rel="preload" as="image" fetchpriority="low">`) when the panel renders **and on intent**: pointer over
+  or focus on any link into the panel (the card row, the lane tiles, the answer band's jump), so the panel
+  paints its icons on open.
+- **Mode card on Tonight: never loads the sheets** (ruled M14.45). Its `Banned next game` chips use each
+  champion's own square through Next's image optimizer: 24 × 24 box, `loading="lazy"`, 1× and 2× WebP. A
+  finished Tonight with ten banned champions costs ten small squares, not 842 KB of sheets. Same box, radius and
+  chip geometry as the sprite crop it replaced; nothing in the chip moves.
+- Preconnect to `ddragon.leagueoflegends.com` wherever Fearless shows (the card or the panel). The card's
+  squares come from our own origin through the optimizer; the preconnect is for the sheets, which an intent
+  preload may fetch from any screen that shows the card.
+- `content-visibility: auto; contain-intrinsic-size: auto 520px` per lane section; hidden lanes are `hidden`.
+- **Failure**: one `new Image()` per sheet; on `error` the panel gets `data-icons="off"` and every icon box goes
+  (one reflow). A champion newer than the pin is name-only until the pin bump.
+- **Bundle**: the panel body is its own client island, loaded with the `@panel` route; Tonight's live island
+  does not grow (the card is server-rendered plus a small controls form for admins).
+
+### 8.9 Accessibility
+
+- Card: `section` labelled by its h2; the row link's accessible name is its visible text (`Fearless Rated 138
+  open 34 banned See what's open`); tiles are links named `top 32` etc.; the controls form is labelled `Mode
+  settings`, the select by its visible `Mode` label, the M15 switch is `role="switch"` named `Rated`.
+- Panel: the seven rules of 8.6 (dialog semantics, focus to heading, trap, `inert` behind, focus return to the
+  trigger, Esc/Back/Close, announcer outside `inert`). Heading level: h2 in the overlay (Tonight keeps its h1),
+  h1 on the direct page; lanes are h3. The answer line is the panel's only `role="status"`.
+- Forced colours: the dialog gets a 2px `CanvasText` border; hit and pressed get system outlines; the switch
+  track gets a `CanvasText` border. Reflow at 320: one-column grid, no horizontal scroll (checked in the
+  prototype at 375 and 1440: no sideways scroll, every control 44px except inline sentence links).
+- Reduced motion: the panel appears with no transition (it is a route change, not an animation).
+
+### 8.10 How M15 modes plug in
+
+A mode is **one definition**, not a component tree. The card and the panel are shared; a mode supplies:
+
+| Field | Fearless | Class wars | Region wars |
+|---|---|---|---|
+| `name` / option label | `Fearless` | `Class wars` / `Tanks only` (one option per class) | `Region wars` |
+| `status` (card level 1) | `138 open · 34 banned` | `Tanks only` | `◣ BLUE Ionia` vs `◥ RED Noxus` (side glyph + display face side word, region in text 700 23; `Sides drawn when teams are rolled.` before balanced) |
+| `actionLabel` | `See what's open` | `See the tanks` | `See both pools` |
+| `laneLabel(role)` (answer band) | `What's open for support` | `Tanks for support` | `Ionia for support` (your side's region) |
+| `ratedDefault` | rated | not rated (M15) | not rated (M15) |
+| `finishedBody` | `Banned next game` | none (poster line, M15.5) | none |
+| `panelBody` | pool tool (8.7) | rule sentence + the class pool with find and lanes | **two pools side by side** at ≥ 1024 (blue's region left with `--tint-blue` head, red's right with `--tint-red` and the hatch), stacked blue then red at 375, your side first; same find box and lane control |
+| data | fearless pool | Data Dragon `tags` (M15.4) | the region table (M15.9), words only |
+
+- **Class wars panel** (`mode-panel-class-tanks-*.png`): heading `Class wars` + `Not rated`, rule `Tanks only`
+  (text 700 23), sentence `Every pick this game is a champion Riot tags Tank. Nobody is stopped in champ
+  select; the result post says which side kept the rule. Not rated: ratings don't move.`, counts `46 tanks of
+  172 champions`, then the same find box and lane control, champions grouped by their usual lane (from
+  `lanes.ts`). A lane with none says so in words: `No tank is usually played here. Any tank on this list may
+  go adc.` (16.19.1: top 18, jungle 16, mid 1, adc 0, support 11). Banned folds do not exist outside Fearless.
+- **Fearless counts as a mode, one at a time.** Combining (Fearless + Tanks only) is not designed; if product
+  wants it, the panel shows the class pool minus fearless bans with Fearless's banned folds (M15.2's
+  `modePool` already subtracts), and the card's status reads `Tanks only · 12 open`.
+- Mode names are words; no crests, region art, class icons or lore text (M15's rule).
+
+### 8.11 Copy (new or changed)
+
+| Where | Copy | Status |
+|---|---|---|
+| card title | the mode name: `Normal`, `Fearless`, `Class wars`, `Region wars` | [NEW COPY] |
+| rated chip | `Rated` / `Not rated` | [NEW COPY] |
+| card status, Fearless | `138 open · 34 banned`; empty `Nothing banned yet. All 172 open.` | [NEW COPY] |
+| card action | `See what's open` / `See the tanks` / `See both pools` / `All modes` | [NEW COPY] |
+| card, balanced | `Your lane support · 24 open` (`· 11 tanks`) | [NEW COPY] |
+| card, in game | `This game's ten join the ban list when it ends.` | [NEW COPY] |
+| card, Normal (everyone) | `Every champion is open.` (replaces `Standard draft, nothing narrowed. Only admins see this card.`, retired by the 8.2 ruling) | [NEW COPY] |
+| card, finished | `Banned next game` · `from game 4` | [NEW COPY] |
+| answer band | `What's open for support` / `Tanks for support` / `Ionia for support` | [NEW COPY] |
+| controls | `Admins and the owner`; label `Mode`; button `Set mode`; in game `Changes apply from the next game.`; failure `Couldn't change that. Try again.`; M15: switch `Rated`, `Next game is rated.` / `Next game is recorded, not rated.` (lead 2026-10-04: both describe the next game) | [NEW COPY] (replaces M14.30's switch copy) |
+| reset | `Reset fearless`; AlertDialog `Reset the fearless pool?` / `All 34 bans are cleared and every champion is open again. Discord gets told.` / `Reset fearless` · `Cancel` | button shipped; dialog [NEW COPY] |
+| panel bar | `Tonight · Mode`, `Close` | [NEW COPY] |
+| panel head, Fearless | `Pool since Thu 1 Oct, 4 games. Every champion locked since then is banned.` | [NEW COPY] |
+| panel, Fearless | `Still open, by lane. Played champions are banned next game.`; `Find a champion` / `Ahri, Lee Sin, Wukong…`; `Lane`; `Your lane this game: support.` + `Show every lane`; `Banned` + count | sentence and label shipped; rest [NEW COPY] |
+| answer lines | `<Name> is on the ban list.` / `<Name> is still available.` / `No champion matches.` | shipped |
+| panel foot, admins | `To change the mode or reset, use the Mode card on Tonight.` | [NEW COPY] |
+| panel, class | `Tanks only`; class sentence (M15.19, one shape per class, `a`/`an` from the word): `Everyone picks a tank this game: any champion Riot lists as a Tank. Nobody is stopped in champ select; the result post says which side kept the rule. Not rated: Ratings don't move.` (`Everyone picks an assassin this game: any champion Riot lists as an Assassin. …`; rated tail `Rated: Ratings move as usual.`); `46 tanks of 172 champions`; `No tank is usually played here. Any tank on this list may go <lane>.` | sentence [NEW COPY] (M15.19; replaces `Every pick this game is a champion Riot tags Tank.`) |
+| empty / reset / mode change | `Nothing banned yet, so every champion is open. The ten you lock this game are banned next game.`; `Fresh pool.` + `Raafat reset fearless, so every champion is open again.` · `reset 21:40`; `Back to Normal.` + `An admin set tonight to Normal, so every champion is open.` | [NEW COPY] |
+| card, mirror on Fearless (M15.14) | status `Same champion as your lane opponent · 138 open`; `This game only. Then back to Fearless.`; balanced `Your lane support · 27 open`; answer band `What's open for support`; in game `This game's champions join the ban list when it ends.`; panel: the mirror sentence (`You and your lane opponent play the same champion. It needs a Blind Pick lobby. Nobody is stopped in champ select; the result post says which lanes kept it. Rated as usual.`) above the Fearless pool | [NEW COPY] |
+| strip, mirror host line (M15.16) | idle `Mirror match next. Host: open a Blind Pick custom in League yourself. Start a lobby only makes Draft Pick.`; filling `Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.` | filling [NEW COPY] |
+| card, not rated on Fearless (M15.15) | balanced and in game `This game isn't rated, so it bans nothing.`; finished, where `Banned next game` would be, `Not rated, so this game banned nothing.`; strip in game `Not rated, so no Rating change.` | [NEW COPY] |
+| card, finished eyebrow (M15.15) | `Next game` (above the row, so its `Rated` / `Not rated` chip is the next game's) | [NEW COPY] |
+| panel, not rated on Fearless (M15.15) | `Still open, by lane. This game isn't rated, so it bans nothing.` / `Still open, by lane. Next game isn't rated, so it bans nothing.`; empty pool `Nothing banned yet, so every champion is open. This game isn't rated, so it bans nothing.` (`Next game …` before Roll). Designer-approved 2026-10-04: the `This game` form once teams are set, the `Next game` form before Roll, pairing with `Next game is recorded, not rated.` | [NEW COPY], approved |
+| tape tile and `/games` row note (M15.19) | `Tanks only · not rated`, `Ionia vs Noxus · not rated`, `Mirror match` (rated: the name alone), in the shape of `ARAM · not rated`; text 15 muted, its own line under the odds line. The kept/broke check line never goes on these rows (D6). A region id missing from the pinned table prints its id with each hyphen-separated word capitalised (`newland` → `Newland`, `blessed-isles` → `Blessed Isles`), never blank | [NEW COPY], approved |
+| announcer | `Fearless reset. Every champion is open again.` / `Ten more banned next game.` / `Tonight's mode is now Class wars: Tanks only.` / `This game is now rated.` / `This game is now not rated.` | [NEW COPY] |
+
+Retired before shipping: `Open the full pool`, the `/fearless` page copy, the More `Fearless` card, M14.30's
+`Fearless is off` / `On. Champions you lock…` switch sentences (off is now `Normal`).
+
+### 8.12 Discord fearless post (text layout)
+
+> M14.61 restyles both posts (section 10.8): same copy and fields, plus the shared identity and the lane counts.
+
+As shipped in M14.31 (`fearlessEmbed` and `fearlessResetEmbed` in `apps/web/lib/discord/embeds.ts`, copy in
+`apps/web/lib/fearless/copy.ts`, sent by `postFearlessPool` / `postFearlessReset` in `lib/discord/post.ts`).
+These two posts link the mode panel from their title. Since M15.6 the teams post (and its Reroll posts) also
+opens its description with the rule line, or `This game: not rated.`, the rule line carrying the panel URL as raw
+text (`See the tanks: <url>`, `See both pools: <url>`, mirror `How it works: <url>`); the result post carries the
+kept/broke/couldn't-check line and `Not rated, so no Rating change.` under its odds line, champions only
+(`lib/discord/modeLines.ts`). A rated Normal or Fearless game's posts are unchanged. No post goes out when the
+mode changes, and there is no separate mode message.
+
+**Which post, and when.** This is its own message, never part of the result. It goes out after a **rated** game
+finishes, right after the result post, to the game's group's channel. It is sent only when:
+
+| Group mode at post time | Pool | Post |
+|---|---|---|
+| `Normal` | any | nothing (skipped, `group mode is normal`); the result post is unchanged |
+| `Fearless` | empty | nothing (skipped, `fearless pool is empty`) |
+| `Fearless` | one or more bans | the pool post below |
+
+The reset post goes out when an admin resets the pool, in Fearless only. In Normal the pool cursor still moves
+but nothing is posted, and the reset route answers `post: 'skipped'`.
+
+**The pool post, top to bottom:**
+
+1. Accent bar `16764774`, the same as the teams post: the list belongs to neither side.
+2. Title `Fearless`, linking `/g/<slug>/mode`: the mode panel, which opens as a full page from Discord. It has
+   no `?lane=` and never links `/fearless`.
+3. Description `Banned next game: <n> more, <total> in all. <open> still open.` `<n>` counts the champions this
+   game locked first since the reset, so it is ten on an ordinary game and fewer when a lock repeated a ban.
+   `<total>` is the whole pool. `<open>` counts the roster champions that have a lane and are not banned.
+   The description is one plain line: no `-#` subtext and no italics. `EXPLANATION_STYLE` (`'subtext'`, with
+   `'italic'` as the fallback) applies only to core's sentence on the teams post (5.5) and does not touch
+   this post.
+4. One non-inline field per lane, in the order `top`, `jungle`, `mid`, `adc`, `support`. A lane with no bans
+   gets no field. If a banned champion has no lane, it goes in a last field named `other`. The field name is
+   the lane word in lower case. The value is **one line** joined with `, `: **this game's new names first and
+   bold** (A to Z), then the rest of the lane A to Z. A repeat lock is never bold. Names are markdown-escaped
+   (`` ` `` `*` `_` `~` `|` `\`), so `K'Sante` and `Kai'Sa` print as they are and a `*` cannot un-bold the
+   names next to it. A full 172-champion pool fits inside every embed limit without dropping a lane.
+5. Footer `Kustom · tap the title to see what's still open`, plus the timestamp.
+
+Captured from the real post for game 2 (`redesign/scene-walk.md`): `Fearless` /
+`Banned next game: 10 more, 10 in all. 166 still open.`, with lane fields and the new ten in bold. A later
+game, filled in:
+
+```
+Fearless                                   <- title, links to /g/customs/mode
+Banned next game: 10 more, 34 in all. 138 still open.
+top
+**Aatrox**, **Gnar**, Camille, Darius, Fiora, Garen, Jax
+jungle
+**Lee Sin**, **Vi**, Graves, Kha'Zix, Sylas, Viego
+mid
+**Ahri**, **Syndra**, Akali, Orianna, Viktor, Yasuo, Zed
+adc
+**Jinx**, **Kai'Sa**, Caitlyn, Ezreal, Miss Fortune, Vayne
+support
+**Nautilus**, **Thresh**, Blitzcrank, Leona, Lulu, Lux, Morgana, Pyke
+Kustom · tap the title to see what's still open              <- footer
+```
+
+**The reset post** has the same accent, title, link and footer. Its description is
+`Fearless reset. Every champion is open again.` (the same sentence as the 8.11 announcer line; it replaced
+M10's `Pool cleared. Ban list is empty.` in M14.9), and it has no fields.
+
+**No URL configured** (no slug, or a localhost origin): neither post has a title link, and both footers fall
+back to `Kustom`, so they never promise a tap that goes nowhere.
+
+**Later.** M15 modes are planned to add one line to the teams post (M15.6): `Mode: Class wars, Tanks only · not
+rated`. This is not built.
+
+### 8.13 Tasks (re-scoped 2026-10-03)
+
+**A. M14.30 Mode card and mode panel, Fearless first** *(owner: `web-engineer`; after M14.29; `apps/web`; no
+schema change)*
+- Scope: the card per 8.3/8.4 in every state, with the admin controls (Mode select with `Normal` and
+  `Fearless` until M15 adds more; the rated chip derived from the mode and **no switch** in M14; Reset with its
+  AlertDialog); the answer-band link; the `@panel` slot, `(.)mode` intercept and `mode/page.tsx` direct page
+  per 8.5; the panel rules of 8.6; Fearless's panel body (8.7) with sprites (8.8); the copy in 8.11 in
+  `lib/fearless/copy.ts` (mode-generic strings in `lib/mode/copy.ts`). Removes `/admin`'s fearless reset.
+  **Drops** the `/g/<slug>/fearless` route and the More card.
+- Acceptance: (1) one fixture per Tonight state renders 8.3's card and no other; everyone gets the card in
+  every state including `Normal` + rated (8.2 ruling), admins also get the controls foot; (2) balanced with a seated viewer links to `/mode?lane=<role>` and the
+  panel opens on that lane with `Your lane this game: <role>.`; a visitor gets `All`; (3) soft navigation from
+  Tonight renders the overlay, a hard load of the same URL renders the page with the shell (Playwright both);
+  Back and Esc close; focus lands on the heading and returns to the trigger; the page behind is `inert`;
+  (4) find, lane control and answer strings as 8.7.4 (byte-identical to M10.2/M10.3); (5) icons as 8.8 (panel
+  sprites never lazy; the card's `Banned next game` squares since M14.45), no `communitydragon`; (6) 375 and 320: no mid-word breaks, no sideways scroll; 1440 shows
+  the board in the dialog; (7) no `select`, switch or Reset inside the panel; members get no form;
+  (8) screenshots `redesign/screens/m14/tonight-mode-*` and `mode-panel-*` at 375/768/1440, designer ≤ 3
+  rounds; (9) Tonight's live island JS does not grow against M14.9; (10) typecheck, test, lint, build.
+
+**B. Overlay: open first for your lane** *(was M14.32)* **Deferred: companion UI replacement.** The user will
+replace the companion's UI; no overlay design work until then. M14.32's API half (`fearless.open` on
+`GET /api/overlay`) is deferred with it.
+
+**C. M14.31 Discord fearless post 2.0** *(owner: `platform-engineer`; shipped)* — 8.12; title URL `/g/<slug>/mode`, footer
+`Kustom · tap the title to see what's still open` on both posts; otherwise as approved (two-game fixture bolds exactly the second game's ten; limits guard at 172 bans; no icon or
+CDN string).
+
+### 8.14 STRATEGY and milestone edits this needs (product's to make)
+
+- STRATEGY §6(a): replace every per-state fearless clause with "the Mode card (05-design 8.3)"; §2.6 URL list:
+  `/g/<slug>/mode` replaces `/g/<slug>/fearless`; §2.4 More: no Fearless card.
+- `02-milestones.md`: M14.30's brief and title (8.13 A), M14.32 marked deferred, M14.31's URL; M15.5's "Mode
+  row" and "mode card above the teams" become this card's picker and the card in its place (8.3).
+- `04-decisions.md`: product's rows of 2026-10-03 (the Mode card and routed panel; no rated toggle in M14;
+  companion UI out of scope) are the decisions; designer's row of the same day records the panel's seven
+  conditions, the one-panel registry, `Set mode` instead of auto-submit, and the member visibility rule.
+
+---
+
+## 9. Kustom desktop (M17)
+
+Owner: `designer` (M17.2). Status: **draft for product's copy sign-off**. Builds in M17.8 (window, tray, pairing,
+switch) and M17.12 (updater). Inputs: the M17 section of `02-milestones.md`, the 0.3.x/0.4.0 UI it replaces
+(`apps/companion/desktop/`, `src-tauri/`), and sections 1 to 7 of this file.
+
+The user, 2026-10-03: "only keep a simple companion i can link to my account and choose to switch between groups
+and show current group and an updater". Windows only, one mode (host), no overlay. The job in the background is
+unchanged; **the window is small and quiet**. A host looks at it twice: once to link, and now and then to answer
+"which group is this PC recording for, and is it working?". Everything else is the tray.
+
+**Not in it, on purpose:** a settings page, a token or API-address field, unlink or remove a group, Overlay, a theme
+switch, OS notifications, sounds, a log viewer. Nothing in this section needs a control that is not listed in 9.5
+or 9.7.
+
+### 9.1 The window
+
+| | Rule |
+|---|---|
+| Size | **400 × 690** logical px (690 + the title bar fits a 768px-high screen above the taskbar) (Tauri inner size), fixed: `resizable: false`, `maximizable: false`, minimisable. Centred on first show. |
+| Frame | Native Windows decorations (snap, Alt+F4 and the window name for screen readers come free); `theme: "Dark"` so the title bar is dark; `backgroundColor: "#05070C"` (`--p-slate-0`, V1 page) so showing it never flashes white. Title `Kustom`. |
+| Close | The close button, Alt+F4 and Esc **hide the window to the tray**; the engine keeps running. Minimise goes to the taskbar as usual. A hidden window has no taskbar button. Quit is only in the tray (9.7). |
+| Opening | A launch by hand shows the window. A launch by **Start with Windows** starts in the tray with no window, **unless Kustom needs the person**: no usable token (Link) or an old engine running (9.6). Left-click on the tray icon = `Open Kustom`. |
+| Single instance | A second launch shows and focuses the running window (restores it if minimised). No second process, no message. |
+| Restart to update | The new version comes back the way the old one was: window shown if it was shown, tray only if not. |
+| Layout | Header 52 (lockup left, version right, `--border` bottom edge), fixed; under it main and footer (9.5) scroll **together**, vertically only, never horizontally. **Ruled at M17.8 review (2026-10-04): the window does not grow and nothing is hidden behind a disclosure; the rare tall states scroll.** At 100 % text, Link, Old engine, Restarting and every everyday Home state (one or two groups, any League state, any last-game case, a pending switch) fit with no scroll. Only the update card and the Can't find League block may push content past 690. When they do, the **fold rule** holds: the group name, the League row or block including its answer, and the screen's primary button sit above the fold; only footer content (the folder row, the checkbox row, the Home line, the Riot notice) may go below it, and every footer control is also in the tray (9.7). The Riot notice is always last, so it is what goes first. The scrollbar is the native WebView2 one, always shown while there is overflow (no `scrollbar-width: none`, no overlay-only styling); a line cut by the bottom edge is the other cue. Focus moving to a control below the fold scrolls it into view (`scroll-margin-top: 60px`, so the fixed header never covers a focused control). Why not taller: 690 is already the most a 1920 × 1080 screen at 150 % scaling gives (720 logical px above the taskbar, minus the title bar), the commonest laptop setup. Why not a disclosure for the Riot notice: it must stay readily visible (M14.8), and a disclosure adds a control and a state to a window whose rule is "small and quiet" for a state most hosts never see (the update usually installs itself at the first idle moment, 9.5.4). |
+
+### 9.2 Theme and tokens
+
+**Night only. Recommendation: do not follow Windows light/dark.** Why: the window is opened beside the League
+client (dark) in the same dark room as the tonight page, and Night is this system's first theme (2.1); it is a
+400px status panel, not a reading surface, so Day buys little; and one theme halves M17.8's screenshots and the
+risk of a theme bug in an app we can only test on a Windows round-trip. Game companions (Discord, the League client)
+stay dark on a light Windows too. What must work on a light taskbar is the **tray icon**, so it carries its own
+tile (9.7). Day can be added later with no redesign: the tokens below are 7.3's semantic layer, so `data-theme="day"`
+would work the same way it does on the web.
+
+- **Tokens:** `apps/companion/desktop/tokens.css` copies the web's **V1 "1.0 night"** Night tokens (decision row
+  2026-10-04, the user's pick: `#05070C` page, `#0C121A` card), not 7.3's slate, **unchanged** (no `@theme`, no
+  Tailwind: plain CSS variables). No hex anywhere else; where this section names a slate value (9.1's
+  `backgroundColor`, 9.7's tile), read the V1 token in the same role. The values in today's `desktop/index.html`
+  (`#0B0E14`, `#FFB13C`, `--cn-*`) are void with that file.
+- **Used:** `--background` with Night's `--page-light` (the two lamps and the grid); `--card` + `--border` (cards, level 1);
+  `--raised` (secondary button); `--border-strong` (the update card's edge, the "not yet" hollow dot);
+  `--foreground`, `--muted-foreground`; `--primary` / `--primary-foreground` (**one primary button per screen**);
+  `--primary-fill` (the connected dot); `--team-blue` / `--team-red` (only the winner glyph and word on the last-game
+  line, as text on `--card`: 6.49 / 6.63). `--destructive` is not used: nothing in the app destroys anything.
+- **Type:** Atkinson Hyperlegible Next 400/700 (text: names, sentences, buttons) and Martian Mono 500/600 (the code
+  field, times, durations, the version), as in section 4. **Self-hosted** WOFF2 in `desktop/fonts/`, Atkinson
+  latin + latin-ext (group names such as `Menaçe`), Martian latin; `Atkinson Fallback` from section 4 in the stack.
+  **No Archivo**: the `▍KUSTOM` lockup is an inline SVG (outlined letters, the amber 5×22 bar), so one 300 KB variable
+  font is not shipped for one word. No network font: today's Google Fonts link goes, and the CSP is
+  `default-src 'self'` (an offline PC still renders).
+- **Scale (2.7):** group name `--fs-lg` 23/700 (the one thing to read); values and buttons `--fs-base` 17; labels
+  and secondary lines `--fs-xs` 15, muted; the code field mono 32/600, tracked 0.2em; footer and Riot notice
+  `--fs-2xs` 13. Spacing on the 4px base, window padding 16, 12 between cards. Radii 8 / 6 / 4 (2.6).
+- **Controls:** buttons 44 tall, radius 6 (primary = amber fill, ink label; secondary = `--raised`, `--border-strong`
+  edge, 6.15; link = underlined `--foreground`, 44 hit area). Native `<select>` and `<input type="checkbox">`, styled per
+  5.0. **No motion:** colour changes at `--dur-fast`, nothing pulses (the dot is static), no spinners.
+
+### 9.3 States, in the order Kustom decides them
+
+```
+start ── an old engine's status.json is fresh ──> Old engine running (9.6)
+      ── no usable token for any group ─────────> Link (9.4)
+      ── the current group's token is refused (401 on /me) ──> Link, "again" variant (9.4 L9)
+      └─ otherwise ─────────────────────────────> Home (9.5)
+Home ── `Link another group` ──> Link (with Back) ── linked ──> Home
+any  ── update downloaded ──> Home's update card + tray item; restarting ──> Restarting (9.5.4)
+```
+
+Copy below: `[NEW COPY]` marks words written here (product signs them). Unmarked text is the server's sentence
+(shown verbatim, `apps/web/lib/groups/copy.ts`), the M17 brief's own words, or Riot's notice.
+
+### 9.4 Link
+
+```
+┌──────────────────────────────────────┐
+│ ▍KUSTOM                        1.0.0 │ header 52
+├──────────────────────────────────────┤
+│ Link this PC                         │ h1, 23/700
+│                                      │
+│ 1  Get a code on the site: admins    │ 15, ordered list (a real sequence, 1.3); M17.18
+│    from Set up your PC as host on    │
+│    the admin home, everyone else     │
+│    from their invite link.           │
+│ 2  Keep League open and signed in,   │
+│    then type the code here.          │
+│                                      │
+│ Code                                 │ label
+│ ┌──────────────────────────────────┐ │
+│ │ K 7 M Q 2 X                      │ │ mono 32/600, 56 tall
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │
+│ │               Link               │ │ primary, 44
+│ └──────────────────────────────────┘ │
+│ Six letters and numbers, from the    │ answer slot: 3 lines reserved,
+│ site.                                │ so no answer moves the footer
+│                                      │
+├──────────────────────────────────────┤
+│ [x] Start with Windows     Open logs │ footer row, 44
+│ Kustom isn't endorsed by Riot Games  │ Riot notice, 13, muted
+│ and doesn't reflect the views …      │
+└──────────────────────────────────────┘
+```
+
+| State | What changes | Copy |
+|---|---|---|
+| L1 idle, League open | slot shows help | `Link this PC` [NEW COPY]; step 1 `Get a code on the site: admins from Set up your PC as host on the admin home, everyone else from their invite link.` (M17.18) and step 2 as drawn [NEW COPY]; label `Code` [NEW COPY]; button `Link` [NEW COPY]; help `Six letters and numbers, from the site.` [NEW COPY] |
+| L2 League not open or not signed in | button `aria-disabled`, re-enabled live when League connects | `Open League and sign in. Kustom reads your League account from it.` [NEW COPY] |
+| L3 linking | button label, field read-only | `Linking…` [NEW COPY] |
+| L4 too short | on Link, no request | `Type all six characters.` [NEW COPY] |
+| L5 a character the code never uses | inline, as typed | `Codes never use O, 0, I or 1. Check the site.` [NEW COPY] |
+| L6 refused (404, 410, 409, 429) | slot, `role="alert"`; field keeps the code, selected, so a retype replaces it | the server's sentence verbatim, e.g. `That code doesn't match. Check the page and type it again.` / `That code ran out. Get a new one where you got this one.` / `This code is for ‹name›'s League account. Sign in to that account in League, then type the code again.` / `This Discord account is already linked to ‹name›.` / `That League account is already linked to someone else.` / `Too many tries. Wait a minute, then type the code again.` |
+| L7 a member's code (`hostRefusal`) | slot, `role="status"`; **nothing saved**; field cleared | the server's `hostRefusal` verbatim, which is the new `HOST_NOT_ADMIN`: `You're in. Only admins can host. Ask an admin to host, or to make you one.` (M17.12 edits the server string; decision row 2026-10-04), then `You don't need Kustom to play: the host's Kustom records your games. It won't start with Windows any more, and you can uninstall it.` (M17.19; a `hostRefusal` also turns Start with Windows off) [NEW COPY] |
+| L8 cannot reach the site / 5xx / malformed answer | slot, `role="alert"` | network: `Couldn't reach the Kustom site. Check your internet, then press Link again.` [NEW COPY]; 5xx or malformed: `Couldn't link just now. Press Link again in a minute.` [NEW COPY] |
+| L8b League stopped answering mid-link | slot, `role="alert"` | `Couldn't read your League account. Check you're signed in, then press Link again.` [NEW COPY] |
+| L9 "again" (the current group's token refused on `/me`) | h1 changes; the server's 401 sentence first in the slot, `role="alert"` | h1 `Link this PC again` [NEW COPY]; then the server's sentence |
+| L10 from Home (`Link another group`) | a `Back` link-button above the h1 (returns to Home, nothing changes); h1 changes | `Back` [NEW COPY]; h1 `Link another group` [NEW COPY]; steps unchanged |
+| L8c the site linked, but the token could not be written to disk | slot, `role="alert"`; field cleared and focused (the code is spent) | `Kustom couldn't save the link on this PC. Get a new code from the site, then type it here.` [NEW COPY] |
+| Success | no success screen: straight to Home, which shows the line under the group name until the window is next hidden; **a newly linked group becomes the current group** (through the guarded switch, 9.5.2) | `Linked. Kustom records this group's customs from now on.` [NEW COPY] |
+
+Field: `<input>` with `<label>`, `autocomplete="off"`, `spellcheck="false"`, `autocapitalize="characters"`; shown
+upper case; spaces and dashes stripped (paste `k7m-q2x` works); `maxlength` applies after that clean-up; Enter =
+Link; `aria-describedby` = the slot. Focus lands in the field when the screen opens.
+
+### 9.5 Home
+
+```
+┌──────────────────────────────────────┐
+│ ▍KUSTOM                        1.0.0 │
+├──────────────────────────────────────┤
+│ ┌──────────────────────────────────┐ │ update card, only when ready:
+│ │ Update ready: Kustom 1.0.3.      │ │ --card, 1px --border-strong
+│ │                    [Restart now] │ │ primary
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │ group card
+│ │ Recording for                    │ │ 15 muted ┐ one h1
+│ │ Customs Night                    │ │ 23/700   ┘
+│ │ Switch group                     │ │ label    ┐ only with two
+│ │ [ Customs Night               ⌄ ]│ │ select 44┘ or more groups
+│ │ Link another group               │ │ link-button
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │ status card, two rows ≥ 48
+│ │ League     ● In a custom game    │ │
+│ │──────────────────────────────────│ │
+│ │ Last game  21:42 · ◥ Red won ·   │ │ times and minutes mono
+│ │            31 min                │ │
+│ └──────────────────────────────────┘ │
+│ [            Open Tonight          ] │ secondary (primary when no update card)
+│                                      │
+│ [x] Start with Windows     Open logs │ footer row
+│ Closing this window keeps Kustom     │ 13 muted, Home only
+│ running. Quit from the tray icon.    │
+│ Kustom isn't endorsed by Riot Games… │ Riot notice
+└──────────────────────────────────────┘
+```
+
+#### 9.5.1 Group card
+
+- Label `Recording for` [NEW COPY]; the group's name in full, wrapping, never truncated (6.6).
+- `Open Tonight` [NEW COPY] opens `<apiBase>/g/<slug>` in the default browser (`opener`). It is the screen's primary
+  button unless the update card is showing; then it is secondary, so there is one primary per screen.
+- One group: no select. `Link another group` [NEW COPY] is always there (that is how a second group arrives).
+
+#### 9.5.2 Switch group
+
+- Native `<select>` labelled `Switch group` (the brief's words), listing **only groups this PC holds a host token
+  for**, by name, the current one selected. Choosing another starts the switch at once.
+- During the switch (normally under a second): select `aria-disabled`, line `Switching…` [NEW COPY].
+- **Guarded** (a game in progress or a block unposted, M14.13): the select shows the choice; line under it,
+  `role="status"`: `Switches to ‹Tuesday Crew› after this game.` [NEW COPY]. Choosing the current group again
+  cancels it. When it happens: `Switched to ‹Tuesday Crew›.` [NEW COPY] in the announcer only (9.8).
+
+#### 9.5.3 Status card
+
+**League** row. The dot is an SVG, `aria-hidden`; the word carries the state (6.5).
+
+| Client state (connection machine + gameflow phase) | Dot | Copy [NEW COPY] |
+|---|---|---|
+| not running, folder known (saved, default, or last seen from the process) | hollow ring, `--border-strong` | `League isn't open` |
+| not running and **no folder found** by any of the three steps | the row becomes the Can't find League block (9.5.6) | |
+| disconnected / reconnecting | hollow ring, `--border-strong` | `League isn't open` |
+| connected, `None` or any idle phase | solid `--primary-fill` | `League is open` |
+| `Lobby`, `Matchmaking`, `ReadyCheck` | solid | `In a lobby` |
+| `ChampSelect` | solid | `In champ select` |
+| `GameStart`, `InProgress`, `Reconnect`, `WaitingForStats`, custom game | solid | `In a custom game` |
+| the same phases, not a custom | solid | `In a game (not a custom, not recorded)` |
+| `PreEndOfGame`, `EndOfGame` | solid | `Game over` |
+
+**Last game** row (label `Last game` [NEW COPY]): the last game *this PC* posted for the current group, live or by
+backfill. Time from `Intl.DateTimeFormat` in the Windows locale (24 or 12 hour as the PC is set).
+
+| Case | Copy [NEW COPY] |
+|---|---|
+| today | `21:42 · ◥ Red won · 31 min` |
+| yesterday | `Yesterday 23:10 · ◣ Blue won · 28 min` |
+| older | `Sat 3 Oct, 22:15 · ◣ Blue won · 34 min` |
+| captured, not yet accepted by the site (in the queue) | `21:42 · saved, posts when the site answers` |
+| none | `No game recorded yet` |
+
+The winner is glyph + word in the side colour (3.3; text on `--card`), with `aria-label` `Red won`. Where this row
+comes from after a restart is open question 2.
+
+#### 9.5.4 Update
+
+| State | Window | Copy |
+|---|---|---|
+| checking, downloading, failed | **nothing** (a failure is a log line, never a dialog, per M17) | |
+| ready | update card at the top of Home; `Kustom ‹1.0.3›.` never breaks inside (no-break space); when the sentence and the button do not fit side by side (larger text sizes) the button goes under the sentence, full width, never past the card edge | `Update ready: Kustom ‹1.0.3›.` (brief's `Update ready`, version [NEW COPY]); button `Restart now` |
+| `Restart now` while guarded (lobby, champ select, game, a queued block) | button stays; line under it, `role="status"` | `Kustom restarts after this game.` [NEW COPY] |
+| restarting | the whole window: lockup, then one centred line; no button | `Restarting to update…` [NEW COPY] |
+
+```
+┌──────────────────────────────────────┐
+│ ▍KUSTOM                        1.0.0 │
+├──────────────────────────────────────┤
+│                                      │
+│                                      │
+│        Restarting to update…         │ 17, centred, role="status"
+│                                      │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+It also restarts by itself at the first idle moment (M17's rule), so the card is usually seen only by someone who
+opens the window mid-night. After the restart the header's version is the only sign; there is no "updated" line.
+
+#### 9.5.5 Footer (every screen)
+
+- `Start with Windows` (brief's words): a native checkbox, **on by default**, showing the real autostart state each
+  time the window opens (so a change made in Task Manager shows here). Same setting as the tray item.
+- `Open logs` (brief's words): a link-button that opens the logs folder (`opener`), the folder the README tells a
+  host to send the newest file from.
+- Home only: the **League folder** row (9.5.6), above the checkbox row.
+- Home only: `Closing this window keeps Kustom running. Quit from the tray icon.` [NEW COPY]
+- Riot's notice, verbatim as on the web (M14.8): "Kustom isn't endorsed by Riot Games and doesn't reflect the views
+  or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot
+  Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc." 13px,
+  `--muted-foreground` on `--background` (10.85:1), real text.
+
+#### 9.5.6 Can't find League, and the League folder
+
+The engine looks in this order (M17.5, decision row 2026-10-04): (1) the running client's own process, whose
+command line carries the install folder, (2) the saved `leagueInstallDir`, (3) the default paths. When League is
+running, step 1 always finds it, so this state only appears with League closed **and** no folder found by 2 or 3
+(a custom install that has never been seen running). Nobody edits `config.json`.
+
+**The block** replaces the League row in the status card (the Last game row stays below it):
+
+```
+┌──────────────────────────────────────┐
+│ ▍KUSTOM                        1.0.0 │
+├──────────────────────────────────────┤
+│ ┌──────────────────────────────────┐ │ group card, unchanged
+│ │ Recording for                    │ │
+│ │ Customs Night                    │ │
+│ │ Link another group               │ │
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │ status card
+│ │ League   ○ Can't find League     │ │ hollow ring; 17/700
+│ │ League isn't running, and Kustom │ │ 15
+│ │ couldn't find where it's         │ │
+│ │ installed.                       │ │
+│ │ [ Browse… ]   [ Try again ]      │ │ secondary, secondary; 44
+│ │ Opening League also fixes this.  │ │ 15 muted
+│ │ [answer slot, no space reserved] │ │
+│ │──────────────────────────────────│ │
+│ │ Last game  None yet              │ │
+│ └──────────────────────────────────┘ │
+│ [            Open Tonight          ] │ primary
+│ League folder  Not set     [Change…] │ footer row
+│ [x] Start with Windows     Open logs │
+│ Closing this window keeps Kustom …   │
+│ Kustom isn't endorsed by Riot Games… │
+└──────────────────────────────────────┘
+```
+
+| Step | What happens | Copy [NEW COPY] |
+|---|---|---|
+| idle | the block as drawn | title `Can't find League`; line `League isn't running, and Kustom couldn't find where it's installed.`; buttons `Browse…`, `Try again`; hint `Opening League also fixes this.` |
+| `Browse…` | the **native Windows folder picker** (Tauri `dialog` plugin, folder mode, title below), starting at `C:\Riot Games` if it exists, else `C:\` | picker title `Choose your League of Legends folder` |
+| picker cancelled | nothing changes, no message; focus back on `Browse…` | |
+| checking the pick | buttons `aria-disabled`; slot | `Checking…` |
+| found | slot, `role="status"`; folder saved as `leagueInstallDir`; the block goes back to the plain League row (`League isn't open`) with the line kept in the slot until the window is hidden | `Found League in ‹D:\Games\Riot Games\League of Legends›` |
+| a real miss | slot, `role="alert"`; nothing saved. **Only for real misses**: the engine normalises a pick of the `Riot Games` folder or the `Game` subfolder to the right folder, and that is a success | `That folder doesn't look like League. Pick the League of Legends folder, the one with LeagueClient.exe in it.` |
+| `Try again` | runs the three steps again; label `Looking…` | still nothing: slot, `role="alert"`, `Still can't find League.`; found: the plain League row |
+| League opens meanwhile | step 1 finds it; the block disappears by itself, no click | announcer: `Found League.` |
+
+**The slot reserves no height** (changed at M17.8 review): it is empty, zero tall, until an answer arrives, and the
+rows below move down then. That move never happens under the pointer: an answer arrives after the system picker
+closes, or below the `Try again` button that was pressed, which itself does not move. This keeps the idle block
+about 44px shorter, and a reservation could not hold the three-line miss sentence anyway.
+
+**A good folder that could not be written to `config.json`** (from `Browse…` or `Change…`): slot, `role="alert"`;
+nothing saved, the old folder (or `Not set`) stays: `Kustom couldn't save that folder. Pick it again in a moment.`
+[NEW COPY]. It says "pick", not "try again", because `Try again` is the block's other button and does something
+else.
+
+Paths are shown **in full and wrap** (`overflow-wrap: anywhere`), never truncated or middle-ellipsed (6.6), in the
+text face (a path is a place, not a number). Windows separators and drive letters as given.
+
+**The League folder row** (Home footer, above the checkbox row): label `League folder`, then the folder the engine
+uses (saved, default, or the one the running client reported) or `Not set`, then a link-button `Change…`
+(`aria-label="Change League folder"`). `Change…` runs the same picker, checks and messages as `Browse…`, with the
+answer in a one-line slot under the row; a miss keeps the old folder. The row is the only place to change the
+folder once it is found, so no settings page is needed.
+
+**Tray:** line 2 reads `League: can't find it` [NEW COPY]; the icon stays normal (opening League fixes it, and
+Kustom records as soon as it does), and the window does not open by itself for it.
+
+**Accessibility for the picker flow:** the Windows folder dialog is the system's own, so keyboard, Narrator and
+High Contrast work as in every Windows app; it is modal to the Kustom window. Focus returns to the button that
+opened it (`Browse…` or `Change…`) when it closes, picked or cancelled. The result goes in the slot under that
+button, tied with `aria-describedby`, so it is read once and stays readable; success is `role="status"`, a miss or
+`Still can't find League.` is `role="alert"`. During `Checking…`/`Looking…` the buttons are `aria-disabled` (not
+`disabled`), so focus does not drop to the page. The hollow ring is `aria-hidden`; the title says the state. The
+full path is real text, so a screen reader reads it all.
+
+### 9.6 Old engine still running
+
+```
+┌──────────────────────────────────────┐
+│ ▍KUSTOM                        1.0.0 │
+├──────────────────────────────────────┤
+│ The old Kustom is still running.     │ h1, 23/700
+│ Close it, then press Retry.          │ 17
+│                                      │
+│ Look for it in the tray by the       │ 15 muted
+│ clock, or in its own window.         │
+│ ┌──────────────────────────────────┐ │
+│ │              Retry               │ │ primary
+│ └──────────────────────────────────┘ │
+│ [answer slot, 1 line reserved]       │
+│                                      │
+├──────────────────────────────────────┤
+│ [x] Start with Windows     Open logs │
+│ Kustom isn't endorsed by Riot Games… │
+└──────────────────────────────────────┘
+```
+
+- h1 and first line: the brief's sentence, split at the full stop: `The old Kustom is still running.` /
+  `Close it, then press Retry.` Help: `Look for it in the tray by the clock, or in its own window.` [NEW COPY]
+- `Retry` → label `Checking…` [NEW COPY] → still running: slot, `role="alert"`, `It's still running.` [NEW COPY];
+  gone: the next state in 9.3. No watcher starts until it is gone. The tray icon is the "not recording" variant.
+
+### 9.7 Tray
+
+**Icon:** the Kustom mark on its own slate tile (`--p-slate-1` `#0C121A`, amber bar, `--p-slate-9` `#F4F7FC` letter: the V1 card and text), so it reads on
+light and dark taskbars; ICO at 16, 20, 24, 32. **Two states, told apart by shape**, not colour alone: normal
+(solid amber bar) and **not recording** (the bar drawn hollow): no usable token, token refused, or old engine
+running. League being closed is normal, not "not recording". The tooltip always says which.
+
+**Menu** (rebuilt on every state change; Windows renders it, so it follows the system theme):
+
+```
+Customs Night                         disabled: the current group's name
+League: in a custom game              disabled: status
+──────────────────────────
+Switch group                     ▸    only with two or more groups
+    ● Customs Night                   radio items, current checked
+    ○ Tuesday Crew
+Open Kustom                           default item (bold); same as left-click
+Open logs
+──────────────────────────
+✓ Start with Windows                  checkbox
+Restart to update                     only when an update is ready
+──────────────────────────
+Quit Kustom
+```
+
+| Item | Copy and states |
+|---|---|
+| Line 1 | the group's name; `Not linked` [NEW COPY] with no token; `Not recording: the old Kustom is running` [NEW COPY] in 9.6 |
+| Line 2 | `League: ` + the 9.5.3 state in lower case (`League: isn't open`, `League: open`, `League: in a lobby`, `League: in champ select`, `League: in a custom game`, `League: in a game (not a custom)`, `League: game over`, `League: can't find it`) [NEW COPY]; hidden when line 1 says not linked or old engine |
+| Switch group | the brief's words; a pending switch shows its item as `‹Tuesday Crew› (after this game)` [NEW COPY] |
+| Open Kustom, Open logs, Start with Windows | the brief's words |
+| Restart to update | the brief's words; while guarded `Restart to update (after this game)` [NEW COPY], still clickable, it schedules |
+| Quit Kustom | `Quit` in the brief, with the app's name [NEW COPY] because the tray is shared. **No confirmation**: an unposted block is queued first (M17), and backfill recovers a game Kustom was closed for |
+
+**Tooltip** (Windows caps it at 127 characters): `Kustom ‹1.0.0› · ‹Customs Night› · League: ‹in a lobby›`,
+plus ` · update ready` when ready; `Kustom · not linked`; `Kustom · not recording, the old Kustom is running`
+[NEW COPY].
+
+### 9.8 Accessibility
+
+- **Keyboard.** Everything works without a mouse. Tab order is DOM order: Link: (Back), field, Link, Start with
+  Windows, Open logs. Home: Restart now, Switch group, Link another group, (Browse…, Try again), Open Tonight, Change…, Start with
+  Windows, Open logs. Old engine: Retry, Start with Windows, Open logs. Enter submits the code; Space toggles the checkbox; the
+  select is native. Esc hides the window. Focus on open: the code field on Link, nothing forced elsewhere (no focus
+  jump while a host glances at it). The tray menu is reachable with Win+B, then Enter or Shift+F10.
+- **Focus.** 2px `--ring` outline, 2px offset, on every control (6.1); outline, not box-shadow, for forced colours.
+- **Contrast** (3.2, 3.3, measured): foreground on card 17.51; muted on card 6.44, on page 6.90; ink on the amber
+  button 12.63; the update card's `--border-strong` edge 3.92; team-coloured winner text on card 6.49 / 6.63 at 17px,
+  always with glyph and word. Nothing in the window is below 13px.
+- **Screen reader.** Window name `Kustom`. One h1 per screen (Home's h1 is `Recording for ‹Customs Night›`). The
+  lockup SVG is `role="img"` `aria-label="Kustom"`; the version reads `Version 1.0.0`. Dots and glyphs are
+  `aria-hidden`; the words carry them. One polite announcer (`role="status"`, `aria-atomic="true"`), one sentence
+  per change, never a bare number: `League is open.` / `In a custom game.` / `Game recorded. Red won.` /
+  `Update ready.` / `Switched to ‹Tuesday Crew›.` Refusals and errors use `role="alert"`. Every control has a
+  visible label; the select and checkbox use `<label>`. Tray items are plain text, so Narrator reads them,
+  disabled status lines included.
+- **Forced colours / High Contrast.** Native controls; dots, glyph and lockup are `currentColor` SVG; the hollow
+  ring and the solid dot still differ by shape.
+- **Text size.** Windows text scaling up to 225 %: main scrolls vertically, nothing clips, the window stays fixed.
+  WebView2 zoom (Ctrl + wheel) stays on.
+- **Motion.** None to reduce.
+
+### 9.9 Acceptance for M17.8 (designer signs)
+
+Screenshots at 400 × 690 of: L1, L2, L6 (one sentence), L7, L8, L9, L10; Home with one group, two groups, a
+pending switch, each League state, Can't find League (idle, looking, still not found, a miss, found), the League
+folder row (path and `Not set`), each last-game case, the update card, the guarded restart line; Restarting;
+Old engine and its `It's still running.`; the tray menu with two groups and with an update; both tray icons on a
+light and a dark taskbar; Home at 200 % text; Home in High Contrast. Every string matches this section.
+For each state that scrolls at 100 % text (update ready, update guarded, Can't find League with and without an
+answer, each also with two groups), two shots: at the top, showing the fold rule of 9.1 holds, and scrolled to the
+bottom, showing the Riot notice whole and the scrollbar.
+
+### 9.10 Open questions (for the lead)
+
+1. **The member sentence names Overlay mode.** `HOST_NOT_ADMIN` in `apps/web/lib/groups/copy.ts` ends "Ask one, or
+   switch to Overlay mode." Only host-mode pairing returns it and 0.3.x never sends host mode, so changing it touches
+   no shipped client. Proposed: `You're in. Only admins can host. Ask an admin to host, or to make you one.` Platform
+   edits it, product signs; not a contract change (the field is a free string).
+2. **Last game after a restart.** Showing it from memory only means it reads `No game recorded yet` after every restart or
+   update, which is exactly when a host checks. Proposed: one small additive file, `groups/<groupId>/last-posted.json`
+   (`{ at, winningSide, durationS }`), written after a 2xx. It is new on disk, so under M17's parity rule it needs a
+   decision row.
+3. **Web copy that names Host mode.** `HOST_STEP_OPEN` (`apps/web/lib/admin/homeCopy.ts`) says "pick Host"; the
+   1.0 app has no mode. Belongs to M17.12's copy surfaces.
+
+---
+
+## 10. Discord posts (M14.61)
+
+Owner: `designer`. Status: **built** (M14.61, 2026-10-04). Builder: `platform-engineer`, in
+`apps/web/lib/discord/`. As built, this section replaces 5.5 "Discord text" and the embed half of 7.4, and
+restyles 8.12. Mock-ups: `redesign/screens/discord/` (`discord-posts.html`, shot at 375 and 1440).
+
+The user asked for posts that look good, not only posts that carry the numbers. Discord gives us one free
+colour per embed, up to ten embeds per message, bold, inline code, subtext, masked links and two image slots.
+The current posts use one embed and one colour, so on a phone the teams arrive as a single amber bar with
+`Blue` and `Red` stacked under it in the same grey. This section spends what Discord gives us on the one thing
+a player looks for first: **which side am I on, and how did it go for my side.**
+
+### 10.1 Rules for every post
+
+1. **Display only.** Nobody types or taps in Discord to make anything happen. No buttons, no reactions to read,
+   no bot.
+2. **Phone first.** At 375 the embed's text column is about 270 px, roughly 36 characters of Discord's body text.
+   Inline fields stack to one column on phones, so we **stop using inline fields for the two sides**. Each side
+   gets its own embed (10.3), which reads the same on a phone and on a desktop.
+3. **One message per event, as now.** A post is one webhook call carrying a stack of embeds. A new message type
+   needs a product decision. The only one proposed is the Spin post (10.9), and it is gated.
+4. **Colour is the bar, and only the bar.** Text colour can't be controlled in Discord. ANSI code blocks are
+   rejected because mobile shows them as plain grey text, and the fenced-code ban of 2026-09-08 still holds.
+5. **Emoji only as data.** `🟦` and `🟥` (U+1F7E6, U+1F7E5) appear in exactly two places: the side embeds'
+   titles and the ten-cell odds bar (10.4). They carry side, the way the glyph does on the web. Any other emoji
+   is out: no custom guild emoji (we don't own the guilds), no medals, no trophies (M7.10), no section markers.
+6. **Every post links back to the site.** The first embed's title links the page the post is about, and the
+   author line links the group's Tonight. No URL (no slug, or a localhost origin) means no link and no promise,
+   as now.
+7. **Words carry the meaning, colour backs them up.** Every side embed names its side in words. A reader with
+   colour blindness, or a client with embeds collapsed, loses nothing.
+8. **House voice.** Short, plain, friendly. Every existing string carries over unless 10.13 marks it new.
+
+### 10.2 Identity: name, avatar, author, colours
+
+| Part | Value | Notes |
+|---|---|---|
+| `username` (webhook override) | `Kustom` | On every post, including the test post. A pasted webhook named `Captain Hook` still posts as Kustom. |
+| `avatar_url` | `<origin>/og/kustom/avatar?v=1` (10.11) | Left out when there is no public origin. Discord then uses the webhook's own avatar. |
+| `author.name` | the group's name, e.g. `Customs Night` | On the **first embed** of every post. Result: `Customs Night · game 47`. Teams in a Fearless standing mode: `Customs Night · Fearless`. Not markdown. Group names are capped at 40 characters (0018), so they always fit. |
+| `author.url` | `/g/<slug>` | Absent along with every other link when there is no URL. |
+| `author.icon_url` | none | The avatar is already beside the message, and a second copy is noise. |
+| `footer` | **only when it carries a sentence**: the board posts' explanatory line, the fearless post's `tap the title…` line | `Kustom`, `Kustom · game 47` and `Kustom · more on the tonight page` are dropped. The name is the username, the game number moved to the author, and the title is the link. |
+| `timestamp` | dropped | The message header already shows `Today at 21:40`. A second time under the embed repeats it. |
+
+**Colours** (Night values, because Discord's default theme is dark):
+
+| Token | Hex | Int | Used on |
+|---|---|---|---|
+| neutral (amber) | `#FFCF66` | `16764774` | the teams header and the teams `How the bot decided` embed, board posts, fearless posts, resets, Spin |
+| blue (side 100) | `#2E9BFF` | `3054591` | the Blue side embed on teams and result; a Blue win's result header |
+| red (side 200) | `#FF6B35` | `16739125` | the Red side embed on teams and result; a Red win's result header |
+| slate (AI) **new** | `#8B98AD` | `9148589` | `AI recap` blocks only (result recap, Sunday storyline). This is `--muted-foreground`: written about the numbers, not one of them. |
+
+Why the two side embeds don't read as a prediction (the concern behind the 2026-09-08 "teams bar is amber"
+row): both sides get an embed of the same size and luminance (1.03, 3.3), Blue always comes first, and the
+header and the footer embed are amber. The stack reads as amber, blue, red, amber: neither side is favoured,
+and both are named.
+
+### 10.3 The stack
+
+| Post | Embeds, top to bottom | Max |
+|---|---|---|
+| Teams (balance, reroll) | **E1** header (amber) · **E2** `🟦 BLUE` (blue) · **E3** `🟥 RED` (red) · **E4** `How the bot decided` (amber) | 4 |
+| Result | **E1** header (winner's colour) · **E2** `🟦 BLUE` · **E3** `🟥 RED` · (**E4** `AI recap` (slate), added by the 15-minute edit, Premium only) | 4 |
+| Sunday weekly | (**E0** `AI recap` storyline (slate), Premium and a stored storyline only) · **E1** board (amber) | 2 |
+| Nightly board | **E1** board (amber) | 1 |
+| Fearless pool / reset | **E1** (amber) | 1 |
+| Ratings reset | **E1** (amber) | 1 |
+| Spin (gated, 10.9) | **E1** (amber) | 1 |
+| Test post | `content` only, no embed (unchanged) | 0 |
+
+Stack rules:
+- Only **E1** has `author` and the page link in its title. E4 on teams links its own anchor. **E2 and E3 never
+  get a `url`.** Discord merges embeds that share a `url` into one image gallery, and side embeds have nothing
+  to link that E1 doesn't already.
+- **Order is fixed.** Blue before red, always (3.3 carrier 4).
+- **Discord's 6,000-character total is per message, across every embed** (titles, descriptions, field names and
+  values, footers and author names). The guard moves from one embed to the message: see 10.12.
+
+### 10.4 Teams post (balance and reroll)
+
+**Anatomy.**
+
+| Embed | Part | Content |
+|---|---|---|
+| E1 amber | author | `Customs Night`, or `Customs Night · Fearless` when the lobby's standing mode is Fearless [NEW COPY] |
+| | title | `Teams are set` / `Teams are set · reroll 1 of 2` (unchanged), links `/g/<slug>` |
+| | description line 1 (only with a rule or not rated) | the mode line, restyled (10.9): `**This game: tanks only.** Not rated. [See the tanks](<url>)` |
+| | description: labels | `**Blue 49%** · **51% Red**` (the receipt's two labels with the bar taken out, both bold, a middle dot between) |
+| | description: bar | `🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥`, ten cells, its own line |
+| | description: verdict | the banded sentence, verbatim (`Basically a coin flip.`) |
+| | field `Sitting out` (block, only when someone sits) | unchanged (the name first, then the page's reason sentence) |
+| | field `Seats` (block, always) | unchanged: move lines, then the side line |
+| | field `Lobby` (block, when named) | unchanged: `` `customs-night` · password `4471` ``. It moves up from last, because a latecomer needs it before the teams. |
+| E2 blue | title | `🟦 BLUE` [NEW COPY] |
+| | description | five seat lines in lane order: `` `top` **FoxHound** · 1224 ``, plus ` · off main role` as now |
+| E3 red | title | `🟥 RED` [NEW COPY] |
+| | description | five seat lines, same shape |
+| E4 amber | title | `How the bot decided` (the page's disclosure name), links `/g/<slug>#how-the-bot-decided` |
+| | description | chips line, reason line, core's sentence as `-#` subtext: the receipt's lines 3 to 5 from 5.5, verbatim |
+
+**The bar.** Ten cells of 10%. Blue cells = `round(p_blue × 10)`, with an exact half rounded **towards 5**, so
+neither side gains a cell from rounding. Each side keeps at least one cell (clamped to 1 to 9), the same rule as
+the web bar's clamp: the drawn bar is clamped, the labels print the real percentage. Ten emoji are about 200 px
+in Discord, so the bar fits one line at 375. The 20 `▰▱` cells plus both labels did not, which is why the labels
+now sit on the line above. The bar is the one memorable thing in the post, and it is the only place emoji show
+real colour.
+
+**Seat lines.** Role in inline code (a grey chip), the name in bold, a middle dot, then the Rating.
+The bold name is the "where am I" scan, and the Rating stays plain. Most lines fit 375 on one line. The
+longest ones (`support` plus a 15- or 16-character name, and every result line with a delta) can wrap at 375
+(measured in the mock-up: `` `support` **Used2BeATahmMain** · 1322 `` is about 250 px against a column of
+about 255 px). So **the wrap point is fixed**: the Rating and its change are joined by a no-break space (U+00A0,
+`1277 (+15)`), so a wrap moves the whole number to the next line after the middle dot, never `1277` on one line
+and `(+15)` on the next. Bold costs about 7 px and is not the cause, so it stays. Escaping and the 32-character cut are unchanged (`renderName`), and
+the bold markers go around the escaped name.
+
+**Why these blocks, in this order.** On a phone, E1 is about one screen: the odds, then the one line that must
+happen before anyone plays (`Seats`), then the lobby. The two sides come next, each under its own colour bar,
+so "which side am I on" is answered by colour and word together. The nerd lines (chips, next best, core's
+sentence) close the stack in E4. They are still in every post and still verbatim, but they no longer sit
+between a player and their name.
+
+**Teams, filled** (game 4 of the prototype night, Fearless standing, Chaos sitting out):
+
+```text
+Kustom  APP  Today at 21:12
+┃ Customs Night · Fearless                         author, links /g/customs          E1 amber 16764774
+┃ Teams are set                                    title, links /g/customs
+┃ **Blue 49%** · **51% Red**
+┃ 🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+┃ Basically a coin flip.
+┃ Sitting out
+┃ Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight.
+┃ Seats
+┃ You'll be moved to your side — if not, move yourself.
+┃ Lobby
+┃ `customs-night` · password `4471`
+
+┃ 🟦 BLUE                                                                            E2 blue 3054591
+┃ `top` **FoxHound** · 1224
+┃ `jungle` **XETA** · 1378
+┃ `mid` **Ramzyinhović** · 2638
+┃ `adc` **SugarPapy** · 1218
+┃ `support` **Used2BeATahmMain** · 1322
+
+┃ 🟥 RED                                                                             E3 red 16739125
+┃ `top` **H4RDC0R33** · 1531
+┃ `jungle` **Syndrome Axes** · 2291
+┃ `mid` **knifiy** · 1454
+┃ `adc` **PRT Khokha** · 1287
+┃ `support` **TheSHADOWREAPER** · 1262
+
+┃ How the bot decided                              title, links /g/customs#how-the-bot-decided   E4 amber
+┃ Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+┃ Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
+┃ -# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.
+```
+
+The same post as the webhook body (abridged to one seat per side):
+
+```json
+{
+  "username": "Kustom",
+  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=1",
+  "embeds": [
+    { "color": 16764774,
+      "author": { "name": "Customs Night · Fearless", "url": "https://kustom-delta.vercel.app/g/customs" },
+      "title": "Teams are set", "url": "https://kustom-delta.vercel.app/g/customs",
+      "description": "**Blue 49%** · **51% Red**\n🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥\nBasically a coin flip.",
+      "fields": [
+        { "name": "Sitting out", "value": "Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight." },
+        { "name": "Seats", "value": "You'll be moved to your side — if not, move yourself." },
+        { "name": "Lobby", "value": "`customs-night` · password `4471`" } ] },
+    { "color": 3054591, "title": "🟦 BLUE", "description": "`top` **FoxHound** · 1224\n…" },
+    { "color": 16739125, "title": "🟥 RED", "description": "`top` **H4RDC0R33** · 1531\n…" },
+    { "color": 16764774, "title": "How the bot decided",
+      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+      "description": "Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3\nNext best: …\n-# Red favored 51%. …" }
+  ]
+}
+```
+
+**Variants.**
+
+| Case | What changes |
+|---|---|
+| Reroll | E1 title `Teams are set · reroll 1 of 2`, nothing else |
+| A rule (class, region, mirror) | E1 description opens with the mode line (10.9). The author still names the standing mode. |
+| Normal or Fearless switched to not rated | E1 description opens `**This game: not rated.**` (no link, as now) |
+| Nobody sits | no `Sitting out` field |
+| No lobby name | no `Lobby` field |
+| No stored receipt (`receipt: null`) | E1 has no labels, bar or verdict; its description is the mode line or nothing. E4's description is core's sentence alone, as plain text, not subtext. |
+| No URL | no author link and no title links; E4's title is plain text |
+| Main roles with newcomers | the chip reads `Main roles 6/6 · 4 new` as now (5.5) |
+
+### 10.5 Result post
+
+**Anatomy.**
+
+| Embed | Part | Content |
+|---|---|---|
+| E1, the winner's colour | author | `Customs Night · game 47` [NEW COPY], or `Customs Night` when the count failed (the old footer's rule, moved) |
+| | title | `Red wins · 31 min` (unchanged), links the game page `/g/<slug>/games/<id>` |
+| | thumbnail (Tier B, 10.11) | the result badge, `<origin>/og/g/<slug>/games/<id>/badge` |
+| | description | lines, in this order, each only when it exists: the odds line (`Red was 51%. Red won.` / `Red was 46%. Red won. Upset!` / `50–50. Red won.`); the rule check line (M15.6, verbatim); `Not rated, so no Rating change.`; `Top damage: Syndrome Axes, 31.4k.`; the award line `**MVP** Syndrome Axes · **ACE** Ramzyinhović` (rated games only) |
+| E2 blue | title / description | `🟦 BLUE`; five lines `` `top` **FoxHound** · 1210 (-14) `` |
+| E3 red | title / description | `🟥 RED`; five lines, same shape |
+| E4 slate (edit only) | title / description | `AI recap`; the recap line, escaped as now (`discordRecapText`) |
+
+- **One line per fact.** Top damage now gets its own line instead of trailing the odds sentence. On a phone, the
+  old one-line description wrapped mid-name.
+- **The award line keeps product's words and order** (`MVP <name> · ACE <name>`, M7.10). Only the two labels
+  turn bold. It moves from a U+200B field under the columns into E1, so it sits with the headline it belongs to.
+  No trophy, medal or colour.
+- **Seat lines** are the teams post's shape with the change in parentheses, joined to the Rating by U+00A0
+  (10.4): an ASCII `-` and always signed,
+  `+0` / `-0` (5.3's Discord rule, unchanged). On a game played not rated, the line is the role and the name
+  only: `` `top` **FoxHound** ``.
+- **Side embed titles don't say won or lost.** E1's title and colour already do, and every delta's sign
+  repeats it on the line of the person reading.
+- **The AI recap is its own last embed**, not a field on E1 as M16.4 built it. Brief 1.3 puts it "under the
+  result and the rating changes". As a field on E1 it would sit **above** the ten ratings. `recapPayload`
+  appends E4 to the stored payload instead of adding a field. The 15-minute window and the in-memory message id
+  are unchanged.
+
+**Result, filled** (game 4, Red won, Premium recap landed):
+
+```text
+Kustom  APP  Today at 21:44
+┃ Customs Night · game 4                           author, links /g/customs           E1 red 16739125
+┃ Red wins · 31 min                                title, links /g/customs/games/<id>    ┌──────┐
+┃ Red was 51%. Red won.                                                              │ RED  │ thumbnail,
+┃ Top damage: Syndrome Axes, 31.4k.                                                  │ WINS │ Tier B
+┃ **MVP** Syndrome Axes · **ACE** Ramzyinhović                                        └──────┘
+
+┃ 🟦 BLUE                                                                            E2 blue
+┃ `top` **FoxHound** · 1210 (-14)
+┃ `jungle` **XETA** · 1363 (-15)
+┃ `mid` **Ramzyinhović** · 2625 (-13)
+┃ `adc` **SugarPapy** · 1203 (-15)
+┃ `support` **Used2BeATahmMain** · 1305 (-17)
+
+┃ 🟥 RED                                                                             E3 red
+┃ `top` **H4RDC0R33** · 1546 (+15)
+┃ `jungle` **Syndrome Axes** · 2305 (+14)
+┃ `mid` **knifiy** · 1470 (+16)
+┃ `adc` **PRT Khokha** · 1302 (+15)
+┃ `support` **TheSHADOWREAPER** · 1277 (+15)
+
+┃ AI recap                                                                           E4 slate 9148589
+┃ Syndrome Axes put 31.4k into champions and Red closed it out in 31 minutes.
+```
+
+A not-rated class game, E1 description only (the rest is the same, with names only on the seat lines). It
+has **no award line**: MVP and ACE scale a Rating change, and a game played not rated moves nobody, so
+`buildNotRatedInput` sends `award: null` and the line is absent, not empty:
+
+```text
+┃ Red was 51%. Red won.
+┃ Tanks only: Blue kept the rule. Red: Jinx isn't a tank.
+┃ Not rated, so no Rating change.
+┃ Top damage: Syndrome Axes, 31.4k.
+```
+
+ARAM still gets no result post (00-product, unchanged).
+
+### 10.6 Sunday weekly post
+
+**Anatomy.**
+
+| Embed | Part | Content |
+|---|---|---|
+| E0 slate (only with a stored, unhidden storyline, Premium) | title | `AI recap` (the storyline's label, M16.1 1.3) |
+| | description | the storyline paragraph (≤ 600 characters, escaped like the recap) |
+| E1 amber | author | `Customs Night` |
+| | title | `Last week · leaderboard` (unchanged), links `/g/<slug>/leaderboard?window=last-week` |
+| | description | the slot line, unchanged: `Sunday 27 Sep to Saturday 3 Oct · 14 rated games` |
+| | field `Top ten` / `The board` (block) | ranked lines as now (`` `1` Name · +212 · 5W–2L ``, settling chip on the line); **ranks 1 to 3 have the name in bold** [NEW STYLE] |
+| | one block field **per award** | field name = the award's label (`Best off-role`, `Cursed duo`), value = its line(s), verbatim. This replaces one `Awards` field with bold labels inside. A tie keeps its names on separate lines under the one label. |
+| | footer | `WEEK_BOARD_SENTENCE_SHORT`, unchanged |
+
+**The slot for M16.5 is E0**, a separate embed above the board, not a paragraph pushed into E1's description.
+Machine-written prose sits under its own slate bar and label, and the facts sit under amber. M16.5's
+"byte-identical when missing" test then means **E0 absent and E1 exactly as this section's layout**. It
+compares against the M14.61 snapshot, not today's.
+
+```text
+Kustom  APP  Sunday at 06:00
+┃ AI recap                                                                           E0 slate (Premium)
+┃ ‹One paragraph about the week, at most 600 characters, every number checked.›
+
+┃ Customs Night                                    author, links /g/customs           E1 amber
+┃ Last week · leaderboard                          title, links …/leaderboard?window=last-week
+┃ Sunday 27 Sep to Saturday 3 Oct · 14 rated games
+┃ Top ten
+┃ `1` **Ramzyinhović** · +212 · 5W–2L
+┃ `2` **Syndrome Axes** · +140 · 6W–3L
+┃ `3` **knifiy** · +88 · 4W–3L
+┃ `4` XETA · +41 · 3W–3L
+┃ `5` H4RDC0R33 · +30 · 4W–4L
+┃ `6` PRT Khokha · +12 · 3W–3L
+┃ `7` FoxHound · -18 · 2W–3L
+┃ `8` SugarPapy · -44 · 2W–4L
+┃ `9` TheSHADOWREAPER · -61 · 1W–3L
+┃ `10` Chaos · -96 · 1W–4L · settling · 4/10
+┃ Best off-role
+┃ XETA · 4W 1L · 80% · their main is jungle
+┃ Cursed duo
+┃ FoxHound and SugarPapy · 1W 5L · 17%
+┃ Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams.
+```
+
+No games in the week: no post, as now.
+
+### 10.7 Nightly board post
+
+Same as 10.6's E1 without E0 and without awards: author, title `This week · leaderboard` (links
+`?window=this-week`), the `Top ten` / `The board` field with the top three bold, the footer sentence. On the
+all-time track, `Still settling` stays its own field, unnumbered, never bold.
+
+### 10.8 Fearless pool and reset posts
+
+Both keep 8.12's copy, title link (`/g/<slug>/mode`) and footer. Changes:
+- the 10.2 identity (username, avatar) and author `Customs Night`; timestamp dropped;
+- each lane field's name carries its count: `top · 7`, `jungle · 6`, … `other · 1` [NEW COPY]. The value is
+  unchanged: one line, this game's new names first and bold.
+
+```text
+┃ Customs Night                                                                      E1 amber
+┃ Fearless                                         title, links /g/customs/mode
+┃ Banned next game: 10 more, 34 in all. 138 still open.
+┃ top · 7
+┃ **Aatrox**, **Gnar**, Camille, Darius, Fiora, Garen, Jax
+┃ jungle · 6
+┃ **Lee Sin**, **Vi**, Graves, Kha'Zix, Sylas, Viego
+┃ mid · 7
+┃ **Ahri**, **Syndra**, Akali, Orianna, Viktor, Yasuo, Zed
+┃ adc · 6
+┃ **Jinx**, **Kai'Sa**, Caitlyn, Ezreal, Miss Fortune, Vayne
+┃ support · 8
+┃ **Nautilus**, **Thresh**, Blitzcrank, Leona, Lulu, Lux, Morgana, Pyke
+┃ Kustom · tap the title to see what's still open                                    footer
+```
+
+The reset post: author, title `Fearless` (linked), description `Fearless reset. Every champion is open again.`,
+footer as 8.12, no fields.
+
+### 10.9 Mode of the night: the line, and the Spin post (gated)
+
+**In the teams post (built in M15.6, restyled here).** The mode line is E1's first description line. The rule
+half is bold, and the raw URL becomes a masked link (embed descriptions render `[text](url)`). Words are
+M15.6's, unchanged:
+
+| Mode | E1 line 1 |
+|---|---|
+| class | `**This game: tanks only.** Not rated. [See the tanks](<url>)` |
+| region | `**This game: region wars.** Blue picks from Ionia, Red from Noxus. Not rated. [See both pools](<url>)` |
+| mirror | `**This game: mirror match, same champion as your lane opponent.** Blind Pick lobby. Rated. [How it works](<url>)` |
+| Normal / Fearless, not rated | `**This game: not rated.**` |
+| no URL | the same, without the link |
+
+```text
+┃ Customs Night · Fearless                                                           E1 amber
+┃ Teams are set
+┃ **This game: tanks only.** Not rated. See the tanks       ← "See the tanks" is a link
+┃ **Blue 52%** · **48% Red**
+┃ 🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+┃ Basically a coin flip.
+┃ …
+```
+
+**The Spin post: proposed, not built.** M15.1 §4 rules "one line, never a separate message", and that stands
+until product reverses it (10.15 Q2). If it is reversed, this is the post, sent when an admin sets or spins a
+rule for the next game, at most one per pending rule:
+
+```text
+┃ Customs Night                                                                      E1 amber
+┃ Next game: Tanks only                            title, links /g/customs/mode   [NEW COPY, gated]
+┃ Spun by Kustom. Not rated. Every pick should be a champion Riot tags Tank.        [NEW COPY, gated]
+┃ [See the tanks](<url>)
+```
+
+Set by hand rather than spun: `Set for the next game. Not rated. …` [NEW COPY, gated]. No admin name: the
+channel doesn't need to know who pressed it.
+
+### 10.10 Ratings reset and the test post
+
+- **Ratings reset**: one amber embed, the 10.2 identity, author `Customs Night`, title `Ratings reset` (links the
+  all-time board), description verbatim (`Ratings were reset. Everyone starts at 1200 again. Top 3 before the
+  reset: …`). No footer, no timestamp.
+- **Test post**: unchanged `content` text (`Kustom is connected. Teams and results will show up here.`), now
+  sent with `username: Kustom` and the avatar, so the first thing a group sees is the identity every later post
+  uses.
+
+### 10.11 Images
+
+Nothing is hosted today except the share-card routes under `apps/web/app/og/` (`ImageResponse`, fonts read from
+`app/_og/fonts/`, palette `app/_og/palette.ts`). Images here come only from new routes of that kind on our own
+origin. **Every post is complete without them.** An image URL is sent only when the origin is public (the same
+check that decides whether a post has links at all). A route that 404s or times out leaves Discord laying the
+embed out without the image.
+
+| Tier | Image | Slot | URL and source | Fallback |
 |---|---|---|---|---|
-| `kda` | `Widest KDA` | `KDA` | `5.50` — two decimals, `(K+A) / max(1, D)` | — |
-| `damage` | `Most damage` | `Damage` | `41.2k` | — |
-| `gold` | `Most gold` | `Gold` | `21.4k` | — |
-| `vision` | `Most vision` | `Vision score` | `62` — integer | 0014 (M7.7) |
-| `mitigation` | `Most damage mitigated` | `Damage mitigated` | `38.6k` | 0014 (M7.7) |
-| `cs` | `Most CS` | `CS` | `241` — integer | — |
-| `objectives` | `Most damage to objectives` | `Objective damage` | `19.7k` | 0015 (M7.14) |
+| A | none | | | The whole of 10.4 to 10.10 ships text-only. |
+| B1 | Kustom avatar | `avatar_url` | **new** `app/og/kustom/avatar/route.tsx` → `<origin>/og/kustom/avatar?v=1`. 256 × 256 PNG, `cache-control: public, max-age=31536000, immutable`; bump `v` to change it. Page `#05070C`, the `▍` wordmark bar in amber `#FFCF66` and a `K` in Archivo condensed 900 `#F4F7FC`, both inside the centre 70%, because Discord crops avatars to a circle. | Omit `avatar_url`; the webhook's own avatar shows. |
+| B2 | Result badge | E1 `thumbnail` on the result post only | **new** `app/og/g/[slug]/games/[gameId]/badge/route.tsx` → `<origin>/og/g/<slug>/games/<id>/badge`. 256 × 256 PNG, `public, max-age=300, s-maxage=300` like the game card. Page `#05070C`; a 16 px rule across the top in the winner's colour; `RED` (Archivo condensed 900, 112 px, winner's colour); `WINS` (Archivo 900, 72 px, `#F4F7FC`; `TAPE_WINS`). Nothing else: no names, no duration, no champion art (5.16's Riot-safe rule). Discord shows it at 80 px, where `RED` is about 34 px tall. Same 404 rules as the game card. | No thumbnail; E1's text uses the full width. |
 
-The five mystery headings (`Disaster class`, `Monster game`, `Farming simulator`, `Raid boss`, `Where were
-you?`) are unchanged by M8.4 and share the same `categoryLabel`.
+**B2 has one cost**: a thumbnail narrows E1's text column by about 96 px on every line beside it. At 375 that
+leaves about 175 px, so the award line wraps to two lines. Ship B2 only if the 375 render keeps every E1 line to
+at most two lines. B1 has no layout cost and ships with Tier A.
 
-#### Two notes on the closed card's layout (designer, 2026-09-16 — flags, not defects)
+**Rejected:**
+- **Champion icons.** The 2026-09-23 row keeps icons on the Fearless surface only. A Discord embed has one
+  thumbnail slot, and ten picks don't fit it. Adding champion names to the seat lines would push about half of
+  them past 36 characters at 375. Community Dragon or Data Dragon URLs (`lib/champs/ddragon.ts` has
+  `ddragonChampionIconUrl`) would also put a third-party CDN inside every post.
+- **The 1200 × 630 game card as `image`.** It repeats the ten names as a ~300 px picture under the text. The
+  card is for unfurls of a pasted link, and it stays there.
+- **A link button** (`Open tonight`). Only application-owned webhooks may send components. OAuth-connected
+  groups have one, pasted webhooks don't, and the title link works for both. Left for later (10.15 Q4).
 
-- **The two-part kicker reads well and should stay one line.** `MOST GOLD · AWARD SETTLED` is the day's
-  question and its outcome in the order a reader wants them, in the micro-label's own size and colour, under
-  a headline that is already `Correct` / `Wrong` — three facts, three weights, no repetition. The one thing
-  to watch is width: `MOST DAMAGE TO OBJECTIVES · AWARD SETTLED` at `t-xs` with `0.08em` is about 300px of a
-  358px content column at 390, so it wraps on the next phone down and the break lands wherever it lands.
-  **The fix, if it is ever wanted, is one property and no markup change**: the two halves are already
-  separate `<span>`s, so `.cn-mystery-kicker span { white-space: nowrap }` moves the break to the middot.
-  Not requested here.
-- **The award's number belongs where it is, but the `kda` day prints one fact twice.** First row of the
-  performance panel, under a panel whose heading is the KDA, is the right order — the award is why the day
-  existed, and everything under it is context. On a `Widest KDA` day, though, the heading reads `12 / 2 / 8`
-  and the row directly under it reads `KDA 5.50`: the same fact in two notations, 8px apart. Harmless, and
-  cheaper to live with than a special case, but recorded here so it is not re-discovered as a bug.
-- **The play card's biggest number is the KDA on both games.** On five of the seven awards the award's own
-  number is a hook line and the display cut belongs to a KDA the day is not about. That is defensible — the
-  KDA is the strongest identifying fact the page can show six suspects, and it is the one shape every seat
-  has — but it is a design question nobody has actually been asked, so it is a flag for the lead rather than
-  a rule. **Do not change it on this pass.**
+### 10.12 Limits
+
+Unchanged: 256 title, 4096 description, 25 fields, 1024 per value, 256 author name, 2048 footer. Changed:
+**6,000 characters summed over every embed in the message, and 10 embeds** (Discord counts title, description,
+field names and values, footer text and author name across all embeds). `guardEmbed` becomes
+`guardMessage(embeds)`. It keeps the three rules of `limits.ts`: identity below the limit, cuts on line
+boundaries, and the line that matters survives.
+
+Give-way order when a message is over 6,000. Each step drops lines from the bottom of that block, keeping its
+first and last line (as now):
+
+| Post | Order (first to give) | Never cut |
+|---|---|---|
+| Teams | E4 subtext → E4 reason → E1 `Seats` move lines → E1 `Sitting out` | E1 title, labels, bar, verdict, the side line; E2 and E3 seat lines; `Lobby` |
+| Result | E4 recap (dropped whole) → E1 award line → E1 top damage | E1 title and odds line, the rule check, not rated; E2 and E3 |
+| Weekly | E0 storyline (dropped whole) → award tie names → board rows from the bottom | E1 title, slot line, row 1 |
+| Fearless | as 8.12 (fits at 172 bans) | |
+
+No real post comes near this: a teams post with ten escaped 32-character names is about 2,400 characters.
+
+### 10.13 Copy
+
+| Where | Copy | Status |
+|---|---|---|
+| webhook name | `Kustom` | [NEW COPY] (the product name, now set by us) |
+| author, every first embed | `<group name>` | [NEW COPY] |
+| author, teams in Fearless | `<group name> · Fearless` | [NEW COPY] |
+| author, result | `<group name> · game <n>` (moved from the footer `Kustom · game <n>`) | [NEW COPY] |
+| side embed titles | `🟦 BLUE`, `🟥 RED` | [NEW COPY] |
+| teams labels line | `**Blue 49%** · **51% Red**` | re-laid out (was the bar line's ends) |
+| teams E4 title | `How the bot decided` | shipped (the page's disclosure name) |
+| result award line | `**MVP** <name> · **ACE** <name>` | restyled (bold labels), words unchanged |
+| fearless field names | `top · 7` | [NEW COPY] |
+| mode line | M15.6's words, rule half bold, link masked | restyled |
+| AI blocks | `AI recap` | shipped (M16.1) |
+| Spin post (gated) | `Next game: Tanks only`; `Spun by Kustom. Not rated. Every pick should be a champion Riot tags Tank.`; `Set for the next game. Not rated. …` | [NEW COPY, gated on 10.15 Q2] |
+| dropped | footers `Kustom`, `Kustom · game <n>`, `Kustom · more on the tonight page`; the U+200B award field | retired |
+
+### 10.14 Acceptance (M14.61)
+
+1. Every builder in `lib/discord/` returns the stack in 10.3. Snapshot per post and per variant in 10.4 and
+   10.5. The worked examples here are the fixtures (game 4 names).
+2. Every payload sets `username: 'Kustom'`. `avatar_url` and image URLs only with a public origin (test with
+   localhost: absent).
+3. E2 and E3 never carry `url`. Only E1 carries `author` (test).
+4. Seat lines: the Rating and its change are joined by U+00A0, and nothing else in the line is (test).
+5. The bar: `p = 0.49, 0.50, 0.55, 0.45, 0.03, 0.97` → 5/5, 5/5, 5/5, 5/5, 1/9, 9/1 blue/red cells (half
+   rounds towards 5, clamp 1 to 9).
+6. `guardMessage`: identity below 6,000 across embeds. A synthetic message over the limit loses lines in 10.12's
+   order, and the never-cut lines survive (tests at the limit, as M4.12's).
+7. `recapPayload` appends a slate E4 to the stored payload and never adds a field to E1. The edit is still the
+   same message within 15 minutes.
+8. M16.5's hook: the Sunday builder takes `storyline?: string`. Absent gives exactly the E1-only snapshot.
+9. Every string matches 10.13 and the shipped copy modules (receipt, sit-out, mode, fearless, board, stats);
+   nothing is retyped.
+10. Real check: one teams, one result and one Sunday post sent to a scratch channel, screenshotted on a phone
+   (iOS or Android, dark theme) and desktop. Designer signs, at most two rounds.
+11. typecheck, test, lint, build.
+
+### 10.15 Open questions (for the lead)
+
+1. **Reversing two shipped choices.** Side-coloured embeds amend the 2026-09-08 row "teams embed bar is amber"
+   (the header stays amber; the sides are coloured equally), and the emoji bar amends M14.10's "no side colours,
+   no emoji" on the bar. Both need a decision row (proposed below).
+2. **The Spin post.** M15.1 §4 says the mode never gets its own message. Does product want one when a rule is
+   set or spun? The sketch is in 10.9. Default: no, and the mode line stays the announcement.
+3. **The result badge (B2)** costs E1 width on phones. Ship it only after the 375 render check in 10.11?
+4. **Link buttons** for OAuth-connected groups (`Open tonight`, `Open the game`), with title links for pasted
+   webhooks. Worth a later task?

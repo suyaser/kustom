@@ -1,0 +1,93 @@
+/* Mode card + mode panel prototype, on top of ../direction-c/c.css and ../fearless/fearless.css.
+   Values per docs/05-design.md section 8 "Mode card and mode panel". Not app code. */
+
+/* ---------- The card ---------- */
+.mc { padding: 0; overflow: hidden; scroll-margin-top: 12px; }
+.mc-link { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 0 12px;
+           padding: 14px 16px; min-height: 64px; text-decoration: none; color: inherit; }
+.mc-link:hover .mc-go span { text-decoration-thickness: 2px; }
+.mc-main { display: grid; gap: 4px; min-width: 0; }
+.mc-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.mc-top .card-title { font-size: 19px; }
+.ratechip { display: inline-flex; align-items: center; min-height: 26px; padding: 1px 8px; border-radius: var(--radius-chip);
+            font-size: 14px; font-weight: 700; border: 1px solid var(--border); background: var(--raised); color: var(--foreground); }
+.ratechip--off { background: transparent; border-style: dashed; border-color: var(--border-strong); color: var(--muted-foreground); }
+.mc-status { font-size: 15px; color: var(--muted-foreground); display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
+.mc-status b.num { font-weight: 600; font-size: 23px; line-height: 1.1; color: var(--foreground); margin-right: 4px; }
+.mc-status .st-ban b.num { font-size: 17px; color: var(--muted-foreground); }
+.mc-rule { font-size: 23px; font-weight: 700; line-height: 1.15; color: var(--foreground); }
+.mc-you { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--muted-foreground); }
+.mc-you svg { width: 20px; height: 20px; color: var(--foreground); flex: none; }
+.mc-you .lw { font-family: var(--font-mono); font-stretch: 85%; font-weight: 600; color: var(--foreground); font-size: 16px; }
+.mc-you b.num { color: var(--foreground); font-weight: 600; font-size: 16px; }
+.mc-sent { font-size: 15px; color: var(--muted-foreground); text-wrap: pretty; }
+.mc-go { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; font-size: 16px; white-space: nowrap; justify-self: start; min-height: 32px; margin-top: 4px; }
+@media (min-width: 768px) {
+  .mc-link { grid-template-columns: minmax(0, 1fr) auto; }
+  .mc-go { align-self: center; margin-top: 0; }
+}
+.mc-go span { text-decoration: underline; text-underline-offset: 3px; }
+.mc-go svg { width: 20px; height: 20px; flex: none; }
+.mc .lanecounts { margin: 0 16px 14px; }
+.mc .nb, .mc .fl-foot { margin-left: 16px; margin-right: 16px; }
+.mc .fl-foot { margin-bottom: 8px; }
+.mc--dashed { border-style: dashed; border-color: var(--border-strong); }
+
+/* Admin controls: the foot of the card */
+.mc-ctl { border-top: 1px solid var(--border); padding: 12px 16px 14px; display: grid; gap: 12px; background: color-mix(in srgb, var(--raised) 45%, var(--card)); }
+.ctl-who { font-family: var(--font-mono); font-stretch: 80%; font-size: 13px; color: var(--muted-foreground); }
+.ctl-row { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 12px; }
+.fld { display: grid; gap: 4px; min-width: 0; flex: 1 1 200px; }
+.fld-l { font-size: 15px; font-weight: 700; }
+.sel { appearance: none; -webkit-appearance: none; width: 100%; min-height: 44px; padding: 0 40px 0 12px; font: inherit; font-size: 17px;
+       color: var(--foreground); background: var(--background) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23c5cdd9' stroke-width='2.2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;
+       border: 1px solid var(--border); border-radius: var(--radius-control); }
+.btn { min-height: 44px; padding: 0 16px; font: inherit; font-weight: 700; font-size: 17px; border-radius: var(--radius-control); cursor: pointer; }
+.btn-primary { background: var(--accent-fill); color: var(--on-accent); border: 1px solid var(--accent-fill); }
+.btn-secondary { background: var(--raised); color: var(--foreground); border: 1px solid var(--border); margin: 0; }
+.sw { display: flex; align-items: center; gap: 12px; min-height: 44px; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.sw-track { width: 46px; height: 28px; border-radius: 14px; border: 2px solid var(--border-strong); background: transparent; position: relative; flex: none; }
+.sw-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted-foreground); transition: transform 150ms cubic-bezier(.2,.8,.2,1); }
+.sw[aria-checked="true"] .sw-track { background: var(--foreground); border-color: var(--foreground); }
+.sw[aria-checked="true"] .sw-track::after { transform: translateX(18px); background: var(--card); }
+.sw-t { display: grid; }
+.sw-l { font-weight: 700; font-size: 17px; }
+.sw-s { font-size: 15px; color: var(--muted-foreground); }
+.ctl-note { font-size: 15px; color: var(--muted-foreground); }
+
+/* ---------- The panel ---------- */
+.mp-scrim { position: fixed; inset: 0; z-index: 40; background: rgb(10 13 18 / 0.74); }
+.mp { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--card); color: var(--foreground); }
+.mp-bar { position: sticky; top: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 8px 6px 16px;
+          border-bottom: 1px solid var(--border); background: var(--card); z-index: 1; }
+.mp-crumb { font-size: 15px; color: var(--muted-foreground); }
+.mp-crumb b { color: var(--foreground); }
+.mp-close { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; font-weight: 700; font-size: 16px;
+            color: var(--foreground); text-decoration: none; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); }
+.mp-close svg { width: 20px; height: 20px; }
+.mp-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
+.mp-head { display: grid; gap: 6px; }
+.mp-head .mc-top .h1 { font-size: 32px; margin: 0; }
+.mp-since { font-size: 16px; color: var(--muted-foreground); text-wrap: pretty; }
+.mp-rule { font-size: 23px; font-weight: 700; line-height: 1.2; }
+.mp .fearless { border: 0; background: none; padding: 0; margin-top: 4px; }
+.mp-admin { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 15px; color: var(--muted-foreground); }
+.mp-admin a { color: var(--foreground); font-weight: 700; text-underline-offset: 3px; }
+.lane-empty { margin-top: 10px; font-size: 16px; color: var(--muted-foreground); }
+@media (min-width: 1024px) {
+  .mp { inset: 32px auto auto 50%; transform: translateX(-50%); width: min(1180px, calc(100vw - 64px)); max-height: calc(100vh - 64px);
+        border: 1px solid var(--border-strong); border-radius: var(--radius-card);
+        box-shadow: 0 24px 64px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.3); overflow: hidden; }
+  .mp-bar { padding: 8px 12px 8px 24px; }
+  .mp-body { padding: 20px 24px 28px; }
+}
+/* the standalone page: same body, inside the shell, no scrim */
+.mode-page .mp-body { padding: 0; overflow: visible; }
+.mode-page .crumb { margin: 8px 0 10px; }
+
+/* states sheet */
+.sheet { display: grid; gap: 10px; max-width: 760px; }
+@media (min-width: 1024px) { .sheet { max-width: none; grid-template-columns: 1fr 1fr; column-gap: 28px; align-items: start; } }
+.sheet .state-tag { margin-top: 14px; }
+.sheet > div > .card { margin-top: 8px; }
+@media (forced-colors: active) { .mp { border: 2px solid CanvasText; } .sw-track { border-color: CanvasText; } }

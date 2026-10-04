@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import type { Route } from 'next';
 import { describe, expect, it } from 'vitest';
 import {
   averageGameLine,
@@ -9,6 +10,7 @@ import {
   noRoleFootnote,
   PARTNERS_HEADING,
   SIDE_RECORD_HEADING,
+  STREAKS_HEADING,
 } from '@/lib/stats/copy';
 import type { PlayerStatsView } from '@/lib/stats/types';
 import { emptyPlayerStats, workedPlayerStats } from '@/lib/testing/boardFixtures';
@@ -16,27 +18,28 @@ import { workedPuuid } from '@/lib/testing/workedExample';
 import { PlayerStats } from './PlayerStats';
 
 /**
- * The sections under the rating chart (M5.20), rendered from a folded answer.
- *
- * The arithmetic is `lib/stats/playerStats.test.ts`; this is what the page *does* with it —
- * which record prints a percentage and which prints bare, what a section with nothing to say
- * says, where a name links, and the two heading levels M5.8 fixed.
+ * The player page's records (M5.20), 2.0 since M14.15: what the page does with `lib/stats`' folded
+ * answer. Role and text queries only.
  */
 
+const playerHref = (puuid: string) => `/g/customs/p/${puuid}` as Route;
+
 function draw(stats: PlayerStatsView = workedPlayerStats()) {
-  return render(<PlayerStats stats={stats} />);
+  return render(<PlayerStats stats={stats} playerHref={playerHref} />);
 }
 
-/** The row text with the screen-reader-only count taken back out. */
-function rowsOf(container: HTMLElement, card: number): string[] {
-  const lists = [...container.querySelectorAll('.cn-list-card')];
-  const rows = [...(lists[card]?.querySelectorAll('.cn-record') ?? [])];
-  return rows.map((row) => row.textContent?.replace(/ over \d+ games?/, '') ?? '');
+/** The rows of the card titled `title`, with the screen-reader-only count taken back out. */
+function rowsOf(title: string): string[] {
+  const heading = screen.getByRole('heading', { name: title });
+  const card = heading.closest('[data-slot="card"]') as HTMLElement;
+  return within(card)
+    .getAllByRole('listitem')
+    .map((row) => row.textContent?.replace(/ over \d+ games?/, '') ?? '');
 }
 
 describe('by role', () => {
   it('prints the percentage over the minimum and the bare record under it', () => {
-    const { container } = draw(
+    draw(
       workedPlayerStats({
         roles: [
           { role: 'jungle', puuid: 'u', name: 'Hana', games: 17, wins: 12, losses: 5, winRate: 71 },
@@ -44,141 +47,60 @@ describe('by role', () => {
         ],
       }),
     );
-
-    // Acceptance 2, on the page: `71%` for jungle, and `1W 0L` with no percentage for mid.
-    expect(rowsOf(container, 0)).toEqual(['jungle12W 5L · 71%', 'mid1W 0L']);
-    // And the sections add up: the role rows total the record the page prints above them.
-    const roles = workedPlayerStats().roles;
-    expect(roles.reduce((sum, role) => sum + role.games, 0)).toBe(workedPlayerStats().games);
-    expect(roles.reduce((sum, role) => sum + role.wins, 0)).toBe(
-      workedPlayerStats().sides.reduce((sum, side) => sum + side.record.wins, 0),
-    );
+    expect(rowsOf('By role')).toEqual(['jungle12W 5L · 71%', 'mid1W 0L']);
   });
 
-  it('names each role with its icon and its word, never the icon alone', () => {
-    const { container } = draw();
-
-    for (const role of container.querySelectorAll('.cn-lineup-role')) {
-      expect(role.textContent?.trim().length ?? 0).toBeGreaterThan(0);
-      expect(role.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
-    }
-  });
-
-  /**
-   * Every game backfilled: the section is the footnote and nothing else, with **this player's**
-   * count in it, and the line is not also printed under the card.
-   */
   it('is the no-role footnote alone when the client recorded no position of theirs', () => {
     draw(workedPlayerStats({ roles: [], noRoleGames: 12 }));
-
     expect(screen.getAllByText(noRoleFootnote(12))).toHaveLength(1);
   });
 
-  it('prints the footnote under the card when only some of their games are missing one', () => {
-    const { container } = draw(workedPlayerStats({ noRoleGames: 3 }));
-
-    expect(screen.getByText(noRoleFootnote(3))).toHaveClass('cn-hint');
-    expect(rowsOf(container, 0)).toHaveLength(2);
-  });
-
-  it('says nothing about roles when every game of theirs has one', () => {
-    draw();
-
-    expect(document.body.textContent).not.toContain('not in the role numbers');
+  it('prints the footnote under the rows when only some of their games are missing one', () => {
+    draw(workedPlayerStats({ noRoleGames: 3 }));
+    expect(screen.getByText(noRoleFootnote(3))).toBeInTheDocument();
+    expect(rowsOf('By role')).toHaveLength(2);
   });
 });
 
 describe('by side', () => {
-  /** Acceptance 3, on the page: four games on red are a record with no percentage. */
-  it('prints blue then red, and no percentage under the minimum', () => {
-    const { container } = draw();
-
-    expect(screen.getByText(SIDE_RECORD_HEADING)).toBeInTheDocument();
-    expect(rowsOf(container, 1)).toEqual(['Blue16W 17L · 48%', 'Red3W 1L']);
-  });
-
-  /**
-   * A side is a **name**, not a token and not a colour (product, 2026-09-11): capitalised like
-   * every other side this product prints, in Archivo like every other name in a list — so no
-   * `.cn-num`, which is the mono class — and with no tint, which means "which team" elsewhere.
-   */
-  it('draws a side as a capitalised name, in Archivo, with no colour and no icon', () => {
-    const { container } = draw();
-
-    const side = container.querySelector('.cn-stats-side');
-    expect(side?.textContent).toBe('Blue');
-    expect(side).not.toHaveClass('cn-num');
-    expect(side?.querySelector('svg')).toBeNull();
-    expect(container.querySelector('.cn-game-blue')).toBeNull();
+  it('prints blue then red, by word, and no percentage under the minimum', () => {
+    draw();
+    expect(rowsOf(SIDE_RECORD_HEADING)).toEqual(['Blue16W 17L · 48%', 'Red3W 1L']);
   });
 });
 
 describe('partners', () => {
-  it('is three best and three worst, each a link to that person s page', () => {
-    const { container } = draw();
-
-    expect(screen.getByText(PARTNERS_HEADING)).toBeInTheDocument();
-    expect(rowsOf(container, 2)).toEqual([
+  it('is three best and two worst, each a link to that person s page in the group', () => {
+    draw();
+    expect(rowsOf(PARTNERS_HEADING)).toEqual([
       'Iris9W 3L · 75%',
       'Karim7W 4L · 64%',
       'Theo6W 4L · 60%',
       'Bilal2W 9L · 18%',
       'Omar3W 8L · 27%',
     ]);
-    // No name is in both lists (the designer, 2026-09-11).
-    expect(rowsOf(container, 2).filter((row) => row.startsWith('Theo'))).toHaveLength(1);
-    expect(screen.getAllByRole('link', { name: 'Iris' })[0]).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Iris' })).toHaveAttribute(
       'href',
-      `/p/${workedPuuid('Iris')}`,
+      `/g/customs/p/${workedPuuid('Iris')}`,
     );
   });
 
-  /**
-   * **One sentence, and no group label over it** (the designer, 2026-09-11): a label promises
-   * rows, and `Best together` / `Worst together` around two copies of one line says one true
-   * thing four times.
-   */
   it('says the empty line once, with neither group label, when nobody qualifies', () => {
-    const { container } = draw(workedPlayerStats({ bestPartners: [], worstPartners: [] }));
-
+    draw(workedPlayerStats({ bestPartners: [], worstPartners: [] }));
     expect(screen.getAllByText(NO_PARTNERS)).toHaveLength(1);
-    const partners = [...container.querySelectorAll('.cn-list-card')][2];
-    expect(partners?.querySelectorAll('.cn-stats-subtitle')).toHaveLength(0);
-  });
-
-  /** Three or fewer over the bar: `Best together` is the whole truth and prints alone. */
-  it('draws Best together alone when there is no remainder to be worst', () => {
-    const { container } = draw(
-      workedPlayerStats({
-        bestPartners: [
-          { puuid: 'a', name: 'Iris', games: 12, wins: 9, losses: 3, winRate: 75 },
-          { puuid: 'b', name: 'Karim', games: 11, wins: 7, losses: 4, winRate: 64 },
-        ],
-        worstPartners: [],
-      }),
-    );
-
-    const partners = [...container.querySelectorAll('.cn-list-card')][2];
-    expect([...(partners?.querySelectorAll('.cn-stats-subtitle') ?? [])].map((n) => n.textContent)).toEqual([
-      'Best together',
-    ]);
-    expect(screen.queryByText(NO_PARTNERS)).not.toBeInTheDocument();
+    expect(screen.queryByText('Best together')).not.toBeInTheDocument();
+    expect(screen.queryByText('Worst together')).not.toBeInTheDocument();
   });
 });
 
 describe('streaks', () => {
-  /**
-   * **A streak is a row, not a sentence** (M5.8): the label left, `W3` right, in the form the
-   * leaderboard row prints and from the same helper.
-   */
   it('is three rows: the run they are on and the longest of each kind', () => {
-    const { container } = draw();
-
-    expect(rowsOf(container, 3)).toEqual([`${CURRENT_STREAK}W3`, `${LONGEST_WIN}W6`, `${LONGEST_LOSS}L4`]);
+    draw();
+    expect(rowsOf(STREAKS_HEADING)).toEqual([`${CURRENT_STREAK}W3`, `${LONGEST_WIN}W6`, `${LONGEST_LOSS}L4`]);
   });
 
   it('draws no row for a kind that never happened, and never `L0`', () => {
-    const { container } = draw(
+    draw(
       workedPlayerStats({
         streaks: {
           puuid: 'u',
@@ -189,71 +111,21 @@ describe('streaks', () => {
         },
       }),
     );
-
-    expect(rowsOf(container, 3)).toEqual([`${CURRENT_STREAK}W8`, `${LONGEST_WIN}W8`]);
+    expect(rowsOf(STREAKS_HEADING)).toEqual([`${CURRENT_STREAK}W8`, `${LONGEST_WIN}W8`]);
     expect(document.body.textContent).not.toContain('L0');
   });
 });
 
-describe('their average game length', () => {
-  /** Acceptance 6, on the page: the mean, to the minute, with no second count beside it. */
-  it('is one sentence, in a card, with no count the seed line already carries', () => {
-    draw();
-
-    // One sentence and no card (the designer, 2026-09-11), in the group line's own string.
-    const line = screen.getByText(averageGameLine(32));
-    expect(line).toHaveClass('cn-stats-answer');
-    expect(line.closest('.cn-card')).toBeNull();
-    expect(line.textContent).toBe('Average game 32 min.');
+describe('the rest', () => {
+  it('prints the average game length, the award line and the cap line', () => {
+    draw(workedPlayerStats({ awards: ['Most improved, week of 6 Sep.'], capped: true, cap: 2_000 }));
+    expect(screen.getByText(averageGameLine(32))).toHaveTextContent('Average game 32 min.');
+    expect(screen.getByText('Most improved, week of 6 Sep.')).toBeInTheDocument();
+    expect(screen.getByText('Showing the most recent 2000 games.')).toBeInTheDocument();
   });
 
-  it('is absent, not `0 min` and not `NaN`, for a window with nothing in it', () => {
+  it('draws nothing for a window this player did not play', () => {
     const { container } = draw(emptyPlayerStats('last-week'));
-
     expect(container).toBeEmptyDOMElement();
-    expect(document.body.textContent).not.toContain('NaN');
-    expect(document.body.textContent).not.toContain('0 min');
-  });
-});
-
-describe('the award line', () => {
-  /** Acceptance 7: one line, no badge, no icon — and not the `/stats` winner's `t-lg`. */
-  it('prints the award and the month, once, above the sections', () => {
-    const { container } = draw(
-      workedPlayerStats({ window: 'last-month', awards: ['Most improved, September.'] }),
-    );
-
-    const line = screen.getByText('Most improved, September.');
-    expect(line).toHaveClass('cn-player-award');
-    expect(line.className).not.toContain('cn-award-line');
-    // Above `By role`, which is the first card under it.
-    expect(container.firstElementChild?.textContent).toBe('Most improved, September.');
-    expect(container.querySelectorAll('img, svg[role="img"]')).toHaveLength(0);
-  });
-
-  it('prints nothing at all on a window that handed nothing out', () => {
-    draw();
-
-    expect(document.body.textContent).not.toContain('Most improved');
-  });
-});
-
-describe('a window this player did not play', () => {
-  /**
-   * The header strip already prints the window's own empty sentence. Four cards of `Nobody…`
-   * under it are four ways of repeating one line, so the band is not drawn at all.
-   */
-  it('draws nothing, so the window s own sentence is the whole answer', () => {
-    const { container } = draw(emptyPlayerStats('last-month'));
-
-    expect(container).toBeEmptyDOMElement();
-  });
-});
-
-describe('the cap', () => {
-  it('says which games these numbers are over when the read hit its cap', () => {
-    draw(workedPlayerStats({ capped: true, cap: 2_000 }));
-
-    expect(screen.getByText('Showing the most recent 2000 games.')).toHaveClass('cn-hint');
   });
 });

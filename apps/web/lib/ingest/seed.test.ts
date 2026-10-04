@@ -90,7 +90,7 @@ describe('seedFor', () => {
 
   it('is the seed a null `ratings` row recomputes to, which is what a retroactive reset relies on', () => {
     // "Never rated" and "seed columns nulled out" are the same input to this function, so
-    // nulling every stored seed and re-running `rebuild-ratings` re-seeds the whole season here
+    // nulling every stored seed and re-running `rebuild-ratings` re-seeds the whole group here
     // and needs no second code path to do it.
     expect(
       seedFor(

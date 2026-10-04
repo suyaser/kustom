@@ -1,199 +1,167 @@
+import { SETTLING_GAMES } from '@customs/core';
+import type { WindowKind } from '../night';
+
 /**
- * Every word `/leaderboard` and `/p/[puuid]` say (M3.5, M3.8, M3.10), in one file, spelled the
- * way product and `docs/05-design.md` spell them.
- *
- * The two names are fixed on every surface — **Proven** (`round(ordinal * 60)`, the sort key
- * and the primary number) and **Rating** (`round(mu * 60)`, the number the embeds print) — and
- * no surface invents a third (M3.5 brief; the row in `04-decisions.md`). Capitalised as
- * labels, lower case inside a sentence.
+ * Every friend-facing word on the board and the player page (M3.5; one Rating since M14.15,
+ * STRATEGY §5). Proven is gone from every surface, and so is the 30-game threshold: the settling
+ * count is core's `SETTLING_GAMES` (10), never a literal here.
  */
 
-import type { WindowKind } from '../night';
-import type { RatingTrack } from './types';
-
-/** The primary number: `round(ordinal * 60)`. Named once per page, in the legend. */
-export const PROVEN_LABEL = 'Proven';
-
-/** The secondary number: `round(mu * 60)`. Printed inline on every line 2. */
+/** The one public number (STRATEGY §5). */
 export const RATING_LABEL = 'Rating';
 
 /**
- * The legend in the board card's header bar, right-aligned over the **one** unlabelled number
- * (`05-design.md`, "Leaderboard row", amended 2026-09-09). A legend, not a header row: it does
- * not stick, does not sort and is not tappable.
- *
- * **One word, and the word is `Proven`.** Right-aligned, `Proven · Rating` put `Rating`
- * directly over the Proven column and `Proven` over nothing, which reads as two side-by-side
- * columns when the two numbers are stacked one per line. `Rating` needs no legend: it names
- * itself on every line 2.
+ * The board's one word (M14.72, flow audit): the tab, the h1 and the page title all say `Board`.
+ * Short enough that the h1 needs no soft hyphen at 200% text.
  */
-export const BOARD_LEGEND = PROVEN_LABEL;
+export const BOARD_LABEL = 'Board';
 
-/**
- * The legend in the `Recent games` header, right-aligned over the column of ratings, and the
- * same lower-case mono micro-label the seat rack carries over its own rating column
- * (`05-design.md`, "The player page", the designer's M3.5 review). The bare number under it
- * carries visually-hidden `Rating`, exactly as the board row's bare Proven does.
- */
-export const RECENT_RATING_LEGEND = RATING_LABEL.toLowerCase();
+/** The ranked section's heading (visually hidden: the numbers say it). [NEW COPY] */
+export const RANKED_SECTION_TITLE = 'Ranked';
 
-/**
- * The board's own word (designer, 2026-09-09). `Leaderboard` and not `standings`: it is what
- * `docs/01-architecture.md` and the milestones have called this page since M0, it is the word
- * the group uses, and a second name for a page is exactly the drift the two number names are
- * already policed against.
- *
- * Capitalised as a label — the page heading, the back link, the `<title>` — and lower case
- * inside the embed's title, where it follows the **window's** name in a sentence-shaped line
- * (`This week · leaderboard`, M5.12), the same rule `Proven` and `Rating` follow.
- */
-export const LEADERBOARD_LABEL = 'Leaderboard';
+/** The settling section's heading (STRATEGY §5). */
+export const SETTLING_SECTION_TITLE = 'Still settling';
 
-/**
- * When the marker switches off. Product's round number for M1.3's finding that a mis-seeded
- * player's sigma first falls below 5.00 somewhere between game 26 and game 36 (M3.8 brief):
- * the sentence says "about 30 games" and the chip switches off at exactly 30.
- */
-export const SETTLING_GAMES = 30;
+/** The settling section's line (STRATEGY §5), the same words the Discord board post prints. */
+export const SETTLING_SECTION_LINE =
+  `New players' ratings move fast at first. They get a rank after ${SETTLING_GAMES} games.` as const;
 
-/** The chip. A word, not a warning: no colour, no dot, no emoji, no asterisk. */
-export const SETTLING_CHIP = 'settling';
-
-/**
- * The sentence, once per page under the leaderboard heading and never once per row (product,
- * **2026-09-10**, amending the 2026-09-08 wording; {@link SETTLING_SENTENCE_SHORT} was amended
- * in the same pass and for the same reason, so the page and the nightly post say one thing).
- *
- * **`/leaderboard`'s, from M3.26.** The player page prints {@link SETTLING_SENTENCE_PLAYER}
- * instead; `you` is right here, because everyone reading a board is on it.
- *
- * The 2026-09-08 wording said new players `start low on purpose and climb as they play`, which
- * is false on a season's first board, where every row is a rank seed and nobody has climbed
- * anything. It also promised a gap that closes — `stays below your rating until…` — and the gap
- * never closes: σ shrinks, it does not reach zero. This one says what Proven **is**, in the
- * reader's own terms, and what happens to the difference: it shrinks and settles.
- *
- * The number is interpolated from {@link SETTLING_GAMES} rather than typed, because the M3.8
- * acceptance check is that the number in the sentence is the threshold the marker itself uses.
- * `board/copy.test.ts` pins the assembled string against product's words.
- */
-export const SETTLING_SENTENCE =
-  `The board sorts on ${PROVEN_LABEL}: your rating, minus how unsure the board still is about you. That gap shrinks as you play and settles after about ${SETTLING_GAMES} games.` as const;
-
-/**
- * The same two sentences on `/p/[puuid]`, in the **third person and with no name in them**
- * (M3.26, product 2026-09-10; the copy table in `05-design.md`).
- *
- * On Yuki's page `your rating` names the number printed twenty pixels above it, and that
- * number is Yuki's, not the reader's — the one page in the product where the board's own
- * `you` is wrong. It is not deleted instead: M5.15's explanation strip says why a *change* is
- * the size it is and names neither Proven nor Rating, so with this gone the biggest number on
- * the page and the `settling` chip beside it would have nothing anywhere saying what they are.
- *
- * **No name is interpolated.** A nameless player is `Someone` (M3.10), a name can change
- * between two page loads, and the possessive of every name in the group is not one rule.
- *
- * Same shape, same two interpolations and the same `settles`-not-`closes` rule as the board's,
- * so a reader arriving from `/leaderboard` meets the same explanation rather than a second one.
- * Neither constant may be edited into the other.
- */
-export const SETTLING_SENTENCE_PLAYER =
-  `The board sorts on ${PROVEN_LABEL}: a player's rating, minus how unsure the board still is about them. That gap shrinks as they play and settles after about ${SETTLING_GAMES} games.` as const;
-
-/**
- * The short form, for the one-line Discord footer where two sentences will not fit. Amended
- * with the long one (product, 2026-09-10): **the gap settles, it never closes** — σ falls with
- * every game and does not reach zero, so neither sentence may say `until` or `catches up`.
- *
- * **Second person, and it stays** (M3.26): it is addressed to a channel where every reader is
- * a player, and it points at no number on a screen.
- */
-export const SETTLING_SENTENCE_SHORT =
-  `${PROVEN_LABEL} is your rating minus how unsure the board still is about you, and it settles after about ${SETTLING_GAMES} games.` as const;
-
-/* ---------------------------------------------------------------------------
- * The week board (M7.3). `This week` and `Last week` are folded from scratch
- * every Sunday and **sort on Rating**, not on Proven, so they need their own
- * sentence — not an edit of the three above, which keep printing byte for byte
- * on `All time`, on the month windows and on `/p/[puuid]` (the M3.26 rule).
- * ------------------------------------------------------------------------- */
-
-/**
- * The sentence under the board on a week window, once per page, where
- * {@link SETTLING_SENTENCE} prints on every other one (product, 2026-09-15).
- *
- * **No game count is interpolated, and the name carries no `SETTLING`.** M7.2 measured the
- * weekly track reaching `sigma < 5.00` at game 30 — a bar a group playing one to three games a
- * night never clears inside a week — so the week does not claim to settle at all. What it says
- * instead is what is true and measured: the Sunday restart, the column it sorts on, that the
- * numbers swing, and where the settled number lives.
- *
- * **`Every week`, not `This week`**: `Last week` prints this same string, because it is the
- * same track and the same question, and `This week` would read as a mistake under the other
- * heading.
- *
- * **It does not say "back at their rank"** (M7.21, product 2026-09-16). M7.19 (2026-09-16) took
- * the League rank out of every stored seed — `provisionalSeed()`, the same number for everybody —
- * so a week restarts everyone on one rating rather than on their own. One clause changed and
- * nothing else in the sentence did; the second person stays, because every reader of a board is
- * in the group it describes.
- */
-export const WEEK_BOARD_SENTENCE =
-  `Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. The board sorts on ${RATING_LABEL} — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.` as const;
-
-/**
- * The same, for the embed footer where {@link SETTLING_SENTENCE_SHORT} prints on every other
- * window: the nightly post reads `this-week` and the Sunday post reads `last-week`, so both say
- * this one instead (product, 2026-09-15).
- *
- * **It does not say "back at their rank"** (M7.21, product 2026-09-16). M7.19 (2026-09-16) took
- * the League rank out of every stored seed — `provisionalSeed()`, the same number for everybody —
- * so a week restarts everyone on one rating rather than on their own. A sent embed is a record of
- * what was said and is not edited; the next post carries the new words.
- */
-export const WEEK_BOARD_SENTENCE_SHORT =
-  'Every week starts everyone on the same rating on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.' as const;
-
-/**
- * The same fact on `/p/[puuid]`, on the two week windows, where
- * {@link SETTLING_SENTENCE_PLAYER} prints on the other three (product, 2026-09-16, M7.16).
- *
- * **Third person, because the page may be somebody else's.** {@link WEEK_BOARD_SENTENCE}'s `you`
- * is right on a board, where every reader is on it, and wrong twenty pixels under a number that
- * belongs to whoever's page this is — the same M3.26 rule that gave the Proven sentence its own
- * twin. It carries the board sentence's four load-bearing points and not its second clause about
- * a sort order: this page sorts nothing.
- *
- * **It does not say "back at their rank".** M7.19 (2026-09-16) took the League rank out of every
- * stored seed — `provisionalSeed()`, the same number for everybody — so a week now restarts
- * everyone on one rating rather than on their own. The brief for this task was written before
- * that landed and proposed the rank wording; it is corrected here rather than copied.
- * {@link WEEK_BOARD_SENTENCE} and {@link WEEK_BOARD_SENTENCE_SHORT} carried the retired wording
- * until M7.21 corrected them the same day, so all three now say `starts everyone on the same
- * rating`; none of them may be edited into another (the M3.26 rule), and the three still differ
- * where they must — the sort clause, and the person.
- *
- * **`Every week`, not `This week`**, for {@link WEEK_BOARD_SENTENCE}'s reason: `Last week` prints
- * the same string. No game count is interpolated and the name carries no `SETTLING` — the weekly
- * track does not claim to settle inside a week.
- */
-export const WEEK_PLAYER_SENTENCE =
-  "Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. This is their rating after this week's games, with nothing taken off for playing only a few. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams." as const;
-
-/**
- * The legend over the board's one number, which is **the number the board sorted on**.
- *
- * `Proven` on `All time` and the month windows, `Rating` on a week — where the row prints the
- * weekly Rating and no Proven at all (M7.3). One helper, because the legend and the row's own
- * visually-hidden noun have to name the same number.
- */
-export function boardLegend(track: RatingTrack): string {
-  return track === 'weekly' ? RATING_LABEL : BOARD_LEGEND;
+/** The settling chip (05-design 5.6): `settling · 4/10`. */
+export function settlingChip(ratedGames: number): string {
+  return settlingChipParts(ratedGames)
+    .map((part) => ('num' in part ? part.num : part.word))
+    .join('');
 }
 
 /**
- * The five windows the board is read through (M5.12, `05-design.md`'s board copy table,
- * product 2026-09-10). **The same five words are the option, the board heading and the post
+ * {@link settlingChip} split per token (05-design 5.16 ruling (e)): the words in the text face, the
+ * count in mono. The share card sets them apart; every other surface joins them.
+ */
+export function settlingChipParts(ratedGames: number): readonly ({ word: string } | { num: string })[] {
+  return [{ word: 'settling · ' }, { num: `${ratedGames}/${SETTLING_GAMES}` }];
+}
+
+/** The board with no rated game at all (STRATEGY §6(b)). */
+export const BOARD_EMPTY =
+  "No rated games yet. The board fills in after your first Summoner's Rift game." as const;
+
+/** An empty window's way to the board that has games (05-design 5.7's example). */
+export const SEE_ALL_TIME = 'See all time';
+
+/** M14.70: an empty `This week` points to last week first, when last week had a game. */
+export const SEE_LAST_WEEK = 'See last week';
+
+/** The empty window's button, by where it points (M14.70). */
+export const SEE_FALLBACK: Readonly<Record<'last-week' | 'all-time', string>> = {
+  'last-week': SEE_LAST_WEEK,
+  'all-time': SEE_ALL_TIME,
+};
+
+/**
+ * Under the board: the group's people who are not on it (STRATEGY §5). All time and the running
+ * windows say `yet`; a closed window names itself. [NEW COPY for the window variants]
+ */
+export function notPlayedLine(count: number, window: WindowKind): string {
+  const people = count === 1 ? "1 person who hasn't" : `${count} people who haven't`;
+  return `+ ${people} played a rated game ${NOT_PLAYED_WHEN[window]}.`;
+}
+
+const NOT_PLAYED_WHEN: Readonly<Record<WindowKind, string>> = {
+  'all-time': 'yet',
+  'this-week': 'this week yet',
+  'last-week': 'last week',
+};
+
+/** The sort select (STRATEGY §6(b)). [NEW COPY] */
+export const SORT_LABEL = 'Sort by';
+export const SORT_SUBMIT = 'Sort';
+export const SORT_OPTION_LABELS = { rating: 'Rating', games: 'Games', winrate: 'Win rate' } as const;
+
+/**
+ * The sort select's option words per window (M14.57): a week board is ranked by net points, so
+ * its default option (`?sort=rating`, the board's own order) reads `Points`, never `Rating`.
+ * The URL value stays `rating` on every window, so old links keep working. [NEW COPY: `Points`]
+ */
+export function sortOptionLabel(sort: keyof typeof SORT_OPTION_LABELS, window: WindowKind): string {
+  if (sort === 'rating' && window !== 'all-time') return 'Points';
+  return SORT_OPTION_LABELS[sort];
+}
+
+/** Pagination over 100 rows (STRATEGY §6(b)). [NEW COPY] */
+export const PREVIOUS_PAGE = 'Previous 100';
+export const NEXT_PAGE = 'Next 100';
+export function pageLine(page: number, pages: number): string {
+  return `Page ${page} of ${pages}`;
+}
+export const PAGINATION_LABEL = 'Board pages';
+
+/** A change's screen-reader words (05-design 5.3). */
+export function changeWords(delta: number): string {
+  if (Object.is(delta, -0) || delta < 0) return `lost ${Math.abs(delta)}`;
+  return delta === 0 ? 'no change' : `gained ${delta}`;
+}
+
+/**
+ * The week windows' note (M7.3; rewritten by M14.57 when the weekly track was retired): the week
+ * ranks by the points its games moved, and All time is the Rating that makes teams. Also the
+ * Discord week footer. [NEW COPY, M14.57; the web lane may reword it]
+ */
+export const WEEK_BOARD_SENTENCE_SHORT =
+  "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams." as const;
+
+/**
+ * The player page's week note (M7.16; rewritten by M14.57); `your` on the self lens (copy review
+ * row 27). [NEW COPY, M14.57; the web lane may reword it]
+ */
+export function weekPlayerSentence(whose: 'their' | 'your'): string {
+  return `Points are the Rating won or lost in this week's games. The Rating above is ${whose} all-time one, the one that makes teams.`;
+}
+export const WEEK_PLAYER_SENTENCE = weekPlayerSentence('their');
+
+/**
+ * The week boards' column label over the sorted number (M14.57, product's [NEW COPY]):
+ * `Points this week` / `Points last week`. All time has none (its number is the Rating).
+ */
+export const POINTS_COLUMN_LABEL: Readonly<Record<Exclude<WindowKind, 'all-time'>, string>> = {
+  'this-week': 'Points this week',
+  'last-week': 'Points last week',
+};
+
+/**
+ * The player page's week words after the signed net points (M14.57): `+86 this week · 5W 2L`.
+ * Product wrote `5W–2L`; the web keeps its one record shape (`winLossLabel`, `13W 15L`).
+ */
+export const WEEK_POINTS_WORDS: Readonly<Record<Exclude<WindowKind, 'all-time'>, string>> = {
+  'this-week': 'this week',
+  'last-week': 'last week',
+};
+
+/** The player page with no rated game in the group (the new-player state). [NEW COPY] */
+export function noGamesYetLine(groupName: string): string {
+  return `No games with ${groupName} yet. Their first one shows up here.`;
+}
+
+/** The player page's games list heading and its way to the rest. [NEW COPY: the links] */
+export const RECENT_GAMES_HEADING = 'Recent games';
+export const ALL_THEIR_GAMES = 'All their games';
+export const ALL_YOUR_GAMES = 'All your games';
+
+/** The trend chart's accessible summary (`role="img"`). [NEW COPY] */
+export function trendSummary(from: number, to: number, games: number): string {
+  return `Rating went from ${from} to ${to} over ${ratedGamesLabel(games)}.`;
+}
+
+/** The self lens's Rating tile label: `Rating, #3`, or `Rating` while settling. */
+export function ratingTileLabel(rank: number | null): string {
+  return rank === null ? RATING_LABEL : `${RATING_LABEL}, #${rank}`;
+}
+
+/** The self lens with no game in the group yet (STRATEGY §2.4's line, M14.33 adds `That's you.`). */
+export const NO_GAMES_YET_SELF = 'No games with this group yet. Your first one shows up here.';
+
+/**
+ * The three windows the board is read through (M5.12, `05-design.md`'s board copy table,
+ * product 2026-09-10). **The same three words are the option, the board heading and the post
  * title** — a picker that said `Week` over a heading that said `This week` would be two names
  * for one thing, which is the rule `Leaderboard` already won.
  *
@@ -203,8 +171,6 @@ export function boardLegend(track: RatingTrack): string {
 export const WINDOW_LABELS: Readonly<Record<WindowKind, string>> = {
   'this-week': 'This week',
   'last-week': 'Last week',
-  'this-month': 'This month',
-  'last-month': 'Last month',
   'all-time': 'All time',
 };
 
@@ -256,43 +222,54 @@ export function boardSlotLine(range: string, games: number): string {
 }
 
 /**
- * `Since 8 Sep 2025`: `All time`'s range half, from the group's first counted game — or, on a
- * person's page, from theirs. The only window form that carries a year, because it is the only
- * one that can reach one.
+ * `Since 1 Nov`: the reset's own words (STRATEGY 3.6), and **only** a reset's (M14.42, scene-walk
+ * gap 13): `All time`'s chip once the group has reset its ratings. A group that never reset says
+ * {@link firstGameLabel} instead, so `Since` never reads like a reset that didn't happen.
  */
 export function sinceLabel(day: string): string {
   return `Since ${day}`;
 }
 
 /**
+ * `first game 8 Sep 2025`: `All time`'s range half, from the group's first counted game, or on a
+ * person's page from theirs (M14.42; was `Since <date>`, which read like a reset). It follows
+ * `All time · ` on the board and the player page. The only window form that carries a year,
+ * because it is the only one that can reach one. [NEW COPY]
+ */
+export function firstGameLabel(day: string): string {
+  return `first game ${day}`;
+}
+
+/**
+ * A window's chip and heading word (M14.18, STRATEGY 3.6): {@link WINDOW_LABELS}, except that once
+ * the group has reset its ratings `All time` reads `Since <reset day>` (`Since 1 Nov`), because the
+ * all-time numbers only go back that far. `resetDay` is formatted on the server (`formatDayMonth`).
+ */
+export function windowLabel(kind: WindowKind, resetDay: string | null): string {
+  return kind === 'all-time' && resetDay !== null ? sinceLabel(resetDay) : WINDOW_LABELS[kind];
+}
+
+/**
  * The picker's accessible name — the noun product uses for the control in `00-product.md`
- * ("time windows the same board is read through"), because a `<nav>` landmark with five links
+ * ("time windows the same board is read through"), because a `<nav>` landmark with three links
  * in it and no name is announced as "navigation" beside the one that says `Leaderboard`.
  *
- * It is on screen nowhere: the five options name themselves. **M5.8 owns the visible control**
+ * It is on screen nowhere: the three options name themselves. **M5.8 owns the visible control**
  * and may give it a visible heading, in which case this string becomes that heading.
  */
 export const WINDOW_PICKER_LABEL = 'Time window';
 
 /**
  * A window with nothing in it — on the board and on a player page, the same sentence in both
- * places, exactly as the deleted `No games this season yet.` was used in both.
+ * places.
  *
  * **A running window says `yet`; a closed one does not**, because nothing more is coming to
- * `Last week`. Five constants and not one interpolation, so product can move any one of the
- * five without touching the other four.
- *
- * The two strings that stood here until 2026-09-10 are gone with the word they carried:
- * `NO_GAMES_YET` (`No games this season yet.`) is replaced by these five, and
- * `NO_SEASON_BOARD` (`No season is active…`) is deleted with the button it pointed at
- * (**M5.14**) — a deployment with no season row has no games either, so the empty-window line
- * is both true and enough.
+ * `Last week`. Three constants and not one interpolation, so product can move any one of the
+ * three without touching the other two.
  */
 export const WINDOW_EMPTY: Readonly<Record<WindowKind, string>> = {
   'this-week': 'No games this week yet.',
   'last-week': 'No games last week.',
-  'this-month': 'No games this month yet.',
-  'last-month': 'No games last month.',
   'all-time': 'No games yet.',
 };
 
@@ -325,7 +302,8 @@ export const NOT_RATED_HINT =
 export const CHART_TITLE = RATING_LABEL;
 
 /** The label on the hairline reference line, in the same units as the series. */
-export const SEED_LABEL = 'seed';
+/** `start` on All time too (copy review row 28): `seed` is our word, not a friend's. */
+export const SEED_LABEL = 'start';
 
 /**
  * The same hairline, in a window: the rating the player carried **into** it (M5.12).
@@ -339,7 +317,6 @@ export const START_LABEL = 'start';
 
 /** The player page's two sections under the chart. Plain nouns; the content is the vocabulary. */
 export const ROLE_RECORD_HEADING = 'By role';
-export const RECENT_GAMES_HEADING = 'Recent games';
 
 /**
  * A recent game's result on `/p/[puuid]`: **this player's own**, not the winning side's
@@ -415,6 +392,17 @@ export function winLossLabel(wins: number, losses: number): string {
   return `${wins}W ${losses}L`;
 }
 
+/** One token of a record: a number (set in mono) or a letter (set in the text face). */
+export type WinLossPart = { num: string } | { word: string };
+
+/**
+ * {@link winLossLabel} split per token, for a surface that sets each in its own face and cannot
+ * use a `.num` span (the share card, 05-design.md 5.16 ruling (a)). The same four tokens, in order.
+ */
+export function winLossParts(wins: number, losses: number): readonly WinLossPart[] {
+  return [{ num: String(wins) }, { word: 'W' }, { num: String(losses) }, { word: 'L' }];
+}
+
 /* ---------------------------------------------------------------------------
  * "How you got here" (M5.15): the seed line above the chart, the per-game
  * sentence on every row of `Recent games`, and the one line under the list.
@@ -466,12 +454,11 @@ export function seededLine(rating: number, games: number): string {
  * the player carried **into** the window — the chart's `start` hairline — and the count is the
  * window's counted games.
  *
- * Product wrote the week form; the month windows say `the month` by the same shape, because
- * `Started the week` on `Last month` would name the wrong calendar (`04-decisions.md`).
+ * Product wrote the week form, and since M14.48 dropped the month windows every window this is
+ * printed on is a week.
  */
-export function startedLine(window: WindowKind, rating: number, games: number): string {
-  const period = window === 'this-month' || window === 'last-month' ? 'month' : 'week';
-  return `Started the ${period} at ${rating}${sinceClause(games)}`;
+export function startedLine(rating: number, games: number): string {
+  return `Started the week at ${rating}${sinceClause(games)}`;
 }
 
 /**
@@ -479,7 +466,7 @@ export function startedLine(window: WindowKind, rating: number, games: number): 
  *
  * **The clause names its own universe** (M7.22, product 2026-09-16). It goes through
  * {@link ratedGamesLabel} and not {@link gamesLabel}, because the count both callers pass is
- * `player.games` — the rated count on every one of the five windows, checked in `lib/board/load.ts`
+ * `player.games` — the rated count on every one of the three windows, checked in `lib/board/load.ts`
  * rather than assumed — and it prints forty pixels above `By role`, the streaks and the partners,
  * all of which count every game played, ARAM included. Unlabelled, it was the one number on
  * `/p/[puuid]` a reader could take for the other universe, which is the half of M7.18's acceptance
@@ -520,7 +507,7 @@ export function gameExplanation(chance: number): string {
  * formula, no link to a paper (product, 2026-09-10).
  */
 export const RATING_EXPLANATION =
-  'Beating the favoured side moves you more than beating the underdog, and the board moves you more while it is still unsure about you.';
+  'Beating the favourite side moves your rating more than beating the underdog, and it moves faster while the bot is still unsure about you.';
 
 /* ---------------------------------------------------------------------------
  * The MVP and the ACE (M7.10). The bonus itself is M7.9's and lives in the
@@ -553,3 +540,14 @@ export const ACE_LABEL = 'ACE';
  */
 export const MVP_EXPLANATION =
   'The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.';
+
+/**
+ * The welcome card on `/g/<slug>/you?welcome=1` (M14.33), right after a self-link. The numbers are
+ * the self lens's own (`PlayerBoardView`), never a second read. [NEW COPY]
+ */
+export function welcomeLine(games: number, wins: number, rating: number): string {
+  return `That's you. ${gamesLabel(games)}, ${wins === 1 ? '1 win' : `${wins} wins`}, ${RATING_LABEL} ${rating}.`;
+}
+
+/** The welcome card for a linked player with no game in the group yet (M14.33). [NEW COPY] */
+export const WELCOME_NO_GAMES = `That's you. ${NO_GAMES_YET_SELF}` as const;

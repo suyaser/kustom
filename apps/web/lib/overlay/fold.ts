@@ -3,10 +3,11 @@
  *
  * Synergy is {@link headToHead}'s ally and enemy counts — the same folds `/1v1` and Partners
  * already use. No new formula. Below {@link MIN_DUO_GAMES} both records are null and the
- * panel prints {@link OVERLAY_THIN_RECORD}.
+ * companion's panel prints its own thin-record line.
  */
 
 import type { RoleValue, SideValue } from '@customs/db';
+import { type GroupMode, isFearlessMode } from '@customs/db/schemas';
 import { fearlessIconUrl, groupFearless } from '../fearless/present';
 import type { FearlessChampion } from '../fearless/types';
 import { MIN_DUO_GAMES } from '../stats/copy';
@@ -33,6 +34,9 @@ export interface OverlaySeatInput {
 
 export interface OverlayFoldInput {
   viewerPuuid: string;
+  /** The group's standing mode (M14.29). Bans are only sent on `fearless`. */
+  mode: GroupMode;
+  /** The group's pool, paused or not: {@link loadFearless}'s `champions`. */
   fearless: readonly FearlessChampion[];
   resetAt: string | null;
   /** Null when there is no tonight lobby. */
@@ -48,11 +52,11 @@ export interface OverlayFoldInput {
 }
 
 export function overlayView(input: OverlayFoldInput): OverlayView {
-  const champions = presentOverlayFearless(input.fearless);
+  const fearless = overlayFearless(input.mode, input.fearless, input.resetAt);
   if (input.lobby === null) {
     return {
       viewerPuuid: input.viewerPuuid,
-      fearless: { champions, resetAt: input.resetAt },
+      fearless,
       lobby: null,
     };
   }
@@ -60,7 +64,7 @@ export function overlayView(input: OverlayFoldInput): OverlayView {
   if (!input.lobby.hasPostedTeams) {
     return {
       viewerPuuid: input.viewerPuuid,
-      fearless: { champions, resetAt: input.resetAt },
+      fearless,
       lobby: { status: input.lobby.status, teams: null },
     };
   }
@@ -83,9 +87,23 @@ export function overlayView(input: OverlayFoldInput): OverlayView {
 
   return {
     viewerPuuid: input.viewerPuuid,
-    fearless: { champions, resetAt: input.resetAt },
+    fearless,
     lobby: { status: input.lobby.status, teams },
   };
+}
+
+/**
+ * The overlay's fearless block (M14.29): `enabled` is `mode === 'fearless'`, and on Normal the
+ * champion list is empty, so a panel that only reads `champions` (0.2.x, M14.6) lists no bans,
+ * which is true. `resetAt` is the cursor either way.
+ */
+export function overlayFearless(
+  mode: GroupMode,
+  champions: readonly FearlessChampion[],
+  resetAt: string | null,
+): OverlayView['fearless'] {
+  const enabled = isFearlessMode(mode);
+  return { enabled, champions: enabled ? presentOverlayFearless(champions) : [], resetAt };
 }
 
 /** Lane then A–Z, with icon URLs for the panel. */

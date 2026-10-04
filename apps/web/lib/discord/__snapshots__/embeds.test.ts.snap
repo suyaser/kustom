@@ -1,170 +1,336 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`leaderboardEmbed, the worked example > is the design doc's nightly post 1`] = `
+exports[`a board post on the all-time track: the settling rule (M14.10) > is an all-time board post with a settling section 1`] = `
 {
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
   "embeds": [
     {
-      "color": 14721854,
+      "author": {
+        "name": "Customs Night",
+        "url": "https://customs.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "first game 8 Sep 2025 · 34 rated games",
       "fields": [
         {
-          "name": "Top ten",
-          "value": "\`1\` Lena · 1548 · 41 games
-\`2\` Bilal · 1137 · 44 games
-\`3\` Rami · 1062 · 39 games
-\`4\` Iris · 990 · 38 games
-\`5\` Karim · 987 · 40 games
-\`6\` Omar · 917 · 42 games
-\`7\` Hana · 882 · 37 games
-\`8\` Theo · 831 · 38 games
-\`9\` Nadia · 654 · 28 games
-\`10\` Yuki · 534 · 24 games",
+          "name": "The board",
+          "value": "\`1\` **Lena** · 2088 · 41 games
+\`2\` **Bilal** · 1713 · 44 games
+\`3\` **Rami** · 1638 · 39 games
+\`4\` Iris · 1578 · 38 games
+\`5\` Karim · 1551 · 40 games
+\`6\` Omar · 1469 · 42 games
+\`7\` Hana · 1434 · 37 games
+\`8\` Theo · 1419 · 38 games",
+        },
+        {
+          "name": "Still settling",
+          "value": "Nadia · 1266 · settling · 4/10
+Yuki · 1134 · settling · 0/10",
         },
       ],
       "footer": {
-        "text": "Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.",
+        "text": "New players' ratings move fast at first. They get a rank after 10 games.",
       },
-      "timestamp": "2026-09-08T20:15:00.000Z",
-      "title": "This week · leaderboard",
-      "url": "https://customs.example/leaderboard?window=this-week",
+      "title": "All time · board",
+      "url": "https://customs.example/g/customs/leaderboard?window=all-time",
     },
   ],
+  "username": "Kustom",
+}
+`;
+
+exports[`fearlessEmbed > bolds exactly the second game's ten and leads each lane with them (snapshot) 1`] = `
+{
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://customs.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "Banned next game: 10 more, 20 in all. 153 still open.",
+      "fields": [
+        {
+          "inline": false,
+          "name": "top · 4",
+          "value": "**Aatrox**, **K'Sante**, Camille, Darius",
+        },
+        {
+          "inline": false,
+          "name": "jungle · 4",
+          "value": "**Lee Sin**, **Vi**, Graves, Kha'Zix",
+        },
+        {
+          "inline": false,
+          "name": "mid · 4",
+          "value": "**Ahri**, **Syndra**, Akali, Orianna",
+        },
+        {
+          "inline": false,
+          "name": "adc · 4",
+          "value": "**Jinx**, **Kai'Sa**, Caitlyn, Ezreal",
+        },
+        {
+          "inline": false,
+          "name": "support · 4",
+          "value": "**Nautilus**, **Thresh**, Blitzcrank, Leona",
+        },
+      ],
+      "footer": {
+        "text": "Tap the title to see what's still open",
+      },
+      "title": "Fearless",
+      "url": "https://customs.example/g/customs/mode",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`leaderboardEmbed, the worked example > is the design doc's nightly post 1`] = `
+{
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://customs.example/g/customs",
+      },
+      "color": 16764774,
+      "fields": [
+        {
+          "name": "Top ten",
+          "value": "\`1\` **Lena** · 2088 · 41 games
+\`2\` **Bilal** · 1713 · 44 games
+\`3\` **Rami** · 1638 · 39 games
+\`4\` Iris · 1578 · 38 games
+\`5\` Karim · 1551 · 40 games
+\`6\` Omar · 1469 · 42 games
+\`7\` Hana · 1434 · 37 games
+\`8\` Theo · 1419 · 38 games
+\`9\` Nadia · 1266 · 28 games
+\`10\` Yuki · 1134 · 24 games",
+        },
+      ],
+      "footer": {
+        "text": "New players' ratings move fast at first. They get a rank after 10 games.",
+      },
+      "title": "This week · board",
+      "url": "https://customs.example/g/customs/leaderboard?window=this-week",
+    },
+  ],
+  "username": "Kustom",
 }
 `;
 
 exports[`resultEmbed, the worked example lost by the favourite > matches the layout in 05-design.md 1`] = `
 {
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
   "embeds": [
     {
-      "color": 15363945,
-      "description": "Blue was favored 54%. Top damage: Lena, 47.3k.",
-      "fields": [
-        {
-          "inline": true,
-          "name": "Blue",
-          "value": "\`top\` Hana · 1393 (-41)
-\`jungle\` Iris · 1531 (-47)
-\`mid\` Karim · 1508 (-43)
-\`adc\` Bilal · 1668 (-45)
-\`support\` Theo · 1372 (-47)",
-        },
-        {
-          "inline": true,
-          "name": "Red",
-          "value": "\`top\` Omar · 1510 (+41)
-\`jungle\` Rami · 1683 (+45)
-\`mid\` Nadia · 1316 (+50)
-\`adc\` Lena · 2127 (+39)
-\`support\` Yuki · 1182 (+48)",
-        },
-        {
-          "name": "​",
-          "value": "MVP Lena · ACE Iris",
-        },
-      ],
-      "footer": {
-        "text": "Kustom · game 47",
+      "author": {
+        "name": "Customs Night · game 47",
+        "url": "https://customs.example/g/customs",
       },
-      "timestamp": "2026-09-08T21:09:12.000Z",
-      "title": "Red wins · 34:12",
+      "color": 16739125,
+      "description": "Red was 46%. Red won. Upset!
+Top damage: Lena, 47.3k.
+**MVP** Lena · **ACE** Iris",
+      "title": "Red wins · 34 min",
       "url": "https://customs.example",
     },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1393 (-41)
+\`jungle\` **Iris** · 1531 (-47)
+\`mid\` **Karim** · 1508 (-43)
+\`adc\` **Bilal** · 1668 (-45)
+\`support\` **Theo** · 1372 (-47)",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Omar** · 1510 (+41)
+\`jungle\` **Rami** · 1683 (+45)
+\`mid\` **Nadia** · 1316 (+50)
+\`adc\` **Lena** · 2127 (+39)
+\`support\` **Yuki** · 1182 (+48)",
+      "title": "🟥 RED",
+    },
   ],
+  "username": "Kustom",
 }
 `;
 
-exports[`resultEmbed, the worked example lost by the favourite > prints new rating and signed delta, one line per player > blue lines 1`] = `
+exports[`resultEmbed, the worked example lost by the favourite > prints new rating and signed delta, one line per player, joined by a no-break space > blue lines 1`] = `
 [
-  "\`top\` Hana · 1393 (-41)",
-  "\`jungle\` Iris · 1531 (-47)",
-  "\`mid\` Karim · 1508 (-43)",
-  "\`adc\` Bilal · 1668 (-45)",
-  "\`support\` Theo · 1372 (-47)",
+  "\`top\` **Hana** · 1393 (-41)",
+  "\`jungle\` **Iris** · 1531 (-47)",
+  "\`mid\` **Karim** · 1508 (-43)",
+  "\`adc\` **Bilal** · 1668 (-45)",
+  "\`support\` **Theo** · 1372 (-47)",
 ]
 `;
 
-exports[`resultEmbed, the worked example lost by the favourite > prints new rating and signed delta, one line per player > red lines 1`] = `
+exports[`resultEmbed, the worked example lost by the favourite > prints new rating and signed delta, one line per player, joined by a no-break space > red lines 1`] = `
 [
-  "\`top\` Omar · 1510 (+41)",
-  "\`jungle\` Rami · 1683 (+45)",
-  "\`mid\` Nadia · 1316 (+50)",
-  "\`adc\` Lena · 2127 (+39)",
-  "\`support\` Yuki · 1182 (+48)",
+  "\`top\` **Omar** · 1510 (+41)",
+  "\`jungle\` **Rami** · 1683 (+45)",
+  "\`mid\` **Nadia** · 1316 (+50)",
+  "\`adc\` **Lena** · 2127 (+39)",
+  "\`support\` **Yuki** · 1182 (+48)",
 ]
 `;
 
-exports[`teamsEmbed, the worked example > matches the layout in 05-design.md 1`] = `
+exports[`teamsEmbed, a reroll (M3.2, M14.10) > is the reroll post 1`] = `
 {
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
   "embeds": [
     {
-      "color": 14721854,
-      "description": "Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.",
+      "author": {
+        "name": "Customs Night",
+        "url": "https://customs.example/g/customs",
+      },
+      "color": 16764774,
+      "description": "**Blue 57%** · **43% Red**
+🟦🟦🟦🟦🟦🟦🟥🟥🟥🟥
+Close. Blue has a slight edge.",
       "fields": [
         {
           "name": "Seats",
-          "value": "Move to your side in the lobby.",
-        },
-        {
-          "inline": true,
-          "name": "Blue · 7695",
-          "value": "\`top\` Hana · 1434
-\`jungle\` Iris · 1578
-\`mid\` Karim · 1551
-\`adc\` Bilal · 1713
-\`support\` Theo · 1419",
-        },
-        {
-          "inline": true,
-          "name": "Red · 7595",
-          "value": "\`top\` Omar · 1469
-\`jungle\` Rami · 1638
-\`mid\` Nadia · 1266
-\`adc\` Lena · 2088
-\`support\` Yuki · 1134",
+          "value": "You'll be moved to your side — if not, move yourself.",
         },
         {
           "name": "Lobby",
           "value": "\`customs-night\` · password \`4471\`",
         },
       ],
-      "footer": {
-        "text": "Kustom · more on the tonight page",
+      "title": "Teams are set · reroll 1 of 2",
+      "url": "https://customs.example",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1434
+\`jungle\` **Iris** · 1578
+\`mid\` **Karim** · 1551
+\`adc\` **Bilal** · 1713
+\`support\` **Theo** · 1419",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Omar** · 1469
+\`jungle\` **Rami** · 1638
+\`mid\` **Nadia** · 1266
+\`adc\` **Lena** · 2088
+\`support\` **Yuki** · 1134",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 170 pts · Main roles 10/10 · Reroll 1 of 2 · pick #2
+Next best reshuffles 4 players. Blue 59%, with a bigger rating gap (220 vs 170 pts).
+-# Blue favored 57%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.",
+      "title": "How the bot decided",
+      "url": "https://customs.example#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`teamsEmbed, the worked example > matches the layout in 05-design.md 1`] = `
+{
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://customs.example/g/customs",
       },
-      "timestamp": "2026-09-08T20:15:00.000Z",
+      "color": 16764774,
+      "description": "**Blue 54%** · **46% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Close. Blue has a slight edge.",
+      "fields": [
+        {
+          "name": "Seats",
+          "value": "Move to your side in the lobby.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
       "title": "Teams are set",
       "url": "https://customs.example",
     },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1434
+\`jungle\` **Iris** · 1578
+\`mid\` **Karim** · 1551
+\`adc\` **Bilal** · 1713
+\`support\` **Theo** · 1419",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **Omar** · 1469
+\`jungle\` **Rami** · 1638
+\`mid\` **Nadia** · 1266
+\`adc\` **Lena** · 2088
+\`support\` **Yuki** · 1134",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 100 pts · Main roles 10/10 · Bot's pick #1 of 3
+Next best: swap the top players, Hana and Omar. That's Blue 57%, with a bigger rating gap (170 vs 100 pts).
+-# Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.",
+      "title": "How the bot decided",
+      "url": "https://customs.example#how-the-bot-decided",
+    },
   ],
+  "username": "Kustom",
 }
 `;
 
 exports[`windowSummaryEmbed, the closed window > is the milestone's weekly post 1`] = `
 {
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
   "embeds": [
     {
-      "color": 14721854,
+      "author": {
+        "name": "Customs Night",
+        "url": "https://customs.example/g/customs",
+      },
+      "color": 16764774,
       "description": "Sunday 6 Sep to Saturday 12 Sep · 14 rated games",
       "fields": [
         {
           "name": "Top ten",
-          "value": "\`1\` Lena · 1548 · 41 games
-\`2\` Bilal · 1137 · 44 games
-\`3\` Rami · 1062 · 39 games
-\`4\` Iris · 990 · 38 games
-\`5\` Karim · 987 · 40 games
-\`6\` Omar · 917 · 42 games
-\`7\` Hana · 882 · 37 games
-\`8\` Theo · 831 · 38 games
-\`9\` Nadia · 654 · 28 games
-\`10\` Yuki · 534 · 24 games",
+          "value": "\`1\` **Lena** · 2088 · 41 games
+\`2\` **Bilal** · 1713 · 44 games
+\`3\` **Rami** · 1638 · 39 games
+\`4\` Iris · 1578 · 38 games
+\`5\` Karim · 1551 · 40 games
+\`6\` Omar · 1469 · 42 games
+\`7\` Hana · 1434 · 37 games
+\`8\` Theo · 1419 · 38 games
+\`9\` Nadia · 1266 · 28 games
+\`10\` Yuki · 1134 · 24 games",
         },
       ],
       "footer": {
-        "text": "Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.",
+        "text": "New players' ratings move fast at first. They get a rank after 10 games.",
       },
-      "timestamp": "2026-09-08T20:15:00.000Z",
-      "title": "Last week · leaderboard",
-      "url": "https://customs.example/leaderboard?window=last-week",
+      "title": "Last week · board",
+      "url": "https://customs.example/g/customs/leaderboard?window=last-week",
     },
   ],
+  "username": "Kustom",
 }
 `;

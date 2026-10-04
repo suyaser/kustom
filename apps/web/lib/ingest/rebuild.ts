@@ -2,12 +2,19 @@ import type { Rating } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
 import { gameModeFromRaw } from '../games/queue';
 import type { ServiceClient } from '../supabase';
-import { type FoldRatedPlayer, foldGame, gateRatedGame, type RatedSkipReason } from './fold';
+import {
+  type FoldOutcome,
+  type FoldRatedPlayer,
+  foldGameOutcomes,
+  gateRatedGame,
+  type RatedSkipReason,
+} from './fold';
+import { readRatingsSince } from './ratingsEpoch';
 import { recomputeInferredRoles, selectAllPlayerIds } from './roles';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
 /**
- * The rating rebuild (M5.2): fold every rated-eligible game of a season, in `started_at` order,
+ * The rating rebuild (M5.2): fold every rated-eligible game of a group, in `started_at` order,
  * from seeds -- **one group at a time** since M13.3, because a rating is a position in one
  * group's pool. {@link rebuildRatings} folds one group; {@link rebuildAllGroups} is the loop the
  * command runs.
@@ -56,16 +63,16 @@ import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './see
  * client said the night a history started, so re-seed by setting the two numbers directly.
  */
 
-/** PostgREST's `max_rows`. Every select here pages, because a season outgrows one page. */
+/** PostgREST's `max_rows`. Every select here pages, because a group outgrows one page. */
 const PAGE_SIZE = 1000;
 
-/** Rows per batched write. Small enough for a URL, large enough that a season is a few calls. */
+/** Rows per batched write. Small enough for a URL, large enough that a group is a few calls. */
 const WRITE_CHUNK = 500;
 
 /**
  * How many single-row updates are in flight at once.
  *
- * `game_players` has no batch update through PostgREST, so a rebuild that moves a whole season
+ * `game_players` has no batch update through PostgREST, so a rebuild that moves a whole group
  * is one statement per row. Locally 500 at a time is free; through a hosted gateway it is a
  * burst somebody else's night is queued behind, and the command is not in a hurry.
  */
@@ -80,7 +87,7 @@ export const RECENT_GAME_MS = 15 * 60 * 1000;
  * PostgREST prints a `double precision` to **fifteen significant digits**, so a rating written
  * by the live fold and read back here is never bit-identical to the double that was stored: it
  * is that double rounded. The live fold then folds the next game from that rounded read, while
- * this one folds the whole season in memory from seeds — so the two chains drift apart in the
+ * this one folds the whole group in memory from seeds — so the two chains drift apart in the
  * last decimal or two and nothing can make them agree bit for bit.
  *
  * Two numbers that differ by less than this are therefore the same rating as far as anything
@@ -106,13 +113,11 @@ export interface RebuildOptions {
    * this group's `ratings` rows, this group's guard. {@link rebuildAllGroups} is the loop.
    */
   groupId: string;
-  /** The season to fold. Defaults to the active one. */
-  seasonId?: string | null;
   /** Skip the guard, and nothing else. */
   force?: boolean;
   /** Compute and report; write nothing. */
   dryRun?: boolean;
-  /** Delete `ratings` rows for players with no rated game in the season. */
+  /** Delete `ratings` rows for players with no rated game in the group. */
   prune?: boolean;
   /**
    * Tests only: run between the snapshot and the write, which is the window the fence exists
@@ -128,20 +133,27 @@ export interface RebuildReport {
   groupId: string;
   /** The group's slug, for the printed report. */
   groupSlug: string;
-  seasonId: string;
-  seasonName: string;
+  /** The group's epoch (M14.18): only games that started at or after it are folded. Null: never reset. */
+  ratingsSince: string | null;
   considered: number;
   rated: number;
   skipped: Record<RebuildSkipReason, number>;
-  /** `game_players` rows whose four rating columns changed (or would, on a dry run). */
+  /**
+   * `game_players` rows whose rating columns or fold breakdown changed (or would, on a dry run).
+   */
   gamePlayerRowsChanged: number;
+  /**
+   * Rated `game_players` rows this run writes a fold breakdown on for the first time (M14.58,
+   * `0034`: stored before the migration). Zero on every run after the first.
+   */
+  breakdownsFilled: number;
   /** `ratings` rows written (or that would be). */
   ratingRowsChanged: number;
-  /** Players with at least one rated game in the season. */
+  /** Players with at least one rated game in the group. */
   playersWritten: number;
   /**
    * Players whose inferred pair moved (M5.17) — counted over **every** player, not only this
-   * season's. Zero on a second run of an unchanged database, which is the same idempotency the
+   * group's. Zero on a second run of an unchanged database, which is the same idempotency the
    * rating columns have: a recompute that agrees with what is stored writes nothing, so
    * `roles_inferred_at` does not creep forward every run.
    */
@@ -152,7 +164,7 @@ export interface RebuildReport {
    * because "the biggest change was 25.0" for somebody's first game is noise, not news.
    */
   largestMuChange: { puuid: string; from: number; to: number; delta: number } | null;
-  /** Players who had no `ratings` row in this season before the run. */
+  /** Players who had no `ratings` row in this group before the run. */
   firstRatings: number;
   /**
    * `ratings` rows this run writes a seed on for the first time (M5.7): a row this fold is
@@ -161,7 +173,7 @@ export interface RebuildReport {
    * where a player's history starts, and this is the count of the ones about to be fixed.
    */
   seedsStored: number;
-  /** `ratings` rows for players with no rated game left in the season. */
+  /** `ratings` rows for players with no rated game left in the group. */
   orphanRatings: number;
   prunedRatings: number;
   /** Data bugs, named. A non-empty list is a non-zero exit. */
@@ -171,7 +183,7 @@ export interface RebuildReport {
 
 export type RebuildResult =
   | { ok: true; report: RebuildReport }
-  | { ok: false; code: 'no-season' | 'guard' | 'fence'; message: string; report: RebuildReport | null };
+  | { ok: false; code: 'guard' | 'fence'; message: string; report: RebuildReport | null };
 
 interface SnapshotGame {
   id: string;
@@ -185,14 +197,16 @@ interface SnapshotGame {
    *
    * The rebuild has to read the mode for the same reason the live fold does: a game the live
    * fold refused to rate and the rebuild rated would move numbers nobody played for. It must
-   * not read the whole block to do it: this select covers **a whole season**, an end-of-game
-   * block is tens of kilobytes, and a hosted rebuild would drag the season's JSON across the
+   * not read the whole block to do it: this select covers **a whole group's history**, an end-of-game
+   * block is tens of kilobytes, and a hosted rebuild would drag all that JSON across the
    * wire to look at one string. PostgREST projects the field (`raw->gameMode`) and the shape
    * put back together here is the only shape `gameModeFromRaw` ever looks at, so the answer is
    * identical to the live fold's on every input, including a null `raw` and a `gameMode` that
    * is not a string.
    */
   raw: unknown;
+  /** `games.rated` (M15.3): false is skipped as `not-rated`, exactly as the live fold skips it. */
+  rated: boolean;
 }
 
 /**
@@ -208,6 +222,10 @@ interface SnapshotRow extends FoldRatedPlayer {
   sigmaBefore: number | null;
   muAfter: number | null;
   sigmaAfter: number | null;
+  foldP: number | null;
+  baseMuAfter: number | null;
+  award: string | null;
+  ratedGamesBefore: number | null;
 }
 
 interface WriteRow {
@@ -217,25 +235,19 @@ interface WriteRow {
   sigmaBefore: number | null;
   muAfter: number | null;
   sigmaAfter: number | null;
+  /** The fold's breakdown (M14.58, `0034`), null on a row the gate refused. */
+  foldP: number | null;
+  baseMuAfter: number | null;
+  award: FoldAwardValue | null;
+  ratedGamesBefore: number | null;
 }
+
+type FoldAwardValue = FoldOutcome['award'];
 
 export async function rebuildRatings(client: ServiceClient, options: RebuildOptions): Promise<RebuildResult> {
   const now = options.now ?? new Date();
   const groupId = options.groupId;
   const groupSlug = await resolveGroupSlug(client, groupId);
-
-  const season = await resolveSeason(client, options.seasonId ?? null);
-  if (season === null) {
-    return {
-      ok: false,
-      code: 'no-season',
-      message:
-        options.seasonId == null
-          ? 'No season is active. The one season row is created by migration 0001; restore it with pnpm db:reset locally, or pass --season <id>.'
-          : `No season ${options.seasonId}.`,
-      report: null,
-    };
-  }
 
   if (!options.force) {
     // Per group (M13.3): another group's live lobby says nothing about whether this group's
@@ -251,9 +263,11 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   // `started_at` then `lcu_game_id`, and the second key is not decoration: backfill will
   // happily land two games with the same `gameCreation`, and without a tie-break two runs
   // could order them differently and disagree about the numbers.
-  const games = await selectSeasonGames(client, season.id, groupId);
-  const rows = await selectSeasonGamePlayers(client, season.id, groupId);
-  const storedRatings = await selectSeasonRatings(client, season.id, groupId);
+  // Only games since the group's latest reset (M14.18); older games keep their stored columns.
+  const since = await readRatingsSince(client, groupId);
+  const games = await selectGroupGames(client, groupId, since);
+  const rows = await selectGroupGamePlayers(client, groupId, since);
+  const storedRatings = await selectGroupRatings(client, groupId);
 
   const byGame = new Map<string, SnapshotRow[]>();
   for (const row of rows) {
@@ -276,6 +290,9 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
     // ARAM and anything else that is not the Rift (M7.1). Not a problem, and not a number that
     // should worry anybody: it is how many nights on the Howling Abyss the fold walked past.
     'game-mode': 0,
+    // Played not rated (M15.3): a class or region wars game, or the Rated switch. Counted on
+    // Stats and Games, never folded; its rating columns are nulled like any skipped game's.
+    'not-rated': 0,
   };
   const writes: WriteRow[] = [];
   let rated = 0;
@@ -301,7 +318,7 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
 
   for (const game of games) {
     const players = byGame.get(game.id) ?? [];
-    const gate = gateRatedGame(players, game.durationS, game.raw);
+    const gate = gateRatedGame(players, game.durationS, game.raw, game.rated);
 
     if (!gate.ok) {
       skipped[gate.reason] += 1;
@@ -322,11 +339,12 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
       before.set(player.playerId, current.get(player.playerId) ?? mustSeed(seeds, player.playerId));
     }
 
-    const after = foldGame(gate.blue, gate.red, before, game.winningSide);
+    const outcomes = foldGameOutcomes(gate.blue, gate.red, before, game.winningSide);
 
     for (const player of players) {
       const playerBefore = before.get(player.playerId) as Rating;
-      const playerAfter = after.get(player.playerId) as Rating;
+      const outcome = outcomes.get(player.playerId) as FoldOutcome;
+      const playerAfter = outcome.after;
       current.set(player.playerId, playerAfter);
       const tally = played.get(player.playerId) ?? { games: 0, wins: 0 };
       played.set(player.playerId, {
@@ -340,6 +358,12 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
         sigmaBefore: playerBefore.sigma,
         muAfter: playerAfter.mu,
         sigmaAfter: playerAfter.sigma,
+        foldP: outcome.foldP,
+        baseMuAfter: outcome.baseMuAfter,
+        award: outcome.award,
+        // This player's rated games in the group before this one, since the epoch: the fold's own
+        // running count, which is what `ratings.games` was when the live fold rated the game.
+        ratedGamesBefore: tally.games,
       });
     }
     rated += 1;
@@ -360,9 +384,19 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
       sameNumber(row.muBefore, write.muBefore) &&
       sameNumber(row.sigmaBefore, write.sigmaBefore) &&
       sameNumber(row.muAfter, write.muAfter) &&
-      sameNumber(row.sigmaAfter, write.sigmaAfter)
+      sameNumber(row.sigmaAfter, write.sigmaAfter) &&
+      sameNumber(row.foldP, write.foldP) &&
+      sameNumber(row.baseMuAfter, write.baseMuAfter) &&
+      row.award === write.award &&
+      row.ratedGamesBefore === write.ratedGamesBefore
     );
   });
+  // M14.58: rated rows this run gives a breakdown for the first time (stored before `0034`).
+  const breakdownsFilled = writes.filter((write) => {
+    if (write.award === null) return false;
+    const row = stored.get(`${write.gameId}:${write.playerId}`);
+    return row === undefined || row.award === null;
+  }).length;
 
   const ratingInserts: RatingInsert[] = [];
   let largestMuChange: RebuildReport['largestMuChange'] = null;
@@ -391,7 +425,6 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
       ratingInserts.push({
         group_id: groupId,
         player_id: playerId,
-        season_id: season.id,
         mu: rating.mu,
         sigma: rating.sigma,
         games: tally.games,
@@ -420,12 +453,12 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   const report: RebuildReport = {
     groupId,
     groupSlug,
-    seasonId: season.id,
-    seasonName: season.name,
+    ratingsSince: since,
     considered: games.length,
     rated,
     skipped,
     gamePlayerRowsChanged: changedRows.length,
+    breakdownsFilled,
     ratingRowsChanged: ratingInserts.length,
     seedsStored,
     playersWritten: played.size,
@@ -446,16 +479,16 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   await writeGamePlayerRatings(client, changedRows);
   await writeRatings(client, ratingInserts);
   if (options.prune && orphans.length > 0) {
-    await pruneRatings(client, season.id, groupId, orphans);
+    await pruneRatings(client, groupId, orphans);
     report.prunedRatings = orphans.length;
   }
 
   // ---- Inferred roles (M5.17) ----------------------------------------------------------
   //
-  // **Every player**, not only the ones with a game in this season. Three reasons, and the
+  // **Every player**, not only the ones with a game in this group. Three reasons, and the
   // third is the one that made this the whole roster: a game that stopped qualifying above just
   // lost its rating columns, so its ten have one counted game fewer than they did a second ago;
-  // a player's rated games are read across seasons, so folding one season can move somebody who
+  // a player's rated games are read across groups, so folding one group can move somebody who
   // has none in it; and an M1-era hand-set pair on somebody who has never played is exactly the
   // row "overwritten by the first recompute" means, and no game-driven pass would ever visit
   // it. `recomputeInferredRoles` writes only the rows that actually move, so the second run of
@@ -467,7 +500,7 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   report.rolesChanged = roles.changed;
 
   // ---- Fence ---------------------------------------------------------------------------
-  const drift = await fenceDrift(client, season.id, groupId, games, byGame);
+  const drift = await fenceDrift(client, groupId, since, games, byGame);
   if (drift !== null) {
     return { ok: false, code: 'fence', message: `${FENCE_MESSAGE} (${drift})`, report };
   }
@@ -534,7 +567,19 @@ export async function rebuildAllGroups(
 }
 
 function nulled(gameId: string, playerId: string): WriteRow {
-  return { gameId, playerId, muBefore: null, sigmaBefore: null, muAfter: null, sigmaAfter: null };
+  return {
+    gameId,
+    playerId,
+    muBefore: null,
+    sigmaBefore: null,
+    muAfter: null,
+    sigmaAfter: null,
+    // A refused game keeps no breakdown either (`0034`'s check: none outlives its rating).
+    foldP: null,
+    baseMuAfter: null,
+    award: null,
+    ratedGamesBefore: null,
+  };
 }
 
 function mustSeed(seeds: Map<string, StoredSeed>, playerId: string): Rating {
@@ -545,21 +590,6 @@ function mustSeedRecord(seeds: Map<string, StoredSeed>, playerId: string): Store
   const seed = seeds.get(playerId);
   if (seed === undefined) throw new Error(`rebuild: no seed for player ${playerId}`);
   return seed;
-}
-
-interface SeasonRow {
-  id: string;
-  name: string;
-}
-
-async function resolveSeason(client: ServiceClient, seasonId: string | null): Promise<SeasonRow | null> {
-  const query = client.from('seasons').select('id, name');
-  const { data, error } =
-    seasonId === null
-      ? await query.eq('is_active', true).maybeSingle()
-      : await query.eq('id', seasonId).maybeSingle();
-  if (error) throw new Error(`rebuild: season select failed: ${error.message}`);
-  return data;
 }
 
 /** `groups.slug`. Throws for a group that does not exist: folding nobody's games is a typo. */
@@ -617,22 +647,22 @@ async function selectPaged<T>(
   }
 }
 
-async function selectSeasonGames(
+async function selectGroupGames(
   client: ServiceClient,
-  seasonId: string,
   groupId: string,
+  since: string | null,
 ): Promise<SnapshotGame[]> {
-  const rows = await selectPaged('games select', (from, to) =>
-    client
+  const rows = await selectPaged('games select', (from, to) => {
+    const query = client
       .from('games')
-      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, raw->gameMode')
+      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, rated, raw->gameMode')
       .eq('group_id', groupId)
-      .eq('season_id', seasonId)
-      .not('winning_side', 'is', null)
+      .not('winning_side', 'is', null);
+    return (since === null ? query : query.gte('started_at', since))
       .order('started_at', { ascending: true })
       .order('lcu_game_id', { ascending: true })
-      .range(from, to),
-  );
+      .range(from, to);
+  });
 
   return rows
     .filter((row) => row.winning_side === 100 || row.winning_side === 200)
@@ -647,36 +677,37 @@ async function selectSeasonGames(
       // null, or whose block named no mode, arrives here as `{ gameMode: null }` — which is
       // Rift, exactly as it is for the live fold.
       raw: { gameMode: row.gameMode },
+      rated: row.rated,
     }));
 }
 
 /**
- * Every `game_players` row of the season, with the player's rank for the seed.
+ * Every `game_players` row of the group, with the player's rank for the seed.
  *
- * Filtered through the embedded `games` rather than an `in` list of game ids: a season's worth
- * of uuids is a URL nobody should build, and `games!inner` is one join either way.
+ * Filtered on the row's own `group_id` rather than an `in` list of game ids: a group's worth of
+ * uuids is a URL nobody should build.
  */
-async function selectSeasonGamePlayers(
+async function selectGroupGamePlayers(
   client: ServiceClient,
-  seasonId: string,
   groupId: string,
+  since: string | null,
 ): Promise<SnapshotRow[]> {
-  const rows = await selectPaged('game_players select', (from, to) =>
-    client
+  const rows = await selectPaged('game_players select', (from, to) => {
+    const query = client
       .from('game_players')
       .select(
         // `role` and the nine stat columns are M7.9's, and are the same list `rating.ts`
         // selects: the rebuild has to be able to name the same MVP the live fold named, or the
         // two folds disagree about a game and one of them rewrites the other's numbers.
-        'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, games!inner(season_id), players!inner(puuid, rank_tier, rank_division)',
+        'game_id, player_id, side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before, games!inner(started_at), players!inner(puuid, rank_tier, rank_division)',
       )
-      .eq('games.season_id', seasonId)
       // `game_players.group_id` is always its game's (`game_players_game_group_fkey`).
-      .eq('group_id', groupId)
+      .eq('group_id', groupId);
+    return (since === null ? query : query.gte('games.started_at', since))
       .order('game_id', { ascending: true })
       .order('player_id', { ascending: true })
-      .range(from, to),
-  );
+      .range(from, to);
+  });
 
   return rows
     .filter((row) => row.side === 100 || row.side === 200)
@@ -701,6 +732,10 @@ async function selectSeasonGamePlayers(
       sigmaBefore: row.sigma_before,
       muAfter: row.mu_after,
       sigmaAfter: row.sigma_after,
+      foldP: row.fold_p,
+      baseMuAfter: row.base_mu_after,
+      award: row.award,
+      ratedGamesBefore: row.rated_games_before,
     }));
 }
 
@@ -713,9 +748,8 @@ interface StoredRating {
   seed: StoredSeed | null;
 }
 
-async function selectSeasonRatings(
+async function selectGroupRatings(
   client: ServiceClient,
-  seasonId: string,
   groupId: string,
 ): Promise<Map<string, StoredRating>> {
   const rows = await selectPaged('ratings select', (from, to) =>
@@ -723,7 +757,6 @@ async function selectSeasonRatings(
       .from('ratings')
       .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
       .eq('group_id', groupId)
-      .eq('season_id', seasonId)
       .order('player_id', { ascending: true })
       .range(from, to),
   );
@@ -756,6 +789,10 @@ async function writeGamePlayerRatings(client: ServiceClient, rows: readonly Writ
             sigma_before: row.sigmaBefore,
             mu_after: row.muAfter,
             sigma_after: row.sigmaAfter,
+            fold_p: row.foldP,
+            base_mu_after: row.baseMuAfter,
+            award: row.award,
+            rated_games_before: row.ratedGamesBefore,
           })
           .eq('game_id', row.gameId)
           .eq('player_id', row.playerId);
@@ -769,14 +806,13 @@ async function writeRatings(client: ServiceClient, inserts: readonly RatingInser
   for (let index = 0; index < inserts.length; index += WRITE_CHUNK) {
     const { error } = await client
       .from('ratings')
-      .upsert(inserts.slice(index, index + WRITE_CHUNK), { onConflict: 'group_id,player_id,season_id' });
+      .upsert(inserts.slice(index, index + WRITE_CHUNK), { onConflict: 'group_id,player_id' });
     if (error) throw new Error(`rebuild: ratings upsert failed: ${error.message}`);
   }
 }
 
 async function pruneRatings(
   client: ServiceClient,
-  seasonId: string,
   groupId: string,
   playerIds: readonly string[],
 ): Promise<void> {
@@ -785,7 +821,6 @@ async function pruneRatings(
       .from('ratings')
       .delete()
       .eq('group_id', groupId)
-      .eq('season_id', seasonId)
       .in('player_id', playerIds.slice(index, index + WRITE_CHUNK));
     if (error) throw new Error(`rebuild: ratings prune failed: ${error.message}`);
   }
@@ -800,12 +835,12 @@ async function pruneRatings(
  */
 async function fenceDrift(
   client: ServiceClient,
-  seasonId: string,
   groupId: string,
+  since: string | null,
   games: readonly SnapshotGame[],
   byGame: ReadonlyMap<string, readonly SnapshotRow[]>,
 ): Promise<string | null> {
-  const after = await selectSeasonGames(client, seasonId, groupId);
+  const after = await selectGroupGames(client, groupId, since);
   if (after.length !== games.length) {
     return `${games.length} games at the start, ${after.length} now`;
   }
@@ -818,17 +853,18 @@ async function fenceDrift(
     if (gameModeFromRaw(snapshot.raw) !== gameModeFromRaw(game.raw)) {
       return `game ${game.lcuGameId} changed mode`;
     }
+    if (snapshot.rated !== game.rated) return `game ${game.lcuGameId} changed rated`;
   }
 
-  const counts = await selectPaged('fence count', (from, to) =>
-    client
+  const counts = await selectPaged('fence count', (from, to) => {
+    const query = client
       .from('game_players')
-      .select('game_id, games!inner(season_id)')
-      .eq('games.season_id', seasonId)
-      .eq('group_id', groupId)
+      .select('game_id, games!inner(started_at)')
+      .eq('group_id', groupId);
+    return (since === null ? query : query.gte('games.started_at', since))
       .order('game_id', { ascending: true })
-      .range(from, to),
-  );
+      .range(from, to);
+  });
   const tally = new Map<string, number>();
   for (const row of counts) tally.set(row.game_id, (tally.get(row.game_id) ?? 0) + 1);
   for (const game of games) {
@@ -844,7 +880,9 @@ async function fenceDrift(
 export function formatRebuildReport(report: RebuildReport): string {
   const lines = [
     `group         ${report.groupSlug} (${report.groupId})`,
-    `season        ${report.seasonName} (${report.seasonId})`,
+    ...(report.ratingsSince === null
+      ? []
+      : [`since         ${report.ratingsSince} (the latest ratings reset)`]),
     `considered    ${report.considered} game${report.considered === 1 ? '' : 's'}`,
     `rated         ${report.rated}`,
     `skipped       ${formatSkipped(report.skipped)}`,
@@ -853,6 +891,9 @@ export function formatRebuildReport(report: RebuildReport): string {
     }, ${report.ratingRowsChanged} ratings row${report.ratingRowsChanged === 1 ? '' : 's'}`,
     `players       ${report.playersWritten} with a rated game`,
     `seeds         ${report.seedsStored} ${report.dryRun ? 'to store' : 'stored'} for the first time`,
+    `breakdowns    ${report.breakdownsFilled} game_players row${report.breakdownsFilled === 1 ? '' : 's'} ${
+      report.dryRun ? 'to fill' : 'filled'
+    } for the first time (0034)`,
     `roles         ${report.rolesChanged} inferred pair${report.rolesChanged === 1 ? '' : 's'} moved`,
     `biggest move  ${formatMuChange(report.largestMuChange, report.firstRatings)}`,
   ];

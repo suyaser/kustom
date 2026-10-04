@@ -1,5 +1,7 @@
+import 'server-only';
 import { randomInt } from 'node:crypto';
-import { COMPANION_COMMAND_TTL_MS } from '@customs/db/schemas';
+import type { ModeState } from '@customs/core';
+import { COMPANION_COMMAND_TTL_MS, type CreateLobbyCommandPayload } from '@customs/db/schemas';
 import { type NameableRow, playerLabel } from './admin/playerName';
 import { type AdminWriteResult, writeFailed, writeOk } from './admin/result';
 import {
@@ -9,8 +11,16 @@ import {
   nightWindow,
   sweepExpiredCommands,
 } from './commands';
+import {
+  LOBBY_ALREADY_OPEN,
+  LOBBY_ALREADY_OPENING,
+  LOBBY_WRITES_UNVERIFIED,
+  noKustomRunningLine,
+} from './lobbyStartCopy';
+import { supabaseModeStore } from './mode/state';
 import { DEFAULT_NIGHT_TIME_ZONE, formatDayMonth } from './night';
 import type { ServiceClient } from './supabase';
+import { adminNames, isNameless, renderWebName } from './tonight/copy';
 
 /**
  * Start a lobby (M4.2): the one tap this product has.
@@ -34,88 +44,32 @@ import type { ServiceClient } from './supabase';
  *
  * **What is not here.** No mode picker, no name field, no password field, no host dropdown:
  * each one is a step and this product's claim is that there are none. The mode itself is not
- * even on the payload — the companion reads the client's own custom-queue list and picks draft
- * (`04-decisions.md`, 2026-09-09 and 2026-09-10), so no queue id is a constant on this side.
+ * even on the payload — the companion reads the client's own custom-queue list and picks the
+ * entry for `pickType` (`04-decisions.md`, 2026-09-09 and 2026-09-10), so no queue id is a
+ * constant on this side. `pickType` is the server's call (M17.17): blind when the next game's
+ * rule is mirror match, draft otherwise.
  *
  * **Every read is bounded by `now` at both ends** — the night's 06:00 and `now` itself — so
  * "tonight" means one night and an injected clock names exactly the night it says. In
  * production the upper bound is a no-op; nothing is created in the future.
  */
 
-// ---------------------------------------------------------------------------
-// The words (product owns these, M4.2's brief; verbatim)
-// ---------------------------------------------------------------------------
-
-/** The control. */
-export const START_LOBBY_BUTTON = 'Start a lobby';
-
-/** A lobby of tonight is already `open`, `balanced` or `in_game`. */
-export const LOBBY_ALREADY_OPEN = 'There is already a lobby open.';
-
-/** Nobody's companion has been up in the last ten minutes, so there is nobody to run it. */
-export const NO_COMPANION_AROUND = 'Nobody has the companion running right now. Start it and try again.';
-
-/**
- * The double-tap guard: the pending row *is* the lock, so two taps produce one command.
- *
- * Two presses can say this, and they are indistinguishable from outside. The one that read the
- * pending row (`decideStart`) and the one that lost the insert to
- * `companion_commands_one_create_lobby_idx` (`0008`, M4.9) both answer 409 with this sentence.
- */
-export const LOBBY_ALREADY_OPENING = 'A lobby is already being opened.';
-
-/**
- * The refusal for a kind flagged off in `lib/commands/gate.ts` because its reference row is not
- * green. Unreachable in production since 2026-09-12 — both kinds this route needs are green — and
- * kept because the gate is one boolean away from being off again on the next patch.
- */
-export const LOBBY_WRITES_UNVERIFIED = "Opening lobbies isn't verified on this patch yet.";
-
-/** While the command is pending, on the page, naming the host that was picked. */
-export function openingOnPcLine(hostName: string): string {
-  return `Opening a lobby on ${hostName}'s PC…`;
-}
-
-/** The host's companion never answered and the command expired. Nothing was created. */
-export const NO_CLIENT_ANSWERED = "Nobody's client answered. Try again.";
-
-/** The host had made a lobby by hand a minute earlier (`already_in_lobby`). */
-export function alreadyHasALobbyLine(hostName: string): string {
-  return `${hostName} already has a lobby open — everyone can join that one.`;
-}
-
-/** Under the member list while the lobby is filling, until ten are in. */
-export function invitedLine(count: number): string {
-  return `Invited ${count} friend${count === 1 ? '' : 's'} — waiting for them to accept.`;
-}
-
-/** A `create_lobby` row as a page reads it: its status and, when it failed, the nack text. */
-export interface CreateLobbyProgress {
-  status: 'pending' | 'sent' | 'acked' | 'failed';
-  /** The companion's prose (`already_in_lobby: partyId=…`) or the server's (`expired`). */
-  error: string | null;
-}
-
-/**
- * What the page prints where the button was, from the row's own status. Pure, so the tonight
- * page and `/admin` cannot end up saying two different things about one command.
- *
- * - **pending / sent** — `Opening a lobby on <Name>'s PC…`, naming the host that was picked;
- * - **acked** — nothing. The member list appearing *is* the answer, and a toast on top of it is
- *   noise (product, M4.2);
- * - **failed with `already_in_lobby`** — the host made a lobby by hand a minute ago, so the
- *   group is told to join that one instead;
- * - **failed any other way** — `Nobody's client answered. Try again.` Product wrote that line
- *   for the expiry, and it is the only failure sentence there is: from the friend holding the
- *   phone, a `wrong_phase` (the host is in champion select) and a client that refused the POST
- *   are the same fact — nothing was created, press it again. Inventing a sentence per
- *   `commandFailureReasonSchema` word would put the queue's vocabulary on the tonight page.
- */
-export function startLobbySentence(progress: CreateLobbyProgress | null, hostName: string): string | null {
-  if (progress === null || progress.status === 'acked') return null;
-  if (progress.status !== 'failed') return openingOnPcLine(hostName);
-  return progress.error?.startsWith('already_in_lobby') ? alreadyHasALobbyLine(hostName) : NO_CLIENT_ANSWERED;
-}
+// The words live in `./lobbyStartCopy` (M14.44) so a client component can import them without
+// `node:crypto`; re-exported here so the server side keeps one import.
+export {
+  alreadyHasALobbyLine,
+  type CreateLobbyProgress,
+  invitedLine,
+  LOBBY_ALREADY_OPEN,
+  LOBBY_ALREADY_OPENING,
+  LOBBY_WRITES_UNVERIFIED,
+  NO_CLIENT_ANSWERED,
+  NO_COMPANION_AROUND,
+  noKustomRunningLine,
+  openingOnPcLine,
+  START_LOBBY_BUTTON,
+  startLobbySentence,
+} from './lobbyStartCopy';
 
 // ---------------------------------------------------------------------------
 // The rules with numbers in them
@@ -198,7 +152,7 @@ export function chooseHost(
   return presser ?? ordered[0] ?? null;
 }
 
-/** `Hamoodi`, else `Ahmed#EUW`, else a puuid fragment — the admin pages' own chain (M1.7). */
+/** `Hamoodi`, else `Ahmed#EUW`, else `Someone` — the admin pages' own chain (M1.7, M14.60). */
 export function hostLabel(host: HostCandidate): string {
   const row: NameableRow = {
     puuid: host.puuid,
@@ -207,6 +161,31 @@ export function hostLabel(host: HostCandidate): string {
     tagLine: host.tagLine,
   };
   return playerLabel(row);
+}
+
+/**
+ * The pick type of the lobby the next game needs (M17.17). Mirror match is Blind Pick (every
+ * player picks the lane opponent's champion in secret); every other rule and both standing modes
+ * play Draft Pick, as the group always has.
+ */
+export function pickTypeFor(pending: ModeState['pending']): CreateLobbyCommandPayload['pickType'] {
+  return pending?.id === 'mirror' ? 'blind' : 'draft';
+}
+
+/**
+ * Read the group's card and answer {@link pickTypeFor}. A read that fails answers draft, loudly:
+ * the press must still open the lobby the group always had rather than fail on the card.
+ */
+export async function readPickType(
+  client: ServiceClient,
+  groupId: string,
+): Promise<CreateLobbyCommandPayload['pickType']> {
+  try {
+    return pickTypeFor((await supabaseModeStore(client).read(groupId)).state.pending);
+  } catch (error) {
+    console.error('start a lobby: reading the mode card failed; opening a draft lobby', error);
+    return 'draft';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +202,11 @@ export interface StartLobbyState {
   lobbiesTonight: number;
   /** Players with an unrevoked token seen inside {@link HOST_WINDOW_MS}. */
   hosts: HostCandidate[];
+  /**
+   * Every host of the group by name, seen or not ({@link readGroupHostNames}, M14.66): who the
+   * refusal tells the group to ask. Absent in older fixtures: read as none.
+   */
+  hostNames?: string[];
 }
 
 /** What a successful press decided, before anything is written. */
@@ -266,7 +250,8 @@ export function decideStart(
   if (state.pendingCreateId !== null) return writeFailed(409, LOBBY_ALREADY_OPENING);
 
   const host = chooseHost(state.hosts, input.pressedByPlayerId);
-  if (host === null) return writeFailed(409, NO_COMPANION_AROUND);
+  // M14.66: name who to ask (up to three hosts), else `whoever hosts`.
+  if (host === null) return writeFailed(409, noKustomRunningLine(adminNames(state.hostNames ?? [])));
 
   const now = input.now ?? new Date();
   const cycle = state.lobbiesTonight + 1;
@@ -307,7 +292,7 @@ export async function readStartLobbyState(
   const window = nightWindow(now, timeZone);
   const seenSince = new Date(now.getTime() - HOST_WINDOW_MS).toISOString();
 
-  const [live, tonight, pending, tokens] = await Promise.all([
+  const [live, tonight, pending, tokens, hostNames] = await Promise.all([
     client
       .from('lobbies')
       .select('id')
@@ -344,6 +329,7 @@ export async function readStartLobbyState(
       .is('revoked_at', null)
       .gte('last_seen_at', seenSince)
       .lte('last_seen_at', window.until),
+    readGroupHostNames(client, groupId),
   ]);
 
   if (live.error) throw new Error(`readStartLobbyState: live lobby: ${live.error.message}`);
@@ -373,7 +359,73 @@ export async function readStartLobbyState(
     pendingCreateId: pending.data?.id ?? null,
     lobbiesTonight: tonight.count ?? 0,
     hosts: [...hosts.values()],
+    hostNames,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The group's hosts, for the words (M14.66)
+// ---------------------------------------------------------------------------
+
+/** One unrevoked token of the group, as {@link readHostPresence} reads it. */
+interface HostTokenRow {
+  player_id: string;
+  last_seen_at: string | null;
+  players: { display_name: string | null; game_name: string | null; created_at: string };
+}
+
+async function selectGroupHostTokens(client: ServiceClient, groupId: string): Promise<HostTokenRow[]> {
+  const { data, error } = await client
+    .from('companion_tokens')
+    .select('player_id, last_seen_at, players!inner(display_name, game_name, created_at)')
+    .eq('group_id', groupId)
+    .is('revoked_at', null);
+  if (error) throw new Error(`group hosts: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * The group's hosts by name (M14.66): every player with an unrevoked companion token **of this
+ * group**, seen or not, oldest player first, named the way the strip names admins
+ * (`display_name`, else the Riot game name, through `renderWebName`). Nameless hosts are dropped
+ * rather than printed as `Someone`: `Ask Someone to open it` names nobody.
+ */
+function hostNamesOf(rows: readonly HostTokenRow[]): string[] {
+  const byPlayer = new Map<string, HostTokenRow['players']>();
+  for (const row of rows) byPlayer.set(row.player_id, row.players);
+  return [...byPlayer.entries()]
+    .sort(
+      ([leftId, left], [rightId, right]) =>
+        left.created_at.localeCompare(right.created_at) || leftId.localeCompare(rightId),
+    )
+    .map(([, player]) => player.display_name ?? player.game_name ?? null)
+    .filter((name) => !isNameless(name))
+    .map(renderWebName);
+}
+
+export async function readGroupHostNames(client: ServiceClient, groupId: string): Promise<string[]> {
+  return hostNamesOf(await selectGroupHostTokens(client, groupId));
+}
+
+/** What Tonight shows before anyone taps (M14.66): who hosts, and whether any of them is up. */
+export interface HostPresence {
+  /** {@link readGroupHostNames}: every named host of the group, oldest player first. */
+  hostNames: string[];
+  /** An unrevoked token of the group seen inside {@link HOST_WINDOW_MS}: the press has a host. */
+  hostSeenRecently: boolean;
+}
+
+/** One read for both facts; "recently" is {@link readStartLobbyState}'s host window. */
+export async function readHostPresence(
+  client: ServiceClient,
+  options: { groupId: string; now?: Date | undefined },
+): Promise<HostPresence> {
+  const now = (options.now ?? new Date()).getTime();
+  const rows = await selectGroupHostTokens(client, options.groupId);
+  const hostSeenRecently = rows.some(
+    (row) => row.last_seen_at !== null && Date.parse(row.last_seen_at) >= now - HOST_WINDOW_MS,
+  );
+  return { hostNames: hostNamesOf(rows), hostSeenRecently };
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +494,7 @@ export async function startLobby(
   if (!decided.ok) return decided;
 
   const plan = decided.value;
+  const pickType = await readPickType(client, input.groupId);
   const { queued, skipped } = await enqueueCommands(
     client,
     [
@@ -450,7 +503,7 @@ export async function startLobby(
         // The host token's group, which is the press's group: that token is the one that polls it.
         groupId: input.groupId,
         kind: 'create_lobby',
-        payload: { lobbyName: plan.lobbyName, lobbyPassword: plan.lobbyPassword },
+        payload: { lobbyName: plan.lobbyName, lobbyPassword: plan.lobbyPassword, pickType },
       },
     ],
     { now, gate: options.gate },

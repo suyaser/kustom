@@ -55,8 +55,12 @@ export async function fetchOverlay(
   apiBase: string,
   puuid: string,
   fetchImpl: typeof fetch = fetch,
+  groupId: string | null = null,
 ): Promise<OverlayPayload> {
-  const url = `${apiBase}/api/overlay?puuid=${encodeURIComponent(puuid)}`;
+  // `group=` (M13.3): the selected group's id. Without it the server answers for the PUUID's only group, which
+  // is what the 0.2.x panel got.
+  const groupQuery = groupId === null ? '' : `&group=${encodeURIComponent(groupId)}`;
+  const url = `${apiBase}/api/overlay?puuid=${encodeURIComponent(puuid)}${groupQuery}`;
   const response = await fetchImpl(url, { headers: { accept: 'application/json' } });
   if (!response.ok) {
     throw new Error(`overlay API ${response.status} (${url})`);

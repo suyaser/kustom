@@ -1,0 +1,21 @@
+{
+  "name": "command-nack--create-lobby--client-rejected",
+  "kind": "request",
+  "target": "api",
+  "route": "command-nack",
+  "patch": "16.17",
+  "fixtures": [
+    "16.18/custom-game-queues",
+    "16.18/game-queues",
+    "16.17/create-lobby--legacy-blind"
+  ],
+  "scenario": "command-create-client-rejected",
+  "note": "The create POST answered the captured 500 INVALID_LOBBY: nack client_rejected with the path, status and the client's message.",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack",
+  "commandKind": "create_lobby",
+  "body": {
+    "error": "client_rejected: /lol-lobby/v2/lobby answered 500 INVALID_LOBBY",
+    "retryable": false
+  }
+}

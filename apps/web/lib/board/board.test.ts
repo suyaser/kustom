@@ -1,39 +1,35 @@
-import { displayRating } from '@customs/core';
+import { displayRating, SETTLING_GAMES } from '@customs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { inChunks } from '../chunks';
+import { SETTLING_FOOTER } from '../discord/embeds';
+import { formatMinutes } from '../games/duration';
 import { closedWindow, formatWeekRange, type WindowKind, windowRange } from '../night';
-import { displayDelta, formatWebDelta, provenRating } from '../ratingDisplay';
-import { workedBoardRows, workedWindowRows } from '../testing/boardFixtures';
+import { displayDelta, formatWebDelta } from '../ratingDisplay';
+import { settlingRow, workedBoardRows, workedWindowRows } from '../testing/boardFixtures';
 import { CHART_HEIGHT, CHART_WIDTH, chartGeometry } from './chart';
 import {
   ACE_LABEL,
-  BOARD_LEGEND,
-  boardLegend,
+  BOARD_EMPTY,
   gamesLabel,
   MVP_EXPLANATION,
   MVP_LABEL,
-  NOT_RATED,
   NOT_RATED_HINT,
-  PROVEN_LABEL,
+  notPlayedLine,
+  RATING_EXPLANATION,
   RATING_LABEL,
-  RECENT_RATING_LEGEND,
-  SEED_LABEL,
-  SETTLING_CHIP,
-  SETTLING_GAMES,
-  SETTLING_SENTENCE,
-  SETTLING_SENTENCE_PLAYER,
-  SETTLING_SENTENCE_SHORT,
-  START_LABEL,
-  WEEK_BOARD_SENTENCE,
+  SETTLING_SECTION_LINE,
+  SETTLING_SECTION_TITLE,
+  settlingChip,
   WEEK_BOARD_SENTENCE_SHORT,
   WEEK_PLAYER_SENTENCE,
   WINDOW_EMPTY,
   WINDOW_LABELS,
   windowSlotLine,
   winLossLabel,
+  winLossParts,
 } from './copy';
 import { loadTopPlayers, loadTopPlayersOrNone } from './load';
-import { compareBoardRows, sortBoardRows } from './order';
+import { boardSections, parseBoardPage, parseBoardSort, sortBoardRows, sortSection } from './order';
 import { isRated, recentGames } from './recent';
 import { currentStreak, formatStreak } from './streak';
 import type { BoardRow } from './types';
@@ -42,15 +38,14 @@ import {
   PLAYER_WINDOW,
   parseWindow,
   STATS_WINDOW,
-  VERSUS_WINDOW,
   WINDOW_ORDER,
   windowHref,
   windowRangeLabel,
 } from './window';
 
 /**
- * The pure half of the board (M3.5, M3.8): the sort, the streak, the chart's geometry and the
- * copy product owns. Everything with a page around it is in `app/_board/*.test.tsx`; everything
+ * The pure half of the board (M3.5; one Rating and the settling section since M14.15): the sort,
+ * the sections, the streak, the chart's geometry and the copy product owns. Everything with a page around it is in `app/_board/*.test.tsx`; everything
  * with a database behind it is in `app/board.integration.test.ts`.
  */
 
@@ -62,346 +57,94 @@ function row(overrides: Partial<BoardRow>): BoardRow {
     puuid: 'puuid-a',
     name: 'A',
     track: 'all-time',
-    proven: 900,
+    points: null,
     rating: 1_400,
     games: 40,
     wins: 20,
     losses: 20,
-    sortKey: 15,
-    streak: null,
+    ratedGames: 40,
+    sortKey: 23.33,
     climb: null,
     settling: false,
-    breakdown: [],
+    settlingChip: false,
     awards: [],
     ...overrides,
   };
 }
 
-describe('the copy product owns', () => {
-  it('is the still-settling sentence, word for word', () => {
-    expect(SETTLING_SENTENCE).toBe(
-      'The board sorts on Proven: your rating, minus how unsure the board still is about you. That gap shrinks as you play and settles after about 30 games.',
+describe('the copy product owns (M14.15, STRATEGY §5)', () => {
+  it('counts settling with core, never a literal 30', () => {
+    expect(SETTLING_GAMES).toBe(10);
+    expect(settlingChip(4)).toBe('settling · 4/10');
+    expect(settlingChip(0)).toBe('settling · 0/10');
+  });
+
+  it('is the settling section line, word for word, the same as the Discord board post', () => {
+    expect(SETTLING_SECTION_TITLE).toBe('Still settling');
+    expect(SETTLING_SECTION_LINE).toBe(
+      "New players' ratings move fast at first. They get a rank after 10 games.",
     );
+    expect(SETTLING_SECTION_LINE).toBe(SETTLING_FOOTER);
   });
 
-  /**
-   * The player page's twin (M3.26): the same two sentences, one pronoun moved, **no name**.
-   * `/leaderboard` keeps the second-person string byte for byte, and neither may be edited
-   * into the other.
-   */
-  it('is the third-person sentence the player page prints instead', () => {
-    expect(SETTLING_SENTENCE_PLAYER).toBe(
-      "The board sorts on Proven: a player's rating, minus how unsure the board still is about them. That gap shrinks as they play and settles after about 30 games.",
-    );
-    expect(SETTLING_SENTENCE_PLAYER).not.toContain(' you');
-    expect(SETTLING_SENTENCE_PLAYER).not.toContain('your');
-    // No name is interpolated: a nameless player is `Someone`, and a possessive per name is
-    // not one rule.
-    expect(SETTLING_SENTENCE_PLAYER).not.toContain('Someone');
+  it('is the empty board line, word for word', () => {
+    expect(BOARD_EMPTY).toBe("No rated games yet. The board fills in after your first Summoner's Rift game.");
   });
 
-  it('is the short form Discord gets as a footer', () => {
-    expect(SETTLING_SENTENCE_SHORT).toBe(
-      'Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.',
-    );
+  it('counts the people under the board, `yet` only on a running window', () => {
+    expect(notPlayedLine(9, 'all-time')).toBe("+ 9 people who haven't played a rated game yet.");
+    expect(notPlayedLine(1, 'all-time')).toBe("+ 1 person who hasn't played a rated game yet.");
+    expect(notPlayedLine(3, 'this-week')).toBe("+ 3 people who haven't played a rated game this week yet.");
+    expect(notPlayedLine(3, 'last-week')).toBe("+ 3 people who haven't played a rated game last week.");
   });
 
-  /**
-   * **The gap shrinks; it never closes** (product, 2026-09-10). σ falls with every game and
-   * does not reach zero, so a sentence that promises Proven will catch up — `stays below your
-   * rating until…`, `catches up after…` — promises a day that never comes, and the reader who
-   * waits for it asks the question the sentence exists to answer. `settles` is the word both
-   * forms use, and it is the word the `settling` chip already says.
-   */
-  it('promises a gap that settles, never one that closes', () => {
-    for (const sentence of [SETTLING_SENTENCE, SETTLING_SENTENCE_PLAYER, SETTLING_SENTENCE_SHORT]) {
-      expect(sentence).toContain('settles');
-      expect(sentence).not.toContain('until');
-      expect(sentence).not.toContain('catches up');
-    }
-  });
-
-  // M3.8's acceptance check: the number in the sentence is the threshold the marker uses.
-  it('says the same number the marker switches off at', () => {
-    expect(SETTLING_GAMES).toBe(30);
-    expect(SETTLING_SENTENCE).toContain(`about ${SETTLING_GAMES} games`);
-    expect(SETTLING_SENTENCE_PLAYER).toContain(`about ${SETTLING_GAMES} games`);
-    expect(SETTLING_SENTENCE_SHORT).toContain(`about ${SETTLING_GAMES} games`);
-  });
-
-  it('never prints `1 games` on the row of the newest player', () => {
-    expect(gamesLabel(0)).toBe('0 games');
-    expect(gamesLabel(1)).toBe('1 game');
-    expect(gamesLabel(28)).toBe('28 games');
-    expect(winLossLabel(13, 15)).toBe('13W 15L');
-  });
-
-  /**
-   * The five windows (M5.12, `05-design.md`'s copy table). The same five words are the option,
-   * the board heading and the Discord title, and **a running window says `yet` while a closed
-   * one does not** — nothing more is coming to last week.
-   */
-  it('names the five windows the way product spells them', () => {
-    expect(Object.values(WINDOW_LABELS)).toEqual([
-      'This week',
-      'Last week',
-      'This month',
-      'Last month',
-      'All time',
-    ]);
-    expect(WINDOW_ORDER.map((kind) => WINDOW_LABELS[kind])).toEqual(Object.values(WINDOW_LABELS));
-  });
-
-  it('has one empty line per window, and only the running ones say `yet`', () => {
-    expect(WINDOW_EMPTY).toEqual({
-      'this-week': 'No games this week yet.',
-      'last-week': 'No games last week.',
-      'this-month': 'No games this month yet.',
-      'last-month': 'No games last month.',
-      'all-time': 'No games yet.',
-    });
-    expect(WINDOW_EMPTY['this-week']).toContain('yet');
-    expect(WINDOW_EMPTY['last-week']).not.toContain('yet');
-    expect(WINDOW_EMPTY['last-month']).not.toContain('yet');
-  });
-
-  /**
-   * **The word `season` leaves the friend-facing vocabulary entirely** with M5.12 and M5.14:
-   * `No games this season yet.` and `No season is active…` are deleted, and nothing that
-   * replaced them may put the word back.
-   */
-  it('says the word season nowhere a friend can read it', () => {
+  it('says Proven, ordinal and the word season nowhere a friend can read', () => {
     const strings = [
-      ...Object.values(WINDOW_LABELS),
-      ...Object.values(WINDOW_EMPTY),
-      SETTLING_SENTENCE,
-      SETTLING_SENTENCE_PLAYER,
-      SETTLING_SENTENCE_SHORT,
-      NOT_RATED_HINT,
-    ];
-
-    for (const sentence of strings) expect(sentence.toLowerCase()).not.toContain('season');
-  });
-
-  /** The hairline is a seed over a whole history and a start over a window. Two words. */
-  it('does not let a window borrow the word `seed`', () => {
-    expect(SEED_LABEL).toBe('seed');
-    expect(START_LABEL).toBe('start');
-  });
-
-  /**
-   * **The legend is one word** (`05-design.md`, "Leaderboard row", amended 2026-09-09).
-   * Right-aligned over the stacked pair, `Proven · Rating` put `Rating` over the Proven column
-   * and `Proven` over nothing.
-   */
-  it('names the one unlabelled number and nothing else', () => {
-    expect(BOARD_LEGEND).toBe(PROVEN_LABEL);
-    expect(BOARD_LEGEND).not.toContain(RATING_LABEL);
-    // The player page's own legend is the same word the seat rack uses, lower case.
-    expect(RECENT_RATING_LEGEND).toBe('rating');
-  });
-
-  it('has one vocabulary for a game that moved nothing, and one sentence under it', () => {
-    expect(NOT_RATED).toBe('not rated');
-    expect(NOT_RATED_HINT).toBe(
-      "Some games don't move ratings: ARAM, too short, short a player, or added from match history and not counted yet.",
-    );
-  });
-
-  /**
-   * **M7.17.** The hint enumerates, so the list has to be complete: ARAM is the first of the four
-   * reasons and the most common one in this group's history since M7.11's rebuild. The row's own
-   * label does not change with it — M3.23's one vocabulary means every unrated row still reads the
-   * same three syllables, and the reason is said once, under the list.
-   */
-  it('names ARAM first in the hint and nowhere else in the vocabulary', () => {
-    expect(NOT_RATED_HINT).toContain('ratings: ARAM, too short');
-    // One word added, nothing else in the sentence touched.
-    expect(NOT_RATED_HINT.replace('ARAM, ', '')).toBe(
-      "Some games don't move ratings: too short, short a player, or added from match history and not counted yet.",
-    );
-    // No per-row reason, and no other constant grew a mode word.
-    const others = [
-      NOT_RATED,
-      SETTLING_SENTENCE,
-      SETTLING_SENTENCE_PLAYER,
-      SETTLING_SENTENCE_SHORT,
-      WEEK_BOARD_SENTENCE,
+      RATING_LABEL,
+      SETTLING_SECTION_LINE,
+      BOARD_EMPTY,
       WEEK_BOARD_SENTENCE_SHORT,
+      WEEK_PLAYER_SENTENCE,
+      NOT_RATED_HINT,
+      RATING_EXPLANATION,
       MVP_EXPLANATION,
       ...Object.values(WINDOW_LABELS),
       ...Object.values(WINDOW_EMPTY),
+      notPlayedLine(2, 'all-time'),
+      settlingChip(3),
     ];
-    for (const sentence of others) expect(sentence.toUpperCase()).not.toContain('ARAM');
+    for (const text of strings) {
+      expect(text).not.toMatch(/proven|ordinal|season/i);
+    }
   });
 
-  /**
-   * M7.10, acceptance 5: the three strings live here and not in a component, and they are
-   * product's own, pinned by code point.
-   */
-  it('names the MVP and the ACE in two words and explains them in one sentence', () => {
+  it('never prints `1 games`', () => {
+    expect(gamesLabel(1)).toBe('1 game');
+    expect(gamesLabel(2)).toBe('2 games');
+    expect(winLossLabel(3, 1)).toBe('3W 1L');
+  });
+
+  it('splits the record into the same four tokens the label prints (the share card, M14.25)', () => {
+    const parts = winLossParts(13, 15);
+    expect(parts).toEqual([{ num: '13' }, { word: 'W' }, { num: '15' }, { word: 'L' }]);
+    const text = (part: (typeof parts)[number]) => ('num' in part ? part.num : part.word);
+    const [wins, w, losses, l] = parts.map(text);
+    expect(`${wins}${w} ${losses}${l}`).toBe(winLossLabel(13, 15));
+  });
+
+  it('prints a game length in minutes, never as a clock', () => {
+    expect(formatMinutes(1_306)).toBe('21 min');
+    expect(formatMinutes(20)).toBe('1 min');
+  });
+
+  it('names the MVP and the ACE in two words', () => {
     expect(MVP_LABEL).toBe('MVP');
     expect(ACE_LABEL).toBe('ACE');
-    expect(MVP_EXPLANATION).toBe(
-      'The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.',
-    );
   });
 
-  /**
-   * Acceptance 6, on the copy itself: no emoji, no trophy, no `#1`, no percentage and no score.
-   * The bonus is a fraction in `config.ts` and a reader never meets it as a number.
-   */
-  it('puts no trophy, no number and no score in any of the three', () => {
-    for (const word of [MVP_LABEL, ACE_LABEL, MVP_EXPLANATION]) {
-      // Basic Latin only, so nothing can smuggle in a medal.
-      expect(word).toMatch(/^[ -~]+$/u);
-      expect(word).not.toMatch(/[0-9#%]/u);
-    }
-    // The sentence says what happens, never by how much: `25%`, `1.25x` and `score` are out.
-    expect(MVP_EXPLANATION.toLowerCase()).not.toContain('score');
-    expect(MVP_EXPLANATION).not.toContain(MVP_LABEL);
-    expect(MVP_EXPLANATION).not.toContain(ACE_LABEL);
-  });
-});
-
-/**
- * **The week board's copy** (M7.3, product 2026-09-15): the sentence under a week board and the
- * footer its posts carry, character for character, plus the three rules about them.
- */
-describe('the copy a week board says instead', () => {
-  it('is the long sentence, word for word', () => {
-    expect(WEEK_BOARD_SENTENCE).toBe(
-      "Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
-    );
-  });
-
-  it('is the short form the embed footer prints', () => {
-    expect(WEEK_BOARD_SENTENCE_SHORT).toBe(
-      'Every week starts everyone on the same rating on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.',
-    );
-  });
-
-  /**
-   * **M7.21 was a correction, not a rewrite** (acceptance 2). Putting the retired clause back
-   * has to reproduce M7.3's string byte for byte: if any other word, comma or em dash moved
-   * while the rank came out, this fails and the diff is wrong.
-   */
-  it('changed exactly one clause out of each string and nothing else', () => {
-    expect(WEEK_BOARD_SENTENCE.replace('on the same rating', 'back at their rank')).toBe(
-      "Every week starts everyone back at their rank on Sunday, so a good Tuesday shows up here straight away. The board sorts on Rating — what the bot thinks you are after this week's games — and takes nothing off for playing only a few, so a clean two-game week can sit above a longer patchy one. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
-    );
-    expect(WEEK_BOARD_SENTENCE_SHORT.replace('on the same rating', 'back at their rank')).toBe(
-      'Every week starts everyone back at their rank on Sunday, so these numbers swing, and two clean wins can top a longer patchy week. All time is the settled one, and the one that makes teams.',
-    );
-  });
-
-  /**
-   * **`Every week`, not `This week`.** `Last week` prints the same two strings, because it is
-   * the same track and the reader is asking the same question — and `This week` would read as a
-   * mistake under the other heading.
-   */
-  it('says `Every week` in both, so `Last week` can print them too', () => {
-    for (const sentence of [WEEK_BOARD_SENTENCE, WEEK_BOARD_SENTENCE_SHORT]) {
-      expect(sentence.startsWith('Every week')).toBe(true);
-      expect(sentence).not.toContain('This week');
-    }
-  });
-
-  /**
-   * **The week does not claim to settle, and interpolates no game count.** M7.2 measured the
-   * weekly track reaching `sigma < 5.00` at game 30 — a bar a week never clears — so the word
-   * and the number are both absent, and `SETTLING_GAMES` is not read anywhere near these.
-   */
-  it('promises no settling and counts no games', () => {
-    for (const sentence of [WEEK_BOARD_SENTENCE, WEEK_BOARD_SENTENCE_SHORT]) {
-      // The week never claims to settle — `All time is the settled one` is a sentence about
-      // the other board, which is the point of saying it here.
-      expect(sentence).not.toContain('settles after');
-      expect(sentence).toContain('All time is the settled one');
-      expect(sentence).not.toContain(String(SETTLING_GAMES));
-      expect(sentence).not.toMatch(/\d/);
-      // It names the column it sorts on, and never the one it does not print.
-      expect(sentence).not.toContain(PROVEN_LABEL);
-    }
-    expect(WEEK_BOARD_SENTENCE).toContain(`sorts on ${RATING_LABEL}`);
-  });
-
-  /**
-   * **Neither pair may be edited into the other** (the M3.26 rule). `All time`, the month
-   * windows and `/p/[puuid]` keep printing M3.8's three sentences byte for byte, and the chip
-   * and its threshold are untouched.
-   */
-  it('leaves the Proven sentences, the chip and the threshold exactly as they were', () => {
-    expect(SETTLING_GAMES).toBe(30);
-    expect(SETTLING_CHIP).toBe('settling');
-    expect(SETTLING_SENTENCE).toBe(
-      'The board sorts on Proven: your rating, minus how unsure the board still is about you. That gap shrinks as you play and settles after about 30 games.',
-    );
-    expect(SETTLING_SENTENCE_SHORT).toBe(
-      'Proven is your rating minus how unsure the board still is about you, and it settles after about 30 games.',
-    );
-    expect(SETTLING_SENTENCE_PLAYER).toBe(
-      "The board sorts on Proven: a player's rating, minus how unsure the board still is about them. That gap shrinks as they play and settles after about 30 games.",
-    );
-  });
-
-  /** The legend names the number in the column under it, and there are only two of them. */
-  it('puts `Rating` over a week board and `Proven` over every other one', () => {
-    expect(boardLegend('weekly')).toBe(RATING_LABEL);
-    expect(boardLegend('all-time')).toBe(BOARD_LEGEND);
-    expect(boardLegend('all-time')).toBe(PROVEN_LABEL);
-  });
-});
-
-/**
- * **The same fact on `/p/[puuid]`** (M7.16, product 2026-09-16): the sentence a week window
- * prints there instead of {@link SETTLING_SENTENCE_PLAYER}, character for character.
- */
-describe('the copy a week player page says instead', () => {
-  it('is the sentence, word for word', () => {
-    expect(WEEK_PLAYER_SENTENCE).toBe(
-      "Every week starts everyone on the same rating on Sunday, so a good Tuesday shows up here straight away. This is their rating after this week's games, with nothing taken off for playing only a few. It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.",
-    );
-  });
-
-  /**
-   * **Third person, the M3.26 rule.** The page may be somebody else's, so the board's `you`
-   * would name the wrong person under the number it explains — and neither constant may be
-   * edited into the other.
-   */
-  it('names no reader and is not the board sentence', () => {
-    expect(WEEK_PLAYER_SENTENCE).not.toBe(WEEK_BOARD_SENTENCE);
-    expect(WEEK_PLAYER_SENTENCE).not.toContain(' you');
-    expect(WEEK_PLAYER_SENTENCE).not.toContain('your');
-    // It carries the board sentence's last two sentences, which are about neither person.
-    expect(WEEK_PLAYER_SENTENCE).toContain(
-      'It is a handful of games either way, so these numbers swing. All time is the settled one, and the one that makes teams.',
-    );
-  });
-
-  /**
-   * **No rank, on any of the three week surfaces.** M7.19 (2026-09-16) took the League rank out
-   * of every stored seed, so a week restarts everyone on one rating and not on their own rank.
-   * The guard was one-sided until M7.21 corrected the two board strings; it now covers all three,
-   * so neither the page, the board nor a post can say `rank` again.
-   */
-  it('does not say a week starts anybody at their rank', () => {
-    for (const sentence of [WEEK_BOARD_SENTENCE, WEEK_BOARD_SENTENCE_SHORT, WEEK_PLAYER_SENTENCE]) {
-      expect(sentence.toLowerCase()).not.toContain('rank');
-      expect(sentence).toContain('starts everyone on the same rating');
-    }
-  });
-
-  /** The week's own three rules: `Every week`, no settling claim, no game count, no Proven. */
-  it('says `Every week`, promises no settling and counts no games', () => {
-    expect(WEEK_PLAYER_SENTENCE.startsWith('Every week')).toBe(true);
-    expect(WEEK_PLAYER_SENTENCE).not.toContain('This week');
-    expect(WEEK_PLAYER_SENTENCE).not.toContain('settles after');
-    expect(WEEK_PLAYER_SENTENCE).not.toContain(String(SETTLING_GAMES));
-    expect(WEEK_PLAYER_SENTENCE).not.toMatch(/\d/);
-    expect(WEEK_PLAYER_SENTENCE).not.toContain(PROVEN_LABEL);
-    // And the name carries no `SETTLING`: the week does not claim to settle at all.
-    expect(WEEK_PLAYER_SENTENCE).not.toContain('settling');
+  it('names the three windows the way product spells them, and no month (M14.48)', () => {
+    expect(WINDOW_ORDER.map((kind) => WINDOW_LABELS[kind])).toEqual(['This week', 'Last week', 'All time']);
+    expect(Object.values(WINDOW_LABELS).join(' ')).not.toMatch(/month/i);
   });
 });
 
@@ -451,113 +194,71 @@ describe('which games the recent list shows', () => {
   });
 });
 
-describe('the board is ordered by Proven, descending', () => {
-  it('never lets the primary column go up as you read down it', () => {
+describe('the board is ordered by Rating, the number it prints (M14.15)', () => {
+  it('never lets the printed Rating go up as you read down a section', () => {
     const rows = workedBoardRows();
-
-    expect(rows.map((entry) => entry.name)).toEqual([
-      'Lena',
-      'Bilal',
-      'Rami',
-      'Iris',
-      'Karim',
-      'Omar',
-      'Hana',
-      'Theo',
-      'Nadia',
-      'Yuki',
-    ]);
-    // The design doc's own arithmetic: Lena `34.80 - 2 * 4.50 = 25.80`, `* 60 = 1548`.
-    expect(rows.map((entry) => entry.proven)).toEqual([
-      1_548, 1_137, 1_062, 990, 987, 917, 882, 831, 654, 534,
-    ]);
-    for (const [index, entry] of rows.entries()) {
-      expect(entry.proven).toBeLessThanOrEqual(rows[index - 1]?.proven ?? entry.proven);
+    for (let index = 1; index < rows.length; index += 1) {
+      expect((rows[index - 1] as BoardRow).rating).toBeGreaterThanOrEqual((rows[index] as BoardRow).rating);
     }
   });
 
-  it('compresses: Proven is not Rating with a constant taken off it', () => {
-    const rows = workedBoardRows();
-    const by = (name: string): BoardRow => rows.find((entry) => entry.name === name) as BoardRow;
-
-    // `05-design.md`: Iris and Karim land 3 points apart on Proven against a 27-point Rating
-    // gap, which is why the number is `t-md` mono tabular and never abbreviated — `990` above
-    // `987` has to read as ordered rather than as equal.
-    expect(by('Iris').rating - by('Karim').rating).toBe(27);
-    expect(by('Iris').proven - by('Karim').proven).toBe(3);
-
-    // And Yuki is last by a wider margin than her rating suggests: her sigma is the second
-    // highest in the room. That is the whole point of the column.
-    expect(rows.at(-1)?.name).toBe('Yuki');
-    expect(by('Nadia').rating - by('Yuki').rating).toBe(132);
-    expect(by('Nadia').proven - by('Yuki').proven).toBe(120);
-  });
-
-  it('breaks a tie on Rating, then on the name a reader sees, then on the puuid', () => {
-    const tied = sortBoardRows([
-      row({ puuid: 'puuid-c', name: 'Cara', proven: 900, rating: 1_400 }),
-      row({ puuid: 'puuid-a', name: 'Ali', proven: 900, rating: 1_400 }),
-      row({ puuid: 'puuid-b', name: 'Bea', proven: 900, rating: 1_450 }),
-    ]);
-
-    expect(tied.map((entry) => entry.name)).toEqual(['Bea', 'Ali', 'Cara']);
-  });
-
-  it('keeps two nameless players in the same order between renders', () => {
-    const a = row({ puuid: 'puuid-a', name: null });
-    const b = row({ puuid: 'puuid-b', name: null });
-
-    expect(compareBoardRows(a, b)).toBeLessThan(0);
-    expect(compareBoardRows(b, a)).toBeGreaterThan(0);
-  });
-
-  it('puts a seeded player with no games at the bottom rather than filtering them out', () => {
-    // An unranked seed is `mu 20, sigma 10`: ordinal 0, so Proven 0 and Rating 1200.
-    const seeded = row({
-      puuid: 'puuid-new',
-      name: 'New',
-      proven: 0,
-      sortKey: 0,
-      rating: 1_200,
-      games: 0,
+  /**
+   * The audit's case: under the old Proven sort a 1361 sat below a 1287, because the board ordered
+   * on `mu - 2σ` and printed `mu`. Real-shaped: a confident 1287 and an unsure 1361, both ranked.
+   */
+  it('puts the 1361 above the 1287, whatever their uncertainty', () => {
+    const steady = row({
+      puuid: 'p-steady',
+      name: 'PRT Khokha',
+      rating: 1_287,
+      sortKey: 21.45,
+      ratedGames: 83,
     });
-    const rows = sortBoardRows([seeded, ...workedBoardRows()]);
-
-    expect(rows.at(-1)?.name).toBe('New');
-    expect(rows).toHaveLength(11);
+    const unsure = row({ puuid: 'p-unsure', name: 'knifiy', rating: 1_361, sortKey: 22.68, ratedGames: 12 });
+    expect(sortBoardRows([steady, unsure]).map((entry) => entry.rating)).toEqual([1_361, 1_287]);
   });
 
-  it('keeps two rows below zero in their true order, both printing zero', () => {
-    // Both display `0` — an Iron IV seed is `-160` unfloored — so the tie-break that decides
-    // the page is the raw ordinal and not the name.
-    const rows = sortBoardRows([
-      row({ puuid: 'puuid-iron', name: 'Ali', proven: 0, sortKey: -2.66, rating: 840 }),
-      row({ puuid: 'puuid-unranked', name: 'Zoe', proven: 0, sortKey: 0, rating: 1_200 }),
-    ]);
-
-    expect(rows.map((entry) => entry.name)).toEqual(['Zoe', 'Ali']);
-    expect(rows.map((entry) => entry.proven)).toEqual([0, 0]);
-    // Alphabetical order would have put Ali first: the sort is not reading the printed number.
-    expect(rows[0]?.sortKey).toBeGreaterThan(rows[1]?.sortKey as number);
+  it('breaks a tie on Rating with the unrounded mu, then the name a reader sees, then the puuid', () => {
+    const a = row({ puuid: 'p-a', name: 'Zed', rating: 1_400, sortKey: 23.34 });
+    const b = row({ puuid: 'p-b', name: 'Ann', rating: 1_400, sortKey: 23.31 });
+    const c = row({ puuid: 'p-c', name: 'Ann', rating: 1_400, sortKey: 23.31 });
+    expect(sortBoardRows([c, b, a]).map((entry) => entry.puuid)).toEqual(['p-a', 'p-b', 'p-c']);
+    const nameless = [row({ puuid: 'p-2', name: null }), row({ puuid: 'p-1', name: null })];
+    expect(sortBoardRows(nameless).map((entry) => entry.puuid)).toEqual(['p-1', 'p-2']);
   });
 
-  it('still never lets the printed column go up, with the floor in place', () => {
-    const rows = sortBoardRows([
-      row({ puuid: 'puuid-a', proven: 0, sortKey: -6 }),
-      row({ puuid: 'puuid-b', proven: 300, sortKey: 5 }),
-      row({ puuid: 'puuid-c', proven: 0, sortKey: -1 }),
-    ]);
-
-    const printed = rows.map((entry) => entry.proven);
-    expect(printed).toEqual([300, 0, 0]);
-    for (const [index, value] of printed.entries()) {
-      expect(value).toBeLessThanOrEqual(printed[index - 1] ?? value);
-    }
+  it('puts a 9-game player in settling and a 10-game player in the ranked list', () => {
+    const nine = settlingRow(row({ puuid: 'p-nine', rating: 1_700, sortKey: 28.3 }), 9);
+    const ten = settlingRow(row({ puuid: 'p-ten', rating: 1_250, sortKey: 20.8 }), 10);
+    expect(nine.settling).toBe(true);
+    expect(ten.settling).toBe(false);
+    const { ranked, settling } = boardSections([nine, ten]);
+    expect(ranked.map((entry) => entry.puuid)).toEqual(['p-ten']);
+    expect(settling.map((entry) => entry.puuid)).toEqual(['p-nine']);
+    // The settling section is always below, however high its Rating.
+    expect(sortBoardRows([nine, ten]).map((entry) => entry.puuid)).toEqual(['p-ten', 'p-nine']);
   });
 
-  it('agrees with `provenRating`, which is the one place the number is computed', () => {
-    expect(provenRating({ mu: 34.8, sigma: 4.5 })).toBe(1_548);
-    expect(provenRating({ mu: 24.49, sigma: 4.6 })).toBe(917);
+  it('re-sorts a section by games or win rate on request, ties keeping the board order', () => {
+    const a = row({ puuid: 'p-a', rating: 1_500, sortKey: 25, games: 10, wins: 9, losses: 1 });
+    const b = row({ puuid: 'p-b', rating: 1_400, sortKey: 23.3, games: 30, wins: 15, losses: 15 });
+    const c = row({ puuid: 'p-c', rating: 1_300, sortKey: 21.7, games: 30, wins: 20, losses: 10 });
+    expect(sortSection([c, b, a], 'rating').map((entry) => entry.puuid)).toEqual(['p-a', 'p-b', 'p-c']);
+    expect(sortSection([c, b, a], 'games').map((entry) => entry.puuid)).toEqual(['p-b', 'p-c', 'p-a']);
+    expect(sortSection([c, b, a], 'winrate').map((entry) => entry.puuid)).toEqual(['p-a', 'p-c', 'p-b']);
+  });
+
+  it('reads `?sort=` and `?page=` and falls back on anything else', () => {
+    expect(parseBoardSort(undefined)).toBe('rating');
+    expect(parseBoardSort('games')).toBe('games');
+    expect(parseBoardSort('winrate')).toBe('winrate');
+    expect(parseBoardSort('ordinal')).toBe('rating');
+    expect(parseBoardSort(['games', 'rating'])).toBe('rating');
+    expect(parseBoardPage('2')).toBe(2);
+    expect(parseBoardPage('0')).toBe(1);
+    expect(parseBoardPage('-3')).toBe(1);
+    expect(parseBoardPage('abc')).toBe(1);
+    expect(parseBoardPage(undefined)).toBe(1);
   });
 });
 
@@ -586,7 +287,7 @@ describe('the streak column', () => {
  * because a sidebar could not be read is a worse page than one with an empty sidebar.
  */
 describe('the rail board read', () => {
-  /** A client whose very first call fails, the way a timed-out season lookup would. */
+  /** A client whose very first call fails, the way a timed-out lookup would. */
   const broken = {
     from() {
       throw new Error('boom');
@@ -596,7 +297,9 @@ describe('the rail board read', () => {
   it('is an empty rail and one log line, not a failed page', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await expect(loadTopPlayersOrNone(broken, { limit: 5, window: 'this-week' })).resolves.toEqual([]);
+    await expect(
+      loadTopPlayersOrNone(broken, { limit: 5, window: 'this-week', groupId: 'g' }),
+    ).resolves.toEqual([]);
     expect(logged).toHaveBeenCalledTimes(1);
 
     logged.mockRestore();
@@ -605,7 +308,7 @@ describe('the rail board read', () => {
   it('still throws for anybody who asks for the board itself', async () => {
     // `/leaderboard` is the board: an empty page there would be a lie, so the unguarded read is
     // what that page uses and this guard is the rail's alone.
-    await expect(loadTopPlayers(broken, { limit: 5, window: 'this-week' })).rejects.toThrow();
+    await expect(loadTopPlayers(broken, { limit: 5, window: 'this-week', groupId: 'g' })).rejects.toThrow();
   });
 });
 
@@ -681,11 +384,10 @@ describe('the rating chart', () => {
  * of a URL, the three defaults and the link behind an option.
  */
 describe('the window a page is read through', () => {
-  it('defaults per page: the board opens on the week, a person on all time, stats on the month, 1v1 on all time', () => {
+  it('defaults per page: the board opens on the week, a person and every Stats segment on all time', () => {
     expect(LEADERBOARD_WINDOW).toBe('this-week');
     expect(PLAYER_WINDOW).toBe('all-time');
-    expect(STATS_WINDOW).toBe('this-month');
-    expect(VERSUS_WINDOW).toBe('all-time');
+    expect(STATS_WINDOW).toBe('all-time');
   });
 
   it('takes the page default when the parameter is absent', () => {
@@ -693,7 +395,7 @@ describe('the window a page is read through', () => {
     expect(parseWindow(undefined, PLAYER_WINDOW)).toBe('all-time');
   });
 
-  it('takes any of the five, spelled the way the URL spells them', () => {
+  it('takes any of the three, spelled the way the URL spells them', () => {
     for (const kind of WINDOW_ORDER) expect(parseWindow(kind, LEADERBOARD_WINDOW)).toBe(kind);
   });
 
@@ -703,12 +405,12 @@ describe('the window a page is read through', () => {
    * quietly showed a different window than the URL names is a page whose links cannot be
    * trusted.
    */
-  it('refuses anything that is not one of the five, including a repeated parameter', () => {
+  it('refuses anything that is not one of the three, including a repeated parameter', () => {
     expect(parseWindow('this-year', LEADERBOARD_WINDOW)).toBeNull();
     expect(parseWindow('', LEADERBOARD_WINDOW)).toBeNull();
     expect(parseWindow('This week', LEADERBOARD_WINDOW)).toBeNull();
     expect(parseWindow('season-1', LEADERBOARD_WINDOW)).toBeNull();
-    // `?window=this-week&window=all-time` arrives as an array and is not one of the five.
+    // `?window=this-week&window=all-time` arrives as an array and is not one of the three.
     expect(parseWindow(['this-week', 'all-time'], LEADERBOARD_WINDOW)).toBeNull();
   });
 
@@ -729,7 +431,7 @@ describe('the window a page is read through', () => {
  */
 describe('what a window did to a row', () => {
   it('is the two displayed ratings subtracted, never the raw mu difference', () => {
-    const climb = workedWindowRows()[0]?.climb as { muBefore: number; muAfter: number };
+    const climb = workedWindowRows('all-time')[0]?.climb as { muBefore: number; muAfter: number };
 
     expect(displayDelta(climb.muBefore, climb.muAfter)).toBe(58);
     expect(formatWebDelta(displayDelta(climb.muBefore, climb.muAfter))).toBe('+58');
@@ -745,21 +447,20 @@ describe('what a window did to a row', () => {
     expect(formatWebDelta(displayDelta(23.9, 23.896))).toBe('−0');
   });
 
-  it('carries no streak, because product fixed the line without one', () => {
+  it('prints the window line, games and record', () => {
     for (const row of workedWindowRows()) {
-      expect(row.streak).toBeNull();
       expect(row.games).toBe(6);
       expect(`${gamesLabel(row.games)} · ${winLossLabel(row.wins, row.losses)}`).toBe('6 games · 4W 2L');
     }
   });
 
-  /** The sort is the window's only untouched thing: Proven descending, on every window. */
+  /** The sort is Rating on every window, never who climbed most in it. */
   it('does not reorder a window by who climbed most in it', () => {
     const rows = workedWindowRows();
     const climber = { ...(rows.at(-1) as (typeof rows)[number]), climb: { muBefore: 20, muAfter: 26 } };
     const sorted = sortBoardRows([climber, ...rows.slice(0, -1)]);
 
-    // Yuki climbed 360 display points and is still last, because Proven is what sorts.
+    // Yuki climbed 360 display points and is still last, because Rating is what sorts.
     expect(sorted.at(-1)?.name).toBe('Yuki');
     expect(sorted[0]?.name).toBe('Lena');
   });
@@ -810,12 +511,11 @@ describe('the line under the picker', () => {
   const label = (kind: WindowKind, firstCountedAt: Date | null = null) =>
     windowRangeLabel(kind, windowRange(kind, now, CAIRO), firstCountedAt, CAIRO);
 
-  it('names each of the five the way product spells it', () => {
+  it('names each of the three the way product spells it', () => {
     expect(label('this-week')).toBe('Sunday 6 Sep to Saturday 12 Sep');
     expect(label('last-week')).toBe('Sunday 30 Aug to Saturday 5 Sep');
-    expect(label('this-month')).toBe('September');
-    expect(label('last-month')).toBe('August');
-    expect(label('all-time', new Date('2025-09-08T18:00:00Z'))).toBe('Since 8 Sep 2025');
+    // `first game`, never `Since`: that word belongs to a ratings reset (M14.42).
+    expect(label('all-time', new Date('2025-09-08T18:00:00Z'))).toBe('first game 8 Sep 2025');
   });
 
   /** Only `All time` can fail to have a date, and only on a database with no counted game. */
@@ -829,7 +529,7 @@ describe('the line under the picker', () => {
       'Sunday 6 Sep to Saturday 12 Sep · 14 games',
     );
     expect(windowSlotLine('September', 34)).toBe('September · 34 games');
-    expect(windowSlotLine('Since 8 Sep 2025', 312)).toBe('Since 8 Sep 2025 · 312 games');
+    expect(windowSlotLine('first game 8 Sep 2025', 312)).toBe('first game 8 Sep 2025 · 312 games');
     expect(windowSlotLine('Sunday 6 Sep to Saturday 12 Sep', 1)).toBe(
       'Sunday 6 Sep to Saturday 12 Sep · 1 game',
     );

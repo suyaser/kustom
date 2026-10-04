@@ -1,0 +1,219 @@
+# Kustom's Windows release (M17.12). The runbook is docs/runbooks/companion-release.md.
+#
+# A `companion-v<version>` tag, pushed by the user, builds the Tauri NSIS installer on Windows, signs the
+# updater artifacts, enforces the size gate, writes latest.json, and creates a DRAFT release on the public
+# suyaser/kustom-releases with every asset. The user checks the draft and publishes it by hand; nothing here
+# publishes a release anybody can download.
+#
+# Never runs on a pull request or a branch push. `workflow_dispatch` is a dry run of the same build: it
+# signs with the real key when the secrets and the real public key exist (a throwaway pair made on the
+# runner otherwise), runs the size gate,
+# writes latest.json and uploads everything as a workflow artifact. It never creates a release.
+#
+# Until M17.8 makes the Rust shell the real app, a tag stops at "Publish guard", before the build: the app is still the M6 shell that spawns the TypeScript engine, and the updater public key is still
+# the placeholder until the user pastes theirs. Each reason disappears on its own (scripts/release/release.ts,
+# publishBlockers). Every rule the job enforces is in apps/companion/scripts/release/ and unit-tested there.
+#
+# Secrets (repository secrets; the runbook says how to make each):
+#   TAURI_SIGNING_PRIVATE_KEY           the updater private key, content of the file `tauri signer generate` wrote
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+#   KUSTOM_RELEASES_TOKEN               fine-grained PAT, Contents read and write on suyaser/kustom-releases only
+name: Companion release
+
+on:
+  push:
+    tags: ['companion-v*']
+  workflow_dispatch:
+
+# One release build per ref at a time, never cancelled half way through a publish.
+concurrency:
+  group: companion-release-${{ github.ref }}
+  cancel-in-progress: false
+
+# This repo is only read. The release goes to another repo, with KUSTOM_RELEASES_TOKEN.
+permissions:
+  contents: read
+
+# Every third-party action is pinned to a full commit SHA (the tag it was in a comment): this job holds the
+# updater signing key, so a moved tag or branch must not be able to change what runs. The SHAs were resolved
+# from the action repos' tags on 2026-10-04 (annotated tags followed to their commit) and are what the
+# floating tags (v5, v4, v2) pointed at then. Bump on purpose, by SHA.
+
+jobs:
+  release:
+    name: build, sign, size gate, draft release
+    runs-on: windows-latest
+    # A cold Windows Tauri release build with LTO is the long pole (about 15 minutes); 45 is a hang ceiling.
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/companion
+    env:
+      IS_TAG: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/companion-v') }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # Keep in step with apps/companion/rust-toolchain.toml and the engine job in ci.yml.
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master, 2026-10-01 (the action has no release tags)
+        with:
+          toolchain: 1.99.0
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/companion -> target
+
+      - name: Install
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      # The tag, tauri.conf.json's version and the app crate's version must agree, or the updater would
+      # offer this release forever or never. A dry run takes the config's version as it is.
+      - name: Version
+        id: version
+        run: |
+          if [ "$IS_TAG" = "true" ]; then
+            pnpm exec tsx scripts/release/cli.ts check-tag "$GITHUB_REF"
+          else
+            version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+            echo "dry run of version $version"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A tag that must not publish stops here, before a 15-minute build, with the reasons in the log: the
+      # updater public key is still the placeholder, or the app is still the M6 sidecar shell (until M17.8).
+      # Use "Run workflow" (the dry run) to build and measure before then.
+      - name: Publish guard
+        if: env.IS_TAG == 'true'
+        run: pnpm exec tsx scripts/release/cli.ts publish-blockers
+
+      - name: cargo test
+        run: cargo test --workspace --locked
+
+      # tauri.release.conf.json turns on createUpdaterArtifacts, which signs the installer into `<installer>.sig`
+      # with TAURI_SIGNING_PRIVATE_KEY (content of the key file; tauri-cli 2.11 ignores *_PATH). The CLI also
+      # decodes plugins.updater.pubkey before it signs, so a placeholder key cannot build. A tag always signs
+      # with the secrets (the guard above already refused a placeholder). A dry run without the secrets, or
+      # before the user's public key is in the config, signs with a throwaway pair made on the runner and lays
+      # its public key over the config; that pair never leaves the runner and its latest.json is not
+      # publishable.
+      - name: Build the NSIS installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          args=(--ci --bundles nsis --config src-tauri/tauri.release.conf.json)
+          pubkey_state=$(pnpm --silent exec tsx scripts/release/cli.ts pubkey-state)
+          if [ "$IS_TAG" != "true" ] && { [ -z "$TAURI_SIGNING_PRIVATE_KEY" ] || [ "$pubkey_state" = "placeholder" ]; }; then
+            echo "::warning::Dry run signed with a throwaway key (secret missing or pubkey still the placeholder). Not publishable."
+            key="$RUNNER_TEMP/dry-run.key"
+            pnpm exec tauri signer generate --ci -p dry-run -w "$key" -f > /dev/null
+            pnpm exec tsx scripts/release/cli.ts dry-run-config "$key.pub" "$RUNNER_TEMP/dry-run.conf.json"
+            TAURI_SIGNING_PRIVATE_KEY=$(cat "$key")
+            export TAURI_SIGNING_PRIVATE_KEY
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=dry-run
+            args+=(--config "$RUNNER_TEMP/dry-run.conf.json")
+          elif [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set. Add it as a repository secret (docs/runbooks/companion-release.md, step 2)."
+            exit 1
+          fi
+          pnpm exec tauri build "${args[@]}"
+
+      - name: Find the installer
+        id: installer
+        run: |
+          shopt -s nullglob
+          found=(target/release/bundle/nsis/*-setup.exe)
+          if [ "${#found[@]}" -ne 1 ]; then
+            echo "::error::expected one NSIS installer in target/release/bundle/nsis, found ${#found[@]}"
+            ls -la target/release/bundle/nsis || true
+            exit 1
+          fi
+          echo "path=${found[0]}" >> "$GITHUB_OUTPUT"
+          echo "installer ${found[0]}"
+
+      # The size that matters is the exe a friend ends up with, so install the build silently, per user, into
+      # a folder of our own and measure what landed there. Also a smoke check that the installer installs.
+      - name: Install it silently
+        id: installed
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $installer = Resolve-Path '${{ steps.installer.outputs.path }}'
+          $dir = Join-Path $env:RUNNER_TEMP 'kustom-installed'
+          # NSIS: /S silent, /D= the folder; /D must be last and unquoted.
+          $p = Start-Process -FilePath $installer -ArgumentList '/S', "/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "the installer exited $($p.ExitCode)" }
+          Get-ChildItem -Recurse $dir | Format-Table FullName, Length -AutoSize | Out-String -Width 200 | Write-Host
+          $exe = Get-ChildItem $dir -Filter *.exe | Where-Object { $_.Name -ne 'uninstall.exe' } |
+            Sort-Object Length -Descending | Select-Object -First 1
+          if ($null -eq $exe) { throw "no app exe under $dir" }
+          "path=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      # Installer 15 MB or less, installed exe 20 MB or less (decimal MB). Prints both, pass or fail, to the log
+      # and the run summary: the acceptance reads them there.
+      - name: Size gate
+        run: pnpm exec tsx scripts/release/cli.ts size-gate "${{ steps.installer.outputs.path }}" "${{ steps.installed.outputs.path }}"
+
+      # Kustom-setup.exe and Kustom.exe (the same installer), its .sig, both .sha256, latest.json, README.txt.
+      - name: Assemble the release
+        run: pnpm exec tsx scripts/release/cli.ts assemble "${{ steps.version.outputs.version }}" "${{ steps.installer.outputs.path }}" release-assets
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kustom-${{ steps.version.outputs.version }}-windows
+          path: apps/companion/release-assets/
+          if-no-files-found: error
+          retention-days: 14
+
+      # A draft on suyaser/kustom-releases, tag v<version>. A rerun of the same tag replaces the assets on the
+      # draft; a version that is already published is never touched (cut a new version instead).
+      - name: Draft release on kustom-releases
+        if: env.IS_TAG == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.KUSTOM_RELEASES_TOKEN }}
+          REPO: suyaser/kustom-releases
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::KUSTOM_RELEASES_TOKEN is not set. Add it as a repository secret (docs/runbooks/companion-release.md, step 2)."
+            exit 1
+          fi
+          tag="v$VERSION"
+          # Decide from a listing, never from a failed `gh release view`: a transient API error must stop the
+          # run, not read as "no release yet" and make a second draft. `set -e` (bash -e on the runner) fails
+          # the step if the listing fails.
+          releases=$(gh release list --repo "$REPO" --limit 1000 --json tagName,isDraft)
+          state=$(TAG="$tag" node -e '
+            const rows = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const mine = rows.filter((r) => r.tagName === process.env.TAG);
+            if (mine.length === 0) console.log("none");
+            else if (mine.length > 1) console.log("many");
+            else console.log(mine[0].isDraft ? "draft" : "published");
+          ' <<< "$releases")
+          echo "kustom-releases $tag: $state"
+          case "$state" in
+            none)
+              gh release create "$tag" release-assets/* --repo "$REPO" --draft \
+                --title "Kustom $VERSION" --notes-file release-assets/README.txt
+              ;;
+            draft)
+              gh release upload "$tag" release-assets/* --repo "$REPO" --clobber
+              ;;
+            published)
+              echo "::error::$REPO already has a published $tag. Bump the version and push a new tag."
+              exit 1
+              ;;
+            *)
+              echo "::error::$REPO has more than one release for $tag. Delete the extra drafts by hand, then rerun."
+              exit 1
+              ;;
+          esac
+          echo "Draft: https://github.com/$REPO/releases (tag $tag). Check it, then publish it by hand." >> "$GITHUB_STEP_SUMMARY"

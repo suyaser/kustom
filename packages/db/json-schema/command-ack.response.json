@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/command-ack.response",
+  "title": "companionCommandAckResponseSchema",
+  "description": "POST /api/companion/commands/{id}/ack (response)",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "const": true
+    }
+  },
+  "required": [
+    "ok"
+  ]
+}

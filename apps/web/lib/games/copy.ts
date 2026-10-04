@@ -1,3 +1,4 @@
+import type { WindowKind } from '../night';
 import { SIDE_LABELS } from '../stats/copy';
 import { kdaLine, kpLine } from '../stats/funCopy';
 
@@ -16,7 +17,7 @@ export const ALL_GAMES_LABEL = 'All games';
 export const EVERYONE_LABEL = 'Everyone';
 
 /** The two maps this page lists. The picker's accessible name is the noun, not a label on screen. */
-export const QUEUE_PICKER_LABEL = 'Queue';
+export const QUEUE_PICKER_LABEL = 'Map';
 
 export const QUEUE_LABELS: Readonly<Record<'sr' | 'aram', string>> = {
   sr: "Summoner's Rift",
@@ -66,3 +67,59 @@ export function focusMetaLine(
   const farm = `${cs} CS`;
   return kp === null ? `${kda} · ${farm}` : `${kda} · ${kpLine(kp)} · ${farm}`;
 }
+
+/* -------------------------------------------------------------------------------------------
+ * Kustom 2.0 (M14.16): the Games list and the game page. Every friend-facing string on them is
+ * here or in `lib/receipt/copy.ts`.
+ * ----------------------------------------------------------------------------------------- */
+
+/** The date chips (STRATEGY §6(c)). `last-week` links still work, with no chip lit. */
+export const GAMES_WINDOW_LABELS: Readonly<Record<'tonight' | WindowKind, string>> = {
+  tonight: 'Tonight',
+  'this-week': 'This week',
+  'last-week': 'Last week',
+  'all-time': 'All',
+};
+
+/** The mode chips. */
+export const GAMES_MODE_LABELS: Readonly<Record<'sr' | 'aram', string>> = { sr: 'Rift', aram: 'ARAM' };
+
+export const DATE_FILTER_LABEL = 'Date';
+export const MODE_FILTER_LABEL = 'Map';
+export const PLAYER_FILTER_LABEL = 'Player';
+export const PLAYER_FILTER_SUBMIT = 'Show';
+
+/** STRATEGY §6(c), verbatim. */
+export const NO_GAMES_MATCH = 'No games match. Try a wider date range.';
+export const SEE_ALL_DATES = 'See all dates';
+export const NO_GAMES_YET = 'No games yet. They show up here when a custom ends.';
+
+/** `112 games`. */
+export function gamesCount(total: number): string {
+  return total === 1 ? '1 game' : `${total} games`;
+}
+
+export const NEWER_PAGE = 'Newer';
+export const OLDER_PAGE = 'Older';
+export const PAGES_LABEL = 'Pages';
+
+/** `Page 2 of 7`. */
+export function pageOf(page: number, pages: number): string {
+  return `Page ${page} of ${pages}`;
+}
+
+/** The viewer's line on a row starts with this word (beside the `YOU` sticker on the game page). */
+export const YOU_WORD = 'You';
+
+export const COL_VISION = 'Vision';
+export const BACK_TO_GAMES = 'All games';
+
+/** The team card's header tag on the winner (05-design 5.1). */
+export const WON_TAG = 'Won';
+
+/** `Blue team`: the team section's heading. */
+export function teamTitle(side: 100 | 200): string {
+  return `${SIDE_LABELS[side]} team`;
+}
+
+export const NOT_RATED = 'not rated';

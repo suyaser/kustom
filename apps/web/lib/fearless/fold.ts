@@ -26,9 +26,16 @@ export interface FearlessSeat {
 export interface FearlessPick {
   id: number;
   role: RoleValue | null;
+  /**
+   * `games.id` of the game that first locked this id, when the caller named its games (M14.31):
+   * the Discord post bolds the ids the game it is about added. Absent when the game had no id.
+   */
+  gameId?: string;
 }
 
 export interface FearlessGame {
+  /** `games.id`, carried onto the picks this game adds ({@link FearlessPick.gameId}). */
+  id?: string;
   durationS: number;
   /** Client `gameMode` off `games.raw`, already uppercased by the loader, or null. */
   gameMode: string | null;
@@ -48,7 +55,9 @@ export function foldFearless(games: readonly FearlessGame[]): FearlessPick[] {
       if (id === null || id === NO_BAN) continue;
       if (seen.has(id)) continue;
       seen.add(id);
-      picks.push({ id, role: player.role });
+      picks.push(
+        game.id === undefined ? { id, role: player.role } : { id, role: player.role, gameId: game.id },
+      );
     }
   }
 

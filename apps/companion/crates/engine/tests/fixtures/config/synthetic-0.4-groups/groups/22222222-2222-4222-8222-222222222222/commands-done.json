@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      "kind": "create_lobby",
+      "at": "2026-09-08T17:00:00.000Z",
+      "outcome": "done",
+      "result": {
+        "partyId": "a60654ef-a9f6-4ead-8a9d-9fcad8840621",
+        "lobbyName": "customs-verify"
+      }
+    }
+  ]
+}

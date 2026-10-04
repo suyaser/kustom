@@ -1,5 +1,6 @@
 import type { RoleValue } from '@customs/db';
-import { formatDamage, formatDuration } from '../discord/embeds';
+import { formatDamage } from '../discord/embeds';
+import { formatLifeSpan, formatMinutes } from '../games/duration';
 import {
   awardStatLabel,
   clueTypeLabel,
@@ -72,7 +73,7 @@ export function buildStoredClues(source: ClueSource): StoredClue[] {
   }
   push('gold', formatDamage(source.gold));
   if (source.longestLivedS !== null && source.longestLivedS > 0) {
-    push('longest_life', formatDuration(source.longestLivedS));
+    push('longest_life', formatLifeSpan(source.longestLivedS));
   }
 
   const historical =
@@ -160,7 +161,7 @@ export function awardHookLines(input: {
 }): MysteryHookLine[] {
   return [
     { label: awardStatLabel(input.category), value: awardStatValue(input.category, input.value) },
-    { label: HOOK_DURATION, value: formatDuration(input.durationS) },
+    { label: HOOK_DURATION, value: formatMinutes(input.durationS) },
   ];
 }
 
@@ -239,7 +240,7 @@ export function hookLines(input: {
   damageTaken: number | null;
   durationS: number;
 }): MysteryHookLine[] {
-  const duration = { label: HOOK_DURATION, value: formatDuration(input.durationS) };
+  const duration = { label: HOOK_DURATION, value: formatMinutes(input.durationS) };
   switch (input.category) {
     case 'disaster':
       return [

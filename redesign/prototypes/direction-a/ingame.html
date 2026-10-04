@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>In game · Kustom</title>
+<meta name="description" content="Direction A, Broadcast: game in progress with timer, champions and compact receipt.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Martian+Mono:wght@400..700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link rel="stylesheet" href="broadcast.css">
+<script>if(location.search.includes("shot"))document.documentElement.classList.add("shot")</script>
+</head>
+<body class="lg:pb-12">
+<a class="sr-only" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="mx-auto flex max-w-[1320px] items-center gap-2 px-4 lg:px-8 h-14">
+    <a class="wordmark" href="#"><i></i>Kustom</a>
+    <a class="group-switch ml-2" href="#" aria-label="Group: Customs Night. Switch group">Customs Night <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></a>
+    <nav class="ml-6 hidden lg:flex" aria-label="Main"><a class="navlink" href="#" aria-current=page>Tonight</a><a class="navlink" href="#">Board</a><a class="navlink" href="#">Games</a><a class="navlink" href="#">Stats</a><a class="navlink" href="#">1v1</a><a class="navlink" href="#">Daily</a></nav>
+    <div class="ml-auto flex items-center gap-2">
+      <span class="num hidden text-[13px] text-[var(--muted-foreground)] sm:inline">Sat 3 Oct</span>
+      <a class="btn hidden lg:inline-flex" href="#">Sign in</a>
+    </div>
+  </div>
+</header>
+<main id="main" class="mx-auto max-w-[1320px] px-4 pt-4 lg:px-8 lg:pt-8">
+
+<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
+  <div class="min-w-0 space-y-4 lg:space-y-5">
+    
+<section class="strip" aria-label="Lobby status">
+  <div class="strip-tag"><span class="dot"></span>Live</div>
+  <div class="strip-body">
+    <h1 class="headline">In game <span class="num">14:32</span></h1>
+    <p class="strip-sub">Started 21:48. Ratings move when it ends.</p>
+  </div>
+</section>
+    
+<section class="receipt" aria-labelledby="fr">
+  <div class="space-y-3 p-4">
+    <h2 id="fr" class="card-title">Fairness</h2>
+    
+  <div class="bug" role="img" aria-label="Win chance: Blue 49 percent, Red 51 percent">
+    <div class="bug-side bug-side--blue"><span class="lbl"><svg class="glyph" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="var(--blue)"/></svg>Blue</span><span class="pct">49<small>%</small></span></div>
+    <div>
+      <div class="bar"><span class="b" style="flex:49"></span><span class="r" style="flex:51"></span><span class="mid"></span></div>
+      <div class="bar-cap">win chance</div>
+    </div>
+    <div class="bug-side bug-side--red"><span class="lbl">Red<svg class="glyph" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0.5L13.5 7 7 13.5 0.5 7z" fill="var(--red)"/></svg></span><span class="pct">51<small>%</small></span></div>
+  </div>
+    <p class="m-0 text-[14px] text-[var(--muted-foreground)]"><b class="num text-[var(--foreground)]">45</b> points apart out of about 7,400. Nobody off&#8209;role.</p>
+  </div>
+  <details class="how"><summary>How the bot decided <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+    <div class="space-y-4 px-4 pb-4 pt-1">
+      <p class="m-0 text-[15px] text-[var(--muted-foreground)]">The bot made three splits from the ten players in the lobby and kept the closest one where nobody plays off their main role.</p>
+      <div class="grid grid-cols-3 gap-2">
+      <div class="split split--picked">
+        <div class="split-tag">&#10003; Picked</div>
+        <div class="minibar" aria-hidden="true"><span class="b" style="flex:49"></span><span class="r" style="flex:51"></span></div>
+        <div class="kv"><span>Win</span><b>49/51</b></div>
+        <div class="kv"><span>Gap</span><b>45</b></div>
+        <div class="kv"><span>Off-role</span><b>0</b></div>
+        <p class="m-0 text-[13px] leading-snug text-[var(--muted-foreground)]">These teams.</p>
+      </div>
+      <div class="split">
+        <div class="split-tag">Option 2</div>
+        <div class="minibar" aria-hidden="true"><span class="b" style="flex:47"></span><span class="r" style="flex:53"></span></div>
+        <div class="kv"><span>Win</span><b>47/53</b></div>
+        <div class="kv"><span>Gap</span><b>112</b></div>
+        <div class="kv"><span>Off-role</span><b>0</b></div>
+        <p class="m-0 text-[13px] leading-snug text-[var(--muted-foreground)]">knifiy and XETA swap sides.</p>
+      </div>
+      <div class="split">
+        <div class="split-tag">Option 3</div>
+        <div class="minibar" aria-hidden="true"><span class="b" style="flex:50"></span><span class="r" style="flex:50"></span></div>
+        <div class="kv"><span>Win</span><b>50/50</b></div>
+        <div class="kv"><span>Gap</span><b>18</b></div>
+        <div class="kv"><span>Off-role</span><b class="bad">2</b></div>
+        <p class="m-0 text-[13px] leading-snug text-[var(--muted-foreground)]">Closer, but 7ambolyy and PRT Khokha leave their mains.</p>
+      </div></div>
+      <div class="flex items-start gap-3 border border-[var(--border)] bg-[var(--background)] p-3">
+        <span class="mt-0.5 text-[var(--primary)]"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></span>
+        <p class="m-0 text-[15px] font-semibold leading-snug">Nobody picked these teams. Admins can&rsquo;t edit ratings.<span class="block font-normal text-[var(--muted-foreground)]">Ratings only move when a game ends, read straight from the League client.</span></p>
+      </div>
+      <div class="border border-[var(--border)] bg-[var(--background)] p-3">
+        <div class="flex items-baseline justify-between gap-3">
+          <p class="m-0 text-[15px] font-semibold">The favoured side won <span class="num">54%</span> of <span class="num">103</span> games.</p>
+        </div>
+        <div class="mt-2 flex h-2 gap-px" aria-hidden="true"><span class="bg-[var(--foreground)]" style="flex:54"></span><span class="bg-[var(--border-strong)]" style="flex:46"></span></div>
+        <p class="m-0 mt-2 text-[13px] leading-snug text-[var(--muted-foreground)]">Close to a coin flip, which is the goal. If the teams were stacked, the favoured side would win far more often.</p>
+      </div>
+    </div></details>
+</section>
+    <div class="grid gap-4 md:grid-cols-2">
+<section class="team team--blue" aria-label="BLUE team">
+  <div class="team-head">
+    <span class="team-rail"></span>
+    <h2 class="team-name"><svg class="glyph" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="var(--blue)"/></svg>BLUE</h2>
+    <div class="team-sum"><b>7,391</b><span>team rating</span></div>
+  </div>
+  <ol class="m-0 list-none p-0">
+    <li class="seat">
+      <div class="champ" title="Renekton">RE</div>
+      <div class="who"><div class="pname">1sec Reloading</div><div class="pmeta">Renekton <span aria-hidden="true">/</span> Top</div></div>
+      <div class="rating" aria-label="rating 1497">1497</div>
+    </li>
+    <li class="seat">
+      <div class="champ" title="Lee Sin">LS</div>
+      <div class="who"><div class="pname">7ambolyy</div><div class="pmeta">Lee Sin <span aria-hidden="true">/</span> Jungle</div></div>
+      <div class="rating" aria-label="rating 1894">1894</div>
+    </li>
+    <li class="seat">
+      <div class="champ" title="Ahri">AH</div>
+      <div class="who"><div class="pname">knifiy</div><div class="pmeta">Ahri <span aria-hidden="true">/</span> Mid</div></div>
+      <div class="rating" aria-label="rating 1454">1454</div>
+    </li>
+    <li class="seat seat--you">
+      <div class="champ" title="Jinx">JX</div>
+      <div class="who"><div class="pname">Used2BeATahmMain<span class="sr-only"> (you)</span><span class="you">YOU</span></div><div class="pmeta">Jinx <span aria-hidden="true">/</span> Bot</div></div>
+      <div class="rating" aria-label="rating 1322">1322</div>
+    </li>
+    <li class="seat">
+      <div class="champ" title="Thresh">TH</div>
+      <div class="who"><div class="pname">FoxHound</div><div class="pmeta">Thresh <span aria-hidden="true">/</span> Support</div></div>
+      <div class="rating" aria-label="rating 1224">1224</div>
+    </li></ol>
+</section>
+<section class="team team--red" aria-label="RED team">
+  <div class="team-head">
+    <span class="team-rail"></span>
+    <h2 class="team-name"><svg class="glyph" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0.5L13.5 7 7 13.5 0.5 7z" fill="var(--red)"/></svg>RED</h2>
+    <div class="team-sum"><b>7,436</b><span>team rating</span></div>
+  </div>
+  <ol class="m-0 list-none p-0">
+    <li class="seat">
+      <div class="champ" title="Darius">DA</div>
+      <div class="who"><div class="pname">TheSHADOWREAPER</div><div class="pmeta">Darius <span aria-hidden="true">/</span> Top</div></div>
+      <div class="rating" aria-label="rating 1262">1262</div>
+    </li>
+    <li class="seat">
+      <div class="champ" title="Vi">VI</div>
+      <div class="who"><div class="pname">XETA</div><div class="pmeta">Vi <span aria-hidden="true">/</span> Jungle</div></div>
+      <div class="rating" aria-label="rating 1378">1378</div>
+    </li>
+    <li class="seat">
+      <div class="champ" title="Syndra">SY</div>
+      <div class="who"><div class="pname">Syndrome Axes</div><div class="pmeta">Syndra <span aria-hidden="true">/</span> Mid</div></div>
+      <div class="rating" aria-label="rating 2291">2291</div>
+    </li>
+    <li class="seat">
+      <div class="champ" title="Caitlyn">CA</div>
+      <div class="who"><div class="pname">SugarPapy</div><div class="pmeta">Caitlyn <span aria-hidden="true">/</span> Bot</div></div>
+      <div class="rating" aria-label="rating 1218">1218</div>
+    </li>
+    <li class="seat">
+      <div class="champ" title="Nautilus">NA</div>
+      <div class="who"><div class="pname">PRT Khokha</div><div class="pmeta">Nautilus <span aria-hidden="true">/</span> Support</div></div>
+      <div class="rating" aria-label="rating 1287">1287</div>
+    </li></ol>
+</section></div>
+    
+<section class="card flex items-start gap-3 p-4" aria-label="Sitting out">
+  <svg class="mt-1 flex-none text-[var(--muted-foreground)]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 20v-6h12v6M8 14V8h8v6M4 20h16"/></svg>
+  <p class="m-0 text-[15px] leading-snug"><b>Ramzyinhović</b> sits this one out. Whoever has played least tonight sits out, so they&rsquo;re first in line for game 4.</p>
+</section>
+  </div>
+  <div class="lg:pt-0">
+<aside class="space-y-4" aria-label="Tonight so far">
+  <section class="card">
+    <div class="flex items-center justify-between px-4 pb-3 pt-4"><h2 class="card-title">Tonight&rsquo;s tape</h2><span class="num text-[12px] text-[var(--muted-foreground)]">2 played</span></div>
+    
+    <a class="tape-row no-underline" href="#">
+      <span class="tape-no">G2</span>
+      <span class="min-w-0"><span class="winner" style="color:var(--red)"><svg class="glyph" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0.5L13.5 7 7 13.5 0.5 7z" fill="var(--red)"/></svg>RED won</span>
+        <span class="block text-[13px] text-[var(--muted-foreground)]">Red was 46% to win.</span></span>
+      <span class="num text-[13px] text-[var(--muted-foreground)]">31 min</span>
+    </a>
+    <a class="tape-row no-underline" href="#">
+      <span class="tape-no">G1</span>
+      <span class="min-w-0"><span class="winner" style="color:var(--blue)"><svg class="glyph" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="var(--blue)"/></svg>BLUE won</span>
+        <span class="block text-[13px] text-[var(--muted-foreground)]">Blue was 53% to win.</span></span>
+      <span class="num text-[13px] text-[var(--muted-foreground)]">27 min</span>
+    </a>
+  </section>
+  <section class="card">
+    <div class="flex items-center justify-between px-4 pb-3 pt-4"><h2 class="card-title">Top of the board</h2><a class="link text-[14px] min-h-0" href="#">Full board</a></div>
+    
+    <a class="board-row" href="#"><span class="num text-[13px] text-[var(--muted-foreground)]">1</span><span class="font-bold [overflow-wrap:anywhere]">Ramzyinhović</span><span class="rating">2638</span></a>
+    <a class="board-row" href="#"><span class="num text-[13px] text-[var(--muted-foreground)]">2</span><span class="font-bold [overflow-wrap:anywhere]">Syndrome Axes</span><span class="rating">2291</span></a>
+    <a class="board-row" href="#"><span class="num text-[13px] text-[var(--muted-foreground)]">3</span><span class="font-bold [overflow-wrap:anywhere]">Raafat</span><span class="rating">1915</span></a>
+    <a class="board-row" href="#"><span class="num text-[13px] text-[var(--muted-foreground)]">4</span><span class="font-bold [overflow-wrap:anywhere]">7ambolyy</span><span class="rating">1894</span></a>
+    <a class="board-row" href="#"><span class="num text-[13px] text-[var(--muted-foreground)]">5</span><span class="font-bold [overflow-wrap:anywhere]">Chaos</span><span class="rating">1718</span></a>
+  </section>
+</aside></div>
+</div>
+</main>
+<nav class="tabbar lg:hidden" aria-label="Main"><a class="tab" href="#" aria-current=page><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v3M5.6 5.6l2.1 2.1M18.4 5.6l-2.1 2.1"/><path d="M4 21h16M7 21l2-9h6l2 9"/></svg>Tonight</a><a class="tab" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7"/></svg>Board</a><a class="tab" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="16"/><path d="M4 9h16M4 14h16M9 4v16"/></svg>Games</a><a class="tab" href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="4" y="11" width="3" height="3"/><rect x="10.5" y="11" width="3" height="3"/><rect x="17" y="11" width="3" height="3"/></svg>More</a></nav>
+</body>
+</html>

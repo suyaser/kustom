@@ -7,9 +7,10 @@ app/api/companion/*   bearer companion token, zod-validated (M1.5)
 app/api/admin/*       Supabase session + players.is_admin, zod-validated (M1.6)
 app/api/cron/sweep    bearer CRON_SECRET: the scheduled half of the 2-hour idle sweep (M2.5)
 app/api/cron/leaderboard  bearer CRON_SECRET: posts the nightly board to Discord (M3.5)
-app/leaderboard       the season table, ordered by Proven. Anon key, server-rendered (M3.5)
-app/p/[puuid]         one player: the two numbers, the Rating history, the last few games (M3.5)
-app/admin/*           the admin pages. Server components, plain forms, no client JavaScript
+app/(group)/g/[slug]/*  one group's pages: Tonight, Board, Games, Stats, You, admin (M13.9 to M14.23)
+app/(group)/g/[slug]/leaderboard  the group's board, ordered by Rating. Anon key, server-rendered
+app/(group)/g/[slug]/p/[puuid]    one player in that group: Rating, its history, the last few games
+app/admin/login       sign-in; group admin lives at /g/<slug>/admin
 app/auth/*            sign in with Discord, the OAuth callback, sign out
 lib/                  auth, the service-role client, ingest, admin reads and writes
 proxy.ts              refreshes the admin session cookie (Next 16's name for middleware)
@@ -20,10 +21,15 @@ pnpm --filter web dev         http://localhost:3000
 pnpm --filter web test        vitest; the integration tests skip without the local stack
 pnpm --filter web build
 pnpm --filter web mint-token <puuid> [label]   # /admin/tokens does this with a button now
-pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] [--season <id>]
-                              # M5.2: refold a season from seeds. Run it after a backfill batch;
-                              # the guard counts a game that landed in the last 15 minutes, so
+pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] [--group <slug>] [--hosted]
+                              # M5.2: refold each group from seeds (every group by default, each on
+                              # its own; --group for one). Only games since the group's
+                              # `ratings_since` reset epoch are folded (0027). Run it after a backfill
+                              # batch; the guard counts a game that landed in the last 15 minutes, so
                               # straight after a batch it needs --force (or a 15-minute wait).
+                              # M14.27: the first line is `target  <host> (local|hosted)`, host only,
+                              # never a key; any non-local URL is refused without --hosted (dry runs
+                              # too), before a client is created.
 ```
 
 `rebuild-ratings` runs under `tsx`, not plain `node`: it imports `rateGame` from
@@ -157,9 +163,9 @@ lib/ingest/discord.ts    registers the hooks at module load. The companion route
   ```
 
   Whatever calls that decides what time the board lands in the channel; **no cron configuration ships with
-  M3.5**. It is one block field, the season's top ten by **Proven** with their game counts, and the short
-  still-settling sentence as the footer — the same order and the same numbers `/leaderboard` shows, because it
-  is the same `loadBoard`. No season or nobody on the board is `skipped`, not an empty message. Calling it
+  M3.5**. It is one block field, the group's top ten by **Rating** with their game counts, and the short
+  still-settling sentence as the footer — the same order and the same numbers the board shows, because it is
+  the same loader. Nobody on the board is `skipped`, not an empty message. Calling it
   twice posts twice; there is no dedupe, which is what makes a scheduler debuggable.
 
 ## The public pages (M3.4, M3.5)
@@ -169,25 +175,23 @@ lib/ingest/discord.ts    registers the hooks at module load. The companion route
 `players_public`; the base `players` table is service-role only. None of them writes anything. Only the tonight
 page has a client component, and only for the Realtime subscription.
 
-- **Two numbers, two names, everywhere.** **Proven** is `round(ordinal * 60)` **floored at zero** — the
-  primary number on a board row — and **Rating** is `round(mu * 60)`, the number the embeds print beside a
-  name. Both come from `lib/ratingDisplay.ts` (`provenRating`, `displayRating`); no page multiplies anything
-  by sixty. `ratings.ordinal` is a generated column and the index the season is stored under, but the integer
-  on the page comes through core, so SQL and core cannot disagree about where a row sits.
-- **The board sorts on `sortKey`, not on the printed Proven.** `ordinal` is negative for anybody whose sigma
-  outweighs half their mu — an Iron IV seed is `-160` — so the printed number is floored and the raw ordinal
-  (`provenSortKey`) rides along unprinted to keep rows that all display `0` in their true order. The floor is
-  monotonic, so the printed column still never goes up as you read down it.
-- **A week is the other track** (M7.3). `This week` and `Last week` are folded from scratch at read time —
-  each player's stored seed, through that week's rated games, with `rateGameWeekly` (`lib/board/weekly.ts`) —
-  and they **sort and print `Rating`**, not Proven: a week is a handful of games, so `- 2σ` is enormous for
-  every row and largest for whoever played fewest, and Proven would rank a 4W 4L week above a clean 2W 0L one.
-  `sortKey` on a week row is the weekly `mu` itself, **no Proven is printed on a week surface at all**, no row
-  carries the `settling` chip, and the note under the board is `WEEK_BOARD_SENTENCE`. The row says which track
-  it came from in `BoardRow.track`; nothing is stored, and `lib/ingest/` never imports any of it. `All time`,
-  `This month` and `Last month` are the stored fold and are untouched.
-- **The `settling` chip (M3.8)** is on a player with fewer than `SETTLING_GAMES` (30) recorded games, and its
-  sentence appears **once per page**, never per row. Both live in `lib/board/copy.ts`, and the 30 in the
+- **One number.** **Rating** is `round(mu * 60)` (`displayRating`), the number every board row, page and
+  embed prints; no page multiplies anything by sixty. Boards rank on it, with players under `SETTLING_GAMES` (10) rated games
+  in a settling section; the ordinal (`mu - 2 * sigma`) is a core value and is never printed. `ratings` is keyed `(group_id, player_id)` since seasons were removed (0026), and
+  `ratings.ordinal` is a generated column indexed per group, but the integer on the page comes through core,
+  so SQL and core cannot disagree about where a row sits. A group's reset epoch is `groups.ratings_since`
+  (0027): the fold and `rebuild-ratings` rate only games since it.
+- **Ties break on `sortKey`**, the unrounded mu, then the name a reader sees (`lib/board/order.ts`), so two
+  rows that print the same Rating keep one order between renders.
+- **A week ranks by net points** (M14.57, which retired M7.3's weekly track). `This week` and `Last week` sum
+  each player's printed all-time deltas (`displayDelta(mu_before, mu_after)` per rated game, through
+  `sumDisplayDeltas` in `lib/ratingDisplay.ts`) over the window and rank on that sum: net points, then more
+  wins, then fewer games, then the higher all-time Rating, then the name (`compareWeekRows` in
+  `lib/board/order.ts`). The row's `points` carries the sum, `rating` the current all-time Rating, and
+  `settlingChip` the all-time settling chip; week boards are one list (`settling` is false). The player page
+  on a week tab prints the same per-game deltas as All time, plus `points`. Nothing is stored.
+- **The `settling` chip (M3.8)** is on a player with fewer than `SETTLING_GAMES` (10) recorded games, and its
+  sentence appears **once per page**, never per row. Both live in `lib/board/copy.ts`, and the number in the
   sentence is interpolated from the same constant the chip switches off at.
 - **`Someone` (M3.10)** is `renderWebName`, at render, for a player with no `display_name` and no `game_name`.
   Nothing is written to `players`, and `Names fill in after someone's first game.` is said once per page while
@@ -198,10 +202,11 @@ page has a client component, and only for the Realtime subscription.
 
 ## The admin area
 
-`/admin` is gated twice, both server-side:
+Group admin lives at `/g/<slug>/admin/*` (bare `/admin` 308s there for the original group) and is
+gated twice, both server-side:
 
-- **Pages** — `app/admin/(dashboard)/layout.tsx` calls `requireAdmin()` (`lib/adminPage.ts`).
-  `/admin/login` sits outside that route group, which is why the group exists.
+- **Pages** — each page asks `currentAdminAccess()` (`lib/admin/groupAdminPage.ts`) on the server.
+  `/admin/login`, the sign-in page, is all that is left under `app/admin/`.
 - **Writes** — every `app/api/admin/*` route is wrapped in `withAdminAuth()`
   (`lib/adminRoute.ts`), which answers **401 without a session and 403 for anyone who is not
   `players.is_admin`**, before it looks at the body.
@@ -215,8 +220,8 @@ trusted for identity — a signed-in user can write it themselves with `auth.upd
 Pages read and write through the service-role client, so nothing in the browser holds anything
 but the anon key and the session cookie.
 
-The pages share Floodlit tokens with the rest of the site and keep their own sidebar shell
-(`app/admin/admin.css`). Writes are still real `<form>` posts to `/api/admin/*`.
+The pages are Kustom 2.0 (`components/ui`, the group shell) like the rest of the site. Writes are still
+real `<form>` posts to `/api/admin/*`.
 
 ## Setting up Discord sign-in
 
@@ -257,3 +262,10 @@ sign in. Set `BOOTSTRAP_ADMIN_DISCORD_ID` as well, once: the first request that 
 that snowflake to the bootstrap PUUID and never touches a link that already exists. After that
 first sign-in, everyone else is linked from `/admin/players` and both variables can stay set
 (they are idempotent) or be removed.
+
+**Owner of the original group (M14.11, `0023`).** While `customs` has no owner, `bootstrap_admin`
+makes the `BOOTSTRAP_ADMIN_PUUID` player its owner (inserting the membership if there is none).
+Once `customs` has an owner -- that player, or whoever they handed it to -- the function changes
+no membership at all, so the variable never overrides the group's own decisions. Keep it set on
+the deployment until the first request after `0023` has run, or `customs` stays ownerless (its
+admins keep M13.4's rules) until somebody runs the function by hand.

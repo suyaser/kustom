@@ -62,6 +62,7 @@ describe('the two counts still count what they counted', () => {
         game.rows.map((row) => ({ playerId: row.playerId, puuid: row.puuid, side: row.side })),
         game.durationS,
         { gameMode: game.gameMode },
+        true,
       );
 
     expect(gate(rift as StatsGame).ok).toBe(true);
@@ -84,10 +85,10 @@ describe('the two counts still count what they counted', () => {
     // `/leaderboard`: the games that moved a rating. Three.
     expect(boardGames(games)).toBe(3);
     // `/stats`: the games the group played, ARAM included, remake excluded. Four.
-    expect(statsView({ window: 'this-month', ...input }).games).toBe(4);
+    expect(statsView({ window: 'all-time', ...input }).games).toBe(4);
     expect(countedGames(games)).toHaveLength(4);
     // `/p/[puuid]`'s sections under the chart read the same universe `/stats` does.
-    expect(playerStatsView({ window: 'this-month', puuid: puuidOf('hana'), ...input }).games).toBe(4);
+    expect(playerStatsView({ window: 'all-time', puuid: puuidOf('hana'), ...input }).games).toBe(4);
     // Her record in the header is the rated one — the three games that moved her number.
     expect(games.filter((game) => game.rows.some((row) => row.muAfter !== null))).toHaveLength(3);
   });

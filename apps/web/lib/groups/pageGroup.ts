@@ -1,4 +1,4 @@
-import { groupSlugSchema, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
+import { isGroupSlug, ORIGINAL_GROUP_ID } from '@customs/db/constants';
 
 /**
  * The group a page belongs to (M13.9): the one named by its `/g/<slug>` segment, resolved on the
@@ -59,5 +59,5 @@ export function groupSlugFromPath(pathname: string): string | null {
   } catch {
     return null;
   }
-  return groupSlugSchema.safeParse(segment).success ? segment : null;
+  return isGroupSlug(segment) ? segment : null;
 }

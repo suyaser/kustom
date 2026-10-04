@@ -36,9 +36,39 @@ if (stack === null) {
   process.env.SUPABASE_SERVICE_ROLE_KEY = stack.serviceRoleKey;
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = stack.anonKey;
 
-  const { loadStats } = await import('@/lib/stats/load');
+  const { loadStats, loadRecordsSegment } = await import('@/lib/stats/load');
   const { createPublicClient } = await import('@/lib/publicClient');
-  const { StatsView } = await import('./_stats/StatsView');
+  const { RecordsSegment } = await import('./_stats/RecordsSegment');
+  const { StatsFrame } = await import('./_stats/StatsFrame');
+
+  /** Stats → Records as the page draws it (M14.17), with plain links. */
+  const records = async (options: Parameters<typeof loadRecordsSegment>[1]) => {
+    const { stats, fun } = await loadRecordsSegment(anon, options);
+    const links = {
+      player: (puuid: string) => `/p/${puuid}`,
+      game: (id: string) => `/g/x/games/${id}`,
+      playerGames: () => '/g/x/games',
+      showAll: () => '/g/x/stats',
+      showFewer: () => '/g/x/stats',
+      expanded: null,
+      roasts: false,
+    };
+    const html = renderToStaticMarkup(
+      createElement(StatsFrame, {
+        segment: 'records',
+        segmentHref: () => '/g/x/stats',
+        window: options.window,
+        windowHref: () => '/g/x/stats',
+        range: fun.range ?? stats.range,
+        games: fun.games,
+        capped: fun.capped,
+        cap: fun.cap,
+        // biome-ignore lint/correctness/noChildrenProp: a .ts file; the frame's props type requires children
+        children: createElement(RecordsSegment, { stats, fun, links }),
+      }),
+    );
+    return { stats, html };
+  };
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -69,13 +99,8 @@ if (stack === null) {
   const puuidOf = (key: string) => `it-${runId}-${key}`;
   const playerIds = new Map<string, string>();
   const gameIds: string[] = [];
-  let seasonId = '';
 
   beforeAll(async () => {
-    const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    seasonId = season?.id ?? '';
-    expect(seasonId).not.toBe('');
-
     const { data: players, error } = await db
       .from('players')
       .insert(
@@ -97,28 +122,13 @@ if (stack === null) {
     }
 
     /**
-     * **Where `St0`'s history began** (M5.7).
-     *
-     * `Most improved` on a week is the weekly climb: everybody starts the week at their seed and
-     * `rateGameWeekly` folds the week's games. `St0`'s seed is the **stored** one; the other nine
-     * have no `ratings` row, so theirs is the first-seed rule in `lib/ingest/seed.ts`.
-     *
-     * Since 2026-09-16 that rule is `provisionalSeed()` — `20 / 12` for everybody, and the Gold IV
-     * on these `players` rows buys nobody a head start. All ten therefore start the week on the
-     * same `1200`, and the four with no stored row have identical weeks and identical climbs: the
-     * award names all four, which is the tie rule working and the visible price of one shared
-     * starting number.
-     *
-     * **`St0` is the row that proves the stored seed still wins.** Their seed was written when the
-     * first seed was `20 / 10`, and nothing rewrites it (M5.7) — so they fold the same six games
-     * from a *less* uncertain start, climb `+32` display points less than the others, and drop out
-     * of the award. That is the difference between the two sigmas, visible on a page, and it is
-     * also what a retroactive reset of the stored seeds would erase.
+     * **Where `St0`'s history began** (M5.7). Nothing on this page reads it since M14.57 retired
+     * `Most improved` (the only award that measured a climb); the row stays because it is real
+     * data shape: a stored rating with its seed.
      */
     const { error: ratingError } = await db.from('ratings').insert({
       group_id: ORIGINAL_GROUP_ID,
       player_id: playerIds.get('st0') as string,
-      season_id: seasonId,
       mu: 24.6333333,
       sigma: 5,
       games: 6,
@@ -136,7 +146,6 @@ if (stack === null) {
         .insert({
           group_id: ORIGINAL_GROUP_ID,
           lcu_game_id: Number(`77${runIdNumber()}${index}`),
-          season_id: seasonId,
           // Monday the 4th through Thursday the 7th, inside last week's Sunday-06:00 bounds.
           started_at: `2026-05-0${4 + Math.floor(index / 2)}T${index % 2 === 0 ? '19' : '21'}:00:00Z`,
           // The seventh game is 300 seconds exactly, which the fold's gate refuses, so it is
@@ -236,38 +245,19 @@ if (stack === null) {
     });
 
     /**
-     * A closed week has its three awards, computed from the same rows the page counted.
-     *
-     * **`Most improved` is the weekly climb** (M7.4): each seed to where the week left them,
-     * `1200 → 1378`, folded from the six counted games with `rateGameWeekly`. The stored
-     * `mu_before` / `mu_after` columns on those rows are the all-time track's answer — this award
-     * does not read them on a week, and a diff that brings the stored numbers back here is a diff
-     * that undid M7.4.
-     *
-     * **Four names, and `St0` is not one of them** (2026-09-16): the four seeded at the provisional
-     * `20 / 12` won the same five games and climbed the same `+178`, so the block lists them all;
-     * `St0`, folding from a stored `20 / 10`, climbed `+146` and is below them. One number in the
-     * seed, two visible consequences.
+     * A closed week has its two awards, computed from the same rows the page counted. `Most
+     * improved` is retired (M14.57, decision row 2026-10-04): the week board's net points are its
+     * answer, so the page names it nowhere.
      */
-    it('hands the closed week its three awards', async () => {
+    it('hands the closed week its two awards', async () => {
       const stats = await loadStats(anon, LAST_WEEK);
 
       expect(stats.awards?.kind).toBe('closed');
       const blocks = stats.awards?.kind === 'closed' ? stats.awards.blocks : [];
-      expect(blocks.map((block) => block.label)).toEqual(['Most improved', 'Best off-role', 'Cursed duo']);
-      expect(blocks[0]?.lines.map((line) => line.text)).toEqual([
-        'St1 · +178 · 1200 → 1378',
-        'St2 · +178 · 1200 → 1378',
-        'St3 · +178 · 1200 → 1378',
-        'St4 · +178 · 1200 → 1378',
-      ]);
-      // The rule line is M5.4's, unchanged by the track it is measured on (M7.4, acceptance 3).
-      expect(blocks[0]?.rule).toBe(
-        'Biggest climb in Rating from a first game to a last one, over at least 6 games.',
-      );
+      expect(blocks.map((block) => block.label)).toEqual(['Best off-role', 'Cursed duo']);
       // `St6`'s main is top and they played jungle all week: six off-role games, one win.
-      expect(blocks[1]?.lines.map((line) => line.text)).toEqual(['St6 · 1W 5L · 17% · their main is top']);
-      expect(blocks[1]?.note).toBe('Players with no main role are not in this one — every role is theirs.');
+      expect(blocks[0]?.lines.map((line) => line.text)).toEqual(['St6 · 1W 5L · 17% · their main is top']);
+      expect(blocks[0]?.note).toBe('Players with no main role are not in this one — every role is theirs.');
     });
 
     /** The running window has the placeholder, and `All time` has no block at all. */
@@ -299,14 +289,20 @@ if (stack === null) {
 
   describe('the page itself', () => {
     it('renders the week from the anon read, with no puuid anywhere in its text', async () => {
-      const stats = await loadStats(anon, LAST_WEEK);
-      const html = renderToStaticMarkup(createElement(StatsView, { stats }));
+      const { html } = await records(LAST_WEEK);
       const text = html.replace(/<[^>]*>/g, ' ');
+      /**
+       * The slot line puts its digits in mono spans (M14.42), so the tag-to-space read above
+       * opens gaps the markup does not have (`Sunday <span>3</span> May` reads `Sunday  3  May`).
+       * Collapse whitespace for the prose checks; the puuid check below stays on the raw text.
+       */
+      const prose = text.replace(/\s+/g, ' ').replace(/ ?· ?/g, ' · ');
 
-      expect(text).toContain('Sunday 3 May to Saturday 9 May · 6 games');
+      expect(prose).toContain('Sunday 3 May to Saturday 9 May · 6 games');
       expect(text).toContain('Blue wins 83% of the time.');
       expect(text).toContain('Average game 30 min.');
-      expect(text).toContain('St1 · +178 · 1200 → 1378');
+      expect(text).toContain('St6 · 1W 5L · 17% · their main is top');
+      expect(text).not.toContain('Most improved');
       // The puuid is in the href of every name; nothing a reader reads carries one.
       expect(html).toContain(`/p/${puuidOf('st0')}`);
       expect(text).not.toContain(puuidOf('st0'));
@@ -314,11 +310,10 @@ if (stack === null) {
 
     it('is the window s own sentence, and nothing else, on a week nobody played', async () => {
       // A week with no games at all: the fixture's week is the one before this one.
-      const quiet = await loadStats(anon, {
+      const { stats: quiet, html } = await records({
         ...LAST_WEEK,
         now: new Date('2026-05-20T18:00:00Z'),
       });
-      const html = renderToStaticMarkup(createElement(StatsView, { stats: quiet }));
 
       expect(quiet.games).toBe(0);
       expect(quiet.range).toBeNull();

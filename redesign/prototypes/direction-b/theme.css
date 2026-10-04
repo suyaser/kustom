@@ -1,0 +1,51 @@
+/* Plain CSS that Tailwind utilities don't express well. */
+html { color-scheme: dark; background: #1D1B18; }
+body { font-feature-settings: "ss01"; text-rendering: optimizeLegibility; }
+.font-display { font-optical-sizing: auto; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Chunky card: solid surface, hard offset shadow like a sticker sheet, no soft blur. */
+.card {
+  background: #28241F;
+  border: 2px solid #4A433A;
+  border-radius: 24px;
+  box-shadow: 0 4px 0 #0e0c0a;
+}
+
+/* Team cards: tinted body, side colour as a thick border so the block reads as one object. */
+.team-card { border: 3px solid; box-shadow: 0 5px 0 #0e0c0a; }
+.team-blue { border-color: #4FA9FF; background: color-mix(in oklab, #4FA9FF 9%, #28241F); }
+.team-red  { border-color: #FF7452; background: color-mix(in oklab, #FF7452 9%, #28241F); }
+
+/* Greyscale-safe side patterns: BLUE = dots, RED = diagonal stripes. */
+.pat-dots {
+  background-image: radial-gradient(rgba(26, 23, 20, 0.22) 1.6px, transparent 1.8px);
+  background-size: 9px 9px;
+}
+.pat-stripes {
+  background-image: repeating-linear-gradient(135deg, rgba(26, 23, 20, 0.2) 0 3px, transparent 3px 9px);
+}
+
+/* Stickers: YOU, MVP, Picked. */
+.sticker {
+  display: inline-flex; align-items: center;
+  padding: 3px 9px 2px;
+  border-radius: 9px;
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800; font-size: 13px; line-height: 1.1; letter-spacing: 0.02em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 0 #0e0c0a;
+  white-space: nowrap;
+}
+
+/* The viewer's own row: butter outline + YOU sticker (never colour alone). */
+.you-row { box-shadow: inset 0 0 0 3px #FFD24D; border-radius: 16px; background: rgba(255, 210, 77, 0.07); }
+
+/* Names never truncate: they wrap, breaking long single tokens if they must. */
+.name { overflow-wrap: anywhere; word-break: normal; hyphens: none; }
+
+.live-ping { animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite; }
+@keyframes ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .live-ping { animation: none; } * { transition: none !important; } }
+
+summary::-webkit-details-marker { display: none; }

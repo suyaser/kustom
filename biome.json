@@ -14,7 +14,13 @@
       "!**/coverage",
       "!**/next-env.d.ts",
       "!packages/db/src/types.ts",
+      "!packages/db/json-schema",
       "!packages/lcu/fixtures",
+      "!apps/companion/crates/engine/tests/goldens",
+      "!apps/companion/crates/engine/tests/fixtures",
+      "!apps/companion/target",
+      "!apps/companion/src-tauri/gen",
+      "!redesign",
       "!pnpm-lock.yaml"
     ]
   },
@@ -32,7 +38,12 @@
         "noUndeclaredDependencies": "error"
       },
       "style": {
-        "useConsistentArrayType": { "level": "error", "options": { "syntax": "shorthand" } },
+        "useConsistentArrayType": {
+          "level": "error",
+          "options": {
+            "syntax": "shorthand"
+          }
+        },
         "useImportType": "error",
         "noNonNullAssertion": "error"
       },
@@ -60,5 +71,15 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/web/app/globals.css"],
+      "css": {
+        "parser": {
+          "tailwindDirectives": true
+        }
+      }
+    }
+  ]
 }

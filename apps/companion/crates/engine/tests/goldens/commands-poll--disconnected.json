@@ -1,0 +1,13 @@
+{
+  "name": "commands-poll--disconnected",
+  "kind": "request",
+  "target": "api",
+  "route": "commands-poll",
+  "patch": "16.17",
+  "fixtures": [],
+  "scenario": "command-not-connected",
+  "note": "The poll before the client is up: clientConnected=false. A GET: path and query only.",
+  "method": "GET",
+  "path": "/api/companion/commands?clientConnected=false",
+  "body": null
+}

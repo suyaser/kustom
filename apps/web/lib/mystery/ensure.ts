@@ -2,11 +2,13 @@ import type { DailyMysteryRow, Json, RoleValue } from '@customs/db';
 import { mysteryPublicHookSchema } from '@customs/db/schemas';
 import { championName } from '../champs/names';
 import { inChunks } from '../chunks';
+import { formatMinutes } from '../games/duration';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { civilDayKey, civilDayStart, nextCivilMidnight } from '../night';
 import { rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
 import { type BuildGame, type BuildSeat, type BuiltChallenge, planChallenge } from './build';
+import { HOOK_DURATION } from './copy';
 import { MYSTERY_RECENT_GAME_DAYS, MYSTERY_RECENT_PLAYER_DAYS } from './select';
 import type { MysteryKind, MysteryPublicHook } from './types';
 
@@ -298,5 +300,15 @@ async function loadAvoid(
 
 export function parseStoredHook(value: unknown): MysteryPublicHook | null {
   const parsed = mysteryPublicHookSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) return null;
+  // A hook stored before M14.38 carries `21:46`: the label is re-derived from the seconds, so
+  // every row, old or new, says `21 min` (the length line under the K/D/A too).
+  const minutes = formatMinutes(parsed.data.durationS);
+  return {
+    ...parsed.data,
+    durationLabel: minutes,
+    lines: parsed.data.lines.map((line) =>
+      line.label === HOOK_DURATION ? { ...line, value: minutes } : line,
+    ),
+  };
 }

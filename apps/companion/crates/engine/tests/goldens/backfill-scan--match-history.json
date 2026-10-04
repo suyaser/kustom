@@ -1,0 +1,34 @@
+{
+  "name": "backfill-scan--match-history",
+  "kind": "request",
+  "target": "api",
+  "route": "backfill-scan",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/match-history"
+  ],
+  "scenario": "backfill",
+  "note": "A fresh state dir: page begIndex=0&endIndex=20 is the fixture (21 games), the next page 404s (the end of what the client gives). Candidates are the completed customs in history order; MATCHED_GAME and Abort_TooFewPlayers are left out.",
+  "method": "POST",
+  "path": "/api/companion/backfill/scan",
+  "body": {
+    "gameIds": [
+      4000769615,
+      4000755669,
+      4000745373,
+      4000384170,
+      4000375445,
+      4000367636,
+      3999926533,
+      3999918605,
+      3999902063,
+      3999899476,
+      3999889165,
+      3999870956,
+      3999498697,
+      3999493229,
+      3999480601,
+      3999466628
+    ]
+  }
+}

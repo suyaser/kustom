@@ -58,6 +58,12 @@ export interface GameFinishedEvent {
   groupId: string;
   /** False for a remake, a short surrender, or a game that was already rated (M2.5's gate). */
   rated: boolean;
+  /**
+   * The fold's reason when `rated` is false (`RatingSkipReason`). `not-rated` (M15.3) marks a
+   * clean Rift game played not rated, which still gets a result post (M15.6). Absent reads as
+   * no reason.
+   */
+  reason?: string | null;
   /** As on {@link LobbyBalancedEvent}: the triggering request's origin, for the embed `url`. */
   requestOrigin?: string | null;
 }

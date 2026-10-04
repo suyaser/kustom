@@ -9,10 +9,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type AdminAuthResult,
   authorizeAdmin,
+  authorizeSetupWrite,
   type SessionUserLike,
+  type SetupWriteResult,
   supabaseAdminLookup,
+  supabaseGroupCreator,
 } from '@/lib/adminAuth';
-import type { AdminRouteOptions } from '@/lib/adminRoute';
+import type { AdminRouteOptions, SetupRouteOptions } from '@/lib/adminRoute';
 import {
   INVITE_DEAD,
   JOIN_NOT_LINKED,
@@ -70,6 +73,7 @@ if (stack === null || authUsers === null) {
   const { issuePairingRoute, pairingStatusRoute } = await import('../me/pairing/handler');
   const { companionPairRoute } = await import('../companion/pair/handler');
   const { inviteRotateRoute } = await import('../admin/invite/rotate/handler');
+  const { setGroupModeRoute } = await import('../admin/mode/handler');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -140,6 +144,21 @@ if (stack === null || authUsers === null) {
     };
   }
 
+  /** The setup gate (M14.40) with only the Supabase user faked: player, role and `created_by` are real. */
+  function asSetup(person: Person): SetupRouteOptions {
+    return {
+      getClient: () => db,
+      authorize: async (_request, client, groupId): Promise<SetupWriteResult> =>
+        authorizeSetupWrite({
+          resolveSessionUser: async () => sessionUser(person),
+          lookupPlayerByDiscordId: supabaseAdminLookup(client),
+          lookupGroupRole: supabaseGroupRole(client),
+          lookupGroupCreator: supabaseGroupCreator(client),
+          groupId,
+        }),
+    };
+  }
+
   interface Answer {
     status: number;
     json: Record<string, unknown>;
@@ -175,7 +194,9 @@ if (stack === null || authUsers === null) {
   const pair = (body: unknown, ip = nextAddress()) =>
     send(companionPairRoute({ getClient: () => db }), postJson(body, { 'x-forwarded-for': ip }));
   const rotate = (person: Person, groupId: string) =>
-    send(inviteRotateRoute(asAdmin(person)), postJson({ groupId }));
+    send(inviteRotateRoute(asSetup(person)), postJson({ groupId }));
+  const setMode = (person: Person, groupId: string) =>
+    send(setGroupModeRoute(asAdmin(person)), postJson({ groupId, mode: 'fearless' }));
 
   async function groupBySlug(value: string) {
     const { data, error } = await db.from('groups').select('id, slug, name, created_by').eq('slug', value);
@@ -250,12 +271,12 @@ if (stack === null || authUsers === null) {
   });
 
   describe('POST /api/groups (acceptance 1)', () => {
-    it('a linked creator gets the group, its fearless cursor, its invite and an admin membership', async () => {
+    it('a linked creator gets the group, its fearless cursor, its invite and an owner membership (M14.11)', async () => {
       const answer = await create('ana', { name: '  Thursday Flex  ', slug: slug.a });
       expect(answer.status).toBe(201);
       expect(answer.json).toMatchObject({
         ok: true,
-        role: 'admin',
+        role: 'owner',
         group: { slug: slug.a, name: 'Thursday Flex' },
       });
 
@@ -267,7 +288,7 @@ if (stack === null || authUsers === null) {
       expect(row?.name).toBe('Thursday Flex');
       expect(await countRows('fearless_state', groupA)).toBe(1);
       expect(await countRows('group_invites', groupA)).toBe(1);
-      expect(await roleIn(groupA, playerOf.ana ?? '')).toBe('admin');
+      expect(await roleIn(groupA, playerOf.ana ?? '')).toBe('owner');
     });
 
     it('a duplicate slug is 409 with the sentence, and nothing moves (idempotent)', async () => {
@@ -346,6 +367,25 @@ if (stack === null || authUsers === null) {
       expect((await mine('ben')).json.groups).toEqual([]);
     });
 
+    it('before pairing, the creator may rotate the invite and nobody else unlinked may (M14.40)', async () => {
+      const before = await inviteCode(groupB);
+      const stranger = await rotate('eli', groupB);
+      expect(stranger.status).toBe(403);
+      expect(await inviteCode(groupB)).toBe(before);
+
+      const rotated = await rotate('ben', groupB);
+      expect(rotated.status).toBe(200);
+      expect(await inviteCode(groupB)).toBe(String(rotated.json.code));
+      const { data } = await db.from('group_invites').select('rotated_by').eq('group_id', groupB).single();
+      expect(data?.rotated_by).toBe(userId.ben);
+    });
+
+    it('before pairing, the creator is refused on an admin-only write (mode)', async () => {
+      const refused = await setMode('ben', groupB);
+      expect(refused.status).toBe(403);
+      expect(refused.json.error).toBe('no player is linked to this Discord account');
+    });
+
     it('only the creator gets a code by groupId', async () => {
       const refused = await issue('cleo', { groupId: groupB });
       expect(refused.status).toBe(403);
@@ -386,14 +426,14 @@ if (stack === null || authUsers === null) {
       expect(stranger.json.error).toBe(PAIRING_NO_SUCH_CODE);
     });
 
-    it("Kustom pairs: the PUUID becomes the creator's player and admin of the group", async () => {
+    it("Kustom pairs: the PUUID becomes the creator's player and owner of the group (M14.11)", async () => {
       const answer = await pair({ code, puuid: puuid.ben });
       expect(answer.status).toBe(200);
       expect(answer.json).toEqual({ ok: true, group: { id: groupB, slug: slug.b, name: 'Ben Night' } });
 
       const player = await playerByPuuid(puuid.ben);
       expect(player?.discord_id).toBe(discord.ben);
-      expect(await roleIn(groupB, player?.id ?? '')).toBe('admin');
+      expect(await roleIn(groupB, player?.id ?? '')).toBe('owner');
 
       const used = await status('ben', code);
       expect(used.json).toEqual({
@@ -402,8 +442,12 @@ if (stack === null || authUsers === null) {
         group: { id: groupB, slug: slug.b, name: 'Ben Night' },
       });
       expect((await mine('ben')).json.groups).toEqual([
-        { id: groupB, slug: slug.b, name: 'Ben Night', role: 'admin' },
+        { id: groupB, slug: slug.b, name: 'Ben Night', role: 'owner' },
       ]);
+
+      // Linked now: the normal role rules, as the owner (M14.40).
+      expect((await rotate('ben', groupB)).status).toBe(200);
+      expect((await setMode('ben', groupB)).status).toBe(200);
     });
 
     it('the same code again is 410 and changes nothing (idempotent)', async () => {
@@ -442,10 +486,10 @@ if (stack === null || authUsers === null) {
       expect(count).toBe(2);
     });
 
-    it('an admin opening their own link stays admin', async () => {
+    it('the owner opening their own link stays owner', async () => {
       const answer = await join('ana', liveCode);
-      expect(answer.json).toMatchObject({ role: 'admin', outcome: 'already_member' });
-      expect(await roleIn(groupA, playerOf.ana ?? '')).toBe('admin');
+      expect(answer.json).toMatchObject({ role: 'owner', outcome: 'already_member' });
+      expect(await roleIn(groupA, playerOf.ana ?? '')).toBe('owner');
     });
 
     it('an unlinked visitor cannot one-tap join', async () => {
@@ -609,6 +653,8 @@ if (stack === null || authUsers === null) {
       expect(byGroup.count).toBe(0);
     });
 
+    // M14.12: host-mode pairing does mint, but only through the Hosts page's `mintTokenForPlayer`
+    // (lib/admin/tokens.ts), so these modules still never write the table or hash a token themselves.
     it('no M13.5 route or rule module names the tokens table or the minting function', () => {
       const web = fileURLToPath(new URL('../../..', import.meta.url));
       const files = [

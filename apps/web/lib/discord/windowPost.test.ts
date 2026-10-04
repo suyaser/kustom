@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SETTLING_SENTENCE_SHORT, WEEK_BOARD_SENTENCE_SHORT } from '../board/copy';
+import { WEEK_BOARD_SENTENCE_SHORT } from '../board/copy';
 import type { BoardView } from '../board/types';
 import { closedWindow } from '../night';
 import type { ServiceClient } from '../supabase';
-import type { WebhookPayload } from './embeds';
+import { SETTLING_FOOTER, type WebhookPayload } from './embeds';
 
 /**
  * The Sunday post's **awards field**, at the seam where it can fail: `postClosedWindow` reads
@@ -20,25 +20,26 @@ const board: BoardView = {
     {
       puuid: 'puuid-lena',
       name: 'Lena',
-      // `last-week` is the weekly track (M7.3): the row prints `Rating` and sorts on the raw
-      // weekly `mu`, and `proven` is on the row without being printed anywhere.
-      track: 'weekly',
-      proven: 1_548,
+      // `last-week` is a week board (M14.57): the row prints net points and W–L.
+      track: 'week',
+      points: 86,
       sortKey: 34.8,
       rating: 2_088,
       games: 4,
       wins: 3,
       losses: 1,
-      streak: null,
+      ratedGames: 40,
       climb: null,
       settling: false,
-      breakdown: [],
+      settlingChip: false,
       // M8.3 is a badge on a web row; the post prints the same three award lines it always has.
       awards: [],
     },
   ],
   range: 'Sunday 6 Sep to Saturday 12 Sep',
   games: 4,
+  everRated: true,
+  notPlayed: 0,
 };
 
 const loadStats = vi.fn();
@@ -63,7 +64,12 @@ vi.mock('./webhook', () => ({
 const { postClosedWindow } = await import('./post');
 
 const WINDOW = closedWindow('last-week', new Date('2025-09-08T07:00:00Z'), 'Africa/Cairo');
-const client = {} as ServiceClient;
+/** Answers the one read the post makes besides the mocked loaders: the group's slug (M14.10). */
+const client = {
+  from: () => ({
+    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { slug: 'customs' }, error: null }) }) }),
+  }),
+} as unknown as ServiceClient;
 const GROUP_ID = '00000000-0000-4000-8000-00000000000a';
 
 beforeEach(() => {
@@ -77,15 +83,8 @@ describe('the awards field', () => {
     loadStats.mockResolvedValue({
       awards: {
         kind: 'closed',
-        intro: 'Three awards for the week. Nobody votes; the numbers pick.',
+        intro: 'Two awards for the week. Nobody votes; the numbers pick.',
         blocks: [
-          {
-            label: 'Most improved',
-            rule: 'rule',
-            won: true,
-            note: null,
-            lines: [{ key: 'puuid-nadia', text: 'Nadia · +212 · 1266 → 1478' }],
-          },
           {
             label: 'Best off-role',
             rule: 'rule',
@@ -112,23 +111,21 @@ describe('the awards field', () => {
 
     const fields = (sent as unknown as { embeds: { fields: { name: string; value: string }[] }[] }).embeds[0]
       ?.fields;
-    expect(fields).toHaveLength(2);
-    expect(fields?.[1]?.name).toBe('Awards');
-    // A tie's second line hangs under the first, with the bold label printed once.
-    expect(fields?.[1]?.value.split('\n')).toEqual([
-      '**Most improved** Nadia · +212 · 1266 → 1478',
-      '**Best off-role** Nobody spent 4 games off their main.',
-      '**Cursed duo** Yuki and Theo · 2W 9L · 18%',
-      'Iris and Omar · 2W 9L · 18%',
+    // One block field per award, its label the field's name (05-design 10.6, M14.61). A tie's
+    // second line hangs under the first, with the label printed once.
+    expect(fields).toHaveLength(3);
+    expect(fields?.slice(1)).toEqual([
+      { name: 'Best off-role', value: 'Nobody spent 4 games off their main.' },
+      { name: 'Cursed duo', value: 'Yuki and Theo · 2W 9L · 18%\nIris and Omar · 2W 9L · 18%' },
     ]);
   });
 
   /**
-   * **The Sunday post prints the week's own number** (M7.3): `last-week` is the weekly track, so
-   * the line carries the row's `Rating` — never its `proven`, which is on the row and is printed
-   * on no week surface — and the footer is the week's sentence rather than Proven's.
+   * **The Sunday post prints the week's own number** (M14.57): `last-week` is a week board, so
+   * the line carries the row's net points and W–L — the board's sorted number, never a Rating —
+   * and the footer is the week's sentence, not the settling line.
    */
-  it('prints the weekly Rating and the week footer, off the track the rows carry', async () => {
+  it('prints net points, W–L and the week footer, off the track the rows carry', async () => {
     loadStats.mockResolvedValue({ awards: null });
 
     await postClosedWindow(client, WINDOW, { now: new Date('2025-09-08T07:00:00Z'), groupId: GROUP_ID });
@@ -138,10 +135,10 @@ describe('the awards field', () => {
         embeds: { fields: { value: string }[]; footer: { text: string } }[];
       }
     ).embeds[0];
-    expect(embed?.fields[0]?.value).toBe('`1` Lena · 2088 · 4 games');
-    expect(embed?.fields[0]?.value).not.toContain('1548');
+    expect(embed?.fields[0]?.value).toBe('`1` **Lena** · +86 · 3W–1L');
+    expect(embed?.fields[0]?.value).not.toContain('2088');
     expect(embed?.footer.text).toBe(WEEK_BOARD_SENTENCE_SHORT);
-    expect(embed?.footer.text).not.toBe(SETTLING_SENTENCE_SHORT);
+    expect(embed?.footer.text).not.toBe(SETTLING_FOOTER);
   });
 
   /**
@@ -167,5 +164,68 @@ describe('the awards field', () => {
     expect(logged).toHaveBeenCalledTimes(1);
     expect(String(logged.mock.calls[0]?.[0])).toContain('last-week awards');
     logged.mockRestore();
+  });
+});
+
+/**
+ * M16.5: the weekly storyline opens the post when present; **without one the post is today's,
+ * byte for byte** (no hook, a hook with nothing, a hidden line: all the same request).
+ */
+describe('the weekly storyline', () => {
+  const AWARDS = {
+    awards: {
+      kind: 'closed',
+      intro: 'Two awards for the week. Nobody votes; the numbers pick.',
+      blocks: [
+        {
+          label: 'Best off-role',
+          rule: 'rule',
+          won: true,
+          note: null,
+          lines: [{ key: 'puuid-lena', text: 'Lena · 3W 1L' }],
+        },
+      ],
+    },
+  };
+  const OPTIONS = { now: new Date('2025-09-08T07:00:00Z'), groupId: GROUP_ID, timeZone: 'Africa/Cairo' };
+
+  it('is missing: the post is byte-identical to the one without the hook (snapshot)', async () => {
+    loadStats.mockResolvedValue(AWARDS);
+    await postClosedWindow(client, WINDOW, OPTIONS);
+    const before = JSON.stringify(sent);
+    await postClosedWindow(client, WINDOW, OPTIONS, { storyline: async () => null });
+    expect(JSON.stringify(sent)).toBe(before);
+    expect(sent).toMatchSnapshot();
+  });
+
+  it('is present: it opens the post as its own embed, and the board embed is unchanged', async () => {
+    loadStats.mockResolvedValue(AWARDS);
+    await postClosedWindow(client, WINDOW, OPTIONS);
+    const plain = sent as unknown as WebhookPayload;
+    const seen: unknown[] = [];
+    await postClosedWindow(client, WINDOW, OPTIONS, {
+      storyline: async (source) => {
+        seen.push(source);
+        return 'Lena took the week with 3 wins from 4 games.';
+      },
+    });
+    const withLine = sent as unknown as WebhookPayload;
+    expect(withLine.embeds).toHaveLength(2);
+    expect(withLine.embeds[0]).toEqual({
+      color: 0x8b98ad,
+      title: 'AI recap',
+      description: 'Lena took the week with 3 wins from 4 games.',
+    });
+    expect(withLine.embeds[1]).toEqual(plain.embeds[0]);
+    // The hook is handed the post's own numbers: the board rows, the count and the stats read.
+    expect(seen).toEqual([
+      expect.objectContaining({
+        groupId: GROUP_ID,
+        timeZone: 'Africa/Cairo',
+        games: 4,
+        rows: board.rows,
+        stats: AWARDS,
+      }),
+    ]);
   });
 });

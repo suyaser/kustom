@@ -115,6 +115,7 @@ export class GameWatcher implements GameSink {
   private readonly queuedGames = new Set<string>();
   private readonly droppedGames = new Set<string>();
   private inProgressInFlight = 0;
+  private inGame = false;
   private draining = false;
   private wake: (() => void) | null = null;
 
@@ -205,7 +206,23 @@ export class GameWatcher implements GameSink {
     }
   }
 
+  /**
+   * True while swapping the watchers out would risk a game: one is being played or has just ended and its
+   * block is not posted yet, a post is in flight, or a block is queued unposted (M14.13: a replaced token's
+   * relaunch waits for this to clear).
+   */
+  busy(): boolean {
+    return (
+      this.inGame ||
+      this.inProgressInFlight > 0 ||
+      this.sessionRead === 'reading' ||
+      this.queuedGames.size > 0 ||
+      this.queue.list().length > 0
+    );
+  }
+
   private onGameflowPhase(phase: string, context: ConnectedContext): void {
+    this.inGame = START_PHASES.includes(phase) || EOG_CONNECT_PHASES.includes(phase);
     if (!START_PHASES.includes(phase)) {
       this.sessionRead = 'idle';
       return;
@@ -228,6 +245,7 @@ export class GameWatcher implements GameSink {
   }
 
   private onDisconnected(): void {
+    this.inGame = false;
     this.sessionRead = 'idle';
   }
 

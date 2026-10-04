@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron/leaderboard", "schedule": "30 4 * * *" },
     { "path": "/api/cron/window", "schedule": "30 4 * * *" },
+    { "path": "/api/cron/rebuild", "schedule": "15 4 * * *" },
     { "path": "/api/cron/mystery", "schedule": "0 21,22 * * *" }
   ]
 }

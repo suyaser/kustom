@@ -3,8 +3,6 @@ import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { AdminAuthResult } from '@/lib/adminAuth';
-import { withAdminAuth } from '@/lib/adminRoute';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { clearLobbyHooks, type GameFinishedEvent, registerLobbyHook } from '@/lib/ingest/hooks';
 import { ensurePlayers } from '@/lib/ingest/players';
@@ -45,8 +43,6 @@ if (stack === null) {
   const { POST: postScan } = await import('./scan/route');
   const { POST: postGame } = await import('../game/route');
   const { POST: postLobby } = await import('../lobby/route');
-  const { handleAdminPlayers, BACKFILL_IS_ALWAYS_ON } = await import('../../admin/players/handler');
-  const { adminPlayersRequestSchema } = await import('../../admin/players/schema');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -56,8 +52,7 @@ if (stack === null) {
   const puuids = testPuuids(runId);
   const ownerPuuid = puuids[0] as string;
   const outsiderPuuid = `it-${runId}-outsider`;
-  const adminPuuid = `it-${runId}-admin`;
-  const allPuuids = [...puuids, outsiderPuuid, adminPuuid];
+  const allPuuids = [...puuids, outsiderPuuid];
 
   const partyId = `it-party-${runId}-bf`;
   const baseGameId = testGameId();
@@ -85,7 +80,6 @@ if (stack === null) {
   let ownerToken = '';
   let outsiderToken = '';
   let ownerPlayerId = '';
-  let adminPlayerId = '';
   let rosterPlayerIds: string[] = [];
 
   const finished: GameFinishedEvent[] = [];
@@ -110,7 +104,7 @@ if (stack === null) {
       .select('*')
       .in('player_id', rosterPlayerIds)
       .order('player_id')
-      .order('season_id');
+      .order('group_id');
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -122,41 +116,6 @@ if (stack === null) {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-    });
-  }
-
-  /** The real admin route with only the session injected, as `admin.integration.test.ts` does. */
-  const adminRoute = withAdminAuth(adminPlayersRequestSchema, handleAdminPlayers, {
-    redirectTo: '/admin/players',
-    authorize: async (): Promise<AdminAuthResult> => ({
-      ok: true,
-      admin: {
-        userId: randomUUID(),
-        discordId: `it-${runId}-discord`,
-        playerId: adminPlayerId,
-        groupId: ORIGINAL_GROUP_ID,
-        puuid: adminPuuid,
-        displayName: 'tester',
-        email: null,
-        discordName: null,
-      },
-    }),
-  });
-
-  function adminPost(body: object): Request {
-    return new Request('http://localhost/api/admin/players', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId: ORIGINAL_GROUP_ID, ...body }),
-    });
-  }
-
-  /** The same action as an HTML form: what a tab left open from before the deploy still posts. */
-  function adminForm(body: Record<string, string>): Request {
-    return new Request('http://localhost/api/admin/players', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ groupId: ORIGINAL_GROUP_ID, ...body }).toString(),
     });
   }
 
@@ -209,9 +168,8 @@ if (stack === null) {
     );
     rosterPlayerIds = puuids.map((puuid) => roster.get(puuid) ?? '');
 
-    const ids = await ensurePlayers(db, [{ puuid: ownerPuuid }, { puuid: adminPuuid }]);
+    const ids = await ensurePlayers(db, [{ puuid: ownerPuuid }]);
     ownerPlayerId = ids.get(ownerPuuid) ?? '';
-    adminPlayerId = ids.get(adminPuuid) ?? '';
 
     // Only this file's listener, so "no Discord post" is an assertion about what ingest emitted
     // rather than about a webhook being unset.
@@ -277,34 +235,6 @@ if (stack === null) {
         approved: true,
         unknown: [scanKnownGameId, scanUnknownGameId],
       });
-    });
-  });
-
-  describe('the retired admin action', () => {
-    it('set-backfill answers 410 with a sentence, as JSON or a stale form, and changes nothing', async () => {
-      const before = await readMembership();
-
-      for (const approved of [true, false]) {
-        const response = await adminRoute(
-          adminPost({ action: 'set-backfill', playerId: ownerPlayerId, approved }),
-        );
-        expect(response.status).toBe(410);
-        expect(await response.json()).toEqual({ ok: false, error: BACKFILL_IS_ALWAYS_ON });
-      }
-      // The old Revoke button's form, from a tab open since before the deploy: the usual 303
-      // back to the page, carrying the sentence rather than a notice.
-      const form = await adminRoute(
-        adminForm({ action: 'set-backfill', playerId: ownerPlayerId, approved: 'false' }),
-      );
-      expect(form.status).toBe(303);
-      expect(form.headers.get('location')).toContain('error=');
-      expect(form.headers.get('location')).not.toContain('notice=');
-
-      expect(await readMembership()).toEqual(before);
-
-      // And the scan still answers.
-      const scan = await postScan(post({ gameIds: [scanUnknownGameId] }, ownerToken));
-      expect(await scan.json()).toEqual({ ok: true, approved: true, unknown: [scanUnknownGameId] });
     });
   });
 

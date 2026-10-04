@@ -1,9 +1,11 @@
 [package]
 name = "kustom-companion"
-version = "0.1.5"
-description = "Kustom desktop app (Host + Overlay)"
+version = "1.0.0"
+description = "Kustom: the host app for Customs Night (window, tray and the in-process engine)"
 authors = ["Customs Night"]
-edition = "2021"
+edition = "2024"
+rust-version.workspace = true
+publish = false
 
 [lib]
 name = "kustom_companion_lib"
@@ -17,15 +19,44 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
-tauri-plugin-shell = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-open = "5"
+# The two tray icons are ICO files compiled in (see `tray_frame` in lib.rs).
+tauri = { version = "2.11", features = ["tray-icon"] }
+# A second launch focuses the first: two engines on one PC would share one queue and one execute-once record.
+tauri-plugin-single-instance = "2"
+# Start with Windows (on by default, decision row 2026-10-04).
+tauri-plugin-autostart = "2"
+# The native folder picker for "Can't find League" (05-design 9.5.6).
+tauri-plugin-dialog = "2"
+# Open logs (the folder) and Open Tonight (the browser).
+tauri-plugin-opener = "2"
+# The tray frames: the ICO entry whose width matches the display scale (16, 20, 24 or 32 px).
+ico = "0.5"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync", "fs"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+# The engine runs in-process (M17.8).
+engine.workspace = true
+# Signed auto-updates from latest.json (M17.12). No zip/tar: the Windows update is the NSIS installer.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 
-[profile.release]
-panic = "abort"
-codegen-units = 1
-lto = true
-opt-level = "s"
-strip = true
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["test-util", "net", "io-util"] }
+# The updater tests run the real plugin on Tauri's mock runtime against a local HTTP server, signing the
+# installer with a throwaway in-memory minisign key (never a file, never the release key).
+tauri = { version = "2.11", features = ["tray-icon", "test"] }
+minisign = "0.10"
+base64 = "0.22"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+# Shipped code logs and drops; it never panics on a bad value (CLAUDE.md). Tests may unwrap (clippy.toml).
+unwrap_used = "warn"
+expect_used = "warn"
+
+# Part of the workspace in `apps/companion/Cargo.toml`, which holds the lockfile, `target/` and the
+# release profile.

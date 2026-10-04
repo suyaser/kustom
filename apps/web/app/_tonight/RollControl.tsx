@@ -1,8 +1,10 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { groupHome } from '@/lib/nav';
-import { asSentence, ROLL_ADMIN_HINT, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
+import { asSentence, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
+import { requestTonightRefresh } from '@/lib/tonight/live';
 import { rollRosterKey } from '@/lib/tonight/state';
 import type { MemberView } from '@/lib/tonight/types';
 import { usePageGroup } from '../_shell/PageGroup';
@@ -31,10 +33,13 @@ import { usePageGroup } from '../_shell/PageGroup';
 export function RollControl({
   lobbyId,
   members,
+  hint = null,
   onSettled,
 }: {
   lobbyId: string;
   members: readonly MemberView[];
+  /** One line above the button (`rollAdminHint`): the rotation preview, or the at-ten line. */
+  hint?: string | null | undefined;
   onSettled?: (() => void) | undefined;
 }) {
   const group = usePageGroup();
@@ -62,6 +67,7 @@ export function RollControl({
       // Teams up or a refusal, the page is now behind the server: re-read it. Realtime would
       // deliver the teams too; asking keeps the answer from waiting on a socket.
       onSettled?.();
+      requestTonightRefresh();
     } catch {
       setFailed(ROLL_UNREACHABLE);
     } finally {
@@ -70,23 +76,19 @@ export function RollControl({
   }
 
   return (
-    <form className="cn-roll-form" method="post" action={action} onSubmit={submit}>
+    <form className="flex flex-col items-start gap-2" method="post" action={action} onSubmit={submit}>
       <input type="hidden" name="rosterKey" value={rosterKey} />
       {/* Only the form path reads this. The route re-validates it as a path on this site. */}
       <input type="hidden" name="groupId" value={group.id} />
       <input type="hidden" name="redirectTo" value={groupHome(group)} />
-      <p className="cn-roll-note">{ROLL_ADMIN_HINT}</p>
+      {hint === null ? null : <p className="text-sm text-muted-foreground">{hint}</p>}
       {/* Quiet while a press is in flight, **never `disabled`**: a disabled control drops the
           focus to `<body>` (M3.20). `submit` already short-circuits a second press. */}
-      <button
-        className={quiet ? 'cn-button cn-button-quiet' : 'cn-button'}
-        type="submit"
-        aria-disabled={quiet || undefined}
-      >
+      <Button type="submit" pending={quiet} className="w-full sm:w-auto">
         {ROLL_LABEL}
-      </button>
+      </Button>
       {failed === null ? null : (
-        <p className="cn-roll-note cn-roll-note-refused" role="alert">
+        <p className="text-sm font-bold" role="alert">
           {failed}
         </p>
       )}

@@ -1,5 +1,6 @@
-import { rosterKey } from '@customs/db';
-import { PLAYERS_PER_GAME } from '../lobbyState';
+import { rosterKey } from '@customs/db/constants';
+import { PLAYERS_PER_GAME } from '../lobbyRules';
+import { NOT_RATED_RESULT_LINE } from '../mode/notRated';
 import {
   BALANCED_SENTENCE,
   FINISHED_SENTENCE,
@@ -49,7 +50,9 @@ export function tonightState(snapshot: TonightSnapshot): TonightState {
       // `balanceLobby` and `promoteSplit` spend between their two statements.
       return lobby.teams === null ? { kind: 'filling', lobby } : { kind: 'teams', lobby, teams: lobby.teams };
     case 'finished':
-      if (lobby.result?.rated) {
+      // M15.5 (R4): a Rift game played not rated (a rule's default or the Rated switch) is still
+      // a result: the poster, with its rule line and `Not rated, so no Rating change.`.
+      if (lobby.result?.rated || (lobby.result?.stamp?.rift === true && !lobby.result.stamp.rated)) {
         return { kind: 'result', lobby, result: lobby.result, teams: lobby.teams };
       }
       // A game the fold did not rate — a remake, a four-minute surrender — has no result card
@@ -93,7 +96,7 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
     case 'idle':
       return { headline: HEADLINE_IDLE, count: null, sentence: IDLE_SENTENCE, live: false };
     case 'filling': {
-      const around = state.lobby.members.length;
+      const around = lobbyAround(state.lobby.members);
       return {
         headline: HEADLINE_FILLING,
         count: around,
@@ -105,7 +108,9 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
     }
     case 'teams':
       if (state.lobby.status === 'in_game') {
-        return { headline: HEADLINE_IN_GAME, count: null, sentence: IN_GAME_SENTENCE, live: true };
+        // M15.5: a game locked not rated says so in the strip, so it never contradicts the card.
+        const sentence = state.lobby.lock?.rated === false ? NOT_RATED_RESULT_LINE : IN_GAME_SENTENCE;
+        return { headline: HEADLINE_IN_GAME, count: null, sentence, live: true };
       }
       // A finished lobby that reaches the teams block is a game the fold did not rate: the
       // teams they played stay up under `GAME OVER`, with no deltas and no sentence.
@@ -117,7 +122,12 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
       return {
         headline: HEADLINE_FINISHED,
         count: null,
-        sentence: state.result.rated ? FINISHED_SENTENCE : '',
+        // M15.5: a Rift game played not rated is a result too; its sentence says why nothing moved.
+        sentence: state.result.rated
+          ? FINISHED_SENTENCE
+          : state.result.stamp?.rift === true && !state.result.stamp.rated
+            ? NOT_RATED_RESULT_LINE
+            : '',
         live: false,
       };
   }
@@ -173,7 +183,16 @@ export type RollStage = 'waiting' | 'ready' | 'repair' | 'none';
 export function rollStage(lobby: LobbyView): RollStage {
   if (lobby.status === 'balanced') return lobby.teams === null ? 'repair' : 'none';
   if (lobby.status !== 'open') return 'none';
-  return new Set(lobby.members.map((member) => member.puuid)).size >= PLAYERS_PER_GAME ? 'ready' : 'waiting';
+  return lobbyAround(lobby.members) >= PLAYERS_PER_GAME ? 'ready' : 'waiting';
+}
+
+/**
+ * How many are around in a lobby: distinct puuids, the count the roll route checks and
+ * {@link rollStage} reads (M14.45). The header count, the meter, the roller's sub-line and hint
+ * all read this one, so `10/10` never shows beside a stage that says fewer.
+ */
+export function lobbyAround(members: readonly Pick<MemberView, 'puuid'>[]): number {
+  return new Set(members.map((member) => member.puuid)).size;
 }
 
 /**

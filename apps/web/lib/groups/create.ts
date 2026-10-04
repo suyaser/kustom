@@ -9,10 +9,10 @@ import { type GroupResult, groupFailed, groupOk } from './result';
  *
  * Anyone signed in may create one (decision row 2026-10-03, "Self-serve groups"; no quota in
  * v1). The whole write is `create_group` (`0021`): the group, its fearless cursor, its invite and
- * -- when the session is already linked to a player -- that player's `admin` membership, in one
- * transaction, so a group never exists without its cursor or its invite. An unlinked creator gets
- * no membership here; `groups.created_by` is their auth user id, and their pairing
- * (`lib/groups/pairing.ts`) makes their PUUID the group's admin.
+ * -- when the session is already linked to a player -- that player's `owner` membership (M14.11;
+ * `admin` before), in one transaction, so a group never exists without its cursor or its invite.
+ * An unlinked creator gets no membership here; `groups.created_by` is their auth user id, and
+ * their pairing (`lib/groups/pairing.ts`) makes their PUUID the group's owner.
  */
 
 export interface CreateGroupInput {
@@ -22,13 +22,13 @@ export interface CreateGroupInput {
   slug: string;
   /** The session's auth user id: `groups.created_by`. */
   createdBy: string;
-  /** The session's player, when linked: the group's first admin. */
+  /** The session's player, when linked: the group's owner. */
   playerId: string | null;
 }
 
 export interface CreatedGroup {
   group: GroupSummary;
-  /** `admin` for a linked creator; `null` until an unlinked creator pairs. */
+  /** `owner` for a linked creator; `null` until an unlinked creator pairs. */
   role: GroupRole | null;
 }
 
@@ -56,7 +56,7 @@ export async function createGroup(
 
   const group = await groupSummaryById(client, row.group_id);
   if (group === null) throw new Error('createGroup: the new group is not readable');
-  return groupOk({ group, role: input.playerId === null ? null : 'admin' });
+  return groupOk({ group, role: input.playerId === null ? null : 'owner' });
 }
 
 /** `id, slug, name` of one group, or null. */

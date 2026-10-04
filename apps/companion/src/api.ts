@@ -60,7 +60,13 @@ export interface RequestOptions {
 
 export interface ApiClientOptions {
   readonly apiBase: string;
-  readonly token: string;
+  /** Omitted for the one route that takes no token (`POST /api/companion/pair`) and for health checks. */
+  readonly token?: string;
+  /**
+   * Called once, with the status, when the API finally answers 401 or 403 to this client's token. 403 is a
+   * membership that is gone (M13.8); the host session turns it into a sentence and stops posting.
+   */
+  readonly onRefused?: (status: 401 | 403) => void;
   readonly logger?: CompanionLogger;
   /** Injected in tests. Defaults to the global `fetch`. */
   readonly fetch?: FetchLike;
@@ -94,7 +100,9 @@ async function readText(response: Response): Promise<string> {
 
 export class ApiClient {
   readonly apiBase: string;
-  private readonly authorization: string;
+  private readonly authorization: string | undefined;
+  private readonly onRefused: ((status: 401 | 403) => void) | undefined;
+  private refusedReported = false;
   private readonly logger: CompanionLogger;
   private readonly fetchImpl: FetchLike;
   private readonly maxAttempts: number;
@@ -104,7 +112,8 @@ export class ApiClient {
 
   constructor(options: ApiClientOptions) {
     this.apiBase = options.apiBase.replace(/\/+$/, '');
-    this.authorization = `Bearer ${options.token}`;
+    this.authorization = options.token === undefined ? undefined : `Bearer ${options.token}`;
+    this.onRefused = options.onRefused;
     this.logger = options.logger ?? createMemoryLogger();
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.maxAttempts = Math.max(1, options.maxAttempts ?? 4);
@@ -169,6 +178,19 @@ export class ApiClient {
     }
 
     const failure = last ?? { ok: false, reason: 'network', message: 'no attempt made', attempts: 0 };
+    if (
+      failure.reason === 'http' &&
+      (failure.status === 401 || failure.status === 403) &&
+      this.onRefused !== undefined &&
+      !this.refusedReported
+    ) {
+      this.refusedReported = true;
+      try {
+        this.onRefused(failure.status);
+      } catch (error) {
+        this.logger.error('onRefused threw', errorFields(error));
+      }
+    }
     if (options.quiet) {
       return failure;
     }
@@ -189,7 +211,7 @@ export class ApiClient {
     attempt: number,
   ): Promise<ApiResult<T>> {
     const headers: Record<string, string> = {
-      authorization: this.authorization,
+      ...(this.authorization === undefined ? {} : { authorization: this.authorization }),
       accept: 'application/json',
       'user-agent': USER_AGENT,
     };
@@ -285,7 +307,7 @@ export function describeFailure(failure: ApiFailure): string {
 /** A health check for the first-run prompt: any `apiBase`, no token needed. */
 export function healthCheck(fetchImpl?: FetchLike): (apiBase: string) => Promise<string | null> {
   return async (apiBase) => {
-    const options: ApiClientOptions = { apiBase, token: 'none', maxAttempts: 1, timeoutMs: 8_000 };
+    const options: ApiClientOptions = { apiBase, maxAttempts: 1, timeoutMs: 8_000 };
     const client = new ApiClient(fetchImpl ? { ...options, fetch: fetchImpl } : options);
     return client.health();
   };

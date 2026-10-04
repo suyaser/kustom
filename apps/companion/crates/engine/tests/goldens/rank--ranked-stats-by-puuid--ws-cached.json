@@ -1,0 +1,23 @@
+{
+  "name": "rank--ranked-stats-by-puuid--ws-cached",
+  "kind": "request",
+  "target": "api",
+  "route": "rank",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/ranked-stats-by-puuid--ws-cached"
+  ],
+  "scenario": "rank-socket-shortcut",
+  "note": "An unranked friend from a cached-ranked-stats push: tier \"\" and division \"NA\" are sent verbatim (the server folds them to null); the name lookup 404s, so gameName/tagLine are null.",
+  "method": "POST",
+  "path": "/api/companion/rank",
+  "body": {
+    "puuid": "c04e977c-133a-5d94-9fd3-6202f8beec4c",
+    "tier": "",
+    "division": "NA",
+    "lp": 0,
+    "queue": "RANKED_SOLO_5x5",
+    "gameName": null,
+    "tagLine": null
+  }
+}

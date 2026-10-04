@@ -1,0 +1,23 @@
+{
+  "name": "command-ack--invite--sent",
+  "kind": "request",
+  "target": "api",
+  "route": "command-ack",
+  "patch": "16.18",
+  "fixtures": [
+    "16.18/create-lobby",
+    "16.18/lobby-invitations"
+  ],
+  "scenario": "command-invite",
+  "note": "Invite accepted by the client (16.18/lobby-invitations); the read-back lobby has no row for the puuid yet, so the state is Pending.",
+  "method": "POST",
+  "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack",
+  "commandKind": "invite",
+  "body": {
+    "result": {
+      "puuid": "c04e977c-133a-5d94-9fd3-6202f8beec4c",
+      "method": "summonerId",
+      "state": "Pending"
+    }
+  }
+}

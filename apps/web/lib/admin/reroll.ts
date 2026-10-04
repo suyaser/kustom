@@ -9,6 +9,7 @@ import {
 import { readAssignments } from '../discord/assemble';
 import type { ServiceClient } from '../supabase';
 import { idSchema } from './formValues';
+import { NO_MORE_SPLITS } from './rerollCopy';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
 /**
@@ -24,8 +25,9 @@ import { type AdminWriteResult, writeFailed, writeOk } from './result';
  * message, never the teams.
  */
 
-/** The sentence for a third press. `05-design.md`, "The title on a reroll"; verbatim. */
-export const NO_MORE_SPLITS = 'No more splits. Change who is in the lobby and roll again, or play these.';
+// The sentence for a third press lives in `./rerollCopy` (M14.44) so the client control can have
+// it without this file's imports; re-exported here for the route and its tests.
+export { NO_MORE_SPLITS } from './rerollCopy';
 
 /**
  * A lobby id that names nothing, whether it is a well-formed uuid we have no row for or a

@@ -1,0 +1,257 @@
+{
+ "routes": [
+  {
+   "route": "/",
+   "chunks": 14,
+   "rawKB": 1008.8,
+   "gzKB": 283
+  },
+  {
+   "route": "/how",
+   "chunks": 14,
+   "rawKB": 1008.8,
+   "gzKB": 283
+  },
+  {
+   "route": "/download",
+   "chunks": 14,
+   "rawKB": 1008.8,
+   "gzKB": 283
+  },
+  {
+   "route": "/new",
+   "chunks": 15,
+   "rawKB": 1023.3,
+   "gzKB": 288.6
+  },
+  {
+   "route": "/g/customs",
+   "chunks": 20,
+   "rawKB": 1297.3,
+   "gzKB": 364.2
+  },
+  {
+   "route": "/g/customs/leaderboard",
+   "chunks": 18,
+   "rawKB": 1040.8,
+   "gzKB": 295.8
+  },
+  {
+   "route": "/g/customs/p/audit-p01",
+   "chunks": 18,
+   "rawKB": 1034,
+   "gzKB": 293.3
+  },
+  {
+   "route": "/g/customs/games",
+   "chunks": 17,
+   "rawKB": 1032.1,
+   "gzKB": 292.4
+  },
+  {
+   "route": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "chunks": 18,
+   "rawKB": 1041,
+   "gzKB": 296
+  },
+  {
+   "route": "/g/customs/you",
+   "chunks": 18,
+   "rawKB": 1035.3,
+   "gzKB": 293.8
+  },
+  {
+   "route": "/g/customs/mode",
+   "chunks": 18,
+   "rawKB": 1045.3,
+   "gzKB": 298
+  },
+  {
+   "route": "/g/customs/stats",
+   "chunks": 17,
+   "rawKB": 1032.1,
+   "gzKB": 292.4
+  },
+  {
+   "route": "/g/customs/stats/champions",
+   "chunks": 17,
+   "rawKB": 1032.1,
+   "gzKB": 292.4
+  },
+  {
+   "route": "/g/customs/stats/1v1",
+   "chunks": 17,
+   "rawKB": 1032.1,
+   "gzKB": 292.4
+  },
+  {
+   "route": "/g/customs/mystery",
+   "chunks": 18,
+   "rawKB": 1059.9,
+   "gzKB": 302.3
+  },
+  {
+   "route": "/g/customs/admin",
+   "chunks": 19,
+   "rawKB": 1092.9,
+   "gzKB": 312.1
+  }
+ ],
+ "chunks": [
+  {
+   "chunk": "3onb-gmpqou_g.js",
+   "rawKB": 383.3,
+   "gzKB": 86.9,
+   "onRoutes": "all",
+   "markers": [
+    "zod",
+    "champion"
+   ]
+  },
+  {
+   "chunk": "06cvwtm4wotv0.js",
+   "rawKB": 228.9,
+   "gzKB": 71.4,
+   "onRoutes": "all",
+   "markers": [
+    "react-dom"
+   ]
+  },
+  {
+   "chunk": "37uzlf87a1p_t.js",
+   "rawKB": 234.9,
+   "gzKB": 61,
+   "onRoutes": [
+    "/g/customs"
+   ],
+   "markers": [
+    "react-dom",
+    "@supabase",
+    "realtime",
+    "phoenix",
+    "gotrue"
+   ]
+  },
+  {
+   "chunk": "1qjwopf2ysfua.js",
+   "rawKB": 152.3,
+   "gzKB": 41.7,
+   "onRoutes": "all",
+   "markers": []
+  },
+  {
+   "chunk": "0cz1d0mv5g_q7.js",
+   "rawKB": 110,
+   "gzKB": 38.5,
+   "onRoutes": "all",
+   "markers": []
+  },
+  {
+   "chunk": "3lhh-bh7okulo.js",
+   "rawKB": 37.5,
+   "gzKB": 12,
+   "onRoutes": [
+    "/g/customs/admin"
+   ],
+   "markers": [
+    "radix"
+   ]
+  },
+  {
+   "chunk": "1vszxfh9p38eu.js",
+   "rawKB": 27.8,
+   "gzKB": 9.9,
+   "onRoutes": [
+    "/g/customs/mystery"
+   ],
+   "markers": [
+    "radix",
+    "champion",
+    "ddragon",
+    "clsx"
+   ]
+  },
+  {
+   "chunk": "38r50kw2jtal2.js",
+   "rawKB": 27.1,
+   "gzKB": 8.4,
+   "onRoutes": "all",
+   "markers": [
+    "clsx"
+   ]
+  },
+  {
+   "chunk": "2kt1p5dimmzz7.js",
+   "rawKB": 30.7,
+   "gzKB": 8.2,
+   "onRoutes": "all",
+   "markers": [
+    "react-dom"
+   ]
+  },
+  {
+   "chunk": "26jlcvrq598t-.js",
+   "rawKB": 23.3,
+   "gzKB": 7.7,
+   "onRoutes": [
+    "/g/customs/admin"
+   ],
+   "markers": [
+    "radix",
+    "clsx"
+   ]
+  },
+  {
+   "chunk": "394evsku58bwz.js",
+   "rawKB": 20.5,
+   "gzKB": 6.6,
+   "onRoutes": [
+    "/g/customs"
+   ],
+   "markers": []
+  },
+  {
+   "chunk": "109ycpmvskfj6.js",
+   "rawKB": 15.9,
+   "gzKB": 6,
+   "onRoutes": [
+    "/g/customs",
+    "/g/customs/leaderboard",
+    "/g/customs/p/audit-p01",
+    "/g/customs/games",
+    "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+    "/g/customs/you",
+    "/g/customs/mode",
+    "/g/customs/stats",
+    "/g/customs/stats/champions",
+    "/g/customs/stats/1v1",
+    "/g/customs/mystery",
+    "/g/customs/admin"
+   ],
+   "markers": [
+    "champion"
+   ]
+  },
+  {
+   "chunk": "2k5z9seeweyy7.js",
+   "rawKB": 14.4,
+   "gzKB": 6,
+   "onRoutes": "all",
+   "markers": [
+    "champion"
+   ]
+  },
+  {
+   "chunk": "285pjfiqkju80.js",
+   "rawKB": 13.2,
+   "gzKB": 5.6,
+   "onRoutes": [
+    "/g/customs/mode"
+   ],
+   "markers": [
+    "champion",
+    "ddragon"
+   ]
+  }
+ ]
+}

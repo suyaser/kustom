@@ -142,3 +142,36 @@ export class OverlayLcuWatcher {
     if (changed) this.onState(next);
   }
 }
+
+export type PuuidReadResult =
+  | { readonly ok: true; readonly puuid: string }
+  /** No client to talk to, or it would not say who is signed in. */
+  | { readonly ok: false };
+
+/**
+ * One read of `current-summoner` for pairing (M13.8): who is signed into League on this PC. The same
+ * endpoint and schema the panel's poll already uses, so no new client call. Opens the client, reads once,
+ * closes it. Never throws.
+ */
+export async function readCurrentPuuid(
+  options: { lockfilePath?: string; tlsMode?: TlsMode } = {},
+): Promise<PuuidReadResult> {
+  const discovery = createLockfileDiscovery(
+    options.lockfilePath !== undefined ? { extraCandidates: [options.lockfilePath] } : {},
+  );
+  try {
+    const found = await discovery();
+    if (found.status !== 'found') return { ok: false };
+    const client = LcuClient.fromCredentials(found.credentials, {
+      tls: options.tlsMode ?? { mode: 'pinned' },
+    });
+    try {
+      const summoner = await client.get(CURRENT_SUMMONER_PATH, SummonerSchema);
+      return summoner.ok ? { ok: true, puuid: summoner.json.puuid } : { ok: false };
+    } finally {
+      client.close();
+    }
+  } catch {
+    return { ok: false };
+  }
+}

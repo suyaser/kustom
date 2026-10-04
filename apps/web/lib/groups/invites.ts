@@ -79,9 +79,10 @@ export interface Joined {
 /**
  * `Join <Group>` (M13.5, `POST /api/groups/join`): a linked session with the live code becomes a
  * `member`. An existing membership is kept as it is -- an admin who opens their own link stays
- * admin -- with one exception: the group's creator always ends up `admin`, because that is what
- * `created_by` means (the same rule their pairing follows). Idempotent: a second press is
- * `already_member` and writes nothing.
+ * admin -- with one exception: the group's creator becomes its `owner` **while the group has none**
+ * (M14.11; the same rule their pairing follows in `redeem_pairing_code`). A creator who handed
+ * ownership on is not raised again. Idempotent: a second press is `already_member` and writes
+ * nothing.
  */
 export async function joinGroup(client: ServiceClient, input: JoinInput): Promise<GroupResult<Joined>> {
   if (input.playerId === null) return groupFailed(403, JOIN_NOT_LINKED);
@@ -91,28 +92,18 @@ export async function joinGroup(client: ServiceClient, input: JoinInput): Promis
 
   const summary: GroupSummary = { id: group.id, slug: group.slug, name: group.name };
   const isCreator = group.createdBy !== null && group.createdBy === input.userId;
-  const wanted: GroupRole = isCreator ? 'admin' : 'member';
 
   const { data: inserted, error: insertError } = await client
     .from('group_memberships')
     .upsert(
-      { group_id: group.id, player_id: input.playerId, role: wanted },
+      { group_id: group.id, player_id: input.playerId, role: 'member' },
       { onConflict: 'group_id,player_id', ignoreDuplicates: true },
     )
     .select('role');
   if (insertError) throw new Error(`join failed: ${insertError.message}`);
-  if ((inserted ?? []).length > 0) return groupOk({ group: summary, role: wanted, outcome: 'joined' });
+  const joined = (inserted ?? []).length > 0;
 
-  // Already a member. The creator is raised to admin; anyone else keeps their role.
-  if (isCreator) {
-    const { error } = await client
-      .from('group_memberships')
-      .update({ role: 'admin' })
-      .eq('group_id', group.id)
-      .eq('player_id', input.playerId);
-    if (error) throw new Error(`join: raising the creator failed: ${error.message}`);
-    return groupOk({ group: summary, role: 'admin', outcome: 'already_member' });
-  }
+  if (isCreator) await claimOwnershipIfNone(client, group.id, input.playerId);
 
   const { data: existing, error: readError } = await client
     .from('group_memberships')
@@ -121,5 +112,29 @@ export async function joinGroup(client: ServiceClient, input: JoinInput): Promis
     .eq('player_id', input.playerId)
     .single();
   if (readError) throw new Error(`join: reading the membership failed: ${readError.message}`);
-  return groupOk({ group: summary, role: groupRoleSchema.parse(existing.role), outcome: 'already_member' });
+  return groupOk({
+    group: summary,
+    role: groupRoleSchema.parse(existing.role),
+    outcome: joined ? 'joined' : 'already_member',
+  });
+}
+
+/** Postgres's unique_violation: here, `group_memberships_one_owner_idx` (the group has an owner). */
+const UNIQUE_VIOLATION = '23505';
+
+/**
+ * Raise the creator's membership to `owner` unless the group already has one. No read-then-write:
+ * the update is attempted, and `group_memberships_one_owner_idx` (`0023`) refuses it when somebody
+ * else owns the group -- which is the "already has one" answer, race-free. When the creator is the
+ * owner already, the update writes the same value.
+ */
+async function claimOwnershipIfNone(client: ServiceClient, groupId: string, playerId: string): Promise<void> {
+  const { error } = await client
+    .from('group_memberships')
+    .update({ role: 'owner' })
+    .eq('group_id', groupId)
+    .eq('player_id', playerId);
+  if (error && error.code !== UNIQUE_VIOLATION) {
+    throw new Error(`join: making the creator the owner failed: ${error.message}`);
+  }
 }

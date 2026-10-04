@@ -15,6 +15,7 @@ import {
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ensurePlayers } from '@/lib/ingest/players';
+import { explanationShown } from '@/lib/receipt/copy';
 import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { storedRosterKey } from '@/lib/testing/roll';
@@ -139,9 +140,18 @@ if (stack === null) {
     });
   }
 
-  /** The single embed of a post. */
+  /** The first embed of a post (E1, the header, since M14.61's stack). */
   function embedOf(index: number): Record<string, unknown> | undefined {
     return ((posts[index]?.body.embeds ?? []) as Record<string, unknown>[])[0];
+  }
+
+  /**
+   * The receipt's lines across the teams stack (M14.61): E1's labels, bar and verdict, then E4's
+   * chips, reason line and core's sentence.
+   */
+  function receiptLinesOf(index: number): string[] {
+    const embeds = (posts[index]?.body.embeds ?? []) as { description?: string }[];
+    return [embeds[0], embeds[3]].flatMap((embed) => String(embed?.description).split('\n'));
   }
 
   /** What a lobby needs: one companion post to open it, and an admin's roll to balance it. */
@@ -291,8 +301,15 @@ if (stack === null) {
 
       expect(posts).toHaveLength(1);
       expect(embedOf(0)?.title).toBe('Teams are set · reroll 1 of 2');
-      // The promoted split's stored sentence, character for character. Never recomposed.
-      expect(embedOf(0)?.description).toBe(target.explanation);
+      // The receipt (M14.10), saying reroll once (the chip, M14.37), ending in the promoted split's stored
+      // sentence, never recomposed beyond M14.41's one roles clause.
+      const lines = receiptLinesOf(0);
+      expect(lines[0]?.startsWith('**Blue ')).toBe(true);
+      expect(lines.join('\n').match(/reroll/gi)).toHaveLength(1);
+      // The stored row is core's sentence, untouched; the embed prints it as shown (M14.41's
+      // `explanationShown`): these ten are all flexible, so the all-on-main clause follows the chip.
+      expect(target.explanation).toContain('Everyone on a main role.');
+      expect(lines.at(-1)).toBe(`-# ${explanationShown(target.explanation, 10)}`);
     });
 
     it('is a no-op on the second tap: 200, still one chosen row, and no second message', async () => {
@@ -314,7 +331,13 @@ if (stack === null) {
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 3 }]);
       expect(posts).toHaveLength(1);
       expect(embedOf(0)?.title).toBe('Teams are set · reroll 2 of 2');
-      expect(embedOf(0)?.description).toBe(target.explanation);
+      const lines = receiptLinesOf(0);
+      expect(lines[0]?.startsWith('**Blue ')).toBe(true);
+      expect(lines[3]).toContain('Reroll 2 of 2');
+      // The stored row is core's sentence, untouched; the embed prints it as shown (M14.41's
+      // `explanationShown`): these ten are all flexible, so the all-on-main clause follows the chip.
+      expect(target.explanation).toContain('Everyone on a main role.');
+      expect(lines.at(-1)).toBe(`-# ${explanationShown(target.explanation, 10)}`);
     });
 
     it('refuses the third press with the sentence the page shows, and posts nothing', async () => {
@@ -335,7 +358,13 @@ if (stack === null) {
       await expect(response.json()).resolves.toMatchObject({ rank: 1, promoted: true });
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 1 }]);
       expect(embedOf(0)?.title).toBe('Teams are set');
-      expect(embedOf(0)?.description).toBe(target.explanation);
+      const lines = receiptLinesOf(0);
+      expect(lines[0]?.startsWith('**Blue ')).toBe(true);
+      expect(lines[3]).toContain("Bot's pick #1 of 3");
+      // The stored row is core's sentence, untouched; the embed prints it as shown (M14.41's
+      // `explanationShown`): these ten are all flexible, so the all-on-main clause follows the chip.
+      expect(target.explanation).toContain('Everyone on a main role.');
+      expect(lines.at(-1)).toBe(`-# ${explanationShown(target.explanation, 10)}`);
     });
   });
 
@@ -457,7 +486,10 @@ if (stack === null) {
   });
 
   describe('the form path, which is what /admin posts', () => {
-    it('303s back to /admin with the notice, having promoted and posted', async () => {
+    /** The checked group's own admin home (M14.40; was the 1.0 `/admin`). */
+    const groupAdmin = () => `/g/it-${runId}-a/admin`;
+
+    it("303s back to the group's admin with the notice, having promoted and posted", async () => {
       const target = splitOfRank(2);
       const request = new Request(`http://localhost/api/admin/lobbies/${lobbyId}/reroll`, {
         method: 'POST',
@@ -468,7 +500,7 @@ if (stack === null) {
       const response = await reroll(lobbyId)(request);
       expect(response.status).toBe(303);
       const location = new URL(response.headers.get('location') ?? '');
-      expect(location.pathname).toBe('/admin');
+      expect(location.pathname).toBe(groupAdmin());
       expect(location.searchParams.get('notice')).toBe('Split 2 is up: reroll 1 of 2. Posted to Discord.');
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 2 }]);
       expect(posts).toHaveLength(1);
@@ -508,7 +540,7 @@ if (stack === null) {
       expect(offSite.status).toBe(303);
       const refusal = new URL(offSite.headers.get('location') ?? '');
       expect(refusal.host).toBe('localhost');
-      expect(refusal.pathname).toBe('/admin');
+      expect(refusal.pathname).toBe(groupAdmin());
       expect(refusal.searchParams.get('error')).toBe('that form was not valid');
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 1 }]);
 

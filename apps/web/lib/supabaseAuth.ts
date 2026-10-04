@@ -42,7 +42,7 @@ export function readOnlyCookieJar(cookies: readonly CookieRecord[]): CookieJar {
   return {
     getAll: () => [...cookies],
     setAll: () => {
-      // Deliberately silent: `middleware.ts` refreshes the session for /admin navigations.
+      // Deliberately silent: `proxy.ts` refreshes the session on every page navigation (M14.40).
     },
   };
 }

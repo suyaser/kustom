@@ -1,22 +1,22 @@
 import type { Route } from 'next';
 import { groupHome } from '../nav';
 import type { ServiceClient } from '../supabase';
-import { ORIGINAL_GROUP_SLUG } from './pageGroup';
 
 /**
- * Where `/` sends somebody (M13.9). `/` was the tonight page for months and is in every pinned
- * WhatsApp message, so it is kept permanently, as a redirect:
+ * Who `/` sends away, and where (M13.9, revised by M14.24; STRATEGY §2.2):
  *
- * 1. **Signed out** (or signed in with no Discord identity): `/g/customs`, the original group --
- *    the only group anybody could have had a `/` link for.
- * 2. **Signed in, member of the group the `kustom_group` cookie names**: that group, the last one
+ * 1. **Signed in, member of the group the `kustom_group` cookie names**: that group, the last one
  *    this browser opened.
- * 3. **Signed in, the cookie missing or naming a group they are not in** (the cookie is ignored,
+ * 2. **Signed in, the cookie missing or naming a group they are not in** (the cookie is ignored,
  *    never trusted): their oldest membership. Not the original group: somebody who only plays
  *    in group B would otherwise be dropped on a stranger's night.
- * 4. **Signed in and a member of no group at all** -- including a Discord session with no player
- *    row yet, which can have no membership: `/new`, where a group is started (the product owner,
- *    M13.9; the page itself is M13.13's).
+ * 3. **Everybody else stays on `/`, the landing page** (`null` here): signed out, cookie or not
+ *    (the page draws a `Back to <Group>` bar from the cookie), and signed in with no group at all
+ *    -- including a Discord session with no player row yet (the page leads with `Create your
+ *    group`). This replaces M13.9's "signed out -> `/g/customs`" and "no group -> `/new`": a
+ *    newcomer should see what they are creating first.
+ *
+ * `/about` is the same landing page and never redirects anybody.
  *
  * Pure, so every branch is a unit test; {@link loadLandingMemberships} is the one read.
  */
@@ -30,11 +30,12 @@ export type LandingViewer =
   | { kind: 'anonymous' }
   | { kind: 'signed-in'; memberships: readonly LandingMembership[] };
 
-/** M13.13's page. Not in any group's nav; `/` is the only thing that sends people there. */
+/** M13.13's page, where a group is started: the landing page's `Create your group`. */
 export const NEW_GROUP_PATH = '/new';
 
-export function landingPath(viewer: LandingViewer, cookieSlug: string | null | undefined): Route {
-  if (viewer.kind === 'anonymous') return groupHome({ slug: ORIGINAL_GROUP_SLUG });
+/** Where `/` redirects this viewer (307), or `null` to render the landing page. */
+export function landingPath(viewer: LandingViewer, cookieSlug: string | null | undefined): Route | null {
+  if (viewer.kind === 'anonymous') return null;
 
   const remembered =
     cookieSlug === null || cookieSlug === undefined
@@ -45,7 +46,7 @@ export function landingPath(viewer: LandingViewer, cookieSlug: string | null | u
   const oldest = viewer.memberships[0];
   if (oldest !== undefined) return groupHome(oldest);
 
-  return NEW_GROUP_PATH as Route;
+  return null;
 }
 
 /**

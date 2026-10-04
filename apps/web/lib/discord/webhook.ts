@@ -36,6 +36,11 @@ export interface WebhookOutcome {
   reason: string | null;
   /** How many requests were actually made. One for a 404; two for a retried 5xx. */
   attempts: number;
+  /**
+   * The created message's id, only when the post asked for it (`wait: true`, M16.4) and Discord
+   * returned one. Absent otherwise.
+   */
+  messageId?: string | null;
 }
 
 export interface WebhookOptions {
@@ -49,6 +54,12 @@ export interface WebhookOptions {
   /** Injected in tests so a 429 does not cost the suite a second. */
   sleep?: (ms: number) => Promise<void>;
   timeoutMs?: number;
+  /**
+   * M16.4: ask Discord for the created message (`?wait=true`) so the result post can be edited
+   * once its AI recap lands. Only the result post of a group whose AI lines are on sets it; every
+   * other post keeps the plain request.
+   */
+  wait?: boolean;
 }
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,8 +67,9 @@ const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => set
 /**
  * POST one payload. Resolves with what happened; never rejects.
  *
- * `?wait=true` is deliberately not used: we do not need the created message back, and asking
- * for it makes Discord hold the connection open for the message to be persisted.
+ * `?wait=true` is not used by default: most posts never need the created message back, and asking
+ * for it makes Discord hold the connection open for the message to be persisted. The one exception
+ * is `wait: true` (M16.4), the result post of a group whose AI recap may edit it later.
  */
 export async function postWebhookPayload(
   url: string,
@@ -78,11 +90,14 @@ export async function postWebhookPayload(
     attempts = attempt;
     let response: Response;
     try {
-      response = await doFetch(url, {
+      response = await doFetch(options.wait === true ? withWait(url) : url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(timeoutMs),
+        // A 3xx must never carry the webhook token off discord.com. A refused redirect throws and
+        // is handled like a network error below: one retry, then `failed`.
+        redirect: 'error',
       });
     } catch (error) {
       // A timeout is an `AbortError` and reads the same as a refused connection from here:
@@ -98,6 +113,10 @@ export async function postWebhookPayload(
 
     lastStatus = response.status;
     const retryAfterMs = response.status === 429 ? await readRetryAfterMs(response) : null;
+    if (response.ok && options.wait === true) {
+      const messageId = await readMessageId(response);
+      return { status: 'posted', httpStatus: response.status, reason: null, attempts: attempt, messageId };
+    }
     // Drain the body so the socket is released; nothing here reads it.
     if (response.status !== 429) await response.text().catch(() => '');
 
@@ -118,6 +137,31 @@ export async function postWebhookPayload(
   }
 
   return { status: 'failed', httpStatus: lastStatus, reason: lastReason, attempts };
+}
+
+/** The webhook URL with `wait=true` added to whatever query it already has. */
+function withWait(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set('wait', 'true');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+/** `{ id: "123..." }` from a `?wait=true` answer, or null. Never throws. */
+async function readMessageId(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    if (typeof body === 'object' && body !== null && 'id' in body) {
+      const id = (body as { id: unknown }).id;
+      if (typeof id === 'string' && /^\d{1,25}$/.test(id)) return id;
+    }
+  } catch {
+    // An unreadable body: the post landed, it just cannot be edited later.
+  }
+  return null;
 }
 
 /**
@@ -207,4 +251,61 @@ export async function postToWebhook(
     console.error(`discord: posting the ${label} failed after ${tries}: ${outcome.reason}`);
   }
   return outcome;
+}
+
+/**
+ * M16.4: replace one message this webhook posted (`PATCH <webhook>/messages/<id>`), used once per
+ * game to add the AI recap to the result post. Same rules as {@link postWebhookPayload}: never
+ * throws, one try plus one retry on a 5xx or a network error, never follows a redirect, never
+ * logs the URL. Mentions stay off (`allowed_mentions.parse` empty).
+ */
+export async function editWebhookMessage(
+  url: string,
+  messageId: string,
+  payload: WebhookPayload,
+  options: WebhookOptions = {},
+): Promise<WebhookOutcome> {
+  const doFetch = options.fetchImpl ?? globalThis.fetch;
+  const sleep = options.sleep ?? defaultSleep;
+  const timeoutMs = options.timeoutMs ?? WEBHOOK_TIMEOUT_MS;
+  let target: string;
+  try {
+    const parsed = new URL(url);
+    parsed.pathname = `${parsed.pathname.replace(/\/$/, '')}/messages/${encodeURIComponent(messageId)}`;
+    target = parsed.toString();
+  } catch {
+    return { status: 'failed', httpStatus: null, reason: 'bad webhook url', attempts: 0 };
+  }
+
+  let lastStatus: number | null = null;
+  let lastReason = 'no attempt was made';
+  let attempts = 0;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    attempts = attempt;
+    let response: Response;
+    try {
+      response = await doFetch(target, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
+        signal: AbortSignal.timeout(timeoutMs),
+        redirect: 'error',
+      });
+    } catch (error) {
+      lastReason = error instanceof Error ? error.name : 'network error';
+      lastStatus = null;
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(RETRY_DELAY_MS);
+        continue;
+      }
+      break;
+    }
+    lastStatus = response.status;
+    await response.text().catch(() => '');
+    if (response.ok) return { status: 'posted', httpStatus: response.status, reason: null, attempts };
+    lastReason = `HTTP ${response.status}`;
+    if (response.status < 500 || attempt >= MAX_ATTEMPTS) break;
+    await sleep(RETRY_DELAY_MS);
+  }
+  return { status: 'failed', httpStatus: lastStatus, reason: lastReason, attempts };
 }

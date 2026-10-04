@@ -1,18 +1,22 @@
 import { evenness } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { awardLine } from '../discord/embeds';
-import { HOW_THIS_WORKS_LINES } from '../shellCopy';
 import { WORKED_ROSTER } from '../testing/workedExample';
 import {
+  ALL_TEN_IN,
   adminNames,
   asSentence,
   EVENNESS_PERFECT,
   evennessLine,
   IDLE_SENTENCE,
+  OVERFULL_LEAD,
   OVERFULL_SENTENCE,
-  ROLL_ADMIN_HINT,
+  ROLL_AT_TEN_HINT,
   ROLL_HINT,
+  ROLL_REPAIR_HINT,
   rerollMarker,
+  rollAdminHint,
+  rollerSubLine,
   TAPE_NO_RESULT,
   TAPE_TITLE,
   TAPE_WINS,
@@ -118,22 +122,13 @@ describe('the night tape copy (M11.2)', () => {
 describe('the roll, as `/` says it', () => {
   it('names the admin roll in the idle sentence, and keeps the bot as the one who picks', () => {
     expect(IDLE_SENTENCE).toBe(
-      'When ten are in a custom lobby with the companion running, an admin rolls and the bot picks the teams.',
+      'When ten are in a custom lobby with Kustom running, an admin rolls and the bot picks the teams.',
     );
     expect(IDLE_SENTENCE).not.toMatch(/show up/i);
   });
 
-  it('names the admin roll in How this works, line 2, beside the bot making the call', () => {
-    const line = HOW_THIS_WORKS_LINES[1];
-    expect(line).toBe(
-      "When everyone is in, an admin taps Roll teams. Who plays with whom is the bot's call: it makes three splits and posts the fairest, with the win chance and the rating gap. An admin can step to the next one. Nothing is picked at random.",
-    );
-    expect(line).toContain('Roll teams');
-    expect(line).toContain("the bot's call");
-  });
-
-  it('never claims teams appear by themselves, anywhere on the page or in the footer', () => {
-    for (const text of [IDLE_SENTENCE, ...HOW_THIS_WORKS_LINES, ROLL_HINT, OVERFULL_SENTENCE]) {
+  it('never claims teams appear by themselves, anywhere on the page', () => {
+    for (const text of [IDLE_SENTENCE, ROLL_HINT, OVERFULL_SENTENCE]) {
       expect(text).not.toMatch(/show up|appear|automatic|in a moment/i);
     }
   });
@@ -144,10 +139,24 @@ describe('the roll, as `/` says it', () => {
    */
   it('means everyone staying, not literally ten', () => {
     expect(ROLL_HINT).toBe('Once everyone who is staying is in, an admin rolls the teams.');
-    expect(ROLL_ADMIN_HINT).toBe(
-      'Check everyone who is staying is in, then roll. Past ten, the bot picks who sits out.',
+    for (const text of [ROLL_HINT, ROLL_AT_TEN_HINT]) expect(text).not.toMatch(/right ten|right people/i);
+  });
+
+  it('M14.41: the roller reads no Waiting on, and the hint never restates the sub-line', () => {
+    expect(rollerSubLine(10)).toBe(ALL_TEN_IN);
+    expect(rollerSubLine(12)).toBe(OVERFULL_LEAD);
+    expect(rollAdminHint(10, null)).toBe("Roll once everyone who's staying is in the lobby.");
+    const preview = 'If the teams rolled now, Chaos and then Mo would sit out.';
+    expect(rollAdminHint(12, preview)).toBe(preview);
+    expect(rollAdminHint(12, null)).toBeNull();
+    // M14.45: a balanced lobby with no teams drawn has its own line, whatever the count.
+    expect(rollAdminHint(10, null, 'repair')).toBe(
+      "The last roll didn't finish. Roll again to make the teams.",
     );
-    for (const text of [ROLL_HINT, ROLL_ADMIN_HINT]) expect(text).not.toMatch(/right ten|right people/i);
+    expect(rollAdminHint(12, preview, 'repair')).toBe(ROLL_REPAIR_HINT);
+    for (const text of [rollerSubLine(10), rollerSubLine(12), ROLL_AT_TEN_HINT]) {
+      expect(text).not.toMatch(/Waiting on|Check everyone/);
+    }
   });
 
   it('says the overfull lobby is still waiting on the roll, not only that someone sits out', () => {

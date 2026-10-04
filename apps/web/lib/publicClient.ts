@@ -1,6 +1,6 @@
 import type { Database } from '@customs/db';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { readAuthEnv } from './env';
+import { readPublicSupabaseEnv } from './publicEnv';
 
 /**
  * The Supabase client the **public** pages read with: the anon key and nothing else.
@@ -21,7 +21,8 @@ import { readAuthEnv } from './env';
 export type PublicClient = SupabaseClient<Database>;
 
 export function createPublicClient(): PublicClient {
-  const env = readAuthEnv();
+  // zod-free (M14.44): this module can reach a browser bundle.
+  const env = readPublicSupabaseEnv();
 
   return createClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     auth: {

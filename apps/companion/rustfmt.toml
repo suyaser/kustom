@@ -1,0 +1,2 @@
+# Same line width as Biome (biome.json) so the Rust and TypeScript sides read alike.
+max_width = 110

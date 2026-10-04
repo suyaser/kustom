@@ -24,5 +24,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     timeZone: nightTimeZone(),
     groupId: resolved.group.id,
   });
-  return cardResponse(<TonightCard model={tonightCardModel(snapshot)} />, 'public, max-age=60, s-maxage=60');
+  return cardResponse(
+    <TonightCard model={tonightCardModel(snapshot, resolved.group.name)} />,
+    'public, max-age=60, s-maxage=60',
+  );
 }

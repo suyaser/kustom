@@ -1,0 +1,32 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`recapPayload > adds the labelled line as its own last embed, slate, and changes nothing else (M14.61) 1`] = `
+{
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 3",
+      },
+      "color": 3900150,
+      "description": "**MVP** Nadia · **ACE** Ziad",
+      "title": "Blue wins · 31 min",
+    },
+    {
+      "color": 3054591,
+      "description": "a",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "b",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 9148589,
+      "description": "Nadia put up 9 kills.",
+      "title": "AI recap",
+    },
+  ],
+  "username": "Kustom",
+}
+`;

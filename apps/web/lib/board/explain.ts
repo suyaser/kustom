@@ -1,4 +1,5 @@
 import type { SideValue } from '@customs/db';
+import { sumDisplayDeltas } from '../ratingDisplay';
 import { gameExplanation, seededLine, startedLine } from './copy';
 import type { PlayerBoardView, RecentGame } from './types';
 
@@ -59,7 +60,7 @@ export function explainGame(game: RecentGame): string | null {
  * the rank clause it carried until 2026-09-16; M7.22 named the count's universe the same day), and
  * `Started the week at 1469, 6 rated games since.` in a window (M5.12's four).
  *
- * `player.games` is the rated count on every one of the five windows — `ratings.games` on
+ * `player.games` is the rated count on every one of the three windows — `ratings.games` on
  * `All time`, the window's folded rows elsewhere — which is why the clause can say `rated` without
  * a branch.
  *
@@ -73,5 +74,20 @@ export function explainGame(game: RecentGame): string | null {
  */
 export function explainRatingStart(player: PlayerBoardView): string | null {
   if (player.window === 'all-time') return seededLine(player.reference, player.games);
-  return player.games === 0 ? null : startedLine(player.window, player.reference, player.games);
+  return player.games === 0 ? null : startedLine(player.reference, player.games);
+}
+
+/**
+ * Tonight's change: the sum of tonight's printed per-game deltas over the group's rated games since
+ * tonight began (M14.57's one rounding rule for a sum), through `sumDisplayDeltas`, the function
+ * Your night calls, so the tile and the card can never disagree. `null` when none tonight.
+ */
+export function tonightDelta(player: PlayerBoardView, since: Date): number | null {
+  return sumDisplayDeltas(
+    player.recent.flatMap((game) =>
+      new Date(game.startedAt).getTime() >= since.getTime() && game.muBefore !== null && game.muAfter !== null
+        ? [{ muBefore: game.muBefore, muAfter: game.muAfter }]
+        : [],
+    ),
+  );
 }

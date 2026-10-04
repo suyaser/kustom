@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { internalPathSchema } from '@/lib/admin/formValues';
 import { discordConfigRequestSchema } from './discord-config/schema';
 import { fearlessResetRequestSchema } from './fearless/reset/schema';
-import { adminPlayersRequestSchema } from './players/schema';
 import { adminTokensRequestSchema } from './tokens/schema';
 
 /**
@@ -14,109 +13,14 @@ const PLAYER = '11111111-1111-4111-8111-111111111111';
 /** Every admin body names its group (M13.4). */
 const GROUP = '00000000-0000-4000-8000-00000000000a';
 
-describe('adminPlayersRequestSchema', () => {
-  it('still parses a stale tab\u2019s role post, so the route can refuse it in words (M5.17)', () => {
-    // The action is retired and the handler answers 410. The variant stays parseable because a
-    // browser that has had the page open since before the deploy is the one caller left, and
-    // `that form was not valid` would tell them nothing true.
-    const parsed = adminPlayersRequestSchema.parse({
-      groupId: GROUP,
-      action: 'set-roles',
-      playerId: PLAYER,
-      mainRole: '',
-      secondaryRole: 'none',
-    });
-
-    expect(parsed).toMatchObject({ action: 'set-roles', playerId: PLAYER });
-  });
-
-  it('rejects a player id that is not a uuid', () => {
-    const result = adminPlayersRequestSchema.safeParse({
-      groupId: GROUP,
-      action: 'set-name',
-      playerId: 'puuid-hana',
-      displayName: 'Hana',
-    });
-
-    expect(result.success).toBe(false);
-  });
-
-  it('trims a Discord id and turns an empty one into an unlink', () => {
-    expect(
-      adminPlayersRequestSchema.parse({
-        groupId: GROUP,
-        action: 'set-discord',
-        playerId: PLAYER,
-        discordId: '  204255221925378048  ',
-      }),
-    ).toMatchObject({ discordId: '204255221925378048' });
-
-    expect(
-      adminPlayersRequestSchema.parse({
-        groupId: GROUP,
-        action: 'set-discord',
-        playerId: PLAYER,
-        discordId: '',
-      }),
-    ).toMatchObject({ discordId: null });
-  });
-
-  it('reads the admin flag as a target state, from a string or a boolean', () => {
-    expect(
-      adminPlayersRequestSchema.parse({
-        groupId: GROUP,
-        action: 'set-admin',
-        playerId: PLAYER,
-        isAdmin: 'false',
-      }),
-    ).toMatchObject({ isAdmin: false });
-    expect(
-      adminPlayersRequestSchema.parse({
-        groupId: GROUP,
-        action: 'set-admin',
-        playerId: PLAYER,
-        isAdmin: true,
-      }),
-    ).toMatchObject({ isAdmin: true });
-  });
-
-  it('takes a display name and reads an empty field as "back on automatic"', () => {
-    expect(
-      adminPlayersRequestSchema.parse({
-        groupId: GROUP,
-        action: 'set-name',
-        playerId: PLAYER,
-        displayName: '  Hamoodi ',
-      }),
-    ).toEqual({ groupId: GROUP, action: 'set-name', playerId: PLAYER, displayName: 'Hamoodi' });
-
-    // The form posts "" for a cleared field; a JSON caller sends null. Both mean the same thing.
-    for (const displayName of ['', '   ', null]) {
-      expect(
-        adminPlayersRequestSchema.parse({
-          groupId: GROUP,
-          action: 'set-name',
-          playerId: PLAYER,
-          displayName,
-        }),
-      ).toMatchObject({ displayName: null });
-    }
-  });
-
-  it('rejects an unknown action', () => {
-    expect(
-      adminPlayersRequestSchema.safeParse({ groupId: GROUP, action: 'delete', playerId: PLAYER }).success,
-    ).toBe(false);
-  });
-});
-
 describe('adminTokensRequestSchema', () => {
-  it('accepts a mint with no label', () => {
+  it('still parses an old mint body, keeping only the action and group, so the handler can answer 410 (M17.12)', () => {
     expect(
       adminTokensRequestSchema.parse({ groupId: GROUP, action: 'mint', playerId: PLAYER, label: '' }),
-    ).toMatchObject({
+    ).toEqual({ action: 'mint', groupId: GROUP });
+    expect(adminTokensRequestSchema.parse({ groupId: GROUP, action: 'mint' })).toEqual({
       action: 'mint',
-      label: null,
+      groupId: GROUP,
     });
   });
 
@@ -170,8 +74,17 @@ describe('discordConfigRequestSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects an empty guild id', () => {
-    expect(discordConfigRequestSchema.safeParse({ ...base, guildId: '  ' }).success).toBe(false);
+  it('reads a missing, empty, null or "unknown" guild id as absent, and keeps an explicit one', () => {
+    const { guildId: _omit, ...withoutGuild } = base;
+    for (const body of [
+      withoutGuild,
+      { ...base, guildId: '  ' },
+      { ...base, guildId: 'unknown' },
+      { ...base, guildId: null },
+    ]) {
+      expect(discordConfigRequestSchema.parse(body).guildId).toBeUndefined();
+    }
+    expect(discordConfigRequestSchema.parse({ ...base, guildId: ' 123 ' }).guildId).toBe('123');
   });
 
   it('reads the clear checkbox', () => {
@@ -204,8 +117,5 @@ describe('fearlessResetRequestSchema', () => {
     expect(fearlessResetRequestSchema.safeParse({}).success).toBe(false);
     expect(fearlessResetRequestSchema.safeParse({ groupId: 'customs' }).success).toBe(false);
     expect(adminTokensRequestSchema.safeParse({ action: 'revoke', tokenId: PLAYER }).success).toBe(false);
-    expect(
-      adminPlayersRequestSchema.safeParse({ action: 'set-admin', playerId: PLAYER, isAdmin: true }).success,
-    ).toBe(false);
   });
 });

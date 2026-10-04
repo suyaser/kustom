@@ -39,6 +39,14 @@ export interface PoolMember {
    * in the sit-out ordering reads it; it is the balancer's number, not the rotation's.
    */
   gamesSinceLastFill?: number | null;
+  /**
+   * True for the player whose companion hosts the lobby (`lobbies.reported_by_player_id`: the first
+   * companion to report the party, M2.x). {@link selectTen} never seats them out (M14.43, lead ruling
+   * 2026-10-03): until a real client shows that a host in the spectator slot still gets the
+   * end-of-game block (`docs/03-lcu-reference.md`, unverified), seating the host out could leave the
+   * game unrecorded. Absent is false.
+   */
+  isHost?: boolean;
 }
 
 /**
@@ -77,6 +85,13 @@ export class SelectionError extends Error {
 /**
  * The ten who play tonight's next game, and the people who sit.
  *
+ * **The host always plays** (M14.43). The order is {@link compareForSitOut} as ever, with the host
+ * (`isHost`) taken out of the sitting end: the sitters are the first `n - 10` of everyone else, and
+ * the host joins the ten. So with eleven around, the host plus ten others, the host plays and the
+ * next in line sits; nobody else's place moves by more than the one seat the host gave up. At most
+ * one member is the host; were two ever marked, both are protected while that still leaves ten
+ * seats for them.
+ *
  * Fewer than ten around is not an error the companion ever sees: the caller only gets here
  * with ten or more, and this throw is the bug net.
  */
@@ -86,8 +101,12 @@ export function selectTen(pool: readonly PoolMember[]): Selection {
   }
 
   const ordered = [...pool].sort(compareForSitOut);
-  const sitters = ordered.slice(0, pool.length - PLAYERS_PER_GAME);
-  const playing = ordered.slice(pool.length - PLAYERS_PER_GAME);
+  const seats = pool.length - PLAYERS_PER_GAME;
+  const canSit = ordered.filter((member) => member.isHost !== true);
+  const sitting = new Set((canSit.length >= seats ? canSit : ordered).slice(0, seats));
+  const sitters = ordered.filter((member) => sitting.has(member));
+  // Still in sit-out order, so "playing" reads from the same comparator as before.
+  const playing = ordered.filter((member) => !sitting.has(member));
 
   if (playing.length !== PLAYERS_PER_GAME) {
     throw new SelectionError(`selected ${playing.length} players, not ten`);

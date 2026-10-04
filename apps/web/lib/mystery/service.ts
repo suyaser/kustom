@@ -2,7 +2,8 @@ import type { DailyMysteryAttemptRow, DailyMysteryRow, RoleValue } from '@custom
 import { mysteryClueTypeSchema } from '@customs/db/schemas';
 import { championName } from '../champs/names';
 import { inChunks } from '../chunks';
-import { formatDamage, formatDuration } from '../discord/embeds';
+import { formatDamage } from '../discord/embeds';
+import { formatMinutes } from '../games/duration';
 import { formatDayMonth, nextCivilMidnight } from '../night';
 import { rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
@@ -31,7 +32,7 @@ const DEFAULT_HOOK: MysteryPublicHook = {
   assists: 0,
   kda: '0 / 0 / 0',
   durationS: 0,
-  durationLabel: '0:00',
+  durationLabel: '1 min',
   lines: [],
 };
 
@@ -505,7 +506,7 @@ async function loadPerformance(
     damageSelfMitigated: seat?.damage_self_mitigated ?? facts?.damageSelfMitigated ?? null,
     damageToObjectives: seat?.damage_to_objectives ?? facts?.damageToObjectives ?? null,
     durationS,
-    durationLabel: formatDuration(durationS),
+    durationLabel: formatMinutes(durationS),
     won: game !== null && seat !== null && game.winning_side === seat.side,
     startedLabel: game === null ? '' : formatDayMonth(new Date(game.started_at), timeZone),
   };

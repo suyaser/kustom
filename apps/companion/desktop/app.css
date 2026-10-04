@@ -1,0 +1,467 @@
+/* Kustom's window (05-design §9): 400 × 690, Night only, tokens from tokens.css. No hex here. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--page-light), var(--background);
+  color: var(--foreground);
+  font-family: var(--font-text);
+  font-size: var(--fs-base);
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+body [hidden] {
+  display: none;
+}
+
+/* --- Header 52 ------------------------------------------------------------------------------------------ */
+.top {
+  flex: none;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--border);
+}
+.lockup {
+  display: block;
+}
+.lockup-bar {
+  fill: var(--primary-text);
+}
+.lockup-word {
+  fill: currentColor;
+}
+.version {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--fs-2xs);
+  color: var(--muted-foreground);
+}
+
+/* --- Main ----------------------------------------------------------------------------------------------- */
+/* Main and the footer scroll together under the fixed header: at 100 % text every state but the tallest
+   fits; the tallest and larger Windows text sizes scroll vertically, never sideways (9.1, 9.8). */
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+main {
+  flex: 1 0 auto;
+  padding: 12px var(--gutter);
+}
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+h1 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+p {
+  margin: 0;
+}
+.muted,
+.label,
+.line,
+.row-label {
+  color: var(--muted-foreground);
+  font-size: var(--fs-xs);
+}
+.lead {
+  font-size: var(--fs-base);
+}
+
+/* --- Controls (9.2) ------------------------------------------------------------------------------------- */
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+.primary,
+.secondary {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast);
+}
+.primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid var(--primary);
+}
+.secondary {
+  background: var(--raised);
+  color: var(--foreground);
+  border: 1px solid var(--border-strong);
+}
+.wide {
+  width: 100%;
+}
+[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+.link-button {
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--foreground);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* A control focused below the fold scrolls into view clear of the fixed header (9.1). */
+button,
+input,
+select {
+  scroll-margin-top: 60px;
+}
+
+/* --- Link ----------------------------------------------------------------------------------------------- */
+.back {
+  margin-top: -12px;
+  margin-bottom: -8px;
+}
+.steps {
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: var(--fs-xs);
+  display: grid;
+  gap: 6px;
+}
+.link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.link-form label {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+.code {
+  height: 56px;
+  width: 100%;
+  padding: 0 14px;
+  background: var(--card);
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--fs-xl);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.code[readonly] {
+  color: var(--muted-foreground);
+}
+
+/* Answer slots reserve their lines so no answer moves what is below. */
+.slot {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.slot p + p {
+  margin-top: 4px;
+}
+.slot[data-role="alert"] {
+  color: var(--foreground);
+}
+.slot-3 {
+  min-height: calc(3 * 1.45em);
+}
+.slot-1 {
+  min-height: 1.45em;
+}
+
+/* --- Cards ---------------------------------------------------------------------------------------------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* The group card: 16 all round; the bottom is the link-button's own 44px hit area (12px of it is the
+   visual padding), so the space under `Link another group` matches the space above `Recording for`. */
+.group-card {
+  padding: 16px 16px 4px;
+}
+/* Sentence and button side by side; at larger text sizes the button wraps under, full width (9.5.4). */
+.update-card {
+  border-color: var(--border-strong);
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 8px;
+}
+.update-card #update-text {
+  flex: 999 1 7em;
+}
+.update-card .primary {
+  flex: 1 0 auto;
+}
+.update-card .line {
+  flex: 1 0 100%;
+}
+.group-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.group-heading .label {
+  font-weight: 400;
+}
+.linked-line {
+  font-size: var(--fs-xs);
+}
+.switcher {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+  margin-top: 4px;
+}
+.switcher .line {
+  grid-column: 1 / -1;
+}
+.switcher label {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+select {
+  min-height: var(--tap);
+  width: 100%;
+  min-width: 0;
+  padding: 0 32px 0 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--raised);
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  font-size: var(--fs-base);
+}
+.line:empty {
+  display: none;
+}
+
+/* Status card: two rows ≥ 48 */
+.status-card {
+  gap: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+/* Label, dot and value line up on the value's first line when it wraps. */
+.row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  align-items: start;
+  gap: 8px;
+  padding: 12px 0;
+}
+.row-label {
+  padding-top: 2px;
+}
+.row + .row,
+.slot + .row,
+.cant-find + .slot + .row,
+.league-row + .slot + .row {
+  border-top: 1px solid var(--border);
+}
+.row-value {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.dot {
+  flex: none;
+  margin-top: 6px;
+}
+.dot-solid {
+  fill: var(--primary-fill);
+}
+.dot-ring {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+/* Connected: the solid amber dot. Not open / reconnecting: the hollow --border-strong ring (9.5.3). */
+.dot[data-solid="true"] .dot-ring,
+.dot:not([data-solid="true"]) .dot-solid {
+  display: none;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--fs-xs);
+}
+.winner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.winner svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+.winner-blue {
+  color: var(--team-blue);
+}
+.winner-red {
+  color: var(--team-red);
+}
+.cant-find {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 8px;
+  font-size: var(--fs-xs);
+}
+.cant-find-title {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.cant-find-title .row-label {
+  padding-top: 3px;
+}
+.cant-find-title strong {
+  font-size: var(--fs-base);
+}
+.buttons {
+  display: flex;
+  gap: 8px;
+}
+#league-slot {
+  padding-bottom: 8px;
+}
+
+/* League folder row */
+.folder-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-xs);
+}
+.folder-label {
+  color: var(--muted-foreground);
+}
+.folder-value {
+  overflow-wrap: anywhere;
+}
+#folder-slot {
+  margin-top: -8px;
+}
+
+/* Restarting */
+.restarting {
+  height: 100%;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+/* --- Footer --------------------------------------------------------------------------------------------- */
+footer {
+  flex: none;
+  padding: 0 var(--gutter) 10px;
+  border-top: 1px solid var(--border);
+}
+.footer-row {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary-fill);
+}
+.footer-row .link-button {
+  align-self: center;
+}
+.note {
+  font-size: var(--fs-2xs);
+  line-height: 1.25;
+  color: var(--muted-foreground);
+}
+.note + .note {
+  margin-top: 8px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .dot-solid,
+  .lockup-bar {
+    fill: CanvasText;
+  }
+  .dot-ring {
+    stroke: CanvasText;
+  }
+}

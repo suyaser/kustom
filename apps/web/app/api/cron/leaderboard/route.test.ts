@@ -9,7 +9,7 @@ import { GET } from './route';
  * `lib/discord/leaderboardPost.test.ts` (the three skip rules) and by the embed's snapshot.
  * What is only true at this seam is that the route hands a `WebhookOutcome` to the caller
  * unchanged — a scheduler that gets `{"ok":true}` and nothing else cannot tell a post from a
- * silence, and the first morning of a season is a silence on purpose.
+ * silence, and the first morning of a new group is a silence on purpose.
  */
 const outcome = vi.hoisted(() => ({
   value: { status: 'posted', httpStatus: 204, reason: null, attempts: 1 } as WebhookOutcome,

@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the weekly storyline > is missing: the post is byte-identical to the one without the hook (snapshot) 1`] = `
+{
+  "embeds": [
+    {
+      "color": 16764774,
+      "description": "Sunday 6 Sep to Saturday 12 Sep · 4 rated games",
+      "fields": [
+        {
+          "name": "The board",
+          "value": "\`1\` **Lena** · +86 · 3W–1L",
+        },
+        {
+          "name": "Best off-role",
+          "value": "Lena · 3W 1L",
+        },
+      ],
+      "footer": {
+        "text": "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams.",
+      },
+      "title": "Last week · board",
+    },
+  ],
+  "username": "Kustom",
+}
+`;

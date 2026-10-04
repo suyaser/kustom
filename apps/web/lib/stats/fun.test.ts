@@ -4,11 +4,13 @@ import { funFactsView } from './fun';
 import {
   champTimesLine,
   DOUBLE_TITLE,
+  damageLine,
   FIRST_BLOOD_EMPTY,
   FIRST_BLOOD_TAKEN_EMPTY,
   FIRST_BLOOD_TITLE,
   fearBanLine,
   funRoast,
+  goldLine,
   LUCKY_TRASH,
   ODDS_EMPTY,
   ODDS_NONE_TWICE,
@@ -756,5 +758,37 @@ describe('funFactsView: won against the odds', () => {
 
   it('roasts its own title in 3ameya', () => {
     expect(funRoast(ODDS_TITLE)).toBe('كسبوا وهما خسرانين');
+  });
+});
+
+describe('damage and gold lines (M14.42, quality G2)', () => {
+  it('group thousands in the display locale, never the server or browser default', () => {
+    expect(damageLine(47_300.4)).toBe('47,300 damage');
+    expect(goldLine(1_234_567)).toBe('1,234,567 gold');
+  });
+});
+
+describe('kill participation on the Fun cards (M14.77)', () => {
+  it('skips a side whose kills are fewer than a player’s takedowns, so Glue never reads over 100%', () => {
+    // Blue's rows add up to 5 kills (Glue's floor), but Hana alone took part in 10: short rows.
+    const game = tenPlayerGame({
+      id: 'short-rows',
+      at: '2026-09-08T20:00:00Z',
+      lcuGameId: '77',
+      durationS: 1_800,
+      winner: 100,
+      blue: [
+        { key: 'hana', role: 'top', kills: 1, deaths: 1, assists: 9 },
+        { key: 'iris', role: 'jungle', kills: 2, deaths: 1, assists: 1 },
+        { key: 'rami', role: 'mid', kills: 2, deaths: 1, assists: 0 },
+      ],
+    });
+    const facts = funFactsView([game], rosterFor([game]));
+    const glue = facts.records.find((record) => record.id === 'glue');
+    expect(glue?.holders[0]?.name).toBe('Iris');
+    expect(glue?.holders[0]?.valueLabel).toContain('60%');
+    for (const record of facts.records) {
+      for (const holder of record.holders) expect(holder.valueLabel).not.toMatch(/\b[1-9]\d{2,}%/);
+    }
   });
 });

@@ -47,7 +47,6 @@ if (stack === null) {
   };
   const playerIds = new Map<string, string>();
   const gameIdsOf = { a: [] as string[], b: [] as string[] };
-  let seasonId = '';
 
   /** Two days in 2032 that are the same game, so the second is that kind's `#2` in a group. */
   const days = (() => {
@@ -71,7 +70,6 @@ if (stack === null) {
         .insert({
           group_id: groups[key],
           lcu_game_id: Number(`8${key === 'a' ? 1 : 2}${stamp}${String(index).padStart(2, '0')}`),
-          season_id: seasonId,
           started_at: new Date(Date.UTC(2032, 3, 1) + index * 3_600_000).toISOString(),
           duration_s: 1_900 + index,
           winning_side: index % 2 === 0 ? 100 : 200,
@@ -110,15 +108,6 @@ if (stack === null) {
   }
 
   beforeAll(async () => {
-    // A container of this run's own, never the active one (see `challenge.integration.test.ts`).
-    const { data: container, error: seasonError } = await db
-      .from('seasons')
-      .insert({ name: `daily per group ${runId}`, is_active: false })
-      .select('id')
-      .single();
-    if (seasonError) throw new Error(seasonError.message);
-    seasonId = container.id;
-
     Object.assign(
       groups,
       await createTestGroups(db, runId, ['ma', 'mb', 'mc'] as const).then((made) => ({
@@ -146,7 +135,6 @@ if (stack === null) {
       .from('players')
       .delete()
       .in('puuid', [...people.a, ...people.b]);
-    if (seasonId !== '') await db.from('seasons').delete().eq('id', seasonId);
   });
 
   describe('two groups on the same day', () => {

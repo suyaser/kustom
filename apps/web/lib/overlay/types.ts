@@ -55,6 +55,11 @@ export interface OverlayLobby {
 export interface OverlayView {
   viewerPuuid: string;
   fearless: {
+    /**
+     * Whether the group is on Fearless (M14.29: `mode === 'fearless'`). False on Normal, and then
+     * `champions` is empty: nothing is banned tonight, which is true. The paused pool is not sent.
+     */
+    enabled: boolean;
     champions: readonly OverlayFearlessChampion[];
     resetAt: string | null;
   };

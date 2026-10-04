@@ -6,7 +6,9 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SWITCH_SIDE_ENABLED } from '@/lib/commands/gate';
+import { explanationShown } from '@/lib/receipt/copy';
 import { eogBody, lobbyBody } from '@/lib/testing/fixtures';
+import { snapshotGroupModes } from '@/lib/testing/groupModes';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { rollForTest } from '@/lib/testing/roll';
 import { sideLine } from '@/lib/tonight/copy';
@@ -46,6 +48,7 @@ if (stack === null) {
   const { createPublicClient } = await import('@/lib/publicClient');
   const { buildResultInput, loadResultSource } = await import('@/lib/discord/assemble');
   const { TonightView } = await import('./_tonight/TonightView');
+  const { ORIGINAL_GROUP } = await import('@/lib/groups/pageGroup');
   const { POST: postLobby } = await import('./api/companion/lobby/route');
   const { POST: postGame } = await import('./api/companion/game/route');
 
@@ -99,11 +102,23 @@ if (stack === null) {
     return renderToStaticMarkup(
       // The rail is empty here: this asserts the first paint of the night's own column, and
       // `Top of the board` is a second query the page makes beside this one (M3.19).
-      createElement(TonightView, { snapshot, viewer: { kind: 'anonymous' }, topPlayers: [] }),
+      createElement(TonightView, {
+        snapshot,
+        viewer: { kind: 'anonymous' },
+        group: ORIGINAL_GROUP,
+        topPlayers: [],
+      }),
     );
   }
 
+  /**
+   * Rolled lobbies here record games in the real `customs` group, and since M15.3 each one runs
+   * compare-and-clear on its Mode card. Put the card back the way this file found it.
+   */
+  let restoreGroupModes: () => Promise<void> = async () => {};
+
   beforeAll(async () => {
+    restoreGroupModes = await snapshotGroupModes(db, ORIGINAL_GROUP_ID);
     const ids = await ensurePlayers(
       db,
       ten.map((puuid) => ({ puuid })),
@@ -132,6 +147,7 @@ if (stack === null) {
    * `game_players` and the companion token all cascade off them.
    */
   afterAll(async () => {
+    await restoreGroupModes();
     const { error: gameError } = await db.from('games').delete().eq('lcu_game_id', gameId);
     if (gameError) throw new Error(`cleanup: deleting the test game failed: ${gameError.message}`);
 
@@ -215,9 +231,11 @@ if (stack === null) {
         .eq('lobby_id', lobbyId)
         .eq('is_chosen', true)
         .single();
-      // Verbatim: the page prints the stored sentence and never recomposes it.
+      // Verbatim: the page prints the stored sentence and never recomposes it, except core's
+      // all-on-main clause, which follows the chip when nobody has a main role on record (M14.41
+      // review): these ten are all flexible.
       expect(snapshot.lobby?.teams?.explanation).toBe(stored?.explanation);
-      expect(await firstPaint()).toContain(escapeHtml(stored?.explanation ?? ''));
+      expect(await firstPaint()).toContain(escapeHtml(explanationShown(stored?.explanation ?? '', 10)));
     });
 
     it('follows a reroll: the page becomes the promoted split, sentence and seats (M3.7)', async () => {
@@ -301,7 +319,6 @@ if (stack === null) {
       expect(sorted.lobby?.teams?.blue.map((seat) => seat.liveSide)).toEqual([100, 100, 100, 100, 100]);
       expect(sorted.lobby?.teams?.red.map((seat) => seat.liveSide)).toEqual([200, 200, 200, 200, 200]);
       expect(await firstPaint()).not.toContain(printed);
-      expect(await firstPaint()).not.toContain('cn-side-line');
 
       // One person drags themselves back across, which is one `lobby_members` update.
       const stray = teams?.blue[0]?.puuid ?? '';
@@ -349,8 +366,9 @@ if (stack === null) {
       const html = await firstPaint();
       // Floodlit's result headline: the display cut, upper case, in the winner's colour.
       expect(html).toMatch(/(BLUE|RED) WINS/);
-      // The delta is rendered, and it is signed.
-      expect(html).toMatch(/\((\+|−)\d+\)/);
+      // The delta is rendered, signed, and read as words (05-design 5.3, M14.9).
+      expect(html).toMatch(/>(\+|−)\d+</);
+      expect(html).toMatch(/(gained|lost) \d+|no change/);
     });
 
     it('names the same MVP and ACE as the result post, through the anon key (M11.3)', async () => {
@@ -358,7 +376,7 @@ if (stack === null) {
       if (error) throw new Error(error.message);
       const source = await loadResultSource(db, game.id);
       if (source === null) throw new Error('no result source');
-      const posted = buildResultInput(source, { timestamp: new Date().toISOString() });
+      const posted = buildResultInput(source, { identity: { groupName: null } });
 
       const snapshot = await loadTonight(anon, { nightStart: tonightStart() });
       expect(snapshot.lobby?.result?.award).toEqual(posted?.award ?? null);
@@ -422,7 +440,7 @@ if (stack === null) {
       expect([...times].sort((a, b) => a - b)).toEqual(times);
       expect(after.tape.some((entry) => entry.lobbyId === after.lobby?.id)).toBe(false);
 
-      expect(await firstPaint()).toContain('Earlier tonight');
+      expect(await firstPaint()).toContain('s tape');
     });
 
     it('never puts a Discord id on the wire, and the anon key cannot ask for one', async () => {

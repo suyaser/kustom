@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { extraMember, lobbyView, workedMembers } from '@/lib/testing/tonightFixtures';
 import {
   PICK_YOURSELF,
+  PICK_YOURSELF_TITLE,
   ROLE_CONTROL_HEADING,
   ROLE_CONTROL_HINT,
   ROLE_SIGN_IN,
@@ -16,7 +17,7 @@ import {
 } from '@/lib/tonight/copy';
 import type { LobbyView } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
-import { RoleTonight } from './RoleTonight';
+import { linkLanding, RoleTonight } from './RoleTonight';
 
 /**
  * `Your role tonight` and `That's me` (M3.6).
@@ -148,9 +149,10 @@ describe("the role control, for a linked viewer in tonight's lobby", () => {
     );
     // Above the hint, under the words it belongs to: a refusal below a grey explanation is a
     // refusal nobody reads (the designer, 2026-09-10).
-    const card = screen.getByRole('alert').parentElement;
-    const order = [...(card?.children ?? [])].map((child) => child.className);
-    expect(order.indexOf('cn-role-error')).toBeLessThan(order.indexOf('cn-hint'));
+    const hint = screen.getByText(ROLE_CONTROL_HINT);
+    expect(
+      screen.getByRole('alert').compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     // Not a banner at the top of the page and not in the query string (M3.20), and the word
     // that was pressed is not left looking chosen.
     expect(mid).toHaveAttribute('aria-pressed', 'false');
@@ -206,8 +208,7 @@ describe('signed out, with a lobby up', () => {
 
     // The same card as every other state, with a title, a sentence, and a button whose label
     // is a label (the designer and product, 2026-09-10).
-    expect(container.querySelector('.cn-role-card')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: ROLE_CONTROL_HEADING })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: ROLE_CONTROL_HEADING })).toBeInTheDocument();
     expect(screen.getByText(ROLE_SIGN_IN)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: SIGN_IN_LABEL })).toBeEnabled();
     expect(container.querySelector('form')).toHaveAttribute('action', '/auth/signin');
@@ -219,10 +220,12 @@ describe('signed out, with a lobby up', () => {
 describe('signed in with no player row: picking yourself, once', () => {
   const visitor = unlinked();
 
-  it("offers tonight's members, each with `That's me`, under product's question", () => {
+  it("offers tonight's members, each with `That's me`, under the question as the card's h2 (M14.65)", () => {
     draw(visitor, lobby());
 
-    expect(screen.getByRole('heading', { name: ROLE_CONTROL_HEADING })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Which one is you?' })).toBeInTheDocument();
+    expect(PICK_YOURSELF_TITLE).toBe('Which one is you?');
+    expect(screen.queryByRole('heading', { name: ROLE_CONTROL_HEADING })).toBeNull();
     expect(screen.getByText(PICK_YOURSELF)).toBeInTheDocument();
     expect(screen.getAllByRole('button')).toHaveLength(4);
     // The visible label is the same four words on every row; the name is what a listener
@@ -230,17 +233,60 @@ describe('signed in with no player row: picking yourself, once', () => {
     expect(screen.getAllByRole('button')[0]).toHaveAccessibleName(`${THATS_ME}: Bilal`);
   });
 
-  it('posts the puuid, never navigates, and asks the page to re-read who the viewer is', async () => {
+  it('once the teams are set, the card folds to one line that opens (lead ruling, M14.65)', () => {
+    const { container } = draw(visitor, lobby({ status: 'balanced' }));
+    const details = container.querySelector('details') as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.open).toBe(false);
+    const summary = details.querySelector('summary') as HTMLElement;
+    expect(summary).toHaveTextContent('Which one is you? Pick yourself');
+    expect(screen.getByRole('heading', { level: 2, name: 'Which one is you?' })).toBeInTheDocument();
+    fireEvent.click(summary);
+    expect(details.open).toBe(true);
+    expect(screen.getAllByRole('button', { name: new RegExp(THATS_ME) })).toHaveLength(4);
+  });
+
+  it('while the lobby is open the card is full, not folded', () => {
+    const { container } = draw(visitor, lobby({ status: 'open' }));
+    expect(container.querySelector('details')).toBeNull();
+    expect(screen.getByText(PICK_YOURSELF)).toBeVisible();
+  });
+
+  it('a same-name suffix prints muted beside the name in the list (M14.69)', () => {
+    const members = workedMembers(4).map((m, i) => (i === 1 ? { ...m, name: 'Ali', nameSuffix: '(2)' } : m));
+    draw(visitor, lobbyView({ members }));
+    expect(screen.getByText('(2)')).toHaveClass('font-normal', 'text-muted-foreground');
+  });
+
+  it('posts the puuid, then lands on the You tab with the welcome card (M14.33)', async () => {
     answers({ ok: true, puuid: ME });
+    const go = vi.spyOn(linkLanding, 'go').mockImplementation(() => {});
     const refreshed = vi.fn();
     draw(visitor, lobby(), refreshed);
 
     expect(fireEvent.click(screen.getAllByRole('button')[0] as Element)).toBe(false);
 
     await waitFor(() => expect(lastBody()).toEqual({ groupId: ORIGINAL_GROUP_ID, puuid: ME }));
-    // `players.discord_id` is in no Realtime publication and the browser may not read it, so
-    // the server components are the only place that answer can come from.
-    await waitFor(() => expect(refreshed).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/g/customs/you?welcome=1'));
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    go.mockRestore();
+  });
+
+  it('sends the no-JavaScript form to the welcome URL too', () => {
+    const { container } = draw(visitor, lobby());
+    for (const input of container.querySelectorAll('form[action="/api/me/link"] input[name="redirectTo"]')) {
+      expect(input).toHaveValue('/g/customs/you?welcome=1');
+    }
+  });
+
+  it('does not navigate when the claim is refused', async () => {
+    answers({ ok: false, error: 'Someone is already linked to that player.' }, false);
+    const go = vi.spyOn(linkLanding, 'go').mockImplementation(() => {});
+    draw(visitor, lobby());
+    fireEvent.click(screen.getAllByRole('button')[0] as Element);
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(go).not.toHaveBeenCalled();
+    go.mockRestore();
   });
 
   it("prints the route's sentence when somebody is already linked to that player", async () => {

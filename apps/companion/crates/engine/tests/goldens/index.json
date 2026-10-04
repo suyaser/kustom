@@ -1,0 +1,902 @@
+{
+  "about": "Goldens for the Rust companion (M17.4): the exact requests the TypeScript engine (apps/companion/src, Kustom 0.4.0, with the @customs/lcu mappers) made for every recorded fixture in packages/lcu/fixtures/16.17 and 16.18. A Rust body that is not JSON-equal to its golden is a bug in the port. Each <name>.json holds route, method, path, the fixtures fed in, the scenario, a note, and body (one request), requests (an ordered sequence) or file (a file the engine wrote). Clocks are injected; nothing carries the generation time.",
+  "generator": "apps/companion/scripts/make-goldens.ts (pnpm --filter companion make-goldens; --check to verify)",
+  "checkedBy": [
+    "packages/db/src/contract/goldens.test.ts: every API body through its route's real zod schema in @customs/db (the canonical server-side check, M17.3)",
+    "apps/companion/scripts/goldens/goldens.test.ts: the client-write and file goldens, the credential guard, and freshness against the TypeScript engine",
+    "apps/companion/crates/engine/tests/goldens.rs: every golden deserialised into the engine wire types and serialised back JSON-equal"
+  ],
+  "counts": {
+    "total": 42,
+    "byRoute": {
+      "lobby": 9,
+      "game": 4,
+      "rank": 3,
+      "backfill-scan": 1,
+      "commands-poll": 2,
+      "command-ack": 7,
+      "command-nack": 8,
+      "pair": 1,
+      "lcu-create-lobby": 2,
+      "lcu-invite": 1,
+      "lcu-switch-side": 1,
+      "queue-file": 1,
+      "commands-done-file": 1,
+      "sequence": 1
+    },
+    "byPatch": {
+      "16.17": 28,
+      "16.18": 14
+    }
+  },
+  "goldens": [
+    {
+      "file": "lobby--lobby.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.17",
+      "scenario": "lobby",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "lobby--lobby--two-players.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.17",
+      "scenario": "lobby-two-players",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "lobby--lobby--spectator.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.17",
+      "scenario": "lobby-spectator",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "lobby--create-lobby.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.18",
+      "scenario": "lobby-create-lobby",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "lobby--lobby--names-unknown.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.17",
+      "scenario": "lobby-names-repost",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "lobby--lobby--names-repost.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.17",
+      "scenario": "lobby-names-repost",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "game--in-progress--gameflow-session.json",
+      "kind": "request",
+      "target": "api",
+      "route": "game",
+      "patch": "16.17",
+      "scenario": "game-live",
+      "method": "POST",
+      "path": "/api/companion/game"
+    },
+    {
+      "file": "game--eog--eog-stats-block--observed-start.json",
+      "kind": "request",
+      "target": "api",
+      "route": "game",
+      "patch": "16.17",
+      "scenario": "game-live",
+      "method": "POST",
+      "path": "/api/companion/game"
+    },
+    {
+      "file": "queue-file--eog-stats-block.json",
+      "kind": "file",
+      "target": "disk",
+      "route": "queue-file",
+      "patch": "16.17",
+      "scenario": "game-live",
+      "path": "queue/4000969091.json"
+    },
+    {
+      "file": "game--eog--eog-stats-block--at-connect.json",
+      "kind": "request",
+      "target": "api",
+      "route": "game",
+      "patch": "16.17",
+      "scenario": "game-eog-at-connect",
+      "method": "POST",
+      "path": "/api/companion/game"
+    },
+    {
+      "file": "rank--current-ranked-stats--own.json",
+      "kind": "request",
+      "target": "api",
+      "route": "rank",
+      "patch": "16.17",
+      "scenario": "rank-own",
+      "method": "POST",
+      "path": "/api/companion/rank"
+    },
+    {
+      "file": "rank--ranked-stats-by-puuid--other.json",
+      "kind": "request",
+      "target": "api",
+      "route": "rank",
+      "patch": "16.17",
+      "scenario": "rank-other",
+      "method": "POST",
+      "path": "/api/companion/rank"
+    },
+    {
+      "file": "rank--ranked-stats-by-puuid--ws-cached.json",
+      "kind": "request",
+      "target": "api",
+      "route": "rank",
+      "patch": "16.17",
+      "scenario": "rank-socket-shortcut",
+      "method": "POST",
+      "path": "/api/companion/rank"
+    },
+    {
+      "file": "backfill-scan--match-history.json",
+      "kind": "request",
+      "target": "api",
+      "route": "backfill-scan",
+      "patch": "16.17",
+      "scenario": "backfill",
+      "method": "POST",
+      "path": "/api/companion/backfill/scan"
+    },
+    {
+      "file": "game--backfill--match-detail.json",
+      "kind": "request",
+      "target": "api",
+      "route": "game",
+      "patch": "16.17",
+      "scenario": "backfill",
+      "method": "POST",
+      "path": "/api/companion/game"
+    },
+    {
+      "file": "commands-poll--connected.json",
+      "kind": "request",
+      "target": "api",
+      "route": "commands-poll",
+      "patch": "16.18",
+      "scenario": "command-create-lobby",
+      "method": "GET",
+      "path": "/api/companion/commands?clientConnected=true"
+    },
+    {
+      "file": "lcu-create-lobby--create-lobby.json",
+      "kind": "request",
+      "target": "lcu",
+      "route": "lcu-create-lobby",
+      "patch": "16.18",
+      "scenario": "command-create-lobby",
+      "method": "POST",
+      "path": "/lol-lobby/v2/lobby"
+    },
+    {
+      "file": "command-ack--create-lobby.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-ack",
+      "patch": "16.18",
+      "scenario": "command-create-lobby",
+      "commandKind": "create_lobby",
+      "method": "POST",
+      "path": "/api/companion/commands/7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d/ack"
+    },
+    {
+      "file": "lobby--create-lobby--with-password.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.18",
+      "scenario": "command-create-lobby",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "command-ack--create-lobby--replayed.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-ack",
+      "patch": "16.18",
+      "scenario": "command-create-lobby",
+      "commandKind": "create_lobby",
+      "method": "POST",
+      "path": "/api/companion/commands/7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d/ack"
+    },
+    {
+      "file": "commands-done-file--create-lobby.json",
+      "kind": "file",
+      "target": "disk",
+      "route": "commands-done-file",
+      "patch": "16.18",
+      "scenario": "command-create-lobby",
+      "path": "commands-done.json"
+    },
+    {
+      "file": "lobby--create-lobby--with-password--names-unknown.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.18",
+      "scenario": "command-create-lobby-names-repost",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "lobby--create-lobby--names-repost.json",
+      "kind": "request",
+      "target": "api",
+      "route": "lobby",
+      "patch": "16.18",
+      "scenario": "command-create-lobby-names-repost",
+      "method": "POST",
+      "path": "/api/companion/lobby"
+    },
+    {
+      "file": "lcu-create-lobby--create-lobby--blind.json",
+      "kind": "request",
+      "target": "lcu",
+      "route": "lcu-create-lobby",
+      "patch": "16.18",
+      "scenario": "command-create-lobby-blind",
+      "method": "POST",
+      "path": "/lol-lobby/v2/lobby"
+    },
+    {
+      "file": "lcu-invite--lobby-invitations.json",
+      "kind": "request",
+      "target": "lcu",
+      "route": "lcu-invite",
+      "patch": "16.18",
+      "scenario": "command-invite",
+      "method": "POST",
+      "path": "/lol-lobby/v2/lobby/invitations"
+    },
+    {
+      "file": "command-ack--invite--sent.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-ack",
+      "patch": "16.18",
+      "scenario": "command-invite",
+      "commandKind": "invite",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack"
+    },
+    {
+      "file": "command-ack--invite--already-pending.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-ack",
+      "patch": "16.17",
+      "scenario": "command-invite-already-pending",
+      "commandKind": "invite",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack"
+    },
+    {
+      "file": "command-ack--invite--already-member.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-ack",
+      "patch": "16.17",
+      "scenario": "command-invite-already-member",
+      "commandKind": "invite",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack"
+    },
+    {
+      "file": "command-nack--invite--client-rejected.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-invite-client-rejected",
+      "commandKind": "invite",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack"
+    },
+    {
+      "file": "lcu-switch-side--lobby-team.json",
+      "kind": "request",
+      "target": "lcu",
+      "route": "lcu-switch-side",
+      "patch": "16.18",
+      "scenario": "command-switch-side",
+      "method": "POST",
+      "path": "/lol-lobby/v2/lobby/team/TEAM2"
+    },
+    {
+      "file": "command-ack--switch-side.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-ack",
+      "patch": "16.18",
+      "scenario": "command-switch-side",
+      "commandKind": "switch_side",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack"
+    },
+    {
+      "file": "command-ack--switch-side--already.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-ack",
+      "patch": "16.17",
+      "scenario": "command-switch-side-already",
+      "commandKind": "switch_side",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/ack"
+    },
+    {
+      "file": "command-nack--create-lobby--already-in-lobby.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-create-already-in-lobby",
+      "commandKind": "create_lobby",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack"
+    },
+    {
+      "file": "command-nack--create-lobby--client-rejected.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-create-client-rejected",
+      "commandKind": "create_lobby",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack"
+    },
+    {
+      "file": "command-nack--invite--no-lobby.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-invite-no-lobby",
+      "commandKind": "invite",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack"
+    },
+    {
+      "file": "command-nack--switch-side--wrong-phase.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-wrong-phase",
+      "commandKind": "switch_side",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack"
+    },
+    {
+      "file": "command-nack--unknown-kind.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-unknown-kind",
+      "commandKind": "dodge",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack"
+    },
+    {
+      "file": "command-nack--switch-side--malformed-payload.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-malformed-payload",
+      "commandKind": "switch_side",
+      "method": "POST",
+      "path": "/api/companion/commands/5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f/nack"
+    },
+    {
+      "file": "commands-poll--disconnected.json",
+      "kind": "request",
+      "target": "api",
+      "route": "commands-poll",
+      "patch": "16.17",
+      "scenario": "command-not-connected",
+      "method": "GET",
+      "path": "/api/companion/commands?clientConnected=false"
+    },
+    {
+      "file": "command-nack--not-connected.json",
+      "kind": "request",
+      "target": "api",
+      "route": "command-nack",
+      "patch": "16.17",
+      "scenario": "command-not-connected",
+      "commandKind": "switch_side",
+      "method": "POST",
+      "path": "/api/companion/commands/1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e/nack"
+    },
+    {
+      "file": "pair--host.json",
+      "kind": "request",
+      "target": "api",
+      "route": "pair",
+      "patch": "16.17",
+      "scenario": "pair-host",
+      "method": "POST",
+      "path": "/api/companion/pair"
+    },
+    {
+      "file": "sequence--ws-events.json",
+      "kind": "sequence",
+      "target": "api",
+      "route": "sequence",
+      "patch": "16.17",
+      "scenario": "ws-replay"
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "lobby",
+      "description": "A lobby Update carrying 16.17/lobby; the local player is current-summoner.",
+      "goldens": [
+        "lobby--lobby"
+      ],
+      "apiRequests": [
+        "lobby"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "lobby-two-players",
+      "description": "A lobby Update carrying 16.17/lobby--two-players; the local player is current-summoner.",
+      "goldens": [
+        "lobby--lobby--two-players"
+      ],
+      "apiRequests": [
+        "lobby"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "lobby-spectator",
+      "description": "A lobby Update carrying 16.17/lobby--spectator; the local player is current-summoner.",
+      "goldens": [
+        "lobby--lobby--spectator"
+      ],
+      "apiRequests": [
+        "lobby"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "lobby-create-lobby",
+      "description": "A lobby Update carrying 16.18/create-lobby; the local player is current-summoner.",
+      "goldens": [
+        "lobby--create-lobby"
+      ],
+      "apiRequests": [
+        "lobby"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "lobby-names-repost",
+      "description": "A lobby Update while the own name is unknown: post at once, look the name up, re-post once.",
+      "goldens": [
+        "lobby--lobby--names-unknown",
+        "lobby--lobby--names-repost"
+      ],
+      "apiRequests": [
+        "lobby",
+        "lobby"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "game-live",
+      "description": "A custom played with the companion watching: lobby, GameStart, InProgress, the block over the socket.",
+      "goldens": [
+        "game--in-progress--gameflow-session",
+        "game--eog--eog-stats-block--observed-start",
+        "queue-file--eog-stats-block"
+      ],
+      "apiRequests": [
+        "game",
+        "game"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "game-eog-at-connect",
+      "description": "Connected with the client already on the end-of-game screen.",
+      "goldens": [
+        "game--eog--eog-stats-block--at-connect"
+      ],
+      "apiRequests": [
+        "game"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "game-stale-session",
+      "description": "GameStart, but the session read back is the previous game in phase Lobby: no in_progress post (16.17/gameflow-session--in-lobby).",
+      "goldens": [],
+      "apiRequests": [],
+      "lcuWrites": []
+    },
+    {
+      "name": "rank-own",
+      "description": "First connect: the own rank.",
+      "goldens": [
+        "rank--current-ranked-stats--own"
+      ],
+      "apiRequests": [
+        "rank"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "rank-other",
+      "description": "A lobby answer asks for a rank the companion does not hold: rank plus name, one post.",
+      "goldens": [
+        "rank--ranked-stats-by-puuid--other"
+      ],
+      "apiRequests": [
+        "rank",
+        "lobby",
+        "rank"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "rank-socket-shortcut",
+      "description": "A requested puuid whose ranked stats arrived over the socket: the push replaces the GET.",
+      "goldens": [
+        "rank--ranked-stats-by-puuid--ws-cached"
+      ],
+      "apiRequests": [
+        "rank",
+        "rank"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "backfill",
+      "description": "One backfill pass over the recorded match history.",
+      "goldens": [
+        "backfill-scan--match-history",
+        "game--backfill--match-detail"
+      ],
+      "apiRequests": [
+        "backfill-scan",
+        "game"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "backfill-no-customs",
+      "description": "A history of matchmade games only (16.17/match-history--other): no scan, nothing posted.",
+      "goldens": [],
+      "apiRequests": [],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-create-lobby",
+      "description": "create_lobby from an empty client, the new lobby pushed back, then the same command re-delivered.",
+      "goldens": [
+        "commands-poll--connected",
+        "lcu-create-lobby--create-lobby",
+        "command-ack--create-lobby",
+        "lobby--create-lobby--with-password",
+        "command-ack--create-lobby--replayed",
+        "commands-done-file--create-lobby"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack",
+        "lobby",
+        "commands-poll",
+        "command-ack"
+      ],
+      "lcuWrites": [
+        "lcu-create-lobby"
+      ]
+    },
+    {
+      "name": "command-create-lobby-names-repost",
+      "description": "create_lobby with the own name unknown: the password post, then the names re-post.",
+      "goldens": [
+        "lobby--create-lobby--with-password--names-unknown",
+        "lobby--create-lobby--names-repost"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack",
+        "lobby",
+        "lobby"
+      ],
+      "lcuWrites": [
+        "lcu-create-lobby"
+      ]
+    },
+    {
+      "name": "command-create-lobby-blind",
+      "description": "create_lobby with pickType blind: the write names the blind entry.",
+      "goldens": [
+        "lcu-create-lobby--create-lobby--blind"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack"
+      ],
+      "lcuWrites": [
+        "lcu-create-lobby"
+      ]
+    },
+    {
+      "name": "command-invite",
+      "description": "invite in the lobby the create made, by summonerId.",
+      "goldens": [
+        "lcu-invite--lobby-invitations",
+        "command-ack--invite--sent"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack"
+      ],
+      "lcuWrites": [
+        "lcu-invite"
+      ]
+    },
+    {
+      "name": "command-invite-already-pending",
+      "description": "invite for someone already invited (16.17/lobby): no write.",
+      "goldens": [
+        "command-ack--invite--already-pending"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-invite-already-member",
+      "description": "invite for someone already in the lobby (16.17/lobby--two-players): no write.",
+      "goldens": [
+        "command-ack--invite--already-member"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-invite-client-rejected",
+      "description": "invite the client refuses both ways.",
+      "goldens": [
+        "command-nack--invite--client-rejected"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": [
+        "lcu-invite",
+        "lcu-invite"
+      ]
+    },
+    {
+      "name": "command-switch-side",
+      "description": "switch_side 100 -> 200.",
+      "goldens": [
+        "lcu-switch-side--lobby-team",
+        "command-ack--switch-side"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack"
+      ],
+      "lcuWrites": [
+        "lcu-switch-side"
+      ]
+    },
+    {
+      "name": "command-switch-side-already",
+      "description": "switch_side to the side the player is on.",
+      "goldens": [
+        "command-ack--switch-side--already"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-ack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-create-already-in-lobby",
+      "description": "create_lobby while standing in a lobby.",
+      "goldens": [
+        "command-nack--create-lobby--already-in-lobby"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-create-client-rejected",
+      "description": "create_lobby the client refuses.",
+      "goldens": [
+        "command-nack--create-lobby--client-rejected"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": [
+        "lcu-create-lobby"
+      ]
+    },
+    {
+      "name": "command-invite-no-lobby",
+      "description": "invite with no lobby.",
+      "goldens": [
+        "command-nack--invite--no-lobby"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-wrong-phase",
+      "description": "a command during a game.",
+      "goldens": [
+        "command-nack--switch-side--wrong-phase"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-unknown-kind",
+      "description": "a kind outside the enum.",
+      "goldens": [
+        "command-nack--unknown-kind"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-malformed-payload",
+      "description": "a payload that fails its schema.",
+      "goldens": [
+        "command-nack--switch-side--malformed-payload"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "command-not-connected",
+      "description": "The runner before the client connects.",
+      "goldens": [
+        "commands-poll--disconnected",
+        "command-nack--not-connected"
+      ],
+      "apiRequests": [
+        "commands-poll",
+        "command-nack"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "pair-host",
+      "description": "Pairing with a code from the site.",
+      "goldens": [
+        "pair--host"
+      ],
+      "apiRequests": [
+        "pair"
+      ],
+      "lcuWrites": []
+    },
+    {
+      "name": "ws-replay",
+      "description": "The recorded 16.17 evening, replayed through the lobby and game watchers.",
+      "goldens": [
+        "sequence--ws-events"
+      ],
+      "apiRequests": [
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "game",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "game",
+        "game",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby",
+        "lobby"
+      ],
+      "lcuWrites": []
+    }
+  ]
+}

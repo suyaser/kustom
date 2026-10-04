@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { config, displayRating, type Rating, rateGameWeekly, seedFromRank } from '@customs/core';
+import { displayRating } from '@customs/core';
 import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
@@ -8,17 +8,18 @@ import { type FoldAwardPlayer, gameAward } from '@/lib/ingest/fold';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * **The MVP / ACE bonus on the weekly track** (M7.24), against the Supabase CLI local stack.
+ * **The MVP / ACE bonus on a week** (M7.24, rewritten by M14.57), against the Supabase CLI local
+ * stack.
  *
- * `lib/board/weekly.test.ts` proves the fold scales the right two seats; what only a database
- * can prove is the wiring around it: that the two week-window reads carry the nine stat columns
- * through RLS and the anon key, that `All time` and the month windows do **not** (acceptance 4 and
- * 5 — same query, wider select, on the week only), and that `/p/[puuid]`'s week-window row names
- * the same MVP whose adjusted delta it prints (acceptance 6).
+ * Since M14.57 a week has no fold of its own: its number is the sum of the **stored** all-time
+ * deltas, and the all-time fold already applied the bonus when it wrote `mu_after`. So the MVP's
+ * week points are the MVP's stored delta, bonus and all, and the week read needs none of the nine
+ * stat columns (the weekly fold that did is gone). `/p/[puuid]`'s week tab still names the MVP
+ * (M7.10's recent-games award) beside the delta the all-time tab prints for the same game.
  *
- * **The fixture is one scored game this week**: ten players seeded Gold IV, every role once a
- * side, all nine stat columns, blue won. The stored `mu_*` columns are flat at one value for
- * everybody, so any number on a week window that moved came from the weekly fold.
+ * **The fixture is one scored game this week**: ten players, every role once a side, all nine
+ * stat columns, blue won, with stored `mu` pairs written as the fold would have: +30 for a winner,
+ * +38 for the MVP (1.25x, rounded at display), −30 for a loser, −24 for the ACE (0.80x).
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -26,7 +27,7 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
 const stack = await resolveLocalStack();
 
 if (stack === null) {
-  describe.skip('the weekly MVP / ACE bonus against the local Supabase stack', () => {
+  describe.skip('the week MVP / ACE bonus against the local Supabase stack', () => {
     it('needs the local stack: run `pnpm db:start`', () => {
       expect(true).toBe(true);
     });
@@ -58,7 +59,11 @@ if (stack === null) {
       // The board's own read, and only it: `sigma_after` beside the three ids is its spelling.
       // The streak and awards reads in `lib/stats` select every stat column on every window and
       // always have — they are not the read this task widened.
-      if ((columns ?? '').startsWith('game_id, player_id, side, role, mu_before, mu_after, sigma_after')) {
+      if (
+        (columns ?? '').startsWith(
+          'game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after',
+        )
+      ) {
         selects.push(columns ?? '*');
       }
       return (select as (...args: unknown[]) => unknown)(columns, ...rest);
@@ -74,14 +79,11 @@ if (stack === null) {
 
   const runId = randomUUID().slice(0, 8);
   const NOW = new Date('2026-03-11T18:00:00Z');
-  const THIS_WEEK = { window: 'this-week', now: NOW } as const;
-  const LAST_WEEK = { window: 'last-week', now: NOW } as const;
-  const THIS_MONTH = { window: 'this-month', now: NOW } as const;
-  const LAST_MONTH = { window: 'last-month', now: NOW } as const;
-  const ALL_TIME = { window: 'all-time' } as const;
+  const THIS_WEEK = { window: 'this-week', now: NOW, groupId: ORIGINAL_GROUP_ID } as const;
+  const LAST_WEEK = { window: 'last-week', now: NOW, groupId: ORIGINAL_GROUP_ID } as const;
+  const ALL_TIME = { window: 'all-time', groupId: ORIGINAL_GROUP_ID } as const;
 
-  const SEED = seedFromRank('GOLD', 'IV');
-  const STORED = { mu: 27.5, sigma: 5.5 } as const;
+  const BEFORE = 25;
   const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
 
   /** Ten seats: blue first, top to support, then red. Every input the score reads, all different. */
@@ -105,40 +107,25 @@ if (stack === null) {
   const AWARD = gameAward(SEATS satisfies FoldAwardPlayer[], WINNER);
   if (AWARD === null) throw new Error('the fixture game must be scorable');
 
-  /** Each seat's raw weekly `mu` after the game, from the seed: `rateGameWeekly` alone. */
-  const RAW = (() => {
-    const bySide = (side: 100 | 200) =>
-      SEATS.filter((seat) => seat.side === side).sort((a, b) => (a.puuid < b.puuid ? -1 : 1));
-    const rated = rateGameWeekly(Array(5).fill(SEED), Array(5).fill(SEED), WINNER);
-    const out = new Map<string, Rating>();
-    bySide(100).forEach((seat, index) => {
-      out.set(seat.puuid, rated.blue[index] as Rating);
-    });
-    bySide(200).forEach((seat, index) => {
-      out.set(seat.puuid, rated.red[index] as Rating);
-    });
-    return out;
-  })();
-  const rawDelta = (puuid: string): number => (RAW.get(puuid) as Rating).mu - SEED.mu;
-  const MVP_FACTOR = 1 + config.rating.mvp.bonusFraction;
-  const ACE_FACTOR = 1 - config.rating.mvp.aceReliefFraction;
+  /** What the all-time fold stored for each seat: the bonus is already in `mu_after`. */
+  const AFTER = (puuid: string, side: 100 | 200): number => {
+    if (puuid === AWARD.mvp) return BEFORE + 37.5 / 60;
+    if (puuid === AWARD.ace) return BEFORE - 24 / 60;
+    return side === WINNER ? BEFORE + 0.5 : BEFORE - 0.5;
+  };
+  const POINTS = (puuid: string, side: 100 | 200): number =>
+    displayRating(AFTER(puuid, side)) - displayRating(BEFORE);
 
   const ids = new Map<string, string>();
   let gameId = '';
 
   beforeAll(async () => {
-    const { data: season } = await db.from('seasons').select('id').eq('is_active', true).maybeSingle();
-    const seasonId = season?.id ?? '';
-    expect(seasonId).not.toBe('');
-
     const { data: players, error } = await db
       .from('players')
       .insert(
         SEATS.map((seat, index) => ({
           puuid: seat.puuid,
           display_name: `Seat ${index}`,
-          rank_tier: 'GOLD',
-          rank_division: 'IV',
         })),
       )
       .select('id, puuid');
@@ -149,15 +136,10 @@ if (stack === null) {
       SEATS.map((seat) => ({
         group_id: ORIGINAL_GROUP_ID,
         player_id: ids.get(seat.puuid) as string,
-        season_id: seasonId,
-        mu: STORED.mu,
-        sigma: STORED.sigma,
+        mu: AFTER(seat.puuid, seat.side),
+        sigma: 5,
         games: 40,
         wins: 20,
-        seed_mu: SEED.mu,
-        seed_sigma: SEED.sigma,
-        seed_rank_tier: 'GOLD',
-        seed_rank_division: 'IV',
       })),
     );
 
@@ -166,7 +148,6 @@ if (stack === null) {
       .insert({
         group_id: ORIGINAL_GROUP_ID,
         lcu_game_id: Number(`8${Date.now() % 1_000_000}24`),
-        season_id: seasonId,
         started_at: '2026-03-09T19:00:00Z',
         duration_s: 2_000,
         winning_side: WINNER,
@@ -193,10 +174,10 @@ if (stack === null) {
         vision_score: seat.visionScore,
         damage_self_mitigated: seat.damageSelfMitigated,
         damage_to_objectives: seat.damageToObjectives,
-        mu_before: STORED.mu,
-        sigma_before: STORED.sigma,
-        mu_after: STORED.mu,
-        sigma_after: STORED.sigma,
+        mu_before: BEFORE,
+        sigma_before: 5,
+        mu_after: AFTER(seat.puuid, seat.side),
+        sigma_after: 5,
       })),
     );
     expect(seatError).toBeNull();
@@ -214,64 +195,44 @@ if (stack === null) {
   const rowOf = async (options: Parameters<typeof loadBoard>[1], puuid: string) =>
     (await loadBoard(anon, options)).rows.find((row) => row.puuid === puuid);
 
-  describe('the weekly MVP / ACE bonus', () => {
-    /** **Acceptance 2**, through the loader: 1.25x, 0.80x, eight untouched. */
-    it('puts the MVP 1.25x and the ACE 0.80x of their raw weekly delta on the week board', async () => {
+  describe('the MVP / ACE bonus on a week', () => {
+    /** The week's points are the stored deltas, so they carry the bonus the fold stored. */
+    it('puts each seat s stored delta, bonus included, on the week board as its points', async () => {
       const board = await loadBoard(anon, THIS_WEEK);
       for (const seat of SEATS) {
         const row = board.rows.find((candidate) => candidate.puuid === seat.puuid);
-        const factor = seat.puuid === AWARD.mvp ? MVP_FACTOR : seat.puuid === AWARD.ace ? ACE_FACTOR : 1;
-        expect([seat.puuid, row?.rating]).toEqual([
-          seat.puuid,
-          displayRating(SEED.mu + rawDelta(seat.puuid) * factor),
-        ]);
+        expect([seat.puuid, row?.points]).toEqual([seat.puuid, POINTS(seat.puuid, seat.side)]);
       }
+      expect(POINTS(AWARD.mvp, 100)).toBe(38);
+      expect(POINTS(AWARD.ace, 200)).toBe(-24);
     });
 
     /**
-     * **Acceptance 6**: `/p/[puuid]` on the week names the MVP and the ACE (M7.10's recent-games
-     * award, through `gatedGameAward`) and prints the delta the weekly fold amplified for exactly
-     * that seat — and the number above it is the board row's, to the digit.
+     * `/p/[puuid]` on the week names the MVP and the ACE beside the same pair the all-time tab
+     * prints, and its points are the board row's, to the digit.
      */
-    it('names the MVP and the ACE on the player page beside the adjusted weekly delta', async () => {
-      for (const [puuid, award, factor] of [
-        [AWARD.mvp, 'mvp', MVP_FACTOR],
-        [AWARD.ace, 'ace', ACE_FACTOR],
+    it('names the MVP and the ACE on the week tab beside the all-time delta', async () => {
+      for (const [puuid, award] of [
+        [AWARD.mvp, 'mvp'],
+        [AWARD.ace, 'ace'],
       ] as const) {
-        const page = await loadPlayerBoard(anon, puuid, THIS_WEEK);
-        const recent = page?.recent[0];
+        const [week, all] = await Promise.all([
+          loadPlayerBoard(anon, puuid, THIS_WEEK),
+          loadPlayerBoard(anon, puuid, ALL_TIME),
+        ]);
+        const recent = week?.recent[0];
         expect(recent?.award).toBe(award);
-        expect(recent?.muBefore).toBe(SEED.mu);
-        expect(recent?.muAfter).toBe(SEED.mu + rawDelta(puuid) * factor);
-        expect(page?.rating).toBe((await rowOf(THIS_WEEK, puuid))?.rating);
+        const same = all?.recent.find((game) => game.gameId === recent?.gameId);
+        expect([recent?.muBefore, recent?.muAfter]).toEqual([same?.muBefore, same?.muAfter]);
+        expect(week?.points).toBe((await rowOf(THIS_WEEK, puuid))?.points);
       }
-
-      // And a seat that was neither is named nothing and moved exactly what the plain fold says.
-      const other = SEATS.find((seat) => seat.puuid !== AWARD.mvp && seat.puuid !== AWARD.ace);
-      const page = await loadPlayerBoard(anon, other?.puuid as string, THIS_WEEK);
-      expect(page?.recent[0]?.award).toBeNull();
-      expect(page?.recent[0]?.muAfter).toBe((RAW.get(other?.puuid as string) as Rating).mu);
     });
 
-    /**
-     * **Acceptance 4 and 5**: the two week windows read `game_players` nine columns wider and
-     * nothing else does; `All time` and both months keep the narrow select and the stored numbers.
-     */
-    it('widens the read on the two week windows only', async () => {
-      expect(await widestRead(() => loadBoard(anon, THIS_WEEK))).toBe('wide');
-      // `Last week` holds no game of this fixture, so it reads nothing at all — but never narrow.
-      expect(await widestRead(() => loadBoard(anon, LAST_WEEK))).not.toBe('narrow');
-      expect(await widestRead(() => loadBoard(anon, THIS_MONTH))).toBe('narrow');
-      expect(await widestRead(() => loadBoard(anon, LAST_MONTH))).not.toBe('wide');
-      expect(await widestRead(() => loadBoard(anon, { ...ALL_TIME, includeBreakdown: true }))).not.toBe(
-        'wide',
-      );
-
-      // The month and all-time rows are the stored numbers, bonus-free, exactly as before M7.24.
-      const mvpMonth = await rowOf(THIS_MONTH, AWARD.mvp);
-      expect(mvpMonth?.rating).toBe(displayRating(STORED.mu));
-      const mvpAllTime = await rowOf(ALL_TIME, AWARD.mvp);
-      expect(mvpAllTime?.rating).toBe(displayRating(STORED.mu));
+    /** No week window widens the board's read any more: no fold reads the nine stat columns. */
+    it('reads the narrow select on every window', async () => {
+      expect(await widestRead(() => loadBoard(anon, THIS_WEEK))).toBe('narrow');
+      expect(await widestRead(() => loadBoard(anon, LAST_WEEK))).not.toBe('wide');
+      expect(await widestRead(() => loadBoard(anon, ALL_TIME))).not.toBe('wide');
     });
   });
 }

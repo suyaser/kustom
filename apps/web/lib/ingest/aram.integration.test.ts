@@ -16,9 +16,9 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  * treated the same way, and a Rift custom with the *same ten players and the same duration*
  * rates exactly as it did before — so the mode is provably the only thing that changed.
  *
- * Namespaced by run id and cleaned up at the bottom; it folds into whatever season is active,
- * like every other game the route rates. The rebuild's side of this task is
- * `rebuild.integration.test.ts`, which needs a season of its own.
+ * Namespaced by run id and cleaned up at the bottom; it folds like every other game the route
+ * rates. The rebuild's side of this task is `rebuild.integration.test.ts`, which needs a group
+ * of its own.
  *
  * Skipped, not failed, when the stack is not running (`pnpm db:start`).
  */
@@ -99,7 +99,7 @@ if (stack === null) {
     return data ?? [];
   }
 
-  /** This season's `ratings` for the ten, as a string: the thing an unrated game must not move. */
+  /** The `ratings` for the ten, as a string: the thing an unrated game must not move. */
   async function ratings(): Promise<string> {
     const { data, error } = await db
       .from('ratings')

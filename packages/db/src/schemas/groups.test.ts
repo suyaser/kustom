@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { GROUP_SLUG_CASES } from '../groupSlugCases';
 import {
+  ASSIGNABLE_GROUP_ROLES,
+  assignableGroupRoleSchema,
   GROUP_ROLES,
   groupIdSchema,
   groupRoleSchema,
   groupSlugSchema,
+  isAtLeast,
+  memberRemoveRequestSchema,
+  memberRoleRequestSchema,
+  memberUnlinkDiscordRequestSchema,
   mysteryTodayQuerySchema,
   ORIGINAL_GROUP_ID,
   overlayGroupsResponseSchema,
+  ownerTransferRequestSchema,
   roleTonightRequestSchema,
 } from './index';
 
@@ -26,10 +33,57 @@ describe('groupSlugSchema', () => {
 });
 
 describe('groupRoleSchema', () => {
-  it('is exactly member and admin', () => {
-    expect(GROUP_ROLES).toEqual(['member', 'admin']);
-    expect(groupRoleSchema.safeParse('admin').success).toBe(true);
-    expect(groupRoleSchema.safeParse('owner').success).toBe(false);
+  it('is exactly member, admin and owner, lowest first (M14.11, 0023)', () => {
+    expect(GROUP_ROLES).toEqual(['member', 'admin', 'owner']);
+    expect(groupRoleSchema.safeParse('owner').success).toBe(true);
+    expect(groupRoleSchema.safeParse('superadmin').success).toBe(false);
+  });
+
+  it('only lets the role route set member or admin, never owner', () => {
+    expect(ASSIGNABLE_GROUP_ROLES).toEqual(['member', 'admin']);
+    expect(assignableGroupRoleSchema.safeParse('owner').success).toBe(false);
+  });
+});
+
+describe('isAtLeast', () => {
+  it('ranks owner above admin above member', () => {
+    expect(isAtLeast('owner', 'admin')).toBe(true);
+    expect(isAtLeast('admin', 'admin')).toBe(true);
+    expect(isAtLeast('member', 'admin')).toBe(false);
+    expect(isAtLeast('admin', 'owner')).toBe(false);
+    expect(isAtLeast('owner', 'owner')).toBe(true);
+    expect(isAtLeast('member', 'member')).toBe(true);
+  });
+
+  it('is false for somebody who is not a member at all', () => {
+    expect(isAtLeast(null, 'member')).toBe(false);
+    expect(isAtLeast(undefined, 'admin')).toBe(false);
+  });
+});
+
+describe('the member writes (M14.11)', () => {
+  const GROUP = '00000000-0000-0000-0000-000000000001';
+  const PLAYER = '22222222-2222-4222-8222-222222222222';
+
+  it('take the original group id (not a v4 uuid) and a player uuid', () => {
+    for (const schema of [
+      memberRemoveRequestSchema,
+      ownerTransferRequestSchema,
+      memberUnlinkDiscordRequestSchema,
+    ]) {
+      expect(schema.safeParse({ groupId: GROUP, playerId: PLAYER }).success).toBe(true);
+      expect(schema.safeParse({ groupId: GROUP, playerId: 'nope' }).success).toBe(false);
+      expect(schema.safeParse({ playerId: PLAYER }).success).toBe(false);
+    }
+  });
+
+  it('refuse owner as a role to set', () => {
+    expect(
+      memberRoleRequestSchema.safeParse({ groupId: GROUP, playerId: PLAYER, role: 'admin' }).success,
+    ).toBe(true);
+    expect(
+      memberRoleRequestSchema.safeParse({ groupId: GROUP, playerId: PLAYER, role: 'owner' }).success,
+    ).toBe(false);
   });
 });
 

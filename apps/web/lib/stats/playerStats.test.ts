@@ -228,19 +228,19 @@ describe('their partners', () => {
     const player = view(games, 'lena');
     const named = (list: readonly { puuid: string }[]) => list.map((entry) => entry.puuid);
 
-    // Rate descending: Iris 100, Bilal 80, Karim 60, Theo 33.
-    expect(named(player.bestPartners)).toEqual([puuidOf('iris'), puuidOf('bilal'), puuidOf('karim')]);
-    // The bottom of what is left, not the best three reversed — so Theo alone.
-    expect(named(player.worstPartners)).toEqual([puuidOf('theo')]);
+    // Rate descending: Iris 100, Bilal 80, Karim 60, Theo 33. Four qualify, so the better half
+    // (two) is best and the other two, worst first, are worst (the Stats duos' split, M14.35).
+    expect(named(player.bestPartners)).toEqual([puuidOf('iris'), puuidOf('bilal')]);
+    expect(named(player.worstPartners)).toEqual([puuidOf('theo'), puuidOf('karim')]);
     // Four games together is not a partner at all, at either end of the list.
     expect(named([...player.bestPartners, ...player.worstPartners])).not.toContain(puuidOf('omar'));
     expect(player.bestPartners[0]).toMatchObject({ games: 5, wins: 5, losses: 0, winRate: 100 });
   });
 
   /**
-   * **No name is in both lists** (the designer, 2026-09-11): `Best together` is the top three
-   * and `Worst together` is the bottom three of the remainder, so at three qualifying partners
-   * or fewer the worst list is empty and the page draws `Best together` alone.
+   * **No name is in both lists** (the designer, 2026-09-11; the split rule since M14.35 is the
+   * Stats duos': the better half, rounded up, at most three, is `Best together`, and the worst of
+   * the rest, at most three, is `Worst together`).
    */
   it('splits one ranked list in two, and repeats nobody', () => {
     const seven = [
@@ -263,9 +263,32 @@ describe('their partners', () => {
     // Seven qualify, six are printed: the fourth-best is in neither list, which is honest.
     expect([...best, ...worst]).toHaveLength(6);
 
-    const three = view([...withPartner('iris', 5, 0, 1), ...withPartner('theo', 2, 3, 20)], 'lena');
-    expect(three.bestPartners).toHaveLength(2);
-    expect(three.worstPartners).toEqual([]);
+    const two = view([...withPartner('iris', 5, 0, 1), ...withPartner('theo', 2, 3, 20)], 'lena');
+    expect(two.bestPartners.map((entry) => entry.puuid)).toEqual([puuidOf('iris')]);
+    expect(two.worstPartners.map((entry) => entry.puuid)).toEqual([puuidOf('theo')]);
+
+    const one = view(withPartner('iris', 5, 0, 1), 'lena');
+    expect(one.bestPartners).toHaveLength(1);
+    expect(one.worstPartners).toEqual([]);
+  });
+
+  /** Fewer than six partners: under the old cut a name could be in both lists; never now. */
+  it('never puts one partner in both lists, for any count from one to six', () => {
+    const names = ['iris', 'bilal', 'karim', 'theo', 'omar', 'nadia'];
+    for (let count = 1; count <= names.length; count += 1) {
+      const games = names
+        .slice(0, count)
+        .flatMap((name, index) => withPartner(name, 5 - index, index, index * 10 + 1));
+      const player = view(games, 'lena');
+      const best = player.bestPartners.map((entry) => entry.puuid);
+      const worst = player.worstPartners.map((entry) => entry.puuid);
+      expect(
+        best.filter((puuid) => worst.includes(puuid)),
+        `${count} partners`,
+      ).toEqual([]);
+      expect(best).toHaveLength(Math.min(3, Math.ceil(count / 2)));
+      expect(best.length + worst.length).toBe(Math.min(count, 6));
+    }
   });
 
   /** `A pair that played 5 games together and 40 against each other`: only same-side games count. */
@@ -376,56 +399,35 @@ describe('their average game length', () => {
 
 describe('the award line', () => {
   /**
-   * Acceptance 7. September's most improved gets `Most improved, September.` on `Last month`;
-   * nobody else does, and no other window prints it at all.
+   * Acceptance 7. The week's cursed duo gets `Cursed duo, week of 30 Aug.` on `Last week`; nobody
+   * else does, and no other window prints it at all. (It was `Most improved` until M14.57 retired
+   * that award; the line's shape is the same for every award.)
    */
   const september = () => {
     const games: StatsGame[] = [];
-    for (let index = 0; index < 16; index += 1) {
+    for (let index = 0; index < 7; index += 1) {
+      const spare = (seat: number) => `s${index}x${seat}`;
       games.push(
-        tenPlayerGame({
-          at: new Date(Date.UTC(2026, 7, 3 + index, 19)).toISOString(),
-          blue: [{ key: 'lena', role: 'top', mu: index === 0 ? [21.1, 24.4] : [24.4, 24.6333333] }],
-          red: ['iris:top'],
-          winner: 100,
+        statsGame({
+          at: new Date(Date.UTC(2026, 8, 1 + index, 19)).toISOString(),
+          // Fresh spares every game, so only Lena and Iris reach four games together.
+          blue: ['lena', 'iris', spare(0), spare(1), spare(2)],
+          red: ['omar', spare(3), spare(4), spare(5), spare(6)],
+          winner: 200,
         }),
       );
     }
     return games;
   };
 
-  const august = { window: 'last-month', now: new Date('2026-09-15T18:00:00Z') } as const;
+  const lastWeek = { window: 'last-week', now: new Date('2026-09-10T18:00:00Z') } as const;
 
-  it('names the award and the month on the winner s page, and nobody else s', () => {
+  it('names the award and the week on the winner s page, and nobody else s', () => {
     const games = september();
 
-    expect(view(games, 'lena', august).awards).toContain('Most improved, August.');
-    // Iris played the same sixteen games and climbed nothing: this award is not on their page.
-    expect(view(games, 'iris', august).awards).not.toContain('Most improved, August.');
-  });
-
-  /**
-   * A week window says which Sunday it was (M5.34), in product's own form.
-   *
-   * This fixture hands over no weekly seeds, so the climb under it is the stored one — which is
-   * the whole of what this test is about: the **line**, not the track. Who wins a week on the
-   * weekly track is M7.4's, in `awards.test.ts` and in the two integration files.
-   */
-  it('says `week of 1 Sep` on a week', () => {
-    const games: StatsGame[] = [];
-    for (let index = 0; index < 7; index += 1) {
-      games.push(
-        tenPlayerGame({
-          at: new Date(Date.UTC(2026, 8, 1 + index, 19)).toISOString(),
-          blue: [{ key: 'lena', role: 'top', mu: index === 0 ? [21.1, 24.4] : [24.4, 24.6333333] }],
-          red: ['iris:top'],
-          winner: 100,
-        }),
-      );
-    }
-
-    const player = view(games, 'lena', { window: 'last-week', now: new Date('2026-09-10T18:00:00Z') });
-    expect(player.awards).toContain('Most improved, week of 30 Aug.');
+    expect(view(games, 'lena', lastWeek).awards).toContain('Cursed duo, week of 30 Aug.');
+    // Omar played the same seven games on the other side: this award is not on his page.
+    expect(view(games, 'omar', lastWeek).awards).not.toContain('Cursed duo, week of 30 Aug.');
   });
 
   /** A running window has handed nothing out, and `All time` never will. */
@@ -433,7 +435,7 @@ describe('the award line', () => {
     const games = september();
 
     expect(
-      view(games, 'lena', { window: 'this-month', now: new Date('2026-08-20T18:00:00Z') }).awards,
+      view(games, 'lena', { window: 'this-week', now: new Date('2026-09-03T18:00:00Z') }).awards,
     ).toEqual([]);
     expect(view(games, 'lena').awards).toEqual([]);
   });

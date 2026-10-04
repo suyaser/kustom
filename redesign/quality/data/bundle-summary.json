@@ -1,0 +1,283 @@
+{
+ "base": "http://localhost:3118",
+ "routes": [
+  {
+   "route": "/",
+   "chunks": 13,
+   "rawKB": 621.6,
+   "gzKB": 194.4,
+   "moduleGzKB": 156,
+   "flags": []
+  },
+  {
+   "route": "/how",
+   "chunks": 13,
+   "rawKB": 621.6,
+   "gzKB": 194.4,
+   "moduleGzKB": 156,
+   "flags": []
+  },
+  {
+   "route": "/download",
+   "chunks": 13,
+   "rawKB": 621.6,
+   "gzKB": 194.4,
+   "moduleGzKB": 156,
+   "flags": []
+  },
+  {
+   "route": "/new",
+   "chunks": 15,
+   "rawKB": 1019.5,
+   "gzKB": 287.2,
+   "moduleGzKB": 248.7,
+   "flags": [
+    "zod"
+   ]
+  },
+  {
+   "route": "/g/customs",
+   "chunks": 18,
+   "rawKB": 723,
+   "gzKB": 227.4,
+   "moduleGzKB": 188.9,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/leaderboard",
+   "chunks": 16,
+   "rawKB": 645.5,
+   "gzKB": 203.9,
+   "moduleGzKB": 165.5,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/p/audit-p01",
+   "chunks": 16,
+   "rawKB": 638.7,
+   "gzKB": 201.4,
+   "moduleGzKB": 162.9,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/games",
+   "chunks": 15,
+   "rawKB": 636.8,
+   "gzKB": 200.5,
+   "moduleGzKB": 162,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/games/7855be62-4526-4fd2-97cd-cab389676ac1",
+   "chunks": 16,
+   "rawKB": 645.7,
+   "gzKB": 204.1,
+   "moduleGzKB": 165.6,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/you",
+   "chunks": 16,
+   "rawKB": 640,
+   "gzKB": 201.9,
+   "moduleGzKB": 163.4,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/mode",
+   "chunks": 16,
+   "rawKB": 654.9,
+   "gzKB": 207.1,
+   "moduleGzKB": 168.6,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/stats",
+   "chunks": 15,
+   "rawKB": 636.8,
+   "gzKB": 200.5,
+   "moduleGzKB": 162,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/stats/champions",
+   "chunks": 15,
+   "rawKB": 636.8,
+   "gzKB": 200.5,
+   "moduleGzKB": 162,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/stats/1v1",
+   "chunks": 15,
+   "rawKB": 636.8,
+   "gzKB": 200.5,
+   "moduleGzKB": 162,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/mystery",
+   "chunks": 16,
+   "rawKB": 666.8,
+   "gzKB": 210.6,
+   "moduleGzKB": 172.1,
+   "flags": []
+  },
+  {
+   "route": "/g/customs/admin",
+   "chunks": 18,
+   "rawKB": 1078.8,
+   "gzKB": 306.3,
+   "moduleGzKB": 267.9,
+   "flags": [
+    "zod"
+   ]
+  }
+ ],
+ "chunks": [
+  {
+   "chunk": "1ydf05kyx40nr.js",
+   "rawKB": 381.7,
+   "gzKB": 86.3,
+   "onRoutes": [
+    "/new",
+    "/g/customs/admin"
+   ],
+   "markers": [
+    "zod",
+    "ZodError",
+    "champion"
+   ]
+  },
+  {
+   "chunk": "06cvwtm4wotv0.js",
+   "rawKB": 228.9,
+   "gzKB": 71.4,
+   "onRoutes": "all",
+   "markers": [
+    "react-dom"
+   ]
+  },
+  {
+   "chunk": "1qjwopf2ysfua.js",
+   "rawKB": 152.3,
+   "gzKB": 41.7,
+   "onRoutes": "all",
+   "markers": []
+  },
+  {
+   "chunk": "0cz1d0mv5g_q7.js",
+   "rawKB": 110,
+   "gzKB": 38.5,
+   "onRoutes": "all",
+   "markers": []
+  },
+  {
+   "chunk": "0tzga-9q4p-3s.js",
+   "rawKB": 58.7,
+   "gzKB": 17.2,
+   "onRoutes": [
+    "/g/customs"
+   ],
+   "markers": [
+    "realtime",
+    "phoenix"
+   ]
+  },
+  {
+   "chunk": "2e0kmgnfxlxs_.js",
+   "rawKB": 38.1,
+   "gzKB": 12.2,
+   "onRoutes": [
+    "/g/customs/admin"
+   ],
+   "markers": [
+    "radix"
+   ]
+  },
+  {
+   "chunk": "3vryngccv4dje.js",
+   "rawKB": 30,
+   "gzKB": 10.1,
+   "onRoutes": [
+    "/g/customs/mystery"
+   ],
+   "markers": [
+    "radix",
+    "champion",
+    "ddragon",
+    "clsx"
+   ]
+  },
+  {
+   "chunk": "38r50kw2jtal2.js",
+   "rawKB": 27.1,
+   "gzKB": 8.4,
+   "onRoutes": "all",
+   "markers": [
+    "clsx"
+   ]
+  },
+  {
+   "chunk": "2kt1p5dimmzz7.js",
+   "rawKB": 30.7,
+   "gzKB": 8.2,
+   "onRoutes": "all",
+   "markers": [
+    "react-dom"
+   ]
+  },
+  {
+   "chunk": "3phcwh00xwyh5.js",
+   "rawKB": 22.2,
+   "gzKB": 7.4,
+   "onRoutes": [
+    "/g/customs/admin"
+   ],
+   "markers": [
+    "radix",
+    "clsx"
+   ]
+  },
+  {
+   "chunk": "1z8bty9_zc3gm.js",
+   "rawKB": 18.1,
+   "gzKB": 6.6,
+   "onRoutes": [
+    "/g/customs/mode"
+   ],
+   "markers": [
+    "champion",
+    "ddragon"
+   ]
+  },
+  {
+   "chunk": "2g98lnuqzcdx2.js",
+   "rawKB": 16.2,
+   "gzKB": 6.4,
+   "onRoutes": [
+    "/new"
+   ],
+   "markers": [
+    "radix",
+    "clsx"
+   ]
+  },
+  {
+   "chunk": "3rd1exbuojd5s.js",
+   "rawKB": 18.5,
+   "gzKB": 5.8,
+   "onRoutes": [
+    "/g/customs"
+   ],
+   "markers": []
+  },
+  {
+   "chunk": "turbopack-2ipd1l-xwzl63.js",
+   "rawKB": 10.7,
+   "gzKB": 4.2,
+   "onRoutes": "all",
+   "markers": []
+  }
+ ]
+}

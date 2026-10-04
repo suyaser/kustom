@@ -12,6 +12,7 @@ import { ensurePlayers } from '@/lib/ingest/players';
 import { IDLE_ABANDON_MS, sweepIdleLobbies } from '@/lib/lobbyState';
 import { nightStart } from '@/lib/night';
 import { eogBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
+import { snapshotGroupModes } from '@/lib/testing/groupModes';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { rollForTest, storedRosterKey } from '@/lib/testing/roll';
 
@@ -262,7 +263,14 @@ if (stack === null) {
     return a.size === b.size && [...a].every((puuid) => b.has(puuid));
   }
 
+  /**
+   * Rolled lobbies here record games in the real `customs` group, and since M15.3 each one runs
+   * compare-and-clear on its Mode card. Put the card back the way this file found it.
+   */
+  let restoreGroupModes: () => Promise<void> = async () => {};
+
   beforeAll(async () => {
+    restoreGroupModes = await snapshotGroupModes(db, ORIGINAL_GROUP_ID);
     await ensurePlayers(
       db,
       [...allPuuids].map((puuid) => ({ puuid })),
@@ -273,6 +281,7 @@ if (stack === null) {
   });
 
   afterAll(async () => {
+    await restoreGroupModes();
     await db
       .from('games')
       .delete()

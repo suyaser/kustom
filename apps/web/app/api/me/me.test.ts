@@ -5,9 +5,10 @@ import type { LobbyStatusValue, RoleValue } from '@customs/db';
 import type { GroupRole } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
 import type { GroupRoleLookup } from '@/lib/groups/membership';
+import { holdsAdminRole } from '@/lib/me/claimable';
 import {
   LINK_ALREADY_LINKED,
-  LINK_NOT_IN_LOBBY,
+  LINK_NOT_CLAIMABLE,
   LINK_TAKEN,
   NOT_IN_THIS_GROUP,
   ROLE_TAP_NO_LOBBY,
@@ -310,15 +311,22 @@ interface FakeLinkStore extends SelfLinkStore {
 }
 
 function linkStore(
-  options: { members?: string[]; discordId?: string | null; write?: LinkWrite } = {},
+  options: {
+    members?: string[];
+    discordId?: string | null;
+    write?: LinkWrite;
+    /** The claimed player's memberships across every group (M14.26). */
+    roles?: string[];
+  } = {},
 ): FakeLinkStore {
   const links: FakeLinkStore['links'] = [];
   return {
     links,
-    tonightMemberPuuids: async () => new Set(options.members ?? [ME, SOMEBODY_ELSE]),
+    claimSetPuuids: async () => new Set(options.members ?? [ME, SOMEBODY_ELSE]),
     findPlayerByPuuid: async (puuid) => ({
       playerId: `player-${puuid}`,
       discordId: options.discordId ?? null,
+      holdsAdminRole: holdsAdminRole((options.roles ?? []).map((role) => ({ role }))),
     }),
     linkIfUnlinked: async (playerId, discordId) => {
       if (options.write !== undefined && options.write !== 'linked') return options.write;
@@ -351,12 +359,35 @@ describe('POST /api/me/link', () => {
     expect(store.links).toEqual([{ playerId: `player-${ME}`, discordId: 'discord-1' }]);
   });
 
-  it("refuses somebody who is not in tonight's lobby", async () => {
+  it('refuses somebody outside the claim set (tonight plus the last 12 hours)', async () => {
     const store = linkStore({ members: [SOMEBODY_ELSE] });
     const response = await linkRoute({ ok: true, me: visitor }, store)(post({ puuid: ME }, 'link'));
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({ ok: false, error: LINK_NOT_IN_LOBBY });
+    expect(await response.json()).toEqual({ ok: false, error: LINK_NOT_CLAIMABLE });
+    expect(store.links).toEqual([]);
+  });
+
+  it('re-checks the claim set on the server and ignores anything the page sends with it (M14.34)', async () => {
+    // A page that drew ME (stale, or forged) cannot widen the set: the body has no field for it,
+    // the extra keys are stripped, and the store's answer is the only one read.
+    let asked = 0;
+    const store = linkStore({ members: [SOMEBODY_ELSE] });
+    const counted: SelfLinkStore = {
+      ...store,
+      claimSetPuuids: async () => {
+        asked += 1;
+        return store.claimSetPuuids();
+      },
+    };
+    const response = await linkRoute(
+      { ok: true, me: visitor },
+      counted,
+    )(post({ puuid: ME, claimable: [ME], gameId: 'g-1' }, 'link'));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, error: LINK_NOT_CLAIMABLE });
+    expect(asked).toBe(1);
     expect(store.links).toEqual([]);
   });
 
@@ -394,6 +425,42 @@ describe('POST /api/me/link', () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ ok: false, error: LINK_ALREADY_LINKED });
     expect(store.links).toEqual([]);
+  });
+
+  describe('never an unlinked owner or admin (M14.26)', () => {
+    it.each([
+      ['an owner', ['owner']],
+      ['an admin', ['admin']],
+      ['an owner here who is a member elsewhere', ['member', 'owner']],
+      ['an admin of another group only', ['admin', 'member']],
+      ['a role the schema does not know (fail closed)', ['superuser']],
+    ])('refuses %s with the not-claimable 403 and writes nothing', async (_label, roles) => {
+      const store = linkStore({ roles });
+      const response = await linkRoute({ ok: true, me: visitor }, store)(post({ puuid: ME }, 'link'));
+
+      expect(response.status).toBe(403);
+      // The same sentence as a name outside the claim set: nothing says *why*.
+      expect(await response.json()).toEqual({ ok: false, error: LINK_NOT_CLAIMABLE });
+      expect(store.links).toEqual([]);
+    });
+
+    it('still links a member, and a player with no membership at all', async () => {
+      for (const roles of [['member'], []]) {
+        const store = linkStore({ roles });
+        const response = await linkRoute({ ok: true, me: visitor }, store)(post({ puuid: ME }, 'link'));
+        expect(response.status).toBe(200);
+        expect(store.links).toEqual([{ playerId: `player-${ME}`, discordId: 'discord-1' }]);
+      }
+    });
+
+    it('answers an already-linked owner with the taken 409, as for anybody linked', async () => {
+      const store = linkStore({ roles: ['owner'], discordId: 'discord-owner' });
+      const response = await linkRoute({ ok: true, me: visitor }, store)(post({ puuid: ME }, 'link'));
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ ok: false, error: LINK_TAKEN });
+      expect(store.links).toEqual([]);
+    });
   });
 
   it('is 401 without a session', async () => {

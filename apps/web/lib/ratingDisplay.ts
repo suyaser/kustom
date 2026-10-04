@@ -27,11 +27,35 @@ export function displayDelta(muBefore: number, muAfter: number): number {
   return delta === 0 && muAfter < muBefore ? -0 : delta;
 }
 
+/** One rated game's two stored numbers, the pair {@link displayDelta} reads. */
+export interface DeltaPair {
+  muBefore: number;
+  muAfter: number;
+}
+
+/**
+ * **One rounding rule for a sum** (M14.57): a night's or a week's total is the sum of the
+ * per-game deltas **as printed**, never one rounded `mu` difference. Each game's `mu_after` is
+ * the next game's `mu_before` when the games chain, and then the two agree; when they do not (a
+ * reset inside the range, a backfilled game waiting for `rebuild-ratings`) the sum of the rows
+ * wins, so a column always adds up.
+ *
+ * Your night, the player page's Tonight tile and the week boards' net points all call this.
+ * `null` for no pair (nothing rated to sum). A net zero is `+0`, never `-0`: a total is not a
+ * direction.
+ */
+export function sumDisplayDeltas(pairs: readonly DeltaPair[]): number | null {
+  if (pairs.length === 0) return null;
+  let sum = 0;
+  for (const pair of pairs) sum += displayDelta(pair.muBefore, pair.muAfter);
+  return sum === 0 ? 0 : sum;
+}
+
 /**
  * The delta as the **web** prints it: `+43`, `−45`, `+0`, `−0`.
  *
  * `05-design.md`, "Rating delta": always signed, and U+2212 for the minus, which is the width
- * of `+` in Plex Mono so a column of ten stays a column. Discord gets ASCII from `formatDelta`
+ * of `+` in the mono face (Martian Mono) so a column of ten stays a column. Discord gets ASCII from `formatDelta`
  * in `lib/discord/embeds.ts` instead, because it has no font control and its lines get
  * copy-pasted. One number from {@link displayDelta}, two glyphs.
  *

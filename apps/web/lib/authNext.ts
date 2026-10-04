@@ -32,8 +32,12 @@ export const NEXT_COOKIE_NAME = 'cn-auth-next';
 export const NEXT_COOKIE_PATH = '/auth/callback';
 /** Ten minutes, in seconds. */
 export const NEXT_COOKIE_MAX_AGE_S = 600;
-/** Where a sign-in with no usable destination lands. */
-export const DEFAULT_NEXT_PATH = '/admin';
+/**
+ * Where a sign-in with no usable destination lands: `/`, whose landing sends a member to their own
+ * group (M13.9). Never the bare `/admin`, which 308s to the original group's admin and would show an
+ * admin of any other group a not-admin page (M14.23 review).
+ */
+export const DEFAULT_NEXT_PATH = '/';
 
 /** Longer than any page on this site, short enough that a header cannot be stuffed. */
 const MAX_NEXT_LENGTH = 512;

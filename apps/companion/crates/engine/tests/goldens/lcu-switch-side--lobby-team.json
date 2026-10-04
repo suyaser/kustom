@@ -1,0 +1,16 @@
+{
+  "name": "lcu-switch-side--lobby-team",
+  "kind": "request",
+  "target": "lcu",
+  "route": "lcu-switch-side",
+  "patch": "16.18",
+  "fixtures": [
+    "16.18/create-lobby",
+    "16.18/lobby-team"
+  ],
+  "scenario": "command-switch-side",
+  "note": "POST /lol-lobby/v2/lobby/team/TEAM2 with no body (16.18/lobby-team: 204). The golden body is null.",
+  "method": "POST",
+  "path": "/lol-lobby/v2/lobby/team/TEAM2",
+  "body": null
+}

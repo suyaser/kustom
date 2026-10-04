@@ -16,7 +16,6 @@ export type { Database, Enums, Json, Tables, TablesInsert, TablesUpdate } from '
 export { Constants } from './types';
 
 /** Rows, as `select()` returns them. */
-export type SeasonRow = Tables<'seasons'>;
 export type PlayerRow = Tables<'players'>;
 export type RatingRow = Tables<'ratings'>;
 export type LobbyRow = Tables<'lobbies'>;
@@ -29,6 +28,8 @@ export type CompanionCommandRow = Tables<'companion_commands'>;
 export type DiscordConfigRow = Tables<'discord_config'>;
 /** Singleton cursor for the fearless-draft pool (M10). The pool itself is derived. */
 export type FearlessStateRow = Tables<'fearless_state'>;
+/** One group's standing mode (M14.29). `games.mode` is stamped from it at record time. */
+export type GroupModeRow = Tables<'group_modes'>;
 /** One closed window the weekly/monthly Discord post has claimed (M5.13). */
 export type WindowPostRow = Tables<'window_posts'>;
 /** One Daily Mystery challenge (M5.32). Service-role only — the answer column is secret. */
@@ -44,7 +45,6 @@ export type DailyMysteryAttemptRow = Tables<'daily_mystery_attempts'>;
 export type PlayerPublicRow = Tables<'players_public'>;
 
 /** Insert shapes: optional where the column has a default. */
-export type SeasonInsert = TablesInsert<'seasons'>;
 export type PlayerInsert = TablesInsert<'players'>;
 export type RatingInsert = TablesInsert<'ratings'>;
 export type LobbyInsert = TablesInsert<'lobbies'>;
@@ -69,6 +69,3 @@ export type SplitUpdate = TablesUpdate<'splits'>;
 export type CompanionCommandUpdate = TablesUpdate<'companion_commands'>;
 export type DiscordConfigUpdate = TablesUpdate<'discord_config'>;
 export type WindowPostUpdate = TablesUpdate<'window_posts'>;
-
-/** The season every rating and game hangs off before an admin starts a new one (M5.3). */
-export const SEASON_ONE_ID = '00000000-0000-0000-0000-000000000001';

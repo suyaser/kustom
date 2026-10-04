@@ -10,7 +10,7 @@ import {
   NO_COMPANION_AROUND,
   openingOnPcLine,
   START_LOBBY_BUTTON,
-} from '@/lib/lobbyStart';
+} from '@/lib/lobbyStartCopy';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { StartLobby, StartLobbySignIn } from './StartLobby';
@@ -94,8 +94,7 @@ describe('idle: nobody has pressed it', () => {
     const { container } = draw();
 
     expect(screen.getByRole('button', { name: START_LOBBY_BUTTON })).toBeInTheDocument();
-    expect(container.querySelector('.cn-start-note')).not.toBeInTheDocument();
-    expect(container.querySelector('.cn-hint')).not.toBeInTheDocument();
+    expect(container.textContent).toBe(START_LOBBY_BUTTON);
   });
 
   it('is a real form with a real action, for the browser with no JavaScript', () => {
@@ -155,8 +154,8 @@ describe('the press', () => {
 
       await waitFor(() => expect(screen.getByText(sentence)).toBeInTheDocument());
       // Beside the control, not as a banner at the top of the page and not in the URL.
-      expect(container.querySelector('.cn-start-note')?.textContent).toBe(sentence);
-      expect(container.querySelector('.cn-start')?.contains(screen.getByText(sentence))).toBe(true);
+      expect(screen.getByRole('alert')).toHaveTextContent(sentence);
+      expect(container.contains(screen.getByText(sentence))).toBe(true);
       unmount();
       vi.unstubAllGlobals();
     }
@@ -185,7 +184,7 @@ describe('the press', () => {
     press();
 
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    expect(container.querySelector('.cn-start-note')).not.toBeInTheDocument();
+    expect(container.textContent).not.toContain('.');
   });
 
   it('says nothing was opened when the request never left the browser', async () => {
@@ -251,7 +250,6 @@ describe('what the row says afterwards', () => {
 
     const button = screen.getByRole('button', { name: START_LOBBY_BUTTON });
     expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(button).toHaveClass('cn-button-quiet');
     // Never the attribute: a disabled control drops the focus to `<body>` (M3.20).
     expect(button).not.toBeDisabled();
 
@@ -264,9 +262,10 @@ describe('what the row says afterwards', () => {
   });
 
   it('says nothing on success: the member list appearing is the answer', () => {
-    const { container } = draw(progress({ status: 'acked' }));
+    draw(progress({ status: 'acked' }));
 
-    expect(container.querySelector('.cn-start-note')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('counts the invites once the lobby is open, until ten are in', () => {
@@ -312,7 +311,7 @@ describe('what the row says afterwards', () => {
  */
 describe('the signed-out block', () => {
   it('is the sentence, then a sign-in button, and never a disabled Start a lobby', () => {
-    const { container } = render(<StartLobbySignIn />);
+    render(<StartLobbySignIn />);
 
     expect(screen.getByText(START_LOBBY_SIGN_IN)).toBeInTheDocument();
     // The sentence is the reason and the button is the label (the designer, 2026-09-10).
@@ -321,7 +320,10 @@ describe('the signed-out block', () => {
     expect(screen.queryByRole('button', { name: START_LOBBY_BUTTON })).not.toBeInTheDocument();
     expect(button).not.toBeDisabled();
     // The reason comes first in reading order.
-    expect(container.querySelector('.cn-start')?.firstElementChild?.textContent).toBe(START_LOBBY_SIGN_IN);
+    expect(
+      screen.getByText(START_LOBBY_SIGN_IN).compareDocumentPosition(button) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('is a real form to the OAuth round trip, coming back to the tonight page', () => {

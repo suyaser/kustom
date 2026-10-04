@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DEFAULT_NIGHT_TIME_ZONE, isValidTimeZone } from './night';
+import { ServerEnvError } from './publicEnv';
 
 /**
  * Server-side environment, read once per process and validated with zod like every other
@@ -82,10 +83,69 @@ export function readServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEn
   return parsed.data;
 }
 
-/** Thrown when the process is not configured to talk to Supabase. */
-export class ServerEnvError extends Error {
-  override name = 'ServerEnvError';
+/**
+ * The Discord application the web server talks to for `Connect Discord` (M14.20): OAuth2
+ * `webhook.incoming`. The **same application** as Discord sign-in -- the values are copied from
+ * `SUPABASE_AUTH_DISCORD_CLIENT_ID` / `SUPABASE_AUTH_DISCORD_SECRET`, which only the Supabase CLI
+ * reads (hosted sign-in is configured in the Supabase dashboard, not on Vercel). Server only.
+ *
+ * Separate from {@link readServerEnv}: a deployment without it still runs every other route, and
+ * `Connect Discord` sends the admin back to the page with the paste fallback.
+ */
+const discordOAuthEnvSchema = z.object({
+  DISCORD_CLIENT_ID: z
+    .string()
+    .trim()
+    .regex(/^\d{17,20}$/, 'must be the application id'),
+  DISCORD_CLIENT_SECRET: z.string().trim().min(1),
+  /**
+   * Optional. The exact callback URL registered in the Discord developer portal. Unset, it is
+   * `<site origin>/api/admin/discord/callback`. Pin it when the origin can differ (localhost vs
+   * 127.0.0.1): Discord compares it character for character, on authorize and on the exchange.
+   */
+  DISCORD_REDIRECT_URI: z
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+});
+
+export type DiscordOAuthEnv = z.infer<typeof discordOAuthEnvSchema>;
+
+/** The Discord OAuth environment, or null when it is not configured (logged once by the caller). */
+export function readDiscordOAuthEnv(source: NodeJS.ProcessEnv = process.env): DiscordOAuthEnv | null {
+  const parsed = discordOAuthEnvSchema.safeParse({
+    DISCORD_CLIENT_ID: source.DISCORD_CLIENT_ID,
+    DISCORD_CLIENT_SECRET: source.DISCORD_CLIENT_SECRET,
+    DISCORD_REDIRECT_URI: source.DISCORD_REDIRECT_URI,
+  });
+  return parsed.success ? parsed.data : null;
 }
+
+/**
+ * The Anthropic API key Kustom Premium's AI lines are written with (M16.3). Server only, never
+ * `NEXT_PUBLIC_`, and read by `lib/ai/client.ts` alone. Set on Vercel **Production** only, so a
+ * preview deploy never spends.
+ *
+ * Separate from {@link readServerEnv}, and optional: unset (or blank), every AI path is silently
+ * absent -- no model call, no line, no error -- and everything else runs as before.
+ */
+const anthropicEnvSchema = z.object({
+  ANTHROPIC_API_KEY: z.string().trim().min(1),
+});
+
+export type AnthropicEnv = z.infer<typeof anthropicEnvSchema>;
+
+/** The Anthropic environment, or null when no key is set (AI off, quietly). */
+export function readAnthropicEnv(
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): AnthropicEnv | null {
+  const parsed = anthropicEnvSchema.safeParse({ ANTHROPIC_API_KEY: source.ANTHROPIC_API_KEY });
+  return parsed.success ? parsed.data : null;
+}
+
+// `ServerEnvError` lives in `./publicEnv` (M14.44) so the browser's zod-free reader can throw the
+// same class; re-exported here for every server caller.
+export { ServerEnvError } from './publicEnv';
 
 /**
  * The public half of the environment: what the Supabase Auth client needs. Separate from

@@ -313,25 +313,25 @@ describe('GET /api/cron/window', () => {
     expect(stub.posts[0]?.timeZone).toBe(DEFAULT_NIGHT_TIME_ZONE);
   });
 
-  /** Week first: on a Sunday the 1st the group gets two posts in the order they read in. */
-  it('posts the week before the month on the 1st', async () => {
+  /** M14.48: the month windows are gone, so the 1st posts the week and nothing else. */
+  it('posts the week alone on the 1st, with no month post', async () => {
     process.env.CRON_SECRET = 'secret-value';
     process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
     vi.useFakeTimers({ toFake: ['Date'] });
-    // Wednesday 1 October 2025, 10:00 Cairo: the month closed four hours ago.
+    // Wednesday 1 October 2025, 10:00 Cairo: September closed four hours ago.
     vi.setSystemTime(new Date('2025-10-01T07:00:00Z'));
 
     const body = await (await GET(get('Bearer secret-value'))).json();
 
-    expect(body.groups[0].posted).toEqual(['last-week', 'last-month']);
-    expect(stub.posts.map((post) => post.window.kind)).toEqual(['last-week', 'last-month']);
+    expect(body.groups[0].posted).toEqual(['last-week']);
+    expect(stub.posts.map((post) => post.window.kind)).toEqual(['last-week']);
   });
 });
 
 /**
- * **`last-week` always, `last-month` only on the 1st.** This is the rule that keeps the first
- * ever call — against a database with a year of history — from posting a month in the middle
- * of one, and keeps a deployment that was down all Sunday posting last week on Monday.
+ * **`last-week` always, and nothing else** (M14.48 dropped the month post on the 1st). Only the
+ * most recently closed week, which keeps a deployment that was down all Sunday posting last week
+ * on Monday, and never a backlog.
  */
 describe('windowsToConsider', () => {
   const CAIRO = 'Africa/Cairo';
@@ -346,40 +346,18 @@ describe('windowsToConsider', () => {
     expect(windows[0]?.key).toBe('2025-08-31T03:00:00.000Z');
   });
 
-  it('considers the month for the day that follows its close', () => {
-    // 06:00 Cairo on the 1st is the boundary itself: September has just closed.
-    expect(windowsToConsider(new Date('2025-10-01T03:00:00Z'), CAIRO).map((window) => window.kind)).toEqual([
-      'last-week',
-      'last-month',
-    ]);
-
-    // Late on the 1st, still news.
-    expect(windowsToConsider(new Date('2025-10-01T22:00:00Z'), CAIRO).map((window) => window.kind)).toEqual([
-      'last-week',
-      'last-month',
-    ]);
-  });
-
-  it('does not consider the month before it has closed, or after its day', () => {
-    // 03:00 Cairo on the 1st: the night of the 30th is still running and the month has not
-    // closed. The most recently closed month is the one before it, which posted a month ago.
-    expect(windowsToConsider(new Date('2025-10-01T00:00:00Z'), CAIRO).map((window) => window.kind)).toEqual([
-      'last-week',
-    ]);
-
-    // The 2nd, and the 15th: the week is still considered, the month is not.
-    expect(windowsToConsider(new Date('2025-10-02T09:00:00Z'), CAIRO).map((window) => window.kind)).toEqual([
-      'last-week',
-    ]);
-    expect(windowsToConsider(new Date('2025-10-15T09:00:00Z'), CAIRO).map((window) => window.kind)).toEqual([
-      'last-week',
-    ]);
-  });
-
-  it('names the month that closed, not the one running', () => {
-    const windows = windowsToConsider(new Date('2025-10-01T09:00:00Z'), CAIRO);
-
-    expect(windows[1]?.key).toBe('2025-09-01T03:00:00.000Z');
-    expect(windows[1]?.end.toISOString()).toBe('2025-10-01T03:00:00.000Z');
+  it('considers only the week on the 1st, the 2nd and the 15th too', () => {
+    for (const instant of [
+      // 06:00 Cairo on the 1st, the instant September closes; late on the 1st; the 2nd; the 15th.
+      '2025-10-01T03:00:00Z',
+      '2025-10-01T22:00:00Z',
+      '2025-10-02T09:00:00Z',
+      '2025-10-15T09:00:00Z',
+    ]) {
+      expect(
+        windowsToConsider(new Date(instant), CAIRO).map((window) => window.kind),
+        instant,
+      ).toEqual(['last-week']);
+    }
   });
 });

@@ -25,8 +25,54 @@ export function siteOrigin(request: Request): string {
   return new URL(request.url).origin;
 }
 
-/** Hosts that are real to the machine running the server and to nobody in the Discord channel. */
-const LOCAL_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'];
+/** Names that are real to the machine running the server and to nobody in the Discord channel. */
+const LOCAL_NAMES: readonly string[] = ['localhost', 'localhost.localdomain'];
+const LOCAL_SUFFIXES: readonly string[] = [
+  '.localhost',
+  '.local',
+  '.internal',
+  '.localdomain',
+  '.lan',
+  '.home.arpa',
+];
+
+/** An IPv4 address in a range nobody in a Discord channel can reach, or `false` for a public one. */
+function isPrivateIpv4(a: number, b: number): boolean {
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) || // CGNAT, 100.64/10
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    a >= 224 // multicast and reserved
+  );
+}
+
+/**
+ * The one host rule for every Discord link and image (M14.61 r2): **true** when the host is local
+ * or private, so nothing may point at it. `host` is a `URL.hostname`.
+ *
+ * - One trailing `.` is stripped first: `localhost.` and `foo.local.` are `localhost` and `foo.local`.
+ * - Local names and suffixes: `localhost`, `localhost.localdomain`, `*.localhost`, `*.local`,
+ *   `*.internal`, `*.localdomain`, `*.lan`, `*.home.arpa`, and any bare host with no dot.
+ * - IPv4 loopback, private, link-local, CGNAT (100.64/10), `0/8`, multicast and reserved.
+ * - Every IPv6 literal (loopback, ULA, link-local and IPv4-mapped `::ffff:` forms among them): a
+ *   site Discord can reach has a name.
+ */
+export function isLocalOrPrivateHost(host: string): boolean {
+  let name = host.toLowerCase();
+  if (name.endsWith('.')) name = name.slice(0, -1);
+  if (name.length === 0) return true;
+  if (name.startsWith('[') || name.includes(':')) return true;
+  if (LOCAL_NAMES.includes(name)) return true;
+  if (LOCAL_SUFFIXES.some((suffix) => name.endsWith(suffix))) return true;
+  if (!name.includes('.')) return true;
+  const ipv4 = name.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4 !== null) return isPrivateIpv4(Number(ipv4[1]), Number(ipv4[2]));
+  return false;
+}
 
 /**
  * The link a Discord embed may carry, or `undefined` (M3.1, "Tonight page URL").
@@ -40,7 +86,7 @@ export function tonightPageUrl(origin: string | null | undefined): string | unde
   if (!origin) return undefined;
   try {
     const url = new URL(origin);
-    if (LOCAL_HOSTS.includes(url.hostname)) return undefined;
+    if (isLocalOrPrivateHost(url.hostname)) return undefined;
     // The tonight page is `/`, so the origin is the whole link.
     return url.origin;
   } catch {
@@ -49,32 +95,102 @@ export function tonightPageUrl(origin: string | null | undefined): string | unde
 }
 
 /**
- * One game's page, `/g/<games.id>` (M11.4), for the result embed's title link, under the same
- * localhost rule as {@link tonightPageUrl}. `/` moves on to the next lobby within minutes of a
- * result; this address keeps showing the game the message is about.
+ * A group's own space, `/g/<slug>` (M13.9), under the same localhost rule as
+ * {@link tonightPageUrl}: every link a Discord post carries is the group's (M13.11, folded into
+ * M14.10), so the teams and fearless posts land on that group's tonight page, never on `/`.
+ * `anchor` is a fragment on that page (the receipt's disclosure, STRATEGY §4.9).
  */
-export function gamePageUrl(origin: string | null | undefined, gameId: string): string | undefined {
-  const base = tonightPageUrl(origin);
-  return base === undefined ? undefined : `${base}/g/${encodeURIComponent(gameId)}`;
-}
-
-/**
- * The board's link for a Discord embed (M3.5), or `undefined` under the same localhost rule as
- * {@link tonightPageUrl}: no domain exists yet, and a link that works for one person is worse
- * in a channel than no link at all.
- *
- * **It carries the window the post printed** (M5.12): the nightly post links to
- * `?window=this-week`, and the Sunday post (M5.10) to `?window=last-week`. A tap from the
- * channel has to land on the board whose numbers are in the message above it, and the page's
- * own default would land on a different one every time the post is not about this week.
- */
-export function leaderboardPageUrl(
+export function groupPageUrl(
   origin: string | null | undefined,
-  window?: WindowKind,
+  slug: string,
+  anchor?: string,
 ): string | undefined {
   const base = tonightPageUrl(origin);
   if (base === undefined) return undefined;
-  return window === undefined ? `${base}/leaderboard` : `${base}/leaderboard?window=${window}`;
+  const page = `${base}/g/${encodeURIComponent(slug)}`;
+  return anchor === undefined ? page : `${page}#${encodeURIComponent(anchor)}`;
+}
+
+/**
+ * One game's page, `/g/<slug>/games/<games.id>` (M13.11, M14.16), for the result embed's title
+ * link. The group's tonight page moves on to the next lobby within minutes of a result; this
+ * address keeps showing the game the message is about.
+ */
+export function gamePageUrl(
+  origin: string | null | undefined,
+  slug: string,
+  gameId: string,
+): string | undefined {
+  const group = groupPageUrl(origin, slug);
+  return group === undefined ? undefined : `${group}/games/${encodeURIComponent(gameId)}`;
+}
+
+/**
+ * The group's mode panel, `/g/<slug>/mode` (M14.30), for both fearless posts' title link
+ * (M14.31). A click from Discord is a hard load, so it opens as the direct page.
+ */
+export function modePageUrl(origin: string | null | undefined, slug: string): string | undefined {
+  const group = groupPageUrl(origin, slug);
+  return group === undefined ? undefined : `${group}/mode`;
+}
+
+/**
+ * The group's board for a Discord embed (M3.5, under `/g/<slug>` since M14.10), or `undefined`
+ * under the same localhost rule as {@link tonightPageUrl}.
+ *
+ * **It carries the window the post printed** (M5.12): the nightly post links to
+ * `?window=this-week`, and the Sunday post (M5.10) to `?window=last-week`. A tap from the
+ * channel has to land on the board whose numbers are in the message above it.
+ */
+export function leaderboardPageUrl(
+  origin: string | null | undefined,
+  slug: string,
+  window?: WindowKind,
+): string | undefined {
+  const group = groupPageUrl(origin, slug);
+  if (group === undefined) return undefined;
+  return window === undefined ? `${group}/leaderboard` : `${group}/leaderboard?window=${window}`;
+}
+
+/**
+ * The origin a Discord **image** may be fetched from (M14.61, 05-design 10.11), or `undefined`.
+ *
+ * Stricter than the link rule ({@link tonightPageUrl}), because a link that goes nowhere costs a
+ * tap and an image Discord's proxy cannot fetch costs a broken square in every post: the origin
+ * must be `https`, and its host must not be local or private (`localhost`, loopback, `0.0.0.0`,
+ * `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `*.local`, `*.internal`, or a bare host with
+ * no dot). Anything else, including no origin at all, sends no image and the post is complete
+ * without it.
+ */
+export function publicImageOrigin(origin: string | null | undefined): string | undefined {
+  const base = tonightPageUrl(origin);
+  if (base === undefined) return undefined;
+  // The host rule is `tonightPageUrl`'s (`isLocalOrPrivateHost`); an image also needs https.
+  const url = new URL(base);
+  return url.protocol === 'https:' ? url.origin : undefined;
+}
+
+/** Bump to change the avatar Discord caches (05-design 10.11 B1). */
+export const KUSTOM_AVATAR_VERSION = 2;
+
+/** `<origin>/og/kustom/avatar?v=2`, the webhook's `avatar_url`, or `undefined` off a public origin. */
+export function kustomAvatarUrl(origin: string | null | undefined): string | undefined {
+  const base = publicImageOrigin(origin);
+  return base === undefined ? undefined : `${base}/og/kustom/avatar?v=${KUSTOM_AVATAR_VERSION}`;
+}
+
+/**
+ * `<origin>/og/g/<slug>/games/<id>/badge`, the result post's thumbnail (05-design 10.11 B2), or
+ * `undefined` off a public origin.
+ */
+export function resultBadgeUrl(
+  origin: string | null | undefined,
+  slug: string,
+  gameId: string,
+): string | undefined {
+  const base = publicImageOrigin(origin);
+  if (base === undefined) return undefined;
+  return `${base}/og/g/${encodeURIComponent(slug)}/games/${encodeURIComponent(gameId)}/badge`;
 }
 
 function firstHeaderValue(value: string | null): string | null {

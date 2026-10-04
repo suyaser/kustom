@@ -39,19 +39,17 @@ describe('the two sentences, product s', () => {
 
 describe('the line the page draws', () => {
   it('tells you to move yourself while the gate is off', () => {
-    const { container } = render(<SideLine switchSideEnabled={false} />);
+    render(<SideLine switchSideEnabled={false} />);
 
-    expect(screen.getByText(SIDE_LINE_MANUAL)).toBeInTheDocument();
+    expect(screen.getByText(SIDE_LINE_MANUAL).tagName).toBe('P');
     expect(screen.queryByText(SIDE_LINE_AUTO)).not.toBeInTheDocument();
-    expect(container.querySelector('.cn-side-line')?.tagName).toBe('P');
   });
 
   it('says the companion moves you once the gate is on', () => {
-    const { container } = render(<SideLine switchSideEnabled />);
+    render(<SideLine switchSideEnabled />);
 
     expect(screen.getByText(SIDE_LINE_AUTO)).toBeInTheDocument();
     expect(screen.queryByText(SIDE_LINE_MANUAL)).not.toBeInTheDocument();
-    expect(container.querySelector('.cn-side-line')?.textContent).toBe(SIDE_LINE_AUTO);
   });
 
   /**
@@ -62,6 +60,6 @@ describe('the line the page draws', () => {
   it('reads the shipped gate when nobody overrides it', () => {
     render(<SideLine />);
 
-    expect(screen.getByText(sideLine(SWITCH_SIDE_ENABLED))).toHaveClass('cn-side-line');
+    expect(screen.getByText(sideLine(SWITCH_SIDE_ENABLED))).toBeInTheDocument();
   });
 });

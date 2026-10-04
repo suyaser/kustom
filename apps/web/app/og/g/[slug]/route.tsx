@@ -1,22 +1,22 @@
-import { gameCardModel } from '@/lib/og/cards';
-import { loadGamePage } from '@/lib/og/load';
+import { resolveGroupParam } from '@/lib/groups/resolve';
+import { gameImagePath } from '@/lib/og/meta';
 import { createPublicClient } from '@/lib/publicClient';
-import { nightTimeZone } from '@/lib/tonight/night';
-import { cardResponse, GameCard, NOT_FOUND } from '../../../_og/Cards';
+import { NOT_FOUND } from '../../../_og/Cards';
 
 /**
- * `/og/g/<gameId>`: a game page's share card (M11.4). An unknown or malformed id is a 404, never
- * a blank card that looks like a result.
+ * `/og/g/<gameId>`: M11.4's game card address, kept as a **308** to the card's group address
+ * `/og/g/<slug>/games/<gameId>` (M13.11's brief, moved by M14.16), because Discord and WhatsApp
+ * cache the image URLs they have already unfurled. A segment that is not a stored game's id is a
+ * 404, never a blank card.
  *
- * **The segment is a game id, named `slug`** only because Next allows one dynamic name per level
- * and `/og/g/[slug]/tonight` (M13.9) shares this one. A real slug is not a uuid, so it 404s here.
- * M13.11 moves this card to `/og/g/<slug>/games/<gameId>` and turns this address into its 308.
+ * **The segment is named `slug`** only because Next allows one dynamic name per level and
+ * `/og/g/[slug]/tonight` and `/og/g/[slug]/games/[gameId]` share it.
  */
 export const dynamic = 'force-dynamic';
 
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug: gameId } = await params;
-  const game = await loadGamePage(createPublicClient(), gameId, nightTimeZone());
-  if (game === null) return NOT_FOUND();
-  return cardResponse(<GameCard model={gameCardModel(game)} />, 'public, max-age=300, s-maxage=300');
+  const resolved = await resolveGroupParam(createPublicClient(), gameId);
+  if (resolved.kind !== 'game') return NOT_FOUND();
+  return Response.redirect(new URL(gameImagePath(resolved.slug, resolved.gameId), request.url), 308);
 }

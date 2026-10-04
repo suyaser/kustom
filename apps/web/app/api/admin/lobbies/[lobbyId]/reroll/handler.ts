@@ -8,7 +8,7 @@ import { siteOrigin } from '@/lib/siteUrl';
 import { type RerollRequest, rerollRequestSchema, rerollResponseSchema } from './schema';
 
 /**
- * Reroll (M3.2). See `app/api/admin/players/handler.ts` for why the handler is not in
+ * Reroll (M3.2). See `app/api/admin/tokens/handler.ts` for why the handler is not in
  * `route.ts`; here there is a second reason — the lobby id comes from the path, so the route
  * curries it in and the tests can too.
  *
@@ -110,7 +110,6 @@ export function rerollRoute(
   options: AdminRouteOptions = {},
 ): (request: Request) => Promise<NextResponse> {
   return withAdminAuth(rerollRequestSchema, (input, context) => handleReroll(lobbyId, input, context), {
-    redirectTo: '/admin',
     ...options,
   });
 }

@@ -1,3 +1,4 @@
+import type { RecordedGame, RecordedGameKind } from '@customs/core';
 import {
   type CompanionGameEogPayload,
   type CompanionGameEogPayloadWithWinner,
@@ -6,8 +7,14 @@ import {
   type Json,
   scrubRawEogBlock,
 } from '@customs/db';
+import { MIN_RATED_DURATION_S } from '../lobbyRules';
+import { championTable } from '../mode/champions';
+import { readLobbyLock } from '../mode/lock';
+import { recordedGame, stampColumns } from '../mode/record';
+import { supabaseModeStore } from '../mode/state';
 import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
+import { isRatedMode } from './fold';
 import { selectLatestLobby } from './lobby';
 import { BACKFILL_MIN_MEMBERS, countMembersByPuuid, ensureMemberships } from './memberships';
 import { ensurePlayers } from './players';
@@ -75,6 +82,11 @@ export interface GameIngestResult {
   foreignDuplicate: boolean;
   /** Rows in `game_players` for this game after the write. */
   participants: number;
+  /**
+   * The game as the mode lifecycle sees it (M15.3): its kind and its lobby's lock at Roll, for the
+   * compare-and-clear the route runs after the fold (`clearAfterRecord`).
+   */
+  modeRecord: RecordedGame;
 }
 
 /**
@@ -138,6 +150,24 @@ export async function ingestEogGame(
     }
   }
 
+  // The mode stamp (M15.3, R2): the lobby's lock taken at Roll, not the card at record time, so a
+  // mid-game switch never changes the game being played. A game with no lock takes the standing
+  // mode at its default. Computed on every post; a duplicate's insert is ignored, so the stored
+  // stamp is the first write's.
+  const kind = recordedKind(payload);
+  const lock = lobbyId === null ? null : await readLobbyLock(client, lobbyId);
+  const modeColumns = stampColumns({
+    kind,
+    lock,
+    state: (await supabaseModeStore(client).read(groupId)).state,
+    seats: payload.participants.map((participant) => ({
+      side: participant.side,
+      championId: participant.championId,
+      role: participant.role,
+    })),
+    table: championTable(),
+  });
+
   const insert: GameInsert = {
     lcu_game_id: payload.gameId,
     lobby_id: lobbyId,
@@ -149,7 +179,10 @@ export async function ingestEogGame(
     // `games.raw`, `games` is public-read, and `scrubRawEogBlock` is idempotent (M2.10,
     // point 11). Backfill (M5.1) will write through this function too.
     raw: asJson(scrubRawEogBlock(payload.raw)),
-    // season_id is left out: the column defaults to public.active_season_id().
+    // The mode, the rule, `rated` and the rule check (M15.3), named explicitly. `games_stamp_mode`
+    // (0024, amended by 0032) only fills a null `mode`, so it is the fallback for a writer that
+    // names none; a second companion's duplicate (`ignoreDuplicates`) keeps the first write's.
+    ...modeColumns,
     group_id: groupId,
   };
 
@@ -181,7 +214,21 @@ export async function ingestEogGame(
     created,
     foreignDuplicate,
     participants: await countGamePlayers(client, game.id),
+    modeRecord: recordedGame(kind, lock),
   };
+}
+
+/**
+ * How the mode lifecycle sees the game (core's `RecordedGameKind`): ARAM (anything that is not the
+ * Rift, `isRatedMode`'s rule), a remake (the rating gate's short game: 300 seconds or less), or a
+ * Rift game. Remakes and ARAM never rate, never get checked, and leave the rule pending (R1).
+ */
+export function recordedKind(
+  payload: Pick<CompanionGameEogPayloadWithWinner, 'raw' | 'durationS'>,
+): RecordedGameKind {
+  if (!isRatedMode(payload.raw)) return 'aram';
+  if (payload.durationS <= MIN_RATED_DURATION_S) return 'remake';
+  return 'rift';
 }
 
 /** The stored row for this `lcu_game_id`, or null. */

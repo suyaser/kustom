@@ -4,6 +4,7 @@
  */
 
 import { ROLES } from '../types';
+import { describeSwap } from './receipt';
 import { isOffRole } from './roles';
 import type { Assignment, BalancePlayer, Split } from './types';
 
@@ -34,16 +35,13 @@ function rolesClause(split: Split, byPuuid: ReadonlyMap<string, Named>): string 
 }
 
 function nextBestClause(split: Split, next: Split, byPuuid: ReadonlyMap<string, Named>): string {
-  const blue = new Set(split.blue.map((a) => a.puuid));
-  const overlap = (side: readonly Assignment[]): number => side.filter((a) => blue.has(a.puuid)).length;
-  const aligned = overlap(next.blue) >= overlap(next.red) ? next.blue : next.red;
-  const alignedSet = new Set(aligned.map((a) => a.puuid));
-  const leaving = split.blue.filter((a) => !alignedSet.has(a.puuid));
-  const joining = aligned.filter((a) => !blue.has(a.puuid));
-  const name = (a: Assignment | undefined): string =>
-    a === undefined ? '?' : (byPuuid.get(a.puuid)?.name ?? a.puuid);
+  const name = (a: Assignment): string => byPuuid.get(a.puuid)?.name ?? a.puuid;
+  const swap = describeSwap(split, next);
+  // `moved` counts players; the sentence has always counted swaps, two players each.
   const change =
-    leaving.length === 1 ? `swap ${name(leaving[0])} and ${name(joining[0])}` : `${leaving.length} swaps`;
+    swap.kind === 'one-for-one'
+      ? `swap ${name(swap.a)} and ${name(swap.b)}`
+      : `${swap.kind === 'reshuffle' ? swap.moved / 2 : 0} swaps`;
   const offRole = next.offRoleCount === split.offRoleCount ? '' : ` with ${next.offRoleCount} off-role`;
   return `Next best: ${change}, gap ${next.gap}${offRole}.`;
 }

@@ -289,7 +289,7 @@ export function nextCivilMidnight(now: Date, timeZone: string = DEFAULT_NIGHT_TI
 }
 
 /* ---------------------------------------------------------------------------
- * Window boundaries (M5.9): which week and which month a game belongs to.
+ * Window boundaries (M5.9): which week a game belongs to.
  *
  * Nobody sees this half of the file. They see `This week` on the leaderboard and the Sunday
  * post in Discord, and both are only ever as right as these twenty lines. It lives here rather
@@ -298,9 +298,9 @@ export function nextCivilMidnight(now: Date, timeZone: string = DEFAULT_NIGHT_TI
  *
  * **The week opens on Sunday** (M5.34, 2026-09-15): the group's week runs Sunday to Thursday —
  * Egypt's working week — and the ISO Monday this file cut on until then was a default nobody
- * chose. The anchor day is the only thing that moved; the hour, the night and the month did not.
+ * chose. The anchor day is the only thing that moved; the hour and the night did not.
  *
- * **A game belongs to the week and the month its `started_at` falls in, by the 06:00
+ * **A game belongs to the week its `started_at` falls in, by the 06:00
  * boundary** — the night's own boundary (M2.5), for the night's own reason: a Saturday-night
  * game that starts at 01:40 belongs to the week that is ending, with the rest of that night's
  * games. Windows are half-open, `[start, end)`, and every one of them starts at 06:00 local.
@@ -310,8 +310,12 @@ export function nextCivilMidnight(now: Date, timeZone: string = DEFAULT_NIGHT_TI
  * it was actually played, on every page and in every past post, with nothing rewritten.
  * ------------------------------------------------------------------------- */
 
-/** The five windows the board is read through (M5.12). The parameter is the same word everywhere. */
-export type WindowKind = 'this-week' | 'last-week' | 'this-month' | 'last-month' | 'all-time';
+/**
+ * The three windows the board is read through (M5.12). The parameter is the same word everywhere.
+ * The two month windows were dropped in M14.48 (user, 2026-10-03: "a useless filter"); an old
+ * `?window=this-month` link falls back to the page's default through `windowOrDefault`.
+ */
+export type WindowKind = 'this-week' | 'last-week' | 'all-time';
 
 /**
  * A half-open interval `[start, end)`. `all-time` is `{ start: null, end: null }` — one
@@ -382,16 +386,10 @@ export function weekStart(instant: Date, timeZone: string = DEFAULT_NIGHT_TIME_Z
   return boundaryOf(addDays(date, 1 - weekdayOf(date)), timeZone);
 }
 
-/** The 1st at 06:00 that opens the month containing `instant`, by the same night boundary. */
-export function monthStart(instant: Date, timeZone: string = DEFAULT_NIGHT_TIME_ZONE): Date {
-  const date = nightDate(instant, timeZone);
-  return boundaryOf({ year: date.year, month: date.month, day: 1 }, timeZone);
-}
-
 /**
  * The window's bounds, half-open and both ends at 06:00 local.
  *
- * `this-week` and `this-month` **end in the future** — the end is the next boundary, not `now`
+ * `this-week` **ends in the future** — the end is the next boundary, not `now`
  * — so a game that lands mid-evening is inside the window it was played in without the range
  * moving under it.
  *
@@ -409,18 +407,10 @@ export function windowRange(
 ): WindowRange {
   if (kind === 'all-time') return { start: null, end: null };
 
-  if (kind === 'this-week' || kind === 'last-week') {
-    const thisWeek = weekStart(now, timeZone);
-    const date = dateOfBoundary(thisWeek, timeZone);
-    if (kind === 'this-week') return { start: thisWeek, end: boundaryOf(addDays(date, 7), timeZone) };
-    return { start: boundaryOf(addDays(date, -7), timeZone), end: thisWeek };
-  }
-
-  const thisMonth = monthStart(now, timeZone);
-  const date = dateOfBoundary(thisMonth, timeZone);
-  const next = boundaryOf({ year: date.year, month: date.month + 1, day: 1 }, timeZone);
-  if (kind === 'this-month') return { start: thisMonth, end: next };
-  return { start: boundaryOf({ year: date.year, month: date.month - 1, day: 1 }, timeZone), end: thisMonth };
+  const thisWeek = weekStart(now, timeZone);
+  const date = dateOfBoundary(thisWeek, timeZone);
+  if (kind === 'this-week') return { start: thisWeek, end: boundaryOf(addDays(date, 7), timeZone) };
+  return { start: boundaryOf(addDays(date, -7), timeZone), end: thisWeek };
 }
 
 /** Is this game inside this window? Half-open: the start is in, the end is not. */
@@ -431,8 +421,11 @@ export function isInWindow(startedAt: Date, range: WindowRange): boolean {
   return true;
 }
 
-/** The two windows that close by themselves and post themselves (M5.10, M5.13). */
-export type ClosedWindowKind = 'last-week' | 'last-month';
+/**
+ * The window that closes by itself and posts itself (M5.10, M5.13). `last-month` was the second
+ * until M14.48 dropped the month windows; old `window_posts` rows of that kind stay in the table.
+ */
+export type ClosedWindowKind = 'last-week';
 
 /**
  * The window of that kind that most recently **closed**, for the cron route that posts it
@@ -457,7 +450,7 @@ export function closedWindow(
   timeZone: string = DEFAULT_NIGHT_TIME_ZONE,
 ): ClosedWindow {
   const range = windowRange(kind, now, timeZone);
-  // `last-week` and `last-month` are always bounded; the nulls belong to `all-time` alone.
+  // `last-week` is always bounded; the nulls belong to `all-time` alone.
   const start = range.start as Date;
   const end = range.end as Date;
   return { kind, start, end, key: start.toISOString() };
@@ -466,7 +459,7 @@ export function closedWindow(
 /* ---------------------------------------------------------------------------
  * Naming a window out loud (M5.12's slot, M5.10's post description).
  *
- * The three formatters below are the only place a window's dates become words. `05-design.md`'s
+ * The two formatters below are the only place a window's dates become words. `05-design.md`'s
  * board copy table fixes the strings; **the week form is M5.10's post description byte for
  * byte**, which is the whole reason it is exported from here rather than assembled twice.
  * ------------------------------------------------------------------------- */
@@ -506,20 +499,6 @@ function formatWeekday(instant: Date, timeZone: string): string {
 export function formatWeekRange(start: Date, end: Date, timeZone: string = DEFAULT_NIGHT_TIME_ZONE): string {
   const lastNight = boundaryOf(addDays(dateOfBoundary(end, timeZone), -1), timeZone);
   return `${formatWeekday(start, timeZone)} to ${formatWeekday(lastNight, timeZone)}`;
-}
-
-const monthNameFormatters = new Map<string, Intl.DateTimeFormat>();
-
-/**
- * `September`: a month, by its name and nothing else (product, 2026-09-10). A day range would
- * spell out what a calendar already says, and no year, because a month window is always this
- * one or the one before it.
- */
-export function formatMonthName(instant: Date, timeZone: string = DEFAULT_NIGHT_TIME_ZONE): string {
-  const cached = monthNameFormatters.get(timeZone);
-  const formatter = cached ?? new Intl.DateTimeFormat(DISPLAY_LOCALE, { timeZone, month: 'long' });
-  if (cached === undefined) monthNameFormatters.set(timeZone, formatter);
-  return formatter.format(instant);
 }
 
 const dayMonthYearFormatters = new Map<string, Intl.DateTimeFormat>();

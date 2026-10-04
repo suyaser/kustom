@@ -1,14 +1,21 @@
+import 'server-only';
 import { createHash, randomInt } from 'node:crypto';
 import {
+  type CompanionPairMode,
   type GroupSummary,
+  isAtLeast,
   PAIRING_CODE_ALPHABET,
   PAIRING_CODE_LENGTH,
   PAIRING_CODE_TTL_MS,
   type PairingRequest,
   type PairingStatusResponse,
 } from '@customs/db/schemas';
+import { mintTokenForPlayer } from '../admin/tokens';
 import type { ServiceClient } from '../supabase';
 import {
+  HOST_NOT_ADMIN,
+  HOST_PAIRING_TOKEN_LABEL,
+  hostCodeOtherAccount,
   INVITE_DEAD,
   NO_SUCH_GROUP,
   PAIRING_CODE_EXPIRED,
@@ -20,6 +27,7 @@ import {
 } from './copy';
 import { groupSummaryById } from './create';
 import { groupByInviteCode } from './invites';
+import { supabaseGroupRole } from './membership';
 import { type GroupResult, groupFailed, groupOk } from './result';
 
 /**
@@ -91,8 +99,9 @@ export interface IssueOptions {
 }
 
 /**
- * Who may get a code for which group: the group's **creator** by `groupId` (the unlinked creator
- * on `/new`), or **anyone holding the live invite** by `inviteCode`. A new code for the same
+ * Who may get a code for which group: by `groupId`, the group's **creator** (the unlinked creator
+ * on `/new`) or its **owner or an admin** (the admin home's `Set up your PC as host` card, M14.12);
+ * by `inviteCode`, **anyone holding the live invite**. A new code for the same
  * session and group replaces the old one, so only the newest code on the page works.
  *
  * A session that is already linked may get one too: redeeming it from the same League account
@@ -114,7 +123,8 @@ export async function issuePairingCode(
       .maybeSingle();
     if (error) throw new Error(`pairing: group lookup failed: ${error.message}`);
     if (data === null) return groupFailed(404, NO_SUCH_GROUP);
-    if (data.created_by === null || data.created_by !== session.userId) {
+    const isCreator = data.created_by !== null && data.created_by === session.userId;
+    if (!isCreator && !(await sessionIsAdminOf(client, session.discordId, data.id))) {
       return groupFailed(403, PAIRING_NOT_CREATOR);
     }
     group = { id: data.id, slug: data.slug, name: data.name };
@@ -155,6 +165,28 @@ export async function issuePairingCode(
     if (error.code !== UNIQUE_VIOLATION) throw new Error(`pairing: issuing a code failed: ${error.message}`);
   }
   throw new Error(`pairing: ${ISSUE_ATTEMPTS} codes in a row collided`);
+}
+
+/** The player linked to a Discord account, or null when that account has not paired yet. */
+async function playerByDiscordId(
+  client: ServiceClient,
+  discordId: string,
+): Promise<{ id: string; puuid: string; name: string | null } | null> {
+  const { data, error } = await client
+    .from('players')
+    .select('id, puuid, display_name, game_name')
+    .eq('discord_id', discordId)
+    .maybeSingle();
+  if (error) throw new Error(`pairing: player lookup failed: ${error.message}`);
+  if (data === null) return null;
+  return { id: data.id, puuid: data.puuid, name: data.display_name ?? data.game_name };
+}
+
+/** Whether the Discord account's linked player is the group's owner or one of its admins. */
+async function sessionIsAdminOf(client: ServiceClient, discordId: string, groupId: string): Promise<boolean> {
+  const player = await playerByDiscordId(client, discordId);
+  if (player === null) return false;
+  return isAtLeast(await supabaseGroupRole(client)(player.id, groupId), 'admin');
 }
 
 // ---------------------------------------------------------------------------
@@ -232,16 +264,56 @@ function isRedeemOutcome(value: unknown): value is RedeemOutcome {
   return typeof value === 'string' && (REDEEM_OUTCOMES as readonly string[]).includes(value);
 }
 
+/** What a redemption gives Kustom: the group, and in host mode a token or the reason there is none. */
+export interface RedeemedPairing {
+  group: GroupSummary;
+  /** Host mode, an owner or admin pairing their own League account: shown once, stored only hashed. */
+  companionToken?: string;
+  /** Host mode, a member: linked and joined, but no token, and this is why. */
+  hostRefusal?: string;
+}
+
+/** The code's row: whose session it was given to, for which group. Read after the SQL function. */
+async function pairingCodeRow(
+  client: ServiceClient,
+  code: string,
+): Promise<{ groupId: string; discordId: string } | null> {
+  const { data, error } = await client
+    .from('pairing_codes')
+    .select('group_id, discord_id')
+    .eq('code_hash', hashPairingCode(code))
+    .maybeSingle();
+  if (error) throw new Error(`pairing: code lookup failed: ${error.message}`);
+  return data === null ? null : { groupId: data.group_id, discordId: data.discord_id };
+}
+
 /**
  * The whole redemption after the rate limit: `redeem_pairing_code` decides and writes; this maps
  * its answer to the status and the sentence Kustom prints verbatim. A refusal writes nothing and
  * leaves the code usable.
+ *
+ * **Host mode** (M14.12, decision row 2026-10-03) changes nothing about the linking -- the SQL
+ * function runs exactly as in overlay mode, never re-linking and never stealing -- and adds one
+ * step after it:
+ *
+ * - linked, the code's session is the group's owner or an admin, and the PUUID is that session's
+ *   linked player: a host token for that PUUID in that group, through the same `mintTokenForPlayer`
+ *   the Hosts page uses (32 random bytes, SHA-256 at rest, the raw value only in the return value);
+ * - linked, but a member: no token, {@link HOST_NOT_ADMIN};
+ * - refused because the code's Discord is linked to another PUUID, and that Discord's player is the
+ *   group's owner or an admin: the same 409 with {@link hostCodeOtherAccount} instead of M13.5's
+ *   sentence. A code typed on a friend's PC never mints the friend a token.
+ *
+ * The role is read after the SQL function commits, so an unlinked creator's first pairing (which
+ * makes them the owner) mints too. The mint is a second write, outside the function's transaction:
+ * if it fails the person is still linked and the route answers 500; a new code retries it.
  */
 export async function redeemPairingCode(
   client: ServiceClient,
   code: string,
   puuid: string,
-): Promise<GroupResult<{ group: GroupSummary }>> {
+  mode: CompanionPairMode = 'overlay',
+): Promise<GroupResult<RedeemedPairing>> {
   const { data, error } = await client.rpc('redeem_pairing_code', {
     p_code_hash: hashPairingCode(code),
     p_puuid: puuid,
@@ -257,14 +329,51 @@ export async function redeemPairingCode(
       return groupFailed(404, PAIRING_CODE_UNKNOWN);
     case 'expired':
       return groupFailed(410, PAIRING_CODE_EXPIRED);
-    case 'discord_linked':
-      return groupFailed(409, pairingDiscordLinked((row.linked_name as string | null) ?? null));
+    case 'discord_linked': {
+      const linkedName = (row.linked_name as string | null) ?? null;
+      if (mode === 'host') {
+        const codeRow = await pairingCodeRow(client, code);
+        if (codeRow !== null && (await sessionIsAdminOf(client, codeRow.discordId, codeRow.groupId))) {
+          return groupFailed(409, hostCodeOtherAccount(linkedName));
+        }
+      }
+      return groupFailed(409, pairingDiscordLinked(linkedName));
+    }
     case 'puuid_linked':
       return groupFailed(409, PAIRING_PUUID_LINKED);
     case 'ok': {
       const group = await groupSummaryById(client, row.group_id);
       if (group === null) throw new Error('pairing redeem: the group is not readable');
-      return groupOk({ group });
+      if (mode !== 'host') return groupOk({ group });
+      return groupOk(await hostStep(client, code, puuid, group));
     }
   }
+}
+
+/** Host mode after a successful link: mint for an owner or admin on their own account, else say why not. */
+async function hostStep(
+  client: ServiceClient,
+  code: string,
+  puuid: string,
+  group: GroupSummary,
+): Promise<RedeemedPairing> {
+  const codeRow = await pairingCodeRow(client, code);
+  if (codeRow === null) throw new Error('pairing redeem: the used code is not readable');
+  const player = await playerByDiscordId(client, codeRow.discordId);
+  // The SQL function just linked this Discord account to this PUUID or found it linked already, so a
+  // mismatch is a bug; checked anyway, because it is the one rule that decides who gets a token.
+  if (player === null || player.puuid !== puuid) {
+    throw new Error('pairing redeem: the linked player is not the paired PUUID');
+  }
+  if (!isAtLeast(await supabaseGroupRole(client)(player.id, group.id), 'admin')) {
+    return { group, hostRefusal: HOST_NOT_ADMIN };
+  }
+
+  const minted = await mintTokenForPlayer(client, {
+    playerId: player.id,
+    label: HOST_PAIRING_TOKEN_LABEL,
+    groupId: group.id,
+  });
+  if (!minted.ok) throw new Error(`pairing redeem: minting the host token failed (${minted.status})`);
+  return { group, companionToken: minted.value.token };
 }

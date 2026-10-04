@@ -6,7 +6,6 @@
 import { ApiClient } from './api.js';
 import { Backfill } from './backfill.js';
 import { CommandRunner } from './commandRunner.js';
-import type { HostConfig } from './config.js';
 import { ConnectionMachine } from './connection.js';
 import { GameWatcher } from './gameWatcher.js';
 import { composeHooks, loggingHooks } from './hooks.js';
@@ -17,14 +16,37 @@ import { RankSync } from './rankSync.js';
 
 export interface HostHandle {
   stop(): void;
+  /** A game is in progress or a block is unposted: not a moment to swap the watchers (M14.13). */
+  busy?(): boolean;
   readonly run: Promise<void>;
 }
 
-export function startHost(config: HostConfig, dir: string, logger: CompanionLogger): HostHandle {
+export interface StartHostOptions {
+  readonly apiBase: string;
+  /** The selected group's token. One session, one token (M13.8). */
+  readonly token: string;
+  readonly lockfilePath?: string | undefined;
+  /**
+   * Where this group's queue, backfill cache and executed-commands record live (`groups.ts` `hostStateDir`).
+   * Per group, so a block queued for one group can never be replayed with another group's token.
+   */
+  readonly stateDir: string;
+  readonly logger: CompanionLogger;
+  /** The API refused this session's token (401 or 403). Called once. */
+  readonly onTokenRefused?: (status: 401 | 403) => void;
+}
+
+export function startHost(options: StartHostOptions): HostHandle {
+  const { logger, stateDir: dir } = options;
+  // Aborted by stop(): an API call that has not been sent yet is never sent after the session ends, so a
+  // switch to another group cannot be followed by one more post on the old token.
+  const stopController = new AbortController();
   const api = new ApiClient({
-    apiBase: config.apiBase,
-    token: config.companionToken,
+    apiBase: options.apiBase,
+    token: options.token,
     logger: logger.child({ component: 'api' }),
+    signal: stopController.signal,
+    ...(options.onTokenRefused ? { onRefused: options.onTokenRefused } : {}),
   });
 
   const gameWatcher = new GameWatcher({ api, logger, configDir: dir });
@@ -54,7 +76,7 @@ export function startHost(config: HostConfig, dir: string, logger: CompanionLogg
       backfill.hooks(),
       commandRunner.hooks(),
     ),
-    lockfile: config.lockfilePath ? { overridePath: config.lockfilePath } : {},
+    lockfile: options.lockfilePath ? { overridePath: options.lockfilePath } : {},
   });
   commandRunner.start();
 
@@ -62,6 +84,7 @@ export function startHost(config: HostConfig, dir: string, logger: CompanionLogg
   const stop = (): void => {
     if (stopped) return;
     stopped = true;
+    stopController.abort();
     machine.stop();
     commandRunner.stop();
     lobbyWatcher.stop();
@@ -72,6 +95,7 @@ export function startHost(config: HostConfig, dir: string, logger: CompanionLogg
 
   return {
     stop,
+    busy: () => gameWatcher.busy(),
     run: machine.run().then(() => {
       stop();
     }),

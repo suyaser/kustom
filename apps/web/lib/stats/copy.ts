@@ -1,5 +1,5 @@
 import type { RoleValue } from '@customs/db';
-import { gamesLabel, RATING_LABEL, winLossLabel } from '../board/copy';
+import { gamesLabel, winLossLabel } from '../board/copy';
 
 /**
  * Every word `/stats` says (M5.4), in one file, the way product spelled them in the brief and
@@ -28,7 +28,7 @@ export const STATS_LABEL = 'Stats';
 
 /* ---------------------------------------------------------------------------
  * The minimums. Every one of them is five games or more, which is why this page
- * opens on `This month` and not on the board's `This week`.
+ * opens on `All time` and not on the board's `This week` (M14.42).
  * ------------------------------------------------------------------------- */
 
 /**
@@ -225,8 +225,8 @@ export const SIDE_RECORD_HEADING = 'By side';
  * alone, and a side is **a name read as language and set in Archivo** like the partner names in
  * the card below it.
  *
- * **The dress is the designer's, 2026-09-11**: the two words print in `--cn-blue` and
- * `--cn-red` rather than `dim`, because this is the one card in the product where a side is the
+ * **The dress is the designer's, 2026-09-11**: the two words print in the team colours
+ * (`text-team-blue` / `text-team-red` since 2.0) rather than muted, because this is the one card in the product where a side is the
  * subject of a row rather than a team, so the colour is the content. It is **on the word**: no
  * tint, no border, no chip — the team card's marks mean "which team" and this card is a record.
  */
@@ -271,14 +271,14 @@ export const CURRENT_STREAK = 'Current streak';
  */
 
 /**
- * `Most improved, September.` / `Most improved, week of 1 Sep.` — one line for a player who won
+ * `Cursed duo, week of 1 Sep.` — one line for a player who won
  * an award in a closed window (product, `05-design.md`'s copy table, 2026-09-10).
  *
  * **No badge and no icon**, and no rule, no delta and no percentage: the award's own line, with
  * all of that in it, is on `/stats` and in the Sunday post. This says which award and which
  * calendar, and the reader taps through for the rest.
  *
- * The label is the award's own (`MOST_IMPROVED`, `BEST_OFF_ROLE`, `CURSED_DUO`), so the three
+ * The label is the award's own (`BEST_OFF_ROLE`, `CURSED_DUO`), so the two
  * cannot drift from the block they were won in.
  */
 export function awardWonLine(label: string, period: string): string {
@@ -287,7 +287,7 @@ export function awardWonLine(label: string, period: string): string {
 
 /**
  * `week of 1 Sep` — the second half of that line on the two week windows (product's `week of 1
- * Sep`, from the copy table; the month form is `formatMonthName`'s `September`, unwrapped).
+ * Sep`, from the copy table).
  *
  * The day is the window's own Sunday (M5.34), formatted on the server in the fixed locale and
  * the configured zone like every other date on a public page.
@@ -299,12 +299,12 @@ export function weekOfLabel(day: string): string {
 /* ---------------------------------------------------------------------------
  * The awards (product's words, brief 2026-09-09, amended for windows 2026-09-10).
  *
- * `week` and `month` are the only difference between a weekly and a monthly award: one noun and
- * three numbers, both interpolated, so there is one set of strings and not two.
+ * The period is interpolated, a noun and three numbers. Since M14.48 dropped the month windows the
+ * week is the only one; the type stays so the strings keep naming their calendar.
  * ------------------------------------------------------------------------- */
 
 /** Which calendar an award is about. `All time` has none and is not one of these. */
-export type AwardPeriod = 'week' | 'month';
+export type AwardPeriod = 'week';
 
 /**
  * The section's name on the page **and** the field name in the Discord post (`AWARDS_FIELD` in
@@ -312,9 +312,9 @@ export type AwardPeriod = 'week' | 'month';
  */
 export const AWARDS_HEADING = 'Awards';
 
-/** `Three awards for the week. Nobody votes; the numbers pick.` */
+/** `Two awards for the week. Nobody votes; the numbers pick.` (M14.57 retired the third.) */
 export function awardsIntro(period: AwardPeriod): string {
-  return `Three awards for the ${period}. Nobody votes; the numbers pick.`;
+  return `Two awards for the ${period}. Nobody votes; the numbers pick.`;
 }
 
 /**
@@ -325,7 +325,6 @@ export function awardsPending(period: AwardPeriod): string {
   return `Awards are handed out when the ${period} ends.`;
 }
 
-export const MOST_IMPROVED = 'Most improved';
 export const BEST_OFF_ROLE = 'Best off-role';
 export const CURSED_DUO = 'Cursed duo';
 
@@ -338,27 +337,9 @@ export const CURSED_DUO = 'Cursed duo';
  * all week and never the friend who showed up once and won. `All time` has no row because it
  * has no awards.
  */
-export const AWARD_MINIMUMS: Readonly<
-  Record<AwardPeriod, { mostImproved: number; bestOffRole: number; cursedDuo: number }>
-> = {
-  week: { mostImproved: 6, bestOffRole: 4, cursedDuo: 4 },
-  month: { mostImproved: 15, bestOffRole: 10, cursedDuo: 8 },
+export const AWARD_MINIMUMS: Readonly<Record<AwardPeriod, { bestOffRole: number; cursedDuo: number }>> = {
+  week: { bestOffRole: 4, cursedDuo: 4 },
 };
-
-/** `Biggest climb in Rating from a first game to a last one, over at least 15 games.` */
-export function mostImprovedRule(minimum: number): string {
-  return `Biggest climb in ${RATING_LABEL} from a first game to a last one, over at least ${minimum} games.`;
-}
-
-/** `Nadia · +212 · 1266 → 1478`. The delta is formatted by the surface: `−` on the web, `-` in Discord. */
-export function mostImprovedLine(name: string, delta: string, from: number, to: number): string {
-  return `${name} · ${delta} · ${from} → ${to}`;
-}
-
-/** `Nobody played 6 games this week.` */
-export function mostImprovedNobody(minimum: number, period: AwardPeriod): string {
-  return `Nobody played ${minimum} games this ${period}.`;
-}
 
 /** `Best record away from their main role, over at least 10 of those games.` */
 export function bestOffRoleRule(minimum: number): string {
@@ -446,3 +427,77 @@ export const AGAINST_THE_ODDS_PERCENT = Math.round(AGAINST_THE_ODDS_MAX * 100);
  * record under the list has no minimum, because it is about a game and not about a person.
  */
 export const MIN_AGAINST_THE_ODDS_WINS = 2;
+
+/* -------------------------------------------------------------------------------------------
+ * Kustom 2.0 (M14.17): Stats with three segments, Records · Champions · 1v1.
+ * ----------------------------------------------------------------------------------------- */
+
+export type StatsSegment = 'records' | 'champions' | 'versus';
+
+export const SEGMENT_LABELS: Readonly<Record<StatsSegment, string>> = {
+  records: 'Records',
+  champions: 'Champions',
+  versus: '1v1',
+};
+
+/** The segmented control's accessible name, and the pickers'. */
+export const SEGMENTS_LABEL = 'Section';
+export const WINDOW_PICKER_LABEL = 'Window';
+export const MODE_PICKER_LABEL = 'Map';
+
+/** Each list shows this many rows; `Show all` opens the rest of that one list. */
+export const STATS_ROWS_SHOWN = 10;
+/** Each row lists this many games; the rest are on the Games list filtered to that player. */
+export const STATS_OPENINGS_SHOWN = 5;
+
+export function showAllLabel(total: number): string {
+  return `Show all ${total}`;
+}
+
+export const SHOW_FEWER = 'Show fewer';
+
+/** `See games (12)`. */
+export function seeGamesLabel(count: number): string {
+  return `See games (${count})`;
+}
+
+/** `See champs (6)`. */
+export function seeChampsLabel(count: number): string {
+  return `See champs (${count})`;
+}
+
+/** `7 more in Games`: the rest of a row's games, on the Games list filtered to that player. */
+export function moreGamesLabel(count: number): string {
+  return `${count} more in Games`;
+}
+
+/** Records under ARAM: the rating sections are Rift-only, so they say so instead of vanishing. */
+export const RIFT_ONLY_NOTE =
+  'Awards, roles and streaks count every map together, so they live on the Rift view.';
+
+/** Champions on a window with no draft bans: one line instead of two empty cards. */
+export const NO_DRAFT_BANS = 'No draft bans in this window.';
+
+/** The empty window's one action (05-design 5.7). */
+export const SEE_ALL_TIME = 'See all time';
+
+/** Each Records section's one rules disclosure (design round 1). */
+export const HOW_THESE_COUNT = 'How these count';
+
+/** A record two or more people share: `+1 tied`. */
+export function tiedLabel(others: number): string {
+  return `+${others} tied`;
+}
+
+/** A museum row with more than one game: its latest. */
+export function latestLabel(what: string): string {
+  return `Latest: ${what}`;
+}
+
+/** By role on Records shows this many per role (the lead's ruling, M14.17 design round 1). */
+export const ROLE_TOP_SHOWN = 3;
+
+/** `See all 12 at mid`: the rest of one role's list. */
+export function seeAllRoleLabel(role: string, total: number): string {
+  return `See all ${total} at ${role}`;
+}

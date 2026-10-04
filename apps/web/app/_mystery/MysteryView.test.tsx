@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { awardHookLines } from '@/lib/mystery/clues';
 import {
   AWARD_BLAME,
@@ -327,5 +327,39 @@ describe('MysteryView reveals the award it asked about', () => {
       if (category === 'damage' || category === 'cs') continue; // panel rows of their own
       expect(screen.queryByText(awardStatLabel(category))).not.toBeInTheDocument();
     }
+  });
+});
+
+describe('the 2.0 daily card (M14.38, code review)', () => {
+  it('marks the picked answer row with aria-pressed, and only that one', () => {
+    const suspect = play.suspects[0];
+    if (suspect === undefined) throw new Error('fixture has suspects');
+    render(<MysteryView state={{ kind: 'play', play }} pendingId={suspect.playerId} />);
+    expect(screen.getByRole('button', { name: suspect.name })).toHaveAttribute('aria-pressed', 'true');
+    const others = screen
+      .getAllByRole('button')
+      .filter((button) => button.getAttribute('aria-pressed') === 'false');
+    expect(others).toHaveLength(play.suspects.length - 1);
+  });
+
+  it('asks before locking, and Back steps out of it', () => {
+    const suspect = play.suspects[0];
+    if (suspect === undefined) throw new Error('fixture has suspects');
+    const onCancelLock = vi.fn();
+    render(<MysteryView state={{ kind: 'play', play }} locking={suspect} onCancelLock={onCancelLock} />);
+    expect(screen.getByText(`Lock in ${suspect.name}?`)).toBeInTheDocument();
+    expect(screen.queryByText(/Locked in/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `Lock in ${suspect.name}` })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onCancelLock).toHaveBeenCalledOnce();
+  });
+
+  it('shows the share text itself, and a manual-copy hint when the clipboard refuses', () => {
+    const { rerender } = render(<MysteryView state={{ kind: 'closed', result }} />);
+    const share = screen.getByRole('region', { name: 'For the group chat' });
+    expect(share).toHaveTextContent(/Daily Mystery #\d+/);
+    expect(screen.getByText('Locked in')).toBeInTheDocument();
+    rerender(<MysteryView state={{ kind: 'closed', result }} shareFailed />);
+    expect(screen.getByRole('status')).toHaveTextContent('Select the text above and copy it.');
   });
 });

@@ -10,6 +10,8 @@ packages/db/supabase/.temp/
 # Downloaded Node binaries for the companion exe build (apps/companion/build/sea.ts)
 apps/companion/build/cache/
 apps/companion/src-tauri/target/
+# The Cargo workspace (M17.4) builds into apps/companion/target/
+apps/companion/target/
 apps/companion/desktop/dist/
 .DS_Store
 coverage/
@@ -19,3 +21,15 @@ next-env.d.ts
 # Raw OpenAPI dumps from the client are multi-MB; M0.3 extracts what it needs into schemas
 packages/lcu/fixtures/**/swagger-*.json
 packages/lcu/fixtures/**/openapi-*.json
+
+# Kustom 2.0 redesign: local-only screenshots and Playwright working files
+/audit/screens/
+/audit/competitors/
+/.playwright-mcp/
+# The M17.12 release workflow assembles its assets here on the runner
+apps/companion/release-assets/
+
+# design screenshots: local only, never in the repo
+redesign/**/*.png
+redesign/**/*.jpg
+redesign/**/*.html

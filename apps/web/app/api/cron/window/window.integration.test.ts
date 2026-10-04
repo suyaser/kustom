@@ -85,16 +85,17 @@ if (stack === null) {
     closedWindow('last-week', EMPTY_SUNDAY, TIME_ZONE),
     closedWindow('last-week', FLAKY_SUNDAY, TIME_ZONE),
     closedWindow('last-week', FIRST_OF_MONTH, TIME_ZONE),
-    closedWindow('last-month', FIRST_OF_MONTH, TIME_ZONE),
     closedWindow('last-week', AWARDS_SUNDAY, TIME_ZONE),
     closedWindow('last-week', TWO_GROUP_SUNDAY, TIME_ZONE),
+    // 'looks at the week alone on the 2nd' claims this one for every group with a webhook
+    // (the original group too, while the Discord file's config is up): left behind until 2026-10-03.
+    closedWindow('last-week', new Date('2025-11-02T12:00:00Z'), TIME_ZONE),
   ];
 
   /** A and B have webhooks, C has none (M13.4). */
   const groups = { a: '', b: '', c: '' };
 
   let playerIds: string[] = [];
-  let seasonId = '';
   let webhookUrl = '';
   let server: Server | null = null;
   let posts: Record<string, unknown>[] = [];
@@ -173,7 +174,6 @@ if (stack === null) {
       .insert({
         group_id: groupId,
         lcu_game_id: lcuGameId,
-        season_id: seasonId,
         started_at: startedAt.toISOString(),
         duration_s: 1_800,
         winning_side: 100,
@@ -208,12 +208,11 @@ if (stack === null) {
    * A week with enough in it to hand out awards (M5.4): six games, the same ten, the sides
    * rotating so the pairs and the roles vary the way a real week does.
    *
-   * `Window0` climbs `1266 → 1478` on the **stored** track — `mu` 21.1 to 24.6333, the numbers
-   * the pages would have printed — and everybody else stands still. Since M7.4 a week's
-   * `Most improved` is not read off those columns: the rotation is what decides it, because the
-   * weekly fold starts all ten at their seed and the winner is whoever the six games left
-   * furthest above it. `Window1`'s main is top and they play jungle all week, which is the
-   * off-role award.
+   * `Window0` climbs `1266 → 1478` on the stored all-time track — `mu` 21.1 to 24.4 in the first
+   * game, flat, then to 24.6333 in the last: printed +198, +0 x4, +14, so +212 net — and everybody
+   * else stands still, so the week board's leader is `Window0 · +212` (M14.57: the line `Most
+   * improved` used to print, now the board's first row). `Window1`'s main is top and they play
+   * jungle all week, which is the off-role award.
    */
   async function seedAwardsGame(startedAt: Date, index: number): Promise<void> {
     const lcuGameId = Math.floor(Math.random() * 1_000_000_000) + 7_000_000_000;
@@ -223,7 +222,6 @@ if (stack === null) {
       .insert({
         group_id: groups.a,
         lcu_game_id: lcuGameId,
-        season_id: seasonId,
         started_at: startedAt.toISOString(),
         duration_s: 1_800,
         winning_side: index % 2 === 0 ? 100 : 200,
@@ -270,10 +268,6 @@ if (stack === null) {
       puuids.map((puuid, index) => ({ puuid, gameName: `Window${index}`, tagLine: 'EUW' })),
     );
     playerIds = puuids.map((puuid) => ids.get(puuid) ?? '');
-
-    const { data: season, error } = await db.from('seasons').select('id').eq('is_active', true).single();
-    if (error) throw new Error(`no active season: ${error.message}`);
-    seasonId = season.id;
     Object.assign(groups, await createTestGroups(db, runId, ['a', 'b', 'c'] as const));
 
     server = createServer((incoming, response) => {
@@ -368,76 +362,64 @@ if (stack === null) {
       /**
        * And the one message names its own week: the description is the same line the page
        * prints under its picker, and the count is the window's rated games — the two seeded
-       * inside it, never a lifetime total. Since M7.18 the line says which count that is; the
-       * board rows under it are untouched and still read `· 2 games`.
+       * inside it, never a lifetime total. Since M7.18 the line says which count that is. Since
+       * M14.57 each board line is net points and W–L, in net-points order: blue won both games
+       * at +60 a game, red lost both.
        */
       const embed = embedOf(0);
-      expect(embed?.title).toBe('Last week · leaderboard');
+      expect(embed?.title).toBe('Last week · board');
       expect(embed?.description).toBe('Sunday 31 Aug to Saturday 6 Sep · 2 rated games');
       expect(String(embed?.url ?? '')).toContain('/leaderboard?window=last-week');
       // Ten players, five a side, two games each: the board is the window's, not all time.
       const fields = (embed?.fields ?? []) as { value: string }[];
       const lines = String(fields[0]?.value ?? '').split('\n');
       expect(lines).toHaveLength(10);
-      expect(lines[0]).toContain('· 2 games');
+      // No `ratings` rows in this scratch group, so all ten are settling: the chip follows.
+      // Ranks 1 to 3 have the name in bold (M14.61, 05-design 10.6).
+      expect(lines[0]).toBe('`1` **Window0** · +120 · 2W–0L · settling · 2/10');
+      expect(lines.at(-1)).toMatch(/^`10` Window\d · -120 · 0W–2L · settling · 2\/10$/);
     });
   });
 
   /**
-   * **The awards field is M5.4's three lines, quoted** (M5.10): the post the group reads on a
-   * Sunday and the page they open a tap later are the same words, and an award nobody won still
-   * prints its sentence, so the block always has three labels and the bar they missed is on
-   * screen.
+   * **The awards field is M5.4's lines, quoted** (M5.10): the post the group reads on a Sunday
+   * and the page they open a tap later are the same words, and an award nobody won still prints
+   * its sentence. Two labels since M14.57 retired `Most improved`; its winner is the board's
+   * first line, in net points.
    */
   describe('the awards under the board', () => {
-    it('prints all three, computed from the week it just posted', async () => {
+    it('prints both, under a board led by the week s net-points leader', async () => {
       const posted = await callAt(AWARDS_SUNDAY);
       expect(posted.posted).toEqual(['last-week']);
 
       const embed = embedOf(0);
       expect(embed?.description).toBe('Sunday 2 Mar to Saturday 8 Mar · 6 rated games');
 
+      // One block field per award since M14.61 (05-design 10.6): the label is the field's name.
       const fields = (embed?.fields ?? []) as { name: string; value: string }[];
-      expect(fields).toHaveLength(2);
-      expect(fields[1]?.name).toBe('Awards');
+      expect(fields.map((field) => field.name)).toEqual([expect.any(String), 'Best off-role', 'Cursed duo']);
+      const awards = fields.slice(1);
 
-      const lines = String(fields[1]?.value ?? '').split('\n');
-      const labelled = lines.filter((line) => line.startsWith('**'));
-      expect(labelled.map((line) => line.slice(0, line.indexOf('**', 2) + 2))).toEqual([
-        '**Most improved**',
-        '**Best off-role**',
-        '**Cursed duo**',
-      ]);
+      // The board: net points first. Window0 netted +212 (the sum of the printed rows, not
+      // 1266 → 1478 as one difference, though here they agree because the games chain).
+      const board = String(fields[0]?.value ?? '').split('\n');
+      expect(board[0]).toMatch(/^`1` \*\*Window0\*\* · \+212 · \dW–\dL · settling · \d\/10$/);
+      expect(board.slice(1).every((line) => / · \+0 · /.test(line))).toBe(true);
 
-      /**
-       * **The weekly numbers, in the post** (M7.4). `Most improved` on a week is the weekly
-       * track: everybody starts the week at their seed — `provisionalSeed()`, `1200`, for these
-       * ten, who have never been rated — and `rateGameWeekly` folds the six games, which leaves
-       * `Window4` furthest above where their week began. The climb is `+231` and not 2026-09-16's
-       * earlier `+192` because the first seed's `sigma` is 12 now: a week from a fresh seed swings
-       * further, which is the point of the number.
-       *
-       * The stored `mu` columns on those same rows say `Window0` went `1266 → 1478`, which is
-       * the all-time track's answer and the one the month post prints. If that line ever comes
-       * back on a Sunday, a week is being posted with an all-time number in it.
-       */
-      expect(labelled[0]).toBe('**Most improved** Window4 · +231 · 1200 → 1431');
-      expect(fields[1]?.value).not.toContain('1266 → 1478');
+      expect(JSON.stringify(fields)).not.toContain('Most improved');
       // Window1's main is top and they played jungle in all six.
-      expect(labelled[1]).toMatch(/^\*\*Best off-role\*\* Window1 · \d+W \d+L · \d+% · their main is top$/);
+      expect(awards[0]?.value.split('\n')[0]).toMatch(/^Window1 · \d+W \d+L · \d+% · their main is top$/);
       // Whoever it is, the pair line is a pair and a record — or the sentence nobody won it.
-      expect(labelled[2]).toMatch(
-        /^\*\*Cursed duo\*\* (.+ and .+ · \d+W \d+L · \d+%|No pair played 4 games together this week\.)$/,
+      expect(awards[1]?.value.split('\n')[0]).toMatch(
+        /^(.+ and .+ · \d+W \d+L · \d+%|No pair played 4 games together this week\.)$/,
       );
       // ASCII in a message that gets copy-pasted: U+2212 stays on the web (05-design.md).
-      expect(fields[1]?.value).not.toContain('−');
+      expect(JSON.stringify(awards)).not.toContain('−');
 
       /**
-       * **M7.4, acceptance 4**: replay the Sunday and the group still sees the week once.
-       *
-       * The weekly climb is folded at read time rather than stored, so the thing to be sure of
-       * is that a second call neither posts a second message nor writes a second row, and that
-       * the message standing in the channel still carries the numbers the first read produced.
+       * Replay the Sunday and the group still sees the week once: a second call neither posts a
+       * second message nor writes a second row, and the message standing in the channel still
+       * carries the numbers the first read produced.
        */
       const again = await callAt(new Date(AWARDS_SUNDAY.getTime() + 60 * 60 * 1_000));
       expect(again).toEqual({
@@ -447,7 +429,7 @@ if (stack === null) {
       });
       expect(posts).toHaveLength(1);
       expect(await rowsFor(closedWindow('last-week', AWARDS_SUNDAY, TIME_ZONE))).toHaveLength(1);
-      expect(((embedOf(0)?.fields ?? []) as { value: string }[])[1]?.value).toBe(fields[1]?.value);
+      expect(((embedOf(0)?.fields ?? []) as { value: string }[]).slice(1)).toEqual(awards);
     });
   });
 
@@ -531,38 +513,36 @@ if (stack === null) {
   });
 
   /**
-   * **On the 1st, the week and the month, week first** (M5.13, acceptance 3): on a Sunday the
-   * 1st the group gets two posts in the order they read in. Here it is a Saturday the 1st, so
-   * the week is one that closed six days earlier and the month is the one that closed today —
-   * and, because Cairo left daylight saving between them, the two boundaries are at different
-   * UTC offsets, which is exactly the case `lib/night.ts` owns and this must not re-solve.
+   * **The 1st of a month is an ordinary day** (M14.48): the month windows are gone, so the
+   * month post that went out on the 1st (M5.13, acceptance 3) is gone with them. The week still
+   * posts, once, and no `last-month` row is claimed. Old `last-month` rows stay in the table.
    */
   describe('the 1st of a month', () => {
-    it('posts both, week first, and each of them once', async () => {
+    it('posts the week alone, once, and claims no month', async () => {
       const week = closedWindow('last-week', FIRST_OF_MONTH, TIME_ZONE);
-      const month = closedWindow('last-month', FIRST_OF_MONTH, TIME_ZONE);
 
       const first = await callAt(FIRST_OF_MONTH);
-      expect(first.posted).toEqual(['last-week', 'last-month']);
-      expect(posts).toHaveLength(2);
-      expect(embedOf(0)?.title).toBe('Last week · leaderboard');
+      expect(first.posted).toEqual(['last-week']);
+      expect(posts).toHaveLength(1);
+      expect(embedOf(0)?.title).toBe('Last week · board');
       expect(embedOf(0)?.description).toBe('Sunday 19 Oct to Saturday 25 Oct · 1 rated game');
-      expect(embedOf(1)?.title).toBe('Last month · leaderboard');
-      expect(embedOf(1)?.description).toBe('October · 1 rated game');
+      expect(JSON.stringify(posts)).not.toMatch(/month/i);
 
       expect(await rowsFor(week)).toHaveLength(1);
-      expect(await rowsFor(month)).toHaveLength(1);
+      const { data: monthRows } = await db
+        .from('window_posts')
+        .select('kind')
+        .eq('group_id', groups.a)
+        .eq('kind', 'last-month');
+      expect(monthRows ?? []).toEqual([]);
 
       const again = await callAt(new Date(FIRST_OF_MONTH.getTime() + 3 * 60 * 60 * 1_000));
       expect(again.posted).toEqual([]);
-      expect(again.skipped).toEqual([
-        { kind: 'last-week', reason: 'already posted' },
-        { kind: 'last-month', reason: 'already posted' },
-      ]);
-      expect(posts).toHaveLength(2);
+      expect(again.skipped).toEqual([{ kind: 'last-week', reason: 'already posted' }]);
+      expect(posts).toHaveLength(1);
     });
 
-    /** On the 2nd only the week is considered: yesterday's month is no longer news. */
+    /** On the 2nd, as on every day, only the week is considered. */
     it('looks at the week alone on the 2nd', async () => {
       const body = await callAt(new Date('2025-11-02T12:00:00Z'));
 

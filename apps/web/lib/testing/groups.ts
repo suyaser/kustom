@@ -1,5 +1,5 @@
 import type { Database } from '@customs/db';
-import type { GroupRole } from '@customs/db/schemas';
+import type { GroupMode, GroupRole } from '@customs/db/schemas';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
@@ -12,7 +12,14 @@ type Db = SupabaseClient<Database>;
 
 /**
  * One group per key, slug `it-<runId>-<key>`, each with a fearless cursor in the past (M13.5
- * inserts one with every group; this does it by hand). Returns the ids by key.
+ * inserts one with every group; this does it by hand) and on the mode Fearless. Returns the ids
+ * by key.
+ *
+ * **Why Fearless.** Since `0030` (M14.46) a brand-new group starts on Normal, where no game joins
+ * the fearless pool. These groups stand for a group that is playing Fearless, the mode every group
+ * that existed before 0030 is on, so the pool tests built on them read the same before and after
+ * 0030. What a brand-new group starts on is `newGroupsStartNormal.integration.test.ts`'s
+ * (packages/db).
  */
 export async function createTestGroups<K extends string>(
   db: Db,
@@ -32,8 +39,21 @@ export async function createTestGroups<K extends string>(
       .from('fearless_state')
       .insert({ group_id: data.id, reset_at: '2020-01-01T00:00:00.000Z' });
     if (cursor.error) throw new Error(`test group ${key} fearless: ${cursor.error.message}`);
+    await pinTestGroupMode(db, data.id, 'fearless');
   }
   return ids;
+}
+
+/**
+ * Put a test group on `mode`, set by nobody, whatever it was born on (the groups trigger inserts
+ * its `group_modes` row; `0030` changed that row's mode from Fearless to Normal). For a test that
+ * makes its groups by hand and builds on the fearless pool.
+ */
+export async function pinTestGroupMode(db: Db, groupId: string, mode: GroupMode): Promise<void> {
+  const { error } = await db
+    .from('group_modes')
+    .upsert({ group_id: groupId, mode, set_by: null }, { onConflict: 'group_id' });
+  if (error) throw new Error(`test group mode: ${error.message}`);
 }
 
 /** Make `playerId` a member of `groupId` with `role`, or move their role there if they already are. */

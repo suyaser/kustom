@@ -1,0 +1,21 @@
+{
+  "name": "game--in-progress--gameflow-session",
+  "kind": "request",
+  "target": "api",
+  "route": "game",
+  "patch": "16.17",
+  "fixtures": [
+    "16.17/lobby",
+    "16.17/gameflow-session"
+  ],
+  "scenario": "game-live",
+  "note": "gameflow-phase GameStart -> one GET /lol-gameflow/v1/session -> in_progress with gameData.gameId, the partyId of the last custom lobby seen, and the moment GameStart was observed (the injected clock, set to the GameStart recorded for this game in ws-events.ndjson). InProgress 17 ms later posts nothing.",
+  "method": "POST",
+  "path": "/api/companion/game",
+  "body": {
+    "phase": "in_progress",
+    "gameId": 4000969091,
+    "partyId": "e3c69392-a134-43cb-97ae-8add18c72494",
+    "startedAt": "2026-09-08T16:37:38.903Z"
+  }
+}

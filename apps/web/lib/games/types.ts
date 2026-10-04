@@ -28,6 +28,8 @@ export interface HistorySeat {
   gold: number;
   damageToChamps: number;
   cs: number;
+  /** `vision_score`, or `null` on a row stored before migration `0014` (null is not zero). */
+  vision: number | null;
   /** `24.3k` / `812` — the same compact form the embeds use for damage. */
   goldLabel: string;
   damageLabel: string;

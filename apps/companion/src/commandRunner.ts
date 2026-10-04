@@ -85,8 +85,12 @@ export const CUSTOM_GAME_QUEUES_PATH = readEndpoint('custom-game-queues').path;
  * mode is resolved by joining their ids against this list's names instead (`customLobbyIdsFor`).
  */
 export const GAME_QUEUES_PATH = readEndpoint('game-queues').path;
-/** The pick mode a `create_lobby` opens (docs/04-decisions.md, 2026-09-09: the group plays draft). */
+/** The pick mode a `create_lobby` opens unless it asks otherwise (docs/04-decisions.md, 2026-09-09: the group plays draft). */
 export const CREATE_LOBBY_MODE: CustomLobbyMode = 'draft';
+/** M17.17: the payload's `pickType` names the mode; a mirror game's `create_lobby` asks for blind. */
+export function createLobbyModeFor(pickType: 'draft' | 'blind'): CustomLobbyMode {
+  return pickType === 'blind' ? 'blind' : CREATE_LOBBY_MODE;
+}
 /** The poll while the client is away: the answer is empty by contract, so this is a heartbeat, not a queue. */
 export const DISCONNECTED_POLL_INTERVAL_MS = 60_000;
 /** The only phases a command runs in. Anything else is `wrong_phase`. */
@@ -485,20 +489,21 @@ export class CommandRunner {
         `${GAME_QUEUES_PATH} answered ${describeWriteResponse(queues)}; no lobby created`,
       );
     }
-    const ids = customLobbyIdsFor(dialog.json, CREATE_LOBBY_MODE, queues.json);
+    const mode = createLobbyModeFor(payload.pickType);
+    const ids = customLobbyIdsFor(dialog.json, mode, queues.json);
     if (ids === null) {
       const rift = summonersRiftSubcategory(dialog.json);
       return failed(
         'client_rejected',
         rift === null
           ? `${CUSTOM_GAME_QUEUES_PATH} lists no Summoner's Rift classic subcategory; no lobby created`
-          : `${CUSTOM_GAME_QUEUES_PATH} lists no ${CREATE_LOBBY_MODE} entry for Summoner's Rift (it has: ${describeMutators(rift)}); no lobby created`,
+          : `${CUSTOM_GAME_QUEUES_PATH} lists no ${mode} entry for Summoner's Rift (it has: ${describeMutators(rift)}); no lobby created`,
       );
     }
     log.debug('creating a custom lobby', {
       lobbyName: payload.lobbyName,
       lobbyPassword: payload.lobbyPassword,
-      mode: CREATE_LOBBY_MODE,
+      mode,
       queueId: ids.queueId,
       mutatorId: ids.mutatorId,
     });

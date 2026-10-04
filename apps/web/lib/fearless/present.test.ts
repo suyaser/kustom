@@ -121,20 +121,27 @@ function eog(players: { puuid: string; championName?: string }[]): unknown {
 }
 
 describe('presentFearless, a champion newer than the name table', () => {
-  it('prints the client name and draws the icon by id, instead of Champion 12345', () => {
+  it('prints the client name and draws the pinned Data Dragon icon, instead of Champion 805', () => {
+    // Locke ships in the pinned Data Dragon version but is not in the name table yet.
+    const [champion] = presentFearless([{ id: 805, role: 'mid' }], championName, new Map([[805, 'Locke']]));
+    expect(champion).toMatchObject({ id: 805, name: 'Locke', role: 'mid' });
+    expect(champion?.iconUrl).toMatch(/\/cdn\/16\.19\.1\/img\/champion\/Locke\.png$/);
+  });
+
+  it('prints the client name with no icon when the pinned Data Dragon version lacks the id', () => {
     const [champion] = presentFearless(
       [{ id: 12_345, role: 'adc' }],
       championName,
       new Map([[12_345, 'Newchamp']]),
     );
     expect(champion).toMatchObject({ id: 12_345, name: 'Newchamp', role: 'adc' });
-    expect(champion?.iconUrl).toMatch(/\/12345\.png$/);
+    expect(champion?.iconUrl).toBeNull();
   });
 
   it('keeps the table spelling for a roster id even when the client sent a different one', () => {
     const [champion] = presentFearless([{ id: 103, role: 'mid' }], championName, new Map([[103, 'AHRI']]));
     expect(champion?.name).toBe('Ahri');
-    expect(champion?.iconUrl).toMatch(/\/103\.png$/);
+    expect(champion?.iconUrl).toMatch(/\/img\/champion\/Ahri\.png$/);
   });
 
   it('falls back to Champion id with no icon when nobody can name it', () => {
@@ -211,7 +218,7 @@ describe('fearlessIconUrl', () => {
       'https://example.test/12345.png',
     );
     expect(fearlessIconUrl({ id: 103, iconUrl: null })).toBeNull();
-    expect(fearlessIconUrl({ id: 103 })).toMatch(/\/103\.png$/);
+    expect(fearlessIconUrl({ id: 103 })).toMatch(/\/img\/champion\/Ahri\.png$/);
     expect(fearlessIconUrl({ id: 12_345 })).toBeNull();
   });
 });

@@ -41,11 +41,10 @@ export async function balanceLobby(
   now: Date,
   timeZone: string,
 ): Promise<BalanceOutcome> {
-  const seasonId = await activeSeasonId(client);
   // The lobby's own group (M13.3), read off the row rather than trusted from a caller: the
   // balancer is fed that group's ratings and remembers that group's splits, nobody else's.
   const groupId = await lobbyGroupId(client, lobby.id);
-  const pool = await loadPool(client, lobby.id, seasonId, now, timeZone, groupId);
+  const pool = await loadGroupPool(client, lobby.id, now, timeZone, groupId);
   const selection = selectTen(pool);
 
   const key = rosterKey(selection.playing.map((member) => member.puuid));
@@ -108,22 +107,8 @@ export async function lobbyGroupId(client: ServiceClient, lobbyId: string): Prom
   return data.group_id;
 }
 
-/** The season ratings hang off. `games.season_id` defaults to the same function in SQL. */
-export async function activeSeasonId(client: ServiceClient): Promise<string> {
-  const { data, error } = await client
-    .from('seasons')
-    .select('id')
-    .eq('is_active', true)
-    .order('starts_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(`balanceLobby: season lookup failed: ${error.message}`);
-  if (!data) throw new Error('balanceLobby: no active season');
-  return data.id;
-}
-
 /**
- * Everyone around, with their rating for the active season and their place in the rotation.
+ * Everyone around, with their rating in the lobby's group and their place in the rotation.
  *
  * **No `ratings` row means seed in memory from the rank, and write nothing.** Rows are
  * written by the rating fold and by nothing else, which is what makes "re-seed a new player
@@ -131,10 +116,9 @@ export async function activeSeasonId(client: ServiceClient): Promise<string> {
  * rank, and the moment they finish a game the fold writes the row and the seeding stops.
  * There is no explicit re-seed code and there must not be one.
  */
-export async function loadPool(
+export async function loadGroupPool(
   client: ServiceClient,
   lobbyId: string,
-  seasonId: string,
   now: Date,
   timeZone: string,
   /**
@@ -143,24 +127,27 @@ export async function loadPool(
    */
   groupId: string,
 ): Promise<PoolMember[]> {
-  const { data, error } = await client
-    .from('lobby_members')
-    .select(
-      'player_id, side, is_spectator, role_override, players!inner(puuid, display_name, game_name, main_role, secondary_role, rank_tier, rank_division)',
-    )
-    .eq('lobby_id', lobbyId);
+  const [{ data, error }, host] = await Promise.all([
+    client
+      .from('lobby_members')
+      .select(
+        'player_id, side, is_spectator, role_override, players!inner(puuid, display_name, game_name, main_role, secondary_role, rank_tier, rank_division)',
+      )
+      .eq('lobby_id', lobbyId),
+    lobbyHost(client, lobbyId),
+  ]);
   if (error) throw new Error(`balanceLobby: member select failed: ${error.message}`);
 
   const rows = data ?? [];
   if (rows.length === 0) return [];
 
   const playerIds = rows.map((row) => row.player_id);
-  const ratings = await selectRatings(client, playerIds, seasonId, groupId);
+  const ratings = await selectRatings(client, playerIds, groupId);
   // Two independent reads, in parallel, and note that only one of them has an early return:
   // `loadRotation` skips its work at ten or fewer because nobody sits, but fill protection is
   // exactly what matters at ten, where somebody has to take the empty seat (M7.6).
   const [rotation, fills] = await Promise.all([
-    loadRotation(client, playerIds, now, timeZone),
+    loadRotation(client, playerIds, now, timeZone, groupId),
     loadFills(client, playerIds),
   ]);
 
@@ -187,21 +174,35 @@ export async function loadPool(
       gamesTonight: rotation.gamesTonight.get(row.player_id) ?? 0,
       lastSitOutAt: rotation.lastSitOutAt.get(row.player_id) ?? null,
       gamesSinceLastFill: fills.get(row.player_id) ?? null,
+      isHost: host !== null && row.player_id === host,
     };
   });
+}
+
+/**
+ * The player whose companion hosts the lobby (M14.43): `lobbies.reported_by_player_id`, the first
+ * companion to report the party -- the token decides who that is, never a payload. `null` when the
+ * row has none. `selectTen` never seats this player out.
+ */
+async function lobbyHost(client: ServiceClient, lobbyId: string): Promise<string | null> {
+  const { data, error } = await client
+    .from('lobbies')
+    .select('reported_by_player_id')
+    .eq('id', lobbyId)
+    .maybeSingle();
+  if (error) throw new Error(`balanceLobby: lobby host lookup failed: ${error.message}`);
+  return data?.reported_by_player_id ?? null;
 }
 
 async function selectRatings(
   client: ServiceClient,
   playerIds: readonly string[],
-  seasonId: string,
   groupId: string,
 ): Promise<Map<string, { mu: number; sigma: number }>> {
   const { data, error } = await client
     .from('ratings')
     .select('player_id, mu, sigma')
     .eq('group_id', groupId)
-    .eq('season_id', seasonId)
     .in('player_id', playerIds);
   if (error) throw new Error(`balanceLobby: ratings select failed: ${error.message}`);
 
@@ -214,7 +215,10 @@ interface Rotation {
 }
 
 /**
- * The two numbers the rotation is ordered on, for the people who are around.
+ * The two numbers the rotation is ordered on, for the people who are around, **in the lobby's group
+ * only** (M14.43, scene-walk gap 10; was every group's games). One group's games never move another
+ * group's rotation: a busy group no longer pushes a quiet group's sit-outs out of the window, and a
+ * game played in another group tonight does not count towards this group's "games tonight".
  *
  * - **Games tonight**: `game_players` joined to `games` since 06:00 local (`night.ts`).
  * - **A sit-out** needs no table and gets no column: it is a `lobby_members` row of a lobby
@@ -231,6 +235,7 @@ async function loadRotation(
   playerIds: readonly string[],
   now: Date,
   timeZone: string,
+  groupId: string,
 ): Promise<Rotation> {
   const empty: Rotation = { gamesTonight: new Map(), lastSitOutAt: new Map() };
   if (playerIds.length <= 10) return empty;
@@ -241,11 +246,13 @@ async function loadRotation(
     client
       .from('game_players')
       .select('player_id, games!inner(started_at)')
+      .eq('group_id', groupId)
       .in('player_id', playerIds)
       .gte('games.started_at', since),
     client
       .from('games')
       .select('id, lobby_id, started_at')
+      .eq('group_id', groupId)
       .not('lobby_id', 'is', null)
       .order('started_at', { ascending: false })
       .limit(SIT_OUT_HISTORY_GAMES),
@@ -263,24 +270,29 @@ async function loadRotation(
   const lobbyIds = [...new Set(games.map((game) => game.lobby_id).filter((id): id is string => id !== null))];
   if (lobbyIds.length === 0) return { gamesTonight, lastSitOutAt: new Map() };
 
+  // Chunked (M14.43): 400 uuids in one `in.(...)` filter is a URL PostgREST refuses ("URI too long"),
+  // which a group with a few hundred lobby games reaches.
   const [members, played] = await Promise.all([
-    client
-      .from('lobby_members')
-      .select('lobby_id, player_id')
-      .in('lobby_id', lobbyIds)
-      .in('player_id', playerIds),
-    client
-      .from('game_players')
-      .select('game_id, player_id')
-      .in(
-        'game_id',
-        games.map((game) => game.id),
-      )
-      .in('player_id', playerIds),
+    readInChunks(lobbyIds, (chunk) =>
+      client
+        .from('lobby_members')
+        .select('lobby_id, player_id')
+        .in('lobby_id', chunk)
+        .in('player_id', playerIds),
+    ),
+    readInChunks(
+      games.map((game) => game.id),
+      (chunk) =>
+        client
+          .from('game_players')
+          .select('game_id, player_id')
+          .in('game_id', chunk)
+          .in('player_id', playerIds),
+    ),
   ]);
 
-  if (members.error) throw new Error(`balanceLobby: sit-out members failed: ${members.error.message}`);
-  if (played.error) throw new Error(`balanceLobby: sit-out participants failed: ${played.error.message}`);
+  if (members.error) throw new Error(`balanceLobby: sit-out members failed: ${members.error}`);
+  if (played.error) throw new Error(`balanceLobby: sit-out participants failed: ${played.error}`);
 
   const inLobby = new Map<string, Set<string>>();
   for (const row of members.data ?? []) {
@@ -310,6 +322,23 @@ async function loadRotation(
   }
 
   return { gamesTonight, lastSitOutAt };
+}
+
+/** How many ids go into one `in.(...)` filter: 100 uuids is about 3.7 KB of URL. */
+const ID_CHUNK = 100;
+
+/** One select per chunk of `ids`, rows concatenated; the first error stops it. */
+async function readInChunks<T>(
+  ids: readonly string[],
+  select: (chunk: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[]; error: string | null }> {
+  const data: T[] = [];
+  for (let start = 0; start < ids.length; start += ID_CHUNK) {
+    const { data: rows, error } = await select(ids.slice(start, start + ID_CHUNK));
+    if (error) return { data, error: error.message };
+    data.push(...(rows ?? []));
+  }
+  return { data, error: null };
 }
 
 /** One player's row in one game, as the fill lookup reads it. */

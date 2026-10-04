@@ -1,8 +1,8 @@
 # Every pull request and every push to main, checked before anybody merges it.
 #
 # The job is the four commands CLAUDE.md already tells a human to run, in the same spelling,
-# plus the production build of apps/web. Nothing here is a CI-only script: if it is green on
-# this runner it is green on a laptop, and the reverse.
+# plus the companion contract's drift check and the production build of apps/web. Nothing here
+# is a CI-only script: if it is green on this runner it is green on a laptop, and the reverse.
 #
 # No secrets. The workflow reads nothing from the repository or organisation secret store, so a
 # collaborator's pull request gets exactly the same run the main branch does.
@@ -58,6 +58,13 @@ jobs:
 
       - run: pnpm lint
 
+      # The companion contract's drift alarm (M17.3): regenerates packages/db/json-schema/ from the zod
+      # schemas in memory and fails if the committed files differ, so a change to a schema the Rust
+      # companion parses shows up as a file diff in the pull request. Fix: run
+      # `pnpm --filter @customs/db export-schemas` and commit the folder. The goldens check (the real
+      # contract) is packages/db/src/contract/goldens.test.ts, inside `pnpm -r test` below.
+      - run: pnpm --filter @customs/db export-schemas --check
+
       # Serial across packages (`workspaceConcurrency: 1` in pnpm-workspace.yaml). About a
       # minute here, and the setting is what keeps a local run against a real stack honest.
       - run: pnpm -r test
@@ -72,3 +79,34 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-ci-does-not-call-supabase
+
+  # The Rust companion's engine crate (M17.4): no Tauri, no webview, so a plain Linux runner builds it.
+  # Only `-p engine`: the Tauri app in the same workspace needs webkit2gtk to compile on Linux and is built
+  # on Windows by the release workflow (M17.12). Cargo fetches only the crates `engine` needs.
+  # The goldens it tests against are checked against the server's zod schemas by `pnpm -r test` in the job
+  # above (packages/db/src/contract/goldens.test.ts, M17.3). `cargo fmt --all` checks the Tauri app too (formatting needs no webview).
+  engine:
+    name: companion engine (rustfmt, clippy, test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/companion
+    steps:
+      - uses: actions/checkout@v5
+
+      # Keep in step with apps/companion/rust-toolchain.toml, which rustup honours in that directory.
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master, 2026-10-01 (the action has no release tags)
+        with:
+          toolchain: 1.99.0
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/companion -> target
+
+      - run: cargo fmt --all -- --check
+
+      - run: cargo clippy -p engine --all-targets --locked -- -D warnings
+
+      - run: cargo test -p engine --locked

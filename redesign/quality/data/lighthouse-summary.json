@@ -1,0 +1,248 @@
+[
+ {
+  "route": "/",
+  "median": {
+   "score": 92,
+   "lcp": 3369.5162,
+   "fcp": 905.0108,
+   "cls": 0,
+   "tbt": 6,
+   "si": 905.0108,
+   "jsKB": 161.046875,
+   "totalKB": 372.443359375,
+   "unusedJsKB": 29.25390625,
+   "ttfb": 8,
+   "lhVersion": "13.5.0",
+   "ff": "mobile",
+   "throttling": "simulate"
+  },
+  "runs": [
+   {
+    "score": 92,
+    "lcp": 3375,
+    "cls": 0,
+    "tbt": 7,
+    "jsKB": 161
+   },
+   {
+    "score": 92,
+    "lcp": 3367,
+    "cls": 0,
+    "tbt": 6,
+    "jsKB": 161
+   },
+   {
+    "score": 92,
+    "lcp": 3370,
+    "cls": 0,
+    "tbt": 6,
+    "jsKB": 161
+   }
+  ]
+ },
+ {
+  "route": "/g/customs",
+  "median": {
+   "score": 91,
+   "lcp": 3357.6190999999994,
+   "fcp": 755.0794000000001,
+   "cls": 0.06625062814102314,
+   "tbt": 2.2737367544323206e-13,
+   "si": 755.0794000000001,
+   "jsKB": 195.984375,
+   "totalKB": 1255.177734375,
+   "unusedJsKB": 22.1806640625,
+   "ttfb": 31,
+   "lhVersion": "13.5.0",
+   "ff": "mobile",
+   "throttling": "simulate"
+  },
+  "runs": [
+   {
+    "score": 91,
+    "lcp": 3380,
+    "cls": 0.066,
+    "tbt": 10,
+    "jsKB": 196
+   },
+   {
+    "score": 90,
+    "lcp": 3523,
+    "cls": 0.066,
+    "tbt": 6,
+    "jsKB": 196
+   },
+   {
+    "score": 91,
+    "lcp": 3358,
+    "cls": 0.066,
+    "tbt": 0,
+    "jsKB": 196
+   }
+  ]
+ },
+ {
+  "route": "/g/customs/leaderboard",
+  "median": {
+   "score": 93,
+   "lcp": 3223.3377000000014,
+   "fcp": 754.8918000000001,
+   "cls": 0,
+   "tbt": 8,
+   "si": 754.8918000000001,
+   "jsKB": 171.6904296875,
+   "totalKB": 393.826171875,
+   "unusedJsKB": 28.861328125,
+   "ttfb": 27,
+   "lhVersion": "13.5.0",
+   "ff": "mobile",
+   "throttling": "simulate"
+  },
+  "runs": [
+   {
+    "score": 93,
+    "lcp": 3226,
+    "cls": 0,
+    "tbt": 9,
+    "jsKB": 171.7
+   },
+   {
+    "score": 93,
+    "lcp": 3223,
+    "cls": 0,
+    "tbt": 8,
+    "jsKB": 171.7
+   },
+   {
+    "score": 92,
+    "lcp": 3375,
+    "cls": 0,
+    "tbt": 8,
+    "jsKB": 171.7
+   }
+  ]
+ },
+ {
+  "route": "/g/customs/games",
+  "median": {
+   "score": 93,
+   "lcp": 3220.47185,
+   "fcp": 755.6478999999999,
+   "cls": 0,
+   "tbt": 6,
+   "si": 755.6478999999999,
+   "jsKB": 167.86328125,
+   "totalKB": 387.3916015625,
+   "unusedJsKB": 28.4248046875,
+   "ttfb": 31,
+   "lhVersion": "13.5.0",
+   "ff": "mobile",
+   "throttling": "simulate"
+  },
+  "runs": [
+   {
+    "score": 93,
+    "lcp": 3222,
+    "cls": 0,
+    "tbt": 8,
+    "jsKB": 167.9
+   },
+   {
+    "score": 93,
+    "lcp": 3220,
+    "cls": 0,
+    "tbt": 6,
+    "jsKB": 167.9
+   },
+   {
+    "score": 92,
+    "lcp": 3372,
+    "cls": 0,
+    "tbt": 10,
+    "jsKB": 167.9
+   }
+  ]
+ },
+ {
+  "route": "/g/customs/games/<id>",
+  "median": {
+   "score": 93,
+   "lcp": 3210.7789999999986,
+   "fcp": 755.1859999999999,
+   "cls": 0,
+   "tbt": 1.5,
+   "si": 755.1859999999999,
+   "jsKB": 171.865234375,
+   "totalKB": 387.9736328125,
+   "unusedJsKB": 28.255859375,
+   "ttfb": 40,
+   "lhVersion": "13.5.0",
+   "ff": "mobile",
+   "throttling": "simulate"
+  },
+  "runs": [
+   {
+    "score": 92,
+    "lcp": 3362,
+    "cls": 0,
+    "tbt": 1,
+    "jsKB": 171.9
+   },
+   {
+    "score": 93,
+    "lcp": 3225,
+    "cls": 0,
+    "tbt": 10,
+    "jsKB": 171.9
+   },
+   {
+    "score": 93,
+    "lcp": 3211,
+    "cls": 0,
+    "tbt": 2,
+    "jsKB": 171.9
+   }
+  ]
+ },
+ {
+  "route": "/g/customs/stats",
+  "median": {
+   "score": 92,
+   "lcp": 3363.6367000000005,
+   "fcp": 905.7578000000001,
+   "cls": 0,
+   "tbt": 2.5,
+   "si": 905.7578000000001,
+   "jsKB": 167.86328125,
+   "totalKB": 388.0107421875,
+   "unusedJsKB": 28.93359375,
+   "ttfb": 48,
+   "lhVersion": "13.5.0",
+   "ff": "mobile",
+   "throttling": "simulate"
+  },
+  "runs": [
+   {
+    "score": 92,
+    "lcp": 3373,
+    "cls": 0,
+    "tbt": 8,
+    "jsKB": 167.9
+   },
+   {
+    "score": 91,
+    "lcp": 3522,
+    "cls": 0,
+    "tbt": 11,
+    "jsKB": 167.9
+   },
+   {
+    "score": 92,
+    "lcp": 3364,
+    "cls": 0,
+    "tbt": 3,
+    "jsKB": 167.9
+   }
+  ]
+ }
+]

@@ -3,6 +3,7 @@
  * Used in both Host and Overlay modes. Never holds a companion token.
  */
 
+import type { GroupPanelState } from '../session.js';
 import { fetchOverlay } from './api.js';
 import { OverlayLcuWatcher } from './lcu.js';
 import { loadPosition, savePosition } from './position.js';
@@ -18,6 +19,10 @@ export interface PanelHandle {
   readonly url: string;
   stop(): Promise<void>;
   onVisible?: ((visible: boolean, phase: string | null) => void) | undefined;
+  /** Publishes the group picker state to the panel. */
+  setGroups(state: GroupPanelState): void;
+  /** Fetches again for the current PUUID and the (new) selected group. */
+  refetch(): void;
 }
 
 export async function startPanel(
@@ -25,6 +30,15 @@ export async function startPanel(
   config: PanelConfig,
   options: {
     readonly openWindow?: boolean;
+    /**
+     * Which group the panel reads for (M13.8). `groupId` goes out as `group=`; `skip` is true when there is
+     * no group to read for (Overlay with zero memberships), so nothing is fetched.
+     */
+    readonly group?: () => { groupId: string | null; skip: boolean };
+    /** The person picked a group in the panel's picker. */
+    readonly onGroupPick?: (groupId: string) => void;
+    /** The PUUID signed into League changed (or was first seen). */
+    readonly onPuuid?: (puuid: string) => void;
     readonly log?: (message: string, fields?: Record<string, unknown>) => void;
     readonly onState?: (state: {
       connected: boolean;
@@ -42,6 +56,9 @@ export async function startPanel(
   server.onPosition = (next) => {
     savePosition(dir, next);
   };
+  server.onGroupPick = (groupId) => {
+    options.onGroupPick?.(groupId);
+  };
   await server.listen(0);
 
   let window: WindowHandle | null = null;
@@ -51,12 +68,22 @@ export async function startPanel(
 
   let lastPuuid: string | null = null;
   let fetchInFlight = false;
+  // A group switch that landed while a fetch for the old group was in flight: fetch again when it ends.
+  let again = false;
 
-  const refresh = async (puuid: string): Promise<void> => {
-    if (fetchInFlight) return;
+  const refresh = async (puuid: string, force = false): Promise<void> => {
+    if (fetchInFlight) {
+      again = again || force;
+      return;
+    }
+    const target = options.group?.() ?? { groupId: null, skip: false };
+    if (target.skip) {
+      server.setState({ payload: null, error: null, waiting: false });
+      return;
+    }
     fetchInFlight = true;
     try {
-      const payload = await fetchOverlay(config.apiBase, puuid);
+      const payload = await fetchOverlay(config.apiBase, puuid, fetch, target.groupId);
       server.setState({ payload, error: null, waiting: false });
     } catch (error) {
       server.setState({
@@ -65,6 +92,10 @@ export async function startPanel(
       });
     } finally {
       fetchInFlight = false;
+      if (again) {
+        again = false;
+        void refresh(puuid);
+      }
     }
   };
 
@@ -78,8 +109,11 @@ export async function startPanel(
         waiting: !state.connected,
       });
       options.onState?.(state);
+      if (state.puuid && state.puuid !== lastPuuid) {
+        lastPuuid = state.puuid;
+        options.onPuuid?.(state.puuid);
+      }
       if (state.visible && state.puuid) {
-        if (state.puuid !== lastPuuid) lastPuuid = state.puuid;
         void refresh(state.puuid);
       }
     },
@@ -89,6 +123,12 @@ export async function startPanel(
 
   return {
     url: server.url(),
+    setGroups(state) {
+      server.setState({ groups: state });
+    },
+    refetch() {
+      if (lastPuuid !== null) void refresh(lastPuuid, true);
+    },
     async stop() {
       watcher.stop();
       window?.close();

@@ -1,14 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { type Database, SEASON_ONE_ID } from '@customs/db';
-import { ORIGINAL_GROUP_ID, overlayGroupsResponseSchema } from '@customs/db/schemas';
+import type { Database } from '@customs/db';
+import {
+  companionMeResponseSchema,
+  ORIGINAL_GROUP_ID,
+  overlayGroupsResponseSchema,
+} from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mintCompanionToken, NOT_A_MEMBER_ERROR } from '@/lib/companionAuth';
-import { loadPool, lobbyGroupId } from '@/lib/ingest/balance';
+import { loadGroupPool, lobbyGroupId } from '@/lib/ingest/balance';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { rebuildRatings } from '@/lib/ingest/rebuild';
 import { startLobby } from '@/lib/lobbyStart';
 import { eogBody, lobbyBody, testGameId } from '@/lib/testing/fixtures';
+import { pinTestGroupMode } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -132,7 +137,6 @@ if (stack === null) {
       .select('*')
       .eq('player_id', id(puuid))
       .eq('group_id', groupId)
-      .eq('season_id', SEASON_ONE_ID)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data === null ? null : JSON.stringify(data);
@@ -183,6 +187,8 @@ if (stack === null) {
         .from('fearless_state')
         .insert({ group_id: data.id, reset_at: '2020-01-01T00:00:00.000Z' });
       if (cursor.error) throw new Error(`fearless ${key}: ${cursor.error.message}`);
+      // M14.46: a new group starts on Normal since 0030; these build on the fearless pool.
+      await pinTestGroupMode(db, data.id, 'fearless');
     }
 
     // `both` joined A first and B a month later: the overlay groups list is oldest first.
@@ -251,12 +257,11 @@ if (stack === null) {
       expect(await ratingRow(both, groupIds.a)).toBe(aAfterFirst);
       expect(await ratingRow(both, groupIds.b)).not.toBe(bAfterFirst);
 
-      // Two `ratings` rows for one player in one season: `0019`'s per-group key.
+      // Two `ratings` rows for one player: one per group (`0019`'s per-group key).
       const { count } = await db
         .from('ratings')
         .select('player_id', { count: 'exact', head: true })
         .eq('player_id', id(both))
-        .eq('season_id', SEASON_ONE_ID)
         .in('group_id', [groupIds.a, groupIds.b]);
       expect(count).toBe(2);
     });
@@ -563,7 +568,8 @@ if (stack === null) {
     const EMPTY = (puuid: string) => ({
       ok: true,
       viewerPuuid: puuid,
-      fearless: { champions: [], resetAt: null },
+      // M14.29: the empty answer says no fearless is in force.
+      fearless: { enabled: false, champions: [], resetAt: null },
       lobby: null,
     });
 
@@ -633,6 +639,35 @@ if (stack === null) {
   });
 
   // ---------------------------------------------------------------------------
+  // M14.12 (M14.6's open item): GET /api/companion/me names the token's group
+  // ---------------------------------------------------------------------------
+
+  describe('GET /api/companion/me names the group (M14.12)', () => {
+    it("answers each token's own group, for one player holding a token in each of two groups", async () => {
+      const inA = (await mintToken(both, groupIds.a)).token;
+      const inB = (await mintToken(both, groupIds.b)).token;
+      const { data, error } = await db
+        .from('groups')
+        .select('id, slug, name')
+        .in('id', [groupIds.a, groupIds.b]);
+      if (error) throw error;
+      const summary = (groupId: string) => data.find((row) => row.id === groupId);
+
+      for (const [token, groupId] of [
+        [inA, groupIds.a],
+        [inB, groupIds.b],
+      ] as const) {
+        const me = await getMe(companion('me', token, undefined, 'GET'));
+        expect(me.status).toBe(200);
+        const json = await me.json();
+        const parsed = companionMeResponseSchema.parse(json);
+        expect(parsed).toMatchObject({ ok: true, puuid: both, playerId: id(both) });
+        expect(parsed.group).toEqual(summary(groupId));
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Balance: the group's ratings
   // ---------------------------------------------------------------------------
 
@@ -645,14 +680,7 @@ if (stack === null) {
       const { lobbyId } = (await opened.json()) as { lobbyId: string };
       expect(await lobbyGroupId(db, lobbyId)).toBe(groupIds.b);
 
-      const pool = await loadPool(
-        db,
-        lobbyId,
-        SEASON_ONE_ID,
-        new Date(),
-        'UTC',
-        await lobbyGroupId(db, lobbyId),
-      );
+      const pool = await loadGroupPool(db, lobbyId, new Date(), 'UTC', await lobbyGroupId(db, lobbyId));
       const inB = JSON.parse((await ratingRow(both, groupIds.b)) ?? '{}') as { mu: number };
       const inA = JSON.parse((await ratingRow(both, groupIds.a)) ?? '{}') as { mu: number };
       expect(inA.mu).not.toBe(inB.mu);

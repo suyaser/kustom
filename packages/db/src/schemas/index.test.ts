@@ -17,6 +17,7 @@ import {
   companionLobbyResponseSchema,
   companionMeResponseSchema,
   companionRankPayloadSchema,
+  createLobbyCommandPayloadSchema,
   DETECTED_TEAM_POSITION_ROLES,
   LOBBY_STATUSES,
   lcuGameIdSchema,
@@ -390,11 +391,23 @@ describe('companionMeResponseSchema', () => {
       puuid: PUUID_A,
       playerId: '0c3f8b3a-5f4a-4a5c-9a0e-4f0a2e1d7b11',
       displayName: null,
+      group: { id: '00000000-0000-0000-0000-000000000001', slug: 'customs', name: 'Customs' },
     });
 
-    expect(parsed).toMatchObject({ puuid: PUUID_A, displayName: null });
+    expect(parsed).toMatchObject({ puuid: PUUID_A, displayName: null, group: { slug: 'customs' } });
     // `ok: false` is the error envelope's shape, never this one's.
     expect(companionMeResponseSchema.safeParse({ ...parsed, ok: false }).success).toBe(false);
+  });
+
+  it("always names the token's group since M14.12", () => {
+    const { group: _group, ...withoutGroup } = companionMeResponseSchema.parse({
+      ok: true,
+      puuid: PUUID_A,
+      playerId: '0c3f8b3a-5f4a-4a5c-9a0e-4f0a2e1d7b11',
+      displayName: 'Ana',
+      group: { id: '00000000-0000-0000-0000-000000000001', slug: 'customs', name: 'Customs' },
+    });
+    expect(companionMeResponseSchema.safeParse(withoutGroup).success).toBe(false);
   });
 });
 
@@ -535,5 +548,20 @@ describe('windowPostKindSchema', () => {
     for (const kind of ['this-week', 'this-month', 'all-time', '', 'LAST-WEEK']) {
       expect(windowPostKindSchema.safeParse(kind).success, kind).toBe(false);
     }
+  });
+});
+
+describe('createLobbyCommandPayloadSchema (M17.17)', () => {
+  const base = { lobbyName: 'Customs 09 Sep #1', lobbyPassword: '4821' };
+
+  it('reads an old payload with no pick type as draft', () => {
+    expect(createLobbyCommandPayloadSchema.parse(base)).toEqual({ ...base, pickType: 'draft' });
+  });
+
+  it('accepts draft and blind and nothing else', () => {
+    expect(createLobbyCommandPayloadSchema.parse({ ...base, pickType: 'blind' }).pickType).toBe('blind');
+    expect(createLobbyCommandPayloadSchema.parse({ ...base, pickType: 'draft' }).pickType).toBe('draft');
+    expect(createLobbyCommandPayloadSchema.safeParse({ ...base, pickType: 'random' }).success).toBe(false);
+    expect(createLobbyCommandPayloadSchema.safeParse({ ...base, pickType: null }).success).toBe(false);
   });
 });
