@@ -90,6 +90,8 @@ function stored(overrides: { created?: boolean; foreignDuplicate?: boolean; grou
       lock: null,
       live: false,
       row: { standing: 'normal', pending: null, rated: null },
+      rowUpdatedAt: null,
+      lockedAt: null,
     },
   });
 }

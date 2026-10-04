@@ -50,6 +50,10 @@ export interface ModeRecord {
   live: boolean;
   /** The row the stamp read. */
   row: ModeRow;
+  /** That row's `updated_at` (null for a group with no row). */
+  rowUpdatedAt: string | null;
+  /** The lock's `locked_at` (null with no lock). */
+  lockedAt: string | null;
 }
 
 export interface StampInput extends ModeRecord {
@@ -57,8 +61,24 @@ export interface StampInput extends ModeRecord {
   table: ChampionTable;
 }
 
+/**
+ * Whether an admin wrote the row after the lock (M20.7 review): `updated_at > locked_at`. Roll's
+ * own empty-out lands in the lock's transaction, so its `updated_at` equals `locked_at`. The
+ * database makes the same test at microseconds (`mode_hand_back`); this one only decides whether
+ * there is anything to ask it.
+ */
+export function rowTouchedAfterLock(record: Pick<ModeRecord, 'rowUpdatedAt' | 'lockedAt'>): boolean {
+  if (record.rowUpdatedAt === null || record.lockedAt === null) return false;
+  return Date.parse(record.rowUpdatedAt) > Date.parse(record.lockedAt);
+}
+
 export function recordResultOf(record: ModeRecord): RecordResult {
-  return recordGame(record.row, { kind: record.kind, lock: record.lock, live: record.live });
+  return recordGame(record.row, {
+    kind: record.kind,
+    lock: record.lock,
+    live: record.live,
+    rowTouchedAfterLock: rowTouchedAfterLock(record),
+  });
 }
 
 /** The columns to insert. Pure. */
@@ -85,7 +105,12 @@ export function stampColumns(input: StampInput): GameModeColumns {
 const nullable = <T>(value: T | null): T => value as T;
 
 /** Teams down's twin for a remake or an ARAM: the lock back into the row's empty fields, one statement. */
-export async function handBackLock(client: ServiceClient, groupId: string, lock: ModeLock): Promise<boolean> {
+export async function handBackLock(
+  client: ServiceClient,
+  groupId: string,
+  lock: ModeLock,
+  lockedAt: string | null,
+): Promise<boolean> {
   const rule = ruleColumnsOf(lock.mode);
   const { data, error } = await client.rpc('mode_hand_back', {
     p_group_id: groupId,
@@ -94,6 +119,7 @@ export async function handBackLock(client: ServiceClient, groupId: string, lock:
     p_region_blue: nullable(rule.regionBlue),
     p_region_red: nullable(rule.regionRed),
     p_rated: nullable(lock.rated),
+    p_locked_at: nullable(lockedAt),
   });
   if (error) throw new Error(`mode: hand-back failed: ${error.message}`);
   return data === true;
@@ -112,7 +138,7 @@ export async function applyModeRecord(
   if (Object.keys(patch).length === 0) return false;
   // A remake or an ARAM from a locked lobby: core's patch is handBack's, re-decided in the
   // database against the row as it is now, so a choice made since the read always wins.
-  if (record.lock !== null) return handBackLock(client, groupId, record.lock);
+  if (record.lock !== null) return handBackLock(client, groupId, record.lock, record.lockedAt);
 
   // A live Rift game with no lock used the pending state up: empty it only if it is still what the
   // stamp read (an admin who chose since keeps the choice). Nothing to use up writes nothing.

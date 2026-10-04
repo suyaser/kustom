@@ -2,7 +2,7 @@ import type { ChampionFacts, ChampionTable, ModeLock, ModeRow } from '@customs/c
 import { describe, expect, it } from 'vitest';
 import { championTable, regionIds } from './champions';
 import { lockFromRow, modeLockOf, storedLockOf } from './lock';
-import { type ModeRecord, recordResultOf, stampColumns } from './record';
+import { type ModeRecord, recordResultOf, rowTouchedAfterLock, stampColumns } from './record';
 import { serverRng } from './rng';
 import {
   CLASS_PLURAL,
@@ -155,6 +155,8 @@ describe('the stamp at record (core recordGame)', () => {
     lock: tanksLock,
     live: true,
     row: row(),
+    rowUpdatedAt: '2026-10-05T18:00:00.000Z',
+    lockedAt: '2026-10-05T18:00:00.000Z',
     ...over,
   });
 
@@ -193,7 +195,19 @@ describe('the stamp at record (core recordGame)', () => {
       const stamped = stampColumns({ ...record({ kind, lock }), seats, table: table() });
       expect(stamped).toMatchObject({ rule: 'class', rated: false, rule_checked: false, rule_check: null });
       expect(recordResultOf(record({ kind, lock })).patch).toEqual({ pending: tanksLock.mode, rated: true });
+      // M20.7 review: an admin wrote the row after the lock, so nothing comes back.
+      const touched = record({ kind, lock, rowUpdatedAt: '2026-10-05T18:00:01.000Z' });
+      expect(recordResultOf(touched).patch).toEqual({});
     }
+  });
+
+  it('the row counts as touched only when written after the lock (Roll empties it at locked_at)', () => {
+    const at = '2026-10-05T18:00:00.000Z';
+    expect(rowTouchedAfterLock({ rowUpdatedAt: at, lockedAt: at })).toBe(false);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: '2026-10-05T17:59:00.000Z', lockedAt: at })).toBe(false);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: '2026-10-05T18:00:00.001Z', lockedAt: at })).toBe(true);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: null, lockedAt: at })).toBe(false);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: at, lockedAt: null })).toBe(false);
   });
 
   it('a live game with no lock plays the pending rule and Rated, and uses them up', () => {

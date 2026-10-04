@@ -358,15 +358,54 @@ describe('0032_mode_of_the_night.sql', () => {
   });
 });
 
-describe('0047_mode_one_row.sql (M20.7)', () => {
-  const sql = readFileSync(
-    fileURLToPath(new URL('../../supabase/migrations/0047_mode_one_row.sql', import.meta.url)),
-    'utf8',
-  );
-  const body = sql
+/** A migration's statements, without the header comments. */
+function statements(file: string): string {
+  return readFileSync(fileURLToPath(new URL(`../../supabase/migrations/${file}`, import.meta.url)), 'utf8')
     .split('\n')
     .filter((line) => !line.trimStart().startsWith('--'))
     .join('\n');
+}
+
+describe('0047_mode_one_row_expand.sql (M20.7, expand: additive only, before the code)', () => {
+  const body = statements('0047_mode_one_row_expand.sql');
+
+  it('is one transaction', () => {
+    expect(body.trim().startsWith('begin;')).toBe(true);
+    expect(body.trim().endsWith('commit;')).toBe(true);
+  });
+
+  it('drops no column and adds no pair check: the pre-M20.7 build keeps working', () => {
+    expect(body).not.toMatch(/drop column/i);
+    expect(body).not.toContain('group_modes_pending_regions');
+    expect(body).not.toMatch(/\bupdate\s+public\.group_modes\s+set\b[^;]*where pending_rule = 'region'/i);
+  });
+
+  it('wraps the lock checks in coalesce (a CHECK passes on NULL)', () => {
+    for (const name of ['lobbies_lock_whole', 'lobbies_lock_regions']) {
+      expect(body).toMatch(new RegExp(`add constraint ${name} check \\(coalesce\\(`));
+    }
+  });
+
+  it('grants the pair to anon and never pending_set_by (0029 rule)', () => {
+    const grants = [...body.matchAll(/grant select \(([^)]*)\) on public\.group_modes/g)].map((m) => m[1]);
+    expect(grants).toEqual(['pending_region_blue, pending_region_red']);
+  });
+
+  it('lets only the service role run the two functions; the hand-back reads locked_at', () => {
+    for (const fn of ['mode_hand_back', 'mode_take']) {
+      expect(body).toMatch(
+        new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon, authenticated;`),
+      );
+      expect(body).toMatch(
+        new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to service_role;`),
+      );
+    }
+    expect(body).toContain('and (p_locked_at is null or gm.updated_at <= p_locked_at)');
+  });
+});
+
+describe('0048_mode_one_row_contract.sql (M20.7, contract: after the code is live)', () => {
+  const body = statements('0048_mode_one_row_contract.sql');
 
   it('is one transaction', () => {
     expect(body.trim().startsWith('begin;')).toBe(true);
@@ -381,24 +420,15 @@ describe('0047_mode_one_row.sql (M20.7)', () => {
   });
 
   it('empties a pending region wars with no pair before the pair check exists (c)', () => {
-    const emptied = body.indexOf("where pending_rule = 'region';");
+    const emptied = body.indexOf("where pending_rule = 'region'");
     expect(emptied).toBeGreaterThan(-1);
-    expect(emptied).toBeLessThan(body.indexOf('add constraint group_modes_pending_regions'));
+    expect(emptied).toBeLessThan(body.indexOf('add constraint group_modes_pending_regions check (coalesce('));
   });
 
-  it('grants the pair to anon and never pending_set_by (0029 rule)', () => {
-    const grants = [...body.matchAll(/grant select \(([^)]*)\) on public\.group_modes/g)].map((m) => m[1]);
-    expect(grants).toEqual(['pending_region_blue, pending_region_red']);
-  });
-
-  it('lets only the service role run the two functions', () => {
-    for (const fn of ['mode_hand_back', 'mode_take']) {
-      expect(body).toMatch(
-        new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon, authenticated;`),
-      );
-      expect(body).toMatch(
-        new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to service_role;`),
-      );
-    }
+  it('re-makes lobbies_lock_whole before the column drop could take it', () => {
+    expect(body.indexOf('drop constraint lobbies_lock_whole')).toBeLessThan(
+      body.indexOf('drop column lock_version'),
+    );
+    expect(body).toMatch(/add constraint lobbies_lock_whole check \(coalesce\(/);
   });
 });

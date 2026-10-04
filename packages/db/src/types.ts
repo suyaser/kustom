@@ -962,6 +962,7 @@ export type Database = {
           rule_check: Json | null
           rule_checked: boolean
           rule_class_tag: string | null
+          rule_no_draw: boolean
           rule_region_blue: string | null
           rule_region_red: string | null
           source: Database["public"]["Enums"]["game_source"]
@@ -983,6 +984,7 @@ export type Database = {
           rule_check?: Json | null
           rule_checked?: boolean
           rule_class_tag?: string | null
+          rule_no_draw?: boolean
           rule_region_blue?: string | null
           rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
@@ -1004,6 +1006,7 @@ export type Database = {
           rule_check?: Json | null
           rule_checked?: boolean
           rule_class_tag?: string | null
+          rule_no_draw?: boolean
           rule_region_blue?: string | null
           rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
@@ -1191,6 +1194,7 @@ export type Database = {
           rated_override: boolean | null
           set_by: string | null
           updated_at: string
+          version: number
         }
         Insert: {
           group_id: string
@@ -1203,6 +1207,7 @@ export type Database = {
           rated_override?: boolean | null
           set_by?: string | null
           updated_at?: string
+          version?: number
         }
         Update: {
           group_id?: string
@@ -1215,6 +1220,7 @@ export type Database = {
           rated_override?: boolean | null
           set_by?: string | null
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -1331,10 +1337,12 @@ export type Database = {
           lobby_password: string | null
           lock_class_tag: string | null
           lock_mode: string | null
+          lock_no_draw: boolean
           lock_rated: boolean | null
           lock_region_blue: string | null
           lock_region_red: string | null
           lock_rule: string | null
+          lock_version: number | null
           locked_at: string | null
           reported_by_player_id: string | null
           status: Database["public"]["Enums"]["lobby_status"]
@@ -1356,10 +1364,12 @@ export type Database = {
           lobby_password?: string | null
           lock_class_tag?: string | null
           lock_mode?: string | null
+          lock_no_draw?: boolean
           lock_rated?: boolean | null
           lock_region_blue?: string | null
           lock_region_red?: string | null
           lock_rule?: string | null
+          lock_version?: number | null
           locked_at?: string | null
           reported_by_player_id?: string | null
           status?: Database["public"]["Enums"]["lobby_status"]
@@ -1381,10 +1391,12 @@ export type Database = {
           lobby_password?: string | null
           lock_class_tag?: string | null
           lock_mode?: string | null
+          lock_no_draw?: boolean
           lock_rated?: boolean | null
           lock_region_blue?: string | null
           lock_region_red?: string | null
           lock_rule?: string | null
+          lock_version?: number | null
           locked_at?: string | null
           reported_by_player_id?: string | null
           status?: Database["public"]["Enums"]["lobby_status"]
@@ -2074,6 +2086,7 @@ export type Database = {
         Args: {
           p_class_tag: string
           p_group_id: string
+          p_locked_at: string
           p_rated: boolean
           p_region_blue: string
           p_region_red: string

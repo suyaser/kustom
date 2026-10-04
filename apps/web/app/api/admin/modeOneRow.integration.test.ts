@@ -11,13 +11,15 @@ import { descriptionOf, modeNight, seededRng, sequenceRng, stackWithModes } from
  *  (2) races, two connections, repeated: a pick racing Roll ends in the lock or still pending,
  *      never lost; a pick racing a hand-back is kept; a pick racing a record is never cleared; two
  *      actions on different fields both land;
- *  (3) teams down after a new choice keep it, and give Rated back only into an empty switch;
+ *  (3) teams down after a new choice keep it: an admin write after the lock stops the hand-back
+ *      (M20.7 review); with none, the rule and Rated come back exactly;
  *  (4) a remake and an ARAM hand back, the pair returned is the one locked (a `this` redraw
  *      included); a second companion's post is a no-op; a dropped lobby hands nothing back and a
  *      late block stamps from its lock;
  *  (5) a Rift record leaves `group_modes` byte-identical;
  *  (7) region wars chosen with no lobby, idle, and beside a lobby of three writes a passing pair;
- *      the check constraint refuses a region rule without one;
+ *      after 0048 the check constraint refuses a region rule without one (between 0047 and 0048
+ *      the pre-M20.7 build may still write one, and this build never does);
  *  (8) Spin landing on region wars writes its pair in the same update;
  *  (9) a pair the bans made short: Roll draws a fresh passing pair and the answer says so (the
  *      no-draw half is `regionWars.integration.test.ts` step 9);
@@ -186,22 +188,24 @@ if (stack === null) {
       expect(regionOpenCounts(championTable(), []).size).toBeGreaterThan(0);
     });
 
-    it('the check constraint refuses a region rule without its pair, or with one region twice', async () => {
-      const bare = await night.db
-        .from('group_modes')
-        .update({ pending_rule: 'region', pending_region_blue: null, pending_region_red: null })
-        .eq('group_id', night.group.id);
-      expect(bare.error?.code).toBe('23514');
-      const twice = await night.db
-        .from('group_modes')
-        .update({ pending_rule: 'region', pending_region_blue: 'ionia', pending_region_red: 'ionia' })
-        .eq('group_id', night.group.id);
-      expect(twice.error?.code).toBe('23514');
-      const stray = await night.db
-        .from('group_modes')
-        .update({ pending_rule: 'mirror', pending_region_blue: 'ionia', pending_region_red: 'noxus' })
-        .eq('group_id', night.group.id);
-      expect(stray.error?.code).toBe('23514');
+    it('after 0048 the check refuses a region rule without its pair; between 0047 and 0048 the old build may still write one', async () => {
+      // The stage: 0048 drops `group_modes.version` in the same transaction that adds the check.
+      const contracted = (await night.db.from('group_modes').select('version').limit(1)).error !== null;
+      const writes = [
+        { pending_rule: 'region', pending_region_blue: null, pending_region_red: null },
+        { pending_rule: 'region', pending_region_blue: 'ionia', pending_region_red: 'ionia' },
+        { pending_rule: 'mirror', pending_region_blue: 'ionia', pending_region_red: 'noxus' },
+      ];
+      for (const write of writes) {
+        const { error } = await night.db.from('group_modes').update(write).eq('group_id', night.group.id);
+        if (contracted) expect(error?.code).toBe('23514');
+        else expect(error).toBeNull();
+      }
+      await setRow();
+      // Either way, the new build never writes one: a pick draws the pair in the same update.
+      await night.card({ mode: 'region' });
+      expect(passes(await night.cardRow())).toBe(true);
+      await setRow();
     });
   });
 
@@ -317,7 +321,7 @@ if (stack === null) {
   });
 
   describe('(3) teams coming down after a new choice', () => {
-    it('keep the choice, and give Rated back only into an empty switch of the same rule', async () => {
+    it('keep the choice: any admin write after the lock stops the hand-back; none, and the row comes back exactly', async () => {
       // Nothing new: the rule and its Rated come back exactly.
       await setRow({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true });
       const first = await rolled();
@@ -329,17 +333,30 @@ if (stack === null) {
       });
       await abandon(first.lobbyId);
 
-      // A Rated flip after Roll: the rule comes back, the newer Rated stays.
+      // An admin write after the lock wins outright (M20.7 review): a Rated flip after Roll, and
+      // nothing comes back, not even the rule.
       await setRow({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true });
       const second = await rolled();
       await night.card({ rated: false });
       await night.companionLobby(second.partyId, night.ten.slice(0, 9));
       expect(await night.cardRow()).toMatchObject({
-        pending_rule: 'class',
-        pending_class_tag: 'Tank',
+        pending_rule: null,
+        pending_class_tag: null,
         rated_override: false,
       });
       await abandon(second.lobbyId);
+
+      // The lead's example: Tanks locked, the admin picks Normal, the teams come down: still Normal.
+      await setRow({ mode: 'fearless', pending_rule: 'class', pending_class_tag: 'Tank' });
+      const fourth = await rolled();
+      await night.card({ mode: 'normal' });
+      await night.companionLobby(fourth.partyId, night.ten.slice(0, 9));
+      expect(await night.cardRow()).toMatchObject({
+        mode: 'normal',
+        pending_rule: null,
+        rated_override: null,
+      });
+      await abandon(fourth.lobbyId);
 
       // A new rule after Roll: it stays, at its own default.
       await setRow({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true });
