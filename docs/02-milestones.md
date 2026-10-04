@@ -13457,7 +13457,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   still moves the lobby; (5) no new LCU endpoint, no champ select read; (6) `docs/03-lcu-reference.md` names the
   field's source. Out of scope: reading anything at `ChampSelect`.
 
-- [ ] **M21.4** Kickoff teams and kickoff odds, stored when the game starts. *(owner: `platform-engineer`; after
+- [x] **M21.4** Kickoff teams and kickoff odds, stored when the game starts. *(owner: `platform-engineer`; after
   M21.1; schema shape is OPEN item 1, the brief assumes storing)* In the `in_progress` branch
   (`app/api/companion/game/route.ts:108-127`), in the same request that moves the lobby to `in_game`, and only when
   that move happened: read the frozen sided members (or M21.3's posted teams), classify `rolled | custom |
@@ -13482,6 +13482,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   start, none on the repeat; (6) the migration replays clean from zero (`pnpm db:reset`) and has a throwaway check
   if it adds a function; (7) the companion's answer shape is unchanged.
 
+  *Landed 2026-10-05 (6b68ced4, reviewer pass): migration 0046 (kickoff columns on lobbies), lib/ingest/kickoff.ts, 13 integration tests. Ships after 0046 is on hosted.*
 - [ ] **M21.5** Tonight in game shows the teams that started. *(owners: `web-engineer`, `designer` for the
   changed-side cards (at most 3 rounds); after M21.4)* While `in_game`: the team cards draw the kickoff teams;
   `YOU on RED` and the viewer's seat come from them; the receipt is `FairnessReceipt` in-game for `rolled` (as
