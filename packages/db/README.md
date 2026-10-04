@@ -256,6 +256,9 @@ current week. Readers parse the tracks with `storedKustomAllTime` / `storedKusto
 (`src/schemas/kustomRating.ts`). `src/kustomRating.integration.test.ts` refuses a hand-written
 update per check on a scratch database; `scripts/m18-4-throwaway-check.sh` rehearses the hosted
 apply on a throwaway restore of the local stack (undoing 0036 there first if local already has it).
+A rollback to the OpenSkill build runs `scripts/m18-rollback-prestep.sql` per group before that
+build's `rebuild-ratings`: the old rebuild's un-rate write does not know the 0036 columns and is
+refused on a Kustom row otherwise (see the file's header).
 
 ## The companion wire contract (M2.10)
 

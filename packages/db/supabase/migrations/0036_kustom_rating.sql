@@ -50,9 +50,9 @@
 --                                    carries its award (the share is shared by both tracks).
 --   game_players_share_rank          share_rank never stands without its award. Which rank is
 --                                    named (rank 1: mvp or ace) is the fold's rule, not a check:
---                                    the rollback build's own rebuild rewrites `award` through
---                                    `mvpAce` and leaves the Kustom columns in place, and must not
---                                    be refused over a tie it orders differently.
+--                                    the row does not carry the team's scores or result, and a
+--                                    rebuild that rewrites `award` through `mvpAce` must not be
+--                                    refused over a tie it orders differently.
 --   game_players_breakdown_together  (replaces 0034's) base_mu_after is the OpenSkill bonus split,
 --                                    so it is now allowed null beside a filled r_after; otherwise as
 --                                    before: an OpenSkill breakdown is fold_p + base_mu_after +
@@ -64,6 +64,14 @@
 --                                    parts (award, share_rank) need a rating on some track.
 --   So no set outlives the rating it explains: an un-rate nulls every column of the row in one
 --   statement, as the rebuild's `nulled` row already does for 0034's four.
+--
+--   **Rollback.** The OpenSkill build's rebuild does NOT leave the Kustom columns in place safely:
+--   its `nulled()` row nulls only the OpenSkill and 0034 columns, which on a row holding Kustom
+--   values leaves r_after without fold_p, and `game_players_kustom_together` refuses it (the
+--   rebuild aborts). A rollback therefore runs `packages/db/scripts/m18-rollback-prestep.sql` per
+--   group before that rebuild: it nulls every 0036 column of game_players, and 0034's fold_p /
+--   award / rated_games_before on rows with no mu_after (not ratings.r, which a Kustom-only
+--   ratings row needs for `ratings_has_a_rating` and the OpenSkill build ignores).
 --
 --   The one row with a weekly set and no all-time rating is legal on purpose: a game before the
 --   group's `ratings_since` but inside the current week is folded on the weekly track only (the

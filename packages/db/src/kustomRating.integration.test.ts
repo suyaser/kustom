@@ -388,6 +388,54 @@ if (container === null) {
       });
     });
 
+    describe('rollback: the OpenSkill build rebuilding over Kustom rows', () => {
+      // A row as the Kustom fold writes it after the switch: no OpenSkill numbers, both tracks.
+      const kustomRow = `update public.game_players set mu_before = null, sigma_before = null, mu_after = null,
+        sigma_after = null, base_mu_after = null, ${KUSTOM}, ${WEEK} ${rated};`;
+      // The OpenSkill rebuild's `nulled()` row (apps/web/lib/ingest/rebuild.ts) for a gated game.
+      const oldNulled = `update public.game_players set mu_before = null, sigma_before = null, mu_after = null,
+        sigma_after = null, fold_p = null, base_mu_after = null, award = null, rated_games_before = null ${rated};`;
+      // The OpenSkill rebuild's write for a rated game.
+      const oldRated = `update public.game_players set mu_before = 20, sigma_before = 8, mu_after = 21.4,
+        sigma_after = 7.8, fold_p = 0.52, base_mu_after = 21.1, award = 'mvp', rated_games_before = 4 ${rated};`;
+      const prestep = readFileSync(`${PACKAGE_ROOT}scripts/m18-rollback-prestep.sql`, 'utf8').replaceAll(
+        ":'group_id'",
+        `'${ORIGINAL_GROUP_ID}'`,
+      );
+
+      it('refuses the old nulled() on a Kustom row (the gap the pre-step closes)', () => {
+        expect(refused(`${kustomRow}\n${oldNulled}`)).toMatch(/game_players_kustom_together/);
+      });
+
+      it('accepts the old nulled() and rated writes after m18-rollback-prestep.sql', () => {
+        // The file runs verbatim (comments and CASE included), not through `lastWins`.
+        const afterPrestep = (sql: string) =>
+          psql(scratch, `begin;\n${lastWins(kustomRow)}\n${prestep}\n${sql}\nrollback;`);
+        afterPrestep(oldNulled);
+        afterPrestep(oldRated);
+        expect(
+          afterPrestep(
+            `select count(*) from public.game_players where group_id = '${ORIGINAL_GROUP_ID}'
+               and (r_after is not null or week_r_after is not null or share_rank is not null or k is not null);`,
+          ),
+        ).toBe('0');
+      });
+
+      it('needs no ratings step: the old upsert writes mu/sigma over a Kustom-only row, and nulling r there is refused', () => {
+        const kustomOnly = `insert into public.ratings (group_id, player_id, r, games, wins)
+          values ('${ORIGINAL_GROUP_ID}', '${IDS.newcomer}', 1219.2, 1, 1);`;
+        tryIt(
+          `${kustomOnly}
+           insert into public.ratings (group_id, player_id, mu, sigma, games, wins)
+             values ('${ORIGINAL_GROUP_ID}', '${IDS.newcomer}', 21, 8, 1, 1)
+             on conflict (group_id, player_id) do update set mu = excluded.mu, sigma = excluded.sigma;`,
+        );
+        expect(
+          refused(`${kustomOnly}\nupdate public.ratings set r = null where player_id = '${IDS.newcomer}';`),
+        ).toMatch(/ratings_has_a_rating/);
+      });
+    });
+
     it('needs no new policy: anon reads the new columns, and still cannot write them', () => {
       expect(
         tryIt(
