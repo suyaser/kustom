@@ -1718,6 +1718,7 @@ export type Database = {
           red: Json
           roster_key: string
           score: number
+          score_parts: Json | null
         }
         Insert: {
           blue: Json
@@ -1734,6 +1735,7 @@ export type Database = {
           red: Json
           roster_key: string
           score: number
+          score_parts?: Json | null
         }
         Update: {
           blue?: Json
@@ -1750,6 +1752,7 @@ export type Database = {
           red?: Json
           roster_key?: string
           score?: number
+          score_parts?: Json | null
         }
         Relationships: [
           {
