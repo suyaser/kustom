@@ -6,6 +6,7 @@ import { buildGameOnInput, type GameOnKickoff, type GameOnSource, type NameLooku
 import {
   ACCENT_COLOR,
   BLUE_SIDE_TITLE,
+  type Embed,
   GAME_ON_CUSTOM_DESCRIPTION,
   GAME_ON_CUSTOM_TITLE,
   GAME_ON_UNROLLED_DESCRIPTION,
@@ -15,15 +16,7 @@ import {
   RED_SIDE_TITLE,
   type WebhookPayload,
 } from './embeds';
-import {
-  DESCRIPTION_LIMIT,
-  ELLIPSIS,
-  EMBEDS_LIMIT,
-  type Embed,
-  messageLength,
-  TITLE_LIMIT,
-  TOTAL_LIMIT,
-} from './limits';
+import { DESCRIPTION_LIMIT, ELLIPSIS, EMBEDS_LIMIT, messageLength, TITLE_LIMIT, TOTAL_LIMIT } from './limits';
 import { announcesKickoff, postGameOnForLobby } from './post';
 
 /**
@@ -237,7 +230,7 @@ describe('which kickoffs are announced (acceptance 3)', () => {
   it('custom and unrolled are; rolled (same or swapped sides) is not', () => {
     expect(announcesKickoff(TWO_SWAP)).toBe(true);
     expect(announcesKickoff(kickoff('unrolled', [puuid(0)], [puuid(1)], 0.5))).toBe(true);
-    const rolled = { kind: 'rolled', blue: [puuid(0)], red: [puuid(1)], at: TWO_SWAP.at } as const;
+    const rolled = { kind: 'rolled' as const, blue: [puuid(0)], red: [puuid(1)], at: TWO_SWAP.at };
     expect(announcesKickoff({ ...rolled, swapped: false })).toBe(false);
     expect(announcesKickoff({ ...rolled, swapped: true })).toBe(false);
   });

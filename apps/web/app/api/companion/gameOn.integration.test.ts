@@ -133,11 +133,18 @@ if (stack === null || !ready) {
       .eq('is_chosen', true)
       .single();
     if (error) throw new Error(error.message);
-    return { blue: readAssignments(data.blue).map((a) => a.puuid), red: readAssignments(data.red).map((a) => a.puuid) };
+    return {
+      blue: readAssignments(data.blue).map((a) => a.puuid),
+      red: readAssignments(data.red).map((a) => a.puuid),
+    };
   }
 
   async function lobbyRow(lobbyId: string) {
-    const { data, error } = await db.from('lobbies').select('status, kickoff_kind').eq('id', lobbyId).single();
+    const { data, error } = await db
+      .from('lobbies')
+      .select('status, kickoff_kind')
+      .eq('id', lobbyId)
+      .single();
     if (error) throw new Error(error.message);
     return data;
   }
@@ -242,8 +249,9 @@ if (stack === null || !ready) {
     expect(titleOf(0)).toBe(GAME_ON_CUSTOM_TITLE);
     expect(descriptionLines(0)[0]).toBe(GAME_ON_CUSTOM_DESCRIPTION);
     expect(descriptionLines(0)[1]).toMatch(/^\*\*Blue \d+%\*\* · \*\*\d+% Red\*\*$/);
-    // Mentions off, and a plain new message (no edit path: no message id in the URL, no PATCH).
-    expect(posts[0]?.allowed_mentions).toEqual({ parse: [] });
+    // Mentions off as for every post: embeds only (no `content`, so nothing can ping) and names
+    // escaped by `renderName`; a plain new message (the fake only sees POSTs, never an edit).
+    expect(Object.keys(posts[0] ?? {}).sort()).toEqual(['embeds', 'username']);
 
     expect(await start(partyId, gameId, tokens.second)).toBe(200);
     expect(await start(partyId, gameId)).toBe(200);
