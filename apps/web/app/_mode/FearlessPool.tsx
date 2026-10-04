@@ -84,6 +84,12 @@ export interface FearlessPoolProps {
   emptyLane?: Partial<Record<RoleValue, string>> | undefined;
   /** M15.5, region wars: one pool per side, in the order given (the viewer's side first). */
   sides?: readonly PoolSide[] | undefined;
+  /**
+   * M20.5: champion id -> its region words (`championRegionMap`), built on the server so the
+   * region table never ships here. An id with no entry has no tag. Display only: the find box and
+   * the lanes never read it.
+   */
+  regions?: Readonly<Record<number, readonly string[]>> | undefined;
 }
 
 interface Group {
@@ -101,6 +107,7 @@ export function FearlessPool({
   within,
   emptyLane,
   sides,
+  regions,
 }: FearlessPoolProps) {
   const LaneHeading = laneHeading;
   const searchId = useId();
@@ -297,12 +304,14 @@ export function FearlessPool({
                     {one.open.length === 0 ? null : (
                       <ul
                         className={cn(
-                          'grid grid-cols-1 gap-2 min-[360px]:grid-cols-2',
+                          // Columns by text size, not screen width (8.15.4): two at 100% on 375,
+                          // one at 320 or at 125% and up.
+                          'grid grid-cols-[repeat(auto-fill,minmax(min(100%,9em),1fr))] gap-2',
                           board
                             ? 'lg:grid-cols-1'
                             : two
-                              ? 'lg:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]'
-                              : 'lg:grid-cols-[repeat(auto-fill,minmax(168px,1fr))]',
+                              ? 'lg:grid-cols-[repeat(auto-fill,minmax(min(100%,9.4em),1fr))]'
+                              : 'lg:grid-cols-[repeat(auto-fill,minmax(min(100%,10.5em),1fr))]',
                         )}
                       >
                         {one.open.map((champion) => (
@@ -310,6 +319,7 @@ export function FearlessPool({
                             key={champion.id}
                             id={champion.id}
                             name={champion.name}
+                            regions={regions?.[champion.id]}
                             hit={openHit?.id === champion.id}
                           />
                         ))}
@@ -334,6 +344,7 @@ export function FearlessPool({
                               key={champion.id}
                               id={champion.id}
                               name={champion.name}
+                              regions={regions?.[champion.id]}
                               hit={bannedHit?.id === champion.id}
                             />
                           ))}
