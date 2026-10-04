@@ -137,9 +137,17 @@ export function ruleSentence(standing: StandingModeId): string {
 export const SPIN = 'Spin';
 export const SPINNING = 'Spinning…';
 
-/** `Next game: Mages only.` (a standing pick after Roll: `Next game: Normal.`). */
-export function nextGameLine(next: RuleOption | StandingModeId): string {
-  return `Next game: ${typeof next === 'string' ? STANDING_NAME[next] : ruleLabel(next)}.`;
+/**
+ * `Next game: Mages only.` (a standing pick after Roll: `Next game: Normal.`). With `rated` it says
+ * Rated too (QA fix 2026-10-04): `Next game: Tanks only. Rated.`; with no mode (the next game plays
+ * the same mode as this one) only Rated: `Next game: not rated.`
+ */
+export function nextGameLine(next: RuleOption | StandingModeId | null, rated: boolean | null = null): string {
+  const mode = next === null ? null : `${typeof next === 'string' ? STANDING_NAME[next] : ruleLabel(next)}.`;
+  if (rated === null) return `Next game: ${mode ?? ''}`.trimEnd();
+  const ratedWords = rated ? 'rated.' : 'not rated.';
+  if (mode === null) return `Next game: ${ratedWords}`;
+  return `Next game: ${mode} ${ratedWords.charAt(0).toUpperCase()}${ratedWords.slice(1)}`;
 }
 
 export const RATED_LABEL = 'Rated';

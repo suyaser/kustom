@@ -21,7 +21,8 @@ import { type ModeStore, type StoredModeState, supabaseModeStore } from './state
  * `changed: false`, no Realtime event). A rule pick, a Spin and a Rated flip always write, even
  * when they repeat what is pending: a rule re-queued mid-game, or the switch set again, is a
  * choice for the **next** game and must survive the running game's compare-and-clear (decision
- * row 2026-10-04, the version token).
+ * row 2026-10-04, the version token). A Rated-only flip after Roll changes only Rated: the record
+ * still uses up the locked rule (core's `onlyRatedSinceRoll`, the user's decision 2026-10-04).
  *
  * **Two admins at once.** The write is compare-and-set; the loser re-reads and re-applies its
  * action to the winner's state, so the last write wins and nothing is half-applied.

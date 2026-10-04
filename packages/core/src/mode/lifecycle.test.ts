@@ -9,6 +9,7 @@ import {
   lockAtRoll,
   type ModeState,
   nextGame,
+  onlyRatedSinceRoll,
   type RecordedGame,
   setRated,
   startState,
@@ -198,11 +199,85 @@ describe('afterRecord: compare and clear', () => {
     expect(afterRecord(again, { kind: 'rift', lock }).pending).toEqual(tanks);
   });
 
-  it('a Rated flip mid-game is for the next game and survives', () => {
+  it('a Rated flip mid-game changes only Rated: the rule is used up, the flip is for the next game', () => {
     const rolled = chooseRule(fearless, tanks);
     const lock = lockAtRoll(rolled, null);
     const flipped = setRated(rolled, true);
+    expect(onlyRatedSinceRoll(flipped, lock)).toBe(true);
+    const after = afterRecord(flipped, { kind: 'rift', lock });
+    expect(after).toEqual({
+      standing: 'fearless',
+      pending: null,
+      ratedOverride: true,
+      version: flipped.version + 1,
+    });
+    expect(nextGame(after)).toEqual({ modeId: 'fearless', rule: null, rated: true });
+    // A second companion's post finds nothing left to clear.
+    expect(afterRecord(after, { kind: 'rift', lock })).toBe(after);
+  });
+
+  it('flipped off and on and off again mid-game: still only Rated, and the last flip stands', () => {
+    const rolled = chooseRule(fearless, mages);
+    const lock = lockAtRoll(rolled, null);
+    const flips = setRated(setRated(setRated(rolled, true), false), true);
+    expect(afterRecord(flips, { kind: 'rift', lock })).toMatchObject({ pending: null, ratedOverride: true });
+  });
+
+  it('a Rated flip on a standing-mode game keeps the flip for the next game', () => {
+    const lock = lockAtRoll(fearless, null);
+    const flipped = setRated(fearless, false);
+    expect(onlyRatedSinceRoll(flipped, lock)).toBe(false);
     expect(afterRecord(flipped, { kind: 'rift', lock })).toEqual(flipped);
+  });
+
+  it('a flip then a new rule mid-game: the new rule survives with its own default', () => {
+    const rolled = chooseRule(fearless, tanks);
+    const lock = lockAtRoll(rolled, null);
+    const queued = chooseRule(setRated(rolled, true), mages);
+    expect(onlyRatedSinceRoll(queued, lock)).toBe(false);
+    expect(afterRecord(queued, { kind: 'rift', lock })).toEqual(queued);
+  });
+
+  it('a flip then the same rule queued again survives (the pick resets the switch: a new choice)', () => {
+    const rolled = chooseRule(fearless, tanks);
+    const lock = lockAtRoll(rolled, null);
+    const again = chooseRule(chooseRule(setRated(rolled, true), mages), tanks);
+    expect(afterRecord(again, { kind: 'rift', lock }).pending).toEqual(tanks);
+  });
+
+  it('the documented blind spot: the same rule queued again and then flipped reads as Rated only', () => {
+    const rolled = chooseRule(fearless, tanks);
+    const lock = lockAtRoll(rolled, null);
+    const again = setRated(chooseRule(chooseRule(rolled, mages), tanks), true);
+    expect(afterRecord(again, { kind: 'rift', lock }).pending).toBeNull();
+  });
+
+  it('a Rated flip after a region wars that could not be drawn keeps region wars pending', () => {
+    const rolled = chooseRule(fearless, { id: 'region' });
+    const lock = lockAtRoll(rolled, null);
+    const flipped = setRated(rolled, true);
+    expect(onlyRatedSinceRoll(flipped, lock)).toBe(false);
+    expect(afterRecord(flipped, { kind: 'rift', lock })).toEqual(flipped);
+  });
+
+  it('a drawn region wars is the same rule as the pending one: a flip uses it up', () => {
+    const rolled = chooseRule(fearless, { id: 'region' });
+    const lock = lockAtRoll(rolled, { blue: 'demacia', red: 'noxus' });
+    const flipped = setRated(rolled, true);
+    expect(afterRecord(flipped, { kind: 'rift', lock }).pending).toBeNull();
+  });
+
+  it('a remake or ARAM after a mid-game flip uses nothing up', () => {
+    const rolled = chooseRule(fearless, tanks);
+    const lock = lockAtRoll(rolled, null);
+    const flipped = setRated(rolled, true);
+    expect(afterRecord(flipped, { kind: 'remake', lock })).toBe(flipped);
+    expect(afterRecord(flipped, { kind: 'aram', lock })).toBe(flipped);
+  });
+
+  it('with nothing moved since Roll it is not "only Rated"', () => {
+    const rolled = setRated(chooseRule(fearless, tanks), true);
+    expect(onlyRatedSinceRoll(rolled, lockAtRoll(rolled, null))).toBe(false);
   });
 
   it('remake, ARAM and no-lobby games leave the rule pending', () => {

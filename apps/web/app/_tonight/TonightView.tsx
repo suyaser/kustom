@@ -1,4 +1,4 @@
-import { type Calibration, displayRating, ruleOf } from '@customs/core';
+import { type Calibration, displayRating, nextGame, ruleOf } from '@customs/core';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FairnessReceipt, PreGameReceipt } from '@/components/receipt';
@@ -8,7 +8,7 @@ import type { GameBreakdown } from '@/lib/breakdown/load';
 import { fearlessWhatsOpen } from '@/lib/fearless/copy';
 import type { PageGroup } from '@/lib/groups/pageGroup';
 import { noKustomRunningLine } from '@/lib/lobbyStartCopy';
-import { modeCardView, selectValue, showsFearlessPool, tooFewOpen } from '@/lib/mode/card';
+import { modeCardView, selectValue, showsFearlessPool, tooFewOpen, upcomingState } from '@/lib/mode/card';
 import { championTable } from '@/lib/mode/champions';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
 import { ruleLaneLabel } from '@/lib/mode/ruleCopy';
@@ -172,6 +172,8 @@ export function TonightView(props: TonightViewProps) {
     bans,
     table,
   });
+  // The admin controls are about the next game: after Roll, the card this game's record leaves.
+  const upcoming = upcomingState(modeState, snapshot.lobby?.status ?? null, snapshot.lobby?.lock ?? null);
   const speech: ModeSpeech = {
     standing: modeState.standing,
     pending: modeState.pending,
@@ -204,9 +206,9 @@ export function TonightView(props: TonightViewProps) {
         isAdmin
           ? {
               inGame: cardView.locked || variant === 'in-game',
-              selected: selectValue(modeState),
-              tooFew: tooFewOpen(modeState, bans, table),
-              nextRated: speech.nextRated,
+              selected: selectValue(upcoming),
+              tooFew: tooFewOpen(upcoming, bans, table),
+              nextRated: nextGame(upcoming).rated,
               version: modeState.version,
               redirectTo: groupHome(group),
               notice: props.modeNotice?.notice ?? null,
