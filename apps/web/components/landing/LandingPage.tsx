@@ -50,6 +50,7 @@ import type { LandingData } from '@/lib/landing/load';
 import { groupHome, groupHref } from '@/lib/nav';
 import { formatDayMonth } from '@/lib/night';
 import { CALIBRATION_FOLLOW_UP, calibrationLineParts } from '@/lib/receipt/copy';
+import { AudienceSwitch, AudienceText, RememberedBackBar } from './AboutIslands';
 import { CreateGroupButton, PageColumn, Section, TermList } from './parts';
 
 /**
@@ -61,18 +62,36 @@ import { CreateGroupButton, PageColumn, Section, TermList } from './parts';
  * hidden text, and it works with JavaScript off (the FAQ and the receipt's disclosure are
  * `<details>`, the sign-in is a `<form>`). No Riot or League logo anywhere (M14.8).
  */
-export interface LandingPageProps {
-  data: LandingData;
-  audience: LandingAudience;
-  /** `Back to <Group>`: the group this browser last opened, when the visitor should see it. */
-  back: PageGroup | null;
-}
+/**
+ * Who is looking. `/` knows on the server (it is dynamic anyway, for its redirect) and passes
+ * `audience` and `back`. The static `/about` passes `islands`: the page is prerendered for an
+ * anonymous visitor and the client islands in `AboutIslands.tsx` draw the back bar and turn the
+ * audience-dependent lines after hydration (about-static).
+ */
+export type LandingPageProps = { data: LandingData } & (
+  | {
+      audience: LandingAudience;
+      /** `Back to <Group>`: the group this browser last opened, when the visitor should see it. */
+      back: PageGroup | null;
+      islands?: never;
+    }
+  | { islands: true; audience?: never; back?: never }
+);
 
-export function LandingPage({ data, audience, back }: LandingPageProps) {
+/** A known audience, or `island`: decided in the browser. */
+type AudienceSource = LandingAudience | 'island';
+
+export function LandingPage(props: LandingPageProps) {
+  const { data } = props;
   const demo = data.demo;
+  const audience: AudienceSource = props.islands === true ? 'island' : props.audience;
   return (
     <div className="flex-1">
-      {back === null ? null : <BackBar group={back} />}
+      {props.islands === true ? (
+        <RememberedBackBar />
+      ) : props.back === null ? null : (
+        <BackBar group={props.back} />
+      )}
       <PageColumn>
         <Hero data={data} audience={audience} />
         <Problem />
@@ -84,6 +103,17 @@ export function LandingPage({ data, audience, back }: LandingPageProps) {
         <Faq />
       </PageColumn>
     </div>
+  );
+}
+
+/** `Create your group`, by a known audience or switched in the browser. */
+function CreateGroup({ audience }: { audience: AudienceSource }) {
+  if (audience !== 'island') return <CreateGroupButton audience={audience} />;
+  return (
+    <AudienceSwitch
+      signedOut={<CreateGroupButton audience="signed-out" />}
+      signedIn={<CreateGroupButton audience="signed-in" />}
+    />
   );
 }
 
@@ -103,7 +133,7 @@ function BackBar({ group }: { group: PageGroup }) {
   );
 }
 
-function Hero({ data, audience }: { data: LandingData; audience: LandingAudience }) {
+function Hero({ data, audience }: { data: LandingData; audience: AudienceSource }) {
   const demoHome = data.demo === null ? null : groupHome(data.demo);
   return (
     <section
@@ -119,7 +149,7 @@ function Hero({ data, audience }: { data: LandingData; audience: LandingAudience
         </h1>
         <p className="max-w-[38rem] text-base text-pretty lg:text-md lg:leading-normal">{HERO_SUB}</p>
         <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
-          <CreateGroupButton audience={audience} />
+          <CreateGroup audience={audience} />
           {demoHome === null ? null : (
             <Button asChild variant="secondary">
               <Link prefetch="auto" href={demoHome}>
@@ -329,7 +359,7 @@ function Companion() {
   );
 }
 
-function FinalCall({ audience }: { audience: LandingAudience }) {
+function FinalCall({ audience }: { audience: AudienceSource }) {
   return (
     <Section
       id="start"
@@ -347,10 +377,18 @@ function FinalCall({ audience }: { audience: LandingAudience }) {
         ))}
       </ol>
       <div className="flex flex-col gap-2 sm:w-fit">
-        <CreateGroupButton audience={audience} />
-        <p className="text-sm text-muted-foreground">
-          {audience === 'signed-in' ? FREE_SIGNED_IN : FREE_SIGNED_OUT}
-        </p>
+        <CreateGroup audience={audience} />
+        {audience === 'island' ? (
+          <AudienceText
+            signedIn={FREE_SIGNED_IN}
+            signedOut={FREE_SIGNED_OUT}
+            className="text-sm text-muted-foreground"
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {audience === 'signed-in' ? FREE_SIGNED_IN : FREE_SIGNED_OUT}
+          </p>
+        )}
       </div>
     </Section>
   );

@@ -1,18 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { SIGN_IN_LABEL, SIGN_OUT_LABEL } from '@/lib/shellCopy';
+import { useKustomSession } from './useKustomSession';
 
-/** The session-checked read the island asks (M13.5): 200 with a session, 401 or 403 without. */
-export const SESSION_PROBE_URL = '/api/groups/mine';
-
-export type KustomSessionState = 'signed-out' | 'signed-in';
-
-/** Whether a `document.cookie` string carries a Supabase auth cookie (`sb-<ref>-auth-token…`). */
-export function hasSessionCookie(cookieHeader: string): boolean {
-  return cookieHeader.split(';').some((part) => part.trim().startsWith('sb-'));
-}
+export { hasSessionCookie, type KustomSessionState, SESSION_PROBE_URL } from '@/lib/landing/sessionProbe';
 
 /**
  * The account control in the bare shell's top bar (STRATEGY 2.5). Signed out: `Sign in`, back to
@@ -31,24 +23,15 @@ export function hasSessionCookie(cookieHeader: string): boolean {
  *   verified session with a Discord identity, so `Sign out`; 401, 403 or any failure reads as
  *   signed out, exactly as `currentSessionPlayer` maps them. Only the status is read, never the
  *   body, so no schema (and no zod) comes into this bundle.
+ * - The probe is `lib/landing/sessionProbe.ts`, shared with `/about`'s audience islands, so a page
+ *   with several of them still asks once.
  *
  * No layout shift when the label turns: both words sit in one grid cell and the button is as wide
  * as the longer one; the word not in use is `invisible` and `aria-hidden`, so the accessible name is
  * only ever the visible word.
  */
 export function KustomSignIn({ here = '/' }: { here?: string }) {
-  const [state, setState] = useState<KustomSessionState>('signed-out');
-
-  useEffect(() => {
-    if (!hasSessionCookie(document.cookie)) return;
-    const controller = new AbortController();
-    fetch(SESSION_PROBE_URL, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
-      .then((response) => setState(response.ok ? 'signed-in' : 'signed-out'))
-      .catch(() => {
-        // Offline, or the page is leaving: the server would read this as anonymous too.
-      });
-    return () => controller.abort();
-  }, []);
+  const state = useKustomSession();
 
   const signedIn = state === 'signed-in';
   return (
