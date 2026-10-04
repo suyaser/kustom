@@ -863,6 +863,8 @@ tab bar, and the group line when the group is known.
 > the no-JS forms (Roll, Reroll, That's me, the Mode card link). They render whole on the server; on a client
 > navigation Next keeps the old page up until the new one is ready (measured 52–104 ms at 375). The text below stands
 > for any future route that is never used without JS; `LoadingView` and ‹Loading…› are currently unused.
+> **M19.14 (2026-10-04):** no tab gets a `loading.tsx`; tab feedback is the pressed tab and a client-drawn
+> pending frame, 5.9a.
 
 **Decision: a static shell, streamed first; no skeletons.** `loading.tsx` per route group renders:
 - the real top bar, tab bar and group line (from the layout, already static)
@@ -878,6 +880,192 @@ Why not skeletons: a shimmering grey block is the brightest moving thing in a da
 promise a shape that may not arrive (idle vs balanced tonight). Why reserved frames at all: so the team cards
 land without shifting the page (CLS). Pages should also stream with Suspense: the shell and strip first, the
 fearless pool and rail later.
+
+### 5.9a Tab feedback and pending frames (M19.14)
+
+Ruled 2026-10-04 for M19.15. Budget (owner): **a tab tap shows feedback within 200 ms** (INP < 200 ms) and
+**LCP < 2.5 s**. Today a tab tap shows nothing for 270 to 700 ms (`redesign/research/performance.md`, P5).
+
+**Why not `loading.tsx` (5.9 still stands).** A `loading.tsx` is a Suspense boundary, and on a **first
+document load** Next streams it: the fallback is the HTML, and the real page arrives in a hidden node that only
+JavaScript swaps in. With JS off, the skeleton is all the page ever shows. That is how M14.39 lost Tonight's
+no-JS forms. Every tab has something a no-JS reader would lose:
+
+| Route | What a no-JS first load needs |
+|---|---|
+| Tonight | Roll, Reroll, That's me, the Mode card link (5.9 amendment) |
+| Board | the board itself: it is opened from Discord and WhatsApp links, and it is all content |
+| Games, Game page | the list and the receipt: the result post links the game page (10.5) |
+| Player page | the player: opened from the board and from shared links |
+| Stats | the `/1v1` GET form (5.0, native select) and the records; `stats/loading.tsx` would also wrap `/1v1` |
+| You | the sign-in and sign-out POST forms (`/auth/signin`, `/auth/signout`) |
+| Admin | the POST forms and the confirm routes (5.13) |
+
+A `loading.tsx` only helps a **client** navigation, so the skeleton has to be drawn by the client, not
+streamed by the server. The design gets the same speed with no no-JS cost: the tab answers the tap itself, and
+a slow navigation swaps `<main>` for a pending frame drawn in the browser.
+
+**Per route**
+
+| Route | `loading.tsx` | Pressed tab (`useLinkStatus`) | Pending frame |
+|---|---|---|---|
+| Tonight | no | yes | yes, the Tonight frame |
+| Board | no | yes | yes, the Board frame |
+| Games | no | yes | yes, the Games frame |
+| Stats (Records, Champions, 1v1) | no | yes | yes, the Stats frame |
+| You | no | yes | yes, the You frame |
+| Game page | no | no (not a tab; reached from rows) | no |
+| Player page | no | no (not a tab; reached from rows) | no |
+| Admin (all sections) | no | the desktop top bar's `Admin` link only | no |
+
+- **Game and player pages** get no skeleton. Their links sit in rows and tiles that are server-rendered;
+  a `useLinkStatus` probe in every row would add a client component per row for a page that M19 made cheap
+  (title-only `generateMetadata`). The row's own `:active` press state (5.2, CSS only, no JS) is the tap
+  feedback. Their tab already reads Board or Games (5.11), and that does not change while the page loads.
+- **Admin** gets the pressed state on the desktop `Admin` link (the same rule as a tab) and nothing else.
+  The admin section pills are links inside the page: CSS `:active` only.
+- **No `<Suspense>` boundary on a route a person can land on from a link** (every route in the table), for the
+  same reason: on a first load its content is hidden from a no-JS reader. **This overrides M19.15's
+  `<Suspense>` around Tonight's below-the-fold sections and the board's storyline** (OPEN for the lead). LCP
+  comes from the cheaper loaders (M19.1 to M19.13), not from streaming. Tonight's header is server HTML in
+  the first chunk either way.
+- **A live refresh never shows a pending frame.** `router.refresh()` and Realtime re-reads are not link
+  navigations, so they never set a pending tab; the shown page stays until the new one is ready (5.10).
+
+#### The pressed tab
+
+The tap's feedback is on the tab you pressed, painted in the same frame as the press. That is the
+INP < 200 ms answer, and it does not wait on the network.
+
+- **On press** (`:active`, unchanged): `scale(.98)` for `--dur-press` (2.9).
+- **While pending** (`useLinkStatus().pending`, on the pressed link only): the label and icon go to
+  `--foreground` and the icon fills (the same as active), and the tab gets the **3px top bar in
+  `--border-strong`** at the active bar's place and size. The tab you are leaving keeps `aria-current` and its
+  `--primary-text` bar until the new page is committed, because it is still the page on screen. Two bars
+  for a moment, one neutral and one amber, read as "going there from here". Colour is not the only signal:
+  the pending tab also gets the filled icon and the bar shape.
+- **On landing**: the amber bar moves to the new tab, and the neutral bar goes. This is a colour change at
+  `--dur-fast`, not a slide (2.9: nothing slides under a thumb).
+- **Desktop top nav (>= 1024)**: the same rule on the 60px links. While pending, the link goes to
+  `--foreground` with a 3px `--border-strong` underline; the current link keeps its `--primary-text`
+  underline until landing.
+- **No delay** on the pressed state. It is a colour change on a 75px tab, not a flash, and a delay would
+  spend the INP budget. Next skips `pending` when the route was already prefetched and the change is instant,
+  which is right: there is nothing to wait for.
+- Tapping the tab you are already on is not a navigation: nothing changes.
+- Contrast: `--border-strong` on `--card` is at least 3:1 (6.15), the same edge rule as any control.
+
+#### The pending frame
+
+If the navigation is **still pending 300 ms after the tap**, `<main>`'s content is hidden and the
+destination tab's frame is drawn in its place. Under 300 ms (a prefetched or fast route, 52 to 104 ms measured
+in 5.9) the frame never appears, so there is no flash. The old page is hidden with the `hidden` attribute, not
+unmounted, so an abandoned navigation (a second tap, the back button) shows it again unchanged.
+
+The frames use 5.9's reserved-frame part (`components/ui/frame.tsx`, the restyled shadcn `Skeleton`):
+
+- `--card` blocks with a 1px `--border` and the card radius (8), at the **real heights** of the components that
+  will land: seat rows `--seat-min-h` (64), board and history rows `--row-min-h` (56), team headers `--thead-h`
+  (54), chips and the strip's top line `--chip-h` (28), segmented pickers `--tap` (44). Rows inside a frame are
+  divided by the 1px hairline (2.5).
+- **Shapes only, no words.** No fake text bars, no ‹Loading…›, no spinner, no amber, no side colours (a frame
+  doesn't know which side a player is on yet). The h1 is a frame of its line height, not a word, because
+  Tonight's and You's h1s depend on state.
+- **No motion at all**: no shimmer, no pulse, no fade in. The frame appears in one paint and the page replaces
+  it in one paint. Reduced motion therefore changes nothing; the pressed tab's colour change already drops to
+  instant under 2.9's media query.
+- Gutters, card padding and section gaps are the page's own (2.5), so the first block of the real page
+  lands where its frame was. Only the first screen is framed; the frame never grows past `100svh` minus the
+  bars, so a short page doesn't leave a long empty frame behind.
+- CLS: frames hold the real heights of everything in the first screen, so the landing page shifts nothing
+  above the fold. A page that lands taller pushes only the space below the last frame, which is below the
+  fold. The target stays CLS <= 0.01.
+
+**Frames per tab** (375 left, 1280 right; `▭` is a frame, `═` its hairline-divided rows; the top bar and the
+tab bar are the real ones, unchanged):
+
+```
+TONIGHT 375                                  TONIGHT 1280 (main column + 340 rail)
+▭ strip top line   28                        ▭ strip top line 28              │ ▭ rail
+▭ headline         56 (display 46, 1 line)   ▭ headline 76 (display 64)       │   tape: 4 × 64
+▭ sub-line         2 × 22 reserved           ▭ sub-line 2 × 22                │
+▭ action / band    44                        ▭ action / band 44               │
+                                             ▭ blue card            ▭ red card│
+▭ team card  54 + 5 × 64 ═                     54 + 5 × 64 ═          54 + 5 ═│
+▭ team card  54 + 5 × 64 ═ (below the fold)
+```
+The strip is one frame with its rows as the real strip's (5.10); the team cards are two frames side by side
+from 768 (5.1). Idle, balanced or in game is not known before landing, so the frame is the balanced shape: it
+is the tallest first screen and the most common one a tab tap lands on.
+
+```
+BOARD 375                                    BOARD 1280
+▭ h1 line          32                        ▭ h1 32
+▭ window picker    44 (3 segments)           ▭ window picker 44 (inline, w-auto)  │ ▭ rail (top this week)
+▭ list  N × 56 ═   (rows to the fold)        ▭ list N × 56 ═                       │   5 × 56 ═
+```
+
+```
+GAMES 375                                    GAMES 1280
+▭ h1 line          32                        ▭ h1 32
+▭ queue picker     44                        ▭ queue picker 44
+▭ list  N × 56 ═                             ▭ list N × 56 ═ (main column)          │ ▭ rail
+```
+
+```
+STATS 375                                    STATS 1280
+▭ h1 line          32                        ▭ h1 32
+▭ section picker   44 (Records · Champions · 1v1)
+▭ window picker    44                        ▭ section + window pickers, one row 44
+▭ section summary  52                        ▭ section summary 52
+▭ rows  N × 56 ═                             ▭ rows in 2 columns, N × 56 ═ (5.14a)
+```
+The Stats frame is the Records shape whichever segment is tapped from the tab bar; a tap on a segment inside
+Stats is an in-page link (no frame).
+
+```
+YOU 375                                      YOU 1280
+▭ h1 line          32                        ▭ h1 32
+▭ card             1 × 56 + 3 × 56 ═         ▭ card 4 × 56 ═     ▭ card 4 × 56 ═ (2 columns)
+▭ card             3 × 56 ═
+```
+Signed out, You is the sign-in pitch, but the frame is the same: it is only the first screen, for at most a few
+hundred milliseconds.
+
+#### Screen readers
+
+- The pressed tab says nothing new. The person just activated it; a pending announcement would talk over the
+  page's own announcement a moment later.
+- While the frame shows, `<main>` has `aria-busy="true"`; every frame is `aria-hidden` (as `Frame` already
+  is). There is no ‹Loading…› text and no live region for loading, so 6.4's "one polite announcer per live
+  page" is untouched.
+- **Landing is announced by Next's route announcer**, which reads the new `document.title` on a client
+  navigation. Every tab and page keeps its own distinct `<title>` (`Leaderboard · Customs Night`), so the
+  announcement names where you are. `aria-busy` is removed in the same commit.
+- Focus stays on the pressed tab during pending (it is still in the DOM), and moves as Next moves it on
+  landing. The hidden old page is out of the tab order (`hidden`).
+
+#### Build notes (for M19.15)
+
+- One client context in the group shell (`Shell.tsx`) wraps `<main>`'s children: `{ pendingTab, since }`.
+- Inside each `Link` in `TabBar` and `TopBar` sits a tiny client child that calls `useLinkStatus()` and reports
+  `pending` for its tab to the context. It renders nothing visible; the pending style is a data attribute on
+  the link (`data-pending`), styled in CSS.
+- The `<main>` wrapper renders `children` in a `div` that gets `hidden` while `pendingTab` is set and 300 ms
+  have passed, and renders `<TabFrame tab={pendingTab} />` beside it. Pending clears when `useLinkStatus`
+  goes false or the pathname changes.
+- `TabFrame` composes `Frame` only, with the heights above as tokens; it never fetches and takes no props but
+  the tab key, so it is in the client bundle once (a few hundred bytes).
+- No `loading.tsx` and no `<Suspense>` is added under `app/(group)/g/[slug]/`. `LoadingView` stays unused.
+- Tests: (1) each tab renders its `TabFrame` at 375 and 1280 (snapshot of heights); (2) the server HTML of every
+  tab with JS off contains the page's h1 and its forms (no streamed boundary); (3) `router.refresh()` never
+  sets `pendingTab`; (4) the frame does not appear under 300 ms; (5) axe on a shown frame (`aria-busy`,
+  `aria-hidden`, focus on the tab); `pageGroup.test.tsx` and `nav.test.ts` unchanged.
+
+**Acceptance (designer signs):** the pressed tab paints within 100 ms of the tap on a mid phone at 375 and
+1280, in Night and Day; each of the five frames at 375 and 1280 matches its sketch above, with no words, no
+motion and no colour but `--card` and `--border`; landing from a frame moves nothing above the fold (CLS <= 0.01);
+with JS off, every route in the first table renders whole on its first load.
 
 ### 5.10 Status headline strip
 
