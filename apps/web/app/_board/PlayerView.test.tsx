@@ -114,7 +114,7 @@ describe('the public lens', () => {
     const { container } = draw(player);
     const lead = container.querySelector('[data-slot="week-points"]');
     expect(visibleText(lead)).toBe('Points this week+86');
-    expect(within(lead as HTMLElement).getByText('86 points this week')).toBeInTheDocument();
+    expect(within(lead as HTMLElement).getByText('gained 86')).toBeInTheDocument();
     expect(visibleText(container.querySelector('[data-slot="week-meta"]'))).toBe(
       `7 games · 5W 2L · Rating ${player.rating}`,
     );

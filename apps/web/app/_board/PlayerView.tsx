@@ -226,11 +226,8 @@ function WeekRatingCard({
       <div className="flex flex-col gap-3 p-(--card-pad)">
         <p data-slot="week-points" className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-md font-bold">{POINTS_COLUMN_LABEL[window]}</span>
-          <RatingDelta
-            delta={points}
-            spoken={weekPointsWords(points, window)}
-            className="text-display leading-none font-stretch-85%"
-          />
+          {/* Plain spoken words (`gained 16`): the label beside it already names the week. */}
+          <RatingDelta delta={points} className="text-display leading-none font-stretch-85%" />
         </p>
         <p data-slot="week-meta" className="text-sm text-muted-foreground">
           <RecordLine games={player.games} wins={player.wins} losses={player.losses} />
