@@ -16,7 +16,9 @@ export function memoryModeStore(initial: ModeRow | null) {
   const stamp = () => new Date(Date.UTC(2026, 9, 5, 18, 0, 0, tick)).toISOString();
 
   const stored = (): StoredModeRow =>
-    row === null ? { row: missingRow(), exists: false, updatedAt: null } : { row, exists: true, updatedAt: stamp() };
+    row === null
+      ? { row: missingRow(), exists: false, updatedAt: null }
+      : { row, exists: true, updatedAt: stamp() };
 
   const store: ModeStore = {
     async read() {

@@ -88,7 +88,14 @@ function answerRoll(
 
   return context.respond(
     rollResponseSchema,
-    { ok: true, lobbyId, status: 'balanced', splitId, outcome, ...(modeNotice === null ? {} : { modeNotice }) },
+    {
+      ok: true,
+      lobbyId,
+      status: 'balanced',
+      splitId,
+      outcome,
+      ...(modeNotice === null ? {} : { modeNotice }),
+    },
     notice,
   );
 }

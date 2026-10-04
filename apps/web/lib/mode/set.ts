@@ -1,13 +1,13 @@
 import {
+  lockTransition,
   type ModeAction,
   type ModeLock,
   nextRated,
-  type RegionAction,
   type Refusal,
+  type RegionAction,
   type RuleOption,
   ruleOf,
   type TransitionContext,
-  lockTransition,
   transition,
 } from '@customs/core';
 import { type NextGame, ruleChoiceOf, ruleColumnsOf } from '@customs/db/schemas';

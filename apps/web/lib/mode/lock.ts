@@ -125,9 +125,12 @@ async function takeOnto(
         wrote: true,
       };
     }
-    if (answer === 'exists') return { stored: await readLobbyLock(client, input.lobbyId), regions: null, wrote: false };
+    if (answer === 'exists')
+      return { stored: await readLobbyLock(client, input.lobbyId), regions: null, wrote: false };
   }
-  throw new Error(`mode lock: ${TAKE_ATTEMPTS} takes in a row found the card changed for lobby ${input.lobbyId}`);
+  throw new Error(
+    `mode lock: ${TAKE_ATTEMPTS} takes in a row found the card changed for lobby ${input.lobbyId}`,
+  );
 }
 
 /** The generated types mark every RPC argument required and non-null; the functions take nulls. */

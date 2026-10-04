@@ -13,7 +13,9 @@ import type { PublicClient } from '../publicClient';
 export const readGroupModeRow = cache((client: PublicClient, groupId: string) =>
   client
     .from('group_modes')
-    .select('mode, updated_at, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override')
+    .select(
+      'mode, updated_at, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override',
+    )
     .eq('group_id', groupId)
     .maybeSingle()
     .then((result) => result),

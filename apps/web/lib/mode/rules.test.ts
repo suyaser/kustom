@@ -25,7 +25,12 @@ import { missingRow, missingState, rowFromColumns, stateFromRow, storedFromColum
  * `app/api/admin/mode.integration.test.ts`.
  */
 
-const row = (over: Partial<ModeRow> = {}): ModeRow => ({ standing: 'normal', pending: null, rated: null, ...over });
+const row = (over: Partial<ModeRow> = {}): ModeRow => ({
+  standing: 'normal',
+  pending: null,
+  rated: null,
+  ...over,
+});
 
 const columns = (over: Partial<Parameters<typeof rowFromColumns>[0]> = {}) => ({
   mode: 'normal',
@@ -53,13 +58,19 @@ function table(): ChampionTable {
 
 describe('the card row (0047)', () => {
   it('reads every rule, region wars with its pair', () => {
-    expect(rowFromColumns(columns({ mode: 'fearless', pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true }))).toEqual({
+    expect(
+      rowFromColumns(
+        columns({ mode: 'fearless', pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true }),
+      ),
+    ).toEqual({
       standing: 'fearless',
       pending: { id: 'class', tag: 'Tank' },
       rated: true,
     });
     expect(
-      rowFromColumns(columns({ pending_rule: 'region', pending_region_blue: 'zaun', pending_region_red: 'noxus' })).pending,
+      rowFromColumns(
+        columns({ pending_rule: 'region', pending_region_blue: 'zaun', pending_region_red: 'noxus' }),
+      ).pending,
     ).toEqual({ id: 'region', blue: 'zaun', red: 'noxus' });
   });
 
@@ -72,7 +83,12 @@ describe('the card row (0047)', () => {
 
   it('(pre-M20.8 adapter) the old card shape: region wars pairless, updated_at as the order', () => {
     const legacy = stateFromRow(
-      columns({ pending_rule: 'region', pending_region_blue: 'zaun', pending_region_red: 'noxus', rated_override: false }),
+      columns({
+        pending_rule: 'region',
+        pending_region_blue: 'zaun',
+        pending_region_red: 'noxus',
+        rated_override: false,
+      }),
     );
     expect(legacy).toEqual({
       standing: 'normal',
@@ -104,7 +120,9 @@ describe('the lock columns (0047: keyed on lock_mode, Rated as moved)', () => {
     expect(modeLockOf({ ...lockRow, lock_rated: false })?.rated).toBe(false);
     expect(modeLockOf({ ...lockRow, lock_mode: null })).toBeNull();
     expect(modeLockOf({ ...lockRow, lock_region_red: null })).toBeNull();
-    expect(modeLockOf({ ...lockRow, lock_rule: null, lock_region_blue: null, lock_region_red: null })).toEqual({
+    expect(
+      modeLockOf({ ...lockRow, lock_rule: null, lock_region_blue: null, lock_region_red: null }),
+    ).toEqual({
       standing: 'fearless',
       mode: { id: 'fearless' },
       rated: null,
@@ -120,9 +138,9 @@ describe('the lock columns (0047: keyed on lock_mode, Rated as moved)', () => {
         version: Date.parse('2026-10-05T18:00:00.000Z'),
       },
     });
-    expect(lockFromRow({ ...lockRow, lock_rule: null, lock_region_blue: null, lock_region_red: null })?.lock.rated).toBe(
-      true,
-    );
+    expect(
+      lockFromRow({ ...lockRow, lock_rule: null, lock_region_blue: null, lock_region_red: null })?.lock.rated,
+    ).toBe(true);
   });
 });
 
@@ -235,7 +253,9 @@ describe('the champion table and the RNG', () => {
 
 describe('the notices', () => {
   it("say the brief's announcer lines and M20.1's region lines", () => {
-    expect(ruleChosenNotice({ id: 'class', tag: 'Tank' }, false)).toBe('Next game: Class wars, tanks only. Not rated.');
+    expect(ruleChosenNotice({ id: 'class', tag: 'Tank' }, false)).toBe(
+      'Next game: Class wars, tanks only. Not rated.',
+    );
     expect(ruleChosenNotice({ id: 'mirror' }, true)).toBe('Next game: Mirror match. Rated.');
     expect(ruleChosenNotice({ id: 'region', blue: 'zaun', red: 'noxus' }, false)).toBe(
       'Next game: Region wars. Blue: Zaun · Red: Noxus. Not rated.',
@@ -251,7 +271,9 @@ describe('the notices', () => {
     expect(shortPairRedrawnNotice({ blue: 'targon', red: 'zaun' }, { blue: 'shurima', red: 'zaun' })).toBe(
       'Targon vs Zaun ran short after the bans, so Roll drew Shurima vs Zaun.',
     );
-    expect(nextPairNotice({ blue: 'shadow-isles', red: 'bandle-city' })).toBe('Next game: Shadow Isles vs Bandle City.');
+    expect(nextPairNotice({ blue: 'shadow-isles', red: 'bandle-city' })).toBe(
+      'Next game: Shadow Isles vs Bandle City.',
+    );
     expect(ratedNotice(true)).toBe('Next game is rated.');
     expect(ratedNotice(false)).toBe('Next game is not rated.');
     expect(standingNotice('fearless', true)).toBe('Rule cleared. Back to Fearless.');

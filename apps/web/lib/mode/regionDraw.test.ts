@@ -41,7 +41,12 @@ describe('choosing region wars applies the union rule (M20 D2, D9)', () => {
       const result = transition(
         normal,
         { type: 'pick', rule: { id: 'region' } },
-        { roster: roster(), regions: ['ionia', 'noxus', 'demacia', 'unaffiliated'], fearlessPool: [], rng: rngAt(i, 1000) },
+        {
+          roster: roster(),
+          regions: ['ionia', 'noxus', 'demacia', 'unaffiliated'],
+          fearlessPool: [],
+          rng: rngAt(i, 1000),
+        },
       );
       expect(result.ok).toBe(true);
       const pending = result.ok ? result.patch.pending : null;
@@ -57,7 +62,10 @@ describe('choosing region wars applies the union rule (M20 D2, D9)', () => {
       refusal: 'too-few-open',
     });
     const pending: ModeRow = { ...normal, pending: { id: 'region', blue: 'ionia', red: 'noxus' } };
-    expect(take(pending, context)).toMatchObject({ lock: { mode: { id: 'normal' } }, regions: { outcome: 'no-draw' } });
+    expect(take(pending, context)).toMatchObject({
+      lock: { mode: { id: 'normal' } },
+      regions: { outcome: 'no-draw' },
+    });
     // The count form this replaced would have drawn it: it cannot see the shared champion.
     expect(drawRegions(['ionia', 'noxus'], regionOpenCounts(roster(), []), () => 0)).not.toBeNull();
   });

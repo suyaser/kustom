@@ -72,7 +72,12 @@ const contextOf =
   (rng: Rng = () => 0, fearlessPool: readonly number[] = []) =>
   async (): Promise<TransitionContext> => ({ roster: table, regions: REGIONS, fearlessPool, rng });
 
-const card = (over: Partial<ModeRow> = {}): ModeRow => ({ standing: 'fearless', pending: null, rated: null, ...over });
+const card = (over: Partial<ModeRow> = {}): ModeRow => ({
+  standing: 'fearless',
+  pending: null,
+  rated: null,
+  ...over,
+});
 
 function setup(initial: ModeRow | null = card(), deps: ModeRouteDeps = {}, auth = admin) {
   const t = memoryModeStore(initial);
@@ -171,7 +176,10 @@ describe('POST /api/admin/mode: each action is one patch of only its fields (M20
   it('the Rated switch writes only Rated, from JSON or a form', async () => {
     const { t, mode } = setup(card({ pending: { id: 'mirror' } }));
     const { body } = await answer(await mode(json({ groupId: GROUP, rated: false })));
-    expect(body).toMatchObject({ state: { pending: { id: 'mirror' }, rated: false }, notice: 'Next game is not rated.' });
+    expect(body).toMatchObject({
+      state: { pending: { id: 'mirror' }, rated: false },
+      notice: 'Next game is not rated.',
+    });
     await mode(form({ groupId: GROUP, rated: 'true' }));
     expect(t.writes.map((w) => w.patch)).toEqual([{ rated: false }, { rated: true }]);
     expect(t.row()).toEqual(card({ pending: { id: 'mirror' }, rated: true }));
@@ -194,7 +202,9 @@ describe('POST /api/admin/mode: region wars is drawn when it is chosen (M20 D9)'
     const pending = t.row()?.pending;
     expect(pending).toMatchObject({ id: 'region' });
     expect(pending?.id === 'region' && pending.blue !== pending.red).toBe(true);
-    expect(body.notice).toMatch(/^Next game: Region wars\. Blue: (Ionia|Noxus|Zaun) · Red: (Ionia|Noxus|Zaun)\. Not rated\.$/);
+    expect(body.notice).toMatch(
+      /^Next game: Region wars\. Blue: (Ionia|Noxus|Zaun) · Red: (Ionia|Noxus|Zaun)\. Not rated\.$/,
+    );
   });
 
   it('choosing it again keeps the pair (Redraw is the reroll)', async () => {
@@ -230,7 +240,11 @@ describe('POST /api/admin/mode: region wars is drawn when it is chosen (M20 D9)'
     const pending = { id: 'region', blue: 'zaun', red: 'noxus' } as const;
     const cases: [ModeRow, Record<string, unknown>, string][] = [
       [card({ pending }), { side: 'blue', region: 'noxus' }, 'Pick two different regions.'],
-      [card({ pending }), { side: 'red', region: 'targon' }, 'That region has too few champions open tonight.'],
+      [
+        card({ pending }),
+        { side: 'red', region: 'targon' },
+        'That region has too few champions open tonight.',
+      ],
       [card(), { redraw: true }, 'Region wars is not on for that game.'],
     ];
     for (const [row, body, words] of cases) {

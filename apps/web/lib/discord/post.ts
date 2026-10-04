@@ -188,7 +188,8 @@ export async function loadTeamsMode(client: ServiceClient, lobbyId: string): Pro
     const stored = await readLobbyLock(client, lobbyId);
     if (stored === null) return null;
     const { lock } = stored;
-    const noDraw = lock.mode.id === lock.standing && (await regionLeftPending(client, lobbyId, stored.lockedAt));
+    const noDraw =
+      lock.mode.id === lock.standing && (await regionLeftPending(client, lobbyId, stored.lockedAt));
     return {
       mode: lock.mode,
       rated: lockRated(lock),
@@ -202,9 +203,17 @@ export async function loadTeamsMode(client: ServiceClient, lobbyId: string): Pro
 }
 
 /** Whether the lobby's group still has region wars pending from before the lock was taken. */
-async function regionLeftPending(client: ServiceClient, lobbyId: string, lockedAt: string | null): Promise<boolean> {
+async function regionLeftPending(
+  client: ServiceClient,
+  lobbyId: string,
+  lockedAt: string | null,
+): Promise<boolean> {
   if (lockedAt === null) return false;
-  const { data: lobby, error } = await client.from('lobbies').select('group_id').eq('id', lobbyId).maybeSingle();
+  const { data: lobby, error } = await client
+    .from('lobbies')
+    .select('group_id')
+    .eq('id', lobbyId)
+    .maybeSingle();
   if (error || lobby === null) return false;
   const stored = await readModeRow(client, lobby.group_id);
   return (

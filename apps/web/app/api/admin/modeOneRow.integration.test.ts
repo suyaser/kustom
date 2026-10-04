@@ -103,10 +103,14 @@ if (stack === null) {
       await setRow(regionRow('zaun', 'noxus', { rated_override: true }));
 
       await night.card({ rated: false });
-      expect(await night.cardRow()).toMatchObject(regionRow('zaun', 'noxus', { mode: 'normal', rated_override: false }));
+      expect(await night.cardRow()).toMatchObject(
+        regionRow('zaun', 'noxus', { mode: 'normal', rated_override: false }),
+      );
 
       await night.card({ side: 'blue', region: 'ionia' });
-      expect(await night.cardRow()).toMatchObject(regionRow('ionia', 'noxus', { mode: 'normal', rated_override: false }));
+      expect(await night.cardRow()).toMatchObject(
+        regionRow('ionia', 'noxus', { mode: 'normal', rated_override: false }),
+      );
 
       const redrawn = await night.card({ redraw: true });
       const after = await night.cardRow();
@@ -239,9 +243,10 @@ if (stack === null) {
         const row = await night.cardRow();
         const inLock = lock.lock_rule === 'class' && lock.lock_class_tag === 'Mage';
         const pending = row.pending_rule === 'class' && row.pending_class_tag === 'Mage';
-        expect(inLock || pending, `round ${round}: lock ${JSON.stringify(lock)} row ${JSON.stringify(row)}`).toBe(
-          true,
-        );
+        expect(
+          inLock || pending,
+          `round ${round}: lock ${JSON.stringify(lock)} row ${JSON.stringify(row)}`,
+        ).toBe(true);
         // Tanks was taken by this Roll or replaced by the pick, never both lost and kept twice.
         expect(inLock && pending).toBe(false);
         await abandon(lobbyId);
@@ -277,7 +282,12 @@ if (stack === null) {
         await setRow({ pending_rule: 'class', pending_class_tag: 'Tank' });
         const { partyId, lobbyId } = await rolled();
         const gameId = await night.startGame(partyId);
-        const body = await night.eogFor(lobbyId, partyId, gameId, [103, 157, 39, 43, 98, 22, 113, 201, 1, 266]);
+        const body = await night.eogFor(
+          lobbyId,
+          partyId,
+          gameId,
+          [103, 157, 39, 43, 98, 22, 113, 201, 1, 266],
+        );
         await Promise.all([
           night.postEog(body),
           (async () => {
@@ -312,7 +322,11 @@ if (stack === null) {
       await setRow({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true });
       const first = await rolled();
       await night.companionLobby(first.partyId, night.ten.slice(0, 9));
-      expect(await night.cardRow()).toMatchObject({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true });
+      expect(await night.cardRow()).toMatchObject({
+        pending_rule: 'class',
+        pending_class_tag: 'Tank',
+        rated_override: true,
+      });
       await abandon(first.lobbyId);
 
       // A Rated flip after Roll: the rule comes back, the newer Rated stays.
@@ -320,7 +334,11 @@ if (stack === null) {
       const second = await rolled();
       await night.card({ rated: false });
       await night.companionLobby(second.partyId, night.ten.slice(0, 9));
-      expect(await night.cardRow()).toMatchObject({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: false });
+      expect(await night.cardRow()).toMatchObject({
+        pending_rule: 'class',
+        pending_class_tag: 'Tank',
+        rated_override: false,
+      });
       await abandon(second.lobbyId);
 
       // A new rule after Roll: it stays, at its own default.
@@ -344,7 +362,9 @@ if (stack === null) {
       expect(redrawn).toMatchObject({
         thisGame: { lobbyId, mode: { id: 'region', blue: lock.lock_region_blue, red: lock.lock_region_red } },
       });
-      expect(redrawn.notice).toMatch(/^New regions: .+ vs .+\. Picks already made stay, and the check uses the new regions\.$/);
+      expect(redrawn.notice).toMatch(
+        /^New regions: .+ vs .+\. Picks already made stay, and the check uses the new regions\.$/,
+      );
       // The teams post went again, naming the new pair.
       expect(night.posts).toHaveLength(1);
       expect(descriptionOf(night.posts[0])).toContain('This game: region wars.');
@@ -364,18 +384,35 @@ if (stack === null) {
       await setRow({ pending_rule: 'class', pending_class_tag: 'Mage', rated_override: true });
       const aram = await rolled();
       const aramGame = await night.startGame(aram.partyId);
-      const aramBody = await night.eogFor(aram.lobbyId, aram.partyId, aramGame, [103, 157, 39, 43, 98, 22, 113, 201, 1, 266], {
-        raw: { gameMode: 'ARAM' },
-      });
+      const aramBody = await night.eogFor(
+        aram.lobbyId,
+        aram.partyId,
+        aramGame,
+        [103, 157, 39, 43, 98, 22, 113, 201, 1, 266],
+        {
+          raw: { gameMode: 'ARAM' },
+        },
+      );
       await night.postEog(aramBody);
-      expect(await night.cardRow()).toMatchObject({ pending_rule: 'class', pending_class_tag: 'Mage', rated_override: true });
+      expect(await night.cardRow()).toMatchObject({
+        pending_rule: 'class',
+        pending_class_tag: 'Mage',
+        rated_override: true,
+      });
 
       const dropped = await rolled();
       const droppedGame = await night.startGame(dropped.partyId);
-      const { error } = await night.db.from('lobbies').update({ status: 'dropped' }).eq('id', dropped.lobbyId);
+      const { error } = await night.db
+        .from('lobbies')
+        .update({ status: 'dropped' })
+        .eq('id', dropped.lobbyId);
       if (error) throw new Error(error.message);
       // Nothing came back: Roll moved Mage onto the lock and the row stays empty.
-      expect(await night.lockOf(dropped.lobbyId)).toMatchObject({ status: 'dropped', lock_rule: 'class', lock_class_tag: 'Mage' });
+      expect(await night.lockOf(dropped.lobbyId)).toMatchObject({
+        status: 'dropped',
+        lock_rule: 'class',
+        lock_class_tag: 'Mage',
+      });
       expect(await night.cardRow()).toMatchObject({ pending_rule: null, rated_override: null });
       await night.card({ mode: 'class:Tank' });
       const late = await night.eogFor(
@@ -385,7 +422,11 @@ if (stack === null) {
         [103, 157, 39, 43, 98, 22, 113, 201, 1, 266],
       );
       await night.postEog(late);
-      expect(await night.gameRow(droppedGame)).toMatchObject({ rule: 'class', rule_class_tag: 'Mage', rated: true });
+      expect(await night.gameRow(droppedGame)).toMatchObject({
+        rule: 'class',
+        rule_class_tag: 'Mage',
+        rated: true,
+      });
       expect(await night.cardRow()).toMatchObject({ pending_rule: 'class', pending_class_tag: 'Tank' });
     });
   });
@@ -397,7 +438,9 @@ if (stack === null) {
       await night.card({ rated: false });
       const gameId = await night.startGame(partyId);
       const before = await night.db.from('group_modes').select('*').eq('group_id', night.group.id).single();
-      await night.postEog(await night.eogFor(lobbyId, partyId, gameId, [103, 157, 39, 43, 98, 22, 113, 201, 1, 266]));
+      await night.postEog(
+        await night.eogFor(lobbyId, partyId, gameId, [103, 157, 39, 43, 98, 22, 113, 201, 1, 266]),
+      );
       const after = await night.db.from('group_modes').select('*').eq('group_id', night.group.id).single();
       expect(after.data).toEqual(before.data);
     });
@@ -407,16 +450,29 @@ if (stack === null) {
     it('change only the lock while balanced; refused once the game has started, with no lock, or for a pair that is short', async () => {
       await setRow(regionRow('zaun', 'noxus'));
       const { partyId, lobbyId } = await rolled();
-      const membersBefore = await night.db.from('lobby_members').select('*').eq('lobby_id', lobbyId).order('player_id');
-      const splitsBefore = await night.db.from('splits').select('id, is_chosen, blue, red').eq('lobby_id', lobbyId).order('id');
+      const membersBefore = await night.db
+        .from('lobby_members')
+        .select('*')
+        .eq('lobby_id', lobbyId)
+        .order('player_id');
+      const splitsBefore = await night.db
+        .from('splits')
+        .select('id, is_chosen, blue, red')
+        .eq('lobby_id', lobbyId)
+        .order('id');
       await night.card({ side: 'red', region: 'ionia', game: 'this' });
-      expect(await night.lockOf(lobbyId)).toMatchObject({ lock_region_blue: 'zaun', lock_region_red: 'ionia', lock_rated: null });
-      expect((await night.db.from('lobby_members').select('*').eq('lobby_id', lobbyId).order('player_id')).data).toEqual(
-        membersBefore.data,
-      );
-      expect((await night.db.from('splits').select('id, is_chosen, blue, red').eq('lobby_id', lobbyId).order('id')).data).toEqual(
-        splitsBefore.data,
-      );
+      expect(await night.lockOf(lobbyId)).toMatchObject({
+        lock_region_blue: 'zaun',
+        lock_region_red: 'ionia',
+        lock_rated: null,
+      });
+      expect(
+        (await night.db.from('lobby_members').select('*').eq('lobby_id', lobbyId).order('player_id')).data,
+      ).toEqual(membersBefore.data);
+      expect(
+        (await night.db.from('splits').select('id, is_chosen, blue, red').eq('lobby_id', lobbyId).order('id'))
+          .data,
+      ).toEqual(splitsBefore.data);
       // The next game's row was emptied by Roll and is untouched by a `this` change.
       expect(await night.cardRow()).toMatchObject({ pending_rule: null });
       expect((await night.cardAnswer({ side: 'red', region: 'zaun', game: 'this' })).json).toEqual({
@@ -429,7 +485,10 @@ if (stack === null) {
         ok: false,
         error: 'The game has started, so the regions stay.',
       });
-      expect(await night.lockOf(lobbyId)).toMatchObject({ lock_region_blue: 'zaun', lock_region_red: 'ionia' });
+      expect(await night.lockOf(lobbyId)).toMatchObject({
+        lock_region_blue: 'zaun',
+        lock_region_red: 'ionia',
+      });
       await abandon(lobbyId);
       expect((await night.cardAnswer({ redraw: true, game: 'this' })).status).toBe(409);
     });
@@ -470,8 +529,12 @@ if (stack === null) {
       const lock = await night.lockOf(lobbyId);
       expect(lock.lock_rule).toBe('region');
       expect([lock.lock_region_blue, lock.lock_region_red]).not.toContain('void');
-      expect(pairDrawable(lock.lock_region_blue ?? '', lock.lock_region_red ?? '', championTable(), pool)).toBe(true);
-      expect(answer.modeNotice).toMatch(/^The Void vs Zaun ran short after the bans, so Roll drew .+ vs .+\.$/);
+      expect(
+        pairDrawable(lock.lock_region_blue ?? '', lock.lock_region_red ?? '', championTable(), pool),
+      ).toBe(true);
+      expect(answer.modeNotice).toMatch(
+        /^The Void vs Zaun ran short after the bans, so Roll drew .+ vs .+\.$/,
+      );
       expect(await night.cardRow()).toMatchObject({ pending_rule: null, pending_region_blue: null });
       await abandon(lobbyId);
       await setRow();

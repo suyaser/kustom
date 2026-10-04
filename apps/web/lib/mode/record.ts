@@ -131,13 +131,22 @@ export async function applyModeRecord(
     .eq('group_id', groupId)
     .eq('mode', record.row.standing);
   update = read?.rule == null ? update.is('pending_rule', null) : update.eq('pending_rule', read.rule);
-  update = read?.classTag == null ? update.is('pending_class_tag', null) : update.eq('pending_class_tag', read.classTag);
   update =
-    read?.regionBlue == null ? update.is('pending_region_blue', null) : update.eq('pending_region_blue', read.regionBlue);
+    read?.classTag == null
+      ? update.is('pending_class_tag', null)
+      : update.eq('pending_class_tag', read.classTag);
   update =
-    read?.regionRed == null ? update.is('pending_region_red', null) : update.eq('pending_region_red', read.regionRed);
+    read?.regionBlue == null
+      ? update.is('pending_region_blue', null)
+      : update.eq('pending_region_blue', read.regionBlue);
   update =
-    record.row.rated === null ? update.is('rated_override', null) : update.eq('rated_override', record.row.rated);
+    read?.regionRed == null
+      ? update.is('pending_region_red', null)
+      : update.eq('pending_region_red', read.regionRed);
+  update =
+    record.row.rated === null
+      ? update.is('rated_override', null)
+      : update.eq('rated_override', record.row.rated);
   const { data, error } = await update.select('group_id');
   if (error) throw new Error(`mode: using up the pending rule failed: ${error.message}`);
   return (data ?? []).length > 0;

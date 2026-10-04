@@ -127,7 +127,11 @@ if (stack === null) {
       const answer = await night.card({ mode: 'region' }, sequenceRng(FIRST_DRAW));
       expect(answer).toMatchObject({
         mode: 'fearless',
-        state: { pending: { id: 'region', blue: 'shurima', red: 'bilgewater' }, rated: null, nextRated: false },
+        state: {
+          pending: { id: 'region', blue: 'shurima', red: 'bilgewater' },
+          rated: null,
+          nextRated: false,
+        },
         notice: 'Next game: Region wars. Blue: Shurima · Red: Bilgewater. Not rated.',
         next: { rule: 'region', rated: false },
       });

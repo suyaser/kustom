@@ -107,7 +107,8 @@ export function columnsOfPatch(patch: RowPatch, writer: ModeWriter): ModeRowUpda
 export function patchIsNoop(row: ModeRow, patch: RowPatch): boolean {
   if (patch.standing !== undefined && patch.standing !== row.standing) return false;
   if (patch.rated !== undefined && patch.rated !== row.rated) return false;
-  if (patch.pending !== undefined && JSON.stringify(patch.pending) !== JSON.stringify(row.pending)) return false;
+  if (patch.pending !== undefined && JSON.stringify(patch.pending) !== JSON.stringify(row.pending))
+    return false;
   return true;
 }
 

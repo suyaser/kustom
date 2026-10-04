@@ -4,10 +4,10 @@ import { type ClassTag, modeRatedDefault, type RuleOption, ruleKey } from '@cust
 import {
   GROUP_MODES,
   type GroupMode,
+  legacyModeAnswerSchema,
   type ModeChoice,
   type NextGame,
   ruleOptionOf,
-  legacyModeAnswerSchema,
 } from '@customs/db/schemas';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import {

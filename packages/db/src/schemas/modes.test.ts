@@ -99,9 +99,9 @@ describe('setGroupModeRequestSchema', () => {
     );
     expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, side: 'blue' }).success).toBe(false);
     expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, region: 'targon' }).success).toBe(false);
-    expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, mode: 'region', game: 'this' }).success).toBe(
-      false,
-    );
+    expect(
+      setGroupModeRequestSchema.safeParse({ groupId: GROUP, mode: 'region', game: 'this' }).success,
+    ).toBe(false);
     expect(
       setGroupModeRequestSchema.safeParse({ groupId: GROUP, redraw: true, side: 'red', region: 'ionia' })
         .success,
@@ -151,7 +151,8 @@ describe('setGroupModeResponseSchema', () => {
   it('M20.7: never carries a region rule without its pair', () => {
     const answer = { ok: true, notice: 'x', changed: true, mode: 'fearless' };
     expect(
-      setGroupModeResponseSchema.safeParse({ ...answer, state: { ...state, pending: { id: 'region' } } }).success,
+      setGroupModeResponseSchema.safeParse({ ...answer, state: { ...state, pending: { id: 'region' } } })
+        .success,
     ).toBe(false);
     expect(
       setGroupModeResponseSchema.safeParse({
@@ -395,7 +396,9 @@ describe('0047_mode_one_row.sql (M20.7)', () => {
       expect(body).toMatch(
         new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon, authenticated;`),
       );
-      expect(body).toMatch(new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to service_role;`));
+      expect(body).toMatch(
+        new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to service_role;`),
+      );
     }
   });
 });

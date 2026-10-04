@@ -136,9 +136,7 @@ if (stack === null || !ready) {
   async function lockOf(lobbyId: string) {
     const { data, error } = await db
       .from('lobbies')
-      .select(
-        'lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated',
-      )
+      .select('lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated')
       .eq('id', lobbyId)
       .single();
     if (error) throw new Error(error.message);
@@ -294,7 +292,9 @@ if (stack === null || !ready) {
       const anon = createClient<Database>(stack.url, stack.anonKey, { auth: { persistSession: false } });
       const allowed = await anon
         .from('group_modes')
-        .select('mode, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override, updated_at')
+        .select(
+          'mode, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override, updated_at',
+        )
         .eq('group_id', groups.g)
         .single();
       expect(allowed.error).toBeNull();
@@ -359,7 +359,11 @@ if (stack === null || !ready) {
         lock_region_blue: chosen.pending_region_blue,
         lock_region_red: chosen.pending_region_red,
       });
-      expect(await cardRow()).toMatchObject({ pending_rule: null, pending_region_blue: null, pending_region_red: null });
+      expect(await cardRow()).toMatchObject({
+        pending_rule: null,
+        pending_region_blue: null,
+        pending_region_red: null,
+      });
       const second = (await listSplits(db, lobbyId)).find((split) => split.rank === 2);
       await promoteSplit(db, { lobbyId, splitId: second?.id ?? '' });
       expect(await lockOf(lobbyId)).toEqual(locked);
@@ -460,7 +464,11 @@ if (stack === null || !ready) {
         rule_checked: true,
       });
       expect(loose.answer).toMatchObject({ rated: false });
-      expect(await cardRow()).toMatchObject({ pending_rule: null, pending_class_tag: null, rated_override: null });
+      expect(await cardRow()).toMatchObject({
+        pending_rule: null,
+        pending_class_tag: null,
+        rated_override: null,
+      });
       await card({ mode: 'normal' });
     });
   });
@@ -607,7 +615,12 @@ if (stack === null || !ready) {
       expect(read1.version).toBeGreaterThan(start.version);
 
       const on = await card({ rated: true });
-      expect(on).toMatchObject({ ok: true, changed: true, state: { rated: true }, notice: 'Next game is rated.' });
+      expect(on).toMatchObject({
+        ok: true,
+        changed: true,
+        state: { rated: true },
+        notice: 'Next game is rated.',
+      });
       const read2 = await tonightRated();
       expect(read2.rated).toBe(true);
       expect(read2.version).toBeGreaterThan(read1.version);

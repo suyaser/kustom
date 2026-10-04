@@ -5,8 +5,8 @@ import {
   type ModeLock,
   nextRated,
   type PendingRule,
-  type RegionAction,
   type Refusal,
+  type RegionAction,
   type Rng,
   type TransitionContext,
 } from '@customs/core';
@@ -30,10 +30,10 @@ import {
   NOTHING_TO_SPIN,
   nextPairNotice,
   PAIR_SHORT,
-  RULE_TOO_FEW_OPEN,
-  ratedNotice,
   REGION_SHORT,
   REGIONS_STAY,
+  RULE_TOO_FEW_OPEN,
+  ratedNotice,
   ruleChosenNotice,
   SAME_REGION,
   spinNotice,
@@ -138,7 +138,12 @@ export async function handleSetGroupMode(
       await repostTeams(context, result.lobbyId);
       const after = await store.read(groupId);
       const notice = result.lock.mode.id === 'region' ? thisPairNotice(result.lock.mode) : NO_REGION_RULE;
-      return answer(context, back, { after, notice, changed: true, thisGame: lockState(result.lobbyId, result.lock) });
+      return answer(context, back, {
+        after,
+        notice,
+        changed: true,
+        thisGame: lockState(result.lobbyId, result.lock),
+      });
     });
   }
 
@@ -289,7 +294,8 @@ async function repostTeams(context: AdminContext, lobbyId: string): Promise<void
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (data !== null) await postTeamsForSplit(context.client, data.id, { requestOrigin: siteOrigin(context.request) });
+    if (data !== null)
+      await postTeamsForSplit(context.client, data.id, { requestOrigin: siteOrigin(context.request) });
   } catch (error) {
     console.error(`mode: reposting the teams for lobby ${lobbyId} failed; the new regions stand`, error);
   }

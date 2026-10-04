@@ -199,7 +199,9 @@ if (stack === null || !ready) {
   async function cardRow() {
     const { data, error } = await db
       .from('group_modes')
-      .select('mode, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override')
+      .select(
+        'mode, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override',
+      )
       .eq('group_id', group.id)
       .single();
     if (error) throw new Error(error.message);
