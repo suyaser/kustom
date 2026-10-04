@@ -374,7 +374,7 @@ if (stack === null || !ready) {
   }
 
   // Discord posts 2.0 (M14.61): the head embed's words, markdown stripped (`lib/testing/modeNight`).
-  const { descriptionOf, titleOf } = await import('@/lib/testing/modeNight');
+  const { descriptionOf, isGameOnPost, titleOf } = await import('@/lib/testing/modeNight');
 
   beforeAll(async () => {
     const ids = await ensurePlayers(
@@ -402,7 +402,9 @@ if (stack === null || !ready) {
       const chunks: Buffer[] = [];
       incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
       incoming.on('end', () => {
-        posts.push(JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>);
+        const post = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+        // The kickoff's `Game on` post (M21.6) is not what this night counts.
+        if (!isGameOnPost(post)) posts.push(post);
         response.writeHead(204).end();
       });
     });

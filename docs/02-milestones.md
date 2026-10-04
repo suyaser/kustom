@@ -13485,7 +13485,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   if it adds a function; (7) the companion's answer shape is unchanged.
 
   *Landed 2026-10-05 (6b68ced4, reviewer pass): migration 0046 (kickoff columns on lobbies), lib/ingest/kickoff.ts, 13 integration tests. Ships after 0046 is on hosted.*
-- [ ] **M21.5** Tonight in game shows the teams that started. *(owners: `web-engineer`, `designer` for the
+- [x] **M21.5** Tonight in game shows the teams that started. *(owners: `web-engineer`, `designer` for the
   changed-side cards (at most 3 rounds); after M21.4)* While `in_game`: the team cards draw the kickoff teams;
   `YOU on RED` and the viewer's seat come from them; the receipt is `FairnessReceipt` in-game for `rolled` (as
   today), and the pre-game receipt with the title `Odds at kickoff` for `custom` (line below, `How the bot decided`
@@ -13504,7 +13504,8 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   a second open page moves from the balanced split to the kickoff teams without a refresh (one `group_live` bump);
   (6) unit tests for the state table with the three kinds; (7) the announcement says `Game started.` once.
 
-- [ ] **M21.6** Discord: a `Game on` post when the teams that started are not the teams posted. *(owner:
+  *Landed 2026-10-05 (5b59a960; reviewer pass, designer rulings 05-design 13 applied). Acceptance 5 (a second page moving without a refresh) rides the existing group_live bump; the integration run waits for the shared stack to match main. ARAM in game: M21.12.*
+- [x] **M21.6** Discord: a `Game on` post when the teams that started are not the teams posted. *(owner:
   `platform-engineer`, copy from product as below; after M21.4)* When the kickoff kind is `custom`, the request that
   moved the lobby to `in_game` sends one **new** message to the group's channel (never an edit: a reroll never
   edits either, no teams-post message id is stored, and an edit notifies nobody). `rolled` sends nothing (the
@@ -13519,6 +13520,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   the limits guard passes with ten 16-character names and the longest rule line; (5) no message when the group has
   no channel connected.
 
+  *Landed 2026-10-05 (a99ab356, reviewer pass). Follow-ups: degrade to 1200 when the player lookup fails instead of dropping the post; afterIngest reuses afterResponse.*
 - [ ] **M21.7** After the game, every surface prints the odds of the teams that played. *(owners:
   `platform-engineer` for the Discord and loader halves, `web-engineer` for Tonight; after M21.4, can run beside
   M21.5)* Route each reader that prints a rolled split's odds through `gameReceiptOf` (the one rule), so a `custom`
@@ -13566,6 +13568,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   matched it (party id reuse, lobby kept open across games, or the eog fallback) and make a game match only a lobby
   whose sided members are the players in it, or create a fresh lobby. Acceptance: an integration test reproduces
   the stale match and shows the fix; the M21.1 query rerun on local fixtures has no `no_visible_cause`.
+- [ ] **M21.12** The game mode at game start. *(owner: `companion-engineer` for the payload, `platform-engineer` for the schema; from M21.5 and M21.6)* The server learns a game is an ARAM only at the end of game, so an ARAM played on custom or unrolled teams shows kickoff odds in game (M21.5) and gets a `Game on` post (M21.6). The engine already reads `/lol-gameflow/v1/session` at GameStart; send its game mode (queue / `gameData.queue` or `map`) in the `in_progress` body as an optional field (Rust payload, zod schema, regenerated goldens), store it on the lobby with the kickoff record, and have Tonight hide the odds and Discord skip the post for ARAM. Verify the field on a real client first (03-lcu-reference). Acceptance: an ARAM start stores the mode, Tonight shows no odds, no `Game on` post; a Rift start is unchanged; an old companion without the field behaves as today.
 
 ```
 M21.1 (audit) --+-- M21.4 (kickoff, server) --+-- M21.5 (Tonight in game) -- M21.9 (after M20.10) --\

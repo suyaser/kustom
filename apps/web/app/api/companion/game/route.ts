@@ -147,6 +147,7 @@ async function handleGamePost(
       await writeKickoffAtStart(client, {
         lobbyId: lobby.id,
         now: new Date(),
+        requestOrigin: siteOrigin(request),
         onWrite: () => live.touch(lobby.groupId, 'lobby'),
       });
     }

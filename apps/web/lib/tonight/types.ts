@@ -1,6 +1,6 @@
 import type { LockedMode, Mode, ModeState } from '@customs/core';
 import type { LobbyStatusValue, RoleValue, SideValue } from '@customs/db';
-import type { GroupMode } from '@customs/db/schemas';
+import type { GroupMode, KickoffKind } from '@customs/db/schemas';
 import type { StoredSplit } from '@/components/receipt/types';
 import type { FearlessView } from '../fearless/types';
 import type { GameStampView } from '../mode/types';
@@ -114,6 +114,43 @@ export interface TeamsView {
   stored: StoredSplit[];
 }
 
+/**
+ * One of the players who started the game (M21.5): a {@link SeatView} whose role is only known
+ * when this side's players are exactly the split's side (a changed side has no lane until the eog).
+ */
+export interface KickoffSeatView {
+  puuid: string;
+  name: PlayerName;
+  nameSuffix?: string | null | undefined;
+  /** The split's role for this player when the side is the split's side, else `null`. */
+  role: RoleValue | null;
+  rating: number;
+  /** Core's `isOffRole` on the split's role; `false` with no role. */
+  offRole: boolean;
+}
+
+/**
+ * The teams that started the game (M21.4's kickoff record, M21.5): what the in-game block draws.
+ * Built by `kickoffView` (`lib/tonight/kickoff.ts`) from the record, the split and the members.
+ */
+export interface KickoffView {
+  /** `rolled` (the split's teams, maybe on swapped sides), `custom` (other teams), `unrolled` (no roll). */
+  kind: KickoffKind;
+  /** `rolled` only: the split's teams sat on each other's sides. */
+  swapped: boolean;
+  /** Side 100 at kickoff: lane order when the side is the split's, else rating order (high first). */
+  blue: KickoffSeatView[];
+  red: KickoffSeatView[];
+  /** Everyone around who is on neither team, in join order. */
+  sitters: MemberView[];
+  /**
+   * Blue's chance for the teams playing: the chosen split's stored odds for `rolled` (flipped when
+   * swapped), the stored kickoff odds for `custom` and `unrolled`. `null`: none to read (a rolled
+   * record whose split is not readable). Whether it is shown is the page's rule (M15.18).
+   */
+  blueWinProb: number | null;
+}
+
 /** One row of the result card. The two all-time Ratings, not a delta: see the note at the top. */
 export interface ResultSeatView {
   puuid: string;
@@ -200,6 +237,11 @@ export interface LobbyView {
    * in-game lobby. Absent or null: no lock (a lobby set before `0032`), and the card shows the next game.
    */
   lock?: LockedMode | null | undefined;
+  /**
+   * The teams that started the game (M21.5), for an `in_game` lobby with a kickoff record only.
+   * Absent or null: no record (a game before M21.4, unequal sides), and the page is as before.
+   */
+  kickoff?: KickoffView | null | undefined;
 }
 
 export interface TonightSnapshot {
@@ -316,4 +358,9 @@ export type TonightState =
   | { kind: 'idle' }
   | { kind: 'filling'; lobby: LobbyView }
   | { kind: 'teams'; lobby: LobbyView; teams: TeamsView }
+  /**
+   * M21.5: an `in_game` lobby with a kickoff record. `game` is who is really playing; `teams` is
+   * the split the bot rolled, when there is one (its receipt, `How the bot decided`).
+   */
+  | { kind: 'in-game'; lobby: LobbyView; game: KickoffView; teams: TeamsView | null }
   | { kind: 'result'; lobby: LobbyView; result: ResultView; teams: TeamsView | null };

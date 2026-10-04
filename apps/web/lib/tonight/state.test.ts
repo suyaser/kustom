@@ -7,11 +7,14 @@ import {
   seatedOnTheirSides,
   snapshot,
   tapeEntry,
+  workedKickoff,
   workedMembers,
   workedResult,
   workedTeams,
 } from '../testing/tonightFixtures';
 import { fillingSentence } from './copy';
+import { announcement } from './screen';
+import { ANNOUNCE_GAME_STARTED } from './screenCopy';
 import {
   anySeatOnTheWrongSide,
   hasNamelessRow,
@@ -297,5 +300,72 @@ describe('the roll (2026-10-03)', () => {
     expect(rollRosterKey([...members, ...members])).toBe(lobbyRosterKey(puuids));
     expect(rollRosterKey([])).toBe(lobbyRosterKey([]));
     expect(rollRosterKey([])).toBe('');
+  });
+});
+
+/** M21.5: an in-game lobby with a kickoff record is the in-game block, whatever its kind. */
+describe('in game with the kickoff teams (M21.5)', () => {
+  const inGame = (kind: Parameters<typeof workedKickoff>[0], rated = true) => {
+    const { members, teams, kickoff } = workedKickoff(kind);
+    return snapshot(
+      lobbyView({
+        status: 'in_game',
+        members,
+        teams,
+        kickoff,
+        startedAt: '2026-09-08T20:07:00.000Z',
+        lock: { mode: { id: 'fearless' }, rated, version: 3 },
+      }),
+    );
+  };
+
+  it.each(['rolled', 'swapped', 'custom', 'unrolled'] as const)('%s: the in-game block, IN GAME', (kind) => {
+    const snap = inGame(kind);
+    const state = tonightState(snap);
+    expect(state.kind).toBe('in-game');
+    if (state.kind !== 'in-game') return;
+    expect(state.game).toBe(snap.lobby?.kickoff);
+    expect(state.teams).toBe(snap.lobby?.teams);
+    const strip = header(state);
+    expect(strip).toEqual({
+      headline: 'IN GAME',
+      count: null,
+      sentence: 'Ratings move when it ends.',
+      live: true,
+    });
+    expect(announcement(state, strip, null)).toBe(ANNOUNCE_GAME_STARTED);
+  });
+
+  it('unrolled: never a filling lobby, no count, no roll stage', () => {
+    const snap = inGame('unrolled');
+    const strip = stripOf(snap);
+    expect(strip.headline).not.toMatch(/IN THE LOBBY/);
+    expect(strip.count).toBeNull();
+    expect(snap.lobby === null ? null : rollStage(snap.lobby)).toBe('none');
+  });
+
+  it('a not-rated lock keeps its rule line in the strip', () => {
+    expect(stripOf(inGame('custom', false)).sentence).toBe('Not rated, so no Rating change.');
+  });
+
+  it('no kickoff record: exactly as before (the split, or a filling lobby with no split)', () => {
+    expect(tonightState(snapshot(lobbyView({ status: 'in_game', teams: workedTeams() }))).kind).toBe('teams');
+    expect(tonightState(snapshot(lobbyView({ status: 'in_game', teams: null }))).kind).toBe('filling');
+    expect(tonightState(snapshot(lobbyView({ status: 'in_game', teams: null, kickoff: null }))).kind).toBe(
+      'filling',
+    );
+  });
+
+  it('a nameless player on a kickoff team counts for the name re-read', () => {
+    const snap = inGame('custom');
+    const lobby = snap.lobby;
+    if (lobby?.kickoff == null) throw new Error('fixture');
+    const kickoff = {
+      ...lobby.kickoff,
+      red: lobby.kickoff.red.map((seat, i) => (i === 0 ? { ...seat, name: null } : seat)),
+    };
+    const state = tonightState({ ...snap, lobby: { ...lobby, kickoff } });
+    expect(hasNamelessRow(state, [])).toBe(true);
+    expect(hasNamelessRow(tonightState(snap), [])).toBe(false);
   });
 });

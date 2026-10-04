@@ -1,6 +1,12 @@
 import { type Assignment, displayKustom, isOffRole, type Mode, type Role, resolveRoles } from '@customs/core';
 import type { SideValue } from '@customs/db';
-import { type RuleCheck, ruleCheckSchema, ruleModeOf, storedScoreParts } from '@customs/db/schemas';
+import {
+  type LobbyKickoff,
+  type RuleCheck,
+  ruleCheckSchema,
+  ruleModeOf,
+  storedScoreParts,
+} from '@customs/db/schemas';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { matchesQueue } from '../games/queue';
 import { type FoldPerformance, gatedGameAward, gateGame } from '../ingest/fold';
@@ -11,6 +17,8 @@ import { groupPageUrl, kustomAvatarUrl } from '../siteUrl';
 import type { ServiceClient } from '../supabase';
 import { sitOutRule } from '../tonight/sitOut';
 import type {
+  GameOnEmbedInput,
+  GameOnPlayer,
   PlayerName,
   PostIdentity,
   PromotedSplit,
@@ -145,6 +153,60 @@ export function buildTeamsInput(
     ...(source.mode === undefined || source.mode === null
       ? {}
       : { mode: source.mode, modeUrl: context.modeUrl }),
+  };
+}
+
+/** A kickoff record that gets a `Game on` post (M21.6): teams Kustom did not roll. */
+export type GameOnKickoff = Extract<LobbyKickoff, { kind: 'custom' | 'unrolled' }>;
+
+/** Everything the `Game on` embed needs that is not a name. */
+export interface GameOnSource {
+  kickoff: GameOnKickoff;
+  /** The lobby's chosen split, for the roles of a side that is its five; `null` with none. */
+  split: {
+    blue: readonly { puuid: string; role: Role }[];
+    red: readonly { puuid: string; role: Role }[];
+  } | null;
+  /** Each player's all-time `ratings.r` going in (the kickoff odds' own input); absent is 1200. */
+  ratingOf: (puuid: string) => number;
+  /** The lobby's lock (the rule line), or `null` when there is none or it could not be read. */
+  mode: TeamsModeInput | null;
+}
+
+/**
+ * The `Game on` embed input (M21.6). Pure. A kickoff side whose players are exactly one of the
+ * split's two sides keeps that side's roles (the split's five, wherever they sit); any other side
+ * prints names with no role, because the lane is not known until the eog. A not-rated game drops
+ * the odds and keeps the rule line (M15.18), as the post's brief says.
+ */
+export function buildGameOnInput(
+  source: GameOnSource,
+  names: NameLookup,
+  context: EmbedContext,
+): GameOnEmbedInput {
+  const splitSides = source.split === null ? [] : [source.split.blue, source.split.red];
+  const side = (puuids: readonly string[]): GameOnPlayer[] => {
+    const match = splitSides.find(
+      (splitSide) =>
+        splitSide.length === puuids.length &&
+        puuids.every((puuid) => splitSide.some((a) => a.puuid === puuid)),
+    );
+    return puuids.map((puuid) => ({
+      puuid,
+      name: names.get(puuid) ?? null,
+      role: match?.find((a) => a.puuid === puuid)?.role ?? null,
+      rating: displayKustom(source.ratingOf(puuid)),
+    }));
+  };
+  const rated = source.mode?.rated !== false;
+  return {
+    identity: context.identity,
+    kind: source.kickoff.kind,
+    blue: side(source.kickoff.blue),
+    red: side(source.kickoff.red),
+    blueWinProb: rated ? source.kickoff.blueWinProb : null,
+    url: context.url,
+    ...(source.mode === null ? {} : { mode: source.mode, modeUrl: context.modeUrl }),
   };
 }
 
