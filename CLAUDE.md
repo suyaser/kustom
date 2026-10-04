@@ -121,6 +121,7 @@ pnpm db:types                # regenerate packages/db/src/types.ts from the loca
 pnpm --filter @customs/db export-schemas [--check]  # M17.3: companion zod schemas -> packages/db/json-schema/ (commit it with any schema change); --check writes nothing, exits 1 on drift, and runs in CI
 packages/db/scripts/m14-14-throwaway-check.sh [0026 path]  # M14.14: checks 0026 on a throwaway restore of local; reads the shared stack only via pg_dump; needs Docker + pnpm db:start
 packages/db/scripts/m14-58-throwaway-check.sh [0034 path]  # M14.58: checks 0034 on a throwaway restore of local (pg_dump read only); needs Docker
+packages/db/scripts/session-player-throwaway-check.sh [0038 path]  # verified session lookup: checks 0038 (grants, definer settings, revoked/banned/deleted/unlinked cases) on a throwaway restore of local (pg_dump read only); needs Docker
 packages/db/scripts/m19-9-throwaway-check.sh [0037 path]   # M19.9: checks 0037 (group_live) on a throwaway restore of local, then replays every migration on a fresh throwaway; pg_dump read only; needs Docker
 # SUPER_ADMIN_USER_IDS (M14.19, server only): comma-separated Supabase auth.users ids; read-only access to every group's admin reads and /ops, never a write. Set it on Vercel Production too.
 # CI (.github/workflows/ci.yml) runs install --frozen-lockfile, `pnpm -r typecheck`, `pnpm lint`, `pnpm -r test` and `pnpm --filter web build` on every pull request and every push to main, on Node .nvmrc with no local stack (the *.integration.test.ts files skip) and no secrets -- run those five before you open one.

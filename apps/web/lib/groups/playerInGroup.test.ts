@@ -1,7 +1,10 @@
+import type { SessionPlayerRow } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
+import { resolveLiveSession } from '../session/liveSession';
 import type { ServiceClient } from '../supabase';
 import { viewerStateFor } from '../viewer';
 import { supabasePlayerInGroup } from './membership';
+import { playerInGroupOf } from './pageSession';
 
 /**
  * M19.12's no-trust-change fold: the session's player and their membership in the page's group in
@@ -159,5 +162,68 @@ describe('viewerStateFor', () => {
     expect(reads).toBe(0);
     await viewerStateFor(null, counted);
     expect(reads).toBe(1);
+  });
+});
+
+/**
+ * Since 0038 the page path no longer runs the embed above: the player and the role come from the
+ * verified session lookup (`session_player`, a left join on the membership for the asked group).
+ * The same three answers must survive that path: a non-member keeps their player row (what the
+ * plain, non-`!inner` embed guaranteed), no player row is the unlinked case, and an unknown role is
+ * no role.
+ */
+describe('the session_player path: resolveLiveSession -> playerInGroupOf -> viewerStateFor', () => {
+  const USER = '6b1c1f9e-6a43-4e1b-9d1c-5b7f0d3a2e11';
+  const SESSION = '2f0e9a3c-1d4b-4c8e-a7f6-3b2d1c0e9f88';
+  const PID = '9c8b7a6f-5e4d-4c3b-a2b1-0f9e8d7c6b5a';
+  const none = async () => ['puuid-a'];
+
+  async function viewerFor(row: SessionPlayerRow) {
+    const live = await resolveLiveSession({
+      verifyClaims: async () => ({ sub: USER, session_id: SESSION }),
+      lookupSessionPlayer: async () => row,
+      groupId: GROUP,
+    });
+    if (live.kind !== 'signed-in') throw new Error(`expected signed-in, got ${live.kind}`);
+    const member = playerInGroupOf(live);
+    return { member, viewer: await viewerStateFor(member, none) };
+  }
+  const row = (overrides: Partial<SessionPlayerRow>): SessionPlayerRow => ({
+    discord_id: DISCORD,
+    player_id: PID,
+    puuid: 'puuid-1',
+    display_name: null,
+    role: null,
+    ...overrides,
+  });
+
+  it('a linked non-member keeps the player: linked, the you rule only', async () => {
+    const { member, viewer } = await viewerFor(row({ role: null }));
+    expect(member).toEqual({ player: { playerId: PID, puuid: 'puuid-1' }, role: null });
+    expect(viewer).toEqual({
+      kind: 'linked',
+      puuid: 'puuid-1',
+      isAdmin: false,
+      isOwner: false,
+      isMember: false,
+    });
+  });
+
+  it('no player row: the unlinked case, not anonymous', async () => {
+    const { member, viewer } = await viewerFor(row({ player_id: null, puuid: null }));
+    expect(member).toBeNull();
+    expect(viewer).toEqual({ kind: 'unlinked', claimable: ['puuid-a'] });
+  });
+
+  it('a role the union does not know is no role', async () => {
+    expect((await viewerFor(row({ role: 'superuser' }))).member?.role).toBeNull();
+  });
+
+  it('an owner is admin and owner', async () => {
+    expect((await viewerFor(row({ role: 'owner' }))).viewer).toMatchObject({
+      isAdmin: true,
+      isOwner: true,
+      isMember: true,
+    });
   });
 });

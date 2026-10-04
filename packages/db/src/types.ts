@@ -1953,6 +1953,16 @@ export type Database = {
         Args: { p_group_id: string; p_rotated_by: string }
         Returns: string
       }
+      session_player: {
+        Args: { p_group_id?: string; p_session_id: string; p_user_id: string }
+        Returns: {
+          discord_id: string
+          display_name: string
+          player_id: string
+          puuid: string
+          role: string
+        }[]
+      }
       set_group_member_role_v2: {
         Args: {
           p_actor_id: string

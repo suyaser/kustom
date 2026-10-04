@@ -1,9 +1,8 @@
-import { cookies } from 'next/headers';
 import { cache } from 'react';
-import { discordIdFromUser, supabaseSessionUser } from '../adminAuth';
+import { currentLiveSession } from '../session/currentLiveSession';
+import type { LiveSession } from '../session/liveSession';
 import { getServiceClient } from '../supabase';
-import { createAuthClient, readOnlyCookieJar } from '../supabaseAuth';
-import { type PlayerInGroupLookup, supabasePlayerInGroup } from './membership';
+import { type PlayerInGroup, type PlayerInGroupLookup, supabasePlayerInGroup } from './membership';
 
 /**
  * Who opened `/new`, `/join/<code>` or a group's admin page (M14.21): nobody, or a Discord session
@@ -14,6 +13,10 @@ import { type PlayerInGroupLookup, supabasePlayerInGroup } from './membership';
  * unlike it, a failure to read the session is thrown to the page's error boundary rather than read
  * as "signed out": on these pages a false "sign in" button would loop a signed-in person.
  * No session cookie at all is the common case and costs no round trip.
+ *
+ * Everything here reads the verified session lookup (`lib/session/liveSession.ts`): the token's
+ * signature checked locally, then one service-role `session_player` call that requires a live
+ * session row and returns the player and, when a group is asked, the role in it.
  */
 export type PageSession =
   | { kind: 'anonymous' }
@@ -32,52 +35,61 @@ export type PageSession =
     };
 
 /**
- * The verified session before any player is read: the GoTrue step of {@link currentPageSession}, on
- * its own so a page that asks about one group (`currentAdminAccess`) can read the player and the
- * membership in one query ({@link currentPlayerInGroup}) instead of two in a row. The Discord id is
- * the identity's (`discordIdFromUser`, `user.identities[]`), never `user_metadata`.
+ * The verified session without the player: what `decideAdminAccess` takes, beside a
+ * {@link PlayerInGroupLookup}. The Discord id is `auth.identities`' (read by `session_player`),
+ * never `user_metadata`.
  */
 export type PageIdentity =
   | { kind: 'anonymous' }
   | { kind: 'no-discord'; userId: string }
   | { kind: 'discord'; userId: string; discordId: string };
 
-export const currentPageIdentity: () => Promise<PageIdentity> = cache(async () => {
-  const store = await cookies();
-  const jar = readOnlyCookieJar(store.getAll().map(({ name, value }) => ({ name, value })));
-  if (jar.getAll().every((cookie) => !cookie.name.startsWith('sb-'))) return { kind: 'anonymous' };
+/** A live session read as a {@link PageIdentity}. */
+export function pageIdentityOf(live: LiveSession): PageIdentity {
+  if (live.kind === 'signed-in') return { kind: 'discord', userId: live.userId, discordId: live.discordId };
+  return live.kind === 'no-discord' ? { kind: 'no-discord', userId: live.userId } : { kind: 'anonymous' };
+}
 
-  const user = await supabaseSessionUser(createAuthClient(jar))();
-  if (user === null) return { kind: 'anonymous' };
-  const discordId = discordIdFromUser(user);
-  if (discordId === null) return { kind: 'no-discord', userId: user.id };
-  return { kind: 'discord', userId: user.id, discordId };
-});
-
-/**
- * The player behind a Discord id and their role in one group, one service-role query, once per
- * request whoever asks: the group layout's viewer (`lib/viewer.ts`) and the admin pages' access
- * check share it, so an admin render reads it once.
- */
-export const currentPlayerInGroup: PlayerInGroupLookup = cache((discordId: string, groupId: string) =>
-  supabasePlayerInGroup(getServiceClient())(discordId, groupId),
-);
-
-export const currentPageSession: () => Promise<PageSession> = cache(async () => {
-  const identity = await currentPageIdentity();
-  if (identity.kind !== 'discord') return identity;
-  const { userId, discordId } = identity;
-
-  const { data, error } = await getServiceClient()
-    .from('players')
-    .select('id, puuid')
-    .eq('discord_id', discordId)
-    .maybeSingle();
-  if (error !== null) throw new Error(`reading the session's player failed: ${error.message}`);
+/** A live session read as a {@link PageSession}. */
+export function pageSessionOf(live: LiveSession): PageSession {
+  if (live.kind !== 'signed-in') return pageIdentityOf(live) as PageSession;
   return {
     kind: 'signed-in',
-    userId,
-    discordId,
-    player: data === null ? null : { playerId: data.id, puuid: data.puuid },
+    userId: live.userId,
+    discordId: live.discordId,
+    player: live.player === null ? null : { playerId: live.player.playerId, puuid: live.player.puuid },
   };
-});
+}
+
+/**
+ * The page identity, read in the same lookup as the role in `groupId` when a page names its group
+ * (the admin pages do: identity, player and role are then one round trip for the whole render,
+ * shared with `currentViewerState(groupId)`).
+ */
+export const currentPageIdentity: (groupId?: string) => Promise<PageIdentity> = cache(
+  async (groupId?: string) => pageIdentityOf(await currentLiveSession(groupId ?? null)),
+);
+
+/**
+ * The player behind a Discord id and their role in one group, from the request's live session for
+ * that group (one `session_player` call, React-cached): the group layout's viewer and the admin
+ * pages' access check share it. A Discord id that is not the session's own (no caller does that)
+ * falls back to the plain one-query read.
+ */
+export const currentPlayerInGroup: PlayerInGroupLookup = cache(
+  async (discordId: string, groupId: string): Promise<PlayerInGroup> => {
+    const live = await currentLiveSession(groupId);
+    if (live.kind === 'signed-in' && live.discordId === discordId) return playerInGroupOf(live);
+    return supabasePlayerInGroup(getServiceClient())(discordId, groupId);
+  },
+);
+
+/** A signed-in live session as the {@link PlayerInGroup} shape (`null`: no player row). */
+export function playerInGroupOf(live: Extract<LiveSession, { kind: 'signed-in' }>): PlayerInGroup {
+  if (live.player === null) return null;
+  return { player: { playerId: live.player.playerId, puuid: live.player.puuid }, role: live.role };
+}
+
+export const currentPageSession: () => Promise<PageSession> = cache(async () =>
+  pageSessionOf(await currentLiveSession(null)),
+);
