@@ -31,7 +31,7 @@ if (stack === null) {
   process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
 
   const { loadLobbyStart } = await import('./lobbyStart');
-  const { startLobbySentence, openingOnPcLine } = await import('@/lib/lobbyStart');
+  const { startLobbySentence, openingOnPcLine, NO_CLIENT_ANSWERED } = await import('@/lib/lobbyStart');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -142,6 +142,29 @@ if (stack === null) {
       // The newest create is the one the page is about, and it invited one person — not the
       // three the night has queued in total.
       expect(start).toMatchObject({ status: 'acked', invited: 1 });
+    });
+
+    /**
+     * fix-start-pending: the sweep that fails an expired row runs only when a companion polls or
+     * somebody presses again. A host whose companion never polls must not leave the card saying
+     * `Opening a lobby on Hamoodi's PC…` for the rest of the night: past `expires_at` the read says
+     * what the sweep will write, and writes nothing itself.
+     */
+    it('reads a pending create past its expires_at as failed / expired, before any sweep', async () => {
+      const id = await queue('create_lobby', {
+        created_at: new Date('2026-04-14T19:30:00Z').toISOString(),
+        expires_at: new Date('2026-04-14T19:31:00Z').toISOString(),
+      });
+      const before = await loadLobbyStart(db, { now: new Date('2026-04-14T19:30:59Z'), timeZone: TIME_ZONE });
+      expect(before).toMatchObject({ status: 'pending', error: null });
+
+      const start = await loadLobbyStart(db, { now: new Date('2026-04-14T19:31:00Z'), timeZone: TIME_ZONE });
+      expect(start).toMatchObject({ status: 'failed', error: 'expired', invited: 0 });
+      expect(startLobbySentence(start, 'Hamoodi')).toBe(NO_CLIENT_ANSWERED);
+
+      // A read: the row itself is untouched until the sweep.
+      const { data } = await db.from('companion_commands').select('status, error').eq('id', id).single();
+      expect(data).toEqual({ status: 'pending', error: null });
     });
 
     it('is null again on the next night: a stuck row never speaks for tonight', async () => {

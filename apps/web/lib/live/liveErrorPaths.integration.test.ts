@@ -20,6 +20,10 @@ import { expectBumpedLast, installWriteRecorder, type RecordedWrite } from '@/li
  * on the local stack, and asserts the request answered 500 and still made exactly its one bump,
  * last. The fake-only shapes (role tap, self link, mode card, idle sweep, rebuild cron) are in
  * `errorPaths.test.ts`. Skipped without the stack.
+ *
+ * fix-start-pending adds the other half: a write that landed and whose answer was then lost (no
+ * mock, the request really reaches the stack). The `in_progress` move and the lobby rename used to
+ * miss their bump there, and the companion's retry is a no-op that never bumps either.
  */
 
 const fail = vi.hoisted(() => ({
@@ -100,8 +104,27 @@ if (stack === null) {
   process.env.BOOTSTRAP_ADMIN_DISCORD_ID = '';
   process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
 
+  /**
+   * fix-start-pending: a write whose **answer** is lost after the database applied it (a dropped
+   * connection, a 5xx on the way back). Armed with a predicate, the next matching request goes
+   * through to the stack for real and then fails as `fetch failed`, once.
+   */
+  const realFetch = globalThis.fetch;
+  const lose: { match: ((method: string, url: string, body: string) => boolean) | null } = { match: null };
+  const lossyFetch: typeof fetch = async (input, init) => {
+    const response = await realFetch(input, init);
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const body = typeof init?.body === 'string' ? init.body : '';
+    if (lose.match?.(method, url, body)) {
+      lose.match = null;
+      throw new TypeError('fetch failed');
+    }
+    return response;
+  };
+
   // Before any client exists: supabase-js takes `fetch` when a client is built.
-  const recorder = installWriteRecorder(stack.url);
+  const recorder = installWriteRecorder(stack.url, lossyFetch);
 
   const { POST: postLobby } = await import('@/app/api/companion/lobby/route');
   const { POST: postGame } = await import('@/app/api/companion/game/route');
@@ -229,6 +252,24 @@ if (stack === null) {
       lobbyId = data?.id ?? '';
     });
 
+    it('lobby post: the rename lands, its answer is lost: 500, `lobby` still bumps last; the retry bumps nothing', async () => {
+      const body = lobbyBody({ partyId, lobbyName: 'renamed', members: ten.map((puuid) => ({ puuid })) });
+      lose.match = (method, url, sent) =>
+        method === 'PATCH' && url.includes('/rest/v1/lobbies?') && sent.includes('"lobby_name":"renamed"');
+      try {
+        const { status, writes } = await recorded(() => postLobby(companion('lobby', body)));
+        expect(status).toBe(500);
+        expectBumpedLast(writes, [{ groupId: A, kind: 'lobby' }], { groups: [A, B] });
+      } finally {
+        lose.match = null;
+      }
+      const { data } = await db.from('lobbies').select('lobby_name').eq('id', lobbyId).single();
+      expect(data?.lobby_name).toBe('renamed');
+      const retry = await recorded(() => postLobby(companion('lobby', body)));
+      expect(retry.status).toBe(200);
+      expectBumpedLast(retry.writes, [], { groups: [A, B] });
+    });
+
     it('roll: the claim and the lock land, the balance throws: 500, and `split` still bumps last', async () => {
       const route = rollRoute(lobbyId, asAdmin(p(1)));
       const body = { groupId: A, rosterKey: lobbyRosterKey(ten) };
@@ -272,6 +313,28 @@ if (stack === null) {
       } finally {
         fail.post = false;
       }
+    });
+
+    it('in_progress: the lobby lands in_game, the answer is lost: 500, `lobby` still bumps last; the retry bumps nothing', async () => {
+      const before = await db.from('lobbies').select('status').eq('id', lobbyId).single();
+      expect(before.data?.status).toBe('balanced');
+      const body = { phase: 'in_progress', gameId, partyId };
+      lose.match = (method, url, sent) =>
+        method === 'PATCH' && url.includes('/rest/v1/lobbies?') && sent.includes('"status":"in_game"');
+      try {
+        const { status, writes } = await recorded(() => postGame(companion('game', body)));
+        expect(status).toBe(500);
+        expectBumpedLast(writes, [{ groupId: A, kind: 'lobby' }], { groups: [A, B] });
+      } finally {
+        lose.match = null;
+      }
+      const after = await db.from('lobbies').select('status').eq('id', lobbyId).single();
+      expect(after.data?.status).toBe('in_game');
+      // The companion's retry: the lobby is already `in_game`, so it moves and bumps nothing. The
+      // bump above is the only one Tonight will ever get for this game start.
+      const retry = await recorded(() => postGame(companion('game', body)));
+      expect(retry.status).toBe(200);
+      expectBumpedLast(retry.writes, [], { groups: [A, B] });
     });
 
     it('eog: the game and its players land, the membership insert throws: 500, and `game` still bumps last', async () => {

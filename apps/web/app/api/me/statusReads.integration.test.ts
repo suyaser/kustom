@@ -192,6 +192,36 @@ if (stack === null) {
       }
     });
 
+    /**
+     * fix-start-pending: the row expires at NOW + 59 s and nothing sweeps it (no companion polls in
+     * this file, nobody presses again). Past that instant the poll answers `failed`, the word the
+     * sweep will write, instead of `pending` for the rest of the night; an acked row stays `done`.
+     */
+    it('answers failed once a pending or sent press is past its expires_at, with no sweep', async () => {
+      const later = startStatusRoute({ ...as(discord.member), now: () => new Date(NOW.getTime() + 59_000) });
+      for (const row of ['pending', 'sent'] as const) {
+        const update = await db.from('companion_commands').update({ status: row }).eq('id', commandId);
+        if (update.error) throw new Error(update.error.message);
+        const justBefore = startStatusRoute({
+          ...as(discord.member),
+          now: () => new Date(NOW.getTime() + 58_999),
+        });
+        expect(await (await justBefore(startGet(A))).json()).toEqual({
+          status: row,
+          host: { name: 'Hosty' },
+        });
+        const body = startStatusResponseSchema.parse(await (await later(startGet(A))).json());
+        expect(body).toEqual({ status: 'failed', host: { name: 'Hosty' } });
+      }
+      // The read wrote nothing: the row is still what it was.
+      const { data } = await db.from('companion_commands').select('status').eq('id', commandId).single();
+      expect(data?.status).toBe('sent');
+
+      const acked = await db.from('companion_commands').update({ status: 'acked' }).eq('id', commandId);
+      if (acked.error) throw new Error(acked.error.message);
+      expect(await (await later(startGet(A))).json()).toEqual({ status: 'done', host: { name: 'Hosty' } });
+    });
+
     it('null and null when nobody pressed tonight (another night, another group)', async () => {
       // The next night: this file's press is last night's.
       const tomorrow = startStatusRoute({

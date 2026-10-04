@@ -227,6 +227,10 @@ export async function ingestLobby(
     upserted = await upsertLobby(client, payload, reportedByPlayerId, options.groupId);
   } catch (error) {
     if (error instanceof ForeignPartyRace) return foreignPartyAnswer(client, error.lobby, payload, now);
+    // The insert or the rename may have landed with its answer lost: the retry finds the row as
+    // posted, writes nothing and would never bump (the M19.9 rule `noteWrite` follows; a party
+    // that got this far is this group's). A bump for a write that never happened is harmless.
+    options.live?.touch(options.groupId, 'lobby');
     throw error;
   }
   const { lobby, created } = upserted;
