@@ -680,12 +680,14 @@ describe('M16.15 angle rotation', () => {
 describe('story-claim facts (2026-10-04, every provider)', () => {
   const sha = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
 
-  it('keeps the system prompts byte for byte (no fact string they quote changed)', () => {
-    // Pinned on purpose: the 2026-10-04 checks changed fact strings and the checker, not the
-    // prompts M16.8-M16.19 tuned. A change here must be a deliberate prompt change.
-    expect(sha(systemPrompt('game'))).toBe('4f424a950ab457fe');
-    expect(sha(systemPrompt('week'))).toBe('07c13f69006efaec');
-    expect(sha(systemPrompt('player'))).toBe('5f5dc0d3fa252474');
+  it('pins the system prompts, so a prompt change is always deliberate', () => {
+    // Moved on purpose (lead, 2026-10-04): main's M16.8-M16.19 prompts were 4f424a950ab457fe /
+    // 07c13f69006efaec / 5f5dc0d3fa252474. Added since: no gendered pronoun even for a champion,
+    // no "one" standing in for a game or win (scouting, week), and the week's margin words and
+    // examples tied to the clear-lead / close-race notes the checker now requires.
+    expect(sha(systemPrompt('game'))).toBe('7fc9a7819ecc7c67');
+    expect(sha(systemPrompt('week'))).toBe('ab78478bb8709860');
+    expect(sha(systemPrompt('player'))).toBe('f63fe302c5978cac');
   });
 
   it('a week margin is close at 5 points or fewer, clear from 20 and a quarter of 2nd, else neither', () => {
