@@ -1196,8 +1196,38 @@ so the line is `Red was 51%.`, `Red was 46%. Upset!` or `50–50.`, never `Red w
 odds-less finished night shows the duration line instead, like the game card. Idle and filling Tonight
 cards stay headline + sentence.
 
+**Ruling (g), the week notes picture (M14.79).** The Sunday post's 1920×1080 "Week N notes" picture
+(`app/_og/WeekNotes.tsx`, variant A of `redesign/research/patch-image.md`; 10.6, 10.11 tier B3) keeps this
+section's palette, faces and Riot-safe rule, with these differences:
+
+1. **Notice.** It carries the short notice as a footer, verbatim: `Made by Kustom from this group's own games.
+   Not affiliated with or endorsed by Riot Games.` (Atkinson 400, 26, `dim`, straight apostrophe). It is a
+   picture people save and repost, so it names its source. The unfurl cards still carry no notice.
+2. **Champion names, never art.** NEW's first-picks tile names champions as plain text (`Smolder, Aurora,
+   Ambessa +6`). No portraits, icons, splash art or Riot role or rank icons; players are initials in rings and
+   the role marks are `app/_icons/RoleIcon.tsx`.
+3. **Cards inside the card.** Fact tiles and the KEY sit on `card` (`#0C121A`, slate-1) with a 2px `line`
+   border, radius 10; rings sit on `raised` (`#141B28`, slate-2). Both are in `palette.ts`. The KEY is drawn
+   only when the picture shows at least one ring.
+4. **Size floor at 1920.** Must-read text (names, points, tile values) is 32 or more, except item 7's
+   seam-split name, which may go to 27. Secondary text (labels, sub lines, the key line, the notice) and a
+   record that doesn't fit beside its points are 26 or more. Nothing is under 26. In the phone feed (about 520px wide) that is 8.7–9.75px
+   for what must be read; the picture is a tap-open one and the post's text carries the same facts.
+5. **Records.** Ruling (a)'s split (digits Martian Mono, `W`/`L` letters Atkinson, no space between a digit
+   and its letter), set in `dim` so the points stay the headline. Every medallion's points-and-record line
+   sits on the medallion's bottom edge, so a row reads level whatever its names do.
+6. **Gain and loss.** A gain is a 4px `text` ring with `text` points; a loss a 2px `line` ring with `dim`
+   initials and points and a real minus (U+2212). No colour for up or down (3.7); the section words and the
+   ▲ / ▼ glyphs tell them apart. NERFS shows plain numbers only, never a comment.
+7. **Names** follow ruling (c) in this order: one line, shrinking to 33; else wrapped at spaces at 36; a
+   one-word name with a lower-to-upper case seam breaks at the seam (`The` / `SHADOWREAPER`), the longer part
+   shrunk to fit down to 27; only then broken inside the word at 30. Never an ellipsis.
+8. **Initials.** The first letters of the first two words; for one word, the first letter and its first run
+   of digits up to two (`P13`, `H4`), else the next capital (`FH`), else the second letter (`RA`). Upper case.
+
 **Riot-safe.** No Riot or League marks, no champion art or names, no rank emblems. The product is named
-only by the wordmark. The legal notice lives on the page, not in the picture.
+only by the wordmark. The legal notice lives on the page, not in the picture. The one exception is the week
+notes picture (ruling (g)): champion names as text, and the short notice as its footer.
 
 ---
 
@@ -2788,6 +2818,7 @@ ARAM still gets no result post (00-product, unchanged).
 | | field `Top ten` / `The board` (block) | ranked lines as now (`` `1` Name · +212 · 5W–2L ``, settling chip on the line); **ranks 1 to 3 have the name in bold** [NEW STYLE] |
 | | one block field **per award** | field name = the award's label (`Best off-role`, `Cursed duo`), value = its line(s), verbatim. This replaces one `Awards` field with bold labels inside. A tie keeps its names on separate lines under the one label. |
 | | footer | `WEEK_BOARD_SENTENCE_SHORT`, unchanged |
+| | image | the week notes picture (M14.79), `<origin>/og/g/<slug>/week/<weekStart>`, 1920×1080, under the board (10.11 tier B3). **Public origin only**: sent only when the post's origin is a public https one, never from localhost. A nearly empty week (nobody up, no NERFS, plain SYSTEMS, nothing NEW) sends no image and the route 404s for it. The post is complete without it, and the text never refers to it. |
 
 **The slot for M16.5 is E0**, a separate embed above the board, not a paragraph pushed into E1's description.
 Machine-written prose sits under its own slate bar and label, and the facts sit under amber. M16.5's
@@ -2915,6 +2946,7 @@ embed out without the image.
 | A | none | | | The whole of 10.4 to 10.10 ships text-only. |
 | B1 | Kustom avatar | `avatar_url` | **new** `app/og/kustom/avatar/route.tsx` → `<origin>/og/kustom/avatar?v=1`. 256 × 256 PNG, `cache-control: public, max-age=31536000, immutable`; bump `v` to change it. Page `#05070C`, the `▍` wordmark bar in amber `#FFCF66` and a `K` in Archivo condensed 900 `#F4F7FC`, both inside the centre 70%, because Discord crops avatars to a circle. | Omit `avatar_url`; the webhook's own avatar shows. |
 | B2 | Result badge | E1 `thumbnail` on the result post only | **new** `app/og/g/[slug]/games/[gameId]/badge/route.tsx` → `<origin>/og/g/<slug>/games/<id>/badge`. 256 × 256 PNG, `public, max-age=300, s-maxage=300` like the game card. Page `#05070C`; a 16 px rule across the top in the winner's colour; `RED` (Archivo condensed 900, 112 px, winner's colour); `WINS` (Archivo 900, 72 px, `#F4F7FC`; `TAPE_WINS`). Nothing else: no names, no duration, no champion art (5.16's Riot-safe rule). Discord shows it at 80 px, where `RED` is about 34 px tall. Same 404 rules as the game card. | No thumbnail; E1's text uses the full width. |
+| B3 | Week notes picture (M14.79) | E1 `image` on the Sunday post only (10.6) | `app/og/g/[slug]/week/[weekStart]/route.tsx` → `<origin>/og/g/<slug>/week/<weekStart>` (`weekStart` = the Sunday the week opens). 1920×1080 PNG, variant A of `redesign/research/patch-image.md`, drawn by `app/_og/WeekNotes.tsx` (5.16 ruling (g)). `cache-control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800` (`WEEK_NOTES_CACHE`): an hour in the browser, **a day at the CDN**, served stale up to a week while it refreshes; not immutable, because a backfill and `rebuild-ratings` can refold a closed week. The game card's 404 rules, plus a week that has not closed, has no counted game, or is nearly empty. Not on the site and not an unfurl. In the phone feed (about 520px wide) names, points and tile values come out at 8.7–9.75px; it is a tap-open picture. | No image; E1 is the whole post. |
 
 **B2 has one cost**: a thumbnail narrows E1's text column by about 96 px on every line beside it. At 375 that
 leaves about 175 px, so the award line wraps to two lines. Ship B2 only if the 375 render keeps every E1 line to
