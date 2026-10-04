@@ -13145,7 +13145,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   grows by no more than the table it already ships (`clientGraph.test.ts` passes); (6) M14.30's seven panel
   checks still pass.
 
-- [ ] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
+- [x] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
   after M20.2, same lane; amended 2026-10-04 for M20 D9 to D11)* `lifecycle.ts`'s six functions become one pure
   `transition(state, action)` over the one-row state `{ standing, pending: rule | null, rated }`, where a region
   rule always carries both regions (`{ id: 'region', blue, red }`, the M15 `Mode` shape; there is no region rule
@@ -13173,6 +13173,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   `version`, `afterRecord`, `onlyRatedSinceRoll` and `consumesRule`'s callers are gone from `packages/core` (grep
   in the PR); (8) 100% of the new module covered.
 
+  *Landed 2026-10-05 (2b74f454, reviewer pass after one round; 634 core tests, transition.ts 100% covered). Acceptance (7), deleting the old lifecycle exports, moves to M20.7/M20.8 when apps/web stops calling them.*
 - [ ] **M20.7** Schema and server on the one-row model. *(owner: `platform-engineer`; after M20.6; migration at
   the next free number at merge, local first, shown to the user before it is applied; amended 2026-10-04 for M20
   D9 to D11)* **Migration list:** (a) `group_modes` keeps `standing`, the pending rule and class tag, keeps
