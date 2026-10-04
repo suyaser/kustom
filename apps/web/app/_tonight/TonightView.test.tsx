@@ -3,7 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { groupHref } from '@/lib/nav';
-import { HOW_SUMMARY, TITLE_BALANCED, TITLE_FINISHED, TITLE_IN_GAME } from '@/lib/receipt/copy';
+import {
+  barSentence,
+  HOW_SUMMARY,
+  KICKOFF_TEAMS_CHANGED,
+  NO_ODDS,
+  PRE_GAME_NO_SPLIT,
+  PRE_GAME_TEAMS_CHANGED,
+  TITLE_BALANCED,
+  TITLE_FINISHED,
+  TITLE_IN_GAME,
+  TITLE_PRE_GAME,
+} from '@/lib/receipt/copy';
 import { lobbyView, snapshot, workedMembers, workedTeams } from '@/lib/testing/tonightFixtures';
 import { visibleText } from '@/lib/testing/visibleText';
 import {
@@ -1032,5 +1043,107 @@ describe('M14.58 / M14.59 on the finished poster', () => {
       />,
     );
     expect(screen.queryByRole('button', { name: /Why\?$/ })).toBeNull();
+  });
+});
+
+/**
+ * M21.5: in game with a kickoff record, the page draws the teams that started (rolled, rolled on
+ * swapped sides, custom, unrolled), `YOU on` from them, and `Odds at kickoff` for them.
+ */
+describe('in game: the teams that started (M21.5)', () => {
+  const answerBandText = () => document.querySelector('[data-slot="answer-band"]')?.textContent?.trim() ?? '';
+  const sideOf = (puuid: string) =>
+    ['Blue team', 'Red team'].find((side) =>
+      within(screen.getByRole('region', { name: side }))
+        .queryAllByRole('link')
+        .some((link) => link.getAttribute('href')?.endsWith(`/p/${puuid}`)),
+    );
+  const fixtureOf = (key: TonightStateKey, rated?: boolean) => {
+    const { connection: _c, ...fixture } = tonightStateFixture(key, { now: NOW, rated });
+    return fixture;
+  };
+
+  it('rolled: the split receipt in game as before, roles on both cards', () => {
+    const fixture = fixtureOf('in-game-rolled');
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    expect(h1()).toBe('IN GAME');
+    const receipt = screen.getByRole('region', { name: TITLE_IN_GAME });
+    const chosen = fixture.snapshot.lobby?.teams?.blueWinProb ?? Number.NaN;
+    expect(within(receipt).getByText(barSentence(chosen))).toBeInTheDocument();
+    expect(screen.queryByText(KICKOFF_TEAMS_CHANGED)).toBeNull();
+    expect(screen.getByText(/, playing support/)).toBeInTheDocument();
+    expect(sideOf(VIEWER_PUUID)).toBe('Blue team');
+  });
+
+  it('rolled on swapped sides: the teams on their real sides, the odds turned round, roles kept', () => {
+    const fixture = fixtureOf('in-game-swapped');
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    const receipt = screen.getByRole('region', { name: TITLE_IN_GAME });
+    const chosen = fixture.snapshot.lobby?.teams?.blueWinProb ?? Number.NaN;
+    expect(within(receipt).getByText(barSentence(1 - chosen))).toBeInTheDocument();
+    expect(sideOf(VIEWER_PUUID)).toBe('Red team');
+    expect(answerBandText()).toMatch(/on\s*RED, playing support/);
+    expect(screen.getByText(/, playing support/)).toBeInTheDocument();
+  });
+
+  it('custom: the swapped pair on their real sides, the kickoff odds, the new line, no roles', () => {
+    const fixture = fixtureOf('in-game-custom');
+    const yuki = 'puuid-yuki';
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} viewer={{ ...MEMBER_VIEWER, puuid: yuki }} />);
+    expect(h1()).toBe('IN GAME');
+    const receipt = screen.getByRole('region', { name: TITLE_IN_GAME });
+    const odds = fixture.snapshot.lobby?.kickoff?.blueWinProb ?? Number.NaN;
+    expect(within(receipt).getByText(barSentence(odds))).toBeInTheDocument();
+    expect(within(receipt).getByText(KICKOFF_TEAMS_CHANGED)).toBeInTheDocument();
+    expect(within(receipt).queryByText(PRE_GAME_TEAMS_CHANGED)).toBeNull();
+    expect(screen.queryByRole('region', { name: TITLE_PRE_GAME })).toBeNull();
+    // How the bot decided still opens the rolled run.
+    expect(within(receipt).getByText(HOW_SUMMARY)).toBeInTheDocument();
+    // The one who moved: on blue, with no lane to name.
+    expect(sideOf(yuki)).toBe('Blue team');
+    expect(sideOf(VIEWER_PUUID)).toBe('Red team');
+    expect(answerBandText()).toMatch(/on\s*BLUE$/);
+    for (const side of ['Blue team', 'Red team']) {
+      const card = within(screen.getByRole('region', { name: side }));
+      for (const role of ['top', 'jungle', 'mid', 'adc', 'support'])
+        expect(card.queryByText(role)).toBeNull();
+    }
+  });
+
+  it('unrolled: IN GAME (never IN THE LOBBY), no Roll prompt, the existing no-split line', () => {
+    const fixture = fixtureOf('in-game-unrolled');
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} viewer={ADMIN_VIEWER} admins={['Lena']} />);
+    expect(h1()).toBe('IN GAME');
+    expect(screen.queryByText(/IN THE LOBBY/)).toBeNull();
+    expect(screen.queryByRole('button', { name: ROLL_LABEL })).toBeNull();
+    expect(screen.queryByText(ROLL_HINT)).toBeNull();
+    expect(screen.queryByText(/Waiting on/)).toBeNull();
+    const receipt = screen.getByRole('region', { name: TITLE_IN_GAME });
+    expect(within(receipt).getByText(PRE_GAME_NO_SPLIT)).toBeInTheDocument();
+    const odds = fixture.snapshot.lobby?.kickoff?.blueWinProb ?? Number.NaN;
+    expect(within(receipt).getByText(barSentence(odds))).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Blue team' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Red team' })).toBeInTheDocument();
+  });
+
+  it('not rated, custom or unrolled: no bar and no number, the rule line stays', () => {
+    for (const key of ['in-game-custom', 'in-game-unrolled'] as const) {
+      const { unmount, container } = render(
+        <TonightView {...fixtureOf(key, false)} group={ORIGINAL_GROUP} />,
+      );
+      expect(screen.getByText(NO_ODDS)).toBeInTheDocument();
+      expect(container.querySelector('[data-slot="win-bar"]')).toBeNull();
+      expect(screen.queryByRole('region', { name: TITLE_IN_GAME })).toBeNull();
+      expect(screen.getByText(/Not rated, so no Rating change\./)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('no kickoff record: the page is as before (the split, roles and its odds)', () => {
+    const fixture = fixtureOf('in-game');
+    expect(fixture.snapshot.lobby?.kickoff ?? null).toBeNull();
+    render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    expect(screen.getByRole('region', { name: TITLE_IN_GAME })).toBeInTheDocument();
+    expect(screen.getByText(/, playing support/)).toBeInTheDocument();
   });
 });

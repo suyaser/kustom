@@ -179,14 +179,14 @@ export function TonightView(props: TonightViewProps) {
       : state.kind === 'in-game'
         ? 'in-game'
         : state.kind === 'teams'
-        ? state.lobby.status === 'in_game'
-          ? 'in-game'
-          : state.lobby.status === 'balanced'
-            ? 'balanced'
-            : 'idle'
-        : state.kind === 'result'
-          ? 'finished'
-          : 'idle';
+          ? state.lobby.status === 'in_game'
+            ? 'in-game'
+            : state.lobby.status === 'balanced'
+              ? 'balanced'
+              : 'idle'
+          : state.kind === 'result'
+            ? 'finished'
+            : 'idle';
   // M15.5: what the card is about (the lock after Roll, else the next game), one answer for the
   // card, the answer band, the strip's host line and the announcer.
   // A missing row is a new group (`missingState`); a failed read is flagged (`modeReadFailed`).

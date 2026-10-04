@@ -12,6 +12,7 @@ import {
   lobbyView,
   snapshot,
   tapeEntry,
+  workedKickoff,
   workedMembers,
   workedResult,
   workedTeams,
@@ -40,6 +41,10 @@ export const TONIGHT_STATES = [
   'balanced',
   'reroll',
   'in-game',
+  'in-game-rolled',
+  'in-game-swapped',
+  'in-game-custom',
+  'in-game-unrolled',
   'finished',
   'long-night',
   'new-player',
@@ -292,6 +297,34 @@ function stateFixture(key: TonightStateKey, now: number): TonightStateFixture {
             status: 'in_game',
             members,
             teams: workedTeams({ members }),
+            startedAt: new Date(now - 23 * 60_000).toISOString(),
+          }),
+          { tape: tape(2) },
+        ),
+      };
+    }
+    case 'in-game-rolled':
+    case 'in-game-swapped':
+    case 'in-game-custom':
+    case 'in-game-unrolled': {
+      // M21.5: a game with a kickoff record; custom and unrolled move the viewer (Theo) to blue.
+      const kind =
+        key === 'in-game-rolled'
+          ? 'rolled'
+          : key === 'in-game-swapped'
+            ? 'swapped'
+            : key === 'in-game-custom'
+              ? 'custom'
+              : 'unrolled';
+      const { members, teams, kickoff } = workedKickoff(kind);
+      return {
+        ...base,
+        snapshot: snapshot(
+          lobbyView({
+            status: 'in_game',
+            members,
+            teams,
+            kickoff,
             startedAt: new Date(now - 23 * 60_000).toISOString(),
           }),
           { tape: tape(2) },
@@ -583,6 +616,17 @@ function renameSnapshot(snap: TonightSnapshot): TonightSnapshot {
                     sitters: lobby.teams.sitters.map((member) => ({ ...member, name: rename(member.name) })),
                   },
             result: lobby.result === null ? null : renameResult(lobby.result),
+            ...(lobby.kickoff == null
+              ? {}
+              : {
+                  kickoff: {
+                    ...renameResult(lobby.kickoff),
+                    sitters: lobby.kickoff.sitters.map((member) => ({
+                      ...member,
+                      name: rename(member.name),
+                    })),
+                  },
+                }),
           },
   };
 }

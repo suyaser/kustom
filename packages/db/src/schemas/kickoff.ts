@@ -73,10 +73,7 @@ export interface KickoffRow {
  * logs it with what it knows (the lobby id) and carries on as if there were no record. It is never
  * called for a lobby with no record at all.
  */
-export function kickoffFromRow(
-  row: KickoffRow,
-  onDrop?: (reason: string) => void,
-): LobbyKickoff | null {
+export function kickoffFromRow(row: KickoffRow, onDrop?: (reason: string) => void): LobbyKickoff | null {
   if (row.kickoff_kind === null) return null;
   const candidate =
     row.kickoff_kind === 'rolled'

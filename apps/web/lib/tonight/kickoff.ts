@@ -66,7 +66,12 @@ export function readKickoff(row: KickoffRow, lobbyId: string): LobbyKickoff | nu
  * sentence name the side each team is really on.
  */
 export function swappedRun(stored: readonly StoredSplit[]): StoredSplit[] {
-  return stored.map((split) => ({ ...split, blue: split.red, red: split.blue, blueWinProb: 1 - split.blueWinProb }));
+  return stored.map((split) => ({
+    ...split,
+    blue: split.red,
+    red: split.blue,
+    blueWinProb: 1 - split.blueWinProb,
+  }));
 }
 
 /** Where the viewer plays at kickoff, or `null` (not on a team, or not known). */
