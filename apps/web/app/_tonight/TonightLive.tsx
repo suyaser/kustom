@@ -12,7 +12,13 @@ import {
   type TonightPressDetail,
   type TonightRefreshDetail,
 } from '@/lib/tonight/live';
-import { groupLiveFilter, groupLiveParser, LiveVersionGate, readGroupLive } from '@/lib/tonight/liveSignal';
+import {
+  groupLiveFilter,
+  groupLiveParser,
+  LiveVersionGate,
+  readGroupLive,
+  warnMalformedLiveRow,
+} from '@/lib/tonight/liveSignal';
 import { REFRESH_DEBOUNCE_MS, RefreshScheduler } from '@/lib/tonight/refreshScheduler';
 import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
 
@@ -158,7 +164,6 @@ export function TonightLive({ groupId, liveVersion = null, lobbyLive, nameless =
     }, CONNECT_TIMEOUT_MS);
 
     const channel = client.channel(`tonight:${groupId}`);
-    const parse = groupLiveParser();
     /** Answered presses whose hold waits for their route's bump (or {@link PRESS_BUMP_WAIT_MS}). */
     const awaitingBump = new Set<() => void>();
     /** Presses still with their route, and whether a bump has arrived since each began. */
@@ -188,9 +193,15 @@ export function TonightLive({ groupId, liveVersion = null, lobbyLive, nameless =
           refresh.current();
           return;
         }
-        void parse.then((read) => {
+        // The parser is asked per row: a schema chunk that failed to load is retried next time.
+        void groupLiveParser().then((read) => {
+          if (cancelled || read === null) return;
           const row = read(payload.new);
-          if (cancelled || row === null || row.group_id !== groupId) return;
+          if (row === null) {
+            warnMalformedLiveRow(payload.new);
+            return;
+          }
+          if (row.group_id !== groupId) return;
           offer(row.version);
         });
       },

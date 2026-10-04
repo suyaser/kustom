@@ -24,6 +24,7 @@ describe('the filter and the parse', () => {
 
   it('parses a row strictly: an extra column, a bad kind or a bad version is dropped', async () => {
     const parse = await groupLiveParser();
+    if (parse === null) throw new Error('the schema did not load');
     expect(parse(ROW)).toEqual(ROW);
     expect(parse({ ...ROW, lobby_id: 'x' })).toBeNull();
     expect(parse({ ...ROW, kind: 'whatever' })).toBeNull();

@@ -124,7 +124,8 @@ const {
 const { LiveTag } = await import('./LiveTag');
 // The strict parser is a dynamic import (zod stays out of Tonight's first load): load it once up
 // front, as a page has by the time its first row arrives.
-await (await import('@/lib/tonight/liveSignal')).groupLiveParser();
+const { groupLiveParser, setGroupLiveSchemaLoaderForTests } = await import('@/lib/tonight/liveSignal');
+await groupLiveParser();
 
 const GROUP_A = '11111111-1111-4111-8111-111111111111';
 const GROUP_B = '22222222-2222-4222-8222-222222222222';
@@ -226,12 +227,41 @@ describe('the Realtime subscription', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it('drops a row that does not parse strictly: an extra column, an unknown kind', async () => {
+  it('drops a row that does not parse strictly, and says so with only its group and kind', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     draw();
-    fire('group_live', liveRow(SHOWN + 1, GROUP_A, { lobby_id: 'x' }));
+    fire('group_live', liveRow(SHOWN + 1, GROUP_A, { lobby_id: 'secret' }));
     fire('group_live', liveRow(SHOWN + 2, GROUP_A, { kind: 'whatever' }));
     await settle();
     expect(refresh).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenNthCalledWith(1, 'group_live: dropped a malformed row', {
+      group_id: GROUP_A,
+      kind: 'lobby',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('secret');
+    warn.mockRestore();
+  });
+
+  it('a schema chunk that fails to load once drops that row only: the next row retries and renders', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const real = await import('@customs/db/schemas');
+    let attempts = 0;
+    setGroupLiveSchemaLoaderForTests(() => {
+      attempts += 1;
+      return attempts === 1 ? Promise.reject(new TypeError('Failed to fetch chunk')) : Promise.resolve(real);
+    });
+    draw();
+    bump();
+    await settle();
+    expect(refresh).not.toHaveBeenCalled();
+    bump();
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(attempts).toBe(2);
+    setGroupLiveSchemaLoaderForTests(null);
+    await groupLiveParser();
+    warn.mockRestore();
   });
 
   it('a DELETE (the group was deleted) re-reads, and the server answers with not-found', async () => {

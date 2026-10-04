@@ -23,22 +23,48 @@ export function groupLiveFilter(groupId: string): string {
 
 type Parse = (row: unknown) => GroupLiveRow | null;
 
-let parser: Promise<Parse> | null = null;
+type SchemaModule = Pick<typeof import('@customs/db/schemas'), 'groupLiveRowSchema'>;
 
-/** The strict parser, loaded once per page (a chunk that fails to load parses nothing). */
-export function groupLiveParser(): Promise<Parse> {
-  parser ??= import('@customs/db/schemas').then(
+let loadSchema: () => Promise<SchemaModule> = () => import('@customs/db/schemas');
+
+/** Tests only: stand in for the dynamic import (a flaky phone's failed chunk). */
+export function setGroupLiveSchemaLoaderForTests(loader: (() => Promise<SchemaModule>) | null): void {
+  loadSchema = loader ?? (() => import('@customs/db/schemas'));
+  parser = null;
+}
+
+let parser: Promise<Parse | null> | null = null;
+
+/**
+ * The strict parser, loaded once per page and asked for **per row**. A chunk that fails to load
+ * answers `null` for that row and is forgotten, so the next row tries the import again: one flaky
+ * fetch on a phone never deafens the page for the rest of the night.
+ */
+export function groupLiveParser(): Promise<Parse | null> {
+  parser ??= loadSchema().then(
     ({ groupLiveRowSchema }): Parse =>
       (row) => {
         const parsed = groupLiveRowSchema.safeParse(row);
         return parsed.success ? parsed.data : null;
       },
-    (): Parse => {
+    () => {
       parser = null;
-      return () => null;
+      console.warn('group_live: the row schema did not load; this row is dropped, the next one retries');
+      return null;
     },
   );
   return parser;
+}
+
+/**
+ * Says a `group_live` row was dropped as malformed. Only the group id and the kind, and only when
+ * they are strings: never the payload itself.
+ */
+export function warnMalformedLiveRow(row: unknown): void {
+  const fields = typeof row === 'object' && row !== null ? (row as Record<string, unknown>) : {};
+  const groupId = typeof fields.group_id === 'string' ? fields.group_id : null;
+  const kind = typeof fields.kind === 'string' ? fields.kind : null;
+  console.warn('group_live: dropped a malformed row', { group_id: groupId, kind });
 }
 
 /**
@@ -61,10 +87,11 @@ export async function readGroupLive(groupId: string): Promise<GroupLiveRow | nul
       }),
       groupLiveParser(),
     ]);
-    if (!response.ok) return null;
+    if (!response.ok || parse === null) return null;
     const rows: unknown = await response.json();
     if (!Array.isArray(rows) || rows.length !== 1) return null;
     const row = parse(rows[0]);
+    if (row === null) warnMalformedLiveRow(rows[0]);
     return row !== null && row.group_id === groupId ? row : null;
   } catch {
     return null;
