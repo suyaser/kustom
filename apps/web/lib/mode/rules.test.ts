@@ -268,9 +268,9 @@ describe('the notices', () => {
     expect(thisPairNotice({ blue: 'shurima', red: 'zaun' })).toBe(
       'New regions: Shurima vs Zaun. Picks already made stay, and the check uses the new regions.',
     );
-    expect(shortPairRedrawnNotice({ blue: 'targon', red: 'zaun' }, { blue: 'shurima', red: 'zaun' })).toBe(
-      'Targon vs Zaun ran short after the bans, so Roll drew Shurima vs Zaun.',
-    );
+    expect(
+      shortPairRedrawnNotice({ blue: 'mount-targon', red: 'zaun' }, { blue: 'shurima', red: 'zaun' }),
+    ).toBe('Targon vs Zaun ran short after the bans, so Roll drew Shurima vs Zaun.');
     expect(nextPairNotice({ blue: 'shadow-isles', red: 'bandle-city' })).toBe(
       'Next game: Shadow Isles vs Bandle City.',
     );

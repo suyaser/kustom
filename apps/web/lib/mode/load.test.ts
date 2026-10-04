@@ -39,7 +39,8 @@ describe('loadGroupModeState', () => {
     });
     expect(asked).toEqual({
       table: 'group_modes',
-      columns: 'mode, updated_at, pending_rule, pending_class_tag, rated_override, version',
+      columns:
+        'mode, updated_at, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override',
       groupId: GROUP,
     });
   });
