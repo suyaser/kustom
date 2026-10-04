@@ -79,7 +79,7 @@ export async function loadTonightLobbyLock(
 
 /** The `games` columns a stamp is made of; Tonight reads them with the rest of the game row. */
 export const GAME_STAMP_COLUMNS =
-  'duration_s, gameMode:raw->gameMode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check' as const;
+  'duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check' as const;
 
 export interface GameStampRow {
   duration_s: number;

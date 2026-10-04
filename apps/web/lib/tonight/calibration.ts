@@ -124,7 +124,7 @@ async function loadCalibration(client: PublicClient, groupId: string): Promise<C
     const { data, error } = await client
       .from('games')
       .select(
-        'id, lobby_id, winning_side, rated, gameMode:raw->gameMode, game_players(player_id, side, mu_before, mu_after)',
+        'id, lobby_id, winning_side, rated, gameMode:game_mode, game_players(player_id, side, mu_before, mu_after)',
       )
       .eq('group_id', groupId)
       .not('lobby_id', 'is', null)

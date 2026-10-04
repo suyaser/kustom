@@ -701,14 +701,14 @@ async function loadChosenSplits(
   return splits;
 }
 
-/** `raw->gameMode` for the listed games only (the ARAM label), never the whole blob. */
+/** `games.game_mode` (0039) for the listed games only (the ARAM label), never the blob. */
 async function loadGameModes(
   client: PublicClient,
   gameIds: readonly string[],
 ): Promise<Map<string, string | null>> {
   const modes = new Map<string, string | null>();
   for (const { data, error } of await mapChunks(gameIds, (chunk) =>
-    client.from('games').select('id, raw->gameMode').in('id', chunk),
+    client.from('games').select('id, gameMode:game_mode').in('id', chunk),
   )) {
     if (error) throw new Error(`board: game mode lookup failed: ${error.message}`);
     for (const row of data ?? []) modes.set(row.id, gameModeFromRaw({ gameMode: row.gameMode }));

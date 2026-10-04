@@ -348,7 +348,7 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
   const { data: game, error } = await client
     .from('games')
     .select(
-      'id, group_id, lobby_id, started_at, duration_s, winning_side, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, rule_check, raw->gameMode',
+      'id, group_id, lobby_id, started_at, duration_s, winning_side, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, rule_check, gameMode:game_mode',
     )
     .eq('id', gameId)
     .maybeSingle();
