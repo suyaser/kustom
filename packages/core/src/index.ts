@@ -12,8 +12,9 @@
  * post-game rule check and the lifecycle (lock at Roll, compare and clear at record). Champion
  * tags and regions are input; core imports no fixture.
  *
- * `rating/kustom` (M18.1) is the Kustom rating that replaces OpenSkill at the M18 switch; until
- * then it is exported and tested but nothing outside this package calls it.
+ * `rating/kustom` (M18.1) is the Kustom rating that replaces OpenSkill at the M18 switch. Since
+ * M18.2 the balancer (`balance`, `preGameOdds`) reads Kustom Ratings through `winProbability`;
+ * the fold and the reads follow in the same switch deploy (M18.5, M18.6).
  */
 
 export {
@@ -32,6 +33,7 @@ export {
   type FavoredSide,
   favoredSide,
   isOffRole,
+  type KustomBefore,
   nextSplit,
   type OddsBand,
   oddsBand,

@@ -6,10 +6,13 @@ import {
   balance,
   config,
   explain,
+  KUSTOM_START,
   nextSplit,
   ROLES,
   type Role,
+  rateGameKustom,
   type Split,
+  winProbability,
 } from '../index';
 
 /**
@@ -19,25 +22,25 @@ import {
  */
 function player(
   name: string,
-  mu: number,
-  sigma: number,
+  r: number,
   mainRole: Role | null,
   secondaryRole: Role | null,
+  n = 20,
 ): BalancePlayer {
-  return { puuid: `puuid-${name.toLowerCase()}`, name, mu, sigma, mainRole, secondaryRole };
+  return { puuid: `puuid-${name.toLowerCase()}`, name, r, n, mainRole, secondaryRole };
 }
 
 const ROSTER: readonly BalancePlayer[] = [
-  player('Bilal', 28.55, 4.8, 'adc', 'mid'),
-  player('Hana', 23.9, 4.6, 'top', 'mid'),
-  player('Iris', 26.3, 4.9, 'jungle', 'top'),
-  player('Karim', 25.85, 4.7, 'mid', 'adc'),
-  player('Lena', 34.8, 4.5, 'adc', 'jungle'),
-  player('Nadia', 21.1, 5.1, 'mid', 'support'),
-  player('Omar', 24.49, 4.6, 'top', 'support'),
-  player('Rami', 27.3, 4.8, 'jungle', 'mid'),
-  player('Theo', 23.65, 4.9, 'support', 'adc'),
-  player('Yuki', 18.9, 5.0, 'support', 'top'),
+  player('Bilal', 1713, 'adc', 'mid'),
+  player('Hana', 1434, 'top', 'mid'),
+  player('Iris', 1578, 'jungle', 'top'),
+  player('Karim', 1551, 'mid', 'adc'),
+  player('Lena', 2088, 'adc', 'jungle'),
+  player('Nadia', 1266, 'mid', 'support'),
+  player('Omar', 1469.4, 'top', 'support'),
+  player('Rami', 1638, 'jungle', 'mid'),
+  player('Theo', 1419, 'support', 'adc'),
+  player('Yuki', 1134, 'support', 'top'),
 ];
 
 const id = (name: string): string => `puuid-${name.toLowerCase()}`;
@@ -54,6 +57,11 @@ function sideOf(side: readonly { puuid: string; role: Role }[]): Record<Role, st
 
 function names(side: readonly { puuid: string }[]): string[] {
   return side.map(({ puuid }) => ROSTER.find((r) => r.puuid === puuid)?.name ?? puuid).sort();
+}
+
+/** Sum of the stored Ratings `r` of one side, as the fold will read them (not role-weighted). */
+function totalOf(side: readonly { puuid: string }[], roster: readonly BalancePlayer[] = ROSTER): number {
+  return side.reduce((sum, { puuid }) => sum + (roster.find((p) => p.puuid === puuid)?.r ?? Number.NaN), 0);
 }
 
 function withRoster(overrides: Partial<Record<string, Partial<BalancePlayer>>>): BalancePlayer[] {
@@ -99,7 +107,8 @@ describe('balance: the worked example', () => {
     expect(result.splits).toHaveLength(3);
     expect(result.splits.map((s) => s.gap)).toEqual([100, 170, 220]);
     expect(result.splits.map((s) => s.offRoleCount)).toEqual([0, 0, 0]);
-    // Score is the unrounded value that ordered the list: 1.66 * 60, 2.84 * 60, 3.66 * 60.
+    // Score is the unrounded value that ordered the list, in Rating points. M18.2: Ratings now
+    // arrive on the Rating scale (r = mu * 60 of the old roster), so scores, gaps and splits are unchanged.
     expect(result.splits[0]?.score).toBeCloseTo(99.6, 9);
     expect(result.splits[1]?.score).toBeCloseTo(170.4, 9);
     expect(result.splits[2]?.score).toBeCloseTo(219.6, 9);
@@ -124,18 +133,23 @@ describe('balance: the worked example', () => {
     }
   });
 
-  it('computes blueWinProb on the real ratings and pins the openskill values', () => {
-    // Brief: 0.5406, 0.5693, 0.5890 from Phi(dMu / sqrt(2 beta^2 + sum sigma^2)).
-    expect(result.splits[0]?.blueWinProb).toBeCloseTo(0.5406, 3);
-    expect(result.splits[1]?.blueWinProb).toBeCloseTo(0.5693, 3);
-    expect(result.splits[2]?.blueWinProb).toBeCloseTo(0.589, 3);
+  it('computes blueWinProb with winProbability on the real Ratings (M18.2)', () => {
+    // Re-pinned in M18.2: the OpenSkill values (0.5406, 0.5693, 0.5890) are gone; these are the
+    // odds table's logistic(gap / 400) at the same three gaps, 99.6, 170.4, 219.6.
+    expect(result.splits[0]?.blueWinProb).toBeCloseTo(0.56193, 5);
+    expect(result.splits[1]?.blueWinProb).toBeCloseTo(0.604918, 5);
+    expect(result.splits[2]?.blueWinProb).toBeCloseTo(0.633904, 5);
+    for (const split of result.splits) {
+      expect(split.blueWinProb).toBe(winProbability(totalOf(split.blue), totalOf(split.red)));
+    }
   });
 
   it('produces the three explanation strings verbatim', () => {
+    // Re-pinned in M18.2: 54/57/59 were OpenSkill's; 56/60/63 are winProbability at the same gaps.
     expect(result.explanations).toEqual([
-      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
-      'Blue favored 57%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.',
-      'Blue favored 59%. Everyone on a main role. Gap 220.',
+      'Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
+      'Blue favored 60%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.',
+      'Blue favored 63%. Everyone on a main role. Gap 220.',
     ]);
   });
 
@@ -161,6 +175,132 @@ describe('balance: the worked example', () => {
     const snapshot = structuredClone(ROSTER);
     balance({ players: ROSTER });
     expect(ROSTER).toEqual(snapshot);
+  });
+});
+
+/**
+ * M18.2: the balancer reads the stored all-time Kustom Rating the fold reads, and every win
+ * chance it scores, stores or explains is `winProbability` of the two sides' Rating totals.
+ */
+describe('balance: Kustom Ratings (M18.2)', () => {
+  /** Rosters that exercise main, secondary, fill, flexible, duos and the repeat penalty. */
+  const ROSTERS: Record<
+    string,
+    { players: BalancePlayer[]; extra?: Partial<Parameters<typeof balance>[0]> }
+  > = {
+    worked: { players: [...ROSTER] },
+    override: { players: withRoster({ Yuki: { roleOverride: 'top' } }) },
+    flexible: { players: withRoster({ Yuki: { mainRole: null, secondaryRole: null } }) },
+    oneJungle: { players: withRoster({ Rami: { mainRole: 'mid' } }) },
+    duo: { players: [...ROSTER], extra: { duos: [[id('Hana'), id('Omar')]] } },
+    repeat: {
+      players: [...ROSTER],
+      extra: { lastSplit: ['Hana', 'Iris', 'Karim', 'Bilal', 'Theo'].map(id) },
+    },
+  };
+
+  it.each(Object.keys(ROSTERS))(
+    '%s: every split’s blueWinProb is winProbability of the Rating totals',
+    (key) => {
+      const { players, extra } = ROSTERS[key] as (typeof ROSTERS)[string];
+      const { splits } = balance({ players, ...extra });
+      expect(splits.length).toBeGreaterThan(0);
+      for (const split of splits) {
+        expect(split.blueWinProb).toBe(
+          winProbability(totalOf(split.blue, players), totalOf(split.red, players)),
+        );
+      }
+    },
+  );
+
+  it('scores the gap on r × role multiplier, but the odds on the plain Ratings the fold reads', () => {
+    // Yuki on top puts Omar on support at 0.93: the role-weighted gap is 98, while the plain
+    // totals differ by more. The odds must be the plain ones, or they could never equal fold_p.
+    const players = withRoster({ Yuki: { roleOverride: 'top' } });
+    const [first] = balance({ players }).splits;
+    if (first === undefined) throw new Error('missing split');
+    const blue = totalOf(first.blue, players);
+    const red = totalOf(first.red, players);
+    expect(first.gap).toBe(98);
+    expect(Math.round(Math.abs(blue - red))).not.toBe(98);
+    expect(first.blueWinProb).toBe(winProbability(blue, red));
+  });
+
+  it('equals the fold’s blue expected to 1e-9 for the same ten, unchanged since the roll', () => {
+    // The fold (M18.5) calls rateGameKustom on the stored all-time r and n; with nobody's Rating
+    // moved between the roll and the game, blue's expected is the split's stored chance.
+    for (const { players, extra } of Object.values(ROSTERS)) {
+      const { splits } = balance({ players, ...extra });
+      for (const split of splits) {
+        const seat = (side: 100 | 200) => (a: { puuid: string }) => {
+          const p = players.find((x) => x.puuid === a.puuid) as BalancePlayer;
+          return { puuid: p.puuid, side, r: p.r, n: p.n, score: null };
+        };
+        for (const winningSide of [100, 200] as const) {
+          const rows = rateGameKustom({
+            players: [...split.blue.map(seat(100)), ...split.red.map(seat(200))],
+            winningSide,
+          });
+          for (const row of rows) {
+            const p = row.side === 100 ? split.blueWinProb : 1 - split.blueWinProb;
+            expect(Math.abs(row.expected - p)).toBeLessThan(1e-9);
+          }
+        }
+      }
+    }
+  });
+
+  it('passes the caller’s calib to winProbability, and calib never changes which splits win', () => {
+    const calib = { a: 0, b: 0.5 };
+    const plain = balance({ players: ROSTER });
+    const tuned = balance({ players: ROSTER, calib });
+    expect(tuned.splits.map(({ blueWinProb: _, ...rest }) => rest)).toEqual(
+      plain.splits.map(({ blueWinProb: _, ...rest }) => rest),
+    );
+    for (const split of tuned.splits) {
+      expect(split.blueWinProb).toBe(winProbability(totalOf(split.blue), totalOf(split.red), calib));
+    }
+    // b = 0.5 halves the logit: logistic(0.5 * 99.6 / 400).
+    expect(tuned.splits[0]?.blueWinProb).toBeCloseTo(1 / (1 + Math.exp(-0.1245)), 12);
+    expect(tuned.explanations[0]).toMatch(/^Blue favored 53%\./);
+    // Absent calib is (0, 1), the plain formula.
+    expect(balance({ players: ROSTER, calib: { a: 0, b: 1 } })).toEqual(plain);
+  });
+
+  it('a zero-game player is 1200, exactly as in the fold, and contributes 1200 to the totals', () => {
+    expect(KUSTOM_START).toBe(1200);
+    const players = withRoster({ Yuki: { r: KUSTOM_START, n: 0 } });
+    const seatR = (a: { puuid: string }) =>
+      a.puuid === id('Yuki') ? 1200 : (ROSTER.find((p) => p.puuid === a.puuid)?.r ?? Number.NaN);
+    const sum = (side: readonly { puuid: string }[]) => side.reduce((s, a) => s + seatR(a), 0);
+    for (const split of balance({ players }).splits) {
+      expect(split.blueWinProb).toBe(winProbability(sum(split.blue), sum(split.red)));
+    }
+  });
+
+  it('refuses a zero-game player at anything but 1200: there is no rank guess any more', () => {
+    // A Diamond newcomer seeded from rank is exactly what the owner retired (2026-10-04).
+    expect(() => balance({ players: withRoster({ Yuki: { r: 1560, n: 0 } }) })).toThrow(BalanceError);
+    expect(() => balance({ players: withRoster({ Yuki: { r: 1560, n: 0 } }) })).toThrow(
+      'Yuki has no rated games but a Rating of 1560; everyone starts at 1200.',
+    );
+    // A rank is not a balancer input at all.
+    // @ts-expect-error `rank` is not a field of BalancePlayer (M18.2).
+    const ranked: BalancePlayer = { ...player('Zed', 1200, 'mid', null, 0), rank: 'DIAMOND' };
+    expect(ranked.r).toBe(1200);
+  });
+
+  it('refuses a Rating that is not a finite number and a game count that is not a whole number >= 0', () => {
+    for (const r of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => balance({ players: withRoster({ Hana: { r } }) })).toThrow(
+        `Hana has no usable Rating (${r}).`,
+      );
+    }
+    for (const n of [-1, 2.5, Number.NaN]) {
+      expect(() => balance({ players: withRoster({ Hana: { n } }) })).toThrow(
+        `Hana has an unusable rated-game count (${n}).`,
+      );
+    }
   });
 });
 
@@ -247,7 +387,8 @@ describe('balance: duos', () => {
     const { splits, explanations } = balance({ players: ROSTER, duos: [...chain(blue), ...chain(red)] });
     expect(splits).toHaveLength(1);
     expectSplit(splits[0], SPLIT_1);
-    expect(explanations).toEqual(['Blue favored 54%. Everyone on a main role. Gap 100.']);
+    // M18.2: 56%, winProbability at gap 99.6 (was OpenSkill's 54%).
+    expect(explanations).toEqual(['Blue favored 56%. Everyone on a main role. Gap 100.']);
   });
 
   it('throws when a duo names someone not in the lobby or names the same player twice', () => {
@@ -320,8 +461,10 @@ describe('balance: role edge cases', () => {
     expect(first.offRoleCount).toBe(1);
     expect(sideOf(first.red).top).toBe('Yuki');
     expect(sideOf(first.blue).support).toBe('Omar');
+    // M18.2: 62% is winProbability of the plain Rating totals (Omar's 0.93 seat weighs on the
+    // gap, not the odds the fold will use); OpenSkill said 58%.
     expect(explanations[0]).toBe(
-      'Blue favored 58%. Omar off-role at support. Gap 98. Next best: 2 swaps, gap 4 with 2 off-role.',
+      'Blue favored 62%. Omar off-role at support. Gap 98. Next best: 2 swaps, gap 4 with 2 off-role.',
     );
   });
 
@@ -375,12 +518,11 @@ describe('balance: role edge cases', () => {
   });
 
   it('a main with no secondary is fill (0.85) and off-role everywhere else', () => {
-    // Ten identical top mains, mu 25 (1500 display), no backups. Each team: one on top at
+    // Ten identical top mains, Rating 1500, no backups. Each team: one on top at
     // 1500, four fill at 1275; sums are equal, so gap 0 and score = 8 * 120 = 960.
     const tops: BalancePlayer[] = ROSTER.map((p) => ({
       ...p,
-      mu: 25,
-      sigma: 5,
+      r: 1500,
       mainRole: 'top',
       secondaryRole: null,
     }));
@@ -421,8 +563,7 @@ describe('balance: fill protection', () => {
   /** Ten identical top mains with no backup: every split is gap 0 with eight fills. */
   const TOPS: BalancePlayer[] = ROSTER.map((p) => ({
     ...p,
-    mu: 25,
-    sigma: 5,
+    r: 1500,
     mainRole: 'top' as const,
     secondaryRole: null,
   }));
@@ -445,7 +586,7 @@ describe('balance: fill protection', () => {
       ['Theo', 'support'],
       ['Yuki', 'support'],
     ] satisfies [string, Role][]
-  ).map(([name, role]) => player(name, 25, 5, role, null));
+  ).map(([name, role]) => player(name, 1500, role, null));
 
   /**
    * The worked example with Rami moved to mid, so Iris is the only jungle main in the lobby.
@@ -479,9 +620,9 @@ describe('balance: fill protection', () => {
     expect(nulls.splits.map((s) => s.offRoleCount)).toEqual([0, 0, 0]);
     expect(nulls.splits[0]?.score).toBeCloseTo(99.6, 9);
     expect(nulls.explanations).toEqual([
-      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
-      'Blue favored 57%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.',
-      'Blue favored 59%. Everyone on a main role. Gap 220.',
+      'Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
+      'Blue favored 60%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.',
+      'Blue favored 63%. Everyone on a main role. Gap 220.',
     ]);
     // Nobody is off-role in the worked example, so a filled player there costs nothing either.
     expect(balance({ players: withFill(ROSTER, { Hana: 0, Yuki: 0 }) })).toEqual(base);
@@ -667,8 +808,7 @@ describe('balance: ties', () => {
     // puuids, then the next candidate swaps only the largest of them for the next puuid up.
     const same: BalancePlayer[] = ROSTER.map((p) => ({
       ...p,
-      mu: 25,
-      sigma: 5,
+      r: 1500,
       mainRole: null,
       secondaryRole: null,
     }));
@@ -708,12 +848,12 @@ describe('balance: errors', () => {
   });
 
   it('throws for eleven players', () => {
-    const eleven = [...ROSTER, player('Zed', 25, 5, 'mid', null)];
+    const eleven = [...ROSTER, player('Zed', 1500, 'mid', null)];
     expect(() => balance({ players: eleven })).toThrow('Balancing needs exactly ten players, got 11.');
   });
 
   it('throws for duplicate puuids', () => {
-    const dup = [...ROSTER.slice(0, 9), { ...player('Yuki', 18.9, 5, 'support', 'top'), puuid: id('Hana') }];
+    const dup = [...ROSTER.slice(0, 9), { ...player('Yuki', 1134, 'support', 'top'), puuid: id('Hana') }];
     expect(() => balance({ players: dup })).toThrow(BalanceError);
     expect(() => balance({ players: dup })).toThrow('Duplicate player: puuid-hana.');
   });
@@ -779,8 +919,9 @@ describe('explain', () => {
   it('uses names as given and never deduplicates', () => {
     const twins = withRoster({ Hana: { name: 'Sam' }, Omar: { name: 'Sam' } });
     const { explanations } = balance({ players: twins });
+    // M18.2: 56%, the worked example's winProbability (was OpenSkill's 54%).
     expect(explanations[0]).toBe(
-      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Sam and Sam, gap 170.',
+      'Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Sam and Sam, gap 170.',
     );
   });
 });

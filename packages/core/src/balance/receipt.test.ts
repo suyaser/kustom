@@ -11,30 +11,30 @@ import {
   isSettling,
   type OddsBand,
   oddsBand,
-  predictWin,
   preGameOdds,
   type Role,
   SETTLING_GAMES,
   type Split,
   whyLower,
+  winProbability,
 } from '../index';
 
 /** The worked example from docs/00-product.md, the same ten as `balance/index.test.ts`. */
-function player(name: string, mu: number, sigma: number, mainRole: Role, secondaryRole: Role): BalancePlayer {
-  return { puuid: `puuid-${name.toLowerCase()}`, name, mu, sigma, mainRole, secondaryRole };
+function player(name: string, r: number, mainRole: Role, secondaryRole: Role): BalancePlayer {
+  return { puuid: `puuid-${name.toLowerCase()}`, name, r, n: 20, mainRole, secondaryRole };
 }
 
 const ROSTER: readonly BalancePlayer[] = [
-  player('Bilal', 28.55, 4.8, 'adc', 'mid'),
-  player('Hana', 23.9, 4.6, 'top', 'mid'),
-  player('Iris', 26.3, 4.9, 'jungle', 'top'),
-  player('Karim', 25.85, 4.7, 'mid', 'adc'),
-  player('Lena', 34.8, 4.5, 'adc', 'jungle'),
-  player('Nadia', 21.1, 5.1, 'mid', 'support'),
-  player('Omar', 24.49, 4.6, 'top', 'support'),
-  player('Rami', 27.3, 4.8, 'jungle', 'mid'),
-  player('Theo', 23.65, 4.9, 'support', 'adc'),
-  player('Yuki', 18.9, 5.0, 'support', 'top'),
+  player('Bilal', 1713, 'adc', 'mid'),
+  player('Hana', 1434, 'top', 'mid'),
+  player('Iris', 1578, 'jungle', 'top'),
+  player('Karim', 1551, 'mid', 'adc'),
+  player('Lena', 2088, 'adc', 'jungle'),
+  player('Nadia', 1266, 'mid', 'support'),
+  player('Omar', 1469.4, 'top', 'support'),
+  player('Rami', 1638, 'jungle', 'mid'),
+  player('Theo', 1419, 'support', 'adc'),
+  player('Yuki', 1134, 'support', 'top'),
 ];
 
 const id = (name: string): string => `puuid-${name.toLowerCase()}`;
@@ -203,6 +203,7 @@ describe('oddsBand', () => {
     expect(oddsBand(0.535)).toBe('slight');
     expect(oddsBand(0.534)).toBe('coin-flip');
     expect(oddsBand(0)).toBe('clear');
+    // M18.2: the worked split is 56% now (was 54%), still 'slight'.
     expect(oddsBand(S1.blueWinProb)).toBe('slight');
   });
 
@@ -214,34 +215,40 @@ describe('oddsBand', () => {
 });
 
 describe('preGameOdds', () => {
-  const blue = ROSTER.slice(0, 5).map(({ mu, sigma }) => ({ mu, sigma }));
-  const red = ROSTER.slice(5).map(({ mu, sigma }) => ({ mu, sigma }));
+  // M18.2: Kustom. Reads the stored `r_before` of the ten, through winProbability, and nothing else.
+  const blue = ROSTER.slice(0, 5).map(({ r }) => ({ r }));
+  const red = ROSTER.slice(5).map(({ r }) => ({ r }));
+  const sum = (side: readonly { r: number }[]) => side.reduce((a, x) => a + x.r, 0);
 
-  it('equals predictWin on the same ten', () => {
+  it('equals winProbability of the two Rating totals', () => {
+    // Re-pinned in M18.2: was predictWin's 0.9297; blue 8364 against red 6926.4 is a 1437.6 gap.
     const p = preGameOdds(blue, red);
-    expect(p).toBe(predictWin(blue, red));
-    expect(p).toBeCloseTo(0.9297, 4);
+    expect(p).toBe(winProbability(sum(blue), sum(red)));
+    expect(p).toBeCloseTo(1 / (1 + Math.exp(-1437.6 / 400)), 12);
+    expect(p).toBeCloseTo(0.9732, 4);
+  });
+
+  it('passes the calib through', () => {
+    const calib = { a: 0.1, b: 0.5 };
+    expect(preGameOdds(blue, red, calib)).toBe(winProbability(sum(blue), sum(red), calib));
   });
 
   it('reproduces a stored split’s blueWinProb from the ratings going in', () => {
-    const rating = (a: Assignment) => {
-      const p = ROSTER.find((r) => r.puuid === a.puuid) as BalancePlayer;
-      return { mu: p.mu, sigma: p.sigma };
-    };
+    const rating = (a: Assignment) => ({ r: (ROSTER.find((r) => r.puuid === a.puuid) as BalancePlayer).r });
     expect(preGameOdds(S1.blue.map(rating), S1.red.map(rating))).toBe(S1.blueWinProb);
   });
 
-  it('is null when any of the ten is missing mu or sigma', () => {
-    expect(preGameOdds([...blue.slice(0, 4), { mu: null, sigma: 4 }], red)).toBeNull();
-    expect(preGameOdds(blue, [...red.slice(0, 4), { mu: 25, sigma: null }])).toBeNull();
-    expect(preGameOdds(blue, [...red.slice(0, 4), { mu: 25 }])).toBeNull();
-    expect(preGameOdds(blue, [...red.slice(0, 4), { mu: Number.NaN, sigma: 4 }])).toBeNull();
+  it('is null when any of the ten has no finite r', () => {
+    expect(preGameOdds([...blue.slice(0, 4), { r: null }], red)).toBeNull();
+    expect(preGameOdds(blue, [...red.slice(0, 4), {}])).toBeNull();
+    expect(preGameOdds(blue, [...red.slice(0, 4), { r: Number.NaN }])).toBeNull();
+    expect(preGameOdds(blue, [...red.slice(0, 4), { r: Number.POSITIVE_INFINITY }])).toBeNull();
   });
 
   it('is null with fewer or more than five a side', () => {
     expect(preGameOdds(blue.slice(0, 4), red)).toBeNull();
     expect(preGameOdds(blue, red.slice(0, 4))).toBeNull();
-    expect(preGameOdds([...blue, { mu: 25, sigma: 4 }], red)).toBeNull();
+    expect(preGameOdds([...blue, { r: 1500 }], red)).toBeNull();
     expect(preGameOdds([], [])).toBeNull();
   });
 });
@@ -322,11 +329,12 @@ describe('settling', () => {
 
 describe('explain, through describeSwap', () => {
   it('keeps the old wording for an identical runner-up: 0 swaps', () => {
+    // M18.2: 56% is winProbability at the worked gap 99.6 (was OpenSkill's 54%).
     expect(WORKED.explanations[0]).toBe(
-      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
+      'Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
     );
     expect(explain(S1, { ...S1, blue: S1.red, red: S1.blue }, ROSTER)).toBe(
-      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: 0 swaps, gap 100.',
+      'Blue favored 56%. Everyone on a main role. Gap 100. Next best: 0 swaps, gap 100.',
     );
   });
 
@@ -369,8 +377,9 @@ describe('favoredSide', () => {
   });
 
   it('matches the sentence on the worked example', () => {
-    expect(favoredSide(S1.blueWinProb)).toEqual({ side: 'blue', pct: 54 });
-    expect(WORKED.explanations[0]).toMatch(/^Blue favored 54%\./);
+    // M18.2: 56%, winProbability at gap 99.6 (was OpenSkill's 54%).
+    expect(favoredSide(S1.blueWinProb)).toEqual({ side: 'blue', pct: 56 });
+    expect(WORKED.explanations[0]).toMatch(/^Blue favored 56%\./);
   });
 
   it('throws outside [0, 1] and on NaN', () => {

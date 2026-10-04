@@ -7,8 +7,7 @@
  * copy: the words live in `apps/web`. Nothing here changes the model.
  */
 
-import { predictWin } from '../rating/index';
-import type { Rating } from '../types';
+import { type KustomCalib, winProbability } from '../rating/kustom';
 import type { Assignment, Split } from './types';
 
 /** The two sides of a stored split: five `{ puuid, role }` each. */
@@ -83,7 +82,7 @@ export type RankedColumns = Pick<Split, 'gap' | 'offRoleCount'>;
  * checked in this order:
  *
  * 1. `off-role`: the runner-up puts more people off their main role; `k` is how many more.
- * 2. `gap`: else its rating gap is bigger; both gaps, in display points.
+ * 2. `gap`: else its rating gap is bigger; both gaps, in Rating points.
  * 3. `role-costs`: else the stored score says it lost on fill protection or a repeat, and the
  *    columns do not say which, so this does not guess.
  */
@@ -144,27 +143,41 @@ export function oddsBand(blueWinProb: number): OddsBand {
   return 'clear';
 }
 
-/** One player's rating going into a game, as stored (`mu_before`, `sigma_before`); either may be absent. */
+/**
+ * One player's OpenSkill rating going into a game, as stored (`mu_before`, `sigma_before`);
+ * either may be absent. Read only by the legacy explanation (`explainLegacyDelta`) since M18.2.
+ */
 export interface RatingBefore {
   mu?: number | null;
   sigma?: number | null;
 }
 
-function known(r: RatingBefore): r is Rating {
-  return Number.isFinite(r.mu) && Number.isFinite(r.sigma);
+/** One player's all-time Kustom Rating going into a game, as stored (`r_before`); may be absent. */
+export interface KustomBefore {
+  r?: number | null;
+}
+
+function known(x: KustomBefore): x is { r: number } {
+  return typeof x.r === 'number' && Number.isFinite(x.r);
 }
 
 /**
- * Blue's win chance for a game with no stored split (STRATEGY §4.10), from everyone's rating
- * going in, through the existing `predictWin` and nothing else. `null` unless both sides are
- * exactly five and all ten have a finite `mu` and `sigma`: an unrated backfill has no odds.
+ * Blue's win chance for a game with no stored split (STRATEGY §4.10), from everyone's Rating
+ * going in, through `winProbability` (M18.2) and nothing else, with the caller's `calib`.
+ * `null` unless both sides are exactly five and all ten have a finite `r`: an unrated backfill
+ * has no odds.
  */
-export function preGameOdds(blue: readonly RatingBefore[], red: readonly RatingBefore[]): number | null {
+export function preGameOdds(
+  blue: readonly KustomBefore[],
+  red: readonly KustomBefore[],
+  calib?: KustomCalib,
+): number | null {
   if (blue.length !== 5 || red.length !== 5) return null;
   const b = blue.filter(known);
   const r = red.filter(known);
   if (b.length !== 5 || r.length !== 5) return null;
-  return predictWin(b, r);
+  const sum = (side: readonly { r: number }[]) => side.reduce((a, x) => a + x.r, 0);
+  return winProbability(sum(b), sum(r), calib);
 }
 
 /** One game the caller has decided counts (STRATEGY §4.8 picks which; core only counts). */

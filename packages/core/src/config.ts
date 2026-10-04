@@ -237,13 +237,13 @@ export const config = {
   },
   balance: {
     /**
-     * Effective skill on a role is `mu * multiplier * rating.displayMultiplier`.
+     * Effective strength on a role is `r * multiplier`, `r` the all-time Kustom Rating (M18.2).
      * `main` is the player's main (or tonight's override, or any role for a flexible player),
      * `secondary` their backup, `fill` anything else.
      */
     roleMultiplier: { main: 1.0, secondary: 0.93, fill: 0.85 },
     /**
-     * Display points added to a split's score per player not on a main role, before fill
+     * Rating points added to a split's score per player not on a main role, before fill
      * protection scales it: the price of one off-role seat for somebody with no fill history.
      */
     offRolePenalty: 120,
@@ -265,7 +265,7 @@ export const config = {
      * off without removing the input.
      */
     fillProtectionFactor: 1.0,
-    /** Display points added once when a split puts the same five together as `lastSplit`. */
+    /** Rating points added once when a split puts the same five together as `lastSplit`. */
     repeatSplitPenalty: 200,
     /** How many splits `balance` returns at most, best first. Reroll walks this list. */
     splitsReturned: 3,

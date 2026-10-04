@@ -1,11 +1,20 @@
+import type { KustomCalib } from '../rating/kustom';
 import type { Role } from '../types';
 
-/** One of the ten. `name` is only used in the explanation; identity is the puuid. */
+/**
+ * One of the ten. `name` is only used in the explanation; identity is the puuid.
+ *
+ * M18.2: the player's stored **all-time Kustom Rating**, the same `r` and `n` the fold reads.
+ * There is no rank field and no seed: a player with no rated game is `{ r: 1200, n: 0 }`, as in
+ * the fold, and `balance` refuses `n: 0` at any other Rating.
+ */
 export interface BalancePlayer {
   puuid: string;
   name: string;
-  mu: number;
-  sigma: number;
+  /** Unrounded all-time Rating (`ratings.r`). */
+  r: number;
+  /** All-time rated games before tonight's roll (whole number, >= 0). */
+  n: number;
   /** `null` means flexible: every role is a main and the player is never off-role. */
   mainRole: Role | null;
   secondaryRole: Role | null;
@@ -31,6 +40,12 @@ export interface BalanceInput {
   duos?: readonly Duo[];
   /** The five puuids on one side of the last chosen split for these ten, or `null`. */
   lastSplit?: readonly string[] | null;
+  /**
+   * The odds function's calibration (M18.1 `winProbability`), the same pair the fold passes.
+   * Absent is `{ a: 0, b: 1 }`, which every caller uses until M18.11. It changes the odds only,
+   * never which splits are chosen.
+   */
+  calib?: KustomCalib;
 }
 
 export interface Assignment {
@@ -43,9 +58,12 @@ export interface Split {
   blue: Assignment[];
   /** Five, in lane order. */
   red: Assignment[];
-  /** `Math.round(rawGap)`, display-rating units. */
+  /** `Math.round(rawGap)`, Rating points, on role-weighted strength (`r × roleMultiplier`). */
   gap: number;
-  /** Blue's chance to win, in `[0, 1]`, from OpenSkill on the real ratings. */
+  /**
+   * Blue's chance to win, in `[0, 1]`: `winProbability(Σ blue r, Σ red r, calib)` on the plain
+   * Ratings (not role-weighted), so it equals the fold's blue expected for the same ten (M18.2).
+   */
   blueWinProb: number;
   /**
    * Unrounded: `rawGap + sum(off-role cost of each filled seat) + 200 * isRepeat`. One seat

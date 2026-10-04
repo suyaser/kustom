@@ -7,8 +7,8 @@
  * broken by a stable key.
  */
 
-import { config } from '../config';
-import { predictWin } from '../rating/index';
+import { config, KUSTOM_START } from '../config';
+import { winProbability } from '../rating/kustom';
 import { ROLES } from '../types';
 import { explain } from './explain';
 import { roleTier } from './roles';
@@ -23,6 +23,7 @@ export {
   describeSwap,
   type FavoredSide,
   favoredSide,
+  type KustomBefore,
   type OddsBand,
   oddsBand,
   preGameOdds,
@@ -48,14 +49,12 @@ export class BalanceError extends Error {
 }
 
 const { balance: cfg } = config;
-const DISPLAY = config.rating.displayMultiplier;
 const PLAYERS = 10;
 const TEAM = 5;
 
 /**
- * Two scores closer than this are a tie and fall through to the next tie-break key. The
- * inputs carry two decimals of `mu`, so real differences are at least 0.6 display points;
- * anything below this is floating-point noise from summing in a different order.
+ * Two scores closer than this are a tie and fall through to the next tie-break key. Anything
+ * below it is floating-point noise from summing the same Ratings in a different order.
  */
 const EPSILON = 1e-9;
 
@@ -63,14 +62,14 @@ const EPSILON = 1e-9;
 interface Prepared {
   readonly index: number;
   readonly puuid: string;
-  readonly mu: number;
-  readonly sigma: number;
-  /** Effective skill per role, display units, indexed like `ROLES`. */
+  /** The plain Rating, which is what the odds read (the fold reads the same number). */
+  readonly r: number;
+  /** Effective strength per role, `r × roleMultiplier`, indexed like `ROLES`. */
   readonly effective: readonly number[];
   /** Whether playing each role counts as off-role, indexed like `ROLES`. */
   readonly offRole: readonly boolean[];
   /**
-   * What one off-role seat costs this player, display units: `offRolePenalty` at baseline,
+   * What one off-role seat costs this player, in Rating points: `offRolePenalty` at baseline,
    * scaled up by fill protection for somebody filled recently. Read by `assignRoles` **and**
    * by the split score, which is the point — see `offRoleCostOf`.
    */
@@ -80,7 +79,7 @@ interface Prepared {
 interface TeamAssignment {
   readonly sum: number;
   readonly offRoleCount: number;
-  /** Sum of `offRoleCost` over this team's off-role seats, display units. */
+  /** Sum of `offRoleCost` over this team's off-role seats, Rating points. */
   readonly offRoleCost: number;
   /** Role index per team member, in team order. */
   readonly roles: readonly number[];
@@ -129,9 +128,9 @@ function offRoleCostOf(player: BalancePlayer): number {
   return cfg.offRolePenalty * (1 + cfg.fillProtectionFactor / (Math.max(0, since) + 1));
 }
 
-/** Price every role for a player, in display units, and mark which roles are off-role. */
+/** Price every role for a player, in Rating points, and mark which roles are off-role. */
 function prepare(player: BalancePlayer, index: number): Prepared {
-  const base = player.mu * DISPLAY;
+  const base = player.r;
   const effective: number[] = [];
   const offRole: boolean[] = [];
   for (const role of ROLES) {
@@ -142,8 +141,7 @@ function prepare(player: BalancePlayer, index: number): Prepared {
   return {
     index,
     puuid: player.puuid,
-    mu: player.mu,
-    sigma: player.sigma,
+    r: player.r,
     effective,
     offRole,
     offRoleCost: offRoleCostOf(player),
@@ -215,9 +213,20 @@ function validate(input: BalanceInput): void {
     throw new BalanceError(`Balancing needs exactly ten players, got ${input.players.length}.`);
   }
   const seen = new Set<string>();
-  for (const { puuid } of input.players) {
+  for (const { puuid, name, r, n } of input.players) {
     if (seen.has(puuid)) throw new BalanceError(`Duplicate player: ${puuid}.`);
     seen.add(puuid);
+    if (!Number.isFinite(r)) throw new BalanceError(`${name} has no usable Rating (${r}).`);
+    if (!Number.isInteger(n) || n < 0) {
+      throw new BalanceError(`${name} has an unusable rated-game count (${n}).`);
+    }
+    // M18.2: no rank guess. A player with no rated game is 1200 here exactly as in the fold, so
+    // the stored odds are the odds the fold will use; anything else is a seed sneaking back in.
+    if (n === 0 && r !== KUSTOM_START) {
+      throw new BalanceError(
+        `${name} has no rated games but a Rating of ${r}; everyone starts at ${KUSTOM_START}.`,
+      );
+    }
   }
   const last = input.lastSplit ?? null;
   if (last !== null) {
@@ -239,6 +248,10 @@ function toAssignments(team: readonly Prepared[], roles: readonly number[]): Ass
     out.push({ puuid: p.puuid, role });
   }
   return out;
+}
+
+function sumR(team: readonly Prepared[]): number {
+  return team.reduce((sum, p) => sum + p.r, 0);
 }
 
 function compareSplits(a: Split, b: Split): number {
@@ -293,10 +306,8 @@ export function balance(input: BalanceInput): BalanceResult {
       blue: toAssignments(blue, blueRoles.roles),
       red: toAssignments(red, redRoles.roles),
       gap: Math.round(rawGap),
-      blueWinProb: predictWin(
-        blue.map(({ mu, sigma }) => ({ mu, sigma })),
-        red.map(({ mu, sigma }) => ({ mu, sigma })),
-      ),
+      // The plain Ratings, not the role-weighted sums: the fold's expected reads these (M18.2).
+      blueWinProb: winProbability(sumR(blue), sumR(red), input.calib),
       score,
       offRoleCount,
     });

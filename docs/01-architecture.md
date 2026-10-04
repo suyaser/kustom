@@ -584,16 +584,24 @@ it prints no award and would be carrying those columns for a thousand games to s
 
 ## Balancer (`packages/core/balance`)
 
-Input: ten players with `{ mu, mainRole, secondaryRole, roleOverride? }`, optional duo locks, the previous night's
-split. Output: top three splits with role assignments and explanation.
+Input: ten players with `{ r, n, mainRole, secondaryRole, roleOverride? }`, optional duo locks, the previous night's
+split, and the odds calibration `calib` (absent = `(0, 1)`). Output: top three splits with role assignments and
+explanation.
 
-- Effective skill on a role: `mu * 1.00` main, `mu * 0.93` secondary, `mu * 0.85` fill. A `roleOverride` for
-  tonight counts as main for that role only.
+**M18.2: the balancer is on the Kustom rating.** `r` and `n` are the player's stored all-time Kustom Rating and
+rated games, the same numbers the fold reads; the web caller switches in the M18 switch deploy (M18.5/M18.6), and
+until then `apps/web` does not compile against this core. There is **no rank guess**: a player with no rated game
+is `{ r: 1200, n: 0 }` here exactly as in the fold, and `balance` throws a `BalanceError` for `n: 0` at any other
+Rating (the owner's call, 2026-10-04). Rank stays on the roster as information only. `seedFromRank`,
+`provisionalSeed`, `predictWin` and `balanceScore` are no longer on the balancer's path (OpenSkill's removal is
+M18.12). A non-finite `r` or an `n` that is not a whole number `>= 0` is a `BalanceError`.
+
+- Effective strength on a role: `r * 1.00` main, `r * 0.93` secondary, `r * 0.85` fill (numerically what
+  `mu * 60 * multiplier` was). A `roleOverride` for tonight counts as main for that role only.
 - Enumerate all 126 distinct 5/5 partitions. For each team, choose the role assignment (120 permutations) that
   maximizes effective skill minus off-role penalty. 126 x 2 x 120 evaluations, well under 100 ms.
 - `score = |sum(blueEff) - sum(redEff)| + sum(off-role cost of each filled seat) + 200 * isRepeatOfLastSplit +
-  inf * duoSeparated` (in display-rating units, so divide `mu` sums by 1/60 or apply the weights in `mu` units,
-  either is fine as long as tests pin it). One filled seat costs 120 unless fill protection scales it.
+  inf * duoSeparated`, in Rating points. One filled seat costs 120 unless fill protection scales it.
 - **Fill protection** (M7.5). One off-role seat is priced per player, from how recently the balancer last filled
   them:
 
@@ -601,7 +609,7 @@ split. Output: top three splits with role assignments and explanation.
   cost(player) = config.balance.offRolePenalty * (1 + config.balance.fillProtectionFactor / (gamesSinceLastFill + 1))
   ```
 
-  with `offRolePenalty` 120 and `fillProtectionFactor` **1.0**: 240 display points for somebody filled in their
+  with `offRolePenalty` 120 and `fillProtectionFactor` **1.0**: 240 Rating points for somebody filled in their
   last game, 180 one game later, 150 after three, 132 after nine, decaying back to the flat 120. `gamesSinceLastFill`
   is a per-player input on `BalancePlayer` (`number | null`); `null`, absent, or not a finite number — never filled,
   or no history to read — is the flat 120, which is M1.4's behaviour unchanged, and the worked example does not move.
@@ -632,10 +640,15 @@ split. Output: top three splits with role assignments and explanation.
   sweeps of 4,000 random ten-player lobbies put the rate at 1.35% and 1.07% (both directions counted; the exact
   figure depends on how the lobbies are generated). Treat `offRoleCount` as free to move when reasoning about a
   tuning change.
-- `blueWinProb` from OpenSkill `predictWin` on the actual `{ mu, sigma }` values.
+- `blueWinProb = winProbability(Σ blue r, Σ red r, calib)` on the **plain** Ratings, not the role-weighted sums:
+  the gap prices role fit, the odds are the fold's expected. For a roster unchanged since the roll with no game
+  folded in between, the split's stored blue chance equals the fold's blue `fold_p` (to 1e-9 in the tests).
+  `calib` changes the odds only, never which splits are chosen. `preGameOdds` (a game with no split) reads the ten
+  stored `r_before` through the same function.
 - Explanation string is built in core. Split 1 of the worked example (`00-product.md`, full arithmetic in
-  `02-milestones.md` M1.4) reads: `"Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and
-  Omar, gap 170."` The "swap" line is derived by diffing split 1 and split 2.
+  `02-milestones.md` M1.4; Ratings `r = mu × 60` of that roster) reads: `"Blue favored 56%. Everyone on a main
+  role. Gap 100. Next best: swap Hana and Omar, gap 170."` (54% under OpenSkill; the same three splits, gaps 100 /
+  170 / 220, now 56 / 60 / 63%.) The "swap" line is derived by diffing split 1 and split 2.
 - Reroll returns split 2, then 3. Never random.
 - Fewer than ten or more than ten players is an error at this layer; the API decides who sits (see below).
 
