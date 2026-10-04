@@ -92,7 +92,8 @@ function expectSplit(split: Split | undefined, expected: typeof SPLIT_1): void {
 
 describe('config.balance', () => {
   it('pins the spec constants so a tuning change is a one-line diff with a test update', () => {
-    expect(config.balance.roleMultiplier).toEqual({ main: 1.0, secondary: 0.93, fill: 0.85 });
+    // M18.13: a flat drop in Rating points replaced the 1.0 / 0.93 / 0.85 multipliers.
+    expect(config.balance.roleDrop).toEqual({ main: 0, secondary: 84, fill: 180 });
     expect(config.balance.offRolePenalty).toBe(120);
     expect(config.balance.repeatSplitPenalty).toBe(200);
     expect(config.balance.fillProtectionFactor).toBe(1.0);
@@ -213,16 +214,17 @@ describe('balance: Kustom Ratings (M18.2)', () => {
     },
   );
 
-  it('scores the gap on r × role multiplier, but the odds on the plain Ratings the fold reads', () => {
-    // Yuki on top puts Omar on support at 0.93: the role-weighted gap is 98, while the plain
-    // totals differ by more. The odds must be the plain ones, or they could never equal fold_p.
+  it('scores the gap on r − role drop, but the odds on the plain Ratings the fold reads', () => {
+    // Yuki on top puts Omar on support at his backup: the role-adjusted gap is 116 (M18.13: 98
+    // under 0.93; a flat 84 takes less off Omar's 1469.4 than 7% did), while the plain totals
+    // differ by more. The odds must be the plain ones, or they could never equal fold_p.
     const players = withRoster({ Yuki: { roleOverride: 'top' } });
     const [first] = balance({ players }).splits;
     if (first === undefined) throw new Error('missing split');
     const blue = totalOf(first.blue, players);
     const red = totalOf(first.red, players);
-    expect(first.gap).toBe(98);
-    expect(Math.round(Math.abs(blue - red))).not.toBe(98);
+    expect(first.gap).toBe(116);
+    expect(Math.round(Math.abs(blue - red))).not.toBe(116);
     expect(first.blueWinProb).toBe(winProbability(blue, red));
   });
 
@@ -319,15 +321,20 @@ describe('balance: duos', () => {
     expect(splits[0]?.offRoleCount).toBe(0);
   });
 
-  it('locking the two top mains together forces someone off-role: gap 26, 2 off-role', () => {
+  it('locking the two top mains together forces someone off-role: gap 32, 2 off-role', () => {
     const { splits } = balance({ players: ROSTER, duos: [[id('Hana'), id('Omar')]] });
     const first = splits[0];
     if (first === undefined) throw new Error('missing split');
-    expect(first.gap).toBe(26);
+    // M18.13: gap 26 -> 32, the same two teams with flat drops instead of 0.93 / 0.85.
+    expect(first.gap).toBe(32);
     expect(first.offRoleCount).toBe(2);
     const all = [...first.blue, ...first.red];
     expect(all.find((a) => a.puuid === id('Hana'))?.role).toBe('mid');
-    expect(all.find((a) => a.puuid === id('Nadia'))?.role).toBe('top');
+    // M18.13: red's top fill is Karim (1551), no longer Nadia (1266). Both are mid mains with no
+    // top backup, so under a flat drop the seat costs them the same and the stable order picks;
+    // under 0.85 the weaker Nadia was always the cheaper fill.
+    expect(all.find((a) => a.puuid === id('Karim'))?.role).toBe('top');
+    expect(all.find((a) => a.puuid === id('Nadia'))?.role).toBe('mid');
   });
 
   it('accepts a duo given in either order and a duo chain as one block', () => {
@@ -411,9 +418,9 @@ describe('balance: repeat-split penalty', () => {
     expectSplit(splits[1], SPLIT_3);
     expect(splits[1]?.gap).toBe(220);
     // Brief: the base split 1 now scores 99.6 + 200 = 299.6 and falls to fourth behind an
-    // off-role split scoring 244.92.
+    // off-role split scoring 249.6 (M18.13: 244.92 under the multipliers; flat drops, gap 5 -> 10).
     expect(splits[2]?.offRoleCount).toBe(2);
-    expect(splits[2]?.score).toBeCloseTo(244.92, 6);
+    expect(splits[2]?.score).toBeCloseTo(249.6, 6);
   });
 
   it('ignores side colour: passing the red five gives the same result', () => {
@@ -457,14 +464,16 @@ describe('balance: role edge cases', () => {
     });
     const first = splits[0];
     if (first === undefined) throw new Error('missing split');
-    expect(first.gap).toBe(98);
+    // M18.13: the same split; gap 98 -> 116 (Omar's backup seat drops a flat 84, not 7%).
+    expect(first.gap).toBe(116);
     expect(first.offRoleCount).toBe(1);
     expect(sideOf(first.red).top).toBe('Yuki');
     expect(sideOf(first.blue).support).toBe('Omar');
-    // M18.2: 62% is winProbability of the plain Rating totals (Omar's 0.93 seat weighs on the
-    // gap, not the odds the fold will use); OpenSkill said 58%.
+    // M18.2: 62% is winProbability of the plain Rating totals (Omar's backup seat weighs on the
+    // gap, not the odds the fold will use); OpenSkill said 58%. M18.13: the next best is the
+    // old third split (gap 5 -> 10), which now edges the old second (gap 4 -> 16).
     expect(explanations[0]).toBe(
-      'Blue favored 62%. Omar off-role at support. Gap 98. Next best: 2 swaps, gap 4 with 2 off-role.',
+      'Blue favored 62%. Omar off-role at support. Gap 116. Next best: 2 swaps, gap 10 with 2 off-role.',
     );
   });
 
@@ -510,16 +519,17 @@ describe('balance: role edge cases', () => {
       }).length;
       expect(split.offRoleCount).toBe(byHand);
     }
-    // Split 1 and 2 are the base ones; split 3 is the 98-gap split from the override test,
-    // where the flexible Yuki simply takes top (the base split 3 at 219.6 is now fourth).
-    expect(splits.map((sp) => sp.gap)).toEqual([100, 170, 98]);
-    expect(splits[2]?.offRoleCount).toBe(1);
-    expect(sideOf(splits[2]?.red ?? []).top).toBe('Yuki');
+    // M18.13: all three are the base splits now. The override test's split, with Yuki on top
+    // and Omar at his backup, scored 217.5 under 0.93 and beat the base split 3 (219.6); with
+    // the flat drop it scores 236.4 and falls to fourth.
+    expect(splits.map((sp) => sp.gap)).toEqual([100, 170, 220]);
+    expect(splits.map((sp) => sp.offRoleCount)).toEqual([0, 0, 0]);
+    expect(sideOf(splits[2]?.red ?? []).support).toBe('Yuki');
   });
 
-  it('a main with no secondary is fill (0.85) and off-role everywhere else', () => {
+  it('a main with no secondary is fill (−180) and off-role everywhere else', () => {
     // Ten identical top mains, Rating 1500, no backups. Each team: one on top at
-    // 1500, four fill at 1275; sums are equal, so gap 0 and score = 8 * 120 = 960.
+    // 1500, four fill at 1320; sums are equal, so gap 0 and score = 8 * 120 = 960.
     const tops: BalancePlayer[] = ROSTER.map((p) => ({
       ...p,
       r: 1500,
@@ -531,13 +541,13 @@ describe('balance: role edge cases', () => {
     expect(all.splits[0]?.offRoleCount).toBe(8);
     expect(all.splits[0]?.score).toBe(960);
     expect(all.explanations[0]?.startsWith('Even 50%. 8 off-role: ')).toBe(true);
-    // Give one player a mid backup: they play mid at 0.93 (1395, +120 over fill), still off-role,
-    // so every split now has gap 120 and score 1080.
+    // Give one player a mid backup: they play mid at 1500 − 84 (1416, +96 over fill; M18.13,
+    // was 1395 and +120 under 0.93), still off-role, so every split has gap 96 and score 1056.
     const oneBackup = tops.map((p) => (p.name === 'Hana' ? { ...p, secondaryRole: 'mid' as const } : p));
     const some = balance({ players: oneBackup });
-    expect(some.splits[0]?.gap).toBe(120);
+    expect(some.splits[0]?.gap).toBe(96);
     expect(some.splits[0]?.offRoleCount).toBe(8);
-    expect(some.splits[0]?.score).toBe(1080);
+    expect(some.splits[0]?.score).toBe(1056);
     const hana = [...(some.splits[0]?.blue ?? []), ...(some.splits[0]?.red ?? [])].find(
       (a) => a.puuid === id('Hana'),
     );
@@ -570,8 +580,8 @@ describe('balance: fill protection', () => {
 
   /**
    * Ten identical players, two mains per role except one mid and three supports. The cheapest
-   * splits put one fill on each side (a lone fill would hand its team a 0.85 player and a
-   * 225-point gap), so who gets filled is a free choice between equals.
+   * splits put one fill on each side (a lone fill would hand the other team a 180-point gap;
+   * 225 under the old 0.85, M18.13), so who gets filled is a free choice between equals.
    */
   const FILL_CHOICE: BalancePlayer[] = (
     [

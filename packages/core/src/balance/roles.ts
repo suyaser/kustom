@@ -31,7 +31,7 @@ export function resolveRoles(player: RoleProfile): ResolvedRoles {
   return { main: player.mainRole, secondary: player.secondaryRole };
 }
 
-/** Which multiplier a role earns for a player. `main` is never off-role; the others are. */
+/** Which `roleDrop` tier a role earns for a player. `main` is never off-role; the others are. */
 export function roleTier(player: RoleProfile, role: Role): RoleTier {
   const { main, secondary } = resolveRoles(player);
   if (main === null || role === main) return 'main';

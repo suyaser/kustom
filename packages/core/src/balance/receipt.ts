@@ -8,7 +8,7 @@
  */
 
 import { type KustomCalib, winProbability } from '../rating/kustom';
-import type { Assignment, Split } from './types';
+import type { Assignment, ScoreParts, Split } from './types';
 
 /** The two sides of a stored split: five `{ puuid, role }` each. */
 export interface SplitTeams {
@@ -78,6 +78,13 @@ export function describeSwap(chosen: SplitTeams, next: SplitTeams): SwapDescript
 export type RankedColumns = Pick<Split, 'gap' | 'offRoleCount'>;
 
 /**
+ * The same two columns plus the split's stored `score_parts` (M18.13), `null` for a row stored
+ * before the column existed. Passing these is what lets `whyLower` name variety, a repeat or
+ * recent fills instead of `role-costs`.
+ */
+export type ScoredColumns = RankedColumns & { scoreParts: ScoreParts | null };
+
+/**
  * Why the runner-up ranked below the chosen split, from the columns only (STRATEGY §4.4),
  * checked in this order:
  *
@@ -91,12 +98,62 @@ export type WhyLower =
   | { kind: 'gap'; chosenGap: number; nextGap: number }
   | { kind: 'role-costs' };
 
-export function whyLower(chosen: RankedColumns, next: RankedColumns): WhyLower {
+/**
+ * `WhyLower` plus the three terms stored score parts can name (M18.13), tried after `off-role`
+ * and `gap` and before falling back to `role-costs`:
+ *
+ * - `repeat`: the runner-up is the same five as the last teams (its `repeat` part is bigger).
+ * - `variety`: it puts more of the recent window's teammates together again; both pair counts.
+ * - `recent-fills`: its fills cost more (`offRole` part bigger) without more fills, which is
+ *   fill protection: it fills somebody who was filled recently.
+ *
+ * When more than one is bigger, the one with the biggest difference in points is named; a tie
+ * goes in the order above. `role-costs` stays for a row with no stored parts and for a runner-up
+ * no stored term explains (a raw gap a hair bigger that rounds to the same number).
+ */
+export type WhyLowerScored =
+  | WhyLower
+  | { kind: 'repeat' }
+  | { kind: 'variety'; chosenPairs: number; nextPairs: number }
+  | { kind: 'recent-fills' };
+
+/** A row that may carry stored parts: `ScoredColumns`, a `Split` from `balance`, or neither. */
+type MaybeScored = RankedColumns & { scoreParts?: ScoreParts | null | undefined };
+
+/**
+ * Two overloads, one rule. A row type with no `scoreParts` field gets exactly the pre-M18.13
+ * answer, so a page that never reads `score_parts` keeps compiling and keeps its copy; a row
+ * type that can carry parts (stored, `null`, or a `Split`) gets the wider answer, and its caller
+ * must word all of it.
+ */
+export function whyLower(
+  chosen: RankedColumns & { scoreParts?: undefined },
+  next: RankedColumns & { scoreParts?: undefined },
+): WhyLower;
+export function whyLower(chosen: MaybeScored, next: MaybeScored): WhyLowerScored;
+export function whyLower(chosen: MaybeScored, next: MaybeScored): WhyLowerScored {
   if (next.offRoleCount > chosen.offRoleCount) {
     return { kind: 'off-role', k: next.offRoleCount - chosen.offRoleCount };
   }
   if (next.gap > chosen.gap) return { kind: 'gap', chosenGap: chosen.gap, nextGap: next.gap };
-  return { kind: 'role-costs' };
+  const c = chosen.scoreParts ?? null;
+  const n = next.scoreParts ?? null;
+  if (c === null || n === null) return { kind: 'role-costs' };
+  const terms: readonly (readonly [number, WhyLowerScored])[] = [
+    [n.repeat - c.repeat, { kind: 'repeat' }],
+    [n.variety - c.variety, { kind: 'variety', chosenPairs: c.repeatedPairs, nextPairs: n.repeatedPairs }],
+    [n.offRole - c.offRole, { kind: 'recent-fills' }],
+  ];
+  let best: WhyLowerScored = { kind: 'role-costs' };
+  let bestDiff = 0;
+  for (const [diff, why] of terms) {
+    // Strictly bigger by more than float noise, so a tie keeps the earlier term.
+    if (diff > bestDiff + 1e-9) {
+      bestDiff = diff;
+      best = why;
+    }
+  }
+  return best;
 }
 
 /** STRATEGY §4.3's five bands, on the favored side's rounded percentage. */
