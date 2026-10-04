@@ -3,10 +3,11 @@ import type { Route } from 'next';
 import { describe, expect, it } from 'vitest';
 import { AiRecap } from '@/components/ai/AiRecap';
 import { AI_SCOUTING_LABEL, AI_SCOUTING_TAP } from '@/lib/ai/recapCopy';
-import type { PlayerBoardView } from '@/lib/board/types';
+import type { PlayerBoardView, RecentGame } from '@/lib/board/types';
 import type { KustomReason } from '@/lib/breakdown/read';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { workedPlayer, workedRecentGame } from '@/lib/testing/boardFixtures';
+import { visibleText, withoutSrOnly } from '@/lib/testing/visibleText';
 import { workedPuuid } from '@/lib/testing/workedExample';
 import { PlayerView, type PlayerViewProps } from './PlayerView';
 
@@ -98,26 +99,53 @@ describe('the public lens', () => {
     expect(screen.getByText('You')).toBeInTheDocument();
   });
 
-  it('M14.57: a week tab says +86 this week · W-L beside the all-time Rating', () => {
+  it('M18.7: a week tab leads with Points this week, the all-time Rating in the meta line (11.5)', () => {
+    const player = workedPlayer('Hana', {
+      window: 'this-week',
+      track: 'week',
+      points: 86,
+      games: 7,
+      wins: 5,
+      losses: 2,
+      settling: false,
+      reference: 0,
+      history: [0, 19, 3, 86],
+    });
+    const { container } = draw(player);
+    const lead = container.querySelector('[data-slot="week-points"]');
+    expect(visibleText(lead)).toBe('Points this week+86');
+    expect(within(lead as HTMLElement).getByText('86 points this week')).toBeInTheDocument();
+    expect(visibleText(container.querySelector('[data-slot="week-meta"]'))).toBe(
+      `7 games · 5W 2L · Rating ${player.rating}`,
+    );
+    // No `Started the week at` line: every week starts at 0 and the note says so.
+    expect(screen.queryByText(/Started the week at/)).toBeNull();
+    // The chart's reference line is `Week start`, and its words are the week's points.
+    expect(screen.getByText('Week start')).toBeInTheDocument();
+    expect(screen.getByRole('img')).toHaveAccessibleName('Points this week went from 0 to +86 over 3 rated games.');
+  });
+
+  it('M18.7: a week with no game keeps the Rating card and prints no ±0', () => {
     draw(
       workedPlayer('Hana', {
         window: 'this-week',
         track: 'week',
-        points: 86,
-        wins: 5,
-        losses: 2,
+        points: 0,
+        games: 0,
+        wins: 0,
+        losses: 0,
         settling: false,
+        history: [],
+        recent: [],
       }),
     );
-    expect(
-      screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === '+86gained 86 this week · 5W 2L'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/games ·/)).toBeNull();
+    expect(screen.queryByText('Points this week')).toBeNull();
+    expect(document.body.textContent).not.toContain('±0');
   });
 
   it('prints a week with its points note and no settling chip', () => {
     draw(workedPlayer('Hana', { window: 'this-week', track: 'week', points: 86, settling: false }));
-    expect(screen.getByText(/Points are the Rating won or lost in this week's games/)).toBeInTheDocument();
+    expect(screen.getByText(/Everyone starts the week at 0. This week's games only./)).toBeInTheDocument();
     expect(screen.queryByText(/settling ·/)).not.toBeInTheDocument();
   });
 });
@@ -153,7 +181,7 @@ describe('M14.58 / M14.59: each game explains its change', () => {
     expect(within(screen.getByRole('link', { name: /Lost/ })).queryByRole('button')).toBeNull();
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
-    expect(button.closest('li')).toHaveTextContent(
+    expect(withoutSrOnly(button.closest('li'))).toHaveTextContent(
       "Hana's side lost as the 58% favourite, so the loss cost 16 × 58% = 9. Their game was 3rd best on their team: ×1.",
     );
   });
@@ -368,5 +396,168 @@ describe('the AI scouting report (M16.6)', () => {
   it('draws nothing at all when the page passes none (a group without Premium)', () => {
     draw(workedPlayer());
     expect(document.body.textContent).not.toMatch(/AI scouting report|AI recap|Premium/);
+  });
+});
+
+describe('M18.7: the week tab (05-design 11.5, 11.6.3)', () => {
+  const firstOfWeek: KustomReason = {
+    track: 'week',
+    gamesBefore: 0,
+    allTime: { points: 8, rating: 1300 },
+    parts: {
+      side: 200,
+      result: 'win',
+      expectedPct: 50,
+      k: 32,
+      firstTenGames: true,
+      shareRank: 1,
+      share: 1.2,
+      award: 'mvp',
+      points: 19,
+    },
+  };
+  const thirdOfWeek: KustomReason = {
+    track: 'week',
+    gamesBefore: 2,
+    allTime: { points: 7, rating: 1307 },
+    parts: {
+      side: 200,
+      result: 'win',
+      expectedPct: 56,
+      k: 28.8,
+      firstTenGames: true,
+      shareRank: 3,
+      share: 1,
+      award: 'none',
+      points: 13,
+    },
+  };
+  const allTimeReason: KustomReason = {
+    track: 'all-time',
+    gamesBefore: 30,
+    allTime: null,
+    parts: { ...firstOfWeek.parts, expectedPct: 56, k: 16, firstTenGames: false, points: 8 },
+  };
+  // Three games, newest first: +13, −16, +19 printed weekly changes; the week reads +16.
+  const games = [
+    workedRecentGame({
+      gameId: 'g3',
+      side: 200,
+      winningSide: 200,
+      won: true,
+      blueWinProb: 0.44,
+      rBefore: 1300.4,
+      rAfter: 1307.2,
+      weekRBefore: 1203.1,
+      weekRAfter: 1216.4,
+      reason: thirdOfWeek,
+    }),
+    workedRecentGame({
+      gameId: 'g2',
+      side: 100,
+      winningSide: 200,
+      won: false,
+      rBefore: 1308,
+      rAfter: 1300.4,
+      weekRBefore: 1219.2,
+      weekRAfter: 1203.1,
+      reason: null,
+    }),
+    workedRecentGame({
+      gameId: 'g1',
+      side: 200,
+      winningSide: 200,
+      won: true,
+      blueWinProb: 0.44,
+      award: 'mvp',
+      rBefore: 1291.6,
+      rAfter: 1300,
+      weekRBefore: 1200,
+      weekRAfter: 1219.2,
+      reason: firstOfWeek,
+    }),
+  ];
+  const weekPlayer = (overrides: Partial<PlayerBoardView> = {}) =>
+    workedPlayer('Hana', {
+      window: 'this-week',
+      track: 'week',
+      points: 16,
+      games: 3,
+      wins: 2,
+      losses: 1,
+      settling: false,
+      reference: 0,
+      history: [0, 19, 3, 16],
+      weekTotal: 16,
+      recent: games,
+      ...overrides,
+    });
+  const openPanel = (name: string): HTMLElement => {
+    const button = screen.getByRole('button', { name });
+    fireEvent.click(button);
+    return document.getElementById(button.getAttribute('aria-controls') as string) as HTMLElement;
+  };
+  const gameRows = () => within(screen.getByRole('region', { name: 'Recent games' })).getAllByRole('listitem');
+  /** A row as it reads closed: no spoken words, no (hidden) Why panel. */
+  const rowText = (row: HTMLElement): string => {
+    const clone = withoutSrOnly(row);
+    for (const panel of Array.from(clone.querySelectorAll('[data-slot="why-panel"]'))) panel.remove();
+    return clone.textContent ?? '';
+  };
+
+  it('prints only the weekly change per game under a This week label, and the total equals the header', () => {
+    const { container } = draw(weekPlayer(), { viewerPuuid: HANA });
+    expect(visibleText(container.querySelector('[data-slot="week-column-label"]'))).toBe('This week');
+    const changes = gameRows().map((row) => rowText(row).match(/[+−]\d+/g));
+    // One change per row, and no all-time Rating after (that lives on All time).
+    expect(changes).toEqual([['+13'], ['−16'], ['+19']]);
+    expect(gameRows().map((row) => /\b1[23]\d\d\b/.test(rowText(row)))).toEqual([false, false, false]);
+    const sum = changes.reduce((total, found) => total + Number((found?.[0] ?? '0').replace('−', '-')), 0);
+    expect(sum).toBe(16);
+    expect(visibleText(container.querySelector('[data-slot="week-total"]'))).toBe('Week total+16');
+    expect(visibleText(container.querySelector('[data-slot="week-points"]'))).toBe('Points this week+16');
+  });
+
+  it('says the track in every spoken change', () => {
+    draw(weekPlayer(), { viewerPuuid: HANA });
+    expect(screen.getByRole('button', { name: 'gained 19 this week. Why?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'gained 13 this week. Why?' })).toBeInTheDocument();
+    expect(screen.getByText('lost 16 this week')).toBeInTheDocument();
+    expect(screen.getByText('16 points this week', { selector: '[data-slot="week-total"] *' })).toBeInTheDocument();
+  });
+
+  it("explains the weekly change with the week's numbers, then the all-time change in one labelled clause", () => {
+    draw(weekPlayer(), { viewerPuuid: HANA });
+    const panel = openPanel('gained 19 this week. Why?');
+    expect(withoutSrOnly(panel)).toHaveTextContent(
+      "On this week's numbers it was an even game (50%), so the win was worth 32 × 50% = 16. You had the best game on your team (MVP): ×1.2. Everyone's first 10 games of a week count extra (×32 instead of ×16). All time: +8, to 1300.",
+    );
+  });
+
+  it("drops On this week's numbers when the week's odds are the row's printed roll odds", () => {
+    draw(weekPlayer(), { viewerPuuid: HANA });
+    // Red was 56% on the row (blue 44%), and the week's own odds said 56% too.
+    expect(withoutSrOnly(openPanel('gained 13 this week. Why?'))).toHaveTextContent(
+      /^Your side won as the 56% favourite/,
+    );
+  });
+
+  it('a paged week (no weekTotal) drops the total row', () => {
+    const { container } = draw(weekPlayer({ weekTotal: null }));
+    expect(container.querySelector('[data-slot="week-total"]')).toBeNull();
+  });
+
+  it('All time keeps the Rating after and the all-time change, with no week clause and no column label', () => {
+    const lastGame = games[2] as RecentGame;
+    const { container } = draw(workedPlayer('Hana', { recent: [{ ...lastGame, reason: allTimeReason }] }), {
+      viewerPuuid: HANA,
+    });
+    expect(container.querySelector('[data-slot="week-column-label"]')).toBeNull();
+    expect(rowText(gameRows()[0] as HTMLElement)).toContain('1300');
+    const panel = openPanel('gained 8. Why?');
+    expect(withoutSrOnly(panel)).toHaveTextContent(
+      'Your side won as the 56% favourite, so the win was worth 16 × 44% = 7. You had the best game on your team (MVP): ×1.2.',
+    );
+    expect(panel.textContent).not.toContain('All time:');
   });
 });

@@ -883,7 +883,8 @@ describe('a board post on a week', () => {
   });
 
   it('interpolates no game count into either footer', () => {
-    expect(WEEK_BOARD_SENTENCE_SHORT).not.toMatch(/\d/);
+    // M18.7: the only digit is the week's fixed start, `0` (05-design 11.4); no count is interpolated.
+    expect(WEEK_BOARD_SENTENCE_SHORT.replace("starts the week at 0", "")).not.toMatch(/\d/);
     expect(
       windowSummaryEmbed(workedWindowInput({ track: 'week', entries: weekly().entries })).embeds[0]?.footer
         ?.text,

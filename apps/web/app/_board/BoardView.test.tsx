@@ -127,7 +127,7 @@ describe('the ranked list and the settling section', () => {
     draw(workedWindowBoard('this-week'));
     expect(screen.queryByRole('heading', { name: 'Still settling' })).not.toBeInTheDocument();
     expect(screen.queryByText(/settling ·/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Points are the Rating won or lost in the week's games/)).toBeInTheDocument();
+    expect(screen.getByText(/Everyone starts the week at 0. Points come from this week's games only/)).toBeInTheDocument();
   });
 
   it('M14.57: names the sorted number once, Points this week / Points last week; All time has none', () => {
@@ -180,7 +180,7 @@ describe('a row', () => {
     draw(workedWindowBoard('last-week'));
     const lena = screen.getByRole('link', { name: /Lena/ });
     expect(lena).toHaveTextContent('6 games · 4W 2L');
-    expect(within(lena).getByText('gained 58')).toBeInTheDocument();
+    expect(within(lena).getByText('58 points last week')).toBeInTheDocument();
     expect(lena).toHaveTextContent('+58');
   });
 

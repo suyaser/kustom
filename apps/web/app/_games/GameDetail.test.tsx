@@ -10,6 +10,7 @@ import {
 import type { GameBreakdown } from '@/lib/breakdown/load';
 import type { KustomReason } from '@/lib/breakdown/read';
 import type { DetailSeat, DetailTeam, GameDetailView } from '@/lib/games/detail';
+import { visibleText, withoutSrOnly } from '@/lib/testing/visibleText';
 
 import { GameDetail } from './GameDetail';
 
@@ -272,7 +273,7 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(panel).toBeVisible();
-    expect(panel).toHaveTextContent(
+    expect(withoutSrOnly(panel)).toHaveTextContent(
       'Your side lost as the 62% favourite, so the loss cost 16 × 62% = 10. You had the best game on your team (ACE), so you gave back least: ×0.8.',
     );
     expect(panel).toHaveTextContent('Upsets and first games move the most.');
@@ -283,7 +284,7 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
     const name = FIXTURE_NAMES[redFirst] as string;
     const redTeam = screen.getByRole('region', { name: 'Red team' });
     fireEvent.click(within(redTeam).getByRole('button', { name: 'gained 14. Why?' }));
-    expect(redTeam).toHaveTextContent(
+    expect(withoutSrOnly(redTeam)).toHaveTextContent(
       `It was an even game for ${name}'s side (50%), so the win was worth 27 × 50% = 14. This game has no performance score, so everyone counts ×1. Their first 10 games count extra while their Rating finds its level (×27 instead of ×16).`,
     );
   });
@@ -293,7 +294,7 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
     const buttons = screen.getAllByRole('button', { name: /Why\?$/ });
     expect(buttons).toHaveLength(2);
     for (const button of buttons) fireEvent.click(button);
-    const text = screen.getByRole('region', { name: 'Scoreboard' }).textContent ?? '';
+    const text = visibleText(screen.getByRole('region', { name: 'Scoreboard' }));
     expect(text).not.toMatch(/sigma|σ/i);
     // The one decimal allowed is a share multiplier (`×0.8`, 05-design 11.6).
     expect(text.replace(/\d+\.\d+k/g, '').replace(/×\d\.\d/g, '')).not.toMatch(/\d\.\d/);

@@ -25,6 +25,7 @@ import {
   TOP_TITLE,
   YOUR_SIDE_TAG,
 } from '@/lib/tonight/screenCopy';
+import { visibleText } from '@/lib/testing/visibleText';
 import { SIT_OUT_VIEWER_LEAD } from '@/lib/tonight/sitOut';
 import {
   ADMIN_VIEWER,
@@ -667,7 +668,7 @@ function numbersBesideNames(container: HTMLElement, names: readonly string[]): M
     const row = element.closest('li') ?? element.closest('p');
     if (row === null) continue;
     const set = seen.get(own) ?? new Set<string>();
-    for (const n of fourDigits(row.textContent ?? '')) set.add(n);
+    for (const n of fourDigits(visibleText(row))) set.add(n);
     seen.set(own, set);
   }
   return seen;
@@ -677,9 +678,9 @@ describe('M14.41 gap 1: one Rating per person', () => {
   it('Top this week shows W-L and the change, never a four-digit number', () => {
     draw('finished');
     const top = screen.getByRole('region', { name: TOP_TITLE });
-    expect(fourDigits(top.textContent ?? '').size).toBe(0);
+    expect(fourDigits(visibleText(top)).size).toBe(0);
     expect(within(top).getAllByText('4W 2L')).toHaveLength(5);
-    expect(within(top).getAllByText('gained 58')).toHaveLength(5);
+    expect(within(top).getAllByText("58 points this week")).toHaveLength(5);
   });
 
   it('finished, weekly rating != group rating: no name beside two different four-digit numbers', () => {

@@ -96,7 +96,7 @@ function Row({
         </span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <RecordLine games={row.games} wins={row.wins} losses={row.losses} />
-          {row.settlingChip ? <Chip variant="settling">{settlingChip(row.ratedGames)}</Chip> : null}
+          {row.settling || row.settlingChip ? <Chip variant="settling">{settlingChip(row.ratedGames)}</Chip> : null}
           {row.awards.map((award) => (
             <Chip key={award}>{award}</Chip>
           ))}
