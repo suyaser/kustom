@@ -6,6 +6,7 @@ import {
   calibrationGameOf,
   gameReceiptOf,
   type ReceiptSeat,
+  splitSidesOf,
   teamsMatchSplit,
 } from './receipt';
 
@@ -42,6 +43,31 @@ describe('teamsMatchSplit', () => {
       teamsMatchSplit(split(1), seats(['r1', 'b2', 'b3', 'b4', 'b5'], ['b1', 'r2', 'r3', 'r4', 'r5'])),
     ).toBe(false);
     expect(teamsMatchSplit(split(1), seats(BLUE, RED.slice(0, 4)))).toBe(false);
+  });
+});
+
+describe('splitSidesOf (M21.4)', () => {
+  it('same: the split on its own sides, whatever order or lanes', () => {
+    expect(splitSidesOf(split(1), seats([...BLUE].reverse(), RED))).toBe('same');
+  });
+
+  it("swapped: the split's two teams on each other's sides; teamsMatchSplit stays false", () => {
+    expect(splitSidesOf(split(1), seats(RED, BLUE))).toBe('swapped');
+    expect(teamsMatchSplit(split(1), seats(RED, BLUE))).toBe(false);
+  });
+
+  it('different: two people traded, a player missing, or a smaller game that is not the split', () => {
+    expect(splitSidesOf(split(1), seats(['r1', 'b2', 'b3', 'b4', 'b5'], ['b1', 'r2', 'r3', 'r4', 'r5']))).toBe(
+      'different',
+    );
+    expect(splitSidesOf(split(1), seats(BLUE, RED.slice(0, 4)))).toBe('different');
+    expect(splitSidesOf(split(1), seats(BLUE.slice(0, 3), RED.slice(0, 3)))).toBe('different');
+  });
+
+  it('a smaller split matches a smaller game, swapped too', () => {
+    const small = split(1, {}, BLUE.slice(0, 3), RED.slice(0, 3));
+    expect(splitSidesOf(small, seats(BLUE.slice(0, 3), RED.slice(0, 3)))).toBe('same');
+    expect(splitSidesOf(small, seats(RED.slice(0, 3), BLUE.slice(0, 3)))).toBe('swapped');
   });
 });
 
