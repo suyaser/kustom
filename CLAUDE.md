@@ -50,6 +50,7 @@ pnpm --filter web mint-token <puuid> [label] [--group <slug>]
                              # imports 'server-only'. Any new script importing a server-only module
                              # needs the same flag.
 pnpm --filter web set-premium <slug> on|off [--cap <usd>] [--hosted]  # M16.2: the only writer of groups.premium / ai_monthly_cap_usd (service role, .env.local); prints URL + before/after, idempotent; refuses a non-local URL without --hosted
+pnpm --filter web patch-notes-image <out.png>  # the one-time Kustom 2.0 patch notes picture, 1920x1080 PNG (words in apps/web/scripts/patch-notes/notes.ts, the week notes picture's look); dev only, no route, no env
 pnpm --filter web ddragon-fixture [--from <champion.json>]  # M15.4: regenerates the pinned Data Dragon fixture and lib/champs/tags.ts (deterministic)
 pnpm --filter web seed-regions [--meraki <champions.json>] [--check-universe]  # M15.9: reseeds lib/champs/regions.ts from Meraki lolstaticdata, offline, by hand; never fetched at runtime
 # AI_PROVIDER=deepseek|anthropic + DEEPSEEK_API_KEY / ANTHROPIC_API_KEY (server only, Vercel Production only): Kustom Premium's AI lines (DeepSeek V4 Pro by default since 2026-10-04); AI_PROVIDER unset = DeepSeek if its key is set, else Claude; set = only that provider's key; no key or a typo = AI silently off. Kill switch, no deploy: update public.ai_settings set calls_enabled = false;
