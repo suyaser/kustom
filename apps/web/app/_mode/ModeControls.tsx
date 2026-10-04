@@ -9,7 +9,7 @@ import {
   ruleOptionOf,
   setGroupModeResponseSchema,
 } from '@customs/db/schemas';
-import { type FormEvent, useEffect, useId, useState } from 'react';
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -56,8 +56,14 @@ import {
   SPINNING,
   TOO_FEW_OPEN,
 } from '@/lib/mode/ruleCopy';
-import { NOTHING_TO_SPIN, ratedNotice, ruleChosenNotice, standingNotice } from '@/lib/mode/ruleNotices';
-import { SPIN_BROADCAST_EVENT, SPIN_REVEAL_EVENT } from '@/lib/mode/spinEvents';
+import {
+  NOTHING_TO_SPIN,
+  RULE_TOO_FEW_OPEN,
+  ratedNotice,
+  ruleChosenNotice,
+  standingNotice,
+} from '@/lib/mode/ruleNotices';
+import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { requestTonightRefresh } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
 
@@ -77,8 +83,13 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  *   everyone). `Normal`, `Fearless`, then the rule optgroups (M15.5); a rule too small under
  *   Fearless is a disabled option with ` (too few open)`. Picking Normal or Fearless clears a
  *   pending rule (R1). The button shows once the choice differs; without JS it is always there.
+ *   With JS a confirmed choice **answers on its own** (QA fix 2026-10-04, like the Rated switch):
+ *   the route's answer becomes the select's value at its version, so the button goes away at once
+ *   and cannot re-post the same choice while the page re-reads.
  * - **`Spin`** (M15.5, R3): the server picks; the card reveals the answer here and on every open
  *   page (the Realtime broadcast). Without JS it is a form post and the page reloads on the result.
+ *   With JS it stays quiet (`aria-disabled`) from the tap until its own reveal has played (the page
+ *   has re-read the spin's version, then the reveal's cycle), so a double tap never writes twice.
  * - **`Rated`** (M15.5, R9): a switch for the next game, in any mode; a submit button with
  *   `role="switch"`, so it works as a form post with no JS. With JS it **answers on its own**
  *   (prod fix 2026-10-04, "I tap it and nothing changes"): it flips on the tap, takes the route's
@@ -89,7 +100,11 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  * - **`Reset fearless`** while the standing mode is Fearless and the pool has a ban.
  * - After Roll every change is for the next game: `Changes apply from the next game.` and
  *   `Next game: Mages only.` (the page's `nextLine`).
- * - Outcomes show in place (`role="status"`, a refusal `role="alert"`), never as a toast.
+ * - Outcomes show in place, never as a toast; a refusal is `role="alert"`. The outcome line is not
+ *   a live region: Tonight's Announcer speaks the card's change once (QA fix 2026-10-04).
+ * - **Focus never drops to the page** (QA fix 2026-10-04): a confirmed Set mode hides its button,
+ *   so focus moves to the select; a reset closes its dialog and its trigger goes with the bans, so
+ *   focus moves to the outcome line (`tabIndex={-1}`).
  */
 export interface ModeControlsProps {
   groupId: string;
@@ -144,6 +159,8 @@ export function ModeControls({
   const [pending, setPending] = useState<'mode' | 'spin' | 'rated' | null>(null);
   const [said, setSaid] = useState<string | null>(notice ?? null);
   const [failed, setFailed] = useState<string | null>(error ?? null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const statusRef = useRef<HTMLParagraphElement>(null);
 
   // The switch's own answer since its last tap (see the doc comment): `pending` while the write
   // is in flight, `confirmed` with the route's version once it answered, null for the page's value.
@@ -151,13 +168,33 @@ export function ModeControls({
   const rated =
     ratedLocal === null
       ? nextRated
-      : ratedLocal.kind === 'confirmed' && version !== undefined && version >= ratedLocal.version
+      : ratedLocal.kind === 'confirmed' && pageCaughtUp(version, ratedLocal.version)
         ? nextRated
         : ratedLocal.rated;
 
+  // The select's confirmed value since the last Set mode or Spin (the route's answer at its
+  // version), the same handback: the page's `selected` wins again once it is at least as new.
+  const [modeLocal, setModeLocal] = useState<{ value: string; version: number } | null>(null);
+  const current =
+    modeLocal !== null && !pageCaughtUp(version, modeLocal.version) ? modeLocal.value : selected;
+
+  // Spin's own reveal: from the tap until the page has re-read the spin and the reveal has cycled.
+  const [spinHeld, setSpinHeld] = useState<{ version: number } | null>(null);
+
   useEffect(() => setHydrated(true), []);
   // A Realtime change from another admin moves the select with the card.
-  useEffect(() => setChoice(selected), [selected]);
+  useEffect(() => setChoice(current), [current]);
+  useEffect(() => {
+    if (spinHeld === null) return;
+    // Once the page has the spin, the reveal cycles; a page that never re-reads (Realtime down)
+    // still frees Spin after the reveal's own wait.
+    const caughtUp = pageCaughtUp(version, spinHeld.version);
+    const timer = setTimeout(
+      () => setSpinHeld(null),
+      caughtUp ? SPIN_CYCLE_MS : SPIN_WAIT_MS + SPIN_CYCLE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [spinHeld, version]);
 
   async function post(
     action: string,
@@ -186,18 +223,22 @@ export function ModeControls({
 
   async function setMode(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (pending !== null || choice === selected) return;
+    if (pending !== null || choice === current) return;
     const result = await post(MODE_ACTION, { mode: choice }, 'mode');
     if (!result.ok) {
-      setFailed(MODE_CHANGE_FAILED);
-      setChoice(selected);
+      // 409: the server's rule check (a page older than the pool, QA fix 2026-10-04).
+      setFailed(result.status === 409 ? RULE_TOO_FEW_OPEN : MODE_CHANGE_FAILED);
+      setChoice(current);
       return;
     }
+    confirm(choice, result.next);
+    // The button goes with the confirmed choice: keep focus on the select, never <body>.
+    selectRef.current?.focus();
     const rule = ruleOptionOf(choice as ModeChoice);
     // The rule's default rated flag is the server's; the card and the announcer say it on refresh.
     setSaid(
       rule === null
-        ? standingNotice(choice as GroupMode, selected !== mode)
+        ? standingNotice(choice as GroupMode, current !== mode)
         : ruleChosenNotice(rule, modeRatedDefault(rule.id)),
     );
     requestTonightRefresh();
@@ -205,19 +246,28 @@ export function ModeControls({
 
   async function spin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (pending !== null) return;
+    if (pending !== null || spinHeld !== null) return;
     const result = await post(SPIN_ACTION, {}, 'spin');
     if (!result.ok) {
       setFailed(result.status === 409 ? NOTHING_TO_SPIN : MODE_CHANGE_FAILED);
       return;
     }
+    setSpinHeld({ version: result.next?.version ?? (version ?? 0) + 1 });
     if (result.spun !== null) {
       const rule = ruleKey(result.spun);
+      confirm(rule, result.next);
       // This page's reveal is the route's own answer (`local`); the broadcast is checked by others.
       window.dispatchEvent(new CustomEvent(SPIN_REVEAL_EVENT, { detail: { rule, source: 'local' } }));
       window.dispatchEvent(new CustomEvent(SPIN_BROADCAST_EVENT, { detail: { rule } }));
     }
     requestTonightRefresh();
+  }
+
+  /** A Set mode or Spin the route confirmed: the select's value, and the switch reset with it (R1). */
+  function confirm(value: string, next: NextGame | null): void {
+    const written = next?.version ?? (version ?? 0) + 1;
+    setModeLocal({ value, version: written });
+    if (next !== null) setRatedLocal({ kind: 'confirmed', rated: next.rated, version: next.version });
   }
 
   async function flipRated(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -241,7 +291,8 @@ export function ModeControls({
     requestTonightRefresh();
   }
 
-  const showSet = !hydrated || choice !== selected;
+  const showSet = !hydrated || choice !== current;
+  const spinBusy = pending === 'spin' || spinHeld !== null;
   // Design round 1: `Next game: Mages only.` already says it; don't repeat `Changes apply…` under it.
   const afterRoll = inGame && nextLine === null;
   const chosenRule = ruleOptionOf(choice as ModeChoice);
@@ -280,6 +331,7 @@ export function ModeControls({
         <div className="flex flex-col gap-2 @[520px]:flex-row @[520px]:items-center">
           <NativeSelect
             id={selectId}
+            ref={selectRef}
             name="mode"
             value={choice}
             aria-describedby={sentenceId}
@@ -304,8 +356,8 @@ export function ModeControls({
               </Button>
             ) : null}
             {/* Spin sits on the select's row (8.4.2), in its own form so it posts with no JS. */}
-            <Button type="submit" form={`${selectId}-spin`} variant="secondary" pending={pending === 'spin'}>
-              {pending === 'spin' ? SPINNING : SPIN}
+            <Button type="submit" form={`${selectId}-spin`} variant="secondary" pending={spinBusy}>
+              {spinBusy ? SPINNING : SPIN}
             </Button>
           </div>
         </div>
@@ -364,7 +416,13 @@ export function ModeControls({
       </form>
 
       {mode === 'fearless' && banned > 0 ? (
-        <ResetFearless groupId={groupId} banned={banned} confirmHref={resetConfirmHref} onSaid={setSaid} />
+        <ResetFearless
+          groupId={groupId}
+          banned={banned}
+          confirmHref={resetConfirmHref}
+          onSaid={setSaid}
+          onClosed={() => statusRef.current?.focus()}
+        />
       ) : null}
 
       {failed === null ? null : (
@@ -372,11 +430,19 @@ export function ModeControls({
           {failed}
         </p>
       )}
-      <p role="status" className="text-sm empty:hidden">
+      {/* No live region here (QA fix 2026-10-04): Tonight's one Announcer says every outcome when
+          the card re-reads, so a role="status" here said each one twice. A reset's line is read
+          because focus moves to it. */}
+      <p ref={statusRef} tabIndex={-1} data-slot="mode-outcome" className="text-sm empty:hidden">
         {said}
       </p>
     </div>
   );
+}
+
+/** The page has re-read at least as new as a write of ours (`version`, the card's token). */
+function pageCaughtUp(version: number | undefined, written: number): boolean {
+  return version !== undefined && version >= written;
 }
 
 /** The Rated switch's own answer: the tap in flight, or the route's answer at its version. */
@@ -389,15 +455,19 @@ function ResetFearless({
   banned,
   confirmHref,
   onSaid,
+  onClosed,
 }: {
   groupId: string;
   banned: number;
   confirmHref: string;
   onSaid: (line: string) => void;
+  /** After a reset the dialog closes onto the outcome line, not its trigger (gone with the bans). */
+  onClosed: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const done = useRef(false);
 
   async function reset(): Promise<void> {
     setPending(true);
@@ -422,6 +492,7 @@ function ResetFearless({
             ? FEARLESS_RESET_SKIPPED
             : FEARLESS_RESET_FAILED,
       );
+      done.current = true;
       setOpen(false);
       setPending(false);
       requestTonightRefresh();
@@ -450,7 +521,14 @@ function ResetFearless({
           </Button>
         </AlertDialogTrigger>
       </form>
-      <AlertDialogContent>
+      <AlertDialogContent
+        onCloseAutoFocus={(event) => {
+          if (!done.current) return;
+          done.current = false;
+          event.preventDefault();
+          onClosed();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{FEARLESS_RESET_TITLE}</AlertDialogTitle>
           <AlertDialogDescription>{fearlessResetBody(banned)}</AlertDialogDescription>

@@ -390,6 +390,27 @@ if (stack === null) {
       expect(fearless.champions.map((champion) => champion.id).sort((a, b) => a - b)).toEqual(range(1, 10));
     });
 
+    // QA fix 2026-10-04: the server checks a rule pick like the select's ` (too few open)`.
+    it('refuses a rule with too few champions open tonight, Fearless bans counted (409, nothing written)', async () => {
+      // A table whose only tanks are 1..10, every one of them in this group's pool now.
+      const table = new Map(range(1, 10).map((id) => [id, { tags: ['Tank' as const], region: 'ionia' }]));
+      const before = await modeRow(groups.f);
+      const refused = await call(setGroupModeRoute({ ...as(FAY), table }), {
+        groupId: groups.f,
+        mode: 'class:Tank',
+      });
+      expect(refused).toMatchObject({
+        status: 409,
+        json: { error: 'That rule has too few champions open tonight.' },
+      });
+      expect(await modeRow(groups.f)).toEqual(before);
+
+      // The real table has plenty of mages open: queued, then cleared again.
+      const mages = await setMode(FAY, 'class:Mage');
+      expect(mages).toMatchObject({ status: 200, json: { next: { rule: 'class:Mage' } } });
+      expect((await setMode(FAY, 'fearless')).status).toBe(200);
+    });
+
     it('Normal: game B is stamped normal, stays out of the pool, and gets the result post only', async () => {
       expect((await setMode(ALI, 'normal')).status).toBe(200);
       expect(posts).toEqual([]);

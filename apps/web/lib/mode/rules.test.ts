@@ -326,6 +326,34 @@ describe('Spin', () => {
     expect(seen.has('mirror')).toBe(true);
   });
 
+  it('never hands mirror to a lobby that is already open (made as it was, likely Draft Pick)', () => {
+    const seen = new Set<string | undefined>();
+    for (let a = 0; a < 1; a += 0.05) {
+      for (let b = 0; b < 1; b += 0.1) {
+        const rule = spinFor(state(), { ...inputs, lobbyOpen: true, rng: seq(a, b) });
+        expect(rule?.id).not.toBe('mirror');
+        seen.add(rule?.id);
+      }
+    }
+    expect([...seen].sort()).toEqual(['class', 'region']);
+    // With nothing else playable, Spin says there is nothing to spin rather than mirror.
+    const onlyMirrorLeft = spinFor(state({ standing: 'fearless' }), {
+      ...inputs,
+      bans: [...Array.from({ length: 60 }, (_, i) => i + 1)],
+      lobbyOpen: true,
+      rng: seq(0, 0),
+    });
+    expect(onlyMirrorLeft).toBeNull();
+    expect(
+      spinFor(state({ standing: 'fearless' }), {
+        ...inputs,
+        bans: [...Array.from({ length: 60 }, (_, i) => i + 1)],
+        lobbyOpen: false,
+        rng: seq(0, 0),
+      }),
+    ).toEqual({ id: 'mirror' });
+  });
+
   it('never returns the previous rule, nor an option too small to play', () => {
     // The table has no Support champion besides one: Supports only is never drawn.
     for (let a = 0; a < 1; a += 0.05) {

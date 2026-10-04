@@ -1,14 +1,18 @@
 import {
+  afterRecord,
   type ChampionTable,
   CLASS_TAGS,
   type ClassTag,
   classPool,
   type LockedMode,
+  type Mode,
   type ModeState,
+  modeRatedDefault,
   nextGame,
   RULE_OPTIONS,
   type RuleOption,
   ruleKey,
+  ruleOf,
   rulePlayable,
   type StandingModeId,
 } from '@customs/core';
@@ -25,6 +29,8 @@ import { isRule, nextGameLine, type ShownMode } from './ruleCopy';
  *   any, else the standing mode, with the Rated switch or the mode's default (core's `nextGame`).
  * - **Set and in game** the card is **this game**: the lobby's lock taken at Roll. Anything an admin
  *   did since (the version moved) is for the next game: `Next game: Mages only.` in the admin foot.
+ *   A Rated-only flip changes only Rated (the user, 2026-10-04): the line is the game after this
+ *   one's record ({@link upcomingState}), e.g. `Next game: Fearless.` or `Next game: not rated.`
  * - Region wars that could not be drawn at Roll locked the standing mode while the rule stayed
  *   pending at the same version: the card says the rule didn't apply.
  * - A lobby set before `0032` (no lock) reads as the next game.
@@ -91,12 +97,47 @@ export function modeCardView(input: ModeCardInput): ModeCardView {
     rated,
     standing: state.standing,
     locked,
-    nextLine: moved ? nextGameLine(state.pending ?? state.standing) : null,
+    nextLine: moved ? nextLineFor(upcomingState(state, input.lobbyStatus, lock), lock) : null,
     didntApply,
     classOpen,
     laneCounts,
     pendingKey: state.pending === null ? null : ruleKey(state.pending),
   };
+}
+
+/**
+ * The card as it will be for the next game: after Roll, what this game's record will leave
+ * (core's `afterRecord`: the locked rule used up unless an admin queued something since, a
+ * Rated-only flip kept); before Roll, the card itself. The admin controls' select and switch read
+ * this, so they are about the same game as `Next game: …`.
+ */
+export function upcomingState(
+  state: ModeState,
+  lobbyStatus: LobbyStatusValue | null,
+  lock: LockedMode | null,
+): ModeState {
+  const live = lobbyStatus !== null && LOCKED_STATUSES.has(lobbyStatus);
+  return live && lock !== null ? afterRecord(state, { kind: 'rift', lock }) : state;
+}
+
+const modeKeyOf = (mode: Mode | RuleOption | StandingModeId): string => {
+  if (typeof mode === 'string') return mode;
+  const rule = ruleOf(mode);
+  return rule === null ? mode.id : ruleKey(rule);
+};
+
+/**
+ * `Next game: …` for the upcoming state against this game's lock. The mode is named unless it is
+ * this game's; Rated is said when it is not the next mode's default, or when it is all that differs
+ * from this game.
+ */
+function nextLineFor(upcoming: ModeState, lock: LockedMode): string {
+  const next = nextGame(upcoming);
+  const choice = upcoming.pending ?? upcoming.standing;
+  const sameMode = modeKeyOf(choice) === modeKeyOf(lock.mode);
+  const saysRated = next.rated !== modeRatedDefault(next.modeId) || (sameMode && next.rated !== lock.rated);
+  if (!saysRated) return nextGameLine(choice);
+  return nextGameLine(sameMode ? null : choice, next.rated);
 }
 
 /**

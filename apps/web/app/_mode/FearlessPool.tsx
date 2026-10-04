@@ -61,6 +61,11 @@ export interface PoolSide {
   within: readonly number[];
   /** The viewer's side: first below 1024 (blue stays left at ≥1024). */
   first?: boolean | undefined;
+  /**
+   * The sentence for a lane where none of this side's champions usually plays (QA fix 2026-10-04):
+   * the lane keeps its row with the sentence, never an empty column. Falls back to the pool's own.
+   */
+  emptyLane?: Partial<Record<RoleValue, string>> | undefined;
 }
 
 export interface FearlessPoolProps {
@@ -141,9 +146,11 @@ export function FearlessPool({
           group.banned.filter((champion) => fearlessMatches(champion.name, query)),
           group.open.filter((champion) => fearlessMatches(champion.name, query)),
         );
-        // A lane with nothing in the pool still gets its row, with the sentence (class wars).
+        // A lane with nothing in the pool still gets its row, with the sentence (class wars; region
+        // wars per side).
+        const sentences = group.side?.emptyLane ?? emptyLane;
         const filled: (FearlessLaneDisplay & { empty?: string })[] =
-          emptyLane === undefined || typing
+          sentences === undefined || typing
             ? all
             : [
                 ...LANE_ORDER.map(
@@ -152,7 +159,7 @@ export function FearlessPool({
                       role,
                       open: [],
                       banned: [],
-                      empty: emptyLane[role],
+                      empty: sentences[role],
                     },
                 ),
                 ...all.filter((one) => one.role === null),

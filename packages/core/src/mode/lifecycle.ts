@@ -10,6 +10,11 @@
  * it was taken at; a recorded game clears the rule and resets the Rated switch only if the
  * version is unchanged. So anything an admin did after Roll (a new rule, the same rule queued
  * again, a Rated flip) is for the next game and survives the record.
+ *
+ * **A Rated flip changes only Rated** (the user, 2026-10-04): when everything since Roll was Rated
+ * flips ({@link onlyRatedSinceRoll}), the record still uses up the locked rule and keeps the flip
+ * for the next game. Before, the moved version kept the rule pending too, so flipping Rated
+ * mid-game silently repeated `Tanks only`.
  */
 
 import {
@@ -18,7 +23,9 @@ import {
   modeRatedDefault,
   type RegionPair,
   type RuleOption,
+  ruleOf,
   type StandingModeId,
+  sameRule,
 } from './model';
 
 /** The group's mode state: what the card shows for the next game. */
@@ -121,9 +128,32 @@ export function gameStamp(state: ModeState, game: RecordedGame): GameStamp {
   return { mode: game.lock.mode, rated: rift && game.lock.rated, checked: rift && isRule };
 }
 
-/** After a game is recorded: compare and clear. Unchanged unless the game consumes and nothing moved since Roll. */
+/**
+ * Whether everything an admin did since Roll was Rated flips: the version moved, the rule the
+ * lobby locked is still the one pending, and the switch is set. Picking a rule (even the same one
+ * again) resets the switch, so a re-queued rule reads as a new choice and survives. The one case
+ * the card's state cannot tell apart is the same rule re-queued **and then** a Rated flip: that
+ * reads as Rated only and the rule is used up (there is no second token; decision row 2026-10-04).
+ */
+export function onlyRatedSinceRoll(state: ModeState, lock: LockedMode): boolean {
+  return (
+    lock.version !== state.version &&
+    state.ratedOverride !== null &&
+    sameRule(ruleOf(lock.mode), state.pending)
+  );
+}
+
+/**
+ * After a game is recorded: compare and clear. Unchanged unless the game consumes and either
+ * nothing moved since Roll (the rule is used up, the switch resets) or only the Rated switch moved
+ * (the rule is used up, the flip stays for the next game).
+ */
 export function afterRecord(state: ModeState, game: RecordedGame): ModeState {
-  if (!consumesRule(game) || game.lock === null || game.lock.version !== state.version) return state;
+  if (!consumesRule(game) || game.lock === null) return state;
+  if (game.lock.version !== state.version) {
+    if (!onlyRatedSinceRoll(state, game.lock)) return state;
+    return { ...state, pending: null, version: state.version + 1 };
+  }
   const lockedRule = game.lock.mode.id !== 'normal' && game.lock.mode.id !== 'fearless';
   return {
     ...state,

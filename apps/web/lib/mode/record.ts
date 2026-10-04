@@ -78,9 +78,10 @@ export function stampColumns(input: StampInput): GameModeColumns {
 
 /**
  * After the game is stored: core's `afterRecord`, written only if the card's version is still the
- * one the state was read at. A rule or a Rated flip queued after Roll moved the version, so it
- * survives; a game that does not consume (remake, ARAM, no lock) changes nothing. Idempotent: a
- * second companion's post finds the version already moved and writes nothing.
+ * one the state was read at. A rule queued after Roll moved the version, so it survives; a Rated
+ * flip after Roll survives too but changes only Rated, so the locked rule is still used up (the
+ * user, 2026-10-04); a game that does not consume (remake, ARAM, no lock) changes nothing.
+ * Idempotent: a second companion's post finds nothing left to clear and writes nothing.
  *
  * Returns true when it cleared something.
  */

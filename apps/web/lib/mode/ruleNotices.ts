@@ -16,6 +16,9 @@ export const CLASS_PLURAL: Record<ClassTag, string> = {
   Support: 'supports',
 };
 
+/** `POST /api/admin/mode`'s 409 for a rule pick with too few champions open (QA fix 2026-10-04). */
+export const RULE_TOO_FEW_OPEN = 'That rule has too few champions open tonight.';
+
 const STANDING_NAME: Record<StandingModeId, string> = { normal: 'Normal', fearless: 'Fearless' };
 
 /** `Tanks only`, `Region wars`, `Mirror match`: the rule's short name. */

@@ -33,6 +33,7 @@ import {
   modeName,
   NORMAL_RULE_LIST,
   REGION_PANEL_BEFORE_ROLL,
+  regionEmptyLane,
   regionSentence,
 } from '@/lib/mode/ruleCopy';
 import { ruleLabel } from '@/lib/mode/ruleNotices';
@@ -208,6 +209,7 @@ function RegionBody(
     region: regionName(regions[side]),
     within: ids(regions[side]),
     first: props.viewerSide === side,
+    emptyLane: Object.fromEntries(LANE_ORDER.map((role) => [role, regionEmptyLane(regions[side])])),
   });
   return (
     <>
