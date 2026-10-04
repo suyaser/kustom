@@ -1,5 +1,5 @@
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   alreadyHasALobbyLine,
@@ -11,9 +11,10 @@ import {
   openingOnPcLine,
   START_LOBBY_BUTTON,
 } from '@/lib/lobbyStartCopy';
+import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
-import { StartLobby, StartLobbySignIn } from './StartLobby';
+import { START_POLL_CAP_MS, START_POLL_MS, StartLobby, StartLobbySignIn } from './StartLobby';
 
 /**
  * `Start a lobby` (M4.2's control, M4.7's placement).
@@ -201,6 +202,29 @@ describe('the press', () => {
     await waitFor(() => expect(screen.getByText(START_LOBBY_OFFLINE)).toBeInTheDocument());
   });
 
+  it('M19.3: asks Tonight once with the answer, and stays in flight until the row is on screen', async () => {
+    const tonight = holdTonightRefresh();
+    answers(startAnswer());
+    draw();
+    press();
+    await waitFor(() => expect(tonight.asks).toHaveLength(1));
+    const button = screen.getByRole('button', { name: START_LOBBY_BUTTON });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    press();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    tonight.stop();
+  });
+
+  it('M19.3: a refused press asks for no re-read', async () => {
+    const tonight = holdTonightRefresh();
+    refusesWith(409, { ok: false, error: 'There is already a lobby open.' });
+    draw();
+    press();
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(tonight.asks).toHaveLength(0);
+    tonight.stop();
+  });
+
   it('drops a second tap while one is in flight, instead of queuing a second command', async () => {
     answers(startAnswer());
     draw();
@@ -334,5 +358,96 @@ describe('the signed-out block', () => {
     expect(form).toHaveAttribute('action', '/auth/signin');
     // Back to `/`, not to `/admin`, which is where a sign-in defaults.
     expect(container.querySelector('input[name="next"]')).toHaveValue('/g/customs');
+  });
+});
+
+// The status schema is a dynamic import (zod stays out of Tonight's first load): load it up front.
+await import('@/app/api/me/lobbies/start/status/schema');
+
+describe('M19.17: a pending press polls the status route, not the page', () => {
+  const statusUrl = `/api/me/lobbies/start/status?groupId=${ORIGINAL_GROUP_ID}`;
+  const status = (value: string | null) =>
+    new Response(JSON.stringify({ status: value, host: value === null ? null : { name: HOST } }), {
+      status: 200,
+    });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('asks the status route every five seconds and re-renders the page once, when it settles', async () => {
+    vi.useFakeTimers();
+    const tonight = holdTonightRefresh();
+    const answers = [status('pending'), status('sent'), status('done')];
+    const fetchMock = vi.fn(async () => answers.shift() ?? status('done'));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<StartLobby start={progress({ status: 'pending' })} press around={0} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_MS * 2 + 100);
+    });
+    expect(fetchMock.mock.calls.map((call) => (call as unknown as [string])[0])).toEqual([
+      statusUrl,
+      statusUrl,
+    ]);
+    expect(tonight.asks).toHaveLength(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_MS);
+    });
+    // `done`: exactly one page re-render, and the polling stops.
+    expect(tonight.asks).toHaveLength(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_MS * 4);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(tonight.asks).toHaveLength(1);
+    tonight.stop();
+  });
+
+  it('stops at its cap with one re-render, and polls nothing once the row has settled', async () => {
+    vi.useFakeTimers();
+    const tonight = holdTonightRefresh();
+    const fetchMock = vi.fn(async () => status('pending'));
+    vi.stubGlobal('fetch', fetchMock);
+    const { rerender } = render(<StartLobby start={progress({ status: 'pending' })} press around={0} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_CAP_MS + START_POLL_MS * 2);
+    });
+    expect(tonight.asks).toHaveLength(1);
+    const calls = fetchMock.mock.calls.length;
+    expect(calls).toBeLessThanOrEqual(START_POLL_CAP_MS / START_POLL_MS + 1);
+
+    rerender(<StartLobby start={progress({ status: 'acked' })} press around={3} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_MS * 4);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(calls);
+    tonight.stop();
+  });
+
+  it('a route that cannot answer (signed out, not a member) re-renders once and stops', async () => {
+    vi.useFakeTimers();
+    const tonight = holdTonightRefresh();
+    const fetchMock = vi.fn(async () => new Response('{"ok":false}', { status: 403 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<StartLobby start={progress({ status: 'sent' })} press={false} around={2} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_MS * 4);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(tonight.asks).toHaveLength(1);
+    tonight.stop();
+  });
+
+  it('polls nothing with no live command', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    render(<StartLobby start={null} press around={0} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_MS * 4);
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

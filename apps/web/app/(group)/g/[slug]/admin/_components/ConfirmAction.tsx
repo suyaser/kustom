@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
   AlertDialog,
@@ -15,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ACTION_FAILED, CANCEL_LABEL, WORKING_LABEL } from '@/lib/admin/homeCopy';
 import { refusalSentence } from '@/lib/groups/apiError';
+import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
 
 export interface ConfirmActionProps {
   /** The visible button that opens the confirm. */
@@ -31,9 +31,10 @@ export interface ConfirmActionProps {
   payload: Record<string, unknown>;
   /**
    * After a 2xx, with the parsed body (update a link in place). Absent: the page refreshes, so a server
-   * component can use this with no function to pass across the boundary.
+   * component can use this with no function to pass across the boundary. Either way the dialog stays
+   * open on its pending label until the refresh (or the promise `onDone` returns) has landed.
    */
-  onDone?: (body: unknown) => void;
+  onDone?: (body: unknown) => void | Promise<void>;
 }
 
 /**
@@ -42,6 +43,10 @@ export interface ConfirmActionProps {
  * returned to the trigger. While pending the action is `aria-disabled` with its `…ing` label and the
  * dialog stays open; a refusal is a `role="alert"` sentence inside the dialog, never a toast, in the
  * route's words (or a friendly one for a 401/403/5xx).
+ *
+ * **Pending until the screen changes** (M19.3): after a 2xx the page is re-read inside a transition
+ * and the dialog closes only once the new screen has committed, so the admin never sees the old row
+ * under a closed dialog, and a second press cannot repeat the write.
  */
 export function ConfirmAction({
   label,
@@ -54,7 +59,7 @@ export function ConfirmAction({
   payload,
   onDone,
 }: ConfirmActionProps) {
-  const router = useRouter();
+  const { refresh } = useCommittedRefresh();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,10 +75,9 @@ export function ConfirmAction({
       });
       const parsed: unknown = await response.json().catch(() => null);
       if (response.ok) {
+        await (onDone === undefined ? refresh() : onDone(parsed));
         setOpen(false);
         setPending(false);
-        if (onDone === undefined) router.refresh();
-        else onDone(parsed);
         return;
       }
       setError(refusalSentence(response.status, parsed, ACTION_FAILED));
@@ -114,7 +118,10 @@ export function ConfirmAction({
             type="button"
             variant={tone === 'destructive' ? 'destructive' : 'default'}
             pending={pending}
-            onClick={() => void act()}
+            onClick={() => {
+              // A second press while pending is dropped (the button is only quiet, never disabled).
+              if (!pending) void act();
+            }}
           >
             {tone === 'destructive' ? <WarningIcon /> : null}
             {pending ? pendingLabel : actionLabel}

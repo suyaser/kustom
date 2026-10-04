@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useId, useState } from 'react';
 import {
   AlertDialog,
@@ -27,6 +26,7 @@ import {
   resetRatingsFieldLabel,
 } from '@/lib/admin/homeCopy';
 import { refusalSentence } from '@/lib/groups/apiError';
+import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
 
 export interface ResetRatingsCardProps {
   groupId: string;
@@ -59,7 +59,7 @@ export function ResetRatingsCard({
   initialTyped = '',
   initialOpen = false,
 }: ResetRatingsCardProps) {
-  const router = useRouter();
+  const { refresh } = useCommittedRefresh();
   const fieldId = useId();
   const errorId = useId();
   const [open, setOpen] = useState(initialOpen);
@@ -80,10 +80,11 @@ export function ResetRatingsCard({
       });
       const parsed: unknown = await response.json().catch(() => null);
       if (response.ok) {
+        // Open on its pending label until the reset page is on screen (M19.3).
+        await refresh();
         setOpen(false);
         setPending(false);
         setTyped('');
-        router.refresh();
         return;
       }
       setError(refusalSentence(response.status, parsed, ACTION_FAILED));

@@ -1,6 +1,8 @@
 'use client';
 
-import { type MouseEvent, useId, useState } from 'react';
+import type { Route } from 'next';
+import { useRouter } from 'next/navigation';
+import { type MouseEvent, useId, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { LINK_OFFLINE, PICK_YOURSELF, THATS_ME } from '@/lib/tonight/copy';
 
@@ -9,18 +11,13 @@ import { LINK_OFFLINE, PICK_YOURSELF, THATS_ME } from '@/lib/tonight/copy';
  * player row picks themselves out of this game's ten, if `claimableSeats` offers them (tonight's
  * lobby or a game that ended in the last 12 hours). `POST /api/me/link` decides; this only draws.
  *
- * With JavaScript: a fetch, then a full navigation to the You tab's welcome card. Without: the form
- * posts and the route redirects to the same URL (`redirectTo`).
+ * With JavaScript: a fetch, then a soft navigation (`router.push`, M19.3) to the You tab's welcome
+ * card: the link is server data, not a cookie, so no document load is needed. The tapped button
+ * stays pending until `/you` is on screen. Without: the form posts and the route redirects to the
+ * same URL (`redirectTo`).
  */
 
 const LINK_ACTION = '/api/me/link';
-
-/** An object so a test can stand in for the browser's `location`. */
-export const gameLinkLanding = {
-  go(href: string): void {
-    window.location.assign(href);
-  },
-};
 
 export interface ClaimSeat {
   puuid: string;
@@ -35,8 +32,10 @@ export function ThatsMe({
   seats: readonly ClaimSeat[];
   groupId: string;
   /** `welcomeHref(group)`: where a successful link lands, with and without JavaScript. */
-  welcome: string;
+  welcome: Route;
 }) {
+  const router = useRouter();
+  const [, startLanding] = useTransition();
   const [failed, setFailed] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const titleId = useId();
@@ -44,6 +43,7 @@ export function ThatsMe({
 
   async function submit(event: MouseEvent<HTMLButtonElement>, puuid: string): Promise<void> {
     event.preventDefault();
+    if (pending !== null) return;
     setFailed(null);
     setPending(puuid);
     try {
@@ -58,7 +58,8 @@ export function ThatsMe({
         setPending(null);
         return;
       }
-      gameLinkLanding.go(welcome);
+      // `pending` stays set: the page goes away when `/you` lands.
+      startLanding(() => router.push(welcome));
     } catch {
       setFailed(LINK_OFFLINE);
       setPending(null);

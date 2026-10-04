@@ -1,8 +1,9 @@
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { STALE_ROSTER } from '@/lib/admin/roll';
 import { lobbyRosterKey } from '@/lib/ingest/lobby';
+import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { extraMember, workedMembers } from '@/lib/testing/tonightFixtures';
 import { ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import type { MemberView } from '@/lib/tonight/types';
@@ -185,5 +186,39 @@ describe('the roll control', () => {
 
     release({ ok: true, status: 200, json: async () => rolled() } as unknown as Response);
     await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
+  });
+
+  it('M19.3: stays pending until the re-read it asked for has landed, and a press meanwhile sends nothing', async () => {
+    const tonight = holdTonightRefresh();
+    answer(200, rolled());
+    draw();
+    const button = screen.getByRole('button', { name: ROLL_LABEL });
+    const before = Date.now();
+
+    fireEvent.click(button);
+    // The route answered; the page asked Tonight once, with the time it answered.
+    await waitFor(() => expect(tonight.asks).toHaveLength(1));
+    expect(tonight.asks[0]).toBeGreaterThanOrEqual(before);
+    // The old screen is still up: still quiet, and a second press posts nothing.
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(button);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    act(() => tonight.land());
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
+    tonight.stop();
+  });
+
+  it('M19.3: a refusal holds the button until the roster it is about is on screen', async () => {
+    const tonight = holdTonightRefresh();
+    answer(409, { ok: false, error: STALE_ROSTER });
+    draw();
+    const button = screen.getByRole('button', { name: ROLL_LABEL });
+    fireEvent.click(button);
+    await screen.findByRole('alert');
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    act(() => tonight.land());
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
+    tonight.stop();
   });
 });
