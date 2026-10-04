@@ -66,6 +66,12 @@ import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './see
  * reads today*. They are informational and drive no number — but a maintenance plan that nulls
  * `seed_mu` / `seed_sigma` to re-seed the group would also overwrite that record of what the
  * client said the night a history started, so re-seed by setting the two numbers directly.
+ *
+ * **The Kustom rating, both tracks (M18.5).** The same loop folds `foldGameKustom`: all-time from
+ * 1200 and 0 at the group's epoch (the OpenSkill universe), weekly from 1200 and 0 at every week
+ * boundary over **every** game of the group, because the weekly track ignores `ratings_since`. So
+ * the snapshot is the whole group now; a game before the epoch keeps its stored all-time columns
+ * (history) and has its weekly columns, share rank and award refolded.
  */
 
 /** PostgREST's `max_rows`. Every select here pages, because a group outgrows one page. */

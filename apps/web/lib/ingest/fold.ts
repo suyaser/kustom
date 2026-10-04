@@ -58,6 +58,12 @@ import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
  * core (`performanceScores` returns `null`); this file only hands it the columns.
  *
  * The maths itself is `rateGame` in `@customs/core` and is not repeated here (CLAUDE.md).
+ *
+ * **The Kustom rating (M18.5) is the rating**: {@link foldGameKustom} runs core's `rateGameKustom`
+ * once per track (all-time and weekly) on the same ten and the same performance scores. Its share
+ * ranks name the same MVP and ACE `mvpAce` does (one score, one PUUID tie-break), so the OpenSkill
+ * bonus above and the stored `award` never disagree. The OpenSkill half stays until M18.12 so the
+ * readers M18.6 has not moved keep working and the rollback build finds its columns filled.
  */
 
 /** Five a side. Anything else is not a game we rate. */

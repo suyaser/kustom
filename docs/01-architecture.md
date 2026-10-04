@@ -266,6 +266,16 @@ both agree because both ask `civilDayKey` for the same string.
 
 ## Rating model (`packages/core/rating`)
 
+**The rating is Kustom (M18)**: `change = K × (result − expected) × share` on the Rating scale, two tracks (all-time
+and weekly), folded by `apps/web/lib/ingest/fold.ts` `foldGameKustom` over core's `rateGameKustom`. The formula and
+constants are "Kustom rating (M18)" below; how the fold, the rebuild, the cron and the balancer use it is "The
+Kustom fold (M18.5)". **OpenSkill is retired** as the rating: its subsection that follows is kept as the record
+of what ran before the switch and of the rollback path. Until M18.12 the fold still writes the OpenSkill columns
+(`mu_*`, `sigma_*`, `base_mu_after`, `ratings.mu` / `sigma`) beside the Kustom ones, from the same game, so the
+read paths M18.6 has not moved yet keep working and a rollback build finds them filled; no new code reads them.
+
+### OpenSkill (retired by M18; the rollback path until M18.12)
+
 OpenSkill, default Plackett-Luce model, two teams of five.
 
 - **Every rating starts at the same number: `provisionalSeed()`, `mu` 20 and `sigma` 12** (user, 2026-09-16).
@@ -291,7 +301,8 @@ OpenSkill, default Plackett-Luce model, two teams of five.
   Emerald 29, Diamond 32, Master and above 35, plus 0.75 per division above IV, `sigma` 8.33 — and has exactly
   one caller left: `apps/web/lib/ingest/balance.ts`, which needs *some* estimate of a brand-new face to form
   tonight's teams and has nothing else to go on. That guess lives for one evening, forms one split and is never
-  persisted.
+  persisted. **M18.5: `balance.ts` no longer calls it** (a zero-game player is 1200 to the balancer, as to the
+  fold); `apps/web/lib/tonight/load.ts` still does until M18.6 moves that read.
 - **A rating surface shows what the model holds; a lobby surface shows what tonight's split was formed from.**
   For a player with no `ratings` row the two differ by exactly one evening, so the line is drawn once, here:
   `/leaderboard`'s rows and both numbers at the top of `/p/[puuid]` read `provisionalSeed()` — 1200, Proven 0,
@@ -340,12 +351,10 @@ OpenSkill, default Plackett-Luce model, two teams of five.
   `game_players`. Ratings are a pure fold over games ordered by `started_at`, so they can be rebuilt from scratch
   after a backfill or a model change (`pnpm --filter web rebuild-ratings`).
 
-### Kustom rating (M18, not yet wired)
+### Kustom rating (M18)
 
-`packages/core/src/rating/kustom.ts` (M18.1) is the rating that replaces OpenSkill at the M18 switch deploy
-(M18.2, M18.5). Until then it is exported from `@customs/core` and tested, and **nothing outside `packages/core`
-imports it**; everything above this subsection still describes what runs. Decision rows: `M18:` in
-`04-decisions.md`.
+`packages/core/src/rating/kustom.ts` (M18.1) is the rating since the M18 switch deploy (M18.2 balancer, M18.5
+fold). Decision rows: `M18:` in `04-decisions.md`.
 
 - **Formula.** `change = K × (result − expected) × share` on the Rating scale. `result` is 1 for a win, 0 for a
   loss. Everyone starts at `KUSTOM_START` = 1200; no decay, a Rating moves only when its owner plays a rated game.
@@ -375,7 +384,48 @@ imports it**; everything above this subsection still describes what runs. Decisi
   16 × 1.2 = 19.2 (printed at most 20), anyone's first game on a track at most 32 × 1.2 = 38.4; an even settled
   game is ±8 at the middle share, +9.6 for the MVP, −6.4 for the ACE.
 
-### One channel (M14.57; the weekly track M7.2 is retired)
+### The Kustom fold (M18.5)
+
+`apps/web/lib/ingest/fold.ts` `foldGameKustom` calls `rateGameKustom` **twice per rated game, once per track**,
+on the same ten and the same performance scores (so one share rank, one MVP and one ACE serve both), in
+`started_at` order (then `lcu_game_id`). It has two callers, as the gate does: the live fold (`rating.ts`) and
+`rebuild-ratings` (`rebuild.ts`); the daily cron (`rebuildCron.ts`) only decides when to run the rebuild.
+
+- **All-time track.** From `ratings.r` and `ratings.games` (the rated-games count since the epoch); a player
+  with no row in the group is 1200 and 0. Folds only games with `started_at >= groups.ratings_since`, as
+  OpenSkill did. Stored on `game_players` as `r_before`, `r_after`, `k`, and in the reused 0034 columns `fold_p`
+  (this row's side's expected, `winProbability` of the ten all-time Ratings), `award` and `rated_games_before`
+  (the `n` K was read from). `ratings.r` is the player's last `r_after`.
+- **Weekly track.** From the player's last `week_r_after` in the same week (`n` = that row's
+  `week_games_before + 1`), else 1200 and 0; the week is `apps/web/lib/night.ts` `weekStart` (Sunday 06:00 in
+  `CUSTOMS_NIGHT_TZ`, `Africa/Cairo` by default) through `lib/ingest/kustomWeek.ts`, one function. It folds every
+  rated game of the week **whatever `ratings_since` says**: a game before the reset is a weekly-only row (the
+  weekly five, `share_rank` and `award`, no all-time column), legal under 0036. Stored as `week_r_before`,
+  `week_r_after`, `week_k`, `week_fold_p`, `week_games_before`; the current weekly Rating is derived, not stored.
+- **`share_rank`** (1..5, null when the game has no performance score) drives both tracks and is stored once.
+- **Claim.** The live fold writes a row only while `mu_after` and `week_r_after` are both null (a weekly-only
+  write also needs `r_after` null), so a second companion's post, or a repost of a game from before the switch,
+  changes nothing.
+- **The rebuild** reads every game of the group (not only those since the epoch), keeps an all-time state from
+  1200 at the epoch and a weekly state emptied at every week boundary, keeps every pre-epoch row's all-time
+  columns as stored (history), and writes only rows that moved (1e-9, `RATING_EPSILON`), so a second run changes
+  nothing. A row the gate now refuses is nulled on both tracks (a pre-epoch one on the weekly track, keeping its
+  history). Its report gains `kustom  N game_players rows, N ratings rows, N weeks` (rows folded on the weekly
+  track, ratings rows carrying an all-time `r`, weeks with a rated game) and, for a reset group, `rated  N (and M
+  before the reset, on the weekly track only)`. Every M14.27 / M14.63 guard is unchanged.
+- **The cron** treats a backfilled game as waiting while any of its rows has no `week_r_after` and the game
+  passes the gate, before or after the epoch (the weekly track folds it either way).
+- **Reset ratings** (M14.18, `reset_group_ratings()`) deletes the group's `ratings` rows: the next all-time fold
+  starts everyone at 1200 and 0, and no weekly value is touched.
+- **The balancer reads what the fold reads**: `lib/ingest/balance.ts` hands core `{ r, n }` from `ratings.r` and
+  `ratings.games` (1200 and 0 with no row; the rank guess is gone), and every split it stores says
+  `odds_model = 'kustom'`. So for a roster unchanged since the roll and no game folded in between, the split's
+  `blue_win_prob` equals the fold's blue `fold_p` (`kustom.integration.test.ts`).
+- **The real-data gate.** `lib/ingest/kustomReplay.test.ts` reruns the M18.3 replay through `foldGameKustom`
+  (skipped unless `KUSTOM_REPLAY_CSV` names the export, which is read in place and never committed): 109 games,
+  log loss 0.700, Spearman 0.938 over the 10+ board and 0.925 over all 34, as `redesign/research/rating-real.md`.
+
+### One channel (M14.57; the weekly track M7.2 is retired; superseded by M18's two Kustom tracks)
 
 There is one fold: `rateGame`. It forms teams, it is what `game_players` stores, and its numbers are pinned byte
 for byte by a test (it passes OpenSkill no options, so a tuning change can never reach it by accident). The

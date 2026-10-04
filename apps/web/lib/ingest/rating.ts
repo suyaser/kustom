@@ -27,6 +27,10 @@ import { readSeed, type StoredSeed, seedColumns, seedFor } from './seed';
  * claim, the read of the ratings that went in, and the write of the ones that came out — in
  * `started_at` order for one game. The gate and the fold itself are `fold.ts`, shared with the
  * rebuild (M5.2), which replays exactly this for every game of a group.
+ *
+ * Since M18.5 the same write carries both Kustom tracks (`0036`): all-time from `ratings.r` and
+ * the rated-games count, weekly from each player's last weekly row in the game's week. A game
+ * before the group's reset is folded on the weekly track alone.
  */
 
 /**
