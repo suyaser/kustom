@@ -258,7 +258,7 @@ describe('FairnessReceipt in game and finished (it never disappears, §4.2 rule 
     expect(within(receipt).queryByText('How the bot decided')).toBeNull();
   });
 
-  it('large text: only the compact bar drops its side words, below 18em of its own width (12.3a follow-up)', () => {
+  it('large text: both bars drop their side words below a width in their own em (12.3a follow-up)', () => {
     const words = (bar: Element) =>
       [...bar.querySelectorAll('span')].filter(
         (span) => span.textContent === 'BLUE' || span.textContent === 'RED',
@@ -273,9 +273,14 @@ describe('FairnessReceipt in game and finished (it never disappears, §4.2 rule 
     unmount();
     render(<FairnessReceipt variant="finished" winner={200} splits={THREE_SPLITS} names={FIXTURE_NAMES} />);
     const full = document.querySelector('[data-slot="win-bar"]') as HTMLElement;
-    expect(full.className).not.toContain('@container');
+    expect(full.className).toContain('@container');
+    // The full bar carries the label size itself, so its em is the side word's em wherever it sits.
+    expect(full.className).toContain('text-[1.1875rem]');
+    expect(full.className).toContain('lg:text-[1.5rem]');
     expect(words(full)).toHaveLength(2);
-    for (const word of words(full)) expect(word.className).toBe('');
+    for (const word of words(full)) expect(word.className).toBe('@max-[13em]:hidden');
+    // The sentence a screen reader hears still names both sides.
+    expect(screen.getByText('Blue 49 percent, Red 51 percent.')).toBeInTheDocument();
   });
 
   it('finished: "The odds were" and the result line in place of the sentence', () => {
