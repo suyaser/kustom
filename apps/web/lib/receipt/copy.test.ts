@@ -1,5 +1,6 @@
 import type { Assignment, Role } from '@customs/core';
 import { describe, expect, it } from 'vitest';
+import { HOW_SPLIT_LINES } from '../landing/copy';
 import {
   barPercents,
   barSentence,
@@ -7,6 +8,7 @@ import {
   calibrationLineParts,
   calibrationTooFewParts,
   explanationShown,
+  howIntroParts,
   mainRolesChip,
   mainRolesChipParts,
   NO_MAIN_ROLES_CHIP,
@@ -206,9 +208,11 @@ describe('reasonLine (STRATEGY §4.4)', () => {
   it('spells the three stored-term clauses (M18.13)', () => {
     expect(whyLowerClause({ kind: 'repeat' })).toBe("and it's last game's teams again");
     expect(whyLowerClause({ kind: 'variety', chosenPairs: 1, nextPairs: 4 })).toBe(
-      "and it keeps more of last game's teammates together (4 vs 1 pairs)",
+      "and it keeps more of last game's teammates together (4 vs 1 pair)",
     );
-    expect(whyLowerClause({ kind: 'recent-fills' })).toBe('and it fills someone who was filled recently');
+    expect(whyLowerClause({ kind: 'recent-fills' })).toBe(
+      'and it fills someone who was filled more recently',
+    );
   });
 });
 
@@ -234,7 +238,7 @@ describe('reasonLine from stored score parts (M18.13)', () => {
       "Next best: swap the top players, B-TOP and R-TOP. That's Blue 51%, and it keeps more of last game's teammates together (3 vs 0 pairs).",
     );
     expect(reasonLine(chosen, next({ offRole: 60 }), 3, name)).toBe(
-      "Next best: swap the top players, B-TOP and R-TOP. That's Blue 51%, and it fills someone who was filled recently.",
+      "Next best: swap the top players, B-TOP and R-TOP. That's Blue 51%, and it fills someone who was filled more recently.",
     );
   });
 
@@ -245,14 +249,26 @@ describe('reasonLine from stored score parts (M18.13)', () => {
   });
 });
 
+describe('the scoring sentence (M18.13)', () => {
+  it('names fill protection, the repeat nudge and teammate variety, the same on the receipt and /how', () => {
+    const sentence =
+      "plus a cost for every player off their main role (bigger if they were filled recently), plus a nudge against repeating last game's teams or putting last game's teammates back together. Lowest score wins.";
+    expect(plain(howIntroParts(3))).toContain(sentence);
+    expect(HOW_SPLIT_LINES[1]).toContain(sentence);
+  });
+});
+
 describe('rankedLowerParts (M18.13 terms)', () => {
   it('names each stored term on a split row', () => {
     expect(plain(rankedLowerParts({ kind: 'repeat' }, false))).toBe("Ranked lower: last game's teams again.");
     expect(plain(rankedLowerParts({ kind: 'variety', chosenPairs: 2, nextPairs: 4 }, true))).toBe(
       "Closer odds, but ranked lower: more of last game's teammates together (4 vs 2 pairs).",
     );
+    expect(plain(rankedLowerParts({ kind: 'variety', chosenPairs: 1, nextPairs: 4 }, false))).toBe(
+      "Ranked lower: more of last game's teammates together (4 vs 1 pair).",
+    );
     expect(plain(rankedLowerParts({ kind: 'recent-fills' }, false))).toBe(
-      'Ranked lower: it fills someone who was filled recently.',
+      'Ranked lower: it fills someone who was filled more recently.',
     );
   });
 });

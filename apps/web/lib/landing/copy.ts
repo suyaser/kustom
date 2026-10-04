@@ -182,7 +182,7 @@ export const HOW_RATING_LINES = [
 export const HOW_SPLIT_TITLE = 'Picking the teams';
 export const HOW_SPLIT_LINES = [
   'When an admin taps Roll teams, the bot tries all 126 ways to split ten people into two teams of five.',
-  "For each one it puts everyone in their best lane and scores it: the rating gap between the teams, plus a cost for every player off their main role (bigger if they were filled last game), plus a nudge against repeating last game's teams. Lowest score wins.",
+  "For each one it puts everyone in their best lane and scores it: the rating gap between the teams, plus a cost for every player off their main role (bigger if they were filled recently), plus a nudge against repeating last game's teams or putting last game's teammates back together. Lowest score wins.",
   'It keeps its top three. The first is posted. A reroll moves to the second, then the third. There is no fourth, and nothing is random.',
 ] as const;
 

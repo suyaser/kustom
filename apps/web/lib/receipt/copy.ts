@@ -231,16 +231,17 @@ export function whyLowerClauseParts(why: WhyLowerScored): Rich {
 
 /** M18.13's reasons share their words between the reason line and the split rows. */
 const LAST_GAMES_TEAMS = "last game's teams";
-const FILLED_RECENTLY = 'someone who was filled recently';
+const FILLED_RECENTLY = 'someone who was filled more recently';
 
-/** `last game's teammates together (4 vs 2 pairs)`: the variety reason's tail, both pair counts. */
+/** `last game's teammates together (4 vs 2 pairs)`, `(4 vs 1 pair)`: the variety reason's tail, both pair counts. */
 function varietyParts(why: { chosenPairs: number; nextPairs: number }): Rich {
   return [
     "last game's teammates together (",
     { num: `${why.nextPairs}` },
     ' vs ',
     { num: `${why.chosenPairs}` },
-    ' pairs)',
+    // The unit agrees with the number beside it: `(4 vs 1 pair)`, `(4 vs 2 pairs)`.
+    why.chosenPairs === 1 ? ' pair)' : ' pairs)',
   ];
 }
 
@@ -446,7 +447,7 @@ export function howIntroParts(splitCount: number): Rich {
   return [
     'The bot tried all ',
     { num: '126' },
-    ` ways to split these ten into two teams of five. For each one it put everyone in their best lane and scored it: the rating gap between the teams, plus a cost for every player off their main role (bigger if they were filled last game), plus a nudge against repeating last game's teams. Lowest score wins. ${close}`,
+    ` ways to split these ten into two teams of five. For each one it put everyone in their best lane and scored it: the rating gap between the teams, plus a cost for every player off their main role (bigger if they were filled recently), plus a nudge against repeating last game's teams or putting last game's teammates back together. Lowest score wins. ${close}`,
   ];
 }
 
