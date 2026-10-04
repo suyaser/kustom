@@ -340,6 +340,41 @@ OpenSkill, default Plackett-Luce model, two teams of five.
   `game_players`. Ratings are a pure fold over games ordered by `started_at`, so they can be rebuilt from scratch
   after a backfill or a model change (`pnpm --filter web rebuild-ratings`).
 
+### Kustom rating (M18, not yet wired)
+
+`packages/core/src/rating/kustom.ts` (M18.1) is the rating that replaces OpenSkill at the M18 switch deploy
+(M18.2, M18.5). Until then it is exported from `@customs/core` and tested, and **nothing outside `packages/core`
+imports it**; everything above this subsection still describes what runs. Decision rows: `M18:` in
+`04-decisions.md`.
+
+- **Formula.** `change = K × (result − expected) × share` on the Rating scale. `result` is 1 for a win, 0 for a
+  loss. Everyone starts at `KUSTOM_START` = 1200; no decay, a Rating moves only when its owner plays a rated game.
+  Displayed Rating `displayKustom(r) = round(r)`; printed change `printedChange = round(r_after) − round(r_before)`,
+  so a column of printed changes adds up to the difference of the printed Ratings.
+- **Odds, one function.** `winProbability(Σblue, Σred, calib = { a: 0, b: 1 })` =
+  `1 / (1 + exp(−(a + b × (Σblue − Σred) / 400)))`, Σ the five unrounded Ratings on the track being folded. Red's
+  expected is one minus blue's. Every caller passes `(0, 1)` until M18.11. Gap 0 / 50 / 100 / 200 / 400 reads
+  50 / 53 / 56 / 62 / 73%.
+- **K.** `kFor(n) = 16 + 16 × max(0, 10 − n) / 10`, `n` the player's own rated games on that track before this
+  one: 32, 30.4, … 17.6, then 16 from game eleven for ever. Throws on a negative or non-integer `n`.
+- **Share.** `shareRanks` orders each side's five by the performance score (`rating/performance.ts`, unchanged),
+  best first, ties by PUUID ascending; `shareFor(rank, won)` gives winners 1.2 / 1.1 / 1.0 / 0.9 / 0.8 and losers
+  the reverse. Each side's shares sum to 5, so with all ten at `n ≥ 10` a game is zero-sum and 1200 stays the
+  mean. MVP is rank 1 on the winners, ACE rank 1 on the losers. If any of the ten has no score, every share is
+  1.0 and nobody is named.
+- **`rateGameKustom({ players, winningSide }, calib?)`** folds one game on one track (the caller passes all-time
+  or weekly `r` and `n`) and returns, per player in input order, `{ puuid, side, won, rBefore, rAfter, k,
+  expected, shareRank, share, base, award }` with `base = k × (result − expected)` and
+  `rAfter = rBefore + base × share`. It throws `KustomInputError` on anything but five distinct players a side, a
+  non-finite `r`, a bad `n` or a `winningSide` not 100 or 200: the fold's gates exclude those, so a throw is a bug.
+- **`explainKustomDelta(row)`** returns parts, not copy: side, result, the side's expected as a whole percent
+  (red is 100 minus blue's rounding, as on the receipt), K and `firstTenGames` (K above 16), share rank, share,
+  award and the printed points. Nothing about sigma or anyone else's numbers.
+- Constants: `config.kustom` `{ start: 1200, kNew: 32, kSettled: 16, kSettleGames: 10, oddsScale: 400,
+  winnerShares: [1.2, 1.1, 1.0, 0.9, 0.8] }`. Bounds by construction: a settled player moves at most
+  16 × 1.2 = 19.2 (printed at most 20), anyone's first game on a track at most 32 × 1.2 = 38.4; an even settled
+  game is ±8 at the middle share, +9.6 for the MVP, −6.4 for the ACE.
+
 ### One channel (M14.57; the weekly track M7.2 is retired)
 
 There is one fold: `rateGame`. It forms teams, it is what `game_players` stores, and its numbers are pinned byte

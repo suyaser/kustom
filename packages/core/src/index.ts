@@ -11,6 +11,9 @@
  * `mode/` (M15.2) is the mode model: the standing mode and the one-game rule, pools, Spin, the
  * post-game rule check and the lifecycle (lock at Roll, compare and clear at record). Champion
  * tags and regions are input; core imports no fixture.
+ *
+ * `rating/kustom` (M18.1) is the Kustom rating that replaces OpenSkill at the M18 switch; until
+ * then it is exported and tested but nothing outside this package calls it.
  */
 
 export {
@@ -48,6 +51,7 @@ export {
 export {
   type Config,
   config,
+  KUSTOM_START,
   type PerformanceBucket,
   type RankDivision,
   type RankTier,
@@ -141,6 +145,24 @@ export {
   rateGame,
   seedFromRank,
 } from './rating/index';
+// M18.1: the Kustom rating, pure and not yet wired (nothing in apps/ imports it before M18.5).
+export {
+  displayKustom,
+  explainKustomDelta,
+  type KustomAward,
+  type KustomCalib,
+  type KustomDeltaParts,
+  type KustomGame,
+  KustomInputError,
+  type KustomPlayer,
+  type KustomRow,
+  kFor,
+  printedChange,
+  rateGameKustom,
+  shareFor,
+  shareRanks,
+  winProbability,
+} from './rating/kustom';
 export {
   applyMvpAceBonus,
   type MvpAce,

@@ -281,6 +281,24 @@ export const config = {
     /** Fewer counted games than this and the player is flexible (`main: null`). Three is not one lucky fill. */
     minGames: 3,
   },
+  /**
+   * The Kustom rating (M18.1, not yet wired; `rating/kustom.ts`, `docs/01-architecture.md`
+   * "Kustom rating"). `change = K × (result − expected) × share` on the Rating scale, where
+   * `expected` is `winProbability` of the two sides' summed Ratings over `oddsScale`, and
+   * `K = kSettled + (kNew − kSettled) × max(0, kSettleGames − n) / kSettleGames` for a player
+   * with `n` rated games on that track before this one (32 at game one, 16 from game eleven).
+   * `winnerShares` is the winning side's share by performance rank, best first; the losing side
+   * reads it reversed, so each side's shares sum to 5 and the game creates no points.
+   * Everyone starts at `start`; nothing decays.
+   */
+  kustom: {
+    start: 1200,
+    kNew: 32,
+    kSettled: 16,
+    kSettleGames: 10,
+    oddsScale: 400,
+    winnerShares: [1.2, 1.1, 1.0, 0.9, 0.8],
+  },
   modes: {
     /**
      * Whether a game is rated when nobody flips the switch (M15, brief D5). Normal, Fearless and
@@ -302,3 +320,6 @@ export type Config = typeof config;
 
 /** The one settling threshold (STRATEGY §5): `config.rating.settlingGames` under its board name. */
 export const SETTLING_GAMES: number = config.rating.settlingGames;
+
+/** Where every Kustom Rating starts, on both tracks (M18.1): `config.kustom.start`. */
+export const KUSTOM_START: number = config.kustom.start;
