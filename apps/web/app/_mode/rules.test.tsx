@@ -469,7 +469,7 @@ describe('the Spin reveal', () => {
     expect(reveal()).toHaveTextContent('Spin says: Tanks only.');
   });
 
-  it("the admin's own Spin also waits for the card, so the two never disagree; then the status is back", () => {
+  it("M19.13: the admin's own Spin plays the route's answer at once (local); then the status is back", () => {
     vi.useFakeTimers();
     reduced();
     const view = render(
@@ -477,9 +477,10 @@ describe('the Spin reveal', () => {
         <span>Every champion is open.</span>
       </SpinReveal>,
     );
+    // The controls put the answer in the client mode store and dispatch `local` in the same tick,
+    // before the card's `pendingKey` has re-rendered: it still plays, with no wait for a row.
     spin('class:Tank', 'local');
-    expect(reveal()).toBeNull();
-    expect(screen.getByText('Every champion is open.')).toBeInTheDocument();
+    expect(reveal()).toHaveTextContent('Spin says: Tanks only.');
     view.rerender(
       <SpinReveal labels={labels} pendingKey="class:Tank">
         <span>Tanks only</span>

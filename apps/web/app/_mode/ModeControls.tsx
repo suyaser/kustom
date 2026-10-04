@@ -32,6 +32,7 @@ import {
   FEARLESS_RESETTING,
   fearlessResetBody,
 } from '@/lib/fearless/copy';
+import { applyModeAnswer, beginOptimistic, endOptimistic, type ModeOptimistic } from '@/lib/mode/clientStore';
 import {
   MODE_ADMIN_EYEBROW,
   MODE_APPLIES_NEXT_GAME,
@@ -64,7 +65,7 @@ import {
   standingNotice,
 } from '@/lib/mode/ruleNotices';
 import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
-import { beginTonightPress, type TonightPress } from '@/lib/tonight/live';
+import { beginTonightPress } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
 
 const MODE_ACTION = '/api/admin/mode';
@@ -85,12 +86,14 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  *   pending rule (R1). The button shows once the choice differs; without JS it is always there.
  *   With JS a confirmed choice **answers on its own** (QA fix 2026-10-04, like the Rated switch):
  *   the route's answer becomes the select's value at its version, so the button cannot re-post the
- *   same choice while the page re-reads; it says `Setting…` until the new card is on screen, then
- *   goes (M19.3: pending until the screen changes).
+ *   same choice. M19.13: the tap is **optimistic** on the card (the client mode store shows core's
+ *   own transition at once), `Setting…` until the route confirms, and the route's answer goes into
+ *   the store, so the card is the new one with no server render; a failure puts the card back.
  * - **`Spin`** (M15.5, R3): the server picks; the card reveals the answer here and on every open
  *   page (the Realtime broadcast). Without JS it is a form post and the page reloads on the result.
- *   With JS it stays quiet (`aria-disabled`) from the tap until its own reveal has played (the page
- *   has re-read the spin's version, then the reveal's cycle), so a double tap never writes twice.
+ *   With JS it stays quiet (`aria-disabled`) from the tap until its own reveal has played. M19.13:
+ *   the route's answer goes into the client mode store and its reveal plays at once (`local`);
+ *   other pages' reveals wait for their `group_modes` row.
  * - **`Rated`** (M15.5, R9): a switch for the next game, in any mode; a submit button with
  *   `role="switch"`, so it works as a form post with no JS. With JS it **answers on its own**
  *   (prod fix 2026-10-04, "I tap it and nothing changes"): it flips on the tap, takes the route's
@@ -179,17 +182,17 @@ export function ModeControls({
   const current =
     modeLocal !== null && !pageCaughtUp(version, modeLocal.version) ? modeLocal.value : selected;
 
-  // Spin's own reveal: from the tap until the page has re-read the spin and the reveal has cycled.
-  const [spinHeld, setSpinHeld] = useState<{ version: number } | null>(null);
+  // Spin's own reveal: from the tap until the card has the spin and the reveal has cycled.
+  const [spinHeld, setSpinHeld] = useState<{ version: number; answered: boolean } | null>(null);
 
   useEffect(() => setHydrated(true), []);
   // A Realtime change from another admin moves the select with the card.
   useEffect(() => setChoice(current), [current]);
   useEffect(() => {
     if (spinHeld === null) return;
-    // Once the page has the spin, the reveal cycles; a page that never re-reads (Realtime down)
-    // still frees Spin after the reveal's own wait.
-    const caughtUp = pageCaughtUp(version, spinHeld.version);
+    // Once the card has the spin (M19.13: the route's answer, in the client mode store), the reveal
+    // cycles; an answer the store could not take still frees Spin after the reveal's own wait.
+    const caughtUp = spinHeld.answered || pageCaughtUp(version, spinHeld.version);
     const timer = setTimeout(
       () => setSpinHeld(null),
       caughtUp ? SPIN_CYCLE_MS : SPIN_WAIT_MS + SPIN_CYCLE_MS,
@@ -197,57 +200,54 @@ export function ModeControls({
     return () => clearTimeout(timer);
   }, [spinHeld, version]);
 
+  /**
+   * One write to a mode route. M19.13: no Tonight press and no re-read: the route's answer goes into
+   * the client mode store (`applyModeAnswer`), which is the card, and the route's `group_live` bump
+   * re-reads nothing once its `group_modes` row has arrived (`TonightLive`). `optimistic` is shown
+   * on the card while the write is in flight and goes when it answers or fails.
+   */
   async function post(
     action: string,
     body: Record<string, unknown>,
     kind: 'mode' | 'spin' | 'rated',
-  ): Promise<
-    | { ok: true; spun: RuleOption | null; next: NextGame | null; answeredAt: number; press: TonightPress }
-    | { ok: false; status: number }
-  > {
+    optimistic: ModeOptimistic | null = null,
+  ): Promise<{ ok: true; spun: RuleOption | null; next: NextGame | null } | { ok: false; status: number }> {
     setPending(kind);
     setFailed(null);
     setSaid(null);
-    // A refusal frees the control at once; a success keeps it pending until the caller's re-read
-    // has landed (`settle`, M19.3). Tonight holds its renders until the route answers, so the
-    // `group_modes` row and the answer are one render.
-    const press = beginTonightPress();
+    const token = optimistic === null ? null : beginOptimistic(groupId, optimistic);
+    const done = () => {
+      if (token !== null) endOptimistic(groupId, token);
+    };
     try {
       const response = await fetch(action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId, ...body }),
       });
-      const answeredAt = Date.now();
       if (!response.ok) {
-        press.release();
+        done();
         setPending(null);
         return { ok: false, status: response.status };
       }
       const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
       const spun = parsed.success && parsed.data.spun !== undefined ? ruleOptionOf(parsed.data.spun) : null;
-      return { ok: true, spun, next: parsed.success ? (parsed.data.next ?? null) : null, answeredAt, press };
+      const next = parsed.success ? (parsed.data.next ?? null) : null;
+      // The answer first, then the tap goes: the card never flashes back to the old state.
+      if (next !== null) applyModeAnswer(groupId, next);
+      done();
+      return { ok: true, spun, next };
     } catch {
-      press.release();
+      done();
       setPending(null);
       return { ok: false, status: 0 };
     }
   }
 
-  /**
-   * After a confirmed Set mode or Spin: ask Tonight to re-read and stay pending until the new card
-   * is on screen (M19.3), so the button never wakes over the old card. With no Tonight page mounted
-   * this resolves at once.
-   */
-  async function settle(press: TonightPress, answeredAt: number): Promise<void> {
-    await press.answered(answeredAt);
-    setPending(null);
-  }
-
   async function setMode(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (pending !== null || choice === current) return;
-    const result = await post(MODE_ACTION, { mode: choice }, 'mode');
+    const result = await post(MODE_ACTION, { mode: choice }, 'mode', { kind: 'choice', choice });
     if (!result.ok) {
       // 409: the server's rule check (a page older than the pool, QA fix 2026-10-04).
       setFailed(result.status === 409 ? RULE_TOO_FEW_OPEN : MODE_CHANGE_FAILED);
@@ -262,8 +262,8 @@ export function ModeControls({
         ? standingNotice(choice as GroupMode, current !== mode)
         : ruleChosenNotice(rule, modeRatedDefault(rule.id)),
     );
-    await settle(result.press, result.answeredAt);
-    // The button goes once the new card is on: keep focus on the select, never <body>.
+    // The card is the answer already (M19.13): the button goes, focus stays on the select.
+    setPending(null);
     selectRef.current?.focus();
   }
 
@@ -275,7 +275,7 @@ export function ModeControls({
       setFailed(result.status === 409 ? NOTHING_TO_SPIN : MODE_CHANGE_FAILED);
       return;
     }
-    setSpinHeld({ version: result.next?.version ?? (version ?? 0) + 1 });
+    setSpinHeld({ version: result.next?.version ?? (version ?? 0) + 1, answered: result.next !== null });
     if (result.spun !== null) {
       const rule = ruleKey(result.spun);
       confirm(rule, result.next);
@@ -283,7 +283,7 @@ export function ModeControls({
       window.dispatchEvent(new CustomEvent(SPIN_REVEAL_EVENT, { detail: { rule, source: 'local' } }));
       window.dispatchEvent(new CustomEvent(SPIN_BROADCAST_EVENT, { detail: { rule } }));
     }
-    await settle(result.press, result.answeredAt);
+    setPending(null);
   }
 
   /** A Set mode or Spin the route confirmed: the select's value, and the switch reset with it (R1). */
@@ -300,7 +300,7 @@ export function ModeControls({
     const target = !rated;
     const before = ratedLocal;
     setRatedLocal({ kind: 'pending', rated: target });
-    const result = await post(MODE_ACTION, { rated: target }, 'rated');
+    const result = await post(MODE_ACTION, { rated: target }, 'rated', { kind: 'rated', rated: target });
     if (!result.ok) {
       setRatedLocal(before);
       setFailed(MODE_CHANGE_FAILED);
@@ -311,13 +311,11 @@ export function ModeControls({
     const written = result.next?.version ?? (version ?? 0) + 1;
     setRatedLocal({ kind: 'confirmed', rated: answer, version: written });
     setSaid(ratedNotice(answer));
-    // The switch already shows the route's answer (its own handback), so it is free at once; the
-    // re-read joins any render already running since the answer (M19.3).
+    // The switch and the card already show the route's answer, so it is free at once (M19.13).
     setPending(null);
-    void result.press.answered(result.answeredAt);
   }
 
-  // `Setting…` stays up until the new card is on screen (M19.3), then goes with the confirmed choice.
+  // `Setting…` stays up until the route confirms (M19.13: the card already shows the tap), then goes.
   const showSet = !hydrated || choice !== current || pending === 'mode';
   const spinBusy = pending === 'spin' || spinHeld !== null;
   // Design round 1: `Next game: Mages only.` already says it; don't repeat `Changes apply…` under it.

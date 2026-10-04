@@ -118,9 +118,58 @@ const {
   liveSubscriptions,
   COALESCE_MS,
   CONNECT_TIMEOUT_MS,
+  MODE_ROW_WAIT_MS,
   NAME_REREAD_MS,
   PRESS_BUMP_WAIT_MS,
 } = await import('./TonightLive');
+const { modeRowParsers } = await import('@/lib/mode/liveRows');
+await modeRowParsers();
+const { confirmedVersion, useModeSlice } = await import('@/lib/mode/clientStore');
+
+/** The card version the server render showed, in the M19.13 tests. */
+const SHOWN_MODE = 4;
+
+/** A `group_modes` row as Realtime carries it (the id columns included, which are never read). */
+function modeRow(at: number, extra: Record<string, unknown> = {}) {
+  return {
+    group_id: GROUP_A,
+    mode: 'fearless',
+    pending_rule: null,
+    pending_class_tag: null,
+    rated_override: null,
+    version: at,
+    updated_at: '2026-10-04T20:00:00+00:00',
+    set_by: '33333333-3333-4333-8333-333333333333',
+    pending_set_by: null,
+    ...extra,
+  };
+}
+
+function fearlessRow(resetAt: string) {
+  return { group_id: GROUP_A, id: 1, reset_at: resetAt, reset_by: null, updated_at: resetAt };
+}
+
+/** A mode route's last statement: a `mode` bump. */
+function modeBump(): void {
+  version += 1;
+  fire('group_live', liveRow(version, GROUP_A, { kind: 'mode' }));
+}
+
+/** What the card reads from the store: its standing, pending rule, Rated switch and reset time. */
+function CardProbe() {
+  const slice = useModeSlice(GROUP_A, {
+    state: { standing: 'fearless', pending: null, ratedOverride: null, version: SHOWN_MODE },
+    updatedAt: null,
+    resetAt: '2026-10-01T16:00:00.000Z',
+  });
+  const pending = slice.state.pending;
+  return (
+    <p data-testid="card">
+      {slice.state.standing} {pending === null ? '-' : pending.id === 'class' ? pending.tag : pending.id}{' '}
+      {slice.state.ratedOverride === null ? 'default' : String(slice.state.ratedOverride)} {slice.resetAt}
+    </p>
+  );
+}
 const { LiveTag } = await import('./LiveTag');
 // The strict parser is a dynamic import (zod stays out of Tonight's first load): load it once up
 // front, as a page has by the time its first row arrives.
@@ -271,10 +320,10 @@ describe('the Realtime subscription', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('the Mode card rows re-read nothing: their writers bump the live row last', async () => {
+  it('the Mode card rows re-read nothing by themselves: their writers bump the live row last', async () => {
     draw();
-    fire('group_modes', { group_id: GROUP_A });
-    fire('fearless_state', { group_id: GROUP_A });
+    fire('group_modes', modeRow(SHOWN_MODE + 1));
+    fire('fearless_state', fearlessRow('2026-10-04T20:00:00+00:00'));
     await settle();
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -293,6 +342,110 @@ describe('the Realtime subscription', () => {
     for (let i = 0; i < 10; i += 1) bump();
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('M19.13: the Mode card on the client', () => {
+  const card = () => screen.getByTestId('card').textContent;
+  const drawWithCard = () => {
+    draw();
+    render(<CardProbe />);
+  };
+  const wait = async (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  it('a group_modes row moves the card at once, and its mode bump re-reads nothing (0 server renders)', async () => {
+    drawWithCard();
+    fire('group_modes', modeRow(SHOWN_MODE + 1, { pending_rule: 'class', pending_class_tag: 'Tank' }));
+    await wait(0);
+    expect(card()).toContain('fearless Tank default');
+    modeBump();
+    await wait(MODE_ROW_WAIT_MS + COALESCE_MS + 50);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("another admin's newer row moves the card; an older row is ignored", async () => {
+    drawWithCard();
+    fire('group_modes', modeRow(SHOWN_MODE + 2, { mode: 'normal' }));
+    fire('group_modes', modeRow(SHOWN_MODE + 1, { pending_rule: 'mirror' }));
+    await settle();
+    expect(card()).toContain('normal - default');
+    expect(confirmedVersion(GROUP_A)).toBe(SHOWN_MODE + 2);
+    // A row older than the render itself is ignored too.
+    fire('group_modes', modeRow(SHOWN_MODE - 1, { rated_override: false }));
+    await settle();
+    expect(card()).toContain('normal - default');
+  });
+
+  it('a mode bump that arrives before its row waits for it, then re-reads nothing', async () => {
+    drawWithCard();
+    modeBump();
+    await wait(MODE_ROW_WAIT_MS / 2);
+    fire('group_modes', modeRow(SHOWN_MODE + 1, { rated_override: false }));
+    await wait(MODE_ROW_WAIT_MS + COALESCE_MS + 50);
+    expect(card()).toContain('fearless - false');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a mode bump whose row never arrives re-reads the page once the wait has passed', async () => {
+    drawWithCard();
+    modeBump();
+    await wait(MODE_ROW_WAIT_MS - 1);
+    expect(refresh).not.toHaveBeenCalled();
+    await wait(COALESCE_MS + 10);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("a Fearless reset moves the card at once and still re-reads (the pool and the ten are the server's)", async () => {
+    drawWithCard();
+    fire('fearless_state', fearlessRow('2026-10-04T20:00:00+00:00'));
+    modeBump();
+    await settle();
+    expect(card()).toContain('2026-10-04T20:00:00+00:00');
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('a DELETE of a mode row is never a patch: it re-reads', async () => {
+    drawWithCard();
+    fire('group_modes', modeRow(SHOWN_MODE), 'DELETE');
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(card()).toContain('fearless - default');
+  });
+
+  it('with the mode panel open over the page, a mode bump re-reads (the panel is a server render)', async () => {
+    window.history.pushState({}, '', '/g/customs/mode');
+    drawWithCard();
+    fire('group_modes', modeRow(SHOWN_MODE + 1, { mode: 'normal' }));
+    modeBump();
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    window.history.pushState({}, '', '/');
+  });
+
+  it('a row heard before another kind of change is not saved for a later mode bump', async () => {
+    drawWithCard();
+    // The eog's compare-and-clear writes the row, then bumps `game`: one render.
+    fire('group_modes', modeRow(SHOWN_MODE + 1));
+    bump();
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    // A later mode bump has no row of its own: it waits, then re-reads.
+    modeBump();
+    await wait(MODE_ROW_WAIT_MS + COALESCE_MS + 50);
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops a malformed mode row without touching the card', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    drawWithCard();
+    fire('group_modes', modeRow(SHOWN_MODE + 1, { mode: 'aram' }));
+    await settle();
+    expect(card()).toContain('fearless - default');
+    expect(warn).toHaveBeenCalledWith('group_modes: dropped a malformed row');
+    warn.mockRestore();
   });
 });
 

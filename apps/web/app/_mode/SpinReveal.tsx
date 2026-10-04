@@ -21,12 +21,13 @@ import {
  * once; then the status (`children`, server-rendered) comes back. With `prefers-reduced-motion` it
  * lands at once. No wheel, no route, no modal. Until a Spin it is just its children.
  *
- * **It plays only what the card confirms** (M15.5 review, design round 1). Whether the reveal came
- * from this admin's own Spin or from another page's Realtime broadcast (a claim anyone with the
- * anon key could send on the public channel), it plays only when its rule is the card's pending
- * rule (`pendingKey`, the server's read of `group_modes`), so the reveal and the card never
- * disagree. One that beats the page's refresh waits up to {@link SPIN_WAIT_MS} for the refreshed
- * card; anything else is dropped silently.
+ * **A broadcast plays only what the card confirms** (M15.5 review, design round 1). Another page's
+ * Realtime broadcast (a claim anyone with the anon key could send on the public channel) plays only
+ * when its rule is the card's pending rule (`pendingKey`, from the `group_modes` row in the client
+ * mode store), so the reveal and the card never disagree. One that beats the row waits up to
+ * {@link SPIN_WAIT_MS}; anything else is dropped silently. This admin's own Spin (`source:
+ * 'local'`) is the route's answer, which the controls have already put on the card, and plays at
+ * once (M19.13).
  */
 export function SpinReveal({
   labels,
@@ -101,7 +102,10 @@ export function SpinReveal({
     const onSpin = (event: Event) => {
       const rule = spinDetail(event);
       if (rule === null) return;
-      if (pending.current !== null && ruleKey(rule) === pending.current) {
+      // M19.13: this admin's own Spin is the route's answer (already in the client mode store),
+      // so it plays at once; another page's broadcast still waits for the card to confirm it.
+      const local = (event as CustomEvent<{ source?: unknown } | null>).detail?.source === 'local';
+      if (local || (pending.current !== null && ruleKey(rule) === pending.current)) {
         held.current = null;
         play.current(rule);
         return;

@@ -105,31 +105,30 @@ describe('Set mode answers on its own', () => {
     expect(bodies(net.mock)).toEqual([{ groupId: ORIGINAL_GROUP.id, mode: 'class:Tank' }]);
   });
 
-  it('M19.3: says Setting… until the new card is on screen, then goes, with focus on the select', async () => {
+  it('M19.13: says Setting… until the route confirms, then goes with focus on the select; no re-read is asked', async () => {
     const tonight = holdTonightRefresh();
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
-    const { rerender } = render(<ModeControls {...PROPS} />);
+    render(<ModeControls {...PROPS} />);
     fireEvent.change(select(), { target: { value: 'class:Tank' } });
     const button = setButton() as HTMLElement;
     button.focus();
     fireEvent.click(button);
-    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
-    expect(tonight.asks).toHaveLength(1);
 
-    // Answered, the old card still up: the button stays, pending, and posts nothing again.
+    // In flight: the button stays, pending, and posts nothing again.
     const pendingButton = screen.getByRole('button', { name: SETTING_MODE });
     expect(pendingButton).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(spinButton());
     fireEvent.submit(select().form as HTMLFormElement);
     expect(net.mock).toHaveBeenCalledTimes(1);
 
-    // The re-read lands (new props), then the button goes and focus is on the select.
-    rerender(<ModeControls {...PROPS} selected="class:Tank" nextRated={false} version={5} />);
-    await act(async () => tonight.land());
-    await waitFor(() => expect(screen.queryByRole('button', { name: SETTING_MODE })).toBeNull());
+    // Answered: the answer is the card (the client mode store), so the button goes at once.
+    await net.release(answer({ rule: 'class:Tank', rated: false, version: 5 }));
+    expect(screen.queryByRole('button', { name: SETTING_MODE })).toBeNull();
     expect(setButton()).toBeNull();
     expect(select()).toHaveFocus();
+    // Zero server renders per mode change: the controls ask Tonight for nothing.
+    expect(tonight.asks).toHaveLength(0);
     tonight.stop();
   });
 
@@ -223,13 +222,34 @@ describe('Spin is quiet during its own reveal', () => {
     window.removeEventListener(SPIN_REVEAL_EVENT, onReveal);
   });
 
-  it('a page that never re-reads still frees Spin after the reveal wait', async () => {
+  it('M19.13: with no re-read at all, the answer is the card, so Spin frees after the cycle', async () => {
     vi.useFakeTimers();
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
     render(<ModeControls {...PROPS} />);
     fireEvent.click(spinButton());
     await net.release(answer({ rule: 'region', rated: false, version: 5 }, 'region'));
+    await act(async () => {
+      vi.advanceTimersByTime(SPIN_CYCLE_MS - 1);
+    });
+    expect(spinButton()).toHaveAttribute('aria-disabled', 'true');
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(spinButton()).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('an answer without the card (an M14 server) still frees Spin after the reveal wait', async () => {
+    vi.useFakeTimers();
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.click(spinButton());
+    await net.release({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, mode: 'fearless', changed: true, spun: 'region' }),
+    } as Response);
     await act(async () => {
       vi.advanceTimersByTime(SPIN_WAIT_MS);
     });
