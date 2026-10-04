@@ -226,7 +226,7 @@ describe("the Mode card's Banned next game", () => {
     expect(spoken(chip('Jinx'))).toBe('Jinx, Zaun');
     expect(spoken(chip('Bard'))).toBe('Bard');
     expect(chip('Vi')?.parentElement?.className).toContain(
-      'grid-cols-[repeat(auto-fill,minmax(min(100%,7rem),1fr))]',
+      'grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))]',
     );
   });
 });

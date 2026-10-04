@@ -19,7 +19,7 @@ export function ChampIcon({ id, muted = false }: { id: number; muted?: boolean }
       aria-hidden="true"
       data-slot="champ-icon"
       className={cn(
-        'block size-6 shrink-0 rounded-chip bg-no-repeat in-data-[icons=off]:hidden',
+        'block size-[24px] shrink-0 rounded-chip bg-no-repeat in-data-[icons=off]:hidden',
         muted && 'opacity-55',
       )}
       style={{
@@ -138,7 +138,7 @@ function ChipText({
   if (regions === undefined || regions.length === 0) return <span className="min-w-0">{name}</span>;
   return (
     <span className="flex min-w-0 flex-col">
-      <span>{name}</span>
+      <span className="leading-5">{name}</span>
       <span className="sr-only">, </span>
       <span
         data-slot="region-tag"

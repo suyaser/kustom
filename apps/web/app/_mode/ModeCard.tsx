@@ -153,8 +153,8 @@ function BannedNext({
               <span className="font-mono text-2xs font-medium font-stretch-75%">{row.role ?? 'other'}</span>
             </span>
             {/* 8.15.4 by text size: two chips a row at 100% on 375 (the list is 241px there, so
-                8.15.4's 8em would make it one), one at 125% and up. */}
-            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,7rem),1fr))] gap-2">
+                8.15.4's 8em would make it one), one at 125% and up. auto-fit: a row of two at 1440 stretches, no empty tracks. */}
+            <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] gap-2">
               {row.champions.map((champion) => (
                 <OpenChip
                   key={champion.id}
