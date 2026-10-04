@@ -18,7 +18,13 @@ import {
 } from './generate';
 import { AI_FEATURES, dbMeter } from './meter';
 import { dbLineStore, readOptedOut } from './store';
-import { loadDiscordStoryline, readPlayerIds, runStoryline, type StorylineHookDeps, weekStartDay } from './storyline';
+import {
+  loadDiscordStoryline,
+  readPlayerIds,
+  runStoryline,
+  type StorylineHookDeps,
+  weekStartDay,
+} from './storyline';
 
 /**
  * Production bug, 2026-10-04: the original group's fixed id `00000000-0000-0000-0000-000000000001`
@@ -97,11 +103,7 @@ if (stack === null || service === null || !applied) {
   }
 
   async function line(kind: 'week' | 'player') {
-    const { data, error } = await db
-      .from('ai_lines')
-      .select('*')
-      .eq('group_id', groupId)
-      .eq('kind', kind);
+    const { data, error } = await db.from('ai_lines').select('*').eq('group_id', groupId).eq('kind', kind);
     if (error) throw new Error(error.message);
     return data;
   }
@@ -167,7 +169,11 @@ if (stack === null || service === null || !applied) {
         {
           weekStart: earlier,
           ratedGames: 9,
-          board: playerIds.map((playerId, index) => ({ playerId, games: 6, wins: [5, 4, 1][index] as number })),
+          board: playerIds.map((playerId, index) => ({
+            playerId,
+            games: 6,
+            wins: [5, 4, 1][index] as number,
+          })),
           climbs: [],
           streaks: [],
           awards: [],
