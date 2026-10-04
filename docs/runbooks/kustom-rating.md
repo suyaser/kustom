@@ -193,7 +193,7 @@ idempotent, and the database skipped nothing it should have written.
 
 ## 5. The checks
 
-1. **The board.** Open `/g/customs`, All time. Its order and Ratings are the dry run's `board` "new" columns (ties
+1. **The board.** Open `https://playkustom.com/g/customs`, All time. Its order and Ratings are the dry run's `board` "new" columns (ties
    on Rating may list in either order). The same as SQL, read-only (SQL editor, `'customs'` in place of
    `:'slug'`): `packages/db/scripts/m18-10-checks.sql`, check A.
 2. **One game's explanation.** Check B lists the latest game's ten stored rows (side %, K, share rank, award, n,
@@ -270,7 +270,7 @@ Only if the gate fails or a check disagrees. In this order:
 Only once every step 5 check has passed for every group, and never on a rollback: **the owner posts the
 patch-notes image (the lead renders it) in the group's Discord**, by hand, once per group. Nothing in the app or in
 this runbook sends it: there is no automated send and no code for it (owner, 2026-10-04). Links in the post point
-at the production domain, `https://kustom-delta.vercel.app` (e.g. `https://kustom-delta.vercel.app/g/customs`).
+at the production domain, `https://playkustom.com` (e.g. `https://playkustom.com/g/customs`).
 
 ---
 
