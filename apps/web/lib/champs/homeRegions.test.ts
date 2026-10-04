@@ -46,7 +46,7 @@ describe('the home list', () => {
     const byRegion: Partial<Record<RegionId, string[]>> = {};
     const names = new Map(listChampions().map((c) => [c.id, c.name]));
     for (const [key, homes] of entries)
-      for (const home of homes) (byRegion[home] ??= []).push(names.get(Number(key)) ?? key);
+      for (const home of homes) byRegion[home] = [...(byRegion[home] ?? []), names.get(Number(key)) ?? key];
     for (const list of Object.values(byRegion)) list.sort();
     expect(byRegion).toEqual({
       'bandle-city': ['Fizz', 'Gnar', 'Heimerdinger', 'Kennen', 'Kled', 'Poppy', 'Vex', 'Ziggs'],
@@ -68,7 +68,7 @@ describe('the home list', () => {
     expect(homeListProblems({ 86: ['demacia'] })).toEqual(['86: repeats the Universe region demacia']);
     expect(homeListProblems({ 86: ['unaffiliated'] })).toEqual(['86: names unaffiliated']);
     expect(homeListProblems({ 254: ['zaun', 'noxus'] })).toEqual(['254: 3 regions']);
-    expect(homeListProblems({ 12_345: ['ionia'] })).toEqual([
+    expect(homeListProblems({ 12345: ['ionia'] })).toEqual([
       '12345: not in names.ts',
       '12345: no Universe row',
     ]);
