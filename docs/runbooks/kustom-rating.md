@@ -343,6 +343,16 @@ biggest move  none
 took          105 ms
 ```
 
+After the review's chunking change (whole games, at most 2,000 rows a call), the walk of step 4 was repeated from a
+rolled-back `customs` (`ratings.r` was still filled from the first walk, hence 0 ratings rows):
+
+```
+wrote         90 game_players rows, 0 ratings rows (0043: 90 game_players rows moved in 1 call)
+wrote         0 game_players rows, 0 ratings rows (0043: 0 game_players rows moved in 0 calls)
+```
+
+The two blocks above were printed before that change, when the suffix read `moved in one call`.
+
 **Step 5**, `psql -v slug=customs -f packages/db/scripts/m18-10-checks.sql`:
 
 ```
