@@ -97,16 +97,14 @@ export const CONNECT_TIMEOUT_MS = 8_000;
 
 /**
  * How often the page re-reads while any name on it says `Someone`: `players` is in no publication,
- * so a name arriving is the one change that never turns up as an event (M3.10).
+ * so a name arriving is the one change that never turns up as an event (M3.10). **Kept by M19.17**:
+ * a name can arrive with no `group_live` bump (a lobby post that changed nobody's seat writes only
+ * the player row), it costs one render a minute and only while a fallback name is on screen.
+ *
+ * The 5 s page poll for a pending `Start a lobby` is gone (M19.17): `StartLobby` polls the small
+ * status route itself and asks for one render when the command settles.
  */
 export const NAME_REREAD_MS = 60_000;
-
-/**
- * How often the page asks what became of a pending `create_lobby` (M4.2): `companion_commands` is
- * service-role only and in no publication, so a poll, at the companion's own five seconds, for the
- * one viewer who pressed the button and only while the command is live.
- */
-export const START_POLL_MS = 5_000;
 
 export interface TonightLiveProps {
   groupId: string;
@@ -119,17 +117,9 @@ export interface TonightLiveProps {
   lobbyLive: boolean;
   /** Some name on the page is still the fallback word. */
   nameless?: boolean | undefined;
-  /** Tonight's `create_lobby` is pending or sent (linked viewers only). */
-  startPending?: boolean | undefined;
 }
 
-export function TonightLive({
-  groupId,
-  liveVersion = null,
-  lobbyLive,
-  nameless = false,
-  startPending = false,
-}: TonightLiveProps) {
+export function TonightLive({ groupId, liveVersion = null, lobbyLive, nameless = false }: TonightLiveProps) {
   const { refresh: committedRefresh } = useCommittedRefresh();
   const run = useRef(committedRefresh);
   run.current = committedRefresh;
@@ -303,12 +293,6 @@ export function TonightLive({
     const interval = setInterval(() => refresh.current(), NAME_REREAD_MS);
     return () => clearInterval(interval);
   }, [nameless]);
-
-  useEffect(() => {
-    if (!startPending) return;
-    const interval = setInterval(() => refresh.current(), START_POLL_MS);
-    return () => clearInterval(interval);
-  }, [startPending]);
 
   return null;
 }

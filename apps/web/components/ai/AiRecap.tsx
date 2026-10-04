@@ -27,6 +27,7 @@ export function AiRecap({
   tap = AI_RECAP_TAP,
   label = AI_RECAP_LABEL,
   footnote,
+  pollGameId,
 }: {
   recap: AiRecapView | null;
   groupId: string;
@@ -39,9 +40,16 @@ export function AiRecap({
   label?: string;
   /** A quiet line under the text: the scouting report's `Written Sunday 4 Oct` (M16.6). */
   footnote?: string;
+  /**
+   * M19.17: the game whose line is awaited, for a **linked member** viewer: the waiter asks
+   * `GET /api/me/recap/status` and re-renders the page once, when the line lands. Absent (an
+   * anonymous visitor, who may not read that route) it falls back to re-rendering a few times.
+   */
+  pollGameId?: string | undefined;
 }): ReactNode {
   if (recap === null) return null;
-  if (recap.kind === 'waiting') return <RecapWaiter />;
+  if (recap.kind === 'waiting')
+    return <RecapWaiter poll={pollGameId === undefined ? undefined : { groupId, gameId: pollGameId }} />;
 
   const body = (
     <section aria-label={label} className="flex flex-col gap-0.5">

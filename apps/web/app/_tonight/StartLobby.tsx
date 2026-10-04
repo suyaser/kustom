@@ -1,12 +1,12 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PLAYERS_PER_GAME } from '@/lib/lobbyRules';
 import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStartCopy';
 import { groupHome } from '@/lib/nav';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
-import { beginTonightPress } from '@/lib/tonight/live';
+import { beginTonightPress, requestTonightRefresh } from '@/lib/tonight/live';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { usePageGroup } from '../_shell/PageGroup';
 
@@ -50,6 +50,39 @@ import { usePageGroup } from '../_shell/PageGroup';
  */
 
 const START_ACTION = '/api/me/lobbies/start';
+
+/** M19.16's read of where tonight's press is (`{ status, host }`), for linked members. */
+const START_STATUS = '/api/me/lobbies/start/status';
+
+/**
+ * How often a pending press asks the status route (M19.17), at the companion's own five seconds.
+ * It replaces the 5 s **page** re-render (decision row 2026-09-10): one small read instead of a
+ * whole Tonight render, and one render when the command settles.
+ */
+export const START_POLL_MS = 5_000;
+
+/** The poll's own cap: the command expires at 60 s, so by 70 s it has settled one way or the other. */
+export const START_POLL_CAP_MS = 70_000;
+
+type StartStatus = 'pending' | 'sent' | 'done' | 'failed' | null;
+
+/** The status route's answer, or `undefined` when it could not say (signed out, offline, a 403). */
+async function readStartStatus(groupId: string): Promise<StartStatus | undefined> {
+  try {
+    const [response, schema] = await Promise.all([
+      fetch(`${START_STATUS}?groupId=${encodeURIComponent(groupId)}`, {
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      }),
+      import('@/app/api/me/lobbies/start/status/schema'),
+    ]);
+    if (!response.ok) return undefined;
+    const parsed = schema.startStatusResponseSchema.safeParse(await response.json().catch(() => null));
+    return parsed.success ? parsed.data.status : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** The OAuth round trip, the one thing on this page that navigates (`RoleTonight`'s own). */
 const SIGN_IN_ACTION = '/auth/signin';
@@ -106,6 +139,34 @@ export function StartLobby({ start, press, around, onPressed, label, noHostLine 
    * short-circuits, so the quiet button cannot queue a second command.
    */
   const quiet = progress?.status === 'pending' || progress?.status === 'sent';
+
+  // M19.17: while the command is live, ask the status route (not the page) every five seconds; the
+  // moment it settles (done, failed, gone) or cannot be read, the page re-renders once and the
+  // re-read's row takes over. Capped, so a stuck command never polls all night.
+  useEffect(() => {
+    if (!quiet) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const since = Date.now();
+    const settle = (): void => {
+      stopped = true;
+      void requestTonightRefresh();
+    };
+    const tick = async (): Promise<void> => {
+      const status = await readStartStatus(group.id);
+      if (stopped) return;
+      if ((status === 'pending' || status === 'sent') && Date.now() - since < START_POLL_CAP_MS) {
+        timer = setTimeout(() => void tick(), START_POLL_MS);
+        return;
+      }
+      settle();
+    };
+    timer = setTimeout(() => void tick(), START_POLL_MS);
+    return () => {
+      stopped = true;
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [quiet, group.id]);
   /**
    * `Invited <n> friends — waiting for them to accept.`, under the control while the lobby is
    * filling and until ten are in (product, M4.2). It is the fan-out's own count, so it appears

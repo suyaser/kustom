@@ -118,7 +118,6 @@ const {
   liveSubscriptions,
   COALESCE_MS,
   CONNECT_TIMEOUT_MS,
-  START_POLL_MS,
   NAME_REREAD_MS,
   PRESS_BUMP_WAIT_MS,
 } = await import('./TonightLive');
@@ -132,14 +131,7 @@ const GROUP_B = '22222222-2222-4222-8222-222222222222';
 /** The version the server render showed, in every test unless it says otherwise. */
 const SHOWN = 10;
 
-function draw(
-  props: {
-    lobbyLive?: boolean;
-    nameless?: boolean;
-    startPending?: boolean;
-    liveVersion?: number | null;
-  } = {},
-) {
+function draw(props: { lobbyLive?: boolean; nameless?: boolean; liveVersion?: number | null } = {}) {
   return render(
     <>
       <LiveTag lobbyLive={props.lobbyLive ?? true} />
@@ -148,7 +140,6 @@ function draw(
         liveVersion={props.liveVersion === undefined ? SHOWN : props.liveVersion}
         lobbyLive={props.lobbyLive ?? true}
         nameless={props.nameless}
-        startPending={props.startPending}
       />
     </>,
   );
@@ -557,18 +548,20 @@ describe('the live tag and the tab dot', () => {
 });
 
 describe('the polls', () => {
-  it('asks about a pending create_lobby every five seconds, and stops when it settles', async () => {
-    const { rerender } = draw({ startPending: true });
-    // Async: a render lands between two polls, as it does in a browser (single flight, M19.3).
+  it('M19.17: never re-renders on a timer for a pending Start a lobby (StartLobby polls its own route)', async () => {
+    draw();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(START_POLL_MS * 2 + COALESCE_MS * 2);
+      await vi.advanceTimersByTimeAsync(60_000);
     });
-    expect(refresh).toHaveBeenCalledTimes(2);
-
-    refresh.mockClear();
-    rerender(<TonightLive groupId={GROUP_A} lobbyLive startPending={false} />);
-    await act(async () => vi.advanceTimersByTime(START_POLL_MS * 4));
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('re-reads names once a minute while somebody is still nameless (kept by M19.17)', async () => {
+    draw({ nameless: true });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NAME_REREAD_MS + COALESCE_MS + 10);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('re-reads names once a minute only while somebody is still nameless', async () => {

@@ -175,7 +175,6 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
       state.kind === 'result' ? loadGameBreakdownOrNone(client, state.result.gameId) : Promise.resolve(null),
     ]);
   const lastNight = lastGame ? nightStart(new Date(lastGame.startedAt), timeZone) : null;
-  const startPending = lobbyStart?.status === 'pending' || lobbyStart?.status === 'sent';
 
   return (
     <>
@@ -200,7 +199,18 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
         renderedAt={Date.now()}
         modeNotice={{ notice: one(query.notice), error: one(query.error) }}
         yourNight={yourNight}
-        aiRecap={recap === null ? null : <AiRecap recap={recap} groupId={group.id} />}
+        aiRecap={
+          recap === null ? null : (
+            <AiRecap
+              recap={recap}
+              groupId={group.id}
+              // M19.17: a linked viewer's waiter asks the small recap read, not the page.
+              pollGameId={
+                viewer.kind === 'linked' && state.kind === 'result' ? state.result.gameId : undefined
+              }
+            />
+          )
+        }
         breakdown={breakdown}
       />
       <TonightLive
@@ -208,7 +218,6 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
         liveVersion={liveVersion}
         lobbyLive={header.live}
         nameless={hasNamelessRow(state, snapshot.tape)}
-        startPending={startPending}
       />
     </>
   );
