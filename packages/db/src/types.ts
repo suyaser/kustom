@@ -1875,6 +1875,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      apply_game_player_ratings: {
+        Args: { p_group: string; p_only_unrated?: boolean; p_rows: Json }
+        Returns: number
+      }
       bootstrap_admin: {
         Args: { p_puuid: string }
         Returns: {

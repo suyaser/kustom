@@ -3,6 +3,7 @@ import type { RatingInsert, SideValue } from '@customs/db';
 import { invalidateGroup } from '../cache/tags';
 import { gameModeFromRaw } from '../games/queue';
 import type { ServiceClient } from '../supabase';
+import { applyGamePlayerRatings } from './applyRatings';
 import {
   type FoldOutcome,
   type FoldRatedPlayer,
@@ -49,7 +50,9 @@ import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './see
  * 1. a **guard** that refuses to start while a lobby is live or a game landed in the last
  *    fifteen minutes, so it does not overlap in the first place;
  * 2. an **in-memory fold** with one batched write at the end, so `ratings` is untouched until
- *    the answer is complete and a crash halfway leaves the old numbers standing;
+ *    the answer is complete and a crash halfway leaves the old numbers standing. Since 0043 the
+ *    `game_players` half of that write is one statement (`applyGamePlayerRatings`), so it lands
+ *    whole or not at all; the `ratings` upsert after it is its own call;
  * 3. a **fence** that re-reads the game set afterwards and says "run it again" if it moved.
  *
  * A concurrent end-of-game post during a rebuild cannot corrupt anything: it reads pre-rebuild
@@ -87,15 +90,6 @@ const PAGE_SIZE = 1000;
 
 /** Rows per batched write. Small enough for a URL, large enough that a group is a few calls. */
 const WRITE_CHUNK = 500;
-
-/**
- * How many single-row updates are in flight at once.
- *
- * `game_players` has no batch update through PostgREST, so a rebuild that moves a whole group
- * is one statement per row. Locally 500 at a time is free; through a hosted gateway it is a
- * burst somebody else's night is queued behind, and the command is not in a hurry.
- */
-const WRITE_CONCURRENCY = 25;
 
 /** A game landing inside this window means somebody is probably still playing. */
 export const RECENT_GAME_MS = 15 * 60 * 1000;
@@ -143,6 +137,8 @@ export interface RebuildOptions {
    * to notice. Nothing in the app passes it.
    */
   afterSnapshot?: () => Promise<void>;
+  /** Tests only: rows per 0043 call (default `APPLY_CHUNK_ROWS`). */
+  writeChunkRows?: number;
   now?: Date;
   /** The zone of the weekly track's Sunday 06:00 (M18.5). Default: `nightTimeZone()`, the board's. */
   timeZone?: string;
@@ -181,6 +177,13 @@ export interface RebuildReport {
    * `game_players` rows whose rating columns or fold breakdown changed (or would, on a dry run).
    */
   gamePlayerRowsChanged: number;
+  /**
+   * Rows the database actually wrote (0043 returns it; it skips a row whose stored values already
+   * match exactly). Zero on a dry run and on a second run of an unchanged database.
+   */
+  gamePlayerRowsWritten: number;
+  /** `apply_game_player_ratings` calls made (chunks of whole games, `APPLY_CHUNK_ROWS`). */
+  gamePlayerWriteCalls: number;
   /**
    * Rated `game_players` rows this run writes a fold breakdown on for the first time (M14.58,
    * `0034`: stored before the migration). Zero on every run after the first.
@@ -650,6 +653,8 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
     comparison,
     skipped,
     gamePlayerRowsChanged: changedRows.length,
+    gamePlayerRowsWritten: 0,
+    gamePlayerWriteCalls: 0,
     breakdownsFilled,
     ratingRowsChanged: ratingInserts.length,
     seedsStored,
@@ -668,7 +673,14 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   if (options.afterSnapshot) await options.afterSnapshot();
 
   // ---- Write once, at the end ----------------------------------------------------------
-  await writeGamePlayerRatings(client, changedRows);
+  const written = await writeGamePlayerRatings(
+    client,
+    groupId,
+    changedRows,
+    options.writeChunkRows ?? APPLY_CHUNK_ROWS,
+  );
+  report.gamePlayerRowsWritten = written.written;
+  report.gamePlayerWriteCalls = written.calls;
   await writeRatings(client, ratingInserts);
   if (options.prune && orphans.length > 0) {
     await pruneRatings(client, groupId, orphans);
@@ -1075,45 +1087,83 @@ async function selectGroupRatings(
 }
 
 /**
- * The four rating columns, row by row.
- *
- * There is no `update ... from (values ...)` through PostgREST, so this is one statement per
- * row that actually moved — which after the first rebuild is none of them. It is deliberately
- * **not** guarded by `mu_after is null`: the rebuild is the one writer entitled to overwrite the
- * live fold's claim, because it is the one writer that knows the whole order.
+ * Rows per `apply_game_player_ratings` call (0043). A call is one statement, and it runs under the
+ * caller's statement timeout (PostgREST's authenticator, about 8 s on hosted; the function's own
+ * `statement_timeout` setting does not extend it), so the rebuild writes in chunks well inside it.
  */
-async function writeGamePlayerRatings(client: ServiceClient, rows: readonly WriteRow[]): Promise<void> {
-  for (let index = 0; index < rows.length; index += WRITE_CONCURRENCY) {
-    const chunk = rows.slice(index, index + WRITE_CONCURRENCY);
-    await Promise.all(
-      chunk.map(async (row) => {
-        const { error } = await client
-          .from('game_players')
-          .update({
-            mu_before: row.muBefore,
-            sigma_before: row.sigmaBefore,
-            mu_after: row.muAfter,
-            sigma_after: row.sigmaAfter,
-            fold_p: row.foldP,
-            base_mu_after: row.baseMuAfter,
-            award: row.award,
-            rated_games_before: row.ratedGamesBefore,
-            r_before: row.rBefore,
-            r_after: row.rAfter,
-            k: row.k,
-            share_rank: row.shareRank,
-            week_r_before: row.weekRBefore,
-            week_r_after: row.weekRAfter,
-            week_k: row.weekK,
-            week_fold_p: row.weekFoldP,
-            week_games_before: row.weekGamesBefore,
-          })
-          .eq('game_id', row.gameId)
-          .eq('player_id', row.playerId);
-        if (error) throw new Error(`rebuild: game_players update failed: ${error.message}`);
-      }),
-    );
+export const APPLY_CHUNK_ROWS = 2_000;
+
+/**
+ * Every rating column of every row that moved, through 0043 (`applyGamePlayerRatings`), in chunks
+ * of **whole games** in `started_at` order (at most `chunkRows` rows a call, a game never split).
+ * Each chunk is one statement, so one transaction, and rows the database finds unmoved are skipped
+ * there too, so a no-op rebuild fires no Realtime event. A run that fails part way leaves the
+ * earlier chunks written and the rest as they were; the rebuild is idempotent, so running it again
+ * writes only what is left, and the run after that writes 0. Before 0043 this was one PATCH per
+ * row (18,190 requests for a 2,000-game group).
+ *
+ * `onlyUnrated: false`: deliberately **not** guarded by "rated on no track". The rebuild is the
+ * one writer entitled to overwrite the live fold's claim, because it is the one writer that knows
+ * the whole order. Every column of both tracks is in every row, so 0036's "a track together or not
+ * at all" holds by construction. Returns the rows the database wrote and the calls made.
+ */
+async function writeGamePlayerRatings(
+  client: ServiceClient,
+  groupId: string,
+  rows: readonly WriteRow[],
+  chunkRows: number,
+): Promise<{ written: number; calls: number }> {
+  const chunks: WriteRow[][] = [];
+  let chunk: WriteRow[] = [];
+  let game: WriteRow[] = [];
+  const closeGame = () => {
+    if (game.length === 0) return;
+    if (chunk.length > 0 && chunk.length + game.length > chunkRows) {
+      chunks.push(chunk);
+      chunk = [];
+    }
+    chunk.push(...game);
+    game = [];
+  };
+  for (const row of rows) {
+    if (game.length > 0 && game[0]?.gameId !== row.gameId) closeGame();
+    game.push(row);
   }
+  closeGame();
+  if (chunk.length > 0) chunks.push(chunk);
+
+  let written = 0;
+  for (const part of chunks) written += await applyChunk(client, groupId, part);
+  return { written, calls: chunks.length };
+}
+
+function applyChunk(client: ServiceClient, groupId: string, rows: readonly WriteRow[]): Promise<number> {
+  return applyGamePlayerRatings(
+    client,
+    groupId,
+    rows.map((row) => ({
+      game_id: row.gameId,
+      player_id: row.playerId,
+      mu_before: row.muBefore,
+      sigma_before: row.sigmaBefore,
+      mu_after: row.muAfter,
+      sigma_after: row.sigmaAfter,
+      fold_p: row.foldP,
+      base_mu_after: row.baseMuAfter,
+      award: row.award,
+      rated_games_before: row.ratedGamesBefore,
+      r_before: row.rBefore,
+      r_after: row.rAfter,
+      k: row.k,
+      share_rank: row.shareRank,
+      week_r_before: row.weekRBefore,
+      week_r_after: row.weekRAfter,
+      week_k: row.weekK,
+      week_fold_p: row.weekFoldP,
+      week_games_before: row.weekGamesBefore,
+    })),
+    { onlyUnrated: false },
+  );
 }
 
 async function writeRatings(client: ServiceClient, inserts: readonly RatingInsert[]): Promise<void> {
@@ -1202,7 +1252,13 @@ export function formatRebuildReport(report: RebuildReport): string {
     `skipped       ${formatSkipped(report.skipped)}`,
     `${report.dryRun ? 'would change  ' : 'wrote         '}${report.gamePlayerRowsChanged} game_players row${
       report.gamePlayerRowsChanged === 1 ? '' : 's'
-    }, ${report.ratingRowsChanged} ratings row${report.ratingRowsChanged === 1 ? '' : 's'}`,
+    }, ${report.ratingRowsChanged} ratings row${report.ratingRowsChanged === 1 ? '' : 's'}${
+      report.dryRun
+        ? ''
+        : ` (0043: ${report.gamePlayerRowsWritten} game_players rows moved in ${report.gamePlayerWriteCalls} call${
+            report.gamePlayerWriteCalls === 1 ? '' : 's'
+          })`
+    }`,
     `players       ${report.playersWritten} with a rated game`,
     `seeds         ${report.seedsStored} ${report.dryRun ? 'to store' : 'stored'} for the first time`,
     `breakdowns    ${report.breakdownsFilled} game_players row${report.breakdownsFilled === 1 ? '' : 's'} ${

@@ -85,6 +85,8 @@ KUSTOM_REPLAY_CSV=<export.csv> pnpm --filter web exec vitest run lib/ingest/kust
                              # log loss 0.700, Spearman 0.938 / 0.925. Reads the export in place (never
                              # copy it into the repo); skipped without the variable, so never in CI.
 pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
+packages/db/scripts/m18-10-throwaway-check.sh [0043 path]  # M18.10: checks 0043 on a throwaway restore of local (pg_dump read only); needs Docker + pnpm db:start
+# M18.10 step 5 (read-only switch checks: board, one game, week sums): paste packages/db/scripts/m18-10-checks.sql into the SQL editor with the group slug
 pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
                              # M7.7 one-off, extended by M7.14: copies vision score, damage
                              # self-mitigated and damage to objectives out of games.raw onto

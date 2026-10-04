@@ -93,7 +93,14 @@ function fakeClient(writes: string[], options: FakeOptions = {}): ServiceClient 
     chain.then = (resolve: (value: unknown) => unknown) => resolve(answer);
     return chain;
   };
-  return { from: chainFor } as unknown as ServiceClient;
+  // The claim (0043): one `apply_game_player_ratings` call for the ten, recorded as
+  // `game_players.claim:<rows>`; nobody else has rated the game, so every row is written.
+  const rpc = async (name: string, args: { p_rows: unknown[]; p_only_unrated: boolean }) => {
+    if (name !== 'apply_game_player_ratings') throw new Error(`unexpected rpc ${name}`);
+    writes.push(`game_players.claim:${args.p_rows.length}${args.p_only_unrated ? '' : ':overwrite'}`);
+    return { data: args.p_rows.length, error: null };
+  };
+  return { from: chainFor, rpc } as unknown as ServiceClient;
 }
 
 describe('rateStoredGame and a failing epoch read', () => {
@@ -114,7 +121,7 @@ describe('rateStoredGame and a reset that lands mid-fold (M14.18)', () => {
       'game-1',
     );
     expect(result).toEqual({ rated: false, reason: 'before-reset', claimed: 10 });
-    expect(writes.filter((write) => write === 'game_players.update')).toHaveLength(10);
+    expect(writes.filter((write) => write.startsWith('game_players.'))).toEqual(['game_players.claim:10']);
     expect(writes).not.toContain('ratings.upsert');
   });
 
@@ -126,7 +133,7 @@ describe('rateStoredGame and a reset that lands mid-fold (M14.18)', () => {
     );
     // The weekly track ignores the reset: ten weekly rows claimed, no rating written.
     expect(result).toEqual({ rated: false, reason: 'before-reset', claimed: 10 });
-    expect(writes.filter((write) => write === 'game_players.update')).toHaveLength(10);
+    expect(writes.filter((write) => write.startsWith('game_players.'))).toEqual(['game_players.claim:10']);
     expect(writes).not.toContain('ratings.upsert');
   });
 

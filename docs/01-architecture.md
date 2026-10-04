@@ -403,9 +403,19 @@ on the same ten and the same performance scores (so one share rank, one MVP and 
   weekly five, `share_rank` and `award`, no all-time column), legal under 0036. Stored as `week_r_before`,
   `week_r_after`, `week_k`, `week_fold_p`, `week_games_before`; the current weekly Rating is derived, not stored.
 - **`share_rank`** (1..5, null when the game has no performance score) drives both tracks and is stored once.
-- **Claim.** The live fold writes a row only while `mu_after` and `week_r_after` are both null (a weekly-only
-  write also needs `r_after` null), so a second companion's post, or a repost of a game from before the switch,
-  changes nothing.
+- **Claim.** The live fold writes a row only while `mu_after`, `r_after` and `week_r_after` are all null, so a
+  second companion's post, or a repost of a game from before the switch, changes nothing. The ten rows go in one
+  call (0043, below), so two concurrent posts serialise on the row locks and the loser writes 0 rows.
+- **One writer (0043).** Every `game_players` rating write -- the live fold's claim, `rebuild-ratings` and the
+  daily cron's rebuild -- goes through `apply_game_player_ratings(p_group, p_rows, p_only_unrated)`
+  (`lib/ingest/applyRatings.ts`; row schema `gamePlayerRatingsRowSchema` in `@customs/db/schemas`): one statement
+  per call, so one transaction per call; every row carries all seventeen rating columns (a missing key is refused,
+  so a track is always written whole); rows whose stored values already match are skipped in the database (no
+  Realtime event). Security definer, `search_path ''`, service role only. The function's `statement_timeout`
+  setting does not extend the caller's (PostgREST's ~8 s governs), so the rebuild calls it in chunks of whole
+  games in `started_at` order (`APPLY_CHUNK_ROWS`, 2,000 rows); a run that fails part way is fixed by running it
+  again. `p_only_unrated` true is the claim (ten rows, one call), false the rebuild. Before 0043 the rebuild was one PATCH per moved row (finding 7 of
+  `redesign/research/db-performance.md`).
 - **The rebuild** reads every game of the group (not only those since the epoch), keeps an all-time state from
   1200 at the epoch and a weekly state emptied at every week boundary, keeps every pre-epoch row's all-time
   columns as stored (history), and writes only rows that moved (1e-9, `RATING_EPSILON`), so a second run changes
@@ -635,8 +645,8 @@ it prints no award and would be carrying those columns for a thousand games to s
 ## Balancer (`packages/core/balance`)
 
 Input: ten players with `{ r, n, mainRole, secondaryRole, roleOverride? }`, optional duo locks, the previous night's
-split, and the odds calibration `calib` (absent = `(0, 1)`). Output: top three splits with role assignments and
-explanation.
+split, the odds calibration `calib` (absent = `(0, 1)`), and the recent teammate pairs `recentTeammates` (M18.13,
+absent = none). Output: top three splits with role assignments, per-term score parts, and explanation.
 
 **M18.2: the balancer is on the Kustom rating.** `r` and `n` are the player's stored all-time Kustom Rating and
 rated games, the same numbers the fold reads; the web caller switches in the M18 switch deploy (M18.5/M18.6), and
@@ -646,12 +656,35 @@ Rating (the owner's call, 2026-10-04). Rank stays on the roster as information o
 `provisionalSeed`, `predictWin` and `balanceScore` are no longer on the balancer's path (OpenSkill's removal is
 M18.12). A non-finite `r` or an `n` that is not a whole number `>= 0` is a `BalanceError`.
 
-- Effective strength on a role: `r * 1.00` main, `r * 0.93` secondary, `r * 0.85` fill (numerically what
-  `mu * 60 * multiplier` was). A `roleOverride` for tonight counts as main for that role only.
+- Effective strength on a role (M18.13): `r - roleDrop[tier]`, `config.balance.roleDrop = { main: 0, secondary: 84,
+  fill: 180 }` Rating points. A `roleOverride` for tonight counts as main for that role only. **Flat, not a
+  percentage**: until M18.13 it was `r * 0.93` / `r * 0.85`, which took more points from a high-rated player than
+  a low-rated one for the same seat, so the cheapest fill was always the weakest player (in a fixed sweep of 1,000
+  lobbies on the real Kustom spread, 1100 to 1400, the bottom rating third took 1,019 fills to the top third's 401;
+  flat, 689 to 770). 84 and 180 are 0.07 and 0.15 of 1200, the Kustom anchor: what the multipliers took from a
+  1200 player, now taken from everybody. Inside a team two players for whom a seat is the same tier now cost the
+  same, and the stable permutation order (players sorted by puuid) settles it; fill protection is what moves it
+  between nights.
 - Enumerate all 126 distinct 5/5 partitions. For each team, choose the role assignment (120 permutations) that
   maximizes effective skill minus off-role penalty. 126 x 2 x 120 evaluations, well under 100 ms.
 - `score = |sum(blueEff) - sum(redEff)| + sum(off-role cost of each filled seat) + 200 * isRepeatOfLastSplit +
-  inf * duoSeparated`, in Rating points. One filled seat costs 120 unless fill protection scales it.
+  variety + inf * duoSeparated`, in Rating points. One filled seat costs 120 unless fill protection scales it.
+- **Teammate variety** (M18.13, owner-approved 2026-10-04): `variety = min(100, 25 * repeatedPairs)`
+  (`varietyCap`, `varietyPerPair`), a repeated pair being two players on the same side of this split who were also
+  teammates in the recent window, `config.balance.varietyWindowGames = 1`: the previous game **of the same night**.
+  The caller computes the pairs (puuids only) and passes them as `recentTeammates`; core never reads history. A pair
+  counts once whatever its order or how often it appears; a pair naming somebody not in tonight's ten, the same
+  player twice, or two players locked together as a duo is ignored, never an error. The cap bounds the fairness
+  price: variety can lift a split over a fairer one by at most 100 points of gap, and the shown win chance is still
+  the true one. The 200 exact-repeat penalty stays as it is. Absent or empty pairs leave every split as before.
+- **Score parts** (M18.13): every split carries `scoreParts = { gap, offRole, repeat, variety, repeatedPairs }`,
+  with `score === gap + offRole + repeat + variety` exactly (summed in that order) and `Split.gap ===
+  round(scoreParts.gap)`. Stored as `splits.score_parts` so the receipt's `whyLower` can name the term that cost the
+  runner-up its place from stored numbers: after `off-role` and `gap` (unchanged, first), `repeat`, `variety`
+  (with both pair counts) or `recent-fills` (the `offRole` part is bigger without more fills: fill protection),
+  whichever differs by the most points, ties in that order; `role-costs` stays for a row with no stored parts and
+  for a difference no part explains. A row type with no `scoreParts` field gets the pre-M18.13 answer type, so a
+  page that does not read the column compiles unchanged.
 - **Fill protection** (M7.5). One off-role seat is priced per player, from how recently the balancer last filled
   them:
 
@@ -690,7 +723,7 @@ M18.12). A non-finite `r` or an `n` that is not a whole number `>= 0` is a `Bala
   sweeps of 4,000 random ten-player lobbies put the rate at 1.35% and 1.07% (both directions counted; the exact
   figure depends on how the lobbies are generated). Treat `offRoleCount` as free to move when reasoning about a
   tuning change.
-- `blueWinProb = winProbability(Σ blue r, Σ red r, calib)` on the **plain** Ratings, not the role-weighted sums:
+- `blueWinProb = winProbability(Σ blue r, Σ red r, calib)` on the **plain** Ratings, not the role-adjusted sums:
   the gap prices role fit, the odds are the fold's expected. For a roster unchanged since the roll with no game
   folded in between, the split's stored blue chance equals the fold's blue `fold_p` (to 1e-9 in the tests).
   `calib` changes the odds only, never which splits are chosen. `preGameOdds` (a game with no split) reads the ten

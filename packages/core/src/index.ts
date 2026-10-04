@@ -43,10 +43,13 @@ export {
   type ResolvedRoles,
   type RoleProfile,
   resolveRoles,
+  type ScoredColumns,
+  type ScoreParts,
   type Split,
   type SplitTeams,
   type SwapDescription,
   type WhyLower,
+  type WhyLowerScored,
   whyLower,
 } from './balance/index';
 
