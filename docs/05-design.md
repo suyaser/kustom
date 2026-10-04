@@ -682,6 +682,36 @@ Remaining CLS risks, accepted:
 6. Optional follow-up, not needed for the cut: the six places that draw mono at 400 or 700 can move to
    500/600 per the weight rule in 2.7. The file covers them either way.
 
+#### As built (web-engineer, 2026-10-04)
+
+Built as above from google/fonts `9710da1e` (sha256-pinned in the script), with these measured departures.
+7.3's block is the source for the fallback faces.
+
+- **Layout features: the browser-default set plus `tnum`, not `*`.** The repo files carry alternates no
+  page asks for (aalt, case, frac/numr/dnom, sups/subs, ordn, onum, zero, cv01/02); with `*` the three
+  cores came to 49.2 KB, over the 45 KB budget. Kept: calt ccmp clig curs kern liga locl mark mkmk rclt
+  rlig rvrn tnum. Cores: text 11.8 KB, mono 14.6 KB, display 14.1 KB, **40.5 KB**; rests 17.6 / 23.4 /
+  48.0 KB.
+- **Core adds `U+00B1 U+2039 U+203A`** (`±0`, the mode card's `›`): without them an all-ASCII tonight page
+  fetched text rest (and that late swap showed up as CLS 0.16 on `/g/customs` in one run).
+- **Martian Fallback is Courier New, one face per `font-stretch` drawn** (75, 78, 82, 85, 88, 100), not
+  Arial at one width. The Arial face matched on digits drew letters about 10% narrow: the leaderboard's
+  `settling · n/10` chip fit on the meta line in fallback and wrapped once Martian arrived, so every
+  settling row grew 23 px (the page 1.3k px taller after swap). Martian is monospaced and Courier New is
+  too (0.600 em for every glyph), so letters and digits match together; Martian's advance is 0.600 em at
+  wdth 75 plus 0.004 em per step. Android still falls through unmatched, as for the others.
+- **Archivo Fallback has a second face at `font-stretch: 70%`** (size-adjust 78.74%, the 62% value scaled
+  by Archivo's own upper-case widths at wght 900, 0.5446 / 0.4899 em). Re-measured the 62% face the same
+  way and got 72.7% (letter-frequency weighted) against the 70.83% above; kept 70.83%, since the strip
+  headline lands on the same line and width either way at 375 px.
+- **`:where(.sr-only) { font-family: system-ui, sans-serif }` in the base layer.** Hidden text is still
+  shaped: the team card heading's `Blue team` under the visible `BLUE` asked the display face for lower
+  case and pulled display rest (48 KB) onto every tonight page with teams.
+- **Not upper case only.** The display face also draws mixed-case page titles (player name on the player
+  page, `Admin`, the You page pitch, join, new group, ops). Those pages fetch display rest (48 KB, not
+  preloaded) for the lower case. A separate `a–z` file would be 6.4 KB; adding `a–z` to the core makes it
+  19.5 KB and the critical path 45.9 KB. Open for the designer.
+
 ---
 
 ## 5. Components
@@ -1679,7 +1709,8 @@ what C kept from each is listed in `redesign/prototypes/direction-c/README.md`, 
 From the 2.0 draft of this file (`redesign/design-system.md` before 2026-10-03): `--p-ink-*` → `--p-slate-*`
 (and step 5 added for `--border-strong`); `--p-accent-400/800` → `--p-amber-400/800`; `--team-red-hatch`
 removed (the hatch is now `--stripe` + `--hatch`, an overlay); tints 14% → 12%; `--popover` is `--card`, not
-raised; next/font's own variables are `--font-atkinson`/`--font-martian`/`--font-archivo`, and the
+raised; next/font's own variables are `--font-{text,mono,display}-core` and `-rest` (since 4.1; before it,
+`--font-atkinson`/`--font-martian`/`--font-archivo`), and the
 documented names `--font-text`/`--font-mono`/`--font-display` are now **unlayered `:root` runtime variables**
 holding the full stacks over them (7.3), which `@theme inline` exposes as the utilities `font-text` (=
 `font-sans`, the default), `font-mono` and `font-display`. The `:root` block wins over the theme layer's
@@ -1699,8 +1730,8 @@ From the prototype's `c.css`, which used short names (the app uses shadcn's). Co
 | `--muted-foreground: #c5cdd9` | `#CBD2DD` | 7:1 on the you-wash (3.2) |
 | `--glow` Day `rgb(21 99 207 / .06)` | `rgb(122 79 0 / .05)` | the Day glow was team blue, i.e. decoration in a side colour |
 | `.tblock` / `.tside` inline gradients | `--side-block-shade`, `--hatch-strong`; tape tiles use `--hatch` | one hatch token; the tile's 22% stripe was a third variant |
-| `--font-text` | `--font-text` (`:root` stack over next/font var `--font-atkinson`, with `Atkinson Fallback`); utility `font-text` = `font-sans` | the stack lives in an unlayered `:root` block so the theme layer's self-reference cannot shadow it |
-| `--font-display` / `--font-mono` stacks | `--font-display` / `--font-mono` (`:root` stacks over next/font vars `--font-archivo` / `--font-martian`); utilities `font-display` / `font-mono` | same |
+| `--font-text` | `--font-text` (`:root` stack over next/font vars `--font-text-core`, `--font-text-rest`, then `Atkinson Fallback`); utility `font-text` = `font-sans` | the stack lives in an unlayered `:root` block so the theme layer's self-reference cannot shadow it |
+| `--font-display` / `--font-mono` stacks | `--font-display` / `--font-mono` (`:root` stacks over next/font vars `--font-display-core`/`-rest` / `--font-mono-core`/`-rest`, then `Archivo Fallback` / `Martian Fallback`); utilities `font-display` / `font-mono` | same |
 | (none) | `--raised` is kept as is, and shadcn's `--muted`, `--secondary`, `--accent` alias it | |
 
 ### 7.3 The token block (copy into `apps/web/app/globals.css`)
@@ -1834,19 +1865,42 @@ This is the only place a colour, radius or size value is defined. Paste it whole
           --fs-lg: 1.625rem; /* 26 */ --fs-display: 4rem; /* 64 */ }
 }
 
-/* ---------- Faces (section 4) ---------- */
-/* next/font sets --font-atkinson, --font-martian, --font-archivo on <html>. These are the documented
-   names, unlayered so they win over the theme layer's same-named self-references. */
+/* ---------- Faces (sections 4 and 4.1) ---------- */
+/* next/font/local (app/fonts.ts, generated by scripts/font-subsets.py) sets --font-{text,mono,display}-core
+   (preloaded) and --font-{text,mono,display}-rest (fetched only for a glyph outside the core's
+   unicode-range) on <html>. These are the documented names, unlayered so they win over the theme layer's
+   same-named self-references. Fallback faces are measured at the instance the app draws (4.1). */
 @font-face {
-  font-family: "Atkinson Fallback";       /* next/font has no metrics for Atkinson Hyperlegible Next */
+  font-family: "Atkinson Fallback";
   src: local("Arial"), local("ArialMT");
   size-adjust: 100.07%; ascent-override: 98.33%; descent-override: 31.58%; line-gap-override: 0%;
 }
+/* Martian is monospaced: matched against Courier New (0.600 em), one face per font-stretch drawn.
+   size-adjust = Martian advance at wght 500 / 0.6001; ascent 100% and descent 20%, each / size-adjust. */
+@font-face { font-family: "Martian Fallback"; src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 75%;  size-adjust: 99.98%;  ascent-override: 100.02%; descent-override: 20%;    line-gap-override: 0%; }
+@font-face { font-family: "Martian Fallback"; src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 78%;  size-adjust: 101.98%; ascent-override: 98.06%;  descent-override: 19.61%; line-gap-override: 0%; }
+@font-face { font-family: "Martian Fallback"; src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 82%;  size-adjust: 104.65%; ascent-override: 95.56%;  descent-override: 19.11%; line-gap-override: 0%; }
+@font-face { font-family: "Martian Fallback"; src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 85%;  size-adjust: 106.65%; ascent-override: 93.76%;  descent-override: 18.75%; line-gap-override: 0%; }
+@font-face { font-family: "Martian Fallback"; src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 88%;  size-adjust: 108.65%; ascent-override: 92.04%;  descent-override: 18.41%; line-gap-override: 0%; }
+@font-face { font-family: "Martian Fallback"; src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 100%; size-adjust: 116.65%; ascent-override: 85.73%;  descent-override: 17.15%; line-gap-override: 0%; }
+/* Archivo: upper case against Arial Bold's; 70% scales the 62% value by Archivo's own 0.5446 / 0.4899. */
+@font-face { font-family: "Archivo Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"); font-weight: 800 900;
+  font-stretch: 62%; size-adjust: 70.83%; ascent-override: 123.95%; descent-override: 29.65%; line-gap-override: 0%; }
+@font-face { font-family: "Archivo Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"); font-weight: 800 900;
+  font-stretch: 70%; size-adjust: 78.74%; ascent-override: 111.51%; descent-override: 26.67%; line-gap-override: 0%; }
 :root {
-  --font-text: var(--font-atkinson), "Atkinson Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: var(--font-martian), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --font-display: var(--font-archivo), "Arial Narrow", system-ui, sans-serif;
+  --font-text: var(--font-text-core), var(--font-text-rest), "Atkinson Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-mono-core), var(--font-mono-rest), "Martian Fallback", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-display-core), var(--font-display-rest), "Archivo Fallback", "Arial Narrow", system-ui, sans-serif;
 }
+/* (in @layer base) visually hidden text never requests a webfont: */
+:where(.sr-only) { font-family: system-ui, sans-serif; }
 
 /* ---------- Tailwind v4 mapping ---------- */
 @theme inline {
@@ -1918,7 +1972,7 @@ body {
 
 `<meta name="theme-color">`: Night `#05070C`, Day `#E8EEF6`. Every side fill (header, pill, bar segment,
 tile block) carries `data-side-fill` so the forced-colours rule reaches it. Fonts: section 4, with the
-next/font `variable` names `--font-atkinson`, `--font-martian`, `--font-archivo` under the documented
+next/font/local `variable` names `--font-{text,mono,display}-core` and `-rest` under the documented
 `--font-text`, `--font-mono`, `--font-display` (`apps/web/app/fonts.ts`; the 1.0 name `--cn-font-archivo`
 went with the 1.0 stylesheets in M14.25).
 
