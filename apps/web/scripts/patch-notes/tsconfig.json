@@ -1,0 +1,9 @@
+{
+  // Only for `pnpm --filter web patch-notes-image` (tsx reads it through TSX_TSCONFIG_PATH). The app's
+  // `jsx: preserve` leaves JSX for Next to compile; run straight by node, the picture's components
+  // (and the WeekNotes.tsx parts they reuse) need the automatic runtime instead.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  }
+}
