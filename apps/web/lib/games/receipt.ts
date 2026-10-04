@@ -65,6 +65,29 @@ export function teamsMatchSplit(
   );
 }
 
+/**
+ * How the sided players stand against a split, roles ignored (M21.4; M21.1 audit note a):
+ * `same` is {@link teamsMatchSplit}; `swapped` is the split's two teams on each other's sides (the
+ * room played the roll, the host just sat on the other side); `different` is anything else.
+ *
+ * The kickoff record calls a `swapped` game `rolled` (with `swapped: true`): the teams are the
+ * bot's, only the side line and the odds' direction change. {@link teamsMatchSplit} keeps meaning
+ * `same`, so the after-game receipt and calibration (whose `blueWon` is the split's blue) are
+ * unchanged until their readers flip the odds themselves (M21.7).
+ */
+export function splitSidesOf(
+  split: { blue: readonly { puuid: string }[]; red: readonly { puuid: string }[] },
+  seats: readonly Pick<ReceiptSeat, 'puuid' | 'side'>[],
+): 'same' | 'swapped' | 'different' {
+  const blue = seats.filter((seat) => seat.side === 100).map((seat) => seat.puuid);
+  const red = seats.filter((seat) => seat.side === 200).map((seat) => seat.puuid);
+  const splitBlue = split.blue.map((a) => a.puuid);
+  const splitRed = split.red.map((a) => a.puuid);
+  if (sameMembers(splitBlue, blue) && sameMembers(splitRed, red)) return 'same';
+  if (sameMembers(splitBlue, red) && sameMembers(splitRed, blue)) return 'swapped';
+  return 'different';
+}
+
 /** The chosen split of a run, or `null` when none is flagged (history only trusts `is_chosen`). */
 export function chosenOf(splits: readonly StoredSplit[]): StoredSplit | null {
   return splits.find((split) => split.isChosen) ?? null;

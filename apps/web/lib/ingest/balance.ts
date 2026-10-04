@@ -206,7 +206,13 @@ async function lobbyHost(client: ServiceClient, lobbyId: string): Promise<string
   return data?.reported_by_player_id ?? null;
 }
 
-async function selectRatings(
+/**
+ * Each player's all-time Kustom state in the group: `ratings.r` (1200 on a row the fold has not
+ * written) and the rated-games count. A player with no row is absent: the caller reads
+ * `KUSTOM_FRESH`. The kickoff odds (M21.4, `kickoff.ts`) read through this too, so they are the
+ * balancer's inputs exactly.
+ */
+export async function selectRatings(
   client: ServiceClient,
   playerIds: readonly string[],
   groupId: string,
