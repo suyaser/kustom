@@ -12865,7 +12865,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   its players); (3) `TonightLive.test.tsx`: a stale version on resubscribe re-reads, an equal one does not;
   (4) the `TonightLive` header comment and decision row 2026-10-03 (Realtime filters) are superseded in the same
   change.
-- [ ] **M19.11** Player and lobby rows leave the anon Realtime publication (P3, security; decision row
+- [x] **M19.11** Player and lobby rows leave the anon Realtime publication (P3, security; decision row
   2026-10-04). *(owner: `platform-engineer`; after M19.10 is merged and has run one real night)* Migration
   removes `lobbies`, `lobby_members`, `splits`, `games`, `game_players` and `ratings` from `supabase_realtime`.
   Today `lobby_members` and `splits` have no `group_id`, so every change to them reaches any anon subscriber of
@@ -12879,6 +12879,8 @@ answer sooner, change once per real change, and stop hearing other groups.
   (3) `lobbyPassword.integration.test.ts` is updated to assert `lobbies` is not published at all (it was
   asserting the password never rides an event); (4) nothing in `apps/web` subscribes to a removed table (grep in
   the test); (5) Tonight still updates on every change in the bench script.
+
+  *Landed 2026-10-04 on `m19-11-publication` (8fb45022, reviewer pass; hosted push of 0044 held to 2026-10-05, after the first real night on M19.10). Column lists verified on local Realtime v2.73.2 / PG 17.6: ignored (wal2json reads by table name; a service-role subscriber still received `set_by` with `group_modes` published by a column list), so `group_modes` and `fearless_state` stay published whole and the ids stay out of anon payloads through column privileges (0029, 0032), asserted by `publication.integration.test.ts`. Bench (perf-tonight-taps): every step renders exactly once, another group's posts render 0, foreign 0.*
 - [x] **M19.12** `getClaims()` instead of `getUser()` per signed-in render: investigate. *(owner:
   `platform-engineer`; security review by `reviewer` required before anything is adopted)* Today the group
   layout and Tonight call `currentSessionPlayer` and admin pages also call `currentPageSession`; each calls
@@ -13145,7 +13147,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   grows by no more than the table it already ships (`clientGraph.test.ts` passes); (6) M14.30's seven panel
   checks still pass.
 
-- [ ] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
+- [x] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
   after M20.2, same lane; amended 2026-10-04 for M20 D9 to D11)* `lifecycle.ts`'s six functions become one pure
   `transition(state, action)` over the one-row state `{ standing, pending: rule | null, rated }`, where a region
   rule always carries both regions (`{ id: 'region', blue, red }`, the M15 `Mode` shape; there is no region rule
@@ -13173,6 +13175,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   `version`, `afterRecord`, `onlyRatedSinceRoll` and `consumesRule`'s callers are gone from `packages/core` (grep
   in the PR); (8) 100% of the new module covered.
 
+  *Landed 2026-10-05 (2b74f454, reviewer pass after one round; 634 core tests, transition.ts 100% covered). Acceptance (7), deleting the old lifecycle exports, moves to M20.7/M20.8 when apps/web stops calling them.*
 - [ ] **M20.7** Schema and server on the one-row model. *(owner: `platform-engineer`; after M20.6; migration at
   the next free number at merge, local first, shown to the user before it is applied; amended 2026-10-04 for M20
   D9 to D11)* **Migration list:** (a) `group_modes` keeps `standing`, the pending rule and class tag, keeps
@@ -13406,7 +13409,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   is needed, the gameflow session it already reads at `GameStart`).
 - **Ratings do not change.** The fold stays on `game_players.side`.
 
-- [ ] **M21.1** Audit: do the frozen lobby sides equal the end-of-game sides? *(owner: `platform-engineer`, read
+- [x] **M21.1** Audit: do the frozen lobby sides equal the end-of-game sides? *(owner: `platform-engineer`, read
   only on the hosted database with the lead's go; product reads the numbers)* One SQL read, nothing written: for
   every group's `finished` lobby with a game, compare the frozen `lobby_members` (side 100/200) with that game's
   `game_players.side`, and the chosen split with `game_players.side`. Report: games read; games where the frozen
@@ -13418,6 +13421,12 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   line: **pass** when every game with ten sided members matches its eog sides, or every mismatch is a cause M21.3
   would fix; otherwise **M21.3 is required before M21.4 ships**. Out of scope: fixing anything it finds.
 
+  *Run 2026-10-05 on hosted by the owner (query: scratchpad audit.sql, read only, one JSON cell; names left out here).*
+  > games read 121 (customs; 21 more games have no lobby). 96 have ten sided members; **95 of 96 frozen lobby sides equal the eog sides**.
+  > 25 mismatches are `not_ten_sided`: 23 are smaller games (2v2 to 4v4) whose frozen sides have the same counts as the eog, plus 2 with a spectator or unsided member who played. No late lobby post, no lobby created after start, no eog that was not five a side.
+  > 1 `no_visible_cause` (2026-10-02, 13 members): five sided members never played and five spectators or unsided members did; last member row 61 min before start. That is a game matched to a stale lobby (the same lobby kept across games), not stale sides.
+  > played kinds: rolled 5, **custom 90**, unrolled 26.
+  **Verdict: pass for M21.4 on the frozen lobby.** Notes for M21.4: (a) "custom" here is exact side equality, so a split played on swapped sides counts as custom; M21.4's `teamsMatchSplit` must decide whether same teams on swapped sides is `rolled` (recommended: yes, and recompute nothing but the side line); (b) smaller games (fewer than ten) match too, so kickoff teams should not require ten; (c) the stale-lobby match is a separate ingest bug, filed as M21.11.
 - [ ] **M21.2** Verify on a real client: sides at champ select and the gameflow session's teams. *(owner: the
   user on a real night, the lead reads the capture; no code)* On the machine that hosts (Windows, or the Mac, which
   has League and the repo), run `pnpm --filter @customs/lcu record-ws` from before Roll until the game has loaded,
@@ -13548,6 +13557,12 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
 - [ ] **M21.10** Review and scene walk. *(owners: `reviewer`, then `product`)* The reviewer's pass over M21.4 to
   M21.9; product walks the scene on the local stack with a hand-swapped game. Acceptance: the milestone acceptance
   below, played through once, plus M21.1's verdict recorded and M21.2 done or explicitly deferred by the owner.
+- [ ] **M21.11** A game matched to a stale lobby. *(owner: `platform-engineer`; from the M21.1 audit)* On
+  2026-10-02 a game was attached to a lobby whose last member row was 61 minutes before the game started: five of
+  its sided members never played and five spectators or unsided members did (lobby 422e74e0). Find how the eog
+  matched it (party id reuse, lobby kept open across games, or the eog fallback) and make a game match only a lobby
+  whose sided members are the players in it, or create a fresh lobby. Acceptance: an integration test reproduces
+  the stale match and shows the fix; the M21.1 query rerun on local fixtures has no `no_visible_cause`.
 
 ```
 M21.1 (audit) --+-- M21.4 (kickoff, server) --+-- M21.5 (Tonight in game) -- M21.9 (after M20.10) --\

@@ -478,6 +478,59 @@ if (stack === null || !ready) {
       const { data: stillNull } = await db.from('game_players').select('mu_after').eq('game_id', game.id);
       expect(stillNull?.every((seat) => seat.mu_after === null)).toBe(true);
     });
+
+    // The owner's repair for a game stamped rated by mistake (owner bug 2026-10-04): set
+    // `games.rated = false` by hand, then `rebuild-ratings`. The game leaves every number.
+    it('a game un-rated by hand after it was rated: one rebuild takes it out of every number', async () => {
+      await card({ mode: 'normal' });
+      const first = await openAndRoll();
+      await record(first.partyId);
+      const rebuiltFirst = await rebuildRatings(db, { groupId: groups.g, force: true });
+      expect(rebuiltFirst.ok).toBe(true);
+      const kustom = async () =>
+        (
+          await db
+            .from('ratings')
+            .select('player_id, mu, sigma, r, games, wins')
+            .eq('group_id', groups.g)
+            .order('player_id')
+        ).data ?? [];
+      const ratingsBefore = await kustom();
+
+      const mistake = await openAndRoll();
+      const { game } = await record(mistake.partyId);
+      expect(game.rated).toBe(true);
+      const ratedSeats = await db.from('game_players').select('r_after, mu_after').eq('game_id', game.id);
+      expect(ratedSeats.data?.every((seat) => seat.r_after !== null && seat.mu_after !== null)).toBe(true);
+      expect(await kustom()).not.toEqual(ratingsBefore);
+
+      const unrated = await db.from('games').update({ rated: false }).eq('id', game.id);
+      expect(unrated.error).toBeNull();
+      const rebuilt = await rebuildRatings(db, { groupId: groups.g, force: true });
+      expect(rebuilt.ok).toBe(true);
+      if (rebuilt.ok) expect(rebuilt.report.skipped['not-rated']).toBeGreaterThanOrEqual(1);
+
+      const after = await kustom();
+      expect(after.map((row) => [row.player_id, row.games, row.wins])).toEqual(
+        ratingsBefore.map((row) => [row.player_id, row.games, row.wins]),
+      );
+      for (const [index, row] of after.entries()) {
+        expect(row.mu).toBeCloseTo(ratingsBefore[index]?.mu ?? 0, 6);
+        expect(row.sigma).toBeCloseTo(ratingsBefore[index]?.sigma ?? 0, 6);
+        expect(row.r).toBeCloseTo(ratingsBefore[index]?.r ?? 0, 6);
+      }
+      const { data: seats, error } = await db
+        .from('game_players')
+        .select(
+          'mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before, r_before, r_after, k, share_rank, week_r_before, week_r_after, week_k, week_fold_p, week_games_before',
+        )
+        .eq('game_id', game.id);
+      expect(error).toBeNull();
+      expect(seats).toHaveLength(10);
+      for (const seat of seats ?? []) {
+        for (const value of Object.values(seat)) expect(value).toBeNull();
+      }
+    });
   });
 
   describe('Spin', () => {
@@ -657,6 +710,114 @@ if (stack === null || !ready) {
         pending_class_tag: 'Mage',
         rated_override: true,
       });
+      await card({ mode: 'normal' });
+    });
+  });
+
+  // Owner bug 2026-10-04 (game d1a55a9b): Rated off before Roll, then teams made by hand. Rolling
+  // is a suggestion; the switch and the rule belong to the game actually played.
+  describe('hand-made teams keep the card (rolling is a suggestion)', () => {
+    /** Posts the lobby again with `who` (default the ten), blue for the puuids in `blue`. */
+    async function repost(partyId: string, blue: readonly string[], who: readonly string[] = ten) {
+      const response = await postLobby(
+        jsonRequest(
+          '/api/companion/lobby',
+          {
+            partyId,
+            lobbyName: 'mode night',
+            members: who.map((puuid) => ({
+              puuid,
+              gameName: `P${ten.indexOf(puuid)}`,
+              tagLine: 'EUW',
+              summonerId: 9_000 + ten.indexOf(puuid),
+              side: blue.includes(puuid) ? 100 : 200,
+              isSpectator: false,
+            })),
+          },
+          token,
+        ),
+      );
+      expect(response.status).toBe(200);
+      return (await response.json()) as { status: string };
+    }
+
+    const handBlue = () => [ten[0], ten[2], ten[4], ten[6], ten[8]] as string[];
+
+    it('Rated off, Roll, sides swapped by hand: the game is not rated', async () => {
+      await card({ mode: 'normal' });
+      await card({ rated: false });
+      const { partyId } = await openAndRoll();
+      expect((await repost(partyId, handBlue())).status).toBe('balanced');
+      const gameId = testGameId() + 1_001;
+      await startGame(partyId, gameId);
+      const { game } = await record(partyId, { gameId });
+      expect(game).toMatchObject({ mode: 'normal', rated: false });
+      expect(await cardRow()).toMatchObject({ rated_override: null });
+    });
+
+    it('Rated off, Roll, someone leaves and comes back (teams come down): the game is not rated', async () => {
+      await card({ mode: 'normal' });
+      await card({ rated: false });
+      const { partyId, lobbyId } = await openAndRoll();
+      expect((await repost(partyId, handBlue(), ten.slice(0, 9))).status).toBe('open');
+      expect((await repost(partyId, handBlue())).status).toBe('open');
+      expect((await lockOf(lobbyId)).lock_mode).toBeNull();
+      const gameId = testGameId() + 1_002;
+      await startGame(partyId, gameId);
+      // The game took the card at its start: Tonight's card is this game's, not rated.
+      expect(await lockOf(lobbyId)).toMatchObject({ lock_mode: 'normal', lock_rated: false });
+      const { game, answer } = await record(partyId, { gameId });
+      expect(game).toMatchObject({ mode: 'normal', rated: false });
+      expect(answer).toMatchObject({ rated: false });
+      // Used up like a rolled game's: the next game is back to the default.
+      expect(await cardRow()).toMatchObject({ rated_override: null });
+    });
+
+    it('Rated off and never rolled: the game is not rated', async () => {
+      await card({ mode: 'normal' });
+      await card({ rated: false });
+      const { partyId } = await openLobby();
+      await repost(partyId, handBlue());
+      const gameId = testGameId() + 1_003;
+      await startGame(partyId, gameId);
+      const { game } = await record(partyId, { gameId });
+      expect(game).toMatchObject({ mode: 'normal', rated: false });
+      expect(await cardRow()).toMatchObject({ rated_override: null });
+    });
+
+    it('no in_progress post at all (a missed start): the eog takes the card, not rated', async () => {
+      await card({ mode: 'normal' });
+      await card({ rated: false });
+      const { partyId } = await openLobby();
+      const { game } = await record(partyId);
+      expect(game).toMatchObject({ mode: 'normal', rated: false });
+      expect(await cardRow()).toMatchObject({ rated_override: null });
+    });
+
+    it('a class rule survives hand-made teams and is used up by the game played', async () => {
+      await card({ mode: 'normal' });
+      await card({ mode: 'class:Tank' });
+      const { partyId, lobbyId } = await openAndRoll();
+      await repost(partyId, handBlue(), ten.slice(1));
+      await repost(partyId, handBlue());
+      expect((await lockOf(lobbyId)).lock_mode).toBeNull();
+      const gameId = testGameId() + 1_004;
+      await startGame(partyId, gameId);
+      const { game } = await record(partyId, { gameId });
+      expect(game).toMatchObject({ rule: 'class', rule_class_tag: 'Tank', rated: false, rule_checked: true });
+      expect(await cardRow()).toMatchObject({ pending_rule: null, rated_override: null });
+    });
+
+    it('a flip after the game started is for the next game (R9 still holds)', async () => {
+      await card({ mode: 'normal' });
+      const { partyId } = await openLobby();
+      const gameId = testGameId() + 1_005;
+      await startGame(partyId, gameId);
+      await card({ rated: false });
+      const { game } = await record(partyId, { gameId });
+      expect(game).toMatchObject({ rated: true });
+      expect(await cardRow()).toMatchObject({ rated_override: false });
+      await card({ rated: true });
       await card({ mode: 'normal' });
     });
   });

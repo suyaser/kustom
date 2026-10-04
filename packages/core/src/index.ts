@@ -9,8 +9,9 @@
  * surface can never disagree with the explanation about who is on what.
  *
  * `mode/` (M15.2) is the mode model: the standing mode and the one-game rule, pools, Spin, the
- * post-game rule check and the lifecycle (lock at Roll, compare and clear at record). Champion
- * tags and regions are input; core imports no fixture.
+ * post-game rule check and the lifecycle. Champion tags and regions are input; core imports no
+ * fixture. M20.6's `transition` (one row, `take` at Roll, `handBack`, `recordGame`) replaces the
+ * version-token lifecycle; the old lifecycle exports stay only until apps/web moves (M20.7, M20.8).
  *
  * `rating/kustom` (M18.1) is the Kustom rating that replaces OpenSkill at the M18 switch. Since
  * M18.2 the balancer (`balance`, `preGameOdds`) reads Kustom Ratings through `winProbability`;
@@ -70,6 +71,7 @@ export {
   type ModeCheck,
   type SideCheck,
 } from './mode/check';
+// Deprecated (M20.6): the version-token lifecycle. Delete when apps/web is on `transition` (M20.7, M20.8).
 export {
   afterRecord,
   chooseRule,
@@ -124,6 +126,30 @@ export {
   rulePlayable,
 } from './mode/pool';
 export { drawRegions, drawSpin, type RegionDrawSource, type Rng, SPIN_FAMILIES } from './mode/spin';
+export {
+  handBack,
+  type LockResult,
+  lockRated,
+  lockTransition,
+  type ModeAction,
+  type ModeLock,
+  type ModeRow,
+  nextRated,
+  type PendingRule,
+  type RecordInput,
+  type RecordResult,
+  type RecordStamp,
+  type Refusal,
+  type RegionAction,
+  type RowPatch,
+  recordGame,
+  type TakeRegions,
+  type TakeResult,
+  type TransitionContext,
+  type TransitionResult,
+  take,
+  transition,
+} from './mode/transition';
 export {
   type Certainty,
   type DeltaAward,

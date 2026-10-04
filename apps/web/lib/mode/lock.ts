@@ -103,6 +103,12 @@ export interface LockInputs {
   /** The group's Fearless pool; counted only while the standing mode is Fearless. */
   bans: readonly number[];
   rng: Rng;
+  /**
+   * `false` for the lock taken when a game starts or lands with none (hand-made teams): regions
+   * drawn after champion select would name sides nobody played to, so region wars is not drawn,
+   * the game locks the standing mode, and the rule stays pending for a rolled game. Default true.
+   */
+  draw?: boolean;
 }
 
 /**
@@ -111,18 +117,20 @@ export interface LockInputs {
  */
 export function lockFor(state: ModeState, existing: StoredLock | null, inputs: LockInputs): StoredLock {
   if (existing !== null) return existing;
+  const draw = inputs.draw !== false;
   let regions: RegionPair | null = null;
-  if (state.pending?.id === 'region') {
+  if (state.pending?.id === 'region' && draw) {
     const bans = state.standing === 'fearless' ? inputs.bans : [];
     // The roster form, so the draw applies M20 D2's union rule to shared champions.
     regions = drawRegions(inputs.regions, { roster: inputs.table, bans }, inputs.rng);
   }
   const lock = lockAtRoll(state, regions);
-  // Core locked the standing mode for a region wars it could not draw: say so (M15.17).
+  // Core locked the standing mode for a region wars it could not draw: say so (M15.17). Not for
+  // a draw that was never attempted (a start lock), which is not "too few open champions".
   return {
     lock,
     standing: state.standing,
-    noDraw: state.pending?.id === 'region' && lock.mode.id !== 'region',
+    noDraw: draw && state.pending?.id === 'region' && lock.mode.id !== 'region',
   };
 }
 
@@ -139,13 +147,22 @@ export async function readLobbyLock(client: ServiceClient, lobbyId: string): Pro
  */
 export async function lockLobbyAtRoll(
   client: ServiceClient,
-  input: { lobbyId: string; groupId: string; now: Date; rng: Rng; table?: ChampionTable },
+  input: {
+    lobbyId: string;
+    groupId: string;
+    now: Date;
+    rng: Rng;
+    table?: ChampionTable;
+    draw?: boolean;
+    onWrite?: () => void;
+  },
 ): Promise<StoredLock> {
   const existing = await readLobbyLock(client, input.lobbyId);
   if (existing !== null) return existing;
 
+  const draw = input.draw !== false;
   const { state } = await supabaseModeStore(client).read(input.groupId);
-  const needsBans = state.pending?.id === 'region' && state.standing === 'fearless';
+  const needsBans = draw && state.pending?.id === 'region' && state.standing === 'fearless';
   const stored = lockFor(state, null, {
     table: input.table ?? championTable(),
     regions: regionIds(),
@@ -153,6 +170,7 @@ export async function lockLobbyAtRoll(
       ? (await loadFearless(client, input.groupId)).champions.map((champion) => champion.id)
       : [],
     rng: input.rng,
+    draw,
   });
 
   // Only onto a lobby with no copy: of two writers, the first lock stands and both answer it.
@@ -163,6 +181,41 @@ export async function lockLobbyAtRoll(
     .is('lock_mode', null)
     .select(LOCK_COLUMNS);
   if (error) throw new Error(`mode lock: lobby write failed: ${error.message}`);
-  if ((data ?? []).length > 0) return stored;
+  if ((data ?? []).length > 0) {
+    input.onWrite?.();
+    return stored;
+  }
   return (await readLobbyLock(client, input.lobbyId)) ?? stored;
+}
+
+/** Lobby statuses a game can still be starting or landing from: a lock taken there is this game's. */
+const PLAYABLE_STATUSES = new Set(['open', 'balanced', 'in_game']);
+
+/**
+ * The lock for the game actually played (owner bug 2026-10-04): rolling is a suggestion. Teams made
+ * by hand either never had a Roll or brought the rolled teams down (`balanced -> open` drops the
+ * lock), and a game with no lock used to take the standing mode's default, so `Rated` off and a
+ * pending rule were silently skipped (and the switch carried on to some later game). A lobby with
+ * no lock takes one from the card when its game starts (`in_progress`), or at the end-of-game block
+ * when no start was heard: the card as it stands then, without a region draw ({@link LockInputs}).
+ * A lock already there (Roll) is kept, so R9 holds: a flip after the lock is for the next game.
+ *
+ * Only a lobby still `open`, `balanced` or `in_game`: a `finished` or `dropped` lobby's game was
+ * played long before the card the server would read now. Returns the lock in force, or null.
+ * `onWrite` runs when this call wrote the lock (Tonight's live signal).
+ */
+export async function lockLobbyAtStart(
+  client: ServiceClient,
+  input: { lobbyId: string; groupId: string; status: string; now: Date; onWrite?: () => void },
+): Promise<StoredLock | null> {
+  if (!PLAYABLE_STATUSES.has(input.status)) return readLobbyLock(client, input.lobbyId);
+  return lockLobbyAtRoll(client, {
+    lobbyId: input.lobbyId,
+    groupId: input.groupId,
+    now: input.now,
+    // Never used: no draw.
+    rng: () => 0,
+    draw: false,
+    ...(input.onWrite === undefined ? {} : { onWrite: input.onWrite }),
+  });
 }

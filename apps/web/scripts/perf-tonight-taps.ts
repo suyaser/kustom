@@ -29,8 +29,9 @@ import { deleteTestGroups } from '../lib/testing/groups.ts';
  * Per tap it prints renders (Tonight RSC requests the server saw), when the control went pending
  * and came back, when the screen first and last changed, the **dead window** (pending off while the
  * screen was still to change; 0 means it held), and INP (the tap's longest Event Timing entry).
- * Realtime rows from other groups' lobbies (the shared stack, `lobby_members` and `splits` are
- * unfiltered) are counted per step as `foreign`; read only the steps where it is 0.
+ * Realtime rows the page heard from other groups are counted per step as `foreign`. Since M19.11
+ * (0044) every published table carries `group_id` and Tonight filters on it, so `foreign` should
+ * always be 0; anything else is a leak to report, not noise to read around.
  *
  * `--web <dir>` serves another build (an older checkout, for a before/after). The scratch group,
  * its players and the auth user are deleted at the end, also on failure and on Ctrl-C.
@@ -118,8 +119,7 @@ const PAGE_PROBE = `(function () {
         var payload = Array.isArray(m) ? m[4] : m.payload;
         if (name !== 'postgres_changes') return;
         var d = (payload && payload.data) || {}; var rec = d.record || {}; var old = d.old_record || {};
-        rt.push({ t: Date.now(), g: rec.group_id || old.group_id || null,
-          l: rec.lobby_id || old.lobby_id || (d.table === 'lobbies' ? rec.id || old.id : null) || null });
+        rt.push({ t: Date.now(), g: rec.group_id || old.group_id || null });
       } catch (_) {}
     });
     return ws;
@@ -554,17 +554,13 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
     );
 
     // Realtime attribution for the Tonight steps, before leaving the page.
-    const rows = (await page.evaluate('window.__rt')) as { t: number; g: string | null; l: string | null }[];
-    const ours = new Set(
-      ((await db.from('lobbies').select('id').eq('group_id', groupId)).data ?? []).map((r) => r.id),
-    );
+    const rows = (await page.evaluate('window.__rt')) as { t: number; g: string | null }[];
     for (const { row, from, to } of windows) {
       let own = 0;
       let foreign = 0;
       for (const r of rows) {
         if (r.t < from || r.t >= to) continue;
-        const mine = r.g !== null ? r.g === groupId : r.l !== null && ours.has(r.l);
-        if (mine) own += 1;
+        if (r.g === groupId) own += 1;
         else foreign += 1;
       }
       row.ownRows = own;

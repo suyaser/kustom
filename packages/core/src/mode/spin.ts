@@ -91,11 +91,15 @@ export type RegionDrawSource = { roster: ChampionTable; bans: Bans } | ReadonlyM
  * partner passing `pairDrawable` (so the draw never dead-ends), then red uniformly from blue's
  * passing partners, so which side gets which is part of the draw. Candidates are sorted by id and
  * never `unaffiliated`. `null` when no pair passes.
+ *
+ * `exclude` (M20.6, Redraw) removes one unordered pair: neither `{ blue, red }` nor its swap can be
+ * drawn, so a redraw always changes at least one region.
  */
 export function drawRegions(
   regions: Iterable<RegionId>,
   source: RegionDrawSource,
   rng: Rng,
+  exclude?: RegionPair,
 ): RegionPair | null {
   let openCounts: ReadonlyMap<RegionId, number>;
   let passes: (blue: RegionId, red: RegionId) => boolean;
@@ -108,7 +112,10 @@ export function drawRegions(
     passes = (blue, red) => blue !== red;
   }
   const eligible = drawableRegions(openCounts, regions);
-  const partners = (blue: RegionId) => eligible.filter((red) => passes(blue, red));
+  const excluded = (blue: RegionId, red: RegionId) =>
+    exclude !== undefined &&
+    ((blue === exclude.blue && red === exclude.red) || (blue === exclude.red && red === exclude.blue));
+  const partners = (blue: RegionId) => eligible.filter((red) => passes(blue, red) && !excluded(blue, red));
   const blues = eligible.filter((blue) => partners(blue).length > 0);
   if (blues.length === 0) return null;
   const blue = pick(blues, rng);

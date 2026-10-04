@@ -10,7 +10,7 @@ import {
 import { invalidateGroup } from '../cache/tags';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import { championTable } from '../mode/champions';
-import { readLobbyLock } from '../mode/lock';
+import { lockLobbyAtStart } from '../mode/lock';
 import { recordedGame, stampColumns } from '../mode/record';
 import { supabaseModeStore } from '../mode/state';
 import { gameFactsInsert, writeGameFacts } from '../stats/gameFacts';
@@ -162,11 +162,22 @@ export async function ingestEogGame(
   }
 
   // The mode stamp (M15.3, R2): the lobby's lock taken at Roll, not the card at record time, so a
-  // mid-game switch never changes the game being played. A game with no lock takes the standing
-  // mode at its default. Computed on every post; a duplicate's insert is ignored, so the stored
-  // stamp is the first write's.
+  // mid-game switch never changes the game being played. A live lobby with no lock (hand-made
+  // teams: never rolled, or the rolled teams came down) took one when the game started, or takes
+  // it here when no start was heard (owner bug 2026-10-04: Rated off was lost). Only a game with
+  // no lobby, or one from a finished or dropped lobby with no lock, takes the standing mode at its
+  // default. Computed on every post; a duplicate's insert is ignored, so the stored stamp is the
+  // first write's.
   const kind = recordedKind(payload);
-  const lock = lobbyId === null ? null : await readLobbyLock(client, lobbyId);
+  const lock =
+    lobby === null
+      ? null
+      : await lockLobbyAtStart(client, {
+          lobbyId: lobby.id,
+          groupId: lobby.groupId,
+          status: lobby.status,
+          now: new Date(),
+        });
   const modeColumns = stampColumns({
     kind,
     lock,
@@ -318,7 +329,7 @@ export async function findLobby(
   client: ServiceClient,
   partyId: string | null,
   startedAt?: string | null,
-): Promise<{ id: string; groupId: string } | null> {
+): Promise<{ id: string; groupId: string; status: string } | null> {
   if (partyId === null) return null;
 
   // An unknown party id is not an error: the companion may have missed the lobby events.
@@ -332,7 +343,7 @@ export async function findLobby(
     return null;
   }
 
-  return { id: lobby.id, groupId: lobby.groupId };
+  return { id: lobby.id, groupId: lobby.groupId, status: lobby.status };
 }
 
 /**
