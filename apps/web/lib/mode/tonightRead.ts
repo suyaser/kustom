@@ -13,6 +13,7 @@ import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import type { PublicClient } from '../publicClient';
 import { loadCheckNames } from './clientNames';
+import { readGroupModeRow } from './load';
 import { lockFromRow } from './lock';
 import { stateFromRow } from './state';
 import type { GameStampView } from './types';
@@ -25,11 +26,8 @@ import type { GameStampView } from './types';
  */
 
 export async function loadModeState(client: PublicClient, groupId: string): Promise<ModeState | null> {
-  const { data, error } = await client
-    .from('group_modes')
-    .select('mode, pending_rule, pending_class_tag, rated_override, version')
-    .eq('group_id', groupId)
-    .maybeSingle();
+  // The same row the fearless pool reads, once per render (`readGroupModeRow`).
+  const { data, error } = await readGroupModeRow(client, groupId);
   if (error) {
     console.error('mode: reading the card state failed', error.message);
     return null;

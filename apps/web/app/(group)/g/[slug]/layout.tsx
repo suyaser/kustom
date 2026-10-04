@@ -5,7 +5,7 @@ import { Shell } from '@/components/shell/Shell';
 import { isUnlinkedCreator } from '@/lib/admin/groupAdminPage';
 import { joinPitch } from '@/lib/groups/pageCopy';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
-import { currentViewerState } from '@/lib/viewer';
+import { currentSessionPlayer, currentViewerState } from '@/lib/viewer';
 import { PageGroupProvider } from '../../../_shell/PageGroup';
 
 /**
@@ -41,7 +41,10 @@ export default async function GroupLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const group = await requirePageGroup(slug);
+  // The session (GoTrue, then the player row) does not need the group: start it beside the slug
+  // lookup, so a signed-in visitor's role read is the only round trip left after it (app-perf).
+  // Both are React-cached, so the page and its metadata join these same two reads.
+  const [group] = await Promise.all([requirePageGroup(slug), currentSessionPlayer()]);
   const viewer = await currentViewerState(group.id);
   // M14.51: the group's creator before they link gets `Admin` too (only they pay for the read).
   const isAdmin =

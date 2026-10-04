@@ -1,5 +1,5 @@
 import type { Route } from 'next';
-import Link from 'next/link';
+import { EntityLink } from '@/components/links/EntityLink';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { renderWebName } from '@/lib/tonight/copy';
 import { cn } from '@/lib/utils';
@@ -86,7 +86,7 @@ export function YouVsEveryone({
               const first = row.lanes[0];
               return (
                 <li key={row.them.puuid} className="border-t border-border">
-                  <Link
+                  <EntityLink
                     href={pickTwo(row.them.puuid)}
                     className={cn(
                       'grid min-h-(--row-min-h) grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-x-4 px-(--card-pad) py-3',
@@ -109,7 +109,7 @@ export function YouVsEveryone({
                       <span className="sr-only">{`, ${AGAINST_LABEL} `}</span>
                       {record(row.against)}
                     </span>
-                  </Link>
+                  </EntityLink>
                 </li>
               );
             })}

@@ -294,13 +294,19 @@ describe('the rail board read', () => {
     },
   } as unknown as Parameters<typeof loadTopPlayersOrNone>[0];
 
-  it('is an empty rail and one log line, not a failed page', async () => {
+  it('is an empty rail and one rail log line, not a failed page', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await expect(
       loadTopPlayersOrNone(broken, { limit: 5, window: 'this-week', groupId: 'g' }),
     ).resolves.toEqual([]);
-    expect(logged).toHaveBeenCalledTimes(1);
+    // The board's reads run side by side (app-perf), so the roster labels, which fail soft on their
+    // own, may log their line too; the rail logs exactly once.
+    const rail = logged.mock.calls.filter(
+      ([message]) => message === 'tonight: reading the rail board failed',
+    );
+    expect(rail).toHaveLength(1);
+    expect(logged.mock.calls.length).toBeLessThanOrEqual(2);
 
     logged.mockRestore();
   });

@@ -1,7 +1,7 @@
 import type { RoleValue, SideValue } from '@customs/db';
 import { type GroupMode, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { championName, isRosterChampion } from '../champs/names';
-import { inChunks } from '../chunks';
+import { mapChunks } from '../chunks';
 import { gameModeFromRaw } from '../games/queue';
 import { loadGroupModeState } from '../mode/load';
 import type { PublicClient } from '../publicClient';
@@ -48,7 +48,8 @@ interface GameRow {
   id: string;
   started_at: string;
   duration_s: number;
-  raw: unknown;
+  /** `raw->>gameMode` only: the blob is read whole just for the few games `clientNames` needs. */
+  gameMode: string | null;
   game_players: PlayerRow[] | PlayerRow | null;
 }
 
@@ -79,7 +80,9 @@ export async function loadFearless(
 
   const { data: rows, error: gamesError } = await client
     .from('games')
-    .select('id, started_at, duration_s, raw, game_players(player_id, side, champion_id, role)')
+    .select(
+      'id, started_at, duration_s, gameMode:raw->>gameMode, game_players(player_id, side, champion_id, role)',
+    )
     .eq('group_id', groupId)
     // M14.29: the mode in force when the game was recorded. Normal games never join the pool.
     .eq('mode', FEARLESS_GAME_MODE)
@@ -101,7 +104,7 @@ export async function loadFearless(
     games.map((row) => ({
       id: row.id,
       durationS: row.duration_s,
-      gameMode: gameModeFromRaw(row.raw),
+      gameMode: gameModeFromRaw({ gameMode: row.gameMode }),
       players: asPlayers(row.game_players).map((player) => ({
         puuid: player.player_id,
         side: player.side,
@@ -139,14 +142,24 @@ async function clientNames(
   const wanted = new Set(picks.map((pick) => pick.id).filter((id) => !isRosterChampion(id)));
   if (wanted.size === 0) return new Map();
 
-  const playerIds = games.flatMap((row) =>
-    asPlayers(row.game_players)
-      .filter((player) => player.champion_id !== null && wanted.has(player.champion_id))
-      .map((player) => player.player_id),
-  );
+  const seatsOf = (row: GameRow) =>
+    asPlayers(row.game_players).filter(
+      (player) => player.champion_id !== null && wanted.has(player.champion_id),
+    );
+  const named = games.filter((row) => seatsOf(row).length > 0);
+  const playerIds = named.flatMap((row) => seatsOf(row).map((player) => player.player_id));
+  // The blobs of only the games that locked one of those ids (app-perf: the pool read itself
+  // carries `raw->>gameMode`, never the blob), beside the puuids.
+  const [people, blobs] = await Promise.all([
+    mapChunks(playerIds, (chunk) => client.from('players_public').select('id, puuid').in('id', chunk)),
+    mapChunks(
+      named.map((row) => row.id),
+      (chunk) => client.from('games').select('id, raw').in('id', chunk),
+    ),
+  ]);
   const puuidOf = new Map<string, string>();
-  for (const chunk of inChunks(playerIds)) {
-    const { data, error } = await client.from('players_public').select('id, puuid').in('id', chunk);
+  const rawOf = new Map<string, unknown>();
+  for (const { data, error } of people) {
     if (error) {
       console.error('fearless: reading puuids for champion names failed', error.message);
       return new Map();
@@ -155,10 +168,17 @@ async function clientNames(
       if (row.id !== null && row.puuid !== null) puuidOf.set(row.id, row.puuid);
     }
   }
+  for (const { data, error } of blobs) {
+    if (error) {
+      console.error('fearless: reading games for champion names failed', error.message);
+      return new Map();
+    }
+    for (const row of data ?? []) rawOf.set(row.id, row.raw);
+  }
 
   return storedChampionNames(
-    games.map((row) => ({
-      raw: row.raw,
+    named.map((row) => ({
+      raw: rawOf.get(row.id) ?? null,
       seats: asPlayers(row.game_players).map((player) => ({
         puuid: puuidOf.get(player.player_id) ?? null,
         championId: player.champion_id,

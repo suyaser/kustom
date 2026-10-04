@@ -31,6 +31,7 @@ export function WelcomeCard({ line, chip, home }: { line: string; chip?: ReactNo
           {chip ?? null}
         </p>
         <Link
+          prefetch="auto"
           href={home}
           className="inline-flex min-h-11 w-fit items-center font-bold text-primary-text underline underline-offset-3"
         >

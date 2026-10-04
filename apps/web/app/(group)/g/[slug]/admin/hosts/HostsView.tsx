@@ -102,7 +102,7 @@ export function HostsView({
     <>
       <p className="text-base">
         {HOSTS_INTRO_LEAD}{' '}
-        <Link href={hostCardHref} className="font-bold underline underline-offset-3">
+        <Link prefetch="auto" href={hostCardHref} className="font-bold underline underline-offset-3">
           {HOSTS_INTRO_LINK}
         </Link>{' '}
         {HOSTS_INTRO_TAIL}

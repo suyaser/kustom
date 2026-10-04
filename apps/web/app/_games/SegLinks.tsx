@@ -31,6 +31,7 @@ export function SegLinks({
         {items.map((item) => (
           <li key={item.href} className="flex min-w-0">
             <Link
+              prefetch="auto"
               href={item.href as Route}
               aria-current={item.current ? 'page' : undefined}
               className={cn(

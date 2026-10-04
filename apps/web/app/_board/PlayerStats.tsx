@@ -1,6 +1,6 @@
 import type { Route } from 'next';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EntityLink } from '@/components/links/EntityLink';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { SideGlyph } from '@/components/ui/side-glyph';
 import { gamesLabel, ROLE_RECORD_HEADING, winLossLabel } from '@/lib/board/copy';
@@ -168,13 +168,12 @@ function PartnerList({
       <ul>
         {partners.map((partner) => (
           <li key={partner.puuid} className={ROW}>
-            <Link
-              prefetch={false}
+            <EntityLink
               href={playerHref(partner.puuid)}
               className="inline-flex min-h-11 items-center font-bold underline underline-offset-3 [overflow-wrap:anywhere]"
             >
               {renderWebName(partner.name)}
-            </Link>
+            </EntityLink>
             <Record record={partner} />
           </li>
         ))}

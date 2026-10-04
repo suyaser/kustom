@@ -37,7 +37,11 @@ describe('loadGroupModeState', () => {
       mode: 'normal',
       since: '2026-10-03T20:00:00.000Z',
     });
-    expect(asked).toEqual({ table: 'group_modes', columns: 'mode, updated_at', groupId: GROUP });
+    expect(asked).toEqual({
+      table: 'group_modes',
+      columns: 'mode, updated_at, pending_rule, pending_class_tag, rated_override, version',
+      groupId: GROUP,
+    });
   });
 
   it('keeps an existing group on fearless exactly as stored (customs, and every group before 0030)', async () => {

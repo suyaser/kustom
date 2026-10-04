@@ -1,5 +1,5 @@
 import type { Route } from 'next';
-import Link from 'next/link';
+import { EntityLink } from '@/components/links/EntityLink';
 import { NameText } from '@/components/names/name-text';
 import { Chip } from '@/components/ui/chip';
 import { RATING_LABEL, settlingChip } from '@/lib/board/copy';
@@ -49,8 +49,7 @@ function Row({ row, rank, you, href }: { row: BoardRow; rank: number | null; you
   // small under it. All time keeps the Rating big and the climb under it.
   const week = row.points !== null;
   return (
-    <Link
-      prefetch={false}
+    <EntityLink
       href={href}
       className={cn(
         'grid min-h-(--row-min-h) items-start gap-x-3 px-(--card-pad) py-3',
@@ -103,6 +102,6 @@ function Row({ row, rank, you, href }: { row: BoardRow; rank: number | null; you
           {delta === null ? null : <RatingDelta delta={delta} className="text-sm" />}
         </span>
       )}
-    </Link>
+    </EntityLink>
   );
 }

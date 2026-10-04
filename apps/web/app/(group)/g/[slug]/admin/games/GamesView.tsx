@@ -1,5 +1,5 @@
 import type { Route } from 'next';
-import Link from 'next/link';
+import { EntityLink } from '@/components/links/EntityLink';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   CAPTURED_CAP,
@@ -107,9 +107,9 @@ function PlayerLink({ group, puuid, name }: { group: PageGroup; puuid: string; n
   const href = groupHref(group, { page: 'player', puuid });
   if (href === null) return <>{name}</>;
   return (
-    <Link href={href as Route} className="underline underline-offset-3">
+    <EntityLink href={href as Route} className="underline underline-offset-3">
       {name}
-    </Link>
+    </EntityLink>
   );
 }
 
@@ -155,9 +155,9 @@ function capturedColumns(group: PageGroup): StackedColumn<CapturedGameRow>[] {
         return href === null ? (
           text
         ) : (
-          <Link href={href as Route} className="underline underline-offset-3">
+          <EntityLink href={href as Route} className="underline underline-offset-3">
             {text}
-          </Link>
+          </EntityLink>
         );
       },
     },

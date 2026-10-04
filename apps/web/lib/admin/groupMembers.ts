@@ -41,25 +41,30 @@ export interface GroupMemberRow {
 /** PostgREST answers at most this many rows per request; the games read pages through them. */
 const PAGE = 1000;
 
-export async function loadGroupMembers(client: ServiceClient, groupId: string): Promise<GroupMemberRow[]> {
-  const [{ data: memberships, error }, labels] = await Promise.all([
-    client
-      .from('group_memberships')
-      .select('role, ai_opt_out, players!inner(id, puuid, display_name, game_name, tag_line, discord_id)')
-      .eq('group_id', groupId),
-    loadRosterLabels(client, groupId),
-  ]);
-  if (error) throw new Error(`members: reading memberships failed: ${error.message}`);
-
+/** How many of the group's games each player played, and when they last did. */
+async function readPlayed(
+  client: ServiceClient,
+  groupId: string,
+): Promise<Map<string, { games: number; last: string | null }>> {
   const played = new Map<string, { games: number; last: string | null }>();
-  for (let from = 0; ; from += PAGE) {
-    const { data, error: gamesError } = await client
+  const readPage = (from: number, count: boolean) =>
+    client
       .from('game_players')
-      .select('player_id, games!inner(started_at)')
+      .select('player_id, games!inner(started_at)', count ? { count: 'exact' } : {})
       .eq('group_id', groupId)
       .order('game_id', { ascending: true })
       .order('player_id', { ascending: true })
       .range(from, from + PAGE - 1);
+  // The first page carries the total, so the rest are read side by side (app-perf, 2026-10-04): two
+  // rounds for any history, where a page-after-page loop was one round per thousand rows.
+  const first = await readPage(0, true);
+  const total = first.count ?? 0;
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(0, Math.ceil(total / PAGE) - 1) }, (_, i) =>
+      readPage((i + 1) * PAGE, false),
+    ),
+  );
+  for (const { data, error: gamesError } of [first, ...rest]) {
     if (gamesError) throw new Error(`members: reading games failed: ${gamesError.message}`);
     for (const row of data ?? []) {
       const entry = played.get(row.player_id) ?? { games: 0, last: null };
@@ -68,8 +73,20 @@ export async function loadGroupMembers(client: ServiceClient, groupId: string): 
       if (entry.last === null || at > entry.last) entry.last = at;
       played.set(row.player_id, entry);
     }
-    if ((data ?? []).length < PAGE) break;
   }
+  return played;
+}
+
+export async function loadGroupMembers(client: ServiceClient, groupId: string): Promise<GroupMemberRow[]> {
+  const [{ data: memberships, error }, labels, played] = await Promise.all([
+    client
+      .from('group_memberships')
+      .select('role, ai_opt_out, players!inner(id, puuid, display_name, game_name, tag_line, discord_id)')
+      .eq('group_id', groupId),
+    loadRosterLabels(client, groupId),
+    readPlayed(client, groupId),
+  ]);
+  if (error) throw new Error(`members: reading memberships failed: ${error.message}`);
 
   const rows: GroupMemberRow[] = [];
   for (const membership of memberships ?? []) {
