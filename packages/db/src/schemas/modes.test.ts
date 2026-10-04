@@ -21,7 +21,6 @@ import {
   ruleOptionOf,
   setGroupModeRequestSchema,
   setGroupModeResponseSchema,
-  spinModeRequestSchema,
 } from './modes';
 
 const MIGRATION = fileURLToPath(new URL('../../supabase/migrations/0024_group_mode.sql', import.meta.url));
@@ -88,7 +87,28 @@ describe('setGroupModeRequestSchema', () => {
     expect(setGroupModeRequestSchema.parse({ groupId: GROUP, rated: false }).rated).toBe(false);
     expect(setGroupModeRequestSchema.parse({ groupId: GROUP, rated: 'true' }).rated).toBe(true);
     expect(setGroupModeRequestSchema.parse({ groupId: GROUP, spin: 'true' }).spin).toBe(true);
-    expect(spinModeRequestSchema.safeParse({ groupId: GROUP }).success).toBe(true);
+    expect(setGroupModeRequestSchema.parse({ groupId: GROUP, redraw: 'true' }).redraw).toBe(true);
+    expect(
+      setGroupModeRequestSchema.parse({ groupId: GROUP, side: 'blue', region: 'targon', game: 'this' }),
+    ).toMatchObject({ side: 'blue', region: 'targon', game: 'this' });
+  });
+
+  it('M20.7: a region action names its target game; side and region go together', () => {
+    expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, redraw: true, game: 'next' }).success).toBe(
+      true,
+    );
+    expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, side: 'blue' }).success).toBe(false);
+    expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, region: 'targon' }).success).toBe(false);
+    expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, mode: 'region', game: 'this' }).success).toBe(
+      false,
+    );
+    expect(
+      setGroupModeRequestSchema.safeParse({ groupId: GROUP, redraw: true, side: 'red', region: 'ionia' })
+        .success,
+    ).toBe(false);
+    expect(
+      setGroupModeRequestSchema.safeParse({ groupId: GROUP, side: 'red', region: 'Ionia' }).success,
+    ).toBe(false);
   });
 
   it('refuses two actions at once, and a false spin', () => {
@@ -113,15 +133,39 @@ describe('setGroupModeRequestSchema', () => {
 });
 
 describe('setGroupModeResponseSchema', () => {
-  it('is ok, the mode now, and whether it changed', () => {
-    expect(setGroupModeResponseSchema.parse({ ok: true, mode: 'normal', changed: true })).toEqual({
-      ok: true,
-      mode: 'normal',
-      changed: true,
-    });
-    expect(setGroupModeResponseSchema.safeParse({ ok: true, mode: 'class', changed: false }).success).toBe(
-      false,
-    );
+  const state = {
+    standing: 'fearless',
+    pending: { id: 'region', blue: 'zaun', red: 'noxus' },
+    rated: null,
+    nextRated: false,
+    updatedAt: '2026-10-05T18:00:00Z',
+  } as const;
+
+  it('M20.7: is one { state, notice } answer', () => {
+    const answer = { ok: true, state, notice: 'Next game: Region wars.', changed: true, mode: 'fearless' };
+    expect(setGroupModeResponseSchema.parse(answer)).toEqual(answer);
+    expect(setGroupModeResponseSchema.safeParse({ ...answer, notice: '' }).success).toBe(false);
+    expect(setGroupModeResponseSchema.safeParse({ ...answer, mode: 'class' }).success).toBe(false);
+  });
+
+  it('M20.7: never carries a region rule without its pair', () => {
+    const answer = { ok: true, notice: 'x', changed: true, mode: 'fearless' };
+    expect(
+      setGroupModeResponseSchema.safeParse({ ...answer, state: { ...state, pending: { id: 'region' } } }).success,
+    ).toBe(false);
+    expect(
+      setGroupModeResponseSchema.safeParse({
+        ...answer,
+        state: { ...state, pending: null },
+        thisGame: {
+          lobbyId: GROUP,
+          standing: 'fearless',
+          mode: { id: 'region', blue: 'ionia', red: 'noxus' },
+          rated: null,
+          effectiveRated: false,
+        },
+      }).success,
+    ).toBe(true);
   });
 });
 
@@ -213,8 +257,9 @@ describe('the M15.3 row and JSON schemas', () => {
       mode: 'fearless',
       pending_rule: 'class',
       pending_class_tag: 'Tank',
+      pending_region_blue: null,
+      pending_region_red: null,
       rated_override: null,
-      version: 4,
       updated_at: '2026-10-04T18:00:00Z',
     };
     expect(groupModeRowSchema.safeParse(row).success).toBe(true);
@@ -229,7 +274,6 @@ describe('the M15.3 row and JSON schemas', () => {
       lock_region_blue: null,
       lock_region_red: null,
       lock_rated: null,
-      lock_version: null,
       locked_at: null,
     };
     expect(lobbyLockRowSchema.safeParse(none).success).toBe(true);
@@ -241,7 +285,6 @@ describe('the M15.3 row and JSON schemas', () => {
         lock_region_blue: 'ionia',
         lock_region_red: 'noxus',
         lock_rated: false,
-        lock_version: 2,
         locked_at: '2026-10-04T18:00:00Z',
       }).success,
     ).toBe(true);
@@ -311,5 +354,48 @@ describe('0032_mode_of_the_night.sql', () => {
 
   it('defaults every stored game to rated, so nothing rated before moves on a rebuild', () => {
     expect(body).toContain('add column rated boolean not null default true');
+  });
+});
+
+describe('0047_mode_one_row.sql (M20.7)', () => {
+  const sql = readFileSync(
+    fileURLToPath(new URL('../../supabase/migrations/0047_mode_one_row.sql', import.meta.url)),
+    'utf8',
+  );
+  const body = sql
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join('\n');
+
+  it('is one transaction', () => {
+    expect(body.trim().startsWith('begin;')).toBe(true);
+    expect(body.trim().endsWith('commit;')).toBe(true);
+  });
+
+  it('drops the version token, the lock version and both no-draw flags', () => {
+    expect(body).toContain('alter table public.group_modes drop column version;');
+    expect(body).toContain('alter table public.lobbies drop column lock_version;');
+    expect(body).toContain('alter table public.lobbies drop column lock_no_draw;');
+    expect(body).toContain('alter table public.games drop column rule_no_draw;');
+  });
+
+  it('empties a pending region wars with no pair before the pair check exists (c)', () => {
+    const emptied = body.indexOf("where pending_rule = 'region';");
+    expect(emptied).toBeGreaterThan(-1);
+    expect(emptied).toBeLessThan(body.indexOf('add constraint group_modes_pending_regions'));
+  });
+
+  it('grants the pair to anon and never pending_set_by (0029 rule)', () => {
+    const grants = [...body.matchAll(/grant select \(([^)]*)\) on public\.group_modes/g)].map((m) => m[1]);
+    expect(grants).toEqual(['pending_region_blue, pending_region_red']);
+  });
+
+  it('lets only the service role run the two functions', () => {
+    for (const fn of ['mode_hand_back', 'mode_take']) {
+      expect(body).toMatch(
+        new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon, authenticated;`),
+      );
+      expect(body).toMatch(new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to service_role;`));
+    }
   });
 });
