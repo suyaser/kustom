@@ -126,7 +126,7 @@ describe('the share sentence: every rank (11.6.1)', () => {
 
   it('no performance score: everyone counts ×1', () => {
     expect(share({ shareRank: null, share: 1, award: 'none' })).toBe(
-      'This game has no performance score, so everyone counts ×1.',
+      "This game couldn't be scored player by player, so everyone counts ×1.",
     );
   });
 });
@@ -218,7 +218,9 @@ describe('the rounding line (11.6.4)', () => {
       thin('Your side lost as the 44% underdog, so the loss cost 16 × 44% = 7.'),
     );
     const line = roundingSentence(xeta);
-    expect(line && sentenceText(line)).toBe('Ratings keep their decimals, so this shows 1 off the sum.');
+    expect(line && sentenceText(line)).toBe(
+      'Ratings keep their decimals, so the change shown is 1 off this sum.',
+    );
   });
 });
 

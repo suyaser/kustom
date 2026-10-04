@@ -67,6 +67,8 @@ describe('WhyText footnote (M14.64, 05-design 11.6)', () => {
 
   it('adds the rounding line when the sum is off by a point (11.6.4)', () => {
     const { container } = render(<WhyText reason={reason('loss', -9, 1)} subject={YOU} />);
-    expect(container).toHaveTextContent('Ratings keep their decimals, so this shows 1 off the sum.');
+    expect(container).toHaveTextContent(
+      'Ratings keep their decimals, so the change shown is 1 off this sum.',
+    );
   });
 });

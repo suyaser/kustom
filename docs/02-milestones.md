@@ -24,7 +24,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M15 Mode of the night | done (accepted 2026-10-04: M15.1–M15.19 merged; reviewer pass plus product scene walk; three rules live: class wars, region wars, mirror match) | Added 2026-10-03 (the user): class night first (builds the mode card, Spin, the mode panel's pool, Discord line, post-game check), then region wars (static region table seeded once from Meraki, words only), then mirror match (the first rated mode). Unrated by default; never touches champ select; no Ultimate Bravery or kill-race scoring. After M14. **M15.1 done 2026-10-04** (brief `redesign/briefs/m15.1-mode-of-the-night.md`): a rule is one game on top of the standing mode, locked at Roll; Rated switch in any mode (the user's yes); mirror ships with the host opening Blind Pick by hand (M17.17 automates it); no Bo3, no weekdays, no `Rest of tonight`. **2026-10-04: M15.7 (overlay API) dropped** because M17 removes the overlay; the mode's pool is shown only on Tonight's mode panel (M15.5) and linked from Discord (M15.6). No companion work in M15. |
 | M16 Kustom Premium: AI | done for 2.0 (2026-10-04: M16.1–M16.19 merged; the ship blockers M16.15–M16.18 landed; open: M16.20 real-group read after two Premium weeks, which needs the user's export; M16.21 scouting prompt nits, which need spend) | Added 2026-10-03 (the user): a future paid feature, if Kustom succeeds. Game recap line, weekly storyline, player scouting report, behind a per-group premium flag the operator sets with a script (M16.2; never a route, `/ops` read-only); no payments or billing (a future decision). Guardrails: numbers only from the DB with a checker, players sent as P1..P10, opt-outs, caps of $2 per group per month and $20 overall. Needs the user's Anthropic API key. After M15. **M16.1 done 2026-10-04** (brief `redesign/briefs/m16.1-premium-ai.md`): labels `AI recap` / `AI scouting report`; invisible to non-Premium groups; `customs` on as soon as M16.3 lands; landing and `/about` don't mention AI. |
 | M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
-| M18 Kustom rating | in progress (M18.1, M18.2, M18.4, M18.5, M18.8 spec landed 2026-10-04 on `kustom-rating`, reviewer pass each; 0036 applied locally only; planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one unannounced `rebuild-ratings` run by the owner (M18.10). **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, the owner's call, M18.2). The week stays Sunday 06:00 Africa/Cairo (owner-confirmed 2026-10-04). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. **M18.11 and M18.13 owner-approved 2026-10-04**, schema changes included (per-group `(a, b)` columns; `splits.score_parts`); both still after M18.10. |
+| M18 Kustom rating | in progress (M18.1, M18.2, M18.4, M18.5, M18.8 spec landed 2026-10-04 on `kustom-rating`, reviewer pass each; 0036 applied locally only; planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one `rebuild-ratings` run by the owner (M18.10), announced once in a patch-notes post to each group's Discord (the owner, 2026-10-04, superseding "unannounced"). M18.9 (docs and final words) landed 2026-10-04 on `m18-9-copy`. **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, the owner's call, M18.2). The week stays Sunday 06:00 Africa/Cairo (owner-confirmed 2026-10-04). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. **M18.11 and M18.13 owner-approved 2026-10-04**, schema changes included (per-group `(a, b)` columns; `splits.score_parts`); both still after M18.10. |
 | M19 Fast pages | in progress (2026-10-04: M19.1, M19.2, M19.4, M19.5, M19.6, M19.7 landed on main as `perf-integrate`, reviewer pass per lane and on the merge; Tonight result screen 38→14 queries, 14→5 rounds, refresh incl. prefetches ~95→14; Stats warm 0 queries; next: M19.3 scheduler, M19.8–M19.11 live signal) | Added 2026-10-04 from `redesign/research/performance.md`: Tonight changes once per real change, renders in ≤ 6 waves and ≤ 300 ms, never hears another group, controls stay pending until the screen answers, tabs answer at once. Owner decisions 2026-10-04 (decision rows): the name-free Mode card may be patched on the client (M19.13), and a per-group `group_live` signal replaces the table subscriptions, after which player and lobby tables leave the anon Realtime publication (M19.9 to M19.11). `getClaims()` is an investigation with a required security review (M19.12). M19.3 and M19.13 wait for `fix-mode-qa`. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
@@ -12310,9 +12310,12 @@ chance and the rating's expectation are now the same function.
     (`+36 · 5W–2L`), replacing M14.57's net all-time points. A fresh week reads 0 for everyone, which is the fresh
     start; the week's per-game weekly changes add up to it exactly, because every week starts on an integer.
 - **Schema change approved** for both tracks' before/after (shape in M18.4, platform's call within it).
-- **One rebuild, unannounced.** After the migration and deploy, one `rebuild-ratings` refolds every group's history
-  under the Kustom rating. No Discord line and no "we changed the rating" note; `/how` simply describes the new
-  rating. Agents never touch production: the owner runs it from the ship runbook (M18.10).
+- **One rebuild, announced once.** After the migration and deploy, one `rebuild-ratings` refolds every group's
+  history under the Kustom rating. **The switch is announced in one patch-notes post** to each group's Discord
+  channel, sent once after the rebuild's checks pass (text and delivery in M18.10); nothing else on the site or in
+  Discord announces it, no recurring line, and `/how` describes the new rating. (The owner, 2026-10-04,
+  superseding the first plan's "unannounced"; decision row.) Agents never touch production: the owner runs it
+  from the ship runbook (M18.10).
 - **Gate.** The switch does not start until a real-data backtest on production games passes: Kustom's log loss no
   worse than OpenSkill's stored `fold_p`, and Spearman ≥ 0.85 against the current board (M18.3). **Passed for the
   formula 2026-10-04** (109 games: log loss 0.700 against `fold_p`'s 0.806; Spearman 0.938 over the 10+ board,
@@ -12331,8 +12334,9 @@ chance and the rating's expectation are now the same function.
   one surface and OpenSkill numbers on another.
 - **Rollback is the previous build plus its own `rebuild-ratings`.** The OpenSkill columns stay in the schema,
   unread, until M18.12 drops them after a week live.
-- The research report's K (96 → 24), its weekly recommendation (net points) and its "announced rebuild" are
-  superseded by the owner's choices above; the report is otherwise the reference for every formula.
+- The research report's K (96 → 24) and its weekly recommendation (net points) are superseded by the owner's
+  choices above, and its announced rebuild (§7.2) is replaced by the owner's one patch-notes post (M18.10); the
+  report is otherwise the reference for every formula.
 
 **Numbers a friend will see (by construction, for `/how` and the tests):**
 
@@ -12528,17 +12532,41 @@ Tasks:
   smaller numbers. Acceptance: a spec section in `05-design.md` the web engineer builds from; screenshots of the
   built pages reviewed and signed off under this task (phone and laptop).
 
-- [ ] **M18.9** Product: the docs and the friend-facing words at the switch. *(owner: `product`; drafted beside
+- [x] **M18.9** Product: the docs and the friend-facing words at the switch. *(owner: `product`; drafted beside
   M18.7, merged in the switch deploy)* `00-product.md` "The rating" and "The week and all time" rewritten for
   Kustom (the M18 note there becomes the text); the features table rows for M7's MVP/ACE line, M14.57 and M14.58
   updated; `/how`'s fairness list from research §8 with the owner's numbers (a win never lowers you; only your own
   rated games move you; after 10 games one game moves you 20 at most, an even game about 8; beating the favourite
   pays more; same team same base; points come from the other team once everyone is settled, so 1200 stays the
   average; everyone starts at 1200 and the first 10 count extra, up to twice; the week starts everyone at 1200 and
-  counts only that week; nobody can edit a Rating). **No announcement** of the rebuild anywhere (the owner). The
+  counts only that week; nobody can edit a Rating). ~~**No announcement** of the rebuild anywhere (the owner).~~
+  **Superseded 2026-10-04 (the owner): one patch-notes post**, product writes it (M18.10 carries the text). The
   CLAUDE.md "Ratings are OpenSkill" convention line put to the user through the lead with replacement text.
   Acceptance: `grep -n "sigma\|OpenSkill\|quarter more\|fifth less\|do not sum to zero" docs/00-product.md`
   returns only history notes; `/how` copy in `apps/web` matches the doc (web engineer applies it in M18.7).
+
+    > **Done 2026-10-04 (product, branch `m18-9-copy` from `m18-6-reads`).**
+    > - `00-product.md` "The rating" rewritten for Kustom (formula, odds, K, shares, what a friend can count on,
+    >   the tight board, the week tab, the explanation, the announcement); "The week and all time" now ranks the
+    >   week on the weekly Rating as week points; the receipt's disagree line, the calibration restart, the
+    >   worked example's odds (56% / 60%, M18.2) and the features table rows for M7 MVP/ACE, M7 weekly rating,
+    >   M14.58/59 and M18 updated. The acceptance grep returns three lines, all history notes (OpenSkill named as
+    >   what was replaced).
+    > - Final strings, applied directly (strings only, so M18.7 has nothing to copy): `lib/board/copy.ts`
+    >   `WEEK_BOARD_SENTENCE_SHORT` (also the Discord week footer; `zero` in words because that footer must hold no
+    >   digit), `weekPlayerSentence`, `RATING_EXPLANATION`, `MVP_EXPLANATION`; `lib/breakdown/copy.ts` the null-share
+    >   sentence and the rounding line (11.6.1's other sentences, the footnote and the track clause accepted as
+    >   drafted); `lib/receipt/copy.ts` `DISAGREE_BODY` (it still said win chance counts "how sure the bot is");
+    >   `lib/landing/copy.ts` `/how`'s `HOW_RATING_LINES` (the fairness list, nine lines), the receipt's
+    >   `Win chance` term, and the FAQ's `What if someone's new?`. Tests pinning the old strings re-pinned
+    >   (strings only). `05-design.md` §11: every [DRAFT COPY] now [FINAL COPY, M18.9]; 11.10's three questions
+    >   closed.
+    > - Pre-switch `For points` line: accepted as the designer drew it (only on games rolled before the switch, no
+    >   `because` clause); decision row.
+    > - Left for M18.7 (components, not strings): `startedLine` (`Started the week at 1469`) has no place on a week
+    >   tab whose chart starts at `Week start` 0; the designer's new labels `Start 1200` / `Week start` are
+    >   M18.7's to add. `lib/breakdown/copy.ts`'s comment still says "the rebuild is unannounced" (a comment, left
+    >   for the lane that owns the file).
 
 - [ ] **M18.10** The runbook step: migrate, deploy, rebuild. *(owner: `platform-engineer` writes it; the owner runs
   it; after M18.2 and M18.5–M18.9 are merged)* A section in `docs/runbooks/` (new `kustom-rating.md`, linked from
@@ -12552,9 +12580,33 @@ Tasks:
   (6) rollback: redeploy the previous build, then **per group run `packages/db/scripts/m18-rollback-prestep.sql`**
   (nulls the 0036 `game_players` columns, and 0034's breakdown on rows with no `mu_after`; `ratings.r` stays; without
   it the old rebuild's `nulled()` is refused by `game_players_kustom_together` and aborts), then run the old build's
-  `rebuild-ratings --hosted` (the OpenSkill columns are refilled; 0036 stays). **Step 4 runs right after step 2:** until the switch rebuild has run, a live `ratings` row with `r` null folds from 1200 with its old games count. The dry run's `gate` lines (log loss vs stored `fold_p`, Spearman 10+/all, top 3, places moved) and `board`/`last 2 weeks` side-by-side are printed by `rebuild-ratings --dry-run` (M18.5, `lib/ingest/rebuildCompare.ts`). No Discord message. Acceptance: the runbook exists and was walked end to end on the local
-  stack by the platform engineer (output pasted under this task); the owner's hosted run noted here with its
-  `target` line.
+  `rebuild-ratings --hosted` (the OpenSkill columns are refilled; 0036 stays); (7) **the patch notes**, once, only
+  after step 5's checks pass and never on a rollback: the post below to every group with a connected Discord
+  channel, the same words for each (the `/how` link is the same for every group). Product's default delivery is
+  a one-off send through each group's stored webhook (so every group hears it from the same Kustom name, and a
+  group whose Discord the owner is not in still hears it), idempotent per group and with the M14.27 `target` /
+  `--hosted` guard; platform may instead make it a pasted message if only `customs` has a channel. It is the only
+  announcement: no recurring line, no site banner. **Step 4 runs right after step 2:** until the switch rebuild has run, a live `ratings` row with `r` null folds from 1200 with its old games count. The dry run's `gate` lines (log loss vs stored `fold_p`, Spearman 10+/all, top 3, places moved) and `board`/`last 2 weeks` side-by-side are printed by `rebuild-ratings --dry-run` (M18.5, `lib/ingest/rebuildCompare.ts`). No Discord message other than
+  step 7's patch notes. Acceptance: the runbook exists and was walked end to end on the local
+  stack by the platform engineer (output pasted under this task, step 7 against a local test webhook); the
+  owner's hosted run noted here with its `target` line and the groups the patch notes reached.
+
+    > **The patch notes (product, M18.9; final; Discord markdown, ASCII only, under 2 000 characters):**
+    >
+    > ```text
+    > **Kustom: ratings work differently now**
+    > Every game you've played has been re-scored with a simpler rating, so the board looks different today. Nobody's skill changed, just the maths.
+    >
+    > - A win never lowers your Rating and a loss never raises it.
+    > - Only your own games move you. Nothing fades while you're away.
+    > - After 10 games, an even game moves you about 8 points and one game never more than 20. Your first 10 games count extra.
+    > - Beat the favourite and you get more. Lose as the favourite and it costs more. The odds are the same win chance the bot posts with the teams.
+    > - Same team, same result, same base points. The better your game on your team, the more of a win you keep and the less of a loss you give back. MVP and ACE stay.
+    > - Points come from the other team, so 1200 stays the average. Ratings sit much closer together now, so a gap of 10 is small.
+    > - The week board starts everyone at zero every Sunday at 06:00 and only counts that week's games. Teams are still made from the all-time Rating.
+    >
+    > Tap any change on the site to see the sum behind it. The whole thing: https://kustom-delta.vercel.app/how
+    > ```
 
 - [ ] **M18.11** The balanced-teams guard: odds tuned to the group. *(owner: `core-engineer` for the fit,
   `platform-engineer` for storage and the monthly job, `product` for the line; after M18.10 and 200 Kustom-era

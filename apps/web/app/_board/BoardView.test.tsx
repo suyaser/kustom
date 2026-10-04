@@ -127,7 +127,11 @@ describe('the ranked list and the settling section', () => {
     draw(workedWindowBoard('this-week'));
     expect(screen.queryByRole('heading', { name: 'Still settling' })).not.toBeInTheDocument();
     expect(screen.queryByText(/settling ·/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Everyone starts the week at 0. Points come from this week's games only/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Everyone starts each week at zero and only that week's games count, so one good night/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('M14.57: names the sorted number once, Points this week / Points last week; All time has none', () => {
