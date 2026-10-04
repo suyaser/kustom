@@ -48,7 +48,10 @@ export function TopBar({
 
   return (
     <header className="border-b border-border bg-card pt-[env(safe-area-inset-top)]">
-      <div className="mx-auto flex min-h-(--topbar-h) w-full max-w-7xl items-center gap-x-6 px-(--gutter)">
+      {/* flex-wrap (large text): at 200% text the lockup, the nav, the toggle and `Sign in` no longer
+          fit one line; they wrap to new lines instead of squeezing the group name to a letter per line
+          and pushing the page sideways. At 100% they fit, so the bar is unchanged. */}
+      <div className="mx-auto flex min-h-(--topbar-h) w-full max-w-7xl flex-wrap items-center gap-x-6 px-(--gutter)">
         <Link
           href={groupHome(group)}
           className="flex min-h-11 min-w-0 items-center gap-3 rounded-control py-2"

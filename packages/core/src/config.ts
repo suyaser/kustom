@@ -277,12 +277,15 @@ export const config = {
     /** Rating points added once when a split puts the same five together as `lastSplit`. */
     repeatSplitPenalty: 200,
     /**
-     * Teammate variety (M18.13, owner-approved 2026-10-04): a split pays
-     * `min(varietyCap, varietyPerPair * repeated pairs)` Rating points, a repeated pair being two
-     * players on the same side of this split who were teammates in the recent window. 25 a pair,
-     * capped at 100, so variety can lift a split over a fairer one by at most 100 points of
-     * gap; the shown win chance is still the true one. The gentle version of
-     * `repeatSplitPenalty`, which stays as it is.
+     * Teammate variety (M18.13, owner-approved 2026-10-04; M18.14, owner decision 2026-10-04): a
+     * split pays `min(varietyCap, varietyPerPair * (repeated pairs - floor))` Rating points, a
+     * repeated pair being two players on the same side of this split who were teammates in the
+     * recent window, and the floor the fewest repeated pairs any split of this lobby the duo locks
+     * allow must keep. The same ten again keep at least 8 (two 3-2 reshuffles of last game's
+     * fives), so a 3-2 is free and a 4-1 (12) pays 100; with a rotating roster the floor is
+     * usually 0 and this is the M18.13 rule. 25 a pair, capped at 100, so variety can lift a split
+     * over a fairer one by at most 100 points of gap; the shown win chance is still the true one.
+     * The gentle version of `repeatSplitPenalty`, which stays as it is.
      */
     varietyPerPair: 25,
     varietyCap: 100,
@@ -324,6 +327,23 @@ export const config = {
     kSettleGames: 10,
     oddsScale: 400,
     winnerShares: [1.2, 1.1, 1.0, 0.9, 0.8],
+  },
+  /**
+   * The balanced-teams guard (M18.11 core, `rating/oddsFit.ts`, research rating-systems §6.5 and
+   * team-formation option C). `fitOddsPair` fits `(a, b)` in `winProbability`'s
+   * `logistic(a + b × gap / 400)` to a group's results by Newton's method on the log likelihood
+   * minus `ridge / 2 × (a² + (b − 1)²)`: the ridge counts as evidence that the plain odds `(0, 1)`
+   * are right, so a few games cannot move them. `shouldAdoptOddsPair` adopts a fit only with at
+   * least `minGames` games, `0 < b < adoptBelowB`, and `minDaysBetween` days since the last
+   * adoption (owner-approved 2026-10-04: 200 games, b < 0.8, at most monthly).
+   */
+  oddsFit: {
+    minGames: 200,
+    adoptBelowB: 0.8,
+    minDaysBetween: 30,
+    ridge: 4,
+    maxIterations: 50,
+    tolerance: 1e-10,
   },
   modes: {
     /**

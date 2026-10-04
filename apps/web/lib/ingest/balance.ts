@@ -1,4 +1,4 @@
-import { type BalancePlayer, balance, config, type Split } from '@customs/core';
+import { type BalancePlayer, balance, config, type Duo, type Split } from '@customs/core';
 import { type Json, rosterKey, type SplitInsert } from '@customs/db';
 import { invalidateGroup } from '../cache/tags';
 import { NAMELESS_PLAYER } from '../discord/embeds';
@@ -55,7 +55,10 @@ export async function balanceLobby(
   const selection = selectTen(pool);
 
   const key = rosterKey(selection.playing.map((member) => member.puuid));
-  const lastSplit = await selectLastSplit(client, key, groupId);
+  const [lastSplit, recentTeammates] = await Promise.all([
+    selectLastSplit(client, key, groupId),
+    loadRecentTeammates(client, groupId, now, timeZone),
+  ]);
 
   const result = balance({
     players: selection.playing.map(toBalancePlayer),
@@ -63,6 +66,8 @@ export async function balanceLobby(
     // and this is the one line that changes the day they exist.
     duos: [],
     lastSplit,
+    // M18.13: teammate variety's input. Core ignores a pair naming someone outside the ten.
+    recentTeammates,
   });
 
   const chosen = result.splits[0];
@@ -440,6 +445,83 @@ async function loadFills(client: ServiceClient, playerIds: readonly string[]): P
   return fillDistances(rows);
 }
 
+/** One game's ten, as the variety lookup reads them: puuid and side. */
+export interface TeammateGame {
+  players: readonly { puuid: string; side: number }[];
+}
+
+/**
+ * Every pair of teammates in `games` (M18.13), each pair once, sorted inside and across, so the
+ * same games always give the same list. A pair that shared a side in two of the games still
+ * counts once (`config.balance.varietyWindowGames`). Pure; the query is `loadRecentTeammates`.
+ */
+export function teammatePairs(games: readonly TeammateGame[]): Duo[] {
+  const seen = new Set<string>();
+  const pairs: Duo[] = [];
+  for (const game of games) {
+    const bySide = new Map<number, string[]>();
+    for (const player of game.players) {
+      const side = bySide.get(player.side) ?? [];
+      side.push(player.puuid);
+      bySide.set(player.side, side);
+    }
+    for (const side of bySide.values()) {
+      const puuids = [...new Set(side)].sort();
+      for (let i = 0; i < puuids.length; i += 1) {
+        for (let j = i + 1; j < puuids.length; j += 1) {
+          const a = puuids[i] as string;
+          const b = puuids[j] as string;
+          const id = `${a}\u0000${b}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          pairs.push([a, b]);
+        }
+      }
+    }
+  }
+  return pairs.sort((x, y) => (x[0] === y[0] ? (x[1] < y[1] ? -1 : 1) : x[0] < y[0] ? -1 : 1));
+}
+
+/**
+ * Teammate variety's input (M18.13): the teammates of **the night's previous game in this group**
+ * (`config.balance.varietyWindowGames` games, newest first, started since 06:00 local and not
+ * after `now`). The first roll of a night has none, so no variety term. Any game counts, rated
+ * or not, with or without a lobby: the complaint is "the same teammates again", whatever the
+ * last game was. Puuids only.
+ *
+ * **A failure is not an error**, like fill protection: the lobby balances with no variety term.
+ */
+export async function loadRecentTeammates(
+  client: ServiceClient,
+  groupId: string,
+  now: Date,
+  timeZone: string,
+): Promise<Duo[]> {
+  const window = config.balance.varietyWindowGames;
+  if (window <= 0) return [];
+
+  const { data, error } = await client
+    .from('games')
+    .select('id, started_at, game_players(side, players!inner(puuid))')
+    .eq('group_id', groupId)
+    .gte('started_at', nightStart(now, timeZone).toISOString())
+    .lte('started_at', now.toISOString())
+    .order('started_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(window);
+
+  if (error) {
+    console.warn(`balanceLobby: recent teammates read failed, no variety this split: ${error.message}`);
+    return [];
+  }
+
+  return teammatePairs(
+    (data ?? []).map((game) => ({
+      players: game.game_players.map((row) => ({ puuid: row.players.puuid, side: row.side })),
+    })),
+  );
+}
+
 /**
  * M2.7's lookup: the newest chosen split for exactly these ten, whatever night it was, and
  * the five puuids of its blue side. `null` when these ten have never been split before.
@@ -522,6 +604,8 @@ async function storeSplits(
     // recompose it from the numbers beside it.
     explanation: explanations[index] ?? '',
     roster_key: key,
+    // M18.13 (0045): every term of `score`, so the receipt can name why a split ranked lower.
+    score_parts: (split.scoreParts ?? null) as unknown as Json,
   }));
 
   const { data, error } = await client.from('splits').insert(rows).select('id, rank');

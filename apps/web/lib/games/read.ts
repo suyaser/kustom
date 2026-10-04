@@ -139,7 +139,7 @@ export async function readSplitRuns(
     client
       .from('splits')
       .select(
-        'lobby_id, roster_key, rank, is_chosen, blue_win_prob, gap, off_role_count, blue, red, explanation',
+        'lobby_id, roster_key, rank, is_chosen, blue_win_prob, gap, off_role_count, score_parts, blue, red, explanation',
       )
       .in('lobby_id', chunk),
   )) {
@@ -154,6 +154,7 @@ export async function readSplitRuns(
           blue_win_prob: row.blue_win_prob,
           gap: row.gap,
           off_role_count: row.off_role_count,
+          score_parts: row.score_parts,
           blue: readAssignments(row.blue),
           red: readAssignments(row.red),
           explanation: row.explanation,

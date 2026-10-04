@@ -65,7 +65,8 @@ lobbies        (id, lcu_party_id, status, reported_by_player_id, lobby_name, lob
                 created_at, updated_at)  unique (lcu_party_id) where status in (open, balanced, in_game)
 lobby_members  (lobby_id, player_id, side null, role null, role_override null, is_spectator, created_at)
 splits         (id, lobby_id, rank, blue jsonb, red jsonb, gap, blue_win_prob, score, off_role_count,
-                is_chosen, explanation, roster_key, created_at)
+                is_chosen, explanation, roster_key, created_at, odds_model,   -- odds_model 0036
+                score_parts jsonb null)   -- 0045, M18.13: core ScoreParts; null before 0045
 games          (id, lcu_game_id unique, lobby_id null, group_id, started_at, duration_s, winning_side,
                 source 'eog' | 'backfill', mode -> modes.id,    -- mode 0024, M14.29: stamped at insert
                 raw jsonb -- lz4 since 0040, created_at,
@@ -257,6 +258,13 @@ Rules:
   appends a new set of three rather than replacing the old one, and a partial unique index allows at most one
   `is_chosen` split per lobby. `explanation` is the string core built; the embed and the tonight page render it,
   they never recompute it.
+- `splits.score_parts` (0045, M18.13) is core's `ScoreParts` for that split, `{ gap, offRole, repeat, variety,
+  repeatedPairs }`, written by the roll path (`apps/web/lib/ingest/balance.ts`) beside `score` and read back
+  through zod (`storedScoreParts`, `@customs/db/schemas`; malformed or null reads as `null`). A check constraint
+  holds the shape (five non-negative numbers, `repeatedPairs` whole). Null on every row before 0045, never
+  backfilled. The roll path reads teammate variety's input in the same call: every same-side pair of **the
+  newest game of the lobby's group started since 06:00 local (`nightStart`) and not after the roll**, rated or
+  not (`loadRecentTeammates`); a read failure balances with no variety, like fill protection.
 - `splits.roster_key` is the ten puuids of that split, sorted and joined with `,`. The API computes it with
   `rosterKey()` from `@customs/db` when it stores a split, and the `lastSplit` lookup is the newest chosen split
   with the same `roster_key` — one indexed lookup instead of a jsonb set comparison.
@@ -421,6 +429,22 @@ fold). Decision rows: `M18:` in `04-decisions.md`.
   winnerShares: [1.2, 1.1, 1.0, 0.9, 0.8] }`. Bounds by construction: a settled player moves at most
   16 × 1.2 = 19.2 (printed at most 20), anyone's first game on a track at most 32 × 1.2 = 38.4; an even settled
   game is ±8 at the middle share, +9.6 for the MVP, −6.4 for the ACE.
+- **The balanced-teams guard's fit (M18.11 core, `rating/oddsFit.ts`; not wired: storage, the monthly job and the
+  receipt line are platform's and product's).** `fitOddsPair(games, { ridge? })` takes `{ gap, blueWon }` per
+  rated, bot-rolled Kustom game (gap = Σblue − Σred of the all-time Ratings going in) and returns
+  `{ a, b, games, iterations, converged }`: the `(a, b)` maximising the log likelihood of the results under
+  `winProbability` minus `ridge / 2 × (a² + (b − 1)²)`, by Newton's method from `(0, 1)` with step halving. No
+  randomness; games are sorted by `(gap, blueWon)` first, so input order does not change the fit; no games returns
+  exactly `(0, 1)`. `shouldAdoptOddsPair({ fit, games, lastAdoptedAt, now })` returns `{ adopt: true, pair }` or
+  `{ adopt: false, reason }`, checking in order `too_few_games` (under 200), `too_soon` (under 30 days since
+  `lastAdoptedAt`, clock injected), `b_not_positive` (b ≤ 0 would make the favourite the underdog), `b_not_low`
+  (b ≥ 0.8). Adopting changes no stored Rating, only future games' odds and expected scores. **b needs spread gaps
+  to be measured**: on bot-balanced games alone (gaps within about ±60) the ridge keeps the fit near `(0, 1)`
+  however the results went, which is the honest answer (the data cannot tell). Tested: b recovered within 0.05 at
+  2 000 synthetic games with gaps uniform in ±1 600 (true `(0.1, 0.6)`, five seeds; 97 of 100 seeds pass at that
+  spread). Constants `config.oddsFit` `{ minGames: 200, adoptBelowB: 0.8, minDaysBetween: 30, ridge: 4,
+  maxIterations: 50, tolerance: 1e-10 }`; ridge 4 is worth about 16 imaginary even games at gap ±400 that went
+  exactly as the plain odds say.
 
 ### The Kustom fold (M18.5)
 
@@ -707,9 +731,20 @@ M18.12). A non-finite `r` or an `n` that is not a whole number `>= 0` is a `Bala
   maximizes effective skill minus off-role penalty. 126 x 2 x 120 evaluations, well under 100 ms.
 - `score = |sum(blueEff) - sum(redEff)| + sum(off-role cost of each filled seat) + 200 * isRepeatOfLastSplit +
   variety + inf * duoSeparated`, in Rating points. One filled seat costs 120 unless fill protection scales it.
-- **Teammate variety** (M18.13, owner-approved 2026-10-04): `variety = min(100, 25 * repeatedPairs)`
-  (`varietyCap`, `varietyPerPair`), a repeated pair being two players on the same side of this split who were also
-  teammates in the recent window, `config.balance.varietyWindowGames = 1`: the previous game **of the same night**.
+- **Teammate variety** (M18.13, owner-approved 2026-10-04; floor M18.14, owner decision 2026-10-04):
+  `variety = min(100, 25 * (repeatedPairs - floor))` (`varietyCap`, `varietyPerPair`), a repeated pair being two
+  players on the same side of this split who were also teammates in the recent window,
+  `config.balance.varietyWindowGames = 1`: the previous game **of the same night**. The floor is the fewest
+  `repeatedPairs` of any partition this lobby's duo locks allow, taken over the same 126-partition pass (a second
+  loop over the candidates, no analytic shortcut, so duo locks and ignored pairs are counted exactly as the split
+  is). Why: the same ten again keep at least `2 * (C(3,2) + C(2,2)) = 8` of last game's pairs whatever the split,
+  which under the M18.13 rule is already the cap, so every split paid 100 and variety never moved the order. Now a
+  3-2 reshuffle of last game's fives is free, a 4-1 (12 pairs) pays 100, and a rotating roster, where some split
+  can usually break every pair (floor 0), gets exactly the M18.13 rule. `repeatedPairs` stays the raw count (the
+  receipt prints both raw counts, `12 vs 8 pairs`); `variety` is the charged amount. Evidence
+  (`pnpm --filter web formation-sim 20 600`, paired against the M18.13 rule): true edge and stomp within 2 SE in
+  every world; repeated pairs per game 3.75 to 3.22 (rotating roster) and, with the same ten every night, 9.47 to
+  8.21 on same-ten games, where 8 is the floor.
   The caller computes the pairs (puuids only) and passes them as `recentTeammates`; core never reads history. A pair
   counts once whatever its order or how often it appears; a pair naming somebody not in tonight's ten, the same
   player twice, or two players locked together as a duo is ignored, never an error. The cap bounds the fairness

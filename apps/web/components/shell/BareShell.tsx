@@ -14,11 +14,14 @@ export function BareShell({ children, headerEnd }: { children: ReactNode; header
     <div className="flex min-h-svh flex-col bg-page text-foreground">
       <SkipLink />
       <header className="border-b border-border bg-card pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex min-h-(--topbar-h) w-full max-w-7xl items-center justify-between gap-3 px-(--gutter)">
+        {/* flex-wrap (large text): when the wordmark and the right cluster no longer fit one line (200%
+            text on a phone), the cluster drops to a second line, still at the end, instead of
+            pushing the page sideways. At 100% they always fit, so the bar is one 60px line. */}
+        <div className="mx-auto flex min-h-(--topbar-h) w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-(--gutter) py-2">
           <Link href="/" className="flex min-h-11 items-center rounded-control">
             <Wordmark />
           </Link>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="ms-auto flex shrink-0 items-center gap-2">
             {/* Day / Night on every page (M14.47). */}
             <ThemeToggle />
             {/* Kustom's own pages put `Sign in` here (STRATEGY 2.5: wordmark, sign-in, no tabs). */}

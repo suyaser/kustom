@@ -3,9 +3,10 @@ import {
   type FavoredSide,
   favoredSide,
   type SwapDescription,
-  type WhyLower,
+  type WhyLowerScored,
   whyLower,
 } from '@customs/core';
+import { storedScoreParts } from '@customs/db/schemas';
 import { NAMELESS_PLAYER } from '@/lib/discord/embeds';
 import { barPercents } from '@/lib/receipt/copy';
 import type { ReceiptNames, SplitRowLike, StoredSplit } from './types';
@@ -27,6 +28,8 @@ export function receiptSplitFromRow(row: SplitRowLike): StoredSplit {
     blue: row.blue,
     red: row.red,
     explanation: row.explanation,
+    // M18.13 (0045): zod-checked; a row from before the column, or a bad value, is `null`.
+    scoreParts: storedScoreParts(row.score_parts),
   };
 }
 
@@ -69,7 +72,7 @@ export interface SplitRow {
   /** `null` on the one in play. */
   swap: SwapDescription | null;
   /** Ranked below the one in play: why it lost. */
-  why: WhyLower | null;
+  why: WhyLowerScored | null;
   /** Ranked above the one in play (a reroll moved past it). */
   rerolledPast: boolean;
   /** Its odds sit nearer 50/50 than the one in play's. */

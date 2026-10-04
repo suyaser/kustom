@@ -337,7 +337,7 @@ export function supabaseLandingSource(client: PublicClient): LandingSource {
     async run(lobbyId, createdAt) {
       const { data, error } = await client
         .from('splits')
-        .select('rank, is_chosen, blue_win_prob, gap, off_role_count, blue, red, explanation')
+        .select('rank, is_chosen, blue_win_prob, gap, off_role_count, score_parts, blue, red, explanation')
         .eq('lobby_id', lobbyId)
         .eq('created_at', createdAt)
         .order('rank', { ascending: true });

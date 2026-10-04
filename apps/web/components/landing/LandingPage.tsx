@@ -51,6 +51,7 @@ import { groupHome, groupHref } from '@/lib/nav';
 import { formatDayMonth } from '@/lib/night';
 import { CALIBRATION_FOLLOW_UP, calibrationLineParts } from '@/lib/receipt/copy';
 import { AudienceSwitch, AudienceText, RememberedBackBar } from './AboutIslands';
+import { ExampleGame } from './ExampleGame';
 import { CreateGroupButton, PageColumn, Section, TermList } from './parts';
 
 /**
@@ -159,7 +160,7 @@ function Hero({ data, audience }: { data: LandingData; audience: AudienceSource 
           )}
         </div>
       </div>
-      <HeroReceipt data={data} disclosureId="landing-hero-how" />
+      <ExampleGame />
     </section>
   );
 }

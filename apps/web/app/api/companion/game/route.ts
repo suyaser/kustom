@@ -110,12 +110,23 @@ async function handleGamePost(
     if (lobby !== null) {
       // From here the roster is history (M2.9), and it stays history: the only way out of
       // `in_game` is `finished` (the eog block) or `dropped` (the two-hour sweep, M5.11).
-      const moved = await moveLobbyLogged(
-        client,
-        { lobbyId: lobby.id, from: ['open', 'balanced'], to: 'in_game' },
-        `game ${payload.gameId} in_progress`,
+      //
+      // Through `noteWrite`, so a move whose answer is lost after the row changed (a dropped
+      // connection, a 5xx on the way back) still bumps: the throw is a 500, the companion's retry
+      // finds the lobby already `in_game`, moves nothing and would never bump, and Tonight would
+      // sit on the teams until something else changed (fix-start-pending).
+      await noteWrite(
+        live,
+        lobby.groupId,
+        'lobby',
+        () =>
+          moveLobbyLogged(
+            client,
+            { lobbyId: lobby.id, from: ['open', 'balanced'], to: 'in_game' },
+            `game ${payload.gameId} in_progress`,
+          ),
+        (moved) => moved,
       );
-      if (moved) live.touch(lobby.groupId, 'lobby');
     }
 
     return jsonOk(companionGameResponseSchema, {

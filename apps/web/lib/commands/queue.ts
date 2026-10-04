@@ -305,6 +305,28 @@ export async function supersedeLobbyCommands(
 // ---------------------------------------------------------------------------
 
 /**
+ * A command's status **as of `now`**, for a read: a `pending` or `sent` row at or past its
+ * `expires_at` is reported as `failed` with `expired`, exactly what {@link sweepExpiredCommands}
+ * will write (same comparison, `expires_at <= now`), and everything else as stored.
+ *
+ * The sweep only runs when a companion polls or somebody presses again, so a row whose host never
+ * polled (the PC went to sleep, the companion was closed inside M4.1's ten minutes) would otherwise
+ * read `pending` for the rest of the night and a page polling it would wait forever
+ * (fix-start-pending). A read still never writes; it just does not pretend the clock stopped.
+ */
+export function commandStatusAt<S extends 'pending' | 'sent' | 'acked' | 'failed'>(
+  row: { status: S; error: string | null; expires_at: string },
+  now: Date,
+): { status: S | 'failed'; error: string | null } {
+  const live = (LIVE_STATUSES as readonly string[]).includes(row.status);
+  const expiresAt = Date.parse(row.expires_at);
+  if (live && !Number.isNaN(expiresAt) && expiresAt <= now.getTime()) {
+    return { status: 'failed', error: COMMAND_ERRORS.expired };
+  }
+  return { status: row.status, error: row.error };
+}
+
+/**
  * One cheap statement at the top of every poll, whatever `clientConnected` says: a row past
  * its `expires_at` is `failed` with `expired` and is never handed to anybody. This is the whole
  * of expiry — the writer sets `expires_at`, the sweep enforces it, and no other clock is

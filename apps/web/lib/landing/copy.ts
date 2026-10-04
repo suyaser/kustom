@@ -43,6 +43,14 @@ export const liveReceiptCaption = (groupName: string, date: string): string =>
 export const SEE_THIS_GAME = 'See this game';
 /** Under the worked-example receipt, when the demo group has no rolled game to show. */
 export const EXAMPLE_RECEIPT_CAPTION = 'An example split: ten friends on an ordinary Tuesday.';
+/** The hero's example game (05-design 12.9, designer draft; product may reword). */
+export const EXAMPLE_GAME_CAPTION = 'An example game: ten friends on an ordinary Tuesday.';
+/** Its title row, sentence case: the upper-case side word stays inside the bar (12.9). */
+export const EXAMPLE_GAME_WON = 'Red won';
+/** The table's visually hidden caption (12.6). */
+export const EXAMPLE_GAME_TABLE_CAPTION = 'Example game, lane by lane. Red won.';
+/** The table's visually hidden column headers (12.6): blue, lane, red. */
+export const EXAMPLE_GAME_HEADERS = { blue: 'Blue team', lane: 'Lane', red: 'Red team' } as const;
 
 // 2. The problem
 export const PROBLEM_TITLE = 'Sound familiar?';
@@ -182,7 +190,7 @@ export const HOW_RATING_LINES = [
 export const HOW_SPLIT_TITLE = 'Picking the teams';
 export const HOW_SPLIT_LINES = [
   'When an admin taps Roll teams, the bot tries all 126 ways to split ten people into two teams of five.',
-  "For each one it puts everyone in their best lane and scores it: the rating gap between the teams, plus a cost for every player off their main role (bigger if they were filled last game), plus a nudge against repeating last game's teams. Lowest score wins.",
+  "For each one it puts everyone in their best lane and scores it: the rating gap between the teams, plus a cost for every player off their main role (bigger if they were filled recently), plus a nudge against repeating last game's teams or putting last game's teammates back together. Lowest score wins.",
   'It keeps its top three. The first is posted. A reroll moves to the second, then the third. There is no fourth, and nothing is random.',
 ] as const;
 

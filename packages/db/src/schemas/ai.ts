@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { groupIdSchema } from './groups';
 
 /**
  * Kustom Premium's AI plumbing (M16.3, `0033_ai_lines.sql`): the shapes of the stored lines, the
@@ -97,7 +98,13 @@ export const aiFactListSchema = z.array(aiFactSchema).max(200);
 /** An `ai_lines` row as the server reads it back. */
 export const aiLineRowSchema = z.object({
   id: z.uuid(),
-  group_id: z.uuid(),
+  /**
+   * `groupIdSchema` (`z.guid()`), never `z.uuid()`: the original group's fixed id
+   * `00000000-0000-0000-0000-000000000001` is not an RFC 9562 uuid, and a strict check here made
+   * every one of its rows unreadable (2026-10-04: the week storyline never posted, the scouting
+   * reports stuck `pending`).
+   */
+  group_id: groupIdSchema,
   kind: aiLineKindSchema,
   subject: z.string().min(1),
   status: aiLineStatusSchema,

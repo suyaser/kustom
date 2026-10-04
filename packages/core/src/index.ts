@@ -168,6 +168,17 @@ export {
   shareRanks,
   winProbability,
 } from './rating/kustom';
+// M18.11 core: the balanced-teams guard's fit and adoption rule (storage and the monthly job are platform's).
+export {
+  fitOddsPair,
+  type OddsAdoptDecision,
+  type OddsAdoptInput,
+  type OddsAdoptSkip,
+  type OddsFit,
+  type OddsFitGame,
+  type OddsFitOptions,
+  shouldAdoptOddsPair,
+} from './rating/oddsFit';
 export {
   applyMvpAceBonus,
   type MvpAce,

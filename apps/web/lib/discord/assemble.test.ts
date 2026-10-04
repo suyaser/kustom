@@ -501,6 +501,7 @@ describe('toReceipt (M14.10)', () => {
     gap: split.gap,
     off_role_count: split.offRoleCount,
     blue_win_prob: split.blueWinProb,
+    score_parts: split.scoreParts,
   }));
 
   it("is the posted split, the one ranked below it, and the lobby's count, off the columns", () => {
@@ -513,8 +514,14 @@ describe('toReceipt (M14.10)', () => {
       gap: splits[0]?.gap,
       offRoleCount: splits[0]?.offRoleCount,
       blueWinProb: splits[0]?.blueWinProb,
+      // M18.13: the stored parts, zod-checked, so the reason can name a stored term.
+      scoreParts: splits[0]?.scoreParts,
     });
     expect(receipt?.next?.rank).toBe(2);
+    expect(
+      toReceipt([{ ...(rows[0] as StoredSplitRow), score_parts: { gap: 'x' } }], 'split-1')?.chosen
+        .scoreParts,
+    ).toBeNull();
   });
 
   it('pairs a reroll with the split below it, and the last split with nobody', () => {

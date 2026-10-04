@@ -12622,6 +12622,8 @@ Tasks:
   synthetic games with a known stretch (recovers `b` within 0.05 at 2 000 games); a group with a fitted pair shows
   the line and its receipt percentage equals `winProbability` with that pair.
 
+  *Core half landed 2026-10-04 on `m18-11-fit` (74202fe1, reviewer pass): `fitOddsPair` (ridge 4 toward (0, 1), Newton, deterministic) and `shouldAdoptOddsPair` (200 games, 30 days, b in (0, 0.8)); b recovered within 0.05 at 2,000 spread-gap games. Finding: on tightly balanced games b is barely identifiable, so the guard may never fire. Outstanding: platform storage + monthly job, the receipt line, and the call on a refit with b ≥ 0.8 after an adopted pair.*
+
 - [ ] **M18.12** Remove OpenSkill. *(owner: `core-engineer` for core, `platform-engineer` for the schema; after one
   week live with no rollback)* The `openskill` dependency, `rateGame`, `predictWin`, `ordinal`, `seedFromRank`,
   the OpenSkill `explainDelta`/`explainLegacyDelta` and their tests go; a migration drops `game_players.mu_*`,
