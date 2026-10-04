@@ -13485,7 +13485,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   if it adds a function; (7) the companion's answer shape is unchanged.
 
   *Landed 2026-10-05 (6b68ced4, reviewer pass): migration 0046 (kickoff columns on lobbies), lib/ingest/kickoff.ts, 13 integration tests. Ships after 0046 is on hosted.*
-- [ ] **M21.5** Tonight in game shows the teams that started. *(owners: `web-engineer`, `designer` for the
+- [x] **M21.5** Tonight in game shows the teams that started. *(owners: `web-engineer`, `designer` for the
   changed-side cards (at most 3 rounds); after M21.4)* While `in_game`: the team cards draw the kickoff teams;
   `YOU on RED` and the viewer's seat come from them; the receipt is `FairnessReceipt` in-game for `rolled` (as
   today), and the pre-game receipt with the title `Odds at kickoff` for `custom` (line below, `How the bot decided`
@@ -13504,6 +13504,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   a second open page moves from the balanced split to the kickoff teams without a refresh (one `group_live` bump);
   (6) unit tests for the state table with the three kinds; (7) the announcement says `Game started.` once.
 
+  *Landed 2026-10-05 (5b59a960; reviewer pass, designer rulings 05-design 13 applied). Acceptance 5 (a second page moving without a refresh) rides the existing group_live bump; the integration run waits for the shared stack to match main. ARAM in game: M21.12.*
 - [ ] **M21.6** Discord: a `Game on` post when the teams that started are not the teams posted. *(owner:
   `platform-engineer`, copy from product as below; after M21.4)* When the kickoff kind is `custom`, the request that
   moved the lobby to `in_game` sends one **new** message to the group's channel (never an edit: a reroll never
