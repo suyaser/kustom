@@ -216,6 +216,11 @@ export function classEmptyLane(tag: ClassTag, role: RoleValue): string {
   return `No ${one} is usually played here. Any ${one} on this list may go ${role}.`;
 }
 
+/** A lane where none of a side's region usually plays: `No champion from Ionia usually plays here. Any of them will do.` */
+export function regionEmptyLane(region: RegionId): string {
+  return `No champion from ${regionName(region)} usually plays here. Any of them will do.`;
+}
+
 export function regionSentence(blue: RegionId, red: RegionId, rated: boolean): string {
   return `Blue picks only from ${regionName(blue)}, Red only from ${regionName(red)}. ${NOBODY_STOPPED_SIDES} ${ratedTail(rated)}`;
 }

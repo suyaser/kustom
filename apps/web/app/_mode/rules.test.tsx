@@ -1,10 +1,13 @@
 import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { championLane } from '@/lib/champs/lanes';
+import { regionName } from '@/lib/champs/regions';
 import { NOT_RATED_RESULT_LINE, resultModeLines } from '@/lib/discord/modeLines';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
+import { LANE_ORDER } from '@/lib/laneOrder';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { modeCardView } from '@/lib/mode/card';
-import { championTable } from '@/lib/mode/champions';
+import { championTable, regionIds } from '@/lib/mode/champions';
 import { MODE_NOW_NORMAL_BODY } from '@/lib/mode/copy';
 import { MIRROR_HOST_FILLING_LINE, MIRROR_HOST_LEAD, mirrorStatus } from '@/lib/mode/ruleCopy';
 import { fearlessCounts } from '@/lib/mode/view';
@@ -562,7 +565,12 @@ describe('the poster line', () => {
 describe('the panels', () => {
   const panel = (
     rule: string,
-    extra: { drawn?: boolean; standing?: 'normal' | 'fearless'; side?: 'red' } = {},
+    extra: {
+      drawn?: boolean;
+      standing?: 'normal' | 'fearless';
+      side?: 'red';
+      regions?: { blue: string; red: string };
+    } = {},
   ) => {
     const standing = extra.standing ?? 'normal';
     const fearless = standing === 'fearless' ? demoPool(false) : { champions: [], resetAt: null, games: 0 };
@@ -576,7 +584,11 @@ describe('the panels', () => {
       state: { standing, pending, ratedOverride: null, version: 1 },
       lobbyStatus: extra.drawn ? 'balanced' : null,
       lock: extra.drawn
-        ? { mode: { id: 'region', blue: 'ionia', red: 'noxus' }, rated: false, version: 1 }
+        ? {
+            mode: { id: 'region', ...(extra.regions ?? { blue: 'ionia', red: 'noxus' }) },
+            rated: false,
+            version: 1,
+          }
         : null,
       bans: fearless.champions.map((c) => c.id),
       table: championTable(),
@@ -639,6 +651,38 @@ describe('the panels', () => {
     ).toEqual(['RED Noxus']);
     expect(within(pools[0] as HTMLElement).getByText('Yasuo')).toBeInTheDocument();
     expect(within(pools[1] as HTMLElement).queryByText('Yasuo')).toBeNull();
+  });
+
+  it('region: a lane where none of a side usually plays keeps its row, with the sentence (QA fix 2026-10-04)', () => {
+    const table = championTable();
+    // A real region with a lane none of its champions usually plays, and one with every lane.
+    const lanesOf = (region: string) =>
+      new Set(
+        [...table]
+          .filter(([, facts]) => facts.region === region)
+          .map(([id]) => championLane(id))
+          .filter((role) => role !== null),
+      );
+    const sparse = regionIds().find((region) => lanesOf(region).size > 0 && lanesOf(region).size < 5);
+    const full = regionIds().find((region) => lanesOf(region).size === 5);
+    if (sparse === undefined || full === undefined) throw new Error('no region with a missing lane');
+    const missing = LANE_ORDER.find((role) => !lanesOf(sparse).has(role)) as string;
+    panel('region', { drawn: true, regions: { blue: sparse, red: full } });
+    const pools = screen
+      .getAllByRole('region')
+      .filter((r) => /^(BLUE|RED) /.test(r.getAttribute('aria-label') ?? ''));
+    const blue = within(pools[0] as HTMLElement);
+    const name = regionName(sparse as Parameters<typeof regionName>[0]);
+    const sentence = `No champion from ${name} usually plays here. Any of them will do.`;
+    const title = `BLUE ${name}`;
+    const lane = blue.getByRole('region', { name: `${title} ${missing}` });
+    expect(within(lane).getByText(sentence)).toBeInTheDocument();
+    // Every lane has its row on that side: no empty column on the board.
+    expect(blue.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual(
+      expect.arrayContaining(LANE_ORDER.map((role) => `${title} ${role}`)),
+    );
+    // The full side says it nowhere.
+    expect(within(pools[1] as HTMLElement).queryByText(/usually plays here/)).toBeNull();
   });
 
   it('mirror on a Fearless night: the sentence above the Fearless pool, bans folded by lane', () => {
