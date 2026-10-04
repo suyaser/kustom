@@ -305,13 +305,14 @@ export function FearlessPool({
                       <ul
                         className={cn(
                           // Columns by text size, not screen width (8.15.4): two at 100% on 375,
-                          // one at 320 or at 125% and up.
-                          'grid grid-cols-[repeat(auto-fill,minmax(min(100%,9em),1fr))] gap-2',
+                          // one at 320 or at 125% and up. rem, not em: the pool's own font is 17px,
+                          // and 9em (153px) would drop the 309px panel at 375 to one column.
+                          'grid grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))] gap-2',
                           board
                             ? 'lg:grid-cols-1'
                             : two
-                              ? 'lg:grid-cols-[repeat(auto-fill,minmax(min(100%,9.4em),1fr))]'
-                              : 'lg:grid-cols-[repeat(auto-fill,minmax(min(100%,10.5em),1fr))]',
+                              ? 'lg:grid-cols-[repeat(auto-fill,minmax(min(100%,9.4rem),1fr))]'
+                              : 'lg:grid-cols-[repeat(auto-fill,minmax(min(100%,10.5rem),1fr))]',
                         )}
                       >
                         {one.open.map((champion) => (

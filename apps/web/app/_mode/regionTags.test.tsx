@@ -144,11 +144,11 @@ describe('the Fearless pool (acceptance 4: filter and sort exactly as before)', 
     expect(spoken(hit)).toBe('Vi, Piltover and Zaun');
   });
 
-  it('chip grids pick their columns by text size (em minimums), not by screen width', () => {
+  it('chip grids pick their columns by text size (rem minimums), not by screen width', () => {
     render(<FearlessPool banned={[]} initialLane="jungle" viewerLane={null} regions={REGIONS} />);
     const grid = chip('Vi')?.parentElement;
-    expect(grid?.className).toContain('grid-cols-[repeat(auto-fill,minmax(min(100%,9em),1fr))]');
-    expect(grid?.className).toContain('lg:grid-cols-[repeat(auto-fill,minmax(min(100%,10.5em),1fr))]');
+    expect(grid?.className).toContain('grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))]');
+    expect(grid?.className).toContain('lg:grid-cols-[repeat(auto-fill,minmax(min(100%,10.5rem),1fr))]');
     expect(grid?.className).not.toContain('min-[360px]:grid-cols-2');
   });
 });
@@ -205,7 +205,7 @@ describe('the panel builds the map on the server and passes it on', () => {
 });
 
 describe("the Mode card's Banned next game", () => {
-  it('tags each of the ten, rendered on the server, with an 8em grid minimum', () => {
+  it('tags each of the ten, rendered on the server, with a 7rem grid minimum', () => {
     render(
       <ModeCard
         group={ORIGINAL_GROUP}
@@ -226,7 +226,7 @@ describe("the Mode card's Banned next game", () => {
     expect(spoken(chip('Jinx'))).toBe('Jinx, Zaun');
     expect(spoken(chip('Bard'))).toBe('Bard');
     expect(chip('Vi')?.parentElement?.className).toContain(
-      'grid-cols-[repeat(auto-fill,minmax(min(100%,8em),1fr))]',
+      'grid-cols-[repeat(auto-fill,minmax(min(100%,7rem),1fr))]',
     );
   });
 });
