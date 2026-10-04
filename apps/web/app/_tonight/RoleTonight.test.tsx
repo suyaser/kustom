@@ -17,7 +17,11 @@ import {
 } from '@/lib/tonight/copy';
 import type { LobbyView } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
-import { linkLanding, RoleTonight } from './RoleTonight';
+import { RoleTonight } from './RoleTonight';
+
+/** M19.3: `That's me` lands on `/you` through the router (a soft navigation), never `location`. */
+const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => router }));
 
 /**
  * `Your role tonight` and `That's me` (M3.6).
@@ -34,8 +38,8 @@ function lobby(overrides: Partial<LobbyView> = {}): LobbyView {
   return lobbyView({ members: workedMembers(4), ...overrides });
 }
 
-function draw(viewer: ViewerState, view: LobbyView | null, onViewerChanged?: () => void) {
-  return render(<RoleTonight lobby={view} viewer={viewer} onViewerChanged={onViewerChanged} />);
+function draw(viewer: ViewerState, view: LobbyView | null) {
+  return render(<RoleTonight lobby={view} viewer={viewer} />);
 }
 
 const linked: ViewerState = { kind: 'linked', puuid: ME, isAdmin: false };
@@ -60,6 +64,8 @@ function lastBody(): unknown {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  router.push.mockClear();
+  router.refresh.mockClear();
 });
 
 describe("the role control, for a linked viewer in tonight's lobby", () => {
@@ -258,18 +264,34 @@ describe('signed in with no player row: picking yourself, once', () => {
     expect(screen.getByText('(2)')).toHaveClass('font-normal', 'text-muted-foreground');
   });
 
-  it('posts the puuid, then lands on the You tab with the welcome card (M14.33)', async () => {
+  it('posts the puuid, then lands on the You tab with the welcome card through the router (M14.33, M19.3)', async () => {
     answers({ ok: true, puuid: ME });
-    const go = vi.spyOn(linkLanding, 'go').mockImplementation(() => {});
-    const refreshed = vi.fn();
-    draw(visitor, lobby(), refreshed);
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    const asked: Event[] = [];
+    const onAsk = (event: Event) => asked.push(event);
+    window.addEventListener('kustom:tonight-refresh', onAsk);
+    draw(visitor, lobby());
 
     expect(fireEvent.click(screen.getAllByRole('button')[0] as Element)).toBe(false);
 
     await waitFor(() => expect(lastBody()).toEqual({ groupId: ORIGINAL_GROUP_ID, puuid: ME }));
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/g/customs/you?welcome=1'));
-    expect(refreshed).toHaveBeenCalledTimes(1);
-    go.mockRestore();
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/g/customs/you?welcome=1'));
+    expect(router.push).toHaveBeenCalledTimes(1);
+    // A soft navigation: no document load, and no Tonight re-read asked for first.
+    expect(assign).not.toHaveBeenCalled();
+    expect(router.refresh).not.toHaveBeenCalled();
+    expect(asked).toHaveLength(0);
+    window.removeEventListener('kustom:tonight-refresh', onAsk);
+  });
+
+  it('sends one claim: a second tap while the first lands posts nothing', async () => {
+    answers({ ok: true, puuid: ME });
+    draw(visitor, lobby());
+    fireEvent.click(screen.getAllByRole('button')[0] as Element);
+    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getAllByRole('button')[1] as Element);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('sends the no-JavaScript form to the welcome URL too', () => {
@@ -281,12 +303,10 @@ describe('signed in with no player row: picking yourself, once', () => {
 
   it('does not navigate when the claim is refused', async () => {
     answers({ ok: false, error: 'Someone is already linked to that player.' }, false);
-    const go = vi.spyOn(linkLanding, 'go').mockImplementation(() => {});
     draw(visitor, lobby());
     fireEvent.click(screen.getAllByRole('button')[0] as Element);
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
-    expect(go).not.toHaveBeenCalled();
-    go.mockRestore();
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it("prints the route's sentence when somebody is already linked to that player", async () => {

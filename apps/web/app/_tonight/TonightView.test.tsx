@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { groupHref } from '@/lib/nav';
@@ -36,6 +36,9 @@ import {
 } from './fixtures';
 import { TonightView, type TonightViewProps } from './TonightView';
 import { yourNightFirstLine } from './YourNight';
+
+/** `That's me` navigates through the router (M19.3); the page itself never does in these tests. */
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 /**
  * The 2.0 tonight page, one fixture per state (M14.9 acceptance 1 to 3), asserted by role and

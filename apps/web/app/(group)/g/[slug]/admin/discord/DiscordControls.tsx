@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { type FormEvent, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +18,7 @@ import {
   WEBHOOK_PLACEHOLDER,
 } from '@/lib/admin/sectionCopy';
 import { errorSentence, refusalSentence } from '@/lib/groups/apiError';
+import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
 
 /**
  * The paste fallback (STRATEGY 3.2 step 2; M14.20): `Webhook link` with the how-to, and `Save and send
@@ -27,7 +27,7 @@ import { errorSentence, refusalSentence } from '@/lib/groups/apiError';
  * failed test keeps the save and prints Discord's reason in place.
  */
 export function PasteWebhookForm({ groupId }: { groupId: string }) {
-  const router = useRouter();
+  const { refresh } = useCommittedRefresh();
   const [url, setUrl] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +60,8 @@ export function PasteWebhookForm({ groupId }: { groupId: string }) {
           ?.testPost;
         if (test !== undefined && !test.posted) setError(discordTestFailed(test.testPostError ?? ''));
         else setUrl('');
-        router.refresh();
+        // Pending until the saved state is on screen (M19.3).
+        await refresh();
       } else {
         setError(pasteRefusal(response.status, body));
       }
@@ -103,7 +104,7 @@ export function PasteWebhookForm({ groupId }: { groupId: string }) {
 
 /** `Send a test post` (M14.20, `POST /api/admin/discord/test`): the result in place, then a refresh. */
 export function SendTestButton({ groupId }: { groupId: string }) {
-  const router = useRouter();
+  const { refresh } = useCommittedRefresh();
   const [state, setState] = useState<
     { kind: 'idle' | 'pending' | 'sent' } | { kind: 'failed'; message: string }
   >({
@@ -111,6 +112,7 @@ export function SendTestButton({ groupId }: { groupId: string }) {
   });
 
   async function send(): Promise<void> {
+    if (state.kind === 'pending') return;
     setState({ kind: 'pending' });
     try {
       const response = await fetch('/api/admin/discord/test', {
@@ -124,12 +126,13 @@ export function SendTestButton({ groupId }: { groupId: string }) {
         return;
       }
       const result = body as { posted?: boolean; testPostError?: string | null } | null;
+      // Pending until the page shows the recorded test (M19.3), then the result in place.
+      await refresh();
       setState(
         result?.posted === true
           ? { kind: 'sent' }
           : { kind: 'failed', message: discordTestFailed(result?.testPostError ?? '') },
       );
-      router.refresh();
     } catch {
       setState({ kind: 'failed', message: ACTION_FAILED });
     }

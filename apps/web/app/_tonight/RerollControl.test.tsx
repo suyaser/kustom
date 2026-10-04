@@ -1,7 +1,8 @@
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NO_MORE_SPLITS } from '@/lib/admin/rerollCopy';
+import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { REROLL_FAILED, REROLL_LABEL, REROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import type { SplitChoice } from '@/lib/tonight/types';
 import { RerollControl } from './RerollControl';
@@ -68,6 +69,32 @@ describe('the reroll control', () => {
 
     release({ ok: true, status: 200, json: async () => ({ ok: true }) } as unknown as Response);
     await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
+  });
+
+  it('M19.3: stays pending until the promoted split is on screen; a press meanwhile never reposts the old splitId', async () => {
+    const tonight = holdTonightRefresh();
+    answer(200, { ok: true });
+    const { rerender } = render(<RerollControl lobbyId={LOBBY_ID} splits={splits(1)} />);
+    const button = screen.getByRole('button', { name: REROLL_LABEL });
+
+    fireEvent.click(button);
+    await waitFor(() => expect(tonight.asks).toHaveLength(1));
+    // Answered, but the old board is still drawn (`next` would still be split-2): quiet, and no post.
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(button);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // The re-read lands with split 2 chosen; the next press names split 3.
+    rerender(<RerollControl lobbyId={LOBBY_ID} splits={splits(2)} />);
+    act(() => tonight.land());
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'));
+    fireEvent.click(button);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    const bodies = (fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls.map(
+      ([, init]) => JSON.parse(String(init.body)).splitId,
+    );
+    expect(bodies).toEqual(['split-2', 'split-3']);
+    tonight.stop();
   });
 
   it('is really disabled only on the last split, with the sentence beside it', () => {

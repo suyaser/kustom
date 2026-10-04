@@ -1,11 +1,19 @@
 'use client';
 
 import { ruleKey } from '@customs/core';
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useTransition } from 'react';
+import { useEffect, useRef } from 'react';
 import { createLiveClient } from '@/lib/liveClient';
 import { SPIN_BROADCAST, SPIN_BROADCAST_EVENT, SPIN_REVEAL_EVENT, spinDetail } from '@/lib/mode/spinEvents';
-import { resetLiveState, setLiveState, TONIGHT_REFRESH_EVENT } from '@/lib/tonight/live';
+import {
+  resetLiveState,
+  setLiveState,
+  TONIGHT_PRESS_EVENT,
+  TONIGHT_REFRESH_EVENT,
+  type TonightPressDetail,
+  type TonightRefreshDetail,
+} from '@/lib/tonight/live';
+import { REFRESH_DEBOUNCE_MS, RefreshScheduler } from '@/lib/tonight/refreshScheduler';
+import { useCommittedRefresh } from '@/lib/useCommittedRefresh';
 
 /**
  * The live half of the tonight page (M3.4; rebuilt for 2.0 in M14.9).
@@ -26,6 +34,13 @@ import { resetLiveState, setLiveState, TONIGHT_REFRESH_EVENT } from '@/lib/tonig
  * It also re-reads when the tab becomes visible again and whenever the channel (re)subscribes, so a
  * phone that slept shows the current state. The connection state is published to `lib/tonight/live`
  * for the strip's live tag and the Tonight tab's dot; neither says `Live` until `SUBSCRIBED`.
+ *
+ * **One re-read at a time, once per change** (M19.3): every trigger goes through one
+ * {@link RefreshScheduler} — a trailing debounce with a max wait, single flight with exactly one
+ * follow-up for changes heard mid-render, and controls' asks joined to a render that started after
+ * their route answered. A press holds renders until its route answers (`beginTonightPress`), so the
+ * route's own rows and its answer are one render. A control's ask resolves when that render has
+ * committed, so its button stays pending until the screen it changed has changed.
  *
  * It renders nothing.
  *
@@ -81,8 +96,8 @@ export function liveSubscriptions(groupId: string): LiveSubscription[] {
   );
 }
 
-/** Ten members joining at once is one re-render, not ten. */
-export const COALESCE_MS = 150;
+/** Ten members joining at once is one re-render, not ten (the scheduler's trailing debounce). */
+export const COALESCE_MS = REFRESH_DEBOUNCE_MS;
 
 /** No `SUBSCRIBED` this long after mounting reads as down, not as still connecting (5.4). */
 export const CONNECT_TIMEOUT_MS = 8_000;
@@ -116,25 +131,23 @@ export function TonightLive({
   nameless = false,
   startPending = false,
 }: TonightLiveProps) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
+  const { refresh: committedRefresh } = useCommittedRefresh();
+  const run = useRef(committedRefresh);
+  run.current = committedRefresh;
+  const scheduler = useRef<RefreshScheduler | null>(null);
   const refresh = useRef<() => void>(() => {});
 
-  // Coalesced: a burst of events, or an event racing a visibility change, is one refresh.
+  // One scheduler per mounted page: every trigger below is a `change()`, every control an `ask()`.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    refresh.current = () => {
-      if (timer !== null) return;
-      timer = setTimeout(() => {
-        timer = null;
-        startTransition(() => router.refresh());
-      }, COALESCE_MS);
-    };
+    const live = new RefreshScheduler({ run: () => run.current() });
+    scheduler.current = live;
+    refresh.current = () => live.change();
     return () => {
-      if (timer !== null) clearTimeout(timer);
+      live.dispose();
+      scheduler.current = null;
       refresh.current = () => {};
     };
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     setLiveState({ lobbyLive, mounted: true });
@@ -186,7 +199,22 @@ export function TonightLive({
     const onVisible = (): void => {
       if (document.visibilityState === 'visible') refresh.current();
     };
-    const onAsked = (): void => refresh.current();
+    const onAsked = (event: Event): void => {
+      const live = scheduler.current;
+      if (live === null) return;
+      const detail = (event as CustomEvent<TonightRefreshDetail | null>).detail;
+      if (detail === null || typeof detail !== 'object') {
+        void live.ask();
+        return;
+      }
+      detail.answered = live.ask(detail.answeredAt);
+    };
+    const onPress = (event: Event): void => {
+      const detail = (event as CustomEvent<TonightPressDetail | null>).detail;
+      const live = scheduler.current;
+      if (live === null || detail === null || typeof detail !== 'object') return;
+      detail.release = live.hold();
+    };
     const onSpun = (event: Event): void => {
       const rule = spinDetail(event);
       if (rule === null) return;
@@ -196,6 +224,7 @@ export function TonightLive({
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onVisible);
     window.addEventListener(TONIGHT_REFRESH_EVENT, onAsked);
+    window.addEventListener(TONIGHT_PRESS_EVENT, onPress);
 
     return () => {
       cancelled = true;
@@ -203,6 +232,7 @@ export function TonightLive({
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onVisible);
       window.removeEventListener(TONIGHT_REFRESH_EVENT, onAsked);
+      window.removeEventListener(TONIGHT_PRESS_EVENT, onPress);
       window.removeEventListener(SPIN_BROADCAST_EVENT, onSpun);
       void client.removeChannel(channel);
       resetLiveState();

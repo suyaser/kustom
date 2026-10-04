@@ -11,6 +11,7 @@ import {
   openingOnPcLine,
   START_LOBBY_BUTTON,
 } from '@/lib/lobbyStartCopy';
+import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { StartLobby, StartLobbySignIn } from './StartLobby';
@@ -199,6 +200,29 @@ describe('the press', () => {
     press();
 
     await waitFor(() => expect(screen.getByText(START_LOBBY_OFFLINE)).toBeInTheDocument());
+  });
+
+  it('M19.3: asks Tonight once with the answer, and stays in flight until the row is on screen', async () => {
+    const tonight = holdTonightRefresh();
+    answers(startAnswer());
+    draw();
+    press();
+    await waitFor(() => expect(tonight.asks).toHaveLength(1));
+    const button = screen.getByRole('button', { name: START_LOBBY_BUTTON });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    press();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    tonight.stop();
+  });
+
+  it('M19.3: a refused press asks for no re-read', async () => {
+    const tonight = holdTonightRefresh();
+    refusesWith(409, { ok: false, error: 'There is already a lobby open.' });
+    draw();
+    press();
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(tonight.asks).toHaveLength(0);
+    tonight.stop();
   });
 
   it('drops a second tap while one is in flight, instead of queuing a second command', async () => {

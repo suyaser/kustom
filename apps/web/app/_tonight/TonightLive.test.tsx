@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLiveState, requestTonightRefresh, showsLiveDot } from '@/lib/tonight/live';
+import { beginTonightPress, getLiveState, requestTonightRefresh, showsLiveDot } from '@/lib/tonight/live';
 
 /**
  * The live half of the tonight page (M3.4; M14.9 acceptance 4): the subscription for the page's
@@ -11,9 +11,30 @@ import { getLiveState, requestTonightRefresh, showsLiveDot } from '@/lib/tonight
 
 const refresh = vi.fn();
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh }),
+/**
+ * One server re-render is `refresh` (the count every test reads). By default it lands at once; with
+ * `flights.hold` it stays on the wire until the test lands it (`landRender()`), so "an event during
+ * a render" is a real render in flight (M19.3). The real hook (`router.refresh()` in a transition,
+ * resolved on commit) is `lib/useCommittedRefresh.test.tsx`.
+ */
+const flights = vi.hoisted(() => ({ hold: false, open: [] as (() => void)[] }));
+vi.mock('@/lib/useCommittedRefresh', () => ({
+  useCommittedRefresh: () => ({
+    refreshing: false,
+    refresh: () => {
+      refresh();
+      if (!flights.hold) return Promise.resolve();
+      return new Promise<void>((resolve) => flights.open.push(resolve));
+    },
+  }),
 }));
+
+async function landRender(): Promise<void> {
+  await act(async () => {
+    flights.open.shift()?.();
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
 
 /**
  * No socket in a component test: the channel is a stub. It records what the page asked to hear,
@@ -89,6 +110,8 @@ const settle = async () => act(async () => vi.advanceTimersByTime(COALESCE_MS + 
 
 beforeEach(() => {
   refresh.mockClear();
+  flights.hold = false;
+  flights.open.length = 0;
   listeners.all.length = 0;
   listeners.broadcasts.length = 0;
   listeners.sent.length = 0;
@@ -204,9 +227,136 @@ describe('re-reading after a gap', () => {
 
   it('re-renders when a control asks (a press was answered)', async () => {
     draw();
-    act(() => requestTonightRefresh());
+    act(() => {
+      void requestTonightRefresh();
+    });
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('one re-read at a time, once per change (M19.3)', () => {
+  it('a game end, ten-plus writes over half a second, is one render', async () => {
+    draw({ lobbyLive: false });
+    fire('games', { group_id: GROUP_A });
+    for (let i = 0; i < 10; i += 1) {
+      await act(async () => vi.advanceTimersByTime(40));
+      fire('game_players', { group_id: GROUP_A });
+    }
+    fire('ratings', { group_id: GROUP_A });
+    fire('lobbies', { group_id: GROUP_A });
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('an event during a render gives exactly one follow-up, once it lands', async () => {
+    flights.hold = true;
+    draw();
+    fire('lobbies', { group_id: GROUP_A });
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    // Three more rows while the first render is still on the wire: nothing starts beside it.
+    for (let i = 0; i < 3; i += 1) fire('lobby_members', {});
+    await act(async () => vi.advanceTimersByTime(2_000));
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await landRender();
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(2);
+    await landRender();
+    await act(async () => vi.advanceTimersByTime(2_000));
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("a control's ask joins the render its own Realtime row started, and resolves when it lands", async () => {
+    flights.hold = true;
+    draw();
+    const answeredAt = Date.now();
+    fire('splits', {});
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    const answered = vi.fn();
+    act(() => {
+      void requestTonightRefresh(answeredAt).then(answered);
+    });
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(answered).not.toHaveBeenCalled();
+    await landRender();
+    expect(answered).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('an ask after a covering render has landed starts none', async () => {
+    draw();
+    const answeredAt = Date.now();
+    fire('splits', {});
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    const answered = vi.fn();
+    await act(async () => {
+      await requestTonightRefresh(answeredAt).then(answered);
+    });
+    expect(answered).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("a press holds the page's renders: the route's own rows and its answer are one render", async () => {
+    flights.hold = true;
+    draw();
+    const press = beginTonightPress();
+    // A roll writes for about a second; its rows land before its answer does.
+    fire('lobbies', { group_id: GROUP_A });
+    for (let i = 0; i < 3; i += 1) {
+      await act(async () => vi.advanceTimersByTime(250));
+      fire('splits', {});
+    }
+    await act(async () => vi.advanceTimersByTime(250));
+    expect(refresh).not.toHaveBeenCalled();
+
+    const answered = vi.fn();
+    act(() => {
+      void press.answered(Date.now()).then(answered);
+    });
+    // The write's own row a moment after the answer joins the same render.
+    await act(async () => vi.advanceTimersByTime(60));
+    fire('lobbies', { group_id: GROUP_A });
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(answered).not.toHaveBeenCalled();
+    await landRender();
+    expect(answered).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTime(2_000));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('a press with no tonight page mounted holds nothing and resolves at once', async () => {
+    const press = beginTonightPress();
+    await expect(press.answered()).resolves.toBeUndefined();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('with no tonight page mounted an ask resolves at once (`/admin`, a test)', async () => {
+    await expect(requestTonightRefresh()).resolves.toBeUndefined();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a visibility change and a reconnect during a render are one follow-up, not two', async () => {
+    flights.hold = true;
+    draw();
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    document.dispatchEvent(new Event('visibilitychange'));
+    act(() => listeners.status?.('CHANNEL_ERROR'));
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await landRender();
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -253,7 +403,10 @@ describe('the live tag and the tab dot', () => {
 describe('the polls', () => {
   it('asks about a pending create_lobby every five seconds, and stops when it settles', async () => {
     const { rerender } = draw({ startPending: true });
-    await act(async () => vi.advanceTimersByTime(START_POLL_MS * 2 + COALESCE_MS * 2));
+    // Async: a render lands between two polls, as it does in a browser (single flight, M19.3).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(START_POLL_MS * 2 + COALESCE_MS * 2);
+    });
     expect(refresh).toHaveBeenCalledTimes(2);
 
     refresh.mockClear();

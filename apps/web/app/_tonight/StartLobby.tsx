@@ -6,7 +6,7 @@ import { PLAYERS_PER_GAME } from '@/lib/lobbyRules';
 import { invitedLine, START_LOBBY_BUTTON, startLobbySentence } from '@/lib/lobbyStartCopy';
 import { groupHome } from '@/lib/nav';
 import { SIGN_IN_LABEL, START_LOBBY_OFFLINE, START_LOBBY_SIGN_IN } from '@/lib/tonight/copy';
-import { requestTonightRefresh } from '@/lib/tonight/live';
+import { beginTonightPress } from '@/lib/tonight/live';
 import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { usePageGroup } from '../_shell/PageGroup';
 
@@ -129,6 +129,8 @@ export function StartLobby({ start, press, around, onPressed, label, noHostLine 
     // page (M14.44): zod is 86 KB gzip, and every phone that opens Tonight paid for it up front.
     // A chunk that fails to load costs only the host's name for a moment (see below).
     const schemaLoad = import('@/app/api/me/lobbies/start/schema').catch(() => null);
+    // Tonight holds its renders until this answers (M19.3): one render for the row and the answer.
+    const press = beginTonightPress();
     try {
       // The body decides nothing (`start/schema.ts`): no host, no name, no password, no mode.
       const response = await fetch(START_ACTION, {
@@ -136,6 +138,7 @@ export function StartLobby({ start, press, around, onPressed, label, noHostLine 
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId: group.id }),
       });
+      const answeredAt = Date.now();
       const body: unknown = await response.json().catch(() => null);
 
       if (!response.ok) {
@@ -155,10 +158,12 @@ export function StartLobby({ start, press, around, onPressed, label, noHostLine 
       // The row is service-role only, so the page asks the **server** for it again rather than
       // waiting for an event that will never come.
       onPressed?.();
-      requestTonightRefresh();
+      // In flight until the row is on screen (M19.3), so the button never wakes on the old page.
+      await press.answered(answeredAt);
     } catch {
       setRefused(START_LOBBY_OFFLINE);
     } finally {
+      press.release();
       setInFlight(false);
     }
   }

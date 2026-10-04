@@ -2,7 +2,8 @@
 
 import { ROLES } from '@customs/core';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
-import { type MouseEvent, type ReactNode, useEffect, useId, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { type MouseEvent, type ReactNode, useEffect, useId, useState, useTransition } from 'react';
 import { NameText } from '@/components/names/name-text';
 import { Button } from '@/components/ui/button';
 import { welcomeHref } from '@/lib/board/hrefs';
@@ -26,7 +27,6 @@ import {
   SIGNED_IN_NO_LOBBY,
   THATS_ME,
 } from '@/lib/tonight/copy';
-import { requestTonightRefresh } from '@/lib/tonight/live';
 import type { LobbyView, MemberView } from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import { RoleIcon } from '../_icons/RoleIcon';
@@ -88,16 +88,9 @@ export interface RoleTonightProps {
   /** Tonight's lobby, or `null` on the idle page. */
   lobby: LobbyView | null;
   viewer: ViewerState;
-  /**
-   * Re-read the page's server components. Supplied by `TonightLive`, because who the viewer is
-   * comes from the session on the server: after a self-link the footer's `Your games` and this
-   * card's own state both live one render away. Absent in tests and in a static render, where
-   * there is nothing to refresh.
-   */
-  onViewerChanged?: (() => void) | undefined;
 }
 
-export function RoleTonight({ lobby, viewer, onViewerChanged }: RoleTonightProps) {
+export function RoleTonight({ lobby, viewer }: RoleTonightProps) {
   if (viewer.kind === 'unlinked') {
     // Only the members nobody has claimed, decided on the server (`lib/me/claimable.ts`): a
     // row that already carries a Discord id is not offered, and the page cannot even tell
@@ -108,7 +101,6 @@ export function RoleTonight({ lobby, viewer, onViewerChanged }: RoleTonightProps
     ) : (
       <PickYourself
         members={claimable}
-        onLinked={onViewerChanged}
         // Lead ruling (M14.65): once the teams are set the card folds to one line that opens.
         collapsed={lobby?.status === 'balanced'}
       />
@@ -259,16 +251,6 @@ function RolePicker({
 }
 
 /**
- * Where `That's me` goes once the link succeeds (M14.33): a full navigation to the welcome URL.
- * An object so a test can stand in for the browser's `location`.
- */
-export const linkLanding = {
-  go(href: string): void {
-    window.location.assign(href);
-  },
-};
-
-/**
  * `That's me`, once (M3.6, "Picking yourself, once").
  *
  * Only tonight's unclaimed members are offered — a friend cannot claim somebody who is not in
@@ -277,21 +259,23 @@ export const linkLanding = {
  */
 function PickYourself({
   members,
-  onLinked,
   collapsed = false,
 }: {
   members: readonly MemberView[];
-  onLinked?: (() => void) | undefined;
   /** The lobby is balanced: one line, `Which one is you? Pick yourself`, that opens to the list. */
   collapsed?: boolean;
 }) {
   const group = usePageGroup();
+  const router = useRouter();
+  const [landing, startLanding] = useTransition();
   const [failed, setFailed] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<string | null>(null);
   const listId = useId();
 
   async function submit(event: MouseEvent<HTMLButtonElement>, puuid: string): Promise<void> {
     event.preventDefault();
+    // One claim at a time: a second tap while the first is in flight or landing is dropped.
+    if (claimed !== null || landing) return;
     setFailed(null);
     try {
       const response = await fetch(LINK_ACTION, {
@@ -306,11 +290,10 @@ function PickYourself({
       }
       setClaimed(puuid);
       // The session is linked from now on: land on the You tab's welcome card (M14.33), which
-      // shows the whole history in one card. `onLinked` still refreshes the page underneath in
-      // case the navigation is slow.
-      onLinked?.();
-      requestTonightRefresh();
-      linkLanding.go(welcomeHref(group));
+      // shows the whole history in one card. A soft navigation (M19.3): the link is server data,
+      // not a cookie, so the router's fetch of `/you` already sees it; no document load and no
+      // Tonight re-read first. The tapped row says `You are …` until `/you` is on screen.
+      startLanding(() => router.push(welcomeHref(group)));
     } catch {
       setFailed(LINK_OFFLINE);
     }

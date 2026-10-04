@@ -1,11 +1,14 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ADMIN_VIEWER, ANON_VIEWER, MEMBER_VIEWER, tonightStateFixture } from '@/app/_tonight/fixtures';
 import { RoleTonight } from '@/app/_tonight/RoleTonight';
 import { TonightView } from '@/app/_tonight/TonightView';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { ROLL_LABEL, THATS_ME } from '@/lib/tonight/copy';
 import { kitViewer } from './viewer';
+
+/** `That's me` navigates through the router (M19.3); nothing navigates in these tests. */
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 /** The kit's `?viewer=unlinked` (M14.42, scene-walk gap 15): the `That's me` list, reachable. */
 const fixture = (state: 'filling' | 'balanced' | 'over-ten') =>

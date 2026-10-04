@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { MODE_APPLIES_NEXT_GAME, MODE_CHANGE_FAILED } from '@/lib/mode/copy';
 import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
+import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { ModeControls, type ModeControlsProps } from './ModeControls';
 
 /**
@@ -129,6 +130,22 @@ describe('the Rated switch toggles on its own', () => {
     // Another admin's write landed between: the route answers with what the next game really is.
     await net.release(answer(true, 6));
     expect(toggle()).toHaveAttribute('aria-checked', 'true');
+  });
+});
+
+describe('M19.3: the switch answers on its own, so it is not held for the re-read', () => {
+  it('asks Tonight once with the route answer, and is free again before the re-read lands', async () => {
+    const tonight = holdTonightRefresh();
+    const net = heldFetch();
+    vi.stubGlobal('fetch', net.mock);
+    render(<ModeControls {...PROPS} />);
+    fireEvent.click(toggle());
+    await net.release(answer(false, 5));
+    expect(tonight.asks).toHaveLength(1);
+    expect(toggle()).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(toggle());
+    expect(net.mock).toHaveBeenCalledTimes(2);
+    tonight.stop();
   });
 });
 
