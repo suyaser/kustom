@@ -39,8 +39,15 @@ export function tonightState(snapshot: TonightSnapshot): TonightState {
   switch (lobby.status) {
     case 'open':
       return { kind: 'filling', lobby };
-    case 'balanced':
     case 'in_game':
+      // M21.5: a game with a kickoff record is the in-game block of the teams that started it,
+      // rolled or not (an unrolled game is never a filling lobby). With no record (a game before
+      // M21.4, unequal sides) it is exactly the case below, as before M21.
+      if (lobby.kickoff != null) {
+        return { kind: 'in-game', lobby, game: lobby.kickoff, teams: lobby.teams };
+      }
+      return lobby.teams === null ? { kind: 'filling', lobby } : { kind: 'teams', lobby, teams: lobby.teams };
+    case 'balanced':
       // Reachable only when a balanced lobby has **no split rows at all** — a roll claimed the
       // lobby and its split insert failed or has not landed yet. Nothing repairs it by itself:
       // the next admin press after `ROLL_IN_FLIGHT_MS` (30s, `lib/admin/roll.ts`) makes the
@@ -106,12 +113,10 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
         live: true,
       };
     }
+    case 'in-game':
+      return inGameHeader(state.lobby);
     case 'teams':
-      if (state.lobby.status === 'in_game') {
-        // M15.5: a game locked not rated says so in the strip, so it never contradicts the card.
-        const sentence = state.lobby.lock?.rated === false ? NOT_RATED_RESULT_LINE : IN_GAME_SENTENCE;
-        return { headline: HEADLINE_IN_GAME, count: null, sentence, live: true };
-      }
+      if (state.lobby.status === 'in_game') return inGameHeader(state.lobby);
       // A finished lobby that reaches the teams block is a game the fold did not rate: the
       // teams they played stay up under `GAME OVER`, with no deltas and no sentence.
       if (state.lobby.status === 'finished') {
@@ -131,6 +136,12 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
         live: false,
       };
   }
+}
+
+function inGameHeader(lobby: LobbyView): HeaderView {
+  // M15.5: a game locked not rated says so in the strip, so it never contradicts the card.
+  const sentence = lobby.lock?.rated === false ? NOT_RATED_RESULT_LINE : IN_GAME_SENTENCE;
+  return { headline: HEADLINE_IN_GAME, count: null, sentence, live: true };
 }
 
 /**
@@ -157,6 +168,12 @@ function namesOnScreen(state: TonightState): PlayerName[] {
         ...state.teams.blue.map((seat) => seat.name),
         ...state.teams.red.map((seat) => seat.name),
         ...state.teams.sitters.map((member) => member.name),
+      ];
+    case 'in-game':
+      return [
+        ...state.game.blue.map((seat) => seat.name),
+        ...state.game.red.map((seat) => seat.name),
+        ...state.game.sitters.map((member) => member.name),
       ];
     default:
       return [

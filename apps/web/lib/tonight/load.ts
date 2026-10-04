@@ -1,6 +1,6 @@
 import { displayKustom, isOffRole, KUSTOM_START, type Mode, type Role } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
-import { ORIGINAL_GROUP_ID, ruleModeOf } from '@customs/db/schemas';
+import { KICKOFF_COLUMNS, type KickoffRow, ORIGINAL_GROUP_ID, ruleModeOf } from '@customs/db/schemas';
 import { receiptSplitFromRow } from '@/components/receipt/model';
 import type { StoredSplit } from '@/components/receipt/types';
 import { inChunks } from '../chunks';
@@ -24,6 +24,7 @@ import type { GameStampView } from '../mode/types';
 import { formatClock, formatNightLabel, type NightClock, nightClock } from '../night';
 import type { PublicClient } from '../publicClient';
 import { renderWebName } from './copy';
+import { kickoffView, readKickoff } from './kickoff';
 import type {
   LobbyView,
   MemberView,
@@ -152,6 +153,8 @@ interface LobbyRow {
   created_at: string;
   /** The lock columns (M15.5), read with the row instead of a read of their own. */
   lock: LockRow;
+  /** The kickoff record's columns (M21.4, 0046), read with the row too; parsed for `in_game` only. */
+  kickoff: KickoffRow;
 }
 
 /**
@@ -170,7 +173,7 @@ async function selectNightLobbies(
   let query = client
     .from('lobbies')
     .select(
-      'id, status, lobby_name, updated_at, created_at, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version',
+      `id, status, lobby_name, updated_at, created_at, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version, ${KICKOFF_COLUMNS}`,
     )
     .gte('created_at', nightStart)
     .neq('status', 'abandoned');
@@ -186,6 +189,7 @@ async function selectNightLobbies(
     updatedAt: row.updated_at,
     created_at: row.created_at,
     lock: row,
+    kickoff: row,
   }));
 }
 
@@ -411,6 +415,9 @@ function buildLobby(
     !open && (lobby.status === 'balanced' || lobby.status === 'in_game')
       ? (lockFromRow(lobby.lock)?.lock ?? null)
       : null;
+  // M21.5: in game, the teams that started (the kickoff record), or none and the page is as before.
+  const record = lobby.status === 'in_game' ? readKickoff(lobby.kickoff, lobby.id) : null;
+  const kickoff = record === null ? null : kickoffView(record, teams, members);
 
   return {
     id: lobby.id,
@@ -426,6 +433,7 @@ function buildLobby(
     teams,
     result,
     lock,
+    kickoff,
   };
 }
 

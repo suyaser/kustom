@@ -68,6 +68,9 @@ export function TeamCard({ side, seats, viewerPuuid, won = false, className, gro
   const titleId = useId();
   const heading = teamHeading(side);
   const yours = viewerPuuid !== null && seats.some((seat) => seat.puuid === viewerPuuid);
+  // 05-design 13.2: a card with no lane on any seat (a side changed after the roll, in game) has no
+  // role column at all; the name starts at the card padding rather than after an empty gutter.
+  const laneless = seats.length > 0 && seats.every((seat) => seat.role === null);
 
   return (
     <section
@@ -110,7 +113,16 @@ export function TeamCard({ side, seats, viewerPuuid, won = false, className, gro
           const you = seat.puuid === viewerPuuid;
           const href = group === undefined ? null : groupHref(group, { page: 'player', puuid: seat.puuid });
           const explained = seat.reason != null && seat.delta != null;
-          const row = <Seat key={seat.puuid} seat={seat} you={you} href={href} explained={explained} />;
+          const row = (
+            <Seat
+              key={seat.puuid}
+              seat={seat}
+              you={you}
+              href={href}
+              explained={explained}
+              laneless={laneless}
+            />
+          );
           return explained ? <WhyScope key={seat.puuid}>{row}</WhyScope> : row;
         })}
       </ol>
@@ -131,12 +143,16 @@ function Seat({
   you,
   href,
   explained,
+  laneless,
 }: {
   seat: TeamSeat;
   you: boolean;
   href: Route | null;
   explained: boolean;
+  /** Every seat on the card has no role (13.2): two columns, no role cell. */
+  laneless: boolean;
 }) {
+  const main = laneless ? 'col-start-1' : 'col-start-2';
   const standing = seatStanding(seat.ratedGames);
   const settling = (standing === 'settling' || standing === 'new') && seat.ratedGames !== null;
   const number =
@@ -164,28 +180,33 @@ function Seat({
         // right-aligned on the name's first line in an `auto` third column.
         // Below 1024 the role cell is 52px and the gaps 6px, so a 16-character all-caps name fits on
         // one line at 375 (6.14); from 1024 the full 60px cell.
-        'relative grid min-h-(--seat-min-h) grid-cols-[3.25rem_minmax(0,1fr)_auto] content-start items-start gap-x-1.5 gap-y-1 border-t border-border py-2.5 pr-2.5 pl-1 first:border-t-0',
-        'lg:grid-cols-[var(--role-cell-w)_minmax(0,1fr)_auto] lg:gap-x-2 lg:pr-3',
+        'relative grid min-h-(--seat-min-h) content-start items-start gap-x-1.5 gap-y-1 border-t border-border py-2.5 pr-2.5 first:border-t-0',
+        'lg:gap-x-2 lg:pr-3',
+        laneless
+          ? 'grid-cols-[minmax(0,1fr)_auto] pl-(--card-pad) lg:grid-cols-[minmax(0,1fr)_auto]'
+          : 'grid-cols-[3.25rem_minmax(0,1fr)_auto] pl-1 lg:grid-cols-[var(--role-cell-w)_minmax(0,1fr)_auto]',
         you && 'bg-you-wash outline-2 -outline-offset-2 outline-you',
         href !== null && !you && 'has-[a:hover]:bg-accent',
       )}
     >
-      <span className="row-span-3 flex flex-col items-center gap-0.5 pt-0.5 text-muted-foreground">
-        {seat.role === null ? null : (
-          <>
-            <RoleIcon role={seat.role} size={22} />
-            <span
-              className={cn(
-                'font-mono text-[0.75rem] font-medium tracking-[-0.02em] font-stretch-75% lg:text-2xs lg:tracking-normal',
-                seat.offRole && 'underline decoration-dotted underline-offset-2',
-              )}
-            >
-              {seat.role}
-            </span>
-          </>
-        )}
-      </span>
-      <span className="col-start-2 block min-w-0 text-md font-bold [overflow-wrap:break-word]">
+      {laneless ? null : (
+        <span className="row-span-3 flex flex-col items-center gap-0.5 pt-0.5 text-muted-foreground">
+          {seat.role === null ? null : (
+            <>
+              <RoleIcon role={seat.role} size={22} />
+              <span
+                className={cn(
+                  'font-mono text-[0.75rem] font-medium tracking-[-0.02em] font-stretch-75% lg:text-2xs lg:tracking-normal',
+                  seat.offRole && 'underline decoration-dotted underline-offset-2',
+                )}
+              >
+                {seat.role}
+              </span>
+            </>
+          )}
+        </span>
+      )}
+      <span className={cn(main, 'block min-w-0 text-md font-bold [overflow-wrap:break-word]')}>
         {href === null ? (
           <NameText name={seat.name} suffix={seat.nameSuffix} />
         ) : (
@@ -202,10 +223,17 @@ function Seat({
         {you ? <span className="sr-only">{YOU_SR}</span> : null}
       </span>
       {number === null ? null : (
-        <span className="col-start-3 row-span-2 row-start-1 flex flex-col items-end">{number}</span>
+        <span
+          className={cn(
+            laneless ? 'col-start-2' : 'col-start-3',
+            'row-span-2 row-start-1 flex flex-col items-end',
+          )}
+        >
+          {number}
+        </span>
       )}
       {!you && !seat.offRole && !settling ? null : (
-        <span className="col-start-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <span className={cn(main, 'flex flex-wrap items-center gap-x-2 gap-y-1.5')}>
           {you ? (
             <Chip variant="you" className="-rotate-2">
               {YOU_TAG}
@@ -218,7 +246,7 @@ function Seat({
         </span>
       )}
       {explained && seat.reason ? (
-        <WhyPanel className="col-span-2 col-start-2 row-start-3 me-0.5 mt-1">
+        <WhyPanel className={cn(main, 'col-span-2 row-start-3 me-0.5 mt-1')}>
           <WhyText
             reason={seat.reason}
             subject={you ? { kind: 'you' } : { kind: 'name', name: renderWebName(seat.name) }}

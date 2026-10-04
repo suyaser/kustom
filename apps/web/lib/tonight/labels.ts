@@ -36,6 +36,17 @@ function labelLobby(lobby: LobbyView, labels: NameLabels): LobbyView {
       lobby.result === null
         ? null
         : { ...lobby.result, blue: each(lobby.result.blue), red: each(lobby.result.red) },
+    // M21.5: the teams that started print the same labels as the split's cards.
+    ...(lobby.kickoff == null
+      ? {}
+      : {
+          kickoff: {
+            ...lobby.kickoff,
+            blue: each(lobby.kickoff.blue),
+            red: each(lobby.kickoff.red),
+            sitters: each(lobby.kickoff.sitters),
+          },
+        }),
   };
 }
 

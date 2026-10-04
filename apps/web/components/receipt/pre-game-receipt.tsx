@@ -2,11 +2,14 @@ import { preGameOdds } from '@customs/core';
 import { useId } from 'react';
 import {
   BAR_CAPTION,
+  KICKOFF_TEAMS_CHANGED,
+  kickoffOddsSentence,
   NO_ODDS,
   PRE_GAME_NO_SPLIT,
   PRE_GAME_TEAMS_CHANGED,
   resultOddsLine,
   resultOddsShort,
+  TITLE_IN_GAME,
   TITLE_PRE_GAME,
 } from '@/lib/receipt/copy';
 import { cn } from '@/lib/utils';
@@ -32,9 +35,18 @@ import { WinBar } from './win-bar';
  * odds: the receipt hides and only `No odds for this game.` is said.
  *
  * `teams-changed` still shows the splits the bot rolled, in the disclosure, when `rolled` is given.
+ *
+ * M21.5, `kickoff`: Tonight while the game is on, for teams Kustom did not roll (`custom`, or
+ * `unrolled`). The title is `Odds at kickoff`, the number is the stored kickoff odds (never
+ * recomputed here), and a changed game's line says `the teams playing now`. `blueWinProb: null`
+ * is a game whose odds are not shown (not rated, M15.18): only `No odds for this game.`, inside the
+ * frame. 05-design 13.1: always the compact shape (compact bar, no caption, the verdict without the
+ * fairest-split clause, then the reason line) and never `How the bot decided`.
  */
-export type PreGameReceiptProps = {
-  ratingsBefore: RatingsBefore;
+export type PreGameReceiptProps = (
+  | { ratingsBefore: RatingsBefore; kickoff?: undefined }
+  | { kickoff: { blueWinProb: number | null }; ratingsBefore?: undefined }
+) & {
   reason: 'no-split' | 'teams-changed';
   /** The winner, when the game is over: the result line replaces nothing, it leads. */
   winner?: WinnerSide | undefined;
@@ -54,10 +66,43 @@ export type PreGameReceiptProps = {
 } & DisclosureExtras;
 
 export function PreGameReceipt(props: PreGameReceiptProps) {
-  const { ratingsBefore, reason, winner, rolled, gameNumber, headingLevel = 'h2', className } = props;
+  const { reason, winner, rolled, gameNumber, headingLevel = 'h2', className } = props;
   const titleId = useId();
-  const blueWinProb = props.ratingBlueWinProb ?? preGameOdds(ratingsBefore.blue, ratingsBefore.red);
+  const kickoff = props.kickoff !== undefined;
+  const blueWinProb =
+    props.kickoff !== undefined
+      ? props.kickoff.blueWinProb
+      : (props.ratingBlueWinProb ?? preGameOdds(props.ratingsBefore.blue, props.ratingsBefore.red));
   const odds = blueWinProb === null ? null : oddsOf(blueWinProb);
+
+  if (kickoff) {
+    return (
+      <ReceiptFrame
+        titleId={titleId}
+        title={TITLE_IN_GAME}
+        headingLevel={headingLevel}
+        gameNumber={gameNumber}
+        className={className}
+      >
+        <div className="px-(--card-pad) pb-4">
+          {odds === null ? (
+            // 13.1: not rated keeps the frame, so the page does not jump when the next game is rated.
+            <p className="mt-2.5 text-sm text-muted-foreground">{NO_ODDS}</p>
+          ) : (
+            <>
+              <div className="mt-2.5">
+                <WinBar odds={odds} size="compact" />
+              </div>
+              <p className="mt-2.5 text-md font-bold text-balance">{kickoffOddsSentence(odds.blueWinProb)}</p>
+              <p className="mt-1.5 text-sm text-pretty text-muted-foreground">
+                {reason === 'no-split' ? PRE_GAME_NO_SPLIT : KICKOFF_TEAMS_CHANGED}
+              </p>
+            </>
+          )}
+        </div>
+      </ReceiptFrame>
+    );
+  }
 
   if (odds === null) {
     return <p className={cn('text-sm text-muted-foreground', className)}>{NO_ODDS}</p>;

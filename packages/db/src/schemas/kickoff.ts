@@ -66,8 +66,14 @@ export interface KickoffRow {
   kickoff_at: string | null;
 }
 
-/** The lobby's kickoff record, or `null` for none (or a row this build cannot read). */
-export function kickoffFromRow(row: KickoffRow): LobbyKickoff | null {
+/**
+ * The lobby's kickoff record, or `null` for none (or a row this build cannot read).
+ *
+ * `onDrop` hears a row that has a kind but does not parse (the reviewer's ask, M21.5): the reader
+ * logs it with what it knows (the lobby id) and carries on as if there were no record. It is never
+ * called for a lobby with no record at all.
+ */
+export function kickoffFromRow(row: KickoffRow, onDrop?: (reason: string) => void): LobbyKickoff | null {
   if (row.kickoff_kind === null) return null;
   const candidate =
     row.kickoff_kind === 'rolled'
@@ -87,7 +93,13 @@ export function kickoffFromRow(row: KickoffRow): LobbyKickoff | null {
           oddsModel: row.kickoff_odds_model,
         };
   const parsed = lobbyKickoffSchema.safeParse(candidate);
-  return parsed.success ? parsed.data : null;
+  if (parsed.success) return parsed.data;
+  onDrop?.(
+    parsed.error.issues
+      .map((issue) => `${issue.path.length === 0 ? 'record' : issue.path.join('.')}: ${issue.message}`)
+      .join('; '),
+  );
+  return null;
 }
 
 /** A record as the columns the write sets (the inverse of {@link kickoffFromRow}). */

@@ -192,5 +192,9 @@ export async function readLobbyKickoff(client: ServiceClient, lobbyId: string): 
     .eq('id', lobbyId)
     .maybeSingle();
   if (error) throw new Error(`kickoff: lobby read failed: ${error.message}`);
-  return data === null ? null : kickoffFromRow(data);
+  return data === null
+    ? null
+    : kickoffFromRow(data, (reason) =>
+        console.warn(`kickoff: lobby ${lobbyId} has a kickoff record this build cannot read (${reason})`),
+      );
 }

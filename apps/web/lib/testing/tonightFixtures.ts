@@ -1,7 +1,10 @@
-import { balance, displayKustom, isOffRole, type Role, rateGameKustom } from '@customs/core';
+import { balance, displayKustom, isOffRole, type Role, rateGameKustom, winProbability } from '@customs/core';
+import type { LobbyKickoff } from '@customs/db/schemas';
 import type { StoredSplit } from '@/components/receipt/types';
 import { EMPTY_FEARLESS } from '../fearless/types';
+import { kickoffView } from '../tonight/kickoff';
 import type {
+  KickoffView,
   LobbyView,
   MemberView,
   ResultSeatView,
@@ -281,6 +284,55 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
       stored: storedRun(balanced, 0),
     },
   };
+}
+
+/**
+ * M21.5: an in-game lobby with a kickoff record, from the worked split.
+ *
+ * - `rolled`: the split's ten on its sides (`swapped`: on each other's).
+ * - `custom`: Theo (blue support, the fixture viewer) swapped by hand with the split's red support
+ *   (Yuki), so both sides changed; the odds are core's `winProbability` over everyone's all-time `r`, as
+ *   M21.4 stores them.
+ * - `unrolled`: the same ten as `custom`, with no split at all.
+ *
+ * The members carry the side they started on (the frozen `lobby_members.side`).
+ */
+export function workedKickoff(
+  kind: 'rolled' | 'swapped' | 'custom' | 'unrolled',
+  members: readonly MemberView[] = workedMembers(),
+): { record: LobbyKickoff; teams: TeamsView | null; members: MemberView[]; kickoff: KickoffView } {
+  const split = workedTeams({ members: [...members] });
+  const blue = split.blue.map((seat) => seat.puuid);
+  const red = split.red.map((seat) => seat.puuid);
+  const at = '2026-09-08T20:07:00.000Z';
+  let record: LobbyKickoff;
+  if (kind === 'rolled' || kind === 'swapped') {
+    const swapped = kind === 'swapped';
+    record = { kind: 'rolled', blue: swapped ? red : blue, red: swapped ? blue : red, at, swapped };
+  } else {
+    const theo = workedPuuid('Theo');
+    const redSupport = split.red.find((seat) => seat.role === 'support')?.puuid ?? red[4] ?? '';
+    const realBlue = blue.map((puuid) => (puuid === theo ? redSupport : puuid));
+    const realRed = red.map((puuid) => (puuid === redSupport ? theo : puuid));
+    const rOf = new Map(workedRoster().map((player) => [workedPuuid(player.name), player.r]));
+    const sum = (side: readonly string[]) =>
+      side.reduce((total, puuid) => total + (rOf.get(puuid) ?? 1200), 0);
+    record = {
+      kind,
+      blue: realBlue,
+      red: realRed,
+      at,
+      blueWinProb: winProbability(sum(realBlue), sum(realRed)),
+      oddsModel: 'kustom',
+    };
+  }
+  const sideOf = new Map<string, 100 | 200>([
+    ...record.blue.map((puuid) => [puuid, 100] as const),
+    ...record.red.map((puuid) => [puuid, 200] as const),
+  ]);
+  const seated = members.map((member) => ({ ...member, side: sideOf.get(member.puuid) ?? null }));
+  const teams = kind === 'unrolled' ? null : workedTeams({ members: seated });
+  return { record, teams, members: seated, kickoff: kickoffView(record, teams, seated) };
 }
 
 export function lobbyView(overrides: Partial<LobbyView> = {}): LobbyView {
