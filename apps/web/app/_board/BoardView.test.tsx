@@ -294,8 +294,8 @@ function bigBoard(count: number): BoardModel {
     puuid: `puuid-${index}`,
     name: `Player Number ${index}`,
     rating: 2_000 - index * 3,
-    sortKey: (2_000 - index * 3) / 60,
-    climb: { muBefore: 20, muAfter: 20 + index / 100 },
+    sortKey: 2_000 - index * 3,
+    climb: { rBefore: 1200, rAfter: 1200 + index * 0.6 },
   }));
   return workedBoard({ rows });
 }

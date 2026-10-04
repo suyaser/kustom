@@ -55,7 +55,7 @@ export const STORYLINE_POST_BUDGET_MS = 30_000;
 
 /**
  * The week's fact input, from what the Sunday post read. Pure, and it computes nothing the post
- * does not: the board's order, games and wins and net points (M14.57), the stats' longest win
+ * does not: the board's order, games and wins and week points (M18.6: `round(weekly R) − 1200`), the stats' longest win
  * streak, and the awards' winners. **`Cursed duo` is left out on purpose**: it names a pair for
  * losing together, and the storyline only teases up (brief 4.3, D5). Players are keyed by
  * `players.id` (`idOf`, puuid -> id); a row with no id is left out. Null when nobody is left.

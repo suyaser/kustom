@@ -5,16 +5,12 @@
  * what this returns, on the server, with no charting library. The rules it encodes, all from
  * the design doc, because none of them is obvious from the picture:
  *
- * - **The plotted series is `Rating`** (`round(mu * 60)`), never Proven. A Proven line sags
- *   while sigma is high and climbs as sigma falls, so a new player's line rises while their
- *   skill estimate is flat and a returning player's dips while nothing about them changed.
- *   There is no label on a 140px phone chart that can say "that is your uncertainty".
- * - **The seed reference line is in the same units**: `round(seedMu * 60)`, never the seed's
- *   ordinal. One unit on one chart.
+ * - **The plotted series is the printed number**: `round(R)` on All time, week points on a week
+ *   (M18.6). The reference line is in the same units (1200, or 0 on a week).
  * - X is the game index, not a date: nights are uneven and a date axis makes a settled player
  *   look erratic.
- * - Y is the series min/max padded by 5%, and the seed is always inside the range even when
- *   that widens it. A chart whose reference line is off-screen is a chart with no reference.
+ * - Y is the series min/max padded by 5%, at least {@link MIN_SPAN} tall, and the seed is always
+ *   inside the range even when that widens it. A chart whose reference line is off-screen is a chart with no reference.
  */
 
 /** The viewBox. Width is arbitrary — the SVG stretches to the column and the stroke does not. */
@@ -42,6 +38,9 @@ const PAD = 0.05;
  */
 const SEED_PAD = 0.15;
 
+/** The smallest y span drawn, in display points (05-design 11.2, the Kustom scale). */
+export const MIN_SPAN = 100;
+
 export interface ChartGeometry {
   width: number;
   height: number;
@@ -60,7 +59,7 @@ export interface ChartGeometry {
  * The path and the seed line, or `null` for a player with no history to draw.
  *
  * `series` is already in display units and in `started_at` order: the loader hands over
- * `displayRating(mu)` values, so nothing here multiplies anything by sixty.
+ * display values (`round(R)` or week points), so nothing here rounds a Rating.
  */
 export function chartGeometry(series: readonly number[], seed: number): ChartGeometry | null {
   if (series.length === 0) return null;
@@ -106,6 +105,13 @@ function range(series: readonly number[], seed: number): { low: number; high: nu
 
   let low = min - pad;
   let high = max + pad;
+  // 05-design 11.2 (M18): at least MIN_SPAN points tall, centred on the data, so a line of +8, -7,
+  // +9 reads as the small movement it is rather than a sawtooth.
+  if (high - low < MIN_SPAN) {
+    const mid = (min + max) / 2;
+    low = mid - MIN_SPAN / 2;
+    high = mid + MIN_SPAN / 2;
+  }
   if (seed < low) low = seed - (high - seed) * SEED_PAD;
   if (seed > high) high = seed + (seed - low) * SEED_PAD;
   return { low, high };

@@ -332,7 +332,7 @@ if (stack === null) {
       for (const [index, puuid] of ten.entries()) await sideOf(puuid, index < 5 ? 100 : 200);
     });
 
-    it('becomes the result when the game ends, with both mu values for the delta', async () => {
+    it('becomes the result when the game ends, with both all-time Ratings for the delta', async () => {
       const response = await postGame(
         companionRequest('game', eogBody({ gameId, puuids: ten, partyId, durationS: 2_052 })),
       );
@@ -359,8 +359,8 @@ if (stack === null) {
         'support',
       ]);
       for (const seat of snapshot.lobby?.result?.blue ?? []) {
-        expect(typeof seat.muBefore).toBe('number');
-        expect(typeof seat.muAfter).toBe('number');
+        expect(typeof seat.rBefore).toBe('number');
+        expect(typeof seat.rAfter).toBe('number');
       }
 
       const html = await firstPaint();

@@ -105,7 +105,7 @@ export interface CapturedGameRow {
   duration: string;
   source: 'eog' | 'backfill';
   participants: number;
-  /** True only when every `game_players` row carries a `mu_after`: the fold really ran. */
+  /** True only when every `game_players` row carries a `r_after`: the fold really ran. */
   rated: boolean;
   /** Why, in the page's words (M14.53): rated, waiting for a fold, or the reason it never will be. */
   ratedReason: RatedReason;
@@ -217,7 +217,7 @@ export async function listMissedLobbies(
 /**
  * Why a captured game is or is not rated (M14.53), in the order the page reads it:
  *
- * - `rated`: every row carries a `mu_after`, the fold ran.
+ * - `rated`: every row carries a `r_after`, the fold ran.
  * - `gate`: the live fold's own gate refused it (not ten, not five a side, or too short).
  * - `aram` / `not-rift`: the map. ARAM is named; anything else that is not Summoner's Rift is one
  *   word, because nobody plays it on purpose.
@@ -244,7 +244,7 @@ export type RatedReason =
   | { kind: 'waiting' };
 
 export interface RatedReasonInput {
-  players: readonly { playerId: string; side: SideValue; muAfter: number | null }[];
+  players: readonly { playerId: string; side: SideValue; rAfter: number | null }[];
   durationS: number;
   /** `games.raw->gameMode`. */
   gameMode: unknown;
@@ -262,7 +262,7 @@ export interface RatedReasonInput {
 
 /** Pure: see {@link RatedReason}. */
 export function ratedReason(game: RatedReasonInput): RatedReason {
-  if (game.players.length > 0 && game.players.every((player) => player.muAfter !== null)) {
+  if (game.players.length > 0 && game.players.every((player) => player.rAfter !== null)) {
     return { kind: 'rated' };
   }
   // The gate reads puuids only to refuse a duplicate; the player id is as unique and saves a join.
@@ -302,7 +302,7 @@ export function ratedReason(game: RatedReasonInput): RatedReason {
 /**
  * The last 200 games the server has, newest `started_at` first.
  *
- * `rated` is read off `game_players.mu_after` rather than off any flag: a game the fold refused
+ * `rated` is read off `game_players.r_after` rather than off any flag: a game the fold refused
  * (`gateGame` — nine on the scoreboard, or under the duration floor) and a backfilled game that
  * no `rebuild-ratings` has folded yet both come back with null columns, and this page is where
  * that becomes visible for the first time. `ratedReason` (M14.53) tells those apart.
@@ -318,7 +318,7 @@ export async function listCapturedGames(
     client
       .from('games')
       .select(
-        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_no_draw, gameMode:raw->gameMode, lobbies(lcu_party_id), game_players(player_id, side, mu_after)',
+        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_no_draw, gameMode:raw->gameMode, lobbies(lcu_party_id), game_players(player_id, side, r_after)',
       )
       .eq('group_id', groupId)
       .order('started_at', { ascending: false })
@@ -339,12 +339,12 @@ export async function listCapturedGames(
       duration: formatMinutes(row.duration_s),
       source: row.source,
       participants: row.game_players.length,
-      rated: row.game_players.length > 0 && row.game_players.every((player) => player.mu_after !== null),
+      rated: row.game_players.length > 0 && row.game_players.every((player) => player.r_after !== null),
       ratedReason: ratedReason({
         players: row.game_players.map((player) => ({
           playerId: player.player_id,
           side: player.side as SideValue,
-          muAfter: player.mu_after,
+          rAfter: player.r_after,
         })),
         durationS: row.duration_s,
         gameMode: row.gameMode,

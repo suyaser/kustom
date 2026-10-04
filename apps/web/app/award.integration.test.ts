@@ -3,6 +3,7 @@ import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -146,6 +147,7 @@ if (stack === null) {
         sigma_before: 5,
         mu_after: seat.side === 200 ? 25.4 : 24.6,
         sigma_after: 4.9,
+        ...kustomSeat(rOf(25), rOf(seat.side === 200 ? 25.4 : 24.6)),
       })),
     );
     expect(rowsError).toBeNull();

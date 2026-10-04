@@ -14,20 +14,20 @@ Top damage: Player9, 22.3k.",
     },
     {
       "color": 3054591,
-      "description": "\`top\` **Player0** · 1088 (-112)
-\`jungle\` **Player1** · 1088 (-112)
-\`mid\` **Player2** · 1088 (-112)
-\`adc\` **Player3** · 1088 (-112)
-\`support\` **Player4** · 1088 (-112)",
+      "description": "\`top\` **Player0** · 1184 (-16)
+\`jungle\` **Player1** · 1184 (-16)
+\`mid\` **Player2** · 1184 (-16)
+\`adc\` **Player3** · 1184 (-16)
+\`support\` **Player4** · 1184 (-16)",
       "title": "🟦 BLUE",
     },
     {
       "color": 16739125,
-      "description": "\`top\` **Player5** · 1312 (+112)
-\`jungle\` **Player6** · 1312 (+112)
-\`mid\` **Player7** · 1312 (+112)
-\`adc\` **Player8** · 1312 (+112)
-\`support\` **Player9** · 1312 (+112)",
+      "description": "\`top\` **Player5** · 1216 (+16)
+\`jungle\` **Player6** · 1216 (+16)
+\`mid\` **Player7** · 1216 (+16)
+\`adc\` **Player8** · 1216 (+16)
+\`support\` **Player9** · 1216 (+16)",
       "title": "🟥 RED",
     },
   ],

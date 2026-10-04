@@ -1,4 +1,3 @@
-import type { DeltaReason } from '@customs/core';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -11,6 +10,7 @@ import { subjectFor, WhyText } from '@/components/why/why-text';
 import { ACE_LABEL, MVP_LABEL } from '@/lib/board/copy';
 import { oddsGapSentence } from '@/lib/breakdown/copy';
 import type { GameBreakdown } from '@/lib/breakdown/load';
+import type { KustomReason } from '@/lib/breakdown/read';
 import {
   BACK_TO_GAMES,
   COL_CS,
@@ -236,7 +236,7 @@ function SeatRow({
   seat: DetailSeat;
   aram: boolean;
   href: Route | null;
-  reason: DeltaReason | null;
+  reason: KustomReason | null;
 }) {
   const explained = !aram && seat.delta !== null && reason !== null;
   const row = <SeatRowBody seat={seat} aram={aram} href={href} reason={explained ? reason : null} />;
@@ -252,7 +252,7 @@ function SeatRowBody({
   seat: DetailSeat;
   aram: boolean;
   href: Route | null;
-  reason: DeltaReason | null;
+  reason: KustomReason | null;
 }) {
   const stats: readonly { label: string; value: string }[] = [
     { label: COL_KDA, value: seat.kda },

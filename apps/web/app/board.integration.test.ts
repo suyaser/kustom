@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { displayRating, provisionalSeed, seedFromRank } from '@customs/core';
+import { displayRating, KUSTOM_START, provisionalSeed, seedFromRank } from '@customs/core';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PlayerBoardView } from '@/lib/board/types';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -209,6 +210,7 @@ if (stack === null) {
         player_id: playerIds.zoe,
         mu: 25.2,
         sigma: 5,
+        r: rOf(25.2),
         games: 2,
         wins: 1,
       },
@@ -217,6 +219,7 @@ if (stack === null) {
         player_id: playerIds.ali,
         mu: 22,
         sigma: 6,
+        r: rOf(22),
         games: 2,
         wins: 1,
       },
@@ -226,6 +229,7 @@ if (stack === null) {
         player_id: playerIds.weekly,
         mu: 25.8,
         sigma: 5,
+        r: rOf(25.8),
         games: 3,
         wins: 2,
       },
@@ -234,6 +238,7 @@ if (stack === null) {
         player_id: playerIds.other,
         mu: 21.3,
         sigma: 5,
+        r: rOf(21.3),
         games: 3,
         wins: 1,
       },
@@ -315,6 +320,8 @@ if (stack === null) {
           sigma_before: 5,
           mu_after: game.muAfter,
           sigma_after: 5,
+          // Both games are this week (they are stamped at the run's clock), from 25 at its start.
+          ...kustomSeat(rOf(game.muBefore), rOf(game.muAfter), rOf(25)),
         },
         {
           group_id: groupId,
@@ -326,6 +333,7 @@ if (stack === null) {
           sigma_before: 6,
           mu_after: 22,
           sigma_after: 6,
+          ...kustomSeat(rOf(22), rOf(22)),
         },
         // On Zoe's side and never rated: the lineup still prints them, and they still have no
         // games of their own.
@@ -355,6 +363,7 @@ if (stack === null) {
           sigma_before: 5,
           mu_after: 25,
           sigma_after: 5,
+          ...kustomSeat(rOf(25), rOf(25)),
         })),
       ]);
     }
@@ -364,10 +373,30 @@ if (stack === null) {
      * boundary (M5.9): two last week and one this week, relative to {@link NOW}. Wren climbs
      * 25 → 25.6 → 25.2 → 25.8; Otto is on the other side of all three.
      */
+    // `start`: each one's all-time Rating when that game's week began (the weekly track restarts
+    // at 1200 on Sunday 06:00, M18).
     for (const [index, game] of [
-      { startedAt: '2026-06-03T19:00:00Z', winning_side: 100, wren: [25, 25.6], otto: [22, 21.4] },
-      { startedAt: '2026-06-05T19:00:00Z', winning_side: 200, wren: [25.6, 25.2], otto: [21.4, 21.9] },
-      { startedAt: '2026-06-09T19:00:00Z', winning_side: 100, wren: [25.2, 25.8], otto: [21.9, 21.3] },
+      {
+        startedAt: '2026-06-03T19:00:00Z',
+        winning_side: 100,
+        wren: [25, 25.6],
+        otto: [22, 21.4],
+        start: [25, 22],
+      },
+      {
+        startedAt: '2026-06-05T19:00:00Z',
+        winning_side: 200,
+        wren: [25.6, 25.2],
+        otto: [21.4, 21.9],
+        start: [25, 22],
+      },
+      {
+        startedAt: '2026-06-09T19:00:00Z',
+        winning_side: 100,
+        wren: [25.2, 25.8],
+        otto: [21.9, 21.3],
+        start: [25.2, 21.9],
+      },
     ].entries()) {
       const { data: row } = await db
         .from('games')
@@ -395,6 +424,11 @@ if (stack === null) {
           sigma_before: 5,
           mu_after: game.wren[1] as number,
           sigma_after: 5,
+          ...kustomSeat(
+            rOf(game.wren[0] as number),
+            rOf(game.wren[1] as number),
+            rOf(game.start[0] as number),
+          ),
         },
         {
           group_id: groupId,
@@ -406,6 +440,11 @@ if (stack === null) {
           sigma_before: 5,
           mu_after: game.otto[1] as number,
           sigma_after: 5,
+          ...kustomSeat(
+            rOf(game.otto[0] as number),
+            rOf(game.otto[1] as number),
+            rOf(game.start[1] as number),
+          ),
         },
         // Four each side, so each game is five and five like every game the pipeline writes.
         ...weekFillerIds.map((id, seat) => ({
@@ -423,6 +462,7 @@ if (stack === null) {
           sigma_before: 5,
           mu_after: 24,
           sigma_after: 5,
+          ...kustomSeat(rOf(24), rOf(24)),
         })),
       ]);
     }
@@ -459,7 +499,7 @@ if (stack === null) {
 
       expect(zoe).toMatchObject({ games: 2, wins: 1, losses: 1, ratedGames: 2, settling: true });
       // All time's change is the whole history: from the seed (1200) to today.
-      expect(zoe?.climb).toEqual({ muBefore: provisionalSeed().mu, muAfter: 25.2 });
+      expect(zoe?.climb).toEqual({ rBefore: KUSTOM_START, rAfter: rOf(25.2) });
     });
 
     it('renders the board with no Proven, no ordinal and no puuid as text', async () => {
@@ -603,15 +643,18 @@ if (stack === null) {
       // The all-time Rating: there is no week's Rating any more.
       expect(player.rating).toBe(1_548);
       expect(player.rating).toBe(row?.rating);
-      // The hairline is the all-time rating carried into the week, and the series is all-time.
-      expect(player.reference).toBe(1_500);
-      expect(player.history).toEqual([1_500, 1_536, 1_512]);
-      // Both games listed, each the same pair the All time tab prints for it.
+      // M18.6 (05-design 11.2): the week chart plots week points from 0.
+      expect(player.reference).toBe(0);
+      expect(player.history).toEqual([0, 36, 12]);
+      // Both games listed, each with its all-time pair (the same the All time tab prints) and its
+      // weekly pair; the week total row sums the weekly changes to the points.
       expect(player.recent).toHaveLength(2);
       for (const game of player.recent) {
         const same = all.recent.find((other) => other.gameId === game.gameId);
-        expect([game.muBefore, game.muAfter]).toEqual([same?.muBefore, same?.muAfter]);
+        expect([game.rBefore, game.rAfter]).toEqual([same?.rBefore, same?.rAfter]);
+        expect(game.weekRAfter).not.toBeNull();
       }
+      expect(player.weekTotal).toBe(12);
     });
 
     it('is where they are today on `All time`, with the seed line back', async () => {

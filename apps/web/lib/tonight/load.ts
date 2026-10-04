@@ -1,5 +1,5 @@
-import { displayRating, isOffRole, type Mode, type Role, seedFromRank } from '@customs/core';
-import { openSkillPair, type RoleValue, type SideValue } from '@customs/db';
+import { displayKustom, isOffRole, KUSTOM_START, type Mode, type Role } from '@customs/core';
+import type { RoleValue, SideValue } from '@customs/db';
 import { ORIGINAL_GROUP_ID, ruleModeOf } from '@customs/db/schemas';
 import { receiptSplitFromRow } from '@/components/receipt/model';
 import type { StoredSplit } from '@/components/receipt/types';
@@ -236,7 +236,7 @@ const SPLIT_COLUMNS =
  * columns of `GAME_STAMP_COLUMNS`) and its scoreboard, embedded, with the award's stat line (M11.3).
  */
 const NIGHT_GAME_COLUMNS =
-  'id, lobby_id, winning_side, started_at, duration_s, gameMode:raw->gameMode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after, sigma_before, r_before)' as const;
+  'id, lobby_id, winning_side, started_at, duration_s, gameMode:raw->gameMode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after)' as const;
 
 type NightGameRow = GameStampRow & {
   id: string;
@@ -437,20 +437,10 @@ interface PlayerRow {
 /**
  * Everyone around, in join order, with the number they will see beside their name.
  *
- * **The rating is `loadGroupPool`'s rule, not a second one**: the group's `ratings` row, and
- * `seedFromRank` in memory when there is none. That is what the balancer used and
- * what the Discord embed printed, and a page that disagreed with the embed by one point would
- * be a ten-minute argument in voice.
- *
- * **This is the one surface that still prints a rank estimate, and it is deliberate**
- * (2026-09-16). Nothing stored is seeded from a League rank any more, and `/leaderboard` and
- * `/p/[puuid]` now show `provisionalSeed()`'s 1200 for a player with no folded row. This page is
- * not those pages: it renders tonight's lobby and tonight's split, seat by seat, and every seat
- * number here is also in the Discord teams embed, which `buildTeamsInput` builds from the
- * balancer's own pool. Changing this line would not make a never-rated player's number more
- * honest — it would make the page and the message about the same ten people disagree, which is
- * the bug this file's rule exists to prevent. The seam is one evening wide and closes the moment
- * their first game is folded.
+ * **The rating is `loadGroupPool`'s rule, not a second one** (M18.2, M18.6): the group's
+ * `ratings.r`, and 1200 when there is no row or the row has no `r` yet. That is what the balancer
+ * read and what the Discord teams embed printed (`buildTeamsInput`), and a page that disagreed with
+ * the embed by one point would be a ten-minute argument in voice. The rank guess is retired.
  */
 function buildMembers(
   rows: readonly {
@@ -461,7 +451,7 @@ function buildMembers(
     created_at: string;
   }[],
   players: ReadonlyMap<string, PlayerRow>,
-  ratings: ReadonlyMap<string, { mu: number; sigma: number; games: number }>,
+  ratings: ReadonlyMap<string, { r: number; games: number }>,
 ): MemberView[] {
   if (rows.length === 0) return [];
 
@@ -472,8 +462,7 @@ function buildMembers(
     // no puuid to key it on. It cannot happen through the foreign key; dropping it is still
     // better than a blank line in a list people count.
     if (player === undefined) continue;
-    const rating: { mu: number; games?: number } =
-      ratings.get(row.player_id) ?? seedFromRank(player.rank_tier, player.rank_division);
+    const rating = ratings.get(row.player_id) ?? { r: KUSTOM_START, games: 0 };
 
     members.push({
       puuid: player.puuid,
@@ -483,10 +472,10 @@ function buildMembers(
       roleOverride: row.role_override,
       isSpectator: row.is_spectator,
       joinedAt: row.created_at,
-      rating: displayRating(rating.mu),
+      rating: displayKustom(rating.r),
       // Rated games in this group (`ratings.games`), for the settling chip (M14.9). No row is a
       // player the fold has never rated here: 0.
-      ratedGames: rating.games ?? 0,
+      ratedGames: rating.games,
       side: toSide(row.side),
     });
   }
@@ -544,11 +533,11 @@ async function loadRatings(
   client: PublicClient,
   playerIds: readonly string[],
   groupId: string | undefined,
-): Promise<Map<string, { mu: number; sigma: number; games: number }>> {
+): Promise<Map<string, { r: number; games: number }>> {
   const rows = await readIn(
     playerIds,
     (chunk) => {
-      let query = client.from('ratings').select('player_id, mu, sigma, games');
+      let query = client.from('ratings').select('player_id, r, games');
       // One rating per person per group (M13.3): with a group, that group's number and no other.
       if (groupId !== undefined) query = query.eq('group_id', groupId);
       return query.in('player_id', chunk).order('player_id', { ascending: true }).order('group_id');
@@ -556,13 +545,8 @@ async function loadRatings(
     'rating',
   );
 
-  // A Kustom-only row (0036) has no OpenSkill pair: to this build it is not rated yet.
-  const ratings = new Map<string, { mu: number; sigma: number; games: number }>();
-  for (const row of rows) {
-    const pair = openSkillPair(row);
-    if (pair !== null) ratings.set(row.player_id, { ...pair, games: row.games });
-  }
-  return ratings;
+  // `r` null: a row the Kustom fold has not written yet; 1200, as the balancer reads it (M18.2).
+  return new Map(rows.map((row) => [row.player_id, { r: row.r ?? KUSTOM_START, games: row.games }]));
 }
 
 /** M3.10's fallback is applied at render; the loader carries the honest `null`. */
@@ -769,10 +753,8 @@ function assembleResult(
       // uses, so the page and the message put a player on the same line.
       role: row.role ?? splitRoles.roles.get(puuid) ?? null,
       side: row.side === 100 ? 100 : 200,
-      muBefore: row.mu_before,
-      muAfter: row.mu_after,
-      sigmaBefore: row.sigma_before,
       rBefore: row.r_before,
+      rAfter: row.r_after,
     });
 
     if (row.damage_to_champs > 0 && (topDamage === null || row.damage_to_champs > topDamage.damage)) {
@@ -781,7 +763,7 @@ function assembleResult(
   }
 
   const winningSide = game.winning_side as SideValue;
-  const rated = seats.length > 0 && seats.every((seat) => seat.muBefore !== null && seat.muAfter !== null);
+  const rated = seats.length > 0 && seats.every((seat) => seat.rBefore !== null && seat.rAfter !== null);
 
   const result: ResultView = {
     gameId: game.id,
@@ -832,7 +814,7 @@ async function loadGamePlayers(client: PublicClient, gameId: string) {
     // The stat line is the award's input (M11.3): the columns the result post reads, all of
     // them publicly readable on the rows this key already sees.
     .select(
-      'player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, mu_before, mu_after, sigma_before, r_before',
+      'player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after',
     )
     .eq('game_id', gameId);
   if (error) throw new Error(`tonight: game player lookup failed: ${error.message}`);
@@ -981,8 +963,8 @@ export function pickTapeLobbies(
 /** One `game_players` row as the tape reads it. */
 export interface TapeGamePlayer {
   game_id: string;
-  mu_before: number | null;
-  mu_after: number | null;
+  r_before: number | null;
+  r_after: number | null;
   player_id?: string;
   side?: number | null;
   role?: RoleValue | null;
@@ -1015,7 +997,7 @@ export interface TapeSource {
     rule_checked?: boolean;
   }[];
   /**
-   * The scoreboard rows. `mu_*` decide `rated`; the stat line (optional, M14.9) is the MVP's input,
+   * The scoreboard rows. `r_*` decide `rated`; the stat line (optional, M14.9) is the MVP's input,
    * the same columns `resultOfGame` hands `gatedGameAward`. A row without it gives no MVP.
    */
   gamePlayers: readonly TapeGamePlayer[];
@@ -1035,7 +1017,7 @@ export interface TapeSource {
  * The tape's rows from its rows. Pure, so the acceptance fixtures are unit tests.
  *
  * - **Result** is the lobby's newest game with a winner — `loadResult`'s pick — and `rated` is
- *   its rule, every scoreboard row carrying both mu values.
+ *   its rule, every scoreboard row carrying both all-time Ratings (`r_before`, `r_after`).
  * - **Odds** are the chosen split's stored `blue_win_prob`, the number the poster read.
  * - **Sitters** are `loadTeams`' rule: the lobby's members who are not one of the chosen
  *   split's ten, in join order (and by name inside one post, as `loadMembers` sorts). With no
@@ -1078,7 +1060,7 @@ export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[]
               winningSide: game.winning_side as SideValue,
               durationS: game.duration_s,
               aram: matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram'),
-              rated: rows.length > 0 && rows.every((row) => row.mu_before !== null && row.mu_after !== null),
+              rated: rows.length > 0 && rows.every((row) => row.r_before !== null && row.r_after !== null),
               mvp: tapeMvp(rows, game, source.players),
               rule: tapeRule(game),
             },
@@ -1115,7 +1097,7 @@ function tapeMvp(
   players: TapeSource['players'],
 ): PlayerName {
   if (game.winning_side !== 100 && game.winning_side !== 200) return null;
-  if (rows.length === 0 || rows.some((row) => row.mu_before === null || row.mu_after === null)) return null;
+  if (rows.length === 0 || rows.some((row) => row.r_before === null || row.r_after === null)) return null;
   const ten: FoldAwardPlayer[] = [];
   const names = new Map<string, PlayerName>();
   for (const row of rows) {

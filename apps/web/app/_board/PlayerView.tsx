@@ -1,4 +1,4 @@
-import { displayRating } from '@customs/core';
+import { displayKustom } from '@customs/core';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -36,7 +36,8 @@ import {
   winLossLabel,
 } from '@/lib/board/copy';
 import { explainRatingStart } from '@/lib/board/explain';
-import type { PlayerBoardView, RecentGame } from '@/lib/board/types';
+import { trackPair } from '@/lib/board/recent';
+import type { PlayerBoardView, RatingTrack, RecentGame } from '@/lib/board/types';
 import { type ExplainSubject, oddsGapSentence } from '@/lib/breakdown/copy';
 import { formatMinutes } from '@/lib/games/duration';
 import type { PageGroup } from '@/lib/groups/pageGroup';
@@ -285,7 +286,7 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
   // M14.58: `You lost 50.` on your own page (either lens), `Omar lost 50.` on anybody else's.
   const subject: ExplainSubject =
     lens === 'self' ? { kind: 'you' } : subjectFor(player.puuid, viewerPuuid, player.name);
-  const unrated = player.recent.some((game) => game.muAfter === null);
+  const unrated = player.recent.some((game) => trackPair(game, player.track) === null);
   const nameless = isNameless(player.name);
   return (
     <section aria-labelledby="player-games" className="flex flex-col gap-3">
@@ -296,7 +297,13 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
         <ul>
           {player.recent.map((game) => (
             <li key={game.gameId} className="border-t border-border">
-              <GameRow game={game} href={gameHref(game.gameId)} timeZone={timeZone} subject={subject} />
+              <GameRow
+                game={game}
+                track={player.track}
+                href={gameHref(game.gameId)}
+                timeZone={timeZone}
+                subject={subject}
+              />
             </li>
           ))}
         </ul>
@@ -335,14 +342,17 @@ function GameRow({
   href,
   timeZone,
   subject,
+  track,
 }: {
   game: RecentGame;
+  /** M18.6: a week tab prints the game's weekly change and no Rating after (05-design 11.5). */
+  track: RatingTrack;
   href: Route | null;
   timeZone: string;
   subject: ExplainSubject;
 }) {
-  const delta =
-    game.muBefore === null || game.muAfter === null ? null : displayDelta(game.muBefore, game.muAfter);
+  const pair = trackPair(game, track);
+  const delta = pair === null ? null : displayDelta(pair.rBefore, pair.rAfter);
   const reason = delta === null || game.aram ? null : (game.reason ?? null);
   const odds = game.odds ?? null;
   const receipt =
@@ -418,11 +428,11 @@ function GameRow({
         </EntityLink>
       )}
       <span className="flex flex-col items-end gap-0.5 text-end">
-        {game.muAfter === null ? (
+        {pair === null ? (
           <span className="text-xs text-muted-foreground">{NOT_RATED}</span>
-        ) : (
+        ) : track === 'week' || game.rAfter === null ? null : (
           <span className="num font-semibold whitespace-nowrap font-stretch-85%">
-            {displayRating(game.muAfter)}
+            {displayKustom(game.rAfter)}
             <span className="sr-only">{` ${RATING_LABEL}`}</span>
           </span>
         )}

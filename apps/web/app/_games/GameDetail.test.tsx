@@ -1,4 +1,3 @@
-import type { DeltaReason } from '@customs/core';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
@@ -9,6 +8,7 @@ import {
   THREE_SPLITS,
 } from '@/components/receipt/fixtures';
 import type { GameBreakdown } from '@/lib/breakdown/load';
+import type { KustomReason } from '@/lib/breakdown/read';
 import type { DetailSeat, DetailTeam, GameDetailView } from '@/lib/games/detail';
 
 import { GameDetail } from './GameDetail';
@@ -212,22 +212,37 @@ describe('M14.41 gap 5: scoreboard names link to their player pages', () => {
 describe('M14.58 / M14.59: why this many points, and the odds the rating used', () => {
   const blueFirst = PUUIDS[0] as string;
   const redFirst = PUUIDS[5] as string;
-  const example: DeltaReason = {
-    basis: 'stored',
-    result: 'lost',
-    points: -50,
-    basePoints: -62,
-    odds: { pct: 62, stance: 'favourite' },
-    certainty: 'settled',
-    award: { kind: 'ace', effect: 12, fraction: 0.2 },
+  const example: KustomReason = {
+    track: 'all-time',
+    gamesBefore: 30,
+    allTime: null,
+    parts: {
+      side: 100,
+      result: 'loss',
+      expectedPct: 62,
+      k: 16,
+      firstTenGames: false,
+      shareRank: 1,
+      share: 0.8,
+      award: 'ace',
+      points: -8,
+    },
   };
-  const old: DeltaReason = {
-    basis: 'legacy',
-    result: 'won',
-    points: 14,
-    odds: { pct: 50, stance: 'even' },
-    certainty: 'new',
-    award: 'unknown',
+  const early: KustomReason = {
+    track: 'all-time',
+    gamesBefore: 3,
+    allTime: null,
+    parts: {
+      side: 200,
+      result: 'win',
+      expectedPct: 50,
+      k: 27.2,
+      firstTenGames: true,
+      shareRank: null,
+      share: 1,
+      award: 'none',
+      points: 14,
+    },
   };
   function breakdown(odds: GameBreakdown['odds'] = null): GameBreakdown {
     return {
@@ -235,7 +250,7 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
       odds,
       reasons: new Map([
         [blueFirst, example],
-        [redFirst, old],
+        [redFirst, early],
       ]),
     };
   }
@@ -244,13 +259,13 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
       blue: team(
         100,
         false,
-        PUUIDS.slice(0, 5).map((id, i) => seat(id, i, i === 0 ? { delta: -50, isViewer: true } : {})),
+        PUUIDS.slice(0, 5).map((id, i) => seat(id, i, i === 0 ? { delta: -8, isViewer: true } : {})),
       ),
     });
 
   it('the change is a closed disclosure button; opening it says the example sentence', () => {
     render(<GameDetail game={viewerGame()} backHref="/g/customs/games" breakdown={breakdown()} />);
-    const button = screen.getByRole('button', { name: 'lost 50. Why?' });
+    const button = screen.getByRole('button', { name: 'lost 8. Why?' });
     expect(button).toHaveAttribute('aria-expanded', 'false');
     const panel = document.getElementById(button.getAttribute('aria-controls') as string) as HTMLElement;
     expect(panel).not.toBeVisible();
@@ -258,18 +273,18 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
     expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(panel).toBeVisible();
     expect(panel).toHaveTextContent(
-      "You lost 50. Your side was the 62% favourite, so a loss costs more. You're settled, so swings are small. ACE softened it by a fifth.",
+      'Your side lost as the 62% favourite, so the loss cost 16 × 62% = 10. You had the best game on your team (ACE), so you gave back least: ×0.8.',
     );
-    expect(panel).toHaveTextContent('Upsets and new players move the most.');
+    expect(panel).toHaveTextContent('Upsets and first games move the most.');
   });
 
-  it("an old game says the bonus isn't included, in the player's name", () => {
+  it("a first-ten game with no performance score, in the player's name", () => {
     render(<GameDetail game={game()} backHref="/g/customs/games" breakdown={breakdown()} />);
     const name = FIXTURE_NAMES[redFirst] as string;
     const redTeam = screen.getByRole('region', { name: 'Red team' });
     fireEvent.click(within(redTeam).getByRole('button', { name: 'gained 14. Why?' }));
     expect(redTeam).toHaveTextContent(
-      `${name} won 14. It was an even game. They're new, so their number moves fast. This game is from before Kustom kept the bonus, so MVP or ACE isn't included.`,
+      `It was an even game for ${name}'s side (50%), so the win was worth 27 × 50% = 14. This game has no performance score, so everyone counts ×1. Their first 10 games count extra while their Rating finds its level (×27 instead of ×16).`,
     );
   });
 
@@ -280,7 +295,8 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
     for (const button of buttons) fireEvent.click(button);
     const text = screen.getByRole('region', { name: 'Scoreboard' }).textContent ?? '';
     expect(text).not.toMatch(/sigma|σ/i);
-    expect(text.replace(/\d+\.\d+k/g, '')).not.toMatch(/\d\.\d/);
+    // The one decimal allowed is a share multiplier (`×0.8`, 05-design 11.6).
+    expect(text.replace(/\d+\.\d+k/g, '').replace(/×\d\.\d/g, '')).not.toMatch(/\d\.\d/);
   });
 
   it('without a breakdown the changes are plain numbers', () => {
@@ -297,14 +313,13 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
           botBluePct: 49,
           ratingBluePct: 55,
           differ: true,
-          reason: 'new-players',
           pointsBluePct: 55,
           ratingBlueWinProb: 0.55,
         })}
       />,
     );
     expect(screen.getByRole('region', { name: 'The odds were' })).toHaveTextContent(
-      'For points, Red was 45%, because new players start at 1200.',
+      'For points, Red was 45%.',
     );
     unmount();
     render(
@@ -315,7 +330,6 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
           botBluePct: 49,
           ratingBluePct: 49,
           differ: false,
-          reason: null,
           pointsBluePct: 49,
           ratingBlueWinProb: 0.49,
         })}
@@ -335,7 +349,6 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
           botBluePct: null,
           ratingBluePct: 71,
           differ: false,
-          reason: null,
           pointsBluePct: 71,
           ratingBlueWinProb: 0.71,
         })}

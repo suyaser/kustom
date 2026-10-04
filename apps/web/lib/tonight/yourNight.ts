@@ -13,7 +13,7 @@ import { type DeltaPair, sumDisplayDeltas } from '../ratingDisplay';
  *
  * Which games count: tonight's games of the group (since the night's 06:00 boundary, the existing
  * rule, so the card goes at 06:00) that the viewer played, and that are either **rated** (every row
- * carries `mu_before` and `mu_after`, the fold's own mark; a remake or a short surrender is not) or an
+ * carries `r_before` and `r_after`, the fold's own mark; a remake or a short surrender is not) or an
  * **ARAM** (never rated, but a game: it counts in wins and losses and says nothing about Rating).
  *
  * The Rating change is the sum of each rated game's `displayDelta`, the number the poster prints per
@@ -52,8 +52,8 @@ export interface YourNightRow {
   damage_to_objectives: number | null;
   damage_to_champs: number | null;
   champion_id: number | null;
-  mu_before: number | null;
-  mu_after: number | null;
+  r_before: number | null;
+  r_after: number | null;
 }
 
 export interface YourNightGame {
@@ -95,7 +95,7 @@ export function foldYourNight(
     const aram = matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram');
     const rows = game.game_players;
     const isRated =
-      !aram && rows.length > 0 && rows.every((row) => row.mu_before !== null && row.mu_after !== null);
+      !aram && rows.length > 0 && rows.every((row) => row.r_before !== null && row.r_after !== null);
     // M15.5 (R4): a Rift game played not rated still counts in wins and losses, like an ARAM.
     const notRatedRift = !aram && game.rated === false && game.duration_s > MIN_RATED_DURATION_S;
     if (!aram && !isRated && !notRatedRift) continue;
@@ -104,8 +104,8 @@ export function foldYourNight(
     if (me.side === game.winning_side) wins += 1;
     else losses += 1;
 
-    if (isRated && me.mu_before !== null && me.mu_after !== null) {
-      rated.push({ muBefore: me.mu_before, muAfter: me.mu_after });
+    if (isRated && me.r_before !== null && me.r_after !== null) {
+      rated.push({ rBefore: me.r_before, rAfter: me.r_after });
     }
 
     const ten = awardPlayers(rows, puuidOf);
@@ -169,7 +169,7 @@ function awardPlayers(
 }
 
 const COLUMNS =
-  'id, started_at, duration_s, winning_side, rated, gameMode:raw->gameMode, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, champion_id, mu_before, mu_after)';
+  'id, started_at, duration_s, winning_side, rated, gameMode:raw->gameMode, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, champion_id, r_before, r_after)';
 
 /** PostgREST's `max_rows`: one page of the night's games. */
 const PAGE = 1_000;

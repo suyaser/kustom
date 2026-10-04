@@ -1,4 +1,4 @@
-import { displayRating, provisionalSeed } from '@customs/core';
+import { KUSTOM_START } from '@customs/core';
 import { leaderboardPageUrl } from '../siteUrl';
 import type { ServiceClient } from '../supabase';
 import { loadPostGroup, postIdentity } from './assemble';
@@ -12,7 +12,7 @@ import { postToWebhook, type WebhookOutcome } from './webhook';
  * stood the moment before the reset.
  *
  * Copy: STRATEGY §3.6's `Ratings were reset. Everyone starts at 1200 again. Top 3 before the
- * reset: …`. The 1200 is core's seed (`provisionalSeed()`, displayed), never a literal here.
+ * reset: …`. The 1200 is core's `KUSTOM_START` (M18.6), never a literal here.
  * No ranked player before the reset (a group that never got anyone past settling): the top-3
  * sentence is left off rather than printed empty.
  */
@@ -21,7 +21,7 @@ import { postToWebhook, type WebhookOutcome } from './webhook';
 export const RATINGS_RESET_TITLE = 'Ratings reset';
 
 export function ratingsResetDescription(topThree: readonly PlayerName[]): string {
-  const start = `Ratings were reset. Everyone starts at ${displayRating(provisionalSeed().mu)} again.`;
+  const start = `Ratings were reset. Everyone starts at ${KUSTOM_START} again.`;
   return topThree.length === 0 ? start : `${start} Top 3 before the reset: ${joinNames(topThree)}.`;
 }
 

@@ -1123,29 +1123,35 @@ if (stack === null) {
     });
 
     /**
-     * Acceptance 5, checked and not written: `/leaderboard`'s per-game expand (M5.30) and
-     * `/p/[puuid]`'s recent games print `mu_after - mu_before` off the stored row, so the
-     * adjusted delta reaches both surfaces with **no change to either page**. What this case
-     * pins is that the number they carry is the amplified one and not `rateGame`'s.
+     * Acceptance 5, checked and not written: `/p/[puuid]`'s recent games print the stored
+     * all-time Kustom pair (M18.6), so the MVP's share reaches the page with **no change to it**.
+     * What this case pins is that the pair it carries is the stored one, and that it is the
+     * MVP's: the base change times 1.2.
      */
-    it('carries the adjusted delta onto the player page, unchanged', async () => {
+    it('carries the stored Kustom pair, MVP share included, onto the player page', async () => {
       const anon = createPublicClient();
       const rows = await foldRows(bonusGameId);
       const award = gameAward(rows, 100);
       if (award === null) throw new Error('expected this game to have an MVP');
-      const mvp = rows.find((row) => row.puuid === award.mvp) as (typeof rows)[number];
-      const plain = plainFold(rows, 100).get(award.mvp) as { mu: number };
       const { data: game } = await db.from('games').select('id').eq('lcu_game_id', bonusGameId).single();
+      const { data: mvpPlayer } = await db.from('players').select('id').eq('puuid', award.mvp).single();
+      const { data: stored } = await db
+        .from('game_players')
+        .select('r_before, r_after, k, fold_p, share_rank, award')
+        .eq('game_id', game?.id ?? '')
+        .eq('player_id', mvpPlayer?.id ?? '')
+        .single();
 
       // The board no longer opens into a game list (M14.15); the player page carries the pair.
       const page = await loadPlayerBoard(anon, award.mvp, { window: 'all-time', groupId });
       const recent = page?.recent.find((entry) => entry.gameId === (game?.id ?? ''));
-      expect([recent?.muBefore, recent?.muAfter]).toEqual([mvp.before.mu, mvp.after.mu]);
+      expect([recent?.rBefore, recent?.rAfter]).toEqual([stored?.r_before, stored?.r_after]);
+      expect(stored).toMatchObject({ share_rank: 1, award: 'mvp' });
 
-      // And that pair is the amplified one: bigger than the gain `rateGame` alone gave.
-      const shown = (recent?.muAfter as number) - (recent?.muBefore as number);
-      expect(shown).toBeGreaterThan(plain.mu - mvp.before.mu);
-      expect(shown).toBeCloseTo((plain.mu - mvp.before.mu) * (1 + config.rating.mvp.bonusFraction), 12);
+      // And that pair is the MVP's: K × (1 − expected) × 1.2.
+      const shown = (recent?.rAfter as number) - (recent?.rBefore as number);
+      const base = (stored?.k as number) * (1 - (stored?.fold_p as number));
+      expect(shown).toBeCloseTo(base * 1.2, 9);
     });
 
     it('re-folds both games from scratch to the same numbers, in either arrival order', async () => {
@@ -1346,7 +1352,7 @@ if (stack === null) {
       const breakdown = (await loadGameBreakdowns(anon, [gameId])).get(gameId);
       expect(breakdown).toBeDefined();
       // No lobby, so no bot odds: the rating's number is the one shown.
-      expect(breakdown?.odds).toMatchObject({ botBluePct: null, differ: false, reason: null });
+      expect(breakdown?.odds).toMatchObject({ botBluePct: null, differ: false });
       expect(breakdown?.reasons.size).toBe(10);
 
       const rows = await breakdownRows(bonusGameId);
@@ -1354,15 +1360,17 @@ if (stack === null) {
       if (award === null) throw new Error('expected an MVP');
       for (const row of rows) {
         const reason = breakdown?.reasons.get(row.puuid);
-        expect(reason?.basis).toBe('stored');
-        if (reason?.basis !== 'stored') continue;
+        expect(reason?.track).toBe('all-time');
+        if (reason === null || reason === undefined) continue;
         const sidePct =
           row.side === 100
             ? breakdown?.odds?.ratingBluePct
             : 100 - (breakdown?.odds?.ratingBluePct as number);
-        expect(reason.odds.pct).toBe(sidePct);
-        if (row.puuid === award.mvp) expect(reason.award).toMatchObject({ kind: 'mvp' });
-        if (row.puuid === award.ace) expect(reason.award).toMatchObject({ kind: 'ace' });
+        expect(reason.parts.expectedPct).toBe(sidePct);
+        if (row.puuid === award.mvp)
+          expect(reason.parts).toMatchObject({ award: 'mvp', shareRank: 1, share: 1.2 });
+        if (row.puuid === award.ace)
+          expect(reason.parts).toMatchObject({ award: 'ace', shareRank: 1, share: 0.8 });
       }
 
       const page = await loadPlayerBoard(anon, award.mvp, { window: 'all-time', groupId });

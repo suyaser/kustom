@@ -3,6 +3,7 @@ import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -73,6 +74,7 @@ if (stack === null) {
         group_id: group,
         mu: 25,
         sigma: 6,
+        r: rOf(25),
         games: 2,
         wins: 1,
       })),
@@ -114,6 +116,7 @@ if (stack === null) {
           sigma_before: 6,
           mu_after: 25.3,
           sigma_after: 5.9,
+          ...kustomSeat(rOf(25), rOf(25.3)),
         })),
       );
       if (rows.error) throw new Error(rows.error.message);

@@ -1,209 +1,271 @@
-import { config, type DeltaReason, type LegacyDeltaReason, type StoredDeltaReason } from '@customs/core';
+import { config, type KustomDeltaParts } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import {
   EVEN_PCT,
   EXPLAIN_FOOTNOTE,
   explainSentences,
   explainText,
-  LEGACY_AWARD_SENTENCE,
   oddsGapSentence,
+  roundingSentence,
+  SETTLED_K,
   sentenceText,
 } from './copy';
+import type { KustomReason } from './read';
 
 /**
- * "Why this many points" (M14.58) and the odds-gap line (M14.59): product's words, in product's
- * order, over core's structured reason. Plain-text assertions; the parts' mono split is the
- * component's business.
+ * "Why this many points" (M14.58, Kustom since M18.6) and the odds-gap line (M14.59): the draft
+ * copy of 05-design 11.6.1, in 11.6's order, over core's `explainKustomDelta` parts. Plain-text
+ * assertions; the parts' mono split is the component's business.
  */
 
 const YOU = { kind: 'you' } as const;
 const OMAR = { kind: 'name', name: 'Omar' } as const;
 
-function stored(over: Partial<StoredDeltaReason> = {}): StoredDeltaReason {
+/** 11.6's sums, written with plain spaces here and U+2009 in the copy. */
+function thin(text: string): string {
+  return text.replaceAll(' × ', ' × ').replaceAll(' = ', ' = ');
+}
+
+function parts(over: Partial<KustomDeltaParts> = {}): KustomDeltaParts {
   return {
-    basis: 'stored',
-    result: 'won',
-    points: 31,
-    basePoints: 31,
-    odds: { pct: 50, stance: 'even' },
-    certainty: 'settled',
-    award: 'none',
+    side: 200,
+    result: 'win',
+    expectedPct: 56,
+    k: 16,
+    firstTenGames: false,
+    shareRank: 1,
+    share: 1.2,
+    award: 'mvp',
+    points: 8,
     ...over,
   };
 }
 
-function legacy(over: Partial<LegacyDeltaReason> = {}): LegacyDeltaReason {
-  return {
-    basis: 'legacy',
-    result: 'lost',
-    points: -40,
-    odds: { pct: 55, stance: 'favourite' },
-    certainty: 'settling',
-    award: 'unknown',
-    ...over,
-  };
+function reason(over: Partial<KustomDeltaParts> = {}, rest: Partial<KustomReason> = {}): KustomReason {
+  return { track: 'all-time', parts: parts(over), gamesBefore: 20, allTime: null, ...rest };
 }
 
-describe('explainText: the brief example', () => {
-  it('renders the example sentence for its fixture', () => {
-    const reason = stored({
-      result: 'lost',
-      points: -50,
-      basePoints: -62,
-      odds: { pct: 62, stance: 'favourite' },
-      certainty: 'settled',
-      award: { kind: 'ace', effect: 12, fraction: 0.2 },
-    });
-    expect(explainText(reason, YOU)).toBe(
-      "You lost 50. Your side was the 62% favourite, so a loss costs more. You're settled, so swings are small. ACE softened it by a fifth.",
+describe('explainText: 11.6.2, the filled all-time row', () => {
+  it('reads the settled MVP of a 56% win', () => {
+    expect(explainText(reason(), YOU)).toBe(
+      thin(
+        'Your side won as the 56% favourite, so the win was worth 16 × 44% = 7. You had the best game on your team (MVP): ×1.2.',
+      ),
+    );
+    expect(roundingSentence(reason())).toBeNull();
+  });
+});
+
+describe('the odds sentence: one per stance (11.6.1)', () => {
+  const first = (r: KustomReason, subject = YOU) => sentenceText(explainSentences(r, subject)[0] ?? []);
+
+  it('favourite won / lost', () => {
+    expect(first(reason())).toBe(
+      thin('Your side won as the 56% favourite, so the win was worth 16 × 44% = 7.'),
+    );
+    expect(first(reason({ result: 'loss', share: 0.8, award: 'ace', points: -11 }))).toBe(
+      thin('Your side lost as the 56% favourite, so the loss cost 16 × 56% = 9.'),
+    );
+  });
+
+  it('underdog won / lost', () => {
+    expect(first(reason({ expectedPct: 44, points: 11 }))).toBe(
+      thin('Your side won as the 44% underdog, so the win was worth 16 × 56% = 9.'),
+    );
+    expect(first(reason({ expectedPct: 44, result: 'loss', shareRank: 3, share: 1, award: 'none' }))).toBe(
+      thin('Your side lost as the 44% underdog, so the loss cost 16 × 44% = 7.'),
+    );
+  });
+
+  it('even (48 to 52 inclusive), either result', () => {
+    expect(first(reason({ expectedPct: 50 }))).toBe(
+      thin('It was an even game (50%), so the win was worth 16 × 50% = 8.'),
+    );
+    expect(first(reason({ expectedPct: 52, result: 'loss' }))).toBe(
+      thin('It was an even game (52%), so the loss cost 16 × 52% = 8.'),
+    );
+  });
+
+  it('a first-ten game prints that game’s K, rounded', () => {
+    expect(first(reason({ expectedPct: 44, k: 30.4, firstTenGames: true }))).toBe(
+      thin('Your side won as the 44% underdog, so the win was worth 30 × 56% = 17.'),
     );
   });
 });
 
-describe('explainSentences: one per stance', () => {
-  const lines = (reason: DeltaReason, subject: typeof YOU | typeof OMAR = YOU) =>
-    explainSentences(reason, subject).map(sentenceText);
+describe('the share sentence: every rank (11.6.1)', () => {
+  const share = (over: Partial<KustomDeltaParts>, subject = YOU) =>
+    sentenceText(explainSentences(reason(over), subject)[1] ?? []);
 
-  it('favourite won', () => {
-    expect(lines(stored({ odds: { pct: 62, stance: 'favourite' } }))[1]).toBe(
-      'Your side was the 62% favourite, so a win pays less.',
+  it('winners, 1 to 5', () => {
+    expect(share({})).toBe('You had the best game on your team (MVP): ×1.2.');
+    expect(share({ shareRank: 2, share: 1.1, award: 'none' })).toBe(
+      'Your game was 2nd best on your team: ×1.1.',
+    );
+    expect(share({ shareRank: 3, share: 1, award: 'none' })).toBe('Your game was 3rd best on your team: ×1.');
+    expect(share({ shareRank: 4, share: 0.9, award: 'none' })).toBe(
+      'Your game was 4th best on your team: ×0.9.',
+    );
+    expect(share({ shareRank: 5, share: 0.8, award: 'none' })).toBe(
+      'Your game was 5th best on your team: ×0.8.',
     );
   });
 
-  it('favourite lost', () => {
-    expect(lines(stored({ result: 'lost', points: -30, odds: { pct: 62, stance: 'favourite' } }))[1]).toBe(
-      'Your side was the 62% favourite, so a loss costs more.',
+  it('losers, 1 to 5: the best loser gives back least, and nobody is called worst', () => {
+    const lost = { result: 'loss' as const, award: 'none' as const };
+    expect(share({ ...lost, shareRank: 1, share: 0.8, award: 'ace' })).toBe(
+      'You had the best game on your team (ACE), so you gave back least: ×0.8.',
+    );
+    expect(share({ ...lost, shareRank: 2, share: 0.9 })).toBe('Your game was 2nd best on your team: ×0.9.');
+    expect(share({ ...lost, shareRank: 3, share: 1 })).toBe('Your game was 3rd best on your team: ×1.');
+    expect(share({ ...lost, shareRank: 4, share: 1.1 })).toBe('Your game was 4th best on your team: ×1.1.');
+    expect(share({ ...lost, shareRank: 5, share: 1.2 })).toBe(
+      'Your game was 5th best on your team, so you gave back most: ×1.2.',
     );
   });
 
-  it('underdog won', () => {
-    expect(lines(stored({ odds: { pct: 38, stance: 'underdog' } }))[1]).toBe(
-      'You were the 38% side, so beating the odds pays more.',
+  it('no performance score: everyone counts ×1', () => {
+    expect(share({ shareRank: null, share: 1, award: 'none' })).toBe(
+      'This game has no performance score, so everyone counts ×1.',
+    );
+  });
+});
+
+describe('the first-ten sentence (11.6.1)', () => {
+  it('appears only when K is above 16, with the game’s K', () => {
+    expect(explainSentences(reason(), YOU)).toHaveLength(2);
+    const lines = explainSentences(reason({ k: 30.4, firstTenGames: true }), YOU).map(sentenceText);
+    expect(lines[2]).toBe(
+      'Your first 10 games count extra while your Rating finds its level (×30 instead of ×16).',
     );
   });
 
-  it('underdog lost', () => {
-    expect(lines(stored({ result: 'lost', points: -12, odds: { pct: 38, stance: 'underdog' } }))[1]).toBe(
-      'You were the 38% side, so a loss costs less.',
+  it('on the week track, everyone’s first 10 games of a week', () => {
+    const lines = explainSentences(
+      reason({ k: 32, firstTenGames: true, expectedPct: 50 }, { track: 'week', gamesBefore: 0 }),
+      YOU,
+    ).map(sentenceText);
+    expect(lines[2]).toBe("Everyone's first 10 games of a week count extra (×32 instead of ×16).");
+  });
+});
+
+describe("somebody else's row: the name once, then They / their", () => {
+  it('reads the 11.6.1 third-person lines', () => {
+    expect(explainText(reason({ k: 30.4, firstTenGames: true, points: 16 }), OMAR)).toBe(
+      thin(
+        "Omar's side won as the 56% favourite, so the win was worth 30 × 44% = 13. They had the best game on their team (MVP): ×1.2. Their first 10 games count extra while their Rating finds its level (×30 instead of ×16).",
+      ),
     );
-  });
-
-  it('even', () => {
-    expect(lines(stored())[1]).toBe('It was an even game.');
-  });
-
-  it("another player's row says their name once, in the lead, then They / Their", () => {
-    expect(lines(stored({ odds: { pct: 62, stance: 'favourite' } }), OMAR)).toEqual([
-      'Omar won 31.',
-      'Their side was the 62% favourite, so a win pays less.',
-      "They're settled, so swings are small.",
-    ]);
     expect(
-      lines(stored({ result: 'lost', points: -9, odds: { pct: 38, stance: 'underdog' } }), OMAR)[1],
-    ).toBe('They were the 38% side, so a loss costs less.');
-    const all = explainText(stored({ certainty: 'new', odds: { pct: 38, stance: 'underdog' } }), OMAR);
-    expect(all.match(/Omar/g)).toHaveLength(1);
+      sentenceText(
+        explainSentences(reason({ result: 'loss', shareRank: 5, share: 1.2, award: 'none' }), OMAR)[1] ?? [],
+      ),
+    ).toBe('Their game was 5th best on their team, so they gave back most: ×1.2.');
+  });
+
+  it('an even game names them in the one sentence that can', () => {
+    expect(sentenceText(explainSentences(reason({ expectedPct: 50 }), OMAR)[0] ?? [])).toBe(
+      thin("It was an even game for Omar's side (50%), so the win was worth 16 × 50% = 8."),
+    );
   });
 });
 
-describe('explainSentences: certainty and award', () => {
-  const third = (reason: DeltaReason, subject: typeof YOU | typeof OMAR = YOU) =>
-    sentenceText(explainSentences(reason, subject)[2] ?? []);
+describe('two tracks in one panel (11.6.3)', () => {
+  const week = reason(
+    { expectedPct: 50, k: 32, firstTenGames: true, points: 19 },
+    { track: 'week', gamesBefore: 0, allTime: { points: 8, rating: 1300 } },
+  );
 
-  it('one sentence per certainty band, both subjects', () => {
-    expect(third(stored({ certainty: 'new' }))).toBe("You're new, so your number moves fast.");
-    expect(third(stored({ certainty: 'settling' }))).toBe("You're still settling, so swings are bigger.");
-    expect(third(stored({ certainty: 'settled' }))).toBe("You're settled, so swings are small.");
-    expect(third(stored({ certainty: 'new' }), OMAR)).toBe("They're new, so their number moves fast.");
-    expect(third(stored({ certainty: 'settling' }), OMAR)).toBe(
-      "They're still settling, so swings are bigger.",
+  it('explains the weekly change, then the all-time change in one labelled clause', () => {
+    expect(explainText(week, YOU, { rollSidePct: 56 })).toBe(
+      thin(
+        "On this week's numbers it was an even game (50%), so the win was worth 32 × 50% = 16. You had the best game on your team (MVP): ×1.2. Everyone's first 10 games of a week count extra (×32 instead of ×16). All time: +8, to 1300.",
+      ),
+    );
+    expect(roundingSentence(week)).toBeNull();
+  });
+
+  it('a later game of the week whose odds match the roll opens plainly; a loss clause prints U+2212', () => {
+    const later = reason(
+      { result: 'loss', shareRank: 3, share: 1, award: 'none', points: -9 },
+      { track: 'week', gamesBefore: 3, allTime: { points: -9, rating: 1291 } },
+    );
+    const lines = explainSentences(later, YOU, { rollSidePct: 56 }).map(sentenceText);
+    expect(lines[0]).toBe(thin('Your side lost as the 56% favourite, so the loss cost 16 × 56% = 9.'));
+    expect(lines.at(-1)).toBe('All time: −9, to 1291.');
+    expect(explainSentences(later, YOU, { rollSidePct: 60 }).map(sentenceText)[0]).toMatch(
+      /^On this week's numbers your side/,
     );
   });
 
-  it('MVP adds a quarter; none says nothing', () => {
-    const mvp = stored({ points: 39, basePoints: 31, award: { kind: 'mvp', effect: 8, fraction: 0.25 } });
-    expect(explainSentences(mvp, YOU).map(sentenceText).at(-1)).toBe('MVP added a quarter.');
-    expect(explainSentences(stored(), YOU)).toHaveLength(3);
+  it('All time has no week clause', () => {
+    expect(explainSentences(reason({}, { allTime: { points: 8, rating: 1300 } }), YOU)).toHaveLength(2);
   });
+});
 
-  it('an award that rounds to 0 points is not mentioned', () => {
-    const tiny = stored({ points: 1, basePoints: 1, award: { kind: 'mvp', effect: 0, fraction: 0.25 } });
-    expect(explainText(tiny, YOU)).not.toMatch(/MVP/);
-  });
-
-  it('an old game says the bonus is not included instead of an award', () => {
-    const lines = explainSentences(legacy(), YOU).map(sentenceText);
-    expect(lines).toEqual([
-      'You lost 40.',
-      'Your side was the 55% favourite, so a loss costs more.',
-      "You're still settling, so swings are bigger.",
-      LEGACY_AWARD_SENTENCE,
-    ]);
-    expect(LEGACY_AWARD_SENTENCE).toBe(
-      "This game is from before Kustom kept the bonus, so MVP or ACE isn't included.",
+describe('the rounding line (11.6.4)', () => {
+  it('appears on XETA: 16 × 44% = 7, ×0.9 gives 6, printed −7', () => {
+    const xeta = reason({
+      side: 100,
+      result: 'loss',
+      expectedPct: 44,
+      shareRank: 2,
+      share: 0.9,
+      award: 'none',
+      points: -7,
+    });
+    expect(sentenceText(explainSentences(xeta, YOU)[0] ?? [])).toBe(
+      thin('Your side lost as the 44% underdog, so the loss cost 16 × 44% = 7.'),
     );
+    const line = roundingSentence(xeta);
+    expect(line && sentenceText(line)).toBe('Ratings keep their decimals, so this shows 1 off the sum.');
   });
+});
 
-  it('a row missing a before says only the lead', () => {
-    expect(explainText({ basis: 'lead-only', result: 'won', points: 18 }, OMAR)).toBe('Omar won 18.');
-  });
-
-  it('the footnote is product’s line', () => {
-    expect(EXPLAIN_FOOTNOTE).toBe('Upsets and new players move the most.');
-  });
-
-  it('never prints a sigma or a decimal', () => {
+describe('words that are gone', () => {
+  it('never prints a sigma, a certainty word or a decimal K', () => {
     const all = [
-      stored({ certainty: 'new', odds: { pct: 38, stance: 'underdog' } }),
-      legacy(),
-      stored({ points: 39, basePoints: 31, award: { kind: 'mvp', effect: 8, fraction: 0.25 } }),
+      reason(),
+      reason({ k: 30.4, firstTenGames: true }),
+      reason({ shareRank: null, share: 1, award: 'none' }),
     ]
-      .map((reason) => explainText(reason, YOU))
+      .flatMap((r) => [explainText(r, YOU), explainText(r, OMAR)])
       .join(' ');
-    expect(all).not.toMatch(/sigma|σ/i);
-    expect(all).not.toMatch(/\d\.\d/);
+    expect(all).not.toMatch(/sigma|σ|settl|new player|moves fast|quarter|fifth|30\.4/i);
+  });
+
+  it('the footnote is 11.6’s line', () => {
+    expect(EXPLAIN_FOOTNOTE).toBe('Upsets and first games move the most.');
+  });
+
+  it("the settled K and the even band are core's", () => {
+    expect(SETTLED_K).toBe(config.kustom.kSettled);
+    expect(EVEN_PCT).toEqual(config.rating.explain.evenPct);
   });
 });
 
-describe('oddsGapSentence (M14.59, design round 1)', () => {
-  const gap = (botBluePct: number, ratingBluePct: number, reason: 'new-players' | 'ratings-moved') => ({
+describe('oddsGapSentence (M14.59; no because clause since M18.6, 05-design 11.7)', () => {
+  const gap = (botBluePct: number, ratingBluePct: number) => ({
     botBluePct,
     ratingBluePct,
     differ: botBluePct !== ratingBluePct,
-    reason,
   });
 
-  it("names the points number once, on the winner's side, with the new-player reason", () => {
-    const line = oddsGapSentence(gap(43, 50, 'new-players'), 200);
-    expect(line && sentenceText(line)).toBe('For points, Red was 50%, because new players start at 1200.');
-    const blue = oddsGapSentence(gap(57, 61, 'new-players'), 100);
-    expect(blue && sentenceText(blue)).toBe('For points, Blue was 61%, because new players start at 1200.');
-  });
-
-  it('says ratings moved when nobody was new', () => {
-    const line = oddsGapSentence(gap(57, 55, 'ratings-moved'), 100);
-    expect(line && sentenceText(line)).toBe(
-      'For points, Blue was 55%, because ratings moved since the roll.',
-    );
+  it("names the points number once, on the winner's side", () => {
+    const line = oddsGapSentence(gap(43, 50), 200);
+    expect(line && sentenceText(line)).toBe('For points, Red was 50%.');
+    const blue = oddsGapSentence(gap(57, 61), 100);
+    expect(blue && sentenceText(blue)).toBe('For points, Blue was 61%.');
   });
 
   it('is nothing when both numbers put the winner in the even band (48-52)', () => {
-    expect(oddsGapSentence(gap(49, 50, 'new-players'), 200)).toBeNull();
-    expect(oddsGapSentence(gap(48, 52, 'new-players'), 100)).toBeNull();
-    // One of the two outside the band: the line shows.
-    expect(oddsGapSentence(gap(47, 52, 'new-players'), 100)).not.toBeNull();
+    expect(oddsGapSentence(gap(49, 50), 200)).toBeNull();
+    expect(oddsGapSentence(gap(48, 52), 100)).toBeNull();
+    expect(oddsGapSentence(gap(47, 52), 100)).not.toBeNull();
   });
 
-  it('is nothing when the two round the same, or one is missing', () => {
-    expect(
-      oddsGapSentence({ botBluePct: 57, ratingBluePct: 57, differ: false, reason: null }, 100),
-    ).toBeNull();
-    expect(
-      oddsGapSentence({ botBluePct: null, ratingBluePct: 57, differ: false, reason: null }, 100),
-    ).toBeNull();
-  });
-
-  it("the even band is core's", () => {
-    expect(EVEN_PCT).toEqual(config.rating.explain.evenPct);
+  it('is nothing when the two do not differ (a Kustom roll), or one is missing', () => {
+    expect(oddsGapSentence({ botBluePct: 57, ratingBluePct: 61, differ: false }, 100)).toBeNull();
+    expect(oddsGapSentence({ botBluePct: null, ratingBluePct: 57, differ: false }, 100)).toBeNull();
   });
 });

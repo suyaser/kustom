@@ -3,6 +3,7 @@ import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestGroups, deleteTestGroups } from '@/lib/testing/groups';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -70,6 +71,7 @@ if (stack === null) {
         sigma_before: 6,
         mu_after: seat.side === 100 ? 25 + delta : 25 - delta,
         sigma_after: 5.9,
+        ...kustomSeat(rOf(25), rOf(seat.side === 100 ? 25 + delta : 25 - delta)),
       })),
     );
     if (rows.error) throw new Error(rows.error.message);

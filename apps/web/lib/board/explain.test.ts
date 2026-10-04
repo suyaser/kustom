@@ -1,4 +1,4 @@
-import { displayRating, seedFromRank } from '@customs/core';
+import { KUSTOM_START } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { favoredClause } from '../discord/embeds';
 import type { WindowKind } from '../night';
@@ -52,7 +52,7 @@ describe('one row of Recent games', () => {
    */
   it("is the chance their own side was given, in product's exact words", () => {
     // Won on red, where the split gave blue 58%: their own side was the 42% one.
-    const game = workedRecentGame({ won: true, side: 200, blueWinProb: 0.58, muBefore: 23.2, muAfter: 23.9 });
+    const game = workedRecentGame({ won: true, side: 200, blueWinProb: 0.58, rBefore: 1392, rAfter: 1434 });
 
     expect(explainGame(game)).toBe('As the 42% side.');
   });
@@ -66,15 +66,15 @@ describe('one row of Recent games', () => {
   });
 
   it('is nothing at all for a backfilled game: no chance, and no line repeating the row', () => {
-    const game = workedRecentGame({ won: true, blueWinProb: null, muBefore: 23.2, muAfter: 23.9 });
+    const game = workedRecentGame({ won: true, blueWinProb: null, rBefore: 1392, rAfter: 1434 });
 
     expect(explainGame(game)).toBeNull();
   });
 
   it('says nothing at all about an unrated game: M3.23 owns that row whole', () => {
-    expect(explainGame(workedRecentGame({ muBefore: null, muAfter: null, blueWinProb: 0.6 }))).toBeNull();
+    expect(explainGame(workedRecentGame({ rBefore: null, rAfter: null, blueWinProb: 0.6 }))).toBeNull();
     // A half-folded row is not a rating either.
-    expect(explainGame(workedRecentGame({ muBefore: 23.9, muAfter: null }))).toBeNull();
+    expect(explainGame(workedRecentGame({ rBefore: 1434, rAfter: null }))).toBeNull();
   });
 });
 
@@ -121,7 +121,7 @@ describe('the seed line', () => {
   it('is drawn from the same number the chart draws its hairline at', () => {
     const player = workedPlayer();
 
-    expect(player.reference).toBe(displayRating(seedFromRank('SILVER', 'II').mu));
+    expect(player.reference).toBe(KUSTOM_START);
     expect(explainRatingStart(player)).toContain(String(player.reference));
   });
 

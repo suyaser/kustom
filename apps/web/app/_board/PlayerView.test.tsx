@@ -1,10 +1,10 @@
-import type { DeltaReason } from '@customs/core';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { Route } from 'next';
 import { describe, expect, it } from 'vitest';
 import { AiRecap } from '@/components/ai/AiRecap';
 import { AI_SCOUTING_LABEL, AI_SCOUTING_TAP } from '@/lib/ai/recapCopy';
 import type { PlayerBoardView } from '@/lib/board/types';
+import type { KustomReason } from '@/lib/breakdown/read';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { workedPlayer, workedRecentGame } from '@/lib/testing/boardFixtures';
 import { workedPuuid } from '@/lib/testing/workedExample';
@@ -123,20 +123,26 @@ describe('the public lens', () => {
 });
 
 describe('M14.58 / M14.59: each game explains its change', () => {
-  const reason: DeltaReason = {
-    basis: 'stored',
-    result: 'lost',
-    points: -42,
-    basePoints: -42,
-    odds: { pct: 58, stance: 'favourite' },
-    certainty: 'settling',
-    award: 'none',
+  const reason: KustomReason = {
+    track: 'all-time',
+    gamesBefore: 36,
+    allTime: null,
+    parts: {
+      side: 100,
+      result: 'loss',
+      expectedPct: 58,
+      k: 16,
+      firstTenGames: false,
+      shareRank: 3,
+      share: 1,
+      award: 'none',
+      points: -42,
+    },
   };
   const gap = {
     botBluePct: 58,
     ratingBluePct: 63,
     differ: true,
-    reason: 'new-players' as const,
     pointsBluePct: 63,
     ratingBlueWinProb: 0.63,
   };
@@ -148,21 +154,19 @@ describe('M14.58 / M14.59: each game explains its change', () => {
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(button.closest('li')).toHaveTextContent(
-      "Hana lost 42. Their side was the 58% favourite, so a loss costs more. They're still settling, so swings are bigger.",
+      "Hana's side lost as the 58% favourite, so the loss cost 16 × 58% = 9. Their game was 3rd best on their team: ×1.",
     );
   });
 
   it('says You on your own page', () => {
     draw(workedPlayer('Hana', { recent: [workedRecentGame({ reason })] }), { viewerPuuid: HANA });
     fireEvent.click(screen.getByRole('button', { name: 'lost 42. Why?' }));
-    expect(screen.getByText(/Your side was the/)).toBeInTheDocument();
+    expect(screen.getByText(/Your side lost as the/)).toBeInTheDocument();
   });
 
   it("the history line names the points number on the winner's side when they differ", () => {
     draw(workedPlayer('Hana', { recent: [workedRecentGame({ reason, odds: gap })] }));
-    expect(screen.getByRole('link', { name: /Lost/ })).toHaveTextContent(
-      'For points, Red was 37%, because new players start at 1200.',
-    );
+    expect(screen.getByRole('link', { name: /Lost/ })).toHaveTextContent('For points, Red was 37%.');
   });
 
   it('a game with no reason keeps a plain number', () => {
@@ -192,7 +196,7 @@ describe('the games list', () => {
       workedPlayer('Hana', {
         recent: [
           workedRecentGame({ gameId: 'g-reroll', pickRank: 2, won: true, winningSide: 100, award: 'mvp' }),
-          workedRecentGame({ gameId: 'g-aram', aram: true, muBefore: null, muAfter: null }),
+          workedRecentGame({ gameId: 'g-aram', aram: true, rBefore: null, rAfter: null }),
         ],
       }),
     );

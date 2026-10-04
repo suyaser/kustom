@@ -11,9 +11,9 @@ import type { NightClock } from '../night';
  * and re-loaded by the browser on every Realtime event, so both sides render from the same
  * shape and there is no second code path for "after an update".
  *
- * **No number in here has been formatted.** Display ratings are `displayRating(mu)` because
+ * **No number in here has been formatted.** Display ratings are `displayKustom(r)` (M18.6) because
  * that is what the embed printed and the two must agree; a rating *change* is carried as the
- * two mu values it comes from and is turned into a delta where it is rendered. `-0` does not
+ * two unrounded all-time Ratings it comes from and is turned into a delta where it is rendered. `-0` does not
  * survive `JSON.stringify` (05-design.md, "Rating delta"), and this object crosses the wire
  * twice — once in the RSC payload, once from PostgREST.
  */
@@ -40,7 +40,10 @@ export interface MemberView {
    * upserts the row without touching `created_at`, so it stays the first sighting.
    */
   joinedAt: string;
-  /** `displayRating(mu)` from the group's rating, seeded from rank when there is no row. */
+  /**
+   * `displayKustom(ratings.r)`, the all-time Rating the balancer reads; 1200 with no row or a row
+   * the Kustom fold has not written (M18.2, the same number the teams embed prints).
+   */
   rating: number;
   /**
    * Rated games in this group (`ratings.games`), for the settling chip and the roster's `New`
@@ -111,7 +114,7 @@ export interface TeamsView {
   stored: StoredSplit[];
 }
 
-/** One row of the result card. The two mu values, not a delta: see the note at the top. */
+/** One row of the result card. The two all-time Ratings, not a delta: see the note at the top. */
 export interface ResultSeatView {
   puuid: string;
   name: PlayerName;
@@ -122,12 +125,13 @@ export interface ResultSeatView {
   nameSuffix?: string | null | undefined;
   role: RoleValue | null;
   side: SideValue;
-  muBefore: number | null;
-  muAfter: number | null;
-  /** `game_players.sigma_before`: with `muBefore`, the pre-game odds of a split-less game (M14.9). */
-  sigmaBefore: number | null;
-  /** `game_players.r_before` (0036): the pre-game odds of a split-less game since M18.5. */
-  rBefore?: number | null;
+  /**
+   * `game_players.r_before` / `r_after` (0036): the all-time Kustom Ratings around the game,
+   * unrounded. The result card and the poster print all-time changes (M18.6); `r_before` is also
+   * the pre-game odds of a split-less game. `null` on a game the all-time track did not rate.
+   */
+  rBefore: number | null;
+  rAfter: number | null;
 }
 
 export interface ResultView {
@@ -153,7 +157,7 @@ export interface ResultView {
   blue: ResultSeatView[];
   red: ResultSeatView[];
   /**
-   * True when every row carries both mu values. A remake or a short surrender leaves them
+   * True when every row carries both all-time Ratings (`r_before`, `r_after`). A remake or a short surrender leaves them
    * null: the page then shows the teams and the explanation under the header `Final`, with no
    * deltas and no banner explaining itself (M3.4, "a game whose lobby is finished but which
    * the fold did not rate").
@@ -280,7 +284,7 @@ export interface TapeEntry {
     durationS: number;
     /** `matchesQueue(mode, 'aram')`, the rule `/games` lists by. */
     aram: boolean;
-    /** Every scoreboard row carries both mu values: `loadResult`'s rule. */
+    /** Every scoreboard row carries both all-time Ratings: `loadResult`'s rule. */
     rated: boolean;
     /** `gatedGameAward`'s MVP by name (M14.9), or `null`: no award, or a name nobody has. */
     mvp: PlayerName;

@@ -235,8 +235,8 @@ function resultSource(overrides: Partial<ResultSource> = {}): ResultSource {
     side: (index < 5 ? 100 : 200) as 100 | 200,
     role: null,
     damage: 1_000 * (index + 1),
-    muBefore: 25,
-    muAfter: index < 5 ? 24.5 : 25.5,
+    rBefore: 1500,
+    rAfter: index < 5 ? 1491.6 : 1508.4,
     stats: NO_STATS,
   }));
 
@@ -257,8 +257,8 @@ function resultSource(overrides: Partial<ResultSource> = {}): ResultSource {
 describe('buildResultInput', () => {
   it('rounds both ratings before subtracting, so the row adds up', () => {
     const input = buildResultInput(resultSource(), CONTEXT);
-    expect(input?.blue[0]).toMatchObject({ rating: 1470, delta: -30 });
-    expect(input?.red[0]).toMatchObject({ rating: 1530, delta: 30 });
+    expect(input?.blue[0]).toMatchObject({ rating: 1492, delta: -8 });
+    expect(input?.red[0]).toMatchObject({ rating: 1508, delta: 8 });
     for (const player of [...(input?.blue ?? []), ...(input?.red ?? [])]) {
       expect((player.rating ?? Number.NaN) - (player.delta ?? Number.NaN)).toBe(1500);
     }
@@ -267,7 +267,7 @@ describe('buildResultInput', () => {
   it('is null for a game the fold did not rate: there is nothing to say', () => {
     const source = resultSource();
     const players = source.players.map((player, index) =>
-      index === 0 ? { ...player, muBefore: null, muAfter: null } : player,
+      index === 0 ? { ...player, rBefore: null, rAfter: null } : player,
     );
     expect(buildResultInput({ ...source, players }, CONTEXT)).toBeNull();
     expect(buildResultInput({ ...source, players: [] }, CONTEXT)).toBeNull();
@@ -353,7 +353,7 @@ describe('resultPayload (M11.4, under the group since M13.11 / M14.10)', () => {
     expect(orphan).not.toHaveProperty('author');
     expect(orphan).not.toHaveProperty('thumbnail');
     const source = resultSource();
-    const players = source.players.map((player) => ({ ...player, muAfter: null }));
+    const players = source.players.map((player) => ({ ...player, rAfter: null }));
     expect(resultPayload({ ...source, players }, GAME_ID, CUSTOMS, 'https://customs.example')).toBeNull();
   });
 });

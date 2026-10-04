@@ -1,4 +1,4 @@
-import { displayRating, isSettling, seedFromRank } from '@customs/core';
+import { displayKustom, isSettling, KUSTOM_START } from '@customs/core';
 import { sortBoardRows } from '../board/order';
 import type { BoardRow, BoardView, PlayerBoardView, RecentGame } from '../board/types';
 import type { WindowKind } from '../night';
@@ -9,8 +9,8 @@ import { WORKED_ROSTER, workedPuuid } from './workedExample';
 /**
  * The worked example as `/leaderboard` and `/p/[puuid]` see it (M3.5).
  *
- * The same ten friends and the same `mu`/`sigma` as every other fixture in this repo. Nothing is
- * hand-computed: `displayRating` does it. The game counts are illustrative (the docs pin none) and
+ * The same ten friends and the same Kustom Ratings (`r`) as every other fixture in this repo.
+ * Nothing is hand-computed: `displayKustom` does it (M18.6). The game counts are illustrative (the docs pin none) and
  * all over core's `SETTLING_GAMES`, so the worked board is all ranked; a test that wants the
  * settling section overrides `ratedGames` and `settling` on a row (`settlingRow`).
  */
@@ -34,8 +34,6 @@ function workedWins(games: number): number {
 }
 
 /** The rank every fixture player is seeded from: Silver II, the roster's own middle. */
-const SEED_TIER = 'SILVER';
-const SEED_DIVISION = 'II';
 
 export function workedBoardRows(): BoardRow[] {
   return sortBoardRows(
@@ -47,8 +45,8 @@ export function workedBoardRows(): BoardRow[] {
         name: player.name,
         track: 'all-time' as const,
         points: null,
-        sortKey: player.mu,
-        rating: displayRating(player.mu),
+        sortKey: player.r,
+        rating: displayKustom(player.r),
         games,
         wins,
         losses: games - wins,
@@ -95,13 +93,13 @@ export function workedWindowRows(window: WindowKind = 'this-week'): BoardRow[] {
         // +58 each: the sum of their six printed deltas. Equal points, equal records and equal
         // games, so the order falls through to the all-time Rating, as the all-time board's.
         points: week ? 58 : null,
-        sortKey: player.mu,
-        rating: displayRating(player.mu),
+        sortKey: player.r,
+        rating: displayKustom(player.r),
         games: 6,
         wins: 4,
         losses: 2,
         ratedGames: games,
-        climb: week ? null : { muBefore: 23.9, muAfter: 24.87 },
+        climb: week ? null : { rBefore: 1434, rAfter: 1492.2 },
         // Only All time has a settling section (lead, 2026-10-03); the chip is the all-time one.
         settling: false,
         settlingChip: isSettling(games),
@@ -159,13 +157,9 @@ export function workedPlayer(name = 'Hana', overrides: Partial<PlayerBoardView> 
 
   const games = WORKED_GAMES[name] ?? 0;
   const wins = workedWins(games);
-  const rating = displayRating(player.mu);
-  // A player seeded under the **old** rank rule, which is what a stored row folded before
-  // 2026-09-16's re-seed was: the chart's hairline sits at the number that rank gave. The fixture
-  // keeps that shape on purpose — a seed number that is *not* 1200 is what makes the copy tests
-  // prove the seed line interpolates the fold's own number rather than printing a constant. The
-  // rank itself is not a field on the view any more (M7.20); only the number it produced is here.
-  const seed = displayRating(seedFromRank(SEED_TIER, SEED_DIVISION).mu);
+  const rating = displayKustom(player.r);
+  // Every all-time Rating starts at 1200 (M18): the chart's hairline sits there.
+  const seed = KUSTOM_START;
 
   return {
     puuid: workedPuuid(name),
@@ -289,8 +283,10 @@ export function workedRecentGame(overrides: Partial<RecentGame> = {}): RecentGam
     side: 100,
     winningSide: 200,
     role: 'top',
-    muBefore: 23.9,
-    muAfter: 23.2,
+    rBefore: 1434,
+    rAfter: 1392,
+    weekRBefore: 1200,
+    weekRAfter: 1191,
     // Hana carried nothing in the worked example, which is the ordinary row (M7.10): nine rows
     // in ten print no word, and a fixture that awarded one by default would hide that.
     award: null,

@@ -26,7 +26,7 @@ const ZONE = 'Africa/Cairo';
  * and refused (M7.1), and one three-minute remake that is in neither universe.
  *
  * The ARAM is `unrated` because that is what it is in the database: `gateRatedGame` turns it
- * down, so every `mu_after` on its ten rows is null — which is exactly the column the board's
+ * down, so every `r_after` on its ten rows is null — which is exactly the column the board's
  * count reads.
  */
 function month(): StatsGame[] {
@@ -36,14 +36,14 @@ function month(): StatsGame[] {
     tenPlayerGame({ at: '2026-09-03T18:00:00Z', blue: ['hana'] }),
     tenPlayerGame({ at: '2026-09-04T18:00:00Z', blue: ['hana'], gameMode: 'ARAM', unrated: true }),
     // The remake is `unrated` for the same reason: the fold refused it, so nothing wrote a
-    // `mu_after` on any of its ten rows either.
+    // `r_after` on any of its ten rows either.
     tenPlayerGame({ at: '2026-09-05T18:00:00Z', blue: ['hana'], durationS: 200, unrated: true }),
   ];
 }
 
 /**
  * The board's count, expressed the way `lib/board/load.ts` asks the database for it: **games with
- * a rated scoreboard row**, `not('game_players.mu_after', 'is', null)`.
+ * a rated scoreboard row**, `not('game_players.r_after', 'is', null)`.
  *
  * Written out here rather than imported because the loader's is a PostgREST query and this file
  * takes no client. If the two ever part, the integration test that reads a real window is where
@@ -51,7 +51,7 @@ function month(): StatsGame[] {
  * that quietly changed with it.
  */
 function boardGames(games: readonly StatsGame[]): number {
-  return games.filter((game) => game.rows.some((row) => row.muAfter !== null)).length;
+  return games.filter((game) => game.rows.some((row) => row.rAfter !== null)).length;
 }
 
 describe('the two counts still count what they counted', () => {
@@ -90,7 +90,7 @@ describe('the two counts still count what they counted', () => {
     // `/p/[puuid]`'s sections under the chart read the same universe `/stats` does.
     expect(playerStatsView({ window: 'all-time', puuid: puuidOf('hana'), ...input }).games).toBe(4);
     // Her record in the header is the rated one — the three games that moved her number.
-    expect(games.filter((game) => game.rows.some((row) => row.muAfter !== null))).toHaveLength(3);
+    expect(games.filter((game) => game.rows.some((row) => row.rAfter !== null))).toHaveLength(3);
   });
 
   /**

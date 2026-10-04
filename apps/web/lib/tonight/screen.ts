@@ -77,7 +77,7 @@ export function playedAsRolled(result: ResultView, chosen: StoredSplit): boolean
 
 /** Everyone's all-time Kustom Rating going in (`r_before`, M18.5), for core's `preGameOdds` (§4.10). */
 export function ratingsBefore(result: ResultView): RatingsBefore {
-  const of = (seats: ResultView['blue']) => seats.map((seat) => ({ r: seat.rBefore ?? null }));
+  const of = (seats: ResultView['blue']) => seats.map((seat) => ({ r: seat.rBefore }));
   return { blue: of(result.blue), red: of(result.red) };
 }
 

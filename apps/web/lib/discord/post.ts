@@ -326,9 +326,9 @@ export async function postFearlessReset(
 }
 
 /**
- * The nightly board (M3.5, windowed by M5.12). One post: **this week's** top ten by net points
- * (M14.57), in the same order the board puts them in, because it is the same `loadBoard`
- * read through the same window that page opens on.
+ * The nightly board (M3.5, windowed by M5.12). One post: **this week's** top ten by week points
+ * (M18.6, `round(weekly R) − 1200`), in the same order the board puts them in, because it is the
+ * same `loadBoard` read through the same window that page opens on.
  *
  * The title is `This week · board` (M14.72) and the link carries `?window=this-week`, so the tap
  * from the channel lands on the board the post printed.
@@ -380,7 +380,7 @@ const NIGHTLY_WINDOW = LEADERBOARD_WINDOW;
 /**
  * A board's rows as a board post's lines (M3.5, M5.10; Rating since M14.10, STRATEGY §5). Pure.
  *
- * **A week line prints net points and W–L and the post keeps the board's own order** (M14.57: net
+ * **A week line prints week points and W–L and the post keeps the board's own order** (M18.6: week
  * points, then the tie-break), one list, with the all-time settling chip on a line whose player
  * has fewer than `SETTLING_GAMES` rated games (the row's own `settlingChip` and `ratedGames`). On
  * the all-time track every line prints `Rating` and the post is ordered on it: (`All time`, the
@@ -537,7 +537,7 @@ export async function postClosedWindow(
     return SKIPPED(NO_GAMES_IN_WINDOW);
   }
 
-  // `last-week` is a week board (net points, M14.57), read off the rows rather than re-derived
+  // `last-week` is a week board (week points, M18.6), read off the rows rather than re-derived
   // from `window.kind`; the all-time branch was `last-month`'s until M14.48 and stays harmless.
   const track = boardTrack(board);
   const [group, ratedGames] = await Promise.all([

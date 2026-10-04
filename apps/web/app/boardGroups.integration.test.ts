@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { displayRating } from '@customs/core';
+import { displayKustom } from '@customs/core';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { winLossParts } from '@/lib/board/copy';
 import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -108,6 +109,7 @@ if (stack === null) {
         sigma_before: 5,
         mu_after: puuid === P ? RATING[key].mu : 25,
         sigma_after: 4.9,
+        ...kustomSeat(rOf(puuid === P ? RATING[key].mu - 0.5 : 25), rOf(puuid === P ? RATING[key].mu : 25)),
       }));
       const written = await db.from('game_players').insert(seats);
       if (written.error) throw new Error(written.error.message);
@@ -118,6 +120,7 @@ if (stack === null) {
       player_id: id(puuid),
       mu,
       sigma,
+      r: rOf(mu),
       games: count,
       wins,
     });
@@ -148,10 +151,10 @@ if (stack === null) {
         ]);
         const row = board.rows.find((entry) => entry.puuid === P);
         const want = RATING[key];
-        expect(row?.rating).toBe(displayRating(want.mu));
+        expect(row?.rating).toBe(displayKustom(rOf(want.mu)));
         expect(row?.games).toBe(want.games);
         expect(row?.wins).toBe(want.wins);
-        expect(page?.rating).toBe(displayRating(want.mu));
+        expect(page?.rating).toBe(displayKustom(rOf(want.mu)));
         expect([page?.games, page?.wins, page?.losses]).toEqual([
           want.games,
           want.wins,
@@ -187,7 +190,7 @@ if (stack === null) {
       const self = renderToStaticMarkup(createElement(PlayerView, { ...props, lens: 'self' }));
       const pub = renderToStaticMarkup(createElement(PlayerView, { ...props, lens: 'public' }));
       for (const html of [self, pub].map((markup) => markup.replace(/<[^>]*>/g, ''))) {
-        expect(html).toContain(String(displayRating(RATING.a.mu)));
+        expect(html).toContain(String(displayKustom(rOf(RATING.a.mu))));
         expect(html).toContain(`${RATING.a.wins}`);
         expect(html).toContain(`${RATING.a.games} games`);
       }

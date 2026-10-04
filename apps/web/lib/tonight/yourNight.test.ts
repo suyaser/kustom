@@ -28,8 +28,8 @@ function row(i: number, over: Partial<YourNightRow> = {}): YourNightRow {
     damage_to_objectives: 3_000,
     damage_to_champs: 15_000,
     champion_id: 145,
-    mu_before: 25,
-    mu_after: i < 5 ? 25.5 : 24.5,
+    r_before: 1500,
+    r_after: i < 5 ? 1508 : 1492,
     ...over,
   };
 }
@@ -48,9 +48,9 @@ function game(
     gameMode: opts.aram ? 'ARAM' : 'CLASSIC',
     game_players: Array.from({ length: 10 }, (_, i) => {
       const won = (i < 5 ? 100 : 200) === winner;
-      const base = row(i, { mu_after: won ? 25.6 : 24.4 });
+      const base = row(i, { r_after: won ? 1509 : 1491 });
       const aramOrUnrated = opts.aram || opts.unrated;
-      const withRating = aramOrUnrated ? { ...base, mu_before: null, mu_after: null } : base;
+      const withRating = aramOrUnrated ? { ...base, r_before: null, r_after: null } : base;
       return i === 0 ? { ...withRating, ...(opts.me ?? {}) } : withRating;
     }),
   };
@@ -64,14 +64,14 @@ describe('your night', () => {
 
   it("counts wins and losses, and the Rating change is the sum of the posters' per-game deltas", () => {
     const games = [
-      game('g1', '2026-10-03T18:00:00Z', { winner: 100, me: { mu_before: 25, mu_after: 25.7 } }),
-      game('g2', '2026-10-03T19:00:00Z', { winner: 200, me: { mu_before: 25.7, mu_after: 25.1 } }),
-      game('g3', '2026-10-03T20:00:00Z', { winner: 100, me: { mu_before: 25.1, mu_after: 25.9 } }),
+      game('g1', '2026-10-03T18:00:00Z', { winner: 100, me: { r_before: 1500, r_after: 1512 } }),
+      game('g2', '2026-10-03T19:00:00Z', { winner: 200, me: { r_before: 1512, r_after: 1503.4 } }),
+      game('g3', '2026-10-03T20:00:00Z', { winner: 100, me: { r_before: 1503.4, r_after: 1516.2 } }),
     ];
     const night = foldYourNight(games, ME, PUUID_OF);
     expect(night).toMatchObject({ wins: 2, losses: 1 });
     expect(night?.ratingDelta).toBe(
-      displayDelta(25, 25.7) + displayDelta(25.7, 25.1) + displayDelta(25.1, 25.9),
+      displayDelta(1500, 1512) + displayDelta(1512, 1503.4) + displayDelta(1503.4, 1516.2),
     );
     expect(yourNightLine(2, 1, '+38')).toBe('Your night: 2 wins, 1 loss, Rating +38.');
   });

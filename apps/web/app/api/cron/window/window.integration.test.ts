@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { ensurePlayers } from '@/lib/ingest/players';
 import { type ClosedWindow, closedWindow } from '@/lib/night';
 import { createTestGroups, deleteTestGroups } from '@/lib/testing/groups';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -166,7 +167,8 @@ if (stack === null) {
   }
 
   /** A rated game inside a window: ten players, five a side, every rating column written. */
-  async function seedGame(startedAt: Date, groupId: string = groups.a): Promise<void> {
+  /** `weekGame`: how many of these games the ten already played that week (the weekly chain, M18). */
+  async function seedGame(startedAt: Date, groupId: string = groups.a, weekGame = 0): Promise<void> {
     const lcuGameId = Math.floor(Math.random() * 1_000_000_000) + 8_000_000_000;
     gameIds.push(lcuGameId);
     const { data, error } = await db
@@ -199,6 +201,9 @@ if (stack === null) {
         sigma_before: 8.333,
         mu_after: index < 5 ? 26 : 24,
         sigma_after: 8.1,
+        ...kustomSeat(rOf(25), rOf(index < 5 ? 26 : 24), rOf(25) - weekGame * (index < 5 ? 60 : -60), {
+          weekGamesBefore: weekGame,
+        }),
       })),
     );
     if (playersError) throw new Error(`seeding a scoreboard: ${playersError.message}`);
@@ -251,6 +256,13 @@ if (stack === null) {
         sigma_before: 8.333,
         mu_after: playerId === playerIds[0] ? (index === 5 ? 24.6333333 : 24.4) : 25,
         sigma_after: 8.1,
+        // The week began at 21.1 for `Window0` and 25 for everyone else (M18.6: the week board
+        // reads the weekly track).
+        ...kustomSeat(
+          rOf(playerId === playerIds[0] ? (index === 0 ? 21.1 : 24.4) : 25),
+          rOf(playerId === playerIds[0] ? (index === 5 ? 24.6333333 : 24.4) : 25),
+          rOf(playerId === playerIds[0] ? 21.1 : 25),
+        ),
       })),
     );
     if (playersError) throw new Error(`seeding an awards scoreboard: ${playersError.message}`);
@@ -295,7 +307,7 @@ if (stack === null) {
     // Two games in the week that closed on `SUNDAY`, one in the flaky week, and one that is in
     // both windows the 1st of November considers.
     await seedGame(new Date('2025-09-03T18:00:00Z'));
-    await seedGame(new Date('2025-09-05T19:00:00Z'));
+    await seedGame(new Date('2025-09-05T19:00:00Z'), groups.a, 1);
     await seedGame(new Date('2025-05-07T19:00:00Z'));
     await seedGame(new Date('2025-10-22T19:00:00Z'));
 

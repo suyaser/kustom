@@ -1,166 +1,206 @@
-import { predictWin, provisionalSeed, type Rating } from '@customs/core';
+import { rateGameKustom, winProbability } from '@customs/core';
 import { describe, expect, it, vi } from 'vitest';
-import { type BreakdownGame, type BreakdownRow, ratingBlueWinProb, resultOdds, rowReason } from './read';
+import {
+  BREAKDOWN_COLUMNS,
+  type BreakdownGame,
+  type BreakdownRow,
+  ratingBlueWinProb,
+  resultOdds,
+  rowReason,
+  toBreakdownRow,
+} from './read';
 
 /**
- * M14.58 (why this many points) and M14.59 (which odds the result line shows), read from the
- * fold's stored breakdown. The fixture is ten settled players and one newcomer.
+ * The breakdown read (M14.58 / M14.59, Kustom since M18.6): rows the fold stored in, core's
+ * `explainKustomDelta` parts out, on either track, and never an OpenSkill column.
  */
 
-const SETTLED: Rating = { mu: 25, sigma: 4 };
+const BLUE = ['b1', 'b2', 'b3', 'b4', 'b5'];
+const RED = ['r1', 'r2', 'r3', 'r4', 'r5'];
 
-function tenRows(over: (index: number) => Partial<BreakdownRow> = () => ({})): BreakdownRow[] {
-  const befores = Array.from({ length: 10 }, (_, index) => ({ mu: 24 + index * 0.3, sigma: SETTLED.sigma }));
-  const blue = befores.slice(0, 5);
-  const red = befores.slice(5);
-  const blueP = predictWin(blue, red);
-  return befores.map((before, index) => {
-    const side = index < 5 ? (100 as const) : (200 as const);
-    const muAfter = side === 100 ? before.mu + 0.5 : before.mu - 0.5;
+/**
+ * One game as the fold stores it: `rateGameKustom` over the ten on each track, red winning, with
+ * scores so every seat has a share rank. All-time: settled players around 1300 (K 16). Weekly:
+ * everyone's first game of the week (1200, K 32).
+ */
+function storedGame(): BreakdownGame {
+  const scores = new Map([...BLUE, ...RED].map((puuid, i) => [puuid, 10 - (i % 5)]));
+  const allTime = rateGameKustom({
+    players: [
+      ...BLUE.map((puuid, i) => ({
+        puuid,
+        side: 100 as const,
+        r: 1280 + i,
+        n: 20,
+        score: scores.get(puuid) ?? null,
+      })),
+      ...RED.map((puuid, i) => ({
+        puuid,
+        side: 200 as const,
+        r: 1300 + i,
+        n: 20,
+        score: scores.get(puuid) ?? null,
+      })),
+    ],
+    winningSide: 200,
+  });
+  const week = rateGameKustom({
+    players: [...BLUE, ...RED].map((puuid) => ({
+      puuid,
+      side: (BLUE.includes(puuid) ? 100 : 200) as 100 | 200,
+      r: 1200,
+      n: 0,
+      score: scores.get(puuid) ?? null,
+    })),
+    winningSide: 200,
+  });
+  const weekOf = new Map(week.map((row) => [row.puuid, row]));
+  const rows: BreakdownRow[] = allTime.map((row) => {
+    const w = weekOf.get(row.puuid);
+    if (w === undefined) throw new Error('unreachable');
     return {
-      playerId: `p${index}`,
-      side,
-      muBefore: before.mu,
-      sigmaBefore: before.sigma,
-      muAfter,
-      foldP: side === 100 ? blueP : 1 - blueP,
-      baseMuAfter: muAfter,
-      award: 'none',
+      playerId: row.puuid,
+      side: row.side,
+      rBefore: row.rBefore,
+      rAfter: row.rAfter,
+      k: row.k,
+      foldP: row.expected,
       ratedGamesBefore: 20,
-      ...over(index),
+      shareRank: row.shareRank,
+      award: row.award,
+      weekRBefore: w.rBefore,
+      weekRAfter: w.rAfter,
+      weekK: w.k,
+      weekFoldP: w.expected,
+      weekGamesBefore: 0,
     };
   });
+  return { winningSide: 200, botBlueWinProb: 0.43, botOddsModel: 'openskill', rows };
 }
 
-function game(rows: BreakdownRow[], botBlueWinProb: number | null = null): BreakdownGame {
-  return { winningSide: 100, botBlueWinProb, rows };
-}
-
-describe('rowReason (M14.58)', () => {
-  it('explains a stored row from what the fold stored: odds, certainty, award', () => {
-    const rows = tenRows((index) =>
-      index === 0 ? { muAfter: 24 + 0.625, baseMuAfter: 24.5, award: 'mvp', ratedGamesBefore: 2 } : {},
-    );
-    const reason = rowReason(game(rows), 'p0');
-    expect(reason).toMatchObject({ basis: 'stored', result: 'won', certainty: 'new' });
-    if (reason?.basis !== 'stored') throw new Error('expected a stored reason');
-    expect(reason.award).toMatchObject({ kind: 'mvp' });
-    expect(reason.points).toBe(Math.round(24.625 * 60) - Math.round(24 * 60));
+describe('rowReason (M18.6)', () => {
+  it('explains the all-time change from the stored row: odds, K, share and award', () => {
+    const game = storedGame();
+    const reason = rowReason(game, 'r1');
+    const bluePct = Math.round(winProbability(1280 * 5 + 10, 1300 * 5 + 10) * 100);
+    expect(reason).toMatchObject({
+      track: 'all-time',
+      gamesBefore: 20,
+      allTime: null,
+      parts: {
+        side: 200,
+        result: 'win',
+        expectedPct: 100 - bluePct,
+        k: 16,
+        firstTenGames: false,
+        shareRank: 1,
+        share: 1.2,
+        award: 'mvp',
+      },
+    });
+    const row = game.rows.find((one) => one.playerId === 'r1') as BreakdownRow;
+    expect(reason?.parts.points).toBe(Math.round(row.rAfter as number) - Math.round(row.rBefore as number));
   });
 
-  it('uses the stored award even where a read-time badge would disagree', () => {
-    // The stat columns are not read at all: the award is the stored one, what moved the number.
-    const rows = tenRows((index) =>
-      index === 6 ? { muAfter: 25.8 - 0.4, baseMuAfter: 25.8 - 0.5, award: 'ace' } : {},
-    );
-    const reason = rowReason(game(rows), 'p6');
-    expect(reason).toMatchObject({ basis: 'stored', result: 'lost', award: { kind: 'ace' } });
+  it('explains the weekly change on the week track, with the all-time change as its clause', () => {
+    const game = storedGame();
+    const row = game.rows.find((one) => one.playerId === 'b1') as BreakdownRow;
+    const reason = rowReason(game, 'b1', 'week');
+    expect(reason).toMatchObject({
+      track: 'week',
+      gamesBefore: 0,
+      parts: {
+        result: 'loss',
+        expectedPct: 50,
+        k: 32,
+        firstTenGames: true,
+        shareRank: 1,
+        share: 0.8,
+        award: 'ace',
+      },
+      allTime: {
+        points: Math.round(row.rAfter as number) - Math.round(row.rBefore as number),
+        rating: Math.round(row.rAfter as number),
+      },
+    });
+    expect(reason?.parts.points).toBe(Math.round(row.weekRAfter as number) - 1200);
   });
 
-  it('falls back to the legacy reason for a row stored before 0034: award unknown', () => {
-    const rows = tenRows(() => ({ foldP: null, baseMuAfter: null, award: null, ratedGamesBefore: null }));
-    expect(rowReason(game(rows), 'p3')).toMatchObject({ basis: 'legacy', award: 'unknown' });
+  it('is null for a row the track did not fold, and the all-time clause is null on a weekly-only row', () => {
+    const game = storedGame();
+    const weeklyOnly: BreakdownGame = {
+      ...game,
+      rows: game.rows.map((row) => ({
+        ...row,
+        rBefore: null,
+        rAfter: null,
+        k: null,
+        foldP: null,
+        ratedGamesBefore: null,
+      })),
+    };
+    expect(rowReason(weeklyOnly, 'r1')).toBeNull();
+    expect(rowReason(weeklyOnly, 'r1', 'week')?.allTime).toBeNull();
+    expect(rowReason(game, 'nobody')).toBeNull();
   });
 
-  it('says only the lead for an old row missing a before', () => {
-    const rows = tenRows((index) =>
-      index === 9
-        ? { sigmaBefore: null, foldP: null, baseMuAfter: null, award: null, ratedGamesBefore: null }
-        : { foldP: null, baseMuAfter: null, award: null, ratedGamesBefore: null },
-    );
-    expect(rowReason(game(rows), 'p1')).toMatchObject({ basis: 'lead-only', result: 'won' });
+  it('a game with no performance score: share 1 and no award, whatever the award column says', () => {
+    const game = storedGame();
+    const unscored: BreakdownGame = {
+      ...game,
+      rows: game.rows.map((row) => ({ ...row, shareRank: null, award: 'none' })),
+    };
+    expect(rowReason(unscored, 'r1')?.parts).toMatchObject({ shareRank: null, share: 1, award: 'none' });
   });
 
-  it('is null for a row with no change (unrated, ARAM)', () => {
-    const rows = tenRows(() => ({
-      muBefore: null,
-      muAfter: null,
-      foldP: null,
-      baseMuAfter: null,
-      award: null,
-    }));
-    expect(rowReason(game(rows), 'p0')).toBeNull();
-  });
-
-  it('logs and explains as legacy a stored breakdown core refuses', () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-    // An award of none with a bonus in it: not something the fold writes.
-    const rows = tenRows((index) => (index === 0 ? { baseMuAfter: 24.3 } : {}));
-    expect(rowReason(game(rows), 'p0')).toMatchObject({ basis: 'legacy' });
-    expect(logged).toHaveBeenCalledTimes(1);
-    logged.mockRestore();
+  it('logs and leaves unexplained a stored row core refuses', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const game = storedGame();
+    const broken: BreakdownGame = { ...game, rows: game.rows.map((row) => ({ ...row, shareRank: 9 })) };
+    expect(rowReason(broken, 'r1')).toBeNull();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 
-describe('resultOdds (M14.59)', () => {
-  it('shows one number when the bot s odds and the rating s round to the same percent', () => {
-    const rows = tenRows();
-    const p = ratingBlueWinProb(rows) as number;
-    const odds = resultOdds(game(rows, p + 0.001));
-    expect(odds).toMatchObject({ differ: false, reason: null });
-    expect(odds?.botBluePct).toBe(odds?.ratingBluePct);
-  });
-
-  it('names both, because new players start at 1200, when one of the ten was new', () => {
-    const seed = provisionalSeed();
-    const rows = tenRows((index) =>
-      index === 2 ? { muBefore: seed.mu, sigmaBefore: seed.sigma, ratedGamesBefore: 0 } : {},
-    );
-    // The bot rated the newcomer from their rank at the roll: a different number.
-    const odds = resultOdds(game(rows, 0.57));
-    expect(odds).toMatchObject({ botBluePct: 57, differ: true, reason: 'new-players' });
-    expect(odds?.ratingBluePct).not.toBe(57);
-    expect(odds?.pointsBluePct).toBe(odds?.ratingBluePct);
-  });
-
-  it('says ratings moved since the roll when nobody was new', () => {
-    const odds = resultOdds(game(tenRows(), 0.9));
-    expect(odds).toMatchObject({ botBluePct: 90, differ: true, reason: 'ratings-moved' });
-  });
-
-  it('recognises a newcomer on a legacy row by the 1200 seed', () => {
-    const seed = provisionalSeed();
-    const rows = tenRows((index) => ({
-      foldP: null,
-      baseMuAfter: null,
-      award: null,
-      ratedGamesBefore: null,
-      ...(index === 7 ? { muBefore: seed.mu, sigmaBefore: seed.sigma } : {}),
-    }));
-    expect(resultOdds(game(rows, 0.99))).toMatchObject({ differ: true, reason: 'new-players' });
-  });
-
-  it('uses the rating s number on a game the bot did not pick', () => {
-    const odds = resultOdds(game(tenRows(), null));
-    expect(odds).toMatchObject({ botBluePct: null, differ: false, reason: null });
-    expect(odds?.pointsBluePct).toBe(odds?.ratingBluePct);
-  });
-
-  it('is the bot s number alone for an unrated game, and null with neither', () => {
-    const unrated = tenRows(() => ({
-      muBefore: null,
-      muAfter: null,
-      foldP: null,
-      baseMuAfter: null,
-      award: null,
-    }));
-    expect(resultOdds(game(unrated, 0.55))).toMatchObject({
-      botBluePct: 55,
-      ratingBluePct: null,
-      differ: false,
+describe('resultOdds (M14.59, M18.6)', () => {
+  it('reads the rating number off the stored fold_p of the blue rows', () => {
+    const game = storedGame();
+    const p = ratingBlueWinProb(game.rows);
+    expect(p).toBe(game.rows.find((row) => row.side === 100)?.foldP);
+    expect(resultOdds(game)).toMatchObject({
+      botBluePct: 43,
+      ratingBluePct: Math.round((p as number) * 100),
+      pointsBluePct: Math.round((p as number) * 100),
     });
-    expect(resultOdds(game(unrated, null))).toBeNull();
   });
 
-  /** Acceptance 4: the explanation's percent equals the result line's rating percent. */
-  it('agrees with the explanation s percent on every row of a stored game', () => {
-    const rows = tenRows();
-    const odds = resultOdds(game(rows, 0.3));
-    for (const row of rows) {
-      const reason = rowReason(game(rows, 0.3), row.playerId);
-      if (reason?.basis !== 'stored') throw new Error('expected a stored reason');
-      const sidePct = row.side === 100 ? odds?.ratingBluePct : 100 - (odds?.ratingBluePct as number);
-      expect(reason.odds.pct).toBe(sidePct);
-    }
+  it('names both only on an OpenSkill roll whose percent differs (a game rolled before the switch)', () => {
+    const game = storedGame();
+    const rating = Math.round((ratingBlueWinProb(game.rows) as number) * 100);
+    expect(resultOdds({ ...game, botBlueWinProb: 0.2 })?.differ).toBe(rating !== 20);
+    expect(resultOdds({ ...game, botBlueWinProb: 0.2, botOddsModel: 'kustom' })?.differ).toBe(false);
+    expect(resultOdds({ ...game, botBlueWinProb: rating / 100 })?.differ).toBe(false);
+  });
+
+  it('uses the bot number when the fold has none, and is null with neither', () => {
+    const game = storedGame();
+    const unfolded: BreakdownGame = {
+      ...game,
+      rows: game.rows.map((row) => ({ ...row, rAfter: null, foldP: null })),
+    };
+    expect(resultOdds(unfolded)).toMatchObject({ ratingBluePct: null, pointsBluePct: 43, differ: false });
+    expect(resultOdds({ ...unfolded, botBlueWinProb: null })).toBeNull();
+  });
+});
+
+describe('the columns', () => {
+  it('reads no OpenSkill column', () => {
+    expect(BREAKDOWN_COLUMNS).not.toMatch(/mu_|sigma|base_mu/);
+  });
+
+  it('maps a raw row, an absent column as null', () => {
+    const row = toBreakdownRow({ player_id: 'p', side: 200 } as Parameters<typeof toBreakdownRow>[0]);
+    expect(row).toMatchObject({ playerId: 'p', side: 200, rAfter: null, shareRank: null, weekRAfter: null });
   });
 });

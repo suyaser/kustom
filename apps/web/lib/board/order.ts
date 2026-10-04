@@ -3,7 +3,7 @@ import type { BoardRow } from './types';
 
 /**
  * The board's order (M3.5; one Rating since M14.15, STRATEGY §5): **descending Rating** on All
- * time, **descending net points** on a week (M14.57), the number printed on the row, so reading the
+ * time, **descending week points** on a week (M18.6), the number printed on the row, so reading the
  * column top to bottom never goes up (the audit found a 1361 below a 1287 when the board sorted on
  * a number it did not print).
  *
@@ -16,7 +16,7 @@ import type { BoardRow } from './types';
 
 /**
  * The board's comparator. A week row (`track: 'week'`) is ranked by {@link compareWeekRows}; an
- * all-time row by Rating, then the unrounded mu (`sortKey`), then the name a reader sees, then the
+ * all-time row by Rating, then the unrounded all-time r (`sortKey`), then the name a reader sees, then the
  * puuid (so two nameless `Someone`s keep one order between renders).
  */
 export function compareBoardRows(a: BoardRow, b: BoardRow): number {
@@ -30,9 +30,9 @@ export function compareBoardRows(a: BoardRow, b: BoardRow): number {
 }
 
 /**
- * The week boards' order (M14.57, decision row 2026-10-04): **net points**; then more wins; then
+ * The week boards' order (M14.57, M18.6): **week points** (`round(weekly R) − 1200`); then more wins; then
  * fewer games (the same points in fewer games); then the higher all-time Rating (printed, then the
- * unrounded mu); then the display name A to Z; then the puuid. Stable, never random.
+ * unrounded r); then the display name A to Z; then the puuid. Stable, never random.
  */
 export function compareWeekRows(a: BoardRow, b: BoardRow): number {
   return (
@@ -78,7 +78,7 @@ export function parseBoardSort(value: string | string[] | undefined): BoardSort 
 }
 
 /**
- * One section re-sorted for the select. `rating` is the board's own order (net points on a week). `games` is most games
+ * One section re-sorted for the select. `rating` is the board's own order (week points on a week). `games` is most games
  * first; `winrate` is the best win rate first, more games breaking a tie. Both fall back to the
  * board's order, so a tie never shuffles.
  */

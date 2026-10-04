@@ -31,9 +31,9 @@ export default async function KitYouPage({
   const base = workedPlayer('Hana', {
     name: 'TheSHADOWREAPER',
     recent: [
-      workedRecentGame({ gameId: 'g3', won: true, side: 200, muBefore: 23.2, muAfter: 23.9, award: 'mvp' }),
+      workedRecentGame({ gameId: 'g3', won: true, side: 200, rBefore: 1392, rAfter: 1434, award: 'mvp' }),
       workedRecentGame({ gameId: 'g2', blueWinProb: null, pickRank: null, ratingsBefore: null }),
-      workedRecentGame({ gameId: 'g1', won: true, side: 200, muBefore: 22.6, muAfter: 23.2, pickRank: 2 }),
+      workedRecentGame({ gameId: 'g1', won: true, side: 200, rBefore: 1356, rAfter: 1392, pickRank: 2 }),
     ],
   });
   const player =

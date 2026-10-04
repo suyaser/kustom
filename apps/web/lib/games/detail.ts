@@ -103,7 +103,7 @@ export async function loadGameDetail(
 
   const puuidOf = (playerId: string): string => players.get(playerId)?.puuid ?? `id:${playerId}`;
   const aram = matchesQueue(gameModeFromRaw(game.raw), 'aram');
-  const rated = rows.every((row) => row.muAfter !== null);
+  const rated = rows.every((row) => row.rAfter !== null);
 
   const statsGame: StatsGame = {
     id: game.id,
@@ -118,8 +118,8 @@ export async function loadGameDetail(
       puuid: puuidOf(row.playerId),
       side: row.side,
       role: row.role,
-      muBefore: row.muBefore,
-      muAfter: row.muAfter,
+      rBefore: row.rBefore,
+      rAfter: row.rAfter,
       championId: row.championId,
       kills: row.kills,
       deaths: row.deaths,
@@ -149,9 +149,9 @@ export async function loadGameDetail(
         return {
           ...seat,
           delta:
-            aram || row === undefined || row.muBefore === null || row.muAfter === null
+            aram || row === undefined || row.rBefore === null || row.rAfter === null
               ? null
-              : displayDelta(row.muBefore, row.muAfter),
+              : displayDelta(row.rBefore, row.rAfter),
           isViewer: options.viewerPuuid !== null && seat.puuid === options.viewerPuuid,
         };
       }),
@@ -165,8 +165,6 @@ export async function loadGameDetail(
     seats: rows.map((row) => ({
       puuid: puuidOf(row.playerId),
       side: row.side,
-      muBefore: row.muBefore,
-      sigmaBefore: row.sigmaBefore,
       rBefore: row.rBefore,
     })),
     splits: run,

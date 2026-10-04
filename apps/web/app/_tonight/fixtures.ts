@@ -453,7 +453,7 @@ export function tonightStateFixture(
                   ? lobby.result
                   : {
                       ...lobby.result,
-                      // A not-rated game moved nobody: no mu on any row, as ingest leaves it.
+                      // A not-rated game moved nobody: no Rating on any row, as ingest leaves it.
                       ...(rated
                         ? {}
                         : {
@@ -461,10 +461,10 @@ export function tonightStateFixture(
                             award: null,
                             blue: lobby.result.blue.map((seat) => ({
                               ...seat,
-                              muBefore: null,
-                              muAfter: null,
+                              rBefore: null,
+                              rAfter: null,
                             })),
-                            red: lobby.result.red.map((seat) => ({ ...seat, muBefore: null, muAfter: null })),
+                            red: lobby.result.red.map((seat) => ({ ...seat, rBefore: null, rAfter: null })),
                           }),
                       // A Normal or Fearless game switched to not rated has no rule and no check.
                       stamp:

@@ -32,11 +32,13 @@ export interface ScoreRow {
   visionScore: number | null;
   damageSelfMitigated: number | null;
   damageToObjectives: number | null;
-  muBefore: number | null;
-  sigmaBefore: number | null;
-  muAfter: number | null;
-  /** `r_before` (0036): the pre-game odds of a split-less game since M18.5 (the rest is M18.6's). */
+  /**
+   * The all-time Kustom Ratings around the game (`r_before`, `r_after`, 0036), unrounded: the
+   * printed change, the "did the fold rate it" mark, and the pre-game odds of a split-less game.
+   * `null` on a game the all-time track did not rate.
+   */
   rBefore: number | null;
+  rAfter: number | null;
 }
 
 export async function readScoreRows(client: PublicClient, gameIds: readonly string[]): Promise<ScoreRow[]> {
@@ -45,7 +47,7 @@ export async function readScoreRows(client: PublicClient, gameIds: readonly stri
     client
       .from('game_players')
       .select(
-        'game_id, player_id, side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, r_before',
+        'game_id, player_id, side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, r_before, r_after',
       )
       .in('game_id', chunk),
   )) {
@@ -67,10 +69,8 @@ export async function readScoreRows(client: PublicClient, gameIds: readonly stri
         visionScore: row.vision_score,
         damageSelfMitigated: row.damage_self_mitigated,
         damageToObjectives: row.damage_to_objectives,
-        muBefore: row.mu_before,
-        sigmaBefore: row.sigma_before,
-        muAfter: row.mu_after,
         rBefore: row.r_before,
+        rAfter: row.r_after,
       });
     }
   }
@@ -211,15 +211,18 @@ export async function readGroupCalibration(client: PublicClient, groupId: string
   }
 
   const rift = games.filter((game) => !game.aram);
-  const chosen = new Map<string, Pick<StoredSplit, 'blue' | 'red' | 'blueWinProb'>>();
+  const chosen = new Map<string, NonNullable<CalibrationCandidate['chosen']>>();
   for (const { data, error } of await mapChunks(
     rift.map((game) => game.lobbyId),
     (chunk) =>
       client
         .from('splits')
-        .select('lobby_id, blue, red, blue_win_prob')
+        .select('lobby_id, blue, red, blue_win_prob, odds_model')
         .in('lobby_id', chunk)
-        .eq('is_chosen', true),
+        .eq('is_chosen', true)
+        // M18.6: only odds made by the function the line checks (`winProbability`) count, so the
+        // line restarts at `0 of 20` at the switch (05-design 11.7).
+        .eq('odds_model', 'kustom'),
   )) {
     if (error) throw new Error(`games: calibration split lookup failed: ${error.message}`);
     for (const row of data ?? []) {
@@ -227,6 +230,7 @@ export async function readGroupCalibration(client: PublicClient, groupId: string
         blue: readAssignments(row.blue),
         red: readAssignments(row.red),
         blueWinProb: row.blue_win_prob,
+        oddsModel: row.odds_model === 'kustom' ? 'kustom' : 'openskill',
       });
     }
   }
@@ -235,13 +239,13 @@ export async function readGroupCalibration(client: PublicClient, groupId: string
   const seatsByGame = new Map<string, { playerId: string; side: 100 | 200; rated: boolean }[]>();
   for (const { data, error } of await mapChunks(
     candidates.map((game) => game.id),
-    (chunk) => client.from('game_players').select('game_id, player_id, side, mu_after').in('game_id', chunk),
+    (chunk) => client.from('game_players').select('game_id, player_id, side, r_after').in('game_id', chunk),
   )) {
     if (error) throw new Error(`games: calibration seat lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.side !== 100 && row.side !== 200) continue;
       const seats = seatsByGame.get(row.game_id) ?? [];
-      seats.push({ playerId: row.player_id, side: row.side, rated: row.mu_after !== null });
+      seats.push({ playerId: row.player_id, side: row.side, rated: row.r_after !== null });
       seatsByGame.set(row.game_id, seats);
     }
   }
@@ -262,8 +266,7 @@ export async function readGroupCalibration(client: PublicClient, groupId: string
         // An id no `players_public` row names cannot match a split's puuid, so the game drops out.
         puuid: players.get(seat.playerId)?.puuid ?? `id:${seat.playerId}`,
         side: seat.side,
-        muBefore: null,
-        sigmaBefore: null,
+        rBefore: null,
       })),
       chosen: chosen.get(game.lobbyId) ?? null,
     };

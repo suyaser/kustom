@@ -1,6 +1,6 @@
-import type { DeltaReason, KustomBefore } from '@customs/core';
+import type { KustomBefore } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
-import type { ResultOdds } from '../breakdown/read';
+import type { KustomReason, ResultOdds } from '../breakdown/read';
 import type { WindowKind } from '../night';
 import type { PlayerName } from '../tonight/types';
 
@@ -12,21 +12,20 @@ import type { PlayerName } from '../tonight/types';
  * **`BoardRow` does cross the wire** (M3.19): the tonight page's rail renders the board's first
  * five through a client component, so every field is a string, a number, a boolean or `null`.
  *
- * **Numbers are display numbers, deltas are not.** `rating` is `displayRating(mu)` from core, the
- * same integer every embed prints. A rating *change* is carried as the two mu values it comes from
- * and turned into a delta where it is rendered (`displayDelta`): `-0` does not survive a
+ * **Numbers are display numbers, deltas are not.** `rating` is `displayKustom(r)` from core (M18.6),
+ * the same integer every embed prints. A rating *change* is carried as the two unrounded Ratings it
+ * comes from and turned into a delta where it is rendered (`displayDelta`): `-0` does not survive a
  * `JSON.stringify`.
  */
 
 /**
- * What a row is ranked on. There is one rating track (M14.57 retired the weekly one); this says
- * which **board** the row belongs to.
+ * What a row is ranked on, and so which Kustom track it reads (M18.6).
  *
- * - `all-time`: ranked on Rating, the stored fold (`ratings`). Ranked rows and a settling section
+ * - `all-time`: ranked on the all-time Rating (`ratings.r`). Ranked rows and a settling section
  *   (M14.15).
- * - `week`: `This week` / `Last week`, ranked on **net points**: the sum of the printed all-time
- *   deltas of the player's rated games in the window (M14.57). One list, no settling section; the
- *   row still carries the all-time settling chip ({@link BoardRow.settlingChip}).
+ * - `week`: `This week` / `Last week`, ranked on **week points**, `round(weekly R) − 1200`, where the
+ *   weekly R is the player's last `week_r_after` in the week (M18). One list, no settling section;
+ *   the row still carries the all-time settling chip ({@link BoardRow.settlingChip}).
  */
 export type RatingTrack = 'all-time' | 'week';
 
@@ -43,19 +42,19 @@ export interface BoardRow {
   /** Which board the row is on, and so what it is ranked on (M14.57). Never a mix. */
   track: RatingTrack;
   /**
-   * Net points in the window (M14.57): the sum of `displayDelta` over the player's rated games in
-   * it (`sumDisplayDeltas`), on `This week` / `Last week`; the week board's sorted number, printed
-   * signed (`+86`, a net zero `+0`). `null` on `All time`.
+   * Week points (M18.6): `round(weekly R) − 1200` on `This week` / `Last week`, the week board's
+   * sorted number, printed signed (`+36`, `±0`). It equals the sum of the week's printed weekly
+   * changes, because every week starts at exactly 1200. `null` on `All time`.
    */
   points: number | null;
   /**
-   * The unrounded `mu` behind {@link BoardRow.rating}: the tie-break under equal printed Ratings,
-   * so the printed column never goes up as you read down it. **Never printed.**
+   * The unrounded all-time `r` behind {@link BoardRow.rating}: the tie-break under equal printed
+   * Ratings, so the printed column never goes up as you read down it. **Never printed.**
    */
   sortKey: number;
   /**
-   * `displayRating(mu)` of the player's **current** all-time rating on every window: All time's
-   * sorted number, and the week board's fourth tie-break (M14.57).
+   * `displayKustom(ratings.r)`, the player's **current** all-time Rating on every window: All
+   * time's sorted number, and the week board's fourth tie-break.
    */
   rating: number;
   /** The **window's** counted games (on `All time`, `ratings.games`). */
@@ -68,9 +67,9 @@ export interface BoardRow {
    */
   ratedGames: number;
   /**
-   * What the history did to their rating, as the two mu values (`displayDelta` at render): on
-   * `All time` the seed the history started from to today's rating. `null` on a week, whose change
-   * is {@link BoardRow.points} (a sum of printed rows, not one mu difference, M14.57).
+   * What the history did to their Rating, as two unrounded Ratings (`displayDelta` at render): on
+   * `All time` from the 1200 every Rating starts at to today's. `null` on a week, whose change is
+   * {@link BoardRow.points}.
    */
   climb: Climb | null;
   /**
@@ -92,10 +91,10 @@ export interface BoardRow {
   awards: readonly string[];
 }
 
-/** The two mu values a change is computed from. */
+/** The two unrounded Ratings a change is computed from. */
 export interface Climb {
-  muBefore: number;
-  muAfter: number;
+  rBefore: number;
+  rAfter: number;
 }
 
 export interface BoardView {
@@ -103,7 +102,7 @@ export interface BoardView {
   window: WindowKind;
   /**
    * The rows, in the board's order (`lib/board/order.ts`): on the all-time track the ranked rows
-   * by Rating and then the settling rows by Rating; on a week one list by net points (M14.57).
+   * by Rating and then the settling rows by Rating; on a week one list by week points (M18.6).
    */
   rows: BoardRow[];
   /**
@@ -158,9 +157,18 @@ export interface RecentGame {
   winningSide: SideValue;
   /** The player's own role in this game, from the scoreboard. */
   role: RoleValue | null;
-  /** The two mu values the delta is computed from, at render. `null` on an unrated game. */
-  muBefore: number | null;
-  muAfter: number | null;
+  /**
+   * The all-time Ratings around this game (`r_before`, `r_after`), unrounded; the delta is
+   * computed at render. `null` on a game the all-time track did not rate.
+   */
+  rBefore: number | null;
+  rAfter: number | null;
+  /**
+   * The weekly Ratings around this game (`week_r_before`, `week_r_after`), unrounded: a week tab
+   * prints this game's **weekly** change (05-design 11.5). `null` on a game the week did not rate.
+   */
+  weekRBefore: number | null;
+  weekRAfter: number | null;
   /** `mvp`, `ace`, or `null` (M7.10). */
   award: RecentAward | null;
   /**
@@ -181,15 +189,15 @@ export interface RecentGame {
   /** The five on the player's own side, lane order, this player among them. */
   team: RecentTeammate[];
   /**
-   * Why this game moved their Rating by as much as it did (M14.58): core's structured reason from
-   * the fold's stored breakdown (`basis: 'stored'`), or from the stored befores for a game stored
-   * before `0034` (`legacy`, award `unknown`; `lead-only` when a before is missing). `null` on an
-   * unrated game. The web renders the words (tap-to-explain, after M15.5 / M16.4).
+   * Why this game moved their Rating by as much as it did (M14.58, Kustom since M18.6): core's
+   * `explainKustomDelta` parts from the stored row, **on the page's track** (the weekly change on a
+   * week tab, with the all-time clause; the all-time change on `All time`). `null` on a game that
+   * track did not rate.
    */
-  reason?: DeltaReason | null;
+  reason?: KustomReason | null;
   /**
-   * The result line's odds (M14.59): the bot's split odds and the rating's, whether they round
-   * differently, and why. `null` with neither number.
+   * The result line's odds (M14.59): the bot's split odds and the rating's, and whether the line
+   * names both (only on a game rolled before the M18 switch). `null` with neither number.
    */
   odds?: ResultOdds | null;
 }
@@ -207,13 +215,13 @@ export interface PlayerBoardView {
   /** Which board this page is a lens on (M14.57). */
   track: RatingTrack;
   /**
-   * `displayRating(mu)` of their **current** all-time rating, on every window: there is no week's
-   * Rating any more (M14.57). The seed for somebody never rated.
+   * `displayKustom(ratings.r)`, their **current** all-time Rating, on every window. 1200 for
+   * somebody never rated.
    */
   rating: number;
   /**
-   * Net points in the window, the number their week-board row prints (`+86 this week`), or
-   * `null` on `All time`. A week they did not play is `0`.
+   * Week points, the number their week-board row prints (`+36 this week`), or `null` on `All
+   * time`. A week they did not play is `0`.
    */
   points: number | null;
   /** The window's counted games. `All time` is the fold's own total. */
@@ -232,15 +240,22 @@ export interface PlayerBoardView {
    */
   rank: number | null;
   /**
-   * The chart's reference line: the seed on `All time` (`Started at 1200`), the all-time rating
-   * carried into the window on a week (their first game's `mu_before` there; the seed with none).
+   * The chart's reference line (05-design 11.2): 1200 on `All time` (`Start 1200`), 0 on a week
+   * (`Week start`).
    */
   reference: number;
   /**
-   * The all-time `Rating` series in `started_at` order, oldest first, over the window's rated
-   * games. Empty for no games.
+   * The chart's series in `started_at` order, oldest first, over the window's rated games: the
+   * all-time Rating on `All time` (from the first game's Rating before), **week points** on a week
+   * (from 0, then `round(week_r_after) − 1200` after each game; 05-design 11.2). Empty for no games.
    */
   history: number[];
+  /**
+   * On a week tab whose {@link recent} lists every rated game of the week: the sum of their printed
+   * weekly changes (05-design 11.5's `Week total` row), which equals {@link points} by construction.
+   * `null` on `All time`, or on a week with more games than the list shows.
+   */
+  weekTotal?: number | null;
   /** The window's newest games, rated or not, newest first (at most `RECENT_GAMES`). */
   recent: RecentGame[];
 }

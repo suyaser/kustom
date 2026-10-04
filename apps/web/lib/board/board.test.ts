@@ -1,4 +1,4 @@
-import { displayRating, SETTLING_GAMES } from '@customs/core';
+import { displayKustom, SETTLING_GAMES } from '@customs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { inChunks } from '../chunks';
 import { SETTLING_FOOTER } from '../discord/embeds';
@@ -155,10 +155,10 @@ describe('the copy product owns (M14.15, STRATEGY §5)', () => {
  * loader's `played` array and not this function.
  */
 describe('which games the recent list shows', () => {
-  const game = (day: number, muAfter: number | null) => ({
+  const game = (day: number, rAfter: number | null) => ({
     id: `game-${day}`,
     startedAt: `2026-09-0${day}T20:00:00.000Z`,
-    muAfter,
+    rated: rAfter !== null,
   });
 
   it('takes the newest five of six, newest first, unrated among them', () => {
@@ -179,7 +179,7 @@ describe('which games the recent list shows', () => {
       'game-3',
       'game-2',
     ]);
-    // In date order, with its `mu_after` still null: the row is what says so, not a filter.
+    // In date order, with its `r_after` still null: the row is what says so, not a filter.
     expect(recentGames(six, 5).map(isRated)).toEqual([true, true, true, false, true]);
   });
 
@@ -436,21 +436,21 @@ describe('the window a page is read through', () => {
  * `lib/ratingDisplay.ts` here rather than recomputed, which is the acceptance check.
  */
 describe('what a window did to a row', () => {
-  it('is the two displayed ratings subtracted, never the raw mu difference', () => {
-    const climb = workedWindowRows('all-time')[0]?.climb as { muBefore: number; muAfter: number };
+  it('is the two displayed Ratings subtracted, never the raw difference', () => {
+    const climb = workedWindowRows('all-time')[0]?.climb as { rBefore: number; rAfter: number };
 
-    expect(displayDelta(climb.muBefore, climb.muAfter)).toBe(58);
-    expect(formatWebDelta(displayDelta(climb.muBefore, climb.muAfter))).toBe('+58');
+    expect(displayDelta(climb.rBefore, climb.rAfter)).toBe(58);
+    expect(formatWebDelta(displayDelta(climb.rBefore, climb.rAfter))).toBe('+58');
     // The rule, spelled out: round both, then subtract.
-    expect(displayDelta(climb.muBefore, climb.muAfter)).toBe(
-      displayRating(climb.muAfter) - displayRating(climb.muBefore),
+    expect(displayDelta(climb.rBefore, climb.rAfter)).toBe(
+      displayKustom(climb.rAfter) - displayKustom(climb.rBefore),
     );
   });
 
   it('keeps a week that lost less than half a point pointing down', () => {
-    // `-0` is a real value on this row and it is why the pair of mu values travels instead of
+    // `-0` is a real value on this row and it is why the pair of Ratings travels instead of
     // a formatted string: `JSON.stringify` would turn it into `0` and print `+0`.
-    expect(formatWebDelta(displayDelta(23.9, 23.896))).toBe('−0');
+    expect(formatWebDelta(displayDelta(1434.2, 1434.1))).toBe('−0');
   });
 
   it('prints the window line, games and record', () => {
@@ -463,7 +463,7 @@ describe('what a window did to a row', () => {
   /** The sort is Rating on every window, never who climbed most in it. */
   it('does not reorder a window by who climbed most in it', () => {
     const rows = workedWindowRows();
-    const climber = { ...(rows.at(-1) as (typeof rows)[number]), climb: { muBefore: 20, muAfter: 26 } };
+    const climber = { ...(rows.at(-1) as (typeof rows)[number]), climb: { rBefore: 1200, rAfter: 1560 } };
     const sorted = sortBoardRows([climber, ...rows.slice(0, -1)]);
 
     // Yuki climbed 360 display points and is still last, because Rating is what sorts.

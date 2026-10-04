@@ -1,33 +1,35 @@
 import { randomUUID } from 'node:crypto';
-import { displayRating } from '@customs/core';
 import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { kustomSeat } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * **The week boards rank by net points** (M14.57, rewritten from M7.3's weekly-track file), against
- * the Supabase CLI local stack.
+ * **The week boards rank by week points** (M14.57, Kustom since M18.6), against the Supabase CLI
+ * local stack.
  *
- * `This week` and `Last week` sum each player's **printed all-time deltas** over the window's rated
- * games (`displayDelta(mu_before, mu_after)` per row) and rank on that sum, with product's
- * tie-break: net points, more wins, fewer games, higher all-time Rating, name A to Z. What this file
- * proves, and a unit test cannot, is that the loader reads the rows the board counts, through RLS
- * and the anon key, that the player page on every tab prints the same delta for the same game, and
+ * `This week` and `Last week` rank on each player's **weekly Rating**, printed as
+ * `round(weekly R) − 1200` from their last `week_r_after` of the week, with product's tie-break:
+ * points, more wins, fewer games, higher all-time Rating, name A to Z. What this file proves, and a
+ * unit test cannot, is that the loader reads the rows the board counts, through RLS and the anon
+ * key, that the week's points equal the sum of that week's printed weekly changes for every row
+ * (M18.6 acceptance), that a week tab prints the weekly pair and All time the all-time pair, and
  * that an unrated game adds nothing.
  *
  * **The fixture is ten players over three rated games and one ARAM this week, one game last week.**
- * Every row's `mu` pair is written by hand in display units (`n / 60`), so the expected numbers are
- * stated here rather than computed by the code under test:
+ * Every row's Ratings are written by hand, so the expected numbers are stated here rather than
+ * computed by the code under test. The weekly track starts every week at 1200:
  *
  * - `Pia` and `Quinn` tie on points (+35), wins and games; Pia's all-time Rating is higher.
  * - `Amy` and `Zed` tie on everything but the name (−35, same Rating): Amy first.
- * - `Sol` is settling (3 rated games) and **does not chain**: a reset sits between game 1 and game 2,
- *   so his rows sum to +90 while his first-to-last `mu` difference is only +10. The rows win.
- * - `Nell` nets exactly zero: `+0`.
+ * - `Sol` is settling (3 rated games) and his **all-time** chain does not chain: a reset sits
+ *   between game 1 and game 2, so his all-time first-to-last difference is only +10. The weekly
+ *   track ignores the reset (M18.5), so his week is +90, the sum of his weekly changes.
+ * - `Nell` nets exactly zero: `±0`.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -97,13 +99,12 @@ if (stack === null) {
   ];
 
   const puuidOf = (name: string) => `it-${runId}-${name.toLowerCase()}`;
-  const mu = (display: number) => display / 60;
   const WINNERS = [100, 200, 100] as const;
   const THIS_WEEK_AT = ['2026-03-09T19:00:00Z', '2026-03-10T19:00:00Z', '2026-03-11T19:00:00Z'];
   const ARAM_AT = '2026-03-11T20:00:00Z';
   const LAST_WEEK_AT = '2026-03-03T19:00:00Z';
 
-  /** Each seat's three `mu` pairs, in display units, chained unless the seat resets. */
+  /** Each seat's three all-time pairs, chained unless the seat resets. */
   function pairsOf(seat: Seat): { before: number; after: number }[] {
     const pairs: { before: number; after: number }[] = [];
     let at = seat.start;
@@ -115,9 +116,29 @@ if (stack === null) {
     return pairs;
   }
 
-  /** The contract, stated here: net points are the sum of the printed per-game deltas. */
+  /** Each seat's three weekly pairs: from 1200, chained through any all-time reset (M18.5). */
+  function weekPairsOf(seat: Seat): { before: number; after: number }[] {
+    let at = 1200;
+    return seat.deltas.map((delta) => {
+      const pair = { before: at, after: at + delta };
+      at += delta;
+      return pair;
+    });
+  }
+
+  /** The contract, stated here: week points are the sum of the printed weekly changes. */
   const expectedPoints = (seat: Seat): number =>
-    pairsOf(seat).reduce((sum, pair) => sum + displayDelta(mu(pair.before), mu(pair.after)), 0);
+    weekPairsOf(seat).reduce((sum, pair) => sum + displayDelta(pair.before, pair.after), 0);
+
+  /** One row's rating columns: the all-time pair and the weekly pair, both by hand (0036). */
+  const columns = (all: { before: number; after: number }, week: { before: number; after: number }) => ({
+    ...kustomSeat(all.before, all.after, null),
+    week_r_before: week.before,
+    week_r_after: week.after,
+    week_k: 16,
+    week_fold_p: 0.5,
+    week_games_before: 0,
+  });
 
   /** Product's order, stated here: points, wins, fewer games, Rating, name. */
   const EXPECTED_ORDER = ['Sol', 'Rhea', 'Pia', 'Quinn', 'Vik', 'Nell', 'Tam', 'Amy', 'Zed', 'Ugo'];
@@ -137,8 +158,9 @@ if (stack === null) {
       SEATS.map((seat) => ({
         group_id: ORIGINAL_GROUP_ID,
         player_id: ids.get(puuidOf(seat.name)) as string,
-        mu: mu(seat.stored),
+        mu: seat.stored / 60,
         sigma: 5,
+        r: seat.stored,
         games: seat.games,
         wins: Math.floor(seat.games / 2),
       })),
@@ -150,7 +172,7 @@ if (stack === null) {
       index: number,
       startedAt: string,
       winningSide: 100 | 200,
-      rows: (seat: Seat, seatIndex: number) => { mu_before: number | null; mu_after: number | null },
+      rows: (seat: Seat, seatIndex: number) => Record<string, number | string | null>,
       aram = false,
     ) => {
       const { data: game, error: gameError } = await db
@@ -184,19 +206,22 @@ if (stack === null) {
     };
 
     // Last week: one rated game, blue wins, twelve points a seat either way.
-    await insertGame(0, LAST_WEEK_AT, 100, (seat, seatIndex) => ({
-      mu_before: mu(seat.start - 100),
-      mu_after: mu(seat.start - 100 + (seatIndex < 5 ? 12 : -12)),
-    }));
+    await insertGame(0, LAST_WEEK_AT, 100, (seat, seatIndex) =>
+      columns(
+        { before: seat.start - 100, after: seat.start - 100 + (seatIndex < 5 ? 12 : -12) },
+        { before: 1200, after: 1200 + (seatIndex < 5 ? 12 : -12) },
+      ),
+    );
     // This week: three rated games.
     for (const [index, at] of THIS_WEEK_AT.entries()) {
       await insertGame(index + 1, at, WINNERS[index] as 100 | 200, (seat) => {
         const pair = pairsOf(seat)[index] as { before: number; after: number };
-        return { mu_before: mu(pair.before), mu_after: mu(pair.after) };
+        const week = weekPairsOf(seat)[index] as { before: number; after: number };
+        return columns(pair, week);
       });
     }
     // And an ARAM: never rated, so it adds nothing and counts in neither W nor L.
-    await insertGame(4, ARAM_AT, 100, () => ({ mu_before: null, mu_after: null }), true);
+    await insertGame(4, ARAM_AT, 100, () => ({}), true);
   });
 
   afterAll(async () => {
@@ -214,8 +239,8 @@ if (stack === null) {
   const seatOf = (puuid: string) => SEATS.find((seat) => puuidOf(seat.name) === puuid) as Seat;
 
   describe('net points', () => {
-    /** Acceptance 2, first half: each row's number is the sum of its printed per-game deltas. */
-    it('is the sum of each player s printed all-time deltas in the week', async () => {
+    /** Acceptance (M18.6): each row's number is the sum of its printed weekly changes. */
+    it('is round(weekly R) − 1200, the sum of each player s printed weekly changes in the week', async () => {
       const board = await loadBoard(anon, THIS_WEEK);
       const rows = mine(board.rows);
       expect(rows).toHaveLength(SEATS.length);
@@ -232,15 +257,15 @@ if (stack === null) {
       }
     });
 
-    it('lets the rows win for a player whose games do not chain, and prints a net zero as +0', async () => {
+    it('ignores an all-time reset inside the week, and prints a net zero as 0', async () => {
       const rows = mine((await loadBoard(anon, THIS_WEEK)).rows);
       const sol = rows.find((row) => row.puuid === puuidOf('Sol'));
       const nell = rows.find((row) => row.puuid === puuidOf('Nell'));
 
       expect(sol?.points).toBe(90);
-      // One mu difference from his first game to his last would have said +10.
+      // His all-time chain restarted between game 1 and game 2: first to last there is only +10.
       const pairs = pairsOf(seatOf(puuidOf('Sol')));
-      expect(displayDelta(mu(pairs[0]?.before ?? 0), mu(pairs[2]?.after ?? 0))).toBe(10);
+      expect(displayDelta(pairs[0]?.before ?? 0, pairs[2]?.after ?? 0)).toBe(10);
       expect(Object.is(nell?.points, 0)).toBe(true);
     });
 
@@ -282,8 +307,11 @@ if (stack === null) {
         window === 'all-time' ? ALL_TIME : window === 'this-week' ? THIS_WEEK : LAST_WEEK,
       );
 
-    /** Acceptance 3: the same game prints the same delta on All time, This week and Last week. */
-    it('prints the same delta for the same game on every tab', async () => {
+    /**
+     * M18.6: a week tab lists each game with its weekly pair (and its all-time pair, the one the
+     * All time tab prints), and its printed weekly changes add up to the week's points.
+     */
+    it('lists the week s games with both pairs, and the weekly changes sum to the points', async () => {
       for (const seat of SEATS) {
         const [all, thisWeek, lastWeek] = await Promise.all([
           page(seat.name, 'all-time'),
@@ -296,8 +324,17 @@ if (stack === null) {
         for (const game of weekGames) {
           const same = byGame.get(game.gameId);
           expect(same).toBeDefined();
-          expect([game.muBefore, game.muAfter]).toEqual([same?.muBefore, same?.muAfter]);
+          expect([game.rBefore, game.rAfter]).toEqual([same?.rBefore, same?.rAfter]);
         }
+        for (const tab of [thisWeek, lastWeek]) {
+          const sum = (tab?.recent ?? []).reduce(
+            (total, game) => total + displayDelta(game.weekRBefore ?? 0, game.weekRAfter ?? 0),
+            0,
+          );
+          expect(sum).toBe(tab?.points);
+          expect(tab?.weekTotal).toBe(tab?.points);
+        }
+        expect(thisWeek?.points).toBe(expectedPoints(seat));
       }
     });
 
@@ -319,7 +356,7 @@ if (stack === null) {
 
     it('is All time with no points on the all-time tab', async () => {
       const player = await page('Pia', 'all-time');
-      expect(player).toMatchObject({ track: 'all-time', points: null, rating: displayRating(mu(1535)) });
+      expect(player).toMatchObject({ track: 'all-time', points: null, rating: 1535 });
     });
   });
 

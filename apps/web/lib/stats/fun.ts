@@ -1309,7 +1309,7 @@ function mostPicked(plays: readonly Play[]): FunSection<FunChampRow> {
  * every time (movement scales with `sigma`) and would come out differently after every rebuild.
  * A stored probability names the night instead, and `rebuild-ratings` cannot touch it.
  *
- * Nothing below reads `muBefore` or `muAfter`. It reads results, so an unrated game — an ARAM
+ * Nothing below reads `rBefore` or `rAfter`. It reads results, so an unrated game — an ARAM
  * night, a backfilled custom the fold has not folded — is as eligible as any other, provided its
  * lobby stored a chosen split. Most do not, which is why the section is thin and says so.
  * ------------------------------------------------------------------------- */

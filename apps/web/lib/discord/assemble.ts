@@ -1,12 +1,4 @@
-import {
-  type Assignment,
-  displayKustom,
-  displayRating,
-  isOffRole,
-  type Mode,
-  type Role,
-  resolveRoles,
-} from '@customs/core';
+import { type Assignment, displayKustom, isOffRole, type Mode, type Role, resolveRoles } from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { type RuleCheck, ruleCheckSchema, ruleModeOf } from '@customs/db/schemas';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
@@ -122,7 +114,7 @@ export function buildTeamsInput(
         puuid,
         name: names.get(puuid) ?? null,
         role,
-        // M18.5: the all-time Kustom Rating the balancer read (M18.6 owns the rest of this file).
+        // The all-time Kustom Rating the balancer read (M18.5, M18.6).
         rating: displayKustom(member.r),
         // Core's rule, not a copy of it: the scorer, the explanation and this line agree
         // about who is off-role because all three ask the same function.
@@ -187,8 +179,8 @@ export interface ResultSourcePlayer {
   /** What the two columns print: the scoreboard's role, or the stored split's as a fallback. */
   role: Role | null;
   damage: number;
-  muBefore: number | null;
-  muAfter: number | null;
+  rBefore: number | null;
+  rAfter: number | null;
   /**
    * The stat line the performance score is computed from, straight off `game_players` (M7.10).
    *
@@ -212,8 +204,8 @@ export function buildResultInput(source: ResultSource, context: EmbedContext): R
   if (!source.rated) return buildNotRatedInput(source, context);
 
   const rated = source.players.filter(
-    (player): player is ResultSourcePlayer & { muBefore: number; muAfter: number } =>
-      player.muBefore !== null && player.muAfter !== null,
+    (player): player is ResultSourcePlayer & { rBefore: number; rAfter: number } =>
+      player.rBefore !== null && player.rAfter !== null,
   );
   if (rated.length !== source.players.length || rated.length === 0) return null;
 
@@ -221,9 +213,9 @@ export function buildResultInput(source: ResultSource, context: EmbedContext): R
     puuid: player.puuid,
     name: player.name,
     role: player.role,
-    rating: displayRating(player.muAfter),
+    rating: displayKustom(player.rAfter),
     // The one delta rule, from the one shared helper (M3.3).
-    delta: displayDelta(player.muBefore, player.muAfter),
+    delta: displayDelta(player.rBefore, player.rAfter),
   });
 
   return {
@@ -296,7 +288,7 @@ function topDamage(source: ResultSource): { name: PlayerName; damage: number } |
  * - **The game is not a clean rated ten.** `gatedGameAward` runs `gateGame` first, because
  *   core's `mvpAce` *throws* on anything that is not five a side with ten distinct puuids and a
  *   500 here would cost the whole result post. This is reached only for a game whose ten rows
- *   all carry `mu_before` and `mu_after` — the caller checked — which is what rules out a
+ *   all carry `r_before` and `r_after` — the caller checked — which is what rules out a
  *   remake, a short surrender and an ARAM (M7.1: four null rating columns, for ever).
  * - **The game cannot be scored.** Any of the nine numbers missing for any of the ten, or any
  *   of the ten roles: core returns `null` and the post loses the line and keeps everything else.
@@ -372,7 +364,7 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
   const { data: rows, error: playerError } = await client
     .from('game_players')
     .select(
-      'side, role, kills, deaths, assists, damage_to_champs, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, mu_after, players!inner(puuid, display_name, game_name)',
+      'side, role, kills, deaths, assists, damage_to_champs, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, r_before, r_after, players!inner(puuid, display_name, game_name)',
     )
     .eq('game_id', gameId);
   if (playerError) throw new Error(`discord: game_players lookup failed: ${playerError.message}`);
@@ -393,8 +385,8 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
       // that fallback — see {@link ResultSourcePlayer.stats}.
       role: row.role ?? splitRoles.roles.get(row.players.puuid) ?? null,
       damage: row.damage_to_champs,
-      muBefore: row.mu_before,
-      muAfter: row.mu_after,
+      rBefore: row.r_before,
+      rAfter: row.r_after,
       stats: {
         role: row.role,
         kills: row.kills,

@@ -213,7 +213,7 @@ export interface TeamsPlayer {
   puuid: string;
   name: PlayerName;
   role: Role;
-  /** `displayRating(mu)`, already rounded by core. */
+  /** `displayKustom(r)`, already rounded by core (M18.6). */
   rating: number;
   /** Not on a main role in this split (core's `isOffRole`). */
   offRole: boolean;
@@ -294,9 +294,9 @@ export interface ResultPlayer {
   name: PlayerName;
   /** `null` when neither the scoreboard nor the split says where they played. */
   role: Role | null;
-  /** `displayRating(muAfter)`; `null` on a game played not rated (M15.6), whose line has no number. */
+  /** `displayKustom(rAfter)`; `null` on a game played not rated (M15.6), whose line has no number. */
   rating: number | null;
-  /** `displayRating(muAfter) - displayRating(muBefore)`, from `displayDelta`; `null` with `rating`. */
+  /** `round(rAfter) - round(rBefore)`, from `displayDelta`; `null` with `rating`. */
   delta: number | null;
 }
 
@@ -347,7 +347,7 @@ export interface ResultEmbedInput {
 export interface LeaderboardEntry {
   puuid: string;
   name: PlayerName;
-  /** **`Rating`, `round(mu * 60)`**, the all-time track's (M14.10, STRATEGY §5). */
+  /** **`Rating`, `round(r)`**, the all-time Kustom track's (M14.10, M18.6). */
   rating: number;
   /** The window's counted games. */
   games: number;

@@ -1,4 +1,4 @@
-import { balance, displayRating, isOffRole, type Role, rateGame } from '@customs/core';
+import { balance, displayKustom, isOffRole, type Role, rateGameKustom } from '@customs/core';
 import type { StoredSplit } from '@/components/receipt/types';
 import { EMPTY_FEARLESS } from '../fearless/types';
 import type {
@@ -20,8 +20,8 @@ import { WORKED_ROSTER, workedBalance, workedPuuid } from './workedExample';
  * comparable line for line with the embed snapshot and with `docs/05-design.md`.
  *
  * Nothing is hand-computed: the split, the explanation and the off-role marker come from
- * `balance()` and core's `isOffRole`, the ratings from `displayRating`, and the result's after
- * ratings from `rateGame`.
+ * `balance()` and core's `isOffRole`, the ratings from `displayKustom`, and the result's after
+ * Ratings from `rateGameKustom` (M18.6).
  */
 
 /**
@@ -41,7 +41,7 @@ export function workedMembers(count = WORKED_ROSTER.length): MemberView[] {
     isSpectator: false,
     // Long enough ago that the three-second "just joined" marker is off by default.
     joinedAt: JOINED_LONG_AGO,
-    rating: displayRating(player.mu),
+    rating: displayKustom(player.r),
     // Everybody in the worked example is a regular: well past settling (M14.9).
     ratedGames: 40,
     // **Nobody has been placed by default** (M4.11). A lobby that has just been balanced is a
@@ -160,7 +160,10 @@ export function seatedOnTheirSides(
   return { ...teams, blue: seat(teams.blue, 100), red: seat(teams.red, 200) };
 }
 
-/** The worked example played out: red wins, and every after rating is `rateGame`'s. */
+/**
+ * The worked example played out: red wins, and every after Rating is `rateGameKustom`'s, all ten
+ * settled (`n` 10, K 16) with no performance score (every share 1).
+ */
 export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
   const teams = workedTeams();
   const byPuuid = new Map(WORKED_ROSTER.map((player) => [workedPuuid(player.name), player]));
@@ -168,11 +171,18 @@ export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
     seats.map((seat) => {
       const player = byPuuid.get(seat.puuid);
       if (player === undefined) throw new Error(`workedResult: ${seat.puuid} is not in the roster`);
-      return { mu: player.mu, sigma: player.sigma, r: player.r };
+      return { puuid: seat.puuid, r: player.r };
     });
 
   const before = { blue: ratingsOf(teams.blue), red: ratingsOf(teams.red) };
-  const after = rateGame(before.blue, before.red, 200);
+  const folded = rateGameKustom({
+    players: [
+      ...before.blue.map((one) => ({ ...one, side: 100 as const, n: 10, score: null })),
+      ...before.red.map((one) => ({ ...one, side: 200 as const, n: 10, score: null })),
+    ],
+    winningSide: 200,
+  });
+  const afterOf = new Map(folded.map((row) => [row.puuid, row.rAfter]));
 
   const seatsOf = (seats: readonly SeatView[], side: 100 | 200): ResultSeatView[] =>
     seats.map((seat, index) => ({
@@ -180,11 +190,9 @@ export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
       name: seat.name,
       role: seat.role,
       side,
-      muBefore: (side === 100 ? before.blue : before.red)[index]?.mu ?? null,
-      muAfter: (side === 100 ? after.blue : after.red)[index]?.mu ?? null,
-      sigmaBefore: (side === 100 ? before.blue : before.red)[index]?.sigma ?? null,
-      // M18.5: the all-time Kustom Rating going in, the one the balancer rolled these teams on.
+      // The all-time Kustom Rating going in, the one the balancer rolled these teams on (M18.5).
       rBefore: (side === 100 ? before.blue : before.red)[index]?.r ?? null,
+      rAfter: afterOf.get(seat.puuid) ?? null,
     }));
 
   return {
@@ -216,7 +224,7 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
     roleOverride: null,
     isSpectator: false,
     joinedAt: JOINED_LONG_AGO,
-    rating: displayRating(player.mu),
+    rating: displayKustom(player.r),
     ratedGames: 40,
     side: null,
   }));

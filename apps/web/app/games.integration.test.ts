@@ -156,6 +156,8 @@ if (stack === null) {
         rank: 1,
         is_chosen: true,
         blue_win_prob: p,
+        // A roll made after the M18 switch: only these count in the calibration line (M18.6).
+        odds_model: 'kustom',
         gap: 40,
         off_role_count: 0,
         blue: assign(blue),
@@ -169,6 +171,7 @@ if (stack === null) {
         rank: 2,
         is_chosen: false,
         blue_win_prob: 0.57,
+        odds_model: 'kustom',
         gap: 90,
         off_role_count: 0,
         blue: assign([red[0] as number, ...blue.slice(1)]),

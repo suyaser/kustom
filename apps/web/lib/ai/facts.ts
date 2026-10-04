@@ -426,11 +426,11 @@ export interface WeekFactsInput {
   /** Rated games in the week, as the Sunday post counts them. */
   ratedGames: number;
   /**
-   * The closed week's board, best first, as the Sunday post prints it (ranked by net points since
-   * M14.57). No Rating: the week post prints none (M16.5).
+   * The closed week's board, best first, as the Sunday post prints it (ranked by week points since
+   * M18.6, `round(weekly R) − 1200`). No Rating: the week post prints none (M16.5).
    */
   board: { playerId: string; games: number; wins: number }[];
-  /** Net points in the week (the board's sorted number, M14.57). Only positive ones become facts. */
+  /** Week points (the board's sorted number, `round(weekly R) − 1200`, M18.6). Only positive ones become facts. */
   climbs: { playerId: string; climb: number }[];
   /** Longest win streaks of the week (3 or more become facts). */
   streaks: { playerId: string; wins: number }[];
@@ -793,8 +793,7 @@ export async function loadGameFactsInput(
     seats: rows.map((row) => ({
       puuid: row.playerId,
       side: row.side,
-      muBefore: row.muBefore,
-      sigmaBefore: row.sigmaBefore,
+      rBefore: row.rBefore,
     })),
     splits: game.lobby_id === null ? [] : (runs.get(game.lobby_id) ?? []),
   });

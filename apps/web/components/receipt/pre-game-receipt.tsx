@@ -27,7 +27,7 @@ import { WinBar } from './win-bar';
  * A game with no usable split (STRATEGY §4.10): backfilled, played without a roll, or whose
  * teams changed in the lobby after the roll.
  *
- * The odds are core's `preGameOdds` over everyone's `mu_before` / `sigma_before`: no gap, no
+ * The odds are core's `preGameOdds` over everyone's all-time `r_before` (M18.5): no gap, no
  * off-role, no pick number, because none of it exists. Any rating missing and there are no
  * odds: the receipt hides and only `No odds for this game.` is said.
  *

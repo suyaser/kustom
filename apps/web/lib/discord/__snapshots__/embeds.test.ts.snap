@@ -143,20 +143,20 @@ Top damage: Lena, 47.3k.
     },
     {
       "color": 3054591,
-      "description": "\`top\` **Hana** · 1393 (-41)
-\`jungle\` **Iris** · 1531 (-47)
-\`mid\` **Karim** · 1508 (-43)
-\`adc\` **Bilal** · 1668 (-45)
-\`support\` **Theo** · 1372 (-47)",
+      "description": "\`top\` **Hana** · 1425 (-9)
+\`jungle\` **Iris** · 1569 (-9)
+\`mid\` **Karim** · 1542 (-9)
+\`adc\` **Bilal** · 1704 (-9)
+\`support\` **Theo** · 1410 (-9)",
       "title": "🟦 BLUE",
     },
     {
       "color": 16739125,
-      "description": "\`top\` **Omar** · 1510 (+41)
-\`jungle\` **Rami** · 1683 (+45)
-\`mid\` **Nadia** · 1316 (+50)
-\`adc\` **Lena** · 2127 (+39)
-\`support\` **Yuki** · 1182 (+48)",
+      "description": "\`top\` **Omar** · 1478 (+9)
+\`jungle\` **Rami** · 1647 (+9)
+\`mid\` **Nadia** · 1275 (+9)
+\`adc\` **Lena** · 2097 (+9)
+\`support\` **Yuki** · 1143 (+9)",
       "title": "🟥 RED",
     },
   ],
@@ -166,21 +166,21 @@ Top damage: Lena, 47.3k.
 
 exports[`resultEmbed, the worked example lost by the favourite > prints new rating and signed delta, one line per player, joined by a no-break space > blue lines 1`] = `
 [
-  "\`top\` **Hana** · 1393 (-41)",
-  "\`jungle\` **Iris** · 1531 (-47)",
-  "\`mid\` **Karim** · 1508 (-43)",
-  "\`adc\` **Bilal** · 1668 (-45)",
-  "\`support\` **Theo** · 1372 (-47)",
+  "\`top\` **Hana** · 1425 (-9)",
+  "\`jungle\` **Iris** · 1569 (-9)",
+  "\`mid\` **Karim** · 1542 (-9)",
+  "\`adc\` **Bilal** · 1704 (-9)",
+  "\`support\` **Theo** · 1410 (-9)",
 ]
 `;
 
 exports[`resultEmbed, the worked example lost by the favourite > prints new rating and signed delta, one line per player, joined by a no-break space > red lines 1`] = `
 [
-  "\`top\` **Omar** · 1510 (+41)",
-  "\`jungle\` **Rami** · 1683 (+45)",
-  "\`mid\` **Nadia** · 1316 (+50)",
-  "\`adc\` **Lena** · 2127 (+39)",
-  "\`support\` **Yuki** · 1182 (+48)",
+  "\`top\` **Omar** · 1478 (+9)",
+  "\`jungle\` **Rami** · 1647 (+9)",
+  "\`mid\` **Nadia** · 1275 (+9)",
+  "\`adc\` **Lena** · 2097 (+9)",
+  "\`support\` **Yuki** · 1143 (+9)",
 ]
 `;
 

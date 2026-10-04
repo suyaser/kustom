@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -215,6 +216,7 @@ if (stack === null) {
         sigma_before: 5,
         mu_after: 25,
         sigma_after: 5,
+        ...kustomSeat(rOf(25), rOf(25)),
       }));
 
     const all = (rows ?? []).flatMap((row) => {
@@ -248,13 +250,22 @@ if (stack === null) {
       return { mu_before: null, sigma_before: null, mu_after: null, sigma_after: null };
     }
     if (key !== 'pn0') {
-      return { mu_before: 25, sigma_before: 5, mu_after: 25, sigma_after: 5 };
+      return {
+        mu_before: 25,
+        sigma_before: 5,
+        mu_after: 25,
+        sigma_after: 5,
+        ...kustomSeat(rOf(25), rOf(25)),
+      };
     }
+    const before = index === 0 ? 21.1 : 24.4;
+    const after = index === NIGHT.length - 1 ? 24.6333333 : 24.4;
     return {
-      mu_before: index === 0 ? 21.1 : 24.4,
+      mu_before: before,
       sigma_before: 5,
-      mu_after: index === NIGHT.length - 1 ? 24.6333333 : 24.4,
+      mu_after: after,
       sigma_after: 5,
+      ...kustomSeat(rOf(before), rOf(after), rOf(21.1)),
     };
   }
 

@@ -19,7 +19,7 @@ function weekRow(name: string, over: Partial<BoardRow> = {}): BoardRow {
     name,
     track: 'week',
     points: 0,
-    sortKey: 25,
+    sortKey: 1500,
     rating: 1500,
     games: 5,
     wins: 3,
@@ -36,14 +36,14 @@ function weekRow(name: string, over: Partial<BoardRow> = {}): BoardRow {
 const order = (rows: BoardRow[]) => sortBoardRows(rows).map((row) => row.name);
 
 describe('sumDisplayDeltas', () => {
-  it('is the sum of the printed deltas, not one rounded mu difference', () => {
-    // Each game moves 0.009 mu (0.54 display): printed 1, 0, 1 from these starting points.
+  it('is the sum of the printed deltas, not one rounded difference', () => {
+    // Each game moves 0.54 points: printed 1, 0, 1 from these starting points.
     const pairs = [
-      { muBefore: 25.0, muAfter: 25.009 },
-      { muBefore: 25.009, muAfter: 25.018 },
-      { muBefore: 25.018, muAfter: 25.027 },
+      { rBefore: 1500, rAfter: 1500.54 },
+      { rBefore: 1500.54, rAfter: 1501.08 },
+      { rBefore: 1501.08, rAfter: 1501.62 },
     ];
-    const rows = pairs.map((pair) => displayDelta(pair.muBefore, pair.muAfter));
+    const rows = pairs.map((pair) => displayDelta(pair.rBefore, pair.rAfter));
     expect(sumDisplayDeltas(pairs)).toBe(rows.reduce((a, b) => a + b, 0));
   });
 
@@ -51,24 +51,24 @@ describe('sumDisplayDeltas', () => {
     expect(
       Object.is(
         sumDisplayDeltas([
-          { muBefore: 25, muAfter: 25.5 },
-          { muBefore: 25.5, muAfter: 25 },
+          { rBefore: 1500, rAfter: 1530 },
+          { rBefore: 1530, rAfter: 1500 },
         ]),
         0,
       ),
     ).toBe(true);
-    expect(Object.is(sumDisplayDeltas([{ muBefore: 25, muAfter: 24.999 }]), 0)).toBe(true);
+    expect(Object.is(sumDisplayDeltas([{ rBefore: 1500, rAfter: 1499.94 }]), 0)).toBe(true);
     expect(sumDisplayDeltas([])).toBeNull();
   });
 
   it('lets the rows win when the games do not chain (a reset or an unrebuilt backfill between them)', () => {
     const pairs = [
-      { muBefore: 25, muAfter: 26 },
+      { rBefore: 1500, rAfter: 1560 },
       // The next game starts somewhere else: a reset between them.
-      { muBefore: 20, muAfter: 20.5 },
+      { rBefore: 1200, rAfter: 1230 },
     ];
     expect(sumDisplayDeltas(pairs)).toBe(60 + 30);
-    expect(sumDisplayDeltas(pairs)).not.toBe(displayDelta(25, 20.5));
+    expect(sumDisplayDeltas(pairs)).not.toBe(displayDelta(1500, 1230));
   });
 });
 
@@ -96,8 +96,8 @@ describe('the week board order (M14.57 tie-break)', () => {
   it('then by the higher all-time Rating', () => {
     expect(
       order([
-        weekRow('A', { points: 40, rating: 1400, sortKey: 23.3 }),
-        weekRow('B', { points: 40, rating: 1520, sortKey: 25.3 }),
+        weekRow('A', { points: 40, rating: 1400, sortKey: 1398 }),
+        weekRow('B', { points: 40, rating: 1520, sortKey: 1518 }),
       ]),
     ).toEqual(['B', 'A']);
   });
@@ -118,14 +118,14 @@ describe('the week board order (M14.57 tie-break)', () => {
   });
 
   it('still orders All time rows by Rating', () => {
-    const a = weekRow('A', { track: 'all-time', points: null, rating: 1600, sortKey: 26.7 });
-    const b = weekRow('B', { track: 'all-time', points: null, rating: 1500, sortKey: 25 });
+    const a = weekRow('A', { track: 'all-time', points: null, rating: 1600, sortKey: 1602 });
+    const b = weekRow('B', { track: 'all-time', points: null, rating: 1500, sortKey: 1500 });
     expect([b, a].sort(compareBoardRows).map((row) => row.name)).toEqual(['A', 'B']);
   });
 
   it('prints the number it sorts on: rowChange is the points on a week, the climb on All time', () => {
     expect(rowChange(weekRow('A', { points: 86 }))).toBe(86);
-    expect(rowChange({ points: null, climb: { muBefore: 23.9, muAfter: 24.87 } })).toBe(58);
+    expect(rowChange({ points: null, climb: { rBefore: 1434, rAfter: 1492.2 } })).toBe(58);
   });
 });
 
@@ -166,8 +166,8 @@ function nightGame(
         damage_to_objectives: 3_000,
         damage_to_champs: 15_000,
         champion_id: 145,
-        mu_before: i === 0 ? mine.before : 25,
-        mu_after: i === 0 ? mine.after : won ? 25.6 : 24.4,
+        r_before: i === 0 ? mine.before : 1500,
+        r_after: i === 0 ? mine.after : won ? 1536 : 1464,
       };
     }),
   };
@@ -182,8 +182,10 @@ function recent(id: string, at: string, mine: { before: number; after: number })
     side: 100,
     winningSide: mine.after > mine.before ? 100 : 200,
     role: 'top',
-    muBefore: mine.before,
-    muAfter: mine.after,
+    rBefore: mine.before,
+    rAfter: mine.after,
+    weekRBefore: null,
+    weekRAfter: null,
     award: null,
     blueWinProb: null,
     pickRank: null,
@@ -211,24 +213,24 @@ describe('Your night and the Tonight tile agree', () => {
 
   it('both equal the sum of the night s printed rows when the games chain', () => {
     const { night, tile, rows } = both([
-      { id: 'g1', at: '2026-10-03T18:00:00Z', before: 25, after: 25.509 },
-      { id: 'g2', at: '2026-10-03T19:00:00Z', before: 25.509, after: 25.018 },
-      { id: 'g3', at: '2026-10-03T20:00:00Z', before: 25.018, after: 25.527 },
+      { id: 'g1', at: '2026-10-03T18:00:00Z', before: 1500, after: 1530.54 },
+      { id: 'g2', at: '2026-10-03T19:00:00Z', before: 1530.54, after: 1501.08 },
+      { id: 'g3', at: '2026-10-03T20:00:00Z', before: 1501.08, after: 1531.62 },
     ]);
     expect(night).toBe(rows);
     expect(tile).toBe(rows);
   });
 
-  it('both follow the rows, not one mu difference, when the games do not chain', () => {
+  it('both follow the rows, not one difference, when the games do not chain', () => {
     const games = [
-      { id: 'g1', at: '2026-10-03T18:00:00Z', before: 25, after: 26 },
+      { id: 'g1', at: '2026-10-03T18:00:00Z', before: 1500, after: 1560 },
       // Not chained: the second game starts from a reset.
-      { id: 'g2', at: '2026-10-03T19:00:00Z', before: 20, after: 20.5 },
+      { id: 'g2', at: '2026-10-03T19:00:00Z', before: 1200, after: 1230 },
     ];
     const { night, tile, rows } = both(games);
     expect(rows).toBe(90);
     expect(night).toBe(90);
     expect(tile).toBe(90);
-    expect(tile).not.toBe(displayDelta(25, 20.5));
+    expect(tile).not.toBe(displayDelta(1500, 1230));
   });
 });

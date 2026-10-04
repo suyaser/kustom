@@ -12,10 +12,8 @@ import type { RatingsBefore, StoredSplit } from '@/components/receipt/types';
 export interface ReceiptSeat {
   puuid: string;
   side: 100 | 200;
-  muBefore: number | null;
-  sigmaBefore: number | null;
   /** The all-time Kustom Rating going in (`r_before`, 0036): what the pre-game odds read (M18.5). */
-  rBefore?: number | null;
+  rBefore: number | null;
 }
 
 export type GameReceipt =
@@ -74,7 +72,7 @@ export function chosenOf(splits: readonly StoredSplit[]): StoredSplit | null {
 
 function ratingsBeforeOf(seats: readonly ReceiptSeat[]): RatingsBefore {
   const of = (side: 100 | 200): KustomBefore[] =>
-    seats.filter((seat) => seat.side === side).map((seat) => ({ r: seat.rBefore ?? null }));
+    seats.filter((seat) => seat.side === side).map((seat) => ({ r: seat.rBefore }));
   return { blue: of(100), red: of(200) };
 }
 
@@ -109,11 +107,14 @@ export function gameReceiptOf(input: {
 export interface CalibrationCandidate {
   aram: boolean;
   winningSide: 100 | 200;
-  /** Every row has `mu_after`: the fold rated it. */
+  /** Every row has `r_after`: the all-time fold rated it. */
   rated: boolean;
   seats: readonly ReceiptSeat[];
-  /** The chosen split's sides and odds, or `null` with no chosen split. */
-  chosen: Pick<StoredSplit, 'blue' | 'red' | 'blueWinProb'> | null;
+  /**
+   * The chosen split's sides, odds and odds model (`splits.odds_model`, 0036), or `null` with no
+   * chosen split. Absent `oddsModel` reads as `openskill`.
+   */
+  chosen: (Pick<StoredSplit, 'blue' | 'red' | 'blueWinProb'> & { oddsModel?: 'openskill' | 'kustom' }) | null;
 }
 
 /**
@@ -121,9 +122,12 @@ export interface CalibrationCandidate {
  * a rated Summoner's Rift game with a chosen split whose odds are not exactly 50/50 and whose ten
  * played on the split's sides. Pre-game odds never count: the bot computed those afterwards.
  * Every group game counts, whatever the page's filters say; a rating reset does not wipe them.
+ * **Only Kustom rolls count** (M18.6): the line checks `winProbability`'s odds, so a split rolled
+ * with OpenSkill is not one of its calls, and the line restarts at `0 of 20` at the switch.
  */
 export function calibrationGameOf(game: CalibrationCandidate): CalibrationGame | null {
   if (game.aram || !game.rated || game.chosen === null) return null;
+  if (game.chosen.oddsModel !== 'kustom') return null;
   const p = game.chosen.blueWinProb;
   if (!Number.isFinite(p) || p < 0 || p > 1 || p === 0.5) return null;
   if (!teamsMatchSplit(game.chosen, game.seats)) return null;

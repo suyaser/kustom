@@ -27,7 +27,7 @@ import {
  * loader: what the picture can show is what RLS lets a stranger read, and the public board
  * already shows all of it.
  *
- * - The board: `loadBoard` on `last-week` (net points, W–L, the settling chip, and the roster's
+ * - The board: `loadBoard` on `last-week` (week points, W–L, the settling chip, and the roster's
  *   same-name labels, so a name reads as it does on the board).
  * - The awards: `loadStats`' closed-week blocks, the Sunday post's own lines.
  * - Records: `loadFunFacts` over all time; a group best whose game was this week is NEW.
@@ -91,7 +91,7 @@ interface WeekSeat {
   player_id: string;
   role: RoleValue | null;
   champion_id: number | null;
-  mu_after: number | null;
+  week_r_after: number | null;
 }
 
 interface WeekGame {
@@ -129,13 +129,15 @@ export async function loadWeekNotes(
 
   const rolesByPuuid = new Map<string, (RoleValue | null)[]>();
   for (const { seat } of seats) {
-    if (seat.mu_after === null) continue;
+    if (seat.week_r_after === null) continue;
     const puuid = puuidOf.get(seat.player_id);
     if (puuid === undefined) continue;
     rolesByPuuid.set(puuid, [...(rolesByPuuid.get(puuid) ?? []), seat.role]);
   }
 
-  const counted = games.filter((game) => asSeats(game.game_players).some((seat) => seat.mu_after !== null));
+  const counted = games.filter((game) =>
+    asSeats(game.game_players).some((seat) => seat.week_r_after !== null),
+  );
   const nights = new Set(
     counted.map((game) => civilDayKey(nightStart(new Date(game.started_at), timeZone), timeZone)),
   );
@@ -193,7 +195,7 @@ async function readWeekGames(client: PublicClient, groupId: string, week: WeekBo
   const { data, error } = await client
     .from('games')
     .select(
-      'id, started_at, rated, mode, rule, rule_class_tag, rule_region_blue, rule_region_red, raw->gameMode, game_players(player_id, role, champion_id, mu_after)',
+      'id, started_at, rated, mode, rule, rule_class_tag, rule_region_blue, rule_region_red, raw->gameMode, game_players(player_id, role, champion_id, week_r_after)',
     )
     .eq('group_id', groupId)
     .gte('started_at', week.start.toISOString())
@@ -271,7 +273,7 @@ async function readFirstNights(
   const firstGame = new Map<string, string>();
   for (const game of games) {
     for (const seat of asSeats(game.game_players)) {
-      if (seat.mu_after !== null && !firstGame.has(seat.player_id))
+      if (seat.week_r_after !== null && !firstGame.has(seat.player_id))
         firstGame.set(seat.player_id, game.started_at);
     }
   }

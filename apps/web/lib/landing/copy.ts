@@ -1,4 +1,4 @@
-import { displayRating, provisionalSeed, SETTLING_GAMES } from '@customs/core';
+import { KUSTOM_START, SETTLING_GAMES } from '@customs/core';
 import { ADMIN_PRE_ROLL_POWERS, type Rich } from '../receipt/copy';
 import { RELEASE_ASSET } from '../release';
 
@@ -7,12 +7,12 @@ import { RELEASE_ASSET } from '../release';
  * (M14.24). Verbatim from redesign/STRATEGY.md §1 and §2.3 where it exists; everything else is
  * listed as [NEW COPY] in the task report for the user's review.
  *
- * No number here is formatted by hand: the starting rating is core's `displayRating` of core's
- * `provisionalSeed`, and the settling count is core's `SETTLING_GAMES`.
+ * No number here is formatted by hand: the starting rating is core's `KUSTOM_START`
+ * (M18.6), and the settling count is core's `SETTLING_GAMES`.
  */
 
 /** What every new player's number is, as the board prints it (1200 today). */
-export const START_RATING = displayRating(provisionalSeed().mu);
+export const START_RATING = KUSTOM_START;
 
 /* --------------------------------------------------------------------------------------------
  * The landing page (STRATEGY §2.3), section by section.

@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -112,7 +113,7 @@ if (stack === null) {
       gameIds.push(gameId);
 
       /**
-       * Every seat is **rated** — `mu_after` written — because a window's board counts the games
+       * Every seat is **rated** — `r_after` and `week_r_after` written — because a window's board counts the games
        * the fold counted, and a row with none is on no board to badge. The numbers themselves
        * are flat: the weekly track is folded from the seeds at read time (M7.3, M7.4).
        */
@@ -126,6 +127,7 @@ if (stack === null) {
           sigma_before: 8.333,
           mu_after: 25,
           sigma_after: 8.333,
+          ...kustomSeat(rOf(25), rOf(25)),
         })),
       );
     }

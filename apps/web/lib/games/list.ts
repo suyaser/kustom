@@ -448,8 +448,6 @@ export function gameListItemOf(
     seats: seats.map(({ row, puuid }) => ({
       puuid,
       side: row.side,
-      muBefore: row.muBefore,
-      sigmaBefore: row.sigmaBefore,
       rBefore: row.rBefore,
     })),
     splits: run,
@@ -474,9 +472,9 @@ export function gameListItemOf(
       kda: kdaLine(row.kills, row.deaths, row.assists),
       won: row.side === game.winningSide,
       delta:
-        game.aram || row.muBefore === null || row.muAfter === null
+        game.aram || row.rBefore === null || row.rAfter === null
           ? null
-          : displayDelta(row.muBefore, row.muAfter),
+          : displayDelta(row.rBefore, row.rAfter),
     });
   };
   if (options.focusPuuid !== null && options.focusPuuid !== options.viewerPuuid)
@@ -492,7 +490,7 @@ export function gameListItemOf(
     aram: game.aram,
     odds,
     // Not rated as the tape says it: no scoreboard row carries a fold.
-    ruleNote: ruleRowNote(game.rule, rows.length > 0 && rows.every((row) => row.muAfter !== null)),
+    ruleNote: ruleRowNote(game.rule, rows.length > 0 && rows.every((row) => row.rAfter !== null)),
     lines,
   };
 }

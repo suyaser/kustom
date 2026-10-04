@@ -1,25 +1,27 @@
 import { randomUUID } from 'node:crypto';
-import { displayRating } from '@customs/core';
+import { displayKustom } from '@customs/core';
 import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type FoldAwardPlayer, gameAward } from '@/lib/ingest/fold';
+import { kustomSeat } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * **The MVP / ACE bonus on a week** (M7.24, rewritten by M14.57), against the Supabase CLI local
- * stack.
+ * **The MVP / ACE share on a week** (M7.24, M14.57, Kustom since M18.6), against the Supabase CLI
+ * local stack.
  *
- * Since M14.57 a week has no fold of its own: its number is the sum of the **stored** all-time
- * deltas, and the all-time fold already applied the bonus when it wrote `mu_after`. So the MVP's
- * week points are the MVP's stored delta, bonus and all, and the week read needs none of the nine
- * stat columns (the weekly fold that did is gone). `/p/[puuid]`'s week tab still names the MVP
- * (M7.10's recent-games award) beside the delta the all-time tab prints for the same game.
+ * The week board reads the weekly track the fold stored (`week_r_after`); the fold already applied
+ * the share when it wrote it. So the MVP's week points are the MVP's stored weekly change, share and
+ * all, and the week read needs none of the nine stat columns. `/p/[puuid]`'s week tab still names
+ * the MVP (M7.10's recent-games award) beside the game's weekly pair, and lists the all-time pair
+ * the all-time tab prints for the same game.
  *
- * **The fixture is one scored game this week**: ten players, every role once a side, all nine
- * stat columns, blue won, with stored `mu` pairs written as the fold would have: +30 for a winner,
- * +38 for the MVP (1.25x, rounded at display), −30 for a loser, −24 for the ACE (0.80x).
+ * **The fixture is one scored game this week**, everyone's first of the week: ten players, every
+ * role once a side, all nine stat columns, blue won, with stored pairs written as the fold would
+ * have. Weekly (1200, K 32, 50%): +16 for a winner, +19 for the MVP (×1.2), −16 for a loser, −13
+ * for the ACE (×0.8). All time (1500, K 16): +8, +10, −8, −6 (the other shares are ×1 here).
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -56,12 +58,12 @@ if (stack === null) {
     if (table !== 'game_players') return builder;
     const select = builder.select.bind(builder);
     (builder as { select: unknown }).select = (columns?: string, ...rest: unknown[]) => {
-      // The board's own read, and only it: `sigma_after` beside the three ids is its spelling.
+      // The board's own read, and only it: the four Rating columns beside the ids are its spelling.
       // The streak and awards reads in `lib/stats` select every stat column on every window and
       // always have — they are not the read this task widened.
       if (
         (columns ?? '').startsWith(
-          'game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after',
+          'game_id, player_id, side, role, r_before, r_after, week_r_before, week_r_after',
         )
       ) {
         selects.push(columns ?? '*');
@@ -83,7 +85,8 @@ if (stack === null) {
   const LAST_WEEK = { window: 'last-week', now: NOW, groupId: ORIGINAL_GROUP_ID } as const;
   const ALL_TIME = { window: 'all-time', groupId: ORIGINAL_GROUP_ID } as const;
 
-  const BEFORE = 25;
+  const BEFORE = 1500;
+  const WEEK_BEFORE = 1200;
   const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
 
   /** Ten seats: blue first, top to support, then red. Every input the score reads, all different. */
@@ -107,14 +110,15 @@ if (stack === null) {
   const AWARD = gameAward(SEATS satisfies FoldAwardPlayer[], WINNER);
   if (AWARD === null) throw new Error('the fixture game must be scorable');
 
-  /** What the all-time fold stored for each seat: the bonus is already in `mu_after`. */
-  const AFTER = (puuid: string, side: 100 | 200): number => {
-    if (puuid === AWARD.mvp) return BEFORE + 37.5 / 60;
-    if (puuid === AWARD.ace) return BEFORE - 24 / 60;
-    return side === WINNER ? BEFORE + 0.5 : BEFORE - 0.5;
-  };
+  /** The share each seat's change carries: the MVP ×1.2, the ACE ×0.8, everyone else ×1 here. */
+  const SHARE = (puuid: string): number => (puuid === AWARD.mvp ? 1.2 : puuid === AWARD.ace ? 0.8 : 1);
+  /** What the fold stored on each track: the share is already in `r_after` / `week_r_after`. */
+  const AFTER = (puuid: string, side: 100 | 200): number =>
+    BEFORE + (side === WINNER ? 8 : -8) * SHARE(puuid);
+  const WEEK_AFTER = (puuid: string, side: 100 | 200): number =>
+    WEEK_BEFORE + (side === WINNER ? 16 : -16) * SHARE(puuid);
   const POINTS = (puuid: string, side: 100 | 200): number =>
-    displayRating(AFTER(puuid, side)) - displayRating(BEFORE);
+    displayKustom(WEEK_AFTER(puuid, side)) - WEEK_BEFORE;
 
   const ids = new Map<string, string>();
   let gameId = '';
@@ -136,8 +140,7 @@ if (stack === null) {
       SEATS.map((seat) => ({
         group_id: ORIGINAL_GROUP_ID,
         player_id: ids.get(seat.puuid) as string,
-        mu: AFTER(seat.puuid, seat.side),
-        sigma: 5,
+        r: AFTER(seat.puuid, seat.side),
         games: 40,
         wins: 20,
       })),
@@ -174,10 +177,14 @@ if (stack === null) {
         vision_score: seat.visionScore,
         damage_self_mitigated: seat.damageSelfMitigated,
         damage_to_objectives: seat.damageToObjectives,
-        mu_before: BEFORE,
-        sigma_before: 5,
-        mu_after: AFTER(seat.puuid, seat.side),
-        sigma_after: 5,
+        ...kustomSeat(BEFORE, AFTER(seat.puuid, seat.side), null, {
+          award: seat.puuid === AWARD.mvp ? 'mvp' : seat.puuid === AWARD.ace ? 'ace' : 'none',
+        }),
+        week_r_before: WEEK_BEFORE,
+        week_r_after: WEEK_AFTER(seat.puuid, seat.side),
+        week_k: 32,
+        week_fold_p: 0.5,
+        week_games_before: 0,
       })),
     );
     expect(seatError).toBeNull();
@@ -196,22 +203,22 @@ if (stack === null) {
     (await loadBoard(anon, options)).rows.find((row) => row.puuid === puuid);
 
   describe('the MVP / ACE bonus on a week', () => {
-    /** The week's points are the stored deltas, so they carry the bonus the fold stored. */
-    it('puts each seat s stored delta, bonus included, on the week board as its points', async () => {
+    /** The week's points are the stored weekly Rating, so they carry the share the fold stored. */
+    it('puts each seat s stored weekly change, share included, on the week board as its points', async () => {
       const board = await loadBoard(anon, THIS_WEEK);
       for (const seat of SEATS) {
         const row = board.rows.find((candidate) => candidate.puuid === seat.puuid);
         expect([seat.puuid, row?.points]).toEqual([seat.puuid, POINTS(seat.puuid, seat.side)]);
       }
-      expect(POINTS(AWARD.mvp, 100)).toBe(38);
-      expect(POINTS(AWARD.ace, 200)).toBe(-24);
+      expect(POINTS(AWARD.mvp, 100)).toBe(19);
+      expect(POINTS(AWARD.ace, 200)).toBe(-13);
     });
 
     /**
-     * `/p/[puuid]` on the week names the MVP and the ACE beside the same pair the all-time tab
-     * prints, and its points are the board row's, to the digit.
+     * `/p/[puuid]` on the week names the MVP and the ACE beside the game's weekly pair, carries the
+     * all-time pair the all-time tab prints, and its points are the board row's, to the digit.
      */
-    it('names the MVP and the ACE on the week tab beside the all-time delta', async () => {
+    it('names the MVP and the ACE on the week tab beside the weekly change', async () => {
       for (const [puuid, award] of [
         [AWARD.mvp, 'mvp'],
         [AWARD.ace, 'ace'],
@@ -223,7 +230,9 @@ if (stack === null) {
         const recent = week?.recent[0];
         expect(recent?.award).toBe(award);
         const same = all?.recent.find((game) => game.gameId === recent?.gameId);
-        expect([recent?.muBefore, recent?.muAfter]).toEqual([same?.muBefore, same?.muAfter]);
+        expect([recent?.rBefore, recent?.rAfter]).toEqual([same?.rBefore, same?.rAfter]);
+        expect(recent?.weekRAfter).toBe(WEEK_AFTER(puuid, award === 'mvp' ? 100 : 200));
+        expect(week?.weekTotal).toBe(week?.points);
         expect(week?.points).toBe((await rowOf(THIS_WEEK, puuid))?.points);
       }
     });

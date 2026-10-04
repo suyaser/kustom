@@ -447,8 +447,8 @@ function notRatedSource(overrides: Partial<ResultSource> = {}): ResultSource {
       side: index < 5 ? 100 : 200,
       role: LANES[index % 5] ?? null,
       damage: 1_000 * (index + 1),
-      muBefore: null,
-      muAfter: null,
+      rBefore: null,
+      rAfter: null,
       stats: NO_STATS,
     })),
     ...overrides,
@@ -478,10 +478,10 @@ describe('buildResultInput, a game played not rated', () => {
     const rated = notRatedSource({
       rated: true,
       rule: { mode: MIRROR, check: lanes(LANES.map(() => [AHRI, AHRI])) },
-      players: notRatedSource().players.map((player) => ({ ...player, muBefore: 25, muAfter: 25.5 })),
+      players: notRatedSource().players.map((player) => ({ ...player, rBefore: 1500, rAfter: 1508.4 })),
     });
     const input = buildResultInput(rated, context);
-    expect(input?.blue[0]?.rating).toBe(1530);
+    expect(input?.blue[0]?.rating).toBe(1508);
     expect(input?.mode).toEqual({ rated: true, rule: rated.rule });
   });
 });

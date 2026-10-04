@@ -145,7 +145,7 @@ const NO_AWARDS: ReadonlyMap<string, RecentAward> = new Map();
  * would throw. The two questions it leaves to its callers are answered here exactly as
  * `recentAward` in `lib/board/load.ts` answers them:
  *
- * - **Did the fold rate it?** Every row carries `mu_after`, or there is no award. A remake, a
+ * - **Did the fold rate it?** Every row carries `r_after`, or there is no award. A remake, a
  *   short surrender, a backfilled game waiting for a rebuild and an ARAM (M7.1) all stop here.
  * - **Can we name all ten?** A row whose player `players_public` did not return has no puuid,
  *   only the id the loader fell back to, so the game has no award rather than a guessed one.
@@ -158,7 +158,7 @@ function seatAwards(
   game: StatsGame,
   roster: ReadonlyMap<string, StatsPlayer>,
 ): ReadonlyMap<string, RecentAward> {
-  if (game.rows.some((row) => row.muAfter === null || !roster.has(row.puuid))) return NO_AWARDS;
+  if (game.rows.some((row) => row.rAfter === null || !roster.has(row.puuid))) return NO_AWARDS;
   const award = gatedGameAward(game.rows.map(toAwardPlayer), game.durationS, game.winningSide);
   if (award === null) return NO_AWARDS;
   return new Map<string, RecentAward>([

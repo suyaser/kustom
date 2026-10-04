@@ -50,7 +50,7 @@ function source(overrides: Partial<TapeSource> = {}): TapeSource {
         gameMode: 'CLASSIC',
       },
     ],
-    gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', mu_before: 25, mu_after: 26 })),
+    gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', r_before: 1500, r_after: 1508 })),
     splits: [{ lobby_id: 'l1', blue, red, blue_win_prob: 0.62 }],
     members: [],
     players: new Map(),
@@ -128,7 +128,7 @@ describe('what a tape row carries', () => {
     const game = source().games[0] as TapeSource['games'][number];
     const tanks = source({
       games: [{ ...game, rule: 'class', rule_class_tag: 'Tank', rule_checked: true }],
-      gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', mu_before: null, mu_after: null })),
+      gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', r_before: null, r_after: null })),
     });
     expect(assembleTape(tanks, CLOCK)[0]?.result).toMatchObject({
       rated: false,
@@ -159,13 +159,13 @@ describe('what a tape row carries', () => {
   it('marks an ARAM by the queue rule /games uses, and never rated', () => {
     const aram = source({
       games: [{ ...source().games[0], gameMode: 'aram' } as TapeSource['games'][number]],
-      gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', mu_before: null, mu_after: null })),
+      gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', r_before: null, r_after: null })),
     });
     expect(assembleTape(aram, CLOCK)[0]?.result).toMatchObject({ aram: true, rated: false });
   });
 
   it('marks a remake unrated: any scoreboard row missing a mu', () => {
-    const rows = source().gamePlayers.map((row, index) => (index === 0 ? { ...row, mu_after: null } : row));
+    const rows = source().gamePlayers.map((row, index) => (index === 0 ? { ...row, r_after: null } : row));
     expect(assembleTape(source({ gamePlayers: rows }), CLOCK)[0]?.result).toMatchObject({
       aram: false,
       rated: false,

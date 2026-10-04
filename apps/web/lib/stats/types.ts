@@ -27,8 +27,8 @@ export interface StatsRow {
    */
   role: RoleValue | null;
   /** `null` on a game the fold has not rated: it still counts, but it carries no climb. */
-  muBefore: number | null;
-  muAfter: number | null;
+  rBefore: number | null;
+  rAfter: number | null;
   /**
    * Scoreboard columns the companion already stores (`0001_init`). `/stats` does not fold them
    * — M5.4 left KDA, gold, damage and CS out of that page on purpose. `/fun` reads them.
@@ -421,8 +421,8 @@ export interface FunFactsView {
  * Won against the odds (M8.2).
  *
  * The only section on `/fun` whose number was **written down before the game**: the chosen
- * split's `blue_win_prob`, stored when the teams were posted. Nothing here reads `mu_before` or
- * `mu_after`, which is the property the rejected "biggest rating swing" version could not have
+ * split's `blue_win_prob`, stored when the teams were posted. Nothing here reads `r_before` or
+ * `r_after`, which is the property the rejected "biggest rating swing" version could not have
  * had — `rebuild-ratings` rewrites every rating in the database and cannot move one row of this.
  * ------------------------------------------------------------------------- */
 

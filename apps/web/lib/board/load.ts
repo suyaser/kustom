@@ -1,15 +1,20 @@
-import { displayRating, isSettling, type KustomBefore, provisionalSeed, type Rating } from '@customs/core';
-import { openSkillPair, type RoleValue, type SideValue } from '@customs/db';
-import { type BreakdownGame, resultOdds, rowReason } from '../breakdown/read';
+import { displayKustom, isSettling, KUSTOM_START, type KustomBefore } from '@customs/core';
+import type { RoleValue, SideValue } from '@customs/db';
+import {
+  type BreakdownGame,
+  type BreakdownTrack,
+  type OddsModel,
+  resultOdds,
+  rowReason,
+} from '../breakdown/read';
 import { inChunks, mapChunks } from '../chunks';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { type FoldAwardPlayer, type FoldPerformance, gatedGameAward } from '../ingest/fold';
-import { readSeed, type StoredSeed, seedFor } from '../ingest/seed';
 import { inLaneOrder } from '../laneOrder';
 import { loadRosterLabels, withLabel } from '../names/roster';
 import { formatDayMonth, type WindowKind, type WindowRange, windowRange } from '../night';
 import type { PublicClient } from '../publicClient';
-import { sumDisplayDeltas } from '../ratingDisplay';
+import { displayDelta } from '../ratingDisplay';
 import { loadAwardWinners } from '../stats/load';
 import { type AwardWinners, NO_AWARD_WINNERS } from '../stats/winners';
 import type { PlayerName } from '../tonight/types';
@@ -36,17 +41,20 @@ import { epochRange, windowRangeLabelSince } from './window';
  *   filtered on the group the page belongs to. A person's page in group A shows their A rating, A
  *   games and A records and says nothing about B; a PUUID with nothing in the group is `null` (the
  *   page's 404) even if it has games elsewhere.
- * - **One public number, `Rating`** (STRATEGY §5): `displayRating(mu)` from core, the all-time
- *   track, on every window. Proven is gone. A week board ranks by **net points**, the sum of the
- *   printed all-time deltas in the window (M14.57); there is no weekly track any more.
+ * - **One public number, `Rating`** (STRATEGY §5): `displayKustom(ratings.r)` from core, the
+ *   all-time Kustom track, on every window (M18.6). A week board ranks by **week points**,
+ *   `round(weekly R) − 1200`, the weekly R being the player's last `week_r_after` in the week; the
+ *   week's per-game weekly changes add up to it exactly. No OpenSkill column is read here.
  * - **Settling is core's rule** (`isSettling` over the group's `ratings.games`), always the
  *   all-time count, never on a week.
- * - **One rule for a rating with no row**: `provisionalSeed()`, 1200 displayed (2026-09-16).
+ * - **One rule for a rating with no row**: `KUSTOM_START`, 1200 (M18.2: the same number the
+ *   balancer reads).
  * - **One history per group** (M14.14): every read is the group's whole history.
  *
  * **The seam this file still has, on purpose.** Every number on a row is counted off *rated* rows
- * (`ratings` for `All time`, `mu_after is not null` for a window). A backfilled game the rebuild has
- * not folded yet counts nowhere here until `rebuild-ratings` runs.
+ * (`ratings` for `All time`, `r_after is not null` for its games, `week_r_after is not null` for a
+ * week). A backfilled game the rebuild has not folded yet counts nowhere here until
+ * `rebuild-ratings` runs.
  */
 
 /** How many of a player's newest games their page lists; the rest are on the games page. */
@@ -75,11 +83,10 @@ interface PlayerRow {
 }
 
 interface RatingRow {
-  rating: Rating;
+  /** `ratings.r`, unrounded; 1200 on a row the Kustom fold has not written yet (before the switch rebuild). */
+  r: number;
   games: number;
   wins: number;
-  /** The seed this player's history was folded from (M5.7), or null on a row before `0012`. */
-  seed: StoredSeed | null;
 }
 
 /** What a page asks the loader for. */
@@ -185,7 +192,7 @@ async function emptyWindowFallback(
 ): Promise<EmptyWindowFallback> {
   if (window !== 'this-week') return 'all-time';
   const lastWeek = windowRange('last-week', options.now ?? new Date(), options.timeZone);
-  return (await countCountedGames(client, lastWeek, groupId)) > 0 ? 'last-week' : 'all-time';
+  return (await countCountedGames(client, lastWeek, groupId, 'week')) > 0 ? 'last-week' : 'all-time';
 }
 
 /** A row and the `players.id` it is for (never sent to the page; the page keys on puuid). */
@@ -205,7 +212,6 @@ async function allTimeRows(
   return rated.flatMap(([playerId, stored]) => {
     const player = players.get(playerId);
     if (player === undefined) return [];
-    const seed = seedFor(stored.seed, player.rankTier, player.rankDivision).rating;
     return [
       [
         playerId,
@@ -214,14 +220,14 @@ async function allTimeRows(
           name: player.name,
           track: 'all-time' as const,
           points: null,
-          sortKey: stored.rating.mu,
-          rating: displayRating(stored.rating.mu),
+          sortKey: stored.r,
+          rating: displayKustom(stored.r),
           games: stored.games,
           wins: stored.wins,
           losses: stored.games - stored.wins,
           ratedGames: stored.games,
-          // All time's change is the whole history: from the seed it started at to today.
-          climb: { muBefore: seed.mu, muAfter: stored.rating.mu },
+          // All time's change is the whole history: from the 1200 every Rating starts at to today.
+          climb: { rBefore: KUSTOM_START, rAfter: stored.r },
           settling: isSettling(stored.games),
           settlingChip: isSettling(stored.games),
           awards: [],
@@ -255,14 +261,14 @@ async function loadWindowFacts(
   groupId: string,
   since: Date | null,
 ): Promise<{ games: number; firstCountedAt: Date | null; everRated: boolean }> {
-  const games = await countCountedGames(client, range, groupId);
+  const games = await countCountedGames(client, range, groupId, window === 'all-time' ? 'all-time' : 'week');
   if (window !== 'all-time') {
     // Whether the group has a rated game on its all-time board: an empty week then says so (and
     // points somewhere, M14.70), an empty group says the board fills in after the first game. Read
     // through the reset epoch (M14.18): after a reset with nothing played since, All time is empty
     // too, so there is nowhere to point.
     const allTime = epochRange('all-time', ALL_TIME_RANGE, since);
-    const ever = games > 0 || (await countCountedGames(client, allTime, groupId)) > 0;
+    const ever = games > 0 || (await countCountedGames(client, allTime, groupId, 'all-time')) > 0;
     return { games, firstCountedAt: null, everRated: ever };
   }
   if (games === 0) return { games, firstCountedAt: null, everRated: false };
@@ -271,12 +277,28 @@ async function loadWindowFacts(
 
 const ALL_TIME_RANGE: WindowRange = { start: null, end: null };
 
-async function countCountedGames(client: PublicClient, range: WindowRange, groupId: string): Promise<number> {
-  let query = client
-    .from('games')
-    .select('id, game_players!inner(mu_after)', { count: 'exact', head: true })
-    .eq('group_id', groupId)
-    .not('game_players.mu_after', 'is', null);
+/**
+ * Games with a row the track folded: `r_after` on `All time`, `week_r_after` on a week (a game
+ * before the reset epoch still counts on its week, M18.5).
+ */
+async function countCountedGames(
+  client: PublicClient,
+  range: WindowRange,
+  groupId: string,
+  track: BreakdownTrack,
+): Promise<number> {
+  let query =
+    track === 'all-time'
+      ? client
+          .from('games')
+          .select('id, game_players!inner(r_after)', { count: 'exact', head: true })
+          .eq('group_id', groupId)
+          .not('game_players.r_after', 'is', null)
+      : client
+          .from('games')
+          .select('id, game_players!inner(week_r_after)', { count: 'exact', head: true })
+          .eq('group_id', groupId)
+          .not('game_players.week_r_after', 'is', null);
   query = withRange(query, 'started_at', range);
 
   const { count, error } = await query;
@@ -287,9 +309,9 @@ async function countCountedGames(client: PublicClient, range: WindowRange, group
 async function firstCountedGameAt(client: PublicClient, groupId: string): Promise<Date | null> {
   const { data, error } = await client
     .from('games')
-    .select('started_at, game_players!inner(mu_after)')
+    .select('started_at, game_players!inner(r_after)')
     .eq('group_id', groupId)
-    .not('game_players.mu_after', 'is', null)
+    .not('game_players.r_after', 'is', null)
     .order('started_at', { ascending: true })
     .limit(1);
   if (error) throw new Error(`board: first game lookup failed: ${error.message}`);
@@ -299,11 +321,11 @@ async function firstCountedGameAt(client: PublicClient, groupId: string): Promis
 }
 
 /**
- * One week window's rows (M14.57): the players with a rated game inside it, ranked by **net
- * points**, the sum of the printed all-time deltas of those games (`sumDisplayDeltas`, the one
- * rounding rule for a sum), with the window's W–L. ARAM, admin-unrated, unrated-rule games and a
- * backfill the rebuild has not folded carry no `mu_after` and so add nothing and count in neither
- * W nor L. Rating and the settling chip are the all-time ones (`ratings`).
+ * One week window's rows (M18.6): the players with a game the weekly track folded inside it,
+ * ranked by **week points**, `round(weekly R) − 1200` from their last `week_r_after` of the week,
+ * with the window's W–L. ARAM, admin-unrated, unrated-rule games and a backfill the rebuild has not
+ * folded carry no `week_r_after` and so add nothing and count in neither W nor L. Rating and the
+ * settling chip are the all-time ones (`ratings`).
  */
 async function windowRows(
   client: PublicClient,
@@ -328,7 +350,7 @@ async function windowRows(
   const byPlayer = new Map<string, { row: PlayerGameRow; game: GroupGame }[]>();
   for (const row of rows) {
     const game = byGame.get(row.gameId);
-    if (game === undefined || row.muBefore === null || row.muAfter === null) continue;
+    if (game === undefined || row.weekRBefore === null || row.weekRAfter === null) continue;
     const played = byPlayer.get(row.playerId) ?? [];
     played.push({ row, game });
     byPlayer.set(row.playerId, played);
@@ -343,7 +365,7 @@ async function windowRows(
     if (player === undefined || played.length === 0) return [];
 
     const stored = ratings.get(playerId);
-    const current = stored?.rating ?? provisionalSeed();
+    const current = stored?.r ?? KUSTOM_START;
     const wins = played.filter(({ row, game }) => row.side === game.winningSide).length;
     const ratedGames = stored?.games ?? played.length;
 
@@ -354,9 +376,9 @@ async function windowRows(
           puuid: player.puuid,
           name: player.name,
           track: 'week' as const,
-          points: netPoints(played) ?? 0,
-          sortKey: current.mu,
-          rating: displayRating(current.mu),
+          points: weekPoints(played),
+          sortKey: current,
+          rating: displayKustom(current),
           games: played.length,
           wins,
           losses: played.length - wins,
@@ -372,13 +394,23 @@ async function windowRows(
   });
 }
 
-/** The sum of the printed deltas of a player's rated rows (M14.57), or `null` for none. */
-function netPoints(played: readonly { row: PlayerGameRow }[]): number | null {
-  return sumDisplayDeltas(
-    played.flatMap(({ row }) =>
-      row.muBefore === null || row.muAfter === null ? [] : [{ muBefore: row.muBefore, muAfter: row.muAfter }],
-    ),
-  );
+/** The fold's order inside a week: `started_at`, then `lcu_game_id` (the rebuild's two keys). */
+function foldOrder(a: { game: GroupGame }, b: { game: GroupGame }): number {
+  return Date.parse(a.game.startedAt) - Date.parse(b.game.startedAt) || a.game.lcuGameId - b.game.lcuGameId;
+}
+
+/**
+ * Week points (M18.6): `round(weekly R) − 1200`, the weekly R being the player's last
+ * `week_r_after` of the week in fold order; `0` with none (a fresh week reads 0 for everyone).
+ */
+function weekPoints(played: readonly { row: PlayerGameRow; game: GroupGame }[]): number {
+  const last = [...played]
+    .filter(({ row }) => row.weekRAfter !== null)
+    .sort(foldOrder)
+    .at(-1);
+  if (last === undefined || last.row.weekRAfter === null) return 0;
+  const points = displayKustom(last.row.weekRAfter) - KUSTOM_START;
+  return points === 0 ? 0 : points;
 }
 
 /** The closed window's awards, or nothing (M8.3). A failed lookup is no badges, never a failed board. */
@@ -449,9 +481,10 @@ export async function loadTopPlayersOrNone(
  * nothing in the group (no membership, no rating row, no game), which the page turns into a 404,
  * even if the same person plays in another group (M13.10).
  *
- * Every rating number is the all-time track's on every window (M14.57): the same game prints the
- * same delta on All time, This week and Last week. A week adds `points`, the net its board row
- * prints, from the same `sumDisplayDeltas`.
+ * The Rating is the all-time track's on every window. A week reads the weekly track for
+ * everything else (M18.6, 05-design 11.5): `points` (the number its board row prints), the
+ * chart (week points from 0), each listed game's weekly change and its reason, and the
+ * `Week total` that sums them.
  */
 export async function loadPlayerBoard(
   client: PublicClient,
@@ -496,29 +529,21 @@ export async function loadPlayerBoard(
     return null;
   }
 
-  const all = rows
-    .map(({ row, game }) => ({ row, game }))
-    .sort((a, b) => Date.parse(a.game.startedAt) - Date.parse(b.game.startedAt));
-  const played = all.filter(({ row }) => row.muAfter !== null);
+  const onWeek = window !== 'all-time';
+  const track: BreakdownTrack = onWeek ? 'week' : 'all-time';
+  const all = rows.map(({ row, game }) => ({ row, game })).sort(foldOrder);
+  const played = all.filter(({ row }) => ratedOn(row, track));
 
-  const current = stored?.rating ?? provisionalSeed();
+  const current = stored?.r ?? KUSTOM_START;
   const allTimeGames = stored?.games ?? 0;
-  const seed = seedFor(stored?.seed ?? null, player.rankTier, player.rankDivision);
-  const seedRating = displayRating(seed.rating.mu);
 
-  const [recent, ranked] = await Promise.all([
-    loadRecentGames(
-      client,
-      recentGames(
-        all.map(({ row, game }) => ({ row, game, startedAt: game.startedAt, muAfter: row.muAfter })),
-        RECENT_GAMES,
-      ),
-    ),
-    rankedRead,
-  ]);
+  const listed = recentGames(
+    all.map(({ row, game }) => ({ row, game, startedAt: game.startedAt, rated: ratedOn(row, track) })),
+    RECENT_GAMES,
+  );
+  const [recent, ranked] = await Promise.all([loadRecentGames(client, listed, track), rankedRead]);
   const rank = window === 'all-time' && !isSettling(allTimeGames) ? rankOf(ranked ?? [], player.puuid) : null;
 
-  const onWeek = window !== 'all-time';
   const first = played[0];
   const windowWins = played.filter(({ row, game }) => row.side === game.winningSide).length;
   const counted = onWeek ? played.length : allTimeGames;
@@ -540,18 +565,46 @@ export async function loadPlayerBoard(
             since,
             options.timeZone,
           ),
-    rating: displayRating(current.mu),
-    points: onWeek ? (netPoints(played) ?? 0) : null,
+    rating: displayKustom(current),
+    points: onWeek ? weekPoints(played) : null,
     games: counted,
     wins,
     losses: counted - wins,
     ratedGames: allTimeGames,
     settling: window === 'all-time' && isSettling(allTimeGames),
     rank,
-    reference: !onWeek || first?.row.muBefore == null ? seedRating : displayRating(first.row.muBefore),
-    history: historySeries(played),
+    reference: onWeek ? 0 : KUSTOM_START,
+    history: historySeries(played, track),
     recent,
+    weekTotal: onWeek ? weekTotalOf(played, listed) : null,
   };
+}
+
+/** Whether the track folded this row: `r_after` on all time, `week_r_after` on a week. */
+function ratedOn(row: PlayerGameRow, track: BreakdownTrack): boolean {
+  return track === 'all-time'
+    ? row.rBefore !== null && row.rAfter !== null
+    : row.weekRBefore !== null && row.weekRAfter !== null;
+}
+
+/**
+ * The `Week total` row's number (05-design 11.5): the sum of the printed weekly changes of the
+ * week's rated games when the list shows every one of them, else `null` (a paged list drops it).
+ * Equal to the week points by construction: the week starts at exactly 1200 and each game's
+ * `week_r_after` is the next one's `week_r_before`.
+ */
+function weekTotalOf(
+  played: readonly { row: PlayerGameRow; game: GroupGame }[],
+  listed: readonly { game: GroupGame }[],
+): number | null {
+  const shown = new Set(listed.map(({ game }) => game.id));
+  if (!played.every(({ game }) => shown.has(game.id))) return null;
+  let sum = 0;
+  for (const { row } of played) {
+    if (row.weekRBefore !== null && row.weekRAfter !== null)
+      sum += displayDelta(row.weekRBefore, row.weekRAfter);
+  }
+  return sum === 0 ? 0 : sum;
 }
 
 /**
@@ -573,24 +626,36 @@ function rankOf(ranked: readonly BoardRow[], puuid: string): number | null {
   return index === -1 ? null : index + 1;
 }
 
-function historySeries(played: readonly { row: PlayerGameRow }[]): number[] {
-  const first = played[0];
-  if (first === undefined) return [];
-
-  const series = first.row.muBefore === null ? [] : [displayRating(first.row.muBefore)];
+/**
+ * The chart's series (05-design 11.2): all time plots the Rating from the first game's Rating
+ * before; a week plots week points from 0 (`round(week_r_after) − 1200`).
+ */
+function historySeries(played: readonly { row: PlayerGameRow }[], track: BreakdownTrack): number[] {
+  if (played.length === 0) return [];
+  if (track === 'week') {
+    const series = [0];
+    for (const { row } of played) {
+      if (row.weekRAfter !== null) series.push(displayKustom(row.weekRAfter) - KUSTOM_START);
+    }
+    return series;
+  }
+  const first = played[0]?.row.rBefore ?? null;
+  const series = first === null ? [] : [displayKustom(first)];
   for (const { row } of played) {
-    if (row.muAfter !== null) series.push(displayRating(row.muAfter));
+    if (row.rAfter !== null) series.push(displayKustom(row.rAfter));
   }
   return series;
 }
 
 /**
  * The newest games, with the player's five in lane order, the award, and what the compact receipt
- * needs: the chosen split's odds and rank, or everyone's rating going in when there is no split.
+ * needs: the chosen split's odds and rank, or everyone's all-time Rating going in when there is no
+ * split. `track` is the page's: the reason explains that track's change.
  */
 async function loadRecentGames(
   client: PublicClient,
   played: readonly { row: PlayerGameRow; game: GroupGame }[],
+  track: BreakdownTrack,
 ): Promise<RecentGame[]> {
   if (played.length === 0) return [];
 
@@ -625,16 +690,22 @@ async function loadRecentGames(
     const breakdown: BreakdownGame = {
       winningSide: game.winningSide,
       botBlueWinProb: split?.blueWinProb ?? null,
+      botOddsModel: split?.oddsModel ?? null,
       rows: all.map((other) => ({
         playerId: other.playerId,
         side: other.side,
-        muBefore: other.muBefore,
-        sigmaBefore: other.sigmaBefore,
-        muAfter: other.muAfter,
+        rBefore: other.rBefore,
+        rAfter: other.rAfter,
+        k: other.breakdown?.k ?? null,
         foldP: other.breakdown?.foldP ?? null,
-        baseMuAfter: other.breakdown?.baseMuAfter ?? null,
-        award: other.breakdown?.award ?? null,
         ratedGamesBefore: other.breakdown?.ratedGamesBefore ?? null,
+        shareRank: other.breakdown?.shareRank ?? null,
+        award: other.breakdown?.award ?? null,
+        weekRBefore: other.weekRBefore,
+        weekRAfter: other.weekRAfter,
+        weekK: other.breakdown?.weekK ?? null,
+        weekFoldP: other.breakdown?.weekFoldP ?? null,
+        weekGamesBefore: other.breakdown?.weekGamesBefore ?? null,
       })),
     };
 
@@ -646,15 +717,17 @@ async function loadRecentGames(
       side: row.side,
       winningSide: game.winningSide,
       role: row.role,
-      muBefore: row.muBefore,
-      muAfter: row.muAfter,
+      rBefore: row.rBefore,
+      rAfter: row.rAfter,
+      weekRBefore: row.weekRBefore,
+      weekRAfter: row.weekRAfter,
       award: recentAward(all, game, names, row.playerId),
       blueWinProb: split?.blueWinProb ?? null,
       pickRank: split?.rank ?? null,
       ratingsBefore: split === undefined ? { blue: before(100), red: before(200) } : null,
       aram: matchesQueue(modes.get(game.id) ?? null, 'aram'),
       team: inLaneOrder(team),
-      reason: rowReason(breakdown, row.playerId),
+      reason: rowReason(breakdown, row.playerId, track),
       odds: resultOdds(breakdown),
     };
   });
@@ -673,7 +746,9 @@ function recentAward(
   const ten: FoldAwardPlayer[] = [];
   for (const row of all) {
     const puuid = names.get(row.playerId)?.puuid;
-    if (puuid === undefined || row.muAfter === null || row.stats === null) return null;
+    // Rated on either track (M18.6): the fold scored the same ten for both.
+    if (puuid === undefined || (row.rAfter === null && row.weekRAfter === null) || row.stats === null)
+      return null;
     ten.push({ puuid, side: row.side, ...row.stats });
   }
 
@@ -682,19 +757,27 @@ function recentAward(
   return award.mvp === mine ? 'mvp' : award.ace === mine ? 'ace' : null;
 }
 
-/** The chosen split of each lobby: blue's chance and the split's rank (`pick #2`). */
+/** The chosen split of each lobby: blue's chance, the split's rank (`pick #2`) and its odds model. */
 async function loadChosenSplits(
   client: PublicClient,
   lobbyIds: readonly string[],
-): Promise<Map<string, { blueWinProb: number; rank: number }>> {
-  const splits = new Map<string, { blueWinProb: number; rank: number }>();
+): Promise<Map<string, { blueWinProb: number; rank: number; oddsModel: OddsModel }>> {
+  const splits = new Map<string, { blueWinProb: number; rank: number; oddsModel: OddsModel }>();
   for (const { data, error } of await mapChunks(lobbyIds, (chunk) =>
-    client.from('splits').select('lobby_id, blue_win_prob, rank').in('lobby_id', chunk).eq('is_chosen', true),
+    client
+      .from('splits')
+      .select('lobby_id, blue_win_prob, rank, odds_model')
+      .in('lobby_id', chunk)
+      .eq('is_chosen', true),
   )) {
     if (error) throw new Error(`board: split lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.blue_win_prob === null) continue;
-      splits.set(row.lobby_id, { blueWinProb: row.blue_win_prob, rank: row.rank });
+      splits.set(row.lobby_id, {
+        blueWinProb: row.blue_win_prob,
+        rank: row.rank,
+        oddsModel: row.odds_model === 'kustom' ? 'kustom' : 'openskill',
+      });
     }
   }
   return splits;
@@ -846,24 +929,15 @@ async function loadRatings(
   const batches = playerIds === undefined ? [null] : inChunks(playerIds);
 
   for (const chunk of batches) {
-    let query = client
-      .from('ratings')
-      .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
-      .eq('group_id', groupId);
+    let query = client.from('ratings').select('player_id, r, games, wins').eq('group_id', groupId);
     if (chunk !== null) query = query.in('player_id', chunk);
 
     const { data, error } = await query;
     if (error) throw new Error(`board: rating lookup failed: ${error.message}`);
     for (const row of data ?? []) {
-      // A Kustom-only row (0036) has no OpenSkill pair: to this build it is not rated yet.
-      const rating = openSkillPair(row);
-      if (rating === null) continue;
-      ratings.set(row.player_id, {
-        rating,
-        games: row.games,
-        wins: row.wins,
-        seed: readSeed(row),
-      });
+      // `r` null: a row the Kustom fold has not written yet (an OpenSkill-era row before the switch
+      // rebuild, M18.10). It reads as 1200, the number the balancer reads for it too (M18.2).
+      ratings.set(row.player_id, { r: row.r ?? KUSTOM_START, games: row.games, wins: row.wins });
     }
   }
   return ratings;
@@ -904,19 +978,23 @@ interface PlayerGameRow {
   playerId: string;
   side: SideValue;
   role: RoleValue | null;
-  muBefore: number | null;
-  sigmaBefore: number | null;
-  muAfter: number | null;
-  sigmaAfter: number | null;
-  /** The all-time Kustom Rating going in (0036; M18.5 reads it for the pre-game odds only, M18.6 the rest). */
+  /** All-time Kustom Ratings around the game (0036), unrounded. */
   rBefore: number | null;
+  rAfter: number | null;
+  /** Weekly Kustom Ratings around the game (0036), unrounded. */
+  weekRBefore: number | null;
+  weekRAfter: number | null;
   stats: FoldPerformance | null;
-  /** The fold's `0034` breakdown, on the wide read only (`null` on the narrow one). */
+  /** The fold's stored parts (`0034`, `0036`), on the wide read only (`null` on the narrow one). */
   breakdown: {
+    k: number | null;
     foldP: number | null;
-    baseMuAfter: number | null;
-    award: string | null;
     ratedGamesBefore: number | null;
+    shareRank: number | null;
+    award: string | null;
+    weekK: number | null;
+    weekFoldP: number | null;
+    weekGamesBefore: number | null;
   } | null;
 }
 
@@ -937,7 +1015,7 @@ async function loadPlayerGameRowsWithGames(
   let query = client
     .from('game_players')
     .select(
-      'game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, games!inner(started_at, group_id, lcu_game_id, duration_s, winning_side, lobby_id)',
+      'game_id, player_id, side, role, r_before, r_after, week_r_before, week_r_after, games!inner(started_at, group_id, lcu_game_id, duration_s, winning_side, lobby_id)',
     )
     .eq('player_id', playerId)
     .eq('games.group_id', groupId);
@@ -990,14 +1068,12 @@ async function loadGameRows(
         ? await client
             .from('game_players')
             .select(
-              `game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, r_before, ${STAT_COLUMNS}, fold_p, base_mu_after, award, rated_games_before`,
+              `game_id, player_id, side, role, r_before, r_after, week_r_before, week_r_after, ${STAT_COLUMNS}, k, fold_p, rated_games_before, share_rank, award, week_k, week_fold_p, week_games_before`,
             )
             .in('game_id', chunk)
         : await client
             .from('game_players')
-            .select(
-              'game_id, player_id, side, role, mu_before, sigma_before, mu_after, sigma_after, r_before',
-            )
+            .select('game_id, player_id, side, role, r_before, r_after, week_r_before, week_r_after')
             .in('game_id', chunk);
     if (error) throw new Error(`board: game player lookup failed: ${error.message}`);
     return (data ?? []).map(toGameRow);
@@ -1010,11 +1086,10 @@ interface RawGamePlayerRow {
   player_id: string;
   side: number;
   role: RoleValue | null;
-  mu_before: number | null;
-  sigma_before?: number | null;
-  mu_after: number | null;
-  sigma_after?: number | null;
-  r_before?: number | null;
+  r_before: number | null;
+  r_after: number | null;
+  week_r_before: number | null;
+  week_r_after: number | null;
   kills?: number | null;
   deaths?: number | null;
   assists?: number | null;
@@ -1024,10 +1099,14 @@ interface RawGamePlayerRow {
   vision_score?: number | null;
   damage_self_mitigated?: number | null;
   damage_to_objectives?: number | null;
+  k?: number | null;
   fold_p?: number | null;
-  base_mu_after?: number | null;
-  award?: string | null;
   rated_games_before?: number | null;
+  share_rank?: number | null;
+  award?: string | null;
+  week_k?: number | null;
+  week_fold_p?: number | null;
+  week_games_before?: number | null;
 }
 
 function toGameRow(row: RawGamePlayerRow): PlayerGameRow {
@@ -1036,19 +1115,22 @@ function toGameRow(row: RawGamePlayerRow): PlayerGameRow {
     playerId: row.player_id,
     side: row.side === 100 ? 100 : 200,
     role: row.role,
-    muBefore: row.mu_before,
-    sigmaBefore: row.sigma_before ?? null,
-    muAfter: row.mu_after,
-    sigmaAfter: row.sigma_after ?? null,
-    rBefore: row.r_before ?? null,
+    rBefore: row.r_before,
+    rAfter: row.r_after,
+    weekRBefore: row.week_r_before,
+    weekRAfter: row.week_r_after,
     stats: 'kills' in row ? toStats(row) : null,
     breakdown:
       'fold_p' in row
         ? {
+            k: row.k ?? null,
             foldP: row.fold_p ?? null,
-            baseMuAfter: row.base_mu_after ?? null,
-            award: row.award ?? null,
             ratedGamesBefore: row.rated_games_before ?? null,
+            shareRank: row.share_rank ?? null,
+            award: row.award ?? null,
+            weekK: row.week_k ?? null,
+            weekFoldP: row.week_fold_p ?? null,
+            weekGamesBefore: row.week_games_before ?? null,
           }
         : null,
   };

@@ -106,15 +106,16 @@ describe('which games the calibration line counts (STRATEGY §4.8)', () => {
   const blue = ['b1', 'b2', 'b3', 'b4', 'b5'];
   const red = ['r1', 'r2', 'r3', 'r4', 'r5'];
   const puuidOf = new Map([...blue, ...red].map((id) => [`p-${id}`, id]));
-  const rows = (mu: number | null = 25) => [
-    ...blue.map((id) => ({ player_id: `p-${id}`, side: 100, mu_before: mu, mu_after: mu })),
-    ...red.map((id) => ({ player_id: `p-${id}`, side: 200, mu_before: mu, mu_after: mu })),
+  const rows = (r: number | null = 1500) => [
+    ...blue.map((id) => ({ player_id: `p-${id}`, side: 100, r_before: r, r_after: r })),
+    ...red.map((id) => ({ player_id: `p-${id}`, side: 200, r_before: r, r_after: r })),
   ];
   const split = {
     lobby_id: 'l1',
     blue: blue.map((puuid) => ({ puuid, role: 'top' })),
     red: red.map((puuid) => ({ puuid, role: 'top' })),
     blue_win_prob: 0.6,
+    odds_model: 'kustom',
   };
   const game = (over: Partial<CalibrationGameRow> = {}): CalibrationGameRow => ({
     id: 'g1',
@@ -135,6 +136,10 @@ describe('which games the calibration line counts (STRATEGY §4.8)', () => {
     expect(calibrationGames([game({ lobby_id: 'other' })], [split], puuidOf)).toEqual([]);
     const swapped = { ...split, blue: [...split.blue.slice(1), { puuid: 'r1', role: 'top' }] };
     expect(calibrationGames([game()], [swapped], puuidOf)).toEqual([]);
+  });
+
+  it('counts only Kustom rolls (M18.6): the line restarts at the switch', () => {
+    expect(calibrationGames([game()], [{ ...split, odds_model: 'openskill' }], puuidOf)).toEqual([]);
   });
 
   it('drops a game played not rated (M15.3), even with rating columns on it', () => {

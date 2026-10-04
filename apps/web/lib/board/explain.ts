@@ -49,7 +49,7 @@ export function sideWinChance(blueWinProb: number | null, side: SideValue): numb
  *   - both.
  */
 export function explainGame(game: RecentGame): string | null {
-  if (game.muBefore === null || game.muAfter === null) return null;
+  if (game.rBefore === null || game.rAfter === null) return null;
 
   const chance = sideWinChance(game.blueWinProb, game.side);
   return chance === null ? null : gameExplanation(chance);
@@ -85,8 +85,8 @@ export function explainRatingStart(player: PlayerBoardView): string | null {
 export function tonightDelta(player: PlayerBoardView, since: Date): number | null {
   return sumDisplayDeltas(
     player.recent.flatMap((game) =>
-      new Date(game.startedAt).getTime() >= since.getTime() && game.muBefore !== null && game.muAfter !== null
-        ? [{ muBefore: game.muBefore, muAfter: game.muAfter }]
+      new Date(game.startedAt).getTime() >= since.getTime() && game.rBefore !== null && game.rAfter !== null
+        ? [{ rBefore: game.rBefore, rAfter: game.rAfter }]
         : [],
     ),
   );

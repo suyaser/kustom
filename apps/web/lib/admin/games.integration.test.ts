@@ -6,6 +6,7 @@ import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eogBody, lobbyBody, testGameId, testPuuids } from '@/lib/testing/fixtures';
+import { kustomSeat, rOf } from '@/lib/testing/kustomSeat';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
@@ -335,11 +336,17 @@ if (stack === null) {
 
       // What `pnpm --filter web rebuild-ratings --force` does to those rows. The rebuild itself
       // is proved in `rebuild.integration.test.ts`; its *effect* on this page is what is
-      // asserted here: a `mu_after` on every row.
+      // asserted here: an `r_after` on every row (M18.6: the Kustom fold's mark).
       const { data: game } = await db.from('games').select('id').eq('lcu_game_id', games.backfilled).single();
       const { error } = await db
         .from('game_players')
-        .update({ mu_before: 25, sigma_before: 8.333, mu_after: 26, sigma_after: 8.2 })
+        .update({
+          mu_before: 25,
+          sigma_before: 8.333,
+          mu_after: 26,
+          sigma_after: 8.2,
+          ...kustomSeat(rOf(25), rOf(26)),
+        })
         .eq('game_id', game?.id ?? '');
       if (error) throw new Error(error.message);
 

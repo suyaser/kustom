@@ -997,8 +997,10 @@ describe('M14.58 / M14.59 on the finished poster', () => {
     const button = within(mine).getByRole('button', { name: /Why\?$/ });
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
-    expect(mine).toHaveTextContent(/You (won|lost) \d+\./);
-    expect(mine).toHaveTextContent('Upsets and new players move the most.');
+    expect(mine).toHaveTextContent(
+      /(Your side (won|lost) as the \d+% (favourite|underdog)|It was an even game)/,
+    );
+    expect(mine).toHaveTextContent('Upsets and first games move the most.');
     expect(mine.textContent).not.toMatch(/sigma|\d\.\d/i);
   });
 
@@ -1013,9 +1015,7 @@ describe('M14.58 / M14.59 on the finished poster', () => {
       within(receipt)
         .getByText(/For points, /)
         .closest('p'),
-    ).toHaveTextContent(
-      /^For points, Red was \d+%, because (new players start at 1200|ratings moved since the roll)\.$/,
-    );
+    ).toHaveTextContent(/^For points, Red was \d+%\.$/);
   });
 
   it("a breakdown for another game is ignored (the live refresh can't mix two games)", () => {

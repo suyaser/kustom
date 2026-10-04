@@ -1,4 +1,4 @@
-import { type DeltaReason, SETTLING_GAMES } from '@customs/core';
+import { SETTLING_GAMES } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import type { Route } from 'next';
 import { useId } from 'react';
@@ -8,6 +8,7 @@ import { Chip } from '@/components/ui/chip';
 import { SideGlyph } from '@/components/ui/side-glyph';
 import { WhyButton, WhyPanel, WhyScope } from '@/components/why/why-scope';
 import { WhyText } from '@/components/why/why-text';
+import type { KustomReason } from '@/lib/breakdown/read';
 import type { PageGroup } from '@/lib/groups/pageGroup';
 import { groupHref } from '@/lib/nav';
 import { formatWebDelta, isGain } from '@/lib/ratingDisplay';
@@ -25,7 +26,7 @@ import { RoleIcon } from '../_icons/RoleIcon';
  *   `Your side` on the viewer's team; `Won` and a foreground outline on the winner;
  * - five seats in lane order, an `<ol>`; each the role (icon over word), the name (**never
  *   truncated**: it wraps, 6.6), chips under it (`You`, `off-role`, `settling · 4/10`), and the
- *   Rating (`round(mu * 60)`, never Proven) top-aligned with the name's first line;
+ *   Rating (`round(r)`, M18.6) top-aligned with the name's first line;
  * - the viewer's seat: the `You` sticker, a 2px `--you` outline, the wash, and `(you)` for screen
  *   readers (four signals; colour is never alone).
  *
@@ -49,7 +50,7 @@ export interface TeamSeat {
    * Finished, rated (M14.58): why the change was that size, from the fold's stored breakdown. With
    * it the change is a button that opens the explanation under the seat; without it, a plain number.
    */
-  reason?: DeltaReason | null | undefined;
+  reason?: KustomReason | null | undefined;
 }
 
 export interface TeamCardProps {

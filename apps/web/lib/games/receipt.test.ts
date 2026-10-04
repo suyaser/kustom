@@ -13,18 +13,8 @@ const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
 const BLUE = ['b1', 'b2', 'b3', 'b4', 'b5'];
 const RED = ['r1', 'r2', 'r3', 'r4', 'r5'];
 
-function seats(
-  blue = BLUE,
-  red = RED,
-  rating: { mu: number | null; sigma: number | null; r?: number | null } = { mu: 25, sigma: 5, r: 1500 },
-): ReceiptSeat[] {
-  const seat = (puuid: string, side: 100 | 200): ReceiptSeat => ({
-    puuid,
-    side,
-    muBefore: rating.mu,
-    sigmaBefore: rating.sigma,
-    rBefore: rating.r ?? null,
-  });
+function seats(blue = BLUE, red = RED, rating: { r: number | null } = { r: 1500 }): ReceiptSeat[] {
+  const seat = (puuid: string, side: 100 | 200): ReceiptSeat => ({ puuid, side, rBefore: rating.r });
   return [...blue.map((puuid) => seat(puuid, 100)), ...red.map((puuid) => seat(puuid, 200))];
 }
 
@@ -84,7 +74,7 @@ describe('gameReceiptOf', () => {
     const receipt = gameReceiptOf({
       aram: false,
       rated: true,
-      seats: seats(BLUE, RED, { mu: null, sigma: null, r: null }),
+      seats: seats(BLUE, RED, { r: null }),
       splits: [],
     });
     expect(receipt).toMatchObject({ kind: 'pre-game' });
@@ -149,7 +139,7 @@ describe('calibrationGameOf (STRATEGY §4.8)', () => {
     winningSide: 100,
     rated: true,
     seats: seats(),
-    chosen: split(1, { blueWinProb: 0.6 }),
+    chosen: { ...split(1, { blueWinProb: 0.6 }), oddsModel: 'kustom' },
     ...overrides,
   });
 
@@ -165,8 +155,17 @@ describe('calibrationGameOf (STRATEGY §4.8)', () => {
     ).toBeNull();
     expect(calibrationGameOf(candidate({ rated: false }))).toBeNull();
     expect(calibrationGameOf(candidate({ aram: true }))).toBeNull();
-    expect(calibrationGameOf(candidate({ chosen: split(1, { blueWinProb: 0.5 }) }))).toBeNull();
+    expect(
+      calibrationGameOf(candidate({ chosen: { ...split(1, { blueWinProb: 0.5 }), oddsModel: 'kustom' } })),
+    ).toBeNull();
     expect(calibrationGameOf(candidate({ chosen: null }))).toBeNull();
+  });
+
+  it('counts only Kustom rolls (M18.6): an OpenSkill roll, or one with no model, is not a call this line checks', () => {
+    expect(
+      calibrationGameOf(candidate({ chosen: { ...split(1, { blueWinProb: 0.6 }), oddsModel: 'openskill' } })),
+    ).toBeNull();
+    expect(calibrationGameOf(candidate({ chosen: split(1, { blueWinProb: 0.6 }) }))).toBeNull();
   });
 
   it('feeds core: the changed-teams game is not in N', () => {

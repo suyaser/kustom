@@ -397,7 +397,7 @@ export function fillDistances(
  * for precisely the players the balancer put on a role that was neither their main nor
  * tonight's tap (`roles.ts` says why that is the only moment it is knowable).
  *
- * **Rated games only** (`mu_after is not null`), which is both the fold's universe and role
+ * **Rated games only** (`r_after is not null`, the all-time Kustom fold's mark), which is both the fold's universe and role
  * inference's. A remake or an ARAM (M7.1) never rated, so it never carried a flag, and it is
  * neither a fill nor a step away from one: it is not in the window at all. A backfilled game
  * and a game from a lobby whose split we could not read are `true` by the column's default —
@@ -415,9 +415,9 @@ async function loadFills(client: ServiceClient, playerIds: readonly string[]): P
 
   const { data, error } = await client
     .from('games')
-    .select('id, started_at, game_players!inner(player_id, mu_after, counts_for_role_inference)')
+    .select('id, started_at, game_players!inner(player_id, r_after, counts_for_role_inference)')
     .in('game_players.player_id', playerIds)
-    .not('game_players.mu_after', 'is', null)
+    .not('game_players.r_after', 'is', null)
     .order('started_at', { ascending: false })
     // A second key, so two games stamped the same instant are read in one fixed order.
     .order('id', { ascending: false })

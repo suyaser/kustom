@@ -97,7 +97,7 @@ describe('why a game is not rated (M14.53)', () => {
   const ten = Array.from({ length: 10 }, (_, index) => ({
     playerId: `p${index}`,
     side: (index < 5 ? 100 : 200) as 100 | 200,
-    muAfter: null as number | null,
+    rAfter: null as number | null,
   }));
   const noRule = { rule: null, classTag: null, regionBlue: null, regionRed: null };
   const base: RatedReasonInput = {
@@ -113,7 +113,7 @@ describe('why a game is not rated (M14.53)', () => {
   const label = (input: Partial<RatedReasonInput>) => ratedLabel(ratedReason({ ...base, ...input }));
 
   it('Yes once the fold wrote every row', () => {
-    const folded = ten.map((player) => ({ ...player, muAfter: 26 }));
+    const folded = ten.map((player) => ({ ...player, rAfter: 1560 }));
     expect(ratedReason({ ...base, players: folded })).toEqual({ kind: 'rated' });
     expect(label({ players: folded })).toBe('Yes');
   });
@@ -135,7 +135,7 @@ describe('why a game is not rated (M14.53)', () => {
       'Waiting to be counted',
     );
     // A game rated before the reset keeps its stored columns: still Yes.
-    const folded = ten.map((player) => ({ ...player, muAfter: 26 }));
+    const folded = ten.map((player) => ({ ...player, rAfter: 1560 }));
     expect(label({ ratingsSince: since, players: folded })).toBe('Yes');
     // The gate comes first, as in the fold: an old ARAM is an ARAM, an old not-rated rule game names its rule.
     expect(label({ ratingsSince: since, gameMode: 'ARAM' })).toBe('No · ARAM');
@@ -165,12 +165,12 @@ describe('why a game is not rated (M14.53)', () => {
     expect(label({ rated: false, noDraw: true, durationS: 200 })).toBe('No · too short or not ten players');
     // An admin who switched Rated on for it: rated like any game once folded.
     expect(
-      label({ rated: true, noDraw: true, players: ten.map((player) => ({ ...player, muAfter: 26 })) }),
+      label({ rated: true, noDraw: true, players: ten.map((player) => ({ ...player, rAfter: 1560 })) }),
     ).toBe('Yes');
   });
 
   it('one label per rule default (M15.17): region wars not rated, mirror rated, mirror with Rated off', () => {
-    const folded = ten.map((player) => ({ ...player, muAfter: 26 }));
+    const folded = ten.map((player) => ({ ...player, rAfter: 1560 }));
     expect(
       label({ rated: false, rule: { ...noRule, rule: 'region', regionBlue: 'ionia', regionRed: 'noxus' } }),
     ).toBe('No · Region wars');

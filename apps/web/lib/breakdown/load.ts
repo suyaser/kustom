@@ -1,10 +1,11 @@
-import type { DeltaReason } from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { inChunks, mapChunks } from '../chunks';
 import type { PublicClient } from '../publicClient';
 import {
   BREAKDOWN_COLUMNS,
   type BreakdownGame,
+  type KustomReason,
+  type OddsModel,
   type RawBreakdownRow,
   type ResultOdds,
   resultOdds,
@@ -15,7 +16,8 @@ import {
 /**
  * The read the game page, the Tonight poster and any other per-game surface calls for M14.58's
  * tap-to-explain and M14.59's result line (the web half lands after M15.5 and M16.4). Anon key,
- * through the existing `game_players` policy; the four `0034` columns are public game facts.
+ * through the existing `game_players` policy; the `0034` and `0036` columns are public game facts.
+ * The reasons are the **all-time** track's (M18.6): a game page and the poster print all-time changes.
  */
 export interface GameBreakdown {
   gameId: string;
@@ -25,7 +27,7 @@ export interface GameBreakdown {
    * Each player's reason, keyed by **puuid** (the key every page renders on), `null` for a row
    * with no change to explain. A player missing from the map has no row in the game.
    */
-  reasons: ReadonlyMap<string, DeltaReason | null>;
+  reasons: ReadonlyMap<string, KustomReason | null>;
 }
 
 /**
@@ -76,10 +78,11 @@ export async function loadGameBreakdowns(
   for (const [gameId, game] of games) {
     const breakdownGame: BreakdownGame = {
       winningSide: game.winningSide,
-      botBlueWinProb: game.lobbyId === null ? null : (botOdds.get(game.lobbyId) ?? null),
+      botBlueWinProb: game.lobbyId === null ? null : (botOdds.get(game.lobbyId)?.blueWinProb ?? null),
+      botOddsModel: game.lobbyId === null ? null : (botOdds.get(game.lobbyId)?.oddsModel ?? null),
       rows: (rows.get(gameId) ?? []).map(toBreakdownRow),
     };
-    const reasons = new Map<string, DeltaReason | null>();
+    const reasons = new Map<string, KustomReason | null>();
     for (const row of breakdownGame.rows) {
       const puuid = puuids.get(row.playerId);
       if (puuid !== undefined) reasons.set(puuid, rowReason(breakdownGame, row.playerId));
@@ -89,18 +92,26 @@ export async function loadGameBreakdowns(
   return out;
 }
 
-/** The chosen split's `blue_win_prob` per lobby: the bot's claim (M14.59). */
+/** The chosen split's `blue_win_prob` and `odds_model` per lobby: the bot's claim (M14.59, M18.6). */
 async function loadChosenBlueWinProbs(
   client: PublicClient,
   lobbyIds: readonly string[],
-): Promise<Map<string, number>> {
-  const odds = new Map<string, number>();
+): Promise<Map<string, { blueWinProb: number; oddsModel: OddsModel }>> {
+  const odds = new Map<string, { blueWinProb: number; oddsModel: OddsModel }>();
   for (const { data, error } of await mapChunks(lobbyIds, (chunk) =>
-    client.from('splits').select('lobby_id, blue_win_prob').in('lobby_id', chunk).eq('is_chosen', true),
+    client
+      .from('splits')
+      .select('lobby_id, blue_win_prob, odds_model')
+      .in('lobby_id', chunk)
+      .eq('is_chosen', true),
   )) {
     if (error) throw new Error(`breakdown: split lookup failed: ${error.message}`);
     for (const row of data ?? []) {
-      if (row.blue_win_prob !== null) odds.set(row.lobby_id, row.blue_win_prob);
+      if (row.blue_win_prob === null) continue;
+      odds.set(row.lobby_id, {
+        blueWinProb: row.blue_win_prob,
+        oddsModel: row.odds_model === 'kustom' ? 'kustom' : 'openskill',
+      });
     }
   }
   return odds;

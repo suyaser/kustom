@@ -2,7 +2,7 @@
  * Which games `Recent games` on `/p/[puuid]` lists (M3.23, product 2026-09-10).
  *
  * **The last five games this player played, rated or not.** The loader used to filter
- * `mu_after !== null` before it took the five, so a game that landed unrated — every backfilled
+ * rated rows only before it took the five, so a game that landed unrated — every backfilled
  * game until `rebuild-ratings` runs, and every game the fold refused for being too short or a
  * player short — was simply missing from the list with nothing saying why, while it sat in the
  * database and on `/admin/games`. A gap in a list of five is a page that disagrees with the
@@ -17,8 +17,8 @@
 export interface DatedGame {
   /** ISO 8601, from `games.started_at`. */
   startedAt: string;
-  /** `null` for a game no rating was folded from: the row prints `not rated`. */
-  muAfter: number | null;
+  /** Whether the page's track folded this game (`r_after`, or `week_r_after` on a week); not: `not rated`. */
+  rated: boolean;
 }
 
 /**
@@ -37,5 +37,24 @@ export function recentGames<T extends DatedGame>(games: readonly T[], limit: num
 
 /** Whether a listed game moved this player's rating. The row's `not rated` label hangs off it. */
 export function isRated(game: DatedGame): boolean {
-  return game.muAfter !== null;
+  return game.rated;
+}
+
+/**
+ * The two unrounded Ratings a listed game's change is printed from, on the page's track (M18.6):
+ * the weekly pair on a week tab (05-design 11.5: a week row prints that game's weekly change), the
+ * all-time pair on `All time`. `null` when that track did not rate the game.
+ */
+export function trackPair(
+  game: {
+    rBefore: number | null;
+    rAfter: number | null;
+    weekRBefore: number | null;
+    weekRAfter: number | null;
+  },
+  track: 'all-time' | 'week',
+): { rBefore: number; rAfter: number } | null {
+  const [rBefore, rAfter] =
+    track === 'week' ? [game.weekRBefore, game.weekRAfter] : [game.rBefore, game.rAfter];
+  return rBefore === null || rAfter === null ? null : { rBefore, rAfter };
 }

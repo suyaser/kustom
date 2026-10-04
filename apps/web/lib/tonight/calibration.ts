@@ -9,8 +9,11 @@ import type { PublicClient } from '../publicClient';
  * games count**, which is product's rule and not core's:
  *
  * - a Summoner's Rift game of this group (not ARAM), with a winner;
- * - rated: `games.rated` is not false (M15.3) and every scoreboard row carries `mu_before` and
- *   `mu_after` (the fold's own mark);
+ * - rated: `games.rated` is not false (M15.3) and every scoreboard row carries `r_before` and
+ *   `r_after` (the all-time fold's own mark);
+ * - **rolled with Kustom** (`splits.odds_model = 'kustom'`, M18.6): the line checks the odds of
+ *   `winProbability`, so it counts only the calls that function made, and restarts at `0 of 20` at
+ *   the switch (05-design 11.7);
  * - played from a chosen split, and the ten on each side are exactly that split's ten (teams were
  *   not changed in the lobby after the roll);
  * - **every** such game, across rating resets: a reset does not wipe the bot's past calls.
@@ -29,8 +32,8 @@ export interface CalibrationGameRow {
   game_players: readonly {
     player_id: string;
     side: number | null;
-    mu_before: number | null;
-    mu_after: number | null;
+    r_before: number | null;
+    r_after: number | null;
   }[];
 }
 
@@ -39,6 +42,8 @@ export interface CalibrationSplitRow {
   blue: unknown;
   red: unknown;
   blue_win_prob: number;
+  /** `splits.odds_model` (0036): only `kustom` counts. */
+  odds_model: string;
 }
 
 /** The games that count, as core's input. Pure, so the rule is a unit test. */
@@ -54,9 +59,9 @@ export function calibrationGames(
     if (game.rated === false) continue;
     if (!matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'sr')) continue;
     const rows = game.game_players;
-    if (rows.length !== 10 || rows.some((row) => row.mu_before === null || row.mu_after === null)) continue;
+    if (rows.length !== 10 || rows.some((row) => row.r_before === null || row.r_after === null)) continue;
     const split = splitByLobby.get(game.lobby_id);
-    if (split === undefined) continue;
+    if (split === undefined || split.odds_model !== 'kustom') continue;
     const p = split.blue_win_prob;
     if (!Number.isFinite(p) || p < 0 || p > 1) continue;
 
@@ -124,7 +129,7 @@ async function loadCalibration(client: PublicClient, groupId: string): Promise<C
     const { data, error } = await client
       .from('games')
       .select(
-        'id, lobby_id, winning_side, rated, gameMode:raw->gameMode, game_players(player_id, side, mu_before, mu_after)',
+        'id, lobby_id, winning_side, rated, gameMode:raw->gameMode, game_players(player_id, side, r_before, r_after)',
       )
       .eq('group_id', groupId)
       .not('lobby_id', 'is', null)
@@ -141,15 +146,22 @@ async function loadCalibration(client: PublicClient, groupId: string): Promise<C
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await client
       .from('splits')
-      .select('lobby_id, blue, red, blue_win_prob, lobbies!inner(group_id)')
+      .select('lobby_id, blue, red, blue_win_prob, odds_model, lobbies!inner(group_id)')
       .eq('is_chosen', true)
+      .eq('odds_model', 'kustom')
       .eq('lobbies.group_id', groupId)
       .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`calibration: split lookup failed: ${error.message}`);
     const page = data ?? [];
     for (const row of page) {
-      splits.push({ lobby_id: row.lobby_id, blue: row.blue, red: row.red, blue_win_prob: row.blue_win_prob });
+      splits.push({
+        lobby_id: row.lobby_id,
+        blue: row.blue,
+        red: row.red,
+        blue_win_prob: row.blue_win_prob,
+        odds_model: row.odds_model,
+      });
     }
     if (page.length < PAGE) break;
   }

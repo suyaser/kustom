@@ -43,7 +43,7 @@ export interface SeatRow {
   gameId: string;
   playerId: string;
   side: number;
-  /** `mu_before` and `mu_after` both stored: the fold rated this seat. */
+  /** `r_before` and `r_after` both stored: the fold rated this seat. */
   rated: boolean;
 }
 
@@ -303,7 +303,7 @@ export function supabaseLandingSource(client: PublicClient): LandingSource {
       for (const chunk of inChunks(gameIds)) {
         const { data, error } = await client
           .from('game_players')
-          .select('game_id, player_id, side, mu_before, mu_after')
+          .select('game_id, player_id, side, r_before, r_after')
           .in('game_id', chunk);
         if (error) throw new Error(`landing: scoreboard lookup failed: ${error.message}`);
         for (const row of data ?? []) {
@@ -311,7 +311,7 @@ export function supabaseLandingSource(client: PublicClient): LandingSource {
             gameId: row.game_id,
             playerId: row.player_id,
             side: row.side,
-            rated: row.mu_before !== null && row.mu_after !== null,
+            rated: row.r_before !== null && row.r_after !== null,
           });
         }
       }

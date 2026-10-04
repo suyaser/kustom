@@ -338,8 +338,8 @@ async function readWindow(
       puuid: roster.get(row.playerId)?.puuid ?? row.playerId,
       side: row.side,
       role: row.role,
-      muBefore: row.muBefore,
-      muAfter: row.muAfter,
+      rBefore: row.rBefore,
+      rAfter: row.rAfter,
       championId: row.championId,
       kills: row.kills,
       deaths: row.deaths,
@@ -551,8 +551,8 @@ interface ScoreboardRow {
   playerId: string;
   side: SideValue;
   role: RoleValue | null;
-  muBefore: number | null;
-  muAfter: number | null;
+  rBefore: number | null;
+  rAfter: number | null;
   championId: number | null;
   kills: number;
   deaths: number;
@@ -574,7 +574,7 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
     const { data, error } = await client
       .from('game_players')
       .select(
-        'game_id, player_id, side, role, mu_before, mu_after, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives',
+        'game_id, player_id, side, role, r_before, r_after, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives',
       )
       .in('game_id', chunk);
     if (error) throw new Error(`stats: game player lookup failed: ${error.message}`);
@@ -588,8 +588,8 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
         playerId: row.player_id,
         side: row.side === 100 ? 100 : 200,
         role: row.role,
-        muBefore: row.mu_before,
-        muAfter: row.mu_after,
+        rBefore: row.r_before,
+        rAfter: row.r_after,
         championId: row.champion_id,
         kills: row.kills,
         deaths: row.deaths,

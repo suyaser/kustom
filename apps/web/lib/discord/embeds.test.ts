@@ -1,4 +1,4 @@
-import { displayRating, type Rating, rateGame, SETTLING_GAMES } from '@customs/core';
+import { displayKustom, rateGameKustom, SETTLING_GAMES } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { WEEK_BOARD_SENTENCE_SHORT, WINDOW_LABELS } from '../board/copy';
 import { championLane } from '../champs/lanes';
@@ -64,7 +64,7 @@ import { addedBy, boardPostEntries } from './post';
  * in `docs/05-design.md`, "Discord embeds".
  *
  * Nothing here is hand-computed: the split and the explanation come from `balance()`, the
- * display ratings from `displayRating`, and the result deltas from `rateGame`. The design
+ * display ratings from `displayKustom`, and the result deltas from `rateGameKustom`. The design
  * doc's result example was written by hand from the Plackett-Luce reduction and warns that it
  * is illustrative; these numbers are the package's.
  */
@@ -390,41 +390,52 @@ describe('teamsEmbed, the side line', () => {
 
 /**
  * Red wins the worked example — the underdog at 46%, the case `05-design.md` illustrates.
- * The deltas are `rateGame`'s, not the design doc's hand arithmetic.
+ * The deltas are `rateGameKustom`'s (M18.6: all ten settled, K 16, no performance score), not the
+ * design doc's hand arithmetic.
  */
 function workedResultInput(overrides: Partial<ResultEmbedInput> = {}): ResultEmbedInput {
   const split = workedBalance().splits[0];
   if (split === undefined) throw new Error('no split');
 
-  const before = new Map<string, Rating>(
-    WORKED_ROSTER.map((player) => [workedPuuid(player.name), { mu: player.mu, sigma: player.sigma }]),
-  );
-  const rating = (puuid: string): Rating => {
+  const before = new Map<string, number>(WORKED_ROSTER.map((player) => [workedPuuid(player.name), player.r]));
+  const rating = (puuid: string): number => {
     const value = before.get(puuid);
     if (value === undefined) throw new Error(`no rating for ${puuid}`);
     return value;
   };
 
-  const rated = rateGame(
-    split.blue.map((assignment) => rating(assignment.puuid)),
-    split.red.map((assignment) => rating(assignment.puuid)),
-    200,
-  );
+  const folded = rateGameKustom({
+    players: [
+      ...split.blue.map((one) => ({
+        puuid: one.puuid,
+        side: 100 as const,
+        r: rating(one.puuid),
+        n: 10,
+        score: null,
+      })),
+      ...split.red.map((one) => ({
+        puuid: one.puuid,
+        side: 200 as const,
+        r: rating(one.puuid),
+        n: 10,
+        score: null,
+      })),
+    ],
+    winningSide: 200,
+  });
+  const afterOf = new Map(folded.map((row) => [row.puuid, row.rAfter]));
 
   const nameOf = new Map(WORKED_ROSTER.map((player) => [workedPuuid(player.name), player.name]));
-  const side = (
-    assignments: readonly { puuid: string; role: ResultPlayer['role'] }[],
-    after: readonly Rating[],
-  ): ResultPlayer[] =>
-    assignments.map((assignment, index) => {
-      const muAfter = after[index]?.mu;
-      if (muAfter === undefined) throw new Error('rateGame returned fewer ratings than players');
+  const side = (assignments: readonly { puuid: string; role: ResultPlayer['role'] }[]): ResultPlayer[] =>
+    assignments.map((assignment) => {
+      const rAfter = afterOf.get(assignment.puuid);
+      if (rAfter === undefined) throw new Error('rateGameKustom returned fewer rows than players');
       return {
         puuid: assignment.puuid,
         name: nameOf.get(assignment.puuid) ?? null,
         role: assignment.role,
-        rating: displayRating(muAfter),
-        delta: displayDelta(rating(assignment.puuid).mu, muAfter),
+        rating: displayKustom(rAfter),
+        delta: displayDelta(rating(assignment.puuid), rAfter),
       };
     });
 
@@ -432,8 +443,8 @@ function workedResultInput(overrides: Partial<ResultEmbedInput> = {}): ResultEmb
     winningSide: 200,
     // Invented, like the design doc's: the docs pin no result for the worked example.
     durationS: 2_052,
-    blue: side(split.blue, rated.blue),
-    red: side(split.red, rated.red),
+    blue: side(split.blue),
+    red: side(split.red),
     blueWinProb: split.blueWinProb,
     topDamage: { name: 'Lena', damage: 47_300 },
     // M7.10. Red won the worked example, so its MVP comes off Red and its ACE off Blue: Lena
@@ -490,8 +501,8 @@ describe('resultEmbed, the worked example lost by the favourite', () => {
       expect(line).toMatch(/ · \d+\u00A0\([+-]\d+\)$/);
   });
 
-  it('adds up: every line is displayRating(muAfter) and its delta from displayRating(muBefore)', () => {
-    const before = new Map(WORKED_ROSTER.map((player) => [player.name, displayRating(player.mu)]));
+  it('adds up: every line is round(rAfter) and its delta from round(rBefore)', () => {
+    const before = new Map(WORKED_ROSTER.map((player) => [player.name, displayKustom(player.r)]));
     for (const player of [...input.blue, ...input.red]) {
       const was = before.get(player.name ?? '');
       if (was === undefined) throw new Error(`no before rating for ${player.name}`);
@@ -500,12 +511,12 @@ describe('resultEmbed, the worked example lost by the favourite', () => {
   });
 
   it('never prints a team total of deltas', () => {
-    // -223 and +223 on this roster: with real `rateGame` output the two sides happen to
-    // cancel. Either way the total is not printed — movement scales with each player's own
-    // sigma, so the sides are not guaranteed to cancel (M3.3).
+    // -45 and +45 on this roster: ten settled players and no performance score, so the sides
+    // cancel (M18: shares sum to 5 a side). Even so the total is never printed: printed changes
+    // are differences of rounded Ratings, and newcomers' K breaks the cancel (M3.3).
     const blue = input.blue.reduce((total, player) => total + (player.delta ?? Number.NaN), 0);
     const red = input.red.reduce((total, player) => total + (player.delta ?? Number.NaN), 0);
-    expect([blue, red]).toEqual([-223, 223]);
+    expect([blue, red]).toEqual([-45, 45]);
     for (const part of payload.embeds) {
       expect(part.title).not.toContain(String(blue));
       expect(part.title).not.toContain(String(red));

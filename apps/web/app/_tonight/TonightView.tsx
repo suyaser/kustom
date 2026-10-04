@@ -1,4 +1,4 @@
-import { type Calibration, displayRating, nextGame, ruleOf } from '@customs/core';
+import { type Calibration, displayKustom, nextGame, ruleOf } from '@customs/core';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FairnessReceipt, PreGameReceipt } from '@/components/receipt';
@@ -412,7 +412,7 @@ function answerBand(state: TonightState, puuid: string | null): AnswerBand {
       kind: 'result',
       side: row.side === 100 ? 'blue' : 'red',
       won: row.side === state.result.winningSide,
-      delta: row.muBefore === null || row.muAfter === null ? null : displayDelta(row.muBefore, row.muAfter),
+      delta: row.rBefore === null || row.rAfter === null ? null : displayDelta(row.rBefore, row.rAfter),
     };
   }
   return null;
@@ -659,15 +659,14 @@ function Result({
       role: seat.role,
       // M15.5: a game played not rated moved nobody: the seat keeps its Rating (the lobby's), no delta.
       rating:
-        seat.muAfter !== null
-          ? displayRating(seat.muAfter)
+        seat.rAfter !== null
+          ? displayKustom(seat.rAfter)
           : notRated
             ? (members.get(seat.puuid)?.rating ?? null)
             : null,
       offRole: false,
       ratedGames: members.get(seat.puuid)?.ratedGames ?? null,
-      delta:
-        seat.muBefore === null || seat.muAfter === null ? null : displayDelta(seat.muBefore, seat.muAfter),
+      delta: seat.rBefore === null || seat.rAfter === null ? null : displayDelta(seat.rBefore, seat.rAfter),
       reason: breakdown?.reasons.get(seat.puuid) ?? null,
     }));
 
