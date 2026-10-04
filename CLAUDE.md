@@ -75,6 +75,7 @@ pnpm --filter web rebuild-ratings [--dry-run] [--force] [--prune] [--group <slug
                              # own ratings, own live-lobby / 15-minute guard); --group for one.
                              # M14.18: folds only games with started_at >= groups.ratings_since
                              # (the owner's Reset ratings epoch; null = every game).
+pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
 pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
                              # M7.7 one-off, extended by M7.14: copies vision score, damage
                              # self-mitigated and damage to objectives out of games.raw onto

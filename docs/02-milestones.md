@@ -24,7 +24,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M15 Mode of the night | done (accepted 2026-10-04: M15.1–M15.19 merged; reviewer pass plus product scene walk; three rules live: class wars, region wars, mirror match) | Added 2026-10-03 (the user): class night first (builds the mode card, Spin, the mode panel's pool, Discord line, post-game check), then region wars (static region table seeded once from Meraki, words only), then mirror match (the first rated mode). Unrated by default; never touches champ select; no Ultimate Bravery or kill-race scoring. After M14. **M15.1 done 2026-10-04** (brief `redesign/briefs/m15.1-mode-of-the-night.md`): a rule is one game on top of the standing mode, locked at Roll; Rated switch in any mode (the user's yes); mirror ships with the host opening Blind Pick by hand (M17.17 automates it); no Bo3, no weekdays, no `Rest of tonight`. **2026-10-04: M15.7 (overlay API) dropped** because M17 removes the overlay; the mode's pool is shown only on Tonight's mode panel (M15.5) and linked from Discord (M15.6). No companion work in M15. |
 | M16 Kustom Premium: AI | done for 2.0 (2026-10-04: M16.1–M16.19 merged; the ship blockers M16.15–M16.18 landed; open: M16.20 real-group read after two Premium weeks, which needs the user's export; M16.21 scouting prompt nits, which need spend) | Added 2026-10-03 (the user): a future paid feature, if Kustom succeeds. Game recap line, weekly storyline, player scouting report, behind a per-group premium flag the operator sets with a script (M16.2; never a route, `/ops` read-only); no payments or billing (a future decision). Guardrails: numbers only from the DB with a checker, players sent as P1..P10, opt-outs, caps of $2 per group per month and $20 overall. Needs the user's Anthropic API key. After M15. **M16.1 done 2026-10-04** (brief `redesign/briefs/m16.1-premium-ai.md`): labels `AI recap` / `AI scouting report`; invisible to non-Premium groups; `customs` on as soon as M16.3 lands; landing and `/about` don't mention AI. |
 | M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
-| M19 Fast pages | in progress (planned 2026-10-04; lanes running: `tonight-perf` M19.1, M19.2, M19.4; `stats-perf` M19.5; `app-perf` M19.6; the rest not started) | Added 2026-10-04 from `redesign/research/performance.md`: Tonight changes once per real change, renders in ≤ 6 waves and ≤ 300 ms, never hears another group, controls stay pending until the screen answers, tabs answer at once. Owner decisions 2026-10-04 (decision rows): the name-free Mode card may be patched on the client (M19.13), and a per-group `group_live` signal replaces the table subscriptions, after which player and lobby tables leave the anon Realtime publication (M19.9 to M19.11). `getClaims()` is an investigation with a required security review (M19.12). M19.3 and M19.13 wait for `fix-mode-qa`. |
+| M19 Fast pages | in progress (2026-10-04: M19.1, M19.2, M19.4, M19.5, M19.6, M19.7 landed on main as `perf-integrate`, reviewer pass per lane and on the merge; Tonight result screen 38→14 queries, 14→5 rounds, refresh incl. prefetches ~95→14; Stats warm 0 queries; next: M19.3 scheduler, M19.8–M19.11 live signal) | Added 2026-10-04 from `redesign/research/performance.md`: Tonight changes once per real change, renders in ≤ 6 waves and ≤ 300 ms, never hears another group, controls stay pending until the screen answers, tabs answer at once. Owner decisions 2026-10-04 (decision rows): the name-free Mode card may be patched on the client (M19.13), and a per-group `group_live` signal replaces the table subscriptions, after which player and lobby tables leave the anon Realtime publication (M19.9 to M19.11). `getClaims()` is an investigation with a required security review (M19.12). M19.3 and M19.13 wait for `fix-mode-qa`. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -10843,7 +10843,7 @@ model or what is stored per split; the Riot public API.
   waiting line naming admins) can be screenshotted; test.
 
   *Done 2026-10-04 (code and design review passed; merged).*
-- [ ] **M14.79** Week notes image in the Sunday post (the user, 2026-10-04). *(owner: `platform-engineer`, designer
+- [x] **M14.79** Week notes image in the Sunday post (the user, 2026-10-04). *(owner: `platform-engineer`, designer
   signs off)* A 1920×1080 "Week N notes" image (variant A of `redesign/research/patch-image.md`): BUFFS (top point
   gainers), NERFS (up to 3 who gave points back, 3+ rated games that week, never a settling newcomer; plain numbers),
   a role key, SYSTEMS (Mode of the night runs, Fearless bans), NEW (first nights, records, first picks for the group);
@@ -12318,7 +12318,7 @@ answer sooner, change once per real change, and stop hearing other groups.
 
 ### Tasks
 
-- [ ] **M19.1** Bench (P0). *(owner: `web-engineer`; lane `tonight-perf`)* *In progress 2026-10-04.*
+- [x] **M19.1** Bench (P0). *(owner: `web-engineer`; lane `tonight-perf`)* *In progress 2026-10-04.*
   Dev-only perf logging behind `KUSTOM_PERF_LOG=1` (render start and end, Supabase call count and waves per
   render) and `PERF_SB_DELAY_MS` (added delay per Supabase call), plus `apps/web/scripts/perf-tonight.ts`, which
   replays the audit's event script (open, lobby 1/3/10 members, unchanged repost, ten joins 400 ms apart, tab
@@ -12330,7 +12330,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   (2) with `KUSTOM_PERF_LOG` unset, no logging code runs and a production build contains none of it;
   (3) the script refuses a non-local `NEXT_PUBLIC_SUPABASE_URL` and leaves no `perf-*` group behind, even when
   interrupted. Every later M19 task quotes its before and after from this script.
-- [ ] **M19.2** No refresh-driven prefetch (P1, prefetch half). *(owner: `web-engineer`; lane `tonight-perf`; after
+- [x] **M19.2** No refresh-driven prefetch (P1, prefetch half). *(owner: `web-engineer`; lane `tonight-perf`; after
   M19.1)* *In progress 2026-10-04.* `prefetch={false}` on in-content player and game links on live pages:
   `_tonight/TeamCard.tsx`, `_tonight/Cards.tsx`, `_tonight/Tape.tsx`, `_games/GamesList.tsx` rows. Tabs keep
   prefetching. Acceptance: (1) bench: prefetch requests per result-screen refresh 9 → ≤ 4, queries per result
@@ -12354,7 +12354,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   nothing (no stale `splitId`); (3) `RoleTonight.test.tsx`: That's me lands on `/you` through the router;
   (4) bench: renders per eog 4-5 → ≤ 2, per control tap 2 → 1, dead window 0 on every listed control.
   Out of scope: patching any slice on the client (M19.13).
-- [ ] **M19.4** Cheap Tonight render (P2). *(owner: `web-engineer`; lane `tonight-perf`; cross-request caches
+- [x] **M19.4** Cheap Tonight render (P2). *(owner: `web-engineer`; lane `tonight-perf`; cross-request caches
   merge with or after M19.7)* *In progress 2026-10-04.* Roster reads start beside `loadTonight` (only the
   extras wait); `readRosterIds` reads in parallel; `readFirstGames` is one `in` query, not one per clashing
   name; React `cache()` removes the duplicate `lobbies`, `group_modes` and `groups_public` reads in one render;
@@ -12369,7 +12369,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   updates on the next render; (4) no cached function reads `cookies()`, the session or the service role (a test
   over the cache module's imports); (5) bench: Tonight waves ≤ 6, queries ≤ 20, TTFB ≤ 300 ms at 40 ms RTT, and
   a result refresh, prefetches included, ≤ 24 queries.
-- [ ] **M19.5** Stats pages read once, per-group cache. *(owner: `web-engineer`; lane `stats-perf`;
+- [x] **M19.5** Stats pages read once, per-group cache. *(owner: `web-engineer`; lane `stats-perf`;
   cross-request caches merge with or after M19.7)* *In progress 2026-10-04.* The same treatment for Board, Games
   list, Stats, Champions, 1v1, the game page and the player page: parallel reads, `cache()` per request, the
   `games:<id>` and `roster:<id>` caches from M19.4 (one cache module, not two). Acceptance: (1) every existing
@@ -12378,7 +12378,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   new numbers; (3) bench: Board and Games TTFB ≤ 150 ms warm, game page and player page ≤ 6 waves; (4) the
   settling section, the week's points board and calibration show the same rows before and after on the
   `customs` seed.
-- [ ] **M19.6** Query inventory, prefetch rule, budget guards. *(owner: `web-engineer`; lane `app-perf`)* *In
+- [x] **M19.6** Query inventory, prefetch rule, budget guards. *(owner: `web-engineer`; lane `app-perf`)* *In
   progress 2026-10-04.* (a) An inventory of every page route: queries, waves and TTFB at 40 ms RTT, anonymous
   and signed in, written as a table in `docs/01-architecture.md` under "Page cost" and regenerated by a script,
   not by hand. (b) The prefetch rule, written beside it: a `<Link>` inside page content on a live page
@@ -12390,7 +12390,7 @@ answer sooner, change once per real change, and stop hearing other groups.
   in `apps/web/app` that renders a page; (2) the budgets start at today's measured numbers, and every M19 task
   that moves a number lowers its page's budget in the same change; at milestone close every budget equals its
   target in the table above; (3) a deliberately added query to Tonight fails its guard (shown once in the PR).
-- [ ] **M19.7** Cache invalidation in the write routes (audit section 8.1). *(owner: `platform-engineer`; before
+- [x] **M19.7** Cache invalidation in the write routes (audit section 8.1). *(owner: `platform-engineer`; before
   or with the first cross-request cache in M19.4 or M19.5)* `revalidateTag(tag, { expire: 0 })` after the last
   write in: `companion/game` (eog: `games:<gid>`, plus `roster:<gid>` when players were created or renamed);
   `companion/lobby` (`roster:<gid>` when `ensurePlayers` created or renamed someone); `admin/members/*` and
