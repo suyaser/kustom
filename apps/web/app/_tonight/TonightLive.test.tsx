@@ -136,9 +136,11 @@ function modeRow(at: number, extra: Record<string, unknown> = {}) {
     mode: 'fearless',
     pending_rule: null,
     pending_class_tag: null,
+    pending_region_blue: null,
+    pending_region_red: null,
     rated_override: null,
-    version: at,
-    updated_at: '2026-10-04T20:00:00+00:00',
+    // M20.7: no version column; the store orders by `updated_at` (here `at` ms after the epoch).
+    updated_at: new Date(at).toISOString(),
     set_by: '33333333-3333-4333-8333-333333333333',
     pending_set_by: null,
     ...extra,

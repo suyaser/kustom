@@ -151,12 +151,15 @@ describe('the rows as the store takes them', () => {
       ['class', null],
       ['aram', null],
     ] as const) {
+      // M20.7: region wars is never on the row without its pair.
       const row = {
         mode: 'fearless',
         pending_rule: rule,
         pending_class_tag: tag,
+        pending_region_blue: rule === 'region' ? 'zaun' : null,
+        pending_region_red: rule === 'region' ? 'noxus' : null,
         rated_override: null,
-        version: 1,
+        updated_at: '2026-10-05T18:00:00.000Z',
       };
       expect(pendingOfRow(rule, tag)).toEqual(stateFromRow(row).pending);
     }

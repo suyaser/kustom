@@ -7,7 +7,7 @@ import {
   type ModeChoice,
   type NextGame,
   ruleOptionOf,
-  setGroupModeResponseSchema,
+  legacyModeAnswerSchema,
 } from '@customs/db/schemas';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import {
@@ -214,7 +214,8 @@ export function ModeControls({
         done();
         return { ok: false, status: response.status };
       }
-      const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
+      // M20.7: the answer is `{ state, notice }` plus the fields this client reads; M20.8 moves it to `state`.
+      const parsed = legacyModeAnswerSchema.safeParse(await response.json().catch(() => null));
       const spun = parsed.success && parsed.data.spun !== undefined ? ruleOptionOf(parsed.data.spun) : null;
       const next = parsed.success ? (parsed.data.next ?? null) : null;
       // The answer first, then the tap goes: the card never flashes back to the old state.

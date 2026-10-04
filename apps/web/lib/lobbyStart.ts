@@ -1,3 +1,4 @@
+import type { PendingRule, RuleOption } from '@customs/core';
 import 'server-only';
 import { randomInt } from 'node:crypto';
 import { COMPANION_COMMAND_TTL_MS, type CreateLobbyCommandPayload } from '@customs/db/schemas';
@@ -167,7 +168,7 @@ export function hostLabel(host: HostCandidate): string {
  * player picks the lane opponent's champion in secret); every other rule and both standing modes
  * play Draft Pick, as the group always has.
  */
-export function pickTypeFor(pending: { id: string } | null): CreateLobbyCommandPayload['pickType'] {
+export function pickTypeFor(pending: RuleOption | PendingRule | null): CreateLobbyCommandPayload['pickType'] {
   return pending?.id === 'mirror' ? 'blind' : 'draft';
 }
 

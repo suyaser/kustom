@@ -275,6 +275,19 @@ export const setGroupModeResponseSchema = z.object({
 
 export type SetGroupModeResponse = z.infer<typeof setGroupModeResponseSchema>;
 
+/**
+ * @deprecated M20.8: the fields of the answer the pre-M20.8 card client reads (M15.3's answer).
+ * {@link setGroupModeResponseSchema} is a superset, so this parses every M20.7 answer; M20.8
+ * deletes it with the client's `next` reads.
+ */
+export const legacyModeAnswerSchema = z.object({
+  ok: z.literal(true),
+  mode: groupModeSchema,
+  changed: z.boolean(),
+  next: nextGameSchema.optional(),
+  spun: ruleChoiceSchema.optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Rows as anon reads them (Tonight, and its Realtime events)
 // ---------------------------------------------------------------------------

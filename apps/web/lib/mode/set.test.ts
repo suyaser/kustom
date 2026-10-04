@@ -1,178 +1,113 @@
-import type { ModeState, RuleOption } from '@customs/core';
+import type { ModeRow, TransitionContext } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { memoryModeStore } from '../testing/modeStore';
 import { nextGameOf, writeModeCard } from './set';
+import { columnsOfPatch, patchIsNoop } from './state';
 
 const GROUP = '00000000-0000-0000-0000-0000000000aa';
 const ADMIN = '00000000-0000-0000-0000-0000000000bb';
-const TANKS: RuleOption = { id: 'class', tag: 'Tank' };
-const MAGES: RuleOption = { id: 'class', tag: 'Mage' };
 
-const state = (over: Partial<ModeState> = {}): ModeState => ({
-  standing: 'fearless',
-  pending: null,
-  ratedOverride: null,
-  version: 3,
-  ...over,
+const row = (over: Partial<ModeRow> = {}): ModeRow => ({ standing: 'fearless', pending: null, rated: null, ...over });
+const context = async (): Promise<TransitionContext> => ({
+  roster: new Map(),
+  regions: [],
+  fearlessPool: [],
+  rng: () => 0,
 });
 
-describe('writeModeCard: the standing mode (M14.29)', () => {
-  it('switches fearless to normal and moves the version', async () => {
-    const t = memoryModeStore(state());
+describe('writeModeCard (M20.7): one patch, one write, no compare-and-set', () => {
+  it('a standing pick writes exactly its patch and names the admin', async () => {
+    const t = memoryModeStore(row({ pending: { id: 'mirror' }, rated: false }));
     const result = await writeModeCard(t.store, {
       groupId: GROUP,
       playerId: ADMIN,
-      action: { kind: 'standing', standing: 'normal' },
+      action: { type: 'standing', standing: 'normal' },
+      context,
     });
     expect(result).toMatchObject({ ok: true, changed: true });
-    expect(t.row()).toEqual(state({ standing: 'normal', version: 4 }));
-    expect(t.writes[0]?.writer).toEqual({ playerId: ADMIN, setsRule: false });
+    expect(t.writes).toEqual([
+      { patch: { standing: 'normal', pending: null, rated: null }, writer: { playerId: ADMIN } },
+    ]);
   });
 
-  it('a repeat of the standing mode with nothing pending writes nothing', async () => {
-    const t = memoryModeStore(state());
+  it('a repeat standing pick with nothing to empty writes nothing', async () => {
+    const t = memoryModeStore(row());
     const result = await writeModeCard(t.store, {
       groupId: GROUP,
       playerId: ADMIN,
-      action: { kind: 'standing', standing: 'fearless' },
+      action: { type: 'standing', standing: 'fearless' },
+      context,
     });
     expect(result).toMatchObject({ ok: true, changed: false });
     expect(t.writes).toEqual([]);
   });
 
-  it('picking the standing mode with a rule pending clears the rule and the switch (R1)', async () => {
-    const t = memoryModeStore(state({ pending: TANKS, ratedOverride: true }));
-    await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'standing', standing: 'fearless' },
-    });
-    expect(t.row()).toEqual(state({ version: 4 }));
+  it('a Rated flip writes even when it repeats (a tap is never dropped against a stale read)', async () => {
+    const t = memoryModeStore(row({ rated: false }));
+    await writeModeCard(t.store, { groupId: GROUP, playerId: ADMIN, action: { type: 'rated', rated: false }, context });
+    expect(t.writes.map((w) => w.patch)).toEqual([{ rated: false }]);
   });
 
-  it('a group with no row reads as normal: writing normal changes nothing, fearless inserts', async () => {
-    const quiet = memoryModeStore(null);
-    expect(
-      await writeModeCard(quiet.store, {
-        groupId: GROUP,
-        playerId: ADMIN,
-        action: { kind: 'standing', standing: 'normal' },
-      }),
-    ).toMatchObject({ ok: true, changed: false });
-    expect(quiet.writes).toEqual([]);
+  it('a group with no row is written as a new group plus the patch', async () => {
+    const t = memoryModeStore(null);
+    await writeModeCard(t.store, { groupId: GROUP, playerId: ADMIN, action: { type: 'rated', rated: false }, context });
+    expect(t.row()).toEqual({ standing: 'normal', pending: null, rated: false });
+  });
 
-    const loud = memoryModeStore(null);
-    await writeModeCard(loud.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'standing', standing: 'fearless' },
-    });
-    expect(loud.row()).toEqual({ standing: 'fearless', pending: null, ratedOverride: null, version: 1 });
+  it("a write lands on the other admin's row as it is now: only its own fields change", async () => {
+    const t = memoryModeStore(row());
+    t.beforeNextWrite(() => t.set(row({ pending: { id: 'class', tag: 'Mage' } })));
+    await writeModeCard(t.store, { groupId: GROUP, playerId: ADMIN, action: { type: 'rated', rated: true }, context });
+    expect(t.row()).toEqual(row({ pending: { id: 'class', tag: 'Mage' }, rated: true }));
   });
 });
 
-describe('writeModeCard: a rule, the Rated switch, Spin (M15.3)', () => {
-  it('a rule keeps the standing mode, resets the switch and names the setter', async () => {
-    const t = memoryModeStore(state({ ratedOverride: false }));
-    const result = await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'rule', rule: TANKS },
+describe('the patch as columns', () => {
+  it('names only the fields the patch sets, a region rule with both its regions', () => {
+    expect(columnsOfPatch({ rated: false }, { playerId: ADMIN })).toEqual({ rated_override: false, set_by: ADMIN });
+    expect(columnsOfPatch({ pending: { id: 'region', blue: 'zaun', red: 'noxus' } }, { playerId: ADMIN })).toEqual({
+      pending_rule: 'region',
+      pending_class_tag: null,
+      pending_region_blue: 'zaun',
+      pending_region_red: 'noxus',
+      pending_set_by: ADMIN,
+      set_by: ADMIN,
     });
-    expect(result).toMatchObject({ ok: true, changed: true, spun: null });
-    expect(t.row()).toEqual(state({ pending: TANKS, version: 4 }));
-    expect(t.writes[0]?.writer.setsRule).toBe(true);
+    expect(columnsOfPatch({ standing: 'normal', pending: null, rated: null }, {})).toEqual({
+      mode: 'normal',
+      pending_rule: null,
+      pending_class_tag: null,
+      pending_region_blue: null,
+      pending_region_red: null,
+      pending_set_by: null,
+      rated_override: null,
+    });
   });
 
-  it('re-queuing the same rule still moves the version (it must survive the running game)', async () => {
-    const t = memoryModeStore(state({ pending: TANKS }));
-    await writeModeCard(t.store, { groupId: GROUP, playerId: ADMIN, action: { kind: 'rule', rule: TANKS } });
-    expect(t.row()?.version).toBe(4);
-  });
-
-  it('the Rated switch works either way in any mode, and always moves the version', async () => {
-    const t = memoryModeStore(state());
-    await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'rated', rated: false },
-    });
-    expect(t.row()).toEqual(state({ ratedOverride: false, version: 4 }));
-    await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'rated', rated: false },
-    });
-    expect(t.row()?.version).toBe(5);
-  });
-
-  it('Spin writes the drawn rule as the pending rule', async () => {
-    const t = memoryModeStore(state());
-    const result = await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'spin', draw: async () => MAGES },
-    });
-    expect(result).toMatchObject({ ok: true, changed: true, spun: MAGES });
-    expect(t.row()?.pending).toEqual(MAGES);
-  });
-
-  it('Spin with nothing to draw writes nothing', async () => {
-    const t = memoryModeStore(state());
-    const result = await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'spin', draw: async () => null },
-    });
-    expect(result).toMatchObject({ ok: false, reason: 'nothing-to-spin' });
-    expect(t.writes).toEqual([]);
-  });
-
-  it('a rule the check refuses writes nothing (too-few-open); the pending rule is never re-checked', async () => {
-    const t = memoryModeStore(state({ pending: MAGES }));
-    const checked: RuleOption[] = [];
-    const playable = async (_state: ModeState, rule: RuleOption) => {
-      checked.push(rule);
-      return false;
-    };
-    const refused = await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'rule', rule: TANKS, playable },
-    });
-    expect(refused).toMatchObject({ ok: false, reason: 'too-few-open' });
-    expect(t.writes).toEqual([]);
-    const again = await writeModeCard(t.store, {
-      groupId: GROUP,
-      playerId: ADMIN,
-      action: { kind: 'rule', rule: MAGES, playable },
-    });
-    expect(again).toMatchObject({ ok: true, changed: true });
-    expect(checked).toEqual([TANKS]);
+  it('a no-op is a patch equal to the row on every field it names', () => {
+    expect(patchIsNoop(row(), { standing: 'fearless', pending: null, rated: null })).toBe(true);
+    expect(patchIsNoop(row({ rated: false }), { standing: 'fearless', pending: null, rated: null })).toBe(false);
+    expect(patchIsNoop(row({ pending: { id: 'mirror' } }), { pending: null })).toBe(false);
   });
 });
 
-describe('writeModeCard: two admins at once', () => {
-  it('a write that loses the compare-and-set re-reads and applies on top: last write wins', async () => {
-    const t = memoryModeStore(state());
-    // Another admin flips Rated between this write's read and its write.
-    t.beforeNextWrite(() => t.set(state({ ratedOverride: false, version: 4 })));
-    await writeModeCard(t.store, { groupId: GROUP, playerId: ADMIN, action: { kind: 'rule', rule: TANKS } });
-    // The rule landed on the other admin's state (version 4 -> 5); chooseRule resets the switch.
-    expect(t.row()).toEqual(state({ pending: TANKS, version: 5 }));
-  });
-});
-
-describe('nextGameOf', () => {
-  it("is core's nextGame with the standing mode, the rule as the select's string and the token", () => {
-    expect(nextGameOf(state({ pending: TANKS }))).toEqual({
+describe('nextGameOf (the pre-M20.8 client answer)', () => {
+  it('is the next game with the rule as the select string and updated_at as the order', () => {
+    const at = '2026-10-05T18:00:00.000Z';
+    expect(nextGameOf({ row: row({ pending: { id: 'class', tag: 'Tank' } }), exists: true, updatedAt: at })).toEqual({
       standing: 'fearless',
       rule: 'class:Tank',
       rated: false,
       ratedOverride: null,
-      version: 3,
+      version: Date.parse(at),
     });
-    expect(nextGameOf(state({ ratedOverride: false }))).toMatchObject({ rule: null, rated: false });
-    expect(nextGameOf(state({ pending: { id: 'mirror' } }))).toMatchObject({ rule: 'mirror', rated: true });
+    expect(
+      nextGameOf({ row: row({ pending: { id: 'region', blue: 'zaun', red: 'noxus' } }), exists: true, updatedAt: at }),
+    ).toMatchObject({ rule: 'region', rated: false });
+    expect(nextGameOf({ row: row({ rated: false }), exists: false, updatedAt: null })).toMatchObject({
+      rule: null,
+      rated: false,
+      version: 0,
+    });
   });
 });

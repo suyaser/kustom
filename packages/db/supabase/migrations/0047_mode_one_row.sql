@@ -240,7 +240,7 @@ begin
   where id = p_lobby_id
     and group_id = p_group_id
     and lock_mode is null
-    and status = any (p_statuses)
+    and status::text = any (p_statuses)
   returning id into locked;
   if locked is null then
     return 'exists';

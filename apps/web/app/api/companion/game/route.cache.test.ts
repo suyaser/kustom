@@ -67,11 +67,7 @@ vi.mock('@/lib/lobbyState', async (importOriginal) => ({
 }));
 vi.mock('@/lib/mode/record', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mode/record')>()),
-  clearAfterRecord: async () => {},
-}));
-vi.mock('@/lib/mode/state', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/mode/state')>()),
-  supabaseModeStore: () => ({}),
+  applyModeRecord: async () => false,
 }));
 vi.mock('@/lib/ai/afterIngest', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/ai/afterIngest')>()),
@@ -89,7 +85,7 @@ function stored(overrides: { created?: boolean; foreignDuplicate?: boolean; grou
     created: overrides.created ?? true,
     foreignDuplicate: overrides.foreignDuplicate ?? false,
     participants: 10,
-    modeRecord: { kind: 'normal', lock: null },
+    modeRecord: { kind: 'rift', lock: null, live: false, row: { standing: 'normal', pending: null, rated: null } },
   });
 }
 
