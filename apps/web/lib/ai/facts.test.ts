@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { aiFactListSchema } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
 import type { StoredSplit } from '@/components/receipt/types';
@@ -27,6 +28,7 @@ import {
   type HistoryRow,
   leadAngleOf,
   openingOf,
+  ordinal,
   PERSONAL_BEST_MIN_GAMES,
   PLAYER_FIGURE_MIN_GAMES,
   readSeatHistory,
@@ -35,7 +37,9 @@ import {
   renderFact,
   renderFactWith,
   storyAngles,
+  systemPrompt,
   thousands,
+  weekMarginNote,
 } from './facts';
 import { AI_FEATURES } from './meter';
 
@@ -440,7 +444,7 @@ describe('M16.8 history facts', () => {
     ) as FactList;
     expect(factOf(list, 'P2')[0]?.claims).toContainEqual({
       claim: 'max',
-      text: 'their longest run of wins in a row in the group',
+      text: 'their longest run in the group',
     });
   });
 
@@ -670,5 +674,57 @@ describe('M16.15 angle rotation', () => {
     const prompt = buildPrompt(upset, null, ['Red took the upset in 27 minutes.']);
     expect(prompt.user).toContain('The previous line led with an upset. Lead with something else this time.');
     expect(prompt.user).not.toContain('- the underdog won: an upset');
+  });
+});
+
+describe('story-claim facts (2026-10-04, every provider)', () => {
+  const sha = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+
+  it('pins the system prompts, so a prompt change is always deliberate', () => {
+    // Moved on purpose (lead, 2026-10-04): main's M16.8-M16.19 prompts were 4f424a950ab457fe /
+    // 07c13f69006efaec / 5f5dc0d3fa252474. Added since: no gendered pronoun even for a champion,
+    // no "one" standing in for a game or win (scouting, week), and the week's margin words and
+    // examples tied to the clear-lead / close-race notes the checker now requires.
+    expect(sha(systemPrompt('game'))).toBe('7fc9a7819ecc7c67');
+    expect(sha(systemPrompt('week'))).toBe('ab78478bb8709860');
+    expect(sha(systemPrompt('player'))).toBe('f63fe302c5978cac');
+  });
+
+  it('a week margin is close at 5 points or fewer, clear from 20 and a quarter of 2nd, else neither', () => {
+    expect(weekMarginNote(70, 68)).toMatch(/^close race/);
+    expect(weekMarginNote(70, 65)).toMatch(/^close race/);
+    expect(weekMarginNote(200, 101)).toMatch(/^clear lead/);
+    expect(weekMarginNote(106, 92)).toBeNull();
+    // 20 points ahead but under a quarter of 2nd's points: neither.
+    expect(weekMarginNote(120, 100)).toBeNull();
+    expect(weekMarginNote(60, 70)).toBeNull();
+  });
+
+  it('the week facts carry the margin as a note only, and places with their endings', () => {
+    const week = buildWeekFacts(AI_WEEK, new Set()) as FactList;
+    expect(week.facts[0]?.notes).toContain(
+      'clear lead at the top: first place finished well ahead of second place',
+    );
+    const printed = week.facts.map(renderFact).join('\n');
+    expect(printed).not.toMatch(/ahead of the runner-up/);
+    expect(printed).toContain("1st place on the week's board");
+    expect(printed).not.toMatch(/\b\d+ place\b/);
+  });
+
+  it('writes ordinals', () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111].map(ordinal)).toEqual([
+      '1st',
+      '2nd',
+      '3rd',
+      '4th',
+      '11th',
+      '12th',
+      '13th',
+      '21st',
+      '22nd',
+      '23rd',
+      '101st',
+      '111th',
+    ]);
   });
 });

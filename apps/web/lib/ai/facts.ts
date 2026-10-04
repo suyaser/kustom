@@ -371,8 +371,8 @@ export function buildGameFacts(input: GameFactsInput, optedOut: ReadonlySet<stri
       const streak = seat.history?.winStreak ?? null;
       if (streak !== null && streak >= WIN_STREAK_MIN) {
         values.push(value('wins in a row', streak, 'streak'));
-        if (seat.history?.longestStreak === true)
-          claims.push(claim('max', 'their longest run of wins in a row in the group'));
+        // 2026-10-04: `run` alone, so a line that copies the claim never says `in a row` twice.
+        if (seat.history?.longestStreak === true) claims.push(claim('max', 'their longest run in the group'));
       }
     } else {
       // The losing side (M16.16): only numbers they earned -- top 2 in the game for that stat (the
@@ -443,6 +443,27 @@ export const WEEK_BOARD_ROWS = 5;
 export const WEEK_STREAK_MIN = 3;
 /** A week won game for game becomes a claim from this many games (M16.13). */
 export const WEEK_PERFECT_MIN = 5;
+/**
+ * The margin at the top of the week (A/B read, 2026-10-04; every provider): 1st place this many
+ * points or fewer ahead of 2nd is a close race; at least {@link CLEAR_LEAD_POINTS} ahead, and a
+ * quarter more than 2nd's points, is a clear lead. In between is neither, and the checker allows
+ * neither closeness words (`a squeeze`) nor margin words (`ran away`) without the matching note.
+ * Only the note reaches the model, never the gap as a number: a printed `N points ahead of the
+ * runner-up` was copied verbatim into line after line, and the checker needs only the note.
+ */
+export const CLOSE_RACE_POINTS = 5;
+export const CLEAR_LEAD_POINTS = 20;
+export const CLOSE_RACE_NOTE = 'close race at the top: first and second place were a few points apart';
+export const CLEAR_LEAD_NOTE = 'clear lead at the top: first place finished well ahead of second place';
+
+/** The week's margin note for 1st place's points over 2nd's, or null when it is neither. */
+export function weekMarginNote(first: number, second: number): string | null {
+  const gap = first - second;
+  if (gap < 0) return null;
+  if (gap <= CLOSE_RACE_POINTS) return CLOSE_RACE_NOTE;
+  if (gap >= CLEAR_LEAD_POINTS && gap >= 0.25 * Math.max(0, second)) return CLEAR_LEAD_NOTE;
+  return null;
+}
 
 export function buildWeekFacts(input: WeekFactsInput, optedOut: ReadonlySet<string>): FactList | null {
   const top = input.board.slice(0, WEEK_BOARD_ROWS);
@@ -475,11 +496,21 @@ export function buildWeekFacts(input: WeekFactsInput, optedOut: ReadonlySet<stri
   const mostGamesRows = input.board.filter((row) => row.games === maxGames);
   const mostGames = maxGames > 0 && mostGamesRows.length === 1 ? (mostGamesRows[0] ?? null) : null;
 
+  // The margin at the top (2026-10-04): 1st's net points over 2nd's, both from the board.
+  const pointsOf = (row: (typeof input.board)[number] | undefined) =>
+    row === undefined ? undefined : input.climbs.find((entry) => entry.playerId === row.playerId)?.climb;
+  const firstPoints = pointsOf(input.board[0]);
+  const secondPoints = pointsOf(input.board[1]);
+  const marginNote =
+    firstPoints !== undefined && secondPoints !== undefined && firstPoints > 0
+      ? weekMarginNote(firstPoints, secondPoints)
+      : null;
+
   const facts: Omit<AiFact, 'id'>[] = [
     {
       token: null,
       side: null,
-      notes: ['the closed week of custom games'],
+      notes: ['the closed week of custom games', ...(marginNote !== null ? [marginNote] : [])],
       champions: [],
       values: [value('rated games in the week', input.ratedGames, 'games')],
       claims: [],
@@ -1019,6 +1050,14 @@ export function renderFact(fact: AiFact): string {
   return renderFactWith(fact, {});
 }
 
+/** `1st`, `2nd`, `3rd`, `4th`, `11th`, `22nd`. */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  const ending = n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+  return `${n}${ending}`;
+}
+
 /** {@link renderFact}, with damage in thousands (`29.9k`) when asked: what the game prompt prints. */
 export function renderFactWith(fact: AiFact, options: { thousands?: boolean }): string {
   const parts: string[] = [`${fact.id}:`];
@@ -1033,7 +1072,10 @@ export function renderFactWith(fact: AiFact, options: { thousands?: boolean }): 
     ...fact.champions.map((name) => `champion ${name}`),
     ...fact.values.map((v) =>
       v.of === undefined
-        ? `${options.thousands === true && v.unit === 'damage' ? thousands(v.value) : formatNumber(v.value)} ${v.label}`
+        ? v.unit === 'place'
+          ? // 2026-10-04: a place prints with its ending (`1st place`), the way the line must write it.
+            `${ordinal(v.value)} ${v.label}`
+          : `${options.thousands === true && v.unit === 'damage' ? thousands(v.value) : formatNumber(v.value)} ${v.label}`
         : `${formatNumber(v.value)} of ${formatNumber(v.of)} ${v.label}`,
     ),
     ...fact.claims.map((c) => c.text),
@@ -1181,7 +1223,7 @@ const GAME_STYLE: readonly string[] = [
   '- Sound like a friend in the group chat: short, punchy, casual. Gentle teasing is welcome, but only of players whose team won (a winner with the most deaths, or no kills, who still won). Players who lost only get credit: never say what they could not do, or that it was not enough. Tease a winner only about their numbers in that game: never say they got carried, got lucky, were boosted or scripting, or that a run of wins was not earned.',
   '- Write damage as the facts print it, like 31.2k damage. Write deaths as 7 deaths, never as died 7 times; a single one is 1 kill, 1 death, 1 assist. Never write a score like 27-9, and never use the word one.',
   '- At most one most, best or highest per line: a pile of superlatives reads like a stat sheet.',
-  '- Never he, she, his or her: use the token, they or them.',
+  "- Never he, she, him, his or her, not even for a champion or a champion's first game (Elise was new for {P4}, never Elise made her debut or on her): use the token, the champion name, they or them.",
   "- A sentence with a number names that number's player token in the same sentence; never carry a player's number into the next sentence.",
   '- Never use the words ever, one or W (say the win). Say first time, not first ever.',
   '- Start every sentence with a player token, Blue, Red, or a plain word such as The, That, What, Not, Nobody or Just. Never start one with They, It or a one-word aside like Respect, Credit or Gentle; a second sentence about the same player repeats the token: {P3} also had 6 deaths, not They also had 6 deaths.',
@@ -1212,9 +1254,10 @@ const PLAYER_STYLE: readonly string[] = [
   '- Sound like a friend sizing them up: confident, warm, a little playful. Describe what the numbers show; never advise, never explain why, never guess at anything the facts do not say.',
   '- A week with fewer wins than losses is just the count, 6 wins in 18 games, with no word about how it felt (never rough, tough, quiet or cold). A winning week can be called warm.',
   '- The report stays on the page for weeks, beside a This week tab, under a line saying the day it was written. Call that stretch the week or over the week, in the past tense (went, was). Never this week, last week, lately, recently, right now or these days.',
-  "- Every sentence with a number or a percent names the player's token, like {P1}, in that same sentence. Name the duo partner only by their token, like {P2}, and keep them in a sentence of their own that carries only their games and wins together with {P1}; the subject's other numbers go in other sentences. Never he, she, his or her: use the token, they or them.",
+  "- Every sentence with a number or a percent names the player's token, like {P1}, in that same sentence. Name the duo partner only by their token, like {P2}, and keep them in a sentence of their own that carries only their games and wins together with {P1}; the subject's other numbers go in other sentences. Never he, she, him, his or her, not even for a champion or a champion's first game (Elise was new for {P4}, never Elise made her debut or on her): use the token, the champion name, they or them.",
   '- Start every sentence with a token or a plain word such as The, When, Not, Nobody or Just; never with a number, never with Overall or Teammate, and never open the report with the champion or role the page already shows. Do not open with {P1} and {P2} or with The duo: vary how the report starts.',
   '- Never use most, best, only, never, ever or every unless a fact says it.',
+  '- Never let one stand in for a game, a win or a week (never a warm one, a big one): write the fact itself, like 9 wins in 14 games.',
   'Examples of the style, about other players (never copy their numbers or wording):',
   '- {P1} and {P2} are the pair to split up: 9 wins in 12 games on the same team. Over the week {P1} went 6 wins in 9 games, the best of them 11 kills on Lee Sin.',
   '- {P1} spent the week away from the jungle, 5 games in top lane, and picked up Ornn for the first time in the group. The week ended at 4 wins in 9 games.',
@@ -1223,17 +1266,20 @@ const PLAYER_STYLE: readonly string[] = [
 const WEEK_STYLE: readonly string[] = [
   "You write the opening of the Sunday post in a friends group's Discord, about the week of League of Legends custom games that just closed. The post prints the full board right under you, so never recite the standings.",
   'How a good paragraph reads:',
-  '- The week as a story in two to four sentences: who ran away with it, a win streak, a tight race at the top, someone who climbed big from few games, the award. Name at most three players and use at most five numbers.',
+  '- The week as a story in two to four sentences: a clear lead or a close race at the top when a fact says so, a win streak, someone who climbed big from few games, the award. Name at most three players and use at most five numbers.',
   '- Sound like the group chat sportscaster: punchy, warm, a little teasing of the people at the top. Nobody lower down gets teased.',
   '- Places as 1st, 2nd or 3rd place. A single one is 1 win, 1 game. A streak is written 6 wins in a row, never with the word streak.',
+  '- Never let one stand in for a game, a win or a week (never a big one, a warm one): write the fact itself, like 6 wins in a row.',
+  '- The size of the win at the top comes only from the facts: ran away, comfortable or nobody came close only when a fact says clear lead; tight, a squeeze or to the wire only when a fact says close race; with neither, just 1st place and the points. Nothing about when in the week something happened (early, all week, put it to bed).',
   '- Every number is followed straight away by its unit word: 14 wins in 14 games, never won all 14, won 12 of them, or 14, a perfect run; points as 70 points. Never a number word (three, four), not even top four or a three-way race; top three is the only exception. Never a gap like separated by 3 points: say it without the number.',
   "- Every sentence that has a number, a place or a word like biggest names that player's token in the same sentence. Never start a sentence with That, They or It to point back at a player: repeat the token instead.",
   "- Never use most, best, only, never, ever or every outside the facts' own claims (top three and made the most of are fine). Never write win rate.",
-  '- Never he, she, his or her: use the token, they or them. No sign-off like Good week, everyone.',
+  "- Never he, she, him, his or her, not even for a champion or a champion's first game (Elise was new for {P4}, never Elise made her debut or on her): use the token, the champion name, they or them. No sign-off like Good week, everyone.",
   '- Start every sentence with a player token or a plain word such as The, What, Nobody or Just; never with an adverb or a phrase like Quietly, Further down, Elsewhere or Hats off (Down the board is fine), and never with a number. A sentence about a run or a record names its player token, even right after a sentence about them.',
-  'Example of the style, from another week (never copy its numbers or wording):',
-  '- {P1} spent the week refusing to lose: 6 wins in a row and 212 points, a comfortable 1st place. {P2} chased with 13 wins and settled for 2nd place, while {P3} picked up the best off-role award on the side.',
-  '- The race at the top went to the wire: {P1} took 1st place on 70 points, with {P2} right behind on 68 points. Nobody else came close, though {P4} put together 7 wins in a row on the way to the best off-role award.',
+  'Examples of the style, from other weeks (never copy their numbers or wording):',
+  '- With a clear lead in the facts: {P1} spent the week refusing to lose: 6 wins in a row and 212 points, a comfortable 1st place. {P2} chased with 13 wins and settled for 2nd place, while {P3} picked up the best off-role award on the side.',
+  '- With a close race in the facts: the race at the top went to the wire, {P1} took 1st place on 70 points, with {P2} right behind on 68 points. {P4} put together 7 wins in a row on the way to the best off-role award.',
+  '- With neither in the facts: {P1} took 1st place on 106 points with 12 wins in 18 games, and {P2} followed in 2nd place on 92 points. {P3} put together 6 wins in a row on the way to 4th place.',
 ];
 
 export function systemPrompt(kind: AiLineKind): string {
