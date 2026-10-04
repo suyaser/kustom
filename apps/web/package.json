@@ -10,7 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "mint-token": "node --conditions=react-server --env-file-if-exists=.env.local scripts/mint-token.ts",
+    "mint-token": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/mint-token.ts",
     "rebuild-ratings": "node --env-file-if-exists=.env.local --import tsx scripts/rebuild-ratings.ts",
     "backfill-game-facts": "node --env-file-if-exists=.env.local --import tsx scripts/backfill-game-facts.ts",
     "copy-raw-stats": "node --env-file-if-exists=.env.local --import tsx scripts/copy-raw-stats.ts",
