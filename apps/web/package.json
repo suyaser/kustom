@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "mint-token": "node --conditions=react-server --env-file-if-exists=.env.local scripts/mint-token.ts",
     "rebuild-ratings": "node --env-file-if-exists=.env.local --import tsx scripts/rebuild-ratings.ts",
+    "backfill-game-facts": "node --env-file-if-exists=.env.local --import tsx scripts/backfill-game-facts.ts",
     "copy-raw-stats": "node --env-file-if-exists=.env.local --import tsx scripts/copy-raw-stats.ts",
     "set-premium": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/set-premium.ts",
     "m7-13-battle-test": "node --import tsx scripts/m7-13-battle-test.ts",

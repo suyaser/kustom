@@ -9,8 +9,9 @@
  *   more than the deepest wave that had finished when it started: exactly the round trips a page
  *   pays one after another at a real RTT.
  * - Answers come from per-table fixture rows, filtered on plain `eq` / `neq` / `in` / `is` columns
- *   so the loaders take their real paths; anything else (embedded filters, JSON paths, ranges,
- *   order) is accepted and ignored. A `count` option answers the filtered row count.
+ *   and cut by `range` / `limit`, so the loaders take their real paths; anything else (embedded
+ *   filters, JSON paths, comparisons, order) is accepted and ignored. A `count` option answers the
+ *   filtered row count.
  * - A `select` naming the whole `games.raw` blob is recorded (`rawSelects`): list loaders must
  *   read `raw->field` paths, never the blob (`lib/perf/rawColumns.test.ts` checks the source).
  */
@@ -55,7 +56,10 @@ export function recordingClient(fixtures: Fixtures): { client: never; recording:
       setTimeout(() => {
         finished.push(wave);
         const rows = (fixtures[table] ?? []).filter((row) => filters.every((f) => matches(row, f)));
-        const limited = shape.limit === null ? rows : rows.slice(0, shape.limit);
+        const limited = rows.slice(
+          shape.offset,
+          shape.limit === null ? undefined : shape.offset + shape.limit,
+        );
         const count = shape.count ? rows.length : null;
         if (shape.head) resolve({ data: null, error: null, count });
         else if (shape.single) resolve({ data: limited[0] ?? null, error: null, count });
@@ -90,6 +94,7 @@ interface Shape {
   head: boolean;
   count: boolean;
   single: boolean;
+  offset: number;
   limit: number | null;
 }
 
@@ -98,7 +103,7 @@ type Runner = (table: string, select: string | null, filters: Filter[], shape: S
 function builder(table: string, run: Runner) {
   let select: string | null = null;
   const filters: Filter[] = [];
-  const shape: Shape = { head: false, count: false, single: false, limit: null };
+  const shape: Shape = { head: false, count: false, single: false, offset: 0, limit: null };
   let fired: Promise<unknown> | null = null;
 
   const self: Record<string, unknown> = {};
@@ -136,6 +141,11 @@ function builder(table: string, run: Runner) {
       shape.limit = n;
       return self;
     },
+    range(from: number, to: number) {
+      shape.offset = from;
+      shape.limit = to - from + 1;
+      return self;
+    },
     maybeSingle() {
       shape.single = true;
       return self;
@@ -157,7 +167,6 @@ function builder(table: string, run: Runner) {
     like: chain,
     contains: chain,
     order: chain,
-    range: chain,
     abortSignal: chain,
     // biome-ignore lint/suspicious/noThenProperty: a PostgREST builder is a thenable; this fakes one.
     then(onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) {

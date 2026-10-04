@@ -57,6 +57,9 @@ function fixtures(): Fixtures {
     source: 'live',
     mode: 'CLASSIC',
     gameMode: 'CLASSIC',
+    game_mode: 'CLASSIC',
+    // 0041: every game has its current facts row, so no read falls back to raw.
+    game_facts: [{ facts_version: 1, facts: { byPuuid: {}, bans: [] } }],
     created_at: NOW.toISOString(),
   }));
   const seat = (game: (typeof games)[number], n: number) => ({
@@ -279,6 +282,39 @@ describe('query budgets', () => {
     const { loadFearless } = await import('../fearless/load');
     const { recording } = await measure((client) => loadFearless(client, GROUP));
     expectWithin(recording, { queries: 3, waves: 2 });
+  });
+
+  it('the player page stats: only their games (0042 index), four rounds', async () => {
+    const { loadPlayerStats } = await import('../stats/load');
+    const { result, recording } = await measure((client) =>
+      loadPlayerStats(client, PUUID(3), {
+        window: 'all-time',
+        groupId: GROUP,
+        now: NOW,
+        timeZone: 'Europe/London',
+      }),
+    );
+    expect(result.games).toBe(6);
+    expectWithin(recording, { queries: 6, waves: 4 });
+  });
+
+  it("You vs them: only the viewer's games, four rounds", async () => {
+    const { loadYouVersus } = await import('../versus/you');
+    const { result, recording } = await measure((client) =>
+      loadYouVersus(client, { groupId: GROUP, viewerPuuid: PUUID(3), timeZone: 'Europe/London' }),
+    );
+    expect(result.length).toBe(9);
+    expectWithin(recording, { queries: 6, waves: 4 });
+  });
+
+  it('Stats Records: the facts come with the games (0041), never a raw path', async () => {
+    const { loadRecordsSegment } = await import('../stats/load');
+    const { result, recording } = await measure((client) =>
+      loadRecordsSegment(client, { window: 'all-time', groupId: GROUP, now: NOW, timeZone: 'Europe/London' }),
+    );
+    expect(result.stats.games).toBe(6);
+    expectWithin(recording, { queries: 4, waves: 3 });
+    expect(recording.requests.filter((r) => (r.select ?? '').includes('raw'))).toEqual([]);
   });
 
   it('the admin Members list: memberships, labels and games in one round', async () => {
