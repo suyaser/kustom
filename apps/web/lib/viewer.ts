@@ -2,7 +2,8 @@ import { isAtLeast, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
 import { discordIdFromUser, supabaseSessionUser } from './adminAuth';
-import { supabaseGroupRole } from './groups/membership';
+import type { PlayerInGroup } from './groups/membership';
+import { currentPlayerInGroup } from './groups/pageSession';
 import { claimablePuuids } from './me/claimable';
 import { getServiceClient } from './supabase';
 import { createAuthClient, readOnlyCookieJar } from './supabaseAuth';
@@ -55,19 +56,34 @@ const ANONYMOUS_SESSION: SessionPlayer = { kind: 'anonymous' };
  * an error page because the auth server was slow — they see the page they came for, with no
  * control on it.
  */
-export const currentSessionPlayer: () => Promise<SessionPlayer> = cache(async () => {
+/**
+ * The GoTrue step on its own: the session's Discord id (from `user.identities[]`, never
+ * `user_metadata`), or `null` for every reason there is none. Split out so a page that knows its
+ * group reads the player and the membership in one query ({@link currentViewerState}) rather than
+ * the player first and the membership after it. The group layout starts this beside the slug
+ * lookup. Every failure is `null`, as below.
+ */
+export const currentSessionDiscordId: () => Promise<string | null> = cache(async () => {
   try {
     const store = await cookies();
     const jar = readOnlyCookieJar(store.getAll().map(({ name, value }) => ({ name, value })));
     // No session cookie, no round trip: this is the common path and it costs nothing.
-    if (jar.getAll().every((cookie) => !cookie.name.startsWith('sb-'))) return ANONYMOUS_SESSION;
+    if (jar.getAll().every((cookie) => !cookie.name.startsWith('sb-'))) return null;
 
     const user = await supabaseSessionUser(createAuthClient(jar))();
-    if (user === null) return ANONYMOUS_SESSION;
-
-    const discordId = discordIdFromUser(user);
+    if (user === null) return null;
     // A session with no Discord identity has nothing to link and nothing to tap. It reads the
     // page exactly as an anonymous visitor does.
+    return discordIdFromUser(user);
+  } catch (error) {
+    console.error('reading the viewer failed', error);
+    return null;
+  }
+});
+
+export const currentSessionPlayer: () => Promise<SessionPlayer> = cache(async () => {
+  try {
+    const discordId = await currentSessionDiscordId();
     if (discordId === null) return ANONYMOUS_SESSION;
 
     // `discord_id` is service-role only: anon has no privilege on `players` at all, which is
@@ -119,30 +135,48 @@ export const currentViewer: (groupId?: string) => Promise<Viewer | null> = cache
  */
 export const currentViewerState: (groupId?: string) => Promise<ViewerState> = cache(
   async (groupId: string = ORIGINAL_GROUP_ID) => {
-    const session = await currentSessionPlayer();
-    if (session.kind === 'anonymous') return ANONYMOUS_VIEWER;
-    // Signed in, matching no player row: the `That's me` case. The list of who may be claimed
-    // is a service-role read of `players.discord_id` and is decided here, so the page never
-    // sees a Discord id — one extra query, and only for this state.
-    if (session.kind === 'unlinked') return { kind: 'unlinked', claimable: await claimable(groupId) };
+    const discordId = await currentSessionDiscordId();
+    if (discordId === null) return ANONYMOUS_VIEWER;
 
+    // The player row and its membership in this group in one service-role query (M19.12), shared
+    // with the admin pages' access check for the request. Failing it is anonymous, as a failed
+    // player read always was: without the row there is no "you" rule to keep.
+    let member: PlayerInGroup;
     try {
-      const role = await supabaseGroupRole(getServiceClient())(session.playerId, groupId);
-      return {
-        kind: 'linked',
-        puuid: session.puuid,
-        isAdmin: isAtLeast(role, 'admin'),
-        isOwner: role === 'owner',
-        isMember: role !== null,
-      };
+      member = await currentPlayerInGroup(discordId, groupId);
     } catch (error) {
-      // The role is what draws two controls and a tab. Failing to read it draws none of them
-      // and keeps the "you" rule, rather than turning a linked reader anonymous.
-      console.error('reading the viewer role failed', error);
-      return { kind: 'linked', puuid: session.puuid, isAdmin: false };
+      console.error('reading the viewer failed', error);
+      return ANONYMOUS_VIEWER;
     }
+    return viewerStateFor(member, () => claimable(groupId));
   },
 );
+
+/**
+ * The page's viewer from the one-query lookup, for a signed-in Discord session. Exported for its
+ * tests: no session, no I/O beyond `claimableFor`.
+ *
+ * - no player row (`null`): the `That's me` case, **not** anonymous. The list of who may be claimed
+ *   is a service-role read of `players.discord_id`, decided here so the page never sees a Discord
+ *   id -- one extra query, and only for this state.
+ * - a player with no role in this group (no membership, or a role string the union does not know):
+ *   linked, the "you" rule, and nothing a member gets.
+ * - a member: the role decides the admin controls and the owner's.
+ */
+export async function viewerStateFor(
+  member: PlayerInGroup,
+  claimableFor: () => Promise<readonly string[]>,
+): Promise<ViewerState> {
+  if (member === null) return { kind: 'unlinked', claimable: await claimableFor() };
+  const { role } = member;
+  return {
+    kind: 'linked',
+    puuid: member.player.puuid,
+    isAdmin: isAtLeast(role, 'admin'),
+    isOwner: role === 'owner',
+    isMember: role !== null,
+  };
+}
 
 /**
  * Tonight's unclaimed members, or none: a failed lookup offers nobody rather than taking the
