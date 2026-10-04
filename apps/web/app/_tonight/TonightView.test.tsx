@@ -4,9 +4,11 @@ import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { groupHref } from '@/lib/nav';
 import {
+  BAR_CAPTION,
   barSentence,
   HOW_SUMMARY,
   KICKOFF_TEAMS_CHANGED,
+  kickoffOddsSentence,
   NO_ODDS,
   PRE_GAME_NO_SPLIT,
   PRE_GAME_TEAMS_CHANGED,
@@ -1103,8 +1105,11 @@ describe('in game: the teams that started (M21.5)', () => {
     expect(within(receipt).getByText(KICKOFF_TEAMS_CHANGED)).toBeInTheDocument();
     expect(within(receipt).queryByText(PRE_GAME_TEAMS_CHANGED)).toBeNull();
     expect(screen.queryByRole('region', { name: TITLE_PRE_GAME })).toBeNull();
-    // How the bot decided still opens the rolled run.
-    expect(within(receipt).getByText(HOW_SUMMARY)).toBeInTheDocument();
+    // 05-design 13.1: the compact shape, the verdict without the fairest clause, no caption, no disclosure.
+    expect(within(receipt).getByText(kickoffOddsSentence(odds))).toBeInTheDocument();
+    expect(within(receipt).queryByText(BAR_CAPTION)).toBeNull();
+    expect(within(receipt).queryByText(HOW_SUMMARY)).toBeNull();
+    expect(screen.queryByText(HOW_SUMMARY)).toBeNull();
     // The one who moved: on blue, with no lane to name.
     expect(sideOf(yuki)).toBe('Blue team');
     expect(sideOf(VIEWER_PUUID)).toBe('Red team');
@@ -1137,9 +1142,11 @@ describe('in game: the teams that started (M21.5)', () => {
       const { unmount, container } = render(
         <TonightView {...fixtureOf(key, false)} group={ORIGINAL_GROUP} />,
       );
-      expect(screen.getByText(NO_ODDS)).toBeInTheDocument();
+      // 13.1: the line sits inside the `Odds at kickoff` frame, so the page does not jump.
+      const receipt = screen.getByRole('region', { name: TITLE_IN_GAME });
+      expect(within(receipt).getByText(NO_ODDS)).toBeInTheDocument();
       expect(container.querySelector('[data-slot="win-bar"]')).toBeNull();
-      expect(screen.queryByRole('region', { name: TITLE_IN_GAME })).toBeNull();
+      expect(within(receipt).queryByText(/%|favored|coin flip|even/i)).toBeNull();
       expect(screen.getByText(/Not rated, so no Rating change\./)).toBeInTheDocument();
       unmount();
     }
@@ -1151,5 +1158,41 @@ describe('in game: the teams that started (M21.5)', () => {
     render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
     expect(screen.getByRole('region', { name: TITLE_IN_GAME })).toBeInTheDocument();
     expect(screen.getByText(/, playing support/)).toBeInTheDocument();
+  });
+
+  it('a clearly favored custom or unrolled side: no fairest-split clause (the bot did not pick these)', () => {
+    for (const key of ['in-game-custom', 'in-game-unrolled'] as const) {
+      const fixture = fixtureOf(key);
+      const lobby = fixture.snapshot.lobby;
+      if (lobby?.kickoff == null) throw new Error('fixture');
+      const clear = { ...lobby, kickoff: { ...lobby.kickoff, blueWinProb: 0.8 } };
+      const { unmount } = render(
+        <TonightView {...fixture} snapshot={{ ...fixture.snapshot, lobby: clear }} group={ORIGINAL_GROUP} />,
+      );
+      const receipt = screen.getByRole('region', { name: TITLE_IN_GAME });
+      expect(within(receipt).getByText('Blue is clearly favored.')).toBeInTheDocument();
+      expect(screen.queryByText(/fairest split/)).toBeNull();
+      expect(within(receipt).queryByText(BAR_CAPTION)).toBeNull();
+      expect(within(receipt).queryByText(HOW_SUMMARY)).toBeNull();
+      unmount();
+    }
+  });
+
+  it('rolled and swapped in game: no disclosure either', () => {
+    for (const key of ['in-game-rolled', 'in-game-swapped'] as const) {
+      const { unmount } = render(<TonightView {...fixtureOf(key)} group={ORIGINAL_GROUP} />);
+      expect(screen.queryByText(HOW_SUMMARY)).toBeNull();
+      unmount();
+    }
+  });
+
+  it('a changed side has no role column; a kept side keeps it (13.2)', () => {
+    const { container } = render(<TonightView {...fixtureOf('in-game-custom')} group={ORIGINAL_GROUP} />);
+    const rows = container.querySelectorAll('[data-slot="team-card"] li');
+    expect(rows.length).toBe(10);
+    for (const row of rows) {
+      expect(row.className).toContain('grid-cols-[minmax(0,1fr)_auto]');
+      expect(row.className).not.toContain('3.25rem');
+    }
   });
 });

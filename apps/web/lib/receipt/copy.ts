@@ -113,6 +113,15 @@ export function oddsSentence(blueWinProb: number, rank: number): string {
   }
 }
 
+/**
+ * The verdict for odds the bot did not pick (M21.5, 05-design 13.1: in game, `custom` or
+ * `unrolled`): {@link oddsSentence} without `This was the fairest split these ten allow.`, which
+ * is only ever true of the bot's own pick.
+ */
+export function kickoffOddsSentence(blueWinProb: number): string {
+  return oddsSentence(blueWinProb, Number.POSITIVE_INFINITY);
+}
+
 /** `Rating gap 45 pts`: the gap always carries its unit and its label (STRATEGY §4.2 rule 3). */
 export function ratingGapChip(gap: number): string {
   return plain(ratingGapChipParts(gap));

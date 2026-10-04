@@ -1,6 +1,7 @@
 import { winProbability } from '@customs/core';
 import type { KickoffRow } from '@customs/db/schemas';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { kickoffOddsSentence, oddsSentence } from '../receipt/copy';
 import { extraMember, workedKickoff, workedMembers, workedTeams } from '../testing/tonightFixtures';
 import { workedPuuid } from '../testing/workedExample';
 import { kickoffView, readKickoff, swappedRun, viewerKickoffSeat } from './kickoff';
@@ -162,5 +163,14 @@ describe('readKickoff', () => {
     expect(String(warn.mock.calls[0]?.[0])).toMatch(
       /lobby lobby-9 has a kickoff record this build cannot read/,
     );
+  });
+});
+
+describe('kickoffOddsSentence', () => {
+  it('is oddsSentence without the fairest-split clause', () => {
+    expect(oddsSentence(0.8, 1)).toMatch(/fairest split/);
+    expect(kickoffOddsSentence(0.8)).toBe('Blue is clearly favored.');
+    expect(kickoffOddsSentence(0.2)).toBe('Red is clearly favored.');
+    for (const p of [0.5, 0.52, 0.55, 0.6]) expect(kickoffOddsSentence(p)).toBe(oddsSentence(p, 1));
   });
 });

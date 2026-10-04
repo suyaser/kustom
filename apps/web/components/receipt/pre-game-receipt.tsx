@@ -3,6 +3,7 @@ import { useId } from 'react';
 import {
   BAR_CAPTION,
   KICKOFF_TEAMS_CHANGED,
+  kickoffOddsSentence,
   NO_ODDS,
   PRE_GAME_NO_SPLIT,
   PRE_GAME_TEAMS_CHANGED,
@@ -38,7 +39,9 @@ import { WinBar } from './win-bar';
  * M21.5, `kickoff`: Tonight while the game is on, for teams Kustom did not roll (`custom`, or
  * `unrolled`). The title is `Odds at kickoff`, the number is the stored kickoff odds (never
  * recomputed here), and a changed game's line says `the teams playing now`. `blueWinProb: null`
- * is a game whose odds are not shown (not rated, M15.18): only `No odds for this game.`.
+ * is a game whose odds are not shown (not rated, M15.18): only `No odds for this game.`, inside the
+ * frame. 05-design 13.1: always the compact shape (compact bar, no caption, the verdict without the
+ * fairest-split clause, then the reason line) and never `How the bot decided`.
  */
 export type PreGameReceiptProps = (
   | { ratingsBefore: RatingsBefore; kickoff?: undefined }
@@ -72,6 +75,35 @@ export function PreGameReceipt(props: PreGameReceiptProps) {
       : (props.ratingBlueWinProb ?? preGameOdds(props.ratingsBefore.blue, props.ratingsBefore.red));
   const odds = blueWinProb === null ? null : oddsOf(blueWinProb);
 
+  if (kickoff) {
+    return (
+      <ReceiptFrame
+        titleId={titleId}
+        title={TITLE_IN_GAME}
+        headingLevel={headingLevel}
+        gameNumber={gameNumber}
+        className={className}
+      >
+        <div className="px-(--card-pad) pb-4">
+          {odds === null ? (
+            // 13.1: not rated keeps the frame, so the page does not jump when the next game is rated.
+            <p className="mt-2.5 text-sm text-muted-foreground">{NO_ODDS}</p>
+          ) : (
+            <>
+              <div className="mt-2.5">
+                <WinBar odds={odds} size="compact" />
+              </div>
+              <p className="mt-2.5 text-md font-bold text-balance">{kickoffOddsSentence(odds.blueWinProb)}</p>
+              <p className="mt-1.5 text-sm text-pretty text-muted-foreground">
+                {reason === 'no-split' ? PRE_GAME_NO_SPLIT : KICKOFF_TEAMS_CHANGED}
+              </p>
+            </>
+          )}
+        </div>
+      </ReceiptFrame>
+    );
+  }
+
   if (odds === null) {
     return <p className={cn('text-sm text-muted-foreground', className)}>{NO_ODDS}</p>;
   }
@@ -81,7 +113,7 @@ export function PreGameReceipt(props: PreGameReceiptProps) {
   return (
     <ReceiptFrame
       titleId={titleId}
-      title={kickoff ? TITLE_IN_GAME : TITLE_PRE_GAME}
+      title={TITLE_PRE_GAME}
       headingLevel={headingLevel}
       gameNumber={gameNumber}
       className={className}
@@ -97,11 +129,7 @@ export function PreGameReceipt(props: PreGameReceiptProps) {
           </p>
         )}
         <p className="mt-1.5 text-sm text-pretty text-muted-foreground">
-          {reason === 'no-split'
-            ? PRE_GAME_NO_SPLIT
-            : kickoff
-              ? KICKOFF_TEAMS_CHANGED
-              : PRE_GAME_TEAMS_CHANGED}
+          {reason === 'no-split' ? PRE_GAME_NO_SPLIT : PRE_GAME_TEAMS_CHANGED}
         </p>
       </div>
       {model !== null && rolled !== undefined ? (

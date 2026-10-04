@@ -703,12 +703,12 @@ function Teams({
  *
  * - `rolled`: the split's fairness receipt, as before M21; on swapped sides the run is turned
  *   round (`swappedRun`) so the bar and the sentence name the side each team is really on.
- * - `custom`: the pre-game receipt titled `Odds at kickoff` over the stored kickoff odds, with
+ * - `custom`: the compact `Odds at kickoff` over the stored kickoff odds (05-design 13.1), with
  *   `Teams changed in the lobby after the roll, so these are the odds for the teams playing now.`
- *   and `How the bot decided` opening the rolled run (as the finished poster does).
  * - `unrolled`: the same receipt with `Kustom didn't pick these teams. …`.
  * - Not rated (the lock says so), `custom` or `unrolled`: no bar and no number (M15.18), only
- *   `No odds for this game.`; the strip keeps its rule line.
+ *   `No odds for this game.` inside the frame; the strip keeps its rule line.
+ * - No `How the bot decided` in game, for any kind (13.1); the finished poster has it.
  *
  * No Roll prompt, no side line, no admins named: the game is on.
  */
@@ -750,9 +750,7 @@ function InGame({
     ) : (
       <PreGameReceipt
         kickoff={{ blueWinProb: notRated ? null : game.blueWinProb }}
-        reason={game.kind === 'custom' && teams !== null ? 'teams-changed' : 'no-split'}
-        rolled={game.kind === 'custom' && teams !== null ? { splits: teams.stored, names } : undefined}
-        calibration={calibration}
+        reason={game.kind === 'custom' ? 'teams-changed' : 'no-split'}
       />
     );
 
