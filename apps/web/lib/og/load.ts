@@ -43,7 +43,7 @@ export async function loadGamePage(
 
   let query = client
     .from('games')
-    .select('id, lobby_id, duration_s, winning_side, started_at, raw->gameMode')
+    .select('id, lobby_id, duration_s, winning_side, started_at, gameMode:game_mode')
     .eq('id', gameId);
   if (groupId !== undefined) query = query.eq('group_id', groupId);
   const { data: game, error } = await query.maybeSingle();

@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { AI_GAME, AI_PLAYER, AI_WEEK } from '@/lib/testing/aiFixtures';
 import { buildGameFacts, buildPlayerFacts, buildPrompt, buildWeekFacts, type FactList } from './facts';
 import {
+  AI_FEATURE_MODELS,
   AI_FEATURES,
   AI_MODELS,
+  AI_PROVIDER,
   aiPausedUntil,
   budgetStatusOf,
   costUsd,
   DEFAULT_GLOBAL_MONTHLY_CAP_USD,
   DEFAULT_GROUP_MONTHLY_CAP_USD,
   decideBudget,
+  featuresFor,
   inputTokenUpperBound,
   memoryMeter,
   memoryMeterState,
@@ -23,19 +26,57 @@ import {
 
 const HAIKU = 'claude-haiku-4-5-20251001' as const;
 const SONNET = 'claude-sonnet-5-5' as const;
+const FLASH = 'deepseek-flash' as const;
+const PRO = 'deepseek-v4-pro' as const;
 
 describe('the config table', () => {
   it('records the prices read on 2026-10-04', () => {
     expect(AI_MODELS[HAIKU]).toMatchObject({ inputUsdPerMTok: 1, outputUsdPerMTok: 5 });
     expect(AI_MODELS[SONNET]).toMatchObject({ inputUsdPerMTok: 2, outputUsdPerMTok: 10 });
+    // DeepSeek at peak (cache miss / hit / out); off-peak is half and never used by the meter.
+    expect(AI_MODELS[FLASH]).toMatchObject({
+      inputUsdPerMTok: 0.3,
+      cachedInputUsdPerMTok: 0.006,
+      outputUsdPerMTok: 1.2,
+    });
+    expect(AI_MODELS[PRO]).toMatchObject({
+      inputUsdPerMTok: 1.32,
+      cachedInputUsdPerMTok: 0.044,
+      outputUsdPerMTok: 3.96,
+    });
   });
 
-  it('uses the brief`s models per feature and the user`s caps', () => {
-    expect(AI_FEATURES.game.model).toBe(SONNET); // M16.8: tuned on games, Haiku wrote box scores
-    expect(AI_FEATURES.week.model).toBe(SONNET);
-    expect(AI_FEATURES.player.model).toBe(SONNET); // M16.9
+  it('uses each provider`s models per feature and the user`s caps', () => {
+    // Claude: Sonnet 5.5 for all three (M16.8 games, M16.9 scouting).
+    expect(featuresFor('anthropic')).toMatchObject({
+      game: { model: SONNET },
+      week: { model: SONNET },
+      player: { model: SONNET },
+    });
+    // DeepSeek: V4 Pro for all three (the 2026-10-04 eval).
+    expect(featuresFor('deepseek')).toMatchObject({
+      game: { model: PRO },
+      week: { model: PRO },
+      player: { model: PRO },
+    });
+    // The process's table is its provider's, and every model is that provider's own.
+    expect(AI_FEATURES).toEqual(featuresFor(AI_PROVIDER));
+    for (const provider of ['anthropic', 'deepseek'] as const) {
+      for (const model of Object.values(AI_FEATURE_MODELS[provider]))
+        expect(AI_MODELS[model].provider).toBe(provider);
+    }
     expect(DEFAULT_GROUP_MONTHLY_CAP_USD).toBe(2);
     expect(DEFAULT_GLOBAL_MONTHLY_CAP_USD).toBe(20);
+  });
+
+  it('a provider switch never changes a checker shape', () => {
+    const anthropic = featuresFor('anthropic');
+    const deepseek = featuresFor('deepseek');
+    for (const kind of ['game', 'week', 'player'] as const) {
+      const { model: _a, ...a } = anthropic[kind];
+      const { model: _d, ...d } = deepseek[kind];
+      expect(d).toEqual(a);
+    }
   });
 });
 
@@ -45,6 +86,20 @@ describe('cost', () => {
     expect(costUsd(SONNET, { inputTokens: 8_000, outputTokens: 400 })).toBe(0.02);
     expect(costUsd(HAIKU, { inputTokens: 1, outputTokens: 0 })).toBe(0.000001);
     expect(costUsd(HAIKU, { inputTokens: 0, outputTokens: 0 })).toBe(0);
+  });
+
+  it('prices reported cache hits at the cache price, only where the model has one', () => {
+    // DeepSeek V4 Pro, a real reply's usage: 864 input tokens, 768 of them a cache hit.
+    expect(costUsd(PRO, { inputTokens: 864, cachedInputTokens: 768, outputTokens: 15 })).toBe(0.00022);
+    expect(costUsd(PRO, { inputTokens: 864, outputTokens: 15 })).toBe(0.0012);
+    // A cached count above the total is clamped; Claude has no cache price, so it changes nothing.
+    expect(costUsd(FLASH, { inputTokens: 100, cachedInputTokens: 500, outputTokens: 0 })).toBe(0.000001);
+    expect(costUsd(SONNET, { inputTokens: 8_000, cachedInputTokens: 8_000, outputTokens: 400 })).toBe(0.02);
+  });
+
+  it('the worst case prices every input token at the full peak price', () => {
+    expect(worstCaseUsd(PRO, 1_000_000, 0)).toBe(1.32);
+    expect(worstCaseUsd(FLASH, 0, 1_000_000)).toBe(1.2);
   });
 
   it('bounds input tokens by bytes and prices the worst case at max_tokens', () => {

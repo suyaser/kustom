@@ -207,8 +207,9 @@ async function writeLine(
 
   let recent: string[] = [];
   // Game lines and, since M16.19, scouting reports (the same Sunday's other reports) see the
-  // group's recent lines of their kind, so they do not open alike.
-  if (subject.kind !== 'week' && deps.readRecentLines !== undefined) {
+  // group's recent lines of their kind, so they do not open alike. Since 2026-10-04 the week reads
+  // its earlier Sundays too; only DeepSeek's prompt shows them (Claude's ignores a week's list).
+  if (deps.readRecentLines !== undefined) {
     try {
       recent = await deps.readRecentLines(groupId, subject.kind);
     } catch (error) {

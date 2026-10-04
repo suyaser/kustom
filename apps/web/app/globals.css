@@ -233,10 +233,14 @@
   }
 }
 
-/* Atkinson's size-matched fallback (05-design.md 4 and 7.3). next/font has no metrics for this family,
-   so `app/fonts.ts` sets `adjustFontFallback: false` and the face is declared here, measured by the
-   designer against Arial. Android has no Arial; it falls through to an unmatched system-ui, which is
-   the accepted residue. */
+/* The fallback faces (05-design.md 4.1 and 7.3), one per face, measured at the instance the app draws
+   rather than at the font's default (next/font's automatic fallback would measure Martian at wdth 112.5
+   and Archivo at wdth 100, far wider than the text on screen), so the swap neither moves the team card
+   nor rewraps a headline. `app/fonts.ts` sets `adjustFontFallback: false` on every face for that reason.
+   Overrides are hhea ascent / descent / gap per upm, divided by size-adjust. Android has no Arial; it
+   falls through to an unmatched system-ui, which is the accepted residue (do not add guessed Roboto). */
+
+/* text: Atkinson at wght 400 against Arial, lower-case letter frequency. */
 @font-face {
   font-family: "Atkinson Fallback";
   src: local("Arial"), local("ArialMT");
@@ -246,15 +250,107 @@
   line-gap-override: 0%;
 }
 
-/* The three faces, as runtime variables any CSS can read. next/font sets its own variables on <html>
-   (app/fonts.ts: `--font-atkinson`, `--font-martian`, `--font-archivo`); these alias them under the
-   documented names, with the fallback stacks. Unlayered on purpose: it must win over Tailwind's theme layer, which may emit
+/* mono: Martian is monospaced, so it is matched against a monospaced local face, Courier New (0.600 em
+   for every glyph; Windows, macOS, iOS), and letters and digits match at once: an Arial fallback matched
+   on digits drew the leaderboard's `settling · 4/10` chip 10% narrower and every settling row rewrapped
+   on swap. Martian's advance moves with its width axis (0.600 em at wdth 75, +0.004 em per step, 0.700
+   at 100), so there is one face per `font-stretch` the app draws; the browser matches the descriptor
+   (nearest narrower first) and never stretches a local face. hhea 1000 / -200 / 0 per 1000. */
+@font-face {
+  font-family: "Martian Fallback";
+  src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 75%;
+  size-adjust: 99.98%;
+  ascent-override: 100.02%;
+  descent-override: 20%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Martian Fallback";
+  src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 78%;
+  size-adjust: 101.98%;
+  ascent-override: 98.06%;
+  descent-override: 19.61%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Martian Fallback";
+  src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 82%;
+  size-adjust: 104.65%;
+  ascent-override: 95.56%;
+  descent-override: 19.11%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Martian Fallback";
+  src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 85%;
+  size-adjust: 106.65%;
+  ascent-override: 93.76%;
+  descent-override: 18.75%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Martian Fallback";
+  src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 88%;
+  size-adjust: 108.65%;
+  ascent-override: 92.04%;
+  descent-override: 18.41%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Martian Fallback";
+  src: local("Courier New"), local("CourierNewPSMT");
+  font-stretch: 100%;
+  size-adjust: 116.65%;
+  ascent-override: 85.73%;
+  descent-override: 17.15%;
+  line-gap-override: 0%;
+}
+
+/* display: matched on upper case (the face is upper case only) against Arial Bold's upper case, so the
+   fallback headline wraps where the real one does. wdth 62 (the headline) is section 4.1's value; wdth 70
+   (side tiles, pills, bar labels) scales it by Archivo's own upper-case width ratio at wght 900, 0.5446 /
+   0.4899 em. hhea 878 / -210 / 0 per 1000. */
+@font-face {
+  font-family: "Archivo Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT");
+  font-weight: 800 900;
+  font-stretch: 62%;
+  size-adjust: 70.83%;
+  ascent-override: 123.95%;
+  descent-override: 29.65%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Archivo Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT");
+  font-weight: 800 900;
+  font-stretch: 70%;
+  size-adjust: 78.74%;
+  ascent-override: 111.51%;
+  descent-override: 26.67%;
+  line-gap-override: 0%;
+}
+
+/* The three faces, as runtime variables any CSS can read. next/font sets two variables per face on
+   <html> (app/fonts.ts: `--font-{text,mono,display}-core`, preloaded, and `-rest`, fetched only for a
+   glyph outside the core's unicode-range); these stack them under the documented names: core, rest,
+   then the fallback face. Unlayered on purpose: it must win over Tailwind's theme layer, which may emit
    the same names as self-references. */
 :root {
   --font-text:
-    var(--font-atkinson), "Atkinson Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: var(--font-martian), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --font-display: var(--font-archivo), "Arial Narrow", system-ui, sans-serif;
+    var(--font-text-core), var(--font-text-rest), "Atkinson Fallback", system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono:
+    var(--font-mono-core), var(--font-mono-rest), "Martian Fallback", ui-monospace, "SF Mono", Menlo,
+    Consolas, monospace;
+  --font-display:
+    var(--font-display-core), var(--font-display-rest), "Archivo Fallback", "Arial Narrow", system-ui,
+    sans-serif;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -568,6 +664,14 @@
   :where(main#main):focus,
   :where(main#main):focus-visible {
     outline: none;
+  }
+
+  /* 4.1: visually hidden text is still shaped, so it still requests the webfont its glyphs fall in.
+     Inside the display face it would ask for lower case (the team card heading's `Blue team` sits
+     under the visible `BLUE`) and pull display rest, 48 KB, onto every tonight page with teams. It is
+     never seen, so it uses a local face and requests nothing. */
+  :where(.sr-only) {
+    font-family: system-ui, sans-serif;
   }
 }
 

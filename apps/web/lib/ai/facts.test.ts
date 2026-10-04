@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { aiFactListSchema } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
 import type { StoredSplit } from '@/components/receipt/types';
@@ -27,6 +28,7 @@ import {
   type HistoryRow,
   leadAngleOf,
   openingOf,
+  ordinal,
   PERSONAL_BEST_MIN_GAMES,
   PLAYER_FIGURE_MIN_GAMES,
   readSeatHistory,
@@ -35,7 +37,11 @@ import {
   renderFact,
   renderFactWith,
   storyAngles,
+  systemPrompt,
   thousands,
+  usedPhrases,
+  userPrompt,
+  weekMarginNote,
 } from './facts';
 import { AI_FEATURES } from './meter';
 
@@ -256,7 +262,7 @@ describe('buildPlayerFacts', () => {
     expect(champions).not.toContain('Ahri'); // 3 games
     const text = list.facts.map(renderFact).join('\n');
     expect(text).toContain('30 games in jungle');
-    expect(text).not.toContain('top lane'); // 4 games
+    expect(text).not.toMatch(/games in top\b/); // 4 games
   });
 
   it('prints a win rate only when it is at least half', () => {
@@ -440,7 +446,7 @@ describe('M16.8 history facts', () => {
     ) as FactList;
     expect(factOf(list, 'P2')[0]?.claims).toContainEqual({
       claim: 'max',
-      text: 'their longest run of wins in a row in the group',
+      text: 'their longest run in the group',
     });
   });
 
@@ -505,13 +511,14 @@ describe('M16.8 the game prompt', () => {
       'someone went N kills and N damage on Jinx.',
     );
     const recent = ['{P1} makes it 5 wins in a row.', '{P4} played 22 minutes without a death.'];
-    const prompt = buildPrompt(game, null, recent);
+    // Claude's user turn (DeepSeek's shows a week its earlier Sundays, tested below).
+    const prompt = { user: userPrompt(game, null, recent, 'anthropic') };
     expect(prompt.user).toContain('- someone makes it N wins in a row.');
     expect(prompt.user).not.toContain('{P1} makes');
     // Only the game line gets the list.
-    expect(buildPrompt(buildWeekFacts(AI_WEEK, new Set()) as FactList, null, recent).user).not.toContain(
-      'someone',
-    );
+    expect(
+      userPrompt(buildWeekFacts(AI_WEEK, new Set()) as FactList, null, recent, 'anthropic'),
+    ).not.toContain('someone');
   });
 });
 
@@ -643,14 +650,16 @@ describe('M16.15 angle rotation', () => {
     const five = withStreak(5);
     expect(storyAngles(five)).toContain('P1: 5 wins in a row');
     expect(storyAngles(five, 'streak')).not.toContain('P1: 5 wins in a row');
-    const prompt = buildPrompt(five, null, ['{P4} makes it 6 wins in a row on Jinx.']);
+    const prompt = { user: userPrompt(five, null, ['{P4} makes it 6 wins in a row on Jinx.'], 'anthropic') };
     expect(prompt.user).toContain(
       'The previous line led with a win streak. Lead with something else this time.',
     );
     expect(prompt.user).not.toContain('- P1: 5 wins in a row');
 
     // A 7-game streak is news even right after another streak line.
-    const again = buildPrompt(withStreak(7), null, ['{P4} makes it 6 wins in a row on Jinx.']);
+    const again = {
+      user: userPrompt(withStreak(7), null, ['{P4} makes it 6 wins in a row on Jinx.'], 'anthropic'),
+    };
     expect(again.user).toContain('- P1: 7 wins in a row');
     expect(again.user).not.toContain('Lead with something else');
   });
@@ -669,8 +678,119 @@ describe('M16.15 angle rotation', () => {
 
   it('an upset is no exception: a second upset line in a row is asked to lead with something else', () => {
     const upset = buildGameFacts({ ...AI_GAME, upset: true }, new Set()) as FactList;
-    const prompt = buildPrompt(upset, null, ['Red took the upset in 27 minutes.']);
+    const prompt = { user: userPrompt(upset, null, ['Red took the upset in 27 minutes.'], 'anthropic') };
     expect(prompt.user).toContain('The previous line led with an upset. Lead with something else this time.');
     expect(prompt.user).not.toContain('- the underdog won: an upset');
+  });
+});
+
+describe('system prompts per provider (DeepSeek, 2026-10-04)', () => {
+  it.each(['game', 'week', 'player'] as const)('gives DeepSeek its binding rules last (%s)', (kind) => {
+    const prompt = systemPrompt(kind, 'deepseek');
+    expect(prompt).toContain('Binding rules, checked by a program');
+    expect(prompt).toContain('Plain ASCII only');
+    expect(prompt.split('\n').at(-1)).toMatch(/^Reply with the line only/);
+    expect(systemPrompt(kind, 'anthropic')).not.toContain('Binding rules');
+    // The same strict rules block as Claude's: DeepSeek's wording only adds.
+    expect(prompt).toContain('Rules, all of them strict; a line that breaks one is thrown away:');
+  });
+
+  it('defaults to the provider of the process feature table', () => {
+    for (const kind of ['game', 'week', 'player'] as const) {
+      const provider = AI_FEATURES[kind].model.startsWith('deepseek') ? 'deepseek' : 'anthropic';
+      expect(systemPrompt(kind)).toBe(systemPrompt(kind, provider));
+    }
+  });
+});
+
+describe("DeepSeek's user turn (A/B read round 2, 2026-10-04)", () => {
+  const week = buildWeekFacts(AI_WEEK, new Set()) as FactList;
+  const recent = [
+    '{P3} lost, but {P3} had 31.2k damage in the loss.',
+    '{P1} lost, but nobody had more CS in the loss.',
+  ];
+
+  it("leaves Claude's user turn without the story, shape, examples or phrase list", () => {
+    const claude = userPrompt(game, null, recent, 'anthropic');
+    for (const marker of ['The story to lead with', 'The shape:', 'Example lines', 'Phrases already used'])
+      expect(claude).not.toContain(marker);
+  });
+
+  it('names one story, a shape and three examples, the same on every call for the same facts', () => {
+    const first = userPrompt(game, null, recent, 'deepseek');
+    expect(first).toMatch(/The story to lead with: .+\./);
+    expect(first).toMatch(/The shape: .+/);
+    expect(
+      first.split('\n').filter((line) => line.startsWith('- ') && line.includes('{P')).length,
+    ).toBeGreaterThanOrEqual(3);
+    expect(userPrompt(game, null, recent, 'deepseek')).toBe(first);
+  });
+
+  it('lists the phrases recent lines already used, from masked lines only', () => {
+    const used = usedPhrases(recent.map(recentLineForPrompt));
+    expect(used).toContain('in the loss');
+    expect(used).toContain('lost, but');
+    expect(used.join(' ')).not.toMatch(/\{P|\d/);
+    expect(userPrompt(game, null, recent, 'deepseek')).toContain(
+      'Phrases already used, do not write any of them:',
+    );
+  });
+
+  it('shows a week its earlier Sundays and never asks for the margin as a number', () => {
+    const prompt = userPrompt(week, null, ['{P1} took 1st place on 212 points.'], 'deepseek');
+    expect(prompt).toContain("This group's earlier Sunday paragraphs");
+    expect(prompt).not.toMatch(/points ahead|ahead of the runner-up/);
+  });
+});
+
+describe('story-claim facts (2026-10-04, every provider)', () => {
+  const sha = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+
+  it("pins Claude's system prompts, so a prompt change is always deliberate", () => {
+    // Moved on purpose (lead, 2026-10-04): main's M16.8-M16.19 prompts were 4f424a950ab457fe /
+    // 07c13f69006efaec / 5f5dc0d3fa252474. Added since: no gendered pronoun even for a champion,
+    // no "one" standing in for a game or win (scouting, week), and the week's margin words and
+    // examples tied to the clear-lead / close-race notes the checker now requires.
+    expect(sha(systemPrompt('game', 'anthropic'))).toBe('7fc9a7819ecc7c67');
+    expect(sha(systemPrompt('week', 'anthropic'))).toBe('ab78478bb8709860');
+    expect(sha(systemPrompt('player', 'anthropic'))).toBe('f63fe302c5978cac');
+  });
+
+  it('a week margin is close at 5 points or fewer, clear from 20 and a quarter of 2nd, else neither', () => {
+    expect(weekMarginNote(70, 68)).toMatch(/^close race/);
+    expect(weekMarginNote(70, 65)).toMatch(/^close race/);
+    expect(weekMarginNote(200, 101)).toMatch(/^clear lead/);
+    expect(weekMarginNote(106, 92)).toBeNull();
+    // 20 points ahead but under a quarter of 2nd's points: neither.
+    expect(weekMarginNote(120, 100)).toBeNull();
+    expect(weekMarginNote(60, 70)).toBeNull();
+  });
+
+  it('the week facts carry the margin as a note only, and places with their endings', () => {
+    const week = buildWeekFacts(AI_WEEK, new Set()) as FactList;
+    expect(week.facts[0]?.notes).toContain(
+      'clear lead at the top: first place finished well ahead of second place',
+    );
+    const printed = week.facts.map(renderFact).join('\n');
+    expect(printed).not.toMatch(/ahead of the runner-up/);
+    expect(printed).toContain("1st place on the week's board");
+    expect(printed).not.toMatch(/\b\d+ place\b/);
+  });
+
+  it('writes ordinals', () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111].map(ordinal)).toEqual([
+      '1st',
+      '2nd',
+      '3rd',
+      '4th',
+      '11th',
+      '12th',
+      '13th',
+      '21st',
+      '22nd',
+      '23rd',
+      '101st',
+      '111th',
+    ]);
   });
 });

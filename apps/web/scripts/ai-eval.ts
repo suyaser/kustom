@@ -7,8 +7,9 @@ import {
   type AiReply,
   type AiRequest,
   type AiTransport,
-  anthropicTransport,
+  aiTransportFor,
   createAiClient,
+  listProviderModels,
 } from '../lib/ai/client.ts';
 import {
   buildGameFacts,
@@ -25,9 +26,16 @@ import {
   generatePlayerLine,
   generateWeekLine,
 } from '../lib/ai/generate.ts';
-import { AI_FEATURES, type AiModel, costUsd, memoryMeter, memoryMeterState } from '../lib/ai/meter.ts';
+import {
+  AI_FEATURES,
+  AI_MODELS,
+  type AiModel,
+  costUsd,
+  memoryMeter,
+  memoryMeterState,
+} from '../lib/ai/meter.ts';
 import { memoryLineStore, readOptedOut } from '../lib/ai/store.ts';
-import { readAnthropicEnv } from '../lib/env.ts';
+import { readAiEnv } from '../lib/env.ts';
 import type { AiGate } from '../lib/premium.ts';
 import {
   nameOfEvalPlayer,
@@ -42,9 +50,11 @@ import {
  * M16.8: the AI recap line, evaluated on games. Dev-only, run by hand; never in CI.
  *
  *   set -a; . ./.env.local; set +a
- *   pnpm --filter web ai-eval [--source scenarios|local|all] [--model haiku|sonnet] [--limit N]
+ *   [AI_PROVIDER=deepseek|anthropic] pnpm --filter web ai-eval [--source scenarios|local|all]
+ *                             [--model haiku|sonnet|flash|pro] [--limit N]
  *                             [--budget <usd>] [--ledger <file>] [--json <file>] [--group <slug>]
  *                             [--only <label words>] [--fresh] [--weeks] [--players] [--repeat N] [--dry]
+ *                             [--list-models]
  *
  * For each game: the fact sheet exactly as production builds it (`loadGameFactsInput` +
  * `buildGameFacts` for `--source local`; the scenario inputs through the same `buildGameFacts`
@@ -56,7 +66,10 @@ import {
  *
  * **No database writes.** There is no database write path: no `ai_lines` row, no `ai_calls`
  * ledger row (`--ledger` / `--json` write only the local files you name). Reads the local stack only (refuses any Supabase URL that is not 127.0.0.1 or localhost). Never prints the
- * key. `--model` swaps the game line's model for this process only, to compare the two.
+ * key. The provider is production's (`readAiEnv`: `AI_PROVIDER`, else whichever key is set).
+ * `--model` swaps every feature's model for this process only, to compare models; it must be a
+ * model of that provider. `--list-models` prints the provider's live model ids and exits (no
+ * spend).
  */
 
 interface Args {
@@ -73,6 +86,7 @@ interface Args {
   players: boolean;
   repeat: number;
   dry: boolean;
+  listModels: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -90,6 +104,7 @@ function parseArgs(argv: readonly string[]): Args {
     players: false,
     repeat: 1,
     dry: false,
+    listModels: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
@@ -105,9 +120,14 @@ function parseArgs(argv: readonly string[]): Args {
       args.source = value;
     } else if (flag === '--model') {
       const value = next();
-      args.model =
-        value === 'haiku' ? 'claude-haiku-4-5-20251001' : value === 'sonnet' ? 'claude-sonnet-5-5' : null;
-      if (args.model === null) throw new Error('--model is haiku or sonnet');
+      const models: Record<string, AiModel> = {
+        haiku: 'claude-haiku-4-5-20251001',
+        sonnet: 'claude-sonnet-5-5',
+        flash: 'deepseek-flash',
+        pro: 'deepseek-v4-pro',
+      };
+      args.model = models[value] ?? null;
+      if (args.model === null) throw new Error('--model is haiku, sonnet, flash or pro');
     } else if (flag === '--limit') args.limit = Number(next());
     else if (flag === '--budget') args.budget = Number(next());
     else if (flag === '--ledger') args.ledger = next();
@@ -119,6 +139,7 @@ function parseArgs(argv: readonly string[]): Args {
     else if (flag === '--players') args.players = true;
     else if (flag === '--repeat') args.repeat = Math.max(1, Math.min(10, Number(next()) || 1));
     else if (flag === '--dry') args.dry = true;
+    else if (flag === '--list-models') args.listModels = true;
     else if (flag === '--write') throw new Error('this script has no write path, by design (M16.8)');
     else throw new Error(`unknown flag ${flag}`);
   }
@@ -230,6 +251,7 @@ async function runPlayers(
   console.log(`ai-eval  players  model ${AI_FEATURES.player.model}  budget $${args.budget.toFixed(2)}`);
   let total = 0;
   const tally = { subjects: 0, published: 0, attempts: 0, refused: 0 };
+  const results: unknown[] = [];
   const runs = Array.from({ length: args.repeat }, () => PLAYER_SCENARIOS).flat();
   for (const scenario of runs) {
     const list = buildPlayerFacts(scenario.player, new Set());
@@ -283,6 +305,21 @@ async function runPlayers(
     }
     console.log(`outcome  ${outcome.status}${'reason' in outcome ? ` (${outcome.reason})` : ''}`);
     console.log(`cost     $${cost.toFixed(5)}   running $${total.toFixed(5)}`);
+    results.push({
+      label: scenario.label,
+      model: AI_FEATURES.player.model,
+      facts: list.facts.map(renderFact),
+      attempts: calls.slice(first).map((call) => ({
+        text: call.reply?.text ?? null,
+        verdict:
+          call.reply === null
+            ? call.error
+            : checkLine(call.reply.text, list, { stopReason: call.reply.stopReason }),
+      })),
+      outcome: outcome.status,
+      text: outcome.status === 'published' ? outcome.text : null,
+      costUsd: cost,
+    });
     if (args.ledger !== null)
       appendFileSync(
         args.ledger,
@@ -293,6 +330,7 @@ async function runPlayers(
     `\nsummary  players ${tally.subjects}: published ${tally.published}; attempts ${tally.attempts}, refused ${tally.refused}`,
   );
   console.log(`total $${total.toFixed(5)}`);
+  if (args.json !== null) writeFileSync(args.json, `${JSON.stringify(results, null, 2)}\n`);
 }
 
 async function runWeeks(
@@ -392,9 +430,21 @@ async function runWeeks(
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const env = readAnthropicEnv(process.env);
-  if (env === null) throw new Error('ANTHROPIC_API_KEY is not set (set -a; . ./.env.local; set +a)');
-  if (args.model !== null) AI_FEATURES.game.model = args.model;
+  const env = readAiEnv(process.env);
+  if (env === null)
+    throw new Error('no AI key: set DEEPSEEK_API_KEY or ANTHROPIC_API_KEY (and AI_PROVIDER) in .env.local');
+  console.log(`ai-eval  provider ${env.provider}`);
+  if (args.listModels) {
+    for (const id of await listProviderModels(env)) console.log(`  ${id}`);
+    return;
+  }
+  if (args.model !== null) {
+    if (AI_MODELS[args.model].provider !== env.provider)
+      throw new Error(`--model ${args.model} is not a ${env.provider} model (set AI_PROVIDER)`);
+    AI_FEATURES.game.model = args.model;
+    AI_FEATURES.week.model = args.model;
+    AI_FEATURES.player.model = args.model;
+  }
   const model = AI_FEATURES.game.model;
 
   let games: EvalGame[] = [];
@@ -411,7 +461,7 @@ async function main(): Promise<void> {
     ...Object.fromEntries(games.map((game) => [game.groupId, { capUsd: args.budget }])),
   });
   state.globalCapUsd = args.budget;
-  const { transport, calls } = recording(anthropicTransport(env.ANTHROPIC_API_KEY));
+  const { transport, calls } = recording(aiTransportFor(env));
   const client = createAiClient({
     transport,
     meter: memoryMeter(state),

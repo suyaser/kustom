@@ -1,6 +1,7 @@
 import { type SelfLinkRequest, selfLinkRequestSchema, selfLinkResponseSchema } from '@customs/db';
 import type { NextResponse } from 'next/server';
 import { invalidateGroup } from '@/lib/cache/tags';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
 import type { MeContext, MeRouteOptions } from '@/lib/me/route';
 import { withViewerAuth } from '@/lib/me/route';
 import { linkSelf, type SelfLinkStore, supabaseSelfLinkStore } from '@/lib/me/selfLink';
@@ -41,7 +42,16 @@ async function handle(
     ? options.store(context)
     : supabaseSelfLinkStore(context.client, { timeZone: nightTimeZone(), groupId: context.groupId });
 
-  const result = await linkSelf(store, context.me, input.puuid);
+  // Tonight's live signal (M19.9), right after the link's write, and also when it throws after landing.
+  const result = await withLiveSignal(context.client, (live) =>
+    noteWrite(
+      live,
+      context.groupId,
+      'roster',
+      () => linkSelf(store, context.me, input.puuid),
+      (linked) => linked.ok,
+    ),
+  );
   if (!result.ok) return context.fail(result.status, result.error);
 
   invalidateGroup(context.groupId, ['roster']);

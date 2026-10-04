@@ -68,12 +68,17 @@ splits         (id, lobby_id, rank, blue jsonb, red jsonb, gap, blue_win_prob, s
                 is_chosen, explanation, roster_key, created_at)
 games          (id, lcu_game_id unique, lobby_id null, group_id, started_at, duration_s, winning_side,
                 source 'eog' | 'backfill', mode -> modes.id,    -- mode 0024, M14.29: stamped at insert
-                raw jsonb, created_at)  index (group_id, started_at desc)   -- 0026
+                raw jsonb -- lz4 since 0040, created_at,
+                game_mode generated (raw->>'gameMode', strings only) stored)   -- 0039
+                index (group_id, started_at desc, lcu_game_id desc)   -- 0039, replaced 0026's (group_id, started_at desc)
+game_facts     (game_id pk, group_id, facts_version >= 1, facts jsonb {byPuuid, bans}, updated_at)   -- 0041
+                fk (game_id, group_id) -> games on delete cascade; public read, service-role write
 game_players   (game_id, player_id, side, role null, champion_id, kills, deaths, assists, gold, damage_to_champs,
                 cs, mu_before null, sigma_before null, mu_after null, sigma_after null,
                 counts_for_role_inference,                      -- 0010, M5.17
                 vision_score null, damage_self_mitigated null,  -- 0014, M7.7
                 damage_to_objectives null)                      -- 0015, M7.14
+                index (group_id, player_id) include (game_id)   -- 0042
 companion_tokens (id, player_id, token_hash, label, last_seen_at, revoked_at null, created_at)
 companion_commands (id, target_player_id, kind, payload jsonb, status, created_at, acked_at,
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
@@ -106,6 +111,7 @@ pairing_attempts (id, ip_hash, attempted_at) -- the per-address limit on POST /a
 players_public view (players minus discord_id; still carries the retired is_admin, unread since M13.4)
 groups_public view (id, slug, name, ratings_since)  -- 0018, ratings_since 0027; never created_by
 group_members_public view (group_id, player_id)     -- 0018; never role
+group_member_game_counts view (group_id, player_id, games, last_played_at)   -- 0042; service role only
 ```
 
 **`group_id` on the ten tables** (`ratings`, `lobbies`, `games`, `game_players`, `companion_tokens`,
@@ -144,6 +150,10 @@ Also in the schema:
     `groups_insert_mode()` (every new group gets its `group_modes` row, `0024`; on `normal` since `0030`), `games_stamp_mode()` (stamps
     `games.mode` from the group's `group_modes.mode` when the insert names none, `0024`),
     `discord_config_clear_test_post()` (clears both test-post columns whenever `webhook_url` changes, `0025`).
+  - `session_player(user, session, group)` (`0038`): the verified session lookup (see "Security"). `stable`,
+    `security definer`, `search_path = ''`, service role only. One row (Discord id, player id, puuid, display
+    name, role in the group) while the `auth.sessions` row is live and the user is not banned or deleted; no row
+    otherwise. Never returns an auth row.
   - RLS helpers (`0022`): `current_player_id()` and `is_group_admin(group)`, executable by `authenticated` too,
     because a function called inside a policy runs as the querying role. Both answer only about the caller's own
     verified session.
@@ -153,6 +163,20 @@ Also in the schema:
   events while the events still fire. A table outside the publication never emits a change event, silently, and the
   tonight page (M3.4) and the bot (M4.4) are built on those events. `players` is left out; it is not publicly
   readable.
+- **The live signal, `group_live`** (`0037`, M19.9; decision row 2026-10-04). One row per group, exactly
+  `(group_id uuid pk, version bigint, kind text, changed_at timestamptz)` and never another column: no player or
+  lobby data. Backfilled at version 0 / `roster` and inserted for a new group by `groups_insert_live()`. RLS on,
+  anon and authenticated `select` every row (a counter, a word and a time are public by design), nobody but
+  `service_role` writes, through `bump_group_live(p_group, p_kind)` (version + 1, the kind, `now()`; returns the
+  new version). Published to `supabase_realtime`. `kind` is checked against `lobby`, `split`, `game`, `mode`,
+  `ratings`, `roster` and is the **last** change's kind, a hint, not a log; one request that changed several
+  things bumps once with the strongest (`game > ratings > split > lobby > roster > mode`). Every write route
+  bumps its group once as its **last** statement, after every other write including the Discord post, and not
+  at all when it wrote nothing (`apps/web/lib/live/bump.ts` holds the route-by-route table). The subscriber
+  contract (M19.10): filter `group_id=eq.<id>` (`groupLiveFilter`), parse `new` with `groupLiveRowSchema` from
+  `@customs/db/schemas` (strict: a fifth column fails the parse), compare `version` with the version the page
+  was rendered at; a DELETE carries only `group_id` (the group was deleted). Background `after()` work (the AI
+  lines) does not bump. The six player and lobby tables stay published until M19.11.
 
 Rules:
 
@@ -187,6 +211,16 @@ Rules:
   replace them, so until then two players can still hold different seeds.
 - `games.raw` keeps the full end-of-game block, with `mucJwtDto` and `multiUserChatPassword` replaced by
   `"[redacted]"` (M2.10). Every derived column can be recomputed from it.
+- **No list reader detoasts `games.raw`** (database performance plan, `redesign/research/db-performance.md`;
+  `apps/web/lib/perf/rawColumns.test.ts` enforces it). A JSON path (`raw->x`) still decompresses the whole block
+  in Postgres, once per path per row. The mode is `games.game_mode` (0039, a stored generated column: nothing
+  writes it). The facts `rawFactsFromUnknown` reads (per-player first blood, multi-kills, steals, champion name,
+  detected role; the draft bans) are `game_facts.facts` (0041), written by that same TypeScript function at
+  ingest (the first post, and the ban merge that rewrites raw) and by `pnpm --filter web backfill-game-facts`,
+  which fills missing rows and recomputes rows below the code's `GAME_FACTS_VERSION`. The row is derived and
+  rebuildable, never trusted over raw: a reader takes it only when it parses and is current, and reads that
+  game's raw paths otherwise (`apps/web/lib/stats/gameFacts.ts`, the one `raw->` reader left). Only one-game
+  readers and writers select the blob.
 - `game_players` rating columns are nullable: the API inserts the game and its ten players, then rates, and a
   rebuild (M5.2) overwrites them.
 - `game_players.vision_score` and `damage_self_mitigated` (0014, M7.7) and `damage_to_objectives` (0015, M7.14)
@@ -811,6 +845,11 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   `lobby_members`.
 - `open`, `balanced` and `abandoned` keep the replace semantics — the posted list is the roster, deletions
   included — because a lobby that dissolves without ever starting has no history worth keeping.
+- **A lobby post that changed nothing writes nothing** (M19.8). Ingest reads the stored `lobby_members` rows
+  first and writes only a new row, a gone row, or a moved side or spectator flag; `ensurePlayers` reads before
+  it inserts and writes a Riot ID only when it moved; memberships are ensured for newly created rows only. The
+  same post twice therefore sends no write request (beyond the idle sweep's two statements and the token's
+  `last_seen_at`), no Realtime event and no `group_live` bump.
 - An `open` or `balanced` lobby nobody has posted about for two hours is `abandoned`, swept by the next
   companion post or by `GET /api/cron/sweep` (bearer `CRON_SECRET`). An `in_game` lobby two hours unmentioned
   is `dropped` by the same sweep (M5.11): no game runs two hours, so that row lost its end-of-game block. It is
@@ -964,6 +1003,13 @@ watching: on lobby event -> POST /api/companion/lobby
   id (copied from the issuing session's verified identity) to the PUUID Kustom read from League, adds the
   membership (`admin` for the group's creator) and uses the code, under a row lock. It never re-links a
   Discord account and never takes a PUUID linked to someone else; a refusal writes nothing.
+- **`GET /api/groups/remembered`** (about-static; schema `rememberedGroupResponseSchema` in `invites.ts`). No
+  session, no body: reads the HttpOnly `kustom_group` cookie and answers `200 { ok: true, group: { slug, name }
+  | null }` from `groups_public`, on `decideLanding`'s own rule (`rememberedGroup`: no cookie is no read, an
+  unknown slug or a failed read is `null`; never 4xx/5xx). `Cache-Control: private, no-store`. It exists so the
+  static `/about` can draw `Back to <Group>` as a client island; its audience lines share the top bar's
+  session probe (`lib/landing/sessionProbe.ts`, one `GET /api/groups/mine` per page load, only with an `sb-`
+  cookie).
 
 ## Discord
 
@@ -1031,6 +1077,16 @@ watching: on lobby event -> POST /api/companion/lobby
 - Sessions: `proxy.ts` refreshes the Supabase session on every page navigation that carries an `sb-` cookie
   (M14.40; not `/api`, `/auth`, `/og`, `_next` or static files) and writes the rotated tokens onto the response, because
   a server component cannot write cookies.
+- Verifying a session (`0038`, `lib/session/liveSession.ts`): every page helper and every session gate (admin,
+  setup, admin read, `/api/me/*`, `/api/groups/*`, operator) checks the access token's signature with
+  `auth.getClaims()` (locally against the project JWKS with asymmetric signing keys; auth-js falls back to
+  `getUser()` with the legacy HS256 secret), then calls `session_player(sub, session_id, group)` with the service
+  role. That function answers only while the `auth.sessions` row is live and the user is neither banned nor
+  deleted, maps the Discord identity from `auth.identities` to the player, and returns the role in the group: one
+  round trip instead of GoTrue + `players` + `group_memberships`, with sign-out still immediate. A token without
+  `session_id` is signed out. `user_metadata` only ever names someone on screen. Residual windows: a revoked
+  signing key is trusted by a warm instance for up to 10 minutes (the JWKS cache), and the email and display name
+  shown come from the token until it refreshes. Owner's key migration: `docs/runbooks/jwt-signing-keys.md`.
 - Public reads of players go through the `players_public` view, which is `players` without `discord_id`. It
   still carries the retired `is_admin`, which nothing reads since M13.4: the tonight page decides whether to draw
   the roll and reroll controls on the server from the viewer's membership role, and names the group's admins

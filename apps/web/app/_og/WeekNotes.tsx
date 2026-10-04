@@ -81,7 +81,7 @@ const display = (size: number, color: string): CSSProperties => ({
 });
 
 /** Night's page light at 1920×1080: the two lamps and the 48 px grid (`OG_LIGHT`, rescaled). */
-const LIGHT = [
+export const WEEK_NOTES_LIGHT = [
   'radial-gradient(ellipse 1728px 1296px at 154px -216px, rgba(46,155,255,0.16), rgba(46,155,255,0) 58%)',
   'radial-gradient(ellipse 1536px 1188px at 1843px -194px, rgba(255,207,102,0.11), rgba(255,207,102,0) 52%)',
   'repeating-linear-gradient(0deg, rgba(244,247,252,0) 0px, rgba(244,247,252,0) 47px, rgba(244,247,252,0.035) 47px, rgba(244,247,252,0.035) 48px)',
@@ -96,7 +96,7 @@ function Mark({ role, size, color }: { role: RoleValue; size: number; color: str
   );
 }
 
-function Triangle({ up, size, color }: { up: boolean; size: number; color: string }) {
+export function Triangle({ up, size, color }: { up: boolean; size: number; color: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
       <path d={up ? 'M10 3 L18 16 H2 Z' : 'M2 4 H18 L10 17 Z'} fill={color} />
@@ -123,7 +123,7 @@ function Gear({ size }: { size: number }) {
   );
 }
 
-function Plus({ size }: { size: number }) {
+export function Plus({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
       <path d="M10 3 V17 M3 10 H17" stroke={P.text} strokeWidth="3.2" strokeLinecap="round" />
@@ -131,7 +131,7 @@ function Plus({ size }: { size: number }) {
   );
 }
 
-function SectionHead({
+export function SectionHead({
   glyph,
   title,
   sub,
@@ -422,7 +422,7 @@ export function WeekNotesBoard({ model }: { model: WeekNotesModel }) {
         height,
         padding: `${PAD_Y}px ${PAD_X}px`,
         backgroundColor: P.bg,
-        backgroundImage: LIGHT,
+        backgroundImage: WEEK_NOTES_LIGHT,
       }}
     >
       {/* Left: wordmark, title, BUFFS, NERFS */}

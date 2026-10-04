@@ -181,13 +181,12 @@ interface PageInput {
 
 /**
  * `matchesQueue` in SQL, trim and case included, so the list and calibration (which runs
- * `matchesQueue` on the same `raw->>gameMode`) can never sort a game onto different maps: Rift is a
+ * `matchesQueue` on the same `game_mode`, 0039) can never sort a game onto different maps: Rift is a
  * missing, blank or `CLASSIC` mode (every night before the toggle had none), ARAM is `ARAM`.
  * POSIX `[[:space:]]`, not `\s`: inside an `or=(...)` value the regex must be double-quoted, and
  * PostgREST's quoted values treat a backslash as an escape, so `\s` would arrive as `s`.
  */
-export const RIFT_MODE_FILTER =
-  'raw->>gameMode.is.null,raw->>gameMode.imatch."^[[:space:]]*(classic)?[[:space:]]*$"';
+export const RIFT_MODE_FILTER = 'game_mode.is.null,game_mode.imatch."^[[:space:]]*(classic)?[[:space:]]*$"';
 export const ARAM_MODE_PATTERN = '^[[:space:]]*aram[[:space:]]*$';
 
 /** The page's filters on a `games` query. Generic so the count and the ranged read share it. */
@@ -199,7 +198,7 @@ function withListFilters<
   if (input.range.start !== null) next = next.filter('started_at', 'gte', input.range.start.toISOString());
   if (input.range.end !== null) next = next.filter('started_at', 'lt', input.range.end.toISOString());
   return input.filters.mode === 'aram'
-    ? next.filter('raw->>gameMode', 'imatch', ARAM_MODE_PATTERN)
+    ? next.filter('game_mode', 'imatch', ARAM_MODE_PATTERN)
     : next.or(RIFT_MODE_FILTER);
 }
 
@@ -249,13 +248,13 @@ async function readGamePage(
       ? client
           .from('games')
           .select(
-            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, mode:raw->>gameMode',
+            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, mode:game_mode',
             count,
           )
       : client
           .from('games')
           .select(
-            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, mode:raw->>gameMode, game_players!inner(player_id)',
+            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, mode:game_mode, game_players!inner(player_id)',
             count,
           );
   const {

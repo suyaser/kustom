@@ -8,12 +8,29 @@ What it does: OpenSkill stops being the rating. One migration pair, one deploy, 
 every group's history under the Kustom rating (`docs/02-milestones.md` "M18 Kustom rating"). The OpenSkill
 columns stay in the schema, unread, until M18.12, so rollback is the previous build plus its own rebuild.
 
+**The order at a glance** (hosted state as of 2026-10-04: migrations through `0042`, production on `main`
+`65db4837`):
+
+1. Back up (step 0).
+2. Push `0036` + `0043` with `--include-all` (step 1): dry run first, it must list exactly those two.
+3. Check `service_can` true (step 1's SQL). **Not before this: deploy.**
+4. Deploy `SWITCH` (step 2).
+5. Dry run, the gate (step 3).
+6. Rebuild (step 4), then a second rebuild that writes 0.
+7. The checks (step 5).
+8. The owner posts the patch notes (step 7).
+
 **Before you start.**
 
-- `ship-2.0.md` is done: production runs 2.0 code and hosted has `0035` (or later) applied.
+- `ship-2.0.md` is done: production runs 2.0 code and hosted has `0035` (or later) applied. As of 2026-10-04
+  hosted has every migration through `0042` (`0037` group_live, `0038` session_player, `0039`..`0042` database
+  performance) and production runs `main` at `65db4837`.
 - The switch build is merged and green: M18.2 (balancer), M18.5 (fold and rebuild), M18.6 (reads), M18.7 (pages),
-  M18.9 (words), and this task's `0043` writer. Note its commit as `SWITCH`. Note the commit production runs now
-  as `PREVIOUS` (Vercel → Deployments → Production / Current): it is the rollback build.
+  M18.9 (words), and this task's `0043` writer, merged with `main` `65db4837` on branch `rating-switch`. Note its
+  commit as `SWITCH`. Note the commit production runs now as `PREVIOUS` (Vercel → Deployments → Production /
+  Current; `65db4837` as of 2026-10-04): it is the rollback build.
+- The hosted service-role key for steps 3 and 4: Dashboard → Project Settings → API Keys → a **secret** key
+  (`sb_secret_...`). It is typed into the shell at a hidden prompt and never written to a file.
 - **Do not deploy (step 2) until step 1's check printed `service_can` true; without 0043 every game post fails.**
 - Pick a quiet time: no lobby live in any group and no game in the last 15 minutes (the rebuild refuses otherwise).
   Steps 2 to 5 take about ten minutes; nobody should play during them.
@@ -47,35 +64,37 @@ The two migrations of this switch, in this order:
 
 Both must be on hosted **before** the switch deploy (step 2). Neither changes anything the current build reads.
 
-**The numbers between them belong to other runbooks.** `0037_group_live.sql` (M19.9, already on `main`),
-`0038` (auth local claims) and `0039`..`0042` (the database performance work: `games.game_mode`, raw lz4,
-`game_facts`, the member counts view) ship with their own deploys. None of them is needed by `0036` or `0043`, and
-neither of these touches anything they create, so **none of them must precede this switch**, and this switch need
-not wait for them. What the order does change is the CLI:
+**The numbers between them are already on hosted.** `0037` (group_live), `0038` (session_player) and
+`0039`..`0042` (the database performance work: `games.game_mode`, raw lz4, `game_facts`, the member counts view)
+shipped with `main` and are applied on hosted. None of them is needed by `0036` or `0043`, and neither of these
+touches anything they create (checked on the merge: `0036` adds columns and checks to `game_players`, `ratings`,
+`splits`; `0042`'s view `group_member_game_counts` names only `group_id`, `player_id`, `game_id`, `started_at`, so
+adding columns under it is fine; `0043` names only `0034`'s and `0036`'s columns). What the order does change is
+the CLI:
 
-- `supabase db push` refuses to apply a migration numbered below the newest one hosted already has, unless you pass
-  `--include-all`. `0037` is on `main`, so if hosted already has `0037` (or any of `0038`..`0042`) when you run
-  this, pushing `0036` needs `--include-all`. Likewise, if `0043` lands first, the later `0038`..`0042` pushes need
-  it. That is expected and safe here (the files are independent); it is the only reason to pass it.
+- `supabase db push` refuses to apply a migration numbered below the newest one hosted already has ("Found local
+  migration files to be inserted before the last migration on remote database") unless you pass `--include-all`.
+  Hosted has `0042`, so pushing `0036` **needs `--include-all`**, on the dry run and on the push. That is expected
+  and safe here (the files are independent); it is the only reason to pass it.
 - `db push` applies **every** pending file in the checkout you run it from. Push from the `SWITCH` checkout and
-  read the dry run first: it must list exactly the files you mean to apply.
+  read the dry run first: it must list exactly `0036_kustom_rating.sql` and `0043_apply_game_player_ratings.sql`.
 
 ```sh
-cd /Users/suyaser/lol && git checkout <SWITCH> && pnpm install
-cd packages/db
-supabase migration list --linked          # Remote: up to 0035, plus whichever of 0037..0042 have shipped
-supabase db push --linked --dry-run       # must list 0036 and 0043, and nothing else
+cd /Users/suyaser/lol && git fetch && git checkout <SWITCH> && pnpm install
+cd /Users/suyaser/lol/packages/db
+supabase migration list --linked                       # Remote: every number 0001..0042 except 0036; Local adds 0036 and 0043
+supabase db push --linked --include-all --dry-run      # must list 0036_kustom_rating.sql and 0043_apply_game_player_ratings.sql, nothing else
 ```
 
-If the dry run lists a file from another runbook (say `0038`) that you are not shipping now, stop: run that runbook
-first, or take the list to the lead. If it refuses with "Found local migration files to be
-inserted before the last migration on remote database", add `--include-all` to both commands and read the list
-again. Then:
+If the dry run lists any other file, stop and take the list to the lead. Then:
 
 ```sh
-supabase db push --linked                 # (--include-all if the dry run needed it)
-supabase migration list --linked          # 0036 and 0043 now in Remote
+supabase db push --linked --include-all                # applies 0036 then 0043, in that order
+supabase migration list --linked                       # 0036 and 0043 now in Remote; Local and Remote match 0001..0043
 ```
+
+If `0036` applies and `0043` fails, nothing is broken (the current build reads neither): fix and push again before
+step 2.
 
 Check (Supabase dashboard → SQL editor, read-only):
 
@@ -97,11 +116,16 @@ game folded by the new build starts every player's all-time track from 1200 with
 
 ## 3. Dry run: the gate
 
-From the `SWITCH` checkout, with `apps/web/.env.local` (or the environment) pointing at hosted:
+From the `SWITCH` checkout, in one terminal that stays open for steps 3 and 4. The command reads
+`apps/web/.env.local`, but a variable already exported in the shell wins over the file (Node's `--env-file`), so
+export both for hosted; `read -rs` prompts with no echo, paste the `sb_secret_...` key and press Enter:
 
 ```sh
 cd /Users/suyaser/lol
-pnpm --filter web rebuild-ratings --dry-run --hosted
+export NEXT_PUBLIC_SUPABASE_URL=https://ubwpmxujdzssfqfbrbej.supabase.co
+read -rs SUPABASE_SERVICE_ROLE_KEY && export SUPABASE_SERVICE_ROLE_KEY
+pnpm --filter web rebuild-ratings --hosted --dry-run --group customs
+pnpm --filter web rebuild-ratings --hosted --dry-run                 # every group
 ```
 
 Read, for every group:
@@ -128,11 +152,14 @@ anything visible changes. The run in this step is still required: it is the one 
 
 ## 4. The rebuild
 
-Immediately after step 3:
+Immediately after step 3, in the same terminal (both variables still exported):
 
 ```sh
-pnpm --filter web rebuild-ratings --hosted
+pnpm --filter web rebuild-ratings --hosted          # every group
+pnpm --filter web rebuild-ratings --hosted          # the second run: must write 0 (below)
 ```
+
+When step 5 is done, close the terminal or `unset SUPABASE_SERVICE_ROLE_KEY NEXT_PUBLIC_SUPABASE_URL`.
 
 Add `--force` only if it refuses with the 15-minute guard and you have checked that no lobby is live in any group.
 Read:
@@ -215,7 +242,10 @@ Only if the gate fails or a check disagrees. In this order:
 
    ```sh
    cd /Users/suyaser/lol && git worktree add ../lol-previous <PREVIOUS> && cd ../lol-previous
-   pnpm install && cp /Users/suyaser/lol/apps/web/.env.local apps/web/.env.local
+   pnpm install
+   export NEXT_PUBLIC_SUPABASE_URL=https://ubwpmxujdzssfqfbrbej.supabase.co
+   read -rs SUPABASE_SERVICE_ROLE_KEY && export SUPABASE_SERVICE_ROLE_KEY
+   pnpm --filter web rebuild-ratings --hosted --dry-run   # first line: target ubwpmxujdzssfqfbrbej.supabase.co (hosted)
    pnpm --filter web rebuild-ratings --hosted
    ```
 
@@ -412,5 +442,27 @@ took          85 ms
 
 Afterwards local `customs` has 90 rows with `mu_after` and `fold_p`, and none with `r_after` or `week_r_after`:
 the pre-switch state, which is where the local stack was left.
+
+**Re-walked on the switch build** (branch `rating-switch`: `kustom-rating` + M18.7 pages + `main` 65db4837,
+2026-10-04), local stack at `0001..0043` (`0036` and `0043` on top of `0037..0042`, the hosted order). The
+`m18-4` throwaway check (undo `0036` on a restore that has `0037..0042`, re-apply) and the `m18-10` check both
+printed `ALL CHECKS PASSED`. Steps 3 to 5 from a pre-switch `customs` (OpenSkill columns filled, `ratings.r`
+still filled from the first walk), with the hosted form of the commands (`NEXT_PUBLIC_SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` exported, no `.env.local`):
+
+```
+target        127.0.0.1:54321 (local)
+would change  90 game_players rows, 0 ratings rows
+kustom        90 game_players rows, 50 ratings rows, 4 weeks
+gate          log loss 0.742 kustom vs 0.802 stored openskill fold_p over 9 games (coin 0.693)
+              spearman - over 0 with 10+ games, 0.979 over all 50; top 3 -; places moved -
+dry run: nothing was written
+
+wrote         90 game_players rows, 0 ratings rows (0043: 90 game_players rows moved in 1 call)    exit 0
+wrote         0 game_players rows, 0 ratings rows (0043: 0 game_players rows moved in 0 calls)     exit 0
+```
+
+The first rebuild bumped `group_live` for `customs` with kind `ratings` (0037); the second wrote nothing. Check A,
+B and C printed the same tables as the first walk (`mismatches` 0). Local `customs` was left switched.
 
 The owner's hosted run: not yet (record the `target` line and the gate lines here and under M18.10).

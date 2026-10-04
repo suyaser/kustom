@@ -12,6 +12,7 @@ import {
 } from '@/lib/admin/unlinkDiscord';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
+import { bumpIfWrote } from '@/lib/live/bump';
 import type { ServiceClient } from '@/lib/supabase';
 
 /**
@@ -35,6 +36,8 @@ export function memberUnlinkDiscordHandler(store: (client: ServiceClient) => Unl
         : context.fail(result.status, result.error);
     }
 
+    // Tonight's live signal (M19.9): only when a link was actually removed.
+    await bumpIfWrote(context.client, context.groupId, 'roster', result.value.changed);
     if (context.form) return redirectBack(context.request, back, { notice: DISCORD_UNLINKED });
 
     return context.respond(

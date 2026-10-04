@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PageGroup } from '@/lib/groups/pageGroup';
 import { Footer } from './Footer';
+import { NavPendingProvider, PendingMain } from './navPending';
 import { SkipLink } from './SkipLink';
 import { TabBar } from './TabBar';
 import { type ShellAccount, TopBar } from './TopBar';
@@ -15,6 +16,10 @@ import { type ShellAccount, TopBar } from './TopBar';
  * page and it is the page's: the shell has none (the wordmark is never the h1, 6.3).
  *
  * The outer box is only the page surface (`bg-page`, 7.3's glow) and the room the fixed bar needs.
+ *
+ * M19.15 (05-design.md 5.9a): `NavPendingProvider` carries the tab a tap is waiting on, from the
+ * probes in the bars' links to `PendingMain`, which draws that tab's frame after 300 ms. The page
+ * itself stays a server component passed through as `children`.
  */
 export interface ShellProps {
   children: ReactNode;
@@ -26,15 +31,15 @@ export interface ShellProps {
 
 export function Shell({ children, group, isAdmin, account }: ShellProps) {
   return (
-    <div className="flex min-h-svh flex-col bg-page pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] text-foreground lg:pb-0">
-      <SkipLink />
-      <TabBar group={group} />
-      <TopBar group={group} isAdmin={isAdmin} account={account} />
-      {/* tabIndex -1: the skip link moves focus here in browsers that only scroll to a fragment. */}
-      <main id="main" tabIndex={-1} className="flex flex-1 flex-col">
-        {children}
-      </main>
-      <Footer inGroup />
-    </div>
+    <NavPendingProvider>
+      <div className="flex min-h-svh flex-col bg-page pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] text-foreground lg:pb-0">
+        <SkipLink />
+        <TabBar group={group} />
+        <TopBar group={group} isAdmin={isAdmin} account={account} />
+        {/* `<main id="main">`, with the pending frame of a slow tab tap (5.9a, M19.15). */}
+        <PendingMain>{children}</PendingMain>
+        <Footer inGroup />
+      </div>
+    </NavPendingProvider>
   );
 }

@@ -1,7 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { cookies } from 'next/headers';
 import { loadLandingMemberships } from '../groups/landing';
-import { GROUP_COOKIE_NAME, ORIGINAL_GROUP_SLUG } from '../groups/pageGroup';
+import { GROUP_COOKIE_NAME, ORIGINAL_GROUP_SLUG, type PageGroup } from '../groups/pageGroup';
 import { resolveGroupParam } from '../groups/resolve';
 import { createPublicClient } from '../publicClient';
 import { getServiceClient } from '../supabase';
@@ -21,11 +21,17 @@ export async function landingDecision(page: LandingPageKind): Promise<LandingDec
     cookieSlug: store.get(GROUP_COOKIE_NAME)?.value,
     // Service role: `group_memberships` is not public, and only slugs leave `loadLandingMemberships`.
     memberships: (playerId) => loadLandingMemberships(getServiceClient(), playerId),
-    groupBySlug: async (slug) => {
-      const found = await resolveGroupParam(createPublicClient(), slug);
-      return found.kind === 'group' ? found.group : null;
-    },
+    groupBySlug: landingGroupBySlug,
   });
+}
+
+/**
+ * A remembered slug to its group, read with the anon key from `groups_public` (a slug that is no
+ * group, or a malformed one, is `null`). Shared by `/`'s decision and `GET /api/groups/remembered`.
+ */
+export async function landingGroupBySlug(slug: string): Promise<PageGroup | null> {
+  const found = await resolveGroupParam(createPublicClient(), slug);
+  return found.kind === 'group' ? found.group : null;
 }
 
 const NOTHING: LandingData = {

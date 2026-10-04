@@ -48,10 +48,15 @@ pnpm --filter web mint-token <puuid> [label] [--group <slug>]
                              # adds a member row there if there is none.
                              # Runs node with --conditions=react-server (M14.44): companionAuth.ts
                              # imports 'server-only'. Any new script importing a server-only module
-                             # needs the same flag.
+                             # needs the same flag. And --import tsx (db-perf): node's own type
+                             # stripping cannot resolve the extensionless imports under lib/.
 pnpm --filter web set-premium <slug> on|off [--cap <usd>] [--hosted]  # M16.2: the only writer of groups.premium / ai_monthly_cap_usd (service role, .env.local); prints URL + before/after, idempotent; refuses a non-local URL without --hosted
+pnpm --filter web patch-notes-image <out.png>  # the one-time Kustom 2.0 patch notes picture, 1920x1080 PNG (words in apps/web/scripts/patch-notes/notes.ts, the week notes picture's look); dev only, no route, no env
 pnpm --filter web ddragon-fixture [--from <champion.json>]  # M15.4: regenerates the pinned Data Dragon fixture and lib/champs/tags.ts (deterministic)
 pnpm --filter web seed-regions [--meraki <champions.json>] [--check-universe]  # M15.9: reseeds lib/champs/regions.ts from Meraki lolstaticdata, offline, by hand; never fetched at runtime
+# AI_PROVIDER=deepseek|anthropic + DEEPSEEK_API_KEY / ANTHROPIC_API_KEY (server only, Vercel Production only): Kustom Premium's AI lines (DeepSeek V4 Pro by default since 2026-10-04); AI_PROVIDER unset = DeepSeek if its key is set, else Claude; set = only that provider's key; no key or a typo = AI silently off. Kill switch, no deploy: update public.ai_settings set calls_enabled = false;
+AI_PROVIDER=deepseek DEEPSEEK_API_KEY=... KUSTOM_AI_LIVE=1 pnpm --filter web exec vitest run lib/ai/live.test.ts  # M16.3: one real model call (< $0.01); never in CI
+pnpm --filter web font-subsets [--check]  # M19 (05-design.md 4.1): cuts the webfonts from pinned google/fonts TTFs into app/fonts/*.woff2 (core preloaded, rest lazy) + OFL.txt and generates app/fonts.ts; needs python3 with fonttools + brotli; by hand, outputs committed; --check exits 1 on a byte difference (same fontTools/brotli versions only)
 # ANTHROPIC_API_KEY (M16.3, server only, Vercel Production only): Kustom Premium's AI lines; unset = AI silently off. Kill switch, no deploy: update public.ai_settings set calls_enabled = false;
 ANTHROPIC_API_KEY=... KUSTOM_AI_LIVE=1 pnpm --filter web exec vitest run lib/ai/live.test.ts  # M16.3: one real model call (< $0.01); never in CI
 pnpm --filter web ai-eval [--source scenarios|local|all] [--model haiku|sonnet] [--weeks] [--dry] [--only <words>] [--budget <usd>] [--repeat N] [--ledger <file>] [--json <file>]  # M16.8: AI line eval through the production client and checker; local stack only, no database writes, never in CI
@@ -87,6 +92,14 @@ KUSTOM_REPLAY_CSV=<export.csv> pnpm --filter web exec vitest run lib/ingest/kust
 pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
 packages/db/scripts/m18-10-throwaway-check.sh [0043 path]  # M18.10: checks 0043 on a throwaway restore of local (pg_dump read only); needs Docker + pnpm db:start
 # M18.10 step 5 (read-only switch checks: board, one game, week sums): paste packages/db/scripts/m18-10-checks.sql into the SQL editor with the group slug
+pnpm --filter web backfill-game-facts [--dry-run] [--group <slug>] [--hosted]
+                             # 0041 (db-perf): writes game_facts (rawFactsFromUnknown of games.raw) for
+                             # every game without a row and recomputes rows below GAME_FACTS_VERSION
+                             # (lib/stats/gameFacts.ts). Idempotent: a second run prints `total 0 written`.
+                             # Every group by default. First line `target <host> (local|hosted)`; any
+                             # non-local URL is refused without --hosted, dry runs too. Run it once after
+                             # deploying 0041's code (docs/runbooks/db-performance.md), and after any bump
+                             # of GAME_FACTS_VERSION. Readers fall back to raw for a missing row meanwhile.
 pnpm --filter web copy-raw-stats [--dry-run] [--game <games.id>]
                              # M7.7 one-off, extended by M7.14: copies vision score, damage
                              # self-mitigated and damage to objectives out of games.raw onto
@@ -133,6 +146,9 @@ pnpm --filter @customs/db export-schemas [--check]  # M17.3: companion zod schem
 packages/db/scripts/m14-14-throwaway-check.sh [0026 path]  # M14.14: checks 0026 on a throwaway restore of local; reads the shared stack only via pg_dump; needs Docker + pnpm db:start
 packages/db/scripts/m14-58-throwaway-check.sh [0034 path]  # M14.58: checks 0034 on a throwaway restore of local (pg_dump read only); needs Docker
 packages/db/scripts/m18-4-throwaway-check.sh [0036 path]  # M18.4: rehearses 0036 on a throwaway restore of local (pg_dump read only; undoes 0036 there first if local has it); needs Docker
+packages/db/scripts/session-player-throwaway-check.sh [0038 path]  # verified session lookup: checks 0038 (grants, definer settings, revoked/banned/deleted/unlinked cases) on a throwaway restore of local (pg_dump read only); needs Docker
+packages/db/scripts/m19-9-throwaway-check.sh [0037 path]   # M19.9: checks 0037 (group_live) on a throwaway restore of local, then replays every migration on a fresh throwaway; pg_dump read only; needs Docker
+packages/db/scripts/m19-dbperf-throwaway-check.sh [migrations dir]  # db-perf: applies and checks 0039-0042 on a throwaway restore of local (pg_dump read only); needs Docker
 # SUPER_ADMIN_USER_IDS (M14.19, server only): comma-separated Supabase auth.users ids; read-only access to every group's admin reads and /ops, never a write. Set it on Vercel Production too.
 # CI (.github/workflows/ci.yml) runs install --frozen-lockfile, `pnpm -r typecheck`, `pnpm lint`, `pnpm -r test` and `pnpm --filter web build` on every pull request and every push to main, on Node .nvmrc with no local stack (the *.integration.test.ts files skip) and no secrets -- run those five before you open one.
 ```

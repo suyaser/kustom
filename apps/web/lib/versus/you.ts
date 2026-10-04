@@ -88,8 +88,8 @@ export function youVsOne(rows: readonly YouVersusRow[], puuid: string): YouVersu
 }
 
 /**
- * The read: the group's all-time games (with the mode, so ARAM drops out), and the fold. A failed
- * read is the caller's to handle (the page shows no card rather than failing).
+ * The read: the viewer's all-time games in the group (with the mode, so ARAM drops out), and the
+ * fold. A failed read is the caller's to handle (the page shows no card rather than failing).
  */
 export async function loadYouVersus(
   client: PublicClient,
@@ -102,7 +102,8 @@ export async function loadYouVersus(
       groupId: options.groupId,
       ...(options.timeZone === undefined ? {} : { timeZone: options.timeZone }),
     },
-    { withGameMode: true },
+    // Only the viewer's games (and every row of them): every row below is a game they played.
+    { withGameMode: true, onlyPuuid: options.viewerPuuid },
   );
   return youVsEveryone(games, players, options.viewerPuuid);
 }

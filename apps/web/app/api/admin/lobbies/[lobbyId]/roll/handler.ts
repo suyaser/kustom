@@ -12,6 +12,7 @@ import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth 
 import { safeNextPath } from '@/lib/authNext';
 import { readServerEnv } from '@/lib/env';
 import { lobbyInGroup } from '@/lib/groups/membership';
+import { noteWrite, withLiveSignal } from '@/lib/live/bump';
 import { siteOrigin } from '@/lib/siteUrl';
 import { type RollRequest, rollRequestSchema, rollResponseSchema } from './schema';
 
@@ -39,16 +40,36 @@ export async function handleRoll(
       : context.fail(404, NO_SUCH_LOBBY);
   }
 
-  const result = await rollLobby(context.client, {
-    lobbyId,
-    rosterKey: input.rosterKey,
-    now,
-    timeZone: readServerEnv().CUSTOMS_NIGHT_TZ,
-    requestOrigin: siteOrigin(context.request),
-    // Region wars' draw (M15.3): the server's RNG unless a test pins it (M15.10).
-    ...(rng === undefined ? {} : { rng }),
+  // Tonight's live signal (M19.9), flushed after everything below: the split, the lock, the Discord
+  // post and the queued switch_side commands. `already_rolled` wrote nothing and says nothing; a
+  // roll that throws after its claim still bumps (the retry would answer `already_rolled`).
+  return withLiveSignal(context.client, async (live) => {
+    const result = await noteWrite(
+      live,
+      context.groupId,
+      'split',
+      () =>
+        rollLobby(context.client, {
+          lobbyId,
+          rosterKey: input.rosterKey,
+          now,
+          timeZone: readServerEnv().CUSTOMS_NIGHT_TZ,
+          requestOrigin: siteOrigin(context.request),
+          // Region wars' draw (M15.3): the server's RNG unless a test pins it (M15.10).
+          ...(rng === undefined ? {} : { rng }),
+        }),
+      (rolled) => rolled.ok && rolled.value.outcome === 'rolled',
+    );
+    return answerRoll(lobbyId, result, context, back);
   });
+}
 
+function answerRoll(
+  lobbyId: string,
+  result: Awaited<ReturnType<typeof rollLobby>>,
+  context: AdminContext,
+  back: string,
+): NextResponse {
   if (!result.ok) {
     return context.form
       ? redirectBack(context.request, back, { error: result.error })

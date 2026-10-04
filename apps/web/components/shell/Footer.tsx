@@ -11,12 +11,15 @@ import { RiotNotice } from './RiotNotice';
  * - `What's Kustom?` -> `/about`, on group pages only (`inGroup`): the landing page that never
  *   redirects, for a member who wants to see what their friends signed them up for.
  * - Riot's notice, verbatim (`RiotNotice`).
+ * - While a tab's pending frame shows (`<main aria-busy>`, M19.15) it is not drawn: the frame holds
+ *   the first screen only, so the footer would sit at the fold and jump when a shorter page lands
+ *   (a layout shift past the tap's 500 ms input window). Appearing again is not a shift.
  */
 const LINK = 'inline-flex min-h-11 items-center underline underline-offset-3 hover:text-foreground';
 
 export function Footer({ inGroup = false }: { inGroup?: boolean }) {
   return (
-    <footer className="mt-auto border-t border-border">
+    <footer className="mt-auto border-t border-border [main[aria-busy=true]~&]:hidden">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-(--gutter) py-4 text-sm text-muted-foreground">
         <nav aria-label="About Kustom" className="flex flex-wrap items-start gap-x-6">
           <Link href={'/how' as Route} className={LINK}>

@@ -184,14 +184,14 @@ const PAGE = 1_000;
 /**
  * The group's calibration line (STRATEGY §4.8): every game of the group that **could** qualify (it
  * has a lobby), whatever the page's filters, through {@link calibrationGameOf} and core's
- * `calibration`. Reads ids, sides and odds only; never `raw` whole (`raw->>gameMode`).
+ * `calibration`. Reads ids, sides and odds only; never `raw` (`game_mode`, 0039).
  */
 export async function readGroupCalibration(client: PublicClient, groupId: string): Promise<Calibration> {
   const games: { id: string; lobbyId: string; winningSide: 100 | 200; aram: boolean }[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await client
       .from('games')
-      .select('id, lobby_id, winning_side, mode:raw->>gameMode')
+      .select('id, lobby_id, winning_side, mode:game_mode')
       .eq('group_id', groupId)
       .not('lobby_id', 'is', null)
       .order('started_at', { ascending: true })

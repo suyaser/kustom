@@ -2,7 +2,7 @@ import 'server-only';
 import type { AiClaim, AiFact, AiFactUnit, AiLineKind, AiLineStatus, AiTokenMap } from '@customs/db/schemas';
 import { listChampions } from '../champs/names';
 import { type AiGate, aiGateOpen } from '../premium';
-import type { FactList } from './facts';
+import { CLEAR_LEAD_NOTE, CLOSE_RACE_NOTE, type FactList } from './facts';
 import { AI_FEATURES } from './meter';
 
 /**
@@ -617,6 +617,330 @@ const LOSER_BARBS: readonly string[] = [
   'wasted',
 ];
 
+/**
+ * Story claims no number shows (DeepSeek A/B read, 2026-10-04; any provider). Closeness words need
+ * a close-game note (a game's `close game`, a week's close race) and never sit beside a winner on a
+ * game; margin words need a stated margin (a game's `lopsided game`, a week's clear lead); timing
+ * inside the week needs a fact no list carries, so it is always refused there.
+ */
+const CLOSENESS_WORDS: readonly string[] = [
+  'keep it close',
+  'kept it close',
+  'keeping it close',
+  'kept things close',
+  'keep things close',
+  'close game',
+  'close one',
+  'close finish',
+  'close race',
+  'close call',
+  'tight',
+  'tighter',
+  'nearly',
+  'squeeze',
+  'squeezed',
+  'whisker',
+  'edged',
+  'edges',
+  'to the wire',
+  'neck and neck',
+  'photo finish',
+  'razor',
+  'narrow',
+  'narrowly',
+];
+/** On a game, `came close` is the losers nearly winning; on a week it is `nobody came close`. */
+const GAME_CLOSENESS_EXTRA: readonly string[] = ['came close', 'so close'];
+const MARGIN_WORDS: readonly string[] = [
+  'ran away',
+  'run away',
+  'runs away',
+  'running away',
+  'runaway',
+  'ran off with',
+  'comfortable',
+  'comfortably',
+  'by a distance',
+  'by a mile',
+  'nobody got near',
+  'got near',
+  'came close',
+  'got close',
+  'well clear',
+  'cruised',
+  'cruise',
+  'cruising',
+  'out of reach',
+  'out of sight',
+  'miles ahead',
+  'streets ahead',
+  'pulled away',
+  'never in doubt',
+  'untouchable',
+  'easy',
+  'easily',
+];
+const WEEK_TIMING_WORDS: readonly string[] = [
+  'early',
+  'start to finish',
+  'wire to wire',
+  'from the front',
+  'the whole way',
+  'never looked back',
+  'late in the week',
+  'down the stretch',
+  'midweek',
+  'by the weekend',
+  'opened the week',
+  'closed the week',
+  'to open the week',
+  'got going',
+  'over before',
+  'before anyone',
+  'all week',
+  'closed with',
+  'closed last week',
+  'ended the week with',
+  'ended last week with',
+  'late',
+];
+const wordRes = (phrases: readonly string[]) =>
+  phrases.map((phrase) => ({
+    phrase,
+    re: new RegExp(`(?<![a-z'])${escapeRegex(phrase).replace(/ /g, '\\s+')}(?![a-z])`),
+  }));
+const CLOSENESS_RES = wordRes(CLOSENESS_WORDS);
+const GAME_CLOSENESS_RES = wordRes(GAME_CLOSENESS_EXTRA);
+const MARGIN_RES = wordRes(MARGIN_WORDS);
+const WEEK_TIMING_RES = wordRes(WEEK_TIMING_WORDS);
+/** Words that make a sentence about the game even with no token, number or champion in it. */
+const FACT_WORDS: ReadonlySet<string> = new Set([
+  'blue',
+  'red',
+  'team',
+  'teams',
+  'underdog',
+  'underdogs',
+  'upset',
+]);
+
+/**
+ * After `still`, what makes it a win despite something: `still won`, `still came through`, or a
+ * take-verb with the win as its object (`still took the win`, `still got it`). `still took 8 kills`
+ * on a winner reads as a loss (round-2 read, Gr-15 B: `Zizo still took`).
+ */
+const STILL_WON: ReadonlySet<string> = new Set(['won', 'win', 'wins', 'came']);
+const STILL_TOOK: ReadonlySet<string> = new Set(['got', 'took', 'takes', 'picked', 'grabbed', 'pulled']);
+const STILL_TOOK_OBJECT = /^(it|the win|a win|the game|up the win|out the win|off the win)\b/;
+
+function stillWon(sentence: readonly Tok[], at: number): boolean {
+  const next = sentence[at + 1];
+  if (next?.t !== 'word') return false;
+  if (STILL_WON.has(next.lower)) return true;
+  if (!STILL_TOOK.has(next.lower)) return false;
+  const rest = sentence
+    .slice(at + 2, at + 5)
+    .map((tok) => (tok.t === 'word' ? tok.lower : '_'))
+    .join(' ');
+  return STILL_TOOK_OBJECT.test(rest);
+}
+
+/** Closeness, margin, timing, a doubled streak and a sentence with no fact in it. */
+function checkStoryClaims(list: FactList, sentences: readonly Tok[][]): CheckResult | null {
+  const notes = list.facts.flatMap((fact) => (fact.token === null ? fact.notes : []));
+  const closeFact =
+    list.kind === 'game'
+      ? notes.some((note) => note.startsWith('close game'))
+      : list.kind === 'week' && notes.includes(CLOSE_RACE_NOTE);
+  const marginFact =
+    list.kind === 'game'
+      ? notes.includes('lopsided game')
+      : list.kind === 'week' && notes.includes(CLEAR_LEAD_NOTE);
+  const winners = new Set(
+    list.facts.flatMap((fact) => (fact.token !== null && fact.notes.includes('won') ? [fact.token] : [])),
+  );
+  for (const sentence of sentences) {
+    const words = ` ${sentence.map((tok) => (tok.t === 'word' ? tok.lower : '_')).join(' ')} `;
+    // A doubled streak: `4 wins in a row, their longest run of wins in a row`.
+    if ((words.match(/\bin\s+a\s+row\b/g) ?? []).length > 1 || /\brun\s+of\s+wins\b/.test(words))
+      return reject('shape', 'wins in a row said twice in one sentence');
+    const hasFact = sentence.some(
+      (tok) =>
+        tok.t === 'ptoken' ||
+        tok.t === 'num' ||
+        tok.t === 'champ' ||
+        (tok.t === 'word' && FACT_WORDS.has(tok.lower)),
+    );
+    if (!hasFact) return reject('shape', 'a sentence with no fact in it');
+    // Margin first, so `nobody came close` on a week reads as a margin claim.
+    const marginRes = list.kind === 'player' ? [] : MARGIN_RES;
+    for (const { phrase, re } of list.kind === 'game'
+      ? marginRes.filter((m) => m.phrase !== 'came close')
+      : marginRes) {
+      if (re.test(words) && !marginFact)
+        return reject('forbidden', `a margin the facts do not state: "${phrase}"`);
+    }
+    const closeRes = list.kind === 'game' ? [...CLOSENESS_RES, ...GAME_CLOSENESS_RES] : CLOSENESS_RES;
+    for (const { phrase, re } of closeRes) {
+      if (!re.test(words)) continue;
+      if (!closeFact) return reject('forbidden', `a close finish the facts do not state: "${phrase}"`);
+      if (list.kind === 'game' && sentence.some((tok) => tok.t === 'ptoken' && winners.has(tok.token)))
+        return reject('forbidden', `"${phrase}" beside a player who won`);
+    }
+    // `still` on a winner reads as a loss (A/B read): only `still won`, `still got the win`, ...
+    // Since a recap must name a winner (2026-10-04), `still` belongs to its own player -- the
+    // nearest token before it, else the first after -- so `{P2} won, and {P8} still had` passes.
+    if (list.kind === 'game') {
+      for (let i = 0; i < sentence.length; i += 1) {
+        const tok = sentence[i] as Tok;
+        if (tok.t !== 'word' || tok.lower !== 'still') continue;
+        const owner = ownerAt(sentence, i);
+        if (owner === null || !winners.has(owner)) continue;
+        if (stillWon(sentence, i)) continue;
+        return reject('forbidden', '"still" beside a player who won');
+      }
+    }
+    if (list.kind !== 'game') {
+      for (const { phrase, re } of WEEK_TIMING_RES) {
+        if (re.test(words)) return reject('forbidden', `timing inside the week no fact shows: "${phrase}"`);
+      }
+      if (/\bput\b(?:\s+\S+){0,4}\s+to\s+bed\b/.test(words))
+        return reject('forbidden', 'timing inside the week no fact shows: "put ... to bed"');
+    }
+  }
+  return null;
+}
+
+/**
+ * The sides of a game (product's round-2 read, 2026-10-04; any provider). A recap is about the game
+ * the winners won, so it names at least one of them (six loser-only lines in the read); and a near
+ * win is never a fact (`Red nearly took the win` on a close kill count), so no sentence says anyone
+ * nearly won, and no sentence about the losing side says nearly or almost at all.
+ */
+const NEAR_WIN_RE =
+  /\b(nearly|almost)\s+(won|win|wins|took|take|takes|stole|steal|snatched|snatch|pulled|pull|had|got|came|stopped|stop|turned|turn|forced|force|flipped|flip|closed|close|clawed|dragged|made)\b/;
+
+function checkGameSides(list: FactList, sentences: readonly Tok[][]): CheckResult | null {
+  if (list.kind !== 'game') return null;
+  const winners = new Set<string>();
+  const losers = new Set<string>();
+  let winningSide: 100 | 200 | null = null;
+  for (const fact of list.facts) {
+    if (fact.token === null) continue;
+    if (fact.notes.includes('won')) {
+      winners.add(fact.token);
+      if (fact.side !== null) winningSide = fact.side;
+    } else if (fact.notes.includes('lost')) losers.add(fact.token);
+  }
+  const losingWord = winningSide === null ? null : winningSide === 100 ? 'red' : 'blue';
+  const winningWord = winningSide === null ? null : winningSide === 100 ? 'blue' : 'red';
+  // A winner's token, the winning side (`Blue won`) or, on an upset, the underdogs. Only when a
+  // winner is in the facts at all (every winner opted out leaves nobody to name).
+  if (winners.size > 0) {
+    const namesWinner = sentences.some((sentence) =>
+      sentence.some(
+        (tok) =>
+          (tok.t === 'ptoken' && winners.has(tok.token)) ||
+          (tok.t === 'word' &&
+            (tok.lower === winningWord ||
+              (list.upset && (tok.lower === 'underdog' || tok.lower === 'underdogs')))),
+      ),
+    );
+    if (!namesWinner) return reject('shape', 'a game line that names nobody from the winning team');
+  }
+  for (const sentence of sentences) {
+    const words = ` ${sentence.map((tok) => (tok.t === 'word' ? tok.lower : '_')).join(' ')} `;
+    if (NEAR_WIN_RE.test(words)) return reject('forbidden', 'a near win, which no fact shows');
+    const aboutLosers = sentence.some(
+      (tok) =>
+        (tok.t === 'ptoken' && losers.has(tok.token)) || (tok.t === 'word' && tok.lower === losingWord),
+    );
+    if (aboutLosers && /\b(almost|nearly)\b/.test(words))
+      return reject('forbidden', '"almost" or "nearly" about the losing side');
+  }
+  return null;
+}
+
+/**
+ * Fact-label echoes and role verbs (product's round-2 read, 2026-10-04; any provider). A label
+ * copied into the line reads like a form (`the week before this report`, `bot lane carry (ADC)`,
+ * `added Blitzcrank with 1 game on Blitzcrank`); and owning a role (owns, holds, runs, anchors,
+ * rules) is praise a losing or level record there does not earn (`owns top lane` on 24 wins in 58).
+ */
+const ROLE_VERB_RE =
+  /^(own|owns|owned|owning|hold|holds|held|holding|run|runs|ran|running|anchor|anchors|anchored|anchoring|rule|rules|ruled|ruling)$/;
+const ROLE_OF_WORD: Readonly<Record<string, string>> = {
+  top: 'top',
+  jungle: 'jungle',
+  mid: 'mid',
+  middle: 'mid',
+  bot: 'adc',
+  adc: 'adc',
+  carry: 'adc',
+  support: 'support',
+};
+
+/** A scouting role fact's note (`role: bot lane`) as one of {@link ROLE_OF_WORD}'s values. */
+function roleOfNote(note: string): string | null {
+  if (!note.startsWith('role: ')) return null;
+  const first = note.slice('role: '.length).split(' ')[0] ?? '';
+  return ROLE_OF_WORD[first] ?? null;
+}
+
+function checkLabelEchoes(list: FactList, text: string, sentences: readonly Tok[][]): CheckResult | null {
+  if (/\bbefore\s+this\s+report\b/i.test(text))
+    return reject('forbidden', 'a fact label copied: "before this report"');
+  if (/\(\s*adc\s*\)/i.test(text)) return reject('forbidden', 'a fact label copied: "(ADC)"');
+  for (const sentence of sentences) {
+    // `picked up Hecarim with 1 game on Hecarim`: the champion said twice around its own count.
+    for (let i = 0; i + 4 < sentence.length; i += 1) {
+      const [w, n, g, on, champ] = sentence.slice(i, i + 5) as [Tok, Tok, Tok, Tok, Tok];
+      if (
+        w.t === 'word' &&
+        w.lower === 'with' &&
+        n.t === 'num' &&
+        g.t === 'word' &&
+        /^games?$/.test(g.lower) &&
+        on.t === 'word' &&
+        on.lower === 'on' &&
+        champ.t === 'champ' &&
+        sentence.slice(0, i).some((tok) => tok.t === 'champ' && tok.name === champ.name)
+      )
+        return reject('forbidden', `a fact label copied: "with ${n.raw} ${g.raw} on ${champ.name}"`);
+    }
+  }
+  if (list.kind !== 'player') return null;
+  const records = new Map<string, { games: number; wins: number }>();
+  for (const fact of list.facts) {
+    const role = fact.notes.map(roleOfNote).find((r) => r !== null);
+    if (role === undefined || role === null) continue;
+    const games = fact.values.find((v) => v.unit === 'games')?.value;
+    const wins = fact.values.find((v) => v.unit === 'wins')?.value;
+    if (games !== undefined && wins !== undefined) records.set(role, { games, wins });
+  }
+  for (const sentence of sentences) {
+    for (let i = 0; i < sentence.length; i += 1) {
+      const tok = sentence[i] as Tok;
+      if (tok.t !== 'word' || !ROLE_VERB_RE.test(tok.lower)) continue;
+      // The role named within the next five words or numbers (`runs the group through jungle`,
+      // `holds 28 games in support`); a token or a champion ends the reach.
+      for (let j = i + 1; j < sentence.length && j <= i + 5; j += 1) {
+        const ahead = sentence[j] as Tok;
+        if (ahead.t === 'num') continue;
+        if (ahead.t !== 'word') break;
+        const role = ROLE_OF_WORD[ahead.lower];
+        if (role === undefined) continue;
+        const record = records.get(role);
+        // A losing or level record there (or none in the facts) owns nothing.
+        if (record === undefined || record.wins * 2 <= record.games)
+          return reject('forbidden', `"${tok.raw}" ${ahead.raw} without a winning record there`);
+        break;
+      }
+    }
+  }
+  return null;
+}
+
 const LOSER_BARB_RES = LOSER_BARBS.map((phrase) => ({
   phrase,
   re: new RegExp(`(?<![a-z'])${escapeRegex(phrase).replace(/ /g, '\\s+')}(?![a-z])`),
@@ -930,7 +1254,7 @@ function checkAbsolutes(list: FactList, sentences: readonly Tok[][]): CheckResul
           (tok.raw === 'Top' && i > 0) ||
           (next?.t === 'word' && /^lane/.test(next.lower)) ||
           (prev?.t === 'word' &&
-            ['in', 'at', 'the', 'from', 'on'].includes(prev.lower) &&
+            ['in', 'at', 'the', 'from', 'on', 'plays', 'played', 'playing'].includes(prev.lower) &&
             next?.t !== 'word');
         if (lane) continue;
       }
@@ -1135,6 +1459,13 @@ export function checkLine(
   if (/[*_`#~|<>[\]@\\"]/.test(text)) return reject('shape', 'markdown, a quote or a mention character');
   if (/(^|[^{])\bP\d{1,2}\b/.test(text.replace(/\{P\d{1,2}\}/g, '')))
     return reject('token', 'a player token without braces');
+  // DeepSeek eval (2026-10-04): both were prompt-only rules; DeepSeek broke them, and Claude's own
+  // eval month broke the pronoun one in 4 of 102 replies (`Elise made her debut`). A place always
+  // has its ending (`1st place`, never `1 place`); no gendered pronoun, not even for a champion
+  // (`on her`), since the model cannot know who anyone is.
+  if (/\b\d+\s+place\b/i.test(text)) return reject('number', 'a place without its ending (1st place)');
+  const gendered = /\b(he|she|him|his|her|hers|himself|herself)\b/i.exec(text);
+  if (gendered !== null) return reject('forbidden', `a gendered pronoun: "${gendered[0]}"`);
 
   // Exact idioms that read literally as a number or an absolute (M16.9): each is a neutral word to
   // the checks below, and only where its own guard holds. Everything else is checked as written.
@@ -1219,7 +1550,11 @@ export function checkLine(
   const absolutes = checkAbsolutes(list, sentences);
   if (absolutes !== null) return absolutes;
 
-  // 8. Loser barbs: a sentence naming a losing player stays kind.
+  // 8. Story claims (2026-10-04): closeness, margins, timing, doubled streaks, fact-less filler.
+  const story = checkStoryClaims(list, sentences);
+  if (story !== null) return story;
+
+  // 9. Loser barbs: a sentence naming a losing player stays kind.
   const losers = new Set(
     list.facts.flatMap((fact) => (fact.token !== null && fact.notes.includes('lost') ? [fact.token] : [])),
   );
@@ -1234,6 +1569,12 @@ export function checkLine(
       }
     }
   }
+
+  // 10. A game's sides, fact-label echoes and owned roles (product's round-2 read, 2026-10-04).
+  const sides = checkGameSides(list, sentences);
+  if (sides !== null) return sides;
+  const echoes = checkLabelEchoes(list, text, sentences);
+  if (echoes !== null) return echoes;
 
   return { ok: true, text };
 }

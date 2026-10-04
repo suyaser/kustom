@@ -53,6 +53,7 @@ export type LobbyMemberInsert = TablesInsert<'lobby_members'>;
 export type SplitInsert = TablesInsert<'splits'>;
 export type GameInsert = TablesInsert<'games'>;
 export type GamePlayerInsert = TablesInsert<'game_players'>;
+export type GameFactsInsert = TablesInsert<'game_facts'>;
 export type CompanionTokenInsert = TablesInsert<'companion_tokens'>;
 export type CompanionCommandInsert = TablesInsert<'companion_commands'>;
 export type DiscordConfigInsert = TablesInsert<'discord_config'>;

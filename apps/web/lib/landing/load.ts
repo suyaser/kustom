@@ -257,7 +257,7 @@ export function supabaseLandingSource(client: PublicClient): LandingSource {
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await client
           .from('games')
-          .select('id, lobby_id, started_at, winning_side, mode:raw->>gameMode')
+          .select('id, lobby_id, started_at, winning_side, mode:game_mode')
           .eq('group_id', groupId)
           .order('started_at', { ascending: false })
           .order('id', { ascending: true })

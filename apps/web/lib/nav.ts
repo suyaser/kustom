@@ -35,15 +35,19 @@ import { VERSUS_LABEL } from './versus/copy';
  * group's own name is data, not our copy -- the original group happens to be called that).
  */
 
-/** The one lit letterform: a 3px brand bar, then six letters at 800. That is the whole logo. */
-export const WORDMARK = 'KUSTOM';
-
 /**
  * The release links live in `./release` (one source for the download URL and the asset name, M17.12) and
  * are re-exported here because the shell and its pages already import them from the nav. The direct
  * `.exe` link is for the PC that will run Kustom; every friend-facing surface links {@link RELEASES_URL}.
  */
 export { RELEASE_ASSET, RELEASE_EXE_SHA256_URL, RELEASE_EXE_URL, RELEASES_URL } from './release';
+
+/**
+ * The wordmark lives in `./shellCopy` (M19.18): the shell's `Wordmark` is in the root error
+ * boundary's client graph, so importing it from here put this file's copy imports (games, stats,
+ * daily, versus, tonight) into the first-load JavaScript of every page. Re-exported for callers.
+ */
+export { WORDMARK } from './shellCopy';
 
 /** The nav's external download item (M14.41 [NEW COPY]; was `Companion ↗`, a word friends never see). */
 export const GET_KUSTOM_NAV_LABEL = 'Get Kustom ↗';

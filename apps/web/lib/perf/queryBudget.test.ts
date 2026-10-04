@@ -57,12 +57,16 @@ function fixtures(): Fixtures {
     source: 'live',
     mode: 'CLASSIC',
     gameMode: 'CLASSIC',
+    game_mode: 'CLASSIC',
+    // 0041: every game has its current facts row, so no read falls back to raw.
+    game_facts: [{ facts_version: 1, facts: { byPuuid: {}, bans: [] } }],
     created_at: NOW.toISOString(),
   }));
   const seat = (game: (typeof games)[number], n: number) => ({
     game_id: game.id,
     group_id: GROUP,
     player_id: PID(n),
+    players_public: { puuid: PUUID(n) },
     side: n < 5 ? 100 : 200,
     role: ROLES[n % 5],
     champion_id: 1 + n,
@@ -279,6 +283,39 @@ describe('query budgets', () => {
     const { loadFearless } = await import('../fearless/load');
     const { recording } = await measure((client) => loadFearless(client, GROUP));
     expectWithin(recording, { queries: 3, waves: 2 });
+  });
+
+  it('the player page stats: only their games (0042 index), three rounds', async () => {
+    const { loadPlayerStats } = await import('../stats/load');
+    const { result, recording } = await measure((client) =>
+      loadPlayerStats(client, PUUID(3), {
+        window: 'all-time',
+        groupId: GROUP,
+        now: NOW,
+        timeZone: 'Europe/London',
+      }),
+    );
+    expect(result.games).toBe(6);
+    expectWithin(recording, { queries: 5, waves: 3 });
+  });
+
+  it("You vs them: only the viewer's games, three rounds", async () => {
+    const { loadYouVersus } = await import('../versus/you');
+    const { result, recording } = await measure((client) =>
+      loadYouVersus(client, { groupId: GROUP, viewerPuuid: PUUID(3), timeZone: 'Europe/London' }),
+    );
+    expect(result.length).toBe(9);
+    expectWithin(recording, { queries: 5, waves: 3 });
+  });
+
+  it('Stats Records: the facts come with the games (0041), never a raw path', async () => {
+    const { loadRecordsSegment } = await import('../stats/load');
+    const { result, recording } = await measure((client) =>
+      loadRecordsSegment(client, { window: 'all-time', groupId: GROUP, now: NOW, timeZone: 'Europe/London' }),
+    );
+    expect(result.stats.games).toBe(6);
+    expectWithin(recording, { queries: 4, waves: 3 });
+    expect(recording.requests.filter((r) => (r.select ?? '').includes('raw'))).toEqual([]);
   });
 
   it('the admin Members list: memberships, labels and games in one round', async () => {

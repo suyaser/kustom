@@ -1,0 +1,165 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TabFrame > draws the board frame from Frame blocks at token heights (375 and 1280) 1`] = `
+[
+  {
+    "frame": "h1",
+    "rows": undefined,
+    "shape": [
+      "h-(--fs-xl)",
+      "w-40",
+    ],
+  },
+  {
+    "frame": "picker",
+    "rows": undefined,
+    "shape": [
+      "h-(--tap)",
+    ],
+  },
+  {
+    "frame": "list",
+    "rows": "12 × h-(--row-min-h)",
+    "shape": [
+      "flex",
+    ],
+  },
+]
+`;
+
+exports[`TabFrame > draws the games frame from Frame blocks at token heights (375 and 1280) 1`] = `
+[
+  {
+    "frame": "h1",
+    "rows": undefined,
+    "shape": [
+      "h-(--fs-xl)",
+      "w-40",
+    ],
+  },
+  {
+    "frame": "picker",
+    "rows": undefined,
+    "shape": [
+      "h-(--tap)",
+    ],
+  },
+  {
+    "frame": "list",
+    "rows": "12 × h-(--row-min-h)",
+    "shape": [
+      "flex",
+    ],
+  },
+]
+`;
+
+exports[`TabFrame > draws the stats frame from Frame blocks at token heights (375 and 1280) 1`] = `
+[
+  {
+    "frame": "h1",
+    "rows": undefined,
+    "shape": [
+      "h-(--fs-xl)",
+      "w-40",
+    ],
+  },
+  {
+    "frame": "picker",
+    "rows": undefined,
+    "shape": [
+      "h-(--tap)",
+    ],
+  },
+  {
+    "frame": "picker",
+    "rows": undefined,
+    "shape": [
+      "h-(--tap)",
+    ],
+  },
+  {
+    "frame": "summary",
+    "rows": undefined,
+    "shape": [
+      "h-[52px]",
+    ],
+  },
+  {
+    "frame": "list",
+    "rows": "12 × h-(--row-min-h)",
+    "shape": [
+      "flex",
+    ],
+  },
+  {
+    "frame": "list",
+    "rows": "12 × h-(--row-min-h)",
+    "shape": [
+      "hidden",
+      "lg:flex",
+    ],
+  },
+]
+`;
+
+exports[`TabFrame > draws the tonight frame from Frame blocks at token heights (375 and 1280) 1`] = `
+[
+  {
+    "frame": "strip",
+    "rows": "2 × first:h-[calc(var(--card-pad)+var(--chip-h)+0.5rem+var(--fs-display)*0.95+0.5rem+2.9*var(--fs-sm)+1rem)] h-[calc(var(--tap)+1.5rem)]",
+    "shape": [
+      "flex",
+    ],
+  },
+  {
+    "frame": "team-card",
+    "rows": "6 × first:h-(--thead-h) h-(--seat-min-h)",
+    "shape": [
+      "flex",
+    ],
+  },
+  {
+    "frame": "team-card",
+    "rows": "6 × first:h-(--thead-h) h-(--seat-min-h)",
+    "shape": [
+      "flex",
+    ],
+  },
+  {
+    "frame": "rail",
+    "rows": "4 × h-(--seat-min-h)",
+    "shape": [
+      "hidden",
+      "lg:flex",
+    ],
+  },
+]
+`;
+
+exports[`TabFrame > draws the you frame from Frame blocks at token heights (375 and 1280) 1`] = `
+[
+  {
+    "frame": "h1",
+    "rows": undefined,
+    "shape": [
+      "h-(--fs-xl)",
+      "w-40",
+    ],
+  },
+  {
+    "frame": "card",
+    "rows": "4 × h-(--row-min-h)",
+    "shape": [
+      "flex",
+    ],
+  },
+  {
+    "frame": "card",
+    "rows": "3 × h-(--row-min-h)",
+    "shape": [
+      "flex",
+    ],
+  },
+]
+`;

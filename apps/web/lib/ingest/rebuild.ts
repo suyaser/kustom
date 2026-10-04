@@ -227,6 +227,24 @@ export type RebuildResult =
   | { ok: true; report: RebuildReport }
   | { ok: false; code: 'guard' | 'fence'; message: string; report: RebuildReport | null };
 
+/**
+ * Did this run write a row? (M19.9: the caller bumps the group's `group_live` row `ratings` only
+ * then.) A dry run and a guard refusal never do; a fence did write before it noticed the drift; an
+ * unchanged database writes nothing on its second run.
+ */
+export function rebuildWrote(result: RebuildResult): boolean {
+  const report = result.report;
+  if (report === null || report.dryRun) return false;
+  if (!result.ok && result.code === 'guard') return false;
+  return (
+    report.gamePlayerRowsChanged > 0 ||
+    report.breakdownsFilled > 0 ||
+    report.ratingRowsChanged > 0 ||
+    report.prunedRatings > 0 ||
+    report.rolesChanged > 0
+  );
+}
+
 interface SnapshotGame {
   id: string;
   lcuGameId: number;
@@ -241,7 +259,7 @@ interface SnapshotGame {
    * fold refused to rate and the rebuild rated would move numbers nobody played for. It must
    * not read the whole block to do it: this select covers **a whole group's history**, an end-of-game
    * block is tens of kilobytes, and a hosted rebuild would drag all that JSON across the
-   * wire to look at one string. PostgREST projects the field (`raw->gameMode`) and the shape
+   * wire to look at one string. The stored column `game_mode` (0039, generated from `raw`) is read, and the shape
    * put back together here is the only shape `gameModeFromRaw` ever looks at, so the answer is
    * identical to the live fold's on every input, including a null `raw` and a `gameMode` that
    * is not a string.
@@ -963,7 +981,7 @@ async function selectGroupGames(client: ServiceClient, groupId: string): Promise
   const rows = await selectPaged('games select', (from, to) => {
     return client
       .from('games')
-      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, rated, raw->gameMode')
+      .select('id, lcu_game_id, started_at, duration_s, winning_side, source, rated, gameMode:game_mode')
       .eq('group_id', groupId)
       .not('winning_side', 'is', null)
       .order('started_at', { ascending: true })

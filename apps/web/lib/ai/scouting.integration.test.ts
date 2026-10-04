@@ -8,7 +8,7 @@ import { closedWindow } from '../night';
 import { readAiGate } from '../premium';
 import { createAiClient, fakeReply, mockTransport } from './client';
 import { type GenerateDeps, generatePlayerLine } from './generate';
-import { dbMeter } from './meter';
+import { AI_FEATURES, dbMeter } from './meter';
 import { runScouting, type ScoutingDeps, scoutingDepsFor } from './scouting';
 import { loadPlayerScouting } from './scoutingRead';
 import { dbLineStore, hideLine, readOptedOut } from './store';
@@ -209,16 +209,21 @@ if (stack === null || service === null || !applied) {
       const run = await runScouting(h.scouting, { groupId: scoutGroup, window, weekStart, deadline: far() });
       expect(run).toMatchObject({ candidates: 1, attempted: 1, deferred: 0, outcomes: { published: 1 } });
       expect(h.transport.requests).toHaveLength(1);
-      expect(h.transport.requests[0]?.model).toBe('claude-sonnet-5-5');
+      expect(h.transport.requests[0]?.model).toBe(AI_FEATURES.player.model);
       // The facts carried P0's pool: Lee Sin on 13 rated games, 7 wins, the jungle.
       expect(h.transport.requests[0]?.user).toContain('13 games on Lee Sin');
       // M16.19: the week's best game is read from the pool (5 kills, 7 assists); no duo under 5 games
       // together, and the opted-out P1 is never a partner.
-      expect(h.transport.requests[0]?.user).toContain('their best game in the week before this report');
+      expect(h.transport.requests[0]?.user).toContain('their best game of the week');
       expect(h.transport.requests[0]?.user).toContain('5 kills in that game');
       expect(h.transport.requests[0]?.user).not.toContain('wins with most');
       expect(await playerRows(scoutGroup)).toEqual([
-        { player_id: playerIds[0], status: 'published', week_start: weekStart, model: 'claude-sonnet-5-5' },
+        {
+          player_id: playerIds[0],
+          status: 'published',
+          week_start: weekStart,
+          model: AI_FEATURES.player.model,
+        },
       ]);
     });
 

@@ -756,6 +756,52 @@ export type Database = {
           },
         ]
       }
+      game_facts: {
+        Row: {
+          facts: Json
+          facts_version: number
+          game_id: string
+          group_id: string
+          updated_at: string
+        }
+        Insert: {
+          facts: Json
+          facts_version: number
+          game_id: string
+          group_id: string
+          updated_at?: string
+        }
+        Update: {
+          facts?: Json
+          facts_version?: number
+          game_id?: string
+          group_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_facts_game_group_fkey"
+            columns: ["game_id", "group_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id", "group_id"]
+          },
+          {
+            foreignKeyName: "game_facts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_facts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_players: {
         Row: {
           assists: number
@@ -904,6 +950,7 @@ export type Database = {
         Row: {
           created_at: string
           duration_s: number
+          game_mode: string | null
           group_id: string
           id: string
           lcu_game_id: number
@@ -925,6 +972,7 @@ export type Database = {
         Insert: {
           created_at?: string
           duration_s: number
+          game_mode?: string | null
           group_id: string
           id?: string
           lcu_game_id: number
@@ -946,6 +994,7 @@ export type Database = {
         Update: {
           created_at?: string
           duration_s?: number
+          game_mode?: string | null
           group_id?: string
           id?: string
           lcu_game_id?: number
@@ -1031,6 +1080,42 @@ export type Database = {
           },
           {
             foreignKeyName: "group_invites_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_live: {
+        Row: {
+          changed_at: string
+          group_id: string
+          kind: string
+          version: number
+        }
+        Insert: {
+          changed_at?: string
+          group_id: string
+          kind: string
+          version?: number
+        }
+        Update: {
+          changed_at?: string
+          group_id?: string
+          kind?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_live_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_live_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: true
             referencedRelation: "groups_public"
@@ -1723,6 +1808,44 @@ export type Database = {
       }
     }
     Views: {
+      group_member_game_counts: {
+        Row: {
+          games: number | null
+          group_id: string | null
+          last_played_at: string | null
+          player_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_players_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_players_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_members_public: {
         Row: {
           group_id: string | null
@@ -1911,6 +2034,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      bump_group_live: {
+        Args: { p_group: string; p_kind: string }
+        Returns: number
+      }
       create_group: {
         Args: {
           p_created_by: string
@@ -1949,6 +2076,16 @@ export type Database = {
       rotate_group_invite: {
         Args: { p_group_id: string; p_rotated_by: string }
         Returns: string
+      }
+      session_player: {
+        Args: { p_group_id?: string; p_session_id: string; p_user_id: string }
+        Returns: {
+          discord_id: string
+          display_name: string
+          player_id: string
+          puuid: string
+          role: string
+        }[]
       }
       set_group_member_role_v2: {
         Args: {

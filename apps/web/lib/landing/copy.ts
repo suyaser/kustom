@@ -22,8 +22,7 @@ export const PAGE_TITLE = 'Kustom: fair teams for your League customs';
 export const PAGE_DESCRIPTION =
   'Kustom picks fair teams for your League customs and keeps score by itself. Nobody picks, nobody votes, nobody argues.';
 
-/** The one-line bar above the hero for a signed-out visitor whose browser remembers a group. */
-export const backToGroup = (groupName: string): string => `Back to ${groupName}`;
+export { backToGroup } from './backCopy';
 
 // 1. Hero
 export const HERO_TITLE = 'Fair teams. No arguments.';

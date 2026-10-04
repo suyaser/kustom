@@ -12,6 +12,9 @@
  * 5.8 and 5.9 where they exist; the rest is listed as [NEW COPY] in the task report for product.
  * ----------------------------------------------------------------------------------------- */
 
+/** The one lit letterform: a 3px brand bar, then six letters at 800. That is the whole logo. */
+export const WORDMARK = 'KUSTOM';
+
 /** First in the DOM, visible on focus (05-design.md 6.2). */
 export const SKIP_LINK_LABEL = 'Skip to content';
 
