@@ -144,6 +144,10 @@ Also in the schema:
     `groups_insert_mode()` (every new group gets its `group_modes` row, `0024`; on `normal` since `0030`), `games_stamp_mode()` (stamps
     `games.mode` from the group's `group_modes.mode` when the insert names none, `0024`),
     `discord_config_clear_test_post()` (clears both test-post columns whenever `webhook_url` changes, `0025`).
+  - `session_player(user, session, group)` (`0038`): the verified session lookup (see "Security"). `stable`,
+    `security definer`, `search_path = ''`, service role only. One row (Discord id, player id, puuid, display
+    name, role in the group) while the `auth.sessions` row is live and the user is not banned or deleted; no row
+    otherwise. Never returns an auth row.
   - RLS helpers (`0022`): `current_player_id()` and `is_group_admin(group)`, executable by `authenticated` too,
     because a function called inside a policy runs as the querying role. Both answer only about the caller's own
     verified session.
@@ -900,6 +904,16 @@ watching: on lobby event -> POST /api/companion/lobby
 - Sessions: `proxy.ts` refreshes the Supabase session on every page navigation that carries an `sb-` cookie
   (M14.40; not `/api`, `/auth`, `/og`, `_next` or static files) and writes the rotated tokens onto the response, because
   a server component cannot write cookies.
+- Verifying a session (`0038`, `lib/session/liveSession.ts`): every page helper and every session gate (admin,
+  setup, admin read, `/api/me/*`, `/api/groups/*`, operator) checks the access token's signature with
+  `auth.getClaims()` (locally against the project JWKS with asymmetric signing keys; auth-js falls back to
+  `getUser()` with the legacy HS256 secret), then calls `session_player(sub, session_id, group)` with the service
+  role. That function answers only while the `auth.sessions` row is live and the user is neither banned nor
+  deleted, maps the Discord identity from `auth.identities` to the player, and returns the role in the group: one
+  round trip instead of GoTrue + `players` + `group_memberships`, with sign-out still immediate. A token without
+  `session_id` is signed out. `user_metadata` only ever names someone on screen. Residual windows: a revoked
+  signing key is trusted by a warm instance for up to 10 minutes (the JWKS cache), and the email and display name
+  shown come from the token until it refreshes. Owner's key migration: `docs/runbooks/jwt-signing-keys.md`.
 - Public reads of players go through the `players_public` view, which is `players` without `discord_id`. It
   still carries the retired `is_admin`, which nothing reads since M13.4: the tonight page decides whether to draw
   the roll and reroll controls on the server from the viewer's membership role, and names the group's admins

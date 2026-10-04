@@ -50,7 +50,12 @@ export async function decideAdminAccess(
   if (session.kind === 'no-discord') return operatorOr({ kind: 'not-admin' });
 
   if (session.player !== null) {
-    const role = await supabaseGroupRole(client)(session.player.playerId, group.id);
+    // The session lookup already read the role when it was asked about this group (one round
+    // trip, `currentPageSession(group.id)`); otherwise it is the plain membership read.
+    const role =
+      session.membership !== undefined && session.membership.groupId === group.id
+        ? session.membership.role
+        : await supabaseGroupRole(client)(session.player.playerId, group.id);
     if (role !== null && isAtLeast(role, 'admin')) {
       return {
         kind: 'runs-group',
@@ -71,7 +76,8 @@ export async function decideAdminAccess(
 
 /** {@link decideAdminAccess} for this request, shared by the layout, the pages and anything else. */
 export const currentAdminAccess: (group: PageGroup) => Promise<AdminAccess> = cache(
-  async (group: PageGroup) => decideAdminAccess(getServiceClient(), await currentPageSession(), group),
+  async (group: PageGroup) =>
+    decideAdminAccess(getServiceClient(), await currentPageSession(group.id), group),
 );
 
 /**

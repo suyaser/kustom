@@ -1,6 +1,6 @@
-import { discordIdFromUser, type SessionUserLike, supabaseSessionUser } from '../adminAuth';
+import { discordIdFromUser, type SessionUserLike, sessionLookups } from '../adminAuth';
 import type { ServiceClient } from '../supabase';
-import { type CookieJar, createAuthClient } from '../supabaseAuth';
+import type { CookieJar } from '../supabaseAuth';
 
 /**
  * Who a **friend** is, for the two writes on the tonight page (M3.6).
@@ -90,8 +90,15 @@ export function supabaseMeLookup(client: ServiceClient): PlayerByDiscordId {
 
 /** Everything the gate needs, wired to Supabase. */
 export function resolveMe(jar: CookieJar, client: ServiceClient): Promise<MeAuthResult> {
+  // The verified session lookup (`lib/session/liveSession.ts`): a live session row, its Discord
+  // identity and its player in one call. The group is not known until the body is parsed, so the
+  // role is still `lib/me/route.ts`'s own read.
+  const { resolveSessionUser, lookupPlayerByDiscordId } = sessionLookups(jar, client, null);
   return authorizeMe({
-    resolveSessionUser: supabaseSessionUser(createAuthClient(jar)),
-    lookupPlayerByDiscordId: supabaseMeLookup(client),
+    resolveSessionUser,
+    lookupPlayerByDiscordId: async (discordId) => {
+      const player = await lookupPlayerByDiscordId(discordId);
+      return player === null ? null : { playerId: player.playerId, puuid: player.puuid };
+    },
   });
 }

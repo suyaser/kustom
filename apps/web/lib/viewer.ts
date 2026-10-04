@@ -1,11 +1,9 @@
 import { isAtLeast, ORIGINAL_GROUP_ID } from '@customs/db/schemas';
-import { cookies } from 'next/headers';
 import { cache } from 'react';
-import { discordIdFromUser, supabaseSessionUser } from './adminAuth';
-import { supabaseGroupRole } from './groups/membership';
 import { claimablePuuids } from './me/claimable';
+import { currentLiveSession } from './session/currentLiveSession';
+import type { LiveSession } from './session/liveSession';
 import { getServiceClient } from './supabase';
-import { createAuthClient, readOnlyCookieJar } from './supabaseAuth';
 import { nightTimeZone } from './tonight/night';
 import { ANONYMOUS_VIEWER, type ViewerState } from './tonight/viewer';
 
@@ -57,40 +55,28 @@ const ANONYMOUS_SESSION: SessionPlayer = { kind: 'anonymous' };
  */
 export const currentSessionPlayer: () => Promise<SessionPlayer> = cache(async () => {
   try {
-    const store = await cookies();
-    const jar = readOnlyCookieJar(store.getAll().map(({ name, value }) => ({ name, value })));
-    // No session cookie, no round trip: this is the common path and it costs nothing.
-    if (jar.getAll().every((cookie) => !cookie.name.startsWith('sb-'))) return ANONYMOUS_SESSION;
-
-    const user = await supabaseSessionUser(createAuthClient(jar))();
-    if (user === null) return ANONYMOUS_SESSION;
-
-    const discordId = discordIdFromUser(user);
-    // A session with no Discord identity has nothing to link and nothing to tap. It reads the
-    // page exactly as an anonymous visitor does.
-    if (discordId === null) return ANONYMOUS_SESSION;
-
-    // `discord_id` is service-role only: anon has no privilege on `players` at all, which is
-    // exactly why the column lives there and not in `players_public`. This read never leaves
-    // the server and only the puuid and the admin decision reach the page.
-    const { data, error } = await getServiceClient()
-      .from('players')
-      .select('id, puuid')
-      .eq('discord_id', discordId)
-      .maybeSingle();
-    if (error !== null) {
-      console.error('reading the viewer failed', error);
-      return ANONYMOUS_SESSION;
-    }
-    // Signed in and matching no player row: M3.6's `That's me` case, and the first thing
-    // every friend sees. **Not** an error and not anonymous.
-    if (data === null) return { kind: 'unlinked' };
-    return { kind: 'linked', playerId: data.id, puuid: data.puuid };
+    // The verified session lookup (`lib/session/liveSession.ts`): the token's signature checked
+    // locally, then one service-role call that requires a live session row and maps the Discord
+    // identity to the player. No session cookie is the common path and costs nothing.
+    return sessionPlayerOf(await currentLiveSession(null));
   } catch (error) {
     console.error('reading the viewer failed', error);
     return ANONYMOUS_SESSION;
   }
 });
+
+/**
+ * A live session read as a {@link SessionPlayer}. A session with no Discord identity has nothing to
+ * link and nothing to tap: it reads the page exactly as an anonymous visitor does. Signed in and
+ * matching no player row is M3.6's `That's me` case, and the first thing every friend sees:
+ * **not** an error and not anonymous. `discord_id` never leaves the server; only the puuid and the
+ * admin decision reach the page.
+ */
+function sessionPlayerOf(live: LiveSession): SessionPlayer {
+  if (live.kind !== 'signed-in') return ANONYMOUS_SESSION;
+  if (live.player === null) return { kind: 'unlinked' };
+  return { kind: 'linked', playerId: live.player.playerId, puuid: live.player.puuid };
+}
 
 /**
  * The signed-in viewer's player row, or `null` — for either reason: nobody is signed in, or
@@ -119,28 +105,32 @@ export const currentViewer: (groupId?: string) => Promise<Viewer | null> = cache
  */
 export const currentViewerState: (groupId?: string) => Promise<ViewerState> = cache(
   async (groupId: string = ORIGINAL_GROUP_ID) => {
-    const session = await currentSessionPlayer();
+    let live: LiveSession;
+    try {
+      // One lookup answers who this is and their role in this group; the layout, the page and the
+      // admin helpers asking about the same group share it (React `cache`).
+      live = await currentLiveSession(groupId);
+    } catch (error) {
+      // The lookup both identifies the reader and reads the role. Failing it draws no control and
+      // no "you" rule: the page reads as it does for an anonymous visitor, never an error page.
+      console.error('reading the viewer failed', error);
+      return ANONYMOUS_VIEWER;
+    }
+    const session = sessionPlayerOf(live);
     if (session.kind === 'anonymous') return ANONYMOUS_VIEWER;
     // Signed in, matching no player row: the `That's me` case. The list of who may be claimed
     // is a service-role read of `players.discord_id` and is decided here, so the page never
     // sees a Discord id — one extra query, and only for this state.
     if (session.kind === 'unlinked') return { kind: 'unlinked', claimable: await claimable(groupId) };
 
-    try {
-      const role = await supabaseGroupRole(getServiceClient())(session.playerId, groupId);
-      return {
-        kind: 'linked',
-        puuid: session.puuid,
-        isAdmin: isAtLeast(role, 'admin'),
-        isOwner: role === 'owner',
-        isMember: role !== null,
-      };
-    } catch (error) {
-      // The role is what draws two controls and a tab. Failing to read it draws none of them
-      // and keeps the "you" rule, rather than turning a linked reader anonymous.
-      console.error('reading the viewer role failed', error);
-      return { kind: 'linked', puuid: session.puuid, isAdmin: false };
-    }
+    const role = live.kind === 'signed-in' ? live.role : null;
+    return {
+      kind: 'linked',
+      puuid: session.puuid,
+      isAdmin: isAtLeast(role, 'admin'),
+      isOwner: role === 'owner',
+      isMember: role !== null,
+    };
   },
 );
 

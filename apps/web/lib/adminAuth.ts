@@ -1,6 +1,7 @@
 import { type AdminRole, type GroupRole, groupIdSchema, isAtLeast } from '@customs/db/schemas';
 import { ensureBootstrapAdmin } from './bootstrapAdmin';
 import { type GroupRoleLookup, supabaseGroupRole } from './groups/membership';
+import { liveSessionLookups, liveSessionResolver, type SessionGateLookups } from './session/liveSession';
 import type { ServiceClient } from './supabase';
 import { type AuthClient, type CookieJar, createAuthClient } from './supabaseAuth';
 import { isSuperAdmin } from './superAdmin';
@@ -12,12 +13,16 @@ import { isSuperAdmin } from './superAdmin';
  *
  * Three steps, all server-side, never a client claim:
  *
- *   1. The session cookies are exchanged for a **verified** user (`auth.getUser()` asks the
- *      auth server; `getSession()` would only decode a cookie).
- *   2. The Discord snowflake on that user's *identity* is matched against
- *      `players.discord_id` with the service-role client.
+ *   1. The session cookies are exchanged for a **verified** user: the access token's signature is
+ *      checked (`auth.getClaims()`, locally with asymmetric keys, by the auth server with the
+ *      legacy secret) and the token's `sub` + `session_id` must name a live `auth.sessions` row
+ *      (`0038_session_player`, {@link sessionLookups}). `getSession()` alone would only decode a cookie.
+ *   2. The Discord snowflake on that user's *identity* (`auth.identities`, read by the same call)
+ *      is matched against `players.discord_id`.
  *   3. That player's membership row in the request's `groupId` decides. Admin of group A asking
  *      about group B is 403, the same as a member who is not an admin at all.
+ *
+ * Since 0038 all three come back from one service-role call; the gate below is unchanged.
  *
  * No session is 401. A request with no `groupId` is 400 (every admin request names one). A
  * session that is not an admin of that group — for any reason: no Discord identity, no player
@@ -176,7 +181,11 @@ function nonEmpty(value: unknown): string | null {
 // Supabase-backed lookups
 // ---------------------------------------------------------------------------
 
-/** `auth.getUser()`, which verifies the JWT with the auth server rather than trusting a cookie. */
+/**
+ * `auth.getUser()`, which verifies the JWT with the auth server rather than trusting a cookie.
+ * No gate uses it any more ({@link sessionLookups} replaced it); kept for the session-refresh
+ * integration test, which pins GoTrue's own refresh behaviour.
+ */
 export function supabaseSessionUser(client: AuthClient): SessionUserResolver {
   return async () => {
     const { data, error } = await client.auth.getUser();
@@ -218,11 +227,29 @@ export async function resolveAdmin(
   await ensureBootstrapAdmin(client);
 
   return authorizeAdmin({
-    resolveSessionUser: supabaseSessionUser(createAuthClient(jar)),
-    lookupPlayerByDiscordId: supabaseAdminLookup(client),
-    lookupGroupRole: supabaseGroupRole(client),
+    ...sessionLookups(jar, client, groupId),
     groupId,
   });
+}
+
+/**
+ * The session, player and role lookups every session gate takes, answered by the **verified
+ * session lookup** (`lib/session/liveSession.ts`): the access token's signature checked locally
+ * (`getClaims()`), then one service-role `session_player` call that requires a live
+ * `auth.sessions` row and maps the Discord identity to the player and their role in `groupId`. One
+ * round trip where there were three (`getUser`, `players`, `group_memberships`), and the same
+ * answer the pages get, so writes and admin checks never trust more than a render did.
+ */
+export function sessionLookups(
+  jar: CookieJar,
+  client: ServiceClient,
+  groupId: string | null,
+): SessionGateLookups {
+  return liveSessionLookups(
+    liveSessionResolver(createAuthClient(jar), client),
+    groupId,
+    supabaseGroupRole(client),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -326,9 +353,7 @@ export async function resolveSetupWrite(
   await ensureBootstrapAdmin(client);
 
   return authorizeSetupWrite({
-    resolveSessionUser: supabaseSessionUser(createAuthClient(jar)),
-    lookupPlayerByDiscordId: supabaseAdminLookup(client),
-    lookupGroupRole: supabaseGroupRole(client),
+    ...sessionLookups(jar, client, groupId),
     lookupGroupCreator: supabaseGroupCreator(client),
     groupId,
   });
@@ -473,9 +498,7 @@ export async function resolveAdminRead(
   await ensureBootstrapAdmin(client);
 
   return authorizeAdminRead({
-    resolveSessionUser: supabaseSessionUser(createAuthClient(jar)),
-    lookupPlayerByDiscordId: supabaseAdminLookup(client),
-    lookupGroupRole: supabaseGroupRole(client),
+    ...sessionLookups(jar, client, groupId),
     groupId,
     isSuperAdmin: (userId) => isSuperAdmin(userId),
     groupExists: supabaseGroupExists(client),

@@ -1,8 +1,7 @@
-import { cookies } from 'next/headers';
+import type { GroupRole } from '@customs/db/schemas';
 import { cache } from 'react';
-import { discordIdFromUser, supabaseSessionUser } from '../adminAuth';
-import { getServiceClient } from '../supabase';
-import { createAuthClient, readOnlyCookieJar } from '../supabaseAuth';
+import { currentLiveSession } from '../session/currentLiveSession';
+import type { LiveSession } from '../session/liveSession';
 
 /**
  * Who opened `/new`, `/join/<code>` or a group's admin page (M14.21): nobody, or a Discord session
@@ -13,6 +12,9 @@ import { createAuthClient, readOnlyCookieJar } from '../supabaseAuth';
  * unlike it, a failure to read the session is thrown to the page's error boundary rather than read
  * as "signed out": on these pages a false "sign in" button would loop a signed-in person.
  * No session cookie at all is the common case and costs no round trip.
+ *
+ * Read through the verified session lookup (`lib/session/liveSession.ts`): the token's signature
+ * checked locally, then one service-role call that requires a live session row.
  */
 export type PageSession =
   | { kind: 'anonymous' }
@@ -28,28 +30,30 @@ export type PageSession =
       discordId: string;
       /** `null` until they pair a League account through Kustom (or pick themselves on tonight's page). */
       player: { playerId: string; puuid: string } | null;
+      /**
+       * The player's role in the group the session was read for (`currentPageSession(groupId)`),
+       * from the same lookup. Absent when no group was asked; `role` null is "not a member".
+       */
+      membership?: { groupId: string; role: GroupRole | null };
     };
 
-export const currentPageSession: () => Promise<PageSession> = cache(async () => {
-  const store = await cookies();
-  const jar = readOnlyCookieJar(store.getAll().map(({ name, value }) => ({ name, value })));
-  if (jar.getAll().every((cookie) => !cookie.name.startsWith('sb-'))) return { kind: 'anonymous' };
-
-  const user = await supabaseSessionUser(createAuthClient(jar))();
-  if (user === null) return { kind: 'anonymous' };
-  const discordId = discordIdFromUser(user);
-  if (discordId === null) return { kind: 'no-discord', userId: user.id };
-
-  const { data, error } = await getServiceClient()
-    .from('players')
-    .select('id, puuid')
-    .eq('discord_id', discordId)
-    .maybeSingle();
-  if (error !== null) throw new Error(`reading the session's player failed: ${error.message}`);
+/** A live session read as a {@link PageSession}. */
+export function pageSessionOf(live: LiveSession): PageSession {
+  if (live.kind === 'anonymous') return { kind: 'anonymous' };
+  if (live.kind === 'no-discord') return { kind: 'no-discord', userId: live.userId };
   return {
     kind: 'signed-in',
-    userId: user.id,
-    discordId,
-    player: data === null ? null : { playerId: data.id, puuid: data.puuid },
+    userId: live.userId,
+    discordId: live.discordId,
+    player: live.player === null ? null : { playerId: live.player.playerId, puuid: live.player.puuid },
+    ...(live.groupId === null ? {} : { membership: { groupId: live.groupId, role: live.role } }),
   };
-});
+}
+
+/**
+ * The page session, optionally with the role in one group: the admin pages pass theirs, so the
+ * session and the membership are one round trip, shared with `currentViewerState(groupId)`.
+ */
+export const currentPageSession: (groupId?: string) => Promise<PageSession> = cache(
+  async (groupId?: string) => pageSessionOf(await currentLiveSession(groupId ?? null)),
+);
