@@ -19,7 +19,7 @@ export type Sentence = readonly CopyPart[];
 /** Whose row it is: the signed-in viewer's (`Your side won`) or somebody else's (`Omar's side won`). */
 export type ExplainSubject = { kind: 'you' } | { kind: 'name'; name: string };
 
-/** Under every explanation, small (05-design 11.6, [DRAFT COPY]). */
+/** Under every explanation, small (05-design 11.6; product's final words, M18.9). */
 export const EXPLAIN_FOOTNOTE = 'Upsets and first games move the most.';
 
 /** The settled K, core's `config.kustom.kSettled` (pinned equal by `copy.test.ts`). */
@@ -98,7 +98,8 @@ function oddsSentence(reason: KustomReason, subject: ExplainSubject, weekPrefix:
 function shareSentence(reason: KustomReason, subject: ExplainSubject): Sentence {
   const { shareRank, share, result } = reason.parts;
   const times: CopyPart[] = ['×', { num: multiplier(share) }, '.'];
-  if (shareRank === null) return ['This game has no performance score, so everyone counts ', ...times];
+  if (shareRank === null)
+    return ["This game couldn't be scored player by player, so everyone counts ", ...times];
   const you = subject.kind === 'you';
   const team = you ? 'your team' : 'their team';
   if (shareRank === 1) {
@@ -176,7 +177,7 @@ export function roundingSentence(reason: KustomReason): Sentence | null {
   const { worth } = worthOf(reason);
   const off = Math.abs(Math.abs(reason.parts.points) - Math.round(worth * reason.parts.share));
   if (off === 0) return null;
-  return ['Ratings keep their decimals, so this shows ', { num: String(off) }, ' off the sum.'];
+  return ['Ratings keep their decimals, so the change shown is ', { num: String(off) }, ' off this sum.'];
 }
 
 /** One sentence as plain text (tests, screen-reader strings). */

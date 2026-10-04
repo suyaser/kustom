@@ -284,7 +284,7 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
     const redTeam = screen.getByRole('region', { name: 'Red team' });
     fireEvent.click(within(redTeam).getByRole('button', { name: 'gained 14. Why?' }));
     expect(redTeam).toHaveTextContent(
-      `It was an even game for ${name}'s side (50%), so the win was worth 27 × 50% = 14. This game has no performance score, so everyone counts ×1. Their first 10 games count extra while their Rating finds its level (×27 instead of ×16).`,
+      `It was an even game for ${name}'s side (50%), so the win was worth 27 × 50% = 14. This game couldn't be scored player by player, so everyone counts ×1. Their first 10 games count extra while their Rating finds its level (×27 instead of ×16).`,
     );
   });
 

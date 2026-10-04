@@ -129,10 +129,13 @@ says it.
   the most "rigged"-looking thing the receipt can show.
 - **`How the bot decided`**, open to everybody (it used to be admin-only): the three splits the bot kept, in
   order, with their odds, gaps and off-role counts; why win chance and rating gap can disagree (win chance
-  also counts how sure the bot is about each player; the gap is what it balances on); the bot's own sentence
+  comes from everyone's Rating as it is; the gap is what the bot balances on, and it counts anyone off their
+  main role as a bit weaker there); the bot's own sentence
   word for word; and the group's **calibration line**.
 - **Calibration:** `The side the bot favored won 27 of 48 games (56%). It expected about 55%.` — over every
-  rated Summoner's Rift game the bot rolled where the ten who played are the ten it rolled. It compares to what
+  rated Summoner's Rift game the bot rolled with the Kustom odds where the ten who played are the ten it rolled
+  (games rolled before M18 used a different odds function, so the line started again at `0 of 20` at the
+  switch). It compares to what
   the bot expected, not to 50%, because a 55% favourite should win about 55% of the time. Hidden until a group
   has 20 such games (`Not enough games yet to check the bot's odds (12 of 20).`). A rating reset does not wipe
   it: those were still the bot's calls.
@@ -331,14 +334,17 @@ Nobody types anything. An admin taps Roll teams and this appears in Discord and 
 | support | Theo | Yuki |
 
 ```
-Blue 54% ▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱ 46% Red
+Blue 56% ▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱ 44% Red
 Close. Blue has a slight edge.
 Rating gap 100 pts · Main roles 10/10 · Bot's pick #1 of 3
-Next best: swap the top players, Hana and Omar. That's Blue 57%, with a bigger rating gap (170 vs 100 pts).
-Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.
+Next best: swap the top players, Hana and Omar. That's Blue 60%, with a bigger rating gap (170 vs 100 pts).
+Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.
 ```
 
-(The last line is the bot's own sentence, kept word for word, small, under the receipt.)
+(The last line is the bot's own sentence, kept word for word, small, under the receipt. The odds are the
+Kustom odds since M18.2; they were 54% and 57% under OpenSkill. These Ratings are spread wider than a real
+Kustom board, which sits mostly between 1100 and 1400; the example keeps them because it is the balancer's
+pinned test.)
 
 Everyone got the role they main. Lena is the best player in the room and she is on the weaker side on paper,
 which is the sort of thing that used to take ten minutes of arguing. If someone still wants a different night,
@@ -346,24 +352,61 @@ reroll gives the "swap Hana and Omar" teams instead, and then one more after tha
 
 ## The rating
 
-**Coming in M18 (planned 2026-10-04, the owner): the Kustom rating replaces everything below.** A game moves
-your Rating by `K × (result − expected) × share`: expected is the same win chance the bot shows, from the two
-teams' total Ratings; K is 32 on your first game and falls to 16 by your 11th, then stays there; share is 1.2 down
-to 0.8 by how you played against your own team (MVP and ACE keep their names). Everyone starts at 1200, nothing
-decays, and a settled player moves about 8 points a game, 20 at most. A second, weekly Rating starts everyone at
-1200 every Sunday at 06:00 (owner-confirmed 2026-10-04) and orders the week board. Teams are balanced on the all-time Rating only. M18.9 rewrites this
-section and "The week and all time" when it ships; until then the text below is what runs.
+**The Kustom rating** (M18, the owner, 2026-10-04). One line of arithmetic a friend can check on a phone. It
+replaced OpenSkill, whose changes depended on how unsure it was about ten other people, kept a group that
+started together "new" for weeks, ran overconfident odds and made points out of nothing for MVP and ACE. The
+switch re-scored every past game the new way, and Kustom said so once, in a patch-notes post (below).
 
-The model keeps one rating per player in each group, `{ mu, sigma }` — `mu` is what it thinks you are,
-`sigma` is how sure it is. (A person in two groups has two, and they never touch.) It is the only rating that
-forms teams, and since 2026-10-04 it is the only rating there is: every point gained or lost on every surface
-is this rating's change (the week's separate number was retired, M14.57).
+The model keeps one Rating per player in each group. (A person in two groups has two, and they never touch.)
+Everyone starts at **1200**. After every rated game:
 
-**There is one number on every screen: `Rating`, which is `round(mu * 60)`** (2026-10-03). It sits beside your
-name on the teams, the result, the board, your page and every Discord post, it is what the balancer works
-from, and **every board is sorted on it**, so the order on the page always matches the number on the page.
-The cautious second number the board used to sort on (`Proven`) is gone from every surface: it read 0 for
-nearly half the real board and put a 1361 under a 1287.
+`change = K × (result − expected) × share`
+
+- **result** is 1 for a win and 0 for a loss.
+- **expected** is your side's win chance from the two teams' total Ratings: a gap of 0 / 50 / 100 / 200 / 400
+  points between the totals is 50% / 53% / 56% / 62% / 73%. It is **the same win chance the bot shows on the
+  teams**. One odds function serves the receipt, the bot's scoring, the rating, the explanation, the poster and
+  the AI lines, so the odds shown are the odds used, by construction.
+- **K** is 32 on your first rated game and drops by 1.6 a game to 16 at your 11th, then stays 16 for good. The
+  group plays about three games a night, so a newcomer never moves much more than twice what a regular does.
+- **share** is how your game compared with your four teammates'. Inside each team the five are lined up by the
+  performance score (below), best first. On the winning team the shares are 1.2, 1.1, 1, 0.9 and 0.8; on the
+  losing team they flip, 0.8 for the best game up to 1.2 for the fifth, so the best loser gives back least. The
+  best on the winning side is the **MVP** and the best on the losing side the **ACE**; both keep their names on
+  every post. A game with no performance score has every share at 1 and names nobody.
+
+What a friend can count on:
+
+- A win never lowers your Rating and a loss never raises it.
+- Only your own rated games move you. Nothing decays: a month off leaves your number where you left it.
+- After 10 rated games, an even game moves you about 8 (the MVP of an even win about 10, the ACE of an even
+  loss about 6), and one game never more than 20 on screen. A first game moves at most 38.
+- Beating the favourite pays more than beating the underdog, and losing as the favourite costs more.
+- Same team, same result, same base: two settled teammates' changes differ only by share.
+- Points come from the other team. When all ten have 10 games or more, the two sides' changes cancel exactly
+  (the shares add up to 5 a side), so 1200 stays the group's average and nothing inflates as the weeks go by.
+  While somebody in the game is still in their first 10 the sides need not cancel, and no surface ever
+  prints a team total.
+- Nobody can edit a Rating. The owner's Reset ratings, everyone at once, is the only thing that moves one by
+  hand.
+
+There is no bonus for a stomp. A surrender at 15 and a close win at 40 count the same: the end-of-game numbers
+were tested as a margin on the group's real games and made no difference worth having (`04-decisions.md`,
+2026-10-04).
+
+**There is one number on every screen: `Rating`, which is `round(R)`.** It sits beside your name on the teams,
+the result, the board, your page and every Discord post; it is the only thing the balancer forms teams from;
+and **every board is sorted on it**, so the order on the page always matches the number on the page. Two people
+can print the same Rating; they keep separate ranks, in the order of the unrounded number. (Before M14 the
+board sorted on a cautious second number, `Proven`; it is gone from every surface.)
+
+A printed change is always the difference of the two displayed numbers — `1291` becoming `1300` prints
+`(+8)`, never a separately rounded figure that makes the row fail to add up. A night's or a week's total is
+the sum of the changes as printed, so a column always adds up (M14.57).
+
+**The board is tight, and that is correct.** Re-scoring about 109 games at about 8 a game put the group's
+settled players between roughly 1110 and 1400, where OpenSkill had them between 600 and 2700. Nobody's skill
+changed; the scale moves 8 a game instead of 80. No surface stretches it: a gap of 10 is meant to look small.
 
 **New players get a rank after 10 rated games.** What stops a lucky newcomer from topping the board is not a
 hidden subtraction but a section you can see. The `All time` board has two parts:
@@ -374,35 +417,35 @@ hidden subtraction but a section you can see. The `All time` board has two parts
    The section says why: `New players' ratings move fast at first. They get a rank after 10 games.`
 
 People with no rated game in the window are not listed; the board counts them underneath (`+ 9 people who
-haven't played a rated game yet.`). A newcomer's seat on the teams carries the same `settling` chip, which is
-also why the win chance can differ from what the Ratings suggest: the bot is less sure of them, and win chance
-counts that. Ten is the number for now (the user, 2026-10-03); it is one constant.
+haven't played a rated game yet.`). A newcomer's seat on the teams carries the same `settling` chip. The chip
+is a count of games and nothing else. Ten is the number for now (the user, 2026-10-03); it is one constant, and
+it is also where K reaches 16.
 
-**Everybody starts on the same number, and the first few nights move it fast** (2026-09-16). A new player's
-Rating begins at 1200 whether they are Iron or Challenger in solo queue — this board is about customs, and on
-your first night nobody here has any evidence about you, including your rank. The model is more unsure of you
-than of anyone it has watched, so your first games swing your number hard — roughly 110 points a game, against
-about 30 for someone thirty games in — and it calms down by itself as the nights add up. That is why ten games
-is enough for a rank. There is no placement mode and nothing to finish.
+**Everybody starts on the same number** (2026-09-16), to the board and to the bot. A new player's Rating begins
+at 1200 whether they are Iron or Challenger in solo queue: this board is about customs, and on your first night
+nobody here has any evidence about you, including your rank. The bot balances them as 1200 too, so the win
+chance it posts is the one the rating will use (M18 retired the one-evening rank guess; rank stays on the roster
+as information). The first 10 games count extra, so a newcomer finds their level in about three nights. There
+is no placement mode and nothing to finish.
 
-**A person's page says the same thing the row said** (M7.16). It shows one big number, `Rating 1512`, the
-settling chip if any, a trend line, `Started at 1200, 37 rated games since.`, and their games, each with its
-one-line receipt. Tap a name on `This week` and the page opens on that same week, with the week's net points
-(`+86 this week · 5W–2L`) to the digit. A game prints the same change on every tab of the page.
+**A person's page says the same thing the row said** (M7.16). On `All time` it shows one big number, `Rating
+1300`, the settling chip if any, a trend line, `Started at 1200, 37 rated games since.`, and their games, each
+with its one-line receipt and its change. Tap a name on `This week` and the page opens on that same week,
+leading with the week's points (`Points this week +36`, the board's number to the digit) and the all-time
+Rating in the line under it; on
+a week tab each game prints **its change on the week**, under the column label `This week`, closing with a
+`Week total` row that equals the header. Everywhere else a game prints its all-time change, and no row ever
+prints two unlabelled changes for one game.
 
-A printed change is always the difference of the two displayed numbers — `1469` becoming `1512` prints
-`(+43)`, never a separately rounded figure that makes the row fail to add up. A night's or a week's total is
-the sum of the changes as printed, so a column always adds up (M14.57).
-
-**Every change says why it was that size** (M14.58, 2026-10-04). The group noticed a loss costing 50 one game
-and 120 the next. Both were right, and tapping either change says why in a sentence or three: whether your side
-was the favourite (a favourite's loss costs more, an underdog's win pays more), whether you are new, settling or
-settled (new players swing hard), and whether MVP or ACE changed it. Sigma is never a number anywhere; the words
-are new, settling and settled. The odds in that sentence are the odds the rating itself used, which can differ
-from the bot's odds at the roll when someone new is in the game (the bot guesses a newcomer from their rank; the
-rating starts everyone at 1200). When the two differ, the result names both, once, and says why (M14.59).
-Discord carries no explanation: the result post stays short and its link opens the page where every change
-explains itself.
+**Every change says why it was that size** (M14.58, rewritten for M18). Tap any change and it says, as a sum:
+whether your side was the favourite and what the game was worth (`Your side won as the 56% favourite, so the
+win was worth 16 × 44% = 7.`), where your game ranked on your team (`You had the best game on your team (MVP):
+×1.2.`), and in your first 10 games why K is above 16. On a week row it explains the week's change and adds the
+all-time one in a clause (`All time: +8, to 1300.`). There are no uncertainty words anywhere; `settling` is only
+the chip. Games rolled before M18 keep the odds the bot posted that night; where the re-scored rating's odds
+round differently the result adds them once, `For points, Red was 50%.`, with no reason clause (M14.59). Discord
+carries no explanation: the result post stays short and its link opens the page where every change explains
+itself.
 
 **Only Summoner's Rift customs move the number.** The group plays ARAM some nights and those games are
 recorded like any other — they are in game history, in the records, on a person's own page — but they never
@@ -418,31 +461,28 @@ for its rolled teams stay on the poster, the game page and the tape, `Upset!` in
 posted before the game; odds worked out afterwards for teams that changed after the roll are not shown, as
 for ARAM (M15.12).
 
-**Carrying is worth a little more.** The best player on the winning side keeps about a quarter more of what
-they gained, and the best player on the losing side gives back about a fifth less. Best means the highest
-score on a seven-part reading of that game: kills and assists against deaths, damage to champions, gold,
-vision, damage soaked, CS, and damage to towers, dragons and barons. The first six count for everybody; the
-seventh counts for the jungler and nobody else. Everyone is read against the other nine people who were in
-that game. **What weighs most depends on the role you played** (M7.13): vision is most of a support's score and
-almost none of a carry's, damage to champions is most of a carry's, and a jungler is read somewhere between,
-plus what they took off the map (M7.14). Top, mid and adc are read the same way, because the game's own record
-does not reliably say which of top and mid somebody was. It is a small adjustment made after the model has
-rated the game, it never turns a win into a loss or the other way round, and it leaves the model's "how sure
-are we" half alone: a good night is not the same thing as certainty (M7.8). Since M14.58 the award that moved
-a rating is kept with the game, so the explanation names the award that actually counted.
+**How a game is read: the performance score.** The share ranks come from a seven-part reading of the game:
+kills and assists against deaths, damage to champions, gold, vision, damage soaked, CS, and damage to towers,
+dragons and barons. The first six count for everybody; the seventh counts for the jungler and nobody else.
+Everyone is read against the other nine people who were in that game. **What weighs most depends on the role
+you played** (M7.13): vision is most of a support's score and almost none of a carry's, damage to champions is
+most of a carry's, and a jungler is read somewhere between, plus what they took off the map (M7.14). Top, mid
+and adc are read the same way, because the game's own record does not reliably say which of top and mid
+somebody was. The score only orders the five on each team; it never turns a win into a loss or the other way
+round. The share and the award that counted
+are kept with the game, so the explanation names what actually happened.
 
 **A game where we do not know who played what has no best player.** Kustom reads everybody's role off the
 end-of-game screen, so a night it watched has all ten. A game recovered from someone's match history later
-does not — the client's history does not say who played support — and on those games nobody is named and
-nobody keeps anything extra. Guessing a role to hand somebody a bonus is the sort of thing this product refuses
-everywhere else. **The result post names both of them** and a person's page says which of their games they
-carried, because a number that moves differently for two people on the same winning team has to say why
-(M7.10).
+does not — the client's history does not say who played support — and on those games nobody is named and every
+share is 1. Guessing a role to hand somebody a better share is the sort of thing this product refuses everywhere
+else. **The result post names the MVP and the ACE**, and a person's page shows the chip on the games they were
+one (M7.10).
 
-**Rating changes do not sum to zero across the two teams.** Movement scales with how unsure the model is
-about each player, so five players it barely knows move further than five it has watched for a month: a
-result can be `-228` on one side and `+231` on the other. Both sides were rated correctly. That is why no
-surface ever prints a team total.
+**The switch is announced once** (the owner, 2026-10-04; superseding "unannounced"). After the re-scoring the
+owner sends one patch-notes post to each group's Discord channel, the text in `02-milestones.md` M18.10. It
+says the rating changed, that every past game was re-scored, that the board looks tighter, and points at
+`/how`. It is never repeated, and nothing else on the site or in Discord announces it.
 
 ## The week and all time
 
@@ -456,15 +496,20 @@ beside it (This month and Last month were removed on 2026-10-04, M14.48: the use
 filter). A window changes who is on the board and what their record and their climb over those days were. It
 never changes anybody's rating: **a window is a filter over games, not a rating event.**
 
-**The week board ranks by points won this week** (2026-10-04, the user; M14.57). A board headed *This week*
-that ordered people by where they stand after a year would not be telling them about their week. So `This
-week` and `Last week` sort on net points: the sum of the rating changes from your rated games in that week,
-the same numbers printed beside those games everywhere else, with your record beside it (`+86 · 5W–2L`). Ties
-go to more wins, then fewer games, then the higher Rating, then the name. One rated game puts you on the board;
-there is no minimum, because a one-game week sits near zero by itself. It is one list with no settling section,
-but a newcomer's row keeps its `settling` chip, which is why their points run large. (Until 2026-10-04 the week
-had a second rating of its own that restarted every Sunday; it showed a different change for the same game
-than every other screen, and it is gone.)
+**The week board ranks by the week's own Rating** (M18, the owner, 2026-10-04; it replaced M14.57's net
+all-time points). A board headed *This week* that ordered people by where they stand after a year would not be
+telling them about their week, and the owner wanted the week to feel like a fresh start for everyone. So every
+Sunday at 06:00 everyone's **weekly Rating** starts again at 1200. It is the same formula over only that week's
+rated games, with K starting again at 32 for everybody, so the first game of a week is 50/50 on the week's
+numbers and a regular earns the same as a newcomer that week. It is printed as **week points**,
+`round(weekly Rating) − 1200`, with your record beside it (`+36 · 5W–2L`): a fresh week reads zero for
+everyone, and the week's changes printed on a person's week tab add up to it exactly. Ties go to more wins,
+then fewer games, then the higher all-time Rating, then the name. One rated game puts you on the board; there
+is no minimum. It is one list with no settling section; a newcomer's row keeps its `settling` chip, which
+describes the all-time Rating printed small under their points. **The weekly Rating never forms teams**, and the
+owner's Reset ratings does not touch it. (History: M7 had a weekly rating too; M14.57 retired it because it
+printed a different change for the same game than every other screen. M18 brings it back with the week's change
+labelled as the week's wherever it is printed, so that confusion cannot come back.)
 
 **The week starts on Sunday** (2026-09-15), because that is when this group's week starts — Egypt works Sunday
 to Thursday. A range reads `Sunday 13 Sep to Saturday 19 Sep`. A night is still 06:00 to 06:00.
@@ -536,10 +581,10 @@ See `02-milestones.md` for the build order. In product terms:
 | Game history with per-player KDA, damage, gold and CS (Summoner's Rift by default, ARAM toggle) | M5 |
 | Daily Mystery: one accountless "who was it?" guess per civil day | M5 |
 | ARAM is recorded and never rated | M7 |
-| ~~A second rating for the week, on the weekly board only~~ | M7, retired in M14.57: the week ranks by points won |
-| Every rating change says why it was that size; the odds shown are the odds the rating used | M14.58, M14.59 |
+| ~~A second rating for the week, on the weekly board only~~ | M7, retired in M14.57; back in M18 as the weekly Rating, printed as week points |
+| Every rating change says why it was that size, as a sum a friend can check; the odds shown are the odds the rating used | M14.58, M14.59, rewritten in M18 |
 | Filled last game, last to be filled this game | M7 |
-| MVP and ACE keep a little more of the result, and the post names them | M7 |
+| ~~MVP and ACE keep a little more of the result~~, and the post names them | M7; the multipliers replaced in M18 by shares for all five, the names kept |
 | ~~How even the teams are, as a percentage~~ | M3.31, retired by the receipt in M14 |
 | Who beats you and who you win with, on the fun page | M8 |
 | The nights the bot said you would lose and you did not | M8 |
@@ -560,7 +605,7 @@ See `02-milestones.md` for the build order. In product terms:
 | More than one group: start one, invite with a link, ratings per group, `/g/<link>` pages | M13 |
 | The receipt on every split, in history and in Discord; calibration; pre-game odds | M14 |
 | One Rating everywhere, boards sorted on it, the settling section | M14 |
-| The Kustom rating (one-line formula, K 32 to 16, shares instead of MVP/ACE multipliers) and a weekly Rating that restarts every Sunday | M18 (planned) |
+| The Kustom rating (one-line formula, K 32 to 16, shares instead of MVP/ACE multipliers), a weekly Rating that restarts every Sunday, one odds function for the bot and the rating, announced once in a patch-notes post | M18 (switch pending, M18.10) |
 | No seasons | M14 |
 | Owner, admins and members; removing a member; the owner's Reset ratings | M14 |
 | Tonight · Board · Games · Stats · You, on phones and laptops; no More page | M14.7b |

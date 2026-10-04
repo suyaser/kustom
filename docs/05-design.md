@@ -3050,8 +3050,9 @@ Owner: `designer`. Status: **spec for M18.7**, written 2026-10-04 after M18.1 la
 The rating itself is settled in `02-milestones.md` M18 and the `M18:` rows of `04-decisions.md`; nothing here
 reopens a number. This section says how the numbers look. Where it and an older section (5.2, 5.3, 5.5, 5.15,
 10.5, 10.6) disagree about a Rating, a change or week points, **this section wins**. The words marked
-[DRAFT COPY] are the designer's draft for product (M18.9 owns the final strings); the structure, order and
-styling around them are this section's.
+[FINAL COPY, M18.9] are product's final strings (they live in `lib/board/copy.ts`, `lib/breakdown/copy.ts`,
+`lib/receipt/copy.ts` and `lib/landing/copy.ts`; the code is the source if the two ever differ); the structure,
+order and styling around them are this section's.
 
 ### 11.1 What changes for the eye
 
@@ -3079,7 +3080,8 @@ carries order; the Rating carries the size of the gap, and a gap of 10 is meant 
   `new` chip stays for a player with no rated game (also a count). **Every other certainty word goes**: no
   `new player, moves fast`, no `settled, swings are small`, no `±`-style uncertainty.
 - **Ties on the printed Rating.** With sd 66, two rows can print the same number. The order stays the stored
-  order (unrounded `R`); the rank numbers stay distinct. The row needs no tie marker (open question 1).
+  order (unrounded `R`); the rank numbers stay distinct. The row needs no tie marker (decision row 2026-10-04,
+  "Printed Rating ties keep distinct ranks in unrounded order").
 - **Charts** (the player page's Rating chart, the board chart). The y-axis fits the data with the same padding
   rule as today, and the dashed 1200 reference line stays, labelled `Start 1200` in mono `--fs-2xs` muted. At
   launch a settled player's line will mostly live between 1150 and 1350; that is the truth of the new scale, and
@@ -3123,7 +3125,7 @@ The row keeps M14.57's hierarchy: **the week number leads, the all-time Rating i
 | Meta | Games and record, 5.2's rule (numbers mono, words text). |
 | Settling | No settling section on week windows (5.2, unchanged). The `settling · n/10` chip may still sit in the meta on a person with under 10 all-time games, because it describes the Rating printed under the points. |
 | Fresh week | Before the first game of a week the list is empty and 5.7's empty state shows (`No games this week yet.`, M14.70's pointer to last week). Nobody is listed at `±0` with no games. |
-| Footer note | Replaces `WEEK_BOARD_SENTENCE_SHORT` [DRAFT COPY]: `Everyone starts the week at 0. Points come from this week's games only, so one good night can top the week. All time is the one that makes teams.` |
+| Footer note | `WEEK_BOARD_SENTENCE_SHORT` [FINAL COPY, M18.9]: `Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams.` (`zero` in words: the same string is the Discord week footer, which must carry no digit; `that week` so it reads true on `Last week` and in the Sunday post). |
 
 Screen reader, per row: `1, Ramzyinhović, 58 points this week, 7 games, 5 wins 2 losses, Rating 1393.`
 
@@ -3139,9 +3141,9 @@ The page answers "how did my week go" first, and every number on it must add up 
 │ Points this week   +36                          │  label text --fs-md 700; number display, mono 600
 │ 7 games · 5W 2L · Rating 1300                   │  --fs-sm muted; `Rating` word text face, number mono
 │ [chart: week points from 0]                      │  11.2
-│ Everyone starts the week at 0. This week's      │  week note, --fs-sm muted [DRAFT COPY]
-│ games only. Rating is all time, the one that    │
-│ makes teams.                                    │
+│ Everyone starts each week at zero and only that │  week note, --fs-sm muted [FINAL COPY, M18.9]
+│ week's games count. Rating is your all-time     │  (`their` on somebody else's page)
+│ number, the one that makes teams.               │
 └─────────────────────────────────────────────────┘
 ┌─ Recent games ─────────────────── This week ────┐  column label, right: `This week`, --fs-xs muted
 │ ◥ Won  Sat 3 Oct · 31 min                  +19 ⌄│  the game's WEEKLY change, the Why button
@@ -3177,7 +3179,7 @@ footnote. The row's number is already the button's label, so the panel does not 
 4. **The track clause** (week rows only, 11.6.3): the all-time change in one clause.
 
 Then, only when needed, **the rounding line** (11.6.4), and the footnote `Upsets and first games move the
-most.` [DRAFT COPY; replaces `Upsets and new players move the most.`] in `--fs-xs` muted.
+most.` [FINAL COPY, M18.9; replaces `Upsets and new players move the most.`] in `--fs-xs` muted.
 
 **Visual.** The existing `WhyPanel`: a full-width row under the game, `--fs-sm` `--foreground`, numbers in mono
 at the text's size (6.12), sentences run as one paragraph, the footnote its own line. **The sum is set inline**:
@@ -3185,7 +3187,7 @@ at the text's size (6.12), sentences run as one paragraph, the footnote its own 
 (U+2009). No table, no stacked arithmetic, no bars. Multipliers print as `×1.2`, `×0.9`, `×1` (no trailing
 `.0`). K prints rounded to a whole number (`30`, not `30.4`), and so does the base.
 
-#### 11.6.1 The words [DRAFT COPY]
+#### 11.6.1 The words [FINAL COPY, M18.9]
 
 Let `pct` be the subject's side's `expectedPct`, `K` = `round(k)`, and `worth` = `round(K × (100 − pct) / 100)`
 for a win, `round(K × pct / 100)` for a loss. The **stance** uses 5.5's even band (48 to 52 inclusive):
@@ -3212,7 +3214,7 @@ shows it. On a first-ten game the `16` is the game's K (`30 × 44% = 13`).
 | 2, lost | `Your game was 2nd best on your team: ×0.9.` |
 | 4, lost | `Your game was 4th best on your team: ×1.1.` |
 | 5, lost | `Your game was 5th best on your team, so you gave back most: ×1.2.` |
-| no rank (`shareRank` null) | `This game has no performance score, so everyone counts ×1.` |
+| no rank (`shareRank` null) | `This game couldn't be scored player by player, so everyone counts ×1.` |
 
 `2nd`, `3rd`, `4th`, `5th`: the digit mono, the suffix text face. **Ranks never say `worst`**: these are
 friends.
@@ -3274,7 +3276,7 @@ mid  Red was 56%. Red won.           +19 ⌃ [MVP]
 └──────────────────────────────────────────────┘
 ```
 
-- The clause is `All time: +8, to 1300.` [DRAFT COPY]: the label word first, the signed change in mono
+- The clause is `All time: +8, to 1300.` [FINAL COPY, M18.9]: the label word first, the signed change in mono
   (5.3, U+2212 for a loss), then the Rating after. For somebody else's row the same words.
 - **On `All time` there is no week clause.** The week is not the thing a person opened.
 - The share sentence is said once (the share rank is the same on both tracks, M18.1).
@@ -3284,8 +3286,8 @@ mid  Red was 56%. Red won.           +19 ⌃ [MVP]
 #### 11.6.4 The rounding line
 
 The sentences multiply rounded numbers; the printed change is a difference of rounded Ratings. When
-`round(worth × share) ≠ |points|` the panel adds, before the footnote, in `--fs-xs` muted [DRAFT COPY]:
-`Ratings keep their decimals, so this shows 1 off the sum.` Web computes the condition from the parts; it never
+`round(worth × share) ≠ |points|` the panel adds, before the footnote, in `--fs-xs` muted [FINAL COPY, M18.9]:
+`Ratings keep their decimals, so the change shown is 1 off this sum.` Web computes the condition from the parts; it never
 appears when the sum matches. XETA in 11.8 (`16 × 44% = 7`, `×0.9` gives 6, printed `−7`) is the test case.
 
 #### 11.6.5 Accessibility
@@ -3304,8 +3306,9 @@ replace the glyphs; the `×` and `=` are `aria-hidden`). `×1.2` reads `times 1.
 - **M14.59's `For points, …` line** is gone on every game rolled after the switch (the bot and the fold read the
   same Ratings). On **games rolled before the switch**, the stored roll odds stay as posted and the fold's
   expected now comes from the refolded Kustom Ratings, so the two can differ: the line stays there, as
-  `For points, Red was 50%.` with **no `because` clause** (neither of today's two reasons is true for them, and
-  the rebuild is unannounced). Open question 2.
+  `For points, Red was 50%.` with **no `because` clause** (neither of today's two reasons is true for them; the
+  one-time patch-notes post says once that every old game was re-scored, and the row's panel states the fold's
+  odds in full). Product accepted this as written (M18.9, decision row 2026-10-04).
 - **Team cards (5.1) and the finished poster.** Seats print `round(R)`; the finished seat adds the all-time
   change at `--fs-sm` beside it, unchanged in style. No size boost for small numbers. MVP / ACE line unchanged in
   words and place.
@@ -3358,10 +3361,10 @@ Sunday post (10.6), the board field with week points:
 ┃ `8` SugarPapy · -25 · 2W–4L
 ┃ `9` TheSHADOWREAPER · -33 · 1W–3L
 ┃ `10` Chaos · -52 · 1W–4L · settling · 4/10
-┃ Everyone starts the week at 0. Points come from this week's games only, so one good night can top the week. All time is the one that makes teams.
+┃ Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams.
 ```
 
-The footer is 11.4's note (draft), so the board page and the post say the same sentence. The nightly board post
+The footer is 11.4's note, so the board page and the post say the same sentence. The nightly board post
 (10.7) on the all-time track prints `round(R)` with no change; its `Still settling` field is unchanged.
 
 ### 11.9 Checklist for M18.7 (the designer ticks it on screenshots, phone 375 and laptop 1440)
@@ -3385,13 +3388,11 @@ The footer is 11.4's note (draft), so the board page and the post say the same s
 
 ### 11.10 Open questions (for the lead)
 
-1. **Ties on the printed Rating.** At sd 66, two settled players will sometimes print the same Rating with
-   different ranks (order by unrounded `R`). Keep distinct ranks (this spec's default), or show a shared rank
-   (`4`, `4`, `6`)? A shared rank touches the board order code and Discord, so it is product's and platform's
-   call, not a styling choice.
-2. **Pre-switch games' `For points` line.** After the rebuild, every old game's fold odds are Kustom's and its
-   roll odds are OpenSkill's, so the line would appear on many old rows. This spec keeps it without a reason
-   clause. The alternative is to drop it on pre-switch rows too and accept that the panel's odds sentence and
-   the row's roll odds can differ there. Product's call (M18.9).
-3. **All copy marked [DRAFT COPY]** (11.4 footer and week note, 11.6's sentences, the rounding line, the
-   footnote) goes to product for M18.9; the structure stays as specified.
+All three closed 2026-10-04:
+
+1. ~~**Ties on the printed Rating.**~~ Distinct ranks in unrounded order (the owner; decision row "Printed Rating
+   ties keep distinct ranks in unrounded order").
+2. ~~**Pre-switch games' `For points` line.**~~ Kept on pre-switch rolls only, with no `because` clause (product,
+   M18.9; decision row).
+3. ~~**All copy marked [DRAFT COPY]**~~ Final in M18.9: every such string above now reads [FINAL COPY, M18.9]
+   and matches the copy files.

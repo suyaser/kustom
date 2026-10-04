@@ -17,7 +17,7 @@ exports[`the weekly storyline > is missing: the post is byte-identical to the on
         },
       ],
       "footer": {
-        "text": "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams.",
+        "text": "Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams.",
       },
       "title": "Last week · board",
     },

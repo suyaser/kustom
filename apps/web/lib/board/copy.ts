@@ -107,14 +107,14 @@ export function changeWords(delta: number): string {
  * Discord week footer. [NEW COPY, M14.57; the web lane may reword it]
  */
 export const WEEK_BOARD_SENTENCE_SHORT =
-  "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams." as const;
+  "Everyone starts each week at zero and only that week's games count, so one good night can top it. All time is the Rating that makes teams." as const;
 
 /**
  * The player page's week note (M7.16; rewritten by M14.57); `your` on the self lens (copy review
  * row 27). [NEW COPY, M14.57; the web lane may reword it]
  */
 export function weekPlayerSentence(whose: 'their' | 'your'): string {
-  return `Points are the Rating won or lost in this week's games. The Rating above is ${whose} all-time one, the one that makes teams.`;
+  return `Everyone starts each week at zero and only that week's games count. Rating is ${whose} all-time number, the one that makes teams.`;
 }
 export const WEEK_PLAYER_SENTENCE = weekPlayerSentence('their');
 
@@ -507,7 +507,7 @@ export function gameExplanation(chance: number): string {
  * formula, no link to a paper (product, 2026-09-10).
  */
 export const RATING_EXPLANATION =
-  'Beating the favourite side moves your rating more than beating the underdog, and it moves faster while the bot is still unsure about you.';
+  `Beating the favourite moves your Rating more than beating the underdog, and your first ${SETTLING_GAMES} games count extra.` as const;
 
 /* ---------------------------------------------------------------------------
  * The MVP and the ACE (M7.10). The bonus itself is M7.9's and lives in the
@@ -539,7 +539,7 @@ export const ACE_LABEL = 'ACE';
  * {@link MVP_LABEL} and {@link ACE_LABEL} name the players.
  */
 export const MVP_EXPLANATION =
-  'The best player on the winning side keeps a little more of what they gained, and the best player on the losing side gives a little less back.';
+  'On each team, the better your game, the more of a win you keep and the less of a loss you give back. The best on the winning side is the MVP; the best on the losing side is the ACE.';
 
 /**
  * The welcome card on `/g/<slug>/you?welcome=1` (M14.33), right after a self-link. The numbers are
