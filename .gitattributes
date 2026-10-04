@@ -1,0 +1,8 @@
+# Windows checkouts (core.autocrlf=true on runners) must match Linux bytes: tests, goldens and the
+# release scripts compare text exactly. LF everywhere; certs keep the bytes they were committed with.
+* text=auto eol=lf
+*.pem -text
+*.exe binary
+*.png binary
+*.ico binary
+*.icns binary
