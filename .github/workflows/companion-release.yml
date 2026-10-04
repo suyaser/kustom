@@ -52,7 +52,7 @@ jobs:
     env:
       IS_TAG: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/companion-v') }}
       # Baked into the exe (option_env! in config/mod.rs); a fresh install pairs against this origin.
-      CUSTOMS_NIGHT_API_BASE: https://kustom-delta.vercel.app
+      CUSTOMS_NIGHT_API_BASE: https://playkustom.com
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 

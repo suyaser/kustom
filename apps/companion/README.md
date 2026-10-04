@@ -183,7 +183,7 @@ prints what was tried plus `If League is installed somewhere else, add lockfileP
 no `lockfilePath` is configured:
 
 ```json
-{ "apiBase": "https://kustom-delta.vercel.app", "companionToken": "...", "lockfilePath": "D:\\Games\\Riot Games\\League of Legends\\lockfile" }
+{ "apiBase": "https://playkustom.com", "companionToken": "...", "lockfilePath": "D:\\Games\\Riot Games\\League of Legends\\lockfile" }
 ```
 
 The manual path always wins and is the way out if the process list is not available to a non-admin user (a
