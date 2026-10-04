@@ -1,0 +1,199 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`gameOnEmbed, the Game on post (M21.6) > a five-player swap: every side mixed, names only 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "These aren't the teams Kustom rolled. Here's who's actually playing.
+**Blue 41%** · **59% Red**
+🟦🟦🟦🟦🟥🟥🟥🟥🟥🟥
+Red is favored.",
+      "title": "Game on, with your own teams",
+      "url": "https://playkustom.com/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "**Mona** · 1252
+**Lina** · 1224
+**Nour** · 1206
+**Sara** · 1178
+**Hana** · 1150",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "**Karim** · 1261
+**Ziad** · 1243
+**Youssef** · 1215
+**Omar** · 1187
+**Tarek** · 1169",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`gameOnEmbed, the Game on post (M21.6) > a not-rated rule game: the rule line stays, the odds go 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "These aren't the teams Kustom rolled. Here's who's actually playing.
+**This game: tanks only.** Not rated. [See the tanks](https://playkustom.com/g/customs/mode)",
+      "title": "Game on, with your own teams",
+      "url": "https://playkustom.com/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "**Karim** · 1261
+**Lina** · 1224
+**Youssef** · 1215
+**Omar** · 1187
+**Hana** · 1150",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "**Mona** · 1252
+**Ziad** · 1243
+**Nour** · 1206
+**Sara** · 1178
+**Tarek** · 1169",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`gameOnEmbed, the Game on post (M21.6) > a side that is the split's five keeps the split's roles, in lane order; the changed side has none 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "These aren't the teams Kustom rolled. Here's who's actually playing.
+**Blue 52%** · **48% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "title": "Game on, with your own teams",
+      "url": "https://playkustom.com/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **Hana** · 1150
+\`jungle\` **Omar** · 1187
+\`mid\` **Lina** · 1224
+\`adc\` **Karim** · 1261
+\`support\` **Sara** · 1178",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "**Mona** · 1252
+**Youssef** · 1215
+**Nour** · 1206
+**Rami** · 1200
+**Tarek** · 1169",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`gameOnEmbed, the Game on post (M21.6) > a two-player swap: product copy, the kickoff odds, no role on either changed side 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "These aren't the teams Kustom rolled. Here's who's actually playing.
+**Blue 58%** · **42% Red**
+🟦🟦🟦🟦🟦🟦🟥🟥🟥🟥
+Blue is favored.",
+      "title": "Game on, with your own teams",
+      "url": "https://playkustom.com/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "**Karim** · 1261
+**Lina** · 1224
+**Youssef** · 1215
+**Omar** · 1187
+**Hana** · 1150",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "**Mona** · 1252
+**Ziad** · 1243
+**Nour** · 1206
+**Sara** · 1178
+**Tarek** · 1169",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`gameOnEmbed, the Game on post (M21.6) > unrolled: the Game on title, the receipt's no-split sentence, the odds, no roles 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "Kustom didn't pick these teams. Odds from everyone's ratings going in.
+**Blue 83%** · **17% Red**
+🟦🟦🟦🟦🟦🟦🟦🟦🟥🟥
+Blue is clearly favored.",
+      "title": "Game on",
+      "url": "https://playkustom.com/g/customs",
+    },
+    {
+      "color": 3054591,
+      "description": "**Karim** · 1261
+**Lina** · 1224
+**Omar** · 1187
+**Sara** · 1178
+**Hana** · 1150",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "**Mona** · 1252
+**Ziad** · 1243
+**Youssef** · 1215
+**Nour** · 1206
+**Tarek** · 1169",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
