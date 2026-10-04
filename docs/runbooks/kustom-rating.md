@@ -477,9 +477,8 @@ wrote         0 game_players rows, 0 ratings rows (0043: 0 game_players rows mov
 The first rebuild bumped `group_live` for `customs` with kind `ratings` (0037); the second wrote nothing. Check A,
 B and C printed the same tables as the first walk (`mismatches` 0).
 
-**Rollback re-rehearsed** against `PREVIOUS` = production `main` `4e91eb56` (production then; `63fc150e`,
-production since, differs from it only in the companion and `components/shell/TabFrame.tsx`, so its rebuild is
-the same code) (a `git archive` export, `pnpm install`,
+**Rollback re-rehearsed** against `PREVIOUS` = production `main` `63fc150e` (first against `4e91eb56`, then again
+against `63fc150e` with the same output; `roles` read 1 then 0 inferred pairs moved) (a `git archive` export, `pnpm install`,
 the same two variables exported for local). Step 6.2, the pre-step on local `customs`:
 
 ```
