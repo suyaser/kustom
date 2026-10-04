@@ -64,7 +64,7 @@ const EMPTY: LandingData = {
 };
 
 describe('the landing page', () => {
-  it('names every landmark once: the two demo receipts are groups, not regions (M14.42, quality A7)', () => {
+  it('names every landmark once: the demo receipt is a group, not a region (M14.42, quality A7)', () => {
     for (const data of [LIVE, EMPTY]) {
       const { unmount } = render(<LandingPage data={data} audience="signed-out" back={null} />);
       const regions = screen.queryAllByRole('region').map((region) => region.getAttribute('aria-labelledby'));
@@ -73,7 +73,7 @@ describe('the landing page', () => {
         .map((region) => document.getElementById(region.getAttribute('aria-labelledby') ?? '')?.textContent);
       expect(new Set(names).size).toBe(regions.length);
       const title = data === LIVE ? 'The odds were' : 'Win chance';
-      expect(screen.getAllByRole('group', { name: title })).toHaveLength(2);
+      expect(screen.getAllByRole('group', { name: title })).toHaveLength(1);
       expect(screen.queryByRole('region', { name: title })).toBeNull();
       unmount();
     }
@@ -154,15 +154,15 @@ describe('the landing page', () => {
 
   it('live: the real receipt, dated, linked to its game, with How the bot decided open in the proof', () => {
     render(<LandingPage data={LIVE} audience="signed-out" back={null} />);
-    expect(screen.getAllByText('A real split from Customs Night, 2 Oct.')).toHaveLength(2);
+    expect(screen.getAllByText('A real split from Customs Night, 2 Oct.')).toHaveLength(1);
     expect(screen.getAllByRole('link', { name: 'See this game' })[0]).toHaveAttribute(
       'href',
       '/g/customs/games/game-1',
     );
     expect(screen.getAllByText('Blue was 46%. Blue won. Upset!').length).toBeGreaterThan(0);
     const disclosures = document.querySelectorAll('details[id^="landing-"]');
-    expect(disclosures).toHaveLength(2);
-    expect(document.getElementById('landing-hero-how')).not.toHaveAttribute('open');
+    expect(disclosures).toHaveLength(1);
+    expect(document.getElementById('landing-hero-how')).toBeNull();
     expect(document.getElementById('landing-proof-how')).toHaveAttribute('open');
   });
 
@@ -194,7 +194,7 @@ describe('the landing page', () => {
 
   it('no rolled game: the worked example, captioned, and no calibration, counters or zero anywhere', () => {
     render(<LandingPage data={EMPTY} audience="signed-out" back={null} />);
-    expect(screen.getAllByText('An example split: ten friends on an ordinary Tuesday.')).toHaveLength(2);
+    expect(screen.getAllByText('An example split: ten friends on an ordinary Tuesday.')).toHaveLength(1);
     expect(screen.getAllByText('Close. Blue has a slight edge.').length).toBeGreaterThan(0);
     expect(screen.queryByText(/favored won/)).not.toBeInTheDocument();
     expect(screen.queryByText('games refereed')).not.toBeInTheDocument();
@@ -232,6 +232,99 @@ describe('the landing page', () => {
     expect(summary.tagName).toBe('SUMMARY');
     expect(summary.closest('details')).not.toHaveAttribute('open');
     expect(screen.getByText(/Everyone starts at 1200\./)).toBeInTheDocument();
+  });
+});
+
+/** An element's spoken pieces in DOM order: text and image alts, skipping `aria-hidden` subtrees. */
+function spoken(root: Element): string[] {
+  const out: string[] = [];
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent?.trim() ?? '';
+      if (text !== '') out.push(text);
+      return;
+    }
+    if (!(node instanceof Element) || node.getAttribute('aria-hidden') === 'true') return;
+    if (node.tagName === 'IMG') out.push(node.getAttribute('alt') ?? '');
+    for (const child of node.childNodes) walk(child);
+  };
+  walk(root);
+  return out;
+}
+
+describe('the hero example game (05-design 12)', () => {
+  const heroOf = () => document.getElementById('hero-title')?.closest('section') as HTMLElement;
+
+  it('is a figure with a lane-by-lane table, captioned as an example, and no receipt in the hero', () => {
+    for (const data of [LIVE, EMPTY]) {
+      const { unmount } = render(<LandingPage data={data} audience="signed-out" back={null} />);
+      const hero = heroOf();
+      const figure = within(hero).getByRole('figure');
+      expect(within(figure).getByText('An example game: ten friends on an ordinary Tuesday.').tagName).toBe(
+        'FIGCAPTION',
+      );
+      expect(within(figure).getByText('Red won')).toBeInTheDocument();
+      expect(within(figure).getByText('32:40')).toBeInTheDocument();
+      expect(within(figure).getByText('Blue 54 percent, Red 46 percent.')).toBeInTheDocument();
+
+      const table = within(figure).getByRole('table', { name: 'Example game, lane by lane. Red won.' });
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .map((th) => th.textContent),
+      ).toEqual(['Blue team', 'Lane', 'Red team']);
+      const rowHeaders = within(table).getAllByRole('rowheader');
+      expect(rowHeaders.map((th) => th.textContent)).toEqual(['top', 'jungle', 'mid', 'adc', 'support']);
+      for (const th of rowHeaders) expect(th).toHaveAttribute('scope', 'row');
+      expect(table.querySelectorAll('tbody tr')).toHaveLength(5);
+      // What a screen reader hears, cell by cell: ‹top · Hana, Garen, lost 18 · Omar, Darius, gained 17›.
+      const first = within(table).getAllByRole('row')[1] as HTMLElement;
+      expect([...first.children].map(spoken)).toEqual([
+        ['Hana', 'Garen', 'lost 18'],
+        ['top'],
+        ['Omar', 'Darius', 'gained 17'],
+      ]);
+
+      // No receipt, no disclosure, no live caption up here; the Proof section keeps the receipt.
+      expect(within(hero).queryByRole('group')).toBeNull();
+      expect(hero.querySelector('details')).toBeNull();
+      expect(within(hero).queryByText(/A real split|An example split/)).toBeNull();
+      const proof = screen.getByRole('region', { name: 'Every split shows its odds.' });
+      expect(
+        within(proof).getByRole('group', { name: data === LIVE ? 'The odds were' : 'Win chance' }),
+      ).toBeInTheDocument();
+      expect(document.getElementById('landing-proof-how')).toHaveAttribute('open');
+      unmount();
+    }
+  });
+
+  it('draws the ten champion squares in lane order, named, sized, eager, from our own origin', () => {
+    render(<LandingPage data={EMPTY} audience="signed-out" back={null} />);
+    const images = within(heroOf()).getAllByRole('img');
+    expect(images.map((img) => img.getAttribute('alt'))).toEqual([
+      'Garen',
+      'Darius',
+      'Lee Sin',
+      'Amumu',
+      'Ahri',
+      'Yasuo',
+      'Jinx',
+      'Ezreal',
+      'Thresh',
+      'Lux',
+    ]);
+    for (const img of images) {
+      expect(img).toHaveAttribute('width', '40');
+      expect(img).toHaveAttribute('height', '40');
+      expect(img).toHaveAttribute('loading', 'eager');
+      expect(img).toHaveAttribute('decoding', 'async');
+      expect(img).toHaveAttribute('fetchpriority', 'low');
+      const src = img.getAttribute('src') ?? '';
+      expect(src).not.toBe('');
+      expect(src).not.toMatch(/ddragon|\/_next\/image/);
+    }
+    // Nowhere else on the page draws a champion (12.4).
+    expect(document.querySelectorAll('img')).toHaveLength(10);
   });
 });
 

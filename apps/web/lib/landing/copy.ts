@@ -43,6 +43,14 @@ export const liveReceiptCaption = (groupName: string, date: string): string =>
 export const SEE_THIS_GAME = 'See this game';
 /** Under the worked-example receipt, when the demo group has no rolled game to show. */
 export const EXAMPLE_RECEIPT_CAPTION = 'An example split: ten friends on an ordinary Tuesday.';
+/** The hero's example game (05-design 12.9, designer draft; product may reword). */
+export const EXAMPLE_GAME_CAPTION = 'An example game: ten friends on an ordinary Tuesday.';
+/** Its title row, sentence case: the upper-case side word stays inside the bar (12.9). */
+export const EXAMPLE_GAME_WON = 'Red won';
+/** The table's visually hidden caption (12.6). */
+export const EXAMPLE_GAME_TABLE_CAPTION = 'Example game, lane by lane. Red won.';
+/** The table's visually hidden column headers (12.6): blue, lane, red. */
+export const EXAMPLE_GAME_HEADERS = { blue: 'Blue team', lane: 'Lane', red: 'Red team' } as const;
 
 // 2. The problem
 export const PROBLEM_TITLE = 'Sound familiar?';
