@@ -26,7 +26,7 @@ describe('the region table', () => {
     for (const c of shipped) expect(REGION_IDS, c.name).toContain(championRegion(Number(c.key)));
   });
 
-  it('pins the champions per region at 16.19.1', () => {
+  it('pins the Universe champions per region at 16.19.1 (homes: homeRegions.test.ts)', () => {
     const counts: Partial<Record<RegionId, number>> = {};
     for (const id of regionChampionIds()) {
       const region = championRegion(id) as RegionId;
@@ -91,7 +91,9 @@ describe('the region table', () => {
   });
 
   it('exports the credit line the region panel shows', () => {
-    expect(REGION_CREDIT).toBe("Regions from Meraki's lolstaticdata and the League of Legends Wiki.");
+    expect(REGION_CREDIT).toBe(
+      "Regions from Meraki's lolstaticdata and the League of Legends Wiki. Where a champion has two, the second is our own call.",
+    );
   });
 });
 

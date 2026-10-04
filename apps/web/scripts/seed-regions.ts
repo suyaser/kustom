@@ -23,6 +23,9 @@ import { DDRAGON_VERSION } from '../lib/champs/ddragonPin.ts';
  * was df17d37 (2025-11-12). Only `faction` is read: no lore, title, art or crest leaves the file.
  * The table credits Meraki and the Wiki in `REGION_CREDIT`, which the region panel shows.
  *
+ * It writes `regions.ts` only. The Kustom home regions (M20.3, `lib/champs/homeRegions.ts`) are
+ * hand-kept and this script never writes or reads them.
+ *
  * Meraki's `faction` values are already lowercase hyphenated slugs (`shadow-isles`,
  * `mount-targon`, `bandle-city`, `unaffiliated`); they are normalised anyway and must be one of
  * `REGIONS` below. `unaffiliated` is a real answer (a champion with no home region), distinct from
@@ -113,16 +116,12 @@ function quote(s: string): string {
 }
 
 function render(rows: { key: number; id: string; region: string; override?: string | undefined }[]): string {
-  const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.region, (counts.get(row.region) ?? 0) + 1);
   const union = REGIONS.map(([s]) => `  | '${s}'`).join('\n');
   const names = REGIONS.map(([s, n]) => `  ${quote(s)}: '${n}',`).join('\n');
   const ids = REGIONS.map(([s]) => `  '${s}',`).join('\n');
   const table = rows
     .map((r) => `  ${r.key}: '${r.region}', // ${r.id}${r.override ? ` (${r.override})` : ''}`)
     .join('\n');
-  const tallies = REGIONS.map(([s]) => `${s} ${counts.get(s) ?? 0}`);
-  const tally = [0, 5, 10].map((i) => ` *   ${tallies.slice(i, i + 5).join(', ')}`).join('\n');
   return `/**
  * Champion -> region, at Data Dragon ${DDRAGON_VERSION} (M15.9). Region wars reads it (M15.10).
  *
@@ -136,8 +135,9 @@ function render(rows: { key: number; id: string; region: string; override?: stri
  *
  * Keyed by the numeric champion key (\`game_players.champion_id\`). \`unaffiliated\` is a real
  * region slug, a champion with no home region (never drawn, breaks any region rule); a key with no
- * row answers \`null\` (couldn't check). Champions per region at ${DDRAGON_VERSION}:
-${tally}
+ * row answers \`null\` (couldn't check). The Kustom home regions (M20 D1) sit beside this table in
+ * \`homeRegions.ts\`, hand-kept and never written by the script; the champions per region, Universe
+ * and with homes, are pinned in \`regions.test.ts\`.
  */
 
 export type RegionId =
@@ -153,8 +153,9 @@ export const REGION_NAMES: Readonly<Record<RegionId, string>> = {
 ${names}
 };
 
-/** The credit line the region panel shows (M15.10, brief section 4). */
-export const REGION_CREDIT = "Regions from Meraki's lolstaticdata and the League of Legends Wiki.";
+/** The credit line the region panel shows (M15.10, brief section 4; M20.1's words). */
+export const REGION_CREDIT =
+  "Regions from Meraki's lolstaticdata and the League of Legends Wiki. Where a champion has two, the second is our own call.";
 
 const CHAMPION_REGIONS: Readonly<Record<number, RegionId>> = {
 ${table}

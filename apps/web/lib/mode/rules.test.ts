@@ -383,8 +383,10 @@ describe('the champion table and the RNG', () => {
   it('builds core table from the M15.4 tags and the M15.9 regions', () => {
     const roster = championTable();
     expect(roster.size).toBeGreaterThan(150);
-    // Annie (1): a Mage with no region; Garen (86): a Demacian tank and fighter.
-    expect(roster.get(1)).toEqual({ tags: expect.arrayContaining(['Mage']), region: [] });
+    // Bard (432): a Mage with no region; Annie (1): no Universe region, Noxus by home (M20.3);
+    // Garen (86): a Demacian tank and fighter.
+    expect(roster.get(432)).toEqual({ tags: expect.arrayContaining(['Mage']), region: [] });
+    expect(roster.get(1)?.region).toEqual(['noxus']);
     expect(roster.get(86)?.region).toEqual(['demacia']);
     expect(regionIds()).toContain('unaffiliated');
   });
