@@ -1,5 +1,5 @@
 import { displayRating, isOffRole, type Mode, type Role, seedFromRank } from '@customs/core';
-import type { RoleValue, SideValue } from '@customs/db';
+import { openSkillPair, type RoleValue, type SideValue } from '@customs/db';
 import { ORIGINAL_GROUP_ID, ruleModeOf } from '@customs/db/schemas';
 import { receiptSplitFromRow } from '@/components/receipt/model';
 import type { StoredSplit } from '@/components/receipt/types';
@@ -330,9 +330,13 @@ async function loadRatings(
   const { data, error } = await query.in('player_id', [...playerIds]);
   if (error) throw new Error(`tonight: rating lookup failed: ${error.message}`);
 
-  return new Map(
-    (data ?? []).map((row) => [row.player_id, { mu: row.mu, sigma: row.sigma, games: row.games }]),
-  );
+  // A Kustom-only row (0036) has no OpenSkill pair: to this build it is not rated yet.
+  const ratings = new Map<string, { mu: number; sigma: number; games: number }>();
+  for (const row of data ?? []) {
+    const pair = openSkillPair(row);
+    if (pair !== null) ratings.set(row.player_id, { ...pair, games: row.games });
+  }
+  return ratings;
 }
 
 /** M3.10's fallback is applied at render; the loader carries the honest `null`. */

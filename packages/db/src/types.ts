@@ -772,16 +772,25 @@ export type Database = {
           game_id: string
           gold: number
           group_id: string
+          k: number | null
           kills: number
           mu_after: number | null
           mu_before: number | null
           player_id: string
+          r_after: number | null
+          r_before: number | null
           rated_games_before: number | null
           role: Database["public"]["Enums"]["player_role"] | null
+          share_rank: number | null
           side: number
           sigma_after: number | null
           sigma_before: number | null
           vision_score: number | null
+          week_fold_p: number | null
+          week_games_before: number | null
+          week_k: number | null
+          week_r_after: number | null
+          week_r_before: number | null
         }
         Insert: {
           assists?: number
@@ -798,16 +807,25 @@ export type Database = {
           game_id: string
           gold?: number
           group_id: string
+          k?: number | null
           kills?: number
           mu_after?: number | null
           mu_before?: number | null
           player_id: string
+          r_after?: number | null
+          r_before?: number | null
           rated_games_before?: number | null
           role?: Database["public"]["Enums"]["player_role"] | null
+          share_rank?: number | null
           side: number
           sigma_after?: number | null
           sigma_before?: number | null
           vision_score?: number | null
+          week_fold_p?: number | null
+          week_games_before?: number | null
+          week_k?: number | null
+          week_r_after?: number | null
+          week_r_before?: number | null
         }
         Update: {
           assists?: number
@@ -824,16 +842,25 @@ export type Database = {
           game_id?: string
           gold?: number
           group_id?: string
+          k?: number | null
           kills?: number
           mu_after?: number | null
           mu_before?: number | null
           player_id?: string
+          r_after?: number | null
+          r_before?: number | null
           rated_games_before?: number | null
           role?: Database["public"]["Enums"]["player_role"] | null
+          share_rank?: number | null
           side?: number
           sigma_after?: number | null
           sigma_before?: number | null
           vision_score?: number | null
+          week_fold_p?: number | null
+          week_games_before?: number | null
+          week_k?: number | null
+          week_r_after?: number | null
+          week_r_before?: number | null
         }
         Relationships: [
           {
@@ -1517,42 +1544,45 @@ export type Database = {
         Row: {
           games: number
           group_id: string
-          mu: number
+          mu: number | null
           ordinal: number | null
           player_id: string
+          r: number | null
           seed_mu: number | null
           seed_rank_division: string | null
           seed_rank_tier: string | null
           seed_sigma: number | null
-          sigma: number
+          sigma: number | null
           updated_at: string
           wins: number
         }
         Insert: {
           games?: number
           group_id: string
-          mu: number
+          mu?: number | null
           ordinal?: number | null
           player_id: string
+          r?: number | null
           seed_mu?: number | null
           seed_rank_division?: string | null
           seed_rank_tier?: string | null
           seed_sigma?: number | null
-          sigma: number
+          sigma?: number | null
           updated_at?: string
           wins?: number
         }
         Update: {
           games?: number
           group_id?: string
-          mu?: number
+          mu?: number | null
           ordinal?: number | null
           player_id?: string
+          r?: number | null
           seed_mu?: number | null
           seed_rank_division?: string | null
           seed_rank_tier?: string | null
           seed_sigma?: number | null
-          sigma?: number
+          sigma?: number | null
           updated_at?: string
           wins?: number
         }
@@ -1597,6 +1627,7 @@ export type Database = {
           id: string
           is_chosen: boolean
           lobby_id: string
+          odds_model: string
           off_role_count: number
           rank: number
           red: Json
@@ -1612,6 +1643,7 @@ export type Database = {
           id?: string
           is_chosen?: boolean
           lobby_id: string
+          odds_model?: string
           off_role_count: number
           rank: number
           red: Json
@@ -1627,6 +1659,7 @@ export type Database = {
           id?: string
           is_chosen?: boolean
           lobby_id?: string
+          odds_model?: string
           off_role_count?: number
           rank?: number
           red?: Json

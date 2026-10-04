@@ -262,7 +262,7 @@ function toAdminPlayerRow(row: {
   rank_tier: string | null;
   rank_division: string | null;
   rank_lp: number | null;
-  ratings: { mu: number; sigma: number; games: number; wins: number }[];
+  ratings: { mu: number | null; sigma: number | null; games: number; wins: number }[];
   group_memberships: { role: string }[];
 }): AdminPlayerRow {
   const rating = row.ratings[0] ?? null;
@@ -286,7 +286,9 @@ function toAdminPlayerRow(row: {
     rankDivision: row.rank_division,
     rankLp: row.rank_lp,
     rating:
-      rating === null ? null : { mu: rating.mu, sigma: rating.sigma, games: rating.games, wins: rating.wins },
+      rating === null || rating.mu === null || rating.sigma === null
+        ? null // none, or a Kustom-only row (0036) with no OpenSkill pair
+        : { mu: rating.mu, sigma: rating.sigma, games: rating.games, wins: rating.wins },
   };
 }
 

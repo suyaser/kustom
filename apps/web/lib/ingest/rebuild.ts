@@ -436,6 +436,7 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
       firstRatings += 1;
       continue;
     }
+    if (previous.mu === null) continue;
     // Reported, not acted on: a move smaller than the tolerance is float noise, not news.
     const delta = Math.abs(rating.mu - previous.mu);
     if (delta > RATING_EPSILON && (largestMuChange === null || delta > largestMuChange.delta)) {
@@ -740,8 +741,9 @@ async function selectGroupGamePlayers(
 }
 
 interface StoredRating {
-  mu: number;
-  sigma: number;
+  /** Null on a Kustom-only row (0036): no OpenSkill pair to compare with, so the row is rewritten. */
+  mu: number | null;
+  sigma: number | null;
   games: number;
   wins: number;
   /** The stored seed (M5.7), or null on a row written before `0012`. */

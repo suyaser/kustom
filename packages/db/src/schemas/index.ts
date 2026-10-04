@@ -12,6 +12,7 @@ export * from './discordConnect';
 export * from './foldBreakdown';
 export * from './groups';
 export * from './invites';
+export * from './kustomRating';
 export * from './me';
 export * from './members';
 export * from './modes';
