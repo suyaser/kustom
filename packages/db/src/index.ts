@@ -9,6 +9,7 @@
 
 import type { Tables, TablesInsert, TablesUpdate } from './types';
 
+export * from './openSkillPair';
 export * from './rosterKey';
 export * from './schemas/index';
 export * from './scrub';

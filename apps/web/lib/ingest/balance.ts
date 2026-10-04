@@ -1,5 +1,5 @@
 import { type BalancePlayer, balance, config, type Split, seedFromRank } from '@customs/core';
-import { type Json, rosterKey, type SplitInsert } from '@customs/db';
+import { type Json, openSkillPair, rosterKey, type SplitInsert } from '@customs/db';
 import { NAMELESS_PLAYER } from '../discord/embeds';
 import { nightStart } from '../night';
 import type { ServiceClient } from '../supabase';
@@ -206,7 +206,13 @@ async function selectRatings(
     .in('player_id', playerIds);
   if (error) throw new Error(`balanceLobby: ratings select failed: ${error.message}`);
 
-  return new Map((data ?? []).map((row) => [row.player_id, { mu: row.mu, sigma: row.sigma }]));
+  // A Kustom-only row (0036) has no OpenSkill pair: to this build it is not rated yet.
+  const ratings = new Map<string, { mu: number; sigma: number }>();
+  for (const row of data ?? []) {
+    const pair = openSkillPair(row);
+    if (pair !== null) ratings.set(row.player_id, pair);
+  }
+  return ratings;
 }
 
 interface Rotation {

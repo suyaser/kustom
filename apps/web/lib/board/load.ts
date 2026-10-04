@@ -1,5 +1,5 @@
 import { displayRating, isSettling, provisionalSeed, type Rating, type RatingBefore } from '@customs/core';
-import type { RoleValue, SideValue } from '@customs/db';
+import { openSkillPair, type RoleValue, type SideValue } from '@customs/db';
 import { type BreakdownGame, resultOdds, rowReason } from '../breakdown/read';
 import { inChunks } from '../chunks';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
@@ -827,8 +827,11 @@ async function loadRatings(
     const { data, error } = await query;
     if (error) throw new Error(`board: rating lookup failed: ${error.message}`);
     for (const row of data ?? []) {
+      // A Kustom-only row (0036) has no OpenSkill pair: to this build it is not rated yet.
+      const rating = openSkillPair(row);
+      if (rating === null) continue;
       ratings.set(row.player_id, {
-        rating: { mu: row.mu, sigma: row.sigma },
+        rating,
         games: row.games,
         wins: row.wins,
         seed: readSeed(row),

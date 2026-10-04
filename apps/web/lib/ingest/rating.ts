@@ -1,5 +1,5 @@
 import type { Rating, Role } from '@customs/core';
-import type { RatingInsert, SideValue } from '@customs/db';
+import { openSkillPair, type RatingInsert, type SideValue } from '@customs/db';
 import { gameModeFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
@@ -307,7 +307,8 @@ async function selectGamePlayers(client: ServiceClient, gameId: string): Promise
 }
 
 interface StoredRating {
-  rating: Rating;
+  /** Null on a Kustom-only row (0036): no OpenSkill pair, so the fold starts it from its seed. */
+  rating: Rating | null;
   games: number;
   wins: number;
   /** The stored seed (M5.7), or null on a row written before `0012` filled these columns. */
@@ -330,7 +331,7 @@ async function selectRatings(
     (data ?? []).map((row) => [
       row.player_id,
       {
-        rating: { mu: row.mu, sigma: row.sigma },
+        rating: openSkillPair(row),
         games: row.games,
         wins: row.wins,
         seed: readSeed(row),

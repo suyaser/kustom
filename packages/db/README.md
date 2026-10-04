@@ -233,6 +233,30 @@ of the four survives on a row whose `mu_after` is null. Readers parse them with
 verifies the migration on a throwaway restore of the local stack, reading the shared stack only via
 `pg_dump`.
 
+## What 0036_kustom_rating.sql adds (M18.4)
+
+Storage for the Kustom rating (M18), additive and nullable, so the OpenSkill build keeps running on
+it and the OpenSkill columns stay as the rollback path until M18.12:
+
+- `game_players`, all-time track: `r_before`, `r_after` (unrounded), `k`, `share_rank` (1-5, null
+  when the game had no performance score), reusing 0034's `fold_p` (now Kustom's expected for the
+  row's side), `award` and `rated_games_before` (`n`).
+- `game_players`, weekly track: `week_r_before`, `week_r_after`, `week_k`, `week_fold_p`,
+  `week_games_before`. The current weekly Rating is derived (a player's last `week_r_after` in the
+  week), not stored.
+- `ratings.r`, the current all-time R; `ratings.mu`/`sigma` are nullable (a pair, and a row holds
+  at least one rating). The OpenSkill build reads a row with no pair as unrated, through
+  `openSkillPair` (`src/openSkillPair.ts`).
+- `splits.odds_model` (`openskill` default, or `kustom`).
+
+The checks and why each exists are in the migration's header; 0034's two breakdown checks are
+replaced by versions that also accept a Kustom row (`base_mu_after` null beside `r_after`). A
+weekly set with no all-time rating is legal on purpose: a game before `ratings_since` inside the
+current week. Readers parse the tracks with `storedKustomAllTime` / `storedKustomWeek`
+(`src/schemas/kustomRating.ts`). `src/kustomRating.integration.test.ts` refuses a hand-written
+update per check on a scratch database; `scripts/m18-4-throwaway-check.sh` rehearses the hosted
+apply on a throwaway restore of the local stack (undoing 0036 there first if local already has it).
+
 ## The companion wire contract (M2.10)
 
 `src/schemas/companion.ts` is the **wire contract** for the three bodies the companion POSTs, and
