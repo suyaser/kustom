@@ -1,4 +1,4 @@
-import { type GroupRole, groupRoleSchema } from '@customs/db/schemas';
+import { type GroupRole, groupRoleSchema, memberGameCountRowSchema } from '@customs/db/schemas';
 import { loadRosterLabels } from '../names/roster';
 import type { ServiceClient } from '../supabase';
 import { sortMembers } from './memberList';
@@ -38,41 +38,27 @@ export interface GroupMemberRow {
   discordLinked: boolean;
 }
 
-/** PostgREST answers at most this many rows per request; the games read pages through them. */
-const PAGE = 1000;
-
-/** How many of the group's games each player played, and when they last did. */
+/**
+ * How many of the group's games each player played, and when they last did: one row per player from
+ * `group_member_game_counts` (0042), counted by Postgres over `game_players_group_player_idx`. It
+ * replaced paging every `game_players` row of the group to the server (2.1 MB in 29 requests on a
+ * year-old group, `redesign/research/db-performance.md` finding 8). Every stored game counts, rated
+ * or not, as before. A group has far fewer than PostgREST's 1,000-row cap of players.
+ */
 async function readPlayed(
   client: ServiceClient,
   groupId: string,
 ): Promise<Map<string, { games: number; last: string | null }>> {
+  const { data, error } = await client
+    .from('group_member_game_counts')
+    .select('player_id, games, last_played_at')
+    .eq('group_id', groupId);
+  if (error) throw new Error(`members: reading games failed: ${error.message}`);
   const played = new Map<string, { games: number; last: string | null }>();
-  const readPage = (from: number, count: boolean) =>
-    client
-      .from('game_players')
-      .select('player_id, games!inner(started_at)', count ? { count: 'exact' } : {})
-      .eq('group_id', groupId)
-      .order('game_id', { ascending: true })
-      .order('player_id', { ascending: true })
-      .range(from, from + PAGE - 1);
-  // The first page carries the total, so the rest are read side by side (app-perf, 2026-10-04): two
-  // rounds for any history, where a page-after-page loop was one round per thousand rows.
-  const first = await readPage(0, true);
-  const total = first.count ?? 0;
-  const rest = await Promise.all(
-    Array.from({ length: Math.max(0, Math.ceil(total / PAGE) - 1) }, (_, i) =>
-      readPage((i + 1) * PAGE, false),
-    ),
-  );
-  for (const { data, error: gamesError } of [first, ...rest]) {
-    if (gamesError) throw new Error(`members: reading games failed: ${gamesError.message}`);
-    for (const row of data ?? []) {
-      const entry = played.get(row.player_id) ?? { games: 0, last: null };
-      entry.games += 1;
-      const at = row.games.started_at;
-      if (entry.last === null || at > entry.last) entry.last = at;
-      played.set(row.player_id, entry);
-    }
+  for (const row of data ?? []) {
+    const parsed = memberGameCountRowSchema.safeParse(row);
+    if (!parsed.success) continue;
+    played.set(parsed.data.player_id, { games: parsed.data.games, last: parsed.data.last_played_at });
   }
   return played;
 }
