@@ -24,6 +24,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M15 Mode of the night | done (accepted 2026-10-04: M15.1–M15.19 merged; reviewer pass plus product scene walk; three rules live: class wars, region wars, mirror match) | Added 2026-10-03 (the user): class night first (builds the mode card, Spin, the mode panel's pool, Discord line, post-game check), then region wars (static region table seeded once from Meraki, words only), then mirror match (the first rated mode). Unrated by default; never touches champ select; no Ultimate Bravery or kill-race scoring. After M14. **M15.1 done 2026-10-04** (brief `redesign/briefs/m15.1-mode-of-the-night.md`): a rule is one game on top of the standing mode, locked at Roll; Rated switch in any mode (the user's yes); mirror ships with the host opening Blind Pick by hand (M17.17 automates it); no Bo3, no weekdays, no `Rest of tonight`. **2026-10-04: M15.7 (overlay API) dropped** because M17 removes the overlay; the mode's pool is shown only on Tonight's mode panel (M15.5) and linked from Discord (M15.6). No companion work in M15. |
 | M16 Kustom Premium: AI | done for 2.0 (2026-10-04: M16.1–M16.19 merged; the ship blockers M16.15–M16.18 landed; open: M16.20 real-group read after two Premium weeks, which needs the user's export; M16.21 scouting prompt nits, which need spend) | Added 2026-10-03 (the user): a future paid feature, if Kustom succeeds. Game recap line, weekly storyline, player scouting report, behind a per-group premium flag the operator sets with a script (M16.2; never a route, `/ops` read-only); no payments or billing (a future decision). Guardrails: numbers only from the DB with a checker, players sent as P1..P10, opt-outs, caps of $2 per group per month and $20 overall. Needs the user's Anthropic API key. After M15. **M16.1 done 2026-10-04** (brief `redesign/briefs/m16.1-premium-ai.md`): labels `AI recap` / `AI scouting report`; invisible to non-Premium groups; `customs` on as soon as M16.3 lands; landing and `/about` don't mention AI. |
 | M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
+| M18 Kustom rating | not started (planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one unannounced `rebuild-ratings` run by the owner (M18.10). **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, M18.2). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -12252,6 +12253,365 @@ Acceptance: a host installs a Kustom of 15 MB or less once, links it with the si
 League's status, switches groups if they host for two, and from then on every custom they are in is recorded
 exactly as the TypeScript engine recorded it; when a new version is published it arrives without a click and never mid-game; no
 Node runtime ships, no overlay ships, and nobody typed anything.
+
+---
+
+## M18 Kustom rating (needs M14; planned 2026-10-04, briefs at task level)
+
+Source: the owner, 2026-10-04, from `redesign/research/rating-systems.md` (the research report, its formula in
+§6.1, the balanced-teams guard in §6.5, the real-data rerun in §9) and `redesign/research/team-formation.md`.
+OpenSkill stops being the rating. Its replacement is one line of arithmetic a friend can check on a phone, and
+it has none of today's four habits (§1): your change no longer depends on other people's uncertainty, a group
+that started together no longer stays "new" for weeks, the odds stop running overconfident, and MVP/ACE stops
+creating points from nothing (+440 on the group mean a season in the simulation).
+
+**The scene does not change.** Ten friends in voice, someone opens a lobby, teams appear, they play, ratings
+move. Nobody typed anything. What changes is the size of the numbers (about ±8 a game for someone settled
+instead of 40 to 120), that two teammates with the same result get the same base number, and that the bot's win
+chance and the rating's expectation are now the same function.
+
+**Settled by the owner, not reopened by any task** (decision rows of 2026-10-04, `M18:`):
+
+- **Formula.** `change = K × (result − expected) × share`, on the Rating scale. `result` is 1 for a win, 0 for a
+  loss. `expected` for blue is `1 / (1 + exp(−(Σblue − Σred) / 400))`, where Σ is the sum of the five players'
+  unrounded Ratings `R` on that track; red's is `1 − blue's`. Everyone starts at **1200**. **No decay, ever**: a
+  Rating moves only when its owner plays a rated game. Printed change = `round(R_after) − round(R_before)`;
+  displayed Rating = `round(R)`.
+- **One odds function, used everywhere a win chance is computed or shown**: the receipt and the bot's scoring,
+  the fold's expected score on both tracks, the tap-to-explain sentence, posters and AI facts. It takes the
+  calibration pair `(a, b)` of research §6.5 as an input, `logistic(a + b × gap / 400)`, and every caller passes
+  `(0, 1)` until M18.11 lands; with `(0, 1)` it is exactly the formula above.
+- **K** depends only on `n`, the player's rated games on that track before this one:
+  `K(n) = 16 + 16 × max(0, 10 − n) / 10`. Game 1: 32; game 2: 30.4; … game 10: 17.6; game 11 on: 16, for ever.
+  The owner's reason: the group plays about three games a night, so a newcomer's and a settled player's K must
+  not differ much. (The research's 96 → 24 is not used anywhere.)
+- **share** replaces the MVP ×1.25 / ACE ×0.8 multipliers. Inside each team the five are ranked by the existing
+  performance score (`packages/core/src/rating/performance.ts`, role-bucketed, unchanged), best first; ties broken
+  by PUUID as `mvpAce` does today. Winners get 1.2 / 1.1 / 1.0 / 0.9 / 0.8; losers 0.8 / 0.9 / 1.0 / 1.1 / 1.2 (the
+  best loser gives back least). **MVP and ACE keep their names**: MVP is rank 1 on the winning side, ACE rank 1 on
+  the losing side. A game with no performance score (backfilled with unknown roles, a missing stat): every share
+  1.0 and nobody is named, as today.
+- **No stomp or margin factor.** The research recommended none for v1 (§10.4: the real margin signal is untested
+  and arguable), and the owner accepted that.
+- **Two tracks, one algorithm.**
+  - **All-time Rating**: never resets on its own (the owner's Reset ratings, M14.18, is still the only reset); the
+    one number on the teams, the result, the `All time` board, a person's page and Discord; **team formation
+    balances on it and nothing else**.
+  - **Weekly Rating**: everyone is 1200 at the start of every week, at the existing week boundary (Sunday 06:00
+    Africa/Cairo, `apps/web/lib/night.ts` `weekStart`, M5.34; the owner is asked to confirm, Open question 1), and
+    it folds only that week's rated games. **K restarts with the week**: on the
+    weekly track `n` is the player's rated games *this week* before this one, so everyone's first game of a week
+    is at K 32. The owner wants the weekly board "to feel like a fresh start for everyone", and a veteran at K 16
+    against a newcomer at K 32 on the same week would not. The weekly track's expected score is computed from
+    weekly Ratings, so the first game of a week is 50/50 on that track. It ignores `groups.ratings_since` (a reset
+    does not touch the week's points, as `00-product.md` already says).
+  - **The week board orders by weekly Rating** and prints it as the week's points, `round(weekly R) − 1200`
+    (`+36 · 5W–2L`), replacing M14.57's net all-time points. A fresh week reads 0 for everyone, which is the fresh
+    start; the week's per-game weekly changes add up to it exactly, because every week starts on an integer.
+- **Schema change approved** for both tracks' before/after (shape in M18.4, platform's call within it).
+- **One rebuild, unannounced.** After the migration and deploy, one `rebuild-ratings` refolds every group's history
+  under the Kustom rating. No Discord line and no "we changed the rating" note; `/how` simply describes the new
+  rating. Agents never touch production: the owner runs it from the ship runbook (M18.10).
+- **Gate.** The switch does not start until a real-data backtest on production games passes: Kustom's log loss no
+  worse than OpenSkill's stored `fold_p`, and Spearman ≥ 0.85 against the current board (M18.3). **Passed for the
+  formula 2026-10-04** (109 games: log loss 0.700 against `fold_p`'s 0.806; Spearman 0.938 over the 10+ board,
+  0.925 over all 34; top 3 identical); the implemented code must reproduce it before the rebuild (M18.5, M18.10).
+- **The bot's stored win chance and every odds shown afterwards come from the same ratings and the same
+  function.** The replay found the stored bot odds uncorrelated with the refold's (r = 0.01; in 35 of 88 games the
+  refold said 70/30 or worse where the bot said 45–55): today's teams were not balanced on the numbers the board
+  shows. After the switch the balancer reads the stored all-time `R` the fold reads, through `winProbability`, and
+  a zero-game player is 1200 in both (M18.2; decision row).
+
+**Rules for the whole milestone:**
+- `packages/core` stays pure; the new module lands with tests and **behind no wiring** (M18.1). Nothing in
+  `apps/web` imports it until M18.5.
+- **The switch is one deploy**: M18.2 (balancer), M18.5 (fold, both tracks) and M18.6/M18.7 (reads and rendering)
+  merge together behind the M18.3 gate, with migration 0036 applied first. No build ever shows Kustom numbers on
+  one surface and OpenSkill numbers on another.
+- **Rollback is the previous build plus its own `rebuild-ratings`.** The OpenSkill columns stay in the schema,
+  unread, until M18.12 drops them after a week live.
+- The research report's K (96 → 24), its weekly recommendation (net points) and its "announced rebuild" are
+  superseded by the owner's choices above; the report is otherwise the reference for every formula.
+
+**Numbers a friend will see (by construction, for `/how` and the tests):**
+
+| Situation | Change |
+|---|---|
+| Settled, even game, middle share | ±8 |
+| MVP of an even win (settled) | +9.6 |
+| ACE of an even loss (settled) | −6.4 |
+| Settled, any game | at most 16 × 1.2 = 19.2, so a printed change of at most 20 |
+| Anyone's first game (all-time or the week's) | at most 32 × 1.2 = 38.4 |
+| Gap in team totals 0 / 50 / 100 / 200 / 400 | win chance 50% / 53% / 56% / 62% / 73% |
+
+Properties every test pins: a win never lowers a Rating and a loss never raises one; the bigger the underdog, the
+more a win pays and the less a loss costs; with all ten at `n ≥ 10` the two sides' changes sum to exactly zero
+(shares sum to 5 per side), so 1200 stays the group mean; two teammates at `n ≥ 10` with the same share get the
+same change; nothing reads time or anyone else's games.
+
+Tasks:
+
+- [ ] **M18.1** Core: the Kustom rating module, pure, behind no wiring. *(owner: `core-engineer`; first; beside
+  M18.3 and M18.4)* New `packages/core/src/rating/kustom.ts` with its tests, exported from the package index under
+  new names; **nothing existing changes and nothing imports it outside `packages/core`** (OpenSkill, `rateGame`,
+  `predictWin`, `seedFromRank`, `explainDelta` stay exactly as they are until M18.2 and M18.12). Exports:
+  - `KUSTOM_START = 1200`, and the constants `kustom.kNew = 32`, `kustom.kSettled = 16`, `kustom.kSettleGames = 10`,
+    `kustom.oddsScale = 400`, `kustom.winnerShares = [1.2, 1.1, 1.0, 0.9, 0.8]` in `config.ts` (one place, as the
+    file's header asks).
+  - `winProbability(blueTotal, redTotal, calib = { a: 0, b: 1 })`: blue's chance,
+    `1 / (1 + exp(−(a + b × (blueTotal − redTotal) / 400)))`. The one odds function; nothing else in core or web
+    computes a Kustom win chance after M18.5.
+  - `kFor(n)`: `16 + 16 × max(0, 10 − n) / 10` for integer `n ≥ 0`; throws on negative or non-integer `n`.
+  - `shareRanks(team, scores)`: ranks one side's five by performance score, best first, ties by PUUID ascending;
+    returns `null` when any of the five has no score (then every share is 1.0). `shareFor(rank, won)`.
+  - `rateGameKustom(input, calib?)` → per player `{ puuid, rBefore, rAfter, k, expected, shareRank | null, share,
+    base, award: 'mvp' | 'ace' | 'none' }`. Input: ten players `{ puuid, side: 100 | 200, r, n, score | null }` and
+    `winningSide`. `base = K × (result − expected)`, `rAfter = rBefore + base × share`. **The same function serves
+    both tracks**: the caller passes all-time `r`/`n` or weekly `r`/`n`; the share ranks are the same on both
+    because they read the same game. Rejects (throws a typed error) anything but exactly five a side, a non-finite
+    `r`, or a `winningSide` that is not 100 or 200; the fold already gates those, so a throw is a bug, not data.
+  - `displayKustom(r) = Math.round(r)` and `printedChange(rBefore, rAfter) = round(rAfter) − round(rBefore)`.
+  - `explainKustomDelta(row)`: the M14.58 sentence parts from a stored row (side and result, the side's expected
+    as a whole percent, K and whether it is a first-ten game, the share rank and MVP/ACE), returning structured
+    parts, not copy; web owns the words (M18.7). It never mentions sigma, new/settling/settled certainty beyond
+    "first 10 games count extra", or any other player's uncertainty.
+  - **Tests** (`kustom.test.ts`), each a named case: the K table at n = 0, 1, 5, 9, 10, 11, 500; the odds table
+    above to the whole percent and symmetry `p(Δ) + p(−Δ) = 1`; `calib` `(0, 1)` equals the plain formula and
+    `b = 0.5` halves the logit; every row of the "numbers a friend will see" table; sign safety over a seeded
+    property run (10 000 random games: no win lowers, no loss raises); monotone in the gap; zero-sum to 1e-9 when
+    all ten have `n ≥ 10` and shares exist, and not required otherwise; equal teammates with equal share get equal
+    change; shares sum to 5 per side; ties broken by PUUID; `null` scores give share 1.0 and award `none` for all
+    ten; a newcomer's first game at most 38.4; `printedChange` adds up across a chain (`Σ printed = round(last) −
+    round(first)`); the weekly case (all ten at 1200, n 0) gives expected 0.5 and ±16 × share. `pnpm --filter
+    @customs/core test` 100% line coverage on the new file.
+  - Docs: `docs/01-architecture.md` "Rating model" gains a "Kustom rating (M18, not yet wired)" subsection with the
+    formula and constants; the OpenSkill text stays until M18.5 flips it.
+
+  Acceptance: the exports and tests above exist and pass; `pnpm -r typecheck`, `pnpm -r test`, `pnpm lint` green;
+  `git grep -n "rating/kustom\|rateGameKustom\|winProbability" apps/` returns nothing; no existing test edited.
+  Out of scope: the balancer (M18.2), the rank guess (M18.2), the calibration fit (M18.11), any storage.
+
+- [ ] **M18.2** Core: the balancer on the Kustom scale. *(owner: `core-engineer`; after M18.1 and M18.3; merges in
+  the switch deploy with M18.5)* `balance()` takes Kustom Ratings: a player's input is `{ r, n }` instead of
+  `{ mu, sigma }`; effective strength is `r × roleMultiplier` (main 1.0, secondary 0.93, fill 0.85, unchanged:
+  numerically what `mu × 60 × multiplier` is today); every win chance it scores, stores or explains comes from
+  `winProbability` (M18.1) with the `calib` its caller passes; `predictWin`, `foldWinProbability` and the OpenSkill
+  `balanceScore` are removed from the balancer's path. **The zero-game rank guess goes**: a player with no rated game is 1200 in the balancer, exactly as in the fold,
+  so the split's stored `blue_win_prob` is `winProbability` of the same Ratings the fold will read (the real board's
+  settled sd is 66, so any tier map either dominates a newcomer's seat or is noise; decision row). Rank stays on
+  the roster as information. The M14.59 two-odds line has nothing left to explain and goes with M18.7. Receipt, `whyLower`, reroll and the
+  repeat penalty keep their behaviour; tests that pinned OpenSkill odds are re-pinned on the odds table with a
+  one-line reason each. Acceptance: the M1.4 worked example still picks the same split or the change is written
+  up under this task with the new receipt; every receipt percentage in the tests equals `winProbability` of the
+  stored totals; **for a roster unchanged since the roll and no game folded in between, the split's stored blue
+  win chance equals the fold's blue `fold_p` to 1e-9** (integration test with M18.5); a zero-game player
+  contributes 1200 to both; `pnpm -r test` green.
+
+- [x] **M18.3** **The gate: the real-data backtest.** *(owners: the lead runs it, `product` reads it and records the
+  verdict; beside M18.1; blocks M18.2, M18.5, M18.6, M18.7, M18.10)* The run in progress (2026-10-04) lands at
+  `scratchpad/rating-real/REPORT.md` in the lead's session folder; that folder is temporary, so its report and the
+  exact command are copied into `redesign/research/rating-real.md` (no PUUIDs, no names; the export hashes them,
+  research §9). It must fold the production rated games (the `gateRatedGame` gate) **with the owner's K schedule
+  (32 → 16 over 10 games) and rank shares**; a report run with the research's 96 → 24 is rerun before it counts.
+  **Pass criteria, all on the same games, for the `customs` group (and any other group with 50+ rated games,
+  reported separately):**
+  1. **Log loss**: Kustom's online log loss (each game predicted from the ratings before it, then folded) is **no
+     worse than the log loss of the stored OpenSkill `fold_p`** on the same games. Both numbers and the bootstrap
+     interval of the difference are printed.
+  2. **Board order**: Spearman ρ **≥ 0.85** between the Kustom all-time board and the current production board
+     (Rating order) over the players with 10 or more rated games since the group's epoch at the export's last
+     game. ρ over everyone with a rated game, mean places moved and the top-3 overlap are reported beside it.
+  The report also prints, as inputs and not as pass criteria: rank shares against no shares (research §9 "how to
+  read it"), the real board sd and range before and after, the real swing sizes, the bot's stored-odds calibration
+  line, and a fitted points-per-tier for M18.2 (Kustom R after 20 games regressed on rank, if 8+ players qualify).
+  **Fail path**: if either criterion fails, the switch tasks do not start; product writes the finding under this
+  task, the lead takes it to the owner, and the plan changes openly (a decision row) or the milestone waits. The
+  criteria are not loosened to pass. **If rank shares score below no shares** (interval wholly below), the switch
+  also waits for the owner's call on shares (research's fallbacks: flat shares, or MVP/ACE-only zero-sum
+  1.2 / 0.95 × 4). Acceptance: `redesign/research/rating-real.md` committed; the verdict (pass or fail, the two
+  numbers) quoted in this task and in the M18 status row.
+  *Passed for the formula, 2026-10-04 (the lead's replay; report copied to `redesign/research/rating-real.md`):*
+  109 eligible production games, 34 players, 5.5 weeks, the owner's K and rank shares. (1) Log loss: Kustom 0.700,
+  OpenSkill `fold_p` 0.806, coin 0.693; paired advantage over `fold_p` 0.106 (90% CI 0.047 to 0.166). (2) Spearman
+  0.938 over the 21 players with 10+ games (0.925 over all 34), top 3 identical, mean 1.6 places moved (at most 5).
+  Inputs: shares beat no shares (paired 0.0096, CI 0.0035 to 0.0156, excludes zero: keep shares); a stomp factor
+  0.25 is within noise (0.697, kept out); no inflation (mean 1199 against today's 1326); settled moves about ±8,
+  never over 13; the settled board compresses from sd 493 (600–2739) to sd 66 (1112–1400), so expect a compressed
+  board at launch; too few games for a points-per-tier fit (M18.2 drops the rank guess instead). **The switch still
+  needs the implemented code to reproduce these numbers** (M18.5's acceptance, M18.10's dry run).
+
+- [ ] **M18.4** Platform: migration `0036_kustom_rating.sql`. *(owner: `platform-engineer`; beside M18.1, after
+  reading it; applied locally first, hosted only by the owner in M18.10)* Additive, one transaction, nullable, no
+  default, so the current build keeps running on it. **The shape (platform may rename, not drop a fact):**
+  - `game_players`, all-time track: `r_before`, `r_after` (double precision, unrounded), `k` (double precision),
+    `share_rank` (smallint 1–5, null when the game had no performance score). Reused, not duplicated: `fold_p`
+    (now Kustom's expected for this row's side), `award` (`mvp | ace | none`), `rated_games_before` (`n`).
+  - `game_players`, weekly track: `week_r_before`, `week_r_after`, `week_k`, `week_fold_p`, `week_games_before`
+    (integer `n` on the week). The share rank is the same as the all-time one and is not stored twice.
+  - `ratings.r` (double precision): the current all-time R. The current weekly Rating is **derived** (a player's
+    last `week_r_after` in the week); a `week_ratings` table is added only if the board read needs it, and is then
+    rewritten whole by the rebuild, never hand-edited.
+  - `splits.odds_model text not null default 'openskill' check (odds_model in ('openskill', 'kustom'))`: rolls
+    after the switch write `kustom`, so the calibration line can count only odds made by the function it checks
+    (M18.6).
+  - Checks: the all-time four (`r_before`, `r_after`, `k`, `fold_p`) together or not at all; the weekly five
+    together or not at all; neither set outlives the row being rated (an un-rate nulls both, in one statement);
+    0034's `game_players_breakdown_needs_rating` (keyed on `mu_after`) is replaced by the same rule keyed on
+    `r_after`, and `base_mu_after` is allowed null beside a filled `r_after`; `ratings.mu`/`sigma` become nullable
+    so the Kustom fold need not invent OpenSkill numbers. The OpenSkill columns are otherwise untouched (rollback).
+  - No RLS change (`game_players`, `ratings` and `splits` are public reads already). `pnpm db:types`, the zod
+    schemas in `packages/db`, `export-schemas --check` clean (no companion schema changes).
+  Acceptance: `pnpm db:reset` replays 0001–0036; the current build's ingest and `rebuild-ratings` pass on it
+  unchanged (integration tests); a hand-written update breaking each check is refused (a test per check); a
+  `packages/db/scripts/m18-4-throwaway-check.sh` on a pg_dump restore of local, like M14.58's.
+
+- [ ] **M18.5** Platform: the fold and the rebuild on the Kustom rating, both tracks. *(owner: `platform-engineer`;
+  after M18.1, M18.4 and the M18.3 pass; merges in the switch deploy)* The live fold (`apps/web/lib/ingest/rating.ts`,
+  `fold.ts`), `rebuild-ratings` (`lib/ingest/rebuild.ts`, `rebuildCommand.ts`) and the daily cron
+  (`rebuildCron.ts`) call `rateGameKustom` twice per rated game, once per track, in `started_at` order, and write
+  the 0036 columns in the same write as today's. All-time: from `ratings.r` and `rated_games_before` (1200 and 0
+  for a first game; folds only `started_at >= groups.ratings_since`, as today). Weekly: from the player's last
+  `week_r_after` in the same week, else 1200 and 0; every rated game in the week regardless of `ratings_since`;
+  the week is `apps/web/lib/night.ts` `weekStart` (Sunday 06:00 Africa/Cairo), one function, no second definition. The rebuild refolds both tracks
+  from scratch for every group (or `--group`), keeps every M14.27/M14.63 guard (`target` line, `--hosted`, live
+  lobby and 15-minute refusals, exit 2), and reports `kustom  N game_players rows, N ratings rows, N weeks`.
+  Reset ratings (M14.18) sets `ratings.r = 1200` and the all-time count to 0, and touches no weekly value.
+  Acceptance: a fold of the M7.13 fixture games equals `rateGameKustom` run by hand on the same inputs, both tracks,
+  to 1e-9 (integration test); a second rebuild changes nothing (idempotent); a backfilled game landing in a past
+  week changes that week's weekly rows and the all-time rows after it, and nothing in other weeks' weekly rows;
+  a game in a week that also holds a reset: all-time refolds from the reset, the week's points do not change;
+  zero-sum holds on a stored all-settled game; `docs/01-architecture.md` "Rating model" now describes Kustom as
+  the rating and OpenSkill as retired; **the M18.3 replay rerun by the lead with `rateGameKustom` and
+  `winProbability` in place of the scratch `fold.ts` reproduces the report's log loss (0.700) and Spearman
+  (0.938 / 0.925) to three decimals**; `pnpm -r test` green.
+
+- [ ] **M18.6** Platform: every read path on the new columns. *(owner: `platform-engineer`; after M18.5; same
+  deploy)* Board loaders (`lib/board/load.ts`, `order.ts`, `rowChange.ts`, `recent.ts`, `chart.ts`): `All time`
+  sorts and prints `round(ratings.r)` with the settling section unchanged (10 rated games); `This week` / `Last
+  week` sort on weekly Rating, printed as `round(weekly R) − 1200`, ties: more wins, fewer games, higher all-time
+  Rating, name. The breakdown read (`lib/breakdown/read.ts`, `load.ts`) returns M18.1's parts from the stored row
+  for both tracks. Tonight and the poster (`lib/tonight/load.ts`) print all-time changes; their odds are the stored
+  roll odds, as today. The receipt's calibration line counts only `odds_model = 'kustom'` splits (so it restarts
+  at `0 of 20` after the switch). Discord (`lib/discord/assemble.ts`, `embeds.ts`): the result post's changes are
+  all-time; the Sunday post's board is the weekly order with week points. Premium AI facts (`lib/ai/facts.ts`,
+  `storyline.ts`, `scouting.ts`): Rating and changes from the new columns, week points from the weekly track; the
+  checker's database lookups read the same columns, so a line citing an old OpenSkill number fails the check.
+  `seed.ts`/`balance.ts` hand the balancer `{ r, n }` from `ratings.r` (1200 and 0 for a zero-game player), the
+  same rows the fold reads.
+  Acceptance: no board, breakdown, tonight, Discord, AI or balancer-input loader reads `mu`, `sigma` or calls
+  `displayRating` (grep, listed under this task); the board, week board, award and AI integration tests pass with
+  re-pinned numbers; the week board's points equal the sum of that week's printed weekly changes for every row of
+  the fixture group.
+
+- [ ] **M18.7** Web: the numbers on every page. *(owner: `web-engineer`; after M18.6 and M18.8's spec; same
+  deploy)* Board, week board, player page (`app/_board/PlayerView.tsx`), tonight and poster
+  (`app/_tonight/TonightView.tsx`), game page, `lib/ratingDisplay.ts`, `lib/board/explain.ts`,
+  `lib/breakdown/copy.ts`. All-time numbers everywhere a game prints its change. **The week**: the board's week
+  tabs print week points; a player page opened on a week prints, per game, **that game's weekly change, labelled
+  as the week's** (so the week's column adds up to its header `+36 this week · 5W–2L`), and tap-to-explain on that
+  row says both: the week's change with its reason, and the all-time change in one clause. No row anywhere prints
+  two unlabelled changes for one game. Tap-to-explain copy (product writes, M18.9): `+8 · Your side won as the
+  56% favourite, so the win was worth 16 × 44% = 7. You had the best game on your team: ×1.2.` and the first-ten
+  line `Your first 10 games count extra while your Rating finds its level (×30 instead of ×16).` The M14.59 two-odds
+  line goes (the bot and the fold now read the same Ratings), except on games rolled before the switch, whose
+  stored roll odds stay as posted. The "changes don't sum to zero"
+  paragraph and every sigma-derived word except `settling` go. Acceptance: render tests for the
+  board, week board, player page week tab (column sums to header), receipt and both explanation lines; the
+  designer's M18.8 checklist ticked; `pnpm --filter web build` green.
+
+- [ ] **M18.8** Design review: two tracks without two numbers for one thing. *(owner: `designer`; after M18.1,
+  before M18.7 is built; again on M18.7's screenshots)* In `docs/05-design.md`: how the week board shows week
+  points against the all-time Rating on the same row (the week number leads, all-time is secondary), the week tab's
+  per-game weekly change and its label, the explanation panel with two tracks, and the receipt and poster with the
+  smaller numbers. Acceptance: a spec section in `05-design.md` the web engineer builds from; screenshots of the
+  built pages reviewed and signed off under this task (phone and laptop).
+
+- [ ] **M18.9** Product: the docs and the friend-facing words at the switch. *(owner: `product`; drafted beside
+  M18.7, merged in the switch deploy)* `00-product.md` "The rating" and "The week and all time" rewritten for
+  Kustom (the M18 note there becomes the text); the features table rows for M7's MVP/ACE line, M14.57 and M14.58
+  updated; `/how`'s fairness list from research §8 with the owner's numbers (a win never lowers you; only your own
+  rated games move you; after 10 games one game moves you 20 at most, an even game about 8; beating the favourite
+  pays more; same team same base; points come from the other team once everyone is settled, so 1200 stays the
+  average; everyone starts at 1200 and the first 10 count extra, up to twice; the week starts everyone at 1200 and
+  counts only that week; nobody can edit a Rating). **No announcement** of the rebuild anywhere (the owner). The
+  CLAUDE.md "Ratings are OpenSkill" convention line put to the user through the lead with replacement text.
+  Acceptance: `grep -n "sigma\|OpenSkill\|quarter more\|fifth less\|do not sum to zero" docs/00-product.md`
+  returns only history notes; `/how` copy in `apps/web` matches the doc (web engineer applies it in M18.7).
+
+- [ ] **M18.10** The runbook step: migrate, deploy, rebuild. *(owner: `platform-engineer` writes it; the owner runs
+  it; after M18.2 and M18.5–M18.9 are merged)* A section in `docs/runbooks/` (new `kustom-rating.md`, linked from
+  `ship-2.0.md`'s ordering table): (1) `pnpm db:migrate` 0036 to hosted (the current build runs on it); (2) deploy
+  the switch build; (3) `pnpm --filter web rebuild-ratings --dry-run --hosted` and read its `target` line and its
+  side-by-side (old and new board order, places moved, last two weeks' old and new per-game changes, printed by the
+  dry run as research §7.1 asks), plus the dry run's Kustom log loss against stored `fold_p` and its Spearman
+  against the current board: **step 4 runs only if both still pass the M18.3 criteria**; (4) `pnpm --filter web rebuild-ratings --hosted` (with `--force` only if the
+  15-minute guard is in the way and no lobby is live); (5) the checks: `/g/customs` board order against the dry
+  run, one game's explanation against the stored row, the week board's points summing on one player's week tab;
+  (6) rollback: redeploy the previous build and run its `rebuild-ratings --hosted` (the OpenSkill columns are
+  refilled; 0036 stays). No Discord message. Acceptance: the runbook exists and was walked end to end on the local
+  stack by the platform engineer (output pasted under this task); the owner's hosted run noted here with its
+  `target` line.
+
+- [ ] **M18.11** The balanced-teams guard: odds tuned to the group. *(owner: `core-engineer` for the fit,
+  `platform-engineer` for storage and the monthly job, `product` for the line; after M18.10 and 200 Kustom-era
+  rated, bot-rolled games in a group; not part of the switch)* Research §6.5 and team-formation option C, one task
+  for both reports: once a group has 200 rated games rolled with `odds_model = 'kustom'`, fit `(a, b)` by logistic
+  regression of results on the rated gap, ridge-shrunk toward `(0, 1)`; adopt it when `b < 0.8`, at most once a
+  month, and from then on every caller of `winProbability` in that group passes the group's pair (receipt, both
+  folds' expected, explanation, AI facts). It changes no stored Rating and only future games' expected scores. The
+  receipt says once, under the calibration line: `Odds are tuned to how this group's games actually went.`
+  **Needs the owner's OK before it starts**: the thresholds (200, 0.8, monthly) are the research's suggestion, not
+  a ruling, and storing `(a, b)` per group is a schema change outside 0036's approval. Acceptance: core fit tested on
+  synthetic games with a known stretch (recovers `b` within 0.05 at 2 000 games); a group with a fitted pair shows
+  the line and its receipt percentage equals `winProbability` with that pair.
+
+- [ ] **M18.12** Remove OpenSkill. *(owner: `core-engineer` for core, `platform-engineer` for the schema; after one
+  week live with no rollback)* The `openskill` dependency, `rateGame`, `predictWin`, `ordinal`, `seedFromRank`,
+  the OpenSkill `explainDelta`/`explainLegacyDelta` and their tests go; a migration drops `game_players.mu_*`,
+  `sigma_*`, `base_mu_after`, `ratings.mu`, `sigma`, `ordinal`, `seed_mu`, `seed_sigma` (the owner OKs the drop
+  through the lead, since it ends the rollback path). Acceptance: `git grep -n openskill` returns history docs
+  only; `pnpm -r test` and `pnpm --filter web build` green.
+
+- [ ] **M18.13** Team formation: fill burden and teammate variety. *(owner: `core-engineer`, `product` for the
+  receipt words; after M18.10 and two weeks of Kustom-rolled games; separate from the switch)* The two phase-1
+  terms of `redesign/research/team-formation.md` §5, not scoped anywhere before: **(A) a fill cost that does not
+  depend on rating**, `effective = r − roleDrop[tier]` instead of `r × multiplier` (research option 7: `R × 0.85`
+  charges a 1500 player more than a 900 one), with `roleDrop` re-derived on the Kustom scale (the report's 105/225
+  were OpenSkill display points at the old median), and only if the report's query 9.1 part 2 shows fills landing
+  unevenly by rating third on real games; **(B) teammate variety**, `min(100, 25 × repeated teammate pairs from
+  the night's previous game)` added to the split score, puuids only. The receipt's `whyLower` needs a stored reason
+  for each new term (`splits.score_parts`, a schema change for the owner). Acceptance: the report's two simulations
+  rerun on the Kustom scale show no measurable loss of evenness; real-data query 9.1 result quoted; `whyLower`
+  names each term.
+
+**Order.**
+
+```
+M18.1 (core module) ──┬── M18.2 (balancer) ───────────────┐
+M18.3 (gate) ─────────┤                                   ├── switch deploy ── M18.10 (owner's runbook) ── M18.12 (a week later)
+M18.4 (0036) ─────────┴── M18.5 (fold) ── M18.6 (reads) ──┤                                        └── M18.11, M18.13 (later, owner OKs)
+M18.8 (design) ───────────────────────── M18.7 (pages) ───┤
+M18.9 (docs, copy) ───────────────────────────────────────┘
+```
+
+M18.1, M18.3, M18.4 and M18.8 start at once. Nothing from M18.2 on starts before M18.3 passes. M18.2, M18.5,
+M18.6, M18.7 and M18.9 merge as one switch; 0036 reaches hosted before that build does.
+
+**Open questions for the owner (through the lead):**
+1. **Week boundary.** The brief said "every Monday"; the product's week starts **Sunday 06:00 Africa/Cairo**
+   (2026-09-15, M5.34, Egypt's working week; `night.ts` `weekStart`). M18 uses the existing boundary; the lead is
+   asking the owner and will amend if it should be Monday (the replay ran both: nearly identical).
+2. **The rank guess goes** (M18.2): newcomers are 1200 to the bot as well as to the fold, which retires M14.59's
+   rank guess. Product's call from the replay; the owner can keep a guess, but then the stored odds and the fold
+   differ for that game again.
+3. **M18.11's thresholds and storage** (200 games, `b < 0.8`, monthly; a per-group pair) and **M18.13's
+   `splits.score_parts`**: both are schema changes outside 0036.
+
+Acceptance (milestone): after the owner's rebuild, `/g/customs` shows Ratings folded by the Kustom formula on
+every surface, a settled player's change is at most 20, two settled teammates with the same share show the same
+change, the bot's stored win chance and the fold's expected come from the same Ratings and the same function, the week board starts everyone
+at 0 on Sunday and its points add up on a player's week tab, the teams are balanced on the all-time Rating, and
+nobody typed anything.
 
 ---
 

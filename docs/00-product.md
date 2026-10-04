@@ -346,6 +346,14 @@ reroll gives the "swap Hana and Omar" teams instead, and then one more after tha
 
 ## The rating
 
+**Coming in M18 (planned 2026-10-04, the owner): the Kustom rating replaces everything below.** A game moves
+your Rating by `K × (result − expected) × share`: expected is the same win chance the bot shows, from the two
+teams' total Ratings; K is 32 on your first game and falls to 16 by your 11th, then stays there; share is 1.2 down
+to 0.8 by how you played against your own team (MVP and ACE keep their names). Everyone starts at 1200, nothing
+decays, and a settled player moves about 8 points a game, 20 at most. A second, weekly Rating starts everyone at
+1200 every Sunday and orders the week board. Teams are balanced on the all-time Rating only. M18.9 rewrites this
+section and "The week and all time" when it ships; until then the text below is what runs.
+
 The model keeps one rating per player in each group, `{ mu, sigma }` — `mu` is what it thinks you are,
 `sigma` is how sure it is. (A person in two groups has two, and they never touch.) It is the only rating that
 forms teams, and since 2026-10-04 it is the only rating there is: every point gained or lost on every surface
@@ -552,6 +560,7 @@ See `02-milestones.md` for the build order. In product terms:
 | More than one group: start one, invite with a link, ratings per group, `/g/<link>` pages | M13 |
 | The receipt on every split, in history and in Discord; calibration; pre-game odds | M14 |
 | One Rating everywhere, boards sorted on it, the settling section | M14 |
+| The Kustom rating (one-line formula, K 32 to 16, shares instead of MVP/ACE multipliers) and a weekly Rating that restarts every Sunday | M18 (planned) |
 | No seasons | M14 |
 | Owner, admins and members; removing a member; the owner's Reset ratings | M14 |
 | Tonight · Board · Games · Stats · You, on phones and laptops; no More page | M14.7b |
