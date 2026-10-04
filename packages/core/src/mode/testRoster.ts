@@ -4,7 +4,7 @@
  * tests need, not a copy of the pin (M15.4 and M15.9 own the real tables, in apps/web).
  */
 
-import type { ChampionTable, ClassTag } from './model';
+import type { ChampionFacts, ChampionTable, ClassTag } from './model';
 
 export const JINX = 222;
 export const ASHE = 22;
@@ -22,24 +22,26 @@ export const DARIUS = 122;
 export const AMBESSA = 799;
 /** Tags known, no region row. */
 export const SMOLDER = 901;
-/** Region `unaffiliated`. */
+/** Region `unaffiliated`: an empty set. */
 export const RYZE = 13;
+/** Two regions (M20 D1): Piltover on Universe, Zaun on the Kustom home list. Not in `ROSTER`. */
+export const VI = 254;
 
 export const ROSTER: ChampionTable = new Map([
-  [JINX, { tags: ['Marksman'], region: 'zaun' }],
-  [ASHE, { tags: ['Marksman', 'Support'], region: 'freljord' }],
-  [LEONA, { tags: ['Tank', 'Support'], region: 'targon' }],
-  [LUX, { tags: ['Mage', 'Support'], region: 'demacia' }],
-  [GAREN, { tags: ['Fighter', 'Tank'], region: 'demacia' }],
-  [AHRI, { tags: ['Mage', 'Assassin'], region: 'ionia' }],
-  [SYNDRA, { tags: ['Mage'], region: 'ionia' }],
-  [ZED, { tags: ['Assassin'], region: 'ionia' }],
-  [MALPHITE, { tags: ['Tank', 'Mage'], region: 'ixtal' }],
-  [THRESH, { tags: ['Support', 'Fighter'], region: 'shadow-isles' }],
-  [BRAUM, { tags: ['Support', 'Tank'], region: 'freljord' }],
-  [DARIUS, { tags: ['Fighter', 'Tank'], region: 'noxus' }],
+  [JINX, { tags: ['Marksman'], region: ['zaun'] }],
+  [ASHE, { tags: ['Marksman', 'Support'], region: ['freljord'] }],
+  [LEONA, { tags: ['Tank', 'Support'], region: ['targon'] }],
+  [LUX, { tags: ['Mage', 'Support'], region: ['demacia'] }],
+  [GAREN, { tags: ['Fighter', 'Tank'], region: ['demacia'] }],
+  [AHRI, { tags: ['Mage', 'Assassin'], region: ['ionia'] }],
+  [SYNDRA, { tags: ['Mage'], region: ['ionia'] }],
+  [ZED, { tags: ['Assassin'], region: ['ionia'] }],
+  [MALPHITE, { tags: ['Tank', 'Mage'], region: ['ixtal'] }],
+  [THRESH, { tags: ['Support', 'Fighter'], region: ['shadow-isles'] }],
+  [BRAUM, { tags: ['Support', 'Tank'], region: ['freljord'] }],
+  [DARIUS, { tags: ['Fighter', 'Tank'], region: ['noxus'] }],
   [SMOLDER, { tags: ['Marksman', 'Mage'], region: null }],
-  [RYZE, { tags: ['Mage'], region: 'unaffiliated' }],
+  [RYZE, { tags: ['Mage'], region: [] }],
 ]);
 
 /**
@@ -55,17 +57,36 @@ export function syntheticRoster(
   for (const [region, n] of Object.entries(regionCounts)) {
     for (let i = 0; i < n; i += 1) regions.push(region);
   }
-  const table = new Map<number, { tags: string[] | null; region: string | null }>();
+  const table = new Map<number, ChampionFacts>();
+  // One region each; `unaffiliated` is the empty set, a missing slot is no row.
+  const set = (region: string | undefined) =>
+    region === undefined ? null : region === 'unaffiliated' ? [] : [region];
   let id = 10000;
   for (const [tag, n] of Object.entries(counts)) {
     for (let i = 0; i < (n ?? 0); i += 1) {
-      table.set(id, { tags: [tag], region: regions[id - 10000] ?? null });
+      table.set(id, { tags: [tag], region: set(regions[id - 10000]) });
       id += 1;
     }
   }
   // Regions longer than the class list still get champions, with no class.
   for (let i = id - 10000; i < regions.length; i += 1) {
-    table.set(10000 + i, { tags: [], region: regions[i] ?? null });
+    table.set(10000 + i, { tags: [], region: set(regions[i]) });
+  }
+  return table;
+}
+
+/**
+ * A roster built from region sets (M20.2): `[regions, n]` adds `n` champions whose set is exactly
+ * `regions` (ids from 20000 up, in order), so a test can say "8 Ionia, 8 Noxus, 1 in both".
+ */
+export function setRoster(groups: readonly (readonly [readonly string[], number])[]): ChampionTable {
+  const table = new Map<number, ChampionFacts>();
+  let id = 20000;
+  for (const [regions, n] of groups) {
+    for (let i = 0; i < n; i += 1) {
+      table.set(id, { tags: [], region: [...regions] });
+      id += 1;
+    }
   }
   return table;
 }

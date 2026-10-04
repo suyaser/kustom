@@ -94,6 +94,8 @@ describe('core skeleton', () => {
       // M14.4: STRATEGY §4.3's band for a `blue_win_prob`; the copy stays in apps/web.
       'oddsBand',
       'ordinal',
+      // M20.2 (M20 D2): may region wars put these two regions against each other (8 each, 16 between).
+      'pairDrawable',
       // One game's seven-component score per player (M7.8, M7.13, M7.14), normalised in-game.
       'performanceScores',
       // M14.4: `predictWin` from `mu_before` / `sigma_before` for a game with no split, or null.

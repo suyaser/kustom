@@ -13,7 +13,7 @@
  */
 
 import { ROLES, type Role, type Side } from '../types';
-import type { ChampionTable, Mode } from './model';
+import { type ChampionTable, inRegion, type Mode } from './model';
 
 /** One seat of the recorded game: what `game_players` holds, minus who sat there. */
 export interface CheckSeat {
@@ -66,10 +66,12 @@ export function checkMode(mode: Mode, seats: readonly CheckSeat[], table: Champi
         return tags.includes(mode.tag) ? 'in' : 'out';
       });
     case 'region':
+      // Membership (M20 D1): a shared champion is `kept` for either of its regions; an empty set
+      // (unaffiliated) is `broke` on any side; no row is `unknown`.
       return checkSides(seats, (championId, side) => {
-        const region = table.get(championId)?.region ?? null;
-        if (region === null) return 'unknown';
-        return region === (side === 100 ? mode.blue : mode.red) ? 'in' : 'out';
+        const facts = table.get(championId);
+        if ((facts?.region ?? null) === null) return 'unknown';
+        return inRegion(facts, side === 100 ? mode.blue : mode.red) ? 'in' : 'out';
       });
   }
 }

@@ -393,7 +393,7 @@ if (stack === null) {
     // QA fix 2026-10-04: the server checks a rule pick like the select's ` (too few open)`.
     it('refuses a rule with too few champions open tonight, Fearless bans counted (409, nothing written)', async () => {
       // A table whose only tanks are 1..10, every one of them in this group's pool now.
-      const table = new Map(range(1, 10).map((id) => [id, { tags: ['Tank' as const], region: 'ionia' }]));
+      const table = new Map(range(1, 10).map((id) => [id, { tags: ['Tank' as const], region: ['ionia'] }]));
       const before = await modeRow(groups.f);
       const refused = await call(setGroupModeRoute({ ...as(FAY), table }), {
         groupId: groups.f,

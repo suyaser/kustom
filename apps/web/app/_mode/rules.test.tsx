@@ -659,7 +659,7 @@ describe('the panels', () => {
     const lanesOf = (region: string) =>
       new Set(
         [...table]
-          .filter(([, facts]) => facts.region === region)
+          .filter(([, facts]) => facts.region?.includes(region))
           .map(([id]) => championLane(id))
           .filter((role) => role !== null),
       );

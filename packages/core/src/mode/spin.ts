@@ -7,6 +7,7 @@
  */
 
 import {
+  type ChampionTable,
   type Mode,
   type RegionId,
   type RegionPair,
@@ -16,7 +17,7 @@ import {
   ruleKey,
   ruleOf,
 } from './model';
-import { drawableRegions } from './pool';
+import { type Bans, drawableRegions, pairTester, regionOpenCounts } from './pool';
 
 /**
  * The families Spin draws from, in draw order. Mirror joined at M17.17: Start a lobby asks the
@@ -79,21 +80,38 @@ export function drawSpin(
 }
 
 /**
- * Region wars' draw at Roll: blue uniformly from the drawable regions (at least
- * `config.modes.regionMinOpen` open, never `unaffiliated`), then red uniformly from the rest, so
- * which side gets which is part of the draw. `null` when fewer than two regions qualify.
+ * What the region draw reads: the roster and the bans to count (preferred: the draw then applies
+ * M20 D2's shared-champion rule), or bare open counts per region (no champion can be seen as
+ * shared, so each pair's union is read as the sum: right only for disjoint regions).
+ */
+export type RegionDrawSource = { roster: ChampionTable; bans: Bans } | ReadonlyMap<RegionId, number>;
+
+/**
+ * Region wars' draw at Roll: blue uniformly from the candidate regions that have at least one
+ * partner passing `pairDrawable` (so the draw never dead-ends), then red uniformly from blue's
+ * passing partners, so which side gets which is part of the draw. Candidates are sorted by id and
+ * never `unaffiliated`. `null` when no pair passes.
  */
 export function drawRegions(
   regions: Iterable<RegionId>,
-  openCounts: ReadonlyMap<RegionId, number>,
+  source: RegionDrawSource,
   rng: Rng,
 ): RegionPair | null {
+  let openCounts: ReadonlyMap<RegionId, number>;
+  let passes: (blue: RegionId, red: RegionId) => boolean;
+  if ('roster' in source) {
+    openCounts = regionOpenCounts(source.roster, source.bans);
+    passes = pairTester(source.roster, source.bans);
+  } else {
+    openCounts = source;
+    // Disjoint regions: 8 + 8 is already 16 different, so two drawable regions always pass.
+    passes = (blue, red) => blue !== red;
+  }
   const eligible = drawableRegions(openCounts, regions);
-  if (eligible.length < 2) return null;
-  const blue = pick(eligible, rng);
-  const red = pick(
-    eligible.filter((region) => region !== blue),
-    rng,
-  );
+  const partners = (blue: RegionId) => eligible.filter((red) => passes(blue, red));
+  const blues = eligible.filter((blue) => partners(blue).length > 0);
+  if (blues.length === 0) return null;
+  const blue = pick(blues, rng);
+  const red = pick(partners(blue), rng);
   return { blue, red };
 }

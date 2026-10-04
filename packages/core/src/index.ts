@@ -118,11 +118,12 @@ export {
   type ModePool,
   modePool,
   type PoolSplit,
+  pairDrawable,
   regionOpenCounts,
   regionPool,
   rulePlayable,
 } from './mode/pool';
-export { drawRegions, drawSpin, type Rng, SPIN_FAMILIES } from './mode/spin';
+export { drawRegions, drawSpin, type RegionDrawSource, type Rng, SPIN_FAMILIES } from './mode/spin';
 export {
   type Certainty,
   type DeltaAward,

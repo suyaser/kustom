@@ -835,18 +835,28 @@ pair into the same `players.main_role` / `secondary_role` the balancer already r
 ## Mode model (`packages/core/mode`, M15.2)
 
 The standing mode (`normal` | `fearless`) and at most one **rule** for the next game (`class` with a
-`CLASS_TAGS` tag, `region`, `mirror`), per the M15.1 brief. Champion facts (Data Dragon tags, region slug) are
-input as a `ChampionTable` keyed by `champion_id`; core imports no fixture.
+`CLASS_TAGS` tag, `region`, `mirror`), per the M15.1 brief. Champion facts (Data Dragon tags, regions) are
+input as a `ChampionTable` keyed by `champion_id`; core imports no fixture. A champion's `region` is a set
+(M20.2, M20 D1): a readonly array of slugs, Universe's region plus at most one Kustom home region; `[]` is
+`unaffiliated` (in no pool, `broke` on any side), `null` is no row (`unknown`). Pools, counts, the draw and the
+check read membership, so a shared champion is in both pools and `kept` for either side.
 
 - `config.modes.ratedDefault`: normal, fearless, mirror rated; class, region not rated. An admin may flip Rated
   for the next game in any mode; choosing a mode or rule resets it.
 - Pools: a class counts **any** tag; `modePool(mode, roster, fearlessBans)` subtracts the bans the caller passes
-  (pass none on a Normal night). `rulePlayable`: a class needs `config.modes.classMinOpen = 10` open; region
-  wars needs two regions (never `unaffiliated`) with `config.modes.regionMinOpen = 8` open; mirror always.
+  (pass none on a Normal night). `regionOpenCounts` counts a shared champion once per region (empty sets under
+  `unaffiliated`). `rulePlayable`: a class needs `config.modes.classMinOpen = 10` open; region wars needs at
+  least one pair passing `pairDrawable`; mirror always.
+- `pairDrawable(blue, red, roster, bans)` (M20 D2): with the bans removed, each region has
+  `config.modes.regionMinOpen = 8` open **and** the two together have `2 * regionMinOpen = 16` different open
+  champions, so each side keeps 8 of its own even if the other takes every shared one. Never the same region
+  twice, never `unaffiliated`; symmetric.
 - `drawSpin(options, previousRule, playable, rng)`: a family uniformly from `SPIN_FAMILIES` (`class`, `region`,
   `mirror`; M17.17), then an option; never the previous rule, an unplayable option or a standing mode. Mirror joined
-  once Start a lobby began opening the Blind Pick lobby itself. `drawRegions(regions, openCounts, rng)`: blue, then red from the
-  rest. Both sort candidates by a stable key; `rng` returns `[0, 1)` or the draw throws `RangeError`.
+  once Start a lobby began opening the Blind Pick lobby itself. `drawRegions(regions, source, rng)`: blue uniformly from the candidates
+  with at least one partner passing `pairDrawable`, then red uniformly from blue's passing partners. `source` is
+  `{ roster, bans }` (applies the union rule) or bare open counts (reads regions as disjoint: only right while no
+  champion is shared). Both sort candidates by a stable key; `rng` returns `[0, 1)` or the draw throws `RangeError`.
 - `checkMode(mode, seats, table)`: per side `kept` | `broke` | `unknown` with champion keys (mirror: per lane).
   A champion with no tags or no region row is `unknown`, never `broke`; seats carry no player.
 - Lifecycle: `chooseStanding` / `chooseRule` / `setRated` move a `version`; `lockAtRoll` copies the effective

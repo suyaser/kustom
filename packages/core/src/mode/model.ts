@@ -32,7 +32,10 @@ export type ClassTag = (typeof CLASS_TAGS)[number];
 /** A region slug from the region table (M15.9), e.g. `ionia`, `shadow-isles`. */
 export type RegionId = string;
 
-/** The region table's slug for a champion with no region: a known fact, never drawn, in no pool. */
+/**
+ * The region table's slug for a champion with no region: a known fact, never drawn, in no pool.
+ * In `ChampionFacts` it is the empty set; `regionOpenCounts` tallies empty sets under this key.
+ */
 export const UNAFFILIATED: RegionId = 'unaffiliated';
 
 /** Blue's and red's region for one region wars game, drawn at Roll. */
@@ -62,11 +65,20 @@ export const RULE_OPTIONS: readonly RuleOption[] = [
 /**
  * What core needs to know about one champion. `null` means "not in that table" (a champion newer
  * than the pin, a missing region row), which the check reports as `couldn't check`, never `broke`.
- * `region: 'unaffiliated'` is known: in no region.
+ *
+ * `region` is a set (M20 D1): Riot Universe's region plus at most one Kustom home region, as a
+ * readonly array. Membership is the only region fact: a champion is in every region it lists, in
+ * both pools when both are drawn, and `kept` for either side. The empty set is `unaffiliated`
+ * (known: in no region, in no pool, `broke` on any side). `UNAFFILIATED` inside a set is ignored.
  */
 export interface ChampionFacts {
   tags: readonly string[] | null;
-  region: RegionId | null;
+  region: readonly RegionId[] | null;
+}
+
+/** True when the champion's set names `region`. `unaffiliated` is never a member of anything. */
+export function inRegion(facts: ChampionFacts | undefined, region: RegionId): boolean {
+  return region !== UNAFFILIATED && (facts?.region?.includes(region) ?? false);
 }
 
 /** The roster: Data Dragon champion key (`game_players.champion_id`) to its facts. */

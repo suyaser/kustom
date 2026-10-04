@@ -35,7 +35,7 @@ describe('classPool: any Data Dragon tag counts', () => {
   });
 
   it('a champion with unknown tags is in no class', () => {
-    const table = new Map([[1, { tags: null, region: 'ionia' }]]);
+    const table = new Map([[1, { tags: null, region: ['ionia'] }]]);
     for (const tag of CLASS_TAGS) expect(classPool(tag, table)).toEqual([]);
   });
 });
@@ -120,7 +120,7 @@ describe('rulePlayable: the disabled-in-picker thresholds (D7)', () => {
     const roster = syntheticRoster({}, { ionia: 8, noxus: 8, unaffiliated: 20, targon: 7 });
     expect(rulePlayable({ id: 'region' }, roster, NONE)).toBe(true);
     // One Noxus champion banned: Noxus drops to 7, only Ionia is left; unaffiliated never counts.
-    const noxusFirst = [...roster.entries()].find(([, f]) => f.region === 'noxus')?.[0] as number;
+    const noxusFirst = [...roster.entries()].find(([, f]) => f.region?.includes('noxus'))?.[0] as number;
     expect(rulePlayable({ id: 'region' }, roster, new Set([noxusFirst]))).toBe(false);
   });
 

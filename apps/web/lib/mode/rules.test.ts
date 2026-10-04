@@ -34,11 +34,11 @@ const state = (over: Partial<ModeState> = {}): ModeState => ({
 function table(): ChampionTable {
   const rows = new Map<number, ChampionFacts>();
   for (let i = 0; i < 12; i += 1) {
-    rows.set(1 + i, { tags: ['Tank'], region: 'ionia' });
-    rows.set(21 + i, { tags: ['Mage'], region: 'noxus' });
-    rows.set(41 + i, { tags: ['Marksman', 'Assassin'], region: 'demacia' });
+    rows.set(1 + i, { tags: ['Tank'], region: ['ionia'] });
+    rows.set(21 + i, { tags: ['Mage'], region: ['noxus'] });
+    rows.set(41 + i, { tags: ['Marksman', 'Assassin'], region: ['demacia'] });
   }
-  rows.set(90, { tags: ['Support'], region: 'unaffiliated' });
+  rows.set(90, { tags: ['Support'], region: [] });
   rows.set(91, { tags: null, region: null });
   return rows;
 }
@@ -384,8 +384,8 @@ describe('the champion table and the RNG', () => {
     const roster = championTable();
     expect(roster.size).toBeGreaterThan(150);
     // Annie (1): a Mage with no region; Garen (86): a Demacian tank and fighter.
-    expect(roster.get(1)).toEqual({ tags: expect.arrayContaining(['Mage']), region: 'unaffiliated' });
-    expect(roster.get(86)?.region).toBe('demacia');
+    expect(roster.get(1)).toEqual({ tags: expect.arrayContaining(['Mage']), region: [] });
+    expect(roster.get(86)?.region).toEqual(['demacia']);
     expect(regionIds()).toContain('unaffiliated');
   });
 

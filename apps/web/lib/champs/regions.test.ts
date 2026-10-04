@@ -124,8 +124,9 @@ describe('never loaded at runtime', () => {
 
 describe('championFacts (the shape core takes per key)', () => {
   it('pairs tags and region; null for unknown', () => {
-    expect(championFacts(103)).toEqual({ tags: ['Mage', 'Assassin'], region: 'ionia' });
-    expect(championFacts(432)?.region).toBe('unaffiliated');
+    expect(championFacts(103)).toEqual({ tags: ['Mage', 'Assassin'], region: ['ionia'] });
+    // Unaffiliated is the empty set (M20.2).
+    expect(championFacts(432)?.region).toEqual([]);
     expect(championFacts(12_345)).toEqual({ tags: null, region: null });
   });
 

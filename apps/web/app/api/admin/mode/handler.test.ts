@@ -172,7 +172,7 @@ describe('POST /api/admin/mode: a rule with too few champions open (QA fix 2026-
   const table = new Map(
     Array.from({ length: 35 }, (_, i) => [
       i + 1,
-      { tags: [i < 5 ? ('Tank' as const) : ('Mage' as const)], region: i < 20 ? 'ionia' : 'noxus' },
+      { tags: [i < 5 ? ('Tank' as const) : ('Mage' as const)], region: [i < 20 ? 'ionia' : 'noxus'] },
     ]),
   );
 
@@ -259,7 +259,7 @@ describe('Spin: POST /api/admin/mode { spin: true } and POST /api/admin/mode/spi
         table: new Map(
           Array.from({ length: 40 }, (_, i) => [
             i + 1,
-            { tags: ['Tank', 'Mage'], region: i < 20 ? 'ionia' : 'noxus' },
+            { tags: ['Tank', 'Mage'], region: [i < 20 ? 'ionia' : 'noxus'] },
           ]),
         ),
       });

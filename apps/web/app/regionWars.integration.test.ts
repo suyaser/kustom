@@ -292,7 +292,8 @@ if (stack === null) {
       const open = regionOpenCounts(table, [...banned]);
       const toBan: number[] = [];
       for (const [id, facts] of table) {
-        const region = facts.region;
+        // One region per champion until M20.3's home list; unaffiliated is the empty set.
+        const region = facts.region?.[0] ?? (facts.region === null ? null : 'unaffiliated');
         if (region === null || region === 'ionia' || region === 'unaffiliated' || banned.has(id)) continue;
         const left = open.get(region) ?? 0;
         if (left <= 7) continue;
@@ -300,7 +301,7 @@ if (stack === null) {
         toBan.push(id);
       }
       const padding = [...table]
-        .filter(([id, facts]) => facts.region === 'unaffiliated' && !banned.has(id))
+        .filter(([id, facts]) => facts.region?.length === 0 && !banned.has(id))
         .map(([id]) => id);
       while (toBan.length % 10 !== 0) toBan.push(padding.shift() ?? 0);
       for (let start = 0; start < toBan.length; start += 10) {

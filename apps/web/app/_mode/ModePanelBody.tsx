@@ -202,7 +202,7 @@ function RegionBody(
   preloadChampionSprites();
   const table = championTable();
   const ids = (region: RegionId) =>
-    [...table].filter(([, facts]) => facts.region === region).map(([id]) => id);
+    [...table].filter(([, facts]) => facts.region?.includes(region)).map(([id]) => id);
   const pool = (side: 'blue' | 'red'): PoolSide => ({
     side,
     title: `${side === 'blue' ? 'BLUE' : 'RED'} ${regionName(regions[side])}`,
