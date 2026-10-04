@@ -1089,7 +1089,13 @@ describe('in game: the teams that started (M21.5)', () => {
   it('custom: the swapped pair on their real sides, the kickoff odds, the new line, no roles', () => {
     const fixture = fixtureOf('in-game-custom');
     const yuki = 'puuid-yuki';
-    render(<TonightView {...fixture} group={ORIGINAL_GROUP} viewer={{ ...MEMBER_VIEWER, puuid: yuki }} />);
+    render(
+      <TonightView
+        {...fixture}
+        group={ORIGINAL_GROUP}
+        viewer={{ kind: 'linked', puuid: yuki, isAdmin: false, isMember: true }}
+      />,
+    );
     expect(h1()).toBe('IN GAME');
     const receipt = screen.getByRole('region', { name: TITLE_IN_GAME });
     const odds = fixture.snapshot.lobby?.kickoff?.blueWinProb ?? Number.NaN;
