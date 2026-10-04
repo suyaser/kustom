@@ -2,7 +2,7 @@
 
 The M2 acceptance line: *two people run the companion, play one custom, and the game appears once in `games`
 with ten `game_players` rows and updated ratings. Kill one companion mid-game; the game still lands.* The
-sequence that proves it, and the evidence to paste back. Site <https://kustom-delta.vercel.app>.
+sequence that proves it, and the evidence to paste back. Site <https://playkustom.com>.
 
 ## Two sessions, and M2 is ticked only after the second
 
@@ -32,7 +32,7 @@ post it".
 4. **The exe**, when M2.6 lands, from
    <https://github.com/suyaser/kustom-releases/releases/latest/download/Kustom.exe> — no GitHub account
    needed. Until then `pnpm --filter companion dev` on the same PC. At the first-run prompt:
-   `https://kustom-delta.vercel.app`, then the token.
+   `https://playkustom.com`, then the token.
 
 ## Session 1: one companion, one PC (an evening, mostly waiting)
 

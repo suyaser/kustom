@@ -213,7 +213,7 @@ sizes, the Kustom version, the League patch, and the log lines named below.
       seconds, and the log shows discovery through the Windows process list (PowerShell `Get-CimInstance`, or
       `wmic`). If you have only one install, a second install is the test; moving the folder is not, the client
       repairs it. The lead updates docs/03's "Process args fallback" row from this.
-- [ ] **Pair.** On production `https://kustom-delta.vercel.app/g/customs/admin`, **Set up this PC as host** →
+- [ ] **Pair.** On production `https://playkustom.com/g/customs/admin`, **Set up this PC as host** →
       **Get a code**; type the six characters into Kustom's Link screen. Kustom shows the group `customs` and the
       admin page's checklist moves; the Hosts page lists the new `Kustom (paired)` token. No token is shown
       anywhere, and the log has a redaction marker wherever a token would have been.

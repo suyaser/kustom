@@ -40,7 +40,7 @@ afterAll(() => {
   }
 });
 
-const ORIGIN = 'https://kustom-delta.vercel.app';
+const ORIGIN = 'https://playkustom.com';
 
 function signInRequest(next?: string | null): Request {
   const body = new URLSearchParams();

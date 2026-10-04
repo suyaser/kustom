@@ -251,7 +251,7 @@ the first draft:
 
 New: `SUPER_ADMIN_USER_IDS`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, and
 `ANTHROPIC_API_KEY` (Production only, so previews never spend). `NEXT_PUBLIC_SITE_URL` must be exactly
-`https://kustom-delta.vercel.app`: if it's wrong, Discord images silently drop. `BOOTSTRAP_ADMIN_PUUID` must be
+`https://playkustom.com`: if it's wrong, Discord images silently drop. `BOOTSTRAP_ADMIN_PUUID` must be
 **your** PUUID, because it now picks `customs`'s permanent owner. Full table: runbook §1.5.
 
 ### AI cost and the kill switch
@@ -295,7 +295,7 @@ Rough order. Items marked **(blocks ship)** gate the 2.0 deploy; the rest can fo
 
   Note: 1.0 can't pair against production until 2.0's server is live, so the deploy comes first either way.
 - [ ] **Discord portal redirects.** Discord developer portal → the sign-in app → OAuth2 → Redirects: add
-  `https://kustom-delta.vercel.app/api/admin/discord/callback` and
+  `https://playkustom.com/api/admin/discord/callback` and
   `http://localhost:3000/api/admin/discord/callback`. Runbook §1.6.
 - [ ] **The two local live checks** (runbook §1.6b): Connect Discord to a scratch channel, and check the `-#`
   line renders small and grey. Paste `PASS`/`FAIL` back.

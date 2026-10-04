@@ -26,7 +26,7 @@ import { groupPageUrl, leaderboardPageUrl, modePageUrl } from '../siteUrl';
  * these, so the screenshots are the builders' own JSON.
  */
 
-export const GAME4_ORIGIN = 'https://kustom-delta.vercel.app';
+export const GAME4_ORIGIN = 'https://playkustom.com';
 export const GAME4_GROUP = { slug: 'customs', name: 'Customs Night' } as const;
 export const GAME4_GAME_ID = '0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12';
 

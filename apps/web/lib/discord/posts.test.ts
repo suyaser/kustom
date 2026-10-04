@@ -146,7 +146,7 @@ describe('10.4 teams, the variants', () => {
   it('a rule opens E1 with the mode line; the author still names the standing mode', () => {
     const [e1] = teamsEmbed(game4TeamsRule()).embeds;
     expect(lines(e1?.description)[0]).toBe(
-      '**This game: tanks only.** Not rated. [See the tanks](https://kustom-delta.vercel.app/g/customs/mode)',
+      '**This game: tanks only.** Not rated. [See the tanks](https://playkustom.com/g/customs/mode)',
     );
     expect(lines(e1?.description).slice(1, 2)).toEqual(['**Blue 49%** · **51% Red**']);
     expect(e1?.author?.name).toBe('Customs Night · Fearless');
@@ -208,7 +208,7 @@ describe('10.4 teams, the variants', () => {
       "Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).",
       explanationLine(GAME4_EXPLANATION),
     ]);
-    expect(e4?.url).toBe('https://kustom-delta.vercel.app/g/customs#how-the-bot-decided');
+    expect(e4?.url).toBe('https://playkustom.com/g/customs#how-the-bot-decided');
   });
 });
 
@@ -276,7 +276,7 @@ describe('10.5 result, the variants', () => {
     // An empty scoreboard is not a clean ten: no post at all, which says nothing about images.
     expect(resultPayload(source, 'g', { slug: 'customs', name: 'Customs Night' }, GAME4_ORIGIN)).toBeNull();
     expect(resultBadgeUrl(GAME4_ORIGIN, 'customs', 'g')).toBe(
-      'https://kustom-delta.vercel.app/og/g/customs/games/g/badge',
+      'https://playkustom.com/og/g/customs/games/g/badge',
     );
     expect(resultBadgeUrl(LOCAL, 'customs', 'g')).toBeUndefined();
   });
@@ -286,7 +286,7 @@ describe('10.14 check 2: Kustom on every post, images only on a public origin', 
   it('every payload is `username: Kustom`, with the avatar on a public origin', () => {
     for (const payload of Object.values(everyPost())) {
       expect(payload.username).toBe(KUSTOM_USERNAME);
-      expect(payload.avatar_url).toBe('https://kustom-delta.vercel.app/og/kustom/avatar?v=2');
+      expect(payload.avatar_url).toBe('https://playkustom.com/og/kustom/avatar?v=2');
     }
     expect(testPostBody().username).toBe('Kustom');
     expect(testPostBody().content).toBe(TEST_POST_TEXT);
@@ -312,14 +312,14 @@ describe('10.14 check 2: Kustom on every post, images only on a public origin', 
       'https://10.0.0.4',
       'https://172.20.1.1',
       'https://kustom.local',
-      'http://kustom-delta.vercel.app',
+      'http://playkustom.com',
       'https://devbox',
       null,
       'not a url',
     ]) {
       expect(publicImageOrigin(origin)).toBeUndefined();
     }
-    expect(publicImageOrigin('https://kustom-delta.vercel.app/anything')).toBe(GAME4_ORIGIN);
+    expect(publicImageOrigin('https://playkustom.com/anything')).toBe(GAME4_ORIGIN);
   });
 
   // M14.61 r2: one host rule for links and images, trailing dot stripped first.
@@ -351,17 +351,11 @@ describe('10.14 check 2: Kustom on every post, images only on a public origin', 
   });
 
   it('keeps public hosts, including the CGNAT neighbours and a trailing-dot public name', () => {
-    for (const host of [
-      'kustom-delta.vercel.app',
-      'kustom-delta.vercel.app.',
-      '100.63.0.1',
-      '100.128.0.1',
-      '8.8.8.8',
-    ]) {
+    for (const host of ['playkustom.com', 'playkustom.com.', '100.63.0.1', '100.128.0.1', '8.8.8.8']) {
       expect(isLocalOrPrivateHost(host)).toBe(false);
     }
     expect(tonightPageUrl('https://192.168.1.5')).toBeUndefined();
-    expect(tonightPageUrl('https://kustom-delta.vercel.app')).toBe(GAME4_ORIGIN);
+    expect(tonightPageUrl('https://playkustom.com')).toBe(GAME4_ORIGIN);
   });
 });
 
@@ -523,7 +517,7 @@ describe('M14.79: the week notes image on the Sunday post', () => {
   });
 
   it('localhost, plain http or a private host sends no image at all', () => {
-    for (const origin of [LOCAL, 'http://kustom-delta.vercel.app', 'https://192.168.1.20', null]) {
+    for (const origin of [LOCAL, 'http://playkustom.com', 'https://192.168.1.20', null]) {
       expect(image(origin)).toBeUndefined();
       const payload = windowSummaryEmbed(
         game4Weekly({ identity: game4Identity(LOCAL), image: image(origin) }),
@@ -610,7 +604,7 @@ describe('10.8 fearless', () => {
 
 describe("10.13 copy: the strings are the copy modules', not retyped", () => {
   it("the mode line keeps M15.6's words: bold and the masked link are layout only", () => {
-    const url = 'https://kustom-delta.vercel.app/g/customs/mode';
+    const url = 'https://playkustom.com/g/customs/mode';
     const line = lines(teamsEmbed(game4TeamsRule()).embeds[0]?.description)[0] ?? '';
     const words = teamsModeWords({ mode: { id: 'class', tag: 'Tank' }, rated: false });
     expect(line.replaceAll('**', '').replace(`(${url})`, '').replace(/[[\]]/g, '')).toBe(
@@ -643,7 +637,7 @@ describe("10.13 copy: the strings are the copy modules', not retyped", () => {
   it('the ratings reset: author, linked title, the sentence, no footer', () => {
     const [e1] = ratingsResetEmbed(game4RatingsReset()).embeds;
     expect(e1?.footer).toBeUndefined();
-    expect(e1?.url).toBe('https://kustom-delta.vercel.app/g/customs/leaderboard?window=all-time');
+    expect(e1?.url).toBe('https://playkustom.com/g/customs/leaderboard?window=all-time');
     expect(e1?.description).toMatch(
       /^Ratings were reset\. Everyone starts at 1200 again\. Top 3 before the reset: /,
     );

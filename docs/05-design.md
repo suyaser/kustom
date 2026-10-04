@@ -3136,11 +3136,11 @@ The same post as the webhook body (abridged to one seat per side):
 ```json
 {
   "username": "Kustom",
-  "avatar_url": "https://kustom-delta.vercel.app/og/kustom/avatar?v=1",
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=1",
   "embeds": [
     { "color": 16764774,
-      "author": { "name": "Customs Night · Fearless", "url": "https://kustom-delta.vercel.app/g/customs" },
-      "title": "Teams are set", "url": "https://kustom-delta.vercel.app/g/customs",
+      "author": { "name": "Customs Night · Fearless", "url": "https://playkustom.com/g/customs" },
+      "title": "Teams are set", "url": "https://playkustom.com/g/customs",
       "description": "**Blue 49%** · **51% Red**\n🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥\nBasically a coin flip.",
       "fields": [
         { "name": "Sitting out", "value": "Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight." },
@@ -3149,7 +3149,7 @@ The same post as the webhook body (abridged to one seat per side):
     { "color": 3054591, "title": "🟦 BLUE", "description": "`top` **FoxHound** · 1224\n…" },
     { "color": 16739125, "title": "🟥 RED", "description": "`top` **H4RDC0R33** · 1531\n…" },
     { "color": 16764774, "title": "How the bot decided",
-      "url": "https://kustom-delta.vercel.app/g/customs#how-the-bot-decided",
+      "url": "https://playkustom.com/g/customs#how-the-bot-decided",
       "description": "Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3\nNext best: …\n-# Red favored 51%. …" }
   ]
 }

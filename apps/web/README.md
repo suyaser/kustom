@@ -238,9 +238,9 @@ No OAuth app exists yet. Once someone creates one:
    so everyone else's stack still starts.
    Hosted: Authentication → Providers → Discord, paste them there.
 5. Supabase → Authentication → URL Configuration: the **Site URL** is the deployment
-   (`https://kustom-delta.vercel.app`), and the redirect allow-list needs **exactly one entry per
+   (`https://playkustom.com`), and the redirect allow-list needs **exactly one entry per
    environment, the app's own callback with no query string**:
-   - hosted: `https://kustom-delta.vercel.app/auth/callback`
+   - hosted: `https://playkustom.com/auth/callback`
    - local: `http://127.0.0.1:3000/auth/callback` (the local `config.toml` already allows it)
 
    No wildcard. Supabase matches `redirect_to` against that list as **exact URLs**, so

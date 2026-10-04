@@ -47,7 +47,7 @@ describe('safeNextPath', () => {
 });
 
 describe('nextUrl', () => {
-  const origin = 'https://kustom-delta.vercel.app';
+  const origin = 'https://playkustom.com';
 
   it('resolves a valid path against the site origin', () => {
     expect(nextUrl('/admin/tokens', origin).toString()).toBe(`${origin}/admin/tokens`);
@@ -68,7 +68,7 @@ describe('nextUrl', () => {
 
 describe('nextCookieOptions', () => {
   it('is HttpOnly, same-site, scoped to the callback and short-lived', () => {
-    expect(nextCookieOptions('https://kustom-delta.vercel.app')).toEqual({
+    expect(nextCookieOptions('https://playkustom.com')).toEqual({
       httpOnly: true,
       sameSite: 'lax',
       secure: true,
