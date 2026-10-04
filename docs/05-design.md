@@ -2583,7 +2583,7 @@ Zaun?". It is reference text. It is not a second name, and it is not a control.
 | Part | Open chip (and the card's `Banned next game`) | Banned chip | Find hit (either) |
 |---|---|---|---|
 | Box | unchanged (8.7.3): grid cell, `--raised`, 1px `--border`, radius 4, padding `4 6 4 5`, gap 7, min-height 40 | unchanged: natural width, transparent, 1px solid `--border`, min-height 34 | inverted as now |
-| Name | unchanged: text 600 17 `--foreground` | unchanged: text 400 15 `--muted-foreground` | `--card` |
+| Name | text 600 17 `--foreground`; **line-height 20px when the chip has a tag** (unchanged at 1.5 when it has none) | text 400 15 `--muted-foreground`; line-height 20px when tagged | `--card` |
 | **Tag** | **text 400 13 (`--fs-2xs`), line-height 16px, `--muted-foreground`**, directly under the name with no extra gap, start-aligned with the name | the same: text 400 13, line-height 16, `--muted-foreground` | **`--card`, full strength** (no opacity, which would fail contrast on the inverted fill) |
 | Icon | unchanged, centred on the name-and-tag stack (the chip keeps `align-items: center`) | unchanged, 55% | full |
 
@@ -2603,9 +2603,14 @@ Zaun?". It is reference text. It is not a second name, and it is not a control.
   - an untagged chip stays 40;
   - a one-line tag makes about 46;
   - a tag that wraps to two lines makes about 62.
+  - These need the name's line-height at 20px inside a tagged chip (ruled in M20.5 round 1). At the
+    inherited 1.5 (25.5px) a one-line tag measured 52 and a wrapped one 68, which made the full `All` pool at
+    375 about a third longer to scroll instead of a sixth, and left a loose gap between name and tag. 20px
+    ties the tag to its name. A name that wraps (`Twisted Fate` on the card at 375) still reads at 17/20. An
+    untagged chip keeps 1.5 and its 40.
   - In a two-column row both cells take the taller height (CSS grid's default stretch), and a lone
     untagged chip keeps its name centred.
-  - Banned chips go from 34 to about 44.
+  - Banned chips go from 34 to about 46 (name 15/20, tag 13/16, padding 4 top and bottom).
 - **Night and Day use the same tokens**, with no `day:` class. `--muted-foreground` measures 5.91 on `--raised`
   and 6.44 on `--card` at Night, and 7.66 and 8.68 at Day (3.2). All of those are above AA, and the 13px floor
   is allowed by 2.7. On a find hit the tag is `--card` on `--foreground`, which is the name's own contrast
@@ -2649,7 +2654,7 @@ and widths are measured at Atkinson 13/400:
 - **1440**, in the dialog:
   - The `All` board's five lane columns (about 210px each, one chip per line) fit almost every tag on one
     line. `Shadow Isles · Bandle City` (Vex) is about 165px, so it is the likeliest to wrap.
-  - The one-lane grid (`minmax(10.5em, 1fr)`, 6 columns of about 181px) and the two region pools (3 columns
+  - The one-lane grid (`minmax(min(100%, 10.5rem), 1fr)`, 6 columns of about 181px) and the two region pools (3 columns
     each) wrap long two-region tags after the dot, as at 375.
   - Nothing else in the dialog moves.
 - **The Mode card, finished, `Banned next game`**: the same chips, so the same tag. Cells there are narrower
@@ -2659,15 +2664,25 @@ and widths are measured at Atkinson 13/400:
 #### 8.15.4 Large text (200%) and reflow
 
 - **The chip grids switch from two columns to one by text size, not by screen width** (the 12.3a idea, done
-  with a grid minimum in em). Each chip list's columns become `repeat(auto-fill, minmax(min(100%, 9em),
+  with a grid minimum in rem). Each chip list's columns become `repeat(auto-fill, minmax(min(100%, 9rem),
   1fr))`, in place of `grid-cols-1 min-[360px]:grid-cols-2`.
-  - At 100% on 375: 343px of body is 21.4em, so there are two columns of 9em (144px) or more, as today.
+  - **rem, not em** (ruled in M20.5 round 1). The pool sets its own font at 17px, so 9em there is 153px, and
+    the panel's 309px list at 375 dropped to one column. rem follows the reader's text-size setting, which
+    is what this rule is for, and ignores the component's font. Measured: two columns at 100% on 375, one
+    at 320, 360, 125% and 200%.
+  - At 100% on 375: the 309px list holds two columns of 9rem (144px) or more, as today.
   - At 320: one column, as today.
   - At 125% and 200% on 375: one column, so the tag line gets the full width minus the icon (about 299px at
     200%, where `Shadow Isles · Bandle City` at 26px is about 330px and breaks after the dot as designed).
-  - The ≥1024 minimums move to em too: one lane `10.5em` (168px at 100%), two pools `9.4em` (150px). The
+  - The ≥1024 minimums move to rem too: one lane `10.5rem` (168px at 100%), two pools `9.4rem` (150px). The
     board stays one chip per column line.
-  - The Mode card's `Banned next game` list uses `minmax(min(100%, 8em), 1fr)`.
+  - The Mode card's `Banned next game` list uses **`repeat(auto-fit, minmax(min(100%, 7rem), 1fr))`**
+    (ruled in M20.5 round 1). The list is 241px at 375, so 8em gave one column at 100%. 7rem gives two at
+    100% and one at 125% and up. It is **`auto-fit`, not `auto-fill`**: each row holds exactly two chips
+    (blue's seat, then red's). With `auto-fill` the 1440 card made five narrow tracks with three empty ones,
+    and `Twisted Fate` wrapped beside blank space. `auto-fit` collapses the empty tracks, so the two chips
+    share the row as they did before. The pool grids keep `auto-fill`, so cells are the same width across
+    lanes.
 - Banned chips already wrap at natural width. At 200% each chip is two lines and the fold just grows.
 - Check at 200% on 375, Night and Day: no sideways scroll, no name or region name broken inside a word, every
   tag fully visible, nothing hidden behind the sticky region heads.
