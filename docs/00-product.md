@@ -35,6 +35,10 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 ## Principles
 
 1. **The bot is the referee.** No human picks teams. Ever. Not the owner, not the admins, not the host.
+   Nobody types teams into Kustom. But the roll is the bot's suggestion, not a lock (the owner, 2026-10-04,
+   M21 D1, planned): if the room moves people around in the client after the roll and plays its own teams,
+   Kustom doesn't argue. From the moment the game starts, the teams that actually play are the ones every
+   screen, number and post uses.
 2. **Zero input.** Nobody checks in, nobody reports results. The client already knows who is in the lobby and
    who won; the companion reads it. Any manual step will be skipped by someone, and skipped steps corrupt ratings.
    The one deliberate exception is **when** to balance (2026-10-03): an admin taps Roll teams once everyone who is
@@ -70,6 +74,9 @@ accused of stacking. New or rotating players make it worse because nobody agrees
 4. Everyone opens the link and sees, without asking, which side they are on and in what role
    (`YOU on RED, playing support`), and why the split is fair. Players switch to their side (Kustom can do it
    for them, M4). Game starts. The page counts the minutes and keeps the receipt up as `ODDS AT KICKOFF`.
+   If people moved sides after the roll anyway, or nobody rolled, the page shows the teams that actually
+   started, with odds for those teams; when people moved sides after the roll, Discord also gets a short
+   `Game on` post with the real teams (M21, planned 2026-10-04).
 5. At end of game Kustom captures the full stats block. Ratings move. The board updates. What each person plays
    is counted too, so their main and backup follow the games they actually play. The ten champions they locked
    are added to the **fearless** pool and those champs are banned from the next custom. Discord posts the ban
@@ -85,8 +92,8 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    Both are rated as usual.
    Some games are played under a **rule** (M15). Before Roll teams an admin picks one on the Mode card, or taps
    **Spin** and the server picks one so nobody can be accused of choosing: `Class wars` (everyone picks from one
-   class, `Tanks only`), `Region wars` (each side picks from its own region, drawn when teams are rolled, `Ionia`
-   vs `Noxus`), and `Mirror match` (your lane opponent plays your champion; until Kustom can open one itself,
+   class, `Tanks only`), `Region wars` (each side picks from its own region, drawn the moment region wars is
+   chosen, `Ionia` vs `Noxus`), and `Mirror match` (your lane opponent plays your champion; until Kustom can open one itself,
    the host opens a Blind Pick custom by hand, and Tonight says so where `Start a lobby` usually is; Spin
    leaves mirror out until then). Everyone sees the rule on the card, its panel (the allowed champions, minus
    the Fearless bans on a Fearless night) and the teams post. A rule lasts **one game**: it locks when teams are
@@ -97,15 +104,22 @@ accused of stacking. New or rotating players make it worse because nobody agrees
    flip `Rated` for the next game, in any mode, before teams are rolled, never after. A not-rated game is
    recorded and posted like any other, but it moves no rating, adds nothing to the Fearless pool and teaches
    nobody a role. A mode change made after teams are rolled is for the next game.
-   Region wars (M20, planned 2026-10-04): some champions count for two regions, where Riot puts them and where
-   they're from (Vi for Piltover and Zaun, every yordle for Bandle City; that second list is ours), so every one
-   of the 13 regions can come up, and each champion chip says its region (`Jinx · Zaun`). A champion both sides'
-   regions share is open to both, and a pair is only drawn if each side still has 8 of its own. An admin can
-   pick one side's region or both before Roll, the rest drawn as usual, and after Roll can tap `Redraw regions`
-   once for two new ones without touching the teams; picks already made stay, and the check reads the new
-   regions. The rule moves onto the lobby when teams are rolled, so anything changed after that is the next
-   game; it comes back to the card if the teams come down or the game was a remake or an ARAM, unless an admin
-   has already picked something else. When two admins tap at once, the last tap wins and both see it.
+   Region wars (M20, planned 2026-10-04, amended the same day): some champions count for two regions, where
+   Riot puts them and where they're from (Vi for Piltover and Zaun, every yordle for Bandle City; that second
+   list is ours), so every one of the 13 regions can come up, and each champion chip says its region (`Jinx ·
+   Zaun`). A champion both sides' regions share is open to both, and a pair is only drawn if each side still
+   has 8 of its own. The two regions are drawn the moment region wars is chosen, by an admin or by Spin, so the
+   card shows `Blue: Zaun · Red: Noxus` and the panel shows both pools before anyone has joined a lobby; nobody
+   waits for teams or a full room to see them. Until the game starts an admin can tap `Redraw regions` for a
+   new pair or set either side to a region they name. Before Roll that changes the next game; after Roll, while
+   the teams are up, it changes this game without touching the teams and the teams post goes out again (picks
+   already made stay, and the check reads the new regions); once the game is in progress the regions stay. If
+   the bans of a game played in between leave the chosen pair too short, the card says so, and Roll draws a new
+   pair unless an admin changes it first. Every mode works this way: what it is (the class, the regions, Rated)
+   is decided and shown when it is chosen, and Roll only makes the teams. The rule moves onto the lobby when
+   teams are rolled, so anything else changed after that is the next game; it comes back to the card, with its
+   regions, if the teams come down or the game was a remake or an ARAM, unless an admin has already picked
+   something else. When two admins tap at once, the last tap wins and both see it.
 6. If more than ten showed up, the server posts who sits: whoever has played most tonight, and between
    equals whoever has gone longest without sitting. On the first game of a night nobody has done either, so
    the post says as much — somebody has to be first — and from the second game on the rotation has real
@@ -162,7 +176,9 @@ says it.
 - **Games the bot did not pick** (recovered from match history, played without a roll, or teams changed in
   the lobby after the roll) get `PRE-GAME ODDS` from everyone's ratings going in, with a line saying Kustom did
   not pick these teams. No gap, no chips, no pick number, because none exist. A game where some of those
-  ratings are missing says `No odds for this game.` and nothing else.
+  ratings are missing says `No odds for this game.` and nothing else. From M21 (planned) this starts when the
+  game starts, not when it ends: the in-game receipt, the poster, the result post, history, a player's page and
+  `Won against the odds` all use the teams that played, never the rolled ones.
 - **In history** the receipt is one line and a thin bar: `Blue was 54%. Blue won.`, with an `Upset` tag under
   50%.
 
@@ -616,7 +632,7 @@ See `02-milestones.md` for the build order. In product terms:
 | Tonight's mode on one card (Normal or Fearless), its panel opens on your lane, at its own link | M14.29 to M14.31 |
 | Reasons to sign in: claim your games, you vs them, your night | M14.33 to M14.36 |
 | A rule for one game (class wars, region wars, mirror match), not rated by default, Spin, a Rated switch | M15 |
-| Region wars on all 13 regions (two-region champions), region tags on champion chips, admins pick or redraw the regions | M20 (planned) |
+| Region wars on all 13 regions (two-region champions), region tags on champion chips, the regions shown as soon as region wars is chosen and redrawn or changed by an admin until the game starts | M20 (planned) |
 | Kustom Premium: AI recap line, weekly storyline, scouting report, behind a per-group flag the operator sets; capped at $2 a group a month; no billing yet | M16 (built; review open, M16.7) |
 | The result as a poster; tonight's earlier games kept on the page | M11 |
 | A picture when a link to tonight, a game or a player is pasted | M11 |
