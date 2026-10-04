@@ -13566,6 +13566,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   matched it (party id reuse, lobby kept open across games, or the eog fallback) and make a game match only a lobby
   whose sided members are the players in it, or create a fresh lobby. Acceptance: an integration test reproduces
   the stale match and shows the fix; the M21.1 query rerun on local fixtures has no `no_visible_cause`.
+- [ ] **M21.12** The game mode at game start. *(owner: `companion-engineer` for the payload, `platform-engineer` for the schema; from M21.5 and M21.6)* The server learns a game is an ARAM only at the end of game, so an ARAM played on custom or unrolled teams shows kickoff odds in game (M21.5) and gets a `Game on` post (M21.6). The engine already reads `/lol-gameflow/v1/session` at GameStart; send its game mode (queue / `gameData.queue` or `map`) in the `in_progress` body as an optional field (Rust payload, zod schema, regenerated goldens), store it on the lobby with the kickoff record, and have Tonight hide the odds and Discord skip the post for ARAM. Verify the field on a real client first (03-lcu-reference). Acceptance: an ARAM start stores the mode, Tonight shows no odds, no `Game on` post; a Rift start is unchanged; an old companion without the field behaves as today.
 
 ```
 M21.1 (audit) --+-- M21.4 (kickoff, server) --+-- M21.5 (Tonight in game) -- M21.9 (after M20.10) --\
