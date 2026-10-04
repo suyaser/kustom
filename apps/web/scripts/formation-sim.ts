@@ -72,8 +72,12 @@ for (const [worldName, synPts] of Object.entries(WORLDS)) {
   }
 }
 
-console.log(`\n=== who gets filled: off-main share by true-skill third, world null, games ${FILLS_FROM}-${GAMES} ===`);
-console.log(`${'variant'.padEnd(12)}${['weakest', 'middle', 'strongest', 'weak/strong'].map((h) => h.padStart(12)).join('')}`);
+console.log(
+  `\n=== who gets filled: off-main share by true-skill third, world null, games ${FILLS_FROM}-${GAMES} ===`,
+);
+console.log(
+  `${'variant'.padEnd(12)}${['weakest', 'middle', 'strongest', 'weak/strong'].map((h) => h.padStart(12)).join('')}`,
+);
 for (const variant of VARIANTS) {
   const shares = fills[variant].map((c) => (100 * c.off) / c.seats);
   const ratio = (shares[0] as number) / (shares[2] as number);

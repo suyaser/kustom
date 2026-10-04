@@ -9,7 +9,10 @@ import { coreBalance, makeWorld, metrics, mulberry32, portBalance, run, type Sim
  * and a previous game's teammates.
  */
 
-function lobby(rng: () => number, base: number): {
+function lobby(
+  rng: () => number,
+  base: number,
+): {
   ten: SimSeat[];
   lastBlue: Set<number> | null;
   pairs: Set<string>;

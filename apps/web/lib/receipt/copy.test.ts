@@ -19,6 +19,7 @@ import {
   plain,
   RECEIPT_ANCHOR,
   type ReceiptSplit,
+  rankedLowerParts,
   ratingGapChip,
   ratingGapChipParts,
   reasonLine,
@@ -199,6 +200,59 @@ describe('reasonLine (STRATEGY §4.4)', () => {
     );
     expect(whyLowerClause({ kind: 'role-costs' })).toBe(
       'and it scored a hair worse overall (repeated teams, recent fills or rounding)',
+    );
+  });
+
+  it('spells the three stored-term clauses (M18.13)', () => {
+    expect(whyLowerClause({ kind: 'repeat' })).toBe("and it's last game's teams again");
+    expect(whyLowerClause({ kind: 'variety', chosenPairs: 1, nextPairs: 4 })).toBe(
+      "and it keeps more of last game's teammates together (4 vs 1 pairs)",
+    );
+    expect(whyLowerClause({ kind: 'recent-fills' })).toBe('and it fills someone who was filled recently');
+  });
+});
+
+describe('reasonLine from stored score parts (M18.13)', () => {
+  const parts = (over: Partial<NonNullable<ReceiptSplit['scoreParts']>> = {}) => ({
+    gap: 90,
+    offRole: 0,
+    repeat: 0,
+    variety: 0,
+    repeatedPairs: 0,
+    ...over,
+  });
+  // Same gap and fills on both, so the reason has to come from the parts.
+  const chosen = split({ gap: 90, scoreParts: parts() });
+  const next = (over: Partial<NonNullable<ReceiptSplit['scoreParts']>>) =>
+    swapped(chosen, 'top', 'top', { gap: 90, blueWinProb: 0.51, scoreParts: parts(over) });
+
+  it('names each term', () => {
+    expect(reasonLine(chosen, next({ repeat: 200 }), 3, name)).toBe(
+      "Next best: swap the top players, B-TOP and R-TOP. That's Blue 51%, and it's last game's teams again.",
+    );
+    expect(reasonLine(chosen, next({ variety: 75, repeatedPairs: 3 }), 3, name)).toBe(
+      "Next best: swap the top players, B-TOP and R-TOP. That's Blue 51%, and it keeps more of last game's teammates together (3 vs 0 pairs).",
+    );
+    expect(reasonLine(chosen, next({ offRole: 60 }), 3, name)).toBe(
+      "Next best: swap the top players, B-TOP and R-TOP. That's Blue 51%, and it fills someone who was filled recently.",
+    );
+  });
+
+  it('keeps the old words for a row stored before score_parts', () => {
+    expect(reasonLine(split({ gap: 90 }), next({ repeat: 200 }), 3, name)).toContain(
+      'and it scored a hair worse overall',
+    );
+  });
+});
+
+describe('rankedLowerParts (M18.13 terms)', () => {
+  it('names each stored term on a split row', () => {
+    expect(plain(rankedLowerParts({ kind: 'repeat' }, false))).toBe("Ranked lower: last game's teams again.");
+    expect(plain(rankedLowerParts({ kind: 'variety', chosenPairs: 2, nextPairs: 4 }, true))).toBe(
+      "Closer odds, but ranked lower: more of last game's teammates together (4 vs 2 pairs).",
+    );
+    expect(plain(rankedLowerParts({ kind: 'recent-fills' }, false))).toBe(
+      'Ranked lower: it fills someone who was filled recently.',
     );
   });
 });

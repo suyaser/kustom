@@ -3,8 +3,9 @@ import {
   describeSwap,
   favoredSide,
   oddsBand,
+  type ScoreParts,
   type SwapDescription,
-  type WhyLower,
+  type WhyLowerScored,
   whyLower,
 } from '@customs/core';
 
@@ -49,6 +50,12 @@ export interface ReceiptSplit {
   offRoleCount: number;
   /** `splits.blue_win_prob`, in [0, 1]. */
   blueWinProb: number;
+  /**
+   * `splits.score_parts` (M18.13, 0045) read through `storedScoreParts`: the terms of the split's
+   * score. `null` or absent for a row stored before the column; the reason then says what it said
+   * before (`role-costs`).
+   */
+  scoreParts?: ScoreParts | null;
 }
 
 export type SideWord = 'Blue' | 'Red';
@@ -191,12 +198,15 @@ export function rerollPrefix(rank: number, splitCount: number): string {
   return rank <= 1 ? '' : `Reroll ${rank - 1} of ${rerollsOf(rank, splitCount)}. `;
 }
 
-/** `<why-lower>` (STRATEGY §4.4), from `whyLower`'s answer. */
-export function whyLowerClause(why: WhyLower): string {
+/**
+ * `<why-lower>` (STRATEGY §4.4), from `whyLower`'s answer. `repeat`, `variety` and `recent-fills`
+ * (M18.13) come only from rows with stored score parts; older rows still get `role-costs`.
+ */
+export function whyLowerClause(why: WhyLowerScored): string {
   return plain(whyLowerClauseParts(why));
 }
 
-export function whyLowerClauseParts(why: WhyLower): Rich {
+export function whyLowerClauseParts(why: WhyLowerScored): Rich {
   switch (why.kind) {
     case 'off-role':
       return ['with ', { num: `${why.k}` }, ' more off their main role'];
@@ -208,9 +218,30 @@ export function whyLowerClauseParts(why: WhyLower): Rich {
         { num: `${why.chosenGap}` },
         ' pts)',
       ];
+    case 'repeat':
+      return [`and it's ${LAST_GAMES_TEAMS} again`];
+    case 'variety':
+      return ['and it keeps more of ', ...varietyParts(why)];
+    case 'recent-fills':
+      return [`and it fills ${FILLED_RECENTLY}`];
     case 'role-costs':
       return ['and it scored a hair worse overall (repeated teams, recent fills or rounding)'];
   }
+}
+
+/** M18.13's reasons share their words between the reason line and the split rows. */
+const LAST_GAMES_TEAMS = "last game's teams";
+const FILLED_RECENTLY = 'someone who was filled recently';
+
+/** `last game's teammates together (4 vs 2 pairs)`: the variety reason's tail, both pair counts. */
+function varietyParts(why: { chosenPairs: number; nextPairs: number }): Rich {
+  return [
+    "last game's teammates together (",
+    { num: `${why.nextPairs}` },
+    ' vs ',
+    { num: `${why.chosenPairs}` },
+    ' pairs)',
+  ];
 }
 
 /** The one sentence for a split that had no runner-up to compare against (duo locks). */
@@ -472,7 +503,7 @@ export function changeFromChosenParts(
 }
 
 /** Why a row ranked below the one in play lost (`whyLower`); `closer` when its odds sat nearer 50/50. */
-export function rankedLowerParts(why: WhyLower, closer: boolean): Rich {
+export function rankedLowerParts(why: WhyLowerScored, closer: boolean): Rich {
   const lead = closer ? 'Closer odds, but ranked lower: ' : 'Ranked lower: ';
   switch (why.kind) {
     case 'off-role':
@@ -490,6 +521,12 @@ export function rankedLowerParts(why: WhyLower, closer: boolean): Rich {
         { num: `${why.chosenGap}` },
         ' pts).',
       ];
+    case 'repeat':
+      return [lead, `${LAST_GAMES_TEAMS} again.`];
+    case 'variety':
+      return [lead, 'more of ', ...varietyParts(why), '.'];
+    case 'recent-fills':
+      return [lead, `it fills ${FILLED_RECENTLY}.`];
     case 'role-costs':
       return [lead, 'it scored a hair worse overall (repeated teams, recent fills or rounding).'];
   }

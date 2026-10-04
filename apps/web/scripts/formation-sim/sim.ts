@@ -252,7 +252,9 @@ export function portBalance(
     offRole.push(o);
     const since = seat.sinceFill;
     offCost.push(
-      since === null ? B.offRolePenalty : B.offRolePenalty * (1 + B.fillProtectionFactor / (Math.max(0, since) + 1)),
+      since === null
+        ? B.offRolePenalty
+        : B.offRolePenalty * (1 + B.fillProtectionFactor / (Math.max(0, since) + 1)),
     );
   }
 
@@ -299,8 +301,14 @@ export function portBalance(
     return n;
   };
 
-  let best: { score: number; off: number; blueIds: number[]; blue: TeamPick; red: TeamPick; gap: number } | null =
-    null;
+  let best: {
+    score: number;
+    off: number;
+    blueIds: number[];
+    blue: TeamPick;
+    red: TeamPick;
+    gap: number;
+  } | null = null;
   for (const mask of BLUE_MASKS) {
     const blue = team(mask);
     const red = team(FULL ^ mask);
@@ -309,7 +317,9 @@ export function portBalance(
     const redIds = red.idx.map((i) => (ten[i] as SimSeat).id);
     const isRepeat =
       lastBlue !== null && (blueIds.every((x) => lastBlue.has(x)) || redIds.every((x) => lastBlue.has(x)));
-    const variety = options.variety ? Math.min(B.varietyCap, B.varietyPerPair * (pairsIn(blue) + pairsIn(red))) : 0;
+    const variety = options.variety
+      ? Math.min(B.varietyCap, B.varietyPerPair * (pairsIn(blue) + pairsIn(red)))
+      : 0;
     const score = gap + (blue.cost + red.cost) + (isRepeat ? B.repeatSplitPenalty : 0) + variety;
     const off = blue.off + red.off;
     const better =
@@ -453,7 +463,9 @@ export function run(world: World, variant: VariantName, games: number): GameReco
         for (const { id, role } of side) s += trueStrength(P[id] as WorldPlayer, role);
         for (let x = 0; x < 5; x += 1)
           for (let y = x + 1; y < 5; y += 1)
-            s += (world.syn[(side[x] as { id: number }).id] as Float64Array)[(side[y] as { id: number }).id] as number;
+            s += (world.syn[(side[x] as { id: number }).id] as Float64Array)[
+              (side[y] as { id: number }).id
+            ] as number;
         return s;
       };
       const diff = strength(split.blue) - strength(split.red);
@@ -519,7 +531,8 @@ function randomSplit(ten: readonly SimSeat[], rng: () => number): Pick<Chosen, '
         s += seat.r * MULT[tier];
         if (tier !== 'main') {
           const since = seat.sinceFill;
-          s -= since === null ? B.offRolePenalty : B.offRolePenalty * (1 + B.fillProtectionFactor / (since + 1));
+          s -=
+            since === null ? B.offRolePenalty : B.offRolePenalty * (1 + B.fillProtectionFactor / (since + 1));
         }
       }
       if (s > bestValue) {

@@ -29,6 +29,8 @@ export interface SplitRowLike {
   blue: readonly Assignment[];
   red: readonly Assignment[];
   explanation: string;
+  /** `splits.score_parts` (M18.13, 0045), as selected: unchecked jsonb, parsed by the mapper. Absent reads as null. */
+  score_parts?: unknown;
 }
 
 /** puuid -> the name the page prints. A puuid missing here prints the shared fallback word. */
