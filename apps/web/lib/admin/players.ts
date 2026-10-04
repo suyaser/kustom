@@ -19,8 +19,8 @@ import type { ServiceClient } from '../supabase';
  */
 
 export interface AdminRating {
-  mu: number;
-  sigma: number;
+  /** The unrounded all-time Kustom Rating (`ratings.r`, M18.7); print it through `displayKustom`. */
+  r: number;
   games: number;
   wins: number;
 }
@@ -187,7 +187,7 @@ export async function listAdminPlayers(
     let query = client
       .from('players')
       .select(
-        'id, puuid, display_name, game_name, tag_line, discord_id, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, ratings(group_id, mu, sigma, games, wins), group_memberships!inner(group_id, role)',
+        'id, puuid, display_name, game_name, tag_line, discord_id, main_role, secondary_role, roles_counted, roles_inferred_at, rank_tier, rank_division, rank_lp, ratings(group_id, r, games, wins), group_memberships!inner(group_id, role)',
         { count: 'exact' },
       )
       // The group's members only (`!inner`), with the group's rating and role (M13.3, M13.4:
@@ -262,7 +262,7 @@ function toAdminPlayerRow(row: {
   rank_tier: string | null;
   rank_division: string | null;
   rank_lp: number | null;
-  ratings: { mu: number | null; sigma: number | null; games: number; wins: number }[];
+  ratings: { r: number | null; games: number; wins: number }[];
   group_memberships: { role: string }[];
 }): AdminPlayerRow {
   const rating = row.ratings[0] ?? null;
@@ -286,9 +286,9 @@ function toAdminPlayerRow(row: {
     rankDivision: row.rank_division,
     rankLp: row.rank_lp,
     rating:
-      rating === null || rating.mu === null || rating.sigma === null
-        ? null // none, or a Kustom-only row (0036) with no OpenSkill pair
-        : { mu: rating.mu, sigma: rating.sigma, games: rating.games, wins: rating.wins },
+      rating === null || rating.r === null
+        ? null // none, or a row the Kustom fold has not filled yet (0036, before the switch rebuild)
+        : { r: rating.r, games: rating.games, wins: rating.wins },
   };
 }
 

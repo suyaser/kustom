@@ -1,5 +1,5 @@
 import { chartGeometry } from '@/lib/board/chart';
-import { SEED_LABEL, START_LABEL, trendSummary } from '@/lib/board/copy';
+import { chartReferenceLabel, trendSummary, weekTrendSummary } from '@/lib/board/copy';
 import type { WindowKind } from '@/lib/night';
 
 /**
@@ -24,8 +24,11 @@ export function RatingChart({
 
   const first = history[0] as number;
   const last = history[history.length - 1] as number;
-  const label = trendSummary(first, last, Math.max(1, history.length - 1));
-  const referenceLabel = kind === 'all-time' ? SEED_LABEL : START_LABEL;
+  const label =
+    kind === 'all-time'
+      ? trendSummary(first, last, Math.max(1, history.length - 1))
+      : weekTrendSummary(last, Math.max(1, history.length - 1), kind);
+  const referenceLabel = chartReferenceLabel(kind === 'all-time' ? 'all-time' : 'week', reference);
 
   return (
     <figure className="relative">
@@ -62,7 +65,7 @@ export function RatingChart({
         className="num absolute end-0 -translate-y-full pb-0.5 text-2xs text-muted-foreground"
         style={{ top: `${geometry.seedPercent}%` }}
       >
-        {`${referenceLabel} ${reference}`}
+        {referenceLabel}
       </span>
     </figure>
   );

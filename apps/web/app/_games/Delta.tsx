@@ -7,7 +7,16 @@ import { cn } from '@/lib/utils';
  * the foreground and a loss at 400 muted, U+2212 for the minus. The visible number is hidden from
  * screen readers and a sentence (`gained 12`) stands in. `null` is `not rated`.
  */
-export function Delta({ value, className }: { value: number | null; className?: string | undefined }) {
+export function Delta({
+  value,
+  className,
+  spoken: words,
+}: {
+  value: number | null;
+  className?: string | undefined;
+  /** Screen-reader words in place of `gained 12` (`58 points this week`, 05-design 11.4). */
+  spoken?: string | undefined;
+}) {
   if (value === null) {
     return <span className={cn('text-xs text-muted-foreground', className)}>{NOT_RATED}</span>;
   }
@@ -26,7 +35,7 @@ export function Delta({ value, className }: { value: number | null; className?: 
       )}
     >
       <span aria-hidden="true">{zero ? '±0' : formatWebDelta(value)}</span>
-      <span className="sr-only">{spoken}</span>
+      <span className="sr-only">{words ?? spoken}</span>
     </span>
   );
 }

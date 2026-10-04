@@ -26,16 +26,20 @@ import {
   RECENT_GAMES_HEADING,
   ratingTileLabel,
   settlingChip,
+  POINTS_COLUMN_LABEL,
+  WEEK_CHANGE_COLUMN_LABEL,
   WEEK_PLAYER_SENTENCE,
-  WEEK_POINTS_WORDS,
+  WEEK_TOTAL_LABEL,
   WELCOME_NO_GAMES,
   WINDOW_EMPTY,
   WON,
   welcomeLine,
   windowLabel,
+  weekChangeWords,
+  weekPointsWords,
   winLossLabel,
 } from '@/lib/board/copy';
-import { explainRatingStart } from '@/lib/board/explain';
+import { explainRatingStart, sideWinChance } from '@/lib/board/explain';
 import { trackPair } from '@/lib/board/recent';
 import type { PlayerBoardView, RatingTrack, RecentGame } from '@/lib/board/types';
 import { type ExplainSubject, oddsGapSentence } from '@/lib/breakdown/copy';
@@ -167,6 +171,11 @@ function StatusChip({ player }: { player: PlayerBoardView }) {
 }
 
 function RatingCard({ player, groupName }: { player: PlayerBoardView; groupName: string }) {
+  // 05-design 11.5: a week they played leads with the week's points. A week with no game keeps the
+  // Rating card (the slot line already says `No games this week yet.`): nobody reads `±0` for nothing.
+  if (player.window !== 'all-time' && player.points !== null && player.games > 0) {
+    return <WeekRatingCard player={player} window={player.window} points={player.points} />;
+  }
   const start = explainRatingStart(player);
   const empty = player.ratedGames === 0 && player.games === 0;
   return (
@@ -179,13 +188,7 @@ function RatingCard({ player, groupName }: { player: PlayerBoardView; groupName:
           </span>
           <StatusChip player={player} />
         </p>
-        {player.window !== 'all-time' && player.points !== null ? (
-          // M14.57: the week's net points beside the all-time Rating, `+86 this week · 5W 2L`.
-          <p data-slot="week-points" className="text-sm text-muted-foreground">
-            <RatingDelta delta={player.points} className="text-md" /> {WEEK_POINTS_WORDS[player.window]} ·{' '}
-            <span className="num">{player.wins}</span>W <span className="num">{player.losses}</span>L
-          </p>
-        ) : player.games === 0 ? null : (
+        {player.games === 0 ? null : (
           <p className="text-sm text-muted-foreground">
             <RecordLine games={player.games} wins={player.wins} losses={player.losses} order="record-first" />
           </p>
@@ -198,6 +201,46 @@ function RatingCard({ player, groupName }: { player: PlayerBoardView; groupName:
         {player.track === 'week' ? (
           <p className="text-sm text-pretty text-muted-foreground">{WEEK_PLAYER_SENTENCE}</p>
         ) : null}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * The Rating card on a week tab (05-design 11.5): `Points this week` leads at the display size,
+ * the all-time Rating moves into the meta line (`7 games · 5W 2L · Rating 1300`), the chart plots
+ * week points from 0, and the week note closes it. No `Started the week at` line: every week starts
+ * at 0 and the note says so.
+ */
+function WeekRatingCard({
+  player,
+  window,
+  points,
+}: {
+  player: PlayerBoardView;
+  window: Exclude<PlayerBoardView['window'], 'all-time'>;
+  points: number;
+}) {
+  return (
+    <Card>
+      <div className="flex flex-col gap-3 p-(--card-pad)">
+        <p data-slot="week-points" className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-md font-bold">{POINTS_COLUMN_LABEL[window]}</span>
+          <RatingDelta
+            delta={points}
+            spoken={weekPointsWords(points, window)}
+            className="text-display leading-none font-stretch-85%"
+          />
+        </p>
+        <p data-slot="week-meta" className="text-sm text-muted-foreground">
+          <RecordLine games={player.games} wins={player.wins} losses={player.losses} />
+          {' · '}
+          {RATING_LABEL} <span className="num">{player.rating}</span>
+        </p>
+        {player.history.length === 0 ? null : (
+          <RatingChart history={player.history} reference={player.reference} window={player.window} />
+        )}
+        <p className="text-sm text-pretty text-muted-foreground">{WEEK_PLAYER_SENTENCE}</p>
       </div>
     </Card>
   );
@@ -288,11 +331,19 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
     lens === 'self' ? { kind: 'you' } : subjectFor(player.puuid, viewerPuuid, player.name);
   const unrated = player.recent.some((game) => trackPair(game, player.track) === null);
   const nameless = isNameless(player.name);
+  /** On a week tab, which week (05-design 11.5's column label, total row and spoken changes). */
+  const week = player.window === 'all-time' ? null : player.window;
   return (
     <section aria-labelledby="player-games" className="flex flex-col gap-3">
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="flex flex-row items-baseline justify-between gap-3 pb-2">
           <CardTitle id="player-games">{RECENT_GAMES_HEADING}</CardTitle>
+          {week === null ? null : (
+            // 05-design 11.5: the change column's label, once, over the column.
+            <p data-slot="week-column-label" className="text-xs text-muted-foreground">
+              {WEEK_CHANGE_COLUMN_LABEL[week]}
+            </p>
+          )}
         </CardHeader>
         <ul>
           {player.recent.map((game) => (
@@ -300,6 +351,7 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
               <GameRow
                 game={game}
                 track={player.track}
+                week={week}
                 href={gameHref(game.gameId)}
                 timeZone={timeZone}
                 subject={subject}
@@ -307,6 +359,23 @@ function GamesCard({ lens, player, gameHref, allGamesHref, timeZone, viewerPuuid
             </li>
           ))}
         </ul>
+        {week === null || player.weekTotal === null || player.weekTotal === undefined ? null : (
+          // 05-design 11.5: the column's sum, which equals the header; not a link, not a button.
+          <p
+            data-slot="week-total"
+            className="flex items-baseline justify-between gap-3 border-t border-border px-(--card-pad) py-3 text-sm"
+          >
+            <span>{WEEK_TOTAL_LABEL}</span>
+            {/* Clear of the rows' Why chevron (14px and the 4px gap), so the sum sits under the column. */}
+            <span className="pe-[18px]">
+              <RatingDelta
+                delta={player.weekTotal}
+                width="change"
+                spoken={weekPointsWords(player.weekTotal, week)}
+              />
+            </span>
+          </p>
+        )}
         {allGamesHref === null ? null : (
           <div className="border-t border-border px-(--card-pad) py-1">
             <Link
@@ -343,10 +412,13 @@ function GameRow({
   timeZone,
   subject,
   track,
+  week,
 }: {
   game: RecentGame;
   /** M18.6: a week tab prints the game's weekly change and no Rating after (05-design 11.5). */
   track: RatingTrack;
+  /** Which week a week tab is on (its spoken change: `gained 19 this week`), `null` on All time. */
+  week: Exclude<PlayerBoardView['window'], 'all-time'> | null;
   href: Route | null;
   timeZone: string;
   subject: ExplainSubject;
@@ -402,7 +474,28 @@ function GameRow({
     </>
   );
 
-  const change = delta === null ? null : <RatingDelta delta={delta} className="text-sm" />;
+  const change =
+    delta === null ? null : (
+      <RatingDelta
+        delta={delta}
+        width="change"
+        className="text-sm"
+        {...(week === null ? {} : { spoken: weekChangeWords(delta, week) })}
+      />
+    );
+  const changeCell =
+    change === null ? null : reason === null ? (
+      change
+    ) : (
+      <WhyButton className="-my-2.5 -me-1 pe-1">{change}</WhyButton>
+    );
+  const award =
+    game.award === null ? null : (
+      <Chip className="font-bold">{game.award === 'mvp' ? MVP_LABEL : ACE_LABEL}</Chip>
+    );
+  // 05-design 11.6.3: a week row's odds sentence opens `On this week's numbers` when the weekly
+  // odds differ from the roll odds the row prints; this is that printed number, for this side.
+  const rollSidePct = sideWinChance(game.blueWinProb, game.side);
 
   const row = (
     <div
@@ -436,20 +529,17 @@ function GameRow({
             <span className="sr-only">{` ${RATING_LABEL}`}</span>
           </span>
         )}
-        <span className="flex items-center gap-1.5">
-          {change === null ? null : reason === null ? (
-            change
-          ) : (
-            <WhyButton className="-my-2.5 -me-1 pe-1">{change}</WhyButton>
-          )}
-          {game.award === null ? null : (
-            <Chip className="font-bold">{game.award === 'mvp' ? MVP_LABEL : ACE_LABEL}</Chip>
-          )}
+        {/* All time: the change and the chip on one line under the Rating. A week tab has no Rating
+            line, so the change leads the column alone and the chip sits under it (05-design 11.5),
+            keeping the changes in one right-aligned column down to the `Week total` row. */}
+        <span className={cn('flex gap-1.5', week === null ? 'items-center' : 'flex-col items-end')}>
+          {changeCell}
+          {award}
         </span>
       </span>
       {reason === null ? null : (
         <WhyPanel className="col-span-full">
-          <WhyText reason={reason} subject={subject} />
+          <WhyText reason={reason} subject={subject} options={{ rollSidePct }} />
         </WhyPanel>
       )}
     </div>

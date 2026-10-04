@@ -102,21 +102,21 @@ export function changeWords(delta: number): string {
 }
 
 /**
- * The week windows' note (M7.3; rewritten by M14.57 when the weekly track was retired): the week
- * ranks by the points its games moved, and All time is the Rating that makes teams. Also the
- * Discord week footer. [NEW COPY, M14.57; the web lane may reword it]
+ * The week windows' note (M7.3; M14.57; rewritten for the Kustom weekly track by M18.7 from
+ * 05-design 11.4): everyone starts the week at 0, the week counts only its own games, and All time
+ * is the one that makes teams. Also the Discord Sunday post's footer (11.8), so the page and the
+ * post say the same sentence. [DRAFT COPY, 05-design 11.4; product finalises in M18.9]
  */
 export const WEEK_BOARD_SENTENCE_SHORT =
-  "Points are the Rating won or lost in the week's games, so one good night can top the week. All time is the one that makes teams." as const;
+  "Everyone starts the week at 0. Points come from this week's games only, so one good night can top the week. All time is the one that makes teams." as const;
 
 /**
- * The player page's week note (M7.16; rewritten by M14.57); `your` on the self lens (copy review
- * row 27). [NEW COPY, M14.57; the web lane may reword it]
+ * The player page's week note under the chart (M7.16; M14.57; M18.7 from 05-design 11.5). One
+ * sentence on every lens: it names no person. [DRAFT COPY, 05-design 11.5; product finalises in
+ * M18.9]
  */
-export function weekPlayerSentence(whose: 'their' | 'your'): string {
-  return `Points are the Rating won or lost in this week's games. The Rating above is ${whose} all-time one, the one that makes teams.`;
-}
-export const WEEK_PLAYER_SENTENCE = weekPlayerSentence('their');
+export const WEEK_PLAYER_SENTENCE =
+  "Everyone starts the week at 0. This week's games only. Rating is all time, the one that makes teams." as const;
 
 /**
  * The week boards' column label over the sorted number (M14.57, product's [NEW COPY]):
@@ -136,6 +136,39 @@ export const WEEK_POINTS_WORDS: Readonly<Record<Exclude<WindowKind, 'all-time'>,
   'last-week': 'last week',
 };
 
+/**
+ * Week points as a screen reader hears them (05-design 11.4): `58 points this week`, `minus 33
+ * points last week`, `0 points this week`. The visible number is `aria-hidden`.
+ */
+export function weekPointsWords(points: number, window: Exclude<WindowKind, 'all-time'>): string {
+  const size = Math.abs(points);
+  const sign = points < 0 ? 'minus ' : '';
+  return `${sign}${size} ${size === 1 ? 'point' : 'points'} ${WEEK_POINTS_WORDS[window]}`;
+}
+
+/**
+ * A week row's change as a screen reader hears it (05-design 11.5, 11.6.5): `gained 19 this week`;
+ * the Why button adds `. Why?` after it.
+ */
+export function weekChangeWords(delta: number, window: Exclude<WindowKind, 'all-time'>): string {
+  return `${changeWords(delta)} ${WEEK_POINTS_WORDS[window]}`;
+}
+
+/**
+ * The closing row of a week's game list (05-design 11.5): the sum of the column, which equals the
+ * header. Not a link, not a button. [DRAFT COPY, 05-design 11.5]
+ */
+export const WEEK_TOTAL_LABEL = 'Week total';
+
+/**
+ * The week tab's game list column label, over the change column (05-design 11.5): the window's own
+ * word, `This week` / `Last week`.
+ */
+export const WEEK_CHANGE_COLUMN_LABEL: Readonly<Record<Exclude<WindowKind, 'all-time'>, string>> = {
+  'this-week': 'This week',
+  'last-week': 'Last week',
+};
+
 /** The player page with no rated game in the group (the new-player state). [NEW COPY] */
 export function noGamesYetLine(groupName: string): string {
   return `No games with ${groupName} yet. Their first one shows up here.`;
@@ -149,6 +182,15 @@ export const ALL_YOUR_GAMES = 'All your games';
 /** The trend chart's accessible summary (`role="img"`). [NEW COPY] */
 export function trendSummary(from: number, to: number, games: number): string {
   return `Rating went from ${from} to ${to} over ${ratedGamesLabel(games)}.`;
+}
+
+/**
+ * The week chart's accessible summary (05-design 11.2: week points from 0): `Points this week went
+ * from 0 to +36 over 7 rated games.` [NEW COPY, M18.7]
+ */
+export function weekTrendSummary(to: number, games: number, window: Exclude<WindowKind, 'all-time'>): string {
+  const signedTo = to === 0 ? '0' : to > 0 ? `+${to}` : `minus ${Math.abs(to)}`;
+  return `${POINTS_COLUMN_LABEL[window]} went from 0 to ${signedTo} over ${ratedGamesLabel(games)}.`;
 }
 
 /** The self lens's Rating tile label: `Rating, #3`, or `Rating` while settling. */
@@ -301,19 +343,18 @@ export const NOT_RATED_HINT =
 /** `05-design.md`, "Rating history": the chart's title, the same word as line 2 of a row. */
 export const CHART_TITLE = RATING_LABEL;
 
-/** The label on the hairline reference line, in the same units as the series. */
-/** `start` on All time too (copy review row 28): `seed` is our word, not a friend's. */
-export const SEED_LABEL = 'start';
-
 /**
- * The same hairline, in a window: the rating the player carried **into** it (M5.12).
- *
- * `seed` is where the board started them — since M7.19 the same provisional number for everybody,
- * and never their rank — and it is a fact about their whole history; the line on `This week`'s
- * chart is where Sunday found them, which is not a seed and may not borrow the word. `All time`
- * keeps {@link SEED_LABEL}, unchanged.
+ * The chart's reference line labels (05-design 11.2, M18.7): `Start 1200` on `All time`, the 1200
+ * every Rating starts at; `Week start` on a week, whose series is week points from 0, so that label
+ * carries no number. [DRAFT COPY, 05-design 11.2]
  */
-export const START_LABEL = 'start';
+export const SEED_LABEL = 'Start';
+export const START_LABEL = 'Week start';
+
+/** The reference line's whole label: `Start 1200` on `All time`, `Week start` on a week. */
+export function chartReferenceLabel(track: 'all-time' | 'week', reference: number): string {
+  return track === 'all-time' ? `${SEED_LABEL} ${reference}` : START_LABEL;
+}
 
 /** The player page's two sections under the chart. Plain nouns; the content is the vocabulary. */
 export const ROLE_RECORD_HEADING = 'By role';
@@ -504,10 +545,11 @@ export function gameExplanation(chance: number): string {
 
 /**
  * The point of the whole task, under the list and **once per page** — not per row. No maths, no
- * formula, no link to a paper (product, 2026-09-10).
+ * formula, no link to a paper (product, 2026-09-10). M18.7 swapped the sigma clause for the first-ten one
+ * [DRAFT COPY; product finalises in M18.9].
  */
 export const RATING_EXPLANATION =
-  'Beating the favourite side moves your rating more than beating the underdog, and it moves faster while the bot is still unsure about you.';
+  'Beating the favourite side moves your rating more than beating the underdog, and your first 10 games count extra.';
 
 /* ---------------------------------------------------------------------------
  * The MVP and the ACE (M7.10). The bonus itself is M7.9's and lives in the

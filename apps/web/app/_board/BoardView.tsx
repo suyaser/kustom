@@ -127,12 +127,13 @@ export function BoardView({ board, viewerPuuid, sort, page, path, playerHref, st
             <Card>
               {week && board.window !== 'all-time' ? (
                 // M14.57: the week's sorted number, named once over its column.
-                <p className="flex justify-end border-b border-border px-(--card-pad) py-2 text-xs font-bold text-muted-foreground">
+                <p className="flex justify-end border-b border-border px-(--card-pad) py-2 text-xs text-muted-foreground">
                   {POINTS_COLUMN_LABEL[board.window]}
                 </p>
               ) : null}
               <BoardList
                 rows={shownRanked}
+                window={board.window}
                 firstRank={from + 1}
                 viewerPuuid={viewerPuuid}
                 playerHref={playerHref}
@@ -150,6 +151,7 @@ export function BoardView({ board, viewerPuuid, sort, page, path, playerHref, st
             <Card>
               <BoardList
                 rows={shownSettling}
+                window={board.window}
                 firstRank={null}
                 viewerPuuid={viewerPuuid}
                 playerHref={playerHref}

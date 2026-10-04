@@ -6,7 +6,7 @@ import { NameText } from '@/components/names/name-text';
 import { CompactReceipt } from '@/components/receipt';
 import { buttonVariants } from '@/components/ui/button';
 import { SideGlyph } from '@/components/ui/side-glyph';
-import { SEE_FALLBACK, winLossLabel } from '@/lib/board/copy';
+import { SEE_FALLBACK, weekPointsWords, winLossLabel } from '@/lib/board/copy';
 import { rowChange } from '@/lib/board/rowChange';
 import type { BoardRow, EmptyWindowFallback } from '@/lib/board/types';
 import { windowHref } from '@/lib/board/windowKinds';
@@ -156,6 +156,8 @@ export function TopFive({
                 {rowChange(row) === null ? null : (
                   <Delta
                     value={rowChange(row) as number}
+                    // 05-design 11.4: the week points, said as `58 points this week`.
+                    spoken={row.points === null ? undefined : weekPointsWords(row.points, 'this-week')}
                     className="w-[5ch] shrink-0 text-right text-md font-stretch-82%"
                   />
                 )}

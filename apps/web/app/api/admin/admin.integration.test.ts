@@ -671,6 +671,7 @@ if (stack === null) {
         player_id: memberPlayerId,
         mu: 24,
         sigma: 6,
+        r: 1244.5,
         games: 3,
         wins: 2,
       });
@@ -682,6 +683,7 @@ if (stack === null) {
         player_id: memberPlayerId,
         mu: 30,
         sigma: 3,
+        r: 1390.25,
         games: 9,
         wins: 9,
       });
@@ -690,7 +692,7 @@ if (stack === null) {
       const { rows } = await listAdminPlayers(db, groups.a, { search: `it-${runId}` });
       const member = rows.find((row) => row.id === memberPlayerId);
 
-      expect(member?.rating).toEqual({ mu: 24, sigma: 6, games: 3, wins: 2 });
+      expect(member?.rating).toEqual({ r: 1244.5, games: 3, wins: 2 });
       expect(member?.discordId).toBe(memberDiscordId);
       // Admin is the role in A: the member is not one, whatever `players.is_admin` says.
       expect(member?.isAdmin).toBe(false);

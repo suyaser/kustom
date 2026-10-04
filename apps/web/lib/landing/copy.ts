@@ -150,7 +150,8 @@ export const FAQ = [
   { q: 'Do we all need to install something?', a: 'No. One person in the lobby runs it.' },
   {
     q: "What if someone's new?",
-    a: `Everyone starts at ${START_RATING}. A new player's rating moves fast for their first games, then settles.`,
+    // M18.7 [DRAFT COPY, M18.9]: the first-ten rule in place of the sigma-era `moves fast, then settles`.
+    a: `Everyone starts at ${START_RATING}. A new player's first ${SETTLING_GAMES} games count extra while their rating finds its level.`,
   },
   {
     q: 'Can an admin rig it?',
@@ -168,11 +169,19 @@ export const HOW_LEAD =
   'Everything the bot does on a game night, in plain words. No admin, host or player can override any of it.';
 
 export const HOW_RATING_TITLE = 'Your rating';
+/**
+ * `/how`'s rating section on the Kustom rating (M18.7, from M18.9's fairness list and the owner's
+ * numbers in `02-milestones.md` M18). [DRAFT COPY: product finalises the words in M18.9; no line
+ * announces the rebuild.]
+ */
 export const HOW_RATING_LINES = [
-  "Kustom rates everyone with OpenSkill, a rating system built for team games. It keeps two things about you: how good it thinks you are, and how sure it is about that. Your rating is the first one. The second is why a new player's number moves fast and a regular's moves slowly.",
-  `Everyone starts at ${START_RATING}. Win and it goes up, lose and it goes down. Beating a team the bot expected to beat you moves it more than beating a team you were expected to beat.`,
-  `While the bot is still unsure about you it moves fast. After about ${SETTLING_GAMES} games it settles, and until then the board shows you as still settling instead of giving you a rank.`,
-  "Only Summoner's Rift games count. ARAM is tracked but never moves a rating. The game's MVP gets a little more, and the losing side's ACE loses a little less.",
+  `Everyone starts at ${START_RATING}. After each game your rating moves by how surprising the result was: beating the favourite pays more than beating the underdog, and losing as the underdog costs less.`,
+  'A win never lowers your rating and a loss never raises it. Only your own rated games move it, so nothing that happens while you are away changes your number, and nobody can edit it.',
+  `After ${SETTLING_GAMES} games one game moves you 20 at most, and an even game about 8. Your first ${SETTLING_GAMES} count extra, up to twice as much, while your rating finds its level; until then the board shows you as still settling instead of giving you a rank.`,
+  'Everyone on a team starts from the same number for the same result. How you played against your own four then scales it, from ×1.2 for the best game on the winning side to ×0.8. The best player on the winners is the MVP, and the best on the losers is the ACE, who gives back least.',
+  `Once everyone has played ${SETTLING_GAMES} games, the points one team gains come from the other team, so ${START_RATING} stays the average.`,
+  `The week board starts everyone at ${START_RATING} every Sunday and counts only that week's games, so one good night can top the week. Teams are always balanced on the all-time rating.`,
+  "Only Summoner's Rift games count. ARAM is tracked but never moves a rating.",
 ] as const;
 
 export const HOW_SPLIT_TITLE = 'Picking the teams';
@@ -188,7 +197,8 @@ export const HOW_RECEIPT_LEAD =
 export const HOW_RECEIPT_PARTS = [
   {
     term: 'Win chance',
-    body: "The headline number: how likely each side is to win, from everyone's rating and how sure the bot is about each player.",
+    // M18.7 [DRAFT COPY, M18.9]: one odds function since M18; no certainty clause.
+    body: "The headline number: how likely each side is to win, from the gap between the two teams' total ratings. It is the same chance a rating change is worked out from.",
   },
   {
     term: 'Rating gap',
