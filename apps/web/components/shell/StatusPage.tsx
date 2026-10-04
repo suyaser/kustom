@@ -35,12 +35,16 @@ export function StatusPage({
           {children}
           {primary === undefined ? null : (
             <Button asChild variant={children === undefined ? 'default' : 'secondary'}>
-              <Link href={primary.href}>{primary.label}</Link>
+              <Link prefetch="auto" href={primary.href}>
+                {primary.label}
+              </Link>
             </Button>
           )}
           {secondary === undefined ? null : (
             <Button asChild variant="secondary">
-              <Link href={secondary.href}>{secondary.label}</Link>
+              <Link prefetch="auto" href={secondary.href}>
+                {secondary.label}
+              </Link>
             </Button>
           )}
         </div>

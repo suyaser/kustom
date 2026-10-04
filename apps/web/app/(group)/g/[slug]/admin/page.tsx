@@ -39,7 +39,7 @@ export default async function GroupAdminPage({ params }: { params: Promise<{ slu
   }
 
   const client = getServiceClient();
-  const [facts, origin, ratingsSince, premium, hasRatedGame] = await Promise.all([
+  const [facts, origin, ratingsSince, premium, hasRatedGame, invite] = await Promise.all([
     loadChecklistFacts(client, group.id),
     pageOrigin(),
     readRatingsSince(client, group.id),
@@ -47,6 +47,8 @@ export default async function GroupAdminPage({ params }: { params: Promise<{ slu
     access.kind === 'runs-group' ? loadPremiumSection(client, group.id, new Date()) : null,
     // M14.75: no `Reset ratings` before the group's first rated game.
     readHasRatedGame(client, group.id),
+    // In the same round as the rest (app-perf); the operator's is never read.
+    inviteView(access, group.id),
   ]);
   const checklist = deriveChecklist(facts, {
     now: new Date(),
@@ -60,7 +62,7 @@ export default async function GroupAdminPage({ params }: { params: Promise<{ slu
       access={homeAccess(access)}
       checklist={checklist}
       discordHref={discordHref(group)}
-      invite={await inviteView(access, group.id, origin)}
+      invite={invite.kind === 'url' ? { state: 'shown', url: inviteUrl(origin, invite.code) } : invite.view}
       origin={origin}
       members={facts.members}
       nav={adminNav(group, 'home')}
@@ -85,11 +87,10 @@ function homeAccess(access: Exclude<AdminAccess, { kind: 'signed-out' | 'not-adm
 async function inviteView(
   access: Exclude<AdminAccess, { kind: 'signed-out' | 'not-admin' }>,
   groupId: string,
-  origin: string,
-): Promise<InviteView> {
-  if (access.kind === 'operator') return { state: 'hidden', message: INVITE_HIDDEN };
+): Promise<{ kind: 'url'; code: string } | { kind: 'view'; view: InviteView }> {
+  if (access.kind === 'operator') return { kind: 'view', view: { state: 'hidden', message: INVITE_HIDDEN } };
   const invite = await readGroupInvite(getServiceClient(), groupId);
-  return invite === null ? { state: 'none' } : { state: 'shown', url: inviteUrl(origin, invite.code) };
+  return invite === null ? { kind: 'view', view: { state: 'none' } } : { kind: 'url', code: invite.code };
 }
 
 /** This group's Discord settings (M14.23 mounts the page; designer round 1 links it from the row). */

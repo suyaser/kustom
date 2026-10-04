@@ -1,6 +1,7 @@
 import type { Calibration } from '@customs/core';
 import type { Route } from 'next';
 import Link from 'next/link';
+import { EntityLink } from '@/components/links/EntityLink';
 import { CompactReceipt } from '@/components/receipt';
 import { RichText } from '@/components/receipt/parts';
 import { Button } from '@/components/ui/button';
@@ -156,7 +157,9 @@ function EmptyList({ view, seeAll }: { view: GamesListView; seeAll: string | nul
       <p className="text-base">{view.groupHasGames ? NO_GAMES_MATCH : NO_GAMES_YET}</p>
       {view.groupHasGames && seeAll !== null ? (
         <Button asChild variant="secondary">
-          <Link href={seeAll as Route}>{SEE_ALL_DATES}</Link>
+          <Link prefetch="auto" href={seeAll as Route}>
+            {SEE_ALL_DATES}
+          </Link>
         </Button>
       ) : null}
     </div>
@@ -169,7 +172,7 @@ const SIDE_TEXT = { 100: 'text-team-blue', 200: 'text-team-red' } as const;
 export function GameRow({ item, href }: { item: GameListItem; href: string }) {
   return (
     <li className="border-t border-border first:border-t-0">
-      <Link
+      <EntityLink
         href={href as Route}
         className={cn(
           'flex min-h-(--row-min-h) flex-col gap-1 px-(--card-pad) py-3 text-foreground no-underline',
@@ -196,7 +199,7 @@ export function GameRow({ item, href }: { item: GameListItem; href: string }) {
         {item.lines.map((line) => (
           <RowLine key={line.who} line={line} aram={item.aram} />
         ))}
-      </Link>
+      </EntityLink>
     </li>
   );
 }
@@ -264,7 +267,7 @@ function Pagination({ view, base }: { view: GamesListView; base: string }) {
       <span className="flex justify-start">
         {newer === null ? null : (
           <Button asChild variant="outline">
-            <Link href={newer as Route} rel="prev">
+            <Link prefetch="auto" href={newer as Route} rel="prev">
               {NEWER_PAGE}
             </Link>
           </Button>
@@ -276,7 +279,7 @@ function Pagination({ view, base }: { view: GamesListView; base: string }) {
       <span className="flex justify-end">
         {older === null ? null : (
           <Button asChild variant="outline">
-            <Link href={older as Route} rel="next">
+            <Link prefetch="auto" href={older as Route} rel="next">
               {OLDER_PAGE}
             </Link>
           </Button>

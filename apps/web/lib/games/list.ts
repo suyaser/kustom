@@ -87,10 +87,19 @@ export interface GamesListView {
 export interface LoadGamesListOptions {
   groupId: string;
   filters: GamesFilters;
-  viewerPuuid: string | null;
+  /**
+   * May be a promise (the page's session read): it is awaited only when the rows' own lines are
+   * drawn, so the list's reads never wait for the session.
+   */
+  viewerPuuid: string | null | PromiseLike<string | null>;
   timeZone: string;
   /** Injected in tests. */
   now?: Date;
+  /**
+   * The calibration line's reader. Pages pass `cachedGroupCalibration` (cross-request cache, tagged
+   * per group); the default reads it with `client`, which is what tests and scripts get.
+   */
+  calibration?: (groupId: string) => Promise<Calibration>;
 }
 
 export async function loadGamesList(
@@ -100,33 +109,44 @@ export async function loadGamesList(
   const { groupId, timeZone } = options;
   const now = options.now ?? new Date();
 
-  const [members, calibration] = await Promise.all([
-    readMembers(client, groupId),
-    readGroupCalibration(client, groupId),
-  ]);
-  const focus = options.filters.player === null ? undefined : members.byPuuid.get(options.filters.player);
-  const filters: GamesFilters = { ...options.filters, player: focus === undefined ? null : focus.puuid };
-  const range = gamesRange(filters.window, now, timeZone);
-
-  const pageInput = { groupId, filters, range, focusPlayerId: focus?.playerId ?? null };
-  // Count first, then clamp, then read the range: PostgREST answers a range past the end with a
-  // 416 (PGRST103), so a typed `?page=999` must never reach the ranged read (M14.16 review).
-  const total = await countGamePage(client, pageInput);
-  const pages = pageCount(total);
-  filters.page = Math.min(Math.max(1, Math.trunc(filters.page) || 1), pages);
-  const page = { total, games: total === 0 ? [] : await readGamePage(client, pageInput) };
-
-  const groupHasGames = page.total > 0 || (await countGroupGames(client, groupId)) > 0;
-  const items = await assembleItems(client, page.games, {
-    viewerPuuid: options.viewerPuuid,
-    focusPuuid: filters.player,
-    timeZone,
+  // app-perf (2026-10-04): the select's members, the calibration line and the page itself start
+  // together. Only a player filter waits, for one small read that resolves the focus, and the page
+  // and its count are one request on page 1. Every promise ends inside one `Promise.all`.
+  const idsRead = readRatedIds(client, groupId);
+  const membersRead = readMembers(client, groupId, idsRead);
+  const focusRead: Promise<PlayerRef | undefined> =
+    options.filters.player === null
+      ? Promise.resolve(undefined)
+      : readFocus(client, idsRead, options.filters.player);
+  const pageRead = focusRead.then(async (focus) => {
+    const filters: GamesFilters = { ...options.filters, player: focus === undefined ? null : focus.puuid };
+    const range = gamesRange(filters.window, now, timeZone);
+    const page = await readClampedPage(client, {
+      groupId,
+      filters,
+      range,
+      focusPlayerId: focus?.playerId ?? null,
+    });
+    const [groupHasGames, items] = await Promise.all([
+      page.total > 0 ? true : countGroupGames(client, groupId).then((count) => count > 0),
+      assembleItems(client, page.games, membersRead, {
+        viewerPuuid: options.viewerPuuid,
+        focusPuuid: filters.player,
+        timeZone,
+      }),
+    ]);
+    return { focus, filters, page, groupHasGames, items };
   });
+  const [members, calibration, { focus, filters, page, groupHasGames, items }] = await Promise.all([
+    membersRead,
+    options.calibration?.(groupId) ?? readGroupCalibration(client, groupId),
+    pageRead,
+  ]);
 
   return {
     filters,
     total: page.total,
-    pages,
+    pages: page.pages,
     members: members.list,
     // The same distinct name the select prints (M14.69).
     focusName:
@@ -193,9 +213,36 @@ async function countGamePage(client: PublicClient, input: PageInput): Promise<nu
   return count ?? 0;
 }
 
+/**
+ * The page the URL asked for, clamped to one that exists, with the total. Page 1 (every visit from
+ * the tab bar) is one request: the ranged read carries the count. A later page counts first, then
+ * clamps, then reads the range: PostgREST answers a range past the end with a 416 (PGRST103), so a
+ * typed `?page=999` must never reach the ranged read (M14.16 review). Sets `filters.page`.
+ */
+async function readClampedPage(
+  client: PublicClient,
+  input: PageInput,
+): Promise<{ total: number; pages: number; games: GameHead[] }> {
+  const requested = Math.max(1, Math.trunc(input.filters.page) || 1);
+  if (requested === 1) {
+    input.filters.page = 1;
+    const { games, total } = await readGamePage(client, input, true);
+    return { total, pages: pageCount(total), games };
+  }
+  const total = await countGamePage(client, input);
+  const pages = pageCount(total);
+  input.filters.page = Math.min(requested, pages);
+  return { total, pages, games: total === 0 ? [] : (await readGamePage(client, input, false)).games };
+}
+
 /** One page of the list. The caller has clamped `filters.page` to a page that exists. */
-async function readGamePage(client: PublicClient, input: PageInput): Promise<GameHead[]> {
+async function readGamePage(
+  client: PublicClient,
+  input: PageInput,
+  withCount: boolean,
+): Promise<{ games: GameHead[]; total: number }> {
   const from = (input.filters.page - 1) * GAMES_PAGE_SIZE;
+  const count: { count?: 'exact' } = withCount ? { count: 'exact' } : {};
   // Two literal selects so PostgREST's client can type each row; the inner join is the player filter.
   const query =
     input.focusPlayerId === null
@@ -203,13 +250,19 @@ async function readGamePage(client: PublicClient, input: PageInput): Promise<Gam
           .from('games')
           .select(
             'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, mode:raw->>gameMode',
+            count,
           )
       : client
           .from('games')
           .select(
             'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, mode:raw->>gameMode, game_players!inner(player_id)',
+            count,
           );
-  const { data, error } = await withListFilters(query, input)
+  const {
+    data,
+    error,
+    count: total,
+  } = await withListFilters(query, input)
     .order('started_at', { ascending: false })
     .order('lcu_game_id', { ascending: false })
     .range(from, from + GAMES_PAGE_SIZE - 1);
@@ -237,7 +290,7 @@ async function readGamePage(client: PublicClient, input: PageInput): Promise<Gam
         : null,
     });
   }
-  return games;
+  return { games, total: total ?? games.length };
 }
 
 async function countGroupGames(client: PublicClient, groupId: string): Promise<number> {
@@ -253,10 +306,8 @@ async function countGroupGames(client: PublicClient, groupId: string): Promise<n
  * The group's players for the select: everybody with a rating row in this group (anon cannot read
  * memberships, and a member who never played has no games to filter to anyway), by name.
  */
-async function readMembers(
-  client: PublicClient,
-  groupId: string,
-): Promise<{ list: GamesMember[]; byPuuid: Map<string, PlayerRef> }> {
+/** The `players.id` of everybody with a rating row in the group. */
+async function readRatedIds(client: PublicClient, groupId: string): Promise<Set<string>> {
   const ids = new Set<string>();
   for (let from = 0; ; from += 1_000) {
     const { data, error } = await client
@@ -269,22 +320,76 @@ async function readMembers(
     for (const row of data ?? []) ids.add(row.player_id);
     if ((data ?? []).length < 1_000) break;
   }
-  const players = await readPlayersById(client, [...ids]);
+  return ids;
+}
+
+interface Members {
+  list: GamesMember[];
+  byPuuid: Map<string, PlayerRef>;
+  byId: ReadonlyMap<string, PlayerRef>;
+}
+
+/**
+ * The group's players for the select: everybody with a rating row in this group (anon cannot read
+ * memberships, and a member who never played has no games to filter to anyway), by name. The
+ * roster labels start at once, beside the ids.
+ */
+async function readMembers(
+  client: PublicClient,
+  groupId: string,
+  idsRead: Promise<Set<string>>,
+): Promise<Members> {
+  const [players, labels] = await Promise.all([
+    idsRead.then((ids) => readPlayersById(client, [...ids])),
+    // Every option unique: two people with the same name are told apart (M14.69).
+    loadRosterLabels(client, groupId),
+  ]);
   const byPuuid = new Map([...players.values()].map((player) => [player.puuid, player]));
-  // Every option unique: two people with the same name are told apart (M14.69).
-  const labels = await loadRosterLabels(client, groupId);
   const list = [...byPuuid.values()]
     .map((player) => ({ puuid: player.puuid, name: printedName(player.name, labels.get(player.puuid)) }))
     .sort(
       (a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }) || a.puuid.localeCompare(b.puuid),
     );
-  return { list, byPuuid };
+  return { list, byPuuid, byId: players };
+}
+
+/**
+ * The player a `?player=` names, when they have a rating row in the group (the select's rule), or
+ * undefined: one small read by puuid beside the ids, so the page never waits for the whole roster.
+ */
+async function readFocus(
+  client: PublicClient,
+  idsRead: Promise<Set<string>>,
+  puuid: string,
+): Promise<PlayerRef | undefined> {
+  const [ids, { data, error }] = await Promise.all([
+    idsRead,
+    client
+      .from('players_public')
+      .select('id, puuid, display_name, game_name, main_role')
+      .eq('puuid', puuid)
+      .limit(1),
+  ]);
+  if (error) throw new Error(`games: player lookup failed: ${error.message}`);
+  const row = data?.[0];
+  if (row === undefined || row.id === null || row.puuid === null || !ids.has(row.id)) return undefined;
+  return {
+    playerId: row.id,
+    puuid: row.puuid,
+    name: row.display_name ?? row.game_name ?? null,
+    mainRole: row.main_role,
+  };
 }
 
 async function assembleItems(
   client: PublicClient,
   games: readonly GameHead[],
-  options: { viewerPuuid: string | null; focusPuuid: string | null; timeZone: string },
+  membersRead: Promise<Members>,
+  options: {
+    viewerPuuid: string | null | PromiseLike<string | null>;
+    focusPuuid: string | null;
+    timeZone: string;
+  },
 ): Promise<GameListItem[]> {
   if (games.length === 0) return [];
   const [rows, runs] = await Promise.all([
@@ -297,10 +402,14 @@ async function assembleItems(
       games.map((game) => game.lobbyId).filter((id): id is string => id !== null),
     ),
   ]);
-  const players = await readPlayersById(
-    client,
-    rows.map((row) => row.playerId),
-  );
+  // Nearly everybody on a scoreboard is already in the select's roster; read only who is not.
+  const members = await membersRead;
+  const missing = [...new Set(rows.map((row) => row.playerId))].filter((id) => !members.byId.has(id));
+  const [extra, viewerPuuid] = await Promise.all([
+    missing.length === 0 ? new Map<string, PlayerRef>() : readPlayersById(client, missing),
+    options.viewerPuuid,
+  ]);
+  const players = new Map([...members.byId, ...extra]);
   const rowsByGame = new Map<string, ScoreRow[]>();
   for (const row of rows) {
     const list = rowsByGame.get(row.gameId) ?? [];
@@ -314,7 +423,7 @@ async function assembleItems(
       rowsByGame.get(game.id) ?? [],
       players,
       game.lobbyId === null ? [] : (runs.get(game.lobbyId) ?? []),
-      options,
+      { ...options, viewerPuuid },
     ),
   );
 }

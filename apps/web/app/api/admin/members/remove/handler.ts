@@ -7,6 +7,7 @@ import type { NextResponse } from 'next/server';
 import { removeMember } from '@/lib/admin/members';
 import { type AdminContext, type AdminRouteOptions, redirectBack, withAdminAuth } from '@/lib/adminRoute';
 import { safeNextPath } from '@/lib/authNext';
+import { invalidateGroup } from '@/lib/cache/tags';
 
 /** The success notice. Platform's words, listed in the M14.11 report for product to replace. */
 export const MEMBER_REMOVED = 'Removed from the group.';
@@ -38,6 +39,7 @@ export async function handleMemberRemove(
       : context.fail(result.status, result.error);
   }
 
+  invalidateGroup(context.groupId, ['roster', 'admins']);
   if (context.form) return redirectBack(context.request, back, { notice: MEMBER_REMOVED });
 
   return context.respond(

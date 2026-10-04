@@ -2,8 +2,6 @@ import { LOST, WON } from '../board/copy';
 import { sideWinChance } from '../board/explain';
 import { championName } from '../champs/names';
 import { formatMinutes } from '../games/duration';
-import type { HistoryGame } from '../games/types';
-import { historyGameOf } from '../games/view';
 import { LANE_ORDER } from '../laneOrder';
 import { formatDayName } from '../night';
 import { renderWebName } from '../tonight/copy';
@@ -185,6 +183,7 @@ import type {
   PlayerRef,
   RoleCsPair,
   StatsGame,
+  StatsGameRef,
   StatsPlayer,
   StatsRow,
 } from './types';
@@ -268,7 +267,7 @@ function ref(player: StatsPlayer): PlayerRef {
   return { puuid: player.puuid, name: player.name };
 }
 
-type BindGame = (game: StatsGame) => HistoryGame;
+type BindGame = (game: StatsGame) => StatsGameRef;
 
 function openingOf(game: StatsGame, bind: BindGame, label: string | null = null): FunOpening {
   return { label, detail: matchDetail(game.startedAt, game.durationS), game: bind(game) };
@@ -585,8 +584,8 @@ export function funFactsView(
   const counted = countedGames(games);
   const plays = playsOf(counted, players);
   const long = plays.filter((play) => play.game.durationS >= LONG_GAME_S);
-  const rosterByPuuid = new Map(players.map((player) => [player.puuid, player]));
-  const bind: BindGame = (game) => historyGameOf(game, rosterByPuuid, null, timeZone);
+  // A link to the game page is all a page reads off a record's game (`StatsGameRef`).
+  const bind: BindGame = (game) => ({ id: game.id });
   const rec = (
     id: string,
     title: string,

@@ -2,7 +2,7 @@ import { type Calibration, calibration } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import { receiptSplitFromRow } from '@/components/receipt/model';
 import type { StoredSplit } from '@/components/receipt/types';
-import { inChunks } from '../chunks';
+import { mapChunks } from '../chunks';
 import { readAssignments } from '../discord/assemble';
 import type { PublicClient } from '../publicClient';
 import type { PlayerName } from '../tonight/types';
@@ -11,7 +11,7 @@ import { type CalibrationCandidate, calibrationGameOf } from './receipt';
 
 /**
  * The reads the Games list and the game page share (M14.16), all with the anon key through RLS.
- * Every one is batched by `inChunks`, so a page is a handful of round trips and never one per row,
+ * Every one is batched by `mapChunks` (chunks in parallel), so a page is a handful of round trips and never one per row,
  * and none selects `games.raw` whole except the one game page (champion names): the 1.0 list read
  * the blob for every game in the window, which is most of why it was 4.5 MB.
  */
@@ -39,13 +39,14 @@ export interface ScoreRow {
 
 export async function readScoreRows(client: PublicClient, gameIds: readonly string[]): Promise<ScoreRow[]> {
   const rows: ScoreRow[] = [];
-  for (const chunk of inChunks(gameIds)) {
-    const { data, error } = await client
+  for (const { data, error } of await mapChunks(gameIds, (chunk) =>
+    client
       .from('game_players')
       .select(
         'game_id, player_id, side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after',
       )
-      .in('game_id', chunk);
+      .in('game_id', chunk),
+  )) {
     if (error) throw new Error(`games: scoreboard lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.side !== 100 && row.side !== 200) continue;
@@ -86,11 +87,9 @@ export async function readPlayersById(
   playerIds: readonly string[],
 ): Promise<Map<string, PlayerRef>> {
   const players = new Map<string, PlayerRef>();
-  for (const chunk of inChunks(playerIds)) {
-    const { data, error } = await client
-      .from('players_public')
-      .select('id, puuid, display_name, game_name, main_role')
-      .in('id', chunk);
+  for (const { data, error } of await mapChunks(playerIds, (chunk) =>
+    client.from('players_public').select('id, puuid, display_name, game_name, main_role').in('id', chunk),
+  )) {
     if (error) throw new Error(`games: player lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.id === null || row.puuid === null) continue;
@@ -111,11 +110,9 @@ export async function readNamesByPuuid(
   puuids: readonly string[],
 ): Promise<Map<string, PlayerName>> {
   const names = new Map<string, PlayerName>();
-  for (const chunk of inChunks(puuids)) {
-    const { data, error } = await client
-      .from('players_public')
-      .select('puuid, display_name, game_name')
-      .in('puuid', chunk);
+  for (const { data, error } of await mapChunks(puuids, (chunk) =>
+    client.from('players_public').select('puuid, display_name, game_name').in('puuid', chunk),
+  )) {
     if (error) throw new Error(`games: name lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.puuid === null) continue;
@@ -135,13 +132,14 @@ export async function readSplitRuns(
   lobbyIds: readonly string[],
 ): Promise<Map<string, StoredSplit[]>> {
   const byLobby = new Map<string, { rosterKey: string; split: StoredSplit }[]>();
-  for (const chunk of inChunks(lobbyIds)) {
-    const { data, error } = await client
+  for (const { data, error } of await mapChunks(lobbyIds, (chunk) =>
+    client
       .from('splits')
       .select(
         'lobby_id, roster_key, rank, is_chosen, blue_win_prob, gap, off_role_count, blue, red, explanation',
       )
-      .in('lobby_id', chunk);
+      .in('lobby_id', chunk),
+  )) {
     if (error) throw new Error(`games: split lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       const list = byLobby.get(row.lobby_id) ?? [];
@@ -211,12 +209,15 @@ export async function readGroupCalibration(client: PublicClient, groupId: string
 
   const rift = games.filter((game) => !game.aram);
   const chosen = new Map<string, Pick<StoredSplit, 'blue' | 'red' | 'blueWinProb'>>();
-  for (const chunk of inChunks(rift.map((game) => game.lobbyId))) {
-    const { data, error } = await client
-      .from('splits')
-      .select('lobby_id, blue, red, blue_win_prob')
-      .in('lobby_id', chunk)
-      .eq('is_chosen', true);
+  for (const { data, error } of await mapChunks(
+    rift.map((game) => game.lobbyId),
+    (chunk) =>
+      client
+        .from('splits')
+        .select('lobby_id, blue, red, blue_win_prob')
+        .in('lobby_id', chunk)
+        .eq('is_chosen', true),
+  )) {
     if (error) throw new Error(`games: calibration split lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       chosen.set(row.lobby_id, {
@@ -229,11 +230,10 @@ export async function readGroupCalibration(client: PublicClient, groupId: string
 
   const candidates = rift.filter((game) => chosen.has(game.lobbyId));
   const seatsByGame = new Map<string, { playerId: string; side: 100 | 200; rated: boolean }[]>();
-  for (const chunk of inChunks(candidates.map((game) => game.id))) {
-    const { data, error } = await client
-      .from('game_players')
-      .select('game_id, player_id, side, mu_after')
-      .in('game_id', chunk);
+  for (const { data, error } of await mapChunks(
+    candidates.map((game) => game.id),
+    (chunk) => client.from('game_players').select('game_id, player_id, side, mu_after').in('game_id', chunk),
+  )) {
     if (error) throw new Error(`games: calibration seat lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.side !== 100 && row.side !== 200) continue;

@@ -758,6 +758,7 @@ function FullScoreboardLink({ group, gameId }: { group: PageGroup; gameId: strin
   if (href === null) return null;
   return (
     <Link
+      prefetch={false}
       href={href}
       className="inline-flex min-h-11 w-fit items-center text-sm font-bold text-primary-text underline underline-offset-3"
     >

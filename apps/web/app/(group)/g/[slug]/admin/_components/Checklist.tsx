@@ -109,6 +109,7 @@ function Row({
         {hint === null ? null : <p className="text-sm font-bold">{hint}</p>}
         {action === null ? null : (
           <Link
+            prefetch="auto"
             href={action.href as Route}
             className="inline-flex min-h-11 w-fit items-center font-bold text-foreground underline underline-offset-3"
           >

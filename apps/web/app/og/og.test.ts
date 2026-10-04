@@ -15,6 +15,9 @@ const loadPlayerRoles = vi.fn(async () => ({ main: 'mid' as const, backup: 'supp
 const loadPlayerBoard = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 const loadTonight = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 const loadGameDetail = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+// The player and game pages' metadata reads only its title facts (performance plan, phase 1).
+const loadPlayerHead = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+const loadGameHead = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 
 vi.mock('@/lib/publicClient', () => ({ createPublicClient: () => ({}) }));
 vi.mock('@/lib/og/load', async (original) => ({
@@ -25,6 +28,10 @@ vi.mock('@/lib/og/load', async (original) => ({
 vi.mock('@/lib/board/load', () => ({ loadPlayerBoard: (...args: unknown[]) => loadPlayerBoard(...args) }));
 vi.mock('@/lib/tonight/load', () => ({ loadTonight: (...args: unknown[]) => loadTonight(...args) }));
 vi.mock('@/lib/games/detail', () => ({ loadGameDetail: (...args: unknown[]) => loadGameDetail(...args) }));
+vi.mock('@/lib/og/heads', () => ({
+  loadPlayerHead: (...args: unknown[]) => loadPlayerHead(...args),
+  loadGameHead: (...args: unknown[]) => loadGameHead(...args),
+}));
 vi.mock('@/lib/viewer', () => ({
   currentViewer: async () => null,
   currentViewerState: async () => ({ kind: 'anonymous' }),
@@ -94,6 +101,10 @@ beforeEach(() => {
   loadPlayerBoard.mockReset();
   loadTonight.mockReset();
   loadGameDetail.mockReset();
+  loadPlayerHead.mockReset();
+  loadPlayerHead.mockResolvedValue({ puuid: 'puuid-lena', name: 'Lena' });
+  loadGameHead.mockReset();
+  loadGameHead.mockResolvedValue(null);
 });
 
 /** What the rebuilt game page's metadata reads off its loader (M14.16). */
@@ -383,10 +394,23 @@ describe('/g/[slug]/games/[gameId]', () => {
   });
 
   it('emits no share card for a missing game', async () => {
-    loadGameDetail.mockResolvedValue(null);
+    loadGameHead.mockResolvedValue(null);
     const { generateMetadata } = await import('../(group)/g/[slug]/games/[gameId]/page');
     const metadata = await generateMetadata({ params });
     expect(metadata.openGraph).toBeUndefined();
+  });
+
+  it("reads only the game's title facts for its metadata, never the page's loader (a prefetch runs it)", async () => {
+    loadGameHead.mockResolvedValue({
+      gameId: GAME_ID,
+      winningSide: 200,
+      durationLabel: '34 min',
+      nightLabel: 'x',
+    });
+    const { generateMetadata } = await import('../(group)/g/[slug]/games/[gameId]/page');
+    await generateMetadata({ params });
+    expect(loadGameHead).toHaveBeenCalledWith(GAME_ID, GROUP.id, expect.any(String));
+    expect(loadGameDetail).not.toHaveBeenCalled();
   });
 });
 
@@ -407,7 +431,12 @@ describe('share metadata', () => {
   });
 
   it('/g/[slug]/games/[gameId] points at its game card, at the group address', async () => {
-    loadGameDetail.mockResolvedValue(detailFixture);
+    loadGameHead.mockResolvedValue({
+      gameId: GAME_ID,
+      winningSide: detailFixture.winningSide,
+      durationLabel: detailFixture.durationLabel,
+      nightLabel: detailFixture.nightLabel,
+    });
     const { generateMetadata } = await import('../(group)/g/[slug]/games/[gameId]/page');
     const metadata = await generateMetadata({
       params: Promise.resolve({ slug: 'customs', gameId: GAME_ID }),
@@ -417,7 +446,6 @@ describe('share metadata', () => {
   });
 
   it('/g/[slug]/p/[puuid] points at its group player card on any window', async () => {
-    loadPlayerBoard.mockResolvedValue(allTime);
     const { generateMetadata } = await import('../(group)/g/[slug]/p/[puuid]/page');
     expectShareCard(
       await generateMetadata({
@@ -426,6 +454,21 @@ describe('share metadata', () => {
       }),
       '/og/g/customs/p/puuid-lena',
     );
+    // One small read for the title, never the page's loader (a prefetch runs this).
+    expect(loadPlayerHead).toHaveBeenCalledWith('puuid-lena', GROUP.id);
+    expect(loadPlayerBoard).not.toHaveBeenCalled();
+  });
+
+  it('a PUUID with nothing in this group gets the group title and no share card (never their name)', async () => {
+    loadPlayerHead.mockResolvedValue(null);
+    const { generateMetadata } = await import('../(group)/g/[slug]/p/[puuid]/page');
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ slug: 'customs', puuid: 'puuid-outsider' }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(metadata.title).toBe('Customs Night · Kustom');
+    expect(metadata.openGraph).toBeUndefined();
+    expect(metadata.twitter).toBeUndefined();
   });
 });
 

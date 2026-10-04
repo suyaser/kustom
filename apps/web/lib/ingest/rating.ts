@@ -1,5 +1,6 @@
 import type { Rating, Role } from '@customs/core';
 import type { RatingInsert, SideValue } from '@customs/db';
+import { invalidateGroup } from '../cache/tags';
 import { gameModeFromRaw } from '../games/queue';
 import { PLAYERS_PER_GAME } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
@@ -215,6 +216,8 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   }
 
   await applyRatings(client, game.groupId, game.winningSide, rows, after, stored, seeds);
+  // The game's rows carry `mu_after` now: its cached game-derived reads are stale (app-perf).
+  invalidateGroup(game.groupId, ['games']);
 
   // The ten who played, and nobody else (M5.17). Deliberately not fatal: the game is rated and
   // the numbers are right, and a pair that failed to move is fixed by the next game these

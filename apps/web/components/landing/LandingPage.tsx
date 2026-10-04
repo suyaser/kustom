@@ -1,5 +1,6 @@
 import type { Route } from 'next';
 import Link from 'next/link';
+import { EntityLink } from '@/components/links/EntityLink';
 import { FairnessReceipt } from '@/components/receipt';
 import { RichText } from '@/components/receipt/parts';
 import { Button } from '@/components/ui/button';
@@ -121,7 +122,9 @@ function Hero({ data, audience }: { data: LandingData; audience: LandingAudience
           <CreateGroupButton audience={audience} />
           {demoHome === null ? null : (
             <Button asChild variant="secondary">
-              <Link href={demoHome}>{SEE_REAL_GROUP}</Link>
+              <Link prefetch="auto" href={demoHome}>
+                {SEE_REAL_GROUP}
+              </Link>
             </Button>
           )}
         </div>
@@ -160,12 +163,12 @@ function HeroReceipt({
         <figcaption className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
           <span>{liveReceiptCaption(demo.name, formatDayMonth(new Date(hero.startedAt)))}</span>
           {gameHref === null ? null : (
-            <Link
+            <EntityLink
               href={gameHref}
               className="inline-flex min-h-11 items-center font-bold text-foreground underline underline-offset-3"
             >
               {SEE_THIS_GAME}
-            </Link>
+            </EntityLink>
           )}
         </figcaption>
       </figure>

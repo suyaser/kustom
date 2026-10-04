@@ -2,6 +2,7 @@ import type { DeltaReason } from '@customs/core';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EntityLink } from '@/components/links/EntityLink';
 import { FairnessReceipt, PreGameReceipt } from '@/components/receipt';
 import { Chip } from '@/components/ui/chip';
 import { SideGlyph } from '@/components/ui/side-glyph';
@@ -69,6 +70,7 @@ export function GameDetail({
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-(--gutter) py-6 lg:py-8">
         <header className="flex flex-col gap-1">
           <Link
+            prefetch="auto"
             href={backHref as Route}
             className="-ms-1 inline-flex min-h-11 w-fit items-center px-1 text-sm text-foreground underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
@@ -278,12 +280,12 @@ function SeatRowBody({
             renderWebName(seat.name)
           ) : (
             // A standalone link with a 44px target (05-design 5.14): the box grows, the line does not.
-            <Link
+            <EntityLink
               href={href}
               className="-my-3 inline-block py-3 underline decoration-1 underline-offset-3 hover:decoration-2"
             >
               {renderWebName(seat.name)}
-            </Link>
+            </EntityLink>
           )}
           {seat.isViewer ? <span className="sr-only"> ({YOU_WORD.toLowerCase()})</span> : null}
         </span>

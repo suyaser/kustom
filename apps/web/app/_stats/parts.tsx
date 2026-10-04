@@ -2,6 +2,7 @@ import type { Route } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { RoleIcon } from '@/app/_icons/RoleIcon';
+import { EntityLink } from '@/components/links/EntityLink';
 import type { HistoryGame } from '@/lib/games/types';
 import {
   moreGamesLabel,
@@ -26,6 +27,11 @@ import { versusRoast } from '@/lib/versus/copy';
  * time reached 58 MB. Here a game is a **link to its game page**, a list shows its first
  * {@link STATS_ROWS_SHOWN} rows with `Show all` for the rest of that one list, and a row lists its
  * first {@link STATS_OPENINGS_SHOWN} games with the rest one tap away on the Games list.
+ *
+ * **In-content player and game links never prefetch** (`prefetch={false}`;
+ * redesign/research/performance.md finding 1). A segment draws dozens of them, and each prefetch
+ * runs that page's `generateMetadata` on the server (the player page's full loader, the game
+ * page's), so opening Records used to cost a dozen game-page loads nobody asked for.
  */
 
 /** Every link a segment prints, built by the page from the group (`lib/nav.ts`). */
@@ -161,6 +167,7 @@ export function PlayerName({ player, links }: { player: PlayerRef; links: StatsL
   return (
     <Link
       href={href as Route}
+      prefetch={false}
       className={cn(
         className,
         'py-[11px] text-foreground underline decoration-border-strong underline-offset-4 hover:decoration-foreground',
@@ -242,6 +249,7 @@ export function Row({
         <p className="text-xs text-pretty">
           <Link
             href={gameHref as Route}
+            prefetch={false}
             className="py-3 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {line}
@@ -261,9 +269,9 @@ const LINK = cn(
 /** `This game`: the one custom a number came from, on its game page. */
 export function GameLink({ game, links }: { game: Pick<HistoryGame, 'id'>; links: StatsLinks }) {
   return (
-    <Link href={links.game(game.id) as Route} className={cn(LINK, 'w-fit')}>
+    <EntityLink href={links.game(game.id) as Route} className={cn(LINK, 'w-fit')}>
       {THIS_GAME}
-    </Link>
+    </EntityLink>
   );
 }
 
@@ -308,6 +316,7 @@ export function Openings({
           <li key={item.gameId}>
             <Link
               href={links.game(item.gameId) as Route}
+              prefetch={false}
               className={cn(LINK, 'flex-wrap gap-x-2 no-underline hover:underline')}
             >
               <span className="underline underline-offset-4">{item.label}</span>
@@ -319,7 +328,7 @@ export function Openings({
         ))}
         {more > 0 ? (
           <li>
-            <Link href={links.playerGames(playerPuuid) as Route} className={LINK}>
+            <Link href={links.playerGames(playerPuuid) as Route} prefetch={false} className={LINK}>
               {moreGamesLabel(more)}
             </Link>
           </li>

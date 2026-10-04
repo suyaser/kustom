@@ -49,7 +49,7 @@ export interface StoredLock {
 const LOCK_COLUMNS =
   'lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version, lock_no_draw' as const;
 
-interface LockRow {
+export interface LockRow {
   lock_mode: string | null;
   lock_rule: string | null;
   lock_class_tag: string | null;

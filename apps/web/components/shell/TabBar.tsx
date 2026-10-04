@@ -65,6 +65,7 @@ export function TabBar({ group }: { group: PageGroup }) {
         const active = tab.key === current;
         return (
           <Link
+            prefetch="auto"
             key={tab.key}
             href={tab.href}
             aria-current={active ? 'page' : undefined}

@@ -60,7 +60,11 @@ export default async function ResetFearlessConfirm({ params }: { params: Promise
               {FEARLESS_RESET_BUTTON}
             </button>
           </form>
-          <Link href={tonight} className={cn(buttonVariants({ variant: 'secondary' }), 'w-full md:w-auto')}>
+          <Link
+            prefetch="auto"
+            href={tonight}
+            className={cn(buttonVariants({ variant: 'secondary' }), 'w-full md:w-auto')}
+          >
             {FEARLESS_RESET_CANCEL}
           </Link>
         </div>
