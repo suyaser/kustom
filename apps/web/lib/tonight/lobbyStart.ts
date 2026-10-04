@@ -1,6 +1,6 @@
 import { createLobbyCommandPayloadSchema } from '@customs/db/schemas';
 import { type NameableRow, playerLabel } from '../admin/playerName';
-import { nightWindow } from '../commands';
+import { commandStatusAt, nightWindow } from '../commands';
 import type { CreateLobbyProgress } from '../lobbyStart';
 import { DEFAULT_NIGHT_TIME_ZONE } from '../night';
 import type { ServiceClient } from '../supabase';
@@ -77,7 +77,7 @@ export async function loadLobbyStart(
   let query = client
     .from('companion_commands')
     .select(
-      'target_player_id, status, error, payload, created_at, players!inner(puuid, display_name, game_name, tag_line)',
+      'target_player_id, status, error, payload, created_at, expires_at, players!inner(puuid, display_name, game_name, tag_line)',
     )
     .eq('kind', 'create_lobby');
   if (options.groupId !== undefined) query = query.eq('group_id', options.groupId);
@@ -101,17 +101,20 @@ export async function loadLobbyStart(
   // than picked at by hand: a row from an older deploy, or a hand-edited one, leaves both
   // fields null instead of putting `undefined` on a page (the reviewer, 2026-09-10).
   const payload = createLobbyCommandPayloadSchema.safeParse(data.payload);
+  // Past its `expires_at` a live row is already `failed`/`expired` to every reader, before the
+  // sweep writes it (`commandStatusAt`; the status route answers the same).
+  const { status, error: commandError } = commandStatusAt(data, now);
 
   return {
-    status: data.status,
-    error: data.error,
+    status,
+    error: commandError,
     hostName: playerLabel(player),
     lobbyName: payload.success ? payload.data.lobbyName : null,
     lobbyPassword: payload.success ? payload.data.lobbyPassword : null,
     // Only asked once the lobby exists: a create that has not been acked has queued nothing,
     // and a create that failed queued nothing and never will (M4.2).
     invited:
-      data.status === 'acked'
+      status === 'acked'
         ? await countInvites(client, data.target_player_id, data.created_at, window, options.groupId)
         : 0,
   };
