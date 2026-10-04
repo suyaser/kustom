@@ -139,7 +139,7 @@ describe('publishBlockers', () => {
     );
   });
 
-  it('blocks the shell in this repo today, until M17.8 and the user key land', () => {
+  it("this repo is publishable: the shell is the Rust app and the user's key is in", () => {
     const conf = JSON.parse(
       readFileSync(join(import.meta.dirname, '..', '..', 'src-tauri', 'tauri.conf.json'), 'utf8'),
     ) as {
@@ -149,10 +149,8 @@ describe('publishBlockers', () => {
       'https://github.com/suyaser/kustom-releases/releases/latest/download/latest.json',
     ]);
     const lib = readFileSync(join(import.meta.dirname, '..', '..', 'src-tauri', 'src', 'lib.rs'), 'utf8');
-    // Not asserting the count: either blocker alone is enough, and each disappears on its own schedule.
-    expect(publishBlockers({ pubkey: conf.plugins.updater.pubkey, shellSource: lib }).length).toBeGreaterThan(
-      0,
-    );
+    expect(conf.plugins.updater.pubkey).not.toBe(PUBKEY_PLACEHOLDER);
+    expect(publishBlockers({ pubkey: conf.plugins.updater.pubkey, shellSource: lib })).toEqual([]);
   });
 });
 
