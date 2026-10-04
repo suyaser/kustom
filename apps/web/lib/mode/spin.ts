@@ -19,7 +19,11 @@ import { championTable } from './champions';
  * uniformly, then an option, never a standing mode, a family from `SPIN_FAMILIES` (mirror included, M17.17), never an
  * unplayable option, never tonight's previous rule. This file only gathers its inputs: the
  * champion table, the Fearless bans (on a standing-Fearless night only, D7), the previous rule,
- * and a real RNG (`lib/mode/rng.ts`) the browser never sees.
+ * whether tonight's lobby is already open, and a real RNG (`lib/mode/rng.ts`) the browser never sees.
+ *
+ * **Mirror needs a lobby Kustom has not made yet** (QA fix 2026-10-04). Start a lobby asks the
+ * companion for Blind Pick only when it makes the lobby (M17.17); a lobby that is already `open`
+ * was made as it was, most likely Draft Pick. So while one is open, mirror is unplayable for Spin.
  */
 
 export interface SpinInputs {
@@ -28,6 +32,8 @@ export interface SpinInputs {
   bans: readonly number[];
   /** Tonight's previous rule: the live lobby's locked rule, else tonight's last rule game. */
   previous: Mode | null;
+  /** Tonight's lobby is `open` (already made): mirror is out. */
+  lobbyOpen?: boolean;
   rng: Rng;
 }
 
@@ -37,7 +43,7 @@ export function spinFor(state: ModeState, inputs: SpinInputs): RuleOption | null
   return drawSpin(
     RULE_OPTIONS,
     inputs.previous,
-    (rule) => rulePlayable(rule, inputs.table, bans),
+    (rule) => !(rule.id === 'mirror' && inputs.lobbyOpen === true) && rulePlayable(rule, inputs.table, bans),
     inputs.rng,
   );
 }
@@ -51,8 +57,10 @@ export function spinDraw(
   input: { groupId: string; now: Date; timeZone: string; rng: Rng; table?: ChampionTable },
 ): (state: ModeState) => Promise<RuleOption | null> {
   let previous: Promise<Mode | null> | null = null;
+  let lobbyOpen: Promise<boolean> | null = null;
   return async (state) => {
     previous ??= previousRule(client, input.groupId, input.now, input.timeZone);
+    lobbyOpen ??= hasOpenLobby(client, input.groupId);
     const bans =
       state.standing === 'fearless'
         ? (await loadFearless(client, input.groupId)).champions.map((champion) => champion.id)
@@ -61,6 +69,7 @@ export function spinDraw(
       table: input.table ?? championTable(),
       bans,
       previous: await previous,
+      lobbyOpen: await lobbyOpen,
       rng: input.rng,
     });
   };
@@ -114,4 +123,16 @@ export async function previousRule(
     regionBlue: last.data.rule_region_blue,
     regionRed: last.data.rule_region_red,
   });
+}
+
+/** Whether the group has a lobby `open` (filling) right now: one already made, Blind Pick or not. */
+export async function hasOpenLobby(client: ServiceClient, groupId: string): Promise<boolean> {
+  const { data, error } = await client
+    .from('lobbies')
+    .select('id')
+    .eq('group_id', groupId)
+    .eq('status', 'open')
+    .limit(1);
+  if (error) throw new Error(`spin: open lobby lookup failed: ${error.message}`);
+  return (data ?? []).length > 0;
 }

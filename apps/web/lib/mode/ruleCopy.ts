@@ -67,6 +67,16 @@ export function mirrorStatus(open: number | null): string {
   return open === null ? MIRROR_STATUS : `${MIRROR_STATUS} · ${open} open`;
 }
 
+/**
+ * The filling host line (M15.16, back since the 2026-10-04 QA fix): while a lobby fills and the next
+ * game's rule is mirror, the lobby may already be a Draft Pick one (made before mirror was picked,
+ * or by hand), and Start a lobby only asks for Blind Pick when it makes the lobby (M17.17).
+ */
+export const MIRROR_HOST_LEAD = 'Mirror match next.';
+export const MIRROR_HOST_FILLING_REST =
+  'It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.';
+export const MIRROR_HOST_FILLING_LINE = `${MIRROR_HOST_LEAD} ${MIRROR_HOST_FILLING_REST}`;
+
 /** Under the status: `This game only. Then back to Fearless.` */
 export function oneGameLine(standing: StandingModeId): string {
   return `This game only. Then back to ${STANDING_NAME[standing]}.`;

@@ -1,6 +1,7 @@
 import type { Role } from '@customs/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readPickType } from '@/lib/lobbyStart';
+import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD } from '@/lib/mode/ruleCopy';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import {
   descriptionOf,
@@ -18,7 +19,8 @@ import {
  *
  * 1. Standing Fearless and one rated game; Spin, twenty times over, lands on mirror sometimes (M17.17).
  * 2. Mirror picked: rated; `Start the next lobby` stays after a result (no host line) and the
- *    create_lobby it queues asks for blind (`readPickType`).
+ *    create_lobby it queues asks for blind (`readPickType`). While a lobby fills, the host line
+ *    says what to do if it is Draft Pick, and Spin never lands on mirror (QA fix 2026-10-04).
  * 3. Roll locks it; the teams post says `Blind Pick lobby` and `Rated`.
  * 4. Every lane kept: rated, ratings move, exactly its five champions join the pool, and the card
  *    is back on Fearless with `Start the next lobby` back.
@@ -120,7 +122,7 @@ if (stack === null) {
       night.clearPosts();
     });
 
-    it('2. picked: rated; Start a lobby stays (no host line) and asks for a Blind Pick lobby', async () => {
+    it('2. picked: rated; Start a lobby stays and asks for Blind Pick; filling: the host line, and Spin never mirror', async () => {
       const answer = await night.card({ mode: 'mirror' });
       expect(answer).toMatchObject({ mode: 'fearless', next: { rule: 'mirror', rated: true } });
       expect(await readPickType(night.db, night.group.id)).toBe('blind');
@@ -135,8 +137,17 @@ if (stack === null) {
       const party = `${night.group.slug}-filling`;
       const lobbyId = await night.companionLobby(party, night.ten.slice(0, 6));
       const filling = await night.tonightPaint(host());
-      expect(filling).not.toContain('Mirror match next.');
-      expect(filling).not.toContain('needs a Blind Pick lobby');
+      // QA fix 2026-10-04: this lobby already exists and may be Draft Pick, so the host line is back.
+      expect(filling).toContain(MIRROR_HOST_LEAD);
+      expect(filling).toContain(MIRROR_HOST_FILLING_REST);
+
+      // While a lobby is open, Spin never hands it mirror, twenty times over.
+      for (let seed = 1; seed <= 20; seed += 1) {
+        const { status, json } = await night.spin(seededRng(seed));
+        expect(status).toBe(200);
+        expect(json.spun).not.toBe('mirror');
+      }
+      await night.card({ mode: 'mirror' });
       // Close that half lobby out of the way: everybody leaves.
       const { error } = await night.db.from('lobbies').update({ status: 'abandoned' }).eq('id', lobbyId);
       if (error) throw new Error(error.message);

@@ -6,7 +6,7 @@ import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { modeCardView } from '@/lib/mode/card';
 import { championTable } from '@/lib/mode/champions';
 import { MODE_NOW_NORMAL_BODY } from '@/lib/mode/copy';
-import { mirrorStatus } from '@/lib/mode/ruleCopy';
+import { MIRROR_HOST_FILLING_LINE, MIRROR_HOST_LEAD, mirrorStatus } from '@/lib/mode/ruleCopy';
 import { fearlessCounts } from '@/lib/mode/view';
 import { Announcer } from '../_tonight/Announcer';
 import {
@@ -144,12 +144,30 @@ describe('region wars and mirror match', () => {
     expect(document.body.textContent).not.toMatch(/Mirror match next|Host: open a Blind Pick/);
   });
 
-  it('M17.17: no host line while mirror is next, filling or idle', () => {
+  it('filling with mirror next: the host line says what to do if this lobby is Draft Pick (QA fix 2026-10-04)', () => {
     const filling = draw('filling', { rule: 'mirror' });
-    expect(document.body.textContent).not.toMatch(/Mirror match next|needs a Blind Pick lobby/);
-    expect(document.querySelector('[data-slot="mirror-host-line"]')).toBeNull();
+    expect(screen.getByText(MIRROR_HOST_LEAD, { selector: 'b' })).toBeInTheDocument();
+    expect(document.body.textContent).toContain(MIRROR_HOST_FILLING_LINE);
+    expect(document.body.textContent).toContain(
+      'Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.',
+    );
     filling.unmount();
+    // Not for anyone with no linked account, same as Start a lobby.
+    const anon = draw('filling', { rule: 'mirror' }, ANON_VIEWER);
+    expect(document.body.textContent).not.toContain(MIRROR_HOST_LEAD);
+    anon.unmount();
+    // Another rule while filling: no line.
+    const tanks = draw('filling', { rule: 'class:Tank' });
+    expect(document.body.textContent).not.toContain(MIRROR_HOST_LEAD);
+    tanks.unmount();
+  });
+
+  it('M17.17: idle and finished keep Start a lobby (it makes the Blind Pick lobby itself), no host line', () => {
+    const idle = draw('idle', { rule: 'mirror' });
+    expect(document.body.textContent).not.toMatch(/Mirror match next|needs a Blind Pick lobby/);
+    idle.unmount();
     draw('finished', { rule: 'mirror' });
+    expect(document.body.textContent).not.toContain(MIRROR_HOST_LEAD);
     expect(screen.getByRole('button', { name: /lobby/i })).toBeInTheDocument();
   });
 
