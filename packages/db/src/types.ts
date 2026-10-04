@@ -1319,6 +1319,13 @@ export type Database = {
           created_at: string
           group_id: string
           id: string
+          kickoff_at: string | null
+          kickoff_blue: string[] | null
+          kickoff_blue_win_prob: number | null
+          kickoff_kind: string | null
+          kickoff_odds_model: string | null
+          kickoff_red: string[] | null
+          kickoff_swapped: boolean
           lcu_party_id: string
           lobby_name: string | null
           lobby_password: string | null
@@ -1337,6 +1344,13 @@ export type Database = {
           created_at?: string
           group_id: string
           id?: string
+          kickoff_at?: string | null
+          kickoff_blue?: string[] | null
+          kickoff_blue_win_prob?: number | null
+          kickoff_kind?: string | null
+          kickoff_odds_model?: string | null
+          kickoff_red?: string[] | null
+          kickoff_swapped?: boolean
           lcu_party_id: string
           lobby_name?: string | null
           lobby_password?: string | null
@@ -1355,6 +1369,13 @@ export type Database = {
           created_at?: string
           group_id?: string
           id?: string
+          kickoff_at?: string | null
+          kickoff_blue?: string[] | null
+          kickoff_blue_win_prob?: number | null
+          kickoff_kind?: string | null
+          kickoff_odds_model?: string | null
+          kickoff_red?: string[] | null
+          kickoff_swapped?: boolean
           lcu_party_id?: string
           lobby_name?: string | null
           lobby_password?: string | null

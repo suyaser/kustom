@@ -13131,7 +13131,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   are not re-checked (`games.rule_check` is written at record and stays as it was).
 
   *Landed 2026-10-05 (37b33b53, reviewer pass): homeRegions.ts, 31 champions / 32 additions; all 13 regions drawable, all 78 pairs pass D2; Roll draws on the roster (lock.ts).*
-- [ ] **M20.4** Design: region tags on champion chips. *(owner: `designer`; after M20.1; `docs/05-design.md`)*
+- [x] **M20.4** Design: region tags on champion chips. *(owner: `designer`; after M20.1; `docs/05-design.md`)*
   How a chip shows its region names on every pool view (the panel's Fearless pool by lane, the class, region and
   mirror pools, the find box's answer, and the Mode card wherever it shows champion icons), at 375 and 1440, in
   Day and Night, at large text. Display only. Acceptance: (1) 05-design 8.x gains the tag's rule: text, the
@@ -13139,7 +13139,8 @@ or a full room: the card is on Tonight in every state, empty group included.
   row; (2) the Fearless panel (about 170 chips) stays scannable: a frame at 375 with the full pool; (3) the tag is
   in the chip's accessible name (`Jinx, Zaun`); (4) no colour, crest or icon per region; (5) at most 3 rounds.
 
-- [ ] **M20.5** Build: region tags on champion chips. *(owner: `web-engineer`; after M20.3 and M20.4)* Every
+  *Done 2026-10-04 (05-design 8.15).*
+- [x] **M20.5** Build: region tags on champion chips. *(owner: `web-engineer`; after M20.3 and M20.4)* Every
   surface M20.4 names, from the one champion-facts table. Acceptance: (1) M20.4's frames matched at 375 and 1440,
   screenshots; (2) Jinx reads `Zaun`, Vi `Piltover · Zaun` (or M20.4's separator), Zaahen reads `Shurima`, an
   unaffiliated champion reads no tag; (3) a test that a chip's accessible name carries its regions; (4) the find
@@ -13147,6 +13148,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   grows by no more than the table it already ships (`clientGraph.test.ts` passes); (6) M14.30's seven panel
   checks still pass.
 
+  *Landed 2026-10-05 (1f24d189; designer round 2 met: tagged 46 / wrapped 62 / banned 46, auto-fit card list, sprite icons fixed at 24px).*
 - [x] **M20.6** Core: one mode transition. *(owner: `core-engineer`; after the in-flight mode fixes merge and
   after M20.2, same lane; amended 2026-10-04 for M20 D9 to D11)* `lifecycle.ts`'s six functions become one pure
   `transition(state, action)` over the one-row state `{ standing, pending: rule | null, rated }`, where a region
@@ -13457,7 +13459,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   still moves the lobby; (5) no new LCU endpoint, no champ select read; (6) `docs/03-lcu-reference.md` names the
   field's source. Out of scope: reading anything at `ChampSelect`.
 
-- [ ] **M21.4** Kickoff teams and kickoff odds, stored when the game starts. *(owner: `platform-engineer`; after
+- [x] **M21.4** Kickoff teams and kickoff odds, stored when the game starts. *(owner: `platform-engineer`; after
   M21.1; schema shape is OPEN item 1, the brief assumes storing)* In the `in_progress` branch
   (`app/api/companion/game/route.ts:108-127`), in the same request that moves the lobby to `in_game`, and only when
   that move happened: read the frozen sided members (or M21.3's posted teams), classify `rolled | custom |
@@ -13482,6 +13484,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   start, none on the repeat; (6) the migration replays clean from zero (`pnpm db:reset`) and has a throwaway check
   if it adds a function; (7) the companion's answer shape is unchanged.
 
+  *Landed 2026-10-05 (6b68ced4, reviewer pass): migration 0046 (kickoff columns on lobbies), lib/ingest/kickoff.ts, 13 integration tests. Ships after 0046 is on hosted.*
 - [ ] **M21.5** Tonight in game shows the teams that started. *(owners: `web-engineer`, `designer` for the
   changed-side cards (at most 3 rounds); after M21.4)* While `in_game`: the team cards draw the kickoff teams;
   `YOU on RED` and the viewer's seat come from them; the receipt is `FairnessReceipt` in-game for `rolled` (as

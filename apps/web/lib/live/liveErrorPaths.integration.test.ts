@@ -330,11 +330,17 @@ if (stack === null) {
       }
       const after = await db.from('lobbies').select('status').eq('id', lobbyId).single();
       expect(after.data?.status).toBe('in_game');
-      // The companion's retry: the lobby is already `in_game`, so it moves and bumps nothing. The
-      // bump above is the only one Tonight will ever get for this game start.
+      // The companion's retry: the lobby is already `in_game`, so it moves nothing, but the kickoff
+      // record (M21.4) the 500 cut short is written now, and that write bumps `lobby` once.
       const retry = await recorded(() => postGame(companion('game', body)));
       expect(retry.status).toBe(200);
-      expectBumpedLast(retry.writes, [], { groups: [A, B] });
+      expectBumpedLast(retry.writes, [{ groupId: A, kind: 'lobby' }], { groups: [A, B] });
+      const record = await db.from('lobbies').select('kickoff_kind').eq('id', lobbyId).single();
+      expect(record.data?.kickoff_kind).not.toBeNull();
+      // A second retry finds the move and the record done: it writes nothing and bumps nothing.
+      const again = await recorded(() => postGame(companion('game', body)));
+      expect(again.status).toBe(200);
+      expectBumpedLast(again.writes, [], { groups: [A, B] });
     });
 
     it('eog: the game and its players land, the membership insert throws: 500, and `game` still bumps last', async () => {

@@ -1,5 +1,6 @@
 import type { RoleValue } from '@customs/db';
 import type { GroupMode } from '@customs/db/schemas';
+import { championRegionNames } from '@/lib/champs/championFacts';
 import { FEARLESS_BANNED_NEXT, fearlessFromGame } from '@/lib/fearless/copy';
 import { EMPTY_FEARLESS, type FearlessChampion, type FearlessView } from '@/lib/fearless/types';
 import type { PageGroup } from '@/lib/groups/pageGroup';
@@ -118,8 +119,9 @@ function standingView(mode: GroupMode): ModeCardView {
 
 /**
  * Finished: `Banned next game · from game 4` and the ten, five rows of a role and its two chips
- * (blue's seat, then red's), in the open dress: here the ban is the news (8.7.3). Rendered on the
- * server (champion names and sprites stay out of the client card's code).
+ * (blue's seat, then red's), in the open dress: here the ban is the news (8.7.3), each with its
+ * region tag (8.15, M20.5). Rendered on the server (champion names, sprites and the region table
+ * stay out of the client card's code).
  */
 function BannedNext({
   champions,
@@ -150,9 +152,17 @@ function BannedNext({
               {row.role === null ? null : <RoleIcon role={row.role} size={20} />}
               <span className="font-mono text-2xs font-medium font-stretch-75%">{row.role ?? 'other'}</span>
             </span>
-            <ul className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
+            {/* 8.15.4 by text size: two chips a row at 100% on 375 (the list is 241px there, so
+                8.15.4's 8em would make it one), one at 125% and up. auto-fit: a row of two at 1440 stretches, no empty tracks. */}
+            <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] gap-2">
               {row.champions.map((champion) => (
-                <OpenChip key={champion.id} id={champion.id} name={champion.name} square />
+                <OpenChip
+                  key={champion.id}
+                  id={champion.id}
+                  name={champion.name}
+                  regions={championRegionNames(champion.id)}
+                  square
+                />
               ))}
             </ul>
           </li>
