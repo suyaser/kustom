@@ -16,25 +16,29 @@ import {
 
 /**
  * M15.10, Region wars end to end, the M15.8 way: a scratch group's fixture night through the real
- * routes (the card, Roll, Reroll, the companion's lobby and game posts) on the local stack.
+ * routes (the card, Roll, Reroll, the companion's lobby and game posts) on the local stack. M20.7:
+ * the regions are drawn when region wars is chosen (M20 D9), Roll moves them onto the lock, teams
+ * coming down hand them back.
  *
  * 1. Standing Fearless; a rated Fearless game bans Kha'Zix and Cho'Gath (the Void, 9 to 7 open),
  *    under the 8 a region needs. Ezreal takes Piltover from 10 to 9 (Singed and Mel count for it by
  *    their Kustom home, M20.3), so Piltover stays drawable.
- * 2. Region wars picked: the card says sides are drawn at Roll, the panel says the same with the
- *    region credit.
- * 3. Roll draws on the server, with a pinned RNG that would land on the Void if the bans were not
- *    counted: Shurima vs Bilgewater. The teams post names both.
- * 4. Reroll keeps the draw, and its post names the same two.
- * 5. Teams come down (somebody leaves): the copy goes; back to ten, Roll draws again: Ionia vs
- *    Freljord.
+ * 2. Region wars picked: drawn on the server at the pick, with a pinned RNG that would land on the
+ *    Void if the bans were not counted: Shurima vs Bilgewater, in the same write. (The card's
+ *    before-Roll copy is still the pre-M20.8 one; M20.8 shows the pair.)
+ * 3. Roll locks that pair and empties the row. The teams post names both.
+ * 4. Reroll keeps the lock, and its post names the same two.
+ * 5. Teams come down (somebody leaves): the lock goes back to the row, pair included; an admin sets
+ *    Blue to Ionia and Red to Freljord (set side, next game); back to ten, Roll locks them.
  * 6. The card and the panel show both pools, the seated viewer's side first, and the credit.
  * 7. The game: Blue all Ionia, Red three Freljord, Annie (Noxus by home: broke) and a champion
  *    newer than the pin (no row: couldn't check, named as the client named it). Not rated: no pool,
  *    no rating, no role moves.
  * 8. The result post and the poster carry the check line; the card is back on Fearless.
+ * 9. A pending pair the bans made short with no pair left to draw (M20 D6 (d), D11): Roll locks the
+ *    standing mode with Rated as moved, the rule and its pair stay pending, the teams post says so.
  *
- * Skipped without the local stack (or before `0032`).
+ * Skipped without the local stack (or before `0047`).
  */
 
 const stack = await stackWithModes(await resolveLocalStack());
@@ -47,15 +51,13 @@ const GAME0 = [121, 31, 86, 122, 222, 412, 99, 238, 67, 81];
  * either region's partners (M20.3: every pair passes M20 D2 here).
  */
 const FIRST_DRAW = [0.85, 0.1];
-/** The redraw: Ionia of the 12, then Freljord of its 11 partners. */
-const REDRAW = [0.4, 0.3];
 /** Blue: Ahri, Yasuo, Irelia, Karma, Shen (Ionia). Red: Ashe, Sejuani, Braum (Freljord), Annie, a new champion. */
 const NEW_CHAMPION = 9_901;
 const RULE_GAME = [103, 157, 39, 43, 98, 22, 113, 201, 1, NEW_CHAMPION];
 
 if (stack === null) {
   describe.skip('region wars end to end against the local Supabase stack', () => {
-    it('needs the local stack with 0032 applied: `pnpm db:start`', () => {
+    it('needs the local stack with 0047 applied: `pnpm db:start`', () => {
       expect(true).toBe(true);
     });
   });
@@ -114,10 +116,28 @@ if (stack === null) {
       night.clearPosts();
     });
 
-    it('2. picked: the card and the panel say the sides are drawn at Roll, with the credit', async () => {
-      const answer = await night.card({ mode: 'region' });
-      expect(answer).toMatchObject({ mode: 'fearless', next: { rule: 'region', rated: false } });
+    it('2. picked: the pair is drawn at the pick, counting the Fearless bans, in the same write', async () => {
+      // The same RNG with no bans counted would have drawn the Void.
+      expect(
+        drawRegions(regionIds(), regionOpenCounts(championTable(), []), sequenceRng(FIRST_DRAW)),
+      ).toEqual({
+        blue: 'void',
+        red: 'bilgewater',
+      });
+      const answer = await night.card({ mode: 'region' }, sequenceRng(FIRST_DRAW));
+      expect(answer).toMatchObject({
+        mode: 'fearless',
+        state: { pending: { id: 'region', blue: 'shurima', red: 'bilgewater' }, rated: null, nextRated: false },
+        notice: 'Next game: Region wars. Blue: Shurima · Red: Bilgewater. Not rated.',
+        next: { rule: 'region', rated: false },
+      });
+      expect(await night.cardRow()).toMatchObject({
+        pending_rule: 'region',
+        pending_region_blue: 'shurima',
+        pending_region_red: 'bilgewater',
+      });
       shared.lobby = await night.openLobby();
+      // The pre-M20.8 card copy (M20.8 replaces it with the pair).
       const page = await night.tonightPaint();
       expect(page).toContain('Region wars');
       expect(page).toContain('Sides drawn when teams are rolled.');
@@ -127,22 +147,20 @@ if (stack === null) {
       expect(text).toContain(REGION_CREDIT);
     });
 
-    it('3. Roll draws on the server, counting the Fearless bans; the teams post names both regions', async () => {
-      // The same RNG with no bans counted would have drawn the Void.
-      expect(
-        drawRegions(regionIds(), regionOpenCounts(championTable(), []), sequenceRng(FIRST_DRAW)),
-      ).toEqual({
-        blue: 'void',
-        red: 'bilgewater',
-      });
-      await night.roll(shared.lobby.lobbyId, sequenceRng(FIRST_DRAW));
+    it('3. Roll locks the pair the card showed and empties the row; the teams post names both regions', async () => {
+      await night.roll(shared.lobby.lobbyId);
       expect(await night.lockOf(shared.lobby.lobbyId)).toMatchObject({
         status: 'balanced',
         lock_mode: 'fearless',
         lock_rule: 'region',
         lock_region_blue: 'shurima',
         lock_region_red: 'bilgewater',
-        lock_rated: false,
+        lock_rated: null,
+      });
+      expect(await night.cardRow()).toMatchObject({
+        pending_rule: null,
+        pending_region_blue: null,
+        pending_region_red: null,
       });
       expect(night.posts).toHaveLength(1);
       expect(descriptionOf(night.posts[0])).toContain(
@@ -160,9 +178,9 @@ if (stack === null) {
       night.clearPosts();
     });
 
-    it('5. teams coming down drop the draw; the next Roll draws again', async () => {
+    it('5. teams coming down hand the pair back; an admin sets both sides; the next Roll locks them', async () => {
       const { partyId, lobbyId } = shared.lobby;
-      // Somebody leaves: the lobby goes back to filling and the copy goes with the teams.
+      // Somebody leaves: the lobby goes back to filling and the lock goes back to the row.
       expect(await night.companionLobby(partyId, night.ten.slice(0, 9))).toBe(lobbyId);
       expect(await night.lockOf(lobbyId)).toMatchObject({
         status: 'open',
@@ -170,9 +188,22 @@ if (stack === null) {
         lock_region_blue: null,
         lock_region_red: null,
       });
-      expect(await night.cardRow()).toMatchObject({ pending_rule: 'region' });
+      expect(await night.cardRow()).toMatchObject({
+        pending_rule: 'region',
+        pending_region_blue: 'shurima',
+        pending_region_red: 'bilgewater',
+        rated_override: null,
+      });
+      // Set side, next game (M20 D9): the other side keeps its region.
+      expect(await night.card({ side: 'blue', region: 'ionia' })).toMatchObject({
+        state: { pending: { id: 'region', blue: 'ionia', red: 'bilgewater' } },
+        notice: 'Next game: Ionia vs Bilgewater.',
+      });
+      expect(await night.card({ side: 'red', region: 'freljord', game: 'next' })).toMatchObject({
+        notice: 'Next game: Ionia vs Freljord.',
+      });
       expect(await night.companionLobby(partyId)).toBe(lobbyId);
-      await night.roll(lobbyId, sequenceRng(REDRAW));
+      await night.roll(lobbyId);
       const lock = await night.lockOf(lobbyId);
       expect(lock).toMatchObject({
         lock_rule: 'region',
@@ -283,12 +314,9 @@ if (stack === null) {
       expect(panel.view.shown).toEqual({ id: 'fearless' });
     });
 
-    it("9. region wars that can't be drawn at Roll is named on the lock, the game, the teams post and Recording (M15.17)", async () => {
-      // Picked while it is still playable.
-      expect(await night.card({ mode: 'region' })).toMatchObject({ next: { rule: 'region', rated: false } });
-
-      // Then games with no lobby land (they never use up the rule) and fill the Fearless pool until
-      // only Ionia keeps 8 open: every other region is taken down to 7.
+    it('9. a pending pair the bans made short, with no pair left: Roll locks the standing mode, the rule stays pending (M20 D6 (d))', async () => {
+      // Games with no lobby land (nothing is pending, so they use nothing) and fill the Fearless
+      // pool until only Ionia keeps 8 open: every other region is taken down to 7.
       const table = championTable();
       const banned = new Set(await night.poolIds());
       const open = regionOpenCounts(table, [...banned]);
@@ -322,51 +350,51 @@ if (stack === null) {
       }
       const pool = await night.poolIds();
       expect(drawableRegions(regionOpenCounts(table, pool))).toEqual(['ionia']);
-      expect(await night.cardRow()).toMatchObject({ pending_rule: 'region' });
+      // Region wars chosen before those bans landed: its pair (Ionia vs Zaun) is short now. Written
+      // straight to the row, as the pick would have written it then.
+      const chosen = await night.db
+        .from('group_modes')
+        .update({ pending_rule: 'region', pending_region_blue: 'ionia', pending_region_red: 'zaun' })
+        .eq('group_id', night.group.id);
+      expect(chosen.error).toBeNull();
       night.clearPosts();
 
-      // Roll: no two regions to draw. The lock is the standing mode, and says why.
+      // Roll: no pair passes. The lock is the standing mode with Rated as moved (none: the standing
+      // default, rated); the rule and its stale pair stay pending; the teams post says so.
       const { partyId, lobbyId } = await night.openLobby();
       await night.roll(lobbyId);
       expect(await night.lockOf(lobbyId)).toMatchObject({
         lock_mode: 'fearless',
         lock_rule: null,
         lock_region_blue: null,
-        lock_rated: false,
+        lock_rated: null,
       });
-      const { data: flag } = await night.db.from('lobbies').select('lock_no_draw').eq('id', lobbyId).single();
-      expect(flag?.lock_no_draw).toBe(true);
+      expect(await night.cardRow()).toMatchObject({
+        pending_rule: 'region',
+        pending_region_blue: 'ionia',
+        pending_region_red: 'zaun',
+      });
       expect(descriptionOf(night.posts[0])).toContain(
-        "This game: region wars couldn't be drawn, too few open champions. Not rated.",
+        "This game: region wars couldn't be drawn, too few open champions. Rated.",
       );
 
-      // The game: the standing mode, not rated, and stamped as a no-draw.
+      // The game: the standing mode, rated as the lock says (M20 D6 (d): no no-draw column).
       const gameId = await night.startGame(partyId);
       const answer = await night.postEog(
         await night.eogFor(lobbyId, partyId, gameId, [103, 157, 39, 43, 98, 22, 113, 201, 1, 266]),
       );
-      expect(answer).toMatchObject({ created: true, rated: false, reason: 'not-rated' });
-      const { data: game, error } = await night.db
-        .from('games')
-        .select('id, mode, rule, rated, rule_checked, rule_no_draw')
-        .eq('lcu_game_id', gameId)
-        .single();
-      if (error) throw new Error(error.message);
-      expect(game).toMatchObject({
-        mode: 'fearless',
-        rule: null,
-        rated: false,
-        rule_checked: false,
-        rule_no_draw: true,
-      });
-      expect(await night.poolIds()).toEqual(pool);
+      expect(answer).toMatchObject({ created: true, rated: true });
+      const game = await night.gameRow(gameId);
+      expect(game).toMatchObject({ mode: 'fearless', rule: null, rated: true, rule_checked: false });
+      // A Rift record from a locked lobby writes nothing to the card: region wars is still next.
+      expect(await night.cardRow()).toMatchObject({ pending_rule: 'region', pending_region_blue: 'ionia' });
 
-      // Admin Recording names it.
+      // Admin Recording reads it like any standing-mode game; the region wars game before it by its rule.
       const rows = await listCapturedGames(night.db, { timeZone: 'Africa/Cairo', groupId: night.group.id });
-      const row = rows.find((candidate) => candidate.id === game.id);
-      expect(ratedLabel(row?.ratedReason ?? { kind: 'gate' })).toBe("No · Region wars couldn't be drawn");
-      // The region wars game before it still reads by its rule.
-      expect(rows.map((candidate) => ratedLabel(candidate.ratedReason))).toContain('No · Region wars');
+      const labels = rows.map((candidate) => ratedLabel(candidate.ratedReason));
+      expect(labels).not.toContain("No · Region wars couldn't be drawn");
+      expect(labels).toContain('No · Region wars');
+      await night.card({ mode: 'fearless' });
     });
   });
 }
