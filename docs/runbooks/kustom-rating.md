@@ -9,26 +9,28 @@ every group's history under the Kustom rating (`docs/02-milestones.md` "M18 Kust
 columns stay in the schema, unread, until M18.12, so rollback is the previous build plus its own rebuild.
 
 **The order at a glance** (hosted state as of 2026-10-04: migrations through `0042`, production on `main`
-`65db4837`):
+`4e91eb56`; read the real `PREVIOUS` from Vercel's current production deployment on the day):
 
 1. Back up (step 0).
 2. Push `0036` + `0043` with `--include-all` (step 1): dry run first, it must list exactly those two.
-3. Check `service_can` true (step 1's SQL). **Not before this: deploy.**
-4. Deploy `SWITCH` (step 2).
-5. Dry run, the gate (step 3).
-6. Rebuild (step 4), then a second rebuild that writes 0.
-7. The checks (step 5).
-8. The owner posts the patch notes (step 7).
+3. Check `service_can` true (step 1's SQL).
+4. **Pre-deploy dry run, required** (step 1b): the gate must pass. Not before 3 and 4: deploy.
+5. Deploy `SWITCH` (step 2).
+6. Dry run again, the gate (step 3).
+7. Rebuild (step 4), then a second rebuild that writes 0.
+8. The checks (step 5).
+9. The owner posts the patch notes (step 7).
 
 **Before you start.**
 
 - `ship-2.0.md` is done: production runs 2.0 code and hosted has `0035` (or later) applied. As of 2026-10-04
   hosted has every migration through `0042` (`0037` group_live, `0038` session_player, `0039`..`0042` database
-  performance) and production runs `main` at `65db4837`.
+  performance) and production runs `main` at `4e91eb56`.
 - The switch build is merged and green: M18.2 (balancer), M18.5 (fold and rebuild), M18.6 (reads), M18.7 (pages),
-  M18.9 (words), and this task's `0043` writer, merged with `main` `65db4837` on branch `rating-switch`. Note its
+  M18.9 (words), and this task's `0043` writer, merged with `main` `4e91eb56` on branch `rating-switch`. Note its
   commit as `SWITCH`. Note the commit production runs now as `PREVIOUS` (Vercel → Deployments → Production /
-  Current; `65db4837` as of 2026-10-04): it is the rollback build.
+  Current; `4e91eb56` as of 2026-10-04, but read it from Vercel on the day, it is whatever production runs): it is
+  the rollback build.
 - The hosted service-role key for steps 3 and 4: Dashboard → Project Settings → API Keys → a **secret** key
   (`sb_secret_...`). It is typed into the shell at a hidden prompt and never written to a file.
 - **Do not deploy (step 2) until step 1's check printed `service_can` true; without 0043 every game post fails.**
@@ -106,9 +108,18 @@ select has_function_privilege('anon', 'public.apply_game_player_ratings(uuid, js
 
 `kustom_rows` 0; `anon_can` false, `service_can` true. The current build is still running and unaffected.
 
+## 1b. Pre-deploy dry run (required)
+
+Run step 3's commands now, from the `SWITCH` checkout, while the previous build is still live (the export and the
+hidden-prompt key included; keep that terminal open for steps 3 and 4). The dry run only reads, and needs `0036`
+on hosted, which step 1 applied. Read it exactly as step 3 says. **If the gate fails for any gated group, stop
+here: do not deploy.** Nothing visible has changed, there is nothing to roll back (`0036` and `0043` stay, the
+previous build ignores both), and the output goes to the lead. A gate failure after the deploy would force step 6.
+
 ## 2. Deploy the switch build
 
-**Do not deploy until step 1's check printed `service_can` true; without 0043 every game post fails.**
+**Do not deploy until step 1's check printed `service_can` true and step 1b's dry run passed the gate; without
+0043 every game post fails.**
 
 Promote `SWITCH` to production (Vercel). Wait for **Ready**. Go straight on to step 3: until step 4 has run, a
 game folded by the new build starts every player's all-time track from 1200 with their old games count (their
@@ -146,9 +157,9 @@ Read, for every group:
 
 A group with fewer than 50 rated games is not gated; its lines are information.
 
-Optional, and recommended: run this same dry run once **before** step 2 (after step 1). It reads only, so it can run
-from the `SWITCH` checkout while the previous build is still live; a failing gate then stops the switch before
-anything visible changes. The run in this step is still required: it is the one on the data the rebuild will fold.
+Step 1b already ran this dry run before the deploy (required). This run is required too: it is the one on the data
+the rebuild will fold, games played between 1b and now included. If it fails here although 1b passed, that is the
+only case where the gate forces step 6.
 
 ## 4. The rebuild
 
@@ -443,7 +454,8 @@ took          85 ms
 Afterwards local `customs` has 90 rows with `mu_after` and `fold_p`, and none with `r_after` or `week_r_after`:
 the pre-switch state, which is where the local stack was left.
 
-**Re-walked on the switch build** (branch `rating-switch`: `kustom-rating` + M18.7 pages + `main` 65db4837,
+**Re-walked on the switch build** (branch `rating-switch`: `kustom-rating` + M18.7 pages + `main` 65db4837, then
+re-merged with `main` up to 4e91eb56,
 2026-10-04), local stack at `0001..0043` (`0036` and `0043` on top of `0037..0042`, the hosted order). The
 `m18-4` throwaway check (undo `0036` on a restore that has `0037..0042`, re-apply) and the `m18-10` check both
 printed `ALL CHECKS PASSED`. Steps 3 to 5 from a pre-switch `customs` (OpenSkill columns filled, `ratings.r`
@@ -463,6 +475,40 @@ wrote         0 game_players rows, 0 ratings rows (0043: 0 game_players rows mov
 ```
 
 The first rebuild bumped `group_live` for `customs` with kind `ratings` (0037); the second wrote nothing. Check A,
-B and C printed the same tables as the first walk (`mismatches` 0). Local `customs` was left switched.
+B and C printed the same tables as the first walk (`mismatches` 0).
+
+**Rollback re-rehearsed** against `PREVIOUS` = production `main` `4e91eb56` (a `git archive` export, `pnpm install`,
+the same two variables exported for local). Step 6.2, the pre-step on local `customs`:
+
+```
+UPDATE 90
+ count
+-------
+     0
+```
+
+Step 6.3, `PREVIOUS`'s `rebuild-ratings --group customs`: dry run, real run, second run:
+
+```
+target        127.0.0.1:54321 (local)
+would change  40 game_players rows, 0 ratings rows          (dry run, exit 0)
+wrote         40 game_players rows, 0 ratings rows          (exit 0; roles 1 inferred pair moved)
+wrote         0 game_players rows, 0 ratings rows           (exit 0)
+```
+
+Nothing refused. Afterwards `customs` has 90 rows with `mu_after`, `fold_p`, `award` and `base_mu_after`, and 0
+with `r_after` or `week_r_after` (the old rebuild wrote 40 of the 90 rows, the same count as the first rehearsal;
+the other 50 already held what it computes). Then the re-switch (steps 3 and 4 again, no step of its own):
+
+```
+would change  90 game_players rows, 0 ratings rows
+gate          log loss 0.742 kustom vs 0.802 stored openskill fold_p over 9 games (coin 0.693)
+wrote         90 game_players rows, 0 ratings rows (0043: 90 game_players rows moved in 1 call)    exit 0
+wrote         0 game_players rows, 0 ratings rows (0043: 0 game_players rows moved in 0 calls)     exit 0
+```
+
+Check C `mismatches` 0. (`roles N inferred pairs moved` counts every player on the stack, so on the shared local
+stack it moves with other sessions' test data; it is not part of either fold's idempotency.) Local `customs` was
+left switched.
 
 The owner's hosted run: not yet (record the `target` line and the gate lines here and under M18.10).
