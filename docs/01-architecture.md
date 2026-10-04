@@ -68,12 +68,17 @@ splits         (id, lobby_id, rank, blue jsonb, red jsonb, gap, blue_win_prob, s
                 is_chosen, explanation, roster_key, created_at)
 games          (id, lcu_game_id unique, lobby_id null, group_id, started_at, duration_s, winning_side,
                 source 'eog' | 'backfill', mode -> modes.id,    -- mode 0024, M14.29: stamped at insert
-                raw jsonb, created_at)  index (group_id, started_at desc)   -- 0026
+                raw jsonb -- lz4 since 0040, created_at,
+                game_mode generated (raw->>'gameMode', strings only) stored)   -- 0039
+                index (group_id, started_at desc, lcu_game_id desc)   -- 0039, replaced 0026's (group_id, started_at desc)
+game_facts     (game_id pk, group_id, facts_version >= 1, facts jsonb {byPuuid, bans}, updated_at)   -- 0041
+                fk (game_id, group_id) -> games on delete cascade; public read, service-role write
 game_players   (game_id, player_id, side, role null, champion_id, kills, deaths, assists, gold, damage_to_champs,
                 cs, mu_before null, sigma_before null, mu_after null, sigma_after null,
                 counts_for_role_inference,                      -- 0010, M5.17
                 vision_score null, damage_self_mitigated null,  -- 0014, M7.7
                 damage_to_objectives null)                      -- 0015, M7.14
+                index (group_id, player_id) include (game_id)   -- 0042
 companion_tokens (id, player_id, token_hash, label, last_seen_at, revoked_at null, created_at)
 companion_commands (id, target_player_id, kind, payload jsonb, status, created_at, acked_at,
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
@@ -106,6 +111,7 @@ pairing_attempts (id, ip_hash, attempted_at) -- the per-address limit on POST /a
 players_public view (players minus discord_id; still carries the retired is_admin, unread since M13.4)
 groups_public view (id, slug, name, ratings_since)  -- 0018, ratings_since 0027; never created_by
 group_members_public view (group_id, player_id)     -- 0018; never role
+group_member_game_counts view (group_id, player_id, games, last_played_at)   -- 0042; service role only
 ```
 
 **`group_id` on the ten tables** (`ratings`, `lobbies`, `games`, `game_players`, `companion_tokens`,
@@ -187,6 +193,16 @@ Rules:
   replace them, so until then two players can still hold different seeds.
 - `games.raw` keeps the full end-of-game block, with `mucJwtDto` and `multiUserChatPassword` replaced by
   `"[redacted]"` (M2.10). Every derived column can be recomputed from it.
+- **No list reader detoasts `games.raw`** (database performance plan, `redesign/research/db-performance.md`;
+  `apps/web/lib/perf/rawColumns.test.ts` enforces it). A JSON path (`raw->x`) still decompresses the whole block
+  in Postgres, once per path per row. The mode is `games.game_mode` (0039, a stored generated column: nothing
+  writes it). The facts `rawFactsFromUnknown` reads (per-player first blood, multi-kills, steals, champion name,
+  detected role; the draft bans) are `game_facts.facts` (0041), written by that same TypeScript function at
+  ingest (the first post, and the ban merge that rewrites raw) and by `pnpm --filter web backfill-game-facts`,
+  which fills missing rows and recomputes rows below the code's `GAME_FACTS_VERSION`. The row is derived and
+  rebuildable, never trusted over raw: a reader takes it only when it parses and is current, and reads that
+  game's raw paths otherwise (`apps/web/lib/stats/gameFacts.ts`, the one `raw->` reader left). Only one-game
+  readers and writers select the blob.
 - `game_players` rating columns are nullable: the API inserts the game and its ten players, then rates, and a
   rebuild (M5.2) overwrites them.
 - `game_players.vision_score` and `damage_self_mitigated` (0014, M7.7) and `damage_to_objectives` (0015, M7.14)
