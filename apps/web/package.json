@@ -19,6 +19,7 @@
     "seed-regions": "node --import tsx scripts/seed-regions.ts",
     "ai-eval": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/ai-eval.ts",
     "ai-eval-month": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/ai-eval-month.ts",
+    "font-subsets": "python3 scripts/font-subsets.py",
     "perf-tonight": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/perf-tonight.ts",
     "patch-notes-image": "TSX_TSCONFIG_PATH=scripts/patch-notes/tsconfig.json node --conditions=react-server --import tsx scripts/patch-notes-image.tsx",
     "clean": "rm -rf .next"
