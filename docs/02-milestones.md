@@ -13121,7 +13121,7 @@ member, and a night where nobody touches the card plays exactly as today.
   CAS loop deleted). `POST /api/admin/mode` takes every action (standing, rule, rated, region picks, spin), zod
   both ways, and answers one `{ state, notice }`; `/api/admin/mode/spin` is deleted and the no-JS Spin form posts
   to `/api/admin/mode`. `games.rule_no_draw`: the PR reports how many hosted games have it true (a read, by the
-  lead); at zero the migration drops it, else it stays read-only for those rows and no new game writes it.
+  lead); at zero the migration drops it, else it stays read-only for those rows and no new game writes it. **Read 2026-10-04 (owner, hosted): 0 rows, so the migration drops it.**
   Acceptance (integration tests): (1) each action is one update of only its fields; (2) **concurrency**: an
   admin pick racing Roll ends in the lock or still pending, never lost (two connections, repeated); a pick
   racing a hand-back keeps the pick; (3) teams down after a new pick keeps the pick and returns Rated only if
