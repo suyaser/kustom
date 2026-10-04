@@ -13,7 +13,8 @@ import { barFlex, type Odds, PHONE_BAR_FLOOR } from './model';
  * hears (`Blue 54 percent, Red 46 percent.`). Each segment carries `data-side-fill`, so forced
  * colours drop the hatch and draw a system border (globals.css 6.8).
  *
- * `size`: `full` (`--winbar-h`, 50 / 60), `compact` (`--winbar-h-compact`, 40 / 44, labels 17px).
+ * `size`: `full` (`--winbar-h`, 50 / 60), `compact` (`--winbar-h-compact`, 40 / 44, labels 17px;
+ * the side words drop below 18em, see `word`).
  */
 export function WinBar({ odds, size = 'full' }: { odds: Odds; size?: 'full' | 'compact' | undefined }) {
   const flex = barFlex(odds);
@@ -28,6 +29,14 @@ export function WinBar({ odds, size = 'full' }: { odds: Odds; size?: 'full' | 'c
     'num font-bold tracking-[-0.02em] font-stretch-85%',
     compact ? 'text-[1.0625rem]' : 'text-[1.25rem] lg:text-[1.5rem]',
   );
+  /*
+   * Large text (05-design 12.3a follow-up): the compact bar is an inline-size container, and below
+   * 18em (its own font size, so it follows the text size, not the screen) the side word drops and
+   * the label is glyph + % (`◣ 54%`, `46% ◥`), so the two labels never run into each other. The
+   * drawing is aria-hidden and the sr sentence above already names both sides. The full bar is
+   * unchanged.
+   */
+  const word = compact ? '@max-[18em]:hidden' : undefined;
 
   return (
     <>
@@ -35,7 +44,10 @@ export function WinBar({ odds, size = 'full' }: { odds: Odds; size?: 'full' | 'c
       <div
         aria-hidden="true"
         data-slot="win-bar"
-        className={cn('relative flex gap-[3px]', compact ? 'h-(--winbar-h-compact)' : 'h-(--winbar-h)')}
+        className={cn(
+          'relative flex gap-[3px]',
+          compact ? '@container h-(--winbar-h-compact)' : 'h-(--winbar-h)',
+        )}
       >
         <div
           data-side-fill="blue"
@@ -46,7 +58,7 @@ export function WinBar({ odds, size = 'full' }: { odds: Odds; size?: 'full' | 'c
           style={{ '--seg-phone': phone.blue, '--seg-wide': flex.blue } as CSSProperties}
         >
           <SideGlyph side="blue" className="size-[13px]" />
-          <span>{SIDE_LABEL.blue}</span>
+          <span className={word}>{SIDE_LABEL.blue}</span>
           <span className={pct}>{odds.bluePct}%</span>
         </div>
         <div
@@ -58,7 +70,7 @@ export function WinBar({ odds, size = 'full' }: { odds: Odds; size?: 'full' | 'c
           style={{ '--seg-phone': phone.red, '--seg-wide': flex.red } as CSSProperties}
         >
           <span className={pct}>{odds.redPct}%</span>
-          <span>{SIDE_LABEL.red}</span>
+          <span className={word}>{SIDE_LABEL.red}</span>
           <SideGlyph side="red" className="size-[13px]" />
         </div>
         <i className="absolute -top-1.5 -bottom-1.5 left-1/2 -ml-px w-0.5 rounded-[1px] bg-foreground forced-colors:bg-[CanvasText]" />

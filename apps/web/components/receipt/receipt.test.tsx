@@ -258,6 +258,26 @@ describe('FairnessReceipt in game and finished (it never disappears, §4.2 rule 
     expect(within(receipt).queryByText('How the bot decided')).toBeNull();
   });
 
+  it('large text: only the compact bar drops its side words, below 18em of its own width (12.3a follow-up)', () => {
+    const words = (bar: Element) =>
+      [...bar.querySelectorAll('span')].filter(
+        (span) => span.textContent === 'BLUE' || span.textContent === 'RED',
+      );
+    const { unmount } = render(
+      <FairnessReceipt variant="in-game" splits={THREE_SPLITS} names={FIXTURE_NAMES} />,
+    );
+    const compact = document.querySelector('[data-slot="win-bar"]') as HTMLElement;
+    expect(compact.className).toContain('@container');
+    expect(words(compact)).toHaveLength(2);
+    for (const word of words(compact)) expect(word.className).toBe('@max-[18em]:hidden');
+    unmount();
+    render(<FairnessReceipt variant="finished" winner={200} splits={THREE_SPLITS} names={FIXTURE_NAMES} />);
+    const full = document.querySelector('[data-slot="win-bar"]') as HTMLElement;
+    expect(full.className).not.toContain('@container');
+    expect(words(full)).toHaveLength(2);
+    for (const word of words(full)) expect(word.className).toBe('');
+  });
+
   it('finished: "The odds were" and the result line in place of the sentence', () => {
     render(<FairnessReceipt variant="finished" winner={200} splits={THREE_SPLITS} names={FIXTURE_NAMES} />);
     const receipt = screen.getByRole('region', { name: 'The odds were' });
