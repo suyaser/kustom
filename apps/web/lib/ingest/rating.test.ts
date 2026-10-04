@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ServiceClient } from '../supabase';
-import { rateStoredGame } from './rating';
+import { rateStoredGame, selectWeekStates, WEEK_PAGE_SIZE } from './rating';
 
 /**
  * The fold and the group's ratings epoch (M14.18): the epoch is read **before** a single
@@ -144,5 +144,80 @@ describe('rateStoredGame and a game played not rated (M15.3)', () => {
     const result = await rateStoredGame(fakeClient(writes, { rated: false }), 'game-1');
     expect(result).toEqual({ rated: false, reason: 'not-rated', claimed: 0 });
     expect(writes).toEqual([]);
+  });
+});
+
+describe('selectWeekStates pages the weekly read in a fixed order (M18.5)', () => {
+  const game = { id: 'game-now', groupId: 'group-1', startedAt: '2026-09-09T20:00:00.000Z', lcuGameId: 50 };
+
+  /** A fake that serves `pages` in turn and records the order and range calls. */
+  function pagedClient(pages: unknown[][], calls: string[]): ServiceClient {
+    let served = 0;
+    const chain: Record<string, unknown> = {};
+    for (const method of ['select', 'eq', 'in', 'not', 'gte', 'lte']) chain[method] = () => chain;
+    chain.order = (column: string) => {
+      calls.push(`order:${column}`);
+      return chain;
+    };
+    chain.range = (from: number, to: number) => {
+      calls.push(`range:${from}-${to}`);
+      return chain;
+    };
+    // biome-ignore lint/suspicious/noThenProperty: a PostgREST builder is a thenable; so is this fake.
+    chain.then = (resolve: (value: unknown) => unknown) => {
+      const data = pages[served] ?? [];
+      served += 1;
+      return resolve({ data, error: null });
+    };
+    return { from: () => chain } as unknown as ServiceClient;
+  }
+
+  const row = (playerId: string, lcu: number, hour: number, r: number, n: number) => ({
+    player_id: playerId,
+    game_id: `game-${lcu}`,
+    week_r_after: r,
+    week_games_before: n,
+    games: { started_at: `2026-09-08T${String(hour).padStart(2, '0')}:00:00.000Z`, lcu_game_id: lcu },
+  });
+
+  it('reads past a full first page, so the latest row on page two is the one used', async () => {
+    const calls: string[] = [];
+    // A full first page of p1's early game (and filler), then the page with p1's latest game.
+    const first = Array.from({ length: WEEK_PAGE_SIZE }, (_, index) =>
+      index === 0 ? row('p1', 10, 18, 1216, 0) : row(`filler-${index}`, 10, 18, 1200, 0),
+    );
+    const second = [row('p1', 11, 19, 1230.5, 1), row('p2', 11, 19, 1185, 0)];
+    const states = await selectWeekStates(pagedClient([first, second], calls), game, ['p1', 'p2', 'p3']);
+    expect(states.get('p1')).toEqual({ r: 1230.5, n: 2 });
+    expect(states.get('p2')).toEqual({ r: 1185, n: 1 });
+    // Nobody played p3 this week: absent, which the fold reads as 1200 and 0.
+    expect(states.has('p3')).toBe(false);
+    expect(calls).toEqual([
+      'order:game_id',
+      'order:player_id',
+      `range:0-${WEEK_PAGE_SIZE - 1}`,
+      'order:game_id',
+      'order:player_id',
+      `range:${WEEK_PAGE_SIZE}-${2 * WEEK_PAGE_SIZE - 1}`,
+    ]);
+  });
+
+  it('picks the latest by started_at then lcu_game_id whatever the page order, and skips later games', async () => {
+    const calls: string[] = [];
+    const later = {
+      ...row('p1', 99, 23, 1300, 3),
+      games: { started_at: '2026-09-09T21:00:00.000Z', lcu_game_id: 99 },
+    };
+    const states = await selectWeekStates(
+      pagedClient(
+        [[row('p1', 12, 19, 1240, 2), row('p1', 11, 19, 1230, 1), row('p1', 10, 18, 1216, 0), later]],
+        calls,
+      ),
+      game,
+      ['p1'],
+    );
+    expect(states.get('p1')).toEqual({ r: 1240, n: 3 });
+    // One short page: one read.
+    expect(calls).toHaveLength(3);
   });
 });

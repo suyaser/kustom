@@ -119,7 +119,11 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   // The weekly Kustom track (M18.5): every player's standing in this game's week, from their last
   // weekly row before this game in the same week, else 1200 and 0. Read for every rated game,
   // because the weekly track ignores the group's ratings reset.
-  const week = await selectWeekStates(client, game, rows);
+  const week = await selectWeekStates(
+    client,
+    game,
+    rows.map((row) => row.playerId),
+  );
 
   // The group's epoch (M14.18): a game that started before the latest reset is history on the
   // all-time track. It still folds on the weekly track (M18: a reset does not touch the week).
@@ -401,34 +405,62 @@ function mustKustom(outcomes: ReadonlyMap<string, KustomFoldOutcome>, playerId: 
   return outcome;
 }
 
+/** PostgREST's `max_rows`: the weekly read pages at it, so a long week can never be cut short. */
+export const WEEK_PAGE_SIZE = 1000;
+
+/** What {@link selectWeekStates} needs to know about the game being folded. */
+export interface WeekStateGame {
+  id: string;
+  groupId: string;
+  startedAt: string;
+  lcuGameId: number;
+}
+
 /**
  * The ten's standing on the weekly Kustom track just before `game` (M18.5): each player's last
  * weekly row in the same week (`kustomWeekStart`) whose game is earlier in the rebuild's order
  * (`started_at`, then `lcu_game_id`), as `{ r: week_r_after, n: week_games_before + 1 }`.
- * Somebody with no such row is absent, which the fold reads as 1200 and 0. One read of at most a
- * week of this group's rows for ten players.
+ * Somebody with no such row is absent, which the fold reads as 1200 and 0.
+ *
+ * **Every page, in a fixed order** (`game_id`, `player_id`): PostgREST silently returns only the
+ * first `max_rows`, and a truncated read here would start somebody from 1200 with no error. The
+ * loop stops only on a short page. Picking the latest row is done here, by (`started_at`,
+ * `lcu_game_id`), so the page order cannot change the answer.
  */
-async function selectWeekStates(
+export async function selectWeekStates(
   client: ServiceClient,
-  game: StoredGame,
-  rows: readonly GamePlayerRow[],
+  game: WeekStateGame,
+  playerIds: readonly string[],
 ): Promise<Map<string, KustomState>> {
-  const { data, error } = await client
-    .from('game_players')
-    .select('player_id, game_id, week_r_after, week_games_before, games!inner(started_at, lcu_game_id)')
-    .eq('group_id', game.groupId)
-    .in(
-      'player_id',
-      rows.map((row) => row.playerId),
-    )
-    .not('week_r_after', 'is', null)
-    .gte('games.started_at', kustomWeekStart(game.startedAt))
-    .lte('games.started_at', game.startedAt);
-  if (error) throw new Error(`rating: weekly track select failed: ${error.message}`);
+  type WeekRow = {
+    player_id: string;
+    game_id: string;
+    week_r_after: number | null;
+    week_games_before: number | null;
+    games: { started_at: string; lcu_game_id: number };
+  };
+  const all: WeekRow[] = [];
+  for (let from = 0; ; from += WEEK_PAGE_SIZE) {
+    const { data, error } = await client
+      .from('game_players')
+      .select('player_id, game_id, week_r_after, week_games_before, games!inner(started_at, lcu_game_id)')
+      .eq('group_id', game.groupId)
+      .in('player_id', [...playerIds])
+      .not('week_r_after', 'is', null)
+      .gte('games.started_at', kustomWeekStart(game.startedAt))
+      .lte('games.started_at', game.startedAt)
+      .order('game_id', { ascending: true })
+      .order('player_id', { ascending: true })
+      .range(from, from + WEEK_PAGE_SIZE - 1);
+    if (error) throw new Error(`rating: weekly track select failed: ${error.message}`);
+    const page = (data ?? []) as WeekRow[];
+    all.push(...page);
+    if (page.length < WEEK_PAGE_SIZE) break;
+  }
 
   const at = Date.parse(game.startedAt);
   const latest = new Map<string, { t: number; lcu: number; state: KustomState }>();
-  for (const row of data ?? []) {
+  for (const row of all) {
     if (row.game_id === game.id || row.week_r_after === null || row.week_games_before === null) continue;
     const t = Date.parse(row.games.started_at);
     const lcu = row.games.lcu_game_id;
