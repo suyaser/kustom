@@ -10842,6 +10842,17 @@ model or what is stored per split; the Riot public API.
   waiting line naming admins) can be screenshotted; test.
 
   *Done 2026-10-04 (code and design review passed; merged).*
+- [ ] **M14.79** Week notes image in the Sunday post (the user, 2026-10-04). *(owner: `platform-engineer`, designer
+  signs off)* A 1920×1080 "Week N notes" image (variant A of `redesign/research/patch-image.md`): BUFFS (top point
+  gainers), NERFS (up to 3 who gave points back, 3+ rated games that week, never a settling newcomer; plain numbers),
+  a role key, SYSTEMS (Mode of the night runs, Fearless bans), NEW (first nights, records, first picks for the group);
+  players as initials in rings with role marks, Kustom palette, no Riot logo, fonts, icons or champion art; footer
+  `Made by Kustom from this group's own games. Not affiliated with or endorsed by Riot Games.` Only in the Sunday
+  post, alongside the AI storyline and the board summary; not on the site. Rendered by a `next/og` route, sent only
+  from a public https origin; the post is complete without it. Acceptance: route and builder tests (data from
+  `loadBoard`/awards, NERFS rules, no champion art), the Sunday post carries the image on a public origin and none
+  on localhost, designer sign-off on a real render.
+
 - [ ] **M14.27** Ship 2.0: the deploy plan, run by the user. *(owner: `platform-engineer` writes the
   runbook; **the user executes every production step**; last)* **No companion release (2026-10-03, the user):
   0.4.0 is not published; 2.0 ships with 0.3.x and the Rust build (M17) replaces it.** `docs/runbooks/ship-2.0.md`
