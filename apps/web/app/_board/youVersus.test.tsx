@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerBoardView } from '@/lib/board/types';
 import { workedPlayer } from '@/lib/testing/boardFixtures';
 import { workedPuuid } from '@/lib/testing/workedExample';
+import { PITCH_COOKIE, pitchDismissedFor } from '@/lib/versus/pitchDismiss';
 import type { YouVersusRow } from '@/lib/versus/you';
-import { PITCH_STORAGE_KEY, VersusPitch } from './VersusPitch';
+import { VersusPitch } from './VersusPitch';
 import { YouVsEveryone } from './YouVersus';
 
 /**
@@ -140,7 +142,16 @@ describe('the everyone list on /you', () => {
 });
 
 describe('the pitch line under a finished game', () => {
-  afterEach(() => window.localStorage.clear());
+  afterEach(() => {
+    // biome-ignore lint/suspicious/noDocumentCookie: the test clears the pitch's own cookie.
+    document.cookie = `${PITCH_COOKIE}=; path=/; max-age=0`;
+  });
+  /** What the server reads from the request: the pitch's cookie, as the browser holds it. */
+  const cookieValue = () =>
+    document.cookie
+      .split('; ')
+      .find((pair) => pair.startsWith(`${PITCH_COOKIE}=`))
+      ?.slice(PITCH_COOKIE.length + 1);
 
   it('offers sign-in to a viewer who is not linked, coming back to the page', () => {
     render(
@@ -160,25 +171,56 @@ describe('the pitch line under a finished game', () => {
     expect(screen.getByRole('link', { name: 'You' })).toHaveAttribute('href', '/g/customs/you');
   });
 
-  it('stays dismissed for the night, and comes back the next night', () => {
+  it('stays dismissed for the night (a cookie the server reads), and comes back the next night', () => {
     const first = render(
       <VersusPitch viewer="linked" nightKey="night-1" here="/g/customs" you={'/g/customs/you' as never} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Hide for tonight' }));
     expect(screen.queryByText(/Tap anyone/)).not.toBeInTheDocument();
-    expect(window.localStorage.getItem(PITCH_STORAGE_KEY)).toBe('night-1');
+    expect(pitchDismissedFor(cookieValue(), 'night-1')).toBe(true);
     first.unmount();
 
     const again = render(
-      <VersusPitch viewer="linked" nightKey="night-1" here="/g/customs" you={'/g/customs/you' as never} />,
+      <VersusPitch
+        viewer="linked"
+        nightKey="night-1"
+        here="/g/customs"
+        you={'/g/customs/you' as never}
+        dismissed={pitchDismissedFor(cookieValue(), 'night-1')}
+      />,
     );
     expect(screen.queryByText(/Tap anyone/)).not.toBeInTheDocument();
     again.unmount();
 
     render(
-      <VersusPitch viewer="linked" nightKey="night-2" here="/g/customs" you={'/g/customs/you' as never} />,
+      <VersusPitch
+        viewer="linked"
+        nightKey="night-2"
+        here="/g/customs"
+        you={'/g/customs/you' as never}
+        dismissed={pitchDismissedFor(cookieValue(), 'night-2')}
+      />,
     );
     expect(screen.getByText(/Tap anyone/)).toBeInTheDocument();
+  });
+
+  it('fix-result-cls: the first paint is the final one (the server HTML already has it, or not)', () => {
+    // The line used to be rendered hidden and inserted after hydration, pushing the rail and the
+    // footer down under a reader who had scrolled. Its space is now in the server's HTML.
+    const shown = renderToString(
+      <VersusPitch viewer="linked" nightKey="n1" here="/g/customs" you={'/g/customs/you' as never} />,
+    );
+    expect(shown).toContain('Tap anyone to see your record with them');
+    const hidden = renderToString(
+      <VersusPitch
+        viewer="linked"
+        nightKey="n1"
+        here="/g/customs"
+        you={'/g/customs/you' as never}
+        dismissed
+      />,
+    );
+    expect(hidden).toBe('');
   });
 
   it('is never a dialog or an alert', () => {

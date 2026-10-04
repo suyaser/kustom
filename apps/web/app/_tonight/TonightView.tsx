@@ -80,6 +80,7 @@ import type {
 } from '@/lib/tonight/types';
 import { type ViewerState, viewerIsAdmin, viewerPuuid } from '@/lib/tonight/viewer';
 import type { YourNight as YourNightData } from '@/lib/tonight/yourNight';
+import { pitchDismissedFor } from '@/lib/versus/pitchDismiss';
 import { VersusPitch } from '../_board/VersusPitch';
 import { MirrorNext } from '../_mode/MirrorNext';
 import { ModeCard, type ModeCardLive, type ModeCardVariant } from '../_mode/ModeCard';
@@ -145,6 +146,11 @@ export interface TonightViewProps {
    * change opens why, and the receipt names the rating's odds when they differ. Absent: plain numbers.
    */
   breakdown?: GameBreakdown | null | undefined;
+  /**
+   * The You-vs-them pitch's dismissal cookie (`lib/versus/pitchDismiss.ts`), read by the page, so the
+   * pitch's first paint is its final one (fix-result-cls). Absent: not dismissed.
+   */
+  pitchCookie?: string | null | undefined;
 }
 
 export function TonightView(props: TonightViewProps) {
@@ -381,8 +387,10 @@ export function TonightView(props: TonightViewProps) {
         {state.kind === 'result' ? (
           // M14.35 (Lane B's contract): under the result poster, the personal 1v1 pitch, once a night.
           <VersusPitch
+            key={snapshot.nightStart}
             viewer={linked ? 'linked' : 'not-linked'}
             nightKey={snapshot.nightStart}
+            dismissed={pitchDismissedFor(props.pitchCookie, snapshot.nightStart)}
             here={groupHome(group)}
             you={groupHref(group, { page: 'you' }) ?? groupHome(group)}
           />

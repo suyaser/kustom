@@ -2,7 +2,8 @@
 
 import type { Route } from 'next';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { pitchDismissCookie } from '@/lib/versus/pitchDismiss';
 import {
   PITCH_DISMISS,
   PITCH_LINKED_AFTER,
@@ -20,16 +21,19 @@ import {
  * - linked: `Tap anyone to see your record with them, or see everyone on You.`, `You` a link.
  *
  * Shown once per night per browser: the dismiss stores `nightKey` (the night's start, from the
- * server) in `localStorage`, and the line stays hidden until the next night's key. Rendered hidden
- * until the client has read the key, so a dismissed line never flashes back.
+ * server) in a cookie (`lib/versus/pitchDismiss.ts`), and the line stays hidden until the next
+ * night's key. **The server reads the cookie** and passes `dismissed`, so the first paint is the
+ * final one (fix-result-cls): the line used to be rendered hidden until the client had read
+ * `localStorage`, then inserted after hydration, pushing the rail and the footer down under a
+ * reader who had scrolled (CLS up to 0.047 on the finished screen).
  */
-export const PITCH_STORAGE_KEY = 'kustom-versus-pitch-dismissed';
 
 export function VersusPitch({
   viewer,
   nightKey,
   here,
   you,
+  dismissed = false,
 }: {
   viewer: 'linked' | 'not-linked';
   /** The night the page is about (e.g. `tonightStart().toISOString()`): the dismiss lasts that long. */
@@ -38,23 +42,16 @@ export function VersusPitch({
   here: string;
   /** `/g/<slug>/you`. */
   you: Route;
+  /** The server read this night's dismissal from the cookie (`pitchDismissedFor`). */
+  dismissed?: boolean;
 }) {
-  const [hidden, setHidden] = useState(true);
-
-  useEffect(() => {
-    let dismissed: string | null = null;
-    try {
-      dismissed = window.localStorage.getItem(PITCH_STORAGE_KEY);
-    } catch {}
-    setHidden(dismissed === nightKey);
-  }, [nightKey]);
+  const [hidden, setHidden] = useState(dismissed);
 
   if (hidden) return null;
 
   const dismiss = () => {
-    try {
-      window.localStorage.setItem(PITCH_STORAGE_KEY, nightKey);
-    } catch {}
+    // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is missing on older iPhones.
+    document.cookie = pitchDismissCookie(nightKey);
     setHidden(true);
   };
 
