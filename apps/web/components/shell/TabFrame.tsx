@@ -10,7 +10,7 @@ import type { MainTabKey } from '@/lib/nav';
  * - **Shapes only**: `Frame` blocks (`--card`, 1px `--border`, card radius), no words, no spinner,
  *   no amber, no side colour, no motion. The h1 is a frame of its line height.
  * - **Real heights, from tokens**: seats `--seat-min-h`, rows `--row-min-h`, team headers `--thead-h`,
- *   the strip's top line `--chip-h`, pickers `--tap`. Gutters, max widths and gaps are each page's
+ *   the strip's top line `--chip-h`, pickers at their rendered height. Gutters, max widths and gaps are each page's
  *   own, so the first real block lands where its frame was (CLS <= 0.01).
  * - **First screen only**: the frame is clipped at the viewport minus the bars, so a short page never
  *   leaves a long empty frame behind.
@@ -22,10 +22,22 @@ import type { MainTabKey } from '@/lib/nav';
 const FIRST_SCREEN =
   'max-h-[calc(100svh-var(--topbar-h)-var(--tabbar-h)-env(safe-area-inset-bottom))] overflow-hidden lg:max-h-[calc(100svh-var(--topbar-h))]';
 
-/** The pages' h1: `text-xl`, line height 1, so its line is `--fs-xl` tall. */
+/** The board's and You's h1: `text-xl`, line height 1, so its line is `--fs-xl` tall (32). */
 const H1 = 'h-(--fs-xl) w-40';
-/** A segmented picker (window, queue, section): one row of 44px links. */
-const PICKER = 'h-(--tap)';
+/** Games' and Stats' h1: `text-xl leading-tight`, 1.25 × `--fs-xl` (40, measured). */
+const H1_TIGHT = 'h-[calc(var(--fs-xl)*1.25)] w-40';
+/**
+ * `SegLinks` (Games, Stats): 44px links inside a 4px pad and a 1px border, 54 tall (measured at 375
+ * and 1280; M19.15 frames round, F4).
+ */
+const SEG = 'h-[calc(var(--tap)+0.5rem+2px)]';
+/** The board's `WindowChips`: three 44px chips in a wrapping row, not a segmented bar (measured 44 × ~293). */
+const CHIPS = 'h-(--tap) w-[18.5rem] max-w-full';
+/** A caption line in `text-sm` (16 × 1.45, with mono numbers 24 measured; the board's 23). */
+const CAPTION = 'h-6';
+/** A labelled select row: the label, a 6px gap, the 44px select and its Show button (measured 72 on the board, 71 on Games). */
+const BOARD_SORT = 'h-[calc(1.375rem+0.375rem+var(--tap))]';
+const GAMES_PLAYER = 'h-[calc(1.3125rem+0.375rem+var(--tap))]';
 /** List rows to the fold; `FIRST_SCREEN` clips whatever is past it. */
 const LIST_ROWS = 12;
 const ROW = 'h-(--row-min-h)';
@@ -82,45 +94,69 @@ function TeamCardFrame() {
   );
 }
 
-/** The board: h1, the window picker, the list. Same container as `BoardView`. */
+/**
+ * The board, as `BoardView` draws it: h1, the window chips (a row about three chips wide), the window
+ * caption, `Sort by` and its select (full width under 640, 192 from there), then the list.
+ */
 function BoardFrame() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-(--gutter) py-6 *:max-w-3xl lg:py-8">
       <div className="flex flex-col gap-3">
         <Frame data-frame="h1" className={H1} />
-        <Frame data-frame="picker" className={PICKER} />
+        <Frame data-frame="picker" className={CHIPS} />
+        <Frame data-frame="caption" className={CAPTION} />
+        <Frame data-frame="select" className={`${BOARD_SORT} w-full sm:w-48`} />
       </div>
-      <Frame data-frame="list" rows={LIST_ROWS} rowClassName={ROW} />
-    </div>
-  );
-}
-
-/** Games: h1, the queue picker, the list. Same container as `GamesList`. */
-function GamesFrame() {
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-(--gutter) py-6 lg:py-8">
-      <Frame data-frame="h1" className={H1} />
-      <Frame data-frame="picker" className={PICKER} />
       <Frame data-frame="list" rows={LIST_ROWS} rowClassName={ROW} />
     </div>
   );
 }
 
 /**
- * Stats, always the Records shape: h1, the section and window pickers, the section summary, the rows
- * (two columns from 1024, 5.14a). Same container as `StatsFrame` with Records' columns.
+ * Games, as `GamesList` draws it: h1 and the calibration sentence (two lines at 375, one from 768),
+ * the window picker, then the queue picker and `Player` select (stacked, side by side from 768 with
+ * the picker at the bottom of the row), the count line, then the list. Same 768 column, centred.
+ */
+function GamesFrame() {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-(--gutter) py-6 lg:py-8">
+      <div className="flex flex-col gap-2">
+        <Frame data-frame="h1" className={H1_TIGHT} />
+        <Frame data-frame="caption" className="h-[calc(2*var(--fs-sm)*1.45+1px)] md:h-6" />
+      </div>
+      <div className="flex flex-col gap-3">
+        <Frame data-frame="picker" className={SEG} />
+        <div className="grid gap-3 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:items-end">
+          <Frame data-frame="picker" className={SEG} />
+          <Frame data-frame="select" className={GAMES_PLAYER} />
+        </div>
+      </div>
+      <Frame data-frame="caption" className={CAPTION} />
+      <Frame data-frame="list" rows={LIST_ROWS} rowClassName={ROW} />
+    </div>
+  );
+}
+
+/**
+ * Stats, always the Records shape (`StatsFrame` + Records): h1, the section, window and queue pickers
+ * (the queue picker 224 wide from 768), the caption line, then the summary card of three rows and the
+ * records, which flow into a second column from 1024 (5.14a).
  */
 function StatsFrame() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-(--gutter) py-6 lg:max-w-6xl lg:py-8">
       <div className="flex flex-col gap-3">
-        <Frame data-frame="h1" className={H1} />
-        <Frame data-frame="picker" className={PICKER} />
-        <Frame data-frame="picker" className={PICKER} />
-        <Frame data-frame="summary" className="h-[52px]" />
+        <Frame data-frame="h1" className={H1_TIGHT} />
+        <Frame data-frame="picker" className={SEG} />
+        <Frame data-frame="picker" className={SEG} />
+        <Frame data-frame="picker" className={`${SEG} md:max-w-56`} />
+        <Frame data-frame="caption" className={CAPTION} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Frame data-frame="list" rows={LIST_ROWS} rowClassName={ROW} />
+      <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-x-5">
+        <div className="flex flex-col gap-4 lg:gap-5">
+          <Frame data-frame="summary" rows={3} rowClassName="h-[46.2px]" />
+          <Frame data-frame="list" rows={LIST_ROWS} rowClassName={ROW} />
+        </div>
         <Frame data-frame="list" className="hidden lg:flex" rows={LIST_ROWS} rowClassName={ROW} />
       </div>
     </div>
