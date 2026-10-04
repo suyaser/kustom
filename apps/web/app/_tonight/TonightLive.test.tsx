@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { beginTonightPress, getLiveState, requestTonightRefresh, showsLiveDot } from '@/lib/tonight/live';
 
 /**
- * The live half of the tonight page (M3.4; M14.9 acceptance 4): the subscription for the page's
- * group, a re-render of the server page (`router.refresh()`) on every event, on `visibilitychange`
- * and on every (re)subscribe, and the connection state the live tag and the tab dot read, which is
- * never `live` before `SUBSCRIBED`.
+ * The live half of the tonight page (M3.4; M14.9 acceptance 4; M19.10): the subscription to the
+ * page's own group's `group_live` row, a re-render of the server page (`router.refresh()`) when its
+ * version moves past the one shown, a version check on every (re)subscribe and visible tab, and the
+ * connection state the live tag and the tab dot read, which is never `live` before `SUBSCRIBED`.
  */
 
 const refresh = vi.fn();
@@ -41,7 +41,7 @@ async function landRender(): Promise<void> {
  * `fire` plays a server-delivered event back (the server only delivers what matches a filter),
  * and `status` plays a subscription status back.
  */
-type Listener = { config: { table: string; filter?: string }; callback: () => void };
+type Listener = { config: { table: string; filter?: string }; callback: (payload: unknown) => void };
 const listeners = vi.hoisted(() => ({
   all: [] as Listener[],
   broadcasts: [] as { event: string; callback: (message: { payload?: unknown }) => void }[],
@@ -55,9 +55,14 @@ vi.mock('@/lib/liveClient', () => ({
     channel: (name: string) => {
       listeners.channels.push(name);
       return {
-        on(kind: string, config: Listener['config'] & { event?: string }, callback: () => void) {
-          if (kind === 'broadcast') listeners.broadcasts.push({ event: config.event ?? '', callback });
-          else listeners.all.push({ config, callback });
+        on(
+          kind: string,
+          config: Listener['config'] & { event?: string },
+          callback: (payload: never) => void,
+        ) {
+          if (kind === 'broadcast')
+            listeners.broadcasts.push({ event: config.event ?? '', callback: callback as never });
+          else listeners.all.push({ config, callback: callback as never });
           return this;
         },
         send(message: unknown) {
@@ -74,30 +79,73 @@ vi.mock('@/lib/liveClient', () => ({
   }),
 }));
 
-function fire(table: string, row: Record<string, string>): void {
+/** Plays a `postgres_changes` payload back; the server only delivers what matches a filter. */
+function fire(table: string, row: Record<string, unknown>, eventType = 'UPDATE'): void {
   for (const { config, callback } of listeners.all) {
     if (config.table !== table) continue;
     if (config.filter !== undefined) {
       const [column, condition] = config.filter.split('=');
-      if (column === undefined || condition !== `eq.${row[column]}`) continue;
+      if (column === undefined || condition !== `eq.${String(row[column])}`) continue;
     }
-    callback();
+    callback(eventType === 'DELETE' ? { eventType, new: {}, old: row } : { eventType, new: row, old: {} });
   }
 }
 
-const { TonightLive, liveSubscriptions, COALESCE_MS, CONNECT_TIMEOUT_MS, START_POLL_MS, NAME_REREAD_MS } =
-  await import('./TonightLive');
+/** The group's live row as Realtime carries it (exactly the four public columns). */
+function liveRow(at: number, groupId = GROUP_A, extra: Record<string, unknown> = {}) {
+  return { group_id: groupId, version: at, kind: 'lobby', changed_at: '2026-10-04T20:00:00+00:00', ...extra };
+}
+
+/** A write route's last statement: the group's version moves. */
+let version = 0;
+function bump(groupId = GROUP_A): void {
+  version += 1;
+  fire('group_live', liveRow(version, groupId));
+}
+
+/** What the version check (`readGroupLive`) answers: the current row, or null (unknown). */
+const current = vi.hoisted(() => ({ row: undefined as unknown, fail: false }));
+vi.mock('@/lib/tonight/liveSignal', async (original) => {
+  const real = await original<typeof import('@/lib/tonight/liveSignal')>();
+  return {
+    ...real,
+    readGroupLive: async () => (current.fail ? null : (current.row ?? null)),
+  };
+});
+
+const {
+  TonightLive,
+  liveSubscriptions,
+  COALESCE_MS,
+  CONNECT_TIMEOUT_MS,
+  START_POLL_MS,
+  NAME_REREAD_MS,
+  PRESS_BUMP_WAIT_MS,
+} = await import('./TonightLive');
 const { LiveTag } = await import('./LiveTag');
+// The strict parser is a dynamic import (zod stays out of Tonight's first load): load it once up
+// front, as a page has by the time its first row arrives.
+await (await import('@/lib/tonight/liveSignal')).groupLiveParser();
 
 const GROUP_A = '11111111-1111-4111-8111-111111111111';
 const GROUP_B = '22222222-2222-4222-8222-222222222222';
+/** The version the server render showed, in every test unless it says otherwise. */
+const SHOWN = 10;
 
-function draw(props: { lobbyLive?: boolean; nameless?: boolean; startPending?: boolean } = {}) {
+function draw(
+  props: {
+    lobbyLive?: boolean;
+    nameless?: boolean;
+    startPending?: boolean;
+    liveVersion?: number | null;
+  } = {},
+) {
   return render(
     <>
       <LiveTag lobbyLive={props.lobbyLive ?? true} />
       <TonightLive
         groupId={GROUP_A}
+        liveVersion={props.liveVersion === undefined ? SHOWN : props.liveVersion}
         lobbyLive={props.lobbyLive ?? true}
         nameless={props.nameless}
         startPending={props.startPending}
@@ -106,9 +154,15 @@ function draw(props: { lobbyLive?: boolean; nameless?: boolean; startPending?: b
   );
 }
 
-const settle = async () => act(async () => vi.advanceTimersByTime(COALESCE_MS + 10));
+const settle = async () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(COALESCE_MS + 10);
+  });
 
 beforeEach(() => {
+  version = SHOWN;
+  current.row = liveRow(SHOWN);
+  current.fail = false;
   refresh.mockClear();
   flights.hold = false;
   flights.open.length = 0;
@@ -125,17 +179,11 @@ afterEach(() => {
 });
 
 describe('the Realtime subscription', () => {
-  it("filters every published table that has a group_id to the page's group, the mode included", () => {
+  it("M19.10: hears its group's live row and the Mode card's two rows, every one filtered to the group", () => {
     expect(liveSubscriptions(GROUP_A)).toEqual([
-      { table: 'lobbies', filter: `group_id=eq.${GROUP_A}` },
-      // No `group_id` on these two: they reach their group through their lobby.
-      { table: 'lobby_members' },
-      { table: 'splits' },
-      { table: 'games', filter: `group_id=eq.${GROUP_A}` },
-      { table: 'game_players', filter: `group_id=eq.${GROUP_A}` },
-      { table: 'ratings', filter: `group_id=eq.${GROUP_A}` },
-      { table: 'fearless_state', filter: `group_id=eq.${GROUP_A}` },
+      { table: 'group_live', filter: `group_id=eq.${GROUP_A}` },
       { table: 'group_modes', filter: `group_id=eq.${GROUP_A}` },
+      { table: 'fearless_state', filter: `group_id=eq.${GROUP_A}` },
     ]);
   });
 
@@ -168,41 +216,108 @@ describe('the Realtime subscription', () => {
     expect(revealed).toEqual([{ rule: 'region', source: 'broadcast' }]);
   });
 
-  it('re-renders the page without a reload on its own group, never on another group', async () => {
+  it('re-renders the page without a reload when its own group moves, never for another group', async () => {
     draw();
-    for (const table of ['games', 'game_players', 'ratings', 'lobbies', 'group_modes']) {
-      fire(table, { group_id: GROUP_B });
-    }
+    for (let i = 0; i < 3; i += 1) bump(GROUP_B);
     await settle();
     expect(refresh).not.toHaveBeenCalled();
 
-    fire('games', { group_id: GROUP_A });
+    bump();
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('re-renders when a game lands (games, game_players): how Your night updates (M14.36 acceptance 5)', async () => {
+  it('a row at or below the shown version re-reads nothing (a late echo of a render it already has)', async () => {
+    draw();
+    fire('group_live', liveRow(SHOWN));
+    fire('group_live', liveRow(SHOWN - 1));
+    await settle();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('drops a row that does not parse strictly: an extra column, an unknown kind', async () => {
+    draw();
+    fire('group_live', liveRow(SHOWN + 1, GROUP_A, { lobby_id: 'x' }));
+    fire('group_live', liveRow(SHOWN + 2, GROUP_A, { kind: 'whatever' }));
+    await settle();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a DELETE (the group was deleted) re-reads, and the server answers with not-found', async () => {
+    draw();
+    fire('group_live', liveRow(SHOWN), 'DELETE');
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('the Mode card rows re-read nothing: their writers bump the live row last', async () => {
+    draw();
+    fire('group_modes', { group_id: GROUP_A });
+    fire('fearless_state', { group_id: GROUP_A });
+    await settle();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a game end is one bump and one render, after the game is written (M14.36 acceptance 5)', async () => {
     draw({ lobbyLive: false });
-    fire('games', { group_id: GROUP_A });
-    for (let i = 0; i < 10; i += 1) fire('game_players', { group_id: GROUP_A });
+    bump();
     await settle();
     // One server re-render: the page re-reads Your night with everything else
     // (`TonightView.test.tsx`, "updates in place when the server sends the next game").
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('makes a burst of events one re-render', async () => {
+  it('makes a burst of bumps one re-render', async () => {
     draw();
-    for (let i = 0; i < 10; i += 1) fire('lobby_members', {});
+    for (let i = 0; i < 10; i += 1) bump();
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('re-reading after a gap', () => {
-  it('re-renders when the tab becomes visible again, not when it hides', async () => {
+describe('re-reading after a gap (M19.10: only when the version moved, or is unknown)', () => {
+  it('opening the page is one render: the first SUBSCRIBED at the shown version re-reads nothing', async () => {
+    draw();
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await settle();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a stale version on resubscribe re-reads; an equal one does not', async () => {
+    draw();
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await settle();
+    // Two writes while the socket was down: the events are not replayed.
+    current.row = liveRow(SHOWN + 2);
+    act(() => listeners.status?.('CHANNEL_ERROR'));
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    act(() => listeners.status?.('TIMED_OUT'));
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('an unknown version (the read failed) re-reads', async () => {
+    current.fail = true;
+    draw();
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('a render that knew no version re-reads on its first subscribe', async () => {
+    draw({ liveVersion: null });
+    act(() => listeners.status?.('SUBSCRIBED'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-renders when the tab becomes visible again and the group moved, not when it hides', async () => {
     draw();
     const visibility = vi.spyOn(document, 'visibilityState', 'get');
+    current.row = liveRow(SHOWN + 1);
     visibility.mockReturnValue('hidden');
     document.dispatchEvent(new Event('visibilitychange'));
     await settle();
@@ -212,17 +327,11 @@ describe('re-reading after a gap', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
+    // Visible again with nothing new: no render.
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
     visibility.mockRestore();
-  });
-
-  it('re-renders on every SUBSCRIBED: the first one and each reconnect', async () => {
-    draw();
-    act(() => listeners.status?.('SUBSCRIBED'));
-    await settle();
-    act(() => listeners.status?.('CHANNEL_ERROR'));
-    act(() => listeners.status?.('SUBSCRIBED'));
-    await settle();
-    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it('re-renders when a control asks (a press was answered)', async () => {
@@ -236,15 +345,14 @@ describe('re-reading after a gap', () => {
 });
 
 describe('one re-read at a time, once per change (M19.3)', () => {
-  it('a game end, ten-plus writes over half a second, is one render', async () => {
+  it('bumps 40 ms apart for half a second are one render', async () => {
     draw({ lobbyLive: false });
-    fire('games', { group_id: GROUP_A });
-    for (let i = 0; i < 10; i += 1) {
-      await act(async () => vi.advanceTimersByTime(40));
-      fire('game_players', { group_id: GROUP_A });
+    for (let i = 0; i < 12; i += 1) {
+      bump();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(40);
+      });
     }
-    fire('ratings', { group_id: GROUP_A });
-    fire('lobbies', { group_id: GROUP_A });
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
   });
@@ -252,12 +360,12 @@ describe('one re-read at a time, once per change (M19.3)', () => {
   it('an event during a render gives exactly one follow-up, once it lands', async () => {
     flights.hold = true;
     draw();
-    fire('lobbies', { group_id: GROUP_A });
+    bump();
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
 
-    // Three more rows while the first render is still on the wire: nothing starts beside it.
-    for (let i = 0; i < 3; i += 1) fire('lobby_members', {});
+    // Three more bumps while the first render is still on the wire: nothing starts beside it.
+    for (let i = 0; i < 3; i += 1) bump();
     await act(async () => vi.advanceTimersByTime(2_000));
     expect(refresh).toHaveBeenCalledTimes(1);
 
@@ -273,7 +381,7 @@ describe('one re-read at a time, once per change (M19.3)', () => {
     flights.hold = true;
     draw();
     const answeredAt = Date.now();
-    fire('splits', {});
+    bump();
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
 
@@ -292,7 +400,7 @@ describe('one re-read at a time, once per change (M19.3)', () => {
   it('an ask after a covering render has landed starts none', async () => {
     draw();
     const answeredAt = Date.now();
-    fire('splits', {});
+    bump();
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
 
@@ -309,28 +417,75 @@ describe('one re-read at a time, once per change (M19.3)', () => {
     flights.hold = true;
     draw();
     const press = beginTonightPress();
-    // A roll writes for about a second; its rows land before its answer does.
-    fire('lobbies', { group_id: GROUP_A });
-    for (let i = 0; i < 3; i += 1) {
-      await act(async () => vi.advanceTimersByTime(250));
-      fire('splits', {});
-    }
-    await act(async () => vi.advanceTimersByTime(250));
+    // Its route's bump arrives before its answer does.
+    bump();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
     expect(refresh).not.toHaveBeenCalled();
 
     const answered = vi.fn();
     act(() => {
       void press.answered(Date.now()).then(answered);
     });
-    // The write's own row a moment after the answer joins the same render.
+    // Another bump a moment after the answer joins the same render.
     await act(async () => vi.advanceTimersByTime(60));
-    fire('lobbies', { group_id: GROUP_A });
+    bump();
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(answered).not.toHaveBeenCalled();
     await landRender();
     expect(answered).toHaveBeenCalledTimes(1);
     await act(async () => vi.advanceTimersByTime(2_000));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("M19.10: an answered press waits for its route's bump, so the bump is never a follow-up", async () => {
+    flights.hold = true;
+    draw();
+    const press = beginTonightPress();
+    const answered = vi.fn();
+    act(() => {
+      void press.answered(Date.now()).then(answered);
+    });
+    // The answer is in, the bump is not yet: no render while it is on its way.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    bump();
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await landRender();
+    expect(answered).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('a route that bumped nothing re-reads once the bump wait has passed', async () => {
+    draw();
+    const press = beginTonightPress();
+    act(() => {
+      void press.answered(Date.now());
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PRESS_BUMP_WAIT_MS - 10);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COALESCE_MS + 20);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('a press that failed lets go at once, without waiting for a bump', async () => {
+    draw();
+    const press = beginTonightPress();
+    bump();
+    press.release();
+    await settle();
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
@@ -347,7 +502,8 @@ describe('one re-read at a time, once per change (M19.3)', () => {
 
   it('a visibility change and a reconnect during a render are one follow-up, not two', async () => {
     flights.hold = true;
-    draw();
+    current.fail = true;
+    draw({ liveVersion: null });
     act(() => listeners.status?.('SUBSCRIBED'));
     await settle();
     expect(refresh).toHaveBeenCalledTimes(1);

@@ -100,9 +100,13 @@ export function requestTonightRefresh(answeredAt: number = Date.now()): Promise<
 /** The event a control fires as its press leaves for the route (M19.3). */
 export const TONIGHT_PRESS_EVENT = 'kustom:tonight-press';
 
-/** What rides on {@link TONIGHT_PRESS_EVENT}: `TonightLive` sets `release` to its hold's release. */
+/**
+ * What rides on {@link TONIGHT_PRESS_EVENT}: `TonightLive` sets `release` to its hold's release.
+ * `answered` is true when the route answered (its own `group_live` bump is on the way, M19.10), false
+ * when the press failed or needs no re-read.
+ */
 export interface TonightPressDetail {
-  release: (() => void) | null;
+  release: ((answered: boolean) => void) | null;
 }
 
 /** One press, from the tap to the screen it changed (M19.3). */
@@ -128,19 +132,19 @@ export function beginTonightPress(): TonightPress {
     window.dispatchEvent(new CustomEvent<TonightPressDetail>(TONIGHT_PRESS_EVENT, { detail }));
   }
   let open = true;
-  const release = (): void => {
+  const letGo = (answered: boolean): void => {
     if (!open) return;
     open = false;
-    detail.release?.();
+    detail.release?.(answered);
   };
   return {
     answered(answeredAt = Date.now()) {
       // Ask first, then let go: the release then starts the one render the ask is waiting on.
       const answered = requestTonightRefresh(answeredAt);
-      release();
+      letGo(true);
       return answered;
     },
-    release,
+    release: () => letGo(false),
   };
 }
 

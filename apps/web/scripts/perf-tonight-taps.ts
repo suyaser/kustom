@@ -151,6 +151,12 @@ const PAGE_PROBE = `(function () {
 const EXCLUDE =
   '[role=status], [aria-live], [data-slot="elapsed"], [data-slot="spin-reveal"], [data-slot="mode-outcome"], script, style, template';
 
+/**
+ * A dead window this short is the same render settling (a client island painting in the frames
+ * right after the commit, about 30 to 45 ms at 4x CPU after Roll), not the old screen left up.
+ */
+const HELD_TOLERANCE_MS = 50;
+
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 async function main(): Promise<void> {
@@ -194,6 +200,7 @@ async function main(): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), 'perf-taps-'));
   const log = join(dir, 'perf.log');
   let groupId = '';
+  let otherGroupId = '';
   let userId = '';
   let server: ChildProcess | null = null;
   let browser: Browser | null = null;
@@ -203,7 +210,7 @@ async function main(): Promise<void> {
     cleaned = true;
     await browser?.close().catch(() => {});
     server?.kill('SIGTERM');
-    if (groupId !== '') await deleteTestGroups(db, [groupId]);
+    if (groupId !== '' || otherGroupId !== '') await deleteTestGroups(db, [groupId, otherGroupId]);
     await db.from('players').delete().in('puuid', puuids);
     if (userId !== '') psql(`delete from auth.users where id = ${literal(userId)};`);
     rmSync(dir, { recursive: true, force: true });
@@ -293,28 +300,32 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
       await sleep(500);
     }
 
-    const post = async (path: string, body: unknown) => {
+    const post = async (path: string, body: unknown, bearer: string = token) => {
       const response = await fetch(`${base}/api/companion/${path}`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${bearer}` },
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error(`${path}: ${response.status} ${await response.text()}`);
     };
-    const lobby = (party: string, count: number) =>
-      post('lobby', {
-        partyId: party,
-        lobbyName: 'perf',
-        lobbyPassword: '1234',
-        members: puuids.slice(0, count).map((puuid, index) => ({
-          puuid,
-          gameName: names[index],
-          tagLine: 'EUW',
-          summonerId: 7000 + index,
-          side: index < 5 ? 100 : 200,
-          isSpectator: false,
-        })),
-      });
+    const lobby = (party: string, count: number, bearer: string = token) =>
+      post(
+        'lobby',
+        {
+          partyId: party,
+          lobbyName: 'perf',
+          lobbyPassword: '1234',
+          members: puuids.slice(0, count).map((puuid, index) => ({
+            puuid,
+            gameName: names[index],
+            tagLine: 'EUW',
+            summonerId: 7000 + index,
+            side: index < 5 ? 100 : 200,
+            isSpectator: false,
+          })),
+        },
+        bearer,
+      );
     const reqs = (): ReqRow[] =>
       existsSync(log)
         ? readFileSync(log, 'utf8')
@@ -392,7 +403,13 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
         deadWindow: dead,
         // Rated answers on its own (the switch is the route's answer) and is not held by design.
         held:
-          options.holds === false ? 'not held by design' : dead === null ? '-' : dead <= 20 ? 'yes' : 'NO',
+          options.holds === false
+            ? 'not held by design'
+            : dead === null
+              ? '-'
+              : dead <= HELD_TOLERANCE_MS
+                ? 'yes'
+                : 'NO',
         inp: Math.max(0, ...durations),
       };
       results.push(row);
@@ -425,40 +442,36 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
         startedAt: new Date().toISOString(),
       }),
     );
-    await step(
-      'game end (eog post)',
-      () =>
-        post('game', {
-          phase: 'eog',
-          gameId,
-          partyId: partyA,
-          gameType: 'CUSTOM_GAME',
-          startedAt: new Date(Date.now() - 1_900_000).toISOString(),
-          durationS: 1900,
-          winningSide: 100,
-          participants: puuids.slice(0, 10).map((puuid, index) => ({
-            puuid,
-            side: index < 5 ? 100 : 200,
-            role: roles[index % 5],
-            championId: 100 + index,
-            kills: index,
-            deaths: 10 - index,
-            assists: index * 2,
-            gold: 10_000 + index * 100,
-            damageToChamps: 20_000 + index * 250,
-            cs: 150 + index,
-            win: index < 5,
-            gameName: names[index],
-            tagLine: 'EUW',
-            summonerId: 7000 + index,
-            visionScore: 10 + index,
-            damageSelfMitigated: 5000 + index,
-            damageToObjectives: 2000 + index,
-          })),
-          raw: { gameId },
-        }),
-      7000,
-    );
+    const eog = (id: number, party: string) => ({
+      phase: 'eog',
+      gameId: id,
+      partyId: party,
+      gameType: 'CUSTOM_GAME',
+      startedAt: new Date(Date.now() - 1_900_000).toISOString(),
+      durationS: 1900,
+      winningSide: 100,
+      participants: puuids.slice(0, 10).map((puuid, index) => ({
+        puuid,
+        side: index < 5 ? 100 : 200,
+        role: roles[index % 5],
+        championId: 100 + index,
+        kills: index,
+        deaths: 10 - index,
+        assists: index * 2,
+        gold: 10_000 + index * 100,
+        damageToChamps: 20_000 + index * 250,
+        cs: 150 + index,
+        win: index < 5,
+        gameName: names[index],
+        tagLine: 'EUW',
+        summonerId: 7000 + index,
+        visionScore: 10 + index,
+        damageSelfMitigated: 5000 + index,
+        damageToObjectives: 2000 + index,
+      })),
+      raw: { gameId: id },
+    });
+    await step('game end (eog post)', () => post('game', eog(gameId, partyA)), 7000);
     await step(
       '10 joins, 400 ms apart',
       async () => {
@@ -470,18 +483,67 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
       4000,
     );
 
+    // Another group's night while this page is open: three lobby posts, the game, its end.
+    await step(
+      "another group's 3 lobby posts and eog",
+      async () => {
+        const other = await db
+          .from('groups')
+          .insert({ slug: `${slug}-b`, name: `Perf ${runId} B` })
+          .select('id')
+          .single();
+        if (other.error) throw new Error(`group B: ${other.error.message}`);
+        otherGroupId = other.data.id;
+        const joined = await db.from('group_memberships').upsert(
+          players.data.map((row) => ({
+            group_id: other.data.id,
+            player_id: row.id,
+            role: row.id === ownerId ? ('owner' as const) : ('member' as const),
+          })),
+          { onConflict: 'group_id,player_id' },
+        );
+        if (joined.error) throw new Error(`group B members: ${joined.error.message}`);
+        const minted = mintCompanionToken();
+        const row = await db.from('companion_tokens').insert({
+          player_id: ownerId,
+          token_hash: minted.tokenHash,
+          label: 'perf-b',
+          group_id: other.data.id,
+        });
+        if (row.error) throw new Error(`group B token: ${row.error.message}`);
+        const partyB = `perf-${slug}-b`;
+        for (const count of [3, 6, 10]) await lobby(partyB, count, minted.token);
+        const otherGame = Date.now() * 1000 + 11;
+        await post(
+          'game',
+          {
+            phase: 'in_progress',
+            gameId: String(otherGame),
+            partyId: partyB,
+            startedAt: new Date().toISOString(),
+          },
+          minted.token,
+        );
+        await post('game', eog(otherGame, partyB), minted.token);
+      },
+      5000,
+    );
+
     // Realtime attribution for the Tonight steps, before leaving the page.
     const rows = (await page.evaluate('window.__rt')) as { t: number; g: string | null; l: string | null }[];
     const ours = new Set(
       ((await db.from('lobbies').select('id').eq('group_id', groupId)).data ?? []).map((r) => r.id),
     );
     for (const { row, from, to } of windows) {
+      let own = 0;
       let foreign = 0;
       for (const r of rows) {
         if (r.t < from || r.t >= to) continue;
         const mine = r.g !== null ? r.g === groupId : r.l !== null && ours.has(r.l);
-        if (!mine) foreign += 1;
+        if (mine) own += 1;
+        else foreign += 1;
       }
+      row.ownRows = own;
       row.foreign = foreign;
     }
 
