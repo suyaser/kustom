@@ -1,9 +1,28 @@
 import { notFound, permanentRedirect } from 'next/navigation';
 import { cache } from 'react';
+import { cachedRead } from '../cache/cached';
+import { GROUPS_TAG } from '../cache/tags';
 import { groupHref } from '../nav';
+import { isGameId } from '../og/load';
 import { createPublicClient } from '../publicClient';
 import type { PageGroup } from './pageGroup';
-import { resolveGroupParam } from './resolve';
+import { type GroupParam, resolveGroupParam } from './resolve';
+
+/**
+ * A slug's group, kept in the server cache (performance plan, phase 2): every `/g/<slug>` request
+ * and prefetch asks, and the answer changes about never (slugs are immutable in v1 and no route
+ * renames a group). A slug that names nothing is cached too, so `POST /api/groups` drops the tag
+ * when it creates one (`invalidateGroups`). A game id is never looked up through here: a game
+ * that lands later must start redirecting at once.
+ */
+const cachedSlug = cachedRead(
+  'page-group-v1',
+  (slug: string) => resolveGroupParam(createPublicClient(), slug),
+  {
+    tags: () => [GROUPS_TAG],
+    revalidate: 3_600,
+  },
+);
 
 /**
  * The group a `/g/[slug]/...` request shows, or the request ends here (M13.9):
@@ -18,7 +37,9 @@ import { resolveGroupParam } from './resolve';
  * markup is sent.
  */
 export const requirePageGroup: (param: string) => Promise<PageGroup> = cache(async (param: string) => {
-  const resolved = await resolveGroupParam(createPublicClient(), param);
+  const resolved: GroupParam = isGameId(param)
+    ? await resolveGroupParam(createPublicClient(), param)
+    : await cachedSlug(param);
   if (resolved.kind === 'game') {
     const target = groupHref({ id: '', slug: resolved.slug }, { page: 'game', gameId: resolved.gameId });
     // The game page has moved (it is mounted under the group by M13.9), so this is never null.

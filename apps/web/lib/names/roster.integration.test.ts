@@ -32,7 +32,7 @@ if (stack === null) {
   const { loadGamesList } = await import('@/lib/games/list');
   const { renderWebName } = await import('@/lib/tonight/copy');
   const { loadGroupMembers } = await import('@/lib/admin/groupMembers');
-  const { loadRosterLabels } = await import('@/lib/names/roster');
+  const { loadRosterLabels, readRosterInputs } = await import('@/lib/names/roster');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -176,6 +176,22 @@ if (stack === null) {
     expect(Object.fromEntries(options)).toEqual(expected);
     expect(new Set(options.values()).size).toBe(PEOPLE.length);
     expect(view.focusName).toBe('Ali (2)');
+  });
+
+  it('labels from cached roster inputs equal labels read fresh (performance plan, phase 2)', async () => {
+    // What the server cache stores and hands back: the inputs through JSON.
+    const inputs = JSON.parse(JSON.stringify(await readRosterInputs(anon, group)));
+    const newcomer = { puuid: `it-${runId}-nobody-yet`, name: 'Omar' };
+    for (const extra of [[], [newcomer]]) {
+      const fresh = await loadRosterLabels(anon, group, extra);
+      const fromCache = await loadRosterLabels(anon, group, extra, { inputs });
+      expect(Object.fromEntries(fromCache)).toEqual(Object.fromEntries(fresh));
+    }
+    // The newcomer (no player row) clashes with the roster's Omar, whose first game the inputs did
+    // not hold (he clashed with nobody on the roster): read now, and he keeps the plain name.
+    const labels = await loadRosterLabels(anon, group, [newcomer], { inputs });
+    expect(labels.get(`it-${runId}-omar`)).toBeUndefined();
+    expect(labels.get(newcomer.puuid)).toMatchObject({ base: 'Omar', suffix: '(2)' });
   });
 
   it('a busy clashing pair (over 1000 scoreboard rows) is ordered by the true first game', async () => {

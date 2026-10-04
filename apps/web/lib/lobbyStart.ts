@@ -420,12 +420,31 @@ export async function readHostPresence(
   client: ServiceClient,
   options: { groupId: string; now?: Date | undefined },
 ): Promise<HostPresence> {
-  const now = (options.now ?? new Date()).getTime();
-  const rows = await selectGroupHostTokens(client, options.groupId);
-  const hostSeenRecently = rows.some(
-    (row) => row.last_seen_at !== null && Date.parse(row.last_seen_at) >= now - HOST_WINDOW_MS,
-  );
-  return { hostNames: hostNamesOf(rows), hostSeenRecently };
+  return hostPresenceFrom(await readHostFacts(client, options.groupId), options.now);
+}
+
+/**
+ * The stored facts behind {@link HostPresence}, before "recently" is decided: the named hosts and
+ * every unrevoked token's `last_seen_at`. Plain JSON, so Tonight may keep it in the server cache for
+ * a few seconds and still decide "recently" against its own clock on every render.
+ */
+export interface HostFacts {
+  hostNames: string[];
+  lastSeen: (string | null)[];
+}
+
+export async function readHostFacts(client: ServiceClient, groupId: string): Promise<HostFacts> {
+  const rows = await selectGroupHostTokens(client, groupId);
+  return { hostNames: hostNamesOf(rows), lastSeen: rows.map((row) => row.last_seen_at) };
+}
+
+/** {@link HostPresence} from its facts at `now`. Pure. */
+export function hostPresenceFrom(facts: HostFacts, now: Date = new Date()): HostPresence {
+  const at = now.getTime();
+  return {
+    hostNames: facts.hostNames,
+    hostSeenRecently: facts.lastSeen.some((seen) => seen !== null && Date.parse(seen) >= at - HOST_WINDOW_MS),
+  };
 }
 
 // ---------------------------------------------------------------------------

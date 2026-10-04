@@ -164,7 +164,7 @@ export function TopFive({
                 {href === null ? (
                   <div className={rowClass}>{inner}</div>
                 ) : (
-                  <Link href={href} className={cn(rowClass, 'hover:bg-accent')}>
+                  <Link prefetch={false} href={href} className={cn(rowClass, 'hover:bg-accent')}>
                     {inner}
                   </Link>
                 )}
@@ -274,6 +274,7 @@ export function LastGameCard({
           {result.award === null ? null : <AwardLine award={result.award} group={group} />}
           {href === null ? null : (
             <Link
+              prefetch={false}
               href={href}
               className="mt-1 inline-flex min-h-11 items-center text-sm font-bold underline underline-offset-3"
             >
@@ -318,6 +319,7 @@ function PlayerLinkOrText({ name, href }: { name: PlayerName; href: Route | null
   if (href === null) return <span className="[overflow-wrap:anywhere]">{renderWebName(name)}</span>;
   return (
     <Link
+      prefetch={false}
       href={href}
       className="inline-flex min-h-11 items-center underline decoration-1 underline-offset-3 [overflow-wrap:anywhere] hover:decoration-2"
     >

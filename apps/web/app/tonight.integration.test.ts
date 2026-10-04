@@ -98,7 +98,7 @@ if (stack === null) {
 
   /** What the page renders on the server for this snapshot: the first paint, as HTML. */
   async function firstPaint(): Promise<string> {
-    const snapshot = await loadTonight(anon, { nightStart: tonightStart() });
+    const snapshot = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
     return renderToStaticMarkup(
       // The rail is empty here: this asserts the first paint of the night's own column, and
       // `Top of the board` is a second query the page makes beside this one (M3.19).
@@ -174,7 +174,7 @@ if (stack === null) {
       expect(response.status).toBe(200);
       lobbyId = ((await response.json()) as { lobbyId: string }).lobbyId;
 
-      const snapshot = await loadTonight(anon, { nightStart: tonightStart() });
+      const snapshot = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(snapshot.lobby?.id).toBe(lobbyId);
       expect(snapshot.lobby?.status).toBe('open');
       expect([...(snapshot.lobby?.members ?? [])].map((member) => member.name).sort()).toEqual([
@@ -193,7 +193,7 @@ if (stack === null) {
       // …and that is not the puuid order, which is what the query returns them in.
       expect(snapshot.lobby?.members.map((member) => member.puuid)).toEqual([ten[2], ten[1], ten[0]]);
 
-      const again = await loadTonight(anon, { nightStart: tonightStart() });
+      const again = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(again.lobby?.members.map((member) => member.puuid)).toEqual(
         snapshot.lobby?.members.map((member) => member.puuid),
       );
@@ -213,7 +213,7 @@ if (stack === null) {
       expect(await first.json()).toMatchObject({ status: 'open', memberCount: 10 });
       expect((await rollForTest(db, lobbyId)).outcome).toBe('rolled');
 
-      const filled = await loadTonight(anon, { nightStart: tonightStart() });
+      const filled = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       // Nothing above the newest row moved: the seven who joined later are appended.
       expect(filled.lobby?.members.slice(0, 3).map((member) => member.puuid)).toEqual(firstThree);
 
@@ -239,14 +239,14 @@ if (stack === null) {
     });
 
     it('follows a reroll: the page becomes the promoted split, sentence and seats (M3.7)', async () => {
-      const before = await loadTonight(anon, { nightStart: tonightStart() });
+      const before = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       const second = before.lobby?.teams?.splits.find((split) => split.rank === 2);
       expect(second).toBeDefined();
 
       const promoted = await promoteSplit(db, { lobbyId, splitId: second?.id ?? '' });
       expect(promoted.ok).toBe(true);
 
-      const after = await loadTonight(anon, { nightStart: tonightStart() });
+      const after = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       const { data: stored } = await db
         .from('splits')
         .select('explanation, blue')
@@ -267,13 +267,13 @@ if (stack === null) {
       // Both `balanceLobby` and `promoteSplit` clear `is_chosen` in one statement and set it
       // in the next — PostgREST has no transaction — so a read can land between them. Falling
       // through to the member list there would flash it under a reader looking at the teams.
-      const before = await loadTonight(anon, { nightStart: tonightStart() });
+      const before = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       const chosenId = before.lobby?.teams?.splitId ?? '';
 
       const { error } = await db.from('splits').update({ is_chosen: false }).eq('id', chosenId);
       if (error) throw new Error(error.message);
 
-      const during = await loadTonight(anon, { nightStart: tonightStart() });
+      const during = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(during.lobby?.status).toBe('balanced');
       expect(during.lobby?.teams).not.toBeNull();
       // The newest run's rank 1: the best split of the balance the group is actually in.
@@ -292,7 +292,7 @@ if (stack === null) {
      * component tests own where the line sits and what it says; this owns the wire.
      */
     it('drops the side line once every one of the ten sits where the split put them', async () => {
-      const before = await loadTonight(anon, { nightStart: tonightStart() });
+      const before = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       const teams = before.lobby?.teams;
       expect(teams?.blue).toHaveLength(5);
 
@@ -315,7 +315,7 @@ if (stack === null) {
       // because the *absence* assertion below would pass on any string the page never contains.
       const printed = escapeHtml(sideLine(SWITCH_SIDE_ENABLED)).replace(/'/g, '&#x27;');
 
-      const sorted = await loadTonight(anon, { nightStart: tonightStart() });
+      const sorted = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(sorted.lobby?.teams?.blue.map((seat) => seat.liveSide)).toEqual([100, 100, 100, 100, 100]);
       expect(sorted.lobby?.teams?.red.map((seat) => seat.liveSide)).toEqual([200, 200, 200, 200, 200]);
       expect(await firstPaint()).not.toContain(printed);
@@ -324,7 +324,7 @@ if (stack === null) {
       const stray = teams?.blue[0]?.puuid ?? '';
       await sideOf(stray, 200);
 
-      const strayed = await loadTonight(anon, { nightStart: tonightStart() });
+      const strayed = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(strayed.lobby?.teams?.blue[0]?.liveSide).toBe(200);
       expect(await firstPaint()).toContain(printed);
 
@@ -338,7 +338,7 @@ if (stack === null) {
       );
       expect(response.status).toBe(200);
 
-      const snapshot = await loadTonight(anon, { nightStart: tonightStart() });
+      const snapshot = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(snapshot.lobby?.status).toBe('finished');
       expect(snapshot.lobby?.result?.rated).toBe(true);
       expect(snapshot.lobby?.result?.blue).toHaveLength(5);
@@ -378,7 +378,7 @@ if (stack === null) {
       if (source === null) throw new Error('no result source');
       const posted = buildResultInput(source, { identity: { groupName: null } });
 
-      const snapshot = await loadTonight(anon, { nightStart: tonightStart() });
+      const snapshot = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(snapshot.lobby?.result?.award).toEqual(posted?.award ?? null);
     });
 
@@ -399,7 +399,7 @@ if (stack === null) {
         .eq('player_id', player?.id ?? '');
       if (error) throw new Error(error.message);
 
-      const snapshot = await loadTonight(anon, { nightStart: tonightStart() });
+      const snapshot = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       const seat = [...(snapshot.lobby?.result?.blue ?? []), ...(snapshot.lobby?.result?.red ?? [])].find(
         (row) => row.puuid === ten[9],
       );
@@ -413,7 +413,7 @@ if (stack === null) {
     });
 
     it('puts the finished game on the tape once the next lobby opens, through the anon key (M11.2)', async () => {
-      const before = await loadTonight(anon, { nightStart: tonightStart() });
+      const before = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       // The poster is on screen: the finished lobby is primary and not a tape row.
       expect(before.lobby?.id).toBe(lobbyId);
       expect(before.tape.some((row) => row.lobbyId === lobbyId)).toBe(false);
@@ -423,7 +423,7 @@ if (stack === null) {
       );
       expect(response.status).toBe(200);
 
-      const after = await loadTonight(anon, { nightStart: tonightStart() });
+      const after = await loadTonight(anon, { nightStart: tonightStart(), groupId: ORIGINAL_GROUP_ID });
       expect(after.lobby?.id).not.toBe(lobbyId);
       expect(after.lobby?.status).toBe('open');
       const rows = after.tape.filter((row) => row.lobbyId === lobbyId);

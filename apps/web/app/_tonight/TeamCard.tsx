@@ -192,6 +192,7 @@ function Seat({
           // name stays the link's accessible name. The one other control is a finished seat's
           // change (M14.58), raised above the link.
           <Link
+            prefetch={false}
             href={href}
             className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring"
           >

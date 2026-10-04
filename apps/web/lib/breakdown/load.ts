@@ -30,8 +30,8 @@ export interface GameBreakdown {
 
 /**
  * One {@link GameBreakdown} per game id that exists and has a winner; ids that do not are absent.
- * Three reads, chunked: the games, their `game_players` rows (with the breakdown), and the
- * players' puuids; plus the chosen split of any game the bot picked.
+ * Four reads, chunked, in two rounds: the games and their `game_players` rows (with the
+ * breakdown), then the players' puuids and the chosen split of any game the bot picked.
  */
 export async function loadGameBreakdowns(
   client: PublicClient,
@@ -40,34 +40,50 @@ export async function loadGameBreakdowns(
   const out = new Map<string, GameBreakdown>();
   if (gameIds.length === 0) return out;
 
+  // Two rounds (performance plan, phase 2): the games and their scoreboard rows side by side, then
+  // the chosen splits and the puuids side by side; every chunk at once.
   const games = new Map<string, { winningSide: SideValue; lobbyId: string | null }>();
   const rows = new Map<string, RawBreakdownRow[]>();
-  for (const chunk of inChunks(gameIds)) {
-    const { data, error } = await client.from('games').select('id, winning_side, lobby_id').in('id', chunk);
-    if (error) throw new Error(`breakdown: game lookup failed: ${error.message}`);
-    for (const game of data ?? []) {
-      if (game.winning_side !== 100 && game.winning_side !== 200) continue;
-      games.set(game.id, { winningSide: game.winning_side, lobbyId: game.lobby_id });
-    }
-
-    const { data: players, error: playersError } = await client
-      .from('game_players')
-      .select(`game_id, ${BREAKDOWN_COLUMNS}`)
-      .in('game_id', chunk);
-    if (playersError) throw new Error(`breakdown: game player lookup failed: ${playersError.message}`);
-    for (const row of players ?? []) {
-      const list = rows.get(row.game_id) ?? [];
-      list.push(row);
-      rows.set(row.game_id, list);
-    }
+  const [gameRows, playerRows] = await Promise.all([
+    Promise.all(
+      inChunks(gameIds).map(async (chunk) => {
+        const { data, error } = await client
+          .from('games')
+          .select('id, winning_side, lobby_id')
+          .in('id', chunk);
+        if (error) throw new Error(`breakdown: game lookup failed: ${error.message}`);
+        return data ?? [];
+      }),
+    ),
+    Promise.all(
+      inChunks(gameIds).map(async (chunk) => {
+        const { data, error } = await client
+          .from('game_players')
+          .select(`game_id, ${BREAKDOWN_COLUMNS}`)
+          .in('game_id', chunk);
+        if (error) throw new Error(`breakdown: game player lookup failed: ${error.message}`);
+        return data ?? [];
+      }),
+    ),
+  ]);
+  for (const game of gameRows.flat()) {
+    if (game.winning_side !== 100 && game.winning_side !== 200) continue;
+    games.set(game.id, { winningSide: game.winning_side, lobbyId: game.lobby_id });
+  }
+  for (const row of playerRows.flat()) {
+    const list = rows.get(row.game_id) ?? [];
+    list.push(row);
+    rows.set(row.game_id, list);
   }
 
   const lobbyIds = [...games.values()].flatMap((game) => (game.lobbyId === null ? [] : [game.lobbyId]));
-  const botOdds = await loadChosenBlueWinProbs(client, lobbyIds);
-  const puuids = await loadPuuids(
-    client,
-    [...rows.values()].flatMap((list) => list.map((row) => row.player_id)),
-  );
+  const [botOdds, puuids] = await Promise.all([
+    loadChosenBlueWinProbs(client, lobbyIds),
+    loadPuuids(
+      client,
+      [...rows.values()].flatMap((list) => list.map((row) => row.player_id)),
+    ),
+  ]);
 
   for (const [gameId, game] of games) {
     const breakdownGame: BreakdownGame = {
@@ -91,28 +107,34 @@ async function loadChosenBlueWinProbs(
   lobbyIds: readonly string[],
 ): Promise<Map<string, number>> {
   const odds = new Map<string, number>();
-  for (const chunk of inChunks(lobbyIds)) {
-    const { data, error } = await client
-      .from('splits')
-      .select('lobby_id, blue_win_prob')
-      .in('lobby_id', chunk)
-      .eq('is_chosen', true);
-    if (error) throw new Error(`breakdown: split lookup failed: ${error.message}`);
-    for (const row of data ?? []) {
-      if (row.blue_win_prob !== null) odds.set(row.lobby_id, row.blue_win_prob);
-    }
+  const pages = await Promise.all(
+    inChunks(lobbyIds).map(async (chunk) => {
+      const { data, error } = await client
+        .from('splits')
+        .select('lobby_id, blue_win_prob')
+        .in('lobby_id', chunk)
+        .eq('is_chosen', true);
+      if (error) throw new Error(`breakdown: split lookup failed: ${error.message}`);
+      return data ?? [];
+    }),
+  );
+  for (const row of pages.flat()) {
+    if (row.blue_win_prob !== null) odds.set(row.lobby_id, row.blue_win_prob);
   }
   return odds;
 }
 
 async function loadPuuids(client: PublicClient, playerIds: readonly string[]): Promise<Map<string, string>> {
   const puuids = new Map<string, string>();
-  for (const chunk of inChunks([...new Set(playerIds)])) {
-    const { data, error } = await client.from('players_public').select('id, puuid').in('id', chunk);
-    if (error) throw new Error(`breakdown: player lookup failed: ${error.message}`);
-    for (const row of data ?? []) {
-      if (row.id !== null && row.puuid !== null) puuids.set(row.id, row.puuid);
-    }
+  const pages = await Promise.all(
+    inChunks([...new Set(playerIds)]).map(async (chunk) => {
+      const { data, error } = await client.from('players_public').select('id, puuid').in('id', chunk);
+      if (error) throw new Error(`breakdown: player lookup failed: ${error.message}`);
+      return data ?? [];
+    }),
+  );
+  for (const row of pages.flat()) {
+    if (row.id !== null && row.puuid !== null) puuids.set(row.id, row.puuid);
   }
   return puuids;
 }

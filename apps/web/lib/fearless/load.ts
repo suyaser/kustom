@@ -55,10 +55,17 @@ interface GameRow {
 export async function loadFearless(
   client: PublicClient,
   groupId: string = ORIGINAL_GROUP_ID,
+  options: {
+    /**
+     * The standing mode when the caller reads `group_modes` itself (Tonight reads the row once for
+     * the pool and the card, `loadModeFacts`). Absent: read here.
+     */
+    modeState?: Promise<{ mode: GroupMode; since: string | null }>;
+  } = {},
 ): Promise<FearlessPool> {
   const [{ data: state, error: stateError }, modeState] = await Promise.all([
     client.from('fearless_state').select('reset_at').eq('group_id', groupId).maybeSingle(),
-    loadGroupModeState(client, groupId),
+    options.modeState ?? loadGroupModeState(client, groupId),
   ]);
   const { mode, since: modeSince } = modeState;
 

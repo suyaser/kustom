@@ -404,6 +404,7 @@ function GameRow({
         <div className="flex min-w-0 flex-col gap-1">{main}</div>
       ) : (
         <Link
+          prefetch={false}
           href={href}
           className={cn(
             'flex min-w-0 flex-col gap-1',

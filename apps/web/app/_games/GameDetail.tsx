@@ -279,6 +279,7 @@ function SeatRowBody({
           ) : (
             // A standalone link with a 44px target (05-design 5.14): the box grows, the line does not.
             <Link
+              prefetch={false}
               href={href}
               className="-my-3 inline-block py-3 underline decoration-1 underline-offset-3 hover:decoration-2"
             >

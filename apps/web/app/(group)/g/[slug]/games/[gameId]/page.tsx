@@ -10,6 +10,7 @@ import { loadGameDetail } from '@/lib/games/detail';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import { claimableSeats } from '@/lib/me/claimable';
 import { groupHref } from '@/lib/nav';
+import { loadGameHead } from '@/lib/og/heads';
 import { gameImagePath, shareMetadata } from '@/lib/og/meta';
 import { groupPageTitle } from '@/lib/og/titles';
 import { createPublicClient } from '@/lib/publicClient';
@@ -17,7 +18,7 @@ import { getServiceClient } from '@/lib/supabase';
 import { HEAD_SEPARATOR, renderWebName } from '@/lib/tonight/copy';
 import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
 import { viewerIsAdmin } from '@/lib/tonight/viewer';
-import { currentViewer, currentViewerState } from '@/lib/viewer';
+import { currentViewerState } from '@/lib/viewer';
 import { VersusPitch } from '../../../../../_board/VersusPitch';
 import { GameDetail } from '../../../../../_games/GameDetail';
 import { ThatsMe } from '../../../../../_games/ThatsMe';
@@ -41,8 +42,9 @@ const loadGame = cache(async (gameId: string, groupId: string, viewerPuuid: stri
 export async function generateMetadata({ params }: GamePageProps): Promise<Metadata> {
   const { slug, gameId } = await params;
   const group = await requirePageGroup(slug);
-  const viewer = await currentViewer(group.id);
-  const game = await loadGame(gameId, group.id, viewer?.puuid ?? null);
+  // One small read (performance plan, phase 1): every prefetch of this page runs this, never the
+  // page's loader (and never the session).
+  const game = await loadGameHead(gameId, group.id, nightTimeZone());
   if (game === null) return { title: groupPageTitle(group) };
   const verdict = `${resultForWinner(game.winningSide)} ${HEAD_SEPARATOR} ${game.durationLabel}`;
   return {

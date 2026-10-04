@@ -6,6 +6,7 @@ import {
   NO_WINNING_TEAM_MESSAGE,
 } from '@customs/db/schemas';
 import { scheduleGameLine } from '@/lib/ai/afterIngest';
+import { invalidateGroup } from '@/lib/cache/tags';
 import { withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import {
@@ -233,6 +234,7 @@ export const POST = withCompanionAuth(
     if (!result.foreignDuplicate) {
       await clearAfterRecord(supabaseModeStore(client), result.groupId, result.modeRecord);
     }
+    invalidateGroup(result.groupId, ['games']);
 
     return jsonOk(companionGameResponseSchema, {
       ok: true,
