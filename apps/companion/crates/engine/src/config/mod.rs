@@ -75,6 +75,24 @@ pub const LOCAL_API_BASE: &str = "http://localhost:3000";
 /// The TypeScript companion's `RELEASE_API_BASE`.
 pub const RELEASE_API_BASE: &str = "https://playkustom.com";
 
+/// Origins that used to be the deployed site and now only 308-redirect to [`RELEASE_API_BASE`]. The API
+/// transport never follows redirects, so a saved `apiBase` naming one is replaced by the release origin
+/// (in memory on every load, and on disk once by [`load_config`]). Normalised form, as [`parse_api_base`] returns.
+pub const LEGACY_API_BASES: &[&str] = &["https://kustom-delta.vercel.app"];
+
+/// Whether a normalised origin is one of [`LEGACY_API_BASES`] (also `http://` spelling, any case).
+fn is_legacy_api_base(origin: &str) -> bool {
+    let host = origin
+        .strip_prefix("http://")
+        .or_else(|| origin.strip_prefix("https://"))
+        .unwrap_or(origin);
+    LEGACY_API_BASES.iter().any(|legacy| {
+        legacy
+            .strip_prefix("https://")
+            .is_some_and(|legacy_host| legacy_host.eq_ignore_ascii_case(host))
+    })
+}
+
 /// The API origin used when `config.json` names none: `CUSTOMS_NIGHT_API_BASE` at build time if set (and
 /// non-empty), else the deployed origin in a release build and the local dev server in a debug build
 /// (`tauri:dev`, tests). A file's own `apiBase` always wins. A release build can never default to
@@ -277,7 +295,13 @@ impl Config {
     /// Reads the known keys of a raw config object. Never fails.
     pub fn from_raw(raw: &Map<String, Value>) -> Self {
         let file_api_base = raw.get(API_BASE_KEY).and_then(Value::as_str);
-        let api_base = file_api_base.and_then(parse_api_base);
+        let api_base = file_api_base.and_then(parse_api_base).map(|origin| {
+            if is_legacy_api_base(&origin) {
+                RELEASE_API_BASE.to_owned()
+            } else {
+                origin
+            }
+        });
         let top_level_raw = raw
             .get(COMPANION_TOKEN_KEY)
             .and_then(Value::as_str)
@@ -338,6 +362,29 @@ pub fn load_config(dir: &Path) -> LoadOutcome {
         }
         Ok(Some(raw)) => {
             let config = Config::from_raw(&raw);
+            let saved_legacy = raw
+                .get(API_BASE_KEY)
+                .and_then(Value::as_str)
+                .and_then(parse_api_base)
+                .is_some_and(|origin| is_legacy_api_base(&origin));
+            if saved_legacy {
+                match write::update_config(dir, |raw| {
+                    raw.insert(
+                        API_BASE_KEY.to_owned(),
+                        Value::String(RELEASE_API_BASE.to_owned()),
+                    );
+                    Ok(())
+                }) {
+                    Ok(()) => {
+                        tracing::info!(apiBase = %RELEASE_API_BASE, "config.json's legacy apiBase moved to the release origin")
+                    }
+                    Err(error) => tracing::warn!(
+                        error = %error,
+                        apiBase = %RELEASE_API_BASE,
+                        "config.json's legacy apiBase could not be rewritten; using the release origin in memory"
+                    ),
+                }
+            }
             if config.api_base_invalid {
                 tracing::warn!(apiBase = %DEFAULT_API_BASE, "config.json's apiBase is not an origin; using the default");
             }
@@ -436,17 +483,54 @@ mod tests {
     fn a_hand_written_api_base_only_file_is_used_before_any_pairing() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().to_path_buf();
-        fs::write(
-            config_path(&dir),
-            r#"{"apiBase":"https://kustom-delta.vercel.app"}"#,
-        )
-        .unwrap();
+        fs::write(config_path(&dir), r#"{"apiBase":"https://kustom.gg"}"#).unwrap();
         let LoadOutcome::Loaded(config) = load_config(&dir) else {
             panic!("not loaded")
         };
-        assert_eq!(config.api_base, "https://kustom-delta.vercel.app");
+        assert_eq!(config.api_base, "https://kustom.gg");
         assert!(!config.api_base_invalid);
         assert!(config.groups.is_empty());
+    }
+
+    #[test]
+    fn a_saved_legacy_api_base_becomes_the_release_origin_and_the_file_is_rewritten() {
+        for saved in [
+            "https://kustom-delta.vercel.app",
+            "https://kustom-delta.vercel.app/",
+            "http://kustom-delta.vercel.app",
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = tmp.path().to_path_buf();
+            let token = format!("kcn_{}", "a".repeat(40));
+            let body = format!(
+                r#"{{"zFuture":1,"apiBase":"{saved}","companionToken":"{token}","lastGroupId":"g1"}}"#
+            );
+            fs::write(config_path(&dir), body).unwrap();
+            let LoadOutcome::Loaded(config) = load_config(&dir) else {
+                panic!("not loaded")
+            };
+            assert_eq!(config.api_base, RELEASE_API_BASE, "{saved}");
+            assert!(!config.api_base_invalid);
+            let on_disk: Value =
+                serde_json::from_str(&fs::read_to_string(config_path(&dir)).unwrap()).unwrap();
+            assert_eq!(on_disk["apiBase"], RELEASE_API_BASE);
+            assert_eq!(on_disk["zFuture"], 1);
+            assert_eq!(on_disk["companionToken"], token.as_str());
+            assert_eq!(on_disk["lastGroupId"], "g1");
+        }
+    }
+
+    #[test]
+    fn a_non_legacy_api_base_is_left_on_disk_untouched() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+        let body = r#"{"apiBase":"http://localhost:3000/"}"#;
+        fs::write(config_path(&dir), body).unwrap();
+        let LoadOutcome::Loaded(config) = load_config(&dir) else {
+            panic!("not loaded")
+        };
+        assert_eq!(config.api_base, "http://localhost:3000");
+        assert_eq!(fs::read_to_string(config_path(&dir)).unwrap(), body);
     }
 
     #[test]
