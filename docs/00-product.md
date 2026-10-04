@@ -557,6 +557,7 @@ See `02-milestones.md` for the build order. In product terms:
 | Tonight · Board · Games · Stats · You, on phones and laptops; no More page | M14.7b |
 | The `Get your group ready` checklist, one-click Discord connect, host setup by code | M14 |
 | The landing page, `/how`, `/download`, and `/g/customs` as the demo | M14 |
+| Fast pages: tonight changes once per real change and never because of another group, a tap shows its answer at once, no player or lobby rows travel over the live connection | M19 |
 
 Backfill reads the client's own match history, and M0 confirmed it can: customs are in there (17 of 21 games in
 the first capture). The history *list* names only the person whose client it is, so backfill fetches each
@@ -588,6 +589,8 @@ game's detail page to learn the other nine. Nobody has yet checked how far back 
 
 - Zero team arguments in a week of nightly games.
 - Lobby open to game start under three minutes.
+- The tonight page shows a change within a second of it happening, once, and a tap on it never leaves the
+  old screen up after the button lets go.
 - A friend who opens the link in voice can tell, without asking, whether they are in, which side they are on,
   and why the split is fair.
 - A stranger who lands on `/` understands Kustom in ten seconds and can start a group in two minutes.
