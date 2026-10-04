@@ -1,4 +1,4 @@
-import type { CalibrationGame, RatingBefore } from '@customs/core';
+import type { CalibrationGame, KustomBefore } from '@customs/core';
 import type { RatingsBefore, StoredSplit } from '@/components/receipt/types';
 
 /**
@@ -14,6 +14,8 @@ export interface ReceiptSeat {
   side: 100 | 200;
   muBefore: number | null;
   sigmaBefore: number | null;
+  /** The all-time Kustom Rating going in (`r_before`, 0036): what the pre-game odds read (M18.5). */
+  rBefore?: number | null;
 }
 
 export type GameReceipt =
@@ -71,10 +73,8 @@ export function chosenOf(splits: readonly StoredSplit[]): StoredSplit | null {
 }
 
 function ratingsBeforeOf(seats: readonly ReceiptSeat[]): RatingsBefore {
-  const of = (side: 100 | 200): RatingBefore[] =>
-    seats
-      .filter((seat) => seat.side === side)
-      .map((seat) => ({ mu: seat.muBefore, sigma: seat.sigmaBefore }));
+  const of = (side: 100 | 200): KustomBefore[] =>
+    seats.filter((seat) => seat.side === side).map((seat) => ({ r: seat.rBefore ?? null }));
   return { blue: of(100), red: of(200) };
 }
 

@@ -1,4 +1,4 @@
-import type { DeltaReason, RatingBefore } from '@customs/core';
+import type { DeltaReason, KustomBefore } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
 import type { ResultOdds } from '../breakdown/read';
 import type { WindowKind } from '../night';
@@ -175,7 +175,7 @@ export interface RecentGame {
    * pre-game odds come from core's `preGameOdds` over these (STRATEGY §4.10). `null` when the game
    * has a split.
    */
-  ratingsBefore: { blue: RatingBefore[]; red: RatingBefore[] } | null;
+  ratingsBefore: { blue: KustomBefore[]; red: KustomBefore[] } | null;
   /** An ARAM: the receipt keeps its line and adds the label; no rating claims. */
   aram: boolean;
   /** The five on the player's own side, lane order, this player among them. */

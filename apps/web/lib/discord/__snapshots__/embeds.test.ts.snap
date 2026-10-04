@@ -135,7 +135,7 @@ exports[`resultEmbed, the worked example lost by the favourite > matches the lay
         "url": "https://customs.example/g/customs",
       },
       "color": 16739125,
-      "description": "Red was 46%. Red won. Upset!
+      "description": "Red was 44%. Red won. Upset!
 Top damage: Lena, 47.3k.
 **MVP** Lena · **ACE** Iris",
       "title": "Red wins · 34 min",
@@ -194,9 +194,9 @@ exports[`teamsEmbed, a reroll (M3.2, M14.10) > is the reroll post 1`] = `
         "url": "https://customs.example/g/customs",
       },
       "color": 16764774,
-      "description": "**Blue 57%** · **43% Red**
+      "description": "**Blue 60%** · **40% Red**
 🟦🟦🟦🟦🟦🟦🟥🟥🟥🟥
-Close. Blue has a slight edge.",
+Blue is favored.",
       "fields": [
         {
           "name": "Seats",
@@ -231,8 +231,8 @@ Close. Blue has a slight edge.",
     {
       "color": 16764774,
       "description": "Rating gap 170 pts · Main roles 10/10 · Reroll 1 of 2 · pick #2
-Next best reshuffles 4 players. Blue 59%, with a bigger rating gap (220 vs 170 pts).
--# Blue favored 57%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.",
+Next best reshuffles 4 players. Blue 63%, with a bigger rating gap (220 vs 170 pts).
+-# Blue favored 60%. Everyone on a main role. Gap 170. Next best: 2 swaps, gap 220.",
       "title": "How the bot decided",
       "url": "https://customs.example#how-the-bot-decided",
     },
@@ -251,8 +251,8 @@ exports[`teamsEmbed, the worked example > matches the layout in 05-design.md 1`]
         "url": "https://customs.example/g/customs",
       },
       "color": 16764774,
-      "description": "**Blue 54%** · **46% Red**
-🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+      "description": "**Blue 56%** · **44% Red**
+🟦🟦🟦🟦🟦🟦🟥🟥🟥🟥
 Close. Blue has a slight edge.",
       "fields": [
         {
@@ -288,8 +288,8 @@ Close. Blue has a slight edge.",
     {
       "color": 16764774,
       "description": "Rating gap 100 pts · Main roles 10/10 · Bot's pick #1 of 3
-Next best: swap the top players, Hana and Omar. That's Blue 57%, with a bigger rating gap (170 vs 100 pts).
--# Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.",
+Next best: swap the top players, Hana and Omar. That's Blue 60%, with a bigger rating gap (170 vs 100 pts).
+-# Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.",
       "title": "How the bot decided",
       "url": "https://customs.example#how-the-bot-decided",
     },

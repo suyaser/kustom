@@ -21,8 +21,8 @@ function member(puuid: string, side: SideValue | null, isSpectator = false): Poo
     mainRole: null,
     secondaryRole: null,
     roleOverride: null,
-    mu: 25,
-    sigma: 8.333,
+    r: 1200,
+    n: 0,
     gamesTonight: 0,
     lastSitOutAt: null,
   };

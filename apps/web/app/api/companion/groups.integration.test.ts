@@ -681,10 +681,11 @@ if (stack === null) {
       expect(await lobbyGroupId(db, lobbyId)).toBe(groupIds.b);
 
       const pool = await loadGroupPool(db, lobbyId, new Date(), 'UTC', await lobbyGroupId(db, lobbyId));
-      const inB = JSON.parse((await ratingRow(both, groupIds.b)) ?? '{}') as { mu: number };
-      const inA = JSON.parse((await ratingRow(both, groupIds.a)) ?? '{}') as { mu: number };
-      expect(inA.mu).not.toBe(inB.mu);
-      expect(pool.find((member) => member.puuid === both)?.mu).toBe(inB.mu);
+      // M18.5: the balancer reads the all-time Kustom Rating, `ratings.r`, of the lobby's group.
+      const inB = JSON.parse((await ratingRow(both, groupIds.b)) ?? '{}') as { r: number };
+      const inA = JSON.parse((await ratingRow(both, groupIds.a)) ?? '{}') as { r: number };
+      expect(inA.r).not.toBe(inB.r);
+      expect(pool.find((member) => member.puuid === both)?.r).toBe(inB.r);
       await db.from('lobbies').update({ status: 'abandoned' }).eq('id', lobbyId);
     });
   });

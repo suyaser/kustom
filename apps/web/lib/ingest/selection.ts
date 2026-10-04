@@ -26,8 +26,10 @@ export interface PoolMember {
   mainRole: RoleValue | null;
   secondaryRole: RoleValue | null;
   roleOverride: RoleValue | null;
-  mu: number;
-  sigma: number;
+  /** All-time Kustom Rating, unrounded (`ratings.r`; 1200 with no row). What the balancer reads. */
+  r: number;
+  /** All-time rated games in the group (`ratings.games`; 0 with no row). */
+  n: number;
   /** Games this player has finished since 06:00 (M2.5, `night.ts`). */
   gamesTonight: number;
   /** Epoch ms of the last game they were in the lobby for and did not play, or `null`. */

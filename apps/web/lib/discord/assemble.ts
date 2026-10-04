@@ -1,4 +1,12 @@
-import { type Assignment, displayRating, isOffRole, type Mode, type Role, resolveRoles } from '@customs/core';
+import {
+  type Assignment,
+  displayKustom,
+  displayRating,
+  isOffRole,
+  type Mode,
+  type Role,
+  resolveRoles,
+} from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { type RuleCheck, ruleCheckSchema, ruleModeOf } from '@customs/db/schemas';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
@@ -114,7 +122,8 @@ export function buildTeamsInput(
         puuid,
         name: names.get(puuid) ?? null,
         role,
-        rating: displayRating(member.mu),
+        // M18.5: the all-time Kustom Rating the balancer read (M18.6 owns the rest of this file).
+        rating: displayKustom(member.r),
         // Core's rule, not a copy of it: the scorer, the explanation and this line agree
         // about who is off-role because all three ask the same function.
         offRole: isOffRole(member, role),

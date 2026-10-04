@@ -161,14 +161,14 @@ describe('teamsEmbed, the worked example', () => {
    */
   it("is the text receipt of STRATEGY §4.9, with core's sentence verbatim as its last line", () => {
     expect(headerLines(payload)).toEqual([
-      '**Blue 54%** · **46% Red**',
-      '🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥',
+      '**Blue 56%** · **44% Red**',
+      '🟦🟦🟦🟦🟦🟦🟥🟥🟥🟥',
       'Close. Blue has a slight edge.',
     ]);
     expect(receiptOf(payload)).toEqual([
       "Rating gap 100 pts · Main roles 10/10 · Bot's pick #1 of 3",
-      "Next best: swap the top players, Hana and Omar. That's Blue 57%, with a bigger rating gap (170 vs 100 pts).",
-      '-# Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
+      "Next best: swap the top players, Hana and Omar. That's Blue 60%, with a bigger rating gap (170 vs 100 pts).",
+      '-# Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
     ]);
   });
 
@@ -472,7 +472,7 @@ describe('resultEmbed, the worked example lost by the favourite', () => {
 
   it('says what the odds were, that the underdog won, who did the damage and who carried, one line each', () => {
     expect(embed?.description?.split('\n')).toEqual([
-      'Red was 46%. Red won. Upset!',
+      'Red was 44%. Red won. Upset!',
       'Top damage: Lena, 47.3k.',
       '**MVP** Lena · **ACE** Iris',
     ]);
@@ -480,7 +480,7 @@ describe('resultEmbed, the worked example lost by the favourite', () => {
 
   it('says the favorite won without an Upset!', () => {
     const won = resultEmbed(workedResultInput({ winningSide: 100, topDamage: null, award: null })).embeds[0];
-    expect(won?.description).toBe('Blue was 54%. Blue won.');
+    expect(won?.description).toBe('Blue was 56%. Blue won.');
   });
 
   it('prints new rating and signed delta, one line per player, joined by a no-break space', () => {
@@ -1266,7 +1266,7 @@ describe('teamsEmbed, the receipt (M14.10)', () => {
     const payload = teamsEmbed(workedTeamsInput({ receipt: null }));
     expect(payload.embeds[0]).not.toHaveProperty('description');
     expect(payload.embeds[3]?.description).toBe(
-      'Blue favored 54%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
+      'Blue favored 56%. Everyone on a main role. Gap 100. Next best: swap Hana and Omar, gap 170.',
     );
   });
 

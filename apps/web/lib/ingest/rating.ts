@@ -6,11 +6,16 @@ import type { ServiceClient } from '../supabase';
 import {
   type FoldOutcome,
   type FoldRatedPlayer,
+  foldGameKustom,
   foldGameOutcomes,
   gateRatedGame,
+  KUSTOM_FRESH,
+  type KustomFoldOutcome,
+  type KustomState,
   mustGet,
   type RatedSkipReason,
 } from './fold';
+import { kustomWeekStart } from './kustomWeek';
 import { countsForRatings, readRatingsSince } from './ratingsEpoch';
 import { recomputeInferredRoles, roleInferenceFlags } from './roles';
 import { readSeed, type StoredSeed, seedColumns, seedFor } from './seed';
@@ -22,6 +27,10 @@ import { readSeed, type StoredSeed, seedColumns, seedFor } from './seed';
  * claim, the read of the ratings that went in, and the write of the ones that came out — in
  * `started_at` order for one game. The gate and the fold itself are `fold.ts`, shared with the
  * rebuild (M5.2), which replays exactly this for every game of a group.
+ *
+ * Since M18.5 the same write carries both Kustom tracks (`0036`): all-time from `ratings.r` and
+ * the rated-games count, weekly from each player's last weekly row in the game's week. A game
+ * before the group's reset is folded on the weekly track alone.
  */
 
 /**
@@ -107,10 +116,29 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
   }
   const { blue: blueRows, red: redRows } = gate;
 
-  // The group's epoch (M14.18): a game that started before the latest reset is history.
+  // The weekly Kustom track (M18.5): every player's standing in this game's week, from their last
+  // weekly row before this game in the same week, else 1200 and 0. Read for every rated game,
+  // because the weekly track ignores the group's ratings reset.
+  const week = await selectWeekStates(
+    client,
+    game,
+    rows.map((row) => row.playerId),
+  );
+
+  // The group's epoch (M14.18): a game that started before the latest reset is history on the
+  // all-time track. It still folds on the weekly track (M18: a reset does not touch the week).
   if (!countsForRatings(game.startedAt, await readRatingsSince(client, game.groupId))) {
-    console.info(`rating: game ${gameId} not rated: it started before the group's ratings reset`);
-    return { rated: false, reason: 'before-reset', claimed: 0 };
+    const weekly = foldGameKustom(blueRows, redRows, { allTime: null, week }, game.winningSide);
+    let claimed = 0;
+    for (const row of [...rows].sort((a, b) => (a.playerId < b.playerId ? -1 : 1))) {
+      if (await writeWeekOnlyColumns(client, gameId, row.playerId, mustKustom(weekly, row.playerId))) {
+        claimed += 1;
+      }
+    }
+    console.info(
+      `rating: game ${gameId} not rated: it started before the group's ratings reset (weekly track: ${claimed} rows)`,
+    );
+    return { rated: false, reason: 'before-reset', claimed };
   }
 
   // Ordered by puuid on both sides, so the arrays handed to core are deterministic and a
@@ -163,6 +191,18 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
     [...outcomes].map(([playerId, outcome]) => [playerId, outcome.after]),
   );
 
+  // The Kustom fold (M18.5), both tracks: all-time from `ratings.r` and the rated-games count
+  // (1200 and 0 for somebody with no row in this group), weekly from the read above.
+  const allTime = new Map<string, KustomState>();
+  for (const row of rows) {
+    const previous = stored.get(row.playerId);
+    allTime.set(
+      row.playerId,
+      previous === undefined ? KUSTOM_FRESH : { r: previous.r ?? KUSTOM_FRESH.r, n: previous.games },
+    );
+  }
+  const kustom = foldGameKustom(blueRows, redRows, { allTime, week }, game.winningSide);
+
   // The feedback-loop guard (M5.17), decided here because here is the only place it is
   // knowable: the recompute at the bottom of this function is about to move the very roles it
   // is measured against. `false` for the players the balancer filled; everyone else keeps the
@@ -182,6 +222,7 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
       {
         before: mustGet(before, row.playerId),
         outcome: mustOutcome(outcomes, row.playerId),
+        kustom: mustKustom(kustom, row.playerId),
         // The count the settling chip reads, as it stood when this game was folded (0034).
         ratedGamesBefore: stored.get(row.playerId)?.games ?? 0,
       },
@@ -214,7 +255,7 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
     return { rated: false, reason: 'before-reset', claimed };
   }
 
-  await applyRatings(client, game.groupId, game.winningSide, rows, after, stored, seeds);
+  await applyRatings(client, game.groupId, game.winningSide, rows, after, kustom, stored, seeds);
 
   // The ten who played, and nobody else (M5.17). Deliberately not fatal: the game is rated and
   // the numbers are right, and a pair that failed to move is fixed by the next game these
@@ -233,7 +274,10 @@ export async function rateStoredGame(client: ServiceClient, gameId: string): Pro
 }
 
 interface StoredGame {
+  id: string;
   startedAt: string;
+  /** The rebuild's tie-break after `started_at`, so "earlier in the week" means one thing in both folds. */
+  lcuGameId: number;
   /** The group whose `ratings` this game moves (M13.3). */
   groupId: string;
   durationS: number;
@@ -253,7 +297,7 @@ interface StoredGame {
 async function selectGame(client: ServiceClient, gameId: string): Promise<StoredGame> {
   const { data, error } = await client
     .from('games')
-    .select('group_id, started_at, duration_s, winning_side, lobby_id, raw, rated')
+    .select('id, lcu_game_id, group_id, started_at, duration_s, winning_side, lobby_id, raw, rated')
     .eq('id', gameId)
     .single();
   if (error) throw new Error(`rating: game select failed: ${error.message}`);
@@ -261,6 +305,8 @@ async function selectGame(client: ServiceClient, gameId: string): Promise<Stored
     throw new Error(`rating: game ${gameId} has no winning side`);
   }
   return {
+    id: data.id,
+    lcuGameId: data.lcu_game_id,
     groupId: data.group_id,
     startedAt: data.started_at,
     durationS: data.duration_s,
@@ -309,6 +355,11 @@ async function selectGamePlayers(client: ServiceClient, gameId: string): Promise
 interface StoredRating {
   /** Null on a Kustom-only row (0036): no OpenSkill pair, so the fold starts it from its seed. */
   rating: Rating | null;
+  /**
+   * The all-time Kustom Rating (0036). Null on a row the Kustom fold has not written yet (an
+   * OpenSkill-era row before the switch's rebuild): folded from 1200 with the row's count.
+   */
+  r: number | null;
   games: number;
   wins: number;
   /** The stored seed (M5.7), or null on a row written before `0012` filled these columns. */
@@ -322,7 +373,7 @@ async function selectRatings(
 ): Promise<Map<string, StoredRating>> {
   const { data, error } = await client
     .from('ratings')
-    .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
+    .select('player_id, mu, sigma, r, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
     .eq('group_id', groupId)
     .in('player_id', playerIds);
   if (error) throw new Error(`rating: ratings select failed: ${error.message}`);
@@ -332,6 +383,7 @@ async function selectRatings(
       row.player_id,
       {
         rating: openSkillPair(row),
+        r: row.r,
         games: row.games,
         wins: row.wins,
         seed: readSeed(row),
@@ -346,10 +398,109 @@ function mustOutcome(outcomes: ReadonlyMap<string, FoldOutcome>, playerId: strin
   return outcome;
 }
 
+function mustKustom(outcomes: ReadonlyMap<string, KustomFoldOutcome>, playerId: string): KustomFoldOutcome {
+  const outcome = outcomes.get(playerId);
+  if (outcome === undefined)
+    throw new Error(`rating: the Kustom fold returned nothing for player ${playerId}`);
+  return outcome;
+}
+
+/** PostgREST's `max_rows`: the weekly read pages at it, so a long week can never be cut short. */
+export const WEEK_PAGE_SIZE = 1000;
+
+/** What {@link selectWeekStates} needs to know about the game being folded. */
+export interface WeekStateGame {
+  id: string;
+  groupId: string;
+  startedAt: string;
+  lcuGameId: number;
+}
+
+/**
+ * The ten's standing on the weekly Kustom track just before `game` (M18.5): each player's last
+ * weekly row in the same week (`kustomWeekStart`) whose game is earlier in the rebuild's order
+ * (`started_at`, then `lcu_game_id`), as `{ r: week_r_after, n: week_games_before + 1 }`.
+ * Somebody with no such row is absent, which the fold reads as 1200 and 0.
+ *
+ * **Every page, in a fixed order** (`game_id`, `player_id`): PostgREST silently returns only the
+ * first `max_rows`, and a truncated read here would start somebody from 1200 with no error. The
+ * loop stops only on a short page. Picking the latest row is done here, by (`started_at`,
+ * `lcu_game_id`), so the page order cannot change the answer.
+ */
+export async function selectWeekStates(
+  client: ServiceClient,
+  game: WeekStateGame,
+  playerIds: readonly string[],
+): Promise<Map<string, KustomState>> {
+  type WeekRow = {
+    player_id: string;
+    game_id: string;
+    week_r_after: number | null;
+    week_games_before: number | null;
+    games: { started_at: string; lcu_game_id: number };
+  };
+  const all: WeekRow[] = [];
+  for (let from = 0; ; from += WEEK_PAGE_SIZE) {
+    const { data, error } = await client
+      .from('game_players')
+      .select('player_id, game_id, week_r_after, week_games_before, games!inner(started_at, lcu_game_id)')
+      .eq('group_id', game.groupId)
+      .in('player_id', [...playerIds])
+      .not('week_r_after', 'is', null)
+      .gte('games.started_at', kustomWeekStart(game.startedAt))
+      .lte('games.started_at', game.startedAt)
+      .order('game_id', { ascending: true })
+      .order('player_id', { ascending: true })
+      .range(from, from + WEEK_PAGE_SIZE - 1);
+    if (error) throw new Error(`rating: weekly track select failed: ${error.message}`);
+    const page = (data ?? []) as WeekRow[];
+    all.push(...page);
+    if (page.length < WEEK_PAGE_SIZE) break;
+  }
+
+  const at = Date.parse(game.startedAt);
+  const latest = new Map<string, { t: number; lcu: number; state: KustomState }>();
+  for (const row of all) {
+    if (row.game_id === game.id || row.week_r_after === null || row.week_games_before === null) continue;
+    const t = Date.parse(row.games.started_at);
+    const lcu = row.games.lcu_game_id;
+    // Strictly earlier in the fold's order: a tie on the instant goes to the lower game id.
+    if (t > at || (t === at && lcu >= game.lcuGameId)) continue;
+    const previous = latest.get(row.player_id);
+    if (previous !== undefined && (previous.t > t || (previous.t === t && previous.lcu > lcu))) continue;
+    latest.set(row.player_id, { t, lcu, state: { r: row.week_r_after, n: row.week_games_before + 1 } });
+  }
+  return new Map([...latest].map(([playerId, entry]) => [playerId, entry.state]));
+}
+
+/**
+ * The 0036 columns of one row from its Kustom outcome: both tracks when the game is on the
+ * all-time track, the weekly five alone otherwise. `share_rank` and `award` are the game's and
+ * ride on both.
+ */
+function kustomColumns(outcome: KustomFoldOutcome) {
+  return {
+    share_rank: outcome.shareRank,
+    award: outcome.award,
+    week_r_before: outcome.week.rBefore,
+    week_r_after: outcome.week.rAfter,
+    week_k: outcome.week.k,
+    week_fold_p: outcome.week.expected,
+    week_games_before: outcome.week.n,
+  };
+}
+
 /**
  * One row's four rating columns, the fold's breakdown (M14.58, `0034`: the side's odds, the base
- * `mu_after`, the award and the rated-games count) and the role guard, guarded by
- * `mu_after is null`. `false` means somebody else has already written it.
+ * `mu_after`, the award and the rated-games count), both Kustom tracks (M18.5, `0036`) and the role
+ * guard, guarded by `mu_after is null` and `week_r_after is null`. `false` means somebody else has
+ * already written it.
+ *
+ * **The Kustom columns are the rating** from M18 on: `fold_p` is the all-time Kustom expected for
+ * the row's side and `award` the share ranks' MVP / ACE (the same two `mvpAce` names: one score,
+ * one tie-break). The OpenSkill columns (`mu_*`, `sigma_*`, `base_mu_after`) are still written,
+ * from the same game, so the readers M18.6 has not moved yet keep working and the rollback build
+ * finds them filled; nothing new reads them.
  *
  * `counts_for_role_inference` rides along with the claim rather than in a pass of its own, so
  * the row that lost the race writes neither and the winner writes both (M5.17).
@@ -358,9 +509,11 @@ async function writeRatingColumns(
   client: ServiceClient,
   gameId: string,
   playerId: string,
-  ratings: { before: Rating; outcome: FoldOutcome; ratedGamesBefore: number },
+  ratings: { before: Rating; outcome: FoldOutcome; kustom: KustomFoldOutcome; ratedGamesBefore: number },
   countsForRoleInference: boolean,
 ): Promise<boolean> {
+  const allTime = ratings.kustom.allTime;
+  if (allTime === null) throw new Error(`rating: game ${gameId} folded without its all-time track`);
   const { data, error } = await client
     .from('game_players')
     .update({
@@ -368,17 +521,44 @@ async function writeRatingColumns(
       sigma_before: ratings.before.sigma,
       mu_after: ratings.outcome.after.mu,
       sigma_after: ratings.outcome.after.sigma,
-      fold_p: ratings.outcome.foldP,
       base_mu_after: ratings.outcome.baseMuAfter,
-      award: ratings.outcome.award,
+      fold_p: allTime.expected,
       rated_games_before: ratings.ratedGamesBefore,
+      r_before: allTime.rBefore,
+      r_after: allTime.rAfter,
+      k: allTime.k,
+      ...kustomColumns(ratings.kustom),
       counts_for_role_inference: countsForRoleInference,
     })
     .eq('game_id', gameId)
     .eq('player_id', playerId)
     .is('mu_after', null)
+    .is('week_r_after', null)
     .select('player_id');
   if (error) throw new Error(`rating: claim failed: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/**
+ * A game before the group's ratings reset, on the weekly track alone (M18.5; a legal 0036 row:
+ * the weekly five, `share_rank` and `award`, no all-time column). Claimed the same way.
+ */
+async function writeWeekOnlyColumns(
+  client: ServiceClient,
+  gameId: string,
+  playerId: string,
+  kustom: KustomFoldOutcome,
+): Promise<boolean> {
+  const { data, error } = await client
+    .from('game_players')
+    .update(kustomColumns(kustom))
+    .eq('game_id', gameId)
+    .eq('player_id', playerId)
+    .is('mu_after', null)
+    .is('r_after', null)
+    .is('week_r_after', null)
+    .select('player_id');
+  if (error) throw new Error(`rating: weekly claim failed: ${error.message}`);
   return (data ?? []).length > 0;
 }
 
@@ -398,17 +578,21 @@ async function applyRatings(
   winningSide: SideValue,
   rows: readonly GamePlayerRow[],
   after: Map<string, Rating>,
+  kustom: ReadonlyMap<string, KustomFoldOutcome>,
   stored: Map<string, StoredRating>,
   seeds: ReadonlyMap<string, StoredSeed | null>,
 ): Promise<void> {
   const inserts: RatingInsert[] = rows.map((row) => {
     const previous = stored.get(row.playerId);
     const rating = mustGet(after, row.playerId);
+    const allTime = mustKustom(kustom, row.playerId).allTime;
+    if (allTime === null) throw new Error('rating: a ratings write needs the all-time track');
     return {
       group_id: groupId,
       player_id: row.playerId,
       mu: rating.mu,
       sigma: rating.sigma,
+      r: allTime.rAfter,
       games: (previous?.games ?? 0) + 1,
       wins: (previous?.wins ?? 0) + (row.side === winningSide ? 1 : 0),
       ...seedColumns(seeds.get(row.playerId) ?? null),

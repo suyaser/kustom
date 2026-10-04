@@ -26,8 +26,8 @@ function member(puuid: string): PoolMember {
     mainRole: null,
     secondaryRole: null,
     roleOverride: null,
-    mu: 20,
-    sigma: 10,
+    r: 1200,
+    n: 0,
     gamesTonight: 0,
     lastSitOutAt: null,
   };

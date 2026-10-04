@@ -68,8 +68,8 @@ describe('sitOutRule, read at the cut', () => {
       mainRole: null,
       secondaryRole: null,
       roleOverride: null,
-      mu: 25,
-      sigma: 8,
+      r: 1200,
+      n: 0,
     }));
     const { playing, sitters } = selectTen(around);
     expect([...sitters].sort(compareForSitOut).map((one) => one.puuid)).toEqual(['a', 'd']);
@@ -90,8 +90,8 @@ describe('the host always plays (M14.43): the reason skips them at the cut', () 
       mainRole: null,
       secondaryRole: null,
       roleOverride: null,
-      mu: 25,
-      sigma: 8,
+      r: 1200,
+      n: 0,
     }));
 
   it('the walk: eleven level on one game, the host first by puuid, so the next in line sits', () => {

@@ -168,7 +168,7 @@ export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
     seats.map((seat) => {
       const player = byPuuid.get(seat.puuid);
       if (player === undefined) throw new Error(`workedResult: ${seat.puuid} is not in the roster`);
-      return { mu: player.mu, sigma: player.sigma };
+      return { mu: player.mu, sigma: player.sigma, r: player.r };
     });
 
   const before = { blue: ratingsOf(teams.blue), red: ratingsOf(teams.red) };
@@ -183,6 +183,8 @@ export function workedResult(overrides: Partial<ResultView> = {}): ResultView {
       muBefore: (side === 100 ? before.blue : before.red)[index]?.mu ?? null,
       muAfter: (side === 100 ? after.blue : after.red)[index]?.mu ?? null,
       sigmaBefore: (side === 100 ? before.blue : before.red)[index]?.sigma ?? null,
+      // M18.5: the all-time Kustom Rating going in, the one the balancer rolled these teams on.
+      rBefore: (side === 100 ? before.blue : before.red)[index]?.r ?? null,
     }));
 
   return {
@@ -223,8 +225,8 @@ export function offRoleFixture(): { members: MemberView[]; teams: TeamsView } {
     players: WORKED_ROSTER.map((player) => ({
       puuid: workedPuuid(player.name),
       name: player.name,
-      mu: player.mu,
-      sigma: player.sigma,
+      r: player.r,
+      n: 40,
       mainRole: 'mid' as Role,
       secondaryRole: null,
       roleOverride: null,

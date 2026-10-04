@@ -35,6 +35,8 @@ export interface ScoreRow {
   muBefore: number | null;
   sigmaBefore: number | null;
   muAfter: number | null;
+  /** `r_before` (0036): the pre-game odds of a split-less game since M18.5 (the rest is M18.6's). */
+  rBefore: number | null;
 }
 
 export async function readScoreRows(client: PublicClient, gameIds: readonly string[]): Promise<ScoreRow[]> {
@@ -43,7 +45,7 @@ export async function readScoreRows(client: PublicClient, gameIds: readonly stri
     const { data, error } = await client
       .from('game_players')
       .select(
-        'game_id, player_id, side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after',
+        'game_id, player_id, side, role, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, r_before',
       )
       .in('game_id', chunk);
     if (error) throw new Error(`games: scoreboard lookup failed: ${error.message}`);
@@ -67,6 +69,7 @@ export async function readScoreRows(client: PublicClient, gameIds: readonly stri
         muBefore: row.mu_before,
         sigmaBefore: row.sigma_before,
         muAfter: row.mu_after,
+        rBefore: row.r_before,
       });
     }
   }

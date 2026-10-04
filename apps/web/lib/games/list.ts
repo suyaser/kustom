@@ -341,6 +341,7 @@ export function gameListItemOf(
       side: row.side,
       muBefore: row.muBefore,
       sigmaBefore: row.sigmaBefore,
+      rBefore: row.rBefore,
     })),
     splits: run,
   });

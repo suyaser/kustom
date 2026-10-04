@@ -146,24 +146,13 @@ export const GARBAGE_EXPLANATION: readonly StoredSplit[] = THREE_SPLITS.map((s) 
 export const CALIBRATION_READY: Calibration = { n: 103, favoredWon: 58, actualPct: 56, expectedPct: 55 };
 export const CALIBRATION_EARLY: Calibration = { n: 7, favoredWon: 5, actualPct: 71, expectedPct: 54 };
 
+/** All-time Kustom Ratings going in (M18.5: the receipt's pre-game odds read `r_before`). */
 export const RATINGS_KNOWN: RatingsBefore = {
-  blue: [
-    { mu: 22, sigma: 3 },
-    { mu: 24, sigma: 3 },
-    { mu: 30, sigma: 2.5 },
-    { mu: 21, sigma: 3 },
-    { mu: 23, sigma: 4 },
-  ],
-  red: [
-    { mu: 21, sigma: 3 },
-    { mu: 27, sigma: 2.5 },
-    { mu: 24, sigma: 3 },
-    { mu: 22, sigma: 3 },
-    { mu: 21, sigma: 6 },
-  ],
+  blue: [{ r: 1320 }, { r: 1440 }, { r: 1800 }, { r: 1260 }, { r: 1380 }],
+  red: [{ r: 1260 }, { r: 1620 }, { r: 1440 }, { r: 1320 }, { r: 1260 }],
 };
 
 export const RATINGS_MISSING: RatingsBefore = {
   blue: RATINGS_KNOWN.blue,
-  red: [...RATINGS_KNOWN.red.slice(0, 4), { mu: null, sigma: null }],
+  red: [...RATINGS_KNOWN.red.slice(0, 4), { r: null }],
 };

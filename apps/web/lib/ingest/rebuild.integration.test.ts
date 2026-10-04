@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { config, displayRating, foldWinProbability, provisionalSeed, rateGame } from '@customs/core';
+import { config, displayRating, provisionalSeed, rateGame, winProbability } from '@customs/core';
 import type { Database } from '@customs/db';
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
@@ -108,6 +108,16 @@ if (stack === null) {
     base_mu_after: null,
     award: null,
     rated_games_before: null,
+    // 0036 (M18.5): an un-rate nulls both Kustom tracks too.
+    r_before: null,
+    r_after: null,
+    k: null,
+    share_rank: null,
+    week_r_before: null,
+    week_r_after: null,
+    week_k: null,
+    week_fold_p: null,
+    week_games_before: null,
   };
 
   function post(body: unknown): Request {
@@ -129,7 +139,7 @@ if (stack === null) {
       // The fold breakdown (M14.58, `0034`) is part of what the rebuild writes, so it is part of
       // "two runs are byte-identical" too.
       .select(
-        'game_id, player_id, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before',
+        'game_id, player_id, mu_before, sigma_before, mu_after, sigma_after, fold_p, base_mu_after, award, rated_games_before, r_before, r_after, k, share_rank, week_r_before, week_r_after, week_k, week_fold_p, week_games_before',
       )
       .eq('group_id', groupId)
       .order('game_id')
@@ -141,7 +151,7 @@ if (stack === null) {
       // The four seed columns are in the dump because they are part of what the rebuild
       // writes (M5.7): "two runs are byte-identical" has to include the seed, or the second
       // run could quietly move where somebody's history starts.
-      .select('player_id, mu, sigma, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
+      .select('player_id, mu, sigma, r, games, wins, seed_mu, seed_sigma, seed_rank_tier, seed_rank_division')
       .eq('group_id', groupId)
       .order('player_id');
     if (ratingsError) throw new Error(ratingsError.message);
@@ -1168,7 +1178,7 @@ if (stack === null) {
       const { data, error } = await db
         .from('game_players')
         .select(
-          'side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, base_mu_after, fold_p, award, rated_games_before, players!inner(puuid)',
+          'side, role, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives, mu_before, sigma_before, mu_after, base_mu_after, fold_p, award, rated_games_before, r_before, players!inner(puuid)',
         )
         .eq('game_id', game?.id ?? '');
       if (error) throw new Error(error.message);
@@ -1188,6 +1198,7 @@ if (stack === null) {
           damageSelfMitigated: row.damage_self_mitigated,
           damageToObjectives: row.damage_to_objectives,
           before: { mu: row.mu_before as number, sigma: row.sigma_before as number },
+          rBefore: row.r_before as number,
           muAfter: row.mu_after as number,
           baseMuAfter: row.base_mu_after,
           foldP: row.fold_p,
@@ -1225,13 +1236,15 @@ if (stack === null) {
       expect(rows).toHaveLength(10);
       const award = gameAward(rows, 100);
       if (award === null) throw new Error('expected this game to have an MVP');
-      const blue = rows.filter((row) => row.side === 100).map((row) => row.before);
-      const red = rows.filter((row) => row.side === 200).map((row) => row.before);
+      const sumR = (side: 100 | 200) =>
+        rows.filter((row) => row.side === side).reduce((total, row) => total + row.rBefore, 0);
       const counts = await ratedBefore(bonusGameId);
 
       for (const row of rows) {
-        // The odds the fold used, from the exact befores it handed rateGame (one function, M14.59).
-        expect(row.foldP).toBeCloseTo(foldWinProbability(blue, red, row.side), 12);
+        // M18.5: the odds the fold used are Kustom's all-time expected for the row's side, from the
+        // exact all-time Ratings going in (the one odds function, `winProbability`).
+        const blueP = winProbability(sumR(100), sumR(200));
+        expect(row.foldP).toBeCloseTo(row.side === 100 ? blueP : 1 - blueP, 12);
         expect(row.award).toBe(row.puuid === award.mvp ? 'mvp' : row.puuid === award.ace ? 'ace' : 'none');
         expect(row.ratedGamesBefore).toBe(counts.get(row.puuid) ?? 0);
         if (row.award === 'none') expect(row.baseMuAfter).toBe(row.muAfter);
@@ -1266,10 +1279,25 @@ if (stack === null) {
       const ratedCount = (rated ?? []).length;
       expect(ratedCount).toBeGreaterThan(0);
 
-      // What every row looked like before 0034: rated, no breakdown.
+      // What every row looked like before 0034: rated, no breakdown (and, since M18.5, no Kustom
+      // column either: 0036 refuses a Kustom row without its breakdown).
       const { error: wipeError } = await db
         .from('game_players')
-        .update({ fold_p: null, base_mu_after: null, award: null, rated_games_before: null })
+        .update({
+          fold_p: null,
+          base_mu_after: null,
+          award: null,
+          rated_games_before: null,
+          r_before: null,
+          r_after: null,
+          k: null,
+          share_rank: null,
+          week_r_before: null,
+          week_r_after: null,
+          week_k: null,
+          week_fold_p: null,
+          week_games_before: null,
+        })
         .eq('group_id', groupId);
       expect(wipeError).toBeNull();
       const legacy = await dump();

@@ -580,6 +580,8 @@ describe('receiptUpset (M15.18)', () => {
     side,
     muBefore: mu,
     sigmaBefore: 3,
+    // M18.5: pre-game odds read the all-time Kustom Rating going in.
+    rBefore: mu * 60,
   });
   const asRolled = [...blue.map((p) => seat(p, 100, 20)), ...red.map((p) => seat(p, 200, 30))];
   // Two swapped after the roll; ratings still say Blue was the underdog.

@@ -13,6 +13,11 @@ import type { PoolMember } from '../ingest/selection';
 
 export interface WorkedPlayer {
   name: string;
+  /**
+   * The all-time Kustom Rating the balancer reads since M18.2 (M18.5): `mu × 60`, the numbers
+   * core's own worked-example test uses, so the balance picks the same split it did on mu.
+   */
+  r: number;
   mu: number;
   sigma: number;
   mainRole: Role;
@@ -20,17 +25,20 @@ export interface WorkedPlayer {
 }
 
 export const WORKED_ROSTER: readonly WorkedPlayer[] = [
-  { name: 'Bilal', mu: 28.55, sigma: 4.8, mainRole: 'adc', secondaryRole: 'mid' },
-  { name: 'Hana', mu: 23.9, sigma: 4.6, mainRole: 'top', secondaryRole: 'mid' },
-  { name: 'Iris', mu: 26.3, sigma: 4.9, mainRole: 'jungle', secondaryRole: 'top' },
-  { name: 'Karim', mu: 25.85, sigma: 4.7, mainRole: 'mid', secondaryRole: 'adc' },
-  { name: 'Lena', mu: 34.8, sigma: 4.5, mainRole: 'adc', secondaryRole: 'jungle' },
-  { name: 'Nadia', mu: 21.1, sigma: 5.1, mainRole: 'mid', secondaryRole: 'support' },
-  { name: 'Omar', mu: 24.49, sigma: 4.6, mainRole: 'top', secondaryRole: 'support' },
-  { name: 'Rami', mu: 27.3, sigma: 4.8, mainRole: 'jungle', secondaryRole: 'mid' },
-  { name: 'Theo', mu: 23.65, sigma: 4.9, mainRole: 'support', secondaryRole: 'adc' },
-  { name: 'Yuki', mu: 18.9, sigma: 5.0, mainRole: 'support', secondaryRole: 'top' },
+  { name: 'Bilal', r: 1713, mu: 28.55, sigma: 4.8, mainRole: 'adc', secondaryRole: 'mid' },
+  { name: 'Hana', r: 1434, mu: 23.9, sigma: 4.6, mainRole: 'top', secondaryRole: 'mid' },
+  { name: 'Iris', r: 1578, mu: 26.3, sigma: 4.9, mainRole: 'jungle', secondaryRole: 'top' },
+  { name: 'Karim', r: 1551, mu: 25.85, sigma: 4.7, mainRole: 'mid', secondaryRole: 'adc' },
+  { name: 'Lena', r: 2088, mu: 34.8, sigma: 4.5, mainRole: 'adc', secondaryRole: 'jungle' },
+  { name: 'Nadia', r: 1266, mu: 21.1, sigma: 5.1, mainRole: 'mid', secondaryRole: 'support' },
+  { name: 'Omar', r: 1469.4, mu: 24.49, sigma: 4.6, mainRole: 'top', secondaryRole: 'support' },
+  { name: 'Rami', r: 1638, mu: 27.3, sigma: 4.8, mainRole: 'jungle', secondaryRole: 'mid' },
+  { name: 'Theo', r: 1419, mu: 23.65, sigma: 4.9, mainRole: 'support', secondaryRole: 'adc' },
+  { name: 'Yuki', r: 1134, mu: 18.9, sigma: 5.0, mainRole: 'support', secondaryRole: 'top' },
 ];
+
+/** Everyone in the worked example is settled (core's test uses the same 20). */
+export const WORKED_GAMES = 20;
 
 /** `puuid-bilal`. The same ids core's own test uses, so the sort order is alphabetical. */
 export function workedPuuid(name: string): string {
@@ -41,8 +49,8 @@ export function workedBalancePlayers(): BalancePlayer[] {
   return WORKED_ROSTER.map((player) => ({
     puuid: workedPuuid(player.name),
     name: player.name,
-    mu: player.mu,
-    sigma: player.sigma,
+    r: player.r,
+    n: WORKED_GAMES,
     mainRole: player.mainRole,
     secondaryRole: player.secondaryRole,
     roleOverride: null,
@@ -60,8 +68,8 @@ export function workedPool(overrides: Partial<PoolMember> = {}): PoolMember[] {
     mainRole: player.mainRole,
     secondaryRole: player.secondaryRole,
     roleOverride: null,
-    mu: player.mu,
-    sigma: player.sigma,
+    r: player.r,
+    n: WORKED_GAMES,
     gamesTonight: 0,
     lastSitOutAt: null,
     ...overrides,

@@ -114,6 +114,18 @@ if (stack === null) {
       sigma_before: input.missingMu && seat === 0 ? null : 6,
       mu_after: input.rated === false ? null : 25 + i * 0.5 + (side === (input.winner ?? 100) ? 0.4 : -0.4),
       sigma_after: input.rated === false ? null : 5.9,
+      // M18.5: the all-time Kustom track the pre-game odds read (`r_before`); a missing rating
+      // going in is a missing `r_before`. 0036 stores the track whole or not at all.
+      ...(input.rated === false || (input.missingMu && seat === 0)
+        ? {}
+        : {
+            r_before: 1500 + i * 30,
+            r_after: 1500 + i * 30 + (side === (input.winner ?? 100) ? 8 : -8),
+            k: 16,
+            fold_p: 0.5,
+            award: 'none',
+            rated_games_before: 20,
+          }),
     }));
     const inserted = await db.from('game_players').insert(rows);
     if (inserted.error) throw new Error(inserted.error.message);

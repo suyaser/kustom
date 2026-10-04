@@ -1,4 +1,4 @@
-import type { Assignment, Calibration, RatingBefore, Role } from '@customs/core';
+import type { Assignment, Calibration, KustomBefore, Role } from '@customs/core';
 import type { ReceiptSplit } from '@/lib/receipt/copy';
 
 /**
@@ -62,8 +62,8 @@ export interface DisclosureExtras {
 
 export type HeadingLevel = 'h2' | 'h3';
 
-/** The ten ratings going in, for a game with no usable split (STRATEGY §4.10). */
+/** The ten all-time Kustom Ratings going in (`r_before`, M18.5), for a game with no usable split (STRATEGY §4.10). */
 export interface RatingsBefore {
-  blue: readonly RatingBefore[];
-  red: readonly RatingBefore[];
+  blue: readonly KustomBefore[];
+  red: readonly KustomBefore[];
 }
