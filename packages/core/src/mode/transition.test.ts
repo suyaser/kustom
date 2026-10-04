@@ -379,11 +379,11 @@ describe('take (Roll): the rule, its pair and Rated move into the lock', () => {
     });
   });
 
-  it('no pair passes: only Rated moves, the rule and its stale pair stay pending', () => {
+  it('no pair passes: Rated is copied into the lock; the rule, its stale pair and Rated stay on the row', () => {
     const state = row({ standing: 'fearless', pending: ioniaNoxus, rated: true });
     expect(take(state, ctx(sequence(0), NO_PAIR))).toEqual({
       lock: { standing: 'fearless', mode: { id: 'fearless' }, rated: true },
-      patch: { rated: null },
+      patch: {},
       regions: { outcome: 'no-draw' },
     });
   });
@@ -469,18 +469,27 @@ describe('handBack: per field, only into empty fields', () => {
       const after = apply(state, taken.patch);
       expect(apply(after, handBack(after, taken.lock))).toEqual(state);
     }
-    // The no-draw path too, with Rated at its default.
-    const noDraw = row({ standing: 'fearless', pending: ioniaNoxus });
-    const taken = take(noDraw, ctx(sequence(0), NO_PAIR));
-    const after = apply(noDraw, taken.patch);
-    expect(apply(after, handBack(after, taken.lock))).toEqual(noDraw);
+    // The no-draw path too, with Rated at its default and set either way.
+    for (const rated of [null, true, false]) {
+      const noDraw = row({ standing: 'fearless', pending: ioniaNoxus, rated });
+      const taken = take(noDraw, ctx(sequence(0), NO_PAIR));
+      const after = apply(noDraw, taken.patch);
+      expect(apply(after, handBack(after, taken.lock))).toEqual(noDraw);
+    }
   });
 
-  it('the no-draw limit: an explicit Rated moved with a standing lock is not put on the still-pending rule', () => {
+  it('no-draw then a Rift record: the standing mode as Rated said; the rule and Rated stay for the next game', () => {
     const noDraw = row({ standing: 'fearless', pending: ioniaNoxus, rated: true });
     const taken = take(noDraw, ctx(sequence(0), NO_PAIR));
     const after = apply(noDraw, taken.patch);
-    expect(handBack(after, taken.lock)).toEqual({});
+    const recorded = recordGame(after, { kind: 'rift', lock: taken.lock, live: true });
+    expect(recorded.stamp).toEqual({
+      standing: 'fearless',
+      mode: { id: 'fearless' },
+      rated: true,
+      checked: false,
+    });
+    expect(apply(after, recorded.patch)).toEqual(noDraw);
   });
 
   it('take then a newer admin choice then handBack keeps every newer field', () => {

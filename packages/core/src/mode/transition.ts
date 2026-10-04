@@ -244,9 +244,10 @@ export function lockTransition(lock: ModeLock, action: RegionAction, context: Tr
 /**
  * Roll: the pending rule (with its pair) and Rated move onto the lock and are emptied on the row.
  * A region pair still passing under the bans is locked as it is; a short one is replaced by a fresh
- * draw (`redrawn`, for the card's notice); with no pair passing only Rated moves and the rule stays
- * pending with its stale pair (`no-draw`): the game is the standing mode. A Reroll keeps the lock and
- * never calls this.
+ * draw (`redrawn`, for the card's notice); with no pair passing (`no-draw`) the game is the standing
+ * mode, Rated is copied into the lock, and the row is left as it was: the rule stays pending with its
+ * stale pair and keeps its Rated, which belongs with that rule (M20 D6 (d) as amended 2026-10-05).
+ * A Reroll keeps the lock and never calls this.
  */
 export function take(row: ModeRow, context: TransitionContext): TakeResult {
   const standingLock = (): ModeLock => ({
@@ -269,8 +270,7 @@ export function take(row: ModeRow, context: TransitionContext): TakeResult {
     };
   }
   const fresh = drawPair(context, bans);
-  if (fresh === null)
-    return { lock: standingLock(), patch: { rated: null }, regions: { outcome: 'no-draw' } };
+  if (fresh === null) return { lock: standingLock(), patch: {}, regions: { outcome: 'no-draw' } };
   return {
     lock: { standing: row.standing, mode: regionRule(fresh), rated: row.rated },
     patch: moved,
@@ -282,10 +282,8 @@ export function take(row: ModeRow, context: TransitionContext): TakeResult {
  * Teams coming down, a remake or an ARAM record: the lock's rule (its pair as last locked) goes back
  * only if the row has no rule; its Rated only if the row's Rated is empty **and** the row's rule is
  * still the lock's (or none, the lock's going back with it). A newer admin choice always wins, and a
- * newer pick reset Rated to its own default. Twice is the same as once.
- *
- * Limit: on the no-draw path the rule stayed pending while the lock is the standing mode, which reads
- * like a newer pick, so an explicit Rated moved there is not handed back (a default one is).
+ * newer pick reset Rated to its own default. Twice is the same as once. (On the no-draw path the
+ * row kept its rule and Rated, so there is nothing to hand back.)
  */
 export function handBack(row: ModeRow, lock: ModeLock): RowPatch {
   const patch: RowPatch = {};
