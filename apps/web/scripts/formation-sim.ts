@@ -16,7 +16,7 @@ import {
  * balancer against the M18.2 one it replaced. The world and its random streams are the report's;
  * see `formation-sim/sim.ts` for what is rescaled and what is new.
  *
- *   pnpm --filter web exec node --import tsx scripts/formation-sim.ts [seeds=20] [games=600]
+ *   pnpm --filter web formation-sim [seeds=20] [games=600]
  *
  * No database, no network, no credentials; deterministic for the same arguments. Dev only.
  */

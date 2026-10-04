@@ -65,7 +65,8 @@ lobbies        (id, lcu_party_id, status, reported_by_player_id, lobby_name, lob
                 created_at, updated_at)  unique (lcu_party_id) where status in (open, balanced, in_game)
 lobby_members  (lobby_id, player_id, side null, role null, role_override null, is_spectator, created_at)
 splits         (id, lobby_id, rank, blue jsonb, red jsonb, gap, blue_win_prob, score, off_role_count,
-                is_chosen, explanation, roster_key, created_at)
+                is_chosen, explanation, roster_key, created_at, odds_model,   -- odds_model 0036
+                score_parts jsonb null)   -- 0045, M18.13: core ScoreParts; null before 0045
 games          (id, lcu_game_id unique, lobby_id null, group_id, started_at, duration_s, winning_side,
                 source 'eog' | 'backfill', mode -> modes.id,    -- mode 0024, M14.29: stamped at insert
                 raw jsonb -- lz4 since 0040, created_at,
@@ -253,6 +254,13 @@ Rules:
   appends a new set of three rather than replacing the old one, and a partial unique index allows at most one
   `is_chosen` split per lobby. `explanation` is the string core built; the embed and the tonight page render it,
   they never recompute it.
+- `splits.score_parts` (0045, M18.13) is core's `ScoreParts` for that split, `{ gap, offRole, repeat, variety,
+  repeatedPairs }`, written by the roll path (`apps/web/lib/ingest/balance.ts`) beside `score` and read back
+  through zod (`storedScoreParts`, `@customs/db/schemas`; malformed or null reads as `null`). A check constraint
+  holds the shape (five non-negative numbers, `repeatedPairs` whole). Null on every row before 0045, never
+  backfilled. The roll path reads teammate variety's input in the same call: every same-side pair of **the
+  newest game of the lobby's group started since 06:00 local (`nightStart`) and not after the roll**, rated or
+  not (`loadRecentTeammates`); a read failure balances with no variety, like fill protection.
 - `splits.roster_key` is the ten puuids of that split, sorted and joined with `,`. The API computes it with
   `rosterKey()` from `@customs/db` when it stores a split, and the `lastSplit` lookup is the newest chosen split
   with the same `roster_key` — one indexed lookup instead of a jsonb set comparison.

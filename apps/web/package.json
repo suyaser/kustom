@@ -16,6 +16,7 @@
     "copy-raw-stats": "node --env-file-if-exists=.env.local --import tsx scripts/copy-raw-stats.ts",
     "set-premium": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/set-premium.ts",
     "m7-13-battle-test": "node --import tsx scripts/m7-13-battle-test.ts",
+    "formation-sim": "node --import tsx scripts/formation-sim.ts",
     "ddragon-fixture": "node --import tsx scripts/ddragon-fixture.ts",
     "seed-regions": "node --import tsx scripts/seed-regions.ts",
     "ai-eval": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/ai-eval.ts",
