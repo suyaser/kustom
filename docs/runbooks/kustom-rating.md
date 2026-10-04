@@ -9,7 +9,7 @@ every group's history under the Kustom rating (`docs/02-milestones.md` "M18 Kust
 columns stay in the schema, unread, until M18.12, so rollback is the previous build plus its own rebuild.
 
 **The order at a glance** (hosted state as of 2026-10-04: migrations through `0042`, production on `main`
-`4e91eb56`; read the real `PREVIOUS` from Vercel's current production deployment on the day):
+`63fc150e`; read the real `PREVIOUS` from Vercel's current production deployment on the day):
 
 1. Back up (step 0).
 2. Push `0036` + `0043` with `--include-all` (step 1): dry run first, it must list exactly those two.
@@ -25,11 +25,11 @@ columns stay in the schema, unread, until M18.12, so rollback is the previous bu
 
 - `ship-2.0.md` is done: production runs 2.0 code and hosted has `0035` (or later) applied. As of 2026-10-04
   hosted has every migration through `0042` (`0037` group_live, `0038` session_player, `0039`..`0042` database
-  performance) and production runs `main` at `4e91eb56`.
+  performance) and production runs `main` at `63fc150e`.
 - The switch build is merged and green: M18.2 (balancer), M18.5 (fold and rebuild), M18.6 (reads), M18.7 (pages),
-  M18.9 (words), and this task's `0043` writer, merged with `main` `4e91eb56` on branch `rating-switch`. Note its
+  M18.9 (words), and this task's `0043` writer, merged with `main` `63fc150e` on branch `rating-switch`. Note its
   commit as `SWITCH`. Note the commit production runs now as `PREVIOUS` (Vercel → Deployments → Production /
-  Current; `4e91eb56` as of 2026-10-04, but read it from Vercel on the day, it is whatever production runs): it is
+  Current; `63fc150e` as of 2026-10-04, but read it from Vercel on the day, it is whatever production runs): it is
   the rollback build.
 - The hosted service-role key for steps 3 and 4: Dashboard → Project Settings → API Keys → a **secret** key
   (`sb_secret_...`). It is typed into the shell at a hidden prompt and never written to a file.
@@ -455,7 +455,7 @@ Afterwards local `customs` has 90 rows with `mu_after` and `fold_p`, and none wi
 the pre-switch state, which is where the local stack was left.
 
 **Re-walked on the switch build** (branch `rating-switch`: `kustom-rating` + M18.7 pages + `main` 65db4837, then
-re-merged with `main` up to 4e91eb56,
+re-merged with `main` up to 63fc150e,
 2026-10-04), local stack at `0001..0043` (`0036` and `0043` on top of `0037..0042`, the hosted order). The
 `m18-4` throwaway check (undo `0036` on a restore that has `0037..0042`, re-apply) and the `m18-10` check both
 printed `ALL CHECKS PASSED`. Steps 3 to 5 from a pre-switch `customs` (OpenSkill columns filled, `ratings.r`
@@ -477,7 +477,9 @@ wrote         0 game_players rows, 0 ratings rows (0043: 0 game_players rows mov
 The first rebuild bumped `group_live` for `customs` with kind `ratings` (0037); the second wrote nothing. Check A,
 B and C printed the same tables as the first walk (`mismatches` 0).
 
-**Rollback re-rehearsed** against `PREVIOUS` = production `main` `4e91eb56` (a `git archive` export, `pnpm install`,
+**Rollback re-rehearsed** against `PREVIOUS` = production `main` `4e91eb56` (production then; `63fc150e`,
+production since, differs from it only in the companion and `components/shell/TabFrame.tsx`, so its rebuild is
+the same code) (a `git archive` export, `pnpm install`,
 the same two variables exported for local). Step 6.2, the pre-step on local `customs`:
 
 ```
