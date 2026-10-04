@@ -324,11 +324,11 @@ describe('the rating chart', () => {
   it('leaves the reference label room on the side away from the last point (M18.7 review)', () => {
     // Ending above the line: the label goes under it, with LABEL_ROOM below the line.
     const up = chartGeometry([0, 19, 3, 16], 0);
-    expect(up?.labelBelow).toBe(true);
+    expect(up?.labelPlacement).toBe('below');
     expect(CHART_HEIGHT - (up?.seedY ?? 0)).toBeGreaterThanOrEqual(LABEL_ROOM);
     // Ending below: over it, with LABEL_ROOM above.
     const down = chartGeometry([1_250, 1_230, 1_210], 1_250);
-    expect(down?.labelBelow).toBe(false);
+    expect(down?.labelPlacement).toBe('above');
     expect(down?.seedY ?? 0).toBeGreaterThanOrEqual(LABEL_ROOM);
   });
 
