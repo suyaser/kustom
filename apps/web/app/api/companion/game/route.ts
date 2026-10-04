@@ -23,6 +23,7 @@ import { type LiveChanges, noteWrite, withLiveSignal } from '@/lib/live/bump';
 // import: remove it and this route behaves identically, minus the message.
 import '@/lib/ingest/discord';
 import { emitGameFinished } from '@/lib/ingest/hooks';
+import { writeKickoffAtStart } from '@/lib/ingest/kickoff';
 import { isLobbyMemberOfGame, selectActiveLobby } from '@/lib/ingest/lobby';
 import {
   BACKFILL_NOT_RATED,
@@ -90,7 +91,8 @@ export const maxDuration = 60;
  * **Live signal (M19.9).** One `group_live` bump per group this post changed, after every write
  * (the game, its players, the fold's ratings, the lobby's `finished`, the rule's clear and the
  * Discord post): `game` for an eog that wrote anything, `lobby` for an `in_progress` that moved
- * its lobby and for a lobby the idle sweep moved. A second companion's identical block writes
+ * its lobby (its start lock and kickoff record, M21.4, ride the same bump) and for a lobby the
+ * idle sweep moved. A second companion's identical block writes
  * nothing and bumps nothing. `after()` work (the AI line) is not waited for and does not bump.
  */
 export const POST = withCompanionAuth(companionGamePayloadSchema, async (payload, context) =>
@@ -136,6 +138,15 @@ async function handleGamePost(
         lobbyId: lobby.id,
         groupId: lobby.groupId,
         status: lobby.status,
+        now: new Date(),
+        onWrite: () => live.touch(lobby.groupId, 'lobby'),
+      });
+      // M21.4: the teams that started, their kind and (when they are not the roll) Kustom's odds,
+      // from the roster frozen a moment ago. Same single-writer style as the lock: it lands only on
+      // an `in_game` lobby with no record, so a retry finishes a write a 500 cut short and a second
+      // companion writes nothing. The touch is the move's kind, so the request still bumps once.
+      await writeKickoffAtStart(client, {
+        lobbyId: lobby.id,
         now: new Date(),
         onWrite: () => live.touch(lobby.groupId, 'lobby'),
       });

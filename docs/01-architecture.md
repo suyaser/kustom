@@ -63,6 +63,9 @@ ratings        (group_id, player_id, mu, sigma,                  -- group_id 001
                              index (group_id, ordinal desc)
 lobbies        (id, lcu_party_id, status, reported_by_player_id, lobby_name, lobby_password,
                 created_at, updated_at)  unique (lcu_party_id) where status in (open, balanced, in_game)
+               + kickoff_kind null 'rolled'|'custom'|'unrolled', kickoff_blue text[] null, kickoff_red text[] null,
+                 kickoff_swapped, kickoff_blue_win_prob null, kickoff_odds_model null, kickoff_at null
+                 -- 0046, M21.4: the teams that started, written once at the move to in_game (see Lobby lifecycle)
 lobby_members  (lobby_id, player_id, side null, role null, role_override null, is_spectator, created_at)
 splits         (id, lobby_id, rank, blue jsonb, red jsonb, gap, blue_win_prob, score, off_role_count,
                 is_chosen, explanation, roster_key, created_at, odds_model,   -- odds_model 0036
@@ -899,6 +902,17 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   it inserts and writes a Riot ID only when it moved; memberships are ensured for newly created rows only. The
   same post twice therefore sends no write request (beyond the idle sweep's two statements and the token's
   `last_seen_at`), no Realtime event and no `group_live` bump.
+- **The kickoff record** (M21.4, `0046`, decision row M21 D1). The `in_progress` post that moves a lobby to
+  `in_game` also writes `lobbies.kickoff_*` from the roster it just froze (`lib/ingest/kickoff.ts`): the sided,
+  non-spectator members as two teams (both non-empty, equal, at most five: a 2v2 to 4v4 counts; a 5v4 or a 3v0
+  is no record and the lobby still moves), the kind (`splitSidesOf` against the chosen split: the split's teams
+  on its sides or on swapped sides are `rolled`, swapped ones flagged `kickoff_swapped`; other teams `custom`;
+  no chosen split `unrolled`) and, for `custom`/`unrolled`, core's `winProbability` over each side's summed
+  `ratings.r` (1200 for no row), stored for a not-rated game too. Single conditional writer (`status = in_game
+  and kickoff_kind is null`): a retry after a lost answer writes it, a second companion writes nothing. It
+  rides the move's one `lobby` bump. `splits` is never rewritten and the fold still reads `game_players.side`;
+  the eog sides win for every surface once they land. Readers parse it with `kickoffFromRow`
+  (`@customs/db/schemas`) or `readLobbyKickoff`.
 - An `open` or `balanced` lobby nobody has posted about for two hours is `abandoned`, swept by the next
   companion post or by `GET /api/cron/sweep` (bearer `CRON_SECRET`). An `in_game` lobby two hours unmentioned
   is `dropped` by the same sweep (M5.11): no game runs two hours, so that row lost its end-of-game block. It is
