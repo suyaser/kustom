@@ -417,6 +417,22 @@ fold). Decision rows: `M18:` in `04-decisions.md`.
   winnerShares: [1.2, 1.1, 1.0, 0.9, 0.8] }`. Bounds by construction: a settled player moves at most
   16 × 1.2 = 19.2 (printed at most 20), anyone's first game on a track at most 32 × 1.2 = 38.4; an even settled
   game is ±8 at the middle share, +9.6 for the MVP, −6.4 for the ACE.
+- **The balanced-teams guard's fit (M18.11 core, `rating/oddsFit.ts`; not wired: storage, the monthly job and the
+  receipt line are platform's and product's).** `fitOddsPair(games, { ridge? })` takes `{ gap, blueWon }` per
+  rated, bot-rolled Kustom game (gap = Σblue − Σred of the all-time Ratings going in) and returns
+  `{ a, b, games, iterations, converged }`: the `(a, b)` maximising the log likelihood of the results under
+  `winProbability` minus `ridge / 2 × (a² + (b − 1)²)`, by Newton's method from `(0, 1)` with step halving. No
+  randomness; games are sorted by `(gap, blueWon)` first, so input order does not change the fit; no games returns
+  exactly `(0, 1)`. `shouldAdoptOddsPair({ fit, games, lastAdoptedAt, now })` returns `{ adopt: true, pair }` or
+  `{ adopt: false, reason }`, checking in order `too_few_games` (under 200), `too_soon` (under 30 days since
+  `lastAdoptedAt`, clock injected), `b_not_positive` (b ≤ 0 would make the favourite the underdog), `b_not_low`
+  (b ≥ 0.8). Adopting changes no stored Rating, only future games' odds and expected scores. **b needs spread gaps
+  to be measured**: on bot-balanced games alone (gaps within about ±60) the ridge keeps the fit near `(0, 1)`
+  however the results went, which is the honest answer (the data cannot tell). Tested: b recovered within 0.05 at
+  2 000 synthetic games with gaps uniform in ±1 600 (true `(0.1, 0.6)`, five seeds; 97 of 100 seeds pass at that
+  spread). Constants `config.oddsFit` `{ minGames: 200, adoptBelowB: 0.8, minDaysBetween: 30, ridge: 4,
+  maxIterations: 50, tolerance: 1e-10 }`; ridge 4 is worth about 16 imaginary even games at gap ±400 that went
+  exactly as the plain odds say.
 
 ### The Kustom fold (M18.5)
 
