@@ -7,6 +7,7 @@ import { SelectionError } from '../ingest/selection';
 import { moveLobby, PLAYERS_PER_GAME } from '../lobbyState';
 import { lockLobbyAtRoll } from '../mode/lock';
 import { serverRng } from '../mode/rng';
+import { shortPairRedrawnNotice } from '../mode/ruleNotices';
 import type { ServiceClient } from '../supabase';
 import { idSchema } from './formValues';
 import { NO_SUCH_LOBBY } from './reroll';
@@ -54,8 +55,11 @@ export const ROLL_IN_FLIGHT = 'the teams are being made right now; they will be 
 
 /** What a press did. A union, not a flag: the two answers mean different things to the page. */
 export type RollOutcome =
-  /** This press balanced the lobby; the listeners were told. `balance` is what they were told. */
-  | { outcome: 'rolled'; splitId: string; balance: BalanceOutcome }
+  /**
+   * This press balanced the lobby; the listeners were told. `balance` is what they were told.
+   * `modeNotice` (M20.7, M20 D11): Roll redrew a region pair the bans had made short, else null.
+   */
+  | { outcome: 'rolled'; splitId: string; balance: BalanceOutcome; modeNotice: string | null }
   /** The lobby already had teams for this roster; nothing moved and nothing was posted. */
   | { outcome: 'already_rolled'; splitId: string };
 
@@ -170,18 +174,23 @@ async function balanceClaimed(
     // (the `balanced` hook) and the game recorded from this lobby both read the copy. A repair
     // roll keeps the copy it finds. If the balance fails below, the lobby goes back to `open`,
     // which drops the copy in the database (`lobbies_drop_mode_lock`).
-    await lockLobbyAtRoll(client, {
+    const taken = await lockLobbyAtRoll(client, {
       lobbyId: lobby.id,
       groupId: lobby.groupId,
       now: input.now,
       rng: input.rng ?? serverRng,
     });
+    const locked = taken.stored?.lock.mode;
+    const modeNotice =
+      taken.regions?.outcome === 'redrawn' && locked?.id === 'region'
+        ? shortPairRedrawnNotice(taken.regions.from, locked)
+        : null;
     const outcome = await balanceLobby(client, lobby, input.now, input.timeZone);
     console.info(`lobby ${lobby.id} rolled: ${outcome.explanation} (${outcome.sitters.length} sitting out)`);
     // Discord (M3.1) and the switch_side queue (M4.1). Each listener's failure is its own line
     // in `hooks.ts`; the teams stand whatever they answer.
     await emitLobbyBalanced({ ...outcome, requestOrigin: input.requestOrigin });
-    return writeOk({ outcome: 'rolled', splitId: outcome.splitId, balance: outcome });
+    return writeOk({ outcome: 'rolled', splitId: outcome.splitId, balance: outcome, modeNotice });
   } catch (error) {
     const expected = error instanceof SelectionError || error instanceof BalanceError;
     console.error(`lobby ${lobby.id}: rolling failed`, expected ? error.message : error);

@@ -32,8 +32,7 @@ import {
 } from '@/lib/ingest/rating';
 import { moveLobbyLogged, sweepIdleLobbies } from '@/lib/lobbyState';
 import { lockLobbyAtStart } from '@/lib/mode/lock';
-import { clearAfterRecord } from '@/lib/mode/record';
-import { supabaseModeStore } from '@/lib/mode/state';
+import { applyModeRecord } from '@/lib/mode/record';
 import { siteOrigin } from '@/lib/siteUrl';
 
 // node:crypto hashes the bearer token, so this route is not edge-compatible.
@@ -88,8 +87,8 @@ export const maxDuration = 60;
  * `skippedNotThisGroup: 1`, and the next daily scan offers it again.
  *
  * **Live signal (M19.9).** One `group_live` bump per group this post changed, after every write
- * (the game, its players, the fold's ratings, the lobby's `finished`, the rule's clear and the
- * Discord post): `game` for an eog that wrote anything, `lobby` for an `in_progress` that moved
+ * (the game, its players, the fold's ratings, the lobby's `finished`, the card's record write and
+ * the Discord post): `game` for an eog that wrote anything, `lobby` for an `in_progress` that moved
  * its lobby and for a lobby the idle sweep moved. A second companion's identical block writes
  * nothing and bumps nothing. `after()` work (the AI line) is not waited for and does not bump.
  */
@@ -286,19 +285,19 @@ async function handleGamePost(
     scheduleGameLine({ groupId: result.groupId, gameId: result.gameId });
   }
 
-  // The rule is used up (M15.3, R1): compare-and-clear on the card's version, after the result is
-  // announced. Only a Rift game from a locked lobby consumes; anything queued after Roll moved
-  // the version and survives. Run on every post of the game's own group, not only the first:
-  // the version makes a repeat a no-op, and a first post that died here is finished by the
-  // retry (a throw is a 500, so the companion posts again).
-  let ruleCleared = false;
-  if (!result.foreignDuplicate) {
-    ruleCleared = await clearAfterRecord(supabaseModeStore(client), result.groupId, result.modeRecord);
+  // M20.7: what the recorded game writes to the Mode card (core's `recordGame`): nothing for a Rift
+  // game from a locked lobby (a choice made after Roll is the next game's and is never cleared); a
+  // remake or ARAM hands the lock back into empty fields; a live game with no lock uses the pending
+  // state up. Only the post that stored the game writes it, so a second companion's post (or a
+  // replay after an admin re-queued the same rule) never clears or hands back twice.
+  let modeWritten = false;
+  if (result.created && !result.foreignDuplicate) {
+    modeWritten = await applyModeRecord(client, result.groupId, result.modeRecord);
   }
 
   // The game's group hears this post once, after everything above (`withLiveSignal` flushes when
   // this returns): only when something was written, so the second companion's post is silent.
-  if (!result.foreignDuplicate && (result.wrote || fold.claimed > 0 || lobbyFinished || ruleCleared)) {
+  if (!result.foreignDuplicate && (result.wrote || fold.claimed > 0 || lobbyFinished || modeWritten)) {
     live.touch(result.groupId, 'game');
   }
 

@@ -70,7 +70,8 @@ import { beginTonightPress, requestTonightRefresh } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
 
 const MODE_ACTION = '/api/admin/mode';
-const SPIN_ACTION = '/api/admin/mode/spin';
+// M20.7: Spin posts to the one mode route with `spin=true` (`/api/admin/mode/spin` is gone).
+const SPIN_ACTION = MODE_ACTION;
 const RESET_ACTION = '/api/admin/fearless/reset';
 
 const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassin', 'Support'];
@@ -260,7 +261,7 @@ export function ModeControls({
   async function spin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (controlsOf(groupId).spinUntil !== null || !begin('spin')) return;
-    const result = await post(SPIN_ACTION, {});
+    const result = await post(SPIN_ACTION, { spin: true });
     if (!result.ok) {
       dispatch({ type: 'refused', failed: result.status === 409 ? NOTHING_TO_SPIN : MODE_CHANGE_FAILED });
       return;
@@ -373,6 +374,7 @@ export function ModeControls({
         hidden
       >
         <input type="hidden" name="groupId" value={groupId} />
+        <input type="hidden" name="spin" value="true" />
         <input type="hidden" name="redirectTo" value={redirectTo} />
       </form>
 

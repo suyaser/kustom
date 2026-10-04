@@ -170,7 +170,7 @@ async function selectNightLobbies(
   let query = client
     .from('lobbies')
     .select(
-      'id, status, lobby_name, updated_at, created_at, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version',
+      'id, status, lobby_name, updated_at, created_at, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at',
     )
     .gte('created_at', nightStart)
     .neq('status', 'abandoned');

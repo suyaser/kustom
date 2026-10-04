@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * M14.29 acceptance 6: the mode has one route (`POST /api/admin/mode`) and Reset keeps the one it
- * had (`POST /api/admin/fearless/reset`). No `fearless/enabled` switch, no second reset. M15.3 adds
- * `POST /api/admin/mode/spin` (the milestone's route) and nothing else: no route per mode.
+ * had (`POST /api/admin/fearless/reset`). No `fearless/enabled` switch, no second reset. M15.3's
+ * `POST /api/admin/mode/spin` merged into `POST /api/admin/mode` in M20.7: no route per action.
  */
 const API = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -22,11 +22,8 @@ function routes(dir: string, prefix = ''): string[] {
 describe('mode and fearless routes', () => {
   const all = routes(API);
 
-  it('has the mode route, its Spin (M15.3), and one fearless route, the reset', () => {
-    expect(all.filter((route) => /(^|\/)mode(\/|$)/.test(route)).sort()).toEqual([
-      'admin/mode',
-      'admin/mode/spin',
-    ]);
+  it('has the one mode route (Spin merged in, M20.7), and one fearless route, the reset', () => {
+    expect(all.filter((route) => /(^|\/)mode(\/|$)/.test(route)).sort()).toEqual(['admin/mode']);
     expect(all.filter((route) => route.includes('fearless'))).toEqual(['admin/fearless/reset']);
   });
 

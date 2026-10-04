@@ -1,6 +1,5 @@
 import 'server-only';
 import { randomInt } from 'node:crypto';
-import type { ModeState } from '@customs/core';
 import { COMPANION_COMMAND_TTL_MS, type CreateLobbyCommandPayload } from '@customs/db/schemas';
 import { type NameableRow, playerLabel } from './admin/playerName';
 import { type AdminWriteResult, writeFailed, writeOk } from './admin/result';
@@ -168,7 +167,7 @@ export function hostLabel(host: HostCandidate): string {
  * player picks the lane opponent's champion in secret); every other rule and both standing modes
  * play Draft Pick, as the group always has.
  */
-export function pickTypeFor(pending: ModeState['pending']): CreateLobbyCommandPayload['pickType'] {
+export function pickTypeFor(pending: { id: string } | null): CreateLobbyCommandPayload['pickType'] {
   return pending?.id === 'mirror' ? 'blind' : 'draft';
 }
 
@@ -181,7 +180,7 @@ export async function readPickType(
   groupId: string,
 ): Promise<CreateLobbyCommandPayload['pickType']> {
   try {
-    return pickTypeFor((await supabaseModeStore(client).read(groupId)).state.pending);
+    return pickTypeFor((await supabaseModeStore(client).read(groupId)).row.pending);
   } catch (error) {
     console.error('start a lobby: reading the mode card failed; opening a draft lobby', error);
     return 'draft';

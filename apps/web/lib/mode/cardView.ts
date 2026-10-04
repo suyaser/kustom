@@ -86,7 +86,8 @@ export function modeCardViewFrom(input: ModeCardViewInput): ModeCardView {
 
   const shown: ShownMode = locked ? lock.mode : (state.pending ?? { id: state.standing });
   const rated = locked ? lock.rated : next.rated;
-  const moved = locked && lock.version !== state.version;
+  // M20.7: the card was written after the lock (timestamps since 0047; old integer versions only grew).
+  const moved = locked && state.version > lock.version;
   const didntApply = locked && !moved && state.pending?.id === 'region' && lock.mode.id !== 'region';
 
   let classOpen: number | null = null;
@@ -167,7 +168,7 @@ export function requeueable(
   lock: LockedMode | null,
 ): boolean {
   const live = lobbyStatus !== null && LOCKED_STATUSES.has(lobbyStatus);
-  if (!live || lock === null || lock.version !== state.version || state.pending === null) return false;
+  if (!live || lock === null || state.version > lock.version || state.pending === null) return false;
   const locked = ruleOf(lock.mode);
   return locked !== null && ruleKey(locked) === ruleKey(state.pending);
 }

@@ -246,7 +246,9 @@ begin
     return 'exists';
   end if;
 
-  if p_empty_row and has_row then
+  -- Only a row with something to move is written: an empty row keeps its updated_at (the members'
+  -- "Normal mode now." note reads it as the last admin switch).
+  if p_empty_row and has_row and (gm.pending_rule is not null or gm.rated_override is not null) then
     update public.group_modes
     set pending_rule = null,
         pending_class_tag = null,

@@ -2,6 +2,7 @@ import { groupModeRowSchema } from '@customs/db/schemas';
 import { z } from 'zod';
 import type { ModeRowSlice } from './clientStore';
 import { pendingOfRow } from './clientStore';
+import { legacyVersion } from './legacyVersion';
 
 /**
  * The Mode card's two Realtime rows, parsed (M19.13). **Loaded only by a dynamic import**
@@ -25,7 +26,8 @@ export function parseModeRow(row: unknown): { groupId: string; slice: ModeRowSli
         standing: data.mode,
         pending: pendingOfRow(data.pending_rule, data.pending_class_tag),
         ratedOverride: data.rated_override,
-        version: data.version,
+        // M20.7: no version column; the store orders by `updated_at` (M20.8 drops the field).
+        version: legacyVersion(data.updated_at),
       },
       updatedAt: data.updated_at,
     },

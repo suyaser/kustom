@@ -106,7 +106,6 @@ describe('why a game is not rated (M14.53)', () => {
     gameMode: 'CLASSIC',
     rated: true,
     rule: noRule,
-    noDraw: false,
     startedAt: '2026-10-03T20:00:00.000Z',
     ratingsSince: null,
   };
@@ -158,15 +157,9 @@ describe('why a game is not rated (M14.53)', () => {
     ).toBe('No · Region wars');
   });
 
-  it('region wars that could not be drawn is named, not `Rated was off` (M15.17)', () => {
-    expect(ratedReason({ ...base, rated: false, noDraw: true })).toEqual({ kind: 'no-draw' });
-    expect(label({ rated: false, noDraw: true })).toBe("No · Region wars couldn't be drawn");
-    // The gate still comes first: a no-draw remake is short.
-    expect(label({ rated: false, noDraw: true, durationS: 200 })).toBe('No · too short or not ten players');
-    // An admin who switched Rated on for it: rated like any game once folded.
-    expect(
-      label({ rated: true, noDraw: true, players: ten.map((player) => ({ ...player, rAfter: 1560 })) }),
-    ).toBe('Yes');
+  it('M20.7: a region wars no-draw game is the standing mode, labelled like any standing game (M20 D6 (d))', () => {
+    expect(label({ rated: false })).toBe('No · Rated was off');
+    expect(label({ rated: true, players: ten.map((player) => ({ ...player, rAfter: 1560 })) })).toBe('Yes');
   });
 
   it('one label per rule default (M15.17): region wars not rated, mirror rated, mirror with Rated off', () => {
@@ -203,7 +196,6 @@ describe('why a game is not rated (M14.53)', () => {
       { durationS: 100 },
       { players: [] },
       { ratingsSince: '2026-10-04T00:00:00.000Z' },
-      { rated: false, noDraw: true },
     ];
     for (const input of inputs) expect(label(input)).not.toMatch(/not yet/i);
   });
