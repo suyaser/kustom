@@ -24,7 +24,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M15 Mode of the night | done (accepted 2026-10-04: M15.1–M15.19 merged; reviewer pass plus product scene walk; three rules live: class wars, region wars, mirror match) | Added 2026-10-03 (the user): class night first (builds the mode card, Spin, the mode panel's pool, Discord line, post-game check), then region wars (static region table seeded once from Meraki, words only), then mirror match (the first rated mode). Unrated by default; never touches champ select; no Ultimate Bravery or kill-race scoring. After M14. **M15.1 done 2026-10-04** (brief `redesign/briefs/m15.1-mode-of-the-night.md`): a rule is one game on top of the standing mode, locked at Roll; Rated switch in any mode (the user's yes); mirror ships with the host opening Blind Pick by hand (M17.17 automates it); no Bo3, no weekdays, no `Rest of tonight`. **2026-10-04: M15.7 (overlay API) dropped** because M17 removes the overlay; the mode's pool is shown only on Tonight's mode panel (M15.5) and linked from Discord (M15.6). No companion work in M15. |
 | M16 Kustom Premium: AI | done for 2.0 (2026-10-04: M16.1–M16.19 merged; the ship blockers M16.15–M16.18 landed; open: M16.20 real-group read after two Premium weeks, which needs the user's export; M16.21 scouting prompt nits, which need spend) | Added 2026-10-03 (the user): a future paid feature, if Kustom succeeds. Game recap line, weekly storyline, player scouting report, behind a per-group premium flag the operator sets with a script (M16.2; never a route, `/ops` read-only); no payments or billing (a future decision). Guardrails: numbers only from the DB with a checker, players sent as P1..P10, opt-outs, caps of $2 per group per month and $20 overall. Needs the user's Anthropic API key. After M15. **M16.1 done 2026-10-04** (brief `redesign/briefs/m16.1-premium-ai.md`): labels `AI recap` / `AI scouting report`; invisible to non-Premium groups; `customs` on as soon as M16.3 lands; landing and `/about` don't mention AI. |
 | M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
-| M18 Kustom rating | not started (planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one unannounced `rebuild-ratings` run by the owner (M18.10). **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, M18.2). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. |
+| M18 Kustom rating | not started (planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one unannounced `rebuild-ratings` run by the owner (M18.10). **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, the owner's call, M18.2). **The week starts Monday 06:00 Africa/Cairo for everything** (the owner, 2026-10-04; M18.14, ships before or in the switch). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -10843,15 +10843,16 @@ model or what is stored per split; the Riot public API.
   waiting line naming admins) can be screenshotted; test.
 
   *Done 2026-10-04 (code and design review passed; merged).*
-- [ ] **M14.79** Week notes image in the Sunday post (the user, 2026-10-04). *(owner: `platform-engineer`, designer
+- [ ] **M14.79** Week notes image in the weekly post (the user, 2026-10-04; "Sunday post" until M18.14 moves the
+  week to Monday 06:00). *(owner: `platform-engineer`, designer
   signs off)* A 1920×1080 "Week N notes" image (variant A of `redesign/research/patch-image.md`): BUFFS (top point
   gainers), NERFS (up to 3 who gave points back, 3+ rated games that week, never a settling newcomer; plain numbers),
   a role key, SYSTEMS (Mode of the night runs, Fearless bans), NEW (first nights, records, first picks for the group);
   players as initials in rings with role marks, Kustom palette, no Riot logo, fonts, icons or champion art; footer
-  `Made by Kustom from this group's own games. Not affiliated with or endorsed by Riot Games.` Only in the Sunday
+  `Made by Kustom from this group's own games. Not affiliated with or endorsed by Riot Games.` Only in the weekly
   post, alongside the AI storyline and the board summary; not on the site. Rendered by a `next/og` route, sent only
   from a public https origin; the post is complete without it. Acceptance: route and builder tests (data from
-  `loadBoard`/awards, NERFS rules, no champion art), the Sunday post carries the image on a public origin and none
+  `loadBoard`/awards, NERFS rules, no champion art), the weekly post carries the image on a public origin and none
   on localhost, designer sign-off on a real render.
 
 - [ ] **M14.27** Ship 2.0: the deploy plan, run by the user. *(owner: `platform-engineer` writes the
@@ -12297,8 +12298,9 @@ chance and the rating's expectation are now the same function.
   - **All-time Rating**: never resets on its own (the owner's Reset ratings, M14.18, is still the only reset); the
     one number on the teams, the result, the `All time` board, a person's page and Discord; **team formation
     balances on it and nothing else**.
-  - **Weekly Rating**: everyone is 1200 at the start of every week, at the existing week boundary (Sunday 06:00
-    Africa/Cairo, `apps/web/lib/night.ts` `weekStart`, M5.34; the owner is asked to confirm, Open question 1), and
+  - **Weekly Rating**: everyone is 1200 at the start of every week, at the week boundary, **Monday 06:00
+    Africa/Cairo** (the owner, 2026-10-04: one fresh-start week for everything; `apps/web/lib/night.ts` `weekStart`,
+    moved off M5.34's Sunday by M18.14 together with the board, the awards and the weekly post), and
     it folds only that week's rated games. **K restarts with the week**: on the
     weekly track `n` is the player's rated games *this week* before this one, so everyone's first game of a week
     is at K 32. The owner wants the weekly board "to feel like a fresh start for everyone", and a veteran at K 16
@@ -12320,7 +12322,7 @@ chance and the rating's expectation are now the same function.
   function.** The replay found the stored bot odds uncorrelated with the refold's (r = 0.01; in 35 of 88 games the
   refold said 70/30 or worse where the bot said 45–55): today's teams were not balanced on the numbers the board
   shows. After the switch the balancer reads the stored all-time `R` the fold reads, through `winProbability`, and
-  a zero-game player is 1200 in both (M18.2; decision row).
+  a zero-game player is 1200 in both (M18.2; the owner dropped the rank guess, 2026-10-04; decision row).
 
 **Rules for the whole milestone:**
 - `packages/core` stays pure; the new module lands with tests and **behind no wiring** (M18.1). Nothing in
@@ -12398,7 +12400,8 @@ Tasks:
   `winProbability` (M18.1) with the `calib` its caller passes; `predictWin`, `foldWinProbability` and the OpenSkill
   `balanceScore` are removed from the balancer's path. **The zero-game rank guess goes**: a player with no rated game is 1200 in the balancer, exactly as in the fold,
   so the split's stored `blue_win_prob` is `winProbability` of the same Ratings the fold will read (the real board's
-  settled sd is 66, so any tier map either dominates a newcomer's seat or is noise; decision row). Rank stays on
+  settled sd is 66, so any tier map either dominates a newcomer's seat or is noise; **the owner's call, 2026-10-04**,
+  Open question 2 resolved; decision row). Rank stays on
   the roster as information. The M14.59 two-odds line has nothing left to explain and goes with M18.7. Receipt, `whyLower`, reroll and the
   repeat penalty keep their behaviour; tests that pinned OpenSkill odds are re-pinned on the odds table with a
   one-line reason each. Acceptance: the M1.4 worked example still picks the same split or the change is written
@@ -12472,7 +12475,9 @@ Tasks:
   the 0036 columns in the same write as today's. All-time: from `ratings.r` and `rated_games_before` (1200 and 0
   for a first game; folds only `started_at >= groups.ratings_since`, as today). Weekly: from the player's last
   `week_r_after` in the same week, else 1200 and 0; every rated game in the week regardless of `ratings_since`;
-  the week is `apps/web/lib/night.ts` `weekStart` (Sunday 06:00 Africa/Cairo), one function, no second definition. The rebuild refolds both tracks
+  the week is `apps/web/lib/night.ts` `weekStart` (Monday 06:00 Africa/Cairo once M18.14 is in; past weeks keep
+  their Sunday boundaries and the changeover week runs 8 nights, M18.14), one function, no second definition; the
+  rebuild folds whatever weeks `weekStart` returns and has no week rule of its own. The rebuild refolds both tracks
   from scratch for every group (or `--group`), keeps every M14.27/M14.63 guard (`target` line, `--hosted`, live
   lobby and 15-minute refusals, exit 2), and reports `kustom  N game_players rows, N ratings rows, N weeks`.
   Reset ratings (M14.18) sets `ratings.r = 1200` and the all-time count to 0, and touches no weekly value.
@@ -12584,6 +12589,93 @@ Tasks:
   rerun on the Kustom scale show no measurable loss of evenness; real-data query 9.1 result quoted; `whyLower`
   names each term.
 
+- [ ] **M18.14** The week starts Monday 06:00, for everything. *(owner: `platform-engineer`; `web-engineer` for
+  the friend-facing copy, words from `product`; `designer` updates `05-design.md` §10.6; merges before the M18
+  switch deploy or in it, never after it, so the weekly Rating is never folded on one week and rebuilt on another)*
+  The owner, 2026-10-04: one fresh-start week for everything. Supersedes M5.34's Sunday start (decision row).
+
+    > **Brief (product, 2026-10-04)**
+    >
+    > **What a friend sees.** The week board, `This week` / `Last week`, the week awards, the weekly Rating's
+    > reset to 1200 (M18) and the weekly Discord post all turn over at the same moment: **Monday 06:00
+    > Africa/Cairo** (`CUSTOMS_NIGHT_TZ`). Sunday night's games, including the ones after midnight, close the
+    > week; the post goes out with the first daily window cron after Monday 06:00 and recaps Monday to Sunday
+    > nights. A range reads `Monday 12 Oct to Sunday 18 Oct`. A night is still 06:00 to 06:00.
+    >
+    > **One rule, one place.** `apps/web/lib/night.ts` `weekStart` returns the Monday 06:00 that opens the week
+    > of the instant's *night* (a Monday 01:40 game is Sunday's night, so last week). `weekdayOf` goes back to
+    > Monday-first. It stays the only definition of the week; every user below moves with it and none grows a
+    > rule of its own. `windowRange('last-week')` and `closedWindow` take last week's start as
+    > `weekStart(thisWeek - 1 ms)`, not `thisWeek - 7 days`, so the changeover week comes out right.
+    >
+    > **Users of the week today** (grep of `weekStart`, `windowRange`, `closedWindow`, `weekStartDay`, `Sunday`
+    > in `apps/web` and `packages`, 2026-10-04):
+    > - Windows and board: `lib/night.ts` (`weekStart`, `windowRange`, `closedWindow`, `formatWeekRange`),
+    >   `lib/board/window.ts`, `windowKinds.ts`, `load.ts`, `copy.ts` (slot line), `types.ts`,
+    >   `app/_board/BoardView.tsx`, `PlayerView.tsx`, `lib/siteUrl.ts` (`?window=last-week` links).
+    > - Week awards: `lib/stats/awards.ts`, `winners.ts`, `load.ts`, `player.ts` (`week of 1 Sep` names the
+    >   week's first day, which becomes a Monday), `copy.ts` (`the window's own Sunday`).
+    > - Weekly Rating: M18.5's fold and rebuild (`lib/ingest/rating.ts`, `fold.ts`, `rebuild.ts`).
+    > - Weekly post: `app/api/cron/window/route.ts`, `lib/discord/windowPosts.ts`, `post.ts`, `embeds.ts`
+    >   (the weekly stack), M14.79's week notes image, and `packages/db/src/schemas/windowPosts.ts`
+    >   (`window_posts` keyed on the window's start instant; no migration needed).
+    > - AI (Premium): `lib/ai/storyline.ts`, `storylineRead.ts` (`weekStartDay`), `scouting.ts`,
+    >   `scoutingRead.ts`, `facts.ts`, `generate.ts` (the claim lease is sized to "before the next week
+    >   closes"); `ai_lines.week_start` (0033) holds the week's first day, a plain date, so Mondays fit with no
+    >   migration. `lib/ai/check.ts` already allows every weekday name.
+    > - Scripts and fixtures: `scripts/ai-eval-month.ts`, `ai-eval-month-data.ts`, `ai-eval-scenarios.ts`,
+    >   `discord-posts-harness.ts`, `lib/testing/aiFixtures.ts`, `boardFixtures.ts`, `discordGame4.ts`.
+    > - Crons: **no schedule changes.** `apps/web/vercel.json` runs `/api/cron/window` daily at 04:30 UTC
+    >   (06:30 or 07:30 Cairo, both after 06:00), and the day a week closes is `weekStart`'s answer alone;
+    >   `/api/cron/rebuild` (04:15) and `/api/cron/leaderboard` (04:30) are daily and do not read the week;
+    >   `/api/cron/mystery` is nightly. `vercel.json` stays byte for byte.
+    >
+    > **Words** (web applies; tests pin them): `lib/aiLinesCopy.ts` "the Sunday post" becomes "the weekly post";
+    > `lib/ai/recapCopy.ts` "Rewritten each Sunday after a week they play." becomes "Rewritten each Monday after a
+    > week they play." (`Written Monday 12 Oct` then follows by itself); every code comment above that says
+    > "Sunday post" / "Sunday job" says "weekly post" / "weekly job". Docs: `00-product.md` (product, done in this
+    > change), `05-design.md` §10.6 "Sunday weekly post" retitled "Weekly post" with Monday examples (designer),
+    > `01-architecture.md` windows, `docs/runbooks/ship-2.0.md` "not Sunday 06:00" becomes "not Monday 06:00".
+    >
+    > **The changeover week: one 8-night week, Sunday to Monday.** Past weeks keep their Sunday boundaries and
+    > nothing stored is rewritten (posted weeks, `ai_lines` rows, award history, past weekly Ratings). A constant
+    > in `night.ts`, the cutover `C` (a Monday 06:00 Cairo), is set in the PR to the first Monday after the planned
+    > deploy. Before `C` the Sunday rule holds, except that the last Sunday night before `C` (Sunday 06:00 to
+    > Monday 06:00) belongs to the week that opened eight days before `C`; from `C` on, weeks are Monday weeks. So
+    > the week in progress at the switch simply runs one night longer (`Sunday 4 Oct to Sunday 11 Oct`, eight
+    > nights) and posts once, at `C`. The deploy must land before the Sunday 06:00 boundary one day before `C`
+    > (or the old code posts that Sunday and the next week would be one night long); if it slips, move `C` a week
+    > later before deploying. Why 8 and not 1: going from Sunday to Monday either adds a night to one week or
+    > makes a one-night week, and a one-night week is a board and a post with three games on them.
+    >
+    > **Edge cases.** A game at 01:40 Monday counts for the week that is closing (night rule, as today). A game
+    > backfilled into a past Sunday week lands in that Sunday week; into the changeover week, in it. A deployment
+    > down all Monday posts late, once (unchanged). Daylight saving moves nothing: the boundary is 06:00 local.
+    > A Reset ratings mid-week still leaves the week's points alone. Every group shares the zone and the week, as
+    > now (no per-group start).
+    >
+    > **Acceptance** (with `C` = Monday 12 Oct 2026 06:00 Cairo in the tests):
+    > 1. `night.test.ts`: `weekStart` of Mon 12 Oct 07:00 is Mon 12 Oct 06:00; of Mon 12 Oct 01:40 and of
+    >    Sun 11 Oct 22:00 is Sun 4 Oct 06:00; of Sat 3 Oct 22:00 is Sun 27 Sep 06:00 (history unchanged); of
+    >    Mon 19 Oct 05:59 is Mon 12 Oct 06:00; of Mon 19 Oct 06:00 is Mon 19 Oct 06:00; one check across a
+    >    daylight-saving change after `C`.
+    > 2. `windowRange('last-week')` at Mon 12 Oct 08:00 is `[Sun 4 Oct 06:00, Mon 12 Oct 06:00)`, at Tue 20 Oct
+    >    is `[Mon 12 Oct 06:00, Mon 19 Oct 06:00)`; `formatWeekRange` prints `Sunday 4 Oct to Sunday 11 Oct` and
+    >    `Monday 12 Oct to Sunday 18 Oct`.
+    > 3. Window cron integration, faked clock: Sun 11 Oct 07:00 posts nothing; Mon 12 Oct 07:00 posts the
+    >    eight-night week once and a second call is a no-op; Mon 19 Oct 07:00 posts `Monday 12 Oct to Sunday 18
+    >    Oct`. Premium on: the storyline and scouting rows carry `week_start` 2026-10-04 and 2026-10-12.
+    > 4. The post, `Last week` on the board and the week awards read the same window (the existing "post and page
+    >    agree" tests re-pinned on Monday weeks, and on the changeover week).
+    > 5. With M18.5 merged: a game at Mon 19 Oct 01:40 continues that week's weekly Rating; a game at Mon 19 Oct
+    >    07:00 starts at 1200 and K 32; the rebuild folds the Sunday weeks, the changeover week and Monday weeks
+    >    from `weekStart` alone.
+    > 6. No friend-facing string under `apps/web` says "Sunday post" or "each Sunday" (fixture dates may stay
+    >    Sundays); `apps/web/vercel.json` unchanged; `pnpm -r test` and `pnpm --filter web build` green.
+    >
+    > **Out of scope:** the 06:00 night boundary, the zone, a per-group week start, rewriting past weeks or past
+    > posts, any cron schedule change.
+
 **Order.**
 
 ```
@@ -12591,26 +12683,26 @@ M18.1 (core module) ──┬── M18.2 (balancer) ─────────
 M18.3 (gate) ─────────┤                                   ├── switch deploy ── M18.10 (owner's runbook) ── M18.12 (a week later)
 M18.4 (0036) ─────────┴── M18.5 (fold) ── M18.6 (reads) ──┤                                        └── M18.11, M18.13 (later, owner OKs)
 M18.8 (design) ───────────────────────── M18.7 (pages) ───┤
-M18.9 (docs, copy) ───────────────────────────────────────┘
+M18.9 (docs, copy) ───────────────────────────────────────┤
+M18.14 (Monday week) ─────────────────────────────────────┘   (before the switch or in it, never after)
 ```
 
 M18.1, M18.3, M18.4 and M18.8 start at once. Nothing from M18.2 on starts before M18.3 passes. M18.2, M18.5,
 M18.6, M18.7 and M18.9 merge as one switch; 0036 reaches hosted before that build does.
 
 **Open questions for the owner (through the lead):**
-1. **Week boundary.** The brief said "every Monday"; the product's week starts **Sunday 06:00 Africa/Cairo**
-   (2026-09-15, M5.34, Egypt's working week; `night.ts` `weekStart`). M18 uses the existing boundary; the lead is
-   asking the owner and will amend if it should be Monday (the replay ran both: nearly identical).
-2. **The rank guess goes** (M18.2): newcomers are 1200 to the bot as well as to the fold, which retires M14.59's
-   rank guess. Product's call from the replay; the owner can keep a guess, but then the stored odds and the fold
-   differ for that game again.
+1. ~~**Week boundary.**~~ **Resolved 2026-10-04 (the owner): Monday 06:00 Africa/Cairo, for everything** (one
+   fresh-start week: weekly Rating, board, awards, weekly post). The app's week moves with it in M18.14; decision
+   row.
+2. ~~**The rank guess goes** (M18.2).~~ **Resolved 2026-10-04 (the owner): drop it.** Newcomers are 1200 to the
+   bot as well as to the fold, retiring M14.59's rank guess; decision row.
 3. **M18.11's thresholds and storage** (200 games, `b < 0.8`, monthly; a per-group pair) and **M18.13's
    `splits.score_parts`**: both are schema changes outside 0036.
 
 Acceptance (milestone): after the owner's rebuild, `/g/customs` shows Ratings folded by the Kustom formula on
 every surface, a settled player's change is at most 20, two settled teammates with the same share show the same
 change, the bot's stored win chance and the fold's expected come from the same Ratings and the same function, the week board starts everyone
-at 0 on Sunday and its points add up on a player's week tab, the teams are balanced on the all-time Rating, and
+at 0 at Monday 06:00 and its points add up on a player's week tab, the teams are balanced on the all-time Rating, and
 nobody typed anything.
 
 ---
