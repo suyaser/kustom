@@ -31,6 +31,7 @@ import {
   rateStoredGame,
 } from '@/lib/ingest/rating';
 import { moveLobbyLogged, sweepIdleLobbies } from '@/lib/lobbyState';
+import { lockLobbyAtStart } from '@/lib/mode/lock';
 import { clearAfterRecord } from '@/lib/mode/record';
 import { supabaseModeStore } from '@/lib/mode/state';
 import { siteOrigin } from '@/lib/siteUrl';
@@ -127,6 +128,17 @@ async function handleGamePost(
           ),
         (moved) => moved,
       );
+      // Rolling is a suggestion (owner bug 2026-10-04): a lobby whose teams were made by hand has
+      // no lock (never rolled, or `balanced -> open` dropped it), so the game takes the card now,
+      // Rated switch and pending rule included. A Roll's lock is kept. Idempotent: a retry or a
+      // second companion finds the lock and writes nothing.
+      await lockLobbyAtStart(client, {
+        lobbyId: lobby.id,
+        groupId: lobby.groupId,
+        status: lobby.status,
+        now: new Date(),
+        onWrite: () => live.touch(lobby.groupId, 'lobby'),
+      });
     }
 
     return jsonOk(companionGameResponseSchema, {
