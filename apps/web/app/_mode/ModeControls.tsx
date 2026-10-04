@@ -5,6 +5,7 @@ import {
   GROUP_MODES,
   type GroupMode,
   type ModeChoice,
+  type NextGame,
   ruleOptionOf,
   setGroupModeResponseSchema,
 } from '@customs/db/schemas';
@@ -79,7 +80,12 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  * - **`Spin`** (M15.5, R3): the server picks; the card reveals the answer here and on every open
  *   page (the Realtime broadcast). Without JS it is a form post and the page reloads on the result.
  * - **`Rated`** (M15.5, R9): a switch for the next game, in any mode; a submit button with
- *   `role="switch"`, so it works as a form post with no JS.
+ *   `role="switch"`, so it works as a form post with no JS. With JS it **answers on its own**
+ *   (prod fix 2026-10-04, "I tap it and nothing changes"): it flips on the tap, takes the route's
+ *   `next.rated` as the answer, and reverts with `Couldn't change that.` on a failure. It used to
+ *   be only the page's `nextRated`, which moves when the whole Tonight page has been re-read; until
+ *   then a tap showed nothing and a second tap posted the same value again. The page's value takes
+ *   over again once it is at least as new as the write (`version`, the card's token).
  * - **`Reset fearless`** while the standing mode is Fearless and the pool has a ban.
  * - After Roll every change is for the next game: `Changes apply from the next game.` and
  *   `Next game: Mages only.` (the page's `nextLine`).
@@ -103,6 +109,11 @@ export interface ModeControlsProps {
   tooFew?: readonly string[] | undefined;
   /** Whether the next game is rated: the switch's state (M15.5). */
   nextRated?: boolean | undefined;
+  /**
+   * `group_modes.version` the page's `nextRated` was read at: once a re-read is at least as new
+   * as the switch's own write, the page's value wins again (another admin, a recorded game).
+   */
+  version?: number | undefined;
   /** After Roll, when something changed since: `Next game: Mages only.` (M15.5). */
   nextLine?: string | null | undefined;
   /** A no-JS post's outcome, carried back in `?notice=` / `?error=`. */
@@ -120,6 +131,7 @@ export function ModeControls({
   selected = mode,
   tooFew = [],
   nextRated = true,
+  version,
   nextLine = null,
   notice,
   error,
@@ -133,6 +145,16 @@ export function ModeControls({
   const [said, setSaid] = useState<string | null>(notice ?? null);
   const [failed, setFailed] = useState<string | null>(error ?? null);
 
+  // The switch's own answer since its last tap (see the doc comment): `pending` while the write
+  // is in flight, `confirmed` with the route's version once it answered, null for the page's value.
+  const [ratedLocal, setRatedLocal] = useState<RatedLocal | null>(null);
+  const rated =
+    ratedLocal === null
+      ? nextRated
+      : ratedLocal.kind === 'confirmed' && version !== undefined && version >= ratedLocal.version
+        ? nextRated
+        : ratedLocal.rated;
+
   useEffect(() => setHydrated(true), []);
   // A Realtime change from another admin moves the select with the card.
   useEffect(() => setChoice(selected), [selected]);
@@ -141,7 +163,7 @@ export function ModeControls({
     action: string,
     body: Record<string, unknown>,
     kind: 'mode' | 'spin' | 'rated',
-  ): Promise<{ ok: true; spun: RuleOption | null } | { ok: false; status: number }> {
+  ): Promise<{ ok: true; spun: RuleOption | null; next: NextGame | null } | { ok: false; status: number }> {
     setPending(kind);
     setFailed(null);
     setSaid(null);
@@ -154,7 +176,7 @@ export function ModeControls({
       if (!response.ok) return { ok: false, status: response.status };
       const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
       const spun = parsed.success && parsed.data.spun !== undefined ? ruleOptionOf(parsed.data.spun) : null;
-      return { ok: true, spun };
+      return { ok: true, spun, next: parsed.success ? (parsed.data.next ?? null) : null };
     } catch {
       return { ok: false, status: 0 };
     } finally {
@@ -201,12 +223,21 @@ export function ModeControls({
   async function flipRated(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (pending !== null) return;
-    const result = await post(MODE_ACTION, { rated: !nextRated }, 'rated');
+    // The switch as it shows now, never the page's possibly older prop.
+    const target = !rated;
+    const before = ratedLocal;
+    setRatedLocal({ kind: 'pending', rated: target });
+    const result = await post(MODE_ACTION, { rated: target }, 'rated');
     if (!result.ok) {
+      setRatedLocal(before);
       setFailed(MODE_CHANGE_FAILED);
       return;
     }
-    setSaid(ratedNotice(!nextRated));
+    // The route's answer is the next game as written; a 200 without one moved the version anyway.
+    const answer = result.next?.rated ?? target;
+    const written = result.next?.version ?? (version ?? 0) + 1;
+    setRatedLocal({ kind: 'confirmed', rated: answer, version: written });
+    setSaid(ratedNotice(answer));
     requestTonightRefresh();
   }
 
@@ -304,9 +335,9 @@ export function ModeControls({
         <button
           type="submit"
           name="rated"
-          value={nextRated ? 'false' : 'true'}
+          value={rated ? 'false' : 'true'}
           role="switch"
-          aria-checked={nextRated}
+          aria-checked={rated}
           aria-describedby={ratedSentenceId}
           aria-disabled={pending === 'rated' ? true : undefined}
           className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-control text-[1.0625rem] font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -315,20 +346,20 @@ export function ModeControls({
             aria-hidden="true"
             className={cn(
               'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors duration-(--dur-fast) forced-colors:border-[CanvasText]',
-              nextRated ? 'border-foreground bg-foreground' : 'border-border-strong bg-transparent',
+              rated ? 'border-foreground bg-foreground' : 'border-border-strong bg-transparent',
             )}
           >
             <span
               className={cn(
                 'block size-4 rounded-full transition-transform duration-(--dur-fast) motion-reduce:transition-none',
-                nextRated ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground',
+                rated ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground',
               )}
             />
           </span>
           {RATED_LABEL}
         </button>
         <p id={ratedSentenceId} className="text-xs text-muted-foreground">
-          {nextRated ? RATED_ON : RATED_OFF}
+          {rated ? RATED_ON : RATED_OFF}
         </p>
       </form>
 
@@ -347,6 +378,11 @@ export function ModeControls({
     </div>
   );
 }
+
+/** The Rated switch's own answer: the tap in flight, or the route's answer at its version. */
+type RatedLocal =
+  | { kind: 'pending'; rated: boolean }
+  | { kind: 'confirmed'; rated: boolean; version: number };
 
 function ResetFearless({
   groupId,

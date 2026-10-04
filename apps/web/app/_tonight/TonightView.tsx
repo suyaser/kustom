@@ -207,6 +207,7 @@ export function TonightView(props: TonightViewProps) {
               selected: selectValue(modeState),
               tooFew: tooFewOpen(modeState, bans, table),
               nextRated: speech.nextRated,
+              version: modeState.version,
               redirectTo: groupHome(group),
               notice: props.modeNotice?.notice ?? null,
               error: props.modeNotice?.error ?? null,

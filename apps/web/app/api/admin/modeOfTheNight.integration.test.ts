@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { nextGame } from '@customs/core';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -15,6 +16,7 @@ import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { rebuildRatings } from '@/lib/ingest/rebuild';
 import { moveLobby } from '@/lib/lobbyState';
+import { loadModeState } from '@/lib/mode/tonightRead';
 import { eogBody, testGameId } from '@/lib/testing/fixtures';
 import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -491,6 +493,92 @@ if (stack === null || !ready) {
         expect(body.next.rule).toBe(body.spun);
       }
       expect(spun.has('mirror')).toBe(true);
+      await card({ mode: 'normal' });
+    });
+  });
+  // Prod fix 2026-10-04 ("the Rated switch doesn't toggle"): the route and Tonight's own read,
+  // flip by flip. Last in the file: the after-Roll case records a game.
+  describe('the Rated switch', () => {
+    const anon = createClient<Database>(stack.url, stack.anonKey, { auth: { persistSession: false } });
+
+    /** What Tonight's server render reads for the switch (anon key, `loadModeState`). */
+    async function tonightRated(): Promise<{ rated: boolean; version: number }> {
+      const state = await loadModeState(anon, groups.g);
+      if (state === null) throw new Error('Tonight could not read the card state');
+      return { rated: nextGame(state).rated, version: state.version };
+    }
+
+    function formRequest(fields: Record<string, string>) {
+      return new Request('http://localhost/api/admin/mode', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(fields).toString(),
+      });
+    }
+
+    it('toggles off and on and off again through the route, and Tonight reads every flip', async () => {
+      await card({ mode: 'fearless' });
+      const start = await tonightRated();
+      expect(start.rated).toBe(true);
+
+      const off = await card({ rated: false });
+      expect(off).toMatchObject({ ok: true, changed: true, next: { rated: false, ratedOverride: false } });
+      expect(await tonightRated()).toEqual({ rated: false, version: start.version + 1 });
+
+      const on = await card({ rated: true });
+      expect(on).toMatchObject({ ok: true, changed: true, next: { rated: true, ratedOverride: true } });
+      expect(await tonightRated()).toEqual({ rated: true, version: start.version + 2 });
+
+      // The same value twice is still a write (it is a choice for the next game): the version moves.
+      const again = await card({ rated: true });
+      expect(again).toMatchObject({ next: { rated: true, version: start.version + 3 } });
+
+      const offAgain = await card({ rated: false });
+      expect(offAgain).toMatchObject({ next: { rated: false, version: start.version + 4 } });
+      expect(await tonightRated()).toEqual({ rated: false, version: start.version + 4 });
+    });
+
+    it('works as a form post with no JS, both ways, and comes back to Tonight saying so', async () => {
+      const route = setGroupModeRoute(adminOptions);
+      const on = await route(formRequest({ groupId: groups.g, rated: 'true', redirectTo: '/g/somewhere' }));
+      expect(on.status).toBe(303);
+      expect(on.headers.get('location')).toContain('/g/somewhere');
+      expect(decodeURIComponent(on.headers.get('location') ?? '').replaceAll('+', ' ')).toContain(
+        'Next game is rated.',
+      );
+      expect((await tonightRated()).rated).toBe(true);
+      const off = await route(formRequest({ groupId: groups.g, rated: 'false', redirectTo: '/g/somewhere' }));
+      expect(off.status).toBe(303);
+      expect((await tonightRated()).rated).toBe(false);
+    });
+
+    it('a body that is not a boolean is refused (400), and nothing moves', async () => {
+      const before = await tonightRated();
+      const response = await setGroupModeRoute(adminOptions)(
+        jsonRequest('/api/admin/mode', { groupId: groups.g, rated: 'maybe' }),
+      );
+      expect(response.status).toBe(400);
+      expect(await tonightRated()).toEqual(before);
+    });
+
+    it('after Roll it still toggles, for the next game: the running game keeps its lock', async () => {
+      await card({ mode: 'fearless' });
+      const { lobbyId, partyId } = await openAndRoll();
+      const locked = await lockOf(lobbyId);
+      expect(locked).toMatchObject({ lock_mode: 'fearless', lock_rated: true });
+
+      await card({ rated: false });
+      expect((await tonightRated()).rated).toBe(false);
+      await card({ rated: true });
+      expect((await tonightRated()).rated).toBe(true);
+      await card({ rated: false });
+      expect((await tonightRated()).rated).toBe(false);
+      expect(await lockOf(lobbyId)).toEqual(locked);
+
+      // The running game is rated as locked; the flip survives it, for the next game.
+      const { game } = await record(partyId);
+      expect(game.rated).toBe(true);
+      expect(await cardRow()).toMatchObject({ rated_override: false });
       await card({ mode: 'normal' });
     });
   });

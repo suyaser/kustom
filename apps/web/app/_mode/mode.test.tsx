@@ -441,6 +441,8 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(JSON.parse(String(init.body))).toEqual({ groupId: ORIGINAL_GROUP.id, rated: false });
     expect(await screen.findByText('Next game is not rated.')).toBeInTheDocument();
+    // Prod fix 2026-10-04: the switch itself moved, not only the line (`ratedSwitch.test.tsx`).
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
   });
 
   it('not rated reads as recorded, not rated', () => {
