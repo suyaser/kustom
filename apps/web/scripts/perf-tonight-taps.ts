@@ -541,12 +541,11 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
       await tap('lobby chip (back to the first)', chip(false), '[data-never]', chipOptions);
     }
     await step('second lobby ends', async () => {
-      const ended = await db
-        .from('lobbies')
-        .update({ status: 'abandoned' })
-        .eq('group_id', groupId)
-        .eq('lcu_party_id', partyTwo);
-      if (ended.error) throw new Error(`end second lobby: ${ended.error.message}`);
+      // A plain write through psql (as the auth user above): the page hears only the group's live
+      // signal (`group_live`, M19.11), bumped below, never a row of this table.
+      psql(
+        `update public.lobbies set status = 'abandoned' where group_id = ${literal(groupId)} and lcu_party_id = ${literal(partyTwo)};`,
+      );
       const bumped = await db.rpc('bump_group_live', { p_group: groupId, p_kind: 'lobby' });
       if (bumped.error) throw new Error(`bump: ${bumped.error.message}`);
     });
