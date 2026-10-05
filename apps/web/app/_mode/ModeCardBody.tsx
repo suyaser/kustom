@@ -123,7 +123,7 @@ export interface ModeCardBodyProps {
   /** Finished: the ten this game added (rendered on the server) and whether it banned nothing. */
   bannedNext: { count: number; notRated: boolean; node: ReactNode } | null;
   normalJustNow: boolean;
-  controls: Omit<ModeControlsProps, 'mode' | 'banned' | 'groupId' | 'resetConfirmHref' | 'nextLine'> | null;
+  controls: Omit<ModeControlsProps, 'mode' | 'banned' | 'groupId' | 'resetConfirmHref'> | null;
   live: ModeCardLive | null;
 }
 
@@ -390,7 +390,6 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           groupId={group.id}
           mode={view.standing}
           banned={counts.banned}
-          nextLine={view.nextLine}
           resetConfirmHref={modeResetConfirmHref(group)}
         />
       )}

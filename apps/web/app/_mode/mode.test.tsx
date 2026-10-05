@@ -407,12 +407,8 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
   });
 
   it('a rule chosen says it is for the next game only; after Roll, changes are for the next game', () => {
-    const queued = draw({ selected: 'class:Tank', inGame: true, nextLine: 'Next game: Mages only.' });
-    // `Next game:` says it; `Changes apply…` is not repeated under it (design round 1).
-    expect(screen.getByText('For the next game only. Then back to Fearless.')).toBeInTheDocument();
-    expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
-    expect(screen.queryByText(/Changes apply from the next game/)).toBeNull();
-    queued.unmount();
+    // 05-design 8.3.1 (M20.10): the foot has no bold `Next game: …` line after Roll (the `Next game`
+    // picker says it); the caption always heads the next-game group.
     draw({ selected: 'class:Tank', inGame: true });
     expect(screen.getByText('For the next game only. Then back to Fearless.')).toBeInTheDocument();
     // M14.76: said once, at the top of `Admins and the owner`, not under the picker and the switch.

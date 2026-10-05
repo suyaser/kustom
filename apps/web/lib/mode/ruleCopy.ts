@@ -158,9 +158,8 @@ export const REGION_SELECT_LABELS: Record<'blue' | 'red', string> = {
  * on Windows fires `change` per option). M20.1 names no button; the designer/product to confirm.
  */
 export const SET_REGION = 'Set region';
-/** The two pairs' headings after Roll, when this game's and the next game's both show. */
+/** After Roll, this game's pair's legend (05-design 8.3.1); the next game's pair has none. */
 export const THIS_GAME_HEADING = 'This game';
-export const NEXT_GAME_HEADING = 'Next game';
 /** M20 D11: the shown next-game pair went short (bans grew after it was drawn); everyone, under the status. */
 export const REGION_PAIR_SHORT =
   'Too few champions are open for this pair now. Roll will draw new regions unless an admin changes them.';

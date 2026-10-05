@@ -9,7 +9,7 @@ import {
   ruleOptionOf,
   setGroupModeResponseSchema,
 } from '@customs/db/schemas';
-import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -48,7 +48,6 @@ import {
   SETTING_MODE,
 } from '@/lib/mode/copy';
 import {
-  NEXT_GAME_HEADING,
   OPTGROUP_CLASS,
   OPTGROUP_MIRROR,
   OPTGROUP_REGION,
@@ -105,8 +104,8 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  *   time and the outcome line (`lib/mode/controlsStore.ts`), kept per group so a Roll that moves the
  *   card to another place on the page loses none of it.
  * - **`Reset fearless`** while the standing mode is Fearless and the pool has a ban.
- * - After Roll every change is for the next game: `Changes apply from the next game.` and
- *   `Next game: Mages only.` (the page's `nextLine`).
+ * - After Roll every change is for the next game: `Changes apply from the next game.` heads the
+ *   next-game group under the `Next game` picker (05-design 8.3.1: no bold `nextLine` in the foot).
  * - Outcomes show in place, never as a toast; a refusal is `role="alert"`. The outcome line is not
  *   a live region: Tonight's Announcer speaks the card's change once (QA fix 2026-10-04).
  * - **Focus never drops to the page** (QA fix 2026-10-04): a confirmed Set mode hides its button,
@@ -131,8 +130,6 @@ export interface ModeControlsProps {
   tooFew?: readonly string[] | undefined;
   /** Whether the next game is rated: the switch's state (M15.5). */
   nextRated?: boolean | undefined;
-  /** After Roll, when something changed since: `Next game: Mages only.` (M15.5). */
-  nextLine?: string | null | undefined;
   /** A no-JS post's outcome, carried back in `?notice=` / `?error=`. */
   notice?: string | null | undefined;
   error?: string | null | undefined;
@@ -155,7 +152,6 @@ export function ModeControls({
   selected = mode,
   tooFew = [],
   nextRated = true,
-  nextLine = null,
   notice,
   error,
   regions,
@@ -321,8 +317,9 @@ export function ModeControls({
   // `Setting…` stays up until the route confirms (M19.13: the card already shows the tap), then goes.
   const showSet = !hydrated || choice !== current || pending === 'mode';
   const spinBusy = pending === 'spin' || controls.spinUntil !== null;
-  // Design round 1: `Next game: Mages only.` already says it; don't repeat `Changes apply…` under it.
-  const afterRoll = inGame && nextLine === null;
+  // 05-design 8.3.1 (M20.10 design round 1): after Roll the caption always heads the next-game
+  // group; the foot's bold `nextLine` is gone (the `Next game` picker already says it).
+  const afterRoll = inGame;
   const chosenRule = ruleOptionOf(choice as ModeChoice);
   // M14.76: `Changes apply from the next game.` is said once, under the eyebrow, not under each control.
   const sentence = chosenRule === null ? MODE_PICKER_SENTENCES[choice as GroupMode] : ruleSentence(mode);
@@ -346,7 +343,8 @@ export function ModeControls({
         action={MODE_ACTION}
         redirectTo={redirectTo}
         // After Roll the foot can hold two pairs (and the picker is the next game's): each says which.
-        heading={inGame ? (target.game === 'this' ? THIS_GAME_HEADING : NEXT_GAME_HEADING) : null}
+        // 8.3.1: only this game's pair is headed; the next game's sits under the `Next game` picker.
+        heading={inGame && target.game === 'this' ? THIS_GAME_HEADING : null}
         showShort={target.game === 'next' && !statusShowsNext}
         pending={regionPending}
         hydrated={hydrated}
@@ -359,60 +357,61 @@ export function ModeControls({
       <p className="font-mono text-2xs text-muted-foreground">{MODE_ADMIN_EYEBROW}</p>
       {/* This game's pair first: it is what the status above shows (M20.10). */}
       {regionControls(regions?.this)}
-      {afterRoll ? <p className="text-sm text-muted-foreground">{MODE_APPLIES_NEXT_GAME}</p> : null}
-      {nextLine === null ? null : <p className="text-sm font-bold">{nextLine}</p>}
-      <form
-        method="post"
-        action={MODE_ACTION}
-        onSubmit={(event) => void setMode(event)}
-        aria-label={MODE_SETTINGS_LABEL}
-        className="flex flex-col gap-2"
-      >
-        <input type="hidden" name="groupId" value={groupId} />
-        <input type="hidden" name="redirectTo" value={redirectTo} />
-        <label htmlFor={selectId} className="text-xs font-bold">
-          {inGame ? MODE_PICKER_LABEL_NEXT : MODE_PICKER_LABEL}
-        </label>
-        {/* Row 1 the select at full width, row 2 `[Set mode][Spin]`; one row only when the card
+      <NextGameGroup split={regions?.this != null}>
+        {afterRoll ? <p className="text-sm text-muted-foreground">{MODE_APPLIES_NEXT_GAME}</p> : null}
+        <form
+          method="post"
+          action={MODE_ACTION}
+          onSubmit={(event) => void setMode(event)}
+          aria-label={MODE_SETTINGS_LABEL}
+          className="flex flex-col gap-2"
+        >
+          <input type="hidden" name="groupId" value={groupId} />
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+          <label htmlFor={selectId} className="text-xs font-bold">
+            {inGame ? MODE_PICKER_LABEL_NEXT : MODE_PICKER_LABEL}
+          </label>
+          {/* Row 1 the select at full width, row 2 `[Set mode][Spin]`; one row only when the card
             itself is 520px or wider (a container query, never the viewport; design round 1). */}
-        <div className="flex flex-col gap-2 @[520px]:flex-row @[520px]:items-center">
-          <NativeSelect
-            id={selectId}
-            ref={selectRef}
-            name="mode"
-            value={choice}
-            aria-describedby={sentenceId}
-            onChange={(event) => dispatch({ type: 'pick', value: event.target.value })}
-            className="w-full @[520px]:max-w-sm @[520px]:flex-1"
-          >
-            {GROUP_MODES.map((one) => (
-              <option key={one} value={one}>
-                {MODE_NAMES[one]}
-              </option>
-            ))}
-            <optgroup label={OPTGROUP_CLASS}>
-              {CLASS_CHOICES.map((tag) => option({ id: 'class', tag }))}
-            </optgroup>
-            <optgroup label={OPTGROUP_REGION}>{option({ id: 'region' })}</optgroup>
-            <optgroup label={OPTGROUP_MIRROR}>{option({ id: 'mirror' })}</optgroup>
-          </NativeSelect>
-          <div className="flex flex-wrap gap-2">
-            {showSet ? (
-              <Button type="submit" pending={pending === 'mode'}>
-                {pending === 'mode' ? SETTING_MODE : SET_MODE}
+          <div className="flex flex-col gap-2 @[520px]:flex-row @[520px]:items-center">
+            <NativeSelect
+              id={selectId}
+              ref={selectRef}
+              name="mode"
+              value={choice}
+              aria-describedby={sentenceId}
+              onChange={(event) => dispatch({ type: 'pick', value: event.target.value })}
+              className="w-full @[520px]:max-w-sm @[520px]:flex-1"
+            >
+              {GROUP_MODES.map((one) => (
+                <option key={one} value={one}>
+                  {MODE_NAMES[one]}
+                </option>
+              ))}
+              <optgroup label={OPTGROUP_CLASS}>
+                {CLASS_CHOICES.map((tag) => option({ id: 'class', tag }))}
+              </optgroup>
+              <optgroup label={OPTGROUP_REGION}>{option({ id: 'region' })}</optgroup>
+              <optgroup label={OPTGROUP_MIRROR}>{option({ id: 'mirror' })}</optgroup>
+            </NativeSelect>
+            <div className="flex flex-wrap gap-2">
+              {showSet ? (
+                <Button type="submit" pending={pending === 'mode'}>
+                  {pending === 'mode' ? SETTING_MODE : SET_MODE}
+                </Button>
+              ) : null}
+              {/* Spin sits on the select's row (8.4.2), in its own form so it posts with no JS. */}
+              <Button type="submit" form={`${selectId}-spin`} variant="secondary" pending={spinBusy}>
+                {spinBusy ? SPINNING : SPIN}
               </Button>
-            ) : null}
-            {/* Spin sits on the select's row (8.4.2), in its own form so it posts with no JS. */}
-            <Button type="submit" form={`${selectId}-spin`} variant="secondary" pending={spinBusy}>
-              {spinBusy ? SPINNING : SPIN}
-            </Button>
+            </div>
           </div>
-        </div>
-        <p id={sentenceId} className="text-xs text-muted-foreground empty:hidden">
-          {sentence}
-        </p>
-      </form>
-      {regionControls(regions?.next)}
+          <p id={sentenceId} className="text-xs text-muted-foreground empty:hidden">
+            {sentence}
+          </p>
+        </form>
+        {regionControls(regions?.next)}
+      </NextGameGroup>
       <form
         id={`${selectId}-spin`}
         method="post"
@@ -488,6 +487,15 @@ export function ModeControls({
       </p>
     </div>
   );
+}
+
+/**
+ * 05-design 8.3.1: with this game's pair above it, the next game's controls open on a hairline, so
+ * `Changes apply from the next game.` never sits under this game's `Redraw regions`.
+ */
+function NextGameGroup({ split, children }: { split: boolean; children: ReactNode }) {
+  if (!split) return <>{children}</>;
+  return <div className="flex flex-col gap-3 border-t border-border pt-3">{children}</div>;
 }
 
 /** Region wars' pair for the local reveal's detail (`SpinReveal` reads `blue` / `red`). */
