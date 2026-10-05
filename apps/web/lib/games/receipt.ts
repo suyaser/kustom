@@ -249,8 +249,8 @@ export interface PlayedOdds {
 }
 
 /**
- * {@link gameReceiptOf}'s answer for a surface that prints only the odds (the result post, the
- * tape, the poster card, a player's recent games, `/fun`), from the chosen split alone. The same
+ * {@link gameReceiptOf}'s answer for a surface that prints only the odds (the tape, the poster
+ * card, a player's recent games, `/fun`), from the chosen split alone. The same
  * rule, so a compact line and the full receipt never disagree.
  */
 export function playedOddsOf(input: {
@@ -278,10 +278,11 @@ export function playedOddsOf(input: {
 
 /**
  * {@link playedOddsOf}'s number on the surfaces that printed odds only for a rolled game before
- * M21.7 (the result post, the night tape, the poster's link picture, `/fun`): the bot's teams keep
- * their (oriented) odds, teams changed after a roll get their pre-game odds, and a game nobody
- * rolled stays without, as before (milestone acceptance 1, "the unrolled game as today"; whether
- * an unrolled game's kickoff odds should print there is product's call, filed as OPEN).
+ * M21.7 (the night tape, the poster's link picture, `/fun`): the bot's teams keep their (oriented)
+ * odds, teams changed after a roll get their pre-game odds, and a game nobody rolled stays without,
+ * as before (milestone acceptance 1, "the unrolled game as today"). The result post left it in
+ * M21.14 (decision row 2026-10-05): it prints `receiptBlueWinProb`, pre-game odds included for a
+ * game nobody rolled (`resultOddsOf` in `lib/discord/assemble.ts`).
  */
 export function postedOdds(played: PlayedOdds, chosen: object | null): number | null {
   if (played.kind === 'rolled') return played.blueWinProb;

@@ -18,8 +18,8 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  *   `Upset`, never the split's 62%; calibration does not count it (acceptance 2).
  * - **D, rolled, played on swapped sides.** The split's two teams on each other's sides (kickoff
  *   `rolled`, `swapped`), pick #2: the bot's teams, so its odds turned round, 38% for blue.
- * - **C, unrolled.** No split; kickoff `unrolled` at 30%. The compact surfaces stay without odds
- *   (as today); the full receipts read the kickoff odds.
+ * - **C, unrolled.** No split; kickoff `unrolled` at 30%. The tape and /fun stay without odds
+ *   (as today); the full receipts read the kickoff odds, and so does the result post (M21.14).
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -248,13 +248,14 @@ if (stack === null) {
     d: { blue: 0.38, upset: true },
     c: { blue: 0.3, upset: true },
   };
-  /** What the compact surfaces print (the result post, the tape, /fun): the unrolled game none. */
+  /** What the compact surfaces print (the tape, /fun): the unrolled game none. */
   const COMPACT: Record<Key, number | null> = { a: 0.62, b: 0.35, d: 0.38, c: null };
 
   it('the Discord result post: the played odds, and split roles only for a split team', async () => {
+    // M21.14: the full receipt's number for every game, the unrolled one's kickoff odds included.
     for (const key of ['a', 'b', 'd', 'c'] as const) {
       const source = await loadResultSource(db, game[key]);
-      close(source?.blueWinProb, COMPACT[key]);
+      close(source?.blueWinProb, FULL[key].blue);
     }
     // D's two teams are the split's (swapped sides): everyone keeps a split lane. B's teams are
     // not: nobody gets one.

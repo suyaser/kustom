@@ -324,7 +324,10 @@ export interface ResultEmbedInput {
    * optional: a caller that forgot to ask would silently drop the line.
    */
   award: ResultAward | null;
-  /** The chosen split's `blue_win_prob`, or `null` when this game had no stored split. */
+  /**
+   * Blue's odds for the teams that played (M21.14, `resultOddsOf`): the chosen split's when they
+   * are its teams, else the pre-game odds; `null` for none (no odds line).
+   */
   blueWinProb: number | null;
   /** The single highest `damage_to_champs`, or `null` when the block carried none. */
   topDamage: { name: PlayerName; damage: number } | null;
