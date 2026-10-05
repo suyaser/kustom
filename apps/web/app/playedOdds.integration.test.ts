@@ -74,7 +74,8 @@ if (stack === null) {
   let group = '';
   let ids: ReadonlyMap<string, string> = new Map();
 
-  const assignments = (side: readonly string[]) => side.map((puuid, i) => ({ puuid, role: LANES[i] }));
+  const assignments = (side: readonly string[]) =>
+    side.map((puuid, i) => ({ puuid, role: LANES[i] ?? 'top' }));
 
   async function seed(
     key: Key,
@@ -150,7 +151,7 @@ if (stack === null) {
       group_id: group,
       player_id: ids.get(puuid) as string,
       side,
-      role: options.rolesOnRows ? LANES[index] : null,
+      role: options.rolesOnRows ? (LANES[index] ?? null) : null,
       r_before: 1200,
       r_after: side === options.winner ? 1210 : 1190,
       k: 16,
