@@ -7,6 +7,7 @@ import { Chip } from '@/components/ui/chip';
 import { ANNOUNCE_EVENT } from '@/lib/mode/spinEvents';
 import { YOU_TAG } from '@/lib/tonight/screenCopy';
 import {
+  bansAnnouncement,
   chipStatusText,
   LOBBIES_NAV,
   type LobbyChip,
@@ -32,6 +33,7 @@ export function LobbySwitcher({
   home,
   renderedAt,
   stalePin = false,
+  bans = null,
 }: {
   chips: readonly LobbyChip[];
   selected: string | null;
@@ -41,10 +43,12 @@ export function LobbySwitcher({
   renderedAt: number;
   /** The URL's `?lobby=` names no live table (a pinned table ended): drop it from the URL. */
   stalePin?: boolean;
+  /** 14.5: bans another lobby's games added since the selected lobby's last game, for 14.9's line. */
+  bans?: { count: number; label: string } | null | undefined;
 }) {
   const [tapped, setTapped] = useState<string | null>(null);
   const [now, setNow] = useState(renderedAt);
-  const last = useRef({ chips, selected, tapped: false });
+  const last = useRef({ chips, selected, tapped: false, bans });
   const shown = tapped ?? selected;
 
   useEffect(() => {
@@ -56,15 +60,18 @@ export function LobbySwitcher({
   // A render that moved the selection lands the tap; the announcer says what changed, once.
   useEffect(() => {
     const before = last.current;
-    const line = switcherAnnouncement(before, { chips, selected }, before.tapped);
-    last.current = { chips, selected, tapped: before.tapped && selected === before.selected };
+    // Bans only for the same selection: a tap that shows another lobby's count is not news.
+    const line =
+      switcherAnnouncement(before, { chips, selected }, before.tapped) ??
+      (selected === before.selected && before.chips.length > 0 ? bansAnnouncement(before.bans, bans) : null);
+    last.current = { chips, selected, tapped: before.tapped && selected === before.selected, bans };
     if (selected !== before.selected) setTapped(null);
     if (line === null) return;
     const timer = setTimeout(() =>
       window.dispatchEvent(new CustomEvent(ANNOUNCE_EVENT, { detail: { line } })),
     );
     return () => clearTimeout(timer);
-  }, [chips, selected]);
+  }, [chips, selected, bans]);
 
   useEffect(() => {
     if (stalePin) window.history.replaceState(window.history.state, '', home);

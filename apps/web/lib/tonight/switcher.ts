@@ -139,6 +139,19 @@ export function withLobby<T extends string>(href: T, lobbyId: string): T {
   return `${href}${href.includes('?') ? '&' : '?'}lobby=${encodeURIComponent(lobbyId)}` as T;
 }
 
+/** 14.5: the dashed note when another lobby's game added bans: lead, then the rest. */
+export const otherBansLead = (count: number): string => `${count} more banned`;
+export const otherBansRest = (label: string): string => `from a game in ${label}.`;
+
+/** 14.9: the announcer's line for bans another lobby's game just added, or null. */
+export function bansAnnouncement(
+  before: { count: number; label: string } | null,
+  after: { count: number; label: string } | null,
+): string | null {
+  const added = (after?.count ?? 0) - (before?.count ?? 0);
+  return after === null || added <= 0 ? null : `${added} more banned, from ${after.label}.`;
+}
+
 /** 14.11: the Reset dialog's body while two or more lobbies are live. */
 export function resetBodyLobbies(banned: number, count: number): string {
   return `All ${banned} bans are cleared ${count === 2 ? 'in both lobbies' : 'in every lobby'} and every champion is open again. Discord gets told.`;

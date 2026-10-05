@@ -46,6 +46,7 @@ import {
 } from '@/lib/tonight/copy';
 import { swappedRun, viewerKickoffSeat } from '@/lib/tonight/kickoff';
 import type { LastGame } from '@/lib/tonight/lastGame';
+import { otherLobbyBans } from '@/lib/tonight/otherBans';
 import { tonightRoles } from '@/lib/tonight/roles';
 import {
   announcement,
@@ -220,6 +221,7 @@ export function TonightView(props: TonightViewProps) {
   const shownTable = several ? selectedTable(snapshot) : undefined;
   const labels = several ? tableLabels(tables) : null;
   const lobbyLabel = shownTable === undefined ? null : (labels?.get(shownTable.id) ?? null);
+  const otherBans = labels === null ? null : otherLobbyBans(snapshot, snapshot.fearless, labels);
   const fork = shownTable?.card ?? null;
   const groupRow = snapshot.modeRow ?? missingRow();
   const modeRow =
@@ -266,7 +268,7 @@ export function TonightView(props: TonightViewProps) {
     regions: regionFacts(bans, table),
     normalFacts: normalNoteFactsOf(snapshot),
     readFailed: snapshot.modeReadFailed === true,
-    lobbies: lobbyLabel === null ? null : { count: tables.length, label: lobbyLabel, storeKey },
+    lobbies: lobbyLabel === null ? null : { count: tables.length, label: lobbyLabel, storeKey, otherBans },
   };
   // Everyone, every state, empty group included (design ruling on §8.2, 2026-10-03).
   const modeCard = (
@@ -359,6 +361,7 @@ export function TonightView(props: TonightViewProps) {
                 selected={snapshot.selectedLobbyId ?? null}
                 home={groupHome(group)}
                 renderedAt={props.renderedAt ?? Date.now()}
+                bans={otherBans}
                 stalePin={
                   props.requestedLobby != null &&
                   !tables.some((table) => table.rowIds.includes(props.requestedLobby as string))

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   banListInGameLine,
   banListLine,
+  bansAnnouncement,
   chipStatusText,
   type LobbyChip,
   lobbiesDateLine,
@@ -139,5 +140,15 @@ describe('the announcer (14.9)', () => {
         false,
       ),
     ).toBeNull();
+  });
+});
+
+describe('bans from the other lobby (14.9)', () => {
+  it('says only what was added', () => {
+    const bo = (count: number) => ({ count, label: "Bo's lobby" });
+    expect(bansAnnouncement(null, bo(10))).toBe("10 more banned, from Bo's lobby.");
+    expect(bansAnnouncement(bo(10), bo(20))).toBe("10 more banned, from Bo's lobby.");
+    expect(bansAnnouncement(bo(10), bo(10))).toBeNull();
+    expect(bansAnnouncement(bo(10), null)).toBeNull();
   });
 });

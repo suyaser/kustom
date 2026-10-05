@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { applyModeRow, modeCardKey, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { ROLL_LABEL } from '@/lib/tonight/copy';
+import { withSelection } from '@/lib/tonight/selection';
 import { UNWATCHED_LEAD } from '@/lib/tonight/switcher';
 import {
   ADMIN_VIEWER,
@@ -230,5 +231,106 @@ describe('the switcher alone', () => {
       />,
     );
     expect(container.innerHTML).toBe('');
+  });
+});
+
+describe('opening Tonight (14.12 item 3)', () => {
+  const chaos = { kind: 'linked', puuid: 'puuid-chaos', isAdmin: false, isMember: true } as const;
+  const chips = () => within(screen.getByRole('navigation', { name: 'Lobbies' })).getAllByRole('link');
+
+  it('a player in the second-opened lobby lands on it with no tap', () => {
+    const props = two('filling');
+    draw({ ...props, snapshot: withSelection(props.snapshot, { viewerPuuid: chaos.puuid }), viewer: chaos });
+    expect(chips()[1]).toHaveAttribute('aria-current', 'page');
+    expect(chips()[1]).toHaveTextContent("you're in this lobby");
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent("Chaos's lobby: 6 IN THE LOBBY");
+  });
+
+  it("a Discord link to the other lobby lands on that one, with YOU on the viewer's chip", () => {
+    const props = two('filling');
+    const snapshot = withSelection(props.snapshot, { requested: 'lobby-1', viewerPuuid: chaos.puuid });
+    draw({ ...props, snapshot, viewer: chaos });
+    expect(chips()[0]).toHaveAttribute('aria-current', 'page');
+    expect(chips()[0]).not.toHaveTextContent("you're in this lobby");
+    expect(chips()[1]).toHaveTextContent("you're in this lobby");
+  });
+});
+
+describe('bans from the other lobby (14.5)', () => {
+  it("the dashed note counts the other lobby's game since this lobby's last, and names it", () => {
+    const props = two('filling');
+    const [first, second] = props.snapshot.lobbies ?? [];
+    if (first === undefined || second === undefined) throw new Error('fixture');
+    const tile = {
+      lobbyId: 'lobby-chaos-0',
+      createdAt: new Date(NOW - 10 * 60_000).toISOString(),
+      clock: '22:20',
+      status: 'finished' as const,
+      result: {
+        gameId: 'game-chaos',
+        winningSide: 100 as const,
+        durationS: 1800,
+        aram: false,
+        rated: true,
+        mvp: null,
+      },
+      blueWinProb: 0.5,
+      rank: 1,
+      sitters: [],
+    };
+    const fearless = {
+      ...props.snapshot.fearless,
+      champions: [
+        ...props.snapshot.fearless.champions,
+        { id: 9001, name: 'A', role: null, gameId: 'game-chaos' },
+        { id: 9002, name: 'B', role: null, gameId: 'game-chaos' },
+      ],
+    };
+    const snapshot = {
+      ...props.snapshot,
+      fearless,
+      lobbies: [first, { ...second, rowIds: ['lobby-chaos-0', ...second.rowIds] }],
+      tape: [...props.snapshot.tape, tile],
+    };
+    draw({ ...props, snapshot, viewer: MEMBER_VIEWER });
+    expect(document.querySelector('[data-slot="mode-other-bans"]')).toHaveTextContent(
+      "2 more banned from a game in Chaos's lobby.",
+    );
+  });
+
+  it('no note on a one-lobby night', () => {
+    draw({ ...fixture('filling'), viewer: MEMBER_VIEWER });
+    expect(document.querySelector('[data-slot="mode-other-bans"]')).toBeNull();
+  });
+});
+
+describe('refusals and Reset with two lobbies (14.8, 14.11)', () => {
+  it("a card write to a lobby that just ended says so instead of the route's Pick a lobby first.", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: 'Pick a lobby first.' }), { status: 409 })),
+    );
+    try {
+      draw({ ...two('filling', 1), viewer: ADMIN_VIEWER });
+      const select = await screen.findByRole('combobox', { name: /^(Mode|Next game)$/ });
+      fireEvent.change(select, { target: { value: 'mirror' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
+      });
+      expect(await screen.findByRole('alert')).toHaveTextContent('That lobby has ended.');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('the Reset dialog says the bans clear in both lobbies', async () => {
+    draw({ ...two('filling', 1), viewer: ADMIN_VIEWER });
+    await screen.findByRole('combobox', { name: /^(Mode|Next game)$/ });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reset fearless' }));
+    });
+    expect(
+      await screen.findByText(/bans are cleared in both lobbies and every champion is open again/),
+    ).toBeInTheDocument();
   });
 });

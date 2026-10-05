@@ -70,7 +70,14 @@ import {
   ruleSentence,
 } from '@/lib/mode/ruleCopy';
 import { ruleLabel } from '@/lib/mode/ruleNotices';
-import { adminFootLines, banListInGameLine, banListLine, withLobby } from '@/lib/tonight/switcher';
+import {
+  adminFootLines,
+  banListInGameLine,
+  banListLine,
+  otherBansLead,
+  otherBansRest,
+  withLobby,
+} from '@/lib/tonight/switcher';
 import { cn } from '@/lib/utils';
 import { RoleIcon } from '../_icons/RoleIcon';
 import type { ModeControlsProps } from './ModeControls';
@@ -125,7 +132,16 @@ export interface ModeCardLive {
    * `label`, and its card's client store key (`modeCardKey`: its own for a forked lobby). Absent
    * or null with one lobby: today's card, keyed on the group.
    */
-  lobbies?: { count: number; label: string; storeKey: string } | null | undefined;
+  lobbies?:
+    | {
+        count: number;
+        label: string;
+        storeKey: string;
+        /** 14.5: bans another lobby's games added since this lobby's own last game (Fearless). */
+        otherBans?: { count: number; label: string } | null | undefined;
+      }
+    | null
+    | undefined;
 }
 
 export interface ModeCardBodyProps {
@@ -334,6 +350,15 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm"
         >
           {MODE_READ_FAILED}
+        </p>
+      ) : null}
+      {lobbies?.otherBans != null && poolOn && !poolCleared ? (
+        <p
+          data-slot="mode-other-bans"
+          className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm"
+        >
+          <b className="font-bold">{otherBansLead(lobbies.otherBans.count)}</b>{' '}
+          {otherBansRest(lobbies.otherBans.label)}
         </p>
       ) : null}
       {shortPair === null ? null : (
