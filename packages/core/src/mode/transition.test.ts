@@ -332,6 +332,146 @@ describe('redraw and set-side (row and lock, one rule)', () => {
   });
 });
 
+describe("lockTransition: this game's rule, Spin and Rated before the game starts (M20.18)", () => {
+  const normalLock: ModeLock = { standing: 'normal', mode: { id: 'normal' }, rated: null };
+  const tanksLock: ModeLock = { standing: 'normal', mode: tanks, rated: true };
+  const regionLock: ModeLock = { standing: 'fearless', mode: ioniaNoxus, rated: false };
+
+  function lockOf(lock: ModeLock, action: ModeAction, context = ctx()): ModeLock {
+    const result = lockTransition(lock, action, context);
+    if (!result.ok) throw new Error(`refused: ${result.refusal}`);
+    return result.lock;
+  }
+
+  it('standing: this game becomes the standing mode, the rule and Rated emptied', () => {
+    expect(lockOf(tanksLock, { type: 'standing', standing: 'fearless' })).toEqual({
+      standing: 'fearless',
+      mode: { id: 'fearless' },
+      rated: null,
+    });
+    expect(lockOf(regionLock, { type: 'standing', standing: 'normal' })).toEqual(normalLock);
+  });
+
+  it("rated: only this game's switch moves", () => {
+    expect(lockOf(tanksLock, { type: 'rated', rated: false })).toEqual({ ...tanksLock, rated: false });
+    expect(lockOf(regionLock, { type: 'rated', rated: true })).toEqual({ ...regionLock, rated: true });
+    expect(lockRated(lockOf(normalLock, { type: 'rated', rated: false }))).toBe(false);
+  });
+
+  it("pick: the rule replaces this game's, the standing mode kept, Rated back to its default", () => {
+    expect(lockOf(normalLock, { type: 'pick', rule: tanks })).toEqual({
+      standing: 'normal',
+      mode: tanks,
+      rated: null,
+    });
+    expect(lockOf(tanksLock, { type: 'pick', rule: mirror })).toEqual({
+      standing: 'normal',
+      mode: mirror,
+      rated: null,
+    });
+  });
+
+  it("pick: region wars draws its pair now, over this game's pool", () => {
+    expect(lockOf(normalLock, { type: 'pick', rule: regionPick }, ctx(sequence(0, 0)))).toEqual({
+      standing: 'normal',
+      mode: ioniaNoxus,
+      rated: null,
+    });
+    // A Fearless lock counts the bans: ionia down to 7, so it is never drawn.
+    const fearless: ModeLock = { standing: 'fearless', mode: tanks, rated: null };
+    expect(
+      lockOf(fearless, { type: 'pick', rule: regionPick }, ctx(sequence(0, 0), [IONIA_ONE, IONIA_TWO])).mode,
+    ).toEqual({ id: 'region', blue: 'noxus', red: 'targon' });
+  });
+
+  it("pick: refused when this game's pool is too small (class wars under 10, region wars with no pair)", () => {
+    expect(lockTransition(normalLock, { type: 'pick', rule: mages }, ctx())).toEqual({
+      ok: false,
+      refusal: 'too-few-open',
+    });
+    const fearless: ModeLock = { standing: 'fearless', mode: { id: 'fearless' }, rated: null };
+    expect(lockTransition(fearless, { type: 'pick', rule: regionPick }, ctx(sequence(0), NO_PAIR))).toEqual({
+      ok: false,
+      refusal: 'too-few-open',
+    });
+  });
+
+  it('pick: Fearless bans count only when this game is Fearless', () => {
+    expect(lockOf(normalLock, { type: 'pick', rule: regionPick }, ctx(sequence(0, 0), NO_PAIR)).mode).toEqual(
+      ioniaNoxus,
+    );
+  });
+
+  it("pick: this game's own rule stays pickable and keeps its pair, even short", () => {
+    expect(lockOf(regionLock, { type: 'pick', rule: regionPick }, ctx(sequence(0), NO_PAIR))).toEqual({
+      ...regionLock,
+      rated: null,
+    });
+    const magesLock: ModeLock = { standing: 'normal', mode: mages, rated: true };
+    expect(lockOf(magesLock, { type: 'pick', rule: mages })).toEqual({ ...magesLock, rated: null });
+  });
+
+  it('spin: a playable rule for this game, region wars with a fresh pair, Rated back to its default', () => {
+    // Families class, region, mirror: 0.5 lands on region; 0.99, 0.99 draws zaun vs targon.
+    expect(lockOf(regionLock, { type: 'spin', previous: null }, ctx(sequence(0.5, 0, 0.99, 0.99)))).toEqual({
+      standing: 'fearless',
+      mode: { id: 'region', blue: 'zaun', red: 'targon' },
+      rated: null,
+    });
+    expect(
+      lockOf(tanksLock, { type: 'spin', previous: tanks, blocked: [regionPick] }, ctx(sequence(0))),
+    ).toEqual({ standing: 'normal', mode: mirror, rated: null });
+  });
+
+  it('spin: nothing playable for this game is a refusal', () => {
+    expect(
+      lockTransition(tanksLock, { type: 'spin', previous: tanks, blocked: [regionPick, mirror] }, ctx()),
+    ).toEqual({ ok: false, refusal: 'nothing-to-spin' });
+    // Under Fearless with no pair and class short, only mirror is left; blocked, nothing.
+    const fearless: ModeLock = { standing: 'fearless', mode: { id: 'fearless' }, rated: null };
+    expect(
+      lockTransition(
+        fearless,
+        { type: 'spin', previous: tanks, blocked: [mirror] },
+        ctx(sequence(0), NO_PAIR),
+      ),
+    ).toEqual({ ok: false, refusal: 'nothing-to-spin' });
+  });
+
+  it('a refusal changes nothing: the lock passed in is never mutated', () => {
+    const frozen = Object.freeze({ ...tanksLock, mode: Object.freeze({ ...tanks }) });
+    lockTransition(frozen, { type: 'pick', rule: mages }, ctx());
+    lockTransition(frozen, { type: 'pick', rule: mirror }, ctx());
+    expect(frozen).toEqual(tanksLock);
+  });
+
+  it('the row action and the lock action agree on every rule outcome (one rule for both)', () => {
+    const actions: ModeAction[] = [
+      { type: 'pick', rule: tanks },
+      { type: 'pick', rule: mages },
+      { type: 'pick', rule: regionPick },
+      { type: 'pick', rule: mirror },
+      { type: 'spin', previous: null },
+      { type: 'spin', previous: tanks, blocked: [regionPick, mirror] },
+    ];
+    for (const standing of ['normal', 'fearless'] as const) {
+      for (const action of actions) {
+        const onRow = transition(row({ standing }), action, ctx(sequence(0.5, 0, 0.99, 0.99), NO_PAIR));
+        const onLock = lockTransition(
+          { standing, mode: { id: standing }, rated: true },
+          action,
+          ctx(sequence(0.5, 0, 0.99, 0.99), NO_PAIR),
+        );
+        if (onRow.ok && onLock.ok) {
+          expect(onLock.lock).toEqual({ standing, mode: onRow.patch.pending, rated: null });
+        } else {
+          expect(onLock).toEqual(onRow);
+        }
+      }
+    }
+  });
+});
+
 describe('take (Roll): the rule, its pair and Rated move into the lock', () => {
   it('no rule: locks the standing mode with Rated as set, empties the row', () => {
     const state = row({ standing: 'fearless', rated: false });
@@ -691,12 +831,16 @@ describe('property: no reachable state is a region rule without a valid pair', (
           state = apply(state, recordGame(state, { kind: 'rift', lock, live: true }).patch);
           lock = null;
         } else if (r < 0.25 && lock !== null) {
-          const changed = lockTransition(
-            lock,
-            rng() < 0.5 ? { type: 'redraw' } : { type: 'set-side', side: 'red', region: 'zaun' },
-            context,
-          );
-          if (changed.ok) lock = changed.lock;
+          // M20.18: any card action on this game's lock, not only the region ones.
+          const changed = lockTransition(lock, ACTIONS(rng), context);
+          if (changed.ok) {
+            const written = changed.lock.mode;
+            if (written.id === 'region' && written !== lock.mode) {
+              const counted = changed.lock.standing === 'fearless' ? bans : [];
+              expect(pairDrawable(written.blue, written.red, ROSTER, counted)).toBe(true);
+            }
+            lock = changed.lock;
+          }
         } else {
           const result = transition(state, ACTIONS(rng), context);
           if (result.ok) {

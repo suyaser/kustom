@@ -205,6 +205,39 @@ function regionChange(
     : refuse('pair-short');
 }
 
+/**
+ * Pick and Spin, the one rule for the row and the lock (M20.18): `current` is the target's rule
+ * (the row's pending rule, or this game's locked rule), `bans` the target's Fearless pool.
+ *
+ * - **Pick**: the target's own rule stays pickable and keeps its pair even if its pool shrank;
+ *   any other rule must be playable now (class wars 10 open, region wars a pair passing M20 D2,
+ *   drawn here).
+ * - **Spin**: never `previous`, never a blocked rule, never an unplayable one; region wars always
+ *   gets a fresh pair (Spin's reroll is tapping Spin again).
+ */
+function chooseRule(
+  current: Mode | null,
+  action: Extract<ModeAction, { type: 'pick' | 'spin' }>,
+  context: TransitionContext,
+  bans: Bans,
+): { ok: true; rule: PendingRule } | { ok: false; refusal: Refusal } {
+  if (action.type === 'pick') {
+    const own = current === null ? null : ruleOf(current);
+    if (own !== null && sameRule(action.rule, own)) return { ok: true, rule: current as PendingRule };
+    if (!playable(action.rule, context, bans)) return refuse('too-few-open');
+    return { ok: true, rule: pendingOf(action.rule, context, bans) };
+  }
+  const blocked = action.blocked ?? [];
+  const spun = drawSpin(
+    RULE_OPTIONS,
+    action.previous,
+    (rule) => !blocked.some((b) => sameRule(b, rule)) && playable(rule, context, bans),
+    context.rng,
+  );
+  if (spun === null) return refuse('nothing-to-spin');
+  return { ok: true, rule: pendingOf(spun, context, bans) };
+}
+
 /** One admin action on the row (the next game). */
 export function transition(row: ModeRow, action: ModeAction, context: TransitionContext): TransitionResult {
   const bans = bansFor(row.standing, context);
@@ -213,25 +246,10 @@ export function transition(row: ModeRow, action: ModeAction, context: Transition
       return { ok: true, patch: { standing: action.standing, pending: null, rated: null } };
     case 'rated':
       return { ok: true, patch: { rated: action.rated } };
-    case 'pick': {
-      // The rule already pending stays pickable (and keeps its pair) even if its pool shrank.
-      if (row.pending !== null && sameRule(action.rule, row.pending)) {
-        return { ok: true, patch: { pending: row.pending, rated: null } };
-      }
-      if (!playable(action.rule, context, bans)) return refuse('too-few-open');
-      return { ok: true, patch: { pending: pendingOf(action.rule, context, bans), rated: null } };
-    }
+    case 'pick':
     case 'spin': {
-      const blocked = action.blocked ?? [];
-      const spun = drawSpin(
-        RULE_OPTIONS,
-        action.previous,
-        (rule) => !blocked.some((b) => sameRule(b, rule)) && playable(rule, context, bans),
-        context.rng,
-      );
-      if (spun === null) return refuse('nothing-to-spin');
-      // Spin's reroll is tapping Spin again, so region wars always gets a fresh pair.
-      return { ok: true, patch: { pending: pendingOf(spun, context, bans), rated: null } };
+      const chosen = chooseRule(row.pending, action, context, bans);
+      return chosen.ok ? { ok: true, patch: { pending: chosen.rule, rated: null } } : chosen;
     }
     default: {
       if (row.pending?.id !== 'region') return refuse('no-region-rule');
@@ -241,11 +259,39 @@ export function transition(row: ModeRow, action: ModeAction, context: Transition
   }
 }
 
-/** Redraw or set-side on this game's lock (only the pair changes). The server gates on `balanced`. */
-export function lockTransition(lock: ModeLock, action: RegionAction, context: TransitionContext): LockResult {
-  if (lock.mode.id !== 'region') return refuse('no-region-rule');
-  const changed = regionChange(lock.mode, action, context, bansFor(lock.standing, context));
-  return changed.ok ? { ok: true, lock: { ...lock, mode: regionRule(changed.pair) } } : changed;
+/**
+ * One admin action on this game's lock, between Roll and game start (M20.18, the owner's
+ * 2026-10-05 rule "until the game starts, mode changes are for this game"; region actions since
+ * M20 D9). The server gates on `balanced`; once the game is in progress the lock is frozen and
+ * every action is the row's ({@link transition}).
+ *
+ * The same rules as on the row, over this game's pool (the lock's standing mode decides whether
+ * the Fearless bans count):
+ *
+ * - `standing`: this game becomes that standing mode, no rule, Rated at its default;
+ * - `pick` / `spin`: this game's rule ({@link chooseRule}), the standing mode kept, Rated at the
+ *   new rule's default;
+ * - `rated`: only this game's switch;
+ * - `redraw` / `set-side`: only the pair, refused without region wars on the lock.
+ */
+export function lockTransition(lock: ModeLock, action: ModeAction, context: TransitionContext): LockResult {
+  const bans = bansFor(lock.standing, context);
+  switch (action.type) {
+    case 'standing':
+      return { ok: true, lock: { standing: action.standing, mode: { id: action.standing }, rated: null } };
+    case 'rated':
+      return { ok: true, lock: { ...lock, rated: action.rated } };
+    case 'pick':
+    case 'spin': {
+      const chosen = chooseRule(lock.mode, action, context, bans);
+      return chosen.ok ? { ok: true, lock: { ...lock, mode: chosen.rule, rated: null } } : chosen;
+    }
+    default: {
+      if (lock.mode.id !== 'region') return refuse('no-region-rule');
+      const changed = regionChange(lock.mode, action, context, bans);
+      return changed.ok ? { ok: true, lock: { ...lock, mode: regionRule(changed.pair) } } : changed;
+    }
+  }
 }
 
 /**
