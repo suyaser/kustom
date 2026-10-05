@@ -424,6 +424,40 @@ if (stack === null) {
       }
     });
 
+    it.each([
+      ['a class wars game', { pending_rule: 'class', pending_class_tag: 'Tank', rated_override: null }],
+      ['a Rated-off game', { pending_rule: null, pending_class_tag: null, rated_override: false }],
+    ] as const)(
+      'a short %s is already not rated: left unstamped, and no restore rates it',
+      async (_label, card) => {
+        const set = await db.from('group_modes').update(card).eq('group_id', groups.v);
+        if (set.error) throw new Error(set.error.message);
+        try {
+          const { row } = await store(632, 'CLASSIC');
+          expect(row).toMatchObject({ rated: false, voided_at: null, void_reason: null });
+          const { error } = await db
+            .from('games')
+            .update({ created_at: new Date(Date.now() - 60 * 60_000).toISOString() })
+            .eq('group_id', groups.v);
+          if (error) throw new Error(error.message);
+          expect((await call(OWNER, { action: 'restore', gameId: row.id })).json).toEqual({
+            ok: true,
+            voided: false,
+            changed: false,
+            folded: false,
+          });
+          const after = await db.from('games').select('rated').eq('id', row.id).single();
+          expect(after.data?.rated).toBe(false);
+        } finally {
+          // Back to a plain card for the tests after this one (a failure here shows up there).
+          await db
+            .from('group_modes')
+            .update({ pending_rule: null, pending_class_tag: null, rated_override: null })
+            .eq('group_id', groups.v);
+        }
+      },
+    );
+
     it('Games says ended early, and Rate it anyway (a restore) rates it', async () => {
       const list = await loadGamesList(createPublicClient(), {
         groupId: groups.v,

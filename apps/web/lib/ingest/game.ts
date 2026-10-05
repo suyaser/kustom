@@ -233,10 +233,11 @@ export async function ingestEogGame(
     // (0024, amended by 0032) only fills a null `mode`, so it is the fallback for a writer that
     // names none; a second companion's duplicate (`ignoreDuplicates`) keeps the first write's.
     ...modeColumns,
-    // M23.1: a new Rift game under 15 minutes is stored voided (people left), whatever its lobby's
-    // lock said. Only this insert writes it: a duplicate (`ignoreDuplicates`) keeps the first write,
-    // and a stored game is only ever changed by an admin's Void or Restore.
-    ...(endedEarly(payload.durationS, payload.raw)
+    // M23.1: a new Rift game under 15 minutes that its lock would rate is stored voided (people
+    // left). A game already played not rated (a rule, the Rated switch) is left alone, so no restore
+    // can ever rate it. Only this insert writes it: a duplicate (`ignoreDuplicates`) keeps the first
+    // write, and a stored game is only ever changed by an admin's Void or Restore.
+    ...(modeColumns.rated !== false && endedEarly(payload.durationS, payload.raw)
       ? { rated: false, voided_at: new Date().toISOString(), void_reason: 'early-end' }
       : {}),
     group_id: groupId,
