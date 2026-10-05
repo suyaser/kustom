@@ -26,8 +26,8 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M17 Kustom companion in Rust | in progress (2026-10-04: M17.1–M17.12, M17.18, M17.19 merged; live on macOS 16.19 for discovery, lobby and rank; gates: the user's signing key for M17.12 and the Windows night M17.13; M17.17 merged 2026-10-04) | Added 2026-10-03 (the user): one small Tauri 2 app with the engine in Rust, no Node, no overlay. Host duties unchanged (lobby watcher, end-of-game capture and queue, rank sync, lobby commands, backfill kept); minimal window: link with the site's code, current group, switch group, League status, last game, update ready; tray; Start with Windows. Signed auto-updates from `latest.json` on `kustom-releases`, Windows built in CI; NSIS installer 15 MB or less. Contracts held by goldens from the TypeScript engine checked against the real zod schemas, plus a JSON Schema drift alarm. **0.4.0 is not published**: 0.3.x is the download through 2.0, and 1.0.0 (Rust) is the first updater-enabled build, carrying code pairing and per-group tokens; the server keeps accepting 0.3.x until M17.15. **M17.1 done 2026-10-04.** CLAUDE.md `packages/lcu` rule: approved by the user 2026-10-04 and applied by the lead in `2feb452`. Windows only (the user). Needs the user's signing key before M17.12. Gate: a Windows night on 1.0.x (M17.13) before the TypeScript source is deleted (M17.14). Cleanup 2026-10-04: M6 superseded by M17; M14.32 and M15.7 dropped with the overlay. |
 | M18 Kustom rating | in progress (**switch build `rating-switch` 2026-10-04**: `kustom-rating` + M18.7 pages + `main` (65db4837, re-merged to 63fc150e) merged, all five CI checks, replay 0.700 / 0.938 / 0.925, m18-4 and m18-10 throwaway checks, a local walk of the runbook steps 3-5 and a local rollback to production `main` 63fc150e and back green; awaiting the owner's hosted run, `docs/runbooks/kustom-rating.md`, hosted at 0042 so 0036 + 0043 push with `--include-all`; M18.1, M18.2, M18.4, M18.5, M18.6, M18.8 spec, M18.9 landed; rating branch synced with main 06323b49 2026-10-04 on `kustom-rating`, reviewer pass each; 0036 applied locally only; planned 2026-10-04; **gate M18.3 passed for the formula**: 109 real games, log loss 0.700 vs `fold_p` 0.806, Spearman 0.938 on the 10+ board; M18.1, M18.4, M18.8 can start) | Added 2026-10-04 (the owner) from `redesign/research/rating-systems.md`: OpenSkill replaced by `change = K × (result − expected) × share`, expected `1/(1+exp(−gap/400))` on the Rating scale, start 1200, no decay; K 32 → 16 over the first 10 games; rank shares 1.2…0.8 replace MVP ×1.25 / ACE ×0.8 (names stay); no stomp factor; two tracks, all-time (balances teams) and weekly (everyone 1200 at the week boundary, K restarting per week; the week board orders on it, printed as week points); migration 0036; one `rebuild-ratings` run by the owner (M18.10), announced once in a patch-notes post to each group's Discord (the owner, 2026-10-04, superseding "unannounced"). M18.9 (docs and final words) landed 2026-10-04 on `m18-9-copy`. **Gate M18.3** (log loss no worse than OpenSkill's stored `fold_p`, Spearman ≥ 0.85 against the current board) passed on the formula; the implemented code must reproduce it (M18.5, M18.10). The bot's stored odds and the fold read the same Ratings (rank guess dropped, the owner's call, M18.2). The week stays Sunday 06:00 Africa/Cairo (owner-confirmed 2026-10-04). Later, separate: M18.11 odds guard, M18.12 OpenSkill removal, M18.13 fill burden and teammate variety. **M18.11 and M18.13 owner-approved 2026-10-04**, schema changes included (per-group `(a, b)` columns; `splits.score_parts`); both still after M18.10. |
 | M19 Fast pages | in progress (2026-10-04: M19.1, M19.2, M19.4, M19.5, M19.6, M19.7 landed on main as `perf-integrate`, reviewer pass per lane and on the merge; Tonight result screen 38→14 queries, 14→5 rounds, refresh incl. prefetches ~95→14; Stats warm 0 queries; M19.3, M19.9, M19.10, M19.13, M19.15, M19.16, M19.17 landed 2026-10-04; M19.11 ready on `m19-11-publication`, hosted push 2026-10-05) | Added 2026-10-04 from `redesign/research/performance.md`: Tonight changes once per real change, renders in ≤ 6 waves and ≤ 300 ms, never hears another group, controls stay pending until the screen answers, tabs answer at once. Owner decisions 2026-10-04 (decision rows): the name-free Mode card may be patched on the client (M19.13), and a per-group `group_live` signal replaces the table subscriptions, after which player and lobby tables leave the anon Realtime publication (M19.9 to M19.11). `getClaims()` is an investigation with a required security review (M19.12). M19.3 and M19.13 wait for `fix-mode-qa`. |
-| M20 Region wars on all 13 regions, its regions on the card from the moment it's chosen, on one mode state | not started (planned 2026-10-04; M20.1 done; M20.2 landed 602f9a54; M20.3 in progress; amended 2026-10-04 by M20 D9 to D11) | Added 2026-10-04 from the owner's five decisions (decision rows M20 D1 to D8), amended the same day by the owner's zones decision (M20 D9 to D11): two-region champions from a Kustom home list so all 13 regions can be drawn (M20.2, M20.3), region tags on every champion chip (M20.4, M20.5), the Mode card on one `group_modes` row with no version or CAS, Roll moving the rule onto the lobby (M20.6 to M20.8), and region wars' two regions as mode state: drawn the moment region wars is chosen (Set mode or Spin), shown on the card and panel before any lobby exists, redrawn or changed side by side by an admin any time before the game starts, carried into the lock by Roll (M20.9, M20.10; the old picks and Redraw tasks M20.11 and M20.12 are merged into them). Every other mode's choices were already made at selection (audit in M20 D10). M19.13 landed before M20; M20.8 rewrites on its store. |
-| M21 The teams that play are the teams | not started (planned 2026-10-04, briefs at task level) | Added 2026-10-04 from the owner's "when we roll teams sometimes we ignore it and make our own teams ..." (decision row M21 D1): the roll is a suggestion, and from game start every surface uses the teams that actually started. Ratings already fold on the eog sides and do not change. Source: the frozen lobby sides at `in_game` (server only, M21.4), audited against history first (M21.1); the companion sending the gameflow session's teams (M21.3) only if the audit fails, after a real-client check (M21.2). Fixes the in-game view (and an unrolled game showing as a filling lobby), adds a `Game on` post when the teams changed, and moves seven after-game readers that still print the rolled odds onto `gameReceiptOf` (M21.7). M21.8 (balancer memory) waits on the owner's yes; M21.9 follows M20.10. |
+| M20 Region wars on all 13 regions, its regions on the card from the moment it's chosen, on one mode state | in progress (2026-10-05: M20.1 to M20.10 landed; M20.13 product walk done on the local stack, the scene and the two-admin night pass; open: M20.14 to M20.17 from the walk) | Added 2026-10-04 from the owner's five decisions (decision rows M20 D1 to D8), amended the same day by the owner's zones decision (M20 D9 to D11): two-region champions from a Kustom home list so all 13 regions can be drawn (M20.2, M20.3), region tags on every champion chip (M20.4, M20.5), the Mode card on one `group_modes` row with no version or CAS, Roll moving the rule onto the lobby (M20.6 to M20.8), and region wars' two regions as mode state: drawn the moment region wars is chosen (Set mode or Spin), shown on the card and panel before any lobby exists, redrawn or changed side by side by an admin any time before the game starts, carried into the lock by Roll (M20.9, M20.10; the old picks and Redraw tasks M20.11 and M20.12 are merged into them). Every other mode's choices were already made at selection (audit in M20 D10). M19.13 landed before M20; M20.8 rewrites on its store. |
+| M21 The teams that play are the teams | in progress (2026-10-05: M21.1, M21.4 to M21.9 and M21.11 landed; M21.12 built, waits on 0049 on hosted; M21.10 walk done on the local stack, the scene passes, M21.10 stays open on M21.2 (not done, not deferred); open: M21.13, M21.14 from the walk) | Added 2026-10-04 from the owner's "when we roll teams sometimes we ignore it and make our own teams ..." (decision row M21 D1): the roll is a suggestion, and from game start every surface uses the teams that actually started. Ratings already fold on the eog sides and do not change. Source: the frozen lobby sides at `in_game` (server only, M21.4), audited against history first (M21.1); the companion sending the gameflow session's teams (M21.3) only if the audit fails, after a real-client check (M21.2). Fixes the in-game view (and an unrolled game showing as a filling lobby), adds a `Game on` post when the teams changed, and moves seven after-game readers that still print the rolled odds onto `gameReceiptOf` (M21.7). M21.8 (balancer memory) waits on the owner's yes; M21.9 follows M20.10. |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -13287,6 +13287,84 @@ or a full room: the card is on Tonight in every state, empty group included.
   flip mid-game, a remake under a rule, teams coming down after a Redraw, a pair made short by a Fearless game's
   bans before Roll. Every gap becomes `M20.14+` with an acceptance check.
 
+  *Product walk 2026-10-05 (main 0d50fe3c, `next start` on the local stack at 0049, scratch group `walk-b04024`
+  deleted after; companion posts as `lib/testing/modeNight.ts` sends them, admin taps in Playwright as two signed-in
+  admins, a signed-out page at 375 watching, a local webhook catching every post). The acceptance scene passes; four
+  gaps, M20.14 to M20.17.*
+    > - **Region wars chosen with nobody in a lobby (Fearless night, 10 banned): pass.** The card showed `BLUE Bandle
+    >   City vs RED Targon` at once (05-design 8.3's look of M20.1's `Blue: … · Red: …`), the route's notice was
+    >   `Next game: Region wars. Blue: Bandle City · Red: Targon. Not rated.`, and the signed-out page had the pair
+    >   with no refresh. The panel showed both pools to the signed-out page with every chip tagged, Vi in Zaun's pool
+    >   as `Piltover · Zaun`, banned champions under `Banned 1`, and the new credit line.
+    > - **Redraw, then Blue set to Targon: pass.** `Next game: Bandle City vs The Void.` then `Next game: Targon vs The
+    >   Void.`; the signed-out page followed both.
+    > - **Ten join, Roll: pass.** The teams post read `This game: region wars. Blue picks from Zaun, Red from Noxus.
+    >   Not rated.`, the pair the card showed.
+    > - **Redraw while balanced: pass.** Lock Zaun/Noxus to Noxus/Ionia, same split and seats, the signed-out page
+    >   changed within 1.5 s, one fresh teams post `This game: region wars, new regions.`, admin notice `New regions:
+    >   Noxus vs Ionia. Picks already made stay, and the check uses the new regions.`
+    > - **The game starts: pass.** This game's controls gone; `redraw` and `side` with `game: 'this'` answer 409 `The
+    >   game has started, so the regions stay.`
+    > - **Record: pass.** The check read the new regions (Red's Janna, Zaun only, `broke`; the result post `Noxus vs
+    >   Ionia: Blue kept the rule. Red: Janna isn't from Ionia.`), no Rating moved, the card back on Fearless with
+    >   nothing pending.
+    > - **Rated flipped mid-game by the second admin: pass.** The row's `rated` went false, the lock's stayed, the card
+    >   read `Next game is not rated.`
+    > - **Two admins at once: pass, with M20.15.** One admin's Redraw reached the other admin's page and the signed-out
+    >   page within about a second of the write, every time. Redraw and a side change tapped together (three runs):
+    >   the row ended on the later write, all three pages showed it, a clash on the same region was refused with
+    >   `Pick two different regions.` The losing admin keeps their own notice (M20.15).
+    > - **Redraw and a side change racing Roll (six runs): pass, with M20.17.** Each ended in the lock (3) or still
+    >   pending for the next game (1), or was refused once Roll had taken the rule (2); none was lost.
+    > - **Teams down after a this-game Redraw: pass.** The row got back the pair as last redrawn (Void/Demacia).
+    > - **Remake under region wars after a Redraw: pass.** Not rated, the row got back the redrawn pair, no Rating moved.
+    > - **A pair made short by a Fearless game's bans before Roll (D11): pass, with M20.16.** Ixtal vs Ionia queued during
+    >   a Fearless game that banned Malphite: after the record the card showed `Too few champions are open for this pair
+    >   now. Roll will draw new regions unless an admin changes them.` to everyone, the select read `Targon (too few
+    >   open)` disabled, and Roll drew a fresh pair with `Ixtal vs Ionia ran short after the bans, so Roll drew The Void
+    >   vs Shadow Isles.` and a teams post naming it. While that game was on, nobody but the admins could see the queued
+    >   pair (M20.16).
+    > - **No-JS:** Redraw and each side's `Set region` post and redirect with the notice: pass.
+    > - **Spin landing on region wars:** `Spin says: Region wars. Blue: Bandle City · Red: Bilgewater.`: pass.
+
+- [ ] **M20.14** A region tag breaks inside a word at 375. *(owner: `web-engineer`, `designer` for the rule; from
+  the M20.13 walk)* On Tonight at 375, the Mode card's `Banned next game` grid after a Fearless game shows Thresh's
+  tag as `Shadow Isle` on one line and `s` on the next (screenshot `walks/m20-10-card-anon-375.png`). Steps: a Fearless
+  game with Thresh in it, Tonight at 375 signed out. Acceptance: (1) on every pool view M20.4 names, at 375 and 1440, a
+  region tag only wraps between words (or between the two regions), never inside one; (2) frames at 375 of the banned
+  grid with Shadow Isles, Bandle City and a two-region champion (Ziggs, `Zaun · Bandle City`); (3) M14.30's seven
+  panel checks still pass. Out of scope: shortening region names.
+- [ ] **M20.15** An admin's notice that the card no longer matches. *(owner: `web-engineer`; from the M20.13 walk)*
+  Two admins on Tonight with region wars queued. Admin A taps `Redraw regions` while admin B sets Blue's region in the
+  same second; B's write lands last. Both cards correctly show B's pair (`Ionia vs Demacia`), but A's page still
+  says `Next game: Shurima vs Zaun.` under it (screenshot `walks/m20-12-2-A.png`). Last write wins is accepted (M20
+  D7); a sentence contradicting the card above it is not. Acceptance: (1) when the card's state changes from a write
+  this page did not make, the page's own notice goes; (2) a two-page test: A's notice is gone once B's later write
+  reaches A, and B's stays; (3) a page's own notice still shows after its own tap exactly as today. No new copy.
+- [ ] **M20.16** The next game's regions, shown to everyone while a game is on. *(owner: `web-engineer`, `designer`
+  for placement; copy below is product's; from the M20.13 walk, and the M20.10 follow-up "members do not see the next
+  game's pair after Roll")* Steps: a lobby balanced or a game in progress on Fearless; an admin queues region wars
+  (Ixtal vs Ionia). Signed-out and member pages show only `Fearless · Rated · 163 open` (screenshot `walks/m20-18-
+  ingame-next-region-anon.png`); admins see the two selects with the regions in them but no status line. When that
+  game's bans make the pair short, nobody sees the short-pair line until the game is recorded. M20 D9 says the pair
+  is shown the moment region wars is chosen; M20.10 (3) says members and visitors see it. Copy, for everyone, under
+  this game's status on the card whenever the row holds a region pair and a lobby is balanced or in game: `Next game:
+  Region wars, Ixtal vs Ionia.`, and under it, when the pair fails the draw rule, the existing `Too few champions are
+  open for this pair now. Roll will draw new regions unless an admin changes them.` Admins see the same line above
+  their next-game controls. Acceptance: (1) the line for a signed-out visitor, a member and an admin in `balanced` and
+  `in_game`, at 375 and 1440; (2) it changes on a second open page without a refresh when an admin redraws or changes
+  a side (the existing `group_live` bump); (3) the short-pair line appears on the record that made the pair short,
+  before Roll; (4) nothing else on the card changes; parity test lists the new line only.
+- [ ] **M20.17** The refusal when a next-game region tap loses to Roll. *(owner: `platform-engineer`, copy below is
+  product's; from the M20.13 walk)* An admin taps `Redraw regions` (or `Set region`) for the next game in the same
+  moment another admin taps Roll. When Roll takes the rule first, the tap answers 409 `Region wars is not on for that
+  game.`, which reads as wrong: region wars is on, for this game now. M20.9 (3) wanted no new copy because the card
+  never offers it, but the card did offer it a moment earlier. New refusal, for a `game: 'next'` region action when
+  the row has no region rule and the group's balanced lobby holds a region lock: `Teams were just rolled, so those
+  regions are this game's now.` Every other case keeps today's answer. Acceptance: (1) the race test (Roll and a
+  next-game Redraw, repeated) asserts this text whenever the Redraw loses; (2) the card shows it as the notice and,
+  after the next `group_live` refresh, this game's controls are there to tap; (3) no other refusal text changes.
+
 **Order.**
 
 ```
@@ -13569,6 +13647,39 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
 - [ ] **M21.10** Review and scene walk. *(owners: `reviewer`, then `product`)* The reviewer's pass over M21.4 to
   M21.9; product walks the scene on the local stack with a hand-swapped game. Acceptance: the milestone acceptance
   below, played through once, plus M21.1's verdict recorded and M21.2 done or explicitly deferred by the owner.
+
+  *Product walk 2026-10-05 (main 0d50fe3c, the same run and scratch group as M20.13's walk, deleted after; ten
+  players rated 1060 to 1420, a local webhook catching every post). The acceptance scene passes; M21.1's verdict is
+  recorded above (pass); **M21.2 is neither done nor deferred, so M21.10 stays open** until the owner does one. M21.12
+  (ARAM at start) is not on main and was not walked. Two gaps, M21.13 and M21.14.*
+    > - **A rolled game kept: pass.** Kind `rolled`, `Odds at kickoff` 52 / 48 from the split, roles kept, no `Game on`
+    >   post, the result post `Blue was 52%. Blue won.`
+    > - **A rolled game where two swap by hand: pass.** Omar (split Blue) and Karim (split Red) swapped in the client.
+    >   At start the lobby held kind `custom`, the real ten, odds 0.4065 = core's `winProbability` over their `ratings.r`
+    >   to the last digit, `odds_model` `kustom`; every `splits` row byte-identical. Tonight: `IN GAME`, `YOU on RED`
+    >   for Omar, the two on their real sides with no roles, `Odds at kickoff` 41 / 59 and `Teams changed in the lobby
+    >   after the roll, so these are the odds for the teams playing now.` One new post `Game on, with your own teams`,
+    >   same teams, same 41 / 59. After: ratings moved on the eog sides, the result post `Blue was 41%. Blue won.
+    >   Upset!`, and the poster, the game page, `/games`, both players' pages and Stats' `Won against the odds` (1)
+    >   agree; calibration still counts 2 games, not this one.
+    > - **An unrolled game: pass, with M21.14.** No roll, Omar sitting on Red: kind `unrolled`, Tonight `IN GAME` (never
+    >   `IN THE LOBBY`, no Roll prompt) with `Odds at kickoff` 82 / 18 and `Kustom didn't pick these teams. Odds from
+    >   everyone's ratings going in.`, a `Game on` post with the same odds. After: Tonight `Red was 18%. Upset!`, the
+    >   same on `/games` and the player page, but the result post prints no odds at all (M21.14).
+    > - **Same teams on swapped sides: pass.** Kind `rolled`, `kickoff_swapped` true, no odds stored, no `Game on` post;
+    >   Tonight showed 47 / 53 (the split's odds flipped) with the split's roles, `YOU on RED`; the result post and
+    >   poster `Red was 53%. Red won.`
+    > - **Not rated (Tanks only) with a swap: pass.** No odds bar or number on Tonight; the `Game on` post kept
+    >   `This game: tanks only. Not rated.` and dropped the odds.
+    > - **The stale lobby (M21.11): pass.** A lobby left `in_game` with no eog, then an eog on the same party with five
+    >   other players: the game attached to no lobby, the stale lobby went `dropped`.
+    > - **The next roll's "same teams again" memory: not shown by the walk.** Two rolls of the same ten after a swapped
+    >   game and a swapped-sides game: no top-three candidate was the played teams or the ignored split, so `repeat` was
+    >   0 on all six and the receipt never printed the reason. The memory rests on M21.8's unit tests.
+    > - **Copy check (the M21.9 reviewer): finding M21.13.** While balanced, Omar (split Blue) sitting on Red reads `YOU
+    >   on BLUE, playing top` with `Noxus for top` (Red's region) beside it. That line is a status claim and it is false.
+    >   The only instruction on the page is the general `You'll be moved to your side — if not, move yourself.`, under
+    >   both team cards (screenshots `walks/m21-02-balanced-wrong-side-A.png`, `m21-03-balanced-swapped-A-375.png`).
 - [x] **M21.11** A game matched to a stale lobby. *(owner: `platform-engineer`; from the M21.1 audit)* On
   2026-10-02 a game was attached to a lobby whose last member row was 61 minutes before the game started: five of
   its sided members never played and five spectators or unsided members did (lobby 422e74e0). Find how the eog
@@ -13578,6 +13689,31 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   *Landed 2026-10-05 (3c16ab00, reviewer pass). staleLobby.integration replays 2026-10-02. M21.1 query rerun on the local stack after the merge: `no_visible_cause` 0 (one `lobby_created_after_start` in the fixture data).*
 - [ ] **M21.12** The game mode at game start. *(owner: `companion-engineer` for the payload, `platform-engineer` for the schema; from M21.5 and M21.6)* The server learns a game is an ARAM only at the end of game, so an ARAM played on custom or unrolled teams shows kickoff odds in game (M21.5) and gets a `Game on` post (M21.6). The engine already reads `/lol-gameflow/v1/session` at GameStart; send its game mode (queue / `gameData.queue` or `map`) in the `in_progress` body as an optional field (Rust payload, zod schema, regenerated goldens), store it on the lobby with the kickoff record, and have Tonight hide the odds and Discord skip the post for ARAM. Verify the field on a real client first (03-lcu-reference). Acceptance: an ARAM start stores the mode, Tonight shows no odds, no `Game on` post; a Rift start is unchanged; an old companion without the field behaves as today.
   *Built 2026-10-05 (branch m21-12-start-mode 9b8bdba3, reviewer pass); 0049 on main first, code merges after the owner applies it. ARAM value unverified on a live client (03-lcu-reference row); until verified an ARAM behaves as today.*
+- [ ] **M21.13** Your side line says where to move, not where you are. *(owner: `web-engineer`; copy below is
+  product's; from the M21.10 walk and the M21.9 reviewer's note)* While the lobby is `balanced` and the viewer's live
+  side (`liveSide`) is known and is not the side the split gave them, the head line under `TEAMS ARE SET` reads, for
+  a split Blue player sitting on Red: `YOU on RED. Move to BLUE to play top.` (`… Move to RED to play support.` the
+  other way round; without a role, `YOU on RED. Move to BLUE.`). The region link beside it is unchanged (M21.9: it
+  follows the side they are on, so `Noxus for top` is now true). When they move, the next lobby post brings back
+  today's `YOU on BLUE, playing top`. Unchanged: the line for a viewer already on the right side, a viewer whose live
+  side is unknown, other players' cards, the general side line under the cards, the teams post, and every `in_game`
+  line (kickoff sides, M21.5). Edge cases: a viewer in a spectator slot (`liveSide` null) keeps today's line; a
+  viewer not in the split keeps today's; a reroll that puts them on the side they sit on drops the instruction at
+  once. Acceptance: (1) unit tests for the four cases (right side, wrong side with and without a role, unknown); (2)
+  screens at 375 and 1440 of the wrong-side line on a region wars night, showing the region link; (3) after a lobby
+  post that moves them, a second open page shows today's line without a refresh; (4) members and visitors see no
+  change.
+- [ ] **M21.14** The result post prints the pre-game odds for a game Kustom didn't pick. *(owner:
+  `platform-engineer`; from the M21.10 walk; answers M21.7's open item, decision row 2026-10-05)* An unrolled game
+  (and a game with no lobby at all) gets a `Game on` post with odds (`Blue 82% · 18% Red`), and after it Tonight,
+  `/games` and the player page say `Red was 18%. Upset!`, but the Discord result post prints no odds line and no
+  `Upset!` (`Red wins · 30 min | Top damage: …`). Steps: ten in a lobby, nobody rolls, the game starts and ends; or
+  an eog that matches no lobby. 00-product's receipt paragraph already says the result post uses the teams that
+  played, with `PRE-GAME ODDS` for games the bot did not pick. Acceptance: (1) the result post of an unrolled game
+  prints the odds line of `gameReceiptOf` for the eog teams (`Red was 18%. Red won. Upset!`), the same number as
+  Tonight and `/games`; (2) a game where any of the ten has no rating prints no odds line (the `No odds for this
+  game.` rule; no new copy in the post); (3) a not-rated game and an ARAM print none, as today; (4) rolled and custom
+  games' posts unchanged (existing snapshots); (5) the limits guard passes.
 
 ```
 M21.1 (audit) --+-- M21.4 (kickoff, server) --+-- M21.5 (Tonight in game) -- M21.9 (after M20.10) --\
