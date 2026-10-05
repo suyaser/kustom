@@ -17,7 +17,7 @@ import {
 } from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
-import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
+import { MIN_RATED_DURATION_S, MIN_RIFT_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
 
 /**
  * The middle of the rating fold, written once (M5.2).
@@ -198,6 +198,17 @@ export type RatedGate<T extends FoldGatePlayer = FoldPlayer> =
  */
 export function isRatedMode(raw: unknown): boolean {
   return matchesQueue(gameModeFromRaw(raw), 'sr');
+}
+
+/**
+ * Is a game being stored for the first time one that ended early (M23.1)? A Rift game past the
+ * remake line and under {@link MIN_RIFT_RATED_DURATION_S}: people left. The ingest stamps it at
+ * insert as an automatic void (`rated = false`, `void_reason = 'early-end'`), so every not-rated
+ * path applies and an admin's `Rate it anyway` (a restore) is the way back. Never asked of a stored
+ * game: history is only changed by an admin.
+ */
+export function endedEarly(durationS: number, raw: unknown): boolean {
+  return isRatedMode(raw) && durationS > MIN_RATED_DURATION_S && durationS < MIN_RIFT_RATED_DURATION_S;
 }
 
 /**

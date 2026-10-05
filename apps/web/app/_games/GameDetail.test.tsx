@@ -57,6 +57,8 @@ function game(overrides: Partial<GameDetailView> = {}): GameDetailView {
     durationLabel: '31 min',
     aram: false,
     rated: true,
+    ratedStamp: true,
+    voidReason: null,
     blue: team(100, false),
     red: team(200, true),
     receipt: {
@@ -83,6 +85,26 @@ describe('GameDetail', () => {
     expect(screen.getByRole('region', { name: 'Red team' })).toBeInTheDocument();
     expect(screen.getByText('How the bot decided')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'All games' })).toHaveAttribute('href', '/g/customs/games');
+  });
+
+  it('a voided game says so under the result, and the admin slot sits in the header (M23.1)', () => {
+    draw(game());
+    expect(screen.queryByText('Not rated · voided')).not.toBeInTheDocument();
+    render(
+      <GameDetail
+        game={game({ voidReason: 'admin', ratedStamp: false })}
+        backHref="/g/customs/games"
+        admin={<button type="button">Restore</button>}
+      />,
+    );
+    expect(screen.getByText('Not rated · voided')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restore' }).closest('header')).not.toBeNull();
+  });
+
+  it('a game that ended early says so (M23.1)', () => {
+    draw(game({ voidReason: 'early-end', ratedStamp: false, rated: false }));
+    expect(screen.getByText('Not rated · ended early')).toBeInTheDocument();
+    expect(screen.queryByText('Not rated · voided')).not.toBeInTheDocument();
   });
 
   it('prints the duration as minutes', () => {

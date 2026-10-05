@@ -954,7 +954,11 @@ async function resolveGroupSlug(client: ServiceClient, groupId: string): Promise
  * The reason the guard says no for **this group**, or null. One sentence either way
  * (`GUARD_MESSAGE`).
  */
-async function guardBlocker(client: ServiceClient, groupId: string, now: Date): Promise<string | null> {
+export async function guardBlocker(
+  client: ServiceClient,
+  groupId: string,
+  now: Date,
+): Promise<string | null> {
   const { data: lobby, error: lobbyError } = await client
     .from('lobbies')
     .select('id, status')

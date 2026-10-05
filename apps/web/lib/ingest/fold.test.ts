@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { countedGames } from '../stats/fold';
 import { statsGame, tenPlayerGame } from '../testing/statsFixtures';
 import {
+  endedEarly,
   type FoldPlayer,
   type FoldRatedPlayer,
   foldGame,
@@ -86,6 +87,18 @@ describe('isRatedMode', () => {
   });
 });
 
+describe('endedEarly (M23.1: stamped at insert, game 717217f9 was CLASSIC, 632 s)', () => {
+  it('is a Rift game past the remake line and under 900 seconds', () => {
+    expect(endedEarly(632, raw('CLASSIC'))).toBe(true);
+    expect(endedEarly(899, null)).toBe(true);
+    expect(endedEarly(301, raw(null))).toBe(true);
+    expect(endedEarly(900, raw('CLASSIC'))).toBe(false);
+    // A remake stays a remake; an ARAM is never rated anyway.
+    expect(endedEarly(300, raw('CLASSIC'))).toBe(false);
+    expect(endedEarly(632, raw('KIWI'))).toBe(false);
+  });
+});
+
 describe('gateRatedGame', () => {
   it('rates a Rift custom, and one whose block named no mode', () => {
     expect(gateRatedGame(ten(), 1_800, raw('CLASSIC'), true).ok).toBe(true);
@@ -122,6 +135,10 @@ describe('gateRatedGame', () => {
     expect(gateRatedGame(ten(), 300, raw('CLASSIC'), false)).toEqual({ ok: false, reason: 'duration' });
     // gateGame (the "a game happened" universe: Stats, Fun, Games) still counts it.
     expect(gateGame(ten(), 1_800).ok).toBe(true);
+  });
+
+  it('knows nothing of fifteen minutes: history is never rewritten (M23.1)', () => {
+    expect(gateRatedGame(ten(), 632, raw('CLASSIC'), true).ok).toBe(true);
   });
 
   it('hands back exactly what gateGame did when it passes', () => {

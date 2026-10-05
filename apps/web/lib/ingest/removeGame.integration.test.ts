@@ -73,7 +73,8 @@ if (stack === null) {
         puuids: game.puuids,
         startedAt: game.at,
         winningSide: game.winningSide,
-        durationS: game.bad ? 632 : 1_900,
+        // Not 717217f9's 632 s: since M23.1 a new Rift game under 900 s is stored voided (ended early).
+        durationS: game.bad ? 1_100 : 1_900,
         raw: { gameMode: 'CLASSIC' },
       });
       const stored = await ingestEogGame(db, payload, { groupId });
