@@ -81,7 +81,7 @@ export function LobbySwitcher({
 
   return (
     <nav aria-label={LOBBIES_NAV} data-slot="lobby-switcher" className="mt-2 mb-1">
-      <ul className="grid grid-cols-2 gap-2 md:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(max(9rem,calc(50%-0.25rem)),1fr))] gap-2 md:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
         {chips.map((chip) => {
           const current = chip.id === shown;
           return (
@@ -102,12 +102,14 @@ export function LobbySwitcher({
                     'border-foreground bg-raised shadow-[inset_0_0_0_1px_var(--foreground),inset_0_-3px_0_var(--primary-text)] hover:bg-raised',
                 )}
               >
-                <span className="flex items-start justify-between gap-2">
-                  <span className="min-w-0 text-md leading-snug font-bold [overflow-wrap:anywhere]">
+                {/* The sticker sits on the label's first line; a name too long to share it pushes the
+                    sticker to its own line instead of breaking the name mid-word (14.4: wraps between words). */}
+                <span className="flex flex-wrap items-start justify-between gap-x-2">
+                  <span className="min-w-0 text-md leading-snug font-bold [overflow-wrap:break-word]">
                     {chip.label}
                   </span>
                   {chip.you ? (
-                    <Chip variant="you" aria-hidden="true" className="mt-0.5 shrink-0">
+                    <Chip variant="you" aria-hidden="true" className="mt-0.5 ml-auto">
                       {YOU_TAG}
                     </Chip>
                   ) : null}

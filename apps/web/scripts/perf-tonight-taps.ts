@@ -346,7 +346,8 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
     // M22.6: prefetched renders (the lobby chips prefetch the other lobby's page), counted apart.
     const prefetches = (path: string, from: number, to: number) =>
       reqs().filter(
-        (row) => row.t0 >= from && row.t0 < to && row.prefetch !== null && new URL(row.url, base).pathname === path,
+        (row) =>
+          row.t0 >= from && row.t0 < to && row.prefetch !== null && new URL(row.url, base).pathname === path,
       ).length;
 
     browser = await chromium.launch();
