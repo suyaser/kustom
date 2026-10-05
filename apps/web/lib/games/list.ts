@@ -11,7 +11,7 @@ import type { PublicClient } from '../publicClient';
 import { displayDelta } from '../ratingDisplay';
 import { kdaLine } from '../stats/funCopy';
 import { renderWebName } from '../tonight/copy';
-import { VOIDED_NOTE } from './copy';
+import { voidedNote } from './copy';
 import { formatMinutes } from './duration';
 import { GAMES_PAGE_SIZE, type GamesFilters, gamesRange, pageCount } from './filters';
 import { readKickoffs } from './kickoffs';
@@ -173,8 +173,8 @@ interface GameHead {
   rated: boolean;
   /** M15.19: the rule it was played under, only when checked against it (a Rift game); else null. */
   rule: Mode | null;
-  /** M23.1: an admin voided it (`games.voided_at`). */
-  voided: boolean;
+  /** M23.1: why it was voided (`games.void_reason`: admin, early-end), or null. */
+  voidReason: string | null;
 }
 
 interface PageInput {
@@ -254,13 +254,13 @@ async function readGamePage(
       ? client
           .from('games')
           .select(
-            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, voided_at, mode:game_mode',
+            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, void_reason, mode:game_mode',
             count,
           )
       : client
           .from('games')
           .select(
-            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, voided_at, mode:game_mode, game_players!inner(player_id)',
+            'id, started_at, duration_s, winning_side, lobby_id, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_checked, void_reason, mode:game_mode, game_players!inner(player_id)',
             count,
           );
   const {
@@ -284,7 +284,7 @@ async function readGamePage(
       lobbyId: row.lobby_id,
       aram: matchesQueue(gameModeFromRaw({ gameMode: row.mode }), 'aram'),
       rated: row.rated,
-      voided: row.voided_at !== null,
+      voidReason: row.void_reason,
       // M15.19: named only when the game was checked against it (a Rift game past the remake line).
       rule: row.rule_checked
         ? ruleModeOf({
@@ -502,10 +502,10 @@ export function gameListItemOf(
     aram: game.aram,
     odds,
     // Not rated as the tape says it: no scoreboard row carries a fold.
-    // M23.1: a voided game says so, whatever rule it was played under.
-    ruleNote: game.voided
-      ? VOIDED_NOTE
-      : ruleRowNote(game.rule, rows.length > 0 && rows.every((row) => row.rAfter !== null)),
+    // M23.1: a voided game says so (ended early, or voided), whatever rule it was played under.
+    ruleNote:
+      voidedNote(game.voidReason) ??
+      ruleRowNote(game.rule, rows.length > 0 && rows.every((row) => row.rAfter !== null)),
     lines,
   };
 }

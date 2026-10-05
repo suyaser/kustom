@@ -18,7 +18,7 @@ import { GROUP_TABLE, modeTableOfLobby, readTableModeRow } from '../mode/table';
 import { gameFactsInsert, writeGameFacts } from '../stats/gameFacts';
 import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
-import { isRatedMode } from './fold';
+import { endedEarly, isRatedMode } from './fold';
 import { selectGameLobby } from './lobby';
 import { BACKFILL_MIN_MEMBERS, countMembersByPuuid, ensureMemberships } from './memberships';
 import { ensurePlayers } from './players';
@@ -233,6 +233,12 @@ export async function ingestEogGame(
     // (0024, amended by 0032) only fills a null `mode`, so it is the fallback for a writer that
     // names none; a second companion's duplicate (`ignoreDuplicates`) keeps the first write's.
     ...modeColumns,
+    // M23.1: a new Rift game under 15 minutes is stored voided (people left), whatever its lobby's
+    // lock said. Only this insert writes it: a duplicate (`ignoreDuplicates`) keeps the first write,
+    // and a stored game is only ever changed by an admin's Void or Restore.
+    ...(endedEarly(payload.durationS, payload.raw)
+      ? { rated: false, voided_at: new Date().toISOString(), void_reason: 'early-end' }
+      : {}),
     group_id: groupId,
   };
 

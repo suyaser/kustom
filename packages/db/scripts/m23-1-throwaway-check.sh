@@ -6,11 +6,12 @@
 #   2. a fresh throwaway from the local stack's image: `auth` restored, every migration before 0052
 #      replayed in order;
 #   3. a game written before 0052 is there; 0052 applies; a second apply fails and rolls back;
-#   4. expand-safe: the running build's insert (no voided_at) still works and leaves it null, rated
-#      or not; a void (rated false + voided_at) and a restore (rated true + null) pass; a voided game
-#      that is rated is refused;
+#   4. expand-safe: the running build's insert (no voided_at/void_reason) still works and leaves both
+#      null, rated or not; the ingest's early-end insert, an admin void and a restore pass; a voided
+#      game that is rated, a void without a reason, a reason without a void and an unknown reason are
+#      refused;
 #   5. anon and authenticated read voided_at (games is public-read) and write nothing;
-#   6. if the local stack has 0052, its voided_at column and check match the throwaway's (one
+#   6. if the local stack has 0052, its two columns, checks and comments match the throwaway's (one
 #      read-only catalog select).
 #
 # Usage: packages/db/scripts/m23-1-throwaway-check.sh [0052 path]. Needs Docker and the local stack
@@ -102,37 +103,43 @@ echo "== 4. expand-safe, void, restore, the check"
 expect_eq "the running build's insert (no voided_at) leaves it null" \
   "$(must_pass "insert into public.games (id, lcu_game_id, started_at, duration_s, winning_side, raw, group_id, rated)
   values ('$GNEW', 231002, now(), 1900, 200, '{}', '$G1', false);
-select rated || ':' || coalesce(voided_at::text, '-') from public.games where id = '$GNEW';")" "false:-"
-expect_eq "a void (rated false, voided_at now) passes" \
-  "$(must_pass "update public.games set rated = false, voided_at = now() where id = '$GOLD' and voided_at is null and rated returning rated;")" "f"
-expect_eq "a restore (rated true, voided_at null) passes" \
-  "$(must_pass "update public.games set rated = false, voided_at = now() where id = '$GOLD';
-update public.games set rated = true, voided_at = null where id = '$GOLD' and voided_at is not null returning rated;")" "t"
-must_fail "a voided game that is rated" "update public.games set voided_at = now() where id = '$GOLD';"
+select rated || ':' || coalesce(voided_at::text, '-') || ':' || coalesce(void_reason, '-') from public.games where id = '$GNEW';")" "false:-:-"
+expect_eq "an early-end insert (the ingest's stamp) passes" \
+  "$(must_pass "insert into public.games (lcu_game_id, started_at, duration_s, winning_side, raw, group_id, rated, voided_at, void_reason)
+  values (231003, now(), 632, 100, '{}', '$G1', false, now(), 'early-end') returning void_reason;")" "early-end"
+expect_eq "an admin void (rated false, voided_at now, admin) passes" \
+  "$(must_pass "update public.games set rated = false, voided_at = now(), void_reason = 'admin' where id = '$GOLD' and voided_at is null and rated returning rated;")" "f"
+expect_eq "a restore (rated true, both null) passes" \
+  "$(must_pass "update public.games set rated = false, voided_at = now(), void_reason = 'admin' where id = '$GOLD';
+update public.games set rated = true, voided_at = null, void_reason = null where id = '$GOLD' and voided_at is not null returning rated;")" "t"
+must_fail "a voided game that is rated" "update public.games set voided_at = now(), void_reason = 'admin' where id = '$GOLD';"
 must_fail "rating a voided game without clearing the stamp" \
-  "update public.games set rated = false, voided_at = now() where id = '$GOLD'; update public.games set rated = true where id = '$GOLD';"
+  "update public.games set rated = false, voided_at = now(), void_reason = 'admin' where id = '$GOLD'; update public.games set rated = true where id = '$GOLD';"
+must_fail "a void with no reason" "update public.games set rated = false, voided_at = now() where id = '$GOLD';"
+must_fail "a reason with no void" "update public.games set void_reason = 'admin' where id = '$GOLD';"
+must_fail "an unknown reason" "update public.games set rated = false, voided_at = now(), void_reason = 'other' where id = '$GOLD';"
 
 echo "== 5. grants"
 for role in anon authenticated; do
   expect_eq "$role reads voided_at" "$(must_pass "set local role $role; select count(*) from public.games where voided_at is null;")" "1"
-  must_fail "$role writing voided_at" "set local role $role; update public.games set rated = false, voided_at = now() where id = '$GOLD' returning id;
+  must_fail "$role writing voided_at" "set local role $role; update public.games set rated = false, voided_at = now(), void_reason = 'admin' where id = '$GOLD' returning id;
 do \$\$ begin if (select voided_at from public.games where id = '$GOLD') is null then raise exception 'nothing written'; end if; end \$\$;"
 done
 
 echo "== 6. the local stack runs the same 0052 (a read-only catalog select on $LOCAL_DB)"
 FP="select 'col ' || column_name || ':' || data_type || ':' || is_nullable || ':' || coalesce(column_default, '-')
-  from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'voided_at'
+  from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name in ('voided_at', 'void_reason')
   union all select 'ck ' || conname || ':' || pg_get_constraintdef(oid) from pg_constraint
-  where conrelid = 'public.games'::regclass and conname = 'games_voided_not_rated'
-  union all select 'cm ' || md5(col_description('public.games'::regclass, attnum)) from pg_attribute
-  where attrelid = 'public.games'::regclass and attname = 'voided_at'
+  where conrelid = 'public.games'::regclass and conname in ('games_voided_not_rated', 'games_void_reason')
+  union all select 'cm ' || attname || ':' || md5(col_description('public.games'::regclass, attnum)) from pg_attribute
+  where attrelid = 'public.games'::regclass and attname in ('voided_at', 'void_reason')
   order by 1"
 if [[ "$(docker exec "$LOCAL_DB" psql -X -U postgres -d postgres -At -c "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'voided_at'")" == "1" ]]; then
   diff <(docker exec "$LOCAL_DB" psql -X -U postgres -d postgres -At -c "$FP") <(q "$FP") >&2 || {
     echo "FAIL: local games.voided_at differs from the file" >&2
     exit 1
   }
-  echo "ok: local games.voided_at, its check and comment match the file"
+  echo "ok: local games.voided_at and void_reason, their checks and comments match the file"
 else
   echo "skip: 0052 is not applied on $LOCAL_DB"
 fi

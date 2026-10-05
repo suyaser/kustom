@@ -111,9 +111,9 @@ export default async function GamePage({ params }: GamePageProps) {
       group={group}
       breakdown={breakdown}
       admin={
-        // M23.1: an admin may take a rated game out of ratings, or put a voided one back.
-        viewerIsAdmin(viewer) && (game.voided || game.ratedStamp) ? (
-          <VoidGame groupId={group.id} gameId={game.gameId} voided={game.voided} redirectTo={here} />
+        // M23.1: an admin may take a game the fold rated out of ratings, or put a voided one back.
+        viewerIsAdmin(viewer) && (game.voidReason !== null || (game.ratedStamp && game.rated)) ? (
+          <VoidGame groupId={group.id} gameId={game.gameId} voidReason={game.voidReason} redirectTo={here} />
         ) : null
       }
       recap={

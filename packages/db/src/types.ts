@@ -972,6 +972,7 @@ export type Database = {
           rule_region_red: string | null
           source: Database["public"]["Enums"]["game_source"]
           started_at: string
+          void_reason: string | null
           voided_at: string | null
           winning_side: number
         }
@@ -994,6 +995,7 @@ export type Database = {
           rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
           started_at: string
+          void_reason?: string | null
           voided_at?: string | null
           winning_side: number
         }
@@ -1016,6 +1018,7 @@ export type Database = {
           rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
           started_at?: string
+          void_reason?: string | null
           voided_at?: string | null
           winning_side?: number
         }

@@ -3,11 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 import { ACTION_FAILED } from '@/lib/admin/homeCopy';
-import { RESTORE_GAME, VOID_GAME } from '@/lib/games/copy';
+import { RATE_ANYWAY, RESTORE_GAME, VOID_GAME } from '@/lib/games/copy';
 
 /**
  * An admin's `Void game` / `Restore` on the game page (M23.1). Only rendered for an admin or the
- * owner (the page decides from the session); `POST /api/admin/void-game` checks again. One tap, no
+ * owner (the page decides from the session); on a game that ended early the restore reads `Rate it anyway`; `POST /api/admin/void-game` checks again. One tap, no
  * confirm: it is undone by the other button. A real form, so it works without JavaScript (the route
  * sends a form post back to `redirectTo`); with JavaScript it posts JSON, then re-renders the page,
  * or prints the route's refusal (`Finish tonight's game first.`).
@@ -15,18 +15,19 @@ import { RESTORE_GAME, VOID_GAME } from '@/lib/games/copy';
 export function VoidGame({
   groupId,
   gameId,
-  voided,
+  voidReason,
   redirectTo,
 }: {
   groupId: string;
   gameId: string;
-  voided: boolean;
+  /** `games.void_reason`: null (a rated game: `Void game`), `admin` (`Restore`), `early-end` (`Rate it anyway`). */
+  voidReason: string | null;
   redirectTo: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const action = voided ? 'restore' : 'void';
+  const action = voidReason === null ? 'void' : 'restore';
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,7 +66,7 @@ export function VoidGame({
         aria-disabled={pending ? true : undefined}
         className="-ms-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-sm font-bold text-foreground underline underline-offset-3 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:text-muted-foreground"
       >
-        {voided ? RESTORE_GAME : VOID_GAME}
+        {voidReason === null ? VOID_GAME : voidReason === 'early-end' ? RATE_ANYWAY : RESTORE_GAME}
       </button>
       {error === null ? null : (
         <p role="alert" className="text-xs text-destructive">

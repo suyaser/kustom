@@ -117,11 +117,15 @@ describe('why a game is not rated (M14.53)', () => {
     expect(label({ players: folded })).toBe('Yes');
   });
 
-  it('No · voided for a game an admin voided, and a short Rift game is the gate (M23.1)', () => {
-    expect(ratedReason({ ...base, rated: false, voided: true })).toEqual({ kind: 'voided' });
-    expect(label({ rated: false, voided: true })).toBe('No · voided');
-    expect(label({ durationS: 632 })).toBe('No · too short or not ten players');
-    expect(label({ durationS: 632, gameMode: 'ARAM' })).toBe('No · ARAM');
+  it('No · voided for an admin void, No · ended early for one the ingest voided (M23.1)', () => {
+    expect(ratedReason({ ...base, rated: false, voidReason: 'admin' })).toEqual({ kind: 'voided' });
+    expect(label({ rated: false, voidReason: 'admin' })).toBe('No · voided');
+    expect(ratedReason({ ...base, durationS: 632, rated: false, voidReason: 'early-end' })).toEqual({
+      kind: 'ended-early',
+    });
+    expect(label({ durationS: 632, rated: false, voidReason: 'early-end' })).toBe('No · ended early');
+    // The gate itself knows nothing of 15 minutes: a stored 632 s game rated true still waits.
+    expect(label({ durationS: 632 })).toBe('Waiting to be counted');
   });
 
   it('Waiting to be counted: nothing refuses it and no fold has run (a backfilled game)', () => {

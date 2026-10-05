@@ -29,8 +29,8 @@ export const IDLE_ABANDON_MS = 7_200_000;
 export const MIN_RATED_DURATION_S = 300;
 
 /**
- * A Rift game shorter than this is not rated (M23.1, owner bug 2026-10-05): the rating gate's
- * `early-end`. A Rift game cannot be surrendered before 15:00, and a 5v5 that destroys a nexus
+ * A new Rift game shorter than this (and past the remake line) is stored voided, `void_reason =
+ * 'early-end'` (M23.1, owner bug 2026-10-05; 15 minutes, the owner's number). A Rift game cannot be surrendered before 15:00, and a 5v5 that destroys a nexus
  * sooner is not a thing between friends, so a Rift game that ended earlier ended because people
  * left (game 717217f9: everyone quit at 632 s and the client still sent a winner). The block's own
  * `leaver` flag is no help: it stayed false on the one recorded quit (`packages/lcu/fixtures/16.17/

@@ -58,7 +58,7 @@ function game(overrides: Partial<GameDetailView> = {}): GameDetailView {
     aram: false,
     rated: true,
     ratedStamp: true,
-    voided: false,
+    voidReason: null,
     blue: team(100, false),
     red: team(200, true),
     receipt: {
@@ -92,13 +92,19 @@ describe('GameDetail', () => {
     expect(screen.queryByText('Not rated · voided')).not.toBeInTheDocument();
     render(
       <GameDetail
-        game={game({ voided: true, ratedStamp: false })}
+        game={game({ voidReason: 'admin', ratedStamp: false })}
         backHref="/g/customs/games"
         admin={<button type="button">Restore</button>}
       />,
     );
     expect(screen.getByText('Not rated · voided')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Restore' }).closest('header')).not.toBeNull();
+  });
+
+  it('a game that ended early says so (M23.1)', () => {
+    draw(game({ voidReason: 'early-end', ratedStamp: false, rated: false }));
+    expect(screen.getByText('Not rated · ended early')).toBeInTheDocument();
+    expect(screen.queryByText('Not rated · voided')).not.toBeInTheDocument();
   });
 
   it('prints the duration as minutes', () => {

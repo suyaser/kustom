@@ -176,11 +176,8 @@ export function gateGame<T extends FoldGatePlayer>(players: readonly T[], durati
  *
  * `game-mode` is only ever produced by {@link gateRatedGame}: it is not a reason a game fails to
  * count on `/stats`, which is exactly the point of there being two gates.
- *
- * `early-end` (M23.1): a Rift game under {@link MIN_RIFT_RATED_DURATION_S}, which ended because
- * people left. Rating only, like `game-mode`: it was played, so it still counts on `/stats`.
  */
-export type RatedSkipReason = FoldSkipReason | 'game-mode' | 'early-end' | 'not-rated';
+export type RatedSkipReason = FoldSkipReason | 'game-mode' | 'not-rated';
 
 export type RatedGate<T extends FoldGatePlayer = FoldPlayer> =
   | { ok: true; blue: T[]; red: T[] }
@@ -201,6 +198,17 @@ export type RatedGate<T extends FoldGatePlayer = FoldPlayer> =
  */
 export function isRatedMode(raw: unknown): boolean {
   return matchesQueue(gameModeFromRaw(raw), 'sr');
+}
+
+/**
+ * Is a game being stored for the first time one that ended early (M23.1)? A Rift game past the
+ * remake line and under {@link MIN_RIFT_RATED_DURATION_S}: people left. The ingest stamps it at
+ * insert as an automatic void (`rated = false`, `void_reason = 'early-end'`), so every not-rated
+ * path applies and an admin's `Rate it anyway` (a restore) is the way back. Never asked of a stored
+ * game: history is only changed by an admin.
+ */
+export function endedEarly(durationS: number, raw: unknown): boolean {
+  return isRatedMode(raw) && durationS > MIN_RATED_DURATION_S && durationS < MIN_RIFT_RATED_DURATION_S;
 }
 
 /**
@@ -228,7 +236,6 @@ export function gateRatedGame<T extends FoldGatePlayer>(
   const gate = gateGame(players, durationS);
   if (!gate.ok) return gate;
   if (!isRatedMode(raw)) return { ok: false, reason: 'game-mode' };
-  if (durationS < MIN_RIFT_RATED_DURATION_S) return { ok: false, reason: 'early-end' };
   if (!rated) return { ok: false, reason: 'not-rated' };
   return gate;
 }

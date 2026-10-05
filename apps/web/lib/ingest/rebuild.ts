@@ -391,9 +391,6 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
     // ARAM and anything else that is not the Rift (M7.1). Not a problem, and not a number that
     // should worry anybody: it is how many nights on the Howling Abyss the fold walked past.
     'game-mode': 0,
-    // A Rift game under fifteen minutes (M23.1): people left, so it is stored, counted on Stats,
-    // never folded.
-    'early-end': 0,
     // Played not rated (M15.3): a class or region wars game, or the Rated switch. Counted on
     // Stats and Games, never folded; its rating columns are nulled like any skipped game's.
     'not-rated': 0,

@@ -4,7 +4,7 @@ import { gameVoidResponseSchema } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FINISH_TONIGHT_FIRST } from '@/lib/admin/homeCopy';
-import { NO_SUCH_GAME } from '@/lib/admin/voidGame';
+import { NO_SUCH_GAME, setGameVoided } from '@/lib/admin/voidGame';
 import {
   type AdminAuthResult,
   authorizeAdmin,
@@ -12,7 +12,7 @@ import {
   supabaseAdminLookup,
 } from '@/lib/adminAuth';
 import type { AdminRouteOptions } from '@/lib/adminRoute';
-import { VOID_NOT_RATED, VOIDED_NOTE } from '@/lib/games/copy';
+import { ENDED_EARLY_NOTE, REBUILD_FAILED, VOID_NOT_RATED, VOIDED_NOTE } from '@/lib/games/copy';
 import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ingestEogGame } from '@/lib/ingest/game';
 import { ensurePlayers } from '@/lib/ingest/players';
@@ -177,7 +177,7 @@ if (stack === null) {
   }
 
   async function badRow() {
-    const { data, error } = await db.from('games').select('rated, voided_at').eq('id', bad).single();
+    const { data, error } = await db.from('games').select('rated, void_reason').eq('id', bad).single();
     if (error) throw new Error(error.message);
     return data;
   }
@@ -189,6 +189,25 @@ if (stack === null) {
       .eq('game_id', bad);
     if (error) throw new Error(error.message);
     return data ?? [];
+  }
+
+  /** A rebuild that does not fold, and one that throws (FIX 2): the flag must be put back. */
+  const failures = {
+    'does not fold': async () => ({
+      ok: false as const,
+      code: 'fence' as const,
+      message: 'stub',
+      report: null,
+    }),
+    throws: async (): Promise<never> => {
+      throw new Error('stub rebuild failed');
+    },
+  };
+
+  async function voidedAt(): Promise<string | null> {
+    const { data, error } = await db.from('games').select('voided_at').eq('id', bad).single();
+    if (error) throw new Error(error.message);
+    return data.voided_at;
   }
 
   let original: Awaited<ReturnType<typeof ratingsOf>> = {};
@@ -236,13 +255,13 @@ if (stack === null) {
     expect((await call(MEMBER, { action: 'void' })).status).toBe(403);
     expect((await call(ADMIN, { action: 'nope' })).status).toBe(400);
     expect((await call(ADMIN, { action: 'void', gameId: 'not-a-uuid' })).status).toBe(400);
-    expect(await badRow()).toEqual({ rated: true, voided_at: null });
+    expect(await badRow()).toEqual({ rated: true, void_reason: null });
   });
 
   it("refuses while a game landed in the last 15 minutes, before writing (the rebuild's guard)", async () => {
     const refused = await call(ADMIN, { action: 'void' });
     expect(refused).toEqual({ status: 409, json: expect.objectContaining({ error: FINISH_TONIGHT_FIRST }) });
-    expect(await badRow()).toEqual({ rated: true, voided_at: null });
+    expect(await badRow()).toEqual({ rated: true, void_reason: null });
     expect(await ratingsOf(groups.v)).toEqual(original);
   });
 
@@ -256,6 +275,16 @@ if (stack === null) {
     expect(other).toEqual({ status: 404, json: expect.objectContaining({ error: NO_SUCH_GAME }) });
   });
 
+  it('a void whose rebuild does not fold or throws puts the flag back: 503, nothing changed', async () => {
+    for (const [label, rebuild] of Object.entries(failures)) {
+      const result = await setGameVoided(db, { groupId: groups.v, gameId: bad, action: 'void' }, { rebuild });
+      expect(result, label).toEqual({ ok: false, status: 503, error: REBUILD_FAILED });
+      expect(await badRow(), label).toEqual({ rated: true, void_reason: null });
+      expect(await voidedAt(), label).toBeNull();
+    }
+    expect(await ratingsOf(groups.v)).toEqual(original);
+  });
+
   it('an admin voids it: ratings are as if it was never played, and it stays stored', async () => {
     const voided = await call(ADMIN, { action: 'void' });
     expect(voided.status).toBe(200);
@@ -267,8 +296,7 @@ if (stack === null) {
     });
     expect(await ratingsOf(groups.v)).toEqual(await ratingsOf(groups.b));
     const row = await badRow();
-    expect(row.rated).toBe(false);
-    expect(row.voided_at).not.toBeNull();
+    expect(row).toEqual({ rated: false, void_reason: 'admin' });
     const columns = await badColumns();
     expect(columns).toHaveLength(10);
     expect(columns.every((c) => c.mu_after === null && c.r_after === null && c.week_r_after === null)).toBe(
@@ -292,7 +320,7 @@ if (stack === null) {
       viewerPuuid: null,
       timeZone: 'Europe/London',
     });
-    expect(detail).toMatchObject({ voided: true, ratedStamp: false, rated: false });
+    expect(detail).toMatchObject({ voidReason: 'admin', ratedStamp: false, rated: false });
   });
 
   it('a second void writes nothing and moves nothing', async () => {
@@ -306,10 +334,26 @@ if (stack === null) {
     expect(after).toEqual(before);
   });
 
+  it('a restore whose rebuild does not fold or throws puts the void back: 503, nothing changed', async () => {
+    const stamp = await voidedAt();
+    expect(stamp).not.toBeNull();
+    for (const [label, rebuild] of Object.entries(failures)) {
+      const result = await setGameVoided(
+        db,
+        { groupId: groups.v, gameId: bad, action: 'restore' },
+        { rebuild },
+      );
+      expect(result, label).toEqual({ ok: false, status: 503, error: REBUILD_FAILED });
+      expect(await badRow(), label).toEqual({ rated: false, void_reason: 'admin' });
+      expect(await voidedAt(), label).toBe(stamp);
+    }
+    expect(await ratingsOf(groups.v)).toEqual(await ratingsOf(groups.b));
+  });
+
   it('the owner restores it: the numbers come back', async () => {
     const restored = await call(OWNER, { action: 'restore' });
     expect(restored.json).toEqual({ ok: true, voided: false, changed: true, folded: true });
-    expect(await badRow()).toEqual({ rated: true, voided_at: null });
+    expect(await badRow()).toEqual({ rated: true, void_reason: null });
     expect(await ratingsOf(groups.v)).toEqual(original);
     expect((await badColumns()).every((c) => c.r_after !== null && c.week_r_after !== null)).toBe(true);
     // A second restore is a no-op.
@@ -326,6 +370,79 @@ if (stack === null) {
     if (error) throw new Error(error.message);
     const refused = await call(ADMIN, { action: 'void' });
     expect(refused).toEqual({ status: 409, json: expect.objectContaining({ error: VOID_NOT_RATED }) });
-    expect(await badRow()).toEqual({ rated: false, voided_at: null });
+    expect(await badRow()).toEqual({ rated: false, void_reason: null });
+  });
+
+  describe('a new Rift game under 15 minutes is stored voided, ended early (M23.1)', () => {
+    async function store(durationS: number, gameMode: string, lcuId = testGameId()) {
+      lcuIds.push(lcuId);
+      const payload = eogPayload({
+        gameId: lcuId,
+        puuids: ten,
+        startedAt: '2026-10-04T23:00:00.000Z',
+        winningSide: 100,
+        durationS,
+        raw: { gameMode },
+      });
+      const stored = await ingestEogGame(db, payload, { groupId: groups.v });
+      const { data, error } = await db
+        .from('games')
+        .select('id, rated, voided_at, void_reason')
+        .eq('lcu_game_id', lcuId)
+        .single();
+      if (error) throw new Error(error.message);
+      return { stored, row: data, payload };
+    }
+
+    let early = '';
+
+    it('632 s on the Rift: rated false, void_reason early-end, and the live fold skips it', async () => {
+      const { row } = await store(632, 'CLASSIC');
+      early = row.id;
+      expect(row).toMatchObject({ rated: false, void_reason: 'early-end' });
+      expect(row.voided_at).not.toBeNull();
+      expect((await rateStoredGame(db, row.id)).rated).toBe(false);
+    });
+
+    it("a second companion's duplicate writes nothing", async () => {
+      const lcuId = testGameId();
+      const first = await store(700, 'CLASSIC', lcuId);
+      const again = await ingestEogGame(db, first.payload, { groupId: groups.v });
+      expect(again).toMatchObject({ outcome: 'stored', created: false });
+      const { data } = await db.from('games').select('id, voided_at, void_reason').eq('lcu_game_id', lcuId);
+      expect(data).toEqual([{ id: first.row.id, voided_at: first.row.voided_at, void_reason: 'early-end' }]);
+    });
+
+    it('a short ARAM, a remake and a 15-minute Rift game are not voided', async () => {
+      for (const [durationS, mode] of [
+        [632, 'KIWI'],
+        [300, 'CLASSIC'],
+        [900, 'CLASSIC'],
+      ] as const) {
+        const { row } = await store(durationS, mode);
+        expect(row, `${durationS} ${mode}`).toMatchObject({ voided_at: null, void_reason: null });
+      }
+    });
+
+    it('Games says ended early, and Rate it anyway (a restore) rates it', async () => {
+      const list = await loadGamesList(createPublicClient(), {
+        groupId: groups.v,
+        viewerPuuid: null,
+        timeZone: 'Europe/London',
+        filters: { window: 'all-time', mode: 'sr', player: null, page: 1 },
+      });
+      expect(list.items.find((item) => item.id === early)?.ruleNote).toBe(ENDED_EARLY_NOTE);
+
+      const { error } = await db
+        .from('games')
+        .update({ created_at: new Date(Date.now() - 60 * 60_000).toISOString() })
+        .eq('group_id', groups.v);
+      if (error) throw new Error(error.message);
+      const restored = await call(OWNER, { action: 'restore', gameId: early });
+      expect(restored.json).toEqual({ ok: true, voided: false, changed: true, folded: true });
+      const { data } = await db.from('game_players').select('r_after').eq('game_id', early);
+      expect(data?.length).toBe(10);
+      expect(data?.every((row) => row.r_after !== null)).toBe(true);
+    });
   });
 }

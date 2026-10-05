@@ -106,6 +106,8 @@ export const ratedNoRule = (ruleName: string): string => `No · ${ruleName}`;
 export const RATED_NO_SWITCHED_OFF = 'No · Rated was off';
 /** M23.1: an admin voided the game. [NEW COPY] */
 export const RATED_NO_VOIDED = 'No · voided';
+/** M23.1: stored voided because it ended under 15 minutes. [NEW COPY] */
+export const RATED_NO_ENDED_EARLY = 'No · ended early';
 export const RATED_NO_GATE = 'No · too short or not ten players';
 /** M15.13: a game from before the owner's latest Reset ratings. [NEW COPY] */
 export const RATED_NO_BEFORE_RESET = 'No · before the ratings reset';
@@ -126,6 +128,8 @@ export function ratedLabel(reason: RatedReason): string {
       return RATED_NO_SWITCHED_OFF;
     case 'voided':
       return RATED_NO_VOIDED;
+    case 'ended-early':
+      return RATED_NO_ENDED_EARLY;
     case 'gate':
       return RATED_NO_GATE;
     case 'before-reset':

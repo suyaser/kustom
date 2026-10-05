@@ -53,8 +53,8 @@ export interface GameDetailView {
   rated: boolean;
   /** `games.rated` (M15.3): false for a game played not rated, or voided. */
   ratedStamp: boolean;
-  /** M23.1: an admin voided it (`games.voided_at`). */
-  voided: boolean;
+  /** M23.1: why it was voided (`games.void_reason`: admin, early-end), or null when it is not. */
+  voidReason: string | null;
   blue: DetailTeam;
   red: DetailTeam;
   receipt: GameReceipt;
@@ -83,7 +83,7 @@ export async function loadGameDetail(
     // The one page that reads `raw` whole: one row, for the scoreboard's client facts.
     client
       .from('games')
-      .select('id, started_at, duration_s, winning_side, lobby_id, lcu_game_id, raw, rated, voided_at')
+      .select('id, started_at, duration_s, winning_side, lobby_id, lcu_game_id, raw, rated, void_reason')
       .eq('id', gameId)
       .eq('group_id', groupId)
       .maybeSingle(),
@@ -195,7 +195,7 @@ export async function loadGameDetail(
     aram,
     rated,
     ratedStamp: game.rated,
-    voided: game.voided_at !== null,
+    voidReason: game.void_reason,
     blue: team(100),
     red: team(200),
     receipt,

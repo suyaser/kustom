@@ -23,7 +23,7 @@ import {
   resultForWinner,
   SCOREBOARD_LABEL,
   teamTitle,
-  VOIDED_NOTE,
+  voidedNote,
   WON_TAG,
   YOU_WORD,
 } from '@/lib/games/copy';
@@ -91,12 +91,12 @@ export function GameDetail({
               <NumText text={game.durationLabel} />
             </span>
             {game.aram ? <Chip>{GAMES_MODE_LABELS.aram}</Chip> : null}
-            {game.voided ? (
+            {game.voidReason === null ? null : (
               <>
                 <span aria-hidden="true">·</span>
-                <span>{VOIDED_NOTE}</span>
+                <span>{voidedNote(game.voidReason)}</span>
               </>
-            ) : null}
+            )}
           </p>
           {admin}
         </header>
