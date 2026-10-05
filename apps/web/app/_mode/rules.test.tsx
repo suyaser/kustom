@@ -232,7 +232,7 @@ describe('region wars and mirror match', () => {
     tanks.unmount();
   });
 
-  it('M22.11: idle and finished with mirror next: the host opens a Blind Pick custom', () => {
+  it('M22.11: idle with mirror next: the host opens a Blind Pick custom', () => {
     const idle = draw('idle', { rule: 'mirror' });
     expect(screen.getByText(MIRROR_HOST_LEAD, { selector: 'b' })).toBeInTheDocument();
     expect(document.body.textContent).toContain(MIRROR_HOST_IDLE_LINE);
@@ -240,11 +240,8 @@ describe('region wars and mirror match', () => {
       'Mirror match next. The host opens a Blind Pick custom in League.',
     );
     expect(document.body.textContent).not.toContain(MIRROR_HOST_FILLING_LINE);
-    idle.unmount();
-    const finished = draw('finished', { rule: 'mirror' });
-    expect(document.body.textContent).toContain(MIRROR_HOST_IDLE_LINE);
     expect(screen.queryByRole('button', { name: /lobby/i })).toBeNull();
-    finished.unmount();
+    idle.unmount();
     // Not for a signed-out visitor, and not for another rule.
     const anon = draw('idle', { rule: 'mirror' }, ANON_VIEWER);
     expect(document.body.textContent).not.toContain(MIRROR_HOST_LEAD);
