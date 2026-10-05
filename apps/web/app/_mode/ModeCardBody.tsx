@@ -195,6 +195,11 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       nextRated: nextRated(merged.row),
       regions: targets,
       statusShowsNext: !view.locked,
+      // M20.15: the card the outcome line is checked against (another admin's write clears it).
+      card: {
+        updatedAt: merged.updatedAt,
+        thisPair: targets.this === null ? null : `${targets.this.blue}|${targets.this.red}`,
+      },
     };
   }
 
