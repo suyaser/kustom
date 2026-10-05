@@ -78,6 +78,17 @@ describe('classifyKickoff (M21.4)', () => {
     ).toEqual({ kind: 'rolled', blue: BLUE, red: RED, at: at.toISOString(), swapped: false });
   });
 
+  it('carries the game mode when the post named one, and nothing when it did not (M21.12)', () => {
+    const base = { teams: { blue: BLUE, red: RED }, chosen: asSplit(BLUE, RED), ratingOf, at };
+    expect(classifyKickoff({ ...base, gameMode: 'ARAM' })).toMatchObject({
+      kind: 'rolled',
+      gameMode: 'ARAM',
+    });
+    for (const gameMode of [undefined, null, '']) {
+      expect('gameMode' in classifyKickoff({ ...base, gameMode })).toBe(false);
+    }
+  });
+
   it('rolled and swapped: the split on the other sides (M21.1 note a)', () => {
     expect(
       classifyKickoff({ teams: { blue: RED, red: BLUE }, chosen: asSplit(BLUE, RED), ratingOf, at }),

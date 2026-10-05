@@ -113,6 +113,7 @@ interface GamePost {
   gameId: number;
   partyId: string | null;
   startedAt: string | null;
+  gameMode?: string | null;
   winningSide?: number | null;
   raw?: Record<string, unknown>;
   participants?: unknown[];

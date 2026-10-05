@@ -149,6 +149,8 @@ async function handleGamePost(
         now: new Date(),
         requestOrigin: siteOrigin(request),
         onWrite: () => live.touch(lobby.groupId, 'lobby'),
+        // M21.12: an older companion omits it, and the record is exactly as before.
+        gameMode: payload.gameMode ?? null,
       });
     }
 

@@ -1,5 +1,5 @@
 import { isSettling, lockRated } from '@customs/core';
-import { isFearlessMode } from '@customs/db/schemas';
+import { isFearlessMode, kickoffIsAram } from '@customs/db/schemas';
 import { boardSlotLine, WINDOW_LABELS } from '../board/copy';
 import { loadBoard } from '../board/load';
 import type { BoardRow, BoardView, RatingTrack } from '../board/types';
@@ -233,7 +233,8 @@ async function regionLeftPending(
  * teams changed) and `unrolled` (nobody rolled) do; `rolled` does not, the teams post is right.
  */
 export function announcesKickoff(kickoff: LobbyStartedEvent['kickoff']): kickoff is GameOnKickoff {
-  return kickoff.kind !== 'rolled';
+  // M21.12: an ARAM gets no post, as its result gets none (the mode is the one the session named at start).
+  return kickoff.kind !== 'rolled' && !kickoffIsAram(kickoff);
 }
 
 /**
@@ -248,7 +249,9 @@ export async function postGameOnForLobby(
   options: PostOptions = {},
 ): Promise<WebhookOutcome> {
   const { kickoff } = event;
-  if (!announcesKickoff(kickoff)) return SKIPPED('kickoff teams are the roll');
+  if (!announcesKickoff(kickoff)) {
+    return SKIPPED(kickoffIsAram(kickoff) ? 'an ARAM gets no Game on post' : 'kickoff teams are the roll');
+  }
   const puuids = [...kickoff.blue, ...kickoff.red];
   const [names, group, mode, split, ratingOf] = await Promise.all([
     loadNames(client, puuids),

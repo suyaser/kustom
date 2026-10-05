@@ -235,6 +235,15 @@ describe('which kickoffs are announced (acceptance 3)', () => {
     expect(announcesKickoff({ ...rolled, swapped: true })).toBe(false);
   });
 
+  it('an ARAM is not, whatever the kind (M21.12); a Rift or an unknown mode is as before', () => {
+    expect(announcesKickoff({ ...TWO_SWAP, gameMode: 'ARAM' })).toBe(false);
+    expect(announcesKickoff({ ...kickoff('unrolled', [puuid(0)], [puuid(1)], 0.5), gameMode: 'ARAM' })).toBe(
+      false,
+    );
+    expect(announcesKickoff({ ...TWO_SWAP, gameMode: 'CLASSIC' })).toBe(true);
+    expect(announcesKickoff({ ...TWO_SWAP, gameMode: null })).toBe(true);
+  });
+
   it('postGameOnForLobby sends nothing for a rolled kickoff, without touching the database', async () => {
     const client = new Proxy(
       {},

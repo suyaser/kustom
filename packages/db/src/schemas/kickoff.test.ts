@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type KickoffRow, kickoffFromRow, kickoffRowOf, type LobbyKickoff } from './kickoff';
+import { type KickoffRow, kickoffFromRow, kickoffIsAram, kickoffRowOf, type LobbyKickoff } from './kickoff';
 
 const blue = ['b0', 'b1', 'b2', 'b3', 'b4'];
 const red = ['r0', 'r1', 'r2', 'r3', 'r4'];
@@ -35,6 +35,29 @@ describe('kickoffFromRow / kickoffRowOf', () => {
     },
   ])('round-trips $kind', (record) => {
     expect(kickoffFromRow(kickoffRowOf(record))).toEqual(record);
+  });
+
+  it('carries the game mode (M21.12): round-trips, ARAM is read as ARAM, none stays absent', () => {
+    const aram: LobbyKickoff = {
+      kind: 'custom',
+      blue,
+      red,
+      at,
+      blueWinProb: 0.62,
+      oddsModel: 'kustom',
+      gameMode: 'ARAM',
+    };
+    const row = kickoffRowOf(aram);
+    expect(row.kickoff_game_mode).toBe('ARAM');
+    const back = kickoffFromRow(row);
+    expect(back).toEqual(aram);
+    expect(back !== null && kickoffIsAram(back)).toBe(true);
+    // A row without the mode (an older companion's, or the column null) has no gameMode key at all.
+    const plain = kickoffFromRow(kickoffRowOf({ ...aram, gameMode: null }));
+    expect(plain).not.toBeNull();
+    expect(plain !== null && 'gameMode' in plain).toBe(false);
+    expect(kickoffIsAram({ gameMode: undefined })).toBe(false);
+    expect(kickoffIsAram({ gameMode: 'CLASSIC' })).toBe(false);
   });
 
   it('a rolled row writes no odds; a priced row writes no swap', () => {

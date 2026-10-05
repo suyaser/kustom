@@ -149,6 +149,12 @@ export interface KickoffView {
    * record whose split is not readable). Whether it is shown is the page's rule (M15.18).
    */
   blueWinProb: number | null;
+  /**
+   * M21.12: the game started as an ARAM (the mode the session named, `kickoff_game_mode`). The page
+   * shows no odds for it, whatever the kind: `blueWinProb` is null and the split's receipt is not drawn.
+   * Absent: not an ARAM, or the mode was not sent (an older companion).
+   */
+  aram?: boolean | undefined;
 }
 
 /** One row of the result card. The two all-time Ratings, not a delta: see the note at the top. */

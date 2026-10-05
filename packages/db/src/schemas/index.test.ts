@@ -216,6 +216,28 @@ describe('companionGamePayloadSchema', () => {
     expect(parsed.gameId).toBe(7412345678);
   });
 
+  it('takes an optional game mode on the in-progress marker (M21.12), upper-cased; an old body has none', () => {
+    const old = companionGamePayloadSchema.parse({ phase: 'in_progress', gameId: '7412345678' });
+    expect(old.phase === 'in_progress' && old.gameMode).toBeUndefined();
+    const aram = companionGamePayloadSchema.parse({
+      phase: 'in_progress',
+      gameId: 7412345678,
+      gameMode: ' aram ',
+    });
+    expect(aram.phase === 'in_progress' && aram.gameMode).toBe('ARAM');
+    const nulled = companionGamePayloadSchema.parse({
+      phase: 'in_progress',
+      gameId: 7412345678,
+      gameMode: null,
+    });
+    expect(nulled.phase === 'in_progress' && nulled.gameMode).toBeNull();
+    for (const gameMode of ['', 'two words', 'A'.repeat(33)]) {
+      expect(
+        companionGamePayloadSchema.safeParse({ phase: 'in_progress', gameId: 7412345678, gameMode }).success,
+      ).toBe(false);
+    }
+  });
+
   it('accepts an end-of-game block and keeps raw verbatim', () => {
     const parsed = companionGamePayloadSchema.parse(eog);
     expect(parsed.phase).toBe('eog');

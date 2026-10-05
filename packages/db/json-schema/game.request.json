@@ -52,6 +52,20 @@
               "type": "null"
             }
           ]
+        },
+        "gameMode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z0-9_]{1,32}$",
+              "x-zod-not-exported": [
+                "normalised"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

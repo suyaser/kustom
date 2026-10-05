@@ -30,6 +30,12 @@ const teams = {
   red: side,
   /** When the record was written (ISO). */
   at: z.string().min(1),
+  /**
+   * M21.12 (`0049`): the game mode the session named at game start, upper case (`CLASSIC`, `ARAM`),
+   * or absent / null when the companion sent none (an older build, or a session without one). Readers
+   * only ask `kickoffIsAram`; absent behaves as before the field existed.
+   */
+  gameMode: z.string().min(1).nullish(),
 };
 
 const rolledSchema = z.object({ kind: z.literal('rolled'), ...teams, swapped: z.boolean() });
@@ -52,9 +58,17 @@ export const lobbyKickoffSchema = z
 
 export type LobbyKickoff = z.infer<typeof lobbyKickoffSchema>;
 
+/**
+ * Whether the game started as an ARAM (M21.12): Tonight shows no kickoff odds for it (M21.5) and the
+ * `Game on` post is skipped (M21.6), as an ARAM's result post is. An unknown mode (null) is not ARAM.
+ */
+export function kickoffIsAram(record: Pick<LobbyKickoff, 'gameMode'>): boolean {
+  return (record.gameMode ?? '').trim().toUpperCase() === 'ARAM';
+}
+
 /** The `lobbies` columns the record lives in, as selected. */
 export const KICKOFF_COLUMNS =
-  'kickoff_kind, kickoff_blue, kickoff_red, kickoff_swapped, kickoff_blue_win_prob, kickoff_odds_model, kickoff_at' as const;
+  'kickoff_kind, kickoff_blue, kickoff_red, kickoff_swapped, kickoff_blue_win_prob, kickoff_odds_model, kickoff_at, kickoff_game_mode' as const;
 
 export interface KickoffRow {
   kickoff_kind: string | null;
@@ -64,6 +78,8 @@ export interface KickoffRow {
   kickoff_blue_win_prob: number | null;
   kickoff_odds_model: string | null;
   kickoff_at: string | null;
+  /** M21.12 (0049). Optional so a fixture row from before the column still types. */
+  kickoff_game_mode?: string | null;
 }
 
 /**
@@ -92,7 +108,9 @@ export function kickoffFromRow(row: KickoffRow, onDrop?: (reason: string) => voi
           blueWinProb: row.kickoff_blue_win_prob,
           oddsModel: row.kickoff_odds_model,
         };
-  const parsed = lobbyKickoffSchema.safeParse(candidate);
+  const parsed = lobbyKickoffSchema.safeParse(
+    row.kickoff_game_mode ? { ...candidate, gameMode: row.kickoff_game_mode } : candidate,
+  );
   if (parsed.success) return parsed.data;
   onDrop?.(
     parsed.error.issues
@@ -112,5 +130,6 @@ export function kickoffRowOf(record: LobbyKickoff): KickoffRow {
     kickoff_blue_win_prob: record.kind === 'rolled' ? null : record.blueWinProb,
     kickoff_odds_model: record.kind === 'rolled' ? null : record.oddsModel,
     kickoff_at: record.at,
+    kickoff_game_mode: record.gameMode ?? null,
   };
 }
