@@ -13,6 +13,7 @@ import {
   SET_REGION,
   TOO_FEW_OPEN,
 } from '@/lib/mode/ruleCopy';
+import { cn } from '@/lib/utils';
 
 /** The 13 regions a side may be set to (the table's, `unaffiliated` left out). */
 const SIDE_REGIONS: readonly RegionId[] = REGION_IDS.filter((region) => region !== 'unaffiliated');
@@ -62,7 +63,10 @@ export function RegionControls({
   const { game } = target;
   return (
     <fieldset data-slot={`region-controls-${game}`} className="min-w-0">
-      {heading === null ? null : <legend className="mb-2 text-xs font-bold">{heading}</legend>}
+      {/* M20.18 design sign-off: the queued pair's `Next game` legend sits on mb-3, as `This game` does. */}
+      {heading === null ? null : (
+        <legend className={cn('text-xs font-bold', game === 'next' ? 'mb-3' : 'mb-2')}>{heading}</legend>
+      )}
       <div className="flex flex-col gap-2">
         {showShort && target.short ? <p className="text-sm font-bold">{REGION_PAIR_SHORT}</p> : null}
         <div className="grid gap-2 @[520px]:grid-cols-2">

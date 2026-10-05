@@ -642,7 +642,7 @@ export function ModeControls({
           {/* M20.18: balanced, everything that changes this game under one legend: the rule,
               Spin, this game's pair and Rated. The pool's Reset is not a game's, so it follows. */}
           <fieldset data-slot="mode-this-game" className="flex min-w-0 flex-col gap-3">
-            <legend className="mb-2 text-xs font-bold">{THIS_GAME_HEADING}</legend>
+            <legend className="mb-3 text-xs font-bold">{THIS_GAME_HEADING}</legend>
             {picker}
             {regionControls(regions?.this)}
             {ratedSwitch}
@@ -705,6 +705,7 @@ function refusal(result: { status: number; error: string | null }, fallback: str
 /**
  * 05-design 8.3.1: with this game's pair above it, the next game's controls open on a hairline, so
  * `Changes apply from the next game.` never sits under this game's `Redraw regions`.
+ * While balanced (M20.18) it opens the queued next-game pair, under its `Next game` legend.
  */
 function NextGameGroup({ split, children }: { split: boolean; children: ReactNode }) {
   if (!split) return <>{children}</>;
