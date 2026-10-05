@@ -8,12 +8,12 @@
  */
 export type AdminWriteResult<T> =
   | { ok: true; value: T }
-  | { ok: false; status: 400 | 403 | 404 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 409 | 503; error: string };
 
 export function writeOk<T>(value: T): AdminWriteResult<T> {
   return { ok: true, value };
 }
 
-export function writeFailed<T>(status: 400 | 403 | 404 | 409, error: string): AdminWriteResult<T> {
+export function writeFailed<T>(status: 400 | 403 | 404 | 409 | 503, error: string): AdminWriteResult<T> {
   return { ok: false, status, error };
 }

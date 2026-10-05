@@ -237,6 +237,10 @@ export type RatedReason =
   | { kind: 'not-rift' }
   | { kind: 'rule'; rule: RuleOption }
   | { kind: 'switched-off' }
+  /** M23.1: an admin voided it (`void_reason = 'admin'`); `Restore` on the game page undoes it. */
+  | { kind: 'voided' }
+  /** M23.1: stored voided because it ended under 15 minutes; `Rate it anyway` undoes it. */
+  | { kind: 'ended-early' }
   /** M15.13: it started before the owner's latest Reset ratings (M14.18); the fold skips it for good. */
   | { kind: 'before-reset' }
   | { kind: 'waiting' };
@@ -254,6 +258,8 @@ export interface RatedReasonInput {
   startedAt: string;
   /** `groups.ratings_since`, the group's ratings epoch (M14.18), or null for a group that never reset. */
   ratingsSince: string | null;
+  /** M23.1: `games.void_reason` (admin, early-end), or null when it is not voided. */
+  voidReason?: string | null;
 }
 
 /** Pure: see {@link RatedReason}. */
@@ -261,6 +267,8 @@ export function ratedReason(game: RatedReasonInput): RatedReason {
   if (game.players.length > 0 && game.players.every((player) => player.rAfter !== null)) {
     return { kind: 'rated' };
   }
+  if (game.voidReason === 'early-end') return { kind: 'ended-early' };
+  if (game.voidReason != null) return { kind: 'voided' };
   // The gate reads puuids only to refuse a duplicate; the player id is as unique and saves a join.
   const gate = gateRatedGame(
     game.players.map((player) => ({ puuid: player.playerId, side: player.side })),
@@ -312,7 +320,7 @@ export async function listCapturedGames(
     client
       .from('games')
       .select(
-        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, gameMode:game_mode, lobbies(lcu_party_id), game_players(player_id, side, r_after)',
+        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, void_reason, gameMode:game_mode, lobbies(lcu_party_id), game_players(player_id, side, r_after)',
       )
       .eq('group_id', groupId)
       .order('started_at', { ascending: false })
@@ -351,6 +359,7 @@ export async function listCapturedGames(
         },
         startedAt: row.started_at,
         ratingsSince,
+        voidReason: row.void_reason,
       }),
       partyId: row.lobbies === null ? null : shortPartyId(row.lobbies.lcu_party_id),
     };

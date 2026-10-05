@@ -47,6 +47,8 @@ export function gameDetailFixture(overrides: Partial<GameDetailView> = {}): Game
     durationLabel: '31 min',
     aram: false,
     rated: true,
+    ratedStamp: true,
+    voidReason: null,
     blue: team(100, false),
     red: team(200, true),
     receipt: {

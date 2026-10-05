@@ -617,7 +617,10 @@ if (stack === null) {
 
     it.each([
       ['300 seconds exactly is not a game', { durationS: 300 }, false],
-      ['301 seconds is', { durationS: 301 }, true],
+      // M23.1: a Rift game under fifteen minutes is `early-end` (game 717217f9, CLASSIC, 632 s).
+      ['632 seconds on the Rift is stored, not rated', { durationS: 632 }, false],
+      ['899 seconds is not rated either', { durationS: 899 }, false],
+      ['900 seconds is', { durationS: 900 }, true],
     ])('%s', async (_label, options, rated) => {
       const lcuGameId = gameNumber();
       const cast = Array.from({ length: 10 }, (_, i) => `it-${runId}-g${String(gameIds.size)}-${i}`);

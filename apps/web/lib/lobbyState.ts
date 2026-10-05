@@ -19,6 +19,7 @@ export {
   isTerminalLobbyStatus,
   LOBBY_TRANSITIONS,
   MIN_RATED_DURATION_S,
+  MIN_RIFT_RATED_DURATION_S,
   PLAYERS_PER_GAME,
 } from './lobbyRules';
 
