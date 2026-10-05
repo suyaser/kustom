@@ -407,7 +407,10 @@ if (stack === null) {
 
       // The real table has plenty of mages open: queued, then cleared again.
       const mages = await setMode(FAY, 'class:Mage');
-      expect(mages).toMatchObject({ status: 200, json: { next: { rule: 'class:Mage' } } });
+      expect(mages).toMatchObject({
+        status: 200,
+        json: { state: { pending: { id: 'class', tag: 'Mage' } } },
+      });
       expect((await setMode(FAY, 'fearless')).status).toBe(200);
     });
 

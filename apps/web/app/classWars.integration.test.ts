@@ -434,7 +434,10 @@ if (stack === null || !ready) {
     it('1. standing Fearless, and a rated Fearless game puts four tanks on the ban list', async () => {
       await card({ mode: 'normal' });
       const answer = await card({ mode: 'fearless' });
-      expect(answer).toMatchObject({ mode: 'fearless', changed: true, next: { rule: null, rated: true } });
+      expect(answer).toMatchObject({
+        changed: true,
+        state: { standing: 'fearless', pending: null, nextRated: true },
+      });
 
       const { answer: recorded, game } = await playGame(GAME0);
       expect(recorded).toMatchObject({ created: true, rated: true });
@@ -451,9 +454,8 @@ if (stack === null || !ready) {
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
         ok: true,
-        mode: 'fearless',
         spun: 'class:Tank',
-        next: { rule: 'class:Tank', rated: false },
+        state: { standing: 'fearless', pending: { id: 'class', tag: 'Tank' }, nextRated: false },
       });
       expect(await cardRow()).toMatchObject({
         mode: 'fearless',

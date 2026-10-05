@@ -272,10 +272,8 @@ if (stack === null || !ready) {
       const before = await cardRow();
       const answer = await card({ mode: 'class:Tank' });
       expect(answer).toMatchObject({
-        mode: 'fearless',
         state: { standing: 'fearless', pending: { id: 'class', tag: 'Tank' }, rated: null, nextRated: false },
         notice: 'Next game: Class wars, tanks only. Not rated.',
-        next: { rule: 'class:Tank', rated: false },
       });
       const after = await cardRow();
       expect(after).toMatchObject({
@@ -573,10 +571,14 @@ if (stack === null || !ready) {
       // Tonight's last rule game was Mage (the not-rated game above).
       const spun = new Set<string>();
       for (let attempt = 0; attempt < 30; attempt += 1) {
-        const body = (await card({ spin: true })) as { spun: string; next: { rule: string } };
+        const body = (await card({ spin: true })) as {
+          spun: string;
+          state: { pending: { id: string; tag?: string } };
+        };
         spun.add(body.spun);
         expect(body.spun).not.toBe('class:Mage');
-        expect(body.next.rule).toBe(body.spun);
+        const pending = body.state.pending;
+        expect(pending.id === 'class' ? `class:${pending.tag}` : pending.id).toBe(body.spun);
       }
       expect(spun.has('mirror')).toBe(true);
       await card({ mode: 'normal' });
