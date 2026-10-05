@@ -13216,7 +13216,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   action (M19.9); (13) the migration shown first, with (c)'s count.
 
   *Landed 2026-10-05 (84d6327e, reviewer pass after one round). Split into 0047 expand (on hosted 2026-10-05, before the code) and 0048 contract (owner, after the new build is live and old tabs are gone). Adapters left for M20.8 are listed in the engineer's report: legacyStateOf, lockFromRow, legacyVersion, legacyModeAnswerSchema, the pairless pre-Roll branch.*
-- [ ] **M20.8** Tonight: the card renders `{ standing, pending, rated }`. *(owner: `web-engineer`; after M20.7;
+- [x] **M20.8** Tonight: the card renders `{ standing, pending, rated }`. *(owner: `web-engineer`; after M20.7;
   the Tonight lane, see Order; amended 2026-10-04 for M20 D9)* The select is `pending ?? standing`; the client
   keeps only a `useOptimistic` draft of the last tap; every notice is the route's `notice`, never recomputed.
   Deleted: `upcomingState`, the `moved` / `nextLine` diffing, `didntApply`, the version reads and the spin route
@@ -13233,6 +13233,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   reported, not a gate); (6) M15.5's Spin reveal still lands only when the card's pending rule matches, and names
   the pair; (7) `clientGraph.test.ts` passes.
 
+  *Landed 2026-10-05 (260c7f6b, reviewer pass). Parity: 480 cases, 5 listed exceptions. Net lines: M20.8 −714 (non-test −430); M20.6–M20.8 together about +1,990, mostly M20.7's server, SQL and tests. Left: the D11 before-Roll warning (M20.10), the 05-design 8.3 stale string (designer).*
 - [ ] **M20.9** Region wars' regions as mode state: server (redraw and change, next game and this game).
   *(owner: `platform-engineer`; after M20.7 and M20.3; replaces the old M20.9 picks and M20.11 Redraw, M20 D9 and
   D5)* Two actions on `POST /api/admin/mode`, admin-only: **redraw regions** and **set a side's region** (`side:
