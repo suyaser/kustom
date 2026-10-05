@@ -72,7 +72,20 @@ interface Entry {
    * M20.18: this page's last `this` answer, and the server render's lock it was taken over
    * (`base`, {@link lockKey}; null with none). It shows until a render brings another lock.
    */
-  lock: { lobbyId: string; lock: ModeLock; base: string | null } | null;
+  lock: HeldLock | null;
+}
+
+/**
+ * M20.18: a held `this` answer. `retired` flips (in place, never a new snapshot: it is set while a
+ * render is being drawn, and that render already shows the server's lock) the first time a render
+ * other than `base` is seen; from then on the answer never shows again, so a later render that
+ * happens to carry `base` once more (A, answer B, render B, another admin back to A) is the server's.
+ */
+interface HeldLock {
+  lobbyId: string;
+  lock: ModeLock;
+  base: string | null;
+  retired: boolean;
 }
 
 const EMPTY: Entry = { confirmed: null, resetAt: null, optimistic: null, normalSince: null, lock: null };
@@ -122,7 +135,10 @@ export function applyModeRow(groupId: string, slice: ModeRowSlice): boolean {
 export function applyLockAnswer(groupId: string, answer: LockSlice): void {
   const rendered = lastServerLock.get(groupId);
   const base = rendered !== undefined && rendered.lobbyId === answer.lobbyId ? lockKey(rendered.lock) : null;
-  write(groupId, { ...entry(groupId), lock: { lobbyId: answer.lobbyId, lock: answer.lock, base } });
+  write(groupId, {
+    ...entry(groupId),
+    lock: { lobbyId: answer.lobbyId, lock: answer.lock, base, retired: false },
+  });
 }
 
 /** A lock as one string, for "is this the same lock": standing, rule (with its tag or pair), Rated. */
@@ -269,7 +285,7 @@ export function mergeLock(
   if (server === null) return null;
   const held = (store.get(groupId) ?? EMPTY).lock;
   const base =
-    held !== null && held.lobbyId === server.lobbyId && held.base === lockKey(server.lock)
+    held !== null && !held.retired && held.lobbyId === server.lobbyId && held.base === lockKey(server.lock)
       ? held.lock
       : server.lock;
   const tap = withTap ? (store.get(groupId) ?? EMPTY).optimistic : null;
@@ -347,6 +363,11 @@ export function useThisGameLock(groupId: string, server: LockSlice | null, withT
 export function noteServerLock(groupId: string, server: LockSlice | null): void {
   if (server === null) lastServerLock.delete(groupId);
   else lastServerLock.set(groupId, server);
+  // Review fix: any render other than the held answer's base retires it for good.
+  const held = entry(groupId).lock;
+  if (held === null || held.retired) return;
+  if (server === null || server.lobbyId !== held.lobbyId || lockKey(server.lock) !== held.base)
+    held.retired = true;
 }
 
 /** The lock of the newest render per group (written by renders, idempotent). */

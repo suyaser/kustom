@@ -265,6 +265,36 @@ describe("M20.18: this game, the lock patched from this page's own `this` answer
     expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, OTHER, modeStoreForTests())).toEqual(fearless);
   });
 
+  /** A render arriving: noted first (as `useThisGameLock` does), then merged. */
+  const renderLock = (lock: ModeLock) => {
+    noteServerLock(GROUP, { lobbyId: LOBBY, lock });
+    return mergeLock({ lobbyId: LOBBY, lock }, GROUP, modeStoreForTests());
+  };
+
+  it('review fix: A, answer B, render B, another admin back to A: the render of A is the card', () => {
+    expect(renderLock(fearless)).toEqual(fearless);
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests())).toEqual(tanks);
+    expect(renderLock(tanks)).toEqual(tanks);
+    expect(renderLock(fearless)).toEqual(fearless);
+  });
+
+  it('review fix: A, answer B, render B, render C, render A: never B again', () => {
+    expect(renderLock(fearless)).toEqual(fearless);
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(renderLock(tanks)).toEqual(tanks);
+    expect(renderLock(mages)).toEqual(mages);
+    expect(renderLock(fearless)).toEqual(fearless);
+  });
+
+  it('an older render still on the base keeps the answer until another render is seen', () => {
+    expect(renderLock(fearless)).toEqual(fearless);
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(renderLock(fearless)).toEqual(tanks);
+    expect(renderLock(mages)).toEqual(mages);
+    expect(renderLock(fearless)).toEqual(fearless);
+  });
+
   it('an answer for a lobby the page never rendered is not shown', () => {
     noteServerLock(GROUP, { lobbyId: OTHER, lock: fearless });
     applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
