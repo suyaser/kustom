@@ -269,8 +269,8 @@ Rules:
   newest game of the lobby's group started since 06:00 local (`nightStart`) and not after the roll**, rated or
   not (`loadRecentTeammates`); a read failure balances with no variety, like fill protection.
 - `splits.roster_key` is the ten puuids of that split, sorted and joined with `,`. The API computes it with
-  `rosterKey()` from `@customs/db` when it stores a split, and the `lastSplit` lookup is the newest chosen split
-  with the same `roster_key` — one indexed lookup instead of a jsonb set comparison.
+  `rosterKey()` from `@customs/db` when it stores a split. Since M21.8 the `lastSplit` lookup no longer reads it
+  (it reads the teams that were played, below); `roster_key` stays for history and the receipt.
 - A companion token is revoked by setting `companion_tokens.revoked_at`, never by deleting the row: the auth path
   filters on it and `last_seen_at` stays as the audit trail of a token that may have leaked.
 - **At most one `create_lobby` command is live at a time per group** (M4.9,
@@ -931,8 +931,17 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   sits** (M14.43): the player whose companion first reported the lobby (`lobbies.reported_by_player_id`)
   is taken out of the sitting end and plays, until a real client shows that a spectator still gets the
   end-of-game block (`03-lcu-reference.md`, unverified).
-- The `lastSplit` passed to the balancer is the five puuids on one side of the most recent chosen split whose
-  lobby had the same ten players as tonight's; if there is no such split, `lastSplit` is null.
+- The `lastSplit` passed to the balancer (M21.8, decision row 2026-10-05 "M21 owner calls", replacing the
+  2026-09-08 row) is the five puuids on one side of the newest teams **these same ten actually played** in the
+  lobby's group (`selectLastPlayedTeams`): a game's end-of-game sides (`game_players.side`, any game, rated or not),
+  or a live or `dropped` lobby's kickoff teams (M21.4) for a game with no end-of-game block yet. Bounded by the
+  group's newest 200 games with any of the ten in them and the newest 20 live or dropped lobbies. A roll the room
+  ignored is not remembered; `null` when these ten never played together. Core is unchanged.
+- The fill guard (`counts_for_role_inference = false`, M5.17) also follows the teams played (M21.8): a game whose
+  end-of-game teams are not its chosen split's counts for everybody, and so does a player who played another role
+  than the split gave them (`fillGuardFlags`). `rebuild-ratings` (and the daily cron rebuild) releases the stored
+  `false` rows the amended rule would not write (`selectReleasedFillFlags`, a line `fill guard N filled flags`);
+  the rule only ever releases, so it needs no role pair from the past, and every later run finds 0.
 - Discord posting happens from the API on state transitions, through the webhook stored in `discord_config`.
 - A split going on the board is what queues `switch_side` commands for the chosen ten whose client has them on
   the other side (M4.1/M4.3), and that happens in two places: reaching `balanced` (the roll), and a **reroll**, which
