@@ -1316,7 +1316,7 @@ answer band (never both), then the action row. Each row is optional; a hairline 
   idle line is just `Sat 3 Oct`). At 375 the tag plus the longest date fits on one line, so the tag arriving
   after `SUBSCRIBED` or dropping to offline never re-wraps it and the headline below never moves (M14.45).
 - The **h1 is the state headline** (fixes no-h1 on tonight): `TEAMS ARE SET`, `IN GAME 14 MIN`, `6 OF 10 IN`,
-  `RED WINS`. Numbers inside it stay in the display face, tabular. The wordmark is not an h1.
+  `RED WINS`, `REMAKE` (15.1). Numbers inside it stay in the display face, tabular. The wordmark is not an h1.
 - The **answer band** is the strip's row under the headline whenever the viewer is known and seated: `YOU`
   sticker, the side pill, the role. It is the first of three "which side am I on" answers above the fold
   (band, `Your side` header tag, you-row).
@@ -1499,7 +1499,7 @@ Ruled 2026-10-03 (M14.17 round 1: all time was ~24,000px at 375).
   underlined link, `min-h-11`, to `/g/<slug>/games/<id>`.
 - **Tape tile** (rail, and the page while filling): `--raised`, `--radius-control`, a 54px side block on the
   left under 3.3's four-label rule (word + glyph, `--on-team`, red hatched), then `Game 3` (700), the
-  duration in mono, `Blue was 53%. Red won.` in muted, and an `MVP` sticker line. The whole tile is one link.
+  duration in mono, `Blue was 53%. Red won.` in muted, and an `MVP` sticker line. The whole tile is one link. A remake's tile says `Remake` and still links (15.2).
   The tape's header meta reads `<n> earlier` while a lobby or result is on the page (`1 earlier`, never
   `1 played`).
 - **Filling rack.** A 10-cell meter (filled cells `--foreground`, empty cells dashed `--border-strong`), the
@@ -1665,7 +1665,7 @@ notes picture (ruling (g)): champion names as text, and the short notice as its 
    ‹Leaderboard›. Player: the name. The wordmark is never the h1. Headings don't skip levels.
 4. **One polite announcer per live page** (`role="status" aria-live="polite" aria-atomic="true"`, visually
    hidden). It speaks one meaningful sentence per change: ‹Teams rerolled. Blue 51 percent, Red 49 percent.
-   You're on Red, mid.› / ‹Game started.› / ‹Red wins.› It never announces bare numbers and never the timer.
+   You're on Red, mid.› / ‹Game started. You're on Red, mid.› (15.5) / ‹Red wins.› / ‹Remake. No result.› It never announces bare numbers and never the timer.
    The connection status (5.4) is the only other status region. Refusals use `role="alert"`.
 5. **Colour is never the only signal.** Side = word or glyph or texture. You = tag + outline. Settling/new =
    word + dashed. Off-role = word + dashed. Live = word + dot shape. Delta = sign.
@@ -4878,3 +4878,79 @@ Placeholders in `‹›`. `both` is for exactly two live lobbies, `every` for th
    on `shell-200-text`. The tab labels pass. The group name passes once it drops under `KUSTOM` rather than
    going to an ellipsis beside it (`Custo…` / `Night` at 375 is not accepted); that is the last fix on the
    branch.
+
+---
+
+## 15. Remakes and voided games on Tonight and Games (M23.2 follow-ups, ruled 2026-10-05)
+
+Three kinds of game end without moving a Rating, and each says which one it was, in words a player already
+uses:
+
+| Kind | What it is | Its word |
+|---|---|---|
+| remake | any game of 300 s or less (`MIN_RATED_DURATION_S`) | `Remake` |
+| ended early | a Rift game over 300 s and under 900 s, voided by ingest (`void_reason = 'early-end'`) | `Ended early` |
+| voided | an admin's `Void game` (`void_reason = 'admin'`) | `Voided` |
+
+A remake has **no result**: nobody won it, so no surface names a winner, draws a side colour for it, shows
+odds or a verdict, or gives MVP / ACE. It **still happened**: it has a scoreboard and a game page, and every
+list that shows it links to that page. An ended-early or voided game **has** a winner (the game was played
+out, or an admin took it out after); it keeps its winner, receipt and scoreboard and only says why no Rating
+moved.
+
+### 15.1 Tonight, the finished remake
+
+- **h1 `REMAKE`** (not `GAME OVER`): the strip's headline answers "who won" at arm's length, and `GAME OVER`
+  reads as a result that failed to load. `--foreground`, like every headline (5.10).
+- **Sub-line `No result, so no Rating change.`**, the same shape as `Not rated, so no Rating change.`
+- The teams that played stay under the strip, as built, with no winner, no receipt, no MVP / ACE.
+- **Announcer: `Remake. No result.`** (6.4: the headline change is a change and is said once; never silent).
+
+### 15.2 Tonight, the remake tape tile
+
+```
+┌────┬──────────────────────────────┐
+│    │ Game 3             4 min     │  duration stays: it is what makes it a remake
+│    │ Remake                       │  text-sm muted, where the receipt line goes
+└────┴──────────────────────────────┘
+```
+
+- The side block is the neutral one (no side, `border-r`), as for a dropped lobby.
+- **One link to the game page**, like every other result tile. No receipt, no rule or not-rated note, no MVP.
+- Accessible name: `Game 3, Remake, 4 minutes`.
+- `No result` stays for a lobby that never produced a game (dropped, abandoned); that tile has no link.
+- A remake is not a game played in the viewer's night record (yourNight), as built.
+
+### 15.3 Ended early and voided
+
+- **Strip sub-line** (a sentence, beside `Not rated, so no Rating change.`):
+  `Ended early, so no Rating change.` / `Voided, so no Rating change.`
+- **Tape tile note and Games row / game page note** (a row note, one string per fact across surfaces):
+  `Not rated · ended early` / `Not rated · voided`, unchanged from M23.1. The tile note wins over the rule
+  note and the plain `not rated`, as built.
+
+### 15.4 Games list and game page
+
+`/games` keeps listing a remake (view.ts: it happened), aligned with Tonight:
+
+- Row title `Remake`, no side glyph, no odds line (`RowOdds` renders nothing), no rule note; date and
+  duration as usual; the per-player lines stay.
+- Game page h1 `Remake`; the page `<title>` verdict `Remake · 4 min`; no `GameReceipt`; the two team
+  headings and the scoreboard stay.
+
+### 15.5 The game-start announcement (6.4)
+
+`Game started. You're on Red, mid.` approved. The side is the side the game started on (M21.5 kickoff), which
+may not be the split's. A side changed in the lobby has no role (13.2): `Game started. You're on Red.` A
+viewer not playing: `Game started.`
+
+### 15.6 Every new string (product signs each)
+
+| Where | String | |
+|---|---|---|
+| strip h1, finished remake | `REMAKE` | [NEW COPY] |
+| strip sub-line, finished remake | `No result, so no Rating change.` | [NEW COPY] |
+| announcer, finished remake | `Remake. No result.` | [NEW COPY] |
+| tape tile, Games row, game page h1 | `Remake` | [NEW COPY] |
+| strip sub-line, ended early / voided | `Ended early, so no Rating change.` / `Voided, so no Rating change.` | [NEW COPY] |
+| announcer, game start | `Game started. You're on ‹Side›, ‹role›.` / `Game started. You're on ‹Side›.` | [NEW COPY] |
