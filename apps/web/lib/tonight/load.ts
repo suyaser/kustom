@@ -100,6 +100,11 @@ export interface LoadTonightOptions {
    * M13.9 passes its group; the champ-select overlay passes it now.
    */
   groupId?: string;
+  /**
+   * When the read happens, for which tables are still live (M22.5: a `finished` table lingers
+   * `TABLE_LINGER_MS`, `lib/liveTables.ts`). Default: the clock. Tests pass it.
+   */
+  now?: Date;
 }
 
 export async function loadTonight(
