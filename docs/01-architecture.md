@@ -111,11 +111,13 @@ group_modes    (group_id pk, mode -> modes.id default 'normal', set_by null -> p
                                                                 -- (was 'fearless'); existing rows kept their mode
 lobby_modes    (group_id -> groups, lcu_party_id, pending_rule null, pending_class_tag null,   -- 0051, M22.4
                 pending_region_blue null, pending_region_red null, rated_override null, pending_set_by null,
-                set_by null, created_at, updated_at)  pk (group_id, lcu_party_id)
+                set_by null, taken_by_lobby_id null, created_at, updated_at)  pk (group_id, lcu_party_id)
                 -- a forked lobby's next game (M22 D5): the rule, pair and Rated, never the standing mode
-                -- (group-wide). Forked by lobbies_fork_mode when a lobby starts while another is in play,
-                -- folded onto group_modes when it is the only one in play (lib/mode/table.ts); none on a
-                -- one-lobby night. Public read of the card columns, published to supabase_realtime
+                -- (group-wide). Forked by lobbies_fork_mode when a lobby starts while another is in play
+                -- (liveTables' inPlay: live, and a recently seen token's current_party_id is its party),
+                -- folded onto group_modes within the next settle once it is the only one in play
+                -- (lib/mode/table.ts); none on a one-lobby night. Teams down hands a lock back here only
+                -- when taken_by_lobby_id is that lobby. Card columns public, published to supabase_realtime
 group_invites  (group_id pk, code unique -- 22 url-safe chars, stored as is, rotated_at, rotated_by)  -- 0021, M13.5
 pairing_codes  (code_hash pk -- sha256 of 6 chars, group_id, auth_user_id, discord_id, created_at,
                 expires_at -- 15 min, used_at)                                        -- 0021, M13.5
