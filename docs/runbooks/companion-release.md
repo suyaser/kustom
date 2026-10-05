@@ -182,6 +182,12 @@ release** on it, or don't do it.
 
 ## Release notes for the record
 
+- **1.0.2** (2026-10-05): Kustom now tells the site which game mode a game is (custom ARAM reads `ARAM`, ARAM Mayhem
+  reads `KIWI`; M21.12), so Tonight can hide ARAM odds and Discord skips "Game on" for ARAM. Kustom no longer
+  creates lobbies or sends invites from the site (M22.11); moving a player to their side is the only thing the
+  site still asks it to do. Player-facing words for the release page: "Kustom now knows when a game is ARAM, so
+  the site and Discord treat it right. The site no longer opens lobbies or sends invites through Kustom; it
+  still moves players to their side. Update arrives by itself."
 - **1.0.1**: default API origin fix. 1.0.0's installer defaulted to `http://localhost:3000` (the build never set
   `CUSTOMS_NIGHT_API_BASE`), so a fresh install could not pair. 1.0.1 bakes in `https://playkustom.com` (the owner's domain, 2026-10-04); `kustom-delta.vercel.app` stays served for older configs.
   A saved `apiBase` of `https://kustom-delta.vercel.app` (now a 308 redirect, which the transport never follows) is replaced by `https://playkustom.com` on load and rewritten once in `config.json` (`LEGACY_API_BASES` in `config/mod.rs`); other origins are untouched.
