@@ -8,6 +8,7 @@ import {
   endOptimistic,
   type ModeSlice,
   mergeSlice,
+  modeCardKey,
   modeStoreForTests,
   poolClearedSince,
   resetModeStoreForTests,
@@ -62,6 +63,18 @@ describe('updated_at gating', () => {
   it("one group's rows never touch another's", () => {
     expect(applyModeRow(GROUP, { row: row({ standing: 'normal' }), updatedAt: at(9) })).toBe(true);
     expect(applyModeRow(OTHER, { row: row(), updatedAt: at(1) })).toBe(true);
+  });
+
+  it("M22.4: a group_modes row never lands on a forked lobby's card", () => {
+    const forked = modeCardKey(GROUP, 'party-b');
+    expect(modeCardKey(GROUP)).toBe(GROUP);
+    expect(forked).not.toBe(GROUP);
+    expect(applyModeRow(forked, { row: row({ rated: false }), updatedAt: at(3) })).toBe(true);
+    expect(applyModeRow(GROUP, { row: row({ standing: 'normal' }), updatedAt: at(9) })).toBe(true);
+    expect(modeStoreForTests().get(forked)?.confirmed).toEqual({
+      row: row({ rated: false }),
+      updatedAt: at(3),
+    });
   });
 
   it("the Fearless pool's reset time only moves forward", () => {
