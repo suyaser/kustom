@@ -34,10 +34,25 @@ describe('the tape names the rule', () => {
     expect(screen.queryByText(/kept|broke/i)).toBeNull();
   });
 
-  it('a plain game is unchanged: not rated on a remake, nothing on a rated game', () => {
-    const remake = draw(result({ rated: false }));
+  it('M23.2: a voided game says why, as its Games row does, rule or none', () => {
+    const early = draw(result({ rated: false, voidReason: 'early-end' }));
+    expect(screen.getByText('Not rated · ended early')).toBeInTheDocument();
+    expect(screen.queryByText('not rated')).toBeNull();
+    early.unmount();
+    draw(result({ rated: false, voidReason: 'admin', rule: { id: 'mirror' } }));
+    expect(screen.getByText('Not rated · voided')).toBeInTheDocument();
+  });
+
+  it('a game with no result (a remake, a dropped lobby) is no result and not counted as played', () => {
+    render(<Tape tape={[tapeEntry(), tapeEntry({ lobbyId: 'l2', result: null })]} group={ORIGINAL_GROUP} />);
+    expect(screen.getByText('No result')).toBeInTheDocument();
+    expect(screen.getByText('1 played')).toBeInTheDocument();
+  });
+
+  it('a plain game is unchanged: not rated on a game played not rated, nothing on a rated game', () => {
+    const notRated = draw(result({ rated: false }));
     expect(screen.getByText('not rated')).toBeInTheDocument();
-    remake.unmount();
+    notRated.unmount();
     draw(result({ rated: true }));
     expect(screen.queryByText(/not rated/)).toBeNull();
   });

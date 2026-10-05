@@ -272,6 +272,28 @@ describe('what a tape row carries', () => {
     });
   });
 
+  it('gives a remake (300 s or less) no result: no winner, not played, whatever it was rated', () => {
+    const game = source().games[0] as TapeSource['games'][number];
+    const unrated = source().gamePlayers.map((row) => ({ ...row, r_before: null, r_after: null }));
+    const [row] = assembleTape(
+      source({ games: [{ ...game, duration_s: 300 }], gamePlayers: unrated }),
+      CLOCK,
+    );
+    expect(row).toMatchObject({ status: 'finished', result: null });
+    expect(
+      assembleTape(source({ games: [{ ...game, duration_s: 301 }], gamePlayers: unrated }), CLOCK)[0]?.result,
+    ).not.toBeNull();
+  });
+
+  it('M23.2: carries why a game was voided, and nothing for one that was not', () => {
+    const game = source().games[0] as TapeSource['games'][number];
+    const early = source({ games: [{ ...game, duration_s: 632, rated: false, void_reason: 'early-end' }] });
+    expect(assembleTape(early, CLOCK)[0]?.result?.voidReason).toBe('early-end');
+    const admin = source({ games: [{ ...game, rated: false, void_reason: 'admin' }] });
+    expect(assembleTape(admin, CLOCK)[0]?.result?.voidReason).toBe('admin');
+    expect(assembleTape(source(), CLOCK)[0]?.result).not.toHaveProperty('voidReason');
+  });
+
   it("takes the lobby's newest game with a winner", () => {
     const first = source().games[0] as TapeSource['games'][number];
     const games = [

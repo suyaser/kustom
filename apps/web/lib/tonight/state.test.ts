@@ -12,6 +12,7 @@ import {
   workedResult,
   workedTeams,
 } from '../testing/tonightFixtures';
+import { workedPuuid } from '../testing/workedExample';
 import { fillingSentence } from './copy';
 import { announcement } from './screen';
 import { ANNOUNCE_GAME_STARTED } from './screenCopy';
@@ -100,6 +101,49 @@ describe('the strip headline, one per state', () => {
     );
     expect(withoutTeams.headline).toBe('GAME OVER');
     expect(withoutTeams.sentence).toBe('');
+  });
+
+  it('M23.2: a voided game says why, not the plain not-rated sentence', () => {
+    const voided = (voidReason: string | null) =>
+      stripOf(
+        snapshot(
+          lobbyView({
+            status: 'finished',
+            teams: workedTeams(),
+            result: workedResult({
+              rated: false,
+              durationS: 632,
+              stamp: { rule: null, rated: false, rift: true, check: null, voidReason },
+            }),
+          }),
+        ),
+      ).sentence;
+    expect(voided('early-end')).toBe('Not rated · ended early');
+    expect(voided('admin')).toBe('Not rated · voided');
+    expect(voided(null)).toBe('Not rated, so no Rating change.');
+  });
+
+  it('a remake is no result: no winner announced, teams or none', () => {
+    const remake = workedResult({ rated: false, durationS: 240 });
+    for (const teams of [workedTeams(), null]) {
+      const state = tonightState(snapshot(lobbyView({ status: 'finished', teams, result: remake })));
+      const strip = header(state);
+      expect(strip.headline).toBe('GAME OVER');
+      expect(strip.sentence).toBe('');
+      expect(announcement(state, strip, null)).toBe('');
+    }
+    const played = tonightState(
+      snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),
+    );
+    expect(announcement(played, header(played), null)).toBe('Red wins.');
+  });
+
+  it('teams are set: the side and role the viewer was given, or nothing for someone not playing', () => {
+    const state = tonightState(snapshot(lobbyView({ status: 'balanced', teams: workedTeams() })));
+    expect(announcement(state, header(state), workedPuuid('Theo'))).toMatch(
+      /^Teams are set\. Blue \d+ percent, Red \d+ percent\. You're on Blue, support\.$/,
+    );
+    expect(announcement(state, header(state), null)).toMatch(/percent\.$/);
   });
 });
 
@@ -342,6 +386,24 @@ describe('in game with the kickoff teams (M21.5)', () => {
     expect(strip.headline).not.toMatch(/IN THE LOBBY/);
     expect(strip.count).toBeNull();
     expect(snap.lobby === null ? null : rollStage(snap.lobby)).toBe('none');
+  });
+
+  it('names the side the viewer started on: the split side, or the side they really play', () => {
+    const theo = workedPuuid('Theo');
+    const said = (kind: Parameters<typeof workedKickoff>[0]) => {
+      const state = tonightState(inGame(kind));
+      return announcement(state, header(state), theo);
+    };
+    // Theo is the split's Blue support; in a custom game he traded onto Red, where he has no role.
+    expect(said('rolled')).toBe("Game started. You're on Blue, support.");
+    expect(said('swapped')).toBe("Game started. You're on Red, support.");
+    expect(said('custom')).toBe("Game started. You're on Red.");
+    // A viewer not playing hears the bare sentence.
+    const state = tonightState(inGame('custom'));
+    expect(announcement(state, header(state), 'not-in-this-game')).toBe(ANNOUNCE_GAME_STARTED);
+    // No kickoff record: the split's side.
+    const teams = tonightState(snapshot(lobbyView({ status: 'in_game', teams: workedTeams() })));
+    expect(announcement(teams, header(teams), theo)).toBe("Game started. You're on Blue, support.");
   });
 
   it('a not-rated lock keeps its rule line in the strip', () => {
