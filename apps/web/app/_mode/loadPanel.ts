@@ -7,9 +7,9 @@ import type { ModeCardView } from '@/lib/mode/card';
 import { loadModePanelView } from '@/lib/mode/panelView';
 import { type LaneChoice, parseLane, poolSinceLabel } from '@/lib/mode/view';
 import { createPublicClient } from '@/lib/publicClient';
+import { viewerKickoffSeat } from '@/lib/tonight/kickoff';
 import { loadTonight } from '@/lib/tonight/load';
 import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
-import { viewerKickoffSeat } from '@/lib/tonight/kickoff';
 import { viewerRegionSide, viewerSeat } from '@/lib/tonight/screen';
 import { currentViewerState } from '@/lib/viewer';
 
