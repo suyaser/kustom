@@ -314,7 +314,7 @@ exports[`the teams post, one snapshot per mode > mirror match 1`] = `
         "url": "https://kustom.example/g/customs",
       },
       "color": 16764774,
-      "description": "**This game: mirror match, same champion as your lane opponent.** Blind Pick lobby. Rated. [How it works](https://kustom.example/g/customs/mode)",
+      "description": "**This game: mirror match, same champion as your lane opponent.** The host opens a Blind Pick custom in League. Rated. [How it works](https://kustom.example/g/customs/mode)",
       "fields": [
         {
           "name": "Seats",

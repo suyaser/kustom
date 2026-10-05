@@ -18,7 +18,7 @@ import { deleteTestGroups } from '../lib/testing/groups.ts';
  *
  *   pnpm --filter web build
  *   pnpm --filter web perf-tonight-taps --playwright <path to playwright's index.mjs>
- *                                  [--delay 40] [--cpu 4] [--port 3171] [--web <app dir>] [--start yes]
+ *                                  [--delay 40] [--cpu 4] [--port 3171] [--web <app dir>]
  *
  * It makes a scratch group (`perf-<hex>`, twelve players) whose owner is a password user carrying
  * a made-up Discord identity (the session `currentSessionPlayer` reads), starts `next start` with
@@ -43,8 +43,6 @@ interface Args {
   port: number;
   web: string;
   playwright: string | null;
-  /** `--start yes`: press Start the next lobby on the result screen and watch the 75 s it stays pending. */
-  start: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -54,7 +52,6 @@ function parseArgs(argv: readonly string[]): Args {
     port: 3171,
     web: resolve(import.meta.dirname, '..'),
     playwright: null,
-    start: false,
   };
   for (let index = 0; index < argv.length; index += 2) {
     const arg = argv[index];
@@ -65,7 +62,6 @@ function parseArgs(argv: readonly string[]): Args {
     else if (arg === '--port') args.port = Number(value);
     else if (arg === '--web') args.web = resolve(value);
     else if (arg === '--playwright') args.playwright = value;
-    else if (arg === '--start') args.start = value === 'yes';
     else throw new Error(`perf-tonight-taps: unknown argument ${arg}`);
   }
   return args;
@@ -481,21 +477,6 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
       raw: { gameId: id },
     });
     await step('game end (eog post)', () => post('game', eog(gameId, partyA)), 7000);
-    if (args.start) {
-      // On the result screen (`Start the next lobby`). The scratch host is "at their PC" (M4.1's ten minutes), so the press queues a command
-      // nobody runs: it stays pending until it expires at 60 s. M19.17: no page renders while it
-      // waits, one when it settles.
-      await db
-        .from('companion_tokens')
-        .update({ last_seen_at: new Date().toISOString() })
-        .eq('group_id', groupId);
-      await sleep(2500);
-      await step(
-        'Start a lobby pending, 75 s',
-        () => page.locator('form[action="/api/me/lobbies/start"] button[type=submit]').first().tap(),
-        75_000,
-      );
-    }
     await step(
       '10 joins, 400 ms apart',
       async () => {

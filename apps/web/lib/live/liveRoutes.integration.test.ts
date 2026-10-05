@@ -65,7 +65,6 @@ if (stack === null) {
   const { memberRemoveRoute } = await import('@/app/api/admin/members/remove/handler');
   const { ownerTransferRoute } = await import('@/app/api/admin/owner/transfer/handler');
   const { memberUnlinkDiscordRoute } = await import('@/app/api/admin/members/unlink-discord/handler');
-  const { startLobbyRoute } = await import('@/app/api/me/lobbies/start/handler');
   const { roleTonightRoute } = await import('@/app/api/me/role-tonight/handler');
   const { selfLinkRoute } = await import('@/app/api/me/link/handler');
   const { joinGroupRoute } = await import('@/app/api/groups/join/handler');
@@ -539,27 +538,30 @@ if (stack === null) {
       expectBumpedLast(writes, [{ groupId: A, kind: 'lobby' }], { groups: [A, B] });
     });
 
-    it('start a lobby bumps `lobby` last, and so does the create_lobby ack', async () => {
-      await db.from('companion_tokens').update({ last_seen_at: new Date().toISOString() }).eq('group_id', A);
-      const start = await recorded(() =>
-        startLobbyRoute({
-          ...asMe(p(2)),
-          start: { gate: { create_lobby: true, invite: true, switch_side: false } },
-        })(json('me/lobbies/start', { groupId: A })),
-      );
-      expect(start.result.status).toBe(200);
-      const { commandId } = (await start.result.json()) as { commandId: string };
-      expectBumpedLast(start.writes, [{ groupId: A, kind: 'lobby' }]);
-
+    it('a command ack bumps nothing, even a create_lobby left from before M22.11', async () => {
+      const left = await db
+        .from('companion_commands')
+        .insert({
+          group_id: A,
+          target_player_id: id(p(0)),
+          kind: 'create_lobby',
+          status: 'sent',
+          payload: { lobbyName: 'old', lobbyPassword: '1234' },
+          expires_at: new Date(Date.now() + 60_000).toISOString(),
+        })
+        .select('id')
+        .single();
+      if (left.error) throw new Error(left.error.message);
+      const commandId = left.data.id;
       const ack = await recorded(() =>
         ackRoute(commandId)(
           companion(`commands/${commandId}/ack`, {
-            result: { partyId: `lv-${runId}-next`, lobbyName: 'next' },
+            result: { partyId: `lv-${runId}-old`, lobbyName: 'old' },
           }),
         ),
       );
       expect(ack.result.status).toBe(200);
-      expectBumpedLast(ack.writes, [{ groupId: A, kind: 'lobby' }]);
+      expectBumpedLast(ack.writes, []);
     });
 
     it('role for tonight bumps `lobby` last', async () => {

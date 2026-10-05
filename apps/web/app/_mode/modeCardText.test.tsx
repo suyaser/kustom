@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { lockSelectValue, selectValue } from '@/lib/mode/cardView';
 import { resetModeStoreForTests } from '@/lib/mode/clientStore';
+import { MIRROR_HOST_IDLE_LINE } from '@/lib/mode/ruleCopy';
 import {
   ADMIN_VIEWER,
   MEMBER_VIEWER,
@@ -51,6 +52,8 @@ import before from './modeCardText.pre-m20-8.json';
  *    reads the lock's rule (else its standing mode), the switch the lock's Rated, the picker is
  *    headed `Mode` under the `This game` legend, and the in-game caption is gone. In game, 5 holds
  *    as it was. The card above the foot is unchanged in both.
+ * 11. M22.11: idle with mirror next, the page's mirror host line (not the card) is the idle form,
+ *    `Mirror match next. The host opens a Blind Pick custom in League.` (the lobby press is gone).
  *
  * One entry of the capture was fixed by hand: `Normal | empty | admin` was read before the lazy
  * admin controls had loaded (the first admin render of the run), so it lacked them; it now holds
@@ -137,6 +140,9 @@ function CHANGES(name: string, key: TonightStateKey, old: Entry): Entry {
   for (const words of ['Bandle City', 'Shadow Isles', 'The Void']) {
     text = text.replaceAll(words.replace(' ', ' '), words);
   }
+  // 11.
+  if (key === 'idle' && name.startsWith('mirror match'))
+    return { ...old, text, mirror: MIRROR_HOST_IDLE_LINE };
   return { ...old, text };
 }
 

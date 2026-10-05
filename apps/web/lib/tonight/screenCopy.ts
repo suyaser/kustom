@@ -151,8 +151,6 @@ export const ACE_TAG = 'ACE';
 /** Idle: the group's last game as a compact poster. */
 export const LAST_GAME_TITLE = 'Last game';
 export const SEE_THE_GAME = 'See the game';
-/** The finished strip's press (STRATEGY §6(a); M14.41 design round 1). Idle keeps `Start a lobby`. */
-export const START_NEXT_LOBBY = 'Start the next lobby';
 /** The finished poster's link to its game page (M14.41 [NEW COPY], scene-walk gap 5). */
 export const FULL_SCOREBOARD = 'Full scoreboard';
 

@@ -5,12 +5,16 @@ import { regionName } from '@/lib/champs/regions';
 import { NOT_RATED_RESULT_LINE, resultModeLines } from '@/lib/discord/modeLines';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { LANE_ORDER } from '@/lib/laneOrder';
-import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { modeCardView } from '@/lib/mode/card';
 import { championTable, regionIds } from '@/lib/mode/champions';
 import { applyModeRow, noteThisGame, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { MODE_NOW_NORMAL_BODY } from '@/lib/mode/copy';
-import { MIRROR_HOST_FILLING_LINE, MIRROR_HOST_LEAD, mirrorStatus } from '@/lib/mode/ruleCopy';
+import {
+  MIRROR_HOST_FILLING_LINE,
+  MIRROR_HOST_IDLE_LINE,
+  MIRROR_HOST_LEAD,
+  mirrorStatus,
+} from '@/lib/mode/ruleCopy';
 import { fearlessCounts } from '@/lib/mode/view';
 import { seatedOnTheirSides } from '@/lib/testing/tonightFixtures';
 import { Announcer } from '../_tonight/Announcer';
@@ -201,15 +205,13 @@ describe('region wars and mirror match', () => {
     resetModeStoreForTests();
   });
 
-  it('mirror: rated, the status, How it works; Start a lobby stays', () => {
+  it('mirror: rated, the status, How it works', () => {
     draw('idle', { rule: 'mirror' });
     expect(within(card()).getByText('Rated')).toBeInTheDocument();
     // M15.14: the fixture's night is Fearless, so the status carries the pool's open count.
     expect(card().textContent).toMatch(/Same champion as your lane opponent · \d+ open/);
     expect(within(card()).getByRole('link', { name: /How it works/ })).toBeInTheDocument();
-    // M17.17: the companion opens the Blind Pick lobby itself, so the control stays.
-    expect(screen.getByRole('button', { name: START_LOBBY_BUTTON })).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/Mirror match next|Host: open a Blind Pick/);
+    expect(document.body.textContent).not.toMatch(/Host: open a Blind Pick/);
   });
 
   it('filling with mirror next: the host line says what to do if this lobby is Draft Pick (QA fix 2026-10-04)', () => {
@@ -220,7 +222,7 @@ describe('region wars and mirror match', () => {
       'Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.',
     );
     filling.unmount();
-    // Not for anyone with no linked account, same as Start a lobby.
+    // Not for anyone with no linked account.
     const anon = draw('filling', { rule: 'mirror' }, ANON_VIEWER);
     expect(document.body.textContent).not.toContain(MIRROR_HOST_LEAD);
     anon.unmount();
@@ -230,13 +232,22 @@ describe('region wars and mirror match', () => {
     tanks.unmount();
   });
 
-  it('M17.17: idle and finished keep Start a lobby (it makes the Blind Pick lobby itself), no host line', () => {
+  it('M22.11: idle with mirror next: the host opens a Blind Pick custom', () => {
     const idle = draw('idle', { rule: 'mirror' });
-    expect(document.body.textContent).not.toMatch(/Mirror match next|needs a Blind Pick lobby/);
+    expect(screen.getByText(MIRROR_HOST_LEAD, { selector: 'b' })).toBeInTheDocument();
+    expect(document.body.textContent).toContain(MIRROR_HOST_IDLE_LINE);
+    expect(document.body.textContent).toContain(
+      'Mirror match next. The host opens a Blind Pick custom in League.',
+    );
+    expect(document.body.textContent).not.toContain(MIRROR_HOST_FILLING_LINE);
+    expect(screen.queryByRole('button', { name: /lobby/i })).toBeNull();
     idle.unmount();
-    draw('finished', { rule: 'mirror' });
+    // Not for a signed-out visitor, and not for another rule.
+    const anon = draw('idle', { rule: 'mirror' }, ANON_VIEWER);
     expect(document.body.textContent).not.toContain(MIRROR_HOST_LEAD);
-    expect(screen.getByRole('button', { name: /lobby/i })).toBeInTheDocument();
+    anon.unmount();
+    draw('idle', { rule: 'class:Tank' });
+    expect(document.body.textContent).not.toContain(MIRROR_HOST_LEAD);
   });
 
   it('a mirror game posts its lane line and rates', () => {

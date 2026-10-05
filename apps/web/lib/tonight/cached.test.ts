@@ -25,8 +25,8 @@ vi.mock('next/headers', () => ({
 vi.mock('@/lib/publicClient', () => ({ createPublicClient: () => ({}) }));
 vi.mock('@/lib/supabase', () => ({ getServiceClient: () => ({}) }));
 vi.mock('@/lib/board/load', () => ({ loadBoard }));
-vi.mock('@/lib/lobbyStart', async (original) => ({
-  ...(await original<typeof import('@/lib/lobbyStart')>()),
+vi.mock('@/lib/hostPresence', async (original) => ({
+  ...(await original<typeof import('@/lib/hostPresence')>()),
   readHostFacts,
 }));
 vi.mock('@/lib/tonight/lastGame', () => ({ loadLastGame }));

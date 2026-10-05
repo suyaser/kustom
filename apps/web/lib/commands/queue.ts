@@ -111,47 +111,14 @@ export interface EnqueueOptions {
  *
  * - `gated` — its verification row is not green (`gate.ts`). No database call was made.
  * - `malformed` — the payload failed its own kind's schema. Our bug, logged and dropped.
- * - `conflict` — the database refused it. Only `create_lobby` can hit this: `0008` allows at
- *   most one of them in `pending` or `sent` at a time, so a second press in the same instant
- *   loses the race here rather than opening a second lobby (M4.9).
  */
-export type EnqueueSkipReason = 'gated' | 'malformed' | 'conflict';
+export type EnqueueSkipReason = 'gated' | 'malformed';
 
 export interface EnqueueResult {
   /** The ids written, in the order they were asked for. */
   queued: string[];
   /** What was not written and why, one line per command. Never an error: this is normal. */
   skipped: { kind: CompanionCommandKind; reason: EnqueueSkipReason }[];
-}
-
-/**
- * The Start-a-lobby lock, as `0008_one_create_lobby_at_a_time.sql` spells it: a unique index
- * over `kind` where `kind = 'create_lobby' and status in ('pending', 'sent')`. Named here
- * because the only way to tell this violation from any other unique violation on the table is
- * the index name Postgres puts in the message.
- */
-export const CREATE_LOBBY_LOCK_INDEX = 'companion_commands_one_create_lobby_idx';
-
-/** Postgres `unique_violation`. PostgREST hands it back as the error's `code`. */
-const UNIQUE_VIOLATION = '23505';
-
-/** A PostgREST error, narrowed to the three fields that say which constraint refused a write. */
-interface WriteError {
-  code?: string | undefined;
-  message?: string | undefined;
-  details?: string | null | undefined;
-}
-
-/**
- * Is this the create-lobby lock refusing a second live `create_lobby`?
- *
- * A `23505` on `companion_commands` can only be this index today, but matching the name as
- * well as the code keeps that true after the next migration: a different constraint would be a
- * different bug and must still throw.
- */
-export function isCreateLobbyLockViolation(error: WriteError | null): boolean {
-  if (error === null || error.code !== UNIQUE_VIOLATION) return false;
-  return `${error.message ?? ''} ${error.details ?? ''}`.includes(CREATE_LOBBY_LOCK_INDEX);
 }
 
 /**
@@ -162,11 +129,7 @@ export function isCreateLobbyLockViolation(error: WriteError | null): boolean {
  * The payload is parsed with its kind's schema before it is stored: a bad payload here is our
  * bug, and the queue is not the place to find out about it at 21:40. It is logged and dropped
  * rather than thrown, because the caller is a hook on the `balanced` transition and a bad
- * command must never cost the group its teams.
- *
- * A `create_lobby` that the database refuses because one is already live (`0008`, the
- * Start-a-lobby lock) is `skipped: 'conflict'` for the same reason: losing a race is a normal
- * outcome with a sentence of its own, not a 500. Every other write error still throws.
+ * command must never cost the group its teams. A write error throws.
  */
 export async function enqueueCommands(
   client: ServiceClient,
@@ -203,32 +166,8 @@ export async function enqueueCommands(
   if (inserts.length === 0) return result;
 
   const { data, error } = await client.from('companion_commands').insert(inserts).select('id');
-  if (error === null) {
-    result.queued = (data ?? []).map((row) => row.id);
-    return result;
-  }
-
-  // Anything but the create-lobby lock is a real failure and still throws.
-  if (!isCreateLobbyLockViolation(error)) throw new Error(`enqueueCommands: ${error.message}`);
-
-  // The lock (M4.9): a `create_lobby` is already live, so this one is not written and the
-  // caller is told which kind lost and why. `startLobby` turns that into the same 409 and the
-  // same sentence as its own read-first refusal — a presser cannot tell the two apart, and
-  // that is the point.
-  for (const row of inserts) {
-    if (row.kind === 'create_lobby') result.skipped.push({ kind: 'create_lobby', reason: 'conflict' });
-  }
-  console.info('enqueueCommands: a create_lobby is already live; the lock refused a second one');
-
-  // Nothing in this codebase mixes `create_lobby` with another kind in one batch, but an insert
-  // is all-or-nothing: retry the rest so a future batch cannot lose an invite to somebody
-  // else's double tap.
-  const rest = inserts.filter((row) => row.kind !== 'create_lobby');
-  if (rest.length === 0) return result;
-
-  const retry = await client.from('companion_commands').insert(rest).select('id');
-  if (retry.error) throw new Error(`enqueueCommands: ${retry.error.message}`);
-  result.queued = (retry.data ?? []).map((row) => row.id);
+  if (error) throw new Error(`enqueueCommands: ${error.message}`);
+  result.queued = (data ?? []).map((row) => row.id);
   return result;
 }
 
@@ -273,10 +212,8 @@ export async function supersedeCommands(
  * not need one: a player is in at most one live lobby (`lobbies_active_party_idx`), so their
  * live rows are that lobby's rows.
  *
- * `create_lobby` and `invite` are deliberately **not** superseded — those two are how a lobby
- * gets filled in the first place, and the lobby leaving `balanced` (to `in_game`, say) says
- * nothing about whether an invite is still worth popping up. Their own TTL is what gives up on
- * them.
+ * Only `switch_side`: nothing has queued `create_lobby` or `invite` since M22.11, and a row of
+ * either left from before gives up on its own TTL.
  */
 export async function supersedeLobbyCommands(
   client: ServiceClient,
@@ -303,28 +240,6 @@ export async function supersedeLobbyCommands(
 // ---------------------------------------------------------------------------
 // The poll
 // ---------------------------------------------------------------------------
-
-/**
- * A command's status **as of `now`**, for a read: a `pending` or `sent` row at or past its
- * `expires_at` is reported as `failed` with `expired`, exactly what {@link sweepExpiredCommands}
- * will write (same comparison, `expires_at <= now`), and everything else as stored.
- *
- * The sweep only runs when a companion polls or somebody presses again, so a row whose host never
- * polled (the PC went to sleep, the companion was closed inside M4.1's ten minutes) would otherwise
- * read `pending` for the rest of the night and a page polling it would wait forever
- * (fix-start-pending). A read still never writes; it just does not pretend the clock stopped.
- */
-export function commandStatusAt<S extends 'pending' | 'sent' | 'acked' | 'failed'>(
-  row: { status: S; error: string | null; expires_at: string },
-  now: Date,
-): { status: S | 'failed'; error: string | null } {
-  const live = (LIVE_STATUSES as readonly string[]).includes(row.status);
-  const expiresAt = Date.parse(row.expires_at);
-  if (live && !Number.isNaN(expiresAt) && expiresAt <= now.getTime()) {
-    return { status: 'failed', error: COMMAND_ERRORS.expired };
-  }
-  return { status: row.status, error: row.error };
-}
 
 /**
  * One cheap statement at the top of every poll, whatever `clientConnected` says: a row past

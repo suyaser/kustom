@@ -5,7 +5,7 @@ import type { BoardRow, EmptyWindowFallback } from '../board/types';
 import { cachedRead } from '../cache/cached';
 import { groupTag, NAMES_TAG } from '../cache/tags';
 import { groupAdminNames } from '../groups/membership';
-import { type HostPresence, hostPresenceFrom, readHostFacts } from '../lobbyStart';
+import { type HostPresence, hostPresenceFrom, readHostFacts } from '../hostPresence';
 import { loadMysteryOrNone } from '../mystery/load';
 import { emptyMysteryPage, loadMysteryPage, type MysteryPageState } from '../mystery/service';
 import { isVisitorId, MYSTERY_VISITOR_COOKIE } from '../mystery/visitor';

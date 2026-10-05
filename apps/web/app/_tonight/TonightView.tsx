@@ -7,7 +7,6 @@ import { oddsGapSentence } from '@/lib/breakdown/copy';
 import type { GameBreakdown } from '@/lib/breakdown/load';
 import { fearlessWhatsOpen } from '@/lib/fearless/copy';
 import type { PageGroup } from '@/lib/groups/pageGroup';
-import { noKustomRunningLine } from '@/lib/lobbyStartCopy';
 import {
   classFacts,
   modeCardView,
@@ -20,7 +19,12 @@ import {
 import { championTable } from '@/lib/mode/champions';
 import type { ModeSlice } from '@/lib/mode/clientStore';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
-import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, ruleLaneLabel } from '@/lib/mode/ruleCopy';
+import {
+  MIRROR_HOST_FILLING_REST,
+  MIRROR_HOST_IDLE_REST,
+  MIRROR_HOST_LEAD,
+  ruleLaneLabel,
+} from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
 import { missingRow } from '@/lib/mode/state';
 import { bannedByGame, normalNoteFactsOf } from '@/lib/mode/view';
@@ -34,13 +38,13 @@ import {
   MISSED_INVITE_LEAD,
   MISSED_INVITE_PASSWORD,
   NAMELESS_HINT,
+  noKustomRunningLine,
   ROLL_HINT,
   rollAdminHint,
   rollerSubLine,
 } from '@/lib/tonight/copy';
 import { swappedRun, viewerKickoffSeat } from '@/lib/tonight/kickoff';
 import type { LastGame } from '@/lib/tonight/lastGame';
-import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { tonightRoles } from '@/lib/tonight/roles';
 import {
   announcement,
@@ -56,7 +60,6 @@ import {
 import {
   EMPTY_GROUP_MEMBER,
   FULL_SCOREBOARD,
-  START_NEXT_LOBBY,
   stripDateLine,
   winsHeadline,
   wouldSitOutLine,
@@ -97,7 +100,6 @@ import { RoleTonight } from './RoleTonight';
 import { RollControl } from './RollControl';
 import { Roster } from './Roster';
 import { SideLine } from './SideLine';
-import { StartLobby, StartLobbySignIn } from './StartLobby';
 import { type AnswerBand, Strip } from './Strip';
 import { Tape } from './Tape';
 import { TeamCard, type TeamSeat } from './TeamCard';
@@ -110,7 +112,7 @@ import { YourNight } from './YourNight';
  * server-only reads beside it (the last game, the calibration, who would sit out). Every state is a
  * fixture test, and every Realtime event re-renders this on the server (`TonightLive`), so the
  * receipt, the poster, the tape and the rail never ship as client code. The client islands are the
- * controls (roll, reroll, start, role), the live tag, the timer and `joined just now`.
+ * controls (roll, reroll, role), the live tag, the timer and `joined just now`.
  *
  * One state headline (the h1), one primary block chosen from `lobbies.status` (`tonightState`),
  * then the secondary cards. Below 1024 one column; from 1024 a main column and a 340px rail.
@@ -123,7 +125,6 @@ export interface TonightViewProps {
   topPlayers: readonly BoardRow[];
   /** M14.70: where an empty `Top this week` points (`See last week` / `See all time`). */
   topFallback?: EmptyWindowFallback | null | undefined;
-  lobbyStart?: LobbyStartView | null | undefined;
   mystery?: MysteryPageState | null | undefined;
   /** The admins' names, for `Waiting on … to roll the teams.` at ten or more. */
   admins?: readonly PlayerName[] | undefined;
@@ -370,12 +371,17 @@ export function TonightView(props: TonightViewProps) {
         {emptyGroup ? <EmptyGroup isAdmin={isAdmin} group={group} /> : null}
         {emptyGroup ? modeCard : null}
         {state.kind === 'idle' && !emptyGroup ? <Idle {...props} /> : null}
+        {/* M22.11: mirror next and no lobby open, so the host makes it Blind Pick. */}
+        {linked && !emptyGroup && (state.kind === 'idle' || state.kind === 'result') ? (
+          <MirrorNext groupId={group.id} slice={modeSlice} readFailed={snapshot.modeReadFailed === true}>
+            <MirrorMakeBlindLine />
+          </MirrorNext>
+        ) : null}
         {state.kind === 'filling' ? (
           <Filling
             lobby={state.lobby}
             viewerPuuid={puuid}
             linked={linked}
-            lobbyStart={props.lobbyStart ?? null}
             wouldSitOut={props.wouldSitOut ?? null}
             rolls={rolls !== null}
             mirror={{ groupId: group.id, slice: modeSlice, readFailed: snapshot.modeReadFailed === true }}
@@ -524,9 +530,8 @@ function Idle(props: TonightViewProps) {
 /**
  * The strip's action row (M14.41, scene-walk gap 2): the night's one deliberate press, where the
  * viewer is already looking. Admins: `Roll teams` once the lobby can be rolled, `Reroll` while the
- * teams are up. Linked players: `Start a lobby` when nothing is open (idle, finished); a visitor
- * on an idle page gets the sign-in that leads to it. Nothing new for anybody: each control moved
- * up from under the roster, the cards or the poster, unchanged.
+ * teams are up. Nothing else since M22.11 removed the lobby press (lobbies are the customs hosts
+ * open): on idle, a linked player with no host up in ten minutes reads who to ask.
  */
 function stripAction(
   props: TonightViewProps,
@@ -550,25 +555,13 @@ function stripAction(
       <RerollControl lobbyId={state.lobby.id} splits={state.teams.splits} />
     ) : null;
   }
-  if (state.kind === 'result' || (state.kind === 'idle' && !viewer.emptyGroup)) {
-    if (viewer.linked) {
-      return (
-        <StartLobby
-          start={props.lobbyStart ?? null}
-          press={true}
-          around={0}
-          // STRATEGY §6(a): after a result the press is the next game's (M14.41 design round 1).
-          label={state.kind === 'result' ? START_NEXT_LOBBY : undefined}
-          // M14.66: on idle with no host seen in ten minutes, who to ask, before anyone taps.
-          noHostLine={
-            state.kind === 'idle' && !props.snapshot.hostSeenRecently
-              ? noKustomRunningLine(adminNames(props.snapshot.hostNames))
-              : null
-          }
-        />
-      );
-    }
-    if (state.kind === 'idle' && props.viewer.kind === 'anonymous') return <StartLobbySignIn />;
+  // M14.66: on idle with no host seen in ten minutes, who to ask (linked players only).
+  if (state.kind === 'idle' && viewer.linked && !viewer.emptyGroup && !props.snapshot.hostSeenRecently) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {noKustomRunningLine(adminNames(props.snapshot.hostNames))}
+      </p>
+    );
   }
   return null;
 }
@@ -591,7 +584,6 @@ function Filling({
   lobby,
   viewerPuuid,
   linked,
-  lobbyStart,
   wouldSitOut,
   rolls,
   mirror,
@@ -599,7 +591,6 @@ function Filling({
   lobby: LobbyView;
   viewerPuuid: string | null;
   linked: boolean;
-  lobbyStart: LobbyStartView | null;
   wouldSitOut: readonly string[] | null;
   /** The viewer holds `Roll teams`: the preview is the button's hint in the strip, not repeated here. */
   rolls: boolean;
@@ -622,9 +613,6 @@ function Filling({
         <MirrorNext groupId={mirror.groupId} slice={mirror.slice} readFailed={mirror.readFailed}>
           <MirrorFillingLine />
         </MirrorNext>
-      ) : null}
-      {stage === 'waiting' && linked ? (
-        <StartLobby start={lobbyStart} press={false} around={lobbyAround(lobby.members)} />
       ) : null}
       <MissedInvite lobby={lobby} linked={linked} />
     </>
@@ -994,6 +982,21 @@ function MirrorFillingLine() {
       className="rounded-control border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-sm"
     >
       <b className="font-bold">{MIRROR_HOST_LEAD}</b> {MIRROR_HOST_FILLING_REST}
+    </p>
+  );
+}
+
+/**
+ * The mirror host line on idle and finished (M22.11): no lobby is open, and the host makes the next
+ * one, so it says to make it Blind Pick (05-design 14.13 item 6). The filling line's look (dashed note).
+ */
+function MirrorMakeBlindLine() {
+  return (
+    <p
+      data-slot="mirror-host-line"
+      className="rounded-control border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-sm"
+    >
+      <b className="font-bold">{MIRROR_HOST_LEAD}</b> {MIRROR_HOST_IDLE_REST}
     </p>
   );
 }
