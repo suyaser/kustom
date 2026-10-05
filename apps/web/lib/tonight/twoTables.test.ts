@@ -162,3 +162,61 @@ describe('two live tables through the loader (acceptance 2)', () => {
     expect(selectTonightLobby(snapshot, 'lobby-a3')).toEqual(onA.snapshot);
   });
 });
+
+describe('who watches each table (14.8), read beside the second round', () => {
+  type TokenFixture = Record<string, string | null>;
+  const readWith = async (cycles: readonly CycleSpec[]) => {
+    const fixtures = night(cycles);
+    // Bo's Kustom is in party B; nobody's is in party A any more.
+    fixtures.companion_tokens = [
+      {
+        id: 'token-bo',
+        player_id: 'p-bo',
+        current_party_id: 'party-b',
+        current_party_at: NOW.toISOString(),
+        puuid: PUUID(12),
+      },
+    ];
+    const { client, recording } = recordingClient(fixtures);
+    const tokens = client as unknown as {
+      from: (table: string) => { select: (columns: string) => PromiseLike<{ data: TokenFixture[] }> };
+    };
+    let calls = 0;
+    const snapshot = await loadTonight(client, {
+      nightStart: NIGHT_START,
+      nightClock: CLOCK,
+      groupId: GROUP,
+      now: NOW,
+      readWatchers: async () => {
+        calls += 1;
+        const { data } = await tokens.from('companion_tokens').select('id, player_id, current_party_id');
+        return data.map((row) => ({
+          tokenId: row.id ?? '',
+          playerId: row.player_id ?? '',
+          puuid: row.puuid ?? null,
+          currentPartyId: row.current_party_id ?? null,
+          currentPartyAt: row.current_party_at ?? null,
+        }));
+      },
+    });
+    return { snapshot, recording, calls };
+  };
+
+  it('two tables: one more request and no more rounds; B watched, A not', async () => {
+    const { snapshot, recording, calls } = await readWith(TWO);
+    expect(calls).toBe(1);
+    expect(recording.waves()).toBe(3);
+    expect(recording.count('companion_tokens')).toBe(1);
+    expect(snapshot.lobbies?.map((table) => [table.id, table.watched])).toEqual([
+      ['lobby-a3', false],
+      ['lobby-b1', true],
+    ]);
+  });
+
+  it('one table: never read, watched stays unknown', async () => {
+    const { snapshot, recording, calls } = await readWith([...EARLIER, currentCycle('teams')]);
+    expect(calls).toBe(0);
+    expect(recording.count('companion_tokens')).toBe(0);
+    expect(snapshot.lobbies?.map((table) => table.watched)).toEqual([null]);
+  });
+});

@@ -1,7 +1,6 @@
 import { HOST_WINDOW_MS } from '../lobbyStart';
 import type { ServiceClient } from '../supabase';
 import type { TokenSeen } from './tables';
-import type { TonightSnapshot } from './types';
 
 /**
  * Who is watching each live table, for Tonight's `No Kustom` chip and note (M22.5 for M22.6,
@@ -11,17 +10,16 @@ import type { TonightSnapshot } from './types';
  *
  * The same tokens `liveTables`' `selectWatchingTokens` reads (the group's, unrevoked, seen inside
  * `HOST_WINDOW_MS`), plus each token's puuid so the seats come off the roster Tonight already has.
- * **Only read with two or more live tables**: with one, nothing in 14 is drawn and the one-lobby
- * page makes the requests it made before M22. Null on any failure ("unknown": no chip says
- * `No Kustom` because a read failed).
+ * The page hands it to `loadTonight` (`readWatchers`), which calls it **only with two or more live
+ * tables**, beside its second round: with one, nothing in 14 is drawn and the one-lobby page makes
+ * the requests it made before M22; with several, no round is added. Null on any failure
+ * ("unknown": no chip says `No Kustom` because a read failed).
  */
 export async function loadTableWatchersOrNone(
   client: ServiceClient,
-  snapshot: TonightSnapshot,
   groupId: string,
   now: Date,
 ): Promise<TokenSeen[] | null> {
-  if ((snapshot.lobbies ?? []).length < 2) return null;
   try {
     const seenSince = new Date(now.getTime() - HOST_WINDOW_MS).toISOString();
     const { data, error } = await client

@@ -41,7 +41,7 @@ import type { PublicClient } from '../publicClient';
 import { renderWebName } from './copy';
 import { kickoffView, readKickoff } from './kickoff';
 import { pickTable } from './selection';
-import { nightTables, tablesOverlapped } from './tables';
+import { nightTables, type TokenSeen, tablesOverlapped, withWatchers } from './tables';
 import type {
   LobbyView,
   MemberView,
@@ -114,6 +114,12 @@ export interface LoadTonightOptions {
    * otherwise. The page re-selects once it knows the viewer (`withSelection`, `./selection.ts`).
    */
   lobbyId?: string | null;
+  /**
+   * Who watches each table (M22.3), from the server only (`companion_tokens` is service role,
+   * `./watchers.ts`). Called only with two or more live tables, beside the second round, so it
+   * never adds a request to a one-lobby night nor a round to any. Absent: `watched` stays null.
+   */
+  readWatchers?: () => Promise<TokenSeen[] | null>;
 }
 
 export async function loadTonight(
@@ -155,11 +161,14 @@ export async function loadTonight(
     table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId],
   );
 
-  const [night, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }] =
+  const [night, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }, watchers] =
     await Promise.all([
       loadNight(client, currents, tapeLobbies, hostIds, groupId, clock),
       fearlessRead,
       modeFacts,
+      tables.length >= 2 && options.readWatchers !== undefined
+        ? options.readWatchers()
+        : Promise.resolve(null),
     ]);
 
   const views: TableView[] = tables.flatMap((table) => {
@@ -186,7 +195,7 @@ export async function loadTonight(
   const drawnId = drawnLobbyId(drawn);
   const tape = night.tape.filter((entry) => entry.lobbyId !== drawnId);
 
-  return {
+  const snapshot: TonightSnapshot = {
     nightStart,
     nightLabel: options.nightLabel ?? formatNightLabel(options.nightStart, options.timeZone),
     nightClock: clock,
@@ -205,6 +214,7 @@ export async function loadTonight(
     hostNames: [],
     hostSeenRecently: true,
   };
+  return withWatchers(snapshot, watchers);
 }
 
 interface LobbyRow {

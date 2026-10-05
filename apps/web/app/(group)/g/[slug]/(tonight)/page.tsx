@@ -31,7 +31,6 @@ import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
 import { withSelection } from '@/lib/tonight/selection';
 import { loadSitOutPreviewOrNone, loadSitOutRuleOrNone } from '@/lib/tonight/sitOutPreview';
 import { hasNamelessRow, tonightHeader, tonightState } from '@/lib/tonight/state';
-import { withWatchers } from '@/lib/tonight/tables';
 import { viewerPuuid } from '@/lib/tonight/viewer';
 import { loadTableWatchersOrNone } from '@/lib/tonight/watchers';
 import { loadYourNightOrNone } from '@/lib/tonight/yourNight';
@@ -61,7 +60,10 @@ export const dynamic = 'force-dynamic';
 
 interface TonightPageProps {
   params: Promise<{ slug: string }>;
-  /** A no-JS mode or reset post comes back with `?notice=` / `?error=` (M14.30). */
+  /**
+   * A no-JS mode or reset post comes back with `?notice=` / `?error=` (M14.30); `?lobby=` picks the
+   * table to draw (M22.5).
+   */
   searchParams?: Promise<{
     notice?: string | string[];
     error?: string | string[];
@@ -119,12 +121,14 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
   const renderStart = Date.now();
   const [anonSnapshot, viewer, top, mystery, admins, hostPresence, liveVersion] = await Promise.all([
     // M22.5: `?lobby=` picks the table when it names a live one; the viewer's table comes after.
+    // Who watches each table is read only with two or more live, beside the night's second round.
     loadTonight(client, {
       nightStart: tonightStart(),
       timeZone,
       groupId: group.id,
       now,
       lobbyId: one(query.lobby),
+      readWatchers: () => loadTableWatchersOrNone(getServiceClient(), group.id, now),
     }),
     viewerRead,
     loadTopBoardCachedOrNone({
@@ -178,42 +182,29 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
         : null;
   const night = new Date(labelled.nightStart);
   const showsYourNight = viewer.kind === 'linked' && (state.kind === 'idle' || state.kind === 'result');
-  const [
-    passworded,
-    lobbyStart,
-    lastGame,
-    calibration,
-    wouldSitOut,
-    yourNight,
-    sitOutRule,
-    recap,
-    breakdown,
-    watchers,
-  ] = await Promise.all([
-    // The password only for a linked member of this group, read with the service role (M14.28).
-    withLobbyPassword(labelled, viewer, group.id, (lobbyId, groupId) =>
-      loadLobbyPassword(getServiceClient(), lobbyId, groupId),
-    ),
-    lobbyStartRead,
-    state.kind === 'idle' ? loadLastGameCachedOrNone(group.id) : Promise.resolve(undefined),
-    showsReceipt ? loadCalibrationOrNone(client, group.id) : Promise.resolve(null),
-    overTen === null ? Promise.resolve(null) : loadSitOutPreviewOrNone(overTen, group.id, timeZone),
-    showsYourNight && viewer.kind === 'linked'
-      ? loadYourNightOrNone(client, { groupId: group.id, nightStart: night, puuid: viewer.puuid })
-      : Promise.resolve(null),
-    sitOutLobby === null
-      ? Promise.resolve(null)
-      : loadSitOutRuleOrNone(sitOutLobby.id, group.id, timeZone, sitOutLobby.ten),
-    // M16.4: the finished game's AI recap (nothing for a group without Premium).
-    state.kind === 'result'
-      ? loadGameRecapOrNone(getServiceClient, { groupId: group.id, gameId: state.result.gameId, now })
-      : Promise.resolve(null),
-    // M14.58 / M14.59: the finished game's stored breakdown; a failure is null.
-    state.kind === 'result' ? loadGameBreakdownOrNone(client, state.result.gameId) : Promise.resolve(null),
-    // M22.5: who watches each table, only with two or more live (no request on a one-lobby night).
-    loadTableWatchersOrNone(getServiceClient(), labelled, group.id, now),
-  ]);
-  const snapshot = withWatchers(passworded, watchers);
+  const [snapshot, lobbyStart, lastGame, calibration, wouldSitOut, yourNight, sitOutRule, recap, breakdown] =
+    await Promise.all([
+      // The password only for a linked member of this group, read with the service role (M14.28).
+      withLobbyPassword(labelled, viewer, group.id, (lobbyId, groupId) =>
+        loadLobbyPassword(getServiceClient(), lobbyId, groupId),
+      ),
+      lobbyStartRead,
+      state.kind === 'idle' ? loadLastGameCachedOrNone(group.id) : Promise.resolve(undefined),
+      showsReceipt ? loadCalibrationOrNone(client, group.id) : Promise.resolve(null),
+      overTen === null ? Promise.resolve(null) : loadSitOutPreviewOrNone(overTen, group.id, timeZone),
+      showsYourNight && viewer.kind === 'linked'
+        ? loadYourNightOrNone(client, { groupId: group.id, nightStart: night, puuid: viewer.puuid })
+        : Promise.resolve(null),
+      sitOutLobby === null
+        ? Promise.resolve(null)
+        : loadSitOutRuleOrNone(sitOutLobby.id, group.id, timeZone, sitOutLobby.ten),
+      // M16.4: the finished game's AI recap (nothing for a group without Premium).
+      state.kind === 'result'
+        ? loadGameRecapOrNone(getServiceClient, { groupId: group.id, gameId: state.result.gameId, now })
+        : Promise.resolve(null),
+      // M14.58 / M14.59: the finished game's stored breakdown; a failure is null.
+      state.kind === 'result' ? loadGameBreakdownOrNone(client, state.result.gameId) : Promise.resolve(null),
+    ]);
   const lastNight = lastGame ? nightStart(new Date(lastGame.startedAt), timeZone) : null;
 
   return (
