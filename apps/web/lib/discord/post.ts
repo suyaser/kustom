@@ -11,7 +11,7 @@ import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook, LobbyStartedEven
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
 import { loadGroupMode } from '../mode/load';
 import { readLobbyLock } from '../mode/lock';
-import { readModeRow } from '../mode/state';
+import { modeTableOfLobby, readTableModeRow } from '../mode/table';
 import { type ClosedWindow, civilDayKey, DEFAULT_NIGHT_TIME_ZONE } from '../night';
 import { loadWeekNotes, weekFromParam } from '../og/weekNotesLoad';
 import { RECEIPT_ANCHOR } from '../receipt/copy';
@@ -225,7 +225,9 @@ async function regionLeftPending(
     .eq('id', lobbyId)
     .maybeSingle();
   if (error || lobby === null) return false;
-  const stored = await readModeRow(client, lobby.group_id);
+  // M22.4: the lobby's own card (group_modes unless the night is forked).
+  const table = await modeTableOfLobby(client, lobby.group_id, lobbyId, new Date());
+  const stored = await readTableModeRow(client, lobby.group_id, table);
   return (
     stored.row.pending?.id === 'region' &&
     stored.updatedAt !== null &&

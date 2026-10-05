@@ -61,17 +61,24 @@ export interface LiveLock {
   stored: StoredLock;
 }
 
-/** The group's newest `balanced` or `in_game` lobby that has a lock, or null. */
-export async function readLiveLock(client: ServiceClient, groupId: string): Promise<LiveLock | null> {
-  const { data, error } = await client
+/**
+ * The group's newest `balanced` or `in_game` lobby that has a lock, or null. With a party (M22.4,
+ * a forked night: the table's `ModeTable.partyId`) only that table's: "this game" is the table's
+ * newest lobby, never the group's. Null party: today's group-wide read.
+ */
+export async function readLiveLock(
+  client: ServiceClient,
+  groupId: string,
+  partyId: string | null = null,
+): Promise<LiveLock | null> {
+  let query = client
     .from('lobbies')
     .select(`id, status, ${LOCK_COLUMNS}`)
     .eq('group_id', groupId)
     .in('status', ['balanced', 'in_game'])
-    .not('lock_mode', 'is', null)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .not('lock_mode', 'is', null);
+  if (partyId !== null) query = query.eq('lcu_party_id', partyId);
+  const { data, error } = await query.order('updated_at', { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`mode: live lock read failed: ${error.message}`);
   if (data === null) return null;
   const stored = storedLockOf(data);
@@ -137,9 +144,11 @@ export async function writeLock(
     /** The card row, for a standing pick's `mode` (the night's mode, so the next Roll keeps it). */
     store: ModeStore;
     playerId: string;
+    /** The table's party on a forked night (M22.4); null: the group's live lock, as before. */
+    partyId?: string | null;
   },
 ): Promise<LockWriteResult> {
-  const live = await readLiveLock(client, input.groupId);
+  const live = await readLiveLock(client, input.groupId, input.partyId ?? null);
   if (live === null) return { ok: false, refusal: 'no-lock' };
   if (live.status !== 'balanced') return { ok: false, refusal: 'started' };
   const before = live.stored.lock;

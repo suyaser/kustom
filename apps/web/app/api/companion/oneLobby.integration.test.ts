@@ -266,7 +266,18 @@ if (stack === null) {
     const rolled = await post(party('rolled'), sided(anaTen), tokens.ana);
     await rollForTest(db, rolled.lobbyId);
     expect(await status(rolled.lobbyId)).toBe('balanced');
-    expect(await cardRow()).toMatchObject({ pending_rule: null, pending_region_blue: null });
+    // M22.4: Bo's finished B is still in play (his Kustom is in its walk back), so Ana's new custom
+    // is a second lobby with its own card, a copy of the group's (`lobby_modes`). Roll moves the
+    // copy's rule onto the lock; the group's card keeps its own.
+    const { data: fork } = await db
+      .from('lobby_modes')
+      .select('pending_rule, pending_region_blue')
+      .eq('group_id', groups.g)
+      .eq('lcu_party_id', party('rolled'))
+      .single();
+    expect(fork).toEqual({ pending_rule: null, pending_region_blue: null });
+    const { data: taken } = await db.from('lobbies').select('lock_rule').eq('id', rolled.lobbyId).single();
+    expect(taken).toEqual({ lock_rule: 'region' });
 
     const elsewhere = await post(party('elsewhere'), sided([ANA]), tokens.ana);
     expect(await status(rolled.lobbyId)).toBe('abandoned');

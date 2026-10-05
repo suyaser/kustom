@@ -9,7 +9,7 @@ import {
 import { parseGroupMode, ruleColumnsOf, ruleModeOf } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
 import { modeContext } from './context';
-import { readModeRow } from './state';
+import { type ModeTable, modeTableOfLobby, readTableModeRow } from './table';
 
 /**
  * This game: the lobby's lock (M20.7, `0047`; core's `ModeLock`). Roll **moves** the card's
@@ -107,7 +107,11 @@ async function takeOnto(
     const existing = await readLobbyLock(client, input.lobbyId);
     if (existing !== null) return { stored: existing, regions: null, wrote: false };
 
-    const { row } = await readModeRow(client, input.groupId);
+    // M22.4: the lobby's table's card (today's group_modes unless the night is forked). Resolved on
+    // every attempt: a fold between the read and the move answers `stale`, and the next read is
+    // group_modes. Wall clock, not an injected one: liveness is read against the rows' own times.
+    const table = await modeTableOfLobby(client, input.groupId, input.lobbyId, new Date());
+    const { row } = await readTableModeRow(client, input.groupId, table);
     const needsBans = row.pending?.id === 'region';
     const context = await modeContext(client, input.groupId, needsBans ? row.standing : 'normal', {
       ...(input.rng === undefined ? {} : { rng: input.rng }),
@@ -115,7 +119,7 @@ async function takeOnto(
       ...(input.bans === undefined ? {} : { bans: input.bans }),
     });
     const taken = take(row, context);
-    const answer = await callTake(client, input, row, taken.lock, Object.keys(taken.patch).length > 0);
+    const answer = await callTake(client, input, table, row, taken.lock, Object.keys(taken.patch).length > 0);
     if (answer === 'locked') {
       return {
         stored: (await readLobbyLock(client, input.lobbyId)) ?? { lock: taken.lock, lockedAt: null },
@@ -137,13 +141,14 @@ const nullable = <T>(value: T | null): T => value as T;
 async function callTake(
   client: ServiceClient,
   input: { lobbyId: string; groupId: string; statuses: readonly string[] },
+  table: ModeTable,
   row: ModeRow,
   lock: ModeLock,
   emptyRow: boolean,
 ): Promise<'locked' | 'stale' | 'exists'> {
   const read = row.pending === null ? null : ruleColumnsOf(row.pending);
   const locked = ruleColumnsOf(lock.mode);
-  const { data, error } = await client.rpc('mode_take', {
+  const args = {
     p_lobby_id: input.lobbyId,
     p_group_id: input.groupId,
     p_statuses: [...input.statuses],
@@ -160,7 +165,12 @@ async function callTake(
     p_lock_region_red: nullable(locked.regionRed),
     p_lock_rated: nullable(lock.rated),
     p_empty_row: emptyRow,
-  });
+  };
+  // A forked table (M22.4) moves from its own lobby_modes row; every other take is today's.
+  const { data, error } =
+    table.forked && table.partyId !== null
+      ? await client.rpc('mode_take_lobby', { ...args, p_party_id: table.partyId })
+      : await client.rpc('mode_take', args);
   if (error) throw new Error(`mode lock: take failed: ${error.message}`);
   if (data !== 'locked' && data !== 'stale' && data !== 'exists') {
     throw new Error(`mode lock: take answered ${String(data)}`);

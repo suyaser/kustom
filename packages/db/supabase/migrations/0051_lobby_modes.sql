@@ -15,12 +15,20 @@
 --                           group_modes (M19.13) where lobbies cannot be (0044). Public read of the
 --                           card columns, service role writes.
 --   lobbies_fork_mode       (trigger, after insert on lobbies) the fork: a row for a new table
---                           while another table of the group is live; a new table alone deletes a
---                           left-over row of its party (it reads group_modes). A new cycle of a live
---                           table (the previous row is live, or finished under 20 minutes ago)
---                           writes nothing. "Live" here is M22 D4 without the night boundary, over
---                           the last day: a stale lobby row can only cause a fork that the server's
---                           settle folds back, never a missing one.
+--                           while another table of the group is in play; a new table alone deletes
+--                           a left-over row of its party (it reads group_modes). A new cycle of a
+--                           live table (the previous row is live, or finished under 20 minutes ago)
+--                           writes nothing. **In play** is M22 D4's live narrowed by D7's watching:
+--                           a table `in_game`, or live (open, balanced, or finished under 20
+--                           minutes ago) with a token of the group seen in the last 10 minutes
+--                           (HOST_WINDOW_MS) whose current party it is, other than the inserting
+--                           reporter's own tokens (the trigger runs before the lobby route moves
+--                           that token's current party, and the table it is leaving is let go
+--                           right after, M22 D6). So one Kustom moving from a custom to a new one,
+--                           or a finished custom nobody's Kustom is in any more, never forks: one
+--                           lobby stays exactly today (M22 D2). Over the last day's rows, without
+--                           the night boundary: a stale row can only cause a fork that the server's
+--                           settle folds back.
 --   lobby_mode_fold         the fold: the row's pending rule, pair and Rated onto group_modes, then
 --                           the row deleted, in one transaction, unless the table's live row holds a
 --                           lock (then the lock's hand-back still has its row to go to; the server
@@ -28,8 +36,9 @@
 --   lobby_modes_settle      the server's settle (apps/web/lib/mode/table.ts), with the live parties
 --                           it read through liveTables: deletes the rows of ended tables (and any
 --                           row created before p_since, an earlier night's), never one under a
---                           minute old (a fork the server's read could not see yet); with exactly
---                           one live party, folds it. Answers the folded party or null.
+--                           minute old (a fork the server's read could not see yet); then folds
+--                           p_fold_party (the only table in play, or null). Answers the folded
+--                           party or null.
 --   mode_take_lobby         mode_take (0047) for a forked table: under the lobby_modes row lock
 --                           (and a share lock on group_modes for the standing mode), 'stale' when the
 --                           row is not what the server read or is gone (folded: the server re-reads
@@ -173,8 +182,12 @@ comment on function public.lobby_mode_fold(uuid, text) is
 revoke all on function public.lobby_mode_fold(uuid, text) from public, anon, authenticated;
 grant execute on function public.lobby_mode_fold(uuid, text) to service_role;
 
-create function public.lobby_modes_settle(p_group_id uuid, p_live_parties text[], p_since timestamptz)
-returns text
+create function public.lobby_modes_settle(
+  p_group_id uuid,
+  p_live_parties text[],
+  p_fold_party text,
+  p_since timestamptz
+) returns text
 language plpgsql
 set search_path = ''
 as $$
@@ -184,19 +197,18 @@ begin
     and ((not (lm.lcu_party_id = any (coalesce(p_live_parties, '{}'::text[])))
           and lm.created_at < now() - interval '1 minute')
       or (p_since is not null and lm.created_at < p_since));
-  if cardinality(coalesce(p_live_parties, '{}'::text[])) = 1
-     and public.lobby_mode_fold(p_group_id, p_live_parties[1]) then
-    return p_live_parties[1];
+  if p_fold_party is not null and public.lobby_mode_fold(p_group_id, p_fold_party) then
+    return p_fold_party;
   end if;
   return null;
 end;
 $$;
 
-comment on function public.lobby_modes_settle(uuid, text[], timestamptz) is
-  'M22.4 (0051): with the live parties the server read (liveTables), deletes the lobby_modes rows of ended tables (never one under a minute old) and any created before p_since; with exactly one live party, folds it (lobby_mode_fold). Answers the folded party or null. Service role only.';
+comment on function public.lobby_modes_settle(uuid, text[], text, timestamptz) is
+  'M22.4 (0051): with the live parties the server read (liveTables), deletes the lobby_modes rows of ended tables (never one under a minute old) and any created before p_since; then folds p_fold_party, the only table in play (lobby_mode_fold). Answers the folded party or null. Service role only.';
 
-revoke all on function public.lobby_modes_settle(uuid, text[], timestamptz) from public, anon, authenticated;
-grant execute on function public.lobby_modes_settle(uuid, text[], timestamptz) to service_role;
+revoke all on function public.lobby_modes_settle(uuid, text[], text, timestamptz) from public, anon, authenticated;
+grant execute on function public.lobby_modes_settle(uuid, text[], text, timestamptz) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- The fork
@@ -221,19 +233,28 @@ begin
     return null;
   end if;
 
-  -- A new table: forks while another table of the group is live; alone, it reads group_modes.
+  -- A new table: forks while another table of the group is in play; alone, it reads group_modes.
   if exists (
     select 1
     from (
-      select distinct on (l.lcu_party_id) l.status, l.updated_at
+      select distinct on (l.lcu_party_id) l.lcu_party_id, l.status, l.updated_at
       from public.lobbies l
       where l.group_id = new.group_id
         and l.lcu_party_id <> new.lcu_party_id
         and l.created_at > now() - interval '1 day'
       order by l.lcu_party_id, l.created_at desc, l.id desc
     ) newest
-    where newest.status in ('open', 'balanced', 'in_game')
-      or (newest.status = 'finished' and newest.updated_at > now() - interval '20 minutes')
+    where newest.status = 'in_game'
+      or ((newest.status in ('open', 'balanced')
+          or (newest.status = 'finished' and newest.updated_at > now() - interval '20 minutes'))
+        and exists (
+          select 1 from public.companion_tokens t
+          where t.group_id = new.group_id
+            and t.revoked_at is null
+            and t.last_seen_at > now() - interval '10 minutes'
+            and t.current_party_id = newest.lcu_party_id
+            and t.player_id is distinct from new.reported_by_player_id
+        ))
   ) then
     insert into public.lobby_modes as lm (group_id, lcu_party_id, pending_rule, pending_class_tag,
       pending_region_blue, pending_region_red, rated_override, pending_set_by)
@@ -258,7 +279,7 @@ end;
 $$;
 
 comment on function public.lobbies_fork_mode() is
-  'M22.4 (0051): after a lobbies insert that starts a new table (the party''s previous row is not live), copies group_modes'' pending rule, pair and Rated into the party''s lobby_modes row while another table of the group is live (the last day''s rows, M22 D4''s statuses and 20-minute linger), and otherwise deletes a left-over row of the party. A new cycle of a live table writes nothing. Security definer so every lobbies writer forks. Trigger only.';
+  'M22.4 (0051): after a lobbies insert that starts a new table (the party''s previous row is not live), copies group_modes'' pending rule, pair and Rated into the party''s lobby_modes row while another table of the group is in play (in_game, or live with a recently seen token of the group whose current party it is, not the reporter''s), and otherwise deletes a left-over row of the party. A new cycle of a live table writes nothing. Security definer so every lobbies writer forks. Trigger only.';
 
 revoke all on function public.lobbies_fork_mode() from public, anon, authenticated;
 

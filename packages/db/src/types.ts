@@ -1496,6 +1496,98 @@ export type Database = {
           },
         ]
       }
+      lobby_modes: {
+        Row: {
+          created_at: string
+          group_id: string
+          lcu_party_id: string
+          pending_class_tag: string | null
+          pending_region_blue: string | null
+          pending_region_red: string | null
+          pending_rule: string | null
+          pending_set_by: string | null
+          rated_override: boolean | null
+          set_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          lcu_party_id: string
+          pending_class_tag?: string | null
+          pending_region_blue?: string | null
+          pending_region_red?: string | null
+          pending_rule?: string | null
+          pending_set_by?: string | null
+          rated_override?: boolean | null
+          set_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          lcu_party_id?: string
+          pending_class_tag?: string | null
+          pending_region_blue?: string | null
+          pending_region_red?: string | null
+          pending_rule?: string | null
+          pending_set_by?: string | null
+          rated_override?: boolean | null
+          set_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lobby_modes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobby_modes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobby_modes_pending_rule_fkey"
+            columns: ["pending_rule"]
+            isOneToOne: false
+            referencedRelation: "modes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobby_modes_pending_set_by_fkey"
+            columns: ["pending_set_by"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobby_modes_pending_set_by_fkey"
+            columns: ["pending_set_by"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobby_modes_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lobby_modes_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "players_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       modes: {
         Row: {
           created_at: string
@@ -2079,11 +2171,37 @@ export type Database = {
       }
       current_player_id: { Args: never; Returns: string }
       is_group_admin: { Args: { p_group_id: string }; Returns: boolean }
+      lobby_mode_fold: {
+        Args: { p_group_id: string; p_party_id: string }
+        Returns: boolean
+      }
+      lobby_modes_settle: {
+        Args: {
+          p_fold_party: string
+          p_group_id: string
+          p_live_parties: string[]
+          p_since: string
+        }
+        Returns: string
+      }
       mode_hand_back: {
         Args: {
           p_class_tag: string
           p_group_id: string
           p_locked_at: string
+          p_rated: boolean
+          p_region_blue: string
+          p_region_red: string
+          p_rule: string
+        }
+        Returns: boolean
+      }
+      mode_hand_back_lobby: {
+        Args: {
+          p_class_tag: string
+          p_group_id: string
+          p_locked_at: string
+          p_party_id: string
           p_rated: boolean
           p_region_blue: string
           p_region_red: string
@@ -2102,6 +2220,28 @@ export type Database = {
           p_lock_region_blue: string
           p_lock_region_red: string
           p_lock_rule: string
+          p_read_class_tag: string
+          p_read_rated: boolean
+          p_read_region_blue: string
+          p_read_region_red: string
+          p_read_rule: string
+          p_read_standing: string
+          p_statuses: string[]
+        }
+        Returns: string
+      }
+      mode_take_lobby: {
+        Args: {
+          p_empty_row: boolean
+          p_group_id: string
+          p_lobby_id: string
+          p_lock_class_tag: string
+          p_lock_mode: string
+          p_lock_rated: boolean
+          p_lock_region_blue: string
+          p_lock_region_red: string
+          p_lock_rule: string
+          p_party_id: string
           p_read_class_tag: string
           p_read_rated: boolean
           p_read_region_blue: string
