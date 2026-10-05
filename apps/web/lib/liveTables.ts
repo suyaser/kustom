@@ -66,6 +66,10 @@ export interface LiveTable {
    * client lobby name. `hostPlayerId` does not move when a later cycle is first posted by someone else.
    */
   label: { hostPlayerId: string | null; lobbyName: string | null };
+  /** Every row of the party in the fold's input, oldest first (M22.7: which table a post's lobby row is). */
+  rowIds: string[];
+  /** ISO 8601: the party's oldest row in the fold's input, its first tonight (labels number by it). */
+  openedAt: string;
 }
 
 /**
@@ -158,7 +162,11 @@ export function foldLiveTables(
 ): LiveTable[] {
   const newestByParty = new Map<string, TableRow>();
   const firstReported = new Map<string, TableRow>();
+  const ownRows = new Map<string, TableRow[]>();
   for (const row of rows) {
+    const own = ownRows.get(row.lcuPartyId) ?? [];
+    own.push(row);
+    ownRows.set(row.lcuPartyId, own);
     const held = newestByParty.get(row.lcuPartyId);
     if (held === undefined || isNewer(row, held)) newestByParty.set(row.lcuPartyId, row);
     if (row.reportedByPlayerId === null) continue;
@@ -175,6 +183,9 @@ export function foldLiveTables(
     const moved =
       lobby.status === 'finished' && movedOn({ ...table, endedAt: lobby.updatedAt }, watchers, tokens, seats);
     if (!isTableLive(lobby, now, moved)) return [];
+    const own = [...(ownRows.get(lobby.lcuPartyId) ?? [lobby])].sort((a, b) =>
+      isNewer(a, b) ? 1 : isNewer(b, a) ? -1 : 0,
+    );
     return {
       partyId: lobby.lcuPartyId,
       lobby,
@@ -183,6 +194,8 @@ export function foldLiveTables(
         hostPlayerId: firstReported.get(lobby.lcuPartyId)?.reportedByPlayerId ?? null,
         lobbyName: lobby.lobbyName,
       },
+      rowIds: own.map((row) => row.id),
+      openedAt: own[0]?.createdAt ?? lobby.createdAt,
     };
   });
 }
