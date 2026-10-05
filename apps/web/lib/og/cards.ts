@@ -7,6 +7,7 @@ import {
   winLossParts,
 } from '../board/copy';
 import { formatMinutes } from '../games/duration';
+import { isRemake, REMAKE } from '../games/remake';
 import { joinButtonLabel, joinPitch } from '../groups/pageCopy';
 import { HERO_TITLE, PAGE_DESCRIPTION } from '../landing/copy';
 import { resultOdds, UPSET_SENTENCE } from '../receipt/copy';
@@ -67,8 +68,10 @@ export type TonightCardModel = TonightStripModel | TonightResultModel;
 
 /** The three-column body the game card and a finished Tonight card share. */
 export interface TeamsBody {
-  winner: 'blue' | 'red';
-  verdict: readonly [string, string];
+  /** `null` on a remake (05-design.md 15): no side is drawn as the winner. */
+  winner: 'blue' | 'red' | null;
+  /** `BLUE` / `WINS` on two lines, or `REMAKE` on one (the duration under it finishes the verdict). */
+  verdict: readonly string[];
   /** Five names a side in lane order, through `renderWebName`. No roles, ratings or champions. */
   blue: readonly string[];
   red: readonly string[];
@@ -137,6 +140,18 @@ export function gameCardModel(
   group: string,
 ): GameCardModel {
   const { result } = game;
+  // A remake names no winner (05-design.md 15): `REMAKE` over its minutes, no side, no note.
+  if (isRemake(result.durationS)) {
+    return {
+      group,
+      slug: game.nightLabel,
+      ...teamsBody(result),
+      winner: null,
+      verdict: [REMAKE.toUpperCase()],
+      duration: formatMinutes(result.durationS),
+      note: null,
+    };
+  }
   return {
     group,
     slug: game.nightLabel,

@@ -60,6 +60,16 @@ describe('gameCardModel', () => {
     for (const seat of [...fixture.result.blue, ...fixture.result.red]) expect(text).toContain(seat.name);
   });
 
+  it('a remake names no winner (05-design.md 15): REMAKE over its minutes, no side, no note', () => {
+    const fixture = game({ rated: false });
+    const model = gameCardModel({ ...fixture, result: { ...fixture.result, durationS: 245 } }, GROUP);
+    expect(model.verdict).toEqual(['REMAKE']);
+    expect(model.winner).toBeNull();
+    expect(model.duration).toBe('4 min');
+    expect(model.note).toBeNull();
+    expect(strings(model).join('\n')).not.toMatch(/WINS|won/);
+  });
+
   it('says BLUE WINS for a blue win', () => {
     const model = gameCardModel(game({ winningSide: 100 }), GROUP);
     expect(model.verdict.join(' ')).toBe('BLUE WINS');

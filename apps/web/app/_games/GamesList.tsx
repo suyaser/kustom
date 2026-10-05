@@ -205,7 +205,7 @@ export function GameRow({ item, href }: { item: GameListItem; href: string }) {
           <span className="text-sm text-muted-foreground">{item.ruleNote}</span>
         )}
         {item.lines.map((line) => (
-          <RowLine key={line.who} line={line} aram={item.aram} />
+          <RowLine key={line.who} line={line} aram={item.aram} remake={item.remake} />
         ))}
       </EntityLink>
     </li>
@@ -246,7 +246,7 @@ function RowOdds({ item }: { item: GameListItem }) {
  * The viewer's (or the filtered player's) own game, on two lines (design round 1): who and the
  * rating change first, then champion · role · KDA · result.
  */
-function RowLine({ line, aram }: { line: GameRowLine; aram: boolean }) {
+function RowLine({ line, aram, remake }: { line: GameRowLine; aram: boolean; remake: boolean }) {
   const parts = [line.champion, line.role].filter((part): part is string => part !== null);
   return (
     <span className="flex flex-col gap-0.5 text-sm">
@@ -263,7 +263,8 @@ function RowLine({ line, aram }: { line: GameRowLine; aram: boolean }) {
       <span className="flex flex-wrap items-center gap-x-1.5 text-muted-foreground">
         {parts.length === 0 ? null : <span>{parts.join(' · ')}</span>}
         <span className="num text-foreground">{line.kda}</span>
-        <span>· {line.won ? WON_TAG : LOST}</span>
+        {/* A remake names no winner (05-design.md 15). */}
+        {remake ? null : <span>· {line.won ? WON_TAG : LOST}</span>}
       </span>
     </span>
   );

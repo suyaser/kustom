@@ -283,7 +283,7 @@ function SideColumn({
 
 /** The mirrored three columns: Blue's five, the verdict and what goes under it, Red's five. */
 function Teams({ body, children }: { body: TeamsBody; children: ReactNode }) {
-  const winColor = body.winner === 'blue' ? P.blue : P.red;
+  const winColor = body.winner === null ? P.text : body.winner === 'blue' ? P.blue : P.red;
   return (
     <div style={{ display: 'flex', width: '100%', alignItems: 'stretch' }}>
       <SideColumn
@@ -302,8 +302,15 @@ function Teams({ body, children }: { body: TeamsBody; children: ReactNode }) {
           flex: 1,
         }}
       >
-        <div style={display(144, winColor)}>{body.verdict[0]}</div>
-        <div style={display(144, winColor)}>{body.verdict[1]}</div>
+        {body.verdict.map((line) => {
+          // `REMAKE` is wider than `BLUE` / `WINS`: set at the largest size the centre holds.
+          const fit = fitSize(line, 'display', CENTRE_WIDTH, 144, 72, -0.01);
+          return (
+            <div key={line} style={{ ...display(fit.size, winColor), ...fitted(fit.fits) }}>
+              {line}
+            </div>
+          );
+        })}
         {children}
       </div>
       <SideColumn label="RED" names={body.red} color={P.red} won={body.winner === 'red'} mirrored />

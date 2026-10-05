@@ -118,8 +118,19 @@ export function GameDetail({
             <h2 id="scoreboard-title" className="text-lg leading-tight font-bold">
               {SCOREBOARD_LABEL}
             </h2>
-            <TeamCard team={game.blue} aram={game.aram} group={group} breakdown={breakdown} />
-            <TeamCard team={game.red} aram={game.aram} group={group} breakdown={breakdown} />
+            {/* A remake names no winner (05-design.md 15): neither team carries the Won tag. */}
+            <TeamCard
+              team={game.remake ? { ...game.blue, won: false } : game.blue}
+              aram={game.aram}
+              group={group}
+              breakdown={breakdown}
+            />
+            <TeamCard
+              team={game.remake ? { ...game.red, won: false } : game.red}
+              aram={game.aram}
+              group={group}
+              breakdown={breakdown}
+            />
             {afterScoreboard}
           </section>
         </div>

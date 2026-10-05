@@ -109,6 +109,7 @@ describe('GameDetail', () => {
     expect(screen.queryByText('How the bot decided')).toBeNull();
     expect(screen.getByRole('region', { name: 'Scoreboard' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Blue team' })).toBeInTheDocument();
+    expect(screen.queryByText('Won')).toBeNull();
   });
 
   it('a game that ended early says so (M23.1)', () => {

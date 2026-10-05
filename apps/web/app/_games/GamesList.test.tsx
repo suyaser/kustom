@@ -123,14 +123,31 @@ describe('GamesList', () => {
     const { container } = render(
       <GamesList
         view={view({
-          items: [item({ remake: true, durationLabel: '4 min' })],
+          items: [
+            item({
+              remake: true,
+              durationLabel: '4 min',
+              lines: [
+                {
+                  who: 'you',
+                  name: 'Lena',
+                  champion: 'Ahri',
+                  role: 'mid',
+                  kda: '0/0/0',
+                  won: true,
+                  delta: null,
+                },
+              ],
+            }),
+          ],
         })}
         base={BASE}
       />,
     );
     const row = screen.getByRole('link', { name: /Remake/ });
     expect(row).toHaveAttribute('href', `${BASE}/game-1`);
-    expect(row.textContent).not.toMatch(/won|was \d+%|50–50/);
+    expect(row.textContent).not.toMatch(/won|lost|was \d+%|50–50/i);
+    expect(within(row).getByText('0/0/0')).toBeInTheDocument();
     expect(container.querySelector('li svg')).toBeNull();
   });
 
