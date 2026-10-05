@@ -2,10 +2,13 @@ import {
   type ChampionTable,
   CLASS_TAGS,
   classPool,
+  drawableRegions,
   type ModeLock,
   type ModeRow,
+  pairDrawable,
   RULE_OPTIONS,
   type RuleOption,
+  regionOpenCounts,
   ruleKey,
   rulePlayable,
 } from '@customs/core';
@@ -17,14 +20,19 @@ import {
   type ClassFacts,
   type ModeCardView,
   modeCardViewFrom,
+  type RegionFacts,
+  type RegionOpen,
+  regionPairKey,
   tooFewFrom,
   type UnplayableRules,
 } from './cardView';
+import { regionIds } from './champions';
 
 export {
   type ClassFacts,
   type ModeCardView,
   modeCardViewFrom,
+  type RegionFacts,
   selectValue,
   showsFearlessPool,
   type UnplayableRules,
@@ -94,6 +102,26 @@ export function unplayableRules(bans: readonly number[], table: ChampionTable): 
   const keys = (counted: readonly number[]) =>
     RULE_OPTIONS.filter((rule: RuleOption) => !rulePlayable(rule, table, counted)).map(ruleKey);
   return { banned: keys(bans), all: keys([]) };
+}
+
+/**
+ * Region wars' draw rule with `bans` and with none (M20.10): the regions with at least 8 open, and
+ * the pairs of those that fail the union rule. Core's `drawableRegions` and `pairDrawable` over the
+ * route's region list, so the card's `(too few open)` options and its short-pair line are the
+ * route's check. 13 regions, 78 pairs, per render.
+ */
+export function regionFacts(bans: readonly number[], table: ChampionTable): RegionFacts {
+  const of = (counted: readonly number[]): RegionOpen => {
+    const open = drawableRegions(regionOpenCounts(table, counted), regionIds());
+    const shortPairs: string[] = [];
+    for (const [i, a] of open.entries()) {
+      for (const b of open.slice(i + 1)) {
+        if (!pairDrawable(a, b, table, counted)) shortPairs.push(regionPairKey(a, b));
+      }
+    }
+    return { open, shortPairs };
+  };
+  return { banned: of(bans), all: of([]) };
 }
 
 /**

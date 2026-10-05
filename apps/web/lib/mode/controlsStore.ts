@@ -14,7 +14,10 @@ import { useCallback, useSyncExternalStore } from 'react';
  * Spin's quiet time and the outcome line all survive the move. No names, no ids.
  */
 
-export type ControlsWrite = 'mode' | 'spin' | 'rated';
+/** A region control's write (M20.10): which control, on which game's pair. */
+export type RegionWrite = `${'redraw' | 'blue' | 'red'}-${'next' | 'this'}`;
+
+export type ControlsWrite = 'mode' | 'spin' | 'rated' | RegionWrite;
 
 export interface ControlsState {
   /** The select's unsaved choice, or null to follow the card. */

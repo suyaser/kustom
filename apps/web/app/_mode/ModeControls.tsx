@@ -33,7 +33,8 @@ import {
   fearlessResetBody,
 } from '@/lib/fearless/copy';
 import { applyModeRow, beginOptimistic, endOptimistic, type ModeOptimistic } from '@/lib/mode/clientStore';
-import { type ControlsWrite, controlsOf, useControls } from '@/lib/mode/controlsStore';
+import type { RegionTarget } from '@/lib/mode/cardView';
+import { type ControlsWrite, controlsOf, type RegionWrite, useControls } from '@/lib/mode/controlsStore';
 import {
   MODE_ADMIN_EYEBROW,
   MODE_APPLIES_NEXT_GAME,
@@ -49,6 +50,7 @@ import {
 import {
   OPTGROUP_CLASS,
   OPTGROUP_MIRROR,
+  NEXT_GAME_HEADING,
   OPTGROUP_REGION,
   optionLabel,
   RATED_LABEL,
@@ -57,12 +59,14 @@ import {
   ruleSentence,
   SPIN,
   SPINNING,
+  THIS_GAME_HEADING,
   TOO_FEW_OPEN,
 } from '@/lib/mode/ruleCopy';
 import { NOTHING_TO_SPIN, RULE_TOO_FEW_OPEN } from '@/lib/mode/ruleNotices';
 import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { beginTonightPress, requestTonightRefresh } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
+import { type RegionChange, RegionControls } from './RegionControls';
 
 const MODE_ACTION = '/api/admin/mode';
 const RESET_ACTION = '/api/admin/fearless/reset';
@@ -132,6 +136,13 @@ export interface ModeControlsProps {
   /** A no-JS post's outcome, carried back in `?notice=` / `?error=`. */
   notice?: string | null | undefined;
   error?: string | null | undefined;
+  /**
+   * M20.10: the region pairs an admin may still change (`regionTargets`): this game's while the
+   * lobby is balanced, the next game's while region wars is pending. Absent: none.
+   */
+  regions?: { this: RegionTarget | null; next: RegionTarget | null } | undefined;
+  /** The card's status already shows the next game's pair and its short-pair line (before Roll). */
+  statusShowsNext?: boolean | undefined;
 }
 
 export function ModeControls({
@@ -147,6 +158,8 @@ export function ModeControls({
   nextLine = null,
   notice,
   error,
+  regions,
+  statusShowsNext = false,
 }: ModeControlsProps) {
   const selectId = useId();
   const sentenceId = useId();
@@ -187,7 +200,7 @@ export function ModeControls({
     optimistic: ModeOptimistic | null = null,
   ): Promise<
     | { ok: true; spun: RuleOption | null; state: ModeRowState | null; notice: string | null }
-    | { ok: false; status: number }
+    | { ok: false; status: number; error: string | null }
   > {
     const token = optimistic === null ? null : beginOptimistic(groupId, optimistic);
     const done = () => {
@@ -200,8 +213,14 @@ export function ModeControls({
         body: JSON.stringify({ groupId, ...body }),
       });
       if (!response.ok) {
+        // A 409 carries M20.1's words for the refusal; nothing else is shown as is.
+        const body: unknown = response.status === 409 ? await response.json().catch(() => null) : null;
+        const error =
+          typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string'
+            ? body.error
+            : null;
         done();
-        return { ok: false, status: response.status };
+        return { ok: false, status: response.status, error };
       }
       const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
       if (!parsed.success) {
@@ -219,7 +238,7 @@ export function ModeControls({
       return { ok: true, spun: spun === undefined ? null : ruleOptionOf(spun), state, notice };
     } catch {
       done();
-      return { ok: false, status: 0 };
+      return { ok: false, status: 0, error: null };
     }
   }
 
@@ -281,6 +300,24 @@ export function ModeControls({
     dispatch({ type: 'answered', said: result.notice });
   }
 
+  /**
+   * M20.10: a region pair's Redraw or side change, on the next game (the row: the answer's `state`
+   * is the card at once) or this game (the lock: the page re-reads it now; the route's `group_live`
+   * bump re-reads every other page). The outcome line is the route's notice, a refusal its 409.
+   */
+  async function changeRegions(target: RegionTarget, change: RegionChange): Promise<boolean> {
+    const control = 'redraw' in change ? 'redraw' : change.side;
+    if (!begin(`${control}-${target.game}`)) return false;
+    const result = await post({ ...change, game: target.game });
+    if (!result.ok) {
+      dispatch({ type: 'refused', failed: result.error ?? MODE_CHANGE_FAILED });
+      return false;
+    }
+    dispatch({ type: 'answered', said: result.notice });
+    if (target.game === 'this') void requestTonightRefresh();
+    return true;
+  }
+
   // `Setting…` stays up until the route confirms (M19.13: the card already shows the tap), then goes.
   const showSet = !hydrated || choice !== current || pending === 'mode';
   const spinBusy = pending === 'spin' || controls.spinUntil !== null;
@@ -300,9 +337,27 @@ export function ModeControls({
     );
   };
 
+  const regionPending = pending !== null && pending.includes('-') ? (pending as RegionWrite) : null;
+  const regionControls = (target: RegionTarget | null | undefined) =>
+    target == null ? null : (
+      <RegionControls
+        target={target}
+        groupId={groupId}
+        redirectTo={redirectTo}
+        // After Roll the foot can hold two pairs (and the picker is the next game's): each says which.
+        heading={inGame ? (target.game === 'this' ? THIS_GAME_HEADING : NEXT_GAME_HEADING) : null}
+        showShort={target.game === 'next' && !statusShowsNext}
+        pending={regionPending}
+        hydrated={hydrated}
+        onChange={changeRegions}
+      />
+    );
+
   return (
     <div className="flex flex-col gap-3 border-t border-border bg-raised/45 px-(--card-pad) py-4">
       <p className="font-mono text-2xs text-muted-foreground">{MODE_ADMIN_EYEBROW}</p>
+      {/* This game's pair first: it is what the status above shows (M20.10). */}
+      {regionControls(regions?.this)}
       {afterRoll ? <p className="text-sm text-muted-foreground">{MODE_APPLIES_NEXT_GAME}</p> : null}
       {nextLine === null ? null : <p className="text-sm font-bold">{nextLine}</p>}
       <form
@@ -356,6 +411,7 @@ export function ModeControls({
           {sentence}
         </p>
       </form>
+      {regionControls(regions?.next)}
       <form
         id={`${selectId}-spin`}
         method="post"

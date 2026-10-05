@@ -11,6 +11,7 @@ import { noKustomRunningLine } from '@/lib/lobbyStartCopy';
 import {
   classFacts,
   modeCardView,
+  regionFacts,
   selectValue,
   showsFearlessPool,
   tooFewOpen,
@@ -223,6 +224,7 @@ export function TonightView(props: TonightViewProps) {
     lobbyId: snapshot.lobby?.id ?? null,
     classFacts: classFacts(bans, table),
     unplayable: unplayableRules(bans, table),
+    regions: regionFacts(bans, table),
     normalFacts: normalNoteFactsOf(snapshot),
     readFailed: snapshot.modeReadFailed === true,
   };
