@@ -220,3 +220,77 @@ export function normalNote(
   const laterGame = facts.lastResultAt !== null && facts.lastResultAt > since;
   return !laterGame && !facts.finishedNow;
 }
+
+/**
+ * Region wars' draw rule under one set of bans, as the server computed it (M20.10, M20 D2): the
+ * regions with at least 8 open (`open`, the side selects' enabled options; every other region is
+ * `(too few open)`), and the pairs of two such regions that still fail the union rule
+ * (`shortPairs`, keys from {@link regionPairKey}). Core's `drawableRegions` and `pairDrawable`
+ * over the champion table, the same check the route makes, so the card can answer it for any pair
+ * it hears after the render without the table.
+ */
+export interface RegionOpen {
+  open: readonly string[];
+  shortPairs: readonly string[];
+}
+
+/** Per set of bans, as {@link UnplayableRules}: tonight's Fearless bans, and none. */
+export interface RegionFacts {
+  banned: RegionOpen;
+  all: RegionOpen;
+}
+
+/** An unordered pair's key: `ionia|noxus` for either order. */
+export function regionPairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/** The facts for a game of standing mode `standing`: bans count only under Fearless (core's rule). */
+export function regionOpenFor(standing: StandingModeId, facts: RegionFacts, poolCleared = false): RegionOpen {
+  return standing === 'fearless' && !poolCleared ? facts.banned : facts.all;
+}
+
+/** Whether `pair` passes the draw rule (core's `pairDrawable`) under `open`. */
+export function regionPairPasses(pair: { blue: string; red: string }, open: RegionOpen): boolean {
+  return (
+    pair.blue !== pair.red &&
+    open.open.includes(pair.blue) &&
+    open.open.includes(pair.red) &&
+    !open.shortPairs.includes(regionPairKey(pair.blue, pair.red))
+  );
+}
+
+/** One region pair the admin foot can change: which game, the pair, and the rule it is held to. */
+export interface RegionTarget {
+  game: 'next' | 'this';
+  blue: string;
+  red: string;
+  /** Regions with at least 8 open for that game (the others are `(too few open)`). */
+  open: readonly string[];
+  /** The pair fails the draw rule now (bans grew after it was drawn, M20 D11). */
+  short: boolean;
+}
+
+/**
+ * The region pairs on the card that an admin may still change (M20.10, M20 D9): the next game's
+ * (the row's, whenever region wars is pending, in any lobby state: a game in progress does not
+ * freeze it) and this game's (the lock's, only while the lobby is `balanced`; frozen once in game).
+ */
+export function regionTargets(input: {
+  row: ModeRow;
+  lobbyStatus: LobbyStatusValue | null;
+  lock: ModeLock | null;
+  facts: RegionFacts;
+  poolCleared?: boolean | undefined;
+}): { this: RegionTarget | null; next: RegionTarget | null } {
+  const target = (game: 'next' | 'this', mode: Mode, standing: StandingModeId): RegionTarget | null => {
+    if (mode.id !== 'region') return null;
+    const open = regionOpenFor(standing, input.facts, input.poolCleared === true);
+    return { game, blue: mode.blue, red: mode.red, open: open.open, short: !regionPairPasses(mode, open) };
+  };
+  const lock = input.lock;
+  return {
+    this: input.lobbyStatus === 'balanced' && lock !== null ? target('this', lock.mode, lock.standing) : null,
+    next: input.row.pending === null ? null : target('next', input.row.pending, input.row.standing),
+  };
+}

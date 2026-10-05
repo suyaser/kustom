@@ -1,5 +1,6 @@
 import { pairDrawable, regionOpenCounts } from '@customs/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { regionWord } from '@/lib/discord/modeLines';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { descriptionOf, modeNight, seededRng, sequenceRng, stackWithModes } from '@/lib/testing/modeNight';
 
@@ -382,9 +383,12 @@ if (stack === null) {
       expect(redrawn.notice).toMatch(
         /^New regions: .+ vs .+\. Picks already made stay, and the check uses the new regions\.$/,
       );
-      // The teams post went again, naming the new pair.
+      // The teams post went again, naming the new pair under M20.1's `new regions` line (M20.10).
       expect(night.posts).toHaveLength(1);
-      expect(descriptionOf(night.posts[0])).toContain('This game: region wars.');
+      expect(descriptionOf(night.posts[0])).toContain('This game: region wars, new regions.');
+      expect(descriptionOf(night.posts[0])).toContain(
+        `Blue picks from ${regionWord(lock.lock_region_blue ?? '')}, Red from ${regionWord(lock.lock_region_red ?? '')}.`,
+      );
 
       const gameId = await night.startGame(partyId);
       const body = await night.eogFor(lobbyId, partyId, gameId, [103, 157, 39, 43, 98, 22, 113, 201, 1, 266]);

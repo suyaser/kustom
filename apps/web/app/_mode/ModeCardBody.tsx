@@ -27,6 +27,8 @@ import {
   modeCardViewFrom,
   type NormalNoteFacts,
   normalNote,
+  type RegionFacts,
+  regionTargets,
   selectValue,
   showsFearlessPool,
   tooFewFrom,
@@ -52,8 +54,10 @@ import {
   modeName,
   oneGameLine,
   REGION_DIDNT_APPLY,
+  REGION_PAIR_SHORT,
   REGION_VS,
   ruleAction,
+  ruleSentence,
 } from '@/lib/mode/ruleCopy';
 import { ruleLabel } from '@/lib/mode/ruleNotices';
 import { cn } from '@/lib/utils';
@@ -100,6 +104,8 @@ export interface ModeCardLive {
   lobbyId?: string | null | undefined;
   classFacts: ClassFacts;
   unplayable: UnplayableRules;
+  /** M20.10: region wars' draw rule with tonight's bans and with none (`regionFacts`). */
+  regions: RegionFacts;
   normalFacts: NormalNoteFacts;
   /** The render's `group_modes` read failed: `slice` is a stand-in (keep the last good one). */
   readFailed?: boolean | undefined;
@@ -118,7 +124,7 @@ export interface ModeCardBodyProps {
   /** Finished: the ten this game added (rendered on the server) and whether it banned nothing. */
   bannedNext: { count: number; notRated: boolean; node: ReactNode } | null;
   normalJustNow: boolean;
-  controls: Omit<ModeControlsProps, 'mode' | 'banned' | 'groupId' | 'resetConfirmHref' | 'nextLine'> | null;
+  controls: Omit<ModeControlsProps, 'mode' | 'banned' | 'groupId' | 'resetConfirmHref'> | null;
   live: ModeCardLive | null;
 }
 
@@ -163,6 +169,19 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           // which Roll and the hand-backs move too.
           since: merged.normalSince,
         });
+  // M20.10: the region pairs still open to change, and whether the next game's went short (D11).
+  const targets =
+    live === null
+      ? { this: null, next: null }
+      : regionTargets({
+          row: merged.row,
+          lobbyStatus: live.lobbyStatus,
+          lock: live.lock,
+          facts: live.regions,
+          poolCleared,
+        });
+  // Under the status, for everyone, while the status is the next game's pair (before Roll).
+  const pairShort = !view.locked && view.shown.id === 'region' && targets.next?.short === true;
   // A failed read hides the controls: nobody sets a mode from a picture the page could not read.
   let controls = readFailed ? null : props.controls;
   if (controls !== null && live !== null) {
@@ -174,6 +193,8 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       selected: selectValue(merged.row),
       tooFew: tooFewFrom(merged.row, live.unplayable, poolCleared),
       nextRated: nextRated(merged.row),
+      regions: targets,
+      statusShowsNext: !view.locked,
     };
   }
 
@@ -217,7 +238,14 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           : mirrorPool
             ? FEARLESS_IN_GAME_MIRROR
             : null;
-  const oneGame = rule && inGameLine === null && banLine === null ? oneGameLine(view.standing) : null;
+  // Before Roll the card is the next game's, so its one-game line says so, as the picker's sentence
+  // does (M20.10 design round 1); `This game only.` once the lobby has locked it.
+  const oneGame =
+    rule && inGameLine === null && banLine === null
+      ? view.locked
+        ? oneGameLine(view.standing)
+        : ruleSentence(view.standing)
+      : null;
   // The panel is one tap away: warm the connection to the sprites wherever a pool shows. The
   // sheets themselves load on intent, from the links (M14.45): the card's ten are their own squares.
   const pooled = poolOn || shown.id === 'class' || regions !== null;
@@ -309,6 +337,11 @@ export function ModeCardBody(props: ModeCardBodyProps) {
               <span className="text-md font-bold">{mirrorStatus(null)}</span>
             )}
           </SpinReveal>
+          {pairShort ? (
+            <span data-spin-hide="" data-slot="mode-pair-short" className="text-sm font-bold">
+              {REGION_PAIR_SHORT}
+            </span>
+          ) : null}
           {laneLine !== null && seatedLane !== null ? (
             <span data-spin-hide="" className="flex flex-wrap items-center gap-x-2 text-sm">
               <RoleIcon role={seatedLane} size={20} />
@@ -365,7 +398,6 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           groupId={group.id}
           mode={view.standing}
           banned={counts.banned}
-          nextLine={view.nextLine}
           resetConfirmHref={modeResetConfirmHref(group)}
         />
       )}

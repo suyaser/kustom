@@ -52,14 +52,15 @@ describe('the card per state, class wars', () => {
     expect(c.getByRole('heading', { name: 'Class wars' })).toBeInTheDocument();
     expect(c.getByText('Not rated')).toBeInTheDocument();
     expect(card().textContent).toMatch(/Tanks only · \d+ open/);
-    expect(c.getByText('This game only. Then back to Fearless.')).toBeInTheDocument();
+    // Before Roll the card is the next game's (M20.10 design round 1).
+    expect(c.getByText('For the next game only. Then back to Fearless.')).toBeInTheDocument();
     expect(c.getByRole('link', { name: /See the tanks/ })).toHaveAttribute('href', '/g/customs/mode');
   });
 
   it('under standing Normal the status has no count', () => {
     draw('idle', { rule: 'class:Tank', mode: 'normal' });
     expect(within(card()).getByText('Tanks only')).toBeInTheDocument();
-    expect(within(card()).getByText('This game only. Then back to Normal.')).toBeInTheDocument();
+    expect(within(card()).getByText('For the next game only. Then back to Normal.')).toBeInTheDocument();
   });
 
   it('filling: lane tiles with the class count per lane', () => {
@@ -358,11 +359,12 @@ describe('M15.15: a not-rated game never promises bans', () => {
 });
 
 describe('who gets controls', () => {
-  it('admins get the select, Spin and Rated; after Roll, the next game line; members and visitors none', async () => {
+  it('admins get the select, Spin and Rated; after Roll, the Next game picker; members and visitors none', async () => {
     const admin = draw('in-game', { rule: 'class:Tank', queued: 'class:Mage' }, ADMIN_VIEWER);
     expect(await screen.findByRole('button', { name: 'Spin' })).toBeInTheDocument();
-    expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ })).toHaveValue('class:Mage');
+    // 05-design 8.3.1: the picker says it; no bold `Next game: …` line in the foot.
+    expect(screen.getByRole('combobox', { name: 'Next game' })).toHaveValue('class:Mage');
+    expect(screen.getByText('Changes apply from the next game.')).toBeInTheDocument();
     admin.unmount();
     for (const viewer of [MEMBER_VIEWER, ANON_VIEWER]) {
       const other = draw('idle', { rule: 'class:Tank' }, viewer);

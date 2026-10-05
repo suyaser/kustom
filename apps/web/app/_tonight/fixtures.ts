@@ -403,7 +403,7 @@ export interface TonightFixtureOptions {
   rule?: string | undefined;
   /** M15.5: the Rated switch (`true` / `false`), else the mode's default. */
   rated?: boolean | undefined;
-  /** M15.5: a rule queued after Roll (`Next game: Mages only.`). */
+  /** M15.5: a rule queued after Roll (`Next game: Mages only.`); region wars as Shurima vs Zaun (M20.10). */
   queued?: string | undefined;
   /** M15.5: region wars could not be drawn at Roll; the lobby locked the standing mode. */
   noDraw?: boolean | undefined;
@@ -477,7 +477,10 @@ export function tonightStateFixture(
       ? null
       : live
         ? queued !== null
-          ? pendingOf(queued)
+          ? // M20.10: a region pair queued after Roll is its own draw, not this game's.
+            queued.id === 'region'
+            ? ({ id: 'region', blue: 'shurima', red: 'zaun' } as PendingRule)
+            : pendingOf(queued)
           : noDraw
             ? pendingOf(rule)
             : null

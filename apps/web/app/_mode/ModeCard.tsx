@@ -61,10 +61,7 @@ export interface ModeCardProps {
   /** Members: the group switched to Normal tonight and no game has landed since. */
   normalJustNow?: boolean | undefined;
   /** Admins and the owner only: drawn from the session on the server. */
-  controls?:
-    | Omit<ModeControlsProps, 'mode' | 'banned' | 'groupId' | 'resetConfirmHref' | 'nextLine'>
-    | null
-    | undefined;
+  controls?: Omit<ModeControlsProps, 'mode' | 'banned' | 'groupId' | 'resetConfirmHref'> | null | undefined;
   /**
    * M19.13: the facts the client mode store needs to render the card for a state it hears after
    * this render (Tonight). Absent: the card is `view` as given, never patched.

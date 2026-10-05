@@ -297,7 +297,10 @@ async function repostTeams(context: AdminContext, lobbyId: string): Promise<void
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (data !== null)
-      await postTeamsForSplit(context.client, data.id, { requestOrigin: siteOrigin(context.request) });
+      await postTeamsForSplit(context.client, data.id, {
+        requestOrigin: siteOrigin(context.request),
+        newRegions: true,
+      });
   } catch (error) {
     console.error(`mode: reposting the teams for lobby ${lobbyId} failed; the new regions stand`, error);
   }

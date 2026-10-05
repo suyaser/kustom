@@ -1,4 +1,4 @@
-import type { Mode } from '@customs/core';
+import { type Mode, regionPool } from '@customs/core';
 import { notFound } from 'next/navigation';
 import { PageGroupProvider } from '@/app/_shell/PageGroup';
 import {
@@ -12,6 +12,7 @@ import { TonightView } from '@/app/_tonight/TonightView';
 import { AiRecap } from '@/components/ai/AiRecap';
 import { Shell } from '@/components/shell/Shell';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
+import { championTable } from '@/lib/mode/champions';
 import { displayDelta } from '@/lib/ratingDisplay';
 import { KUSTOM_KIT_ROSTER, withWorkedRoster } from '@/lib/testing/workedExample';
 import { tonightHeader, tonightState } from '@/lib/tonight/state';
@@ -109,6 +110,8 @@ export default async function KitTonightPage({
     tape?: string;
     host?: string;
     scale?: string;
+    pair?: string;
+    banregion?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -129,6 +132,8 @@ export default async function KitTonightPage({
     tape,
     host,
     scale,
+    pair,
+    banregion,
   } = await searchParams;
   if (!(TONIGHT_STATES as readonly string[]).includes(state)) notFound();
 
@@ -170,7 +175,10 @@ export default async function KitTonightPage({
           },
         }
       : taped;
-  const shown = kitViewer(viewer, fixture);
+  // M20.10: `?pair=ixtal,noxus` is the next game's region pair (with `?rule=region`), and
+  // `?banregion=ixtal` adds every champion of a region to the Fearless pool, so the pair can run short.
+  const paired = withPairAndBans(fixture, pair, banregion);
+  const shown = kitViewer(viewer, paired);
   const group = ORIGINAL_GROUP;
   const live = tonightHeader(tonightState(fixture.snapshot)).live;
 
@@ -182,7 +190,7 @@ export default async function KitTonightPage({
         account={shown.kind === 'anonymous' ? 'anonymous' : 'signed-in'}
       >
         <TonightView
-          {...fixture}
+          {...paired}
           // M15.5: `?night=notrated`, a night of not-rated Rift games only (Your night's not-rated line).
           {...(night === 'notrated'
             ? {
@@ -206,4 +214,30 @@ export default async function KitTonightPage({
       </Shell>
     </PageGroupProvider>
   );
+}
+
+/** The kit's `?pair=` and `?banregion=` (M20.10): the next game's pair and a region all banned. */
+function withPairAndBans(
+  fixture: TonightStateFixture,
+  pair: string | undefined,
+  banregion: string | undefined,
+): TonightStateFixture {
+  const [blue, red] = (pair ?? '').split(',');
+  const row = fixture.snapshot.modeRow;
+  const modeRow =
+    row !== undefined && row.pending?.id === 'region' && blue && red
+      ? { ...row, pending: { id: 'region' as const, blue, red } }
+      : row;
+  const banned = banregion === undefined ? [] : regionPool(banregion, championTable());
+  const fearless =
+    banned.length === 0
+      ? fixture.snapshot.fearless
+      : {
+          ...fixture.snapshot.fearless,
+          champions: [
+            ...fixture.snapshot.fearless.champions.filter((c) => !banned.includes(c.id)),
+            ...banned.map((id) => ({ id, name: `Champion ${id}`, role: null })),
+          ],
+        };
+  return { ...fixture, snapshot: { ...fixture.snapshot, modeRow, fearless } };
 }

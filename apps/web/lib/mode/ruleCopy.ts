@@ -143,6 +143,28 @@ export const SPIN = 'Spin';
 export const SPINNING = 'Spinning…';
 
 /**
+ * Region wars' pair on the admin foot (M20.1 as amended for M20 D9; M20.10): a new random pair,
+ * and one select per side showing its region, a region under 8 open reading `Targon (too few open)`
+ * and disabled. No `Random` option: Redraw is the random.
+ */
+export const REDRAW_REGIONS = 'Redraw regions';
+export const REGION_SELECT_LABELS: Record<'blue' | 'red', string> = {
+  blue: "Blue's region",
+  red: "Red's region",
+};
+/**
+ * [NEW COPY, M20.10] A side select's submit, shown once its region differs (always without JS),
+ * as `Set mode` is for the mode select: a select never posts on change (arrowing a closed select
+ * on Windows fires `change` per option). M20.1 names no button; the designer/product to confirm.
+ */
+export const SET_REGION = 'Set region';
+/** After Roll, this game's pair's legend (05-design 8.3.1); the next game's pair has none. */
+export const THIS_GAME_HEADING = 'This game';
+/** M20 D11: the shown next-game pair went short (bans grew after it was drawn); everyone, under the status. */
+export const REGION_PAIR_SHORT =
+  'Too few champions are open for this pair now. Roll will draw new regions unless an admin changes them.';
+
+/**
  * `Next game: Mages only.` (a standing pick after Roll: `Next game: Normal.`). With `rated` it says
  * Rated too (QA fix 2026-10-04): `Next game: Tanks only. Rated.`; with no mode (the next game plays
  * the same mode as this one) only Rated: `Next game: not rated.`

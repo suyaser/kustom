@@ -349,20 +349,21 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     asks.stop();
   });
 
-  it("after Roll, the card stays this game's; Set mode moves the admin's next-game line on the tap", async () => {
+  it("after Roll, the card stays this game's; Set mode moves the admin's Next game picker on the tap", async () => {
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
     await tonight('balanced', { rule: 'class:Tank' });
     expect(title()).toBe('Class wars');
-    expect(screen.queryByText('Next game: Mages only.')).toBeNull();
-    fireEvent.change(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }), {
-      target: { value: 'class:Mage' },
-    });
+    const picker = () => screen.getByRole('combobox', { name: 'Next game' }) as HTMLSelectElement;
+    expect(picker().value).toBe('fearless');
+    fireEvent.change(picker(), { target: { value: 'class:Mage' } });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     expect(title()).toBe('Class wars');
-    expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
+    // 05-design 8.3.1: the picker is the next game's line (no bold `Next game: …` in the foot).
+    expect(picker().value).toBe('class:Mage');
     await net.release(cardAnswer({ rule: 'class:Mage', rated: false, override: null, minute: 4 }));
-    expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
+    expect(picker().value).toBe('class:Mage');
+    expect(screen.queryByText('Next game: Mages only.')).toBeNull();
   });
 
   it("another admin's newer row moves the card and the switch; an older one does not", async () => {

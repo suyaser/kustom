@@ -92,14 +92,17 @@ describe('owner bug 3: the locked rule can be queued again for the next game', (
     expect(JSON.parse(String(init.body))).toEqual({ groupId: ORIGINAL_GROUP.id, mode: 'region' });
     // Queued: the admin's line says the next game is region wars too; the button goes; the line
     // under the controls is the route's notice, with the next game's own pair.
-    expect(screen.getByText('Next game: Region wars.')).toBeInTheDocument();
+    // 05-design 8.3.1: the `Next game` picker says it (no bold line in the foot).
+    expect(select().value).toBe('region');
     expect(screen.queryByRole('button', { name: 'Set mode' })).toBeNull();
     expect(document.querySelector('[data-slot="mode-outcome"]')).toHaveTextContent(
       'Next game: Region wars. Blue: Shurima · Red: Zaun. Not rated.',
     );
-    // This game's pair is the lock's, untouched.
-    expect(within(card()).getAllByText('Ionia').length).toBeGreaterThan(0);
-    expect(within(card()).queryByText('Shurima')).toBeNull();
+    // This game's pair is the lock's, untouched (the card's status; the foot's region selects
+    // list every region, M20.10).
+    const status = card().querySelector('a') as HTMLElement;
+    expect(within(status).getAllByText('Ionia').length).toBeGreaterThan(0);
+    expect(within(status).queryByText('Shurima')).toBeNull();
   });
 
   it('before Roll, a choice equal to what is set still offers nothing', async () => {
