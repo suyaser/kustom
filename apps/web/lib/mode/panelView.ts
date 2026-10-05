@@ -26,13 +26,13 @@ export async function loadModePanelView(
   groupId: string,
   nightStart: Date,
 ): Promise<ModePanelView> {
-  const [{ mode, modeSince: _since, ...fearless }, state, lobby] = await Promise.all([
+  const [{ mode, modeSince: _since, ...fearless }, row, lobby] = await Promise.all([
     loadFearless(client, groupId),
     loadModeState(client, groupId),
     loadTonightLobbyLock(client, groupId, nightStart),
   ]);
   const view = modeCardView({
-    state: state ?? { standing: mode, pending: null, ratedOverride: null, version: 0 },
+    row: row ?? { standing: mode, pending: null, rated: null },
     lobbyStatus: lobby?.status ?? null,
     lock: lobby?.lock ?? null,
     bans: fearless.champions.map((champion) => champion.id),

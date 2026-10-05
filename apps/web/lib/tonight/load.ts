@@ -10,12 +10,11 @@ import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
 import { loadCheckNames } from '../mode/clientNames';
-import { type LockRow, lockFromRow } from '../mode/lock';
-import { missingState } from '../mode/state';
+import { type LockRow, modeLockOf } from '../mode/lock';
+import { missingRow } from '../mode/state';
 import {
   type GameStampRow,
   loadGameStamp,
-  loadLastGameAt,
   loadModeFacts,
   stampCheck,
   stampFromRow,
@@ -97,17 +96,16 @@ export async function loadTonight(
   const groupId = options.groupId;
   // **Three rounds, whatever the screen** (performance plan, phase 2). Round one: the night's
   // lobbies (one read for the drawn lobby and the tape), the `group_modes` row (one read for the
-  // pool and the card, M15.5), the pool's cursor and when the last game landed; each falls back on
+  // pool and the card, M15.5) and the pool's cursor; each falls back on
   // its own. Round two: every member, split and game (with its scoreboard) of those lobbies, and
   // the pool's games. Round three: the names and ratings of everybody they mention.
   const modeFacts = loadModeFacts(client, groupId ?? ORIGINAL_GROUP_ID);
   const fearlessRead = loadFearless(client, groupId, {
     modeState: modeFacts.then((facts) => facts.standing),
   });
-  const lastGameAtRead = loadLastGameAt(client, groupId ?? ORIGINAL_GROUP_ID);
   // Started before the lobbies are awaited, and awaited below; if the lobbies read throws first,
   // these must not become unhandled rejections (side references, as the page's roster read does).
-  for (const started of [modeFacts, fearlessRead, lastGameAtRead]) started.catch(() => undefined);
+  for (const started of [modeFacts, fearlessRead]) started.catch(() => undefined);
   const lobbies = await selectNightLobbies(client, nightStart, groupId);
   const lobbyRow = newestLobby(lobbies);
   const tapeLobbies = pickTapeLobbies(lobbies, nightStart, drawnLobbyId(lobbyRow));
@@ -115,14 +113,8 @@ export async function loadTonight(
   const [
     { lobby, tape },
     { mode, modeSince, ...fearless },
-    { state: modeState, failed: modeReadFailed },
-    lastGameAt,
-  ] = await Promise.all([
-    loadNight(client, lobbyRow, tapeLobbies, groupId, clock),
-    fearlessRead,
-    modeFacts,
-    lastGameAtRead,
-  ]);
+    { state: modeRow, failed: modeReadFailed },
+  ] = await Promise.all([loadNight(client, lobbyRow, tapeLobbies, groupId, clock), fearlessRead, modeFacts]);
 
   return {
     nightStart,
@@ -132,9 +124,8 @@ export async function loadTonight(
     fearless,
     mode,
     modeSince: modeSince ?? null,
-    modeState: modeState ?? missingState(),
+    modeRow: modeRow ?? missingRow(),
     modeReadFailed,
-    lastGameAt,
     tape,
     // M14.66: companion tokens are not readable with the anon key; the page fills both on the
     // server (`withHostPresence`). Unknown reads as "a host is up", so no line is drawn.
@@ -410,11 +401,9 @@ function buildLobby(
           byPuuid,
         )?.result ?? null)
       : null;
-  // M15.5: the mode locked at Roll, which the card shows while the teams are set or in game.
+  // This game's lock (Roll or the game's start), which the card shows while the teams are set or in game.
   const lock =
-    !open && (lobby.status === 'balanced' || lobby.status === 'in_game')
-      ? (lockFromRow(lobby.lock)?.lock ?? null)
-      : null;
+    !open && (lobby.status === 'balanced' || lobby.status === 'in_game') ? modeLockOf(lobby.lock) : null;
   // M21.5: in game, the teams that started (the kickoff record), or none and the page is as before.
   const record = lobby.status === 'in_game' ? readKickoff(lobby.kickoff, lobby.id) : null;
   const kickoff = record === null ? null : kickoffView(record, teams, members);
