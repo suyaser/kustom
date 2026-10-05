@@ -340,6 +340,15 @@ export function ModeCardBody(props: ModeCardBodyProps) {
         {MODE_CARD_LABEL}
       </span>
       {pooled ? <SpriteIntent sheets={spriteSheetUrls()} /> : null}
+      {lobbies?.otherBans != null && poolOn && !poolCleared ? (
+        <p
+          data-slot="mode-other-bans"
+          className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm"
+        >
+          <b className="font-bold">{otherBansLead(lobbies.otherBans.count)}</b>{' '}
+          {otherBansRest(lobbies.otherBans.label)}
+        </p>
+      ) : null}
       {showTen ? bannedNext.node : null}
       {bannedNothing ? (
         <p className="border-b border-border px-(--card-pad) py-4 text-base">{FEARLESS_NOT_RATED_FINISHED}</p>
@@ -350,15 +359,6 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm"
         >
           {MODE_READ_FAILED}
-        </p>
-      ) : null}
-      {lobbies?.otherBans != null && poolOn && !poolCleared ? (
-        <p
-          data-slot="mode-other-bans"
-          className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm"
-        >
-          <b className="font-bold">{otherBansLead(lobbies.otherBans.count)}</b>{' '}
-          {otherBansRest(lobbies.otherBans.label)}
         </p>
       ) : null}
       {shortPair === null ? null : (

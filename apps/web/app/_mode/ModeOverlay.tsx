@@ -106,7 +106,7 @@ export function ModeOverlay({
         className="fixed inset-0 flex flex-col overflow-hidden bg-card text-foreground lg:inset-x-0 lg:top-8 lg:bottom-auto lg:mx-auto lg:max-h-[calc(100svh-64px)] lg:w-[min(1180px,calc(100vw-64px))] lg:rounded-card lg:border lg:border-border-strong lg:shadow-overlay forced-colors:border-2"
       >
         <div className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-card px-4 lg:px-6">
-          <p className="min-w-0 text-[0.9375rem] text-muted-foreground">
+          <p className="min-w-0 text-[0.9375rem] text-muted-foreground [overflow-wrap:break-word]">
             {lobbyLabel === null ? (
               <>
                 {PANEL_CRUMB_TONIGHT}

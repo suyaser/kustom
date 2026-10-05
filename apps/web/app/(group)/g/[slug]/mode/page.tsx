@@ -57,7 +57,7 @@ export default async function ModePage({ params, searchParams }: ModePageProps) 
         {data.lobby === null ? null : (
           <>
             <span aria-hidden="true">{' · '}</span>
-            <span className="min-w-0">
+            <span className="min-w-0 [overflow-wrap:break-word]">
               <LobbyLabelText label={data.lobby.label} />
             </span>
           </>

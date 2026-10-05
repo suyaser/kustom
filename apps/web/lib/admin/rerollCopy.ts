@@ -5,7 +5,6 @@
  * `lib/admin/reroll.ts` re-exports it.
  */
 
-/** The sentence for a third press. `05-design.md`, "The title on a reroll"; verbatim. */
 /**
  * Roll's and Reroll's 409 for a lobby that was abandoned (lower case, no stop: `/admin` prints it
  * inline). Here, not in `./roll.ts`, so Tonight's `RollControl` can compare against it (M22.6:
@@ -13,4 +12,5 @@
  */
 export const LOBBY_ABANDONED = 'that lobby was abandoned';
 
+/** The sentence for a third press. `05-design.md`, "The title on a reroll"; verbatim. */
 export const NO_MORE_SPLITS = 'No more splits. Change who is in the lobby and roll again, or play these.';
