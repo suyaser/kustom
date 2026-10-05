@@ -20,10 +20,9 @@ import {
 import { type Bans, drawableRegions, pairTester, regionOpenCounts } from './pool';
 
 /**
- * The families Spin draws from, in draw order. Mirror joined at M17.17: Start a lobby asks the
- * companion for a Blind Pick custom when the next game's rule is mirror, so a surprise mirror no
- * longer lands on a host who has to build that lobby by hand. Still a subset of `RULE_FAMILIES`,
- * so a standing mode is never a Spin result.
+ * The families Spin draws from, in draw order. Mirror joined at M17.17; since M22.11 the host
+ * opens the Blind Pick custom in League themselves. Still a subset of `RULE_FAMILIES`, so a
+ * standing mode is never a Spin result.
  */
 export const SPIN_FAMILIES = ['class', 'region', 'mirror'] as const satisfies readonly RuleFamily[];
 

@@ -11,7 +11,7 @@
 //!
 //! Ground rules every module keeps:
 //! - **Never automate gameplay.** No `/lol-champ-select/*`, no in-game state; the only client writes are
-//!   the three verified lobby writes (create lobby, invite, switch side).
+//!   the one verified lobby write (switch side).
 //! - **Log and drop, never panic.** A malformed client or API payload is one log line with the endpoint
 //!   and is dropped; a watcher never takes the process down.
 //! - **Idempotent by construction.** Lobby posts carry `partyId`, game posts carry `gameId`; a re-send is
