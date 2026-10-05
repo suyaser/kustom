@@ -302,6 +302,37 @@ if (stack === null) {
     expect(await fork('b')).toMatchObject({ pending_rule: 'region', rated_override: false });
   });
 
+  it("M22.6: Tonight reads each lobby's own card after those writes, whichever lobby is selected", async () => {
+    const { loadTonight } = await import('@/lib/tonight/load');
+    const { tonightStart } = await import('@/lib/tonight/night');
+    const anon = createClient<Database>(stack.url, stack.anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const read = (lobbyId: string) =>
+      loadTonight(anon, { nightStart: tonightStart(), timeZone: 'Africa/Cairo', groupId: group.id, lobbyId });
+    for (const selected of [lobbies.a, lobbies.b]) {
+      const snapshot = await read(selected);
+      expect(snapshot.selectedLobbyId).toBe(selected);
+      const a = snapshot.lobbies?.find((table) => table.partyId === party('a'));
+      const b = snapshot.lobbies?.find((table) => table.partyId === party('b'));
+      // A has no fork: its card is the group's (Tanks only, Rated off); B's is its own row.
+      expect(a?.card).toBeUndefined();
+      expect(snapshot.modeRow).toMatchObject({ pending: { id: 'class', tag: 'Tank' }, rated: false });
+      expect(b?.card).toMatchObject({ pending: { id: 'region' }, rated: false });
+    }
+    // A write for B moves only B's card on the next read (then back, as the next tests expect it).
+    const on = await card({ rated: true, lobbyId: lobbies.b });
+    expect(on.status, JSON.stringify(on.json)).toBe(200);
+    const after = await read(lobbies.a);
+    expect(after.modeRow).toMatchObject({ pending: { id: 'class', tag: 'Tank' }, rated: false });
+    expect(after.lobbies?.find((table) => table.partyId === party('b'))?.card).toMatchObject({
+      pending: { id: 'region' },
+      rated: true,
+    });
+    const back = await card({ rated: false, lobbyId: lobbies.b });
+    expect(back.status, JSON.stringify(back.json)).toBe(200);
+  });
+
   it("Roll in A empties only A's rule; this game in A changes only A's lock", async () => {
     const before = await fork('b');
     await rollForTest(db, lobbies.a);
