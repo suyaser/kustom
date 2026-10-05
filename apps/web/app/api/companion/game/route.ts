@@ -3,6 +3,7 @@ import {
   type CompanionGamePayload,
   companionGamePayloadSchema,
   companionGameResponseSchema,
+  gameModesDiffer,
   hasWinningTeam,
   NO_WINNING_TEAM_MESSAGE,
 } from '@customs/db/schemas';
@@ -12,6 +13,7 @@ import { invalidateGroup } from '@/lib/cache/tags';
 import { type CompanionContext, withCompanionAuth } from '@/lib/companionRoute';
 import { jsonError, jsonOk } from '@/lib/http';
 import {
+  blockGameMode,
   CUSTOM_GAME_TYPE,
   findDuplicateParticipant,
   ingestEogGame,
@@ -108,7 +110,32 @@ async function handleGamePost(
   await sweepIdleLobbies(client, new Date(), live);
 
   if (payload.phase === 'in_progress') {
-    const lobby = payload.partyId ? await selectActiveLobby(client, payload.partyId) : null;
+    let lobby = payload.partyId ? await selectActiveLobby(client, payload.partyId) : null;
+    // Owner bug 2026-10-05: the party's row is still `in_game` from a game that kicked off in another
+    // mode (a Rift game everybody quit, no end-of-game block), and this is the next game (an ARAM).
+    // A party is in one game at a time, so that game is over: drop its row now (a late block for it
+    // still finishes it, M5.11) and start this game with no lobby, so it never inherits the quit
+    // game's lock, kickoff teams or odds. Only on evidence: both modes known and of different kinds.
+    if (
+      lobby !== null &&
+      lobby.status === 'in_game' &&
+      gameModesDiffer(lobby.kickoffGameMode, payload.gameMode)
+    ) {
+      const quit = lobby;
+      await noteWrite(
+        live,
+        quit.groupId,
+        'lobby',
+        () =>
+          moveLobbyLogged(
+            client,
+            { lobbyId: quit.id, from: ['in_game'], to: 'dropped' },
+            `game ${payload.gameId} in_progress (${payload.gameMode}) after a ${quit.kickoffGameMode} kickoff`,
+          ),
+        (moved) => moved,
+      );
+      lobby = null;
+    }
     if (lobby !== null) {
       // From here the roster is history (M2.9), and it stays history: the only way out of
       // `in_game` is `finished` (the eog block) or `dropped` (the two-hour sweep, M5.11).
@@ -195,6 +222,7 @@ async function handleGamePost(
         identity.playerId,
         payload.startedAt,
         payload.participants.map((participant) => participant.puuid),
+        blockGameMode(payload.raw),
       )))
   ) {
     return jsonError(403, 'a companion may only report a game its own player was in');

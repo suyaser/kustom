@@ -6,6 +6,7 @@ import {
   type LobbyUpdate,
   rosterKey,
 } from '@customs/db';
+import { gameModesDiffer } from '@customs/db/schemas';
 import { supersedeLobbyCommands } from '../commands/queue';
 import type { CompanionIdentity } from '../companionAuth';
 import { HOST_WINDOW_MS } from '../hostPresence';
@@ -173,8 +174,10 @@ export async function isLobbyMemberOfGame(
   playerId: string,
   startedAt: string | null | undefined,
   participants: readonly string[],
+  /** The block's own game mode ('' for a block that names none, which is Rift); null skips the check. */
+  gameMode: string | null = null,
 ): Promise<boolean> {
-  const match = await selectGameLobby(client, partyId, startedAt, participants);
+  const match = await selectGameLobby(client, partyId, startedAt, participants, gameMode);
   if (match.kind !== 'matched') return false;
 
   const { count, error } = await client
@@ -224,7 +227,8 @@ export function lobbyFitsGame(members: readonly GameLobbyMember[], participants:
  *
  * - `matched`: the party's row by the game's start ({@link selectLatestLobby}) and its roster
  *   fits the game ({@link lobbyFitsGame});
- * - `stale`: that row exists but its roster does not fit -- it is another game's lobby, and the
+ * - `stale`: that row exists but its roster does not fit, or it kicked off another kind of game
+ *   (a Rift lobby, an ARAM block; owner bug 2026-10-05) -- it is another game's lobby, and the
  *   game is stored with no lobby (ratings never needed one);
  * - `none`: no party id, or a party nobody posted.
  *
@@ -240,10 +244,18 @@ export async function selectGameLobby(
   partyId: string | null,
   startedAt: string | null | undefined,
   participants: readonly string[],
+  /**
+   * The block's own game mode ('' when it names none: Rift, M5.26), or null to skip the check. A
+   * lobby that kicked off another kind of game (`kickoff_game_mode`, M21.12) is that game's, not
+   * this one's, whoever played (owner bug 2026-10-05: a quit Rift game's lobby, then an ARAM with
+   * the same ten). Only on evidence: an unknown mode on either side never refuses ({@link gameModesDiffer}).
+   */
+  gameMode: string | null = null,
 ): Promise<GameLobbyMatch> {
   if (partyId === null) return { kind: 'none' };
   const lobby = await selectLatestLobby(client, partyId, startedAt);
   if (lobby === null) return { kind: 'none' };
+  if (gameMode !== null && gameModesDiffer(lobby.kickoffGameMode, gameMode)) return { kind: 'stale', lobby };
 
   const { data, error } = await client
     .from('lobby_members')
@@ -699,10 +711,15 @@ export interface ExistingLobby {
   createdAt: string;
   /** The group that owns this lobby: whichever group's companion posted the party first (M13.3). */
   groupId: string;
+  /**
+   * The game mode its game kicked off in (M21.12, `kickoff_game_mode`), or null (no kickoff yet, an
+   * older companion). Tells a quit game's lobby from the next game's (owner bug 2026-10-05).
+   */
+  kickoffGameMode: string | null;
 }
 
 const LOBBY_COLUMNS =
-  'id, status, reported_by_player_id, lobby_name, lobby_password, updated_at, created_at, group_id';
+  'id, status, reported_by_player_id, lobby_name, lobby_password, updated_at, created_at, group_id, kickoff_game_mode';
 
 function toExistingLobby(row: {
   id: string;
@@ -713,6 +730,7 @@ function toExistingLobby(row: {
   updated_at: string;
   created_at: string;
   group_id: string;
+  kickoff_game_mode: string | null;
 }): ExistingLobby {
   return {
     id: row.id,
@@ -723,6 +741,7 @@ function toExistingLobby(row: {
     updatedAt: row.updated_at,
     createdAt: row.created_at,
     groupId: row.group_id,
+    kickoffGameMode: row.kickoff_game_mode,
   };
 }
 
