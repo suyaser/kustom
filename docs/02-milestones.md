@@ -14256,6 +14256,6 @@ order graph is in M22's own section.
   - A new Rift game over 300 s and under 900 s that its lock would rate is stored voided (`void_reason = 'early-end'`, `Not rated · ended early`). `Rate it anyway` restores it.
   - A game not rated by a rule or by the Rated switch is never stamped, so no restore can rate it.
   - Acceptance: gameVoid integration (auth, guard, rollback, duplicate no-op, rule games untouched); m23-1 throwaway check.
-- [ ] **M23.2** Tonight night record for ended-early games. *(owner: `web-engineer`; Tonight lane, after M22.6)*
+- [x] **M23.2** *(landed 2026-10-05)* Tonight night record for ended-early games. *(owner: `web-engineer`; Tonight lane, after M22.6)*
   - An ended-early game does not count in the viewer's night wins and losses (`lib/tonight/yourNight.ts`). Tonight's stamp says `ended early`, not just `not rated` (`lib/mode/tonightRead.ts`).
   - Acceptance: unit tests on both readers.
