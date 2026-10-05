@@ -85,6 +85,7 @@ function stored(overrides: { created?: boolean; foreignDuplicate?: boolean; grou
     created: overrides.created ?? true,
     foreignDuplicate: overrides.foreignDuplicate ?? false,
     participants: 10,
+    staleLobby: null,
     modeRecord: {
       kind: 'rift',
       lock: null,

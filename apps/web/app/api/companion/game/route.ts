@@ -52,7 +52,7 @@ export const maxDuration = 60;
  *
  * `in_progress` moves the party's live lobby to `in_game`, which freezes its roster (M2.9)
  * for good — from here the row is only ever `finished` by an eog block or `dropped` by the
- * two-hour sweep (M5.11).
+ * two-hour sweep (M5.11), or `dropped` early by the party's next game (M21.11, below).
  * `eog` writes the game, runs the rating fold and moves the lobby to `finished` (M2.5). Both
  * are idempotent: `eog` dedupes on `lcu_game_id` and the fold claims the game with the null
  * `mu_after` columns, so everyone in the lobby who runs a companion posts the same block and
@@ -187,7 +187,13 @@ async function handleGamePost(
   if (
     !onScoreboard &&
     (backfill ||
-      !(await isLobbyMemberOfGame(client, payload.partyId ?? null, identity.playerId, payload.startedAt)))
+      !(await isLobbyMemberOfGame(
+        client,
+        payload.partyId ?? null,
+        identity.playerId,
+        payload.startedAt,
+        payload.participants.map((participant) => participant.puuid),
+      )))
   ) {
     return jsonError(403, 'a companion may only report a game its own player was in');
   }
@@ -269,6 +275,28 @@ async function handleGamePost(
       client,
       { lobbyId: result.lobbyId, from: ['open', 'balanced', 'in_game', 'dropped'], to: 'finished' },
       `game ${result.gameId}`,
+    );
+  }
+
+  // M21.11: the party's `in_game` row this game was refused from (its sided members did not all
+  // play) is another game's lobby, and that game is over: a party is in one game at a time. Dropped
+  // now rather than at the two-hour sweep, so the party's next lobby post opens a fresh cycle
+  // instead of landing on the frozen roster (the 2026-10-02 stale match). A late block for that
+  // row's own game still moves it `dropped -> finished`. A second companion's post finds it
+  // already dropped and moves nothing.
+  if (result.staleLobby !== null && !result.foreignDuplicate) {
+    const stale = result.staleLobby;
+    await noteWrite(
+      live,
+      stale.groupId,
+      'lobby',
+      () =>
+        moveLobbyLogged(
+          client,
+          { lobbyId: stale.id, from: ['in_game'], to: 'dropped' },
+          `game ${result.gameId} (lobby roster did not play it)`,
+        ),
+      (moved) => moved,
     );
   }
 
