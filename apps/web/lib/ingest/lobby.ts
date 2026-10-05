@@ -315,12 +315,17 @@ export async function ingestLobby(
   // (M22.4): `lobbies_fork_mode` (0051) then reads this token in X, never still in the lobby it is
   // leaving, so one Kustom moving to a new custom never counts as a second lobby in play, while
   // the same player's other Kustom still in the old one does.
+  // The let-go follows the move directly, before the post's own writes: the move is the only place
+  // the left party is known (a retry reads the token already in X), so a post that throws later
+  // must not stand between them. Lobbies let go first are also out of play when the fork reads.
+  // ponytail: a throw inside the let-go itself, after the move, still loses the left party on the
+  // retry (the reporter half still runs); the two-hour sweep then ends it. Keep the previous party
+  // on the token if that ever shows up.
   const now = options.now ?? new Date();
   const previousPartyId =
     options.tokenId === undefined
       ? null
       : await moveTokenParty(client, options.tokenId, payload.partyId, now);
-  const result = await ingestPostedLobby(client, payload, reportedByPlayerId, options);
   await letGoLeftLobbies(client, {
     groupId: options.groupId,
     playerId: reportedByPlayerId,
@@ -330,7 +335,7 @@ export async function ingestLobby(
     now,
     live: options.live,
   });
-  return result;
+  return ingestPostedLobby(client, payload, reportedByPlayerId, options);
 }
 
 /**
@@ -360,8 +365,8 @@ export async function ingestLobby(
  * the route bumps once with everything else the request touched. A repeated post finds nothing to
  * let go and writes nothing; on the common post this is one indexed read.
  *
- * Known gap until M22.5: when two lobbies really are live (a co-host's Kustom still in the other),
- * Tonight still draws the newest.
+ * Runs right after the token's move and before the post's own writes ({@link ingestLobby}). A lobby
+ * that stays because another Kustom is still in it is its own table on Tonight (M22.5).
  */
 async function letGoLeftLobbies(
   client: ServiceClient,
