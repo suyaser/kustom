@@ -13234,7 +13234,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   the pair; (7) `clientGraph.test.ts` passes.
 
   *Landed 2026-10-05 (260c7f6b, reviewer pass). Parity: 480 cases, 5 listed exceptions. Net lines: M20.8 −714 (non-test −430); M20.6–M20.8 together about +1,990, mostly M20.7's server, SQL and tests. Left: the D11 before-Roll warning (M20.10), the 05-design 8.3 stale string (designer).*
-- [ ] **M20.9** Region wars' regions as mode state: server (redraw and change, next game and this game).
+- [x] **M20.9** Region wars' regions as mode state: server (redraw and change, next game and this game).
   *(owner: `platform-engineer`; after M20.7 and M20.3; replaces the old M20.9 picks and M20.11 Redraw, M20 D9 and
   D5)* Two actions on `POST /api/admin/mode`, admin-only: **redraw regions** and **set a side's region** (`side:
   'blue' | 'red'`, a region id), each naming its target, `game: 'next' | 'this'`. `next` changes the row's pair and
@@ -13261,7 +13261,8 @@ or a full room: the card is on Tonight in every state, empty group included.
   `this` change racing the game starting ends either applied before `in_game` or refused, never applied to a game
   in progress (two connections, repeated).
 
-- [ ] **M20.10** Region wars' regions as mode state: the card. *(owner: `web-engineer`, `designer` for
+  *Landed 2026-10-05 with M20.7 (the redraw and side actions on `/api/admin/mode`) and M20.10 (the `new regions` teams line).*
+- [x] **M20.10** Region wars' regions as mode state: the card. *(owner: `web-engineer`, `designer` for
   placement; after M20.8 and M20.9; replaces the old M20.10 pickers and M20.12 Redraw button)* On the admin row,
   wherever a region pair is shown for a game that has not started (the next game's pair before Roll, or while a
   game is in progress if region wars is queued; this game's pair while the lobby is balanced): `Redraw regions`
@@ -13275,6 +13276,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   everyone, and a second open page shows the new regions without a refresh; (5) no-JS form posts work for Redraw
   and both selects; (6) reduced motion: no animation on the change; (7) designer at most 3 rounds.
 
+  *Landed 2026-10-05 (29079a6a; reviewer pass, designer rulings 05-design 8.3.1 met in round 2 frames). Parity now lists 7 changes. Follow-up: members do not see the next game's pair after Roll (product copy); a this-game change reaches other pages after the mode re-read delay.*
 - [ ] ~~**M20.11** Redraw the regions: server.~~ *Retired 2026-10-04 (M20 D9): merged into M20.9 (`game: 'this'`).*
 
 - [ ] ~~**M20.12** Redraw the regions: the card.~~ *Retired 2026-10-04 (M20 D9): merged into M20.10.*
