@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { recordingClient } from '../testing/recordingClient';
 import {
+  ago,
   CLOCK,
   type CycleSpec,
   currentCycle,
@@ -9,6 +10,7 @@ import {
   NIGHT_START,
   NOW,
   night,
+  PID,
   PUUID,
 } from '../testing/tonightRows';
 import { loadTonight } from './load';
@@ -165,18 +167,17 @@ describe('two live tables through the loader (acceptance 2)', () => {
 
 describe('who watches each table (14.8), read beside the second round', () => {
   type TokenFixture = Record<string, string | null>;
-  const readWith = async (cycles: readonly CycleSpec[]) => {
+  // Bo's Kustom is in party B; nobody's is in party A any more.
+  const BO_TOKEN: TokenFixture = {
+    id: 'token-bo',
+    player_id: 'p-bo',
+    current_party_id: 'party-b',
+    current_party_at: NOW.toISOString(),
+    puuid: PUUID(12),
+  };
+  const readWith = async (cycles: readonly CycleSpec[], tokenRows: TokenFixture[] = [BO_TOKEN]) => {
     const fixtures = night(cycles);
-    // Bo's Kustom is in party B; nobody's is in party A any more.
-    fixtures.companion_tokens = [
-      {
-        id: 'token-bo',
-        player_id: 'p-bo',
-        current_party_id: 'party-b',
-        current_party_at: NOW.toISOString(),
-        puuid: PUUID(12),
-      },
-    ];
+    fixtures.companion_tokens = tokenRows;
     const { client, recording } = recordingClient(fixtures);
     const tokens = client as unknown as {
       from: (table: string) => { select: (columns: string) => PromiseLike<{ data: TokenFixture[] }> };
@@ -209,6 +210,48 @@ describe('who watches each table (14.8), read beside the second round', () => {
     expect(recording.count('companion_tokens')).toBe(1);
     expect(snapshot.lobbies?.map((table) => [table.id, table.watched])).toEqual([
       ['lobby-a3', false],
+      ['lobby-b1', true],
+    ]);
+  });
+
+  it('the host quits after a game and opens a new custom: one lobby, as before M22 (lead ruling 2026-10-05)', async () => {
+    const host = PID(0);
+    const scene: CycleSpec[] = [
+      { ...EARLIER[0], id: 'lobby-a1', status: 'finished', created: 60, updated: 8 } as CycleSpec,
+      {
+        id: 'lobby-b1',
+        party: 'party-b',
+        status: 'open',
+        created: 4,
+        updated: 4,
+        reporter: 0,
+        members: [0, 1, 2],
+      },
+    ];
+    const moved = {
+      id: 'token-host',
+      player_id: host,
+      current_party_id: 'party-b',
+      current_party_at: ago(4),
+      puuid: PUUID(0),
+    };
+    const { snapshot, recording } = await readWith(scene, [moved]);
+    expect(snapshot.lobbies?.map((table) => table.id)).toEqual(['lobby-b1']);
+    expect(snapshot.selectedLobbyId).toBe('lobby-b1');
+    expect(snapshot.severalLobbiesTonight).toBe(false);
+    expect(snapshot.tape.map((entry) => entry.lobbyId)).toEqual(['lobby-a1']);
+    expect(recording.waves()).toBe(3);
+    // A co-host's Kustom still in A's post-game lobby keeps it: two lobbies.
+    const coHost = {
+      id: 'token-co',
+      player_id: PID(5),
+      current_party_id: 'party-a',
+      current_party_at: ago(60),
+      puuid: PUUID(5),
+    };
+    const kept = await readWith(scene, [moved, coHost]);
+    expect(kept.snapshot.lobbies?.map((table) => [table.id, table.watched])).toEqual([
+      ['lobby-a1', true],
       ['lobby-b1', true],
     ]);
   });

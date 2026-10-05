@@ -1,5 +1,5 @@
-import { foldLiveTables, type LiveTable, TABLE_LINGER_MS, type TableRow, tokenWatches } from '../liveTables';
-import type { TonightSnapshot } from './types';
+import { foldLiveTables, type LiveTable, type SeatSeen, TABLE_LINGER_MS, type TableRow } from '../liveTables';
+import type { MemberView } from './types';
 
 /**
  * Tonight with several lobbies (M22.5): which tables are live, and who watches them. Pure; the
@@ -7,7 +7,9 @@ import type { TonightSnapshot } from './types';
  *
  * "Live" is `lib/liveTables.ts`' rule and nobody else's: {@link nightTables} folds tonight's rows
  * through `foldLiveTables`, the same fold `liveTables` uses. Tonight reads the rows with the anon
- * key, so it folds with no tokens; who is watching is added on the server ({@link withWatchers}).
+ * key, so it folds with no tokens first; with two or more tables the page's server read of the
+ * tokens (`./watchers.ts`) refolds them, which fills the watchers and ends a finished table whose
+ * Kustoms have moved to another party (`movedOn`, the lead's ruling of 2026-10-05).
  */
 
 /** A live table with what Tonight needs beyond the fold: its rows, when it opened, when it changed. */
@@ -22,16 +24,22 @@ export interface NightTable extends LiveTable {
 
 /**
  * Tonight's live tables from tonight's rows of the group (`abandoned` ones included: a newest
- * abandoned row ends its table), oldest opened first, with no watchers. One per live party.
+ * abandoned row ends its table), oldest opened first. One per live party. With no `tokens` (the
+ * anon fold) nobody watches and a finished table keeps its linger.
  */
-export function nightTables(rows: readonly TableRow[], now: Date): NightTable[] {
+export function nightTables(
+  rows: readonly TableRow[],
+  now: Date,
+  tokens: readonly TokenSeen[] = [],
+  seats: readonly SeatSeen[] = [],
+): NightTable[] {
   const byParty = new Map<string, TableRow[]>();
   for (const row of [...rows].sort(byCreated)) {
     const list = byParty.get(row.lcuPartyId) ?? [];
     list.push(row);
     byParty.set(row.lcuPartyId, list);
   }
-  return foldLiveTables(rows, [], [], now)
+  return foldLiveTables(rows, tokens, seats, now)
     .map((table) => {
       const own = byParty.get(table.partyId) ?? [table.lobby];
       return {
@@ -54,6 +62,12 @@ export function nightTables(rows: readonly TableRow[], now: Date): NightTable[] 
  * row of its party or `now` while `open`, `balanced` or `in_game`; the end of the walk back
  * ({@link TABLE_LINGER_MS} after `updated_at`, cut by the next row and `now`) once `finished`;
  * its `updated_at` once `abandoned` or `dropped`. Two parties overlap when two such spans do.
+ *
+ * A finished row's walk back is also cut where its reporter's Kustom first posted another party (a
+ * later row of another party with the same reporter): the host who quits after a game and opens a
+ * new custom is one lobby at a time (lead ruling 2026-10-05). The tokens' history is not kept, so
+ * this is the rows' approximation; the page also counts the night as several lobbies whenever two
+ * tables are live now.
  */
 export function tablesOverlapped(rows: readonly TableRow[], now: Date): boolean {
   const byParty = new Map<string, TableRow[]>();
@@ -77,9 +91,21 @@ export function tablesOverlapped(rows: readonly TableRow[], now: Date): boolean 
         case 'in_game':
           to = Math.min(nextAt, end);
           break;
-        case 'finished':
-          to = Math.min(Date.parse(row.updatedAt) + TABLE_LINGER_MS, nextAt, end);
+        case 'finished': {
+          const movedAt = Math.min(
+            ...rows
+              .filter(
+                (other) =>
+                  other.lcuPartyId !== party &&
+                  row.reportedByPlayerId !== null &&
+                  other.reportedByPlayerId === row.reportedByPlayerId &&
+                  Date.parse(other.createdAt) >= Date.parse(row.updatedAt),
+              )
+              .map((other) => Date.parse(other.createdAt)),
+          );
+          to = Math.min(Date.parse(row.updatedAt) + TABLE_LINGER_MS, nextAt, end, movedAt);
           break;
+        }
         case 'abandoned':
         case 'dropped':
           to = Math.min(Date.parse(row.updatedAt), end);
@@ -99,7 +125,7 @@ export function tablesOverlapped(rows: readonly TableRow[], now: Date): boolean 
   return false;
 }
 
-/** A token as {@link withWatchers} reads it: `liveTables`' `WatchingToken` plus its player's puuid. */
+/** A token as Tonight reads it (`./watchers.ts`): `liveTables`' `WatchingToken` plus its player's puuid. */
 export interface TokenSeen {
   tokenId: string;
   playerId: string;
@@ -109,32 +135,22 @@ export interface TokenSeen {
 }
 
 /**
- * The snapshot with each table's `watched` filled from the group's watching tokens (M22.3's
- * `tokenWatches`, with the seats taken off the table's own roster), or unchanged for `null` (a
- * failed or skipped read keeps "unknown"). `lobby` is untouched: watching is a table fact.
+ * The tokens' players' seats in the given rows, from the rosters Tonight already has (a member's
+ * `joinedAt` is `lobby_members.created_at`), for `foldLiveTables` with no seat read.
  */
-export function withWatchers(
-  snapshot: TonightSnapshot,
-  tokens: readonly TokenSeen[] | null,
-): TonightSnapshot {
-  const tables = snapshot.lobbies ?? [];
-  if (tokens === null || tables.length === 0) return snapshot;
+export function seatsFromRosters(
+  lobbies: readonly { id: string; members: readonly Pick<MemberView, 'puuid' | 'joinedAt'>[] }[],
+  tokens: readonly TokenSeen[],
+): SeatSeen[] {
   const playerOf = new Map(
     tokens.flatMap((token) => (token.puuid === null ? [] : [[token.puuid, token.playerId] as const])),
   );
-  return {
-    ...snapshot,
-    lobbies: tables.map((table) => {
-      const seats = table.lobby.members.flatMap((member) => {
-        const playerId = playerOf.get(member.puuid);
-        return playerId === undefined ? [] : [{ lobbyId: table.id, playerId, createdAt: member.joinedAt }];
-      });
-      const watched = tokens.some((token) =>
-        tokenWatches(token, { partyId: table.partyId, lobbyId: table.id }, seats),
-      );
-      return { ...table, watched };
+  return lobbies.flatMap((lobby) =>
+    lobby.members.flatMap((member) => {
+      const playerId = playerOf.get(member.puuid);
+      return playerId === undefined ? [] : [{ lobbyId: lobby.id, playerId, createdAt: member.joinedAt }];
     }),
-  };
+  );
 }
 
 function byCreated(a: TableRow, b: TableRow): number {

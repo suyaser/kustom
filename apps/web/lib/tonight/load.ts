@@ -41,7 +41,7 @@ import type { PublicClient } from '../publicClient';
 import { renderWebName } from './copy';
 import { kickoffView, readKickoff } from './kickoff';
 import { pickTable } from './selection';
-import { nightTables, type TokenSeen, tablesOverlapped, withWatchers } from './tables';
+import { nightTables, seatsFromRosters, type TokenSeen, tablesOverlapped } from './tables';
 import type {
   LobbyView,
   MemberView,
@@ -147,17 +147,24 @@ export async function loadTonight(
   const nightRows = await selectNightLobbies(client, nightStart, groupId);
   const lobbies = nightRows.filter((row) => row.status !== 'abandoned');
   const tableRows = nightRows.map(tableRowOf);
-  const tables = nightTables(tableRows, now);
+  const anonTables = nightTables(tableRows, now);
   const rowById = new Map(lobbies.map((row) => [row.id, row]));
   // The rows the page may draw: every live table's newest row, or, with no live table, the night's
   // newest row as before M22 (a result an hour old stays up; a dropped one is the idle page).
-  const fallback = tables.length === 0 ? newestLobby(lobbies) : null;
-  const currents = (
-    fallback === null ? tables.map((table) => rowById.get(table.lobby.id)) : [fallback]
-  ).filter((row): row is LobbyRow => row !== undefined);
+  const newest = newestLobby(lobbies);
+  // With two or more, the night's newest row is drawn too (it is a table's or a tape row, so no
+  // request): the server's refold below may end every table, and then it is the fallback.
+  const currents = [
+    ...new Set(
+      [
+        ...anonTables.map((table) => rowById.get(table.lobby.id)),
+        ...(anonTables.length === 1 ? [] : [newest]),
+      ].filter((row): row is LobbyRow => row !== undefined && row !== null),
+    ),
+  ];
   // Every finished and dropped row: the tape, and each live table's tile (14.6).
   const tapeLobbies = pickTapeLobbies(lobbies, nightStart, null);
-  const hostIds = tables.flatMap((table) =>
+  const hostIds = anonTables.flatMap((table) =>
     table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId],
   );
 
@@ -166,10 +173,29 @@ export async function loadTonight(
       loadNight(client, currents, tapeLobbies, hostIds, groupId, clock),
       fearlessRead,
       modeFacts,
-      tables.length >= 2 && options.readWatchers !== undefined
+      anonTables.length >= 2 && options.readWatchers !== undefined
         ? options.readWatchers()
         : Promise.resolve(null),
     ]);
+
+  // M22.3 with the server's tokens: who watches each table, and a finished table whose Kustoms have
+  // moved to another party ends now instead of lingering (lead ruling 2026-10-05).
+  const tables =
+    watchers === null
+      ? anonTables
+      : nightTables(
+          tableRows,
+          now,
+          watchers,
+          seatsFromRosters(
+            anonTables.flatMap((table) => {
+              const view = night.lobbies.get(table.lobby.id);
+              return view === undefined ? [] : [view];
+            }),
+            watchers,
+          ),
+        );
+  const fallback = tables.length === 0 ? newest : null;
 
   const views: TableView[] = tables.flatMap((table) => {
     const lobby = night.lobbies.get(table.lobby.id);
@@ -183,7 +209,7 @@ export async function loadTonight(
         openedAt: table.openedAt,
         changedAt: table.changedAt,
         host: host === undefined ? null : { puuid: host.puuid, name: displayName(host) },
-        watched: null,
+        watched: watchers === null ? null : table.watchers.length > 0,
         lobby,
         tile: night.tape.find((entry) => entry.lobbyId === table.lobby.id) ?? null,
       },
@@ -202,7 +228,7 @@ export async function loadTonight(
     lobby,
     lobbies: views,
     selectedLobbyId,
-    severalLobbiesTonight: tablesOverlapped(tableRows, now),
+    severalLobbiesTonight: tables.length >= 2 || tablesOverlapped(tableRows, now),
     fearless,
     mode,
     modeSince: modeSince ?? null,
@@ -214,7 +240,7 @@ export async function loadTonight(
     hostNames: [],
     hostSeenRecently: true,
   };
-  return withWatchers(snapshot, watchers);
+  return snapshot;
 }
 
 interface LobbyRow {

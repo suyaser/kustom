@@ -133,3 +133,34 @@ describe('foldLiveTables', () => {
     ).toEqual([]);
   });
 });
+
+describe('a finished table whose Kustoms moved on (lead ruling 2026-10-05)', () => {
+  // A finished five minutes ago; the host's seat is in its newest row.
+  const finished = row('a1', 'A', { status: 'finished', createdAt: ago(50), updatedAt: ago(5) });
+  const next = row('b1', 'B', { createdAt: ago(3), updatedAt: ago(3) });
+  const hostSeat: SeatSeen = { lobbyId: 'a1', playerId: 'player-host', createdAt: ago(50) };
+
+  it('the host moves to a new party: the old finished table ends at once', () => {
+    const host = token('host', { currentPartyId: 'B', currentPartyAt: ago(3) });
+    const tables = foldLiveTables([finished, next], [host], [hostSeat], NOW);
+    expect(tables.map((table) => table.partyId)).toEqual(['B']);
+    expect(isTableLive(finished, NOW, true)).toBe(false);
+  });
+
+  it('a co-host still sits in the old post-game lobby: it lingers, watched by the co-host', () => {
+    const host = token('host', { currentPartyId: 'B', currentPartyAt: ago(3) });
+    const coHost = token('co', { currentPartyId: 'A', currentPartyAt: ago(50) });
+    const coSeat: SeatSeen = { lobbyId: 'a1', playerId: 'player-co', createdAt: ago(50) };
+    const tables = foldLiveTables([finished, next], [host, coHost], [hostSeat, coSeat], NOW);
+    expect(tables.map((table) => [table.partyId, table.watchers.map((w) => w.tokenId)])).toEqual([
+      ['A', ['co']],
+      ['B', ['host']],
+    ]);
+  });
+
+  it('no Kustom has posted since the game, or none is up: the twenty-minute linger holds', () => {
+    const stayed = token('host', { currentPartyId: 'A', currentPartyAt: ago(50) });
+    expect(foldLiveTables([finished], [stayed], [hostSeat], NOW)).toHaveLength(1);
+    expect(foldLiveTables([finished, next], [], [], NOW)).toHaveLength(2);
+  });
+});

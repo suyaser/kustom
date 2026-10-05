@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TableRow } from '../liveTables';
 import { drawableLobbyIds } from '../me/claimable';
-import { lobbyView, snapshot } from '../testing/tonightFixtures';
-import { nightTables, type TokenSeen, tablesOverlapped, withWatchers } from './tables';
-import type { TableView } from './types';
+import { nightTables, seatsFromRosters, type TokenSeen, tablesOverlapped } from './tables';
 
 /** M22.5: tonight's live tables from tonight's rows, the night-wide overlap flag, and the watchers. */
 
@@ -105,47 +103,88 @@ describe('tablesOverlapped (the tape names its lobbies, 14.6)', () => {
   });
 });
 
-describe('withWatchers (No Kustom, 14.8)', () => {
-  const ana = lobbyView({ id: 'ana', status: 'open' });
-  const bo = lobbyView({ id: 'bo', status: 'open', members: [] });
-  const table = (lobby: typeof ana, partyId: string): TableView => ({
-    id: lobby.id,
-    partyId,
-    rowIds: [lobby.id],
-    openedAt: ago(60),
-    changedAt: ago(30),
-    host: null,
-    watched: null,
-    lobby,
-    tile: null,
+describe('a finished table whose Kustoms moved on ends at once (lead ruling 2026-10-05)', () => {
+  // Party A finished five minutes ago; the host (token-host, player host) sat in it.
+  const finishedA = row('a1', 'party-a', 'finished', 50, 5);
+  const openB = row('b1', 'party-b', 'open', 3);
+  const seat = (lobbyId: string, playerId: string, minutes: number) => ({
+    lobbyId,
+    playerId,
+    createdAt: ago(minutes),
   });
-  const two = {
-    ...snapshot(ana),
-    lobbies: [table(ana, 'party-ana'), table(bo, 'party-bo')],
-    selectedLobbyId: 'ana',
-  };
-  const someone = ana.members[0];
-  const token = (over: Partial<TokenSeen>): TokenSeen => ({
-    tokenId: 't1',
-    playerId: 'p1',
-    puuid: someone?.puuid ?? null,
-    currentPartyId: null,
-    currentPartyAt: null,
-    ...over,
+  const token = (
+    tokenId: string,
+    playerId: string,
+    party: string | null,
+    minutes: number | null,
+  ): TokenSeen => ({
+    tokenId,
+    playerId,
+    puuid: `puuid-${playerId}`,
+    currentPartyId: party,
+    currentPartyAt: minutes === null ? null : ago(minutes),
   });
 
-  it("a token whose current party is the table's watches it; a table with none is unwatched", () => {
-    const watched = withWatchers(two, [token({ currentPartyId: 'party-bo', currentPartyAt: ago(1) })]);
-    expect(watched.lobbies?.map((t) => t.watched)).toEqual([false, true]);
-    expect(watched.lobby).toBe(two.lobby);
+  it('the host moves to a new party: the old finished table is gone now, not in twenty minutes', () => {
+    const tokens = [token('token-host', 'host', 'party-b', 3)];
+    const seats = [seat('a1', 'host', 50), seat('b1', 'host', 3)];
+    expect(nightTables([finishedA, openB], NOW, tokens, seats).map((t) => t.partyId)).toEqual(['party-b']);
+    // The anon fold (no tokens) cannot know and keeps the linger; Tonight refolds with the tokens.
+    expect(nightTables([finishedA, openB], NOW).map((t) => t.partyId)).toEqual(['party-a', 'party-b']);
   });
 
-  it('a token that has posted nothing since 0050 watches the table its player sits in', () => {
-    const watched = withWatchers(two, [token({})]);
-    expect(watched.lobbies?.map((t) => t.watched)).toEqual([true, false]);
+  it('a co-host still sits in the old post-game lobby: it lingers, and is watched', () => {
+    const tokens = [token('token-host', 'host', 'party-b', 3), token('token-co', 'co', 'party-a', 50)];
+    const seats = [seat('a1', 'host', 50), seat('a1', 'co', 50), seat('b1', 'host', 3)];
+    const tables = nightTables([finishedA, openB], NOW, tokens, seats);
+    expect(tables.map((t) => [t.partyId, t.watchers.map((w) => w.tokenId)])).toEqual([
+      ['party-a', ['token-co']],
+      ['party-b', ['token-host']],
+    ]);
   });
 
-  it('a failed or skipped read keeps unknown', () => {
-    expect(withWatchers(two, null)).toBe(two);
+  it('a Kustom that has posted nothing since the game (players still in the post-game lobby): it lingers', () => {
+    const tokens = [token('token-host', 'host', 'party-a', 50)];
+    expect(nightTables([finishedA], NOW, tokens, [seat('a1', 'host', 50)])).toHaveLength(1);
+    // Offline Kustoms (no token seen) say nothing either way: the linger holds.
+    expect(nightTables([finishedA], NOW, [], [])).toHaveLength(1);
+  });
+
+  it('a token that moved before the game ended, or was never in the table, does not end it', () => {
+    const before = [token('token-x', 'x', 'party-b', 30)];
+    expect(nightTables([finishedA, openB], NOW, before, [seat('a1', 'x', 50)])).toHaveLength(2);
+    const stranger = [token('token-y', 'y', 'party-b', 3)];
+    expect(nightTables([finishedA, openB], NOW, stranger, [])).toHaveLength(2);
+  });
+
+  it('a live (pre-game or in-game) table is never ended by a move: the M22.1 let-go owns that', () => {
+    const inGame = row('a1', 'party-a', 'in_game', 50, 40);
+    const tokens = [token('token-host', 'host', 'party-b', 3)];
+    expect(nightTables([inGame, openB], NOW, tokens, [seat('a1', 'host', 50)])).toHaveLength(2);
+  });
+
+  it('seatsFromRosters maps the tokens onto the rosters Tonight already has', () => {
+    const tokens = [token('token-host', 'host', 'party-b', 3)];
+    expect(
+      seatsFromRosters(
+        [
+          {
+            id: 'a1',
+            members: [
+              { puuid: 'puuid-host', joinedAt: ago(50) },
+              { puuid: 'other', joinedAt: ago(9) },
+            ],
+          },
+        ],
+        tokens,
+      ),
+    ).toEqual([seat('a1', 'host', 50)]);
+  });
+
+  it("the night's overlap flag: the host's own next custom inside the walk back is not an overlap", () => {
+    const hostA = { ...finishedA, reportedByPlayerId: 'host' };
+    const hostB = { ...openB, reportedByPlayerId: 'host' };
+    expect(tablesOverlapped([hostA, hostB], NOW)).toBe(false);
+    expect(tablesOverlapped([hostA, { ...hostB, reportedByPlayerId: 'bo' }], NOW)).toBe(true);
   });
 });
