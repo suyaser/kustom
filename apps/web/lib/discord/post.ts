@@ -9,6 +9,8 @@ import { loadGroupPool, selectRatings } from '../ingest/balance';
 import { KUSTOM_FRESH } from '../ingest/fold';
 import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook, LobbyStartedEvent } from '../ingest/hooks';
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
+import { liveTables } from '../liveTables';
+import { lobbyLabels } from '../lobbyLabel';
 import { loadGroupMode } from '../mode/load';
 import { readLobbyLock } from '../mode/lock';
 import { modeTableOfLobby, readTableModeRow } from '../mode/table';
@@ -52,6 +54,7 @@ import {
   gameOnEmbed,
   type LeaderboardEntry,
   leaderboardEmbed,
+  type PostLobbyLabel,
   renderName,
   resultEmbed,
   type SettlingEntry,
@@ -117,7 +120,7 @@ export async function postTeamsForEvent(
   event: LobbyBalancedEvent,
   options: PostOptions = {},
 ): Promise<WebhookOutcome> {
-  const [names, group, receipt, mode] = await Promise.all([
+  const [names, group, receipt, mode, lobbyLabel] = await Promise.all([
     loadNames(client, teamsPuuids(event)),
     loadPostGroup(client, event.groupId),
     // The receipt is drawn from the rows the balance just stored, not from the event's copy of
@@ -125,9 +128,11 @@ export async function postTeamsForEvent(
     loadLobbyReceipt(client, event.lobbyId, event.splitId),
     // The lock Roll wrote before balancing (M15.3), for the rule line (M15.6).
     loadTeamsMode(client, event.lobbyId),
+    // M22.7: which lobby, while two or more are live.
+    loadPostLobby(client, event.groupId, event.lobbyId, options.now ?? new Date()),
   ]);
   const origin = options.requestOrigin ?? event.requestOrigin;
-  const input = buildTeamsInput({ ...event, receipt, mode }, names, teamsContext(origin, group));
+  const input = buildTeamsInput({ ...event, receipt, mode }, names, teamsContext(origin, group, lobbyLabel));
   // The lobby's group's channel (M13.3).
   return postToWebhook(client, teamsEmbed(input), 'teams embed', { ...options, groupId: event.groupId });
 }
@@ -149,13 +154,14 @@ export async function postTeamsForSplit(
 ): Promise<WebhookOutcome> {
   const loaded = await loadTeamsSource(client, splitId, options);
   if (loaded === null) return SKIPPED('no such split');
-  const { source, groupId } = loaded;
+  const { source, groupId, lobbyId } = loaded;
 
-  const [names, group] = await Promise.all([
+  const [names, group, lobbyLabel] = await Promise.all([
     loadNames(client, teamsPuuids(source)),
     loadPostGroup(client, groupId),
+    loadPostLobby(client, groupId, lobbyId, options.now ?? new Date()),
   ]);
-  const input = buildTeamsInput(source, names, teamsContext(options.requestOrigin, group));
+  const input = buildTeamsInput(source, names, teamsContext(options.requestOrigin, group, lobbyLabel));
   // The split's lobby's group's channel (M13.3), whoever pressed the reroll.
   return postToWebhook(client, teamsEmbed(input), 'teams embed', { ...options, groupId });
 }
@@ -163,16 +169,88 @@ export async function postTeamsForSplit(
 /**
  * The teams post's identity and links (M14.61, 05-design 10.4): E1's title links the group's
  * tonight page, E4's the receipt's disclosure on it (STRATEGY §4.9), the rule line the mode
- * panel. No group, no link: never a link to `/` or to another group's page.
+ * panel. No group, no link: never a link to `/` or to another group's page. The builders add
+ * `?lobby=` to every one of them when `lobbyLabel` is given (M22.7).
  */
-function teamsContext(origin: string | null | undefined, group: PostGroup | null) {
+function teamsContext(
+  origin: string | null | undefined,
+  group: PostGroup | null,
+  lobbyLabel?: PostLobbyLabel | undefined,
+) {
   const slug = group?.slug ?? null;
   return {
     identity: postIdentity(group, origin),
     url: slug === null ? undefined : groupPageUrl(origin, slug),
     receiptUrl: slug === null ? undefined : groupPageUrl(origin, slug, RECEIPT_ANCHOR),
     modeUrl: fearlessUrl(origin, slug),
+    ...(lobbyLabel === undefined ? {} : { lobbyLabel }),
   };
+}
+
+/**
+ * **Which lobby a post is about** (M22.7, 05-design 14.10): the label and `?lobby=` id for a post
+ * about `lobbyId`, or `undefined` when fewer than two tables are live at `now` (the post's own
+ * table counted), when `lobbyId` is not a row of a live table, or when the read fails (logged: the
+ * post goes out as the one-lobby post rather than not at all). `liveTables` is the one reader of
+ * "the live lobbies"; the label is the table's first reporter's name tonight (`lib/lobbyLabel.ts`).
+ */
+export async function loadPostLobby(
+  client: ServiceClient,
+  groupId: string,
+  lobbyId: string | null,
+  now: Date,
+): Promise<PostLobbyLabel | undefined> {
+  if (lobbyId === null) return undefined;
+  try {
+    const tables = await liveTables(client, groupId, now);
+    if (tables.length < 2) return undefined;
+    const own = tables.find((table) => table.rowIds.includes(lobbyId));
+    if (own === undefined) return undefined;
+    const hosts = await loadPlayerNamesById(
+      client,
+      tables.flatMap((table) => (table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId])),
+    );
+    const labels = lobbyLabels(
+      tables.map((table) => ({
+        key: table.partyId,
+        hostName: table.label.hostPlayerId === null ? null : (hosts.get(table.label.hostPlayerId) ?? null),
+        openedAt: table.openedAt,
+      })),
+      renderName,
+    );
+    const label = labels.get(own.partyId);
+    return label === undefined ? undefined : { lobbyId, label, live: tables.length };
+  } catch (error) {
+    console.error('discord: reading the live lobbies failed; posting without a lobby label', error);
+    return undefined;
+  }
+}
+
+/** How many tables are live at `now` (M22.7: the Fearless reset's `both`/`every`), or 0 on a failed read. */
+async function loadLiveLobbyCount(client: ServiceClient, groupId: string, now: Date): Promise<number> {
+  try {
+    return (await liveTables(client, groupId, now)).length;
+  } catch (error) {
+    console.error(
+      'discord: reading the live lobbies failed; posting the reset without the lobbies line',
+      error,
+    );
+    return 0;
+  }
+}
+
+/** `players.id` -> the name every post prints (`display_name`, else `game_name`), as `loadNames` reads it. */
+async function loadPlayerNamesById(
+  client: ServiceClient,
+  ids: readonly string[],
+): Promise<Map<string, string | null>> {
+  const unique = [...new Set(ids)];
+  const names = new Map<string, string | null>();
+  if (unique.length === 0) return names;
+  const { data, error } = await client.from('players').select('id, display_name, game_name').in('id', unique);
+  if (error) throw new Error(`host name lookup failed: ${error.message}`);
+  for (const row of data ?? []) names.set(row.id, row.display_name ?? row.game_name ?? null);
+  return names;
 }
 
 /**
@@ -260,15 +338,16 @@ export async function postGameOnForLobby(
     return SKIPPED(kickoffIsAram(kickoff) ? 'an ARAM gets no Game on post' : 'kickoff teams are the roll');
   }
   const puuids = [...kickoff.blue, ...kickoff.red];
-  const [names, group, mode, split, ratingOf] = await Promise.all([
+  const [names, group, mode, split, ratingOf, lobbyLabel] = await Promise.all([
     loadNames(client, puuids),
     loadPostGroup(client, event.groupId),
     loadTeamsMode(client, event.lobbyId),
     kickoff.kind === 'custom' ? loadChosenSplit(client, event.lobbyId) : Promise.resolve(null),
     loadKickoffRatings(client, event.groupId, puuids),
+    loadPostLobby(client, event.groupId, event.lobbyId, options.now ?? new Date()),
   ]);
   const origin = options.requestOrigin ?? event.requestOrigin;
-  const context = teamsContext(origin, group);
+  const context = teamsContext(origin, group, lobbyLabel);
   const input = buildGameOnInput({ kickoff, split, ratingOf, mode }, names, context);
   return postToWebhook(client, gameOnEmbed(input), 'game on embed', { ...options, groupId: event.groupId });
 }
@@ -336,10 +415,16 @@ export async function postResultForGame(
   if (source === null) return SKIPPED('no such game');
 
   // The game's own group's channel (M13.3), read off the row: a game belongs to one group.
-  const groupId = await gameGroupId(client, gameId);
-  if (groupId === null) return SKIPPED('no such game');
+  const owner = await gameOwner(client, gameId);
+  if (owner === null) return SKIPPED('no such game');
+  const { groupId } = owner;
 
-  const payload = resultPayload(source, gameId, await loadPostGroup(client, groupId), options.requestOrigin);
+  const [group, lobbyLabel] = await Promise.all([
+    loadPostGroup(client, groupId),
+    // M22.7: the game's lobby's label, while two or more are live (a finished table lingers).
+    loadPostLobby(client, groupId, owner.lobbyId, options.now ?? new Date()),
+  ]);
+  const payload = resultPayload(source, gameId, group, options.requestOrigin, lobbyLabel);
   if (payload === null) return SKIPPED('game is not rated');
 
   // M16.4: a group whose AI recap may edit this post asks for the message id; nobody else does.
@@ -353,26 +438,36 @@ export async function postResultForGame(
   return outcome;
 }
 
-/** `games.group_id`, or null for a game that does not exist. */
-async function gameGroupId(client: ServiceClient, gameId: string): Promise<string | null> {
-  const { data, error } = await client.from('games').select('group_id').eq('id', gameId).maybeSingle();
+/** `games.group_id` and `games.lobby_id`, or null for a game that does not exist. */
+async function gameOwner(
+  client: ServiceClient,
+  gameId: string,
+): Promise<{ groupId: string; lobbyId: string | null } | null> {
+  const { data, error } = await client
+    .from('games')
+    .select('group_id, lobby_id')
+    .eq('id', gameId)
+    .maybeSingle();
   if (error) throw new Error(`discord: game group lookup failed: ${error.message}`);
-  return data?.group_id ?? null;
+  return data === null ? null : { groupId: data.group_id, lobbyId: data.lobby_id };
 }
 
 /**
  * The result embed for one loaded game, or `null` when it is not rated. Its title links to that
  * game's own page under its group, `/g/<slug>/games/<id>` (M13.11, folded into M14.10), not to
  * the tonight page, which shows the next lobby minutes later; nothing printed depends on the
- * link. With no slug there is no link.
+ * link. With no slug there is no link. `lobbyLabel` (M22.7, two or more live) leads the title with
+ * the label and points the author link at the lobby; the title link stays the game's.
  */
 export function resultPayload(
   source: ResultSource,
   gameId: string,
   group: PostGroup | null,
   requestOrigin: string | null | undefined,
+  lobbyLabel?: PostLobbyLabel | undefined,
 ): WebhookPayload | null {
   const input = buildResultInput(source, {
+    ...(lobbyLabel === undefined ? {} : { lobbyLabel }),
     identity: postIdentity(group, requestOrigin),
     url: group === null ? undefined : gamePageUrl(requestOrigin, group.slug, gameId),
     // The badge is an image: sent only on a public origin (05-design 10.11), else no thumbnail.
@@ -397,7 +492,7 @@ export function resultPayload(
  */
 export async function postFearlessPool(
   client: ServiceClient,
-  options: GroupPostOptions & { gameId?: string },
+  options: GroupPostOptions & { gameId?: string; lobbyId?: string | null },
 ): Promise<WebhookOutcome> {
   // The group's own pool, posted to the group's own channel (M13.3): `options.groupId` is the
   // game's group when the result hook calls this.
@@ -405,7 +500,11 @@ export async function postFearlessPool(
   if (!isFearlessMode(pool.mode)) return SKIPPED(FEARLESS_SKIPPED_NORMAL);
   if (pool.champions.length === 0) return SKIPPED('fearless pool is empty');
 
-  const group = await loadPostGroup(client, options.groupId);
+  const [group, lobbyLabel] = await Promise.all([
+    loadPostGroup(client, options.groupId),
+    // M22.7: the line naming the game's lobby, while two or more are live.
+    loadPostLobby(client, options.groupId, options.lobbyId ?? null, options.now ?? new Date()),
+  ]);
   return postToWebhook(
     client,
     fearlessEmbed({
@@ -413,6 +512,7 @@ export async function postFearlessPool(
       champions: pool.champions,
       added: addedBy(pool.champions, options.gameId),
       url: fearlessUrl(options.requestOrigin, group?.slug ?? null),
+      ...(lobbyLabel === undefined ? {} : { lobbyLabel }),
     }),
     'fearless embed',
     options,
@@ -441,12 +541,17 @@ export async function postFearlessReset(
 ): Promise<WebhookOutcome> {
   if (!isFearlessMode(await loadGroupMode(client, options.groupId))) return SKIPPED(FEARLESS_SKIPPED_NORMAL);
 
-  const group = await loadPostGroup(client, options.groupId);
+  const [group, live] = await Promise.all([
+    loadPostGroup(client, options.groupId),
+    loadLiveLobbyCount(client, options.groupId, options.now ?? new Date()),
+  ]);
   return postToWebhook(
     client,
     fearlessResetEmbed({
       identity: postIdentity(group, options.requestOrigin),
       url: fearlessUrl(options.requestOrigin, group?.slug ?? null),
+      // M22.7: `For both lobbies.` while two or more are live.
+      ...(live >= 2 ? { liveLobbies: live } : {}),
     }),
     'fearless reset embed',
     options,
@@ -816,7 +921,7 @@ async function loadTeamsSource(
   client: ServiceClient,
   splitId: string,
   options: PostOptions,
-): Promise<{ source: TeamsSource; groupId: string } | null> {
+): Promise<{ source: TeamsSource; groupId: string; lobbyId: string } | null> {
   const { data, error } = await client
     .from('splits')
     .select('rank, blue, red, explanation, lobbies!inner(id, lobby_name, lobby_password, group_id)')
@@ -862,6 +967,7 @@ async function loadTeamsSource(
 
   return {
     groupId: data.lobbies.group_id,
+    lobbyId: data.lobbies.id,
     source: {
       split: { blue, red },
       explanation: data.explanation,
@@ -915,6 +1021,7 @@ export const discordLobbyHook: LobbyHook = {
     const origin = { requestOrigin: event.requestOrigin ?? null, groupId: event.groupId };
     await postResultForGame(client, event.gameId, origin);
     // Only a rated game adds to the pool (R4), so a not-rated one has no new pool to post.
-    if (event.rated) await postFearlessPool(client, { ...origin, gameId: event.gameId });
+    if (event.rated)
+      await postFearlessPool(client, { ...origin, gameId: event.gameId, lobbyId: event.lobbyId });
   },
 };

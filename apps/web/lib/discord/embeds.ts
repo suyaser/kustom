@@ -13,6 +13,7 @@ import { availableFearless, groupFearless } from '../fearless/present';
 import type { FearlessChampion } from '../fearless/types';
 import { formatMinutes } from '../games/duration';
 import { inLaneOrder } from '../laneOrder';
+import { formatLobbyLabel, type LobbyLabel } from '../lobbyLabel';
 import {
   barPercents,
   explanationShown,
@@ -183,6 +184,72 @@ function authorOf(identity: PostIdentity, suffix?: string): DraftEmbed['author']
 }
 
 /**
+ * **Which lobby a post is about** (M22.7, 05-design 14.10): given to a builder only while two or
+ * more tables are live at send time (the post's own table counted). Absent, the post is byte for
+ * byte the one-lobby post. Present, E1's title leads with the label and the Tonight links open
+ * that lobby (`?lobby=<id>`). Never removed afterwards: posts are never edited, and the AI recap
+ * edit re-sends the stored E1 (`aiEdit.ts`).
+ */
+export interface PostLobbyLabel {
+  /** A `lobbies.id` of the table (the post's own row): what `?lobby=` carries. */
+  lobbyId: string;
+  /** The table's label (`lib/lobbyLabel.ts`), rendered here with {@link renderName}. */
+  label: LobbyLabel;
+  /** How many tables were live at send time, this one counted: `both` at 2, `every` at 3 or more. */
+  live: number;
+}
+
+/** The label as a Discord post prints it: the host's name through {@link renderName}, escaped. */
+export function lobbyLabelText(label: LobbyLabel): string {
+  return formatLobbyLabel(label, renderName);
+}
+
+/**
+ * `Ana's lobby · Teams are set` (14.10): the label first, so two posts a minute apart differ in
+ * their first word. Part of the never-cut title (10.12): no new give-way step.
+ */
+export function labelledTitle(title: string, lobbyLabel: PostLobbyLabel | undefined): string {
+  return lobbyLabel === undefined ? title : `${lobbyLabelText(lobbyLabel.label)} · ${title}`;
+}
+
+/**
+ * A Tonight link opening this lobby: `?lobby=<id>` before any `#anchor` (14.10). `undefined` stays
+ * `undefined` (no honest link), and no label leaves the link as it was.
+ */
+export function lobbyUrl(
+  url: string | undefined,
+  lobbyLabel: PostLobbyLabel | undefined,
+): string | undefined {
+  if (url === undefined || lobbyLabel === undefined) return url;
+  const hash = url.indexOf('#');
+  const base = hash === -1 ? url : url.slice(0, hash);
+  const anchor = hash === -1 ? '' : url.slice(hash);
+  const join = base.includes('?') ? '&' : '?';
+  return `${base}${join}lobby=${encodeURIComponent(lobbyLabel.lobbyId)}${anchor}`;
+}
+
+/** The identity with its author link opening this lobby (14.10); the name is unchanged. */
+function lobbyIdentity(identity: PostIdentity, lobbyLabel: PostLobbyLabel | undefined): PostIdentity {
+  if (lobbyLabel === undefined || identity.groupUrl === undefined) return identity;
+  return { ...identity, groupUrl: lobbyUrl(identity.groupUrl, lobbyLabel) };
+}
+
+/** `both lobbies` for two live tables, `every lobby` for three or more (14.11). */
+function lobbiesWords(live: number): string {
+  return live > 2 ? 'every lobby' : 'both lobbies';
+}
+
+/** The Fearless pool's second line (14.10): `From a game in Ana's lobby. One list for both lobbies.` */
+export function fearlessFromLine(lobbyLabel: PostLobbyLabel): string {
+  return `From a game in ${lobbyLabelText(lobbyLabel.label)}. One list for ${lobbiesWords(lobbyLabel.live)}.`;
+}
+
+/** The Fearless reset's second line (14.10): `For both lobbies.` / `For every lobby.` */
+export function fearlessResetLobbiesLine(live: number): string {
+  return `For ${lobbiesWords(live)}.`;
+}
+
+/**
  * The one exit from this file. Every builder returns through here, so the webhook identity is set
  * once and Discord's limits are applied once, on the whole message, in `limits.ts`. Below the
  * limits the guard is the identity.
@@ -274,6 +341,8 @@ export interface TeamsEmbedInput {
   mode?: TeamsModeInput | null | undefined;
   /** The group's mode panel, `/g/<slug>/mode`, which the rule line links. */
   modeUrl?: string | undefined;
+  /** M22.7: which lobby, only while two or more are live ({@link PostLobbyLabel}). */
+  lobbyLabel?: PostLobbyLabel | undefined;
 }
 
 /** The teams post's receipt: the posted split, the next one down, and the lobby's count. */
@@ -341,8 +410,10 @@ export interface ResultEmbedInput {
    * odds line. Absent reads as a rated game with no rule.
    */
   mode?: ResultModeInput | undefined;
-  /** E1's title link: the game's page, or `undefined`. */
+  /** E1's title link: the game's page, or `undefined`. Never given `?lobby=` (a game is not a lobby). */
   url?: string | undefined;
+  /** M22.7: which lobby, only while two or more are live: the title's label and the author's link. */
+  lobbyLabel?: PostLobbyLabel | undefined;
   /** The result badge (05-design 10.11 B2), only on a public origin. */
   badgeUrl?: string | undefined;
 }
@@ -456,15 +527,18 @@ export function teamsEmbed(input: TeamsEmbedInput): WebhookPayload {
   if (lobby !== null) fields.push({ name: 'Lobby', value: [lobby] });
 
   const standing = input.mode?.standing;
+  const { lobbyLabel } = input;
+  const url = lobbyUrl(input.url, lobbyLabel);
+  const receiptUrl = lobbyUrl(input.receiptUrl, lobbyLabel);
   const header: DraftEmbed = withAuthor(
     {
       color: ACCENT_COLOR,
-      title: teamsTitle(input.promoted),
-      ...(input.url === undefined ? {} : { url: input.url }),
-      ...optionalDescription(teamsHeaderLines(input)),
+      title: labelledTitle(teamsTitle(input.promoted), lobbyLabel),
+      ...(url === undefined ? {} : { url }),
+      ...optionalDescription(teamsHeaderLines({ ...input, modeUrl: lobbyUrl(input.modeUrl, lobbyLabel) })),
       fields,
     },
-    authorOf(input.identity, standing === 'fearless' ? FEARLESS_TITLE : undefined),
+    authorOf(lobbyIdentity(input.identity, lobbyLabel), standing === 'fearless' ? FEARLESS_TITLE : undefined),
   );
 
   return message(input.identity, [
@@ -474,7 +548,7 @@ export function teamsEmbed(input: TeamsEmbedInput): WebhookPayload {
     {
       color: ACCENT_COLOR,
       title: HOW_SUMMARY,
-      ...(input.receiptUrl === undefined ? {} : { url: input.receiptUrl }),
+      ...(receiptUrl === undefined ? {} : { url: receiptUrl }),
       description: receiptLines(input),
     },
   ]);
@@ -623,6 +697,8 @@ export interface GameOnEmbedInput {
   modeUrl?: string | undefined;
   /** E1's title link: the group's tonight page. */
   url?: string | undefined;
+  /** M22.7: which lobby, only while two or more are live ({@link PostLobbyLabel}). */
+  lobbyLabel?: PostLobbyLabel | undefined;
 }
 
 /**
@@ -634,8 +710,12 @@ export interface GameOnEmbedInput {
  */
 export function gameOnEmbed(input: GameOnEmbedInput): WebhookPayload {
   const custom = input.kind === 'custom';
+  const { lobbyLabel } = input;
+  const url = lobbyUrl(input.url, lobbyLabel);
   const modeLine =
-    input.mode === undefined || input.mode === null ? null : teamsModeLine(input.mode, input.modeUrl);
+    input.mode === undefined || input.mode === null
+      ? null
+      : teamsModeLine(input.mode, lobbyUrl(input.modeUrl, lobbyLabel));
   const description = [
     custom ? GAME_ON_CUSTOM_DESCRIPTION : GAME_ON_UNROLLED_DESCRIPTION,
     ...(modeLine === null ? [] : [modeLine]),
@@ -651,11 +731,11 @@ export function gameOnEmbed(input: GameOnEmbedInput): WebhookPayload {
   const header: DraftEmbed = withAuthor(
     {
       color: ACCENT_COLOR,
-      title: custom ? GAME_ON_CUSTOM_TITLE : GAME_ON_UNROLLED_TITLE,
-      ...(input.url === undefined ? {} : { url: input.url }),
+      title: labelledTitle(custom ? GAME_ON_CUSTOM_TITLE : GAME_ON_UNROLLED_TITLE, lobbyLabel),
+      ...(url === undefined ? {} : { url }),
       description,
     },
-    authorOf(input.identity, standing === 'fearless' ? FEARLESS_TITLE : undefined),
+    authorOf(lobbyIdentity(input.identity, lobbyLabel), standing === 'fearless' ? FEARLESS_TITLE : undefined),
   );
   return message(input.identity, [
     header,
@@ -701,7 +781,7 @@ export function resultEmbed(input: ResultEmbedInput): WebhookPayload {
   const header: DraftEmbed = withAuthor(
     {
       color: input.winningSide === 100 ? BLUE_COLOR : RED_COLOR,
-      title: `${winner} wins · ${formatMinutes(input.durationS)}`,
+      title: labelledTitle(`${winner} wins · ${formatMinutes(input.durationS)}`, input.lobbyLabel),
       ...(input.url === undefined ? {} : { url: input.url }),
       ...optionalDescription(description),
       // The badge narrows E1; a game with a rule carries the check line, so it goes without
@@ -710,7 +790,10 @@ export function resultEmbed(input: ResultEmbedInput): WebhookPayload {
         ? {}
         : { thumbnail: { url: input.badgeUrl } }),
     },
-    authorOf(input.identity, input.gameNumber === null ? undefined : `game ${input.gameNumber}`),
+    authorOf(
+      lobbyIdentity(input.identity, input.lobbyLabel),
+      input.gameNumber === null ? undefined : `game ${input.gameNumber}`,
+    ),
   );
 
   return message(input.identity, [
@@ -1008,6 +1091,11 @@ export interface FearlessEmbedInput {
   /** Ids the game this post is about added to the pool: the bold ones, and `<n>` in the description. */
   added: ReadonlySet<number>;
   url?: string | undefined;
+  /**
+   * M22.7: the lobby of the game that added the bold ones, only while two or more are live: the
+   * description's second line. The title and its link stay the group's (one list).
+   */
+  lobbyLabel?: PostLobbyLabel | undefined;
 }
 
 export function fearlessEmbed(input: FearlessEmbedInput): WebhookPayload {
@@ -1018,11 +1106,10 @@ export function fearlessEmbed(input: FearlessEmbedInput): WebhookPayload {
         color: ACCENT_COLOR,
         title: FEARLESS_TITLE,
         ...(input.url === undefined ? {} : { url: input.url }),
-        description: fearlessPostDescription(
-          added,
-          input.champions.length,
-          availableFearless(input.champions).length,
-        ),
+        description: [
+          fearlessPostDescription(added, input.champions.length, availableFearless(input.champions).length),
+          ...(input.lobbyLabel === undefined ? [] : [fearlessFromLine(input.lobbyLabel)]),
+        ],
         fields: groupFearless(input.champions).map((group) => {
           const fresh = group.champions.filter((champion) => input.added.has(champion.id));
           const rest = group.champions.filter((champion) => !input.added.has(champion.id));
@@ -1052,6 +1139,8 @@ export function fearlessLaneField(role: Parameters<typeof fearlessLaneTitle>[0],
 export interface FearlessResetEmbedInput {
   identity: PostIdentity;
   url?: string | undefined;
+  /** M22.7: how many tables are live, given only at two or more: the description's second line. */
+  liveLobbies?: number | undefined;
 }
 
 export function fearlessResetEmbed(input: FearlessResetEmbedInput): WebhookPayload {
@@ -1061,7 +1150,12 @@ export function fearlessResetEmbed(input: FearlessResetEmbedInput): WebhookPaylo
         color: ACCENT_COLOR,
         title: FEARLESS_TITLE,
         ...(input.url === undefined ? {} : { url: input.url }),
-        description: FEARLESS_RESET_DESCRIPTION,
+        description: [
+          FEARLESS_RESET_DESCRIPTION,
+          ...(input.liveLobbies === undefined || input.liveLobbies < 2
+            ? []
+            : [fearlessResetLobbiesLine(input.liveLobbies)]),
+        ],
       },
       authorOf(input.identity),
     ),
