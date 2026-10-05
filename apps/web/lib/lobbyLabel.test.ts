@@ -27,7 +27,11 @@ describe('lobbyLabels (05-design 14.1)', () => {
       plain,
     );
     const text = (key: string) => formatLobbyLabel(labels.get(key) ?? { kind: 'numbered', n: 0 }, plain);
-    expect([text('old'), text('new'), text('newest')]).toEqual(["Ana's lobby", "Ana's lobby 2", "Ana's lobby 3"]);
+    expect([text('old'), text('new'), text('newest')]).toEqual([
+      "Ana's lobby",
+      "Ana's lobby 2",
+      "Ana's lobby 3",
+    ]);
   });
 
   it('no host name: `Lobby n`, n by when the table opened', () => {
@@ -45,7 +49,10 @@ describe('lobbyLabels (05-design 14.1)', () => {
 
   it('Discord: the name is cut and escaped by renderName, the suffix is never cut', () => {
     const name = '*'.repeat(40);
-    const [label] = lobbyLabels([{ key: 'a', hostName: name, openedAt: '2026-10-05T19:00:00Z' }], renderName).values();
+    const [label] = lobbyLabels(
+      [{ key: 'a', hostName: name, openedAt: '2026-10-05T19:00:00Z' }],
+      renderName,
+    ).values();
     expect(label).toBeDefined();
     const text = formatLobbyLabel(label ?? { kind: 'numbered', n: 0 }, renderName);
     expect(text).toBe(`${'\\*'.repeat(31)}…'s lobby`);

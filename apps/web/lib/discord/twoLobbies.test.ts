@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { FEARLESS_RESET_DESCRIPTION, FEARLESS_TITLE } from '../fearless/copy';
 import { modePageUrl } from '../siteUrl';
-import { GAME4_GROUP, GAME4_ORIGIN, game4Fearless, game4Identity, game4Result, game4Teams } from '../testing/discordGame4';
+import {
+  GAME4_GROUP,
+  GAME4_ORIGIN,
+  game4Fearless,
+  game4Identity,
+  game4Result,
+  game4Teams,
+} from '../testing/discordGame4';
 import { recapPayload } from './aiEdit';
 import {
   fearlessEmbed,
@@ -35,7 +42,11 @@ const KNIFIY: PostLobbyLabel = {
   live: 2,
 };
 /** XETA's lobby, both lobbies live. */
-const XETA: PostLobbyLabel = { lobbyId: XETA_LOBBY, label: { kind: 'host', name: 'XETA', repeat: 1 }, live: 2 };
+const XETA: PostLobbyLabel = {
+  lobbyId: XETA_LOBBY,
+  label: { kind: 'host', name: 'XETA', repeat: 1 },
+  live: 2,
+};
 
 const TONIGHT = `${GAME4_ORIGIN}/g/${GAME4_GROUP.slug}`;
 
@@ -76,7 +87,11 @@ function twoLobbyPosts(): Record<string, WebhookPayload> {
     result: resultEmbed(game4Result({ lobbyLabel: XETA })),
     'fearless pool': fearlessEmbed({ ...game4Fearless(), lobbyLabel: XETA }),
     'fearless pool, three lobbies': fearlessEmbed({ ...game4Fearless(), lobbyLabel: { ...XETA, live: 3 } }),
-    'fearless reset': fearlessResetEmbed({ identity: game4Identity(), url: game4Fearless().url, liveLobbies: 2 }),
+    'fearless reset': fearlessResetEmbed({
+      identity: game4Identity(),
+      url: game4Fearless().url,
+      liveLobbies: 2,
+    }),
     'fearless reset, three lobbies': fearlessResetEmbed({
       identity: game4Identity(),
       url: game4Fearless().url,
@@ -95,7 +110,9 @@ describe('two lobbies live: every post that names one, as snapshots', () => {
 
 describe('the label leads the title (14.10)', () => {
   it('teams, reroll, both Game on kinds and the result', () => {
-    expect(teamsEmbed(game4Teams({ lobbyLabel: KNIFIY })).embeds[0]?.title).toBe("knifiy's lobby · Teams are set");
+    expect(teamsEmbed(game4Teams({ lobbyLabel: KNIFIY })).embeds[0]?.title).toBe(
+      "knifiy's lobby · Teams are set",
+    );
     expect(
       teamsEmbed(game4Teams({ promoted: { rank: 2, splitCount: 3 }, lobbyLabel: KNIFIY })).embeds[0]?.title,
     ).toBe("knifiy's lobby · Teams are set · reroll 1 of 2");
@@ -105,14 +122,18 @@ describe('the label leads the title (14.10)', () => {
     expect(gameOnEmbed(gameOn('unrolled', { lobbyLabel: KNIFIY })).embeds[0]?.title).toBe(
       `knifiy's lobby · ${GAME_ON_UNROLLED_TITLE}`,
     );
-    expect(resultEmbed(game4Result({ lobbyLabel: XETA })).embeds[0]?.title).toBe("XETA's lobby · Red wins · 31 min");
+    expect(resultEmbed(game4Result({ lobbyLabel: XETA })).embeds[0]?.title).toBe(
+      "XETA's lobby · Red wins · 31 min",
+    );
   });
 
   it('a same-name lobby and a nameless one', () => {
-    expect(labelledTitle('Teams are set', { ...KNIFIY, label: { kind: 'host', name: 'Ana', repeat: 2 } })).toBe(
-      "Ana's lobby 2 · Teams are set",
+    expect(
+      labelledTitle('Teams are set', { ...KNIFIY, label: { kind: 'host', name: 'Ana', repeat: 2 } }),
+    ).toBe("Ana's lobby 2 · Teams are set");
+    expect(labelledTitle('Game on', { ...KNIFIY, label: { kind: 'numbered', n: 3 } })).toBe(
+      'Lobby 3 · Game on',
     );
-    expect(labelledTitle('Game on', { ...KNIFIY, label: { kind: 'numbered', n: 3 } })).toBe('Lobby 3 · Game on');
   });
 
   it('the host name is escaped by renderName, plain in the bold title', () => {

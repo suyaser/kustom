@@ -234,6 +234,14 @@ if (stack === null || !ready) {
     posts = [];
     answer = (response) => response.writeHead(204).end();
     resetWebhookWarning();
+    // Each scenario opens its own party and leaves it live; end them, so the next scenario is a
+    // one-lobby night and its post carries no lobby label (M22.7 labels a post while two are live).
+    const ended = await db
+      .from('lobbies')
+      .update({ status: 'abandoned' })
+      .eq('group_id', groups.g)
+      .in('status', ['open', 'balanced', 'in_game']);
+    if (ended.error) throw new Error(ended.error.message);
   });
 
   afterAll(async () => {

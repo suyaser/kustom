@@ -391,7 +391,10 @@ describe('the longest lobby label (M22.7)', () => {
   } as const;
   const LABEL = `${RENDERED}'s lobby 2`;
   const URL = 'https://kustom.example/g/a-group-slug-that-is-long';
-  const longestRule = { mode: { id: 'region', blue: 'shadow-isles', red: 'bandle-city' }, rated: false } as const;
+  const longestRule = {
+    mode: { id: 'region', blue: 'shadow-isles', red: 'bandle-city' },
+    rated: false,
+  } as const;
 
   it('the teams post: the title whole, the side line kept, every link opens the lobby', () => {
     const payload = teamsEmbed(
@@ -410,9 +413,12 @@ describe('the longest lobby label (M22.7)', () => {
     expect(e1?.url).toBe(`${URL}?lobby=${LOBBY_ID}`);
     expect(e4?.url).toBe(`${URL}?lobby=${LOBBY_ID}#how-the-bot-decided`);
     expect(e1?.description?.split('\n')[0]).toContain(`(${URL}/mode?lobby=${LOBBY_ID})`);
-    expect(fieldsOf(e1).find((field) => field.name === 'Seats')?.value.split('\n').at(-1)).toBe(
-      SIDE_LINE_MANUAL,
-    );
+    expect(
+      fieldsOf(e1)
+        .find((field) => field.name === 'Seats')
+        ?.value.split('\n')
+        .at(-1),
+    ).toBe(SIDE_LINE_MANUAL);
     expect(escapesAreWhole(e1?.title ?? '')).toBe(true);
   });
 

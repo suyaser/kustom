@@ -7,10 +7,10 @@ import { LEADERBOARD_WINDOW } from '../board/window';
 import { loadFearless } from '../fearless/load';
 import { loadGroupPool, selectRatings } from '../ingest/balance';
 import { KUSTOM_FRESH } from '../ingest/fold';
-import { liveTables } from '../liveTables';
-import { lobbyLabels } from '../lobbyLabel';
 import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook, LobbyStartedEvent } from '../ingest/hooks';
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
+import { liveTables } from '../liveTables';
+import { lobbyLabels } from '../lobbyLabel';
 import { loadGroupMode } from '../mode/load';
 import { readLobbyLock } from '../mode/lock';
 import { readModeRow } from '../mode/state';
@@ -231,7 +231,10 @@ async function loadLiveLobbyCount(client: ServiceClient, groupId: string, now: D
   try {
     return (await liveTables(client, groupId, now)).length;
   } catch (error) {
-    console.error('discord: reading the live lobbies failed; posting the reset without the lobbies line', error);
+    console.error(
+      'discord: reading the live lobbies failed; posting the reset without the lobbies line',
+      error,
+    );
     return 0;
   }
 }
@@ -1016,6 +1019,7 @@ export const discordLobbyHook: LobbyHook = {
     const origin = { requestOrigin: event.requestOrigin ?? null, groupId: event.groupId };
     await postResultForGame(client, event.gameId, origin);
     // Only a rated game adds to the pool (R4), so a not-rated one has no new pool to post.
-    if (event.rated) await postFearlessPool(client, { ...origin, gameId: event.gameId, lobbyId: event.lobbyId });
+    if (event.rated)
+      await postFearlessPool(client, { ...origin, gameId: event.gameId, lobbyId: event.lobbyId });
   },
 };

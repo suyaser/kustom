@@ -36,8 +36,7 @@ export function lobbyLabels(
   render: (name: string) => string,
 ): Map<string, LobbyLabel> {
   const ordered = [...tables].sort(
-    (a, b) =>
-      Date.parse(a.openedAt) - Date.parse(b.openedAt) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+    (a, b) => Date.parse(a.openedAt) - Date.parse(b.openedAt) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
   );
   const seen = new Map<string, number>();
   const labels = new Map<string, LobbyLabel>();

@@ -217,7 +217,12 @@ if (stack === null) {
     const eog = await postGame(
       jsonRequest(
         '/api/companion/game',
-        eogBody({ gameId, partyId: X, puuids: tenX, startedAt: new Date(Date.now() - 40 * 60_000).toISOString() }),
+        eogBody({
+          gameId,
+          partyId: X,
+          puuids: tenX,
+          startedAt: new Date(Date.now() - 40 * 60_000).toISOString(),
+        }),
         tokens.ana,
       ),
     );
@@ -237,7 +242,12 @@ if (stack === null) {
     const again = await postGame(
       jsonRequest(
         '/api/companion/game',
-        eogBody({ gameId, partyId: X, puuids: tenX, startedAt: new Date(Date.now() - 40 * 60_000).toISOString() }),
+        eogBody({
+          gameId,
+          partyId: X,
+          puuids: tenX,
+          startedAt: new Date(Date.now() - 40 * 60_000).toISOString(),
+        }),
         tokens.ana,
       ),
     );

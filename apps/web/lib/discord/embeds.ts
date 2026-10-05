@@ -216,7 +216,10 @@ export function labelledTitle(title: string, lobbyLabel: PostLobbyLabel | undefi
  * A Tonight link opening this lobby: `?lobby=<id>` before any `#anchor` (14.10). `undefined` stays
  * `undefined` (no honest link), and no label leaves the link as it was.
  */
-export function lobbyUrl(url: string | undefined, lobbyLabel: PostLobbyLabel | undefined): string | undefined {
+export function lobbyUrl(
+  url: string | undefined,
+  lobbyLabel: PostLobbyLabel | undefined,
+): string | undefined {
   if (url === undefined || lobbyLabel === undefined) return url;
   const hash = url.indexOf('#');
   const base = hash === -1 ? url : url.slice(0, hash);
@@ -532,9 +535,7 @@ export function teamsEmbed(input: TeamsEmbedInput): WebhookPayload {
       color: ACCENT_COLOR,
       title: labelledTitle(teamsTitle(input.promoted), lobbyLabel),
       ...(url === undefined ? {} : { url }),
-      ...optionalDescription(
-        teamsHeaderLines({ ...input, modeUrl: lobbyUrl(input.modeUrl, lobbyLabel) }),
-      ),
+      ...optionalDescription(teamsHeaderLines({ ...input, modeUrl: lobbyUrl(input.modeUrl, lobbyLabel) })),
       fields,
     },
     authorOf(lobbyIdentity(input.identity, lobbyLabel), standing === 'fearless' ? FEARLESS_TITLE : undefined),
