@@ -741,6 +741,7 @@ impl<P: GamePoster> Actor<P> {
             game_id: u64::try_from(game_id).unwrap_or(0),
             party_id: party_id.clone(),
             started_at: Some(observed_at),
+            game_mode: session.game_mode(),
         });
         self.in_progress_in_flight += 1;
         let poster = self.poster.clone();

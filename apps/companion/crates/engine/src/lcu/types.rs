@@ -111,6 +111,15 @@ pub struct QueueMap {
     pub other: Map<String, Value>,
 }
 
+/// A string, or `None` for anything else (a null, a number, an object): the game mode is read for the
+/// `in_progress` post (M21.12), and a field the client changed must never cost the post.
+fn string_or_none<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    Ok(match Value::deserialize(deserializer)? {
+        Value::String(text) => Some(text),
+        _ => None,
+    })
+}
+
 /// One player of a gameflow session team.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,6 +146,7 @@ pub struct GameflowQueue {
     #[serde(rename = "type")]
     pub kind: Option<String>,
     /// `gameMode`.
+    #[serde(default, deserialize_with = "string_or_none")]
     pub game_mode: Option<String>,
     /// `name`.
     pub name: Option<String>,
@@ -171,6 +181,7 @@ pub struct GameflowMap {
     /// Map id.
     pub id: i64,
     /// `gameMode`.
+    #[serde(default, deserialize_with = "string_or_none")]
     pub game_mode: Option<String>,
     /// `name`.
     pub name: Option<String>,
@@ -197,6 +208,28 @@ pub struct GameflowSession {
     pub map: GameflowMap,
     /// `gameClient`.
     pub game_client: Option<GameflowGameClient>,
+}
+
+impl GameflowSession {
+    /// The game mode the client names, for the `in_progress` post (M21.12): `gameData.queue.gameMode`,
+    /// else `map.gameMode`, trimmed and upper-cased (`CLASSIC`, `ARAM`, ...). `None` for a missing,
+    /// blank or implausible value (over 32 chars or not alphanumeric/underscore), so a malformed
+    /// session never sends a junk field; the server then behaves as for an old companion.
+    #[must_use]
+    pub fn game_mode(&self) -> Option<String> {
+        [
+            self.game_data.queue.game_mode.as_deref(),
+            self.map.game_mode.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .map(|mode| mode.trim().to_ascii_uppercase())
+        .find(|mode| {
+            !mode.is_empty()
+                && mode.len() <= 32
+                && mode.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
+    }
 }
 
 /// One lobby member (`members[]`, `customTeam100/200[]`, `customSpectators[]`, `localMember`).

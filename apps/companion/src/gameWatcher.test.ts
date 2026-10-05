@@ -32,6 +32,7 @@ import {
   GAMEFLOW_SESSION_PATH,
   GameWatcher,
   type GameWatcherOptions,
+  gameModeOfSession,
 } from './gameWatcher.js';
 import type { Scheduler } from './lobbyWatcher.js';
 import { createMemoryLogger, type MemoryLogger } from './log.js';
@@ -335,6 +336,8 @@ describe('GameWatcher: post 1, in_progress', () => {
     // The party id was captured at GameStart, before the lobby Delete that follows it.
     expect(posts[0]?.partyId).toBe('c85a9f77-e83a-4b37-b8a1-502ee3d540b2');
     expect(posts[1]?.partyId).toBe(PARTY);
+    // M21.12: the recorded customs are CLASSIC.
+    expect(posts.map((post) => post.gameMode)).toEqual(['CLASSIC', 'CLASSIC']);
     // Exactly one session read per game: the InProgress that follows GameStart by 17-60 ms does not read again.
     expect(h.lcuGets(GAMEFLOW_SESSION_PATH)).toBe(2);
     expect(h.files()).toEqual([]);
@@ -750,3 +753,17 @@ describe('GameWatcher: the queue', () => {
 function mapped(gameId: number = GAME_TWO) {
   return mapEog({ ...eogFixture(), gameId }, { partyId: PARTY, startedAt: null });
 }
+
+describe('gameModeOfSession (M21.12)', () => {
+  const session = (queue: unknown, map: unknown) =>
+    ({ gameData: { queue: { gameMode: queue } }, map: { gameMode: map } }) as Parameters<
+      typeof gameModeOfSession
+    >[0];
+
+  it('reads the queue first, then the map, upper-cased, and leaves out anything that is not a plain word', () => {
+    expect(gameModeOfSession(session(' aram ', 'CLASSIC'))).toBe('ARAM');
+    expect(gameModeOfSession(session(undefined, 'ARAM'))).toBe('ARAM');
+    expect(gameModeOfSession(session('A B', undefined))).toBeNull();
+    expect(gameModeOfSession(session('', undefined))).toBeNull();
+  });
+});

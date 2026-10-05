@@ -250,7 +250,8 @@
         "phase": "in_progress",
         "gameId": 4000965483,
         "partyId": "c85a9f77-e83a-4b37-b8a1-502ee3d540b2",
-        "startedAt": "2026-09-08T16:34:20.911Z"
+        "startedAt": "2026-09-08T16:34:20.911Z",
+        "gameMode": "CLASSIC"
       },
       "afterEvent": 65
     },
@@ -661,7 +662,8 @@
         "phase": "in_progress",
         "gameId": 4000969091,
         "partyId": "e3c69392-a134-43cb-97ae-8add18c72494",
-        "startedAt": "2026-09-08T16:37:38.903Z"
+        "startedAt": "2026-09-08T16:37:38.903Z",
+        "gameMode": "CLASSIC"
       },
       "afterEvent": 194
     },

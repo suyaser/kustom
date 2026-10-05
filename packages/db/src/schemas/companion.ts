@@ -316,6 +316,19 @@ export const companionGamePayloadSchema = z.union([
     partyId: z.string().trim().min(1).nullish(),
     /** When the client entered `InProgress`. The companion keeps it for `startedAt` below. */
     startedAt: z.iso.datetime({ offset: true }).nullish(),
+    /**
+     * M21.12: the session's game mode (`gameData.queue.gameMode`, else `map.gameMode`), upper case:
+     * `CLASSIC`, `ARAM`, ... Optional: an older companion omits it and the server behaves as before.
+     * Stored on the lobby with the kickoff record so Tonight and Discord can treat an ARAM at game
+     * start. Not an enum: an unknown mode is stored as sent (the readers only ask "is it ARAM").
+     * A value that is not a plain word is a 400, as any bad field.
+     */
+    gameMode: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z0-9_]{1,32}$/)
+      .nullish(),
   }),
   eogPayloadSchema,
 ]);
@@ -453,6 +466,8 @@ export interface CompanionGameInProgressPayloadInput {
   gameId: number | string;
   partyId?: string | null;
   startedAt?: string | null;
+  /** M21.12: the session's game mode, upper case; omitted when the session names none. */
+  gameMode?: string | null;
 }
 
 export type CompanionGamePayloadInput = CompanionGameInProgressPayloadInput | CompanionGameEogPayloadInput;
