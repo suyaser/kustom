@@ -1360,7 +1360,7 @@ answer band (never both), then the action row. Each row is optional; a hairline 
 ```
 ┌────────────────────────────────────────┐
 │ ▍KUSTOM │ Customs Night ⌄          [☾] │  top bar 60px, --card, not sticky; wordmark (display) + amber
-└────────────────────────────────────────┘  5×22 bar, group switcher (text 700), Day/Night switch; never clipped
+└────────────────────────────────────────┘  5×22 bar, group switcher (text 700), Day/Night switch; large text: see below
                  … page …
 ┌───────┬───────┬───────┬───────┬───────┐
 │  ◉•   │  ≡    │  ▤    │  ◫    │  ◯    │  tab bar 60px + env(safe-area-inset-bottom), fixed
@@ -1379,6 +1379,17 @@ answer band (never both), then the action row. Each row is optional; a hairline 
   position), icon filled. Inactive: `--muted-foreground`. The label is always visible; there are no icon-only
   tabs.
 - Icons: inline SVG, 24px, `currentColor`, the same stroke family as `RoleIcon`, `aria-hidden`.
+- **Large text (200%, 14.13 item 7).** No word in the shell ever breaks mid-word.
+  - **Group name:** wraps between words. While the name fits beside `KUSTOM` (8em of room or more, true at
+    100% at every phone width), it sits there as drawn above. When it does not, the name **drops under
+    `KUSTOM`** onto its own line, at the full width of the bar, left-aligned with the wordmark and keeping its
+    left rule, and the Day/Night switch **stays at the end of the first row** beside `KUSTOM`. A name never
+    goes to an ellipsis while it would fit on its own line. Only a single word wider than the whole bar (a
+    40-character name with no spaces) ends in `…`, with the full name in `title` and in the DOM text.
+  - **Tab labels:** the label grows with the text size until it fills its tab (`min(--fs-2xs, 24cqi)` of
+    the tab; `Tonight`, the longest, is about 3.5em), then stops growing. It never wraps or hyphenates. The
+    icon and the label stay; there are still no icon-only tabs.
+  - At 100% both bars are unchanged.
 - `<nav aria-label="Main">` comes **before** `<main>` in the DOM, right after the skip link, and is visually fixed at the bottom. `body` gets `padding-bottom: calc(var(--tabbar-h) +
   env(safe-area-inset-bottom))`.
 - Hide the bar while a text input has focus on a phone (the keyboard covers it anyway, and it jumps above the
@@ -4862,9 +4873,7 @@ Placeholders in `‹›`. `both` is for exactly two live lobbies, `every` for th
 6. **M22.11 copy:** the mirror host line (`… Start a lobby only makes Draft Pick.`, 8.3, 8.11) and 5.10's action
    row list `Start a lobby`; both need rewording when it goes (suggested: `Mirror match next. The host opens a
    Blind Pick custom in League.`).
-7. **200% text breaks words in the shell** (seen in M22.6's F6 frames, older than M22). At 375 with 200% text,
-   the top bar's group name breaks as `Custom` / `s Night` and the tab bar's labels as `Tonig` / `ht` and
-   `Game` / `s`. A word must never break mid-word in the shell: the group name should wrap between words (or
-   give way to the wordmark), and the tab labels need their own rule at large text (icon only with the label
-   as the accessible name, or a label size that does not scale past the tab's width). Needs its own ticket;
-   not M22's.
+7. **200% text breaks words in the shell.** Resolved 2026-10-05: the rule is now in 5.11 (Large text), built
+   on `shell-200-text`. The tab labels pass. The group name passes once it drops under `KUSTOM` rather than
+   going to an ellipsis beside it (`Custo…` / `Night` at 375 is not accepted); that is the last fix on the
+   branch.
