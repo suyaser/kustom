@@ -29,12 +29,13 @@ export async function loadModePanelView(
   groupId: string,
   nightStart: Date,
   lobbyId: string | null = null,
+  now?: Date,
 ): Promise<ModePanelView> {
   const [{ mode, modeSince: _since, ...fearless }, row, lobby] = await Promise.all([
     loadFearless(client, groupId),
     loadModeState(client, groupId),
     // M22.6: the panel's `?lobby=` picks the table, so the lock is the selected lobby's.
-    loadTonightLobbyLock(client, groupId, nightStart, { lobbyId }),
+    loadTonightLobbyLock(client, groupId, nightStart, { lobbyId, ...(now === undefined ? {} : { now }) }),
   ]);
   const groupRow = row ?? { standing: mode, pending: null, rated: null };
   // M22.6: with two or more lobbies live, a forked lobby's own rule, pair and Rated (`lobby_modes`).

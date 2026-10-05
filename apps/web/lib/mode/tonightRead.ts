@@ -80,17 +80,15 @@ export async function loadTonightLobbyLock(
     return null;
   }
   const rows = data ?? [];
-  const tableRows = rows.map(
-    (row) => ({
-      id: row.id,
-      lcuPartyId: row.lcu_party_id,
-      status: row.status,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      reportedByPlayerId: row.reported_by_player_id,
-      lobbyName: row.lobby_name,
-    }),
-  );
+  const tableRows = rows.map((row) => ({
+    id: row.id,
+    lcuPartyId: row.lcu_party_id,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    reportedByPlayerId: row.reported_by_player_id,
+    lobbyName: row.lobby_name,
+  }));
   const now = options.now ?? new Date();
   const tables = nightTables(tableRows, now);
   const picked = pickTable(
