@@ -176,26 +176,36 @@ if (stack === null) {
     const riftGame = testGameId();
     expect((await start(riftGame, 'CLASSIC')).lobbyId).toBe(rift);
     const atRiftStart = await lobbyRow(rift);
-    expect(atRiftStart).toMatchObject({ status: 'in_game', lock_mode: 'normal', kickoff_game_mode: 'CLASSIC' });
+    expect(atRiftStart).toMatchObject({
+      status: 'in_game',
+      lock_mode: 'normal',
+      kickoff_game_mode: 'CLASSIC',
+    });
     const before = await ratingsSnapshot();
 
     // The ARAM, same party, same ten. Its lobby posts land on the frozen row (M2.9).
     expect((await postMembers(ten)).lobbyId).toBe(rift);
     const aramGame = testGameId();
     const aramStart = new Date();
-    const started = await start(aramGame, 'ARAM');
+    // ARAM: Mayhem, as on 2026-10-04 (`KIWI`).
+    const started = await start(aramGame, 'KIWI');
     // The quit game's cycle is over: its lobby is not the ARAM's.
     expect(started.lobbyId).not.toBe(rift);
     expect((await lobbyRow(rift)).status).toBe('dropped');
 
-    const answer = await postEog(ten, aramGame, aramStart, 'ARAM');
+    const answer = await postEog(ten, aramGame, aramStart, 'KIWI');
     expect(answer.status).toBe(200);
-    const body = (await answer.json()) as { created: boolean; lobbyId: string | null; rated: boolean; reason: string };
+    const body = (await answer.json()) as {
+      created: boolean;
+      lobbyId: string | null;
+      rated: boolean;
+      reason: string;
+    };
     expect(body).toMatchObject({ created: true, rated: false, reason: 'game-mode' });
     expect(body.lobbyId).not.toBe(rift);
     const aram = await gameRow(aramGame);
     expect(aram.lobby_id).not.toBe(rift);
-    expect(aram).toMatchObject({ rated: false, rule: null, rule_checked: false, game_mode: 'ARAM' });
+    expect(aram).toMatchObject({ rated: false, rule: null, rule_checked: false, game_mode: 'KIWI' });
     expect(aram.players).toHaveLength(10);
     expect(aram.players.every((row) => row.mu_after === null)).toBe(true);
     expect(await ratingsSnapshot()).toBe(before);
@@ -203,8 +213,52 @@ if (stack === null) {
     expect((await lobbyRow(rift)).status).toBe('dropped');
 
     // A second companion's ARAM block: nothing moves.
-    const repeat = await postEog(ten, aramGame, aramStart, 'ARAM');
+    const repeat = await postEog(ten, aramGame, aramStart, 'KIWI');
     expect(((await repeat.json()) as { created: boolean }).created).toBe(false);
     expect(await ratingsSnapshot()).toBe(before);
+
+    // The quit game's own block, late from a queue file: it still finishes its lobby (dropped ->
+    // finished, M5.11), on its own lock.
+    const late = await postEog(ten, riftGame, new Date(aramStart.getTime() - 30 * 60_000), 'CLASSIC');
+    expect(late.status).toBe(200);
+    expect(((await late.json()) as { lobbyId: string | null }).lobbyId).toBe(rift);
+    expect((await lobbyRow(rift)).status).toBe('finished');
+  });
+
+  it('the ARAM start was never heard: its block alone refuses the Rift lobby by mode and drops it', async () => {
+    const { lobbyId: rift } = await postMembers(ten);
+    const riftGame = testGameId();
+    expect((await start(riftGame, 'CLASSIC')).lobbyId).toBe(rift);
+    const before = await ratingsSnapshot();
+
+    // No in_progress for the ARAM (the companion restarted mid-game): only its block.
+    const aramGame = testGameId();
+    const answer = await postEog(ten, aramGame, new Date(), 'ARAM');
+    expect(answer.status).toBe(200);
+    const body = (await answer.json()) as { lobbyId: string | null; rated: boolean };
+    expect(body).toMatchObject({ lobbyId: null, rated: false });
+    expect((await gameRow(aramGame)).lobby_id).toBeNull();
+    expect((await lobbyRow(rift)).status).toBe('dropped');
+    expect(await ratingsSnapshot()).toBe(before);
+  });
+
+  it('the same mode twice (or a mode unknown) is unchanged: a Rift game after a quit Rift game still lands on the row', async () => {
+    const { lobbyId } = await postMembers(ten);
+    const first = testGameId();
+    expect((await start(first, 'CLASSIC')).lobbyId).toBe(lobbyId);
+    // An older companion names no mode: no evidence, nothing dropped.
+    const second = testGameId();
+    gameIds.push(second);
+    const response = await postGame(
+      jsonRequest('/api/companion/game', { phase: 'in_progress', gameId: second, partyId }, tokens.host),
+    );
+    expect(((await response.json()) as { lobbyId: string | null }).lobbyId).toBe(lobbyId);
+    expect((await start(second, 'CLASSIC')).lobbyId).toBe(lobbyId);
+    expect((await lobbyRow(lobbyId)).status).toBe('in_game');
+    const answer = await postEog(ten, second, new Date(), 'CLASSIC');
+    expect((await answer.json()) as { lobbyId: string | null; rated: boolean }).toMatchObject({
+      lobbyId,
+      rated: true,
+    });
   });
 }

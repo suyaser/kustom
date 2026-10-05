@@ -170,7 +170,13 @@ describe('the stamp at record (core recordGame)', () => {
       // whatever lock its lobby holds. A remake was the rule's game, cut short.
       expect(stamped).toMatchObject(
         kind === 'aram'
-          ? { mode: 'fearless', rule: null, rule_class_tag: null, rule_region_blue: null, rule_region_red: null }
+          ? {
+              mode: 'fearless',
+              rule: null,
+              rule_class_tag: null,
+              rule_region_blue: null,
+              rule_region_red: null,
+            }
           : { mode: 'fearless', rule: 'class', rule_class_tag: 'Tank' },
       );
       expect(recordResultOf(record({ kind, lock })).patch).toEqual({ pending: tanksLock.mode, rated: true });

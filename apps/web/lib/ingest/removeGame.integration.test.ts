@@ -40,7 +40,18 @@ if (stack === null) {
   const runId = randomUUID().slice(0, 8);
   const ten = Array.from({ length: 10 }, (_, index) => `it-${runId}-rg${index}`);
   /** The bad game reshuffles the sides, so it really moves numbers. */
-  const shuffled = [ten[0], ten[5], ten[1], ten[6], ten[2], ten[7], ten[3], ten[8], ten[4], ten[9]] as string[];
+  const shuffled = [
+    ten[0],
+    ten[5],
+    ten[1],
+    ten[6],
+    ten[2],
+    ten[7],
+    ten[3],
+    ten[8],
+    ten[4],
+    ten[9],
+  ] as string[];
   const lcuIds: number[] = [];
   let groups: Record<'base' | 'unrate' | 'remove', string> = { base: '', unrate: '', remove: '' };
 
@@ -86,13 +97,16 @@ if (stack === null) {
     if (error) throw new Error(error.message);
     return Object.fromEntries(
       (data ?? [])
-        .map((row) => [row.players.puuid, { mu: round(row.mu), sigma: round(row.sigma), games: row.games, wins: row.wins, r: round(row.r) }])
+        .map((row) => [
+          row.players.puuid,
+          { mu: round(row.mu), sigma: round(row.sigma), games: row.games, wins: row.wins, r: round(row.r) },
+        ])
         .sort(([a], [b]) => String(a).localeCompare(String(b))),
     );
   }
 
   /** One game's rating columns, keyed by puuid. */
-  async function columnsOf(gameId: string) {
+  async function columnsOf(gameId: string): Promise<Record<string, Record<string, number | null>>> {
     const { data, error } = await db
       .from('game_players')
       .select('mu_before, sigma_before, mu_after, sigma_after, r_before, r_after, players!inner(puuid)')
@@ -102,7 +116,10 @@ if (stack === null) {
       (data ?? [])
         .map(({ players, ...rest }) => [
           players.puuid,
-          Object.fromEntries(Object.entries(rest).map(([key, value]) => [key, round(value)])),
+          Object.fromEntries(Object.entries(rest).map(([key, value]) => [key, round(value)])) as Record<
+            string,
+            number | null
+          >,
         ])
         .sort(([a], [b]) => String(a).localeCompare(String(b))),
     );
@@ -154,7 +171,10 @@ if (stack === null) {
     expect(deleted.error).toBeNull();
     expect(deleted.data).toHaveLength(1);
     for (const table of ['game_players', 'game_facts', 'ai_lines'] as const) {
-      const { count } = await db.from(table).select('game_id', { count: 'exact', head: true }).eq('game_id', bad);
+      const { count } = await db
+        .from(table)
+        .select('game_id', { count: 'exact', head: true })
+        .eq('game_id', bad);
       expect(count).toBe(0);
     }
     await rebuildRatings(db, { groupId: groups.remove, force: true });

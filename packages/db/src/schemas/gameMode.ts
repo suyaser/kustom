@@ -38,10 +38,19 @@ export function isRiftGameMode(gameMode: string | null | undefined): boolean {
 export const ARAM_GAME_MODE_PATTERN = '^[[:space:]]*(aram|kingporo|kiwi(_[a-z0-9_]*)?)[[:space:]]*$';
 
 /**
- * What a game's mode says about which game it is: `rift`, `aram`, or the word itself for anything
- * else. Null when the mode is unknown (an older companion's `in_progress`), so a comparison needs
- * both sides known. Two modes of different kinds are two different games.
+ * Whether two modes are two different games: their kinds (`rift`, `aram`, or the word itself for
+ * anything else) differ, and **both are known**. An unknown mode (null: an older companion's
+ * `in_progress`, a kickoff record from before 0049) never differs, so this only ever fires on
+ * evidence. Used to tell a lobby whose game was quit from the next game (owner bug 2026-10-05): a
+ * lobby that kicked off a Rift game is not where an ARAM was played.
  */
+export function gameModesDiffer(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = gameModeKind(a);
+  const right = gameModeKind(b);
+  return left !== null && right !== null && left !== right;
+}
+
+/** The kind behind {@link gameModesDiffer}. */
 export function gameModeKind(gameMode: string | null | undefined): string | null {
   if (gameMode === null || gameMode === undefined) return null;
   const mode = normalizeGameMode(gameMode);
