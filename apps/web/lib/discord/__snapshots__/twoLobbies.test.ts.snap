@@ -1,0 +1,388 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`two lobbies live: every post that names one, as snapshots > fearless pool 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "Banned next game: 10 more, 34 in all. 139 still open.
+From a game in XETA's lobby. One list for both lobbies.",
+      "fields": [
+        {
+          "inline": false,
+          "name": "top · 7",
+          "value": "**Aatrox**, **Gnar**, Camille, Darius, Fiora, Garen, Jax",
+        },
+        {
+          "inline": false,
+          "name": "jungle · 6",
+          "value": "**Lee Sin**, **Vi**, Graves, Kha'Zix, Sylas, Viego",
+        },
+        {
+          "inline": false,
+          "name": "mid · 7",
+          "value": "**Ahri**, **Syndra**, Akali, Orianna, Viktor, Yasuo, Zed",
+        },
+        {
+          "inline": false,
+          "name": "adc · 6",
+          "value": "**Jinx**, **Kai'Sa**, Caitlyn, Ezreal, Miss Fortune, Vayne",
+        },
+        {
+          "inline": false,
+          "name": "support · 8",
+          "value": "**Nautilus**, **Thresh**, Blitzcrank, Leona, Lulu, Lux, Morgana, Pyke",
+        },
+      ],
+      "footer": {
+        "text": "Tap the title to see what's still open",
+      },
+      "title": "Fearless",
+      "url": "https://playkustom.com/g/customs/mode",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > fearless pool, three lobbies 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "Banned next game: 10 more, 34 in all. 139 still open.
+From a game in XETA's lobby. One list for every lobby.",
+      "fields": [
+        {
+          "inline": false,
+          "name": "top · 7",
+          "value": "**Aatrox**, **Gnar**, Camille, Darius, Fiora, Garen, Jax",
+        },
+        {
+          "inline": false,
+          "name": "jungle · 6",
+          "value": "**Lee Sin**, **Vi**, Graves, Kha'Zix, Sylas, Viego",
+        },
+        {
+          "inline": false,
+          "name": "mid · 7",
+          "value": "**Ahri**, **Syndra**, Akali, Orianna, Viktor, Yasuo, Zed",
+        },
+        {
+          "inline": false,
+          "name": "adc · 6",
+          "value": "**Jinx**, **Kai'Sa**, Caitlyn, Ezreal, Miss Fortune, Vayne",
+        },
+        {
+          "inline": false,
+          "name": "support · 8",
+          "value": "**Nautilus**, **Thresh**, Blitzcrank, Leona, Lulu, Lux, Morgana, Pyke",
+        },
+      ],
+      "footer": {
+        "text": "Tap the title to see what's still open",
+      },
+      "title": "Fearless",
+      "url": "https://playkustom.com/g/customs/mode",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > fearless reset 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "Fearless reset. Every champion is open again.
+For both lobbies.",
+      "title": "Fearless",
+      "url": "https://playkustom.com/g/customs/mode",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > fearless reset, three lobbies 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night",
+        "url": "https://playkustom.com/g/customs",
+      },
+      "color": 16764774,
+      "description": "Fearless reset. Every champion is open again.
+For every lobby.",
+      "title": "Fearless",
+      "url": "https://playkustom.com/g/customs/mode",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > game on, own teams 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      },
+      "color": 16764774,
+      "description": "These aren't the teams Kustom rolled. Here's who's actually playing.
+**This game: region wars.** Blue picks from Ionia, Red from Noxus. Rated. [See both pools](https://playkustom.com/g/customs/mode?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d)
+**Blue 47%** · **53% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "title": "knifiy's lobby · Game on, with your own teams",
+      "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1224
+\`jungle\` **XETA** · 1378
+\`mid\` **Ramzyinhović** · 2638
+\`adc\` **SugarPapy** · 1218
+\`support\` **Used2BeATahmMain** · 1322",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1531
+\`jungle\` **Syndrome Axes** · 2291
+\`mid\` **knifiy** · 1454
+\`adc\` **PRT Khokha** · 1287
+\`support\` **TheSHADOWREAPER** · 1262",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > game on, unrolled 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://playkustom.com/g/customs?lobby=1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      },
+      "color": 16764774,
+      "description": "Kustom didn't pick these teams. Odds from everyone's ratings going in.
+**This game: region wars.** Blue picks from Ionia, Red from Noxus. Rated. [See both pools](https://playkustom.com/g/customs/mode?lobby=1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d)
+**Blue 47%** · **53% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "title": "XETA's lobby · Game on",
+      "url": "https://playkustom.com/g/customs?lobby=1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+    },
+    {
+      "color": 3054591,
+      "description": "**Ramzyinhović** · 2638
+**XETA** · 1378
+**Used2BeATahmMain** · 1322
+**FoxHound** · 1224
+**SugarPapy** · 1218",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "**Syndrome Axes** · 2291
+**H4RDC0R33** · 1531
+**knifiy** · 1454
+**PRT Khokha** · 1287
+**TheSHADOWREAPER** · 1262",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > result 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 4",
+        "url": "https://playkustom.com/g/customs?lobby=1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      },
+      "color": 16739125,
+      "description": "Red was 51%. Red won.
+Top damage: Syndrome Axes, 31.4k.
+**MVP** Syndrome Axes · **ACE** Ramzyinhović",
+      "thumbnail": {
+        "url": "https://playkustom.com/og/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12/badge",
+      },
+      "title": "XETA's lobby · Red wins · 31 min",
+      "url": "https://playkustom.com/g/customs/games/0b6f6d7e-5c1a-4a8e-9d3b-2f4e6a8c0d12",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1210 (-14)
+\`jungle\` **XETA** · 1363 (-15)
+\`mid\` **Ramzyinhović** · 2625 (-13)
+\`adc\` **SugarPapy** · 1203 (-15)
+\`support\` **Used2BeATahmMain** · 1305 (-17)",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1546 (+15)
+\`jungle\` **Syndrome Axes** · 2305 (+14)
+\`mid\` **knifiy** · 1470 (+16)
+\`adc\` **PRT Khokha** · 1302 (+15)
+\`support\` **TheSHADOWREAPER** · 1277 (+15)",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > teams 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      },
+      "color": 16764774,
+      "description": "**This game: region wars.** Blue picks from Ionia, Red from Noxus. Rated. [See both pools](https://playkustom.com/g/customs/mode?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d)
+**Blue 49%** · **51% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "fields": [
+        {
+          "name": "Sitting out",
+          "value": "Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight.",
+        },
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "knifiy's lobby · Teams are set",
+      "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1224
+\`jungle\` **XETA** · 1378
+\`mid\` **Ramzyinhović** · 2638
+\`adc\` **SugarPapy** · 1218
+\`support\` **Used2BeATahmMain** · 1322",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1531
+\`jungle\` **Syndrome Axes** · 2291
+\`mid\` **knifiy** · 1454
+\`adc\` **PRT Khokha** · 1287
+\`support\` **TheSHADOWREAPER** · 1262",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
+-# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
+      "title": "How the bot decided",
+      "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
+
+exports[`two lobbies live: every post that names one, as snapshots > teams reroll 1`] = `
+{
+  "avatar_url": "https://playkustom.com/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · Fearless",
+        "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      },
+      "color": 16764774,
+      "description": "**Blue 49%** · **51% Red**
+🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+Basically a coin flip.",
+      "fields": [
+        {
+          "name": "Sitting out",
+          "value": "Chaos sits this one out. They've gone longest without sitting out, and everyone's played 3 games tonight.",
+        },
+        {
+          "name": "Seats",
+          "value": "You'll be moved to your side — if not, move yourself.",
+        },
+        {
+          "name": "Lobby",
+          "value": "\`customs-night\` · password \`4471\`",
+        },
+      ],
+      "title": "knifiy's lobby · Teams are set · reroll 1 of 2",
+      "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **FoxHound** · 1224
+\`jungle\` **XETA** · 1378
+\`mid\` **Ramzyinhović** · 2638
+\`adc\` **SugarPapy** · 1218
+\`support\` **Used2BeATahmMain** · 1322",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **H4RDC0R33** · 1531
+\`jungle\` **Syndrome Axes** · 2291
+\`mid\` **knifiy** · 1454
+\`adc\` **PRT Khokha** · 1287
+\`support\` **TheSHADOWREAPER** · 1262",
+      "title": "🟥 RED",
+    },
+    {
+      "color": 16764774,
+      "description": "Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+Next best: swap the adc players, SugarPapy and PRT Khokha. That's Blue 53%, with a bigger rating gap (61 vs 45 pts).
+-# Red favored 51%. Everyone on a main role. Gap 45. Next best: swap SugarPapy and PRT Khokha, gap 61.",
+      "title": "How the bot decided",
+      "url": "https://playkustom.com/g/customs?lobby=7d1c2b3a-4e5f-4a6b-8c7d-9e0f1a2b3c4d#how-the-bot-decided",
+    },
+  ],
+  "username": "Kustom",
+}
+`;

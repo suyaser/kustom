@@ -9,6 +9,8 @@ import {
   BLUE_COLOR,
   type Embed,
   explanationLine,
+  GAME_ON_CUSTOM_TITLE,
+  gameOnEmbed,
   type LeaderboardEntry,
   leaderboardEmbed,
   RED_COLOR,
@@ -371,6 +373,94 @@ describe('the result embed, the longest mode line', () => {
     expect(payload.embeds[0]?.description?.split('\n')[0]).toBe(
       '**This game: region wars.** Blue picks from Shadow Isles, Red from Bandle City. Not rated. [See both pools](https://kustom.example/g/a-group-slug-that-is-long/mode)',
     );
+  });
+});
+
+/**
+ * M22.7 (05-design 14.10, 10.12): the longest lobby label is a 32-character name of escapable
+ * characters (64 printed) plus `'s lobby 2 · `, and it is part of the never-cut title. On the
+ * pathological ten, with the longest rule line and every link carrying `?lobby=`, every post that
+ * names a lobby still fits whole, with no new give-way step.
+ */
+describe('the longest lobby label (M22.7)', () => {
+  const LOBBY_ID = '00000000-0000-4000-8000-000000000000';
+  const label = {
+    lobbyId: LOBBY_ID,
+    label: { kind: 'host', name: ESCAPABLE_NAME, repeat: 2 },
+    live: 3,
+  } as const;
+  const LABEL = `${RENDERED}'s lobby 2`;
+  const URL = 'https://kustom.example/g/a-group-slug-that-is-long';
+  const longestRule = { mode: { id: 'region', blue: 'shadow-isles', red: 'bandle-city' }, rated: false } as const;
+
+  it('the teams post: the title whole, the side line kept, every link opens the lobby', () => {
+    const payload = teamsEmbed(
+      pathologicalTeamsInput({
+        mode: longestRule,
+        modeUrl: `${URL}/mode`,
+        url: URL,
+        receiptUrl: `${URL}#how-the-bot-decided`,
+        promoted: { rank: 3, splitCount: 3 },
+        lobbyLabel: label,
+      }),
+    );
+    expect(legal(payload.embeds)).toBe(true);
+    const [e1, , , e4] = payload.embeds;
+    expect(e1?.title).toBe(`${LABEL} · Teams are set · reroll 2 of 2`);
+    expect(e1?.url).toBe(`${URL}?lobby=${LOBBY_ID}`);
+    expect(e4?.url).toBe(`${URL}?lobby=${LOBBY_ID}#how-the-bot-decided`);
+    expect(e1?.description?.split('\n')[0]).toContain(`(${URL}/mode?lobby=${LOBBY_ID})`);
+    expect(fieldsOf(e1).find((field) => field.name === 'Seats')?.value.split('\n').at(-1)).toBe(
+      SIDE_LINE_MANUAL,
+    );
+    expect(escapesAreWhole(e1?.title ?? '')).toBe(true);
+  });
+
+  it('Game on, with your own teams: the longest title it leads, whole', () => {
+    const side = (prefix: string) =>
+      LANES.map((role, index) => ({ puuid: `${prefix}${index}`, name: ESCAPABLE_NAME, role, rating: 1400 }));
+    const payload = gameOnEmbed({
+      identity: IDENTITY,
+      kind: 'custom',
+      blue: side('b'),
+      red: side('r'),
+      blueWinProb: 0.5,
+      mode: longestRule,
+      modeUrl: `${URL}/mode`,
+      url: URL,
+      lobbyLabel: label,
+    });
+    expect(legal(payload.embeds)).toBe(true);
+    expect(payload.embeds[0]?.title).toBe(`${LABEL} · ${GAME_ON_CUSTOM_TITLE}`);
+    expect(JSON.stringify(payload)).not.toContain(ELLIPSIS);
+  });
+
+  it('the result post: the title whole, nothing cut', () => {
+    const payload = resultEmbed(
+      game4Result({
+        blue: LANES.map((role, index) => ({
+          puuid: `b${index}`,
+          name: ESCAPABLE_NAME,
+          role,
+          rating: 1400,
+          delta: -41,
+        })),
+        red: LANES.map((role, index) => ({
+          puuid: `r${index}`,
+          name: ESCAPABLE_NAME,
+          role,
+          rating: 1400,
+          delta: 41,
+        })),
+        award: { mvp: ESCAPABLE_NAME, ace: ESCAPABLE_NAME },
+        topDamage: { name: ESCAPABLE_NAME, damage: 47_300 },
+        lobbyLabel: label,
+      }),
+    );
+    expect(legal(payload.embeds)).toBe(true);
+    expect(payload.embeds[0]?.title).toBe(`${LABEL} · Red wins · 31 min`);
+    expect(payload.embeds[0]?.title?.length).toBeLessThan(TITLE_LIMIT);
+    expect(JSON.stringify(payload)).not.toContain(ELLIPSIS);
   });
 });
 
