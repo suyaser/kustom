@@ -177,10 +177,10 @@ export interface ResultView {
   winningSide: SideValue;
   durationS: number;
   /**
-   * Blue's chance for the teams that played (M21.7, `postedOdds` in `lib/games/receipt.ts`): the
-   * chosen split's when its teams played (flipped for swapped sides), the pre-game odds when the
-   * teams changed after the roll, `null` for a game nobody rolled (the card then reads the befores,
-   * as before) or one with no honest odds (not rated, teams not the roll).
+   * Blue's chance for the teams that played (M21.7, M21.14: `playedOddsOf` in `lib/games/receipt.ts`):
+   * the chosen split's when its teams played (flipped for swapped sides), otherwise the kickoff
+   * record's odds, the fold's `fold_p`, then the pre-game odds over the befores (unrolled games
+   * included); `null` only for a game with no honest odds (not rated or ARAM with teams not the roll).
    */
   blueWinProb: number | null;
   /** The receipt kind (M21.7, `playedOddsOf`). Absent in older fixtures: read from {@link blueWinProb}. */

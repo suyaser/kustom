@@ -13704,7 +13704,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   post that moves them, a second open page shows today's line without a refresh; (4) members and visitors see no
   change.
   *Landed 2026-10-05 (f28a65e5, reviewer pass; screens at 375/1440 in the scratchpad). Open for product: the screen-reader teams announcement still names the split side.*
-- [ ] **M21.14** The result post prints the pre-game odds for a game Kustom didn't pick. *(owner:
+- [x] **M21.14** The result post prints the pre-game odds for a game Kustom didn't pick. *(owner:
   `platform-engineer`; from the M21.10 walk; answers M21.7's open item, decision row 2026-10-05)* An unrolled game
   (and a game with no lobby at all) gets a `Game on` post with odds (`Blue 82% · 18% Red`), and after it Tonight,
   `/games` and the player page say `Red was 18%. Upset!`, but the Discord result post prints no odds line and no
@@ -13715,6 +13715,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   Tonight and `/games`; (2) a game where any of the ten has no rating prints no odds line (the `No odds for this
   game.` rule; no new copy in the post); (3) a not-rated game and an ARAM print none, as today; (4) rolled and custom
   games' posts unchanged (existing snapshots); (5) the limits guard passes.
+  *Landed 2026-10-05 (eef60748, reviewer pass). Extended by the lead to the tape, the poster and /fun; `postedOdds` deleted, one rule `playedOddsOf` with the `fold_p` fallback. Cleanup follow-up: `foldBlueWinProb` duplicates lib/breakdown `ratingBlueWinProb`.*
 
 ```
 M21.1 (audit) --+-- M21.4 (kickoff, server) --+-- M21.5 (Tonight in game) -- M21.9 (after M20.10) --\
