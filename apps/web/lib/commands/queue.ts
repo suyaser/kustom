@@ -1,4 +1,4 @@
-import type { CompanionCommandInsert, CompanionCommandRow } from '@customs/db';
+import type { CompanionCommandInsert, CompanionCommandRow, Json } from '@customs/db';
 import {
   COMMANDS_PAGE_SIZE,
   COMPANION_COMMAND_TTL_MS,
@@ -73,7 +73,9 @@ function isObject(value: unknown): value is Record<string, unknown> {
  */
 function toEnvelope(row: {
   id: string;
-  kind: CompanionCommandKind;
+  // The stored kind, not the wire enum: a row of a retired kind (`create_lobby`, `invite`) can still be
+  // handed out until its TTL, and the companion nacks it as an unknown kind.
+  kind: string;
   payload: unknown;
   created_at: string;
   expires_at: string;
@@ -392,7 +394,13 @@ export async function ackCommand(
   client: ServiceClient,
   input: { row: CompanionCommandRow; result: unknown; now?: Date },
 ): Promise<SettleResult> {
-  const parsed = companionCommandResultSchemas[input.row.kind].safeParse(input.result);
+  // A row of a retired kind (`create_lobby`, `invite`, M22.11) has no schema any more. A Kustom already in
+  // the field can still execute one and ack it: take the result as the object it is rather than 422 forever.
+  const schema = Object.hasOwn(companionCommandResultSchemas, input.row.kind)
+    ? companionCommandResultSchemas[input.row.kind as CompanionCommandKind]
+    : undefined;
+  const parsed: { success: true; data: Json } | { success: false } =
+    schema === undefined ? { success: true, data: input.result as Json } : schema.safeParse(input.result);
   if (!parsed.success) {
     return {
       ok: false,

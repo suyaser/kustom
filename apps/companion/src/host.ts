@@ -61,7 +61,6 @@ export function startHost(options: StartHostOptions): HostHandle {
     api,
     logger,
     onResponse: (response) => rankSync.needed(response.ranksNeeded),
-    passwordFor: (partyId) => commandRunner.passwordFor(partyId),
   });
   const rankSync = new RankSync({ api, logger, names: lobbyWatcher.knownNames });
   const backfill = new Backfill({ api, logger, configDir: dir, sink: gameWatcher });

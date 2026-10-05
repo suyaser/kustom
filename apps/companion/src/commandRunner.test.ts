@@ -50,64 +50,11 @@ const TOKEN = 'tok_commands_0123456789abcdefghijklmnopqrstu';
 const PASSWORD = 'fake-lockfile-password-9a8b7c';
 const ME = '34151cbd-d9f8-5dad-9dc8-c6a8e253c0de';
 const FRIEND = 'c04e977c-133a-5d94-9fd3-6202f8beec4c';
-const PENDING_FRIEND = 'ae4f66e8-0000-4000-8000-000000000000';
 const OTHER = 'aebd7c57-83d8-551d-a7b2-7caa7e8b1960';
-const OTHER_SUMMONER_ID = '52699007';
 const NOW = Date.parse('2026-09-09T20:00:00.000Z');
 const ID_A = '3f1e2d4c-5b6a-4798-8c9d-0e1f2a3b4c5d';
 const ID_B = '3f1e2d4c-5b6a-4798-8c9d-0e1f2a3b4c5e';
-const LOBBY_PASSWORD = '4821';
-const READ_PATHS = [
-  '/lol-lobby/v2/lobby',
-  '/lol-gameflow/v1/gameflow-phase',
-  '/lol-game-queues/v1/custom',
-  '/lol-game-queues/v1/queues',
-];
-/** Assumed: the dialog data for 16.17 (shape per the client's OpenAPI document). */
-const ASSUMED_CUSTOM_QUEUES = {
-  queueAvailability: 'Available',
-  subcategories: [
-    {
-      mapId: 11,
-      gameMode: 'CLASSIC',
-      numPlayersPerTeam: 5,
-      mutators: [
-        { id: 19, name: '', pickMode: '', banMode: '' },
-        {
-          id: 20,
-          name: 'GAME_CFG_DRAFT_STD',
-          pickMode: 'DraftModeSinglePickStrategy',
-          banMode: 'StandardBanStrategy',
-        },
-      ],
-    },
-  ],
-};
-/**
- * Assumed: `/lol-game-queues/v1/queues` naming the same two ids `ASSUMED_CUSTOM_QUEUES` offers, in the shape
- * the real 16.18 capture has (`GameQueueSchema`). Content does not matter to these hand-crafted tests (the
- * dialog mutators above already carry words), but the production `create_lobby` executor fetches this GET
- * unconditionally now (Bug 2 fix), so the fake client must answer it.
- */
-const ASSUMED_GAME_QUEUES = [
-  {
-    id: 19,
-    name: 'SR Blind Pick Custom',
-    gameMode: 'CLASSIC',
-    mapId: 11,
-    isCustom: true,
-    category: 'Custom',
-  },
-  {
-    id: 20,
-    name: 'SR Draft Pick Custom',
-    gameMode: 'CLASSIC',
-    mapId: 11,
-    isCustom: true,
-    category: 'Custom',
-  },
-];
-
+const READ_PATHS = ['/lol-lobby/v2/lobby', '/lol-gameflow/v1/gameflow-phase'];
 function fixtureBody(id: string, patch: string = PATCH): unknown {
   const read = readFixture(patch, id);
   if (!read.ok) {
@@ -119,33 +66,14 @@ function fixtureBody(id: string, patch: string = PATCH): unknown {
 const ownSummoner = (): Summoner => SummonerSchema.parse(fixtureBody('current-summoner'));
 const lobbyFixture = (id: string): Lobby => LobbySchema.parse(fixtureBody(id));
 
-function pendingPuuid(lobby: Lobby): string {
-  const row = lobby.invitations?.find((invitation) => invitation.state === 'Pending');
-  if (!row) {
-    throw new Error('fixture has no Pending invitation');
-  }
-  return row.toPuuid;
-}
-
 /** The fake client's lobby state. Mutated by the POST handlers below. */
 interface LobbyWorld {
   lobby: Lobby | null;
   phase: string;
   /** Status the team path answers. Default 204. */
   switchStatus: number;
-  /** Answer for `[{ toSummonerId }]` invites. Default 200. */
-  inviteBySummonerIdStatus: number;
   /** Whether the team path actually moves the local player. Default true. */
   switchMoves: boolean;
-  /** What `/lol-game-queues/v1/custom` answers. Default the assumed dialog data. */
-  customQueues: unknown;
-  /** What `/lol-game-queues/v1/queues` answers. Default the assumed queue list, naming the same ids. */
-  gameQueues: unknown;
-  /** Status for `/lol-game-queues/v1/queues`. Default 200. */
-  gameQueuesStatus: number;
-  createStatus: number;
-  /** How many lobby GETs after a successful create are dropped (the client dying right after the POST). */
-  dropLobbyReadsAfterCreate: number;
 }
 
 function member(puuid: string, extra: Partial<Lobby['members'][number]> = {}): Lobby['members'][number] {
@@ -169,79 +97,11 @@ function lobbyHandler(world: LobbyWorld): (request: RecordedRequest) => CannedRo
     if (request.method === 'GET' && request.path === '/lol-gameflow/v1/gameflow-phase') {
       return { status: 200, body: JSON.stringify(world.phase), contentType: 'application/json' };
     }
-    if (request.method === 'GET' && request.path === '/lol-game-queues/v1/custom') {
-      return { status: 200, body: world.customQueues };
-    }
-    if (request.method === 'GET' && request.path === '/lol-game-queues/v1/queues') {
-      if (world.gameQueuesStatus !== 200) {
-        return {
-          status: world.gameQueuesStatus,
-          body: { errorCode: 'RPC_ERROR', httpStatus: world.gameQueuesStatus, message: 'assumed refusal' },
-        };
-      }
-      return { status: 200, body: world.gameQueues };
-    }
     if (request.method === 'GET' && request.path === '/lol-lobby/v2/lobby') {
-      if (world.lobby?.partyId === 'party-created-0001' && world.dropLobbyReadsAfterCreate > 0) {
-        world.dropLobbyReadsAfterCreate -= 1;
-        return { status: 0, body: null, drop: true };
-      }
       return world.lobby ? { status: 200, body: world.lobby } : notFound;
     }
     if (request.method !== 'POST') {
       return undefined;
-    }
-    if (request.path === '/lol-lobby/v2/lobby') {
-      if (world.createStatus !== 200) {
-        return {
-          status: world.createStatus,
-          body: { errorCode: 'RPC_ERROR', httpStatus: world.createStatus, message: 'assumed refusal' },
-        };
-      }
-      const body = JSON.parse(request.body) as { customGameLobby: { lobbyName: string } };
-      const base = lobbyFixture('lobby');
-      // Assumed: the client answers the new lobby, with the name from the body and the creator on blue.
-      world.lobby = {
-        ...base,
-        partyId: 'party-created-0001',
-        gameConfig: { ...base.gameConfig, customLobbyName: body.customGameLobby.lobbyName },
-        invitations: [],
-      };
-      return { status: 200, body: world.lobby };
-    }
-    if (request.path === '/lol-lobby/v2/lobby/invitations') {
-      if (!world.lobby) {
-        return notFound;
-      }
-      const rows = JSON.parse(request.body) as { toSummonerId?: number; toPuuid?: string }[];
-      const row = rows[0] ?? {};
-      if (row.toSummonerId !== undefined && world.inviteBySummonerIdStatus !== 200) {
-        return {
-          status: world.inviteBySummonerIdStatus,
-          body: {
-            errorCode: 'RPC_ERROR',
-            httpStatus: world.inviteBySummonerIdStatus,
-            message: 'assumed refusal',
-          },
-        };
-      }
-      const toPuuid = row.toPuuid ?? (row.toSummonerId === Number(OTHER_SUMMONER_ID) ? OTHER : 'unknown');
-      world.lobby = {
-        ...world.lobby,
-        invitations: [
-          ...(world.lobby.invitations ?? []),
-          {
-            invitationId: '',
-            invitationType: 'invalid',
-            state: 'Pending',
-            timestamp: String(NOW),
-            toPuuid,
-            toSummonerId: row.toSummonerId ?? 0,
-          },
-        ],
-      };
-      // Assumed: a 200 with an array of the invitations just sent.
-      return { status: 200, body: rows };
     }
     if (request.path.startsWith('/lol-lobby/v2/lobby/team/')) {
       if (world.switchStatus !== 204) {
@@ -335,16 +195,10 @@ async function setup(
   } = {},
 ): Promise<Harness> {
   const world: LobbyWorld = {
-    lobby: null,
+    lobby: lobbyFixture('lobby'),
     phase: 'None',
     switchStatus: 204,
-    inviteBySummonerIdStatus: 200,
     switchMoves: true,
-    customQueues: ASSUMED_CUSTOM_QUEUES,
-    gameQueues: ASSUMED_GAME_QUEUES,
-    gameQueuesStatus: 200,
-    createStatus: 200,
-    dropLobbyReadsAfterCreate: 0,
     ...options.world,
   };
   const api = await startFakeApi({
@@ -402,7 +256,7 @@ async function setup(
     },
     schedule: manual,
     ackAttempts: 1,
-    gate: { create_lobby: true, invite: true, switch_side: true },
+    gate: { switch_side: true },
     ...options.runner,
   });
   const harness: Harness = {
@@ -445,17 +299,6 @@ afterEach(async () => {
   }
 });
 
-const createLobby = (id = ID_A, overrides: Partial<Command> = {}): Command => ({
-  id,
-  kind: 'create_lobby',
-  payload: { lobbyName: 'Customs 09 Sep #1', lobbyPassword: LOBBY_PASSWORD },
-  ...overrides,
-});
-const invite = (puuid = OTHER, summonerId: string | null = OTHER_SUMMONER_ID, id = ID_A): Command => ({
-  id,
-  kind: 'invite',
-  payload: { puuid, summonerId },
-});
 const switchSide = (targetSide: 100 | 200, id = ID_A): Command => ({
   id,
   kind: 'switch_side',
@@ -529,259 +372,13 @@ describe('CommandRunner: polling', () => {
   });
 });
 
-describe('CommandRunner: create_lobby', () => {
-  it('reads the lobby, POSTs the reference body once, re-reads, acks { partyId, lobbyName } and remembers the password (assumed: POST answers the lobby)', async () => {
-    const h = await setup({
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandAckPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuRequests().map((request) => `${request.method} ${request.path}`)).toEqual([
-      'GET /lol-lobby/v2/lobby',
-      'GET /lol-game-queues/v1/custom',
-      'GET /lol-game-queues/v1/queues',
-      'POST /lol-lobby/v2/lobby',
-      'GET /lol-lobby/v2/lobby',
-    ]);
-    // The 16.17 client dialog's body, draft (docs/04, 2026-09-09), ids from the dialog data: never isCustom.
-    expect(JSON.parse(h.lcuPosts()[0]?.body ?? '')).toEqual({
-      customGameLobby: {
-        configuration: {
-          gameMode: 'CLASSIC',
-          gameMutator: '',
-          gameServerRegion: '',
-          mapId: 11,
-          mutators: { id: 20 },
-          spectatorPolicy: 'AllAllowed',
-          spectatorDelayEnabled: true,
-          teamSize: 5,
-          hidePublicly: false,
-          aramMapMutator: 'NONE',
-        },
-        lobbyName: 'Customs 09 Sep #1',
-        hidePublicly: false,
-        lobbyPassword: LOBBY_PASSWORD,
-      },
-      queueId: 20,
-    });
-    expectAck(h, ID_A, { partyId: 'party-created-0001', lobbyName: 'Customs 09 Sep #1' });
-    expect(h.runner.passwordFor('party-created-0001')).toBe(LOBBY_PASSWORD);
-    expect(h.runner.passwordFor('someone-elses-party')).toBeNull();
-    expect(h.executed().get(ID_A)).toMatchObject({
-      outcome: 'done',
-      result: { partyId: 'party-created-0001' },
-    });
-    // Check 12: the password is a deliberate debug; nothing at info or above carries it, nor the token.
-    for (const line of h.logger.lines) {
-      const text = JSON.stringify(line);
-      expect(text).not.toContain(TOKEN);
-      if (line.level !== 'debug') {
-        expect(text, `${line.level} "${line.message}" carries the lobby password`).not.toContain(
-          LOBBY_PASSWORD,
-        );
-      }
-    }
-    expect(
-      h.logger.lines.some((line) => line.level === 'debug' && JSON.stringify(line).includes(LOBBY_PASSWORD)),
-    ).toBe(true);
-  });
-
-  /**
-   * The regression test for Bugs 1 and 2 (reviewer-caught, 2026-09-13): drives the real production
-   * `create_lobby` executor off the actual 16.18 `--verify-commands` capture of both
-   * `/lol-game-queues/v1/custom` (`custom-game-queues.json`, wordless mutators, `gameServerRegions: null`)
-   * and `/lol-game-queues/v1/queues` (`game-queues.json`, which names them), never invented dialog data. Before
-   * the fix this nacked twice over: `CustomGameQueuesSchema.safeParse` rejected the real body outright (Bug
-   * 1), and even patched, `customLobbyIdsFor` found no draft entry because the dialog itself names nothing
-   * (Bug 2). After the fix it resolves queueId/mutators.id 3110 with no human input.
-   */
-  it('resolves queueId 3110 for draft and creates the lobby, off the real 16.18 custom-game-queues.json + game-queues.json fixtures', async () => {
-    const dialogFixture = fixtureBody('custom-game-queues', '16.18');
-    const queuesFixture = fixtureBody('game-queues', '16.18');
-    const h = await setup({
-      world: { customQueues: dialogFixture, gameQueues: queuesFixture },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandAckPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuRequests().map((request) => `${request.method} ${request.path}`)).toEqual([
-      'GET /lol-lobby/v2/lobby',
-      'GET /lol-game-queues/v1/custom',
-      'GET /lol-game-queues/v1/queues',
-      'POST /lol-lobby/v2/lobby',
-      'GET /lol-lobby/v2/lobby',
-    ]);
-    const posted = JSON.parse(h.lcuPosts()[0]?.body ?? '') as {
-      customGameLobby: { configuration: { mutators: { id: number } } };
-      queueId: number;
-    };
-    expect(posted.queueId).toBe(3110);
-    expect(posted.customGameLobby.configuration.mutators.id).toBe(3110);
-    expectAck(h, ID_A, { partyId: 'party-created-0001', lobbyName: 'Customs 09 Sep #1' });
-  });
-
-  it('M17.17: pickType blind resolves queueId 3100 off the same fixtures; an explicit draft and an old payload both send 3110', async () => {
-    const dialogFixture = fixtureBody('custom-game-queues', '16.18');
-    const queuesFixture = fixtureBody('game-queues', '16.18');
-    const sent: Record<string, number> = {};
-    for (const [label, payload] of [
-      ['blind', { lobbyName: 'Customs 09 Sep #1', lobbyPassword: LOBBY_PASSWORD, pickType: 'blind' }],
-      ['draft', { lobbyName: 'Customs 09 Sep #1', lobbyPassword: LOBBY_PASSWORD, pickType: 'draft' }],
-      ['old', { lobbyName: 'Customs 09 Sep #1', lobbyPassword: LOBBY_PASSWORD }],
-    ] as const) {
-      const h = await setup({
-        world: { customQueues: dialogFixture, gameQueues: queuesFixture },
-        apiRoutes: {
-          [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby(ID_A, { payload })]), empty],
-          [`POST ${commandAckPath(ID_A)}`]: [okAck],
-        },
-      });
-      await h.runner.pollNow();
-      const posted = JSON.parse(h.lcuPosts()[0]?.body ?? '') as {
-        customGameLobby: { configuration: { mutators: { id: number } } };
-        queueId: number;
-      };
-      expect(posted.customGameLobby.configuration.mutators.id).toBe(posted.queueId);
-      sent[label] = posted.queueId;
-    }
-    expect(sent).toEqual({ blind: 3100, draft: 3110, old: 3110 });
-  });
-
-  it('nacks client_rejected with the dialog list, and posts nothing, when neither the dialog nor the queue list names a draft entry', async () => {
-    const h = await setup({
-      world: {
-        customQueues: {
-          subcategories: [{ mapId: 11, gameMode: 'CLASSIC', mutators: [{ id: 19 }, { id: 20 }] }],
-        },
-        // Nothing here names id 20 as draft either, so the join (Bug 2 fix) still finds nothing.
-        gameQueues: [],
-      },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandNackPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuPosts()).toEqual([]);
-    expectNack(
-      h,
-      ID_A,
-      "client_rejected: /lol-game-queues/v1/custom lists no draft entry for Summoner's Rift (it has: 19, 20); no lobby created",
-    );
-    expect(h.world.lobby).toBeNull();
-
-    const noRift = await setup({
-      world: { customQueues: { subcategories: [] } },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandNackPath(ID_A)}`]: [okAck],
-      },
-    });
-    await noRift.runner.pollNow();
-    expect(noRift.lcuPosts()).toEqual([]);
-    expectNack(
-      noRift,
-      ID_A,
-      "client_rejected: /lol-game-queues/v1/custom lists no Summoner's Rift classic subcategory",
-    );
-  });
-
-  it('nacks client_rejected, without ever POSTing, when the queue list GET fails (Bug 2: names come only from the join)', async () => {
-    const h = await setup({
-      world: { gameQueuesStatus: 404 },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandNackPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuPosts()).toEqual([]);
-    expectNack(h, ID_A, 'client_rejected: /lol-game-queues/v1/queues answered 404 assumed refusal');
-  });
-
-  it('nacks already_in_lobby with the partyId and never dissolves the lobby (check 9)', async () => {
-    const h = await setup({
-      world: { lobby: lobbyFixture('lobby') },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandNackPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuPosts()).toEqual([]);
-    expectNack(h, ID_A, 'already_in_lobby: partyId=e3c69392-a134-43cb-97ae-8add18c72494');
-    expect(h.world.lobby?.partyId).toBe('e3c69392-a134-43cb-97ae-8add18c72494');
-  });
-
-  it('a client that dies right after a 2xx POST: one more read, then a recorded non-retryable client_rejected (never not_connected)', async () => {
-    const h = await setup({
-      world: { dropLobbyReadsAfterCreate: 2 },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
-          page([createLobby()]),
-          page([createLobby()]),
-          empty,
-        ],
-        [`POST ${commandNackPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuRequests().map((request) => `${request.method} ${request.path}`)).toEqual([
-      'GET /lol-lobby/v2/lobby',
-      'GET /lol-game-queues/v1/custom',
-      'GET /lol-game-queues/v1/queues',
-      'POST /lol-lobby/v2/lobby',
-      'GET /lol-lobby/v2/lobby',
-      'GET /lol-lobby/v2/lobby',
-    ]);
-    expectNack(h, ID_A, 'client_rejected: create answered 200 but the lobby could not be read back', false);
-    expect(h.executed().get(ID_A)?.outcome).toBe('failed');
-    expect(h.logger.lines.some((line) => line.message.includes('reading once more'))).toBe(true);
-    // Re-offered anyway (a server that ignores the record): re-nacked from the file, no client call, and the
-    // lobby that exists is not touched.
-    await h.runner.pollNow();
-    expect(h.lcuPosts()).toHaveLength(1);
-    expect(h.acks().filter((ack) => ack.path === commandNackPath(ID_A))).toHaveLength(2);
-    expect(h.world.lobby?.partyId).toBe('party-created-0001');
-
-    // The read-back failing once and answering the second time is a success with the password remembered.
-    const flaky = await setup({
-      world: { dropLobbyReadsAfterCreate: 1 },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandAckPath(ID_A)}`]: [okAck],
-      },
-    });
-    await flaky.runner.pollNow();
-    expectAck(flaky, ID_A, { partyId: 'party-created-0001', lobbyName: 'Customs 09 Sep #1' });
-    expect(flaky.runner.passwordFor('party-created-0001')).toBe(LOBBY_PASSWORD);
-  });
-
-  it('nacks client_rejected with the status and message, never a body, when the client refuses (assumed 400)', async () => {
-    const h = await setup({
-      world: { createStatus: 400 },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
-        [`POST ${commandNackPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expectNack(h, ID_A, 'client_rejected: /lol-lobby/v2/lobby answered 400 assumed refusal');
-    expect(h.lcuPosts()).toHaveLength(1);
-  });
-});
-
 describe('CommandRunner: execute once', () => {
   it('check 7: a lost ack is re-sent from the record on the next poll with the identical result and no client call', async () => {
     const h = await setup({
       apiRoutes: {
         [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
-          page([createLobby()]),
-          page([createLobby()]),
+          page([switchSide(200)]),
+          page([switchSide(200)]),
           empty,
         ],
         [`POST ${commandAckPath(ID_A)}`]: [{ status: 500, body: '', drop: true }, okAck],
@@ -803,7 +400,7 @@ describe('CommandRunner: execute once', () => {
   it('check 8: across a restart the file is what stops the second execution', async () => {
     const first = await setup({
       apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
+        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([switchSide(200)]), empty],
         [`POST ${commandAckPath(ID_A)}`]: [{ status: 500, body: '', drop: true }],
       },
     });
@@ -813,12 +410,12 @@ describe('CommandRunner: execute once', () => {
     const saved = readFileSync(executedFilePath(first.configDir), 'utf8');
     first.runner.stop();
 
-    // A new process, same config directory, a client with no lobby (so a re-run *would* create one).
+    // A new process, same config directory, a client whose player is still on 100 (so a re-run *would* POST).
     const keep = mkdtempSync(join(tmpdir(), 'companion-commands-restart-'));
     const second = await setup({
       configDir: keep,
       apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
+        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([switchSide(200)]), empty],
         [`POST ${commandAckPath(ID_A)}`]: [okAck],
       },
     });
@@ -826,14 +423,14 @@ describe('CommandRunner: execute once', () => {
     writeFileSync(executedFilePath(keep), saved);
     await second.runner.pollNow();
     expect(second.lcuRequests()).toEqual([]);
-    expectAck(second, ID_A, { partyId: 'party-created-0001', lobbyName: 'Customs 09 Sep #1' });
+    expectAck(second, ID_A, { side: 200 });
   });
 
   it('treats a 409 on the ack as already recorded and a 404 as nothing more to do', async () => {
     const h = await setup({
       apiRoutes: {
         [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
-          page([createLobby(ID_A), createLobby(ID_B)]),
+          page([switchSide(200, ID_A), { id: ID_B, kind: 'start_queue', payload: {} }]),
           empty,
         ],
         [`POST ${commandAckPath(ID_A)}`]: [{ status: 409, body: { ok: false, error: 'already acked' } }],
@@ -859,8 +456,8 @@ describe('CommandRunner: execute once', () => {
     const h = await setup({
       connect: false,
       apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=false`]: [page([createLobby()]), empty],
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
+        [`GET ${COMMANDS_API_PATH}?clientConnected=false`]: [page([switchSide(200)]), empty],
+        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([switchSide(200)]), empty],
         [`POST ${commandNackPath(ID_A)}`]: [okAck],
         [`POST ${commandAckPath(ID_A)}`]: [okAck],
       },
@@ -871,39 +468,32 @@ describe('CommandRunner: execute once', () => {
     await h.runner.hooks().onConnected?.(h.context);
     await h.runner.pollNow();
     expect(h.lcuPosts()).toHaveLength(1);
-    expectAck(h, ID_A, { partyId: 'party-created-0001', lobbyName: 'Customs 09 Sep #1' });
+    expectAck(h, ID_A, { side: 200 });
   });
 });
 
 describe('CommandRunner: the gate (check 10)', () => {
   it('with a kind flagged off: nack endpoint_unverified, no client call at all, one log line naming the row', async () => {
     const h = await setup({
-      // The three kinds are verified for real (16.18) since M4.1's live run; override the gate off here to
+      // Switch side is verified for real (16.18) since M4.1's live run; override the gate off here to
       // exercise the flagged-off path.
-      runner: { gate: { create_lobby: false, invite: false, switch_side: false } },
+      runner: { gate: { switch_side: false } },
       apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
-          page([createLobby(ID_A), invite(OTHER, OTHER_SUMMONER_ID, ID_B)]),
-          empty,
-        ],
+        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([switchSide(200)]), empty],
         [`POST ${commandNackPath(ID_A)}`]: [okAck],
-        [`POST ${commandNackPath(ID_B)}`]: [okAck],
       },
     });
-    expect(h.runner.isEnabled('create_lobby')).toBe(false);
-    expect(h.runner.isEnabled('invite')).toBe(false);
     expect(h.runner.isEnabled('switch_side')).toBe(false);
     await h.runner.pollNow();
     expect(h.lcuRequests()).toEqual([]);
     expectNack(
       h,
       ID_A,
-      'endpoint_unverified: Create custom lobby (POST /lol-lobby/v2/lobby) is not verified',
+      'endpoint_unverified: Switch side (POST /lol-lobby/v2/lobby/team/{team}) is not verified',
     );
-    expectNack(h, ID_B, 'endpoint_unverified: Invite (POST /lol-lobby/v2/lobby/invitations) is not verified');
     const lines = h.logger.lines.filter((line) => line.message.includes('not verified on this patch'));
-    expect(lines).toHaveLength(2);
-    expect(lines[0]?.fields.verify).toBe('Create custom lobby (POST /lol-lobby/v2/lobby)');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.fields.verify).toBe('Switch side (POST /lol-lobby/v2/lobby/team/{team})');
     // Recorded, so a re-delivery re-nacks from the file without re-evaluating anything.
     expect(h.executed().get(ID_A)?.outcome).toBe('failed');
   });
@@ -915,10 +505,11 @@ describe('CommandRunner: expiry and malformed rows', () => {
       apiRoutes: {
         [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
           page([
-            createLobby(ID_A, {
+            {
+              ...switchSide(200, ID_A),
               createdAt: new Date(NOW - 1000).toISOString(),
               expiresAt: new Date(NOW + 60_000).toISOString(),
-            }),
+            },
           ]),
           empty,
         ],
@@ -935,7 +526,7 @@ describe('CommandRunner: expiry and malformed rows', () => {
   it('a PC clock ten minutes ahead of the server never fails a fresh command (expiresAt is not compared locally)', async () => {
     const h = await setup({
       apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([createLobby()]), empty],
+        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([switchSide(200)]), empty],
         [`POST ${commandAckPath(ID_A)}`]: [okAck],
       },
     });
@@ -943,7 +534,7 @@ describe('CommandRunner: expiry and malformed rows', () => {
     h.clock.now = NOW + 10 * 60_000;
     await h.runner.pollNow();
     expect(h.lcuPosts()).toHaveLength(1);
-    expectAck(h, ID_A, { partyId: 'party-created-0001', lobbyName: 'Customs 09 Sep #1' });
+    expectAck(h, ID_A, { side: 200 });
   });
 
   it('isStale compares local elapsed time with the server-side TTL and never trusts a bad or missing TTL', () => {
@@ -980,6 +571,26 @@ describe('CommandRunner: expiry and malformed rows', () => {
     expectNack(h, ID_B, 'malformed_payload: targetSide');
   });
 
+  it('M22.11: create_lobby and invite are unknown kinds now: a logged malformed_payload nack, no client call', async () => {
+    const h = await setup({
+      apiRoutes: {
+        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
+          page([
+            { id: ID_A, kind: 'create_lobby', payload: { lobbyName: 'n', lobbyPassword: '4821' } },
+            { id: ID_B, kind: 'invite', payload: { puuid: OTHER, summonerId: null } },
+          ]),
+          empty,
+        ],
+        [`POST ${commandNackPath(ID_A)}`]: [okAck],
+        [`POST ${commandNackPath(ID_B)}`]: [okAck],
+      },
+    });
+    await h.runner.pollNow();
+    expect(h.lcuRequests()).toEqual([]);
+    expectNack(h, ID_A, 'malformed_payload: unknown kind "create_lobby"');
+    expectNack(h, ID_B, 'malformed_payload: unknown kind "invite"');
+  });
+
   it('nacks wrong_phase in champion select with no client call (check 9)', async () => {
     const h = await setup({
       world: { phase: 'ChampSelect', lobby: lobbyFixture('lobby') },
@@ -992,88 +603,6 @@ describe('CommandRunner: expiry and malformed rows', () => {
     await h.runner.pollNow();
     expect(h.lcuRequests()).toEqual([]);
     expectNack(h, ID_A, 'wrong_phase: ChampSelect');
-  });
-});
-
-describe('CommandRunner: invite', () => {
-  it('POSTs [{ toSummonerId }] once, reads the Pending row back and acks it (assumed: 200 with the sent rows)', async () => {
-    const h = await setup({
-      world: { lobby: lobbyFixture('lobby') },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([invite()]), empty],
-        [`POST ${commandAckPath(ID_A)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuPosts().map((request) => [request.path, JSON.parse(request.body)])).toEqual([
-      ['/lol-lobby/v2/lobby/invitations', [{ toSummonerId: 52699007 }]],
-    ]);
-    expectAck(h, ID_A, { puuid: OTHER, method: 'summonerId', state: 'Pending' });
-  });
-
-  it('falls back to [{ toPuuid }] on a 4xx and reports method puuid; starts there when no summoner id is known', async () => {
-    const h = await setup({
-      world: { lobby: lobbyFixture('lobby'), inviteBySummonerIdStatus: 400 },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
-          page([invite()]),
-          page([invite(PENDING_FRIEND, null, ID_B)]),
-          empty,
-        ],
-        [`POST ${commandAckPath(ID_A)}`]: [okAck],
-        [`POST ${commandAckPath(ID_B)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuPosts().map((request) => JSON.parse(request.body))).toEqual([
-      [{ toSummonerId: 52699007 }],
-      [{ toPuuid: OTHER }],
-    ]);
-    expectAck(h, ID_A, { puuid: OTHER, method: 'puuid', state: 'Pending' });
-  });
-
-  it('acks done without a POST when the invitee is already a member (Accepted) or already invited (Pending)', async () => {
-    const lobby = lobbyFixture('lobby--two-players');
-    const h = await setup({
-      world: { lobby },
-      apiRoutes: {
-        [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [
-          page([invite(FRIEND, '1', ID_A), invite(pendingPuuid(lobby), null, ID_B)]),
-          empty,
-        ],
-        [`POST ${commandAckPath(ID_A)}`]: [okAck],
-        [`POST ${commandAckPath(ID_B)}`]: [okAck],
-      },
-    });
-    await h.runner.pollNow();
-    expect(h.lcuPosts()).toEqual([]);
-    expectAck(h, ID_A, { puuid: FRIEND, method: 'summonerId', state: 'Accepted' });
-    expectAck(h, ID_B, { puuid: pendingPuuid(lobby), method: 'puuid', state: 'Pending' });
-  });
-
-  it('nacks no_lobby with no lobby, not_custom_lobby in a normal one, and refuses when the local player may not invite', async () => {
-    const base = lobbyFixture('lobby');
-    const normal: Lobby = { ...base, gameConfig: { ...base.gameConfig, isCustom: false, queueId: 420 } };
-    const notLeader: Lobby = {
-      ...base,
-      localMember: { ...base.localMember, isLeader: false, allowedInviteOthers: false },
-    };
-    for (const [world, prefix] of [
-      [{ lobby: null }, 'no_lobby'],
-      [{ lobby: normal }, 'not_custom_lobby: queueId=420'],
-      [{ lobby: notLeader }, 'client_rejected: the local player may not invite'],
-    ] as const) {
-      const h = await setup({
-        world,
-        apiRoutes: {
-          [`GET ${COMMANDS_API_PATH}?clientConnected=true`]: [page([invite()]), empty],
-          [`POST ${commandNackPath(ID_A)}`]: [okAck],
-        },
-      });
-      await h.runner.pollNow();
-      expect(h.lcuPosts()).toEqual([]);
-      expectNack(h, ID_A, prefix);
-    }
   });
 });
 
@@ -1185,7 +714,7 @@ describe('CommandRunner: switch_side', () => {
     expectNack(spectator, ID_A, 'not_on_a_team: spectator');
   });
 
-  it('nacks no_lobby and not_custom_lobby like invite does', async () => {
+  it('nacks no_lobby and not_custom_lobby', async () => {
     const base = lobbyFixture('lobby');
     for (const [lobby, prefix] of [
       [null, 'no_lobby'],
@@ -1206,7 +735,7 @@ describe('CommandRunner: switch_side', () => {
 });
 
 describe('the Riot line (check 11)', () => {
-  it('across this whole file the client saw no POST outside the allow-list and no GET outside the three reads', () => {
+  it('across this whole file the client saw no POST outside the allow-list and no GET outside the two reads', () => {
     for (const request of allLcuRequests) {
       if (request.method === 'POST') {
         expect(LOBBY_WRITE_PATHS, `POST ${request.path}`).toContain(request.path);

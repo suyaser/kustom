@@ -72,8 +72,8 @@ if (stack === null) {
    * every call site: a case that wants rows passes {@link ON}, a case that wants none passes
    * {@link OFF}, and neither depends on which way `COMMAND_KIND_ENABLED` happens to be set.
    */
-  const ON = { create_lobby: true, invite: true, switch_side: true } as const;
-  const OFF = { create_lobby: false, invite: false, switch_side: false } as const;
+  const ON = { switch_side: true } as const;
+  const OFF = { switch_side: false } as const;
 
   let owner = { token: '', playerId: '', tokenId: '' };
   let other = { token: '', playerId: '', tokenId: '' };
@@ -166,7 +166,7 @@ if (stack === null) {
   /** One row, written the way the writer writes them, with the clock the case wants. */
   async function queue(
     playerId: string,
-    kind: 'create_lobby' | 'invite' | 'switch_side',
+    kind: 'switch_side',
     payload: Record<string, unknown>,
     now = new Date(),
   ): Promise<string> {
@@ -185,6 +185,27 @@ if (stack === null) {
 
   const switchSidePayload = (targetSide: SideValue = 200) => ({ targetSide });
   const invitePayload = () => ({ puuid: puuidOf('invitee'), summonerId: '2686822975473024' });
+
+  /**
+   * A row of a retired kind (M22.11), written straight to the table the way an old server left it:
+   * `enqueueCommands` no longer accepts the kind. Only `invite`: 0008 locks `create_lobby` to one live row.
+   */
+  async function strayInvite(playerId: string, createdAt = new Date()): Promise<string> {
+    const { data, error } = await db
+      .from('companion_commands')
+      .insert({
+        target_player_id: playerId,
+        group_id: ORIGINAL_GROUP_ID,
+        kind: 'invite',
+        payload: invitePayload(),
+        created_at: createdAt.toISOString(),
+        expires_at: new Date(createdAt.getTime() + 5 * 60_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    if (error) throw new Error(`strayInvite: ${error.message}`);
+    return data.id;
+  }
 
   async function row(id: string): Promise<CompanionCommandRow> {
     const { data, error } = await db.from('companion_commands').select('*').eq('id', id).single();
@@ -249,14 +270,14 @@ if (stack === null) {
     it('hands out this token player rows only, oldest first, and never another player queue', async () => {
       const now = Date.now();
       const first = await queue(owner.playerId, 'switch_side', switchSidePayload(100), new Date(now - 2000));
-      const second = await queue(owner.playerId, 'invite', invitePayload(), new Date(now - 1000));
+      const second = await queue(owner.playerId, 'switch_side', switchSidePayload(200), new Date(now - 1000));
       const foreign = await queue(other.playerId, 'switch_side', switchSidePayload());
 
       const answer = await poll(owner.token);
       expect(answer.status).toBe(200);
       const parsed = companionCommandsResponseSchema.parse(answer.body);
       expect(parsed.commands.map((command) => command.id)).toEqual([first, second]);
-      expect(parsed.commands.map((command) => command.kind)).toEqual(['switch_side', 'invite']);
+      expect(parsed.commands.map((command) => command.kind)).toEqual(['switch_side', 'switch_side']);
       expect(parsed.commands[0]?.payload).toEqual({ targetSide: 100 });
       expect(parsed.nextPollInMs).toBe(5000);
 
@@ -372,29 +393,38 @@ if (stack === null) {
     });
 
     it('sweeps expiry even when the client is down: the server owns the clock', async () => {
-      const long_ago = new Date(Date.now() - 2 * COMPANION_COMMAND_TTL_MS.invite);
-      const id = await queue(owner.playerId, 'invite', invitePayload(), long_ago);
+      const long_ago = new Date(Date.now() - 2 * COMPANION_COMMAND_TTL_MS.switch_side);
+      const id = await queue(owner.playerId, 'switch_side', switchSidePayload(), long_ago);
 
       await poll(owner.token, false);
       expect((await row(id)).error).toBe(COMMAND_ERRORS.expired);
     });
 
-    it('writes each kind its own TTL', async () => {
+    it('writes switch_side its own TTL', async () => {
       const now = new Date();
-      for (const [kind, ttl] of Object.entries(COMPANION_COMMAND_TTL_MS)) {
-        const payload =
-          kind === 'create_lobby'
-            ? { lobbyName: 'kustom night', lobbyPassword: '4821' }
-            : kind === 'invite'
-              ? invitePayload()
-              : switchSidePayload();
-        const id = await queue(owner.playerId, kind as 'invite', payload, now);
-        const written = await row(id);
-        expect(Date.parse(written.expires_at) - Date.parse(written.created_at), kind).toBeGreaterThan(
-          ttl - 5_000,
-        );
-        expect(Date.parse(written.expires_at) - now.getTime(), kind).toBeLessThanOrEqual(ttl);
-      }
+      const ttl = COMPANION_COMMAND_TTL_MS.switch_side;
+      const id = await queue(owner.playerId, 'switch_side', switchSidePayload(), now);
+      const written = await row(id);
+      expect(Date.parse(written.expires_at) - Date.parse(written.created_at)).toBeGreaterThan(ttl - 5_000);
+      expect(Date.parse(written.expires_at) - now.getTime()).toBeLessThanOrEqual(ttl);
+    });
+
+    it('M22.11: a stray row of a retired kind is still handed out with its kind, and either answer settles it', async () => {
+      const id = await strayInvite(owner.playerId);
+      const parsed = companionCommandsResponseSchema.parse((await poll(owner.token)).body);
+      expect(parsed.commands.map((command) => [command.id, command.kind])).toEqual([[id, 'invite']]);
+
+      // The current companion nacks it as an unknown kind; an older one in the field may ack it.
+      expect((await nack(id, owner.token, 'malformed_payload: unknown kind "invite"', false)).status).toBe(
+        200,
+      );
+      expect((await row(id)).status).toBe('failed');
+
+      const again = await strayInvite(owner.playerId);
+      await poll(owner.token);
+      const result = { puuid: puuidOf('invitee'), method: 'puuid', state: 'Pending' };
+      expect((await ack(again, owner.token, result)).status).toBe(200);
+      expect((await row(again)).result).toEqual(result);
     });
   });
 
@@ -407,10 +437,10 @@ if (stack === null) {
       const seen: CommandAckedEvent[] = [];
       registerCommandHook({ onAcked: (event) => void seen.push(event) });
 
-      const id = await queue(owner.playerId, 'invite', invitePayload());
+      const id = await queue(owner.playerId, 'switch_side', switchSidePayload(100));
       await poll(owner.token);
 
-      const result = { puuid: puuidOf('invitee'), method: 'summonerId', state: 'Pending' };
+      const result = { side: 100 };
       const answer = await ack(id, owner.token, result);
       expect(answer.status).toBe(200);
       expect(answer.body).toEqual({ ok: true });
@@ -422,7 +452,7 @@ if (stack === null) {
       expect(acked.error).toBeNull();
 
       expect(seen).toHaveLength(1);
-      expect(seen[0]).toMatchObject({ commandId: id, kind: 'invite', status: 'acked' });
+      expect(seen[0]).toMatchObject({ commandId: id, kind: 'switch_side', status: 'acked' });
     });
 
     it('is idempotent: a second ack is 409 and changes not one column', async () => {
@@ -498,10 +528,7 @@ if (stack === null) {
     });
 
     it('stores a reason word plus its detail, and never refuses a prefix it does not know', async () => {
-      const id = await queue(owner.playerId, 'create_lobby', {
-        lobbyName: 'kustom night',
-        lobbyPassword: '4821',
-      });
+      const id = await queue(owner.playerId, 'switch_side', switchSidePayload());
       await poll(owner.token);
 
       const error = 'already_in_lobby: partyId=abc-123';
@@ -976,10 +1003,10 @@ if (stack === null) {
       }
     });
 
-    it('leaves create_lobby and invite alone when a lobby leaves balanced', async () => {
+    it('leaves a stray row of a retired kind alone when a lobby leaves balanced', async () => {
       const seats = cast.map((seat) => ({ ...seat }));
       const lobbyId = await lobbyWith(seats, 'balanced');
-      const invite = await queue(seats[0]?.playerId ?? '', 'invite', invitePayload());
+      const invite = await strayInvite(seats[0]?.playerId ?? '');
 
       expect(await moveLobby(db, { lobbyId, from: ['balanced'], to: 'finished' })).toBe(true);
       expect((await row(invite)).status).toBe('pending');

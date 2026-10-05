@@ -261,10 +261,6 @@ pub struct CommandAck {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CommandResult {
-    /// `create_lobby`.
-    CreateLobby(CreateLobbyResult),
-    /// `invite`.
-    Invite(InviteResult),
     /// `switch_side`.
     SwitchSide(SwitchSideResult),
 }
@@ -273,53 +269,9 @@ impl CommandResult {
     /// The command kind this result answers, as the server spells it.
     pub fn kind(&self) -> &'static str {
         match self {
-            CommandResult::CreateLobby(_) => "create_lobby",
-            CommandResult::Invite(_) => "invite",
             CommandResult::SwitchSide(_) => "switch_side",
         }
     }
-}
-
-/// `create_lobby`'s result.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CreateLobbyResult {
-    /// The new lobby's `partyId`, read back from the client.
-    pub party_id: String,
-    /// `customLobbyName` read back, else the requested name.
-    pub lobby_name: String,
-}
-
-/// How an invite was sent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InviteMethod {
-    /// `[{ toSummonerId }]`.
-    #[serde(rename = "summonerId")]
-    SummonerId,
-    /// `[{ toPuuid }]`.
-    #[serde(rename = "puuid")]
-    Puuid,
-}
-
-/// Where an invite stands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InviteState {
-    /// Sent, not answered.
-    Pending,
-    /// In the lobby.
-    Accepted,
-}
-
-/// `invite`'s result.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct InviteResult {
-    /// The invitee.
-    pub puuid: String,
-    /// The body that counted.
-    pub method: InviteMethod,
-    /// From the lobby read back after the write (or before it, when already in place).
-    pub state: InviteState,
 }
 
 /// `switch_side`'s result.

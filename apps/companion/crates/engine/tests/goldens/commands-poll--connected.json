@@ -5,7 +5,7 @@
   "route": "commands-poll",
   "patch": "16.18",
   "fixtures": [],
-  "scenario": "command-create-lobby",
+  "scenario": "command-switch-side-replayed",
   "note": "The poll while the client is up. A GET: the golden is the path and query, there is no body.",
   "method": "GET",
   "path": "/api/companion/commands?clientConnected=true",

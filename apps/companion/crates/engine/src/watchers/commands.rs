@@ -1,6 +1,6 @@
 //! The command runner (parity row 16, port of `apps/companion/src/commandRunner.ts` and `executed.ts`):
-//! polls `GET /api/companion/commands`, runs each command through the three lobby writes, and answers with
-//! an ack (result) or a nack (reason). **Lobby commands only** (create lobby, invite, switch side): never
+//! polls `GET /api/companion/commands`, runs each command through the lobby write, and answers with
+//! an ack (result) or a nack (reason). **Lobby commands only** (switch side): never
 //! champion select, never a game, never a queue (CLAUDE.md "Never automate gameplay").
 //!
 //! Rules, in the order applied to every command (the TS order):
@@ -12,14 +12,12 @@
 //! 4. **Gate:** a write whose docs/03 row is not verified: `endpoint_unverified`, no client call.
 //! 5. **No client:** `not_connected`, retryable (nothing ran, so nothing is recorded).
 //! 6. **Phase** other than `None`/`Lobby`: `wrong_phase`.
-//! 7. **Read before write:** every executor reads the lobby first; a second create finds the lobby and nacks
-//!    `already_in_lobby`; a second invite or switch finds the work done and acks without a POST.
-//! 8. **Ids from the client:** the create body's id is the dialog's draft entry, never a constant.
+//! 7. **Read before write:** the executor reads the lobby first; a second switch finds the work done and acks
+//!    without a POST.
 //!
 //! Polling: every `nextPollInMs` (5 s) while connected, every 60 s with `clientConnected=false` while not.
-//! One command at a time, in the order handed out. The password of a lobby this process created is kept
-//! in memory ([`CommandRunnerHandle::passwords`]) so the lobby watcher sends it with every post for that
-//! party. Nothing here panics or ends the process.
+//! One command at a time, in the order handed out. Nothing here panics or
+//! ends the process.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -38,12 +36,8 @@ use crate::api::wire::{
     CommandAck, CommandEnvelope, CommandNack, CommandResult, CommandsPoll, CommandsResponse,
 };
 use crate::lcu::events::RoutedEvent;
-use crate::lcu::mapper::is_placeholder_puuid;
-use crate::lcu::types::{CreateLobbyBody, InviteTarget, Lobby, TeamId};
-use crate::lcu::writes::{
-    CustomLobbyMode, LobbyWriteKind, custom_lobby_id_for, describe_mutators, is_lobby_write_verified,
-    summoners_rift_subcategory,
-};
+use crate::lcu::types::{Lobby, TeamId};
+use crate::lcu::writes::{LobbyWriteKind, is_lobby_write_verified};
 use crate::lcu::{LcuClient, LcuFailure};
 use crate::log::Clock;
 
@@ -61,10 +55,6 @@ pub const EXECUTED_FILE: &str = "commands-done.json";
 pub const MAX_EXECUTED: usize = 200;
 /// Entries older than this are dropped.
 pub const MAX_EXECUTED_AGE: Duration = Duration::from_secs(24 * 60 * 60);
-const CUSTOM_GAME_QUEUES_PATH: &str = "/lol-game-queues/v1/custom";
-const GAME_QUEUES_PATH: &str = "/lol-game-queues/v1/queues";
-const CREATE_PATH: &str = "/lol-lobby/v2/lobby";
-const INVITE_PATH: &str = "/lol-lobby/v2/lobby/invitations";
 
 // --- the API seam -------------------------------------------------------------------------------------------
 
@@ -233,116 +223,6 @@ impl ExecutedStore {
 
 // --- payloads (the kind's schema, `companionCommandPayloadSchemas`) ------------------------------------------
 
-struct CreatePayload {
-    lobby_name: String,
-    lobby_password: String,
-    /// `pickType` (M17.17): absent is draft, the only lobby a payload from before it could mean.
-    mode: CustomLobbyMode,
-}
-
-struct InvitePayload {
-    puuid: String,
-    summoner_id: Option<String>,
-}
-
-fn type_name(value: Option<&Value>) -> &'static str {
-    match value {
-        None => "undefined",
-        Some(Value::Null) => "null",
-        Some(Value::Bool(_)) => "boolean",
-        Some(Value::Number(_)) => "number",
-        Some(Value::String(_)) => "string",
-        Some(Value::Array(_)) => "array",
-        Some(Value::Object(_)) => "object",
-    }
-}
-
-fn expect_string(payload: &Map<String, Value>, key: &str, issues: &mut Vec<String>) -> Option<String> {
-    match payload.get(key) {
-        Some(Value::String(s)) => Some(s.clone()),
-        other => {
-            issues.push(format!(
-                "{key}: Invalid input: expected string, received {}",
-                type_name(other)
-            ));
-            None
-        }
-    }
-}
-
-fn parse_create(payload: &Map<String, Value>) -> Result<CreatePayload, Vec<String>> {
-    let mut issues = Vec::new();
-    let name = expect_string(payload, "lobbyName", &mut issues).map(|n| n.trim().to_owned());
-    if let Some(name) = &name {
-        let len = name.chars().count();
-        if len < 1 {
-            issues.push("lobbyName: Too small: expected string to have >=1 characters".into());
-        } else if len > 30 {
-            issues.push("lobbyName: Too big: expected string to have <=30 characters".into());
-        }
-    }
-    let password = expect_string(payload, "lobbyPassword", &mut issues);
-    if let Some(password) = &password {
-        let len = password.chars().count();
-        if len < 4 {
-            issues.push("lobbyPassword: Too small: expected string to have >=4 characters".into());
-        } else if len > 16 {
-            issues.push("lobbyPassword: Too big: expected string to have <=16 characters".into());
-        }
-    }
-    let mode = match payload.get("pickType") {
-        None => CustomLobbyMode::Draft,
-        Some(Value::String(pick)) if pick == "draft" => CustomLobbyMode::Draft,
-        Some(Value::String(pick)) if pick == "blind" => CustomLobbyMode::Blind,
-        Some(_) => {
-            issues.push("pickType: Invalid option: expected one of \"draft\"|\"blind\"".into());
-            CustomLobbyMode::Draft
-        }
-    };
-    match (name, password) {
-        (Some(lobby_name), Some(lobby_password)) if issues.is_empty() => Ok(CreatePayload {
-            lobby_name,
-            lobby_password,
-            mode,
-        }),
-        _ => Err(issues),
-    }
-}
-
-fn parse_invite(payload: &Map<String, Value>) -> Result<InvitePayload, Vec<String>> {
-    let mut issues = Vec::new();
-    let puuid = expect_string(payload, "puuid", &mut issues);
-    if let Some(p) = &puuid {
-        if is_placeholder_puuid(p) {
-            issues.push(
-                "puuid: puuid is a placeholder (empty or all-zero): a bot or an empty slot, never a player"
-                    .into(),
-            );
-        }
-    }
-    let summoner_id = match payload.get("summonerId") {
-        Some(Value::Null) => Some(None),
-        Some(Value::String(s)) if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) => {
-            Some(Some(s.clone()))
-        }
-        Some(Value::String(_)) => {
-            issues.push("summonerId: Invalid string: must match pattern /^\\d+$/".into());
-            None
-        }
-        other => {
-            issues.push(format!(
-                "summonerId: Invalid input: expected string, received {}",
-                type_name(other)
-            ));
-            None
-        }
-    };
-    match (puuid, summoner_id) {
-        (Some(puuid), Some(summoner_id)) if issues.is_empty() => Ok(InvitePayload { puuid, summoner_id }),
-        _ => Err(issues),
-    }
-}
-
 fn parse_switch(payload: &Map<String, Value>) -> Result<TeamId, Vec<String>> {
     match payload.get("targetSide").and_then(Value::as_u64) {
         Some(100) => Ok(TeamId::Blue),
@@ -364,19 +244,6 @@ pub fn is_stale(created_at: &str, expires_at: &str, received_at_ms: i64, now_ms:
     };
     let ttl = expires - created;
     ttl > 0 && now_ms - received_at_ms > ttl
-}
-
-/// `Accepted` when the puuid is a member, `Pending` for an outstanding invitation, else `None`.
-pub fn invite_state(lobby: &Lobby, puuid: &str) -> Option<&'static str> {
-    if lobby.members.iter().any(|m| m.puuid == puuid) {
-        return Some("Accepted");
-    }
-    let row = lobby.invitations.as_ref()?.iter().find(|i| i.to_puuid == puuid)?;
-    Some(if row.state == "Accepted" {
-        "Accepted"
-    } else {
-        "Pending"
-    })
 }
 
 /// The side a puuid is on, by `customTeam100`/`customTeam200`.
@@ -411,224 +278,6 @@ async fn read_lobby(client: &LcuClient) -> LobbyRead {
             false,
         )),
     }
-}
-
-fn outcome_error(outcome: &Outcome) -> String {
-    match outcome {
-        Outcome::Failed { error, .. } => error.clone(),
-        Outcome::Done(_) => "done".into(),
-    }
-}
-
-/// The word a refusal uses for the mode it could not find an entry for.
-fn pick_name(mode: CustomLobbyMode) -> &'static str {
-    match mode {
-        CustomLobbyMode::Blind => "blind",
-        CustomLobbyMode::Draft => "draft",
-        CustomLobbyMode::TournamentDraft => "tournament draft",
-        CustomLobbyMode::AllRandom => "all random",
-    }
-}
-
-async fn create_lobby(
-    context: &ConnectedContext,
-    payload: CreatePayload,
-    passwords: &Mutex<HashMap<String, String>>,
-) -> Outcome {
-    let client = &context.client;
-    match read_lobby(client).await {
-        LobbyRead::Failed(outcome) => return outcome,
-        // Never dissolve a lobby somebody is standing in.
-        LobbyRead::Lobby(lobby) => {
-            return failed("already_in_lobby", &format!("partyId={}", lobby.party_id), false);
-        }
-        LobbyRead::None => {}
-    }
-    let dialog = match client.custom_game_queues().await {
-        Ok(ok) => ok.value,
-        Err(failure @ LcuFailure::Network { .. }) => {
-            return failed("not_connected", &failure.describe(), true);
-        }
-        Err(failure) => {
-            return failed(
-                "client_rejected",
-                &format!(
-                    "{CUSTOM_GAME_QUEUES_PATH} answered {}; no lobby created",
-                    failure.describe()
-                ),
-                false,
-            );
-        }
-    };
-    let queues = match client.game_queues().await {
-        Ok(ok) => ok.value,
-        Err(failure @ LcuFailure::Network { .. }) => {
-            return failed("not_connected", &failure.describe(), true);
-        }
-        Err(failure) => {
-            return failed(
-                "client_rejected",
-                &format!(
-                    "{GAME_QUEUES_PATH} answered {}; no lobby created",
-                    failure.describe()
-                ),
-                false,
-            );
-        }
-    };
-    let Some(entry) = custom_lobby_id_for(&dialog, payload.mode, &queues) else {
-        let detail = match summoners_rift_subcategory(&dialog) {
-            None => format!(
-                "{CUSTOM_GAME_QUEUES_PATH} lists no Summoner's Rift classic subcategory; no lobby created"
-            ),
-            Some(rift) => format!(
-                "{CUSTOM_GAME_QUEUES_PATH} lists no {} entry for Summoner's Rift (it has: {}); no lobby created",
-                pick_name(payload.mode),
-                describe_mutators(rift)
-            ),
-        };
-        return failed("client_rejected", &detail, false);
-    };
-    tracing::debug!(component = "commands", lobby_name = %payload.lobby_name, mode = pick_name(payload.mode), entry, "creating a custom lobby");
-    let body = CreateLobbyBody::summoners_rift(&payload.lobby_name, &payload.lobby_password, entry);
-    let status = match client.create_lobby(&body).await {
-        Ok(answer) => answer.status,
-        Err(failure) => {
-            return failed(
-                "client_rejected",
-                &format!("{CREATE_PATH} answered {}", failure.describe()),
-                false,
-            );
-        }
-    };
-    // The lobby now exists whatever the read-back says: nothing from here on is retryable.
-    let mut after = read_lobby(client).await;
-    if let LobbyRead::Failed(outcome) = &after {
-        tracing::warn!(component = "commands", error = %outcome_error(outcome), "lobby created but could not be read back; reading once more");
-        after = read_lobby(client).await;
-    }
-    let lobby = match after {
-        LobbyRead::Lobby(lobby) => lobby,
-        LobbyRead::Failed(outcome) => {
-            return failed(
-                "client_rejected",
-                &format!(
-                    "create answered {status} but the lobby could not be read back ({})",
-                    outcome_error(&outcome)
-                ),
-                false,
-            );
-        }
-        LobbyRead::None => {
-            return failed(
-                "client_rejected",
-                &format!("create answered {status} but no lobby followed"),
-                false,
-            );
-        }
-    };
-    if !lobby.game_config.is_custom {
-        return failed(
-            "client_rejected",
-            &format!("create answered {status} but the lobby is not custom"),
-            false,
-        );
-    }
-    if let Ok(mut map) = passwords.lock() {
-        map.insert(lobby.party_id.clone(), payload.lobby_password.clone());
-    }
-    let lobby_name = lobby
-        .game_config
-        .custom_lobby_name
-        .clone()
-        .filter(|n| !n.is_empty())
-        .unwrap_or(payload.lobby_name);
-    tracing::info!(component = "commands", party_id = %lobby.party_id, %lobby_name, "custom lobby created");
-    done(json!({ "partyId": lobby.party_id, "lobbyName": lobby_name }))
-}
-
-async fn invite(context: &ConnectedContext, payload: InvitePayload) -> Outcome {
-    let client = &context.client;
-    let lobby = match read_lobby(client).await {
-        LobbyRead::Failed(outcome) => return outcome,
-        LobbyRead::None => return failed("no_lobby", "", false),
-        LobbyRead::Lobby(lobby) => lobby,
-    };
-    if !lobby.game_config.is_custom {
-        return failed(
-            "not_custom_lobby",
-            &format!("queueId={}", lobby.game_config.queue_id),
-            false,
-        );
-    }
-    let method = if payload.summoner_id.is_some() {
-        "summonerId"
-    } else {
-        "puuid"
-    };
-    if let Some(state) = invite_state(&lobby, &payload.puuid) {
-        tracing::info!(component = "commands", puuid = %payload.puuid, state, "invite already in place; no client call");
-        return done(json!({ "puuid": payload.puuid, "method": method, "state": state }));
-    }
-    if !lobby.local_member.is_leader && lobby.local_member.allowed_invite_others == Some(false) {
-        return failed(
-            "client_rejected",
-            "the local player may not invite (not the leader)",
-            false,
-        );
-    }
-    // `inviteWithFallback`: by summoner id first (what the client's UI sends), by puuid on a 4xx.
-    let summoner_id = payload
-        .summoner_id
-        .as_deref()
-        .and_then(|s| s.parse::<i64>().ok())
-        .filter(|n| *n <= 9_007_199_254_740_991);
-    let mut attempts: Vec<(&str, Result<u16, LcuFailure>)> = Vec::new();
-    let mut used = "puuid";
-    let mut fall_back = true;
-    if let Some(id) = summoner_id {
-        let first = client
-            .invite(&InviteTarget::SummonerId { to_summoner_id: id })
-            .await
-            .map(|a| a.status);
-        let rejected = matches!(&first, Err(LcuFailure::Http { status, .. }) if *status < 500);
-        attempts.push(("toSummonerId", first));
-        if !rejected {
-            used = "summonerId";
-            fall_back = false;
-        }
-    }
-    if fall_back {
-        let second = client
-            .invite(&InviteTarget::Puuid {
-                to_puuid: payload.puuid.clone(),
-            })
-            .await
-            .map(|a| a.status);
-        attempts.push(("toPuuid", second));
-    }
-    if !matches!(attempts.last(), Some((_, Ok(_)))) {
-        let answers: Vec<String> = attempts
-            .iter()
-            .map(|(key, result)| {
-                let answer = match result {
-                    Ok(status) => status.to_string(),
-                    Err(failure) => failure.describe(),
-                };
-                format!("{INVITE_PATH} by {key} answered {answer}")
-            })
-            .collect();
-        return failed("client_rejected", &answers.join("; "), false);
-    }
-    let state = match read_lobby(client).await {
-        LobbyRead::Lobby(after) => invite_state(&after, &payload.puuid),
-        _ => None,
-    };
-    if state.is_none() {
-        tracing::warn!(component = "commands", puuid = %payload.puuid, method = used, "invite accepted by the client but no invitation row followed; reporting Pending");
-    }
-    tracing::info!(component = "commands", puuid = %payload.puuid, method = used, "invite sent");
-    done(json!({ "puuid": payload.puuid, "method": used, "state": state.unwrap_or("Pending") }))
 }
 
 async fn switch_side(context: &ConnectedContext, target: TeamId) -> Outcome {
@@ -773,7 +422,6 @@ pub struct CommandRunnerHandle {
     stop: watch::Sender<bool>,
     sent: Arc<std::sync::atomic::AtomicU64>,
     view: watch::Receiver<CommandRunnerView>,
-    passwords: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl CommandRunnerHandle {
@@ -793,12 +441,6 @@ impl CommandRunnerHandle {
     /// One poll now (tests; production polls on its timer).
     pub fn poll_now(&self) {
         let _ = self.tx.try_send(Msg::PollNow);
-    }
-
-    /// The password this process set for a party, for the lobby post (M4.2).
-    pub fn password_for(&self) -> super::lobby::PasswordFor {
-        let passwords = self.passwords.clone();
-        Arc::new(move |party: &str| passwords.lock().ok().and_then(|map| map.get(party).cloned()))
     }
 
     /// The view.
@@ -859,7 +501,6 @@ pub fn spawn_command_runner<A: CommandApi>(
         idle: true,
         ..Default::default()
     });
-    let passwords = Arc::new(Mutex::new(HashMap::new()));
     let forward = tx.clone();
     let mut forward_stop = stop_rx.clone();
     tokio::spawn(async move {
@@ -876,7 +517,6 @@ pub fn spawn_command_runner<A: CommandApi>(
     let shared = Shared {
         api,
         executed: Mutex::new(ExecutedStore::new(&options.state_dir, options.clock.clone())),
-        passwords: passwords.clone(),
         context: Mutex::new(None),
         phase: Mutex::new(None),
         options,
@@ -902,14 +542,12 @@ pub fn spawn_command_runner<A: CommandApi>(
         stop: stop_tx,
         sent: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         view: view_rx,
-        passwords,
     }
 }
 
 struct Shared<A> {
     api: Arc<A>,
     executed: Mutex<ExecutedStore>,
-    passwords: Arc<Mutex<HashMap<String, String>>>,
     context: Mutex<Option<Arc<ConnectedContext>>>,
     phase: Mutex<Option<String>>,
     options: CommandRunnerOptions,
@@ -1178,15 +816,8 @@ impl<A: CommandApi> Shared<A> {
                 false,
             );
         };
-        enum Parsed {
-            Create(CreatePayload),
-            Invite(InvitePayload),
-            Switch(TeamId),
-        }
         let parsed = match kind {
-            LobbyWriteKind::CreateLobby => parse_create(&command.payload).map(Parsed::Create),
-            LobbyWriteKind::Invite => parse_invite(&command.payload).map(Parsed::Invite),
-            LobbyWriteKind::SwitchSide => parse_switch(&command.payload).map(Parsed::Switch),
+            LobbyWriteKind::SwitchSide => parse_switch(&command.payload),
         };
         let parsed = match parsed {
             Ok(parsed) => parsed,
@@ -1248,11 +879,7 @@ impl<A: CommandApi> Shared<A> {
         if !ACTIONABLE_PHASES.contains(&phase.as_str()) {
             return failed("wrong_phase", &phase, false);
         }
-        match parsed {
-            Parsed::Create(payload) => create_lobby(&context, payload, &self.passwords).await,
-            Parsed::Invite(payload) => invite(&context, payload).await,
-            Parsed::Switch(target) => switch_side(&context, target).await,
-        }
+        switch_side(&context, parsed).await
     }
 
     async fn send(&self, command: &CommandEnvelope, outcome: Outcome) {

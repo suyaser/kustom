@@ -990,9 +990,7 @@ impl Host {
             Arc::new(game.enqueuer()),
             BackfillOptions::new(state_dir.to_path_buf()),
         );
-        let mut lobby_options = self.options.lobby.clone();
-        lobby_options.password_for = Some(runner.password_for());
-        let (lobby, mut signals) = spawn_lobby_watcher(api.clone(), lobby_options);
+        let (lobby, mut signals) = spawn_lobby_watcher(api.clone(), self.options.lobby.clone());
         // Rank sync reuses the names the lobby watcher already resolved.
         let lobby_view = lobby.view();
         let rank = Arc::new(spawn_rank_sync(

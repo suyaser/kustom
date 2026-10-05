@@ -160,7 +160,7 @@ export const LIVE_CLIENT_DATA = {
 } as const;
 
 /**
- * Lobby automation paths (M4). Every one is `unverified` until `verify-commands` has run on the patch.
+ * Lobby automation path (M4): switch side, `verified (16.18, 2026-09-12)`. Create and invite were removed in M22.11.
  *
  * The switch-side path is the one the client's own lobby UI uses on 16.17 (`rcp-fe-lol-parties`, read from
  * the installed plugin bundle on 2026-09-10): `POST /lol-lobby/v2/lobby/team/TEAM1|TEAM2` with no body moves
@@ -169,8 +169,6 @@ export const LIVE_CLIENT_DATA = {
  * they are not candidates any more.
  */
 export const WRITE_ENDPOINTS = {
-  createLobby: { method: 'POST', path: '/lol-lobby/v2/lobby' },
-  invite: { method: 'POST', path: '/lol-lobby/v2/lobby/invitations' },
   switchSide: {
     method: 'POST',
     template: '/lol-lobby/v2/lobby/team/{team}',

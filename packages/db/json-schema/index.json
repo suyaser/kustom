@@ -209,34 +209,6 @@
       "notExported": []
     },
     {
-      "file": "commands-poll.payload.create_lobby.json",
-      "route": "GET /api/companion/commands",
-      "side": "response",
-      "schema": "createLobbyCommandPayloadSchema",
-      "notExported": [
-        {
-          "pointer": "/properties/lobbyName",
-          "kinds": [
-            "normalised"
-          ]
-        }
-      ]
-    },
-    {
-      "file": "commands-poll.payload.invite.json",
-      "route": "GET /api/companion/commands",
-      "side": "response",
-      "schema": "inviteCommandPayloadSchema",
-      "notExported": [
-        {
-          "pointer": "/properties/puuid",
-          "kinds": [
-            "refine"
-          ]
-        }
-      ]
-    },
-    {
       "file": "commands-poll.payload.switch_side.json",
       "route": "GET /api/companion/commands",
       "side": "response",
@@ -249,27 +221,6 @@
       "side": "request",
       "schema": "companionCommandAckRequestSchema",
       "notExported": []
-    },
-    {
-      "file": "command-ack.result.create_lobby.json",
-      "route": "POST /api/companion/commands/{id}/ack",
-      "side": "request",
-      "schema": "createLobbyCommandResultSchema",
-      "notExported": []
-    },
-    {
-      "file": "command-ack.result.invite.json",
-      "route": "POST /api/companion/commands/{id}/ack",
-      "side": "request",
-      "schema": "inviteCommandResultSchema",
-      "notExported": [
-        {
-          "pointer": "/properties/puuid",
-          "kinds": [
-            "refine"
-          ]
-        }
-      ]
     },
     {
       "file": "command-ack.result.switch_side.json",

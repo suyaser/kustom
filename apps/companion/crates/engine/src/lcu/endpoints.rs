@@ -3,15 +3,15 @@
 //! bridge. The Rust bridge is unverified until the M17.5 probe runs against a live client.
 //!
 //! **Never automate gameplay:** nothing here reads or writes `/lol-champ-select/*`, matchmaking, ready check
-//! or in-game state, and the only writes are the three lobby writes, each behind [`LOBBY_WRITE_PATHS`].
+//! or in-game state, and the only write is switch side, behind [`LOBBY_WRITE_PATHS`].
 
 use serde::Deserialize;
 use serde_json::Value;
 
 use super::client::{LcuClient, LcuFailure, LcuResponse};
 use super::types::{
-    CreateLobbyBody, CustomGameQueues, EogStatsBlock, GameQueue, GameflowSession, InviteTarget, Lobby,
-    MatchDetail, MatchHistoryList, RankedStats, Summoner, TeamId,
+    CustomGameQueues, EogStatsBlock, GameQueue, GameflowSession, Lobby, MatchDetail, MatchHistoryList,
+    RankedStats, Summoner, TeamId,
 };
 
 /// One read endpoint: id (the fixture name in `packages/lcu/fixtures/<patch>/`) and path template.
@@ -79,13 +79,8 @@ pub const READ_ENDPOINTS: [ReadEndpoint; 13] = [
     },
 ];
 
-/// The only paths a write may go to: create lobby, invite, switch side.
-pub const LOBBY_WRITE_PATHS: [&str; 4] = [
-    "/lol-lobby/v2/lobby",
-    "/lol-lobby/v2/lobby/invitations",
-    "/lol-lobby/v2/lobby/team/TEAM1",
-    "/lol-lobby/v2/lobby/team/TEAM2",
-];
+/// The only paths a write may go to: switch side.
+pub const LOBBY_WRITE_PATHS: [&str; 2] = ["/lol-lobby/v2/lobby/team/TEAM1", "/lol-lobby/v2/lobby/team/TEAM2"];
 
 /// The WebSocket URIs the watchers read (the subscription is to every event; these are routed, the rest
 /// ignored).
@@ -121,8 +116,8 @@ pub fn match_history_path(puuid: &str, beg_index: u32, end_index: u32) -> String
 /// `/lol-lobby/v2/lobby/team/TEAM1` for 100, `TEAM2` for 200: the target side is in the path, not a toggle.
 pub fn switch_side_path(side: TeamId) -> &'static str {
     match side {
-        TeamId::Blue => LOBBY_WRITE_PATHS[2],
-        TeamId::Red => LOBBY_WRITE_PATHS[3],
+        TeamId::Blue => LOBBY_WRITE_PATHS[0],
+        TeamId::Red => LOBBY_WRITE_PATHS[1],
     }
 }
 
@@ -225,17 +220,6 @@ impl LcuClient {
         self.post::<B, AnyJson>(path, body)
             .await
             .map(|ok| WriteAnswer { status: ok.status })
-    }
-
-    /// `POST /lol-lobby/v2/lobby` with the dialog's body. Replaces the current lobby: callers read the lobby
-    /// first.
-    pub async fn create_lobby(&self, body: &CreateLobbyBody) -> Result<WriteAnswer, LcuFailure> {
-        self.write(LOBBY_WRITE_PATHS[0], Some(body)).await
-    }
-
-    /// `POST /lol-lobby/v2/lobby/invitations` with a one-element body.
-    pub async fn invite(&self, target: &InviteTarget) -> Result<WriteAnswer, LcuFailure> {
-        self.write(LOBBY_WRITE_PATHS[1], Some(&[target])).await
     }
 
     /// `POST /lol-lobby/v2/lobby/team/TEAM1|TEAM2`, no body.

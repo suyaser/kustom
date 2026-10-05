@@ -9,7 +9,7 @@
  * start the panel (always) and host watchers (host mode only). Tauri sets `CUSTOMS_NIGHT_TAURI=1`
  * so the panel skips Edge and the shell opens its own overlay window from `status.json`.
  *
- * Flags: `--version` / `-v`, `--help` / `-h`, `--show-token`, `--verify-commands`,
+ * Flags: `--version` / `-v`, `--help` / `-h`, `--show-token`,
  * `--mode host|overlay` (forces mode for this run when config is missing / for overlay first write).
  */
 
@@ -44,7 +44,6 @@ import { readCurrentPuuid } from './panel/lcu.js';
 import { startPanel } from './panel/run.js';
 import { GroupSession } from './session.js';
 import { writeStatus } from './status.js';
-import { runVerifyCommands } from './verifyCommands.js';
 import { COMPANION_VERSION } from './version.js';
 
 export const APP_NAME = 'Kustom';
@@ -66,15 +65,11 @@ export function usage(): string {
     '                  join a group with the code from the join page: reads who is signed into League,',
     '                  sends both, saves the group, prints one JSON line (the setup window uses this)',
     '  --pair-check    print {"ready":true|false}: is League open and signed in (setup window)',
-    '  --verify-commands',
-    '                  verify the lobby writes against the running client; no API call, no token needed',
     '',
     'Environment:',
     '  CUSTOMS_NIGHT_CONFIG_DIR   config directory (config.json, logs/, queue/, status.json, …)',
     '  CUSTOMS_NIGHT_LOG_LEVEL    console level: debug | info | warn | error (default info)',
     '  CUSTOMS_NIGHT_SHOW_TOKEN   1 is the same as --show-token',
-    '  CUSTOMS_NIGHT_VERIFY_COMMANDS',
-    '                             1 is the same as --verify-commands',
     '  CUSTOMS_NIGHT_TAURI        1: panel window is owned by the Tauri shell',
     '',
     `Config: ${configDir()}`,
@@ -230,23 +225,6 @@ async function main(): Promise<number> {
   if (args.includes('--pair')) {
     return runPair(args, dir);
   }
-  if (args.includes('--verify-commands') || process.env.CUSTOMS_NIGHT_VERIFY_COMMANDS === '1') {
-    const loaded = loadConfig(dir);
-    const lockfilePath =
-      loaded.status === 'ok'
-        ? loaded.config.lockfilePath
-        : loaded.status === 'missing'
-          ? loaded.partial?.lockfilePath
-          : undefined;
-    const code = await runVerifyCommands({
-      configDir: dir,
-      io: stdioPrompt(),
-      ...(lockfilePath ? { lockfilePath } : {}),
-    });
-    await holdWindowOpen();
-    return code;
-  }
-
   const consoleLevelRaw = process.env.CUSTOMS_NIGHT_LOG_LEVEL ?? 'info';
   const consoleLevel = isLogLevel(consoleLevelRaw) ? consoleLevelRaw : 'info';
   const logger = createFileLogger({ dir: logsDir(dir), consoleLevel, fileLevel: 'debug' });

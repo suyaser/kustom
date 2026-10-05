@@ -1,5 +1,3 @@
-import type { CompanionCommandKind } from '@customs/db/schemas';
-
 /**
  * The queue's settle seam. The same shape as `lib/ingest/hooks.ts`, for the same reason: the
  * queue decides what happened, something else decides what to do about it.
@@ -18,7 +16,8 @@ export interface CommandAckedEvent {
   targetPlayerId: string;
   /** The command's group, which is its target token's (M13.3). */
   groupId: string;
-  kind: CompanionCommandKind;
+  /** The stored kind: a retired one (`create_lobby`, `invite`) can still appear on a stray row. */
+  kind: string;
   status: 'acked' | 'failed';
   /** The parsed result, for `acked` only. */
   result: Record<string, unknown> | null;

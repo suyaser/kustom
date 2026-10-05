@@ -13,8 +13,7 @@
 //! - A 403 stops posting that party until its next `Create`.
 //! - Names never hold a post up: unknown puuids go out with `null` names, are looked up once per process
 //!   in the background (one every `lookup_interval`), and the roster is re-posted once when the lookups
-//!   change something. **That re-post maps the lobby without `password_for`** (the 0.4.0 engine's quirk,
-//!   kept for parity; harmless because the server never clears a password on `null`).
+//!   change something.
 //! - One `GET /lol-lobby/v2/lobby` at connect, superseded by any lobby event that lands first.
 //!
 //! For the game watcher (M17.9) it emits [`LobbySignal::CustomLobby`] for every custom lobby seen and
@@ -168,9 +167,6 @@ pub enum LobbyGoneReason {
     Disconnected,
 }
 
-/// The password this process set for a party (the command runner, M17.10), or `None`.
-pub type PasswordFor = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
-
 /// Settings.
 #[derive(Clone)]
 pub struct LobbyWatcherOptions {
@@ -180,8 +176,6 @@ pub struct LobbyWatcherOptions {
     pub backoff: BackoffOptions,
     /// Timers.
     pub scheduler: Arc<dyn Scheduler>,
-    /// Lobby passwords this process set.
-    pub password_for: Option<PasswordFor>,
 }
 
 impl Default for LobbyWatcherOptions {
@@ -190,7 +184,6 @@ impl Default for LobbyWatcherOptions {
             lookup_interval: Duration::from_millis(200),
             backoff: BackoffOptions::default(),
             scheduler: Arc::new(TokioScheduler),
-            password_for: None,
         }
     }
 }
@@ -620,15 +613,7 @@ impl<P: LobbyPoster> Actor<P> {
         self.signal(LobbySignal::CustomLobby {
             party_id: lobby.party_id.clone(),
         });
-        let mut payload = map_lobby(&lobby, &self.names);
-        if let Some(password) = self
-            .options
-            .password_for
-            .as_ref()
-            .and_then(|f| f(&lobby.party_id))
-        {
-            payload.lobby_password = Some(password);
-        }
+        let payload = map_lobby(&lobby, &self.names);
         self.current_lobby = Some(lobby.clone());
         if self.enqueue(payload, source) {
             // Names are only worth fetching for a roster that is actually being posted.
@@ -858,8 +843,7 @@ impl<P: LobbyPoster> Actor<P> {
         }
     }
 
-    /// One coalesced re-post with the names filled in, only when it changes what was last sent. Mapped
-    /// without `password_for`, as the TypeScript engine does.
+    /// One coalesced re-post with the names filled in, only when it changes what was last sent.
     fn repost_with_names(&mut self) {
         let Some(lobby) = self.current_lobby.clone() else {
             return;

@@ -64,7 +64,7 @@ const queueGolden = golden('queue-file--eog-stats-block').file as {
   queuedAt: string;
   payload: Parameters<GameQueue['write']>[0];
 };
-const commandsDone = golden('commands-done-file--create-lobby').file;
+const commandsDone = golden('commands-done-file--switch-side').file;
 
 function writeJson(path: string, value: unknown): void {
   mkdirSync(dirname(path), { recursive: true });

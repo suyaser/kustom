@@ -21,14 +21,11 @@ import type { CompanionCommandKind } from '@customs/db/schemas';
  * (200 / 200 / 204). So the queue writes rows from here on. A test that wants the old zero-row
  * behavior passes a `gate` override; it must not read the constant and hope.
  *
- * **`create_lobby` and `invite` are off since M22.11**, for a different reason: the lobby press
- * that queued the one and the fan-out that queued the other are removed (lobbies are the customs
- * hosts open). Both kinds stay in the companion contract, so a shipped Kustom still parses them;
- * the server simply never writes one.
+ * `create_lobby` and `invite` had off entries here from M22.11 (the lobby press and the invite fan-out
+ * were removed) until the kinds left the contract; with them gone from `CompanionCommandKind` the table
+ * holds the one kind the server queues. The Postgres enum keeps both values.
  */
 export const COMMAND_KIND_ENABLED: Readonly<Record<CompanionCommandKind, boolean>> = {
-  create_lobby: false,
-  invite: false,
   switch_side: true,
 };
 

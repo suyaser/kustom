@@ -35,7 +35,6 @@ import { REDACTED, scanForCredentials } from './credentialScan';
 const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 const GOLDENS_DIR = join(REPO, 'apps/companion/crates/engine/tests/goldens');
 const CONFIG_FIXTURES_DIR = join(REPO, 'apps/companion/crates/engine/tests/fixtures/config');
-const LCU_FIXTURES_DIR = join(REPO, 'packages/lcu/fixtures');
 const RUST_TOKEN_SOURCE = join(REPO, 'apps/companion/crates/engine/src/config/token.rs');
 const SERVER_MINT_SOURCE = join(REPO, 'apps/web/lib/companionAuth.ts');
 const ENGINE_SRC = join(REPO, 'apps/companion/crates/engine/src');
@@ -52,8 +51,6 @@ const GOLDEN_ROUTES = [
   'command-ack',
   'command-nack',
   'pair',
-  'lcu-create-lobby',
-  'lcu-invite',
   'lcu-switch-side',
   'queue-file',
   'commands-done-file',
@@ -69,13 +66,9 @@ const NAMED_GOLDENS = [
   'rank--current-ranked-stats--own',
   'rank--ranked-stats-by-puuid--other',
   'backfill-scan--match-history',
-  'command-ack--create-lobby',
-  'command-ack--invite--sent',
   'command-ack--switch-side',
 ];
 
-/** The synthetic lobby password the create scenario set: the one password a golden may hold. */
-const GOLDEN_LOBBY_PASSWORD = 'golden-pw-4821';
 /** The golden harness's own secrets (`apps/companion/scripts/goldens/harness.ts`, `scenarios.ts`). */
 const HARNESS_LCU_PASSWORD = 'golden-harness-lockfile-pw-7Qx2';
 const HARNESS_SECRETS = [
@@ -138,15 +131,6 @@ function clientWrites(): { name: string; route: string; path: string; body: unkn
   });
 }
 
-/** The request body a recorded client fixture carries (the envelope `packages/lcu`'s smoke writes). */
-function fixtureRequest(patch: string, id: string): unknown {
-  const envelope = JSON.parse(readFileSync(join(LCU_FIXTURES_DIR, patch, `${id}.json`), 'utf8')) as {
-    request?: unknown;
-  };
-  expect(envelope, `${patch}/${id}.json has a request`).toHaveProperty('request');
-  return envelope.request;
-}
-
 describe('goldens: the index', () => {
   it('lists every golden file exactly once, and nothing else', () => {
     expect(files.length).toBeGreaterThan(0);
@@ -171,36 +155,14 @@ describe('goldens: the index', () => {
 describe('goldens: the client accepted every write', () => {
   const writes = clientWrites();
 
-  it('there are client writes to check, one of each kind', () => {
+  it('there are client writes to check', () => {
     const kinds = new Set(writes.map((write) => write.route));
-    expect([...kinds].sort()).toEqual(['lcu-create-lobby', 'lcu-invite', 'lcu-switch-side']);
+    expect([...kinds].sort()).toEqual(['lcu-switch-side']);
   });
 
   for (const write of writes) {
     it(`${write.name} (${write.route} ${write.path})`, () => {
       switch (write.route) {
-        case 'lcu-create-lobby': {
-          // The body the 16.18 client accepted (its capture redacts the password; the golden's is synthetic).
-          expect(write.path).toBe('/lol-lobby/v2/lobby');
-          const sent = structuredClone(write.body) as { customGameLobby: { lobbyPassword: string } };
-          expect(sent.customGameLobby.lobbyPassword).toBe(GOLDEN_LOBBY_PASSWORD);
-          sent.customGameLobby.lobbyPassword = REDACTED;
-          const accepted = structuredClone(fixtureRequest('16.18', 'create-lobby')) as {
-            queueId: number;
-            customGameLobby: { configuration: { mutators: { id: number } } };
-          };
-          if (write.name.endsWith('--blind')) {
-            // M17.17: the same body with blind's entry (3100) in place of draft's (3110); unverified live.
-            accepted.queueId = 3100;
-            accepted.customGameLobby.configuration.mutators.id = 3100;
-          }
-          expect(sent).toEqual(accepted);
-          return;
-        }
-        case 'lcu-invite':
-          expect(write.path).toBe('/lol-lobby/v2/lobby/invitations');
-          expect(write.body).toEqual(fixtureRequest('16.18', 'lobby-invitations'));
-          return;
         case 'lcu-switch-side':
           expect(write.body).toBeNull();
           expect(write.path).toBe('/lol-lobby/v2/lobby/team/TEAM2');
@@ -216,20 +178,16 @@ describe('goldens: credential guard', () => {
   it('no golden carries a credential value', () => {
     const offenders = [...files, INDEX_FILE].flatMap((name) =>
       scanForCredentials(name, readFileSync(join(GOLDENS_DIR, name), 'utf8'), {
-        // `lobbyPassword` as the companion posts it (M4.2) and sends it to the client: the synthetic one only.
-        allow: (key, value) => key === 'Password' && value === GOLDEN_LOBBY_PASSWORD,
         forbidden: HARNESS_SECRETS,
       }),
     );
     expect(offenders).toEqual([]);
   });
 
-  it('the synthetic lobby password only sits where the companion sends a lobby password', () => {
+  it('no golden carries a lobby password: create lobby is gone (M22.11), and the lobby post sends null', () => {
     for (const name of files) {
       const text = readFileSync(join(GOLDENS_DIR, name), 'utf8');
-      const count = text.split(GOLDEN_LOBBY_PASSWORD).length - 1;
-      const keyed = (text.match(new RegExp(`"lobbyPassword": "${GOLDEN_LOBBY_PASSWORD}"`, 'g')) ?? []).length;
-      expect(count, name).toBe(keyed);
+      expect(text, name).not.toMatch(/"lobbyPassword": "/);
     }
   });
 });
@@ -361,18 +319,13 @@ describe('the Riot line: what the shipped Rust sources may name', () => {
     expect(lcuSites).toBeGreaterThan(0);
   });
 
-  it('the client refuses any POST outside LOBBY_WRITE_PATHS, which holds exactly the four lobby paths', () => {
+  it('the client refuses any POST outside LOBBY_WRITE_PATHS, which holds exactly the two team paths', () => {
     const endpoints = readFileSync(join(ENGINE_SRC, 'lcu/endpoints.rs'), 'utf8');
     const declared = endpoints.match(/pub const LOBBY_WRITE_PATHS: \[&str; (\d+)\] = \[([\s\S]*?)\];/);
     expect(declared, 'LOBBY_WRITE_PATHS is declared').not.toBeNull();
-    expect(declared?.[1]).toBe('4');
+    expect(declared?.[1]).toBe('2');
     const paths = [...(declared?.[2] ?? '').matchAll(/"([^"]*)"/g)].map((match) => match[1]);
-    expect(paths).toEqual([
-      '/lol-lobby/v2/lobby',
-      '/lol-lobby/v2/lobby/invitations',
-      '/lol-lobby/v2/lobby/team/TEAM1',
-      '/lol-lobby/v2/lobby/team/TEAM2',
-    ]);
+    expect(paths).toEqual(['/lol-lobby/v2/lobby/team/TEAM1', '/lol-lobby/v2/lobby/team/TEAM2']);
     const client = shippedRustLines(join(ENGINE_SRC, 'lcu/client.rs')).join('\n');
     // `post` is crate-private and checks the allow-list before any request; `raw` is private.
     expect(client).toMatch(/pub\(crate\) async fn post</);

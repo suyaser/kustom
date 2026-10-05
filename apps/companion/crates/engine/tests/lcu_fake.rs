@@ -21,7 +21,7 @@ use engine::lcu::client::LcuFailure;
 use engine::lcu::events::{RoutedEvent, route};
 use engine::lcu::socket::{CloseReason, SocketMessage, SocketOptions, run_forever, run_once};
 use engine::lcu::tls::client_config;
-use engine::lcu::types::{CreateLobbyBody, InviteTarget, TeamId};
+use engine::lcu::types::TeamId;
 use engine::lcu::{Credentials, LcuClient};
 use futures_util::{SinkExt as _, StreamExt as _};
 use rustls::client::danger::ServerCertVerifier as _;
@@ -182,39 +182,18 @@ fn the_verifier_refuses_any_name_but_127_0_0_1() {
 }
 
 #[tokio::test]
-async fn write_bodies_match_the_typescript_goldens() {
+async fn write_body_matches_the_typescript_golden() {
     let pki = pki("Fake Riot Root");
-    let routes = HashMap::from([
-        (
-            "POST /lol-lobby/v2/lobby".to_string(),
-            Canned::json(200, &body("16.18", "create-lobby")),
-        ),
-        (
-            "POST /lol-lobby/v2/lobby/invitations".to_string(),
-            Canned::json(200, &body("16.18", "lobby-invitations")),
-        ),
-        (
-            "POST /lol-lobby/v2/lobby/team/TEAM2".to_string(),
-            Canned {
-                status: 204,
-                body: String::new(),
-            },
-        ),
-    ]);
+    let routes = HashMap::from([(
+        "POST /lol-lobby/v2/lobby/team/TEAM2".to_string(),
+        Canned {
+            status: 204,
+            body: String::new(),
+        },
+    )]);
     let fake = start_fake_lcu(&pki, routes).await;
     let c = client(&pki, fake.port);
 
-    let create = CreateLobbyBody::summoners_rift("customs-verify", "golden-pw-4821", 3110);
-    assert_eq!(c.create_lobby(&create).await.unwrap().status, 200);
-    assert_eq!(
-        c.invite(&InviteTarget::SummonerId {
-            to_summoner_id: 55838205
-        })
-        .await
-        .unwrap()
-        .status,
-        200
-    );
     assert_eq!(c.switch_side(TeamId::Red).await.unwrap().status, 204);
 
     let requests = fake.requests.lock().unwrap().clone();
@@ -227,15 +206,9 @@ async fn write_bodies_match_the_typescript_goldens() {
     };
     assert_eq!(
         (requests[0].method.as_str(), requests[0].path.as_str()),
-        ("POST", "/lol-lobby/v2/lobby")
+        ("POST", "/lol-lobby/v2/lobby/team/TEAM2")
     );
-    assert_eq!(sent(0), golden_body("lcu-create-lobby--create-lobby"));
-    assert_eq!(sent(1), golden_body("lcu-invite--lobby-invitations"));
-    assert_eq!(requests[2].path, "/lol-lobby/v2/lobby/team/TEAM2");
-    assert_eq!(sent(2), golden_body("lcu-switch-side--lobby-team"));
-    // The empty password goes as null, as the dialog sends it.
-    let blank = serde_json::to_value(CreateLobbyBody::summoners_rift("x", "", 3110)).unwrap();
-    assert_eq!(blank["customGameLobby"]["lobbyPassword"], Value::Null);
+    assert_eq!(sent(0), golden_body("lcu-switch-side--lobby-team"));
 }
 
 /// A scripted WebSocket server: checks auth, waits for the subscribe frame, then runs `script` per connection.

@@ -47,24 +47,18 @@ export const GOLDEN_ROUTES = [
   'command-ack',
   'command-nack',
   'pair',
-  'lcu-create-lobby',
-  'lcu-invite',
   'lcu-switch-side',
   'queue-file',
   'commands-done-file',
 ] as const;
 export type GoldenRoute = (typeof GOLDEN_ROUTES)[number];
 
-/** The synthetic lobby password the create scenario uses. The golden guard allows exactly this value. */
-export const GOLDEN_LOBBY_PASSWORD = 'golden-pw-4821';
 /** A 43-character token-shaped string the pair stand-in answers with. Never a real token. */
 export const GOLDEN_PAIR_TOKEN = 'GOLDENxPAIRxTOKENxNOTxREALxxxxxxxxxxxxxxxxx';
 
 export const ME = '34151cbd-d9f8-5dad-9dc8-c6a8e253c0de';
 export const FRIEND = 'c04e977c-133a-5d94-9fd3-6202f8beec4c';
 export const OTHER = 'aebd7c57-83d8-551d-a7b2-7caa7e8b1960';
-const PENDING_INVITEE = 'ae4f66e8-745c-5b24-8315-dc046c8bba96';
-const NO_LOBBY_INVITEE = 'b3b781b3-9a77-5061-8054-817d2355b2e6';
 const BACKFILLED_GAME = 4000769615;
 
 /** The default clock: after the 16.17 captures, so nothing reads as from the future. */
@@ -119,8 +113,6 @@ export interface ScenarioResult {
 export function routeOf(request: Pick<Captured, 'target' | 'method' | 'path'>): GoldenRoute {
   const path = request.path.split('?')[0] ?? request.path;
   if (request.target === 'lcu') {
-    if (path === '/lol-lobby/v2/lobby') return 'lcu-create-lobby';
-    if (path === '/lol-lobby/v2/lobby/invitations') return 'lcu-invite';
     if (path.startsWith('/lol-lobby/v2/lobby/team/')) return 'lcu-switch-side';
     throw new Error(`unexpected client write ${request.method} ${path}`);
   }
@@ -652,12 +644,10 @@ interface LobbyWorld {
 function lobbyClient(
   world: LobbyWorld,
   writes: {
-    create?: () => CannedRoute;
-    invite?: (body: string) => CannedRoute;
     team?: (path: string) => CannedRoute;
   } = {},
 ): (method: string, path: string, body: string) => CannedRoute | undefined {
-  return (method, path, body) => {
+  return (method, path) => {
     if (method === 'GET' && path === '/lol-lobby/v2/lobby') {
       return world.lobby === null ? LOBBY_404 : { status: 200, body: world.lobby };
     }
@@ -667,47 +657,44 @@ function lobbyClient(
     if (method === 'GET' && path === '/lol-game-queues/v1/queues') {
       return { status: 200, body: fixtureBody('16.18', 'game-queues') };
     }
-    if (method === 'POST' && path === '/lol-lobby/v2/lobby' && writes.create) return writes.create();
-    if (method === 'POST' && path === '/lol-lobby/v2/lobby/invitations' && writes.invite)
-      return writes.invite(body);
     if (method === 'POST' && path.startsWith('/lol-lobby/v2/lobby/team/') && writes.team)
       return writes.team(path);
     return undefined;
   };
 }
 
-async function createLobbyScenario(): Promise<ScenarioResult> {
-  const name = 'command-create-lobby';
+/**
+ * The execute-once record (M4.1): a switch_side is handed out twice (a lost ack), and the second delivery is
+ * re-acked from `commands-done.json` with no client call. Also the home of the connected-poll golden and of
+ * the commands-done file golden the config fixtures are built from.
+ */
+async function switchSideReplayScenario(): Promise<ScenarioResult> {
+  const name = 'command-switch-side-replayed';
   const now = DEFAULT_NOW;
-  const created = fixtureBody('16.18', 'create-lobby');
-  const world: LobbyWorld = { lobby: null };
-  const create = command(
+  const world: LobbyWorld = { lobby: fixtureBody('16.18', 'create-lobby') };
+  const switchCommand = command(
     '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d',
-    'create_lobby',
-    { lobbyName: 'customs-verify', lobbyPassword: GOLDEN_LOBBY_PASSWORD },
+    'switch_side',
+    { targetSide: 200 },
     now,
   );
   const h = await startHarness({
-    parts: ['lobby', 'commands'],
+    parts: ['commands'],
     clock: { now },
     patch: '16.18',
-    phase: 'None',
-    commandPages: [[create], [create], []],
+    phase: 'Lobby',
+    commandPages: [[switchCommand], [switchCommand], []],
     lcuHandle: lobbyClient(world, {
-      create: () => {
-        world.lobby = created;
-        return { status: 200, body: created };
+      team: () => {
+        world.lobby = lobbyOnSide200();
+        return { status: 204, body: '' };
       },
     }),
   });
   try {
     await h.connect();
     if (h.commands === null) throw new Error(`${name}: no runner`);
-    // Started after the connect so the lobby watcher's connect-time read cannot race the create.
     h.commands.start();
-    await h.settle();
-    // The client then pushes the new lobby: its first post carries the password this process set.
-    await h.hooks.onLobbyEvent?.({ eventType: 'Create', lobby: LobbySchema.parse(created) }, h.context);
     await h.settle();
     // The server hands the same command out again (a lost ack): re-acked from commands-done.json, no client call.
     await h.commands.pollNow();
@@ -716,9 +703,7 @@ async function createLobbyScenario(): Promise<ScenarioResult> {
 
     const polls = only(h.apiRequests, 'commands-poll', name, 2);
     const acks = only(h.apiRequests, 'command-ack', name, 2);
-    const [write] = only(h.lcuWrites(), 'lcu-create-lobby', name);
-    const [lobbyPost] = only(h.apiRequests, 'lobby', name);
-    const fixtures = ['16.18/custom-game-queues', '16.18/game-queues', '16.18/create-lobby'];
+    const fixtures = ['16.18/create-lobby', '16.18/lobby-team'];
     const goldens: Golden[] = [
       requestGolden(polls[0] as Captured, {
         name: 'commands-poll--connected',
@@ -727,181 +712,29 @@ async function createLobbyScenario(): Promise<ScenarioResult> {
         scenario: name,
         note: 'The poll while the client is up. A GET: the golden is the path and query, there is no body.',
       }),
-      requestGolden(write as Captured, {
-        name: 'lcu-create-lobby--create-lobby',
-        patch: '16.18',
-        fixtures,
-        scenario: name,
-        note: 'The create body sent to the client: queueId and mutators.id are the draft entry joined from the dialog data (16.18: 3110), never a constant. Compare 16.18/create-lobby.json "request" (the same body, password redacted there).',
-      }),
-      requestGolden(acks[0] as Captured, {
-        name: 'command-ack--create-lobby',
-        patch: '16.18',
-        fixtures,
-        scenario: name,
-        commandKind: 'create_lobby',
-        note: 'GET lobby 404 -> dialog data -> POST create -> GET lobby read back: partyId and customLobbyName from the read-back.',
-      }),
-      requestGolden(lobbyPost as Captured, {
-        name: 'lobby--create-lobby--with-password',
-        patch: '16.18',
-        fixtures: ['16.18/create-lobby'],
-        scenario: name,
-        note: 'The lobby this process created: every post for that party carries the password it set (passwordFor). Any other party posts lobbyPassword null.',
-      }),
       requestGolden(acks[1] as Captured, {
-        name: 'command-ack--create-lobby--replayed',
+        name: 'command-ack--switch-side--replayed',
         patch: '16.18',
         fixtures,
         scenario: name,
-        commandKind: 'create_lobby',
+        commandKind: 'switch_side',
         note: 'The same command id handed out again: re-acked from commands-done.json with the recorded result, no client call (execute-once). Identical to the first ack.',
       }),
       {
-        name: 'commands-done-file--create-lobby',
+        name: 'commands-done-file--switch-side',
         kind: 'file',
         target: 'disk',
         route: 'commands-done-file',
         patch: '16.18',
         fixtures,
         scenario: name,
-        note: '<stateDir>/commands-done.json after the create: written after the client call and before the ack. "at" is the injected clock.',
+        note: '<stateDir>/commands-done.json after the switch: written after the client call and before the ack. "at" is the injected clock.',
         path: 'commands-done.json',
         file: JSON.parse(doneText),
       },
     ];
     if (h.lcuWrites().length !== 1) throw new Error(`${name}: the replay made a client call`);
-    return summary(
-      name,
-      'create_lobby from an empty client, the new lobby pushed back, then the same command re-delivered.',
-      h,
-      goldens,
-    );
-  } finally {
-    await h.close();
-  }
-}
-
-/**
- * The same create while the own name is unknown, so the lobby watcher re-posts once the lookup lands. Pins a
- * quirk of the 0.4.0 engine: the names re-post maps the lobby again without `passwordFor`, so it carries
- * `lobbyPassword: null` for a party this process created (harmless: the server never clears on null).
- */
-async function createLobbyNamesScenario(): Promise<ScenarioResult> {
-  const name = 'command-create-lobby-names-repost';
-  const now = DEFAULT_NOW;
-  const created = fixtureBody('16.18', 'create-lobby');
-  const world: LobbyWorld = { lobby: null };
-  const h = await startHarness({
-    parts: ['lobby', 'commands'],
-    clock: { now },
-    patch: '16.18',
-    phase: 'None',
-    summoner: null,
-    commandPages: [
-      [
-        command(
-          '8b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e',
-          'create_lobby',
-          { lobbyName: 'customs-verify', lobbyPassword: GOLDEN_LOBBY_PASSWORD },
-          now,
-        ),
-      ],
-      [],
-    ],
-    lcuRoutes: summonerRoutes(),
-    lcuHandle: lobbyClient(world, {
-      create: () => {
-        world.lobby = created;
-        return { status: 200, body: created };
-      },
-    }),
-  });
-  try {
-    await h.connect();
-    if (h.commands === null) throw new Error(`${name}: no runner`);
-    h.commands.start();
-    await h.settle();
-    await h.hooks.onLobbyEvent?.({ eventType: 'Create', lobby: LobbySchema.parse(created) }, h.context);
-    await h.settle();
-    const [first, second] = only(h.apiRequests, 'lobby', name, 2);
-    const fixtures = ['16.18/create-lobby', '16.17/summoner-by-puuid'];
-    const goldens = [
-      requestGolden(first as Captured, {
-        name: 'lobby--create-lobby--with-password--names-unknown',
-        patch: '16.18',
-        fixtures,
-        scenario: name,
-        note: 'The first post for the party this process created: the password rides, the own name is not known yet (current-summoner did not answer at connect).',
-      }),
-      requestGolden(second as Captured, {
-        name: 'lobby--create-lobby--names-repost',
-        patch: '16.18',
-        fixtures,
-        scenario: name,
-        note: 'QUIRK of the 0.4.0 engine: the names re-post (repostWithNames) maps the lobby without passwordFor, so lobbyPassword is null here although the previous post carried it. Harmless (the server never clears on null). Parity keeps it unless a decision row says otherwise.',
-      }),
-    ];
-    return summary(
-      name,
-      'create_lobby with the own name unknown: the password post, then the names re-post.',
-      h,
-      goldens,
-    );
-  } finally {
-    await h.close();
-  }
-}
-
-/**
- * M17.17: the same create with `pickType: 'blind'` (what a mirror game's Start a lobby queues). Only the
- * write is pinned: the entry is the blind one joined from the dialog data and the queue list (16.18: 3100).
- * The fake client reads back the recorded draft lobby, so the ack is not a golden here.
- */
-async function createLobbyBlindScenario(): Promise<ScenarioResult> {
-  const name = 'command-create-lobby-blind';
-  const now = DEFAULT_NOW;
-  const created = fixtureBody('16.18', 'create-lobby');
-  const world: LobbyWorld = { lobby: null };
-  const h = await startHarness({
-    parts: ['lobby', 'commands'],
-    clock: { now },
-    patch: '16.18',
-    phase: 'None',
-    commandPages: [
-      [
-        command(
-          '9c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f',
-          'create_lobby',
-          { lobbyName: 'customs-verify', lobbyPassword: GOLDEN_LOBBY_PASSWORD, pickType: 'blind' },
-          now,
-        ),
-      ],
-      [],
-    ],
-    lcuHandle: lobbyClient(world, {
-      create: () => {
-        world.lobby = created;
-        return { status: 200, body: created };
-      },
-    }),
-  });
-  try {
-    await h.connect();
-    if (h.commands === null) throw new Error(`${name}: no runner`);
-    h.commands.start();
-    await h.settle();
-    const [write] = only(h.lcuWrites(), 'lcu-create-lobby', name);
-    const goldens: Golden[] = [
-      requestGolden(write as Captured, {
-        name: 'lcu-create-lobby--create-lobby--blind',
-        patch: '16.18',
-        fixtures: ['16.18/custom-game-queues', '16.18/game-queues'],
-        scenario: name,
-        note: 'The create body for pickType "blind": queueId and mutators.id are the blind entry joined from the dialog data and the queue list (16.18: 3100, "SR Blind Pick Custom"), otherwise the draft body byte for byte. UNVERIFIED against a live client: the 16.18 probe only ever sent draft (3110).',
-      }),
-    ];
-    return summary(name, 'create_lobby with pickType blind: the write names the blind entry.', h, goldens);
+    return summary(name, 'switch_side, then the same command re-delivered.', h, goldens);
   } finally {
     await h.close();
   }
@@ -984,75 +817,6 @@ function commandCases(): CommandCase[] {
   const created = fixtureBody('16.18', 'create-lobby');
   return [
     {
-      name: 'command-invite',
-      golden: 'command-ack--invite--sent',
-      kind: 'invite',
-      payload: { puuid: FRIEND, summonerId: '55838205' },
-      patch: '16.18',
-      fixtures: ['16.18/create-lobby', '16.18/lobby-invitations'],
-      lobby: created,
-      writes: () => ({ invite: () => ({ status: 200, body: fixtureBody('16.18', 'lobby-invitations') }) }),
-      expect: 'command-ack',
-      lcuGolden: {
-        name: 'lcu-invite--lobby-invitations',
-        route: 'lcu-invite',
-        note: 'The invite body: [{ toSummonerId }] first, the number parsed from the payload string (16.18: accepted).',
-      },
-      note: 'Invite accepted by the client (16.18/lobby-invitations); the read-back lobby has no row for the puuid yet, so the state is Pending.',
-      description: 'invite in the lobby the create made, by summonerId.',
-    },
-    {
-      name: 'command-invite-already-pending',
-      golden: 'command-ack--invite--already-pending',
-      kind: 'invite',
-      payload: { puuid: PENDING_INVITEE, summonerId: null },
-      patch: '16.17',
-      fixtures: ['16.17/lobby'],
-      lobby: fixtureBody('16.17', 'lobby'),
-      expect: 'command-ack',
-      note: 'The lobby already holds a Pending invitation for this puuid: acked without a client write. summonerId null, so method is "puuid".',
-      description: 'invite for someone already invited (16.17/lobby): no write.',
-    },
-    {
-      name: 'command-invite-already-member',
-      golden: 'command-ack--invite--already-member',
-      kind: 'invite',
-      payload: { puuid: FRIEND, summonerId: '53574489' },
-      patch: '16.17',
-      fixtures: ['16.17/lobby--two-players'],
-      lobby: fixtureBody('16.17', 'lobby--two-players'),
-      expect: 'command-ack',
-      note: 'The puuid is already a member: Accepted, no client write.',
-      description: 'invite for someone already in the lobby (16.17/lobby--two-players): no write.',
-    },
-    {
-      name: 'command-invite-client-rejected',
-      golden: 'command-nack--invite--client-rejected',
-      kind: 'invite',
-      payload: { puuid: NO_LOBBY_INVITEE, summonerId: '80934556' },
-      patch: '16.17',
-      fixtures: [
-        '16.17/lobby',
-        '16.17/lobby-invitations--no-lobby',
-        '16.17/lobby-invitations--by-puuid--no-lobby',
-      ],
-      lobby: fixtureBody('16.17', 'lobby'),
-      writes: () => ({
-        invite: (body) => ({
-          status: 404,
-          body: fixtureBody(
-            '16.17',
-            body.includes('toPuuid')
-              ? 'lobby-invitations--by-puuid--no-lobby'
-              : 'lobby-invitations--no-lobby',
-          ),
-        }),
-      }),
-      expect: 'command-nack',
-      note: 'Both invite bodies refused with the captured 404s: summonerId first, then the puuid fallback; the nack names both answers. Not retryable.',
-      description: 'invite the client refuses both ways.',
-    },
-    {
       name: 'command-switch-side',
       golden: 'command-ack--switch-side',
       kind: 'switch_side',
@@ -1086,45 +850,6 @@ function commandCases(): CommandCase[] {
       expect: 'command-ack',
       note: 'Already on side 100: acked without a client write.',
       description: 'switch_side to the side the player is on.',
-    },
-    {
-      name: 'command-create-already-in-lobby',
-      golden: 'command-nack--create-lobby--already-in-lobby',
-      kind: 'create_lobby',
-      payload: { lobbyName: 'customs-verify', lobbyPassword: GOLDEN_LOBBY_PASSWORD },
-      patch: '16.17',
-      fixtures: ['16.17/lobby'],
-      lobby: fixtureBody('16.17', 'lobby'),
-      expect: 'command-nack',
-      note: 'A lobby is open (16.17/lobby): never dissolved, nack already_in_lobby with its partyId.',
-      description: 'create_lobby while standing in a lobby.',
-    },
-    {
-      name: 'command-create-client-rejected',
-      golden: 'command-nack--create-lobby--client-rejected',
-      kind: 'create_lobby',
-      payload: { lobbyName: 'customs-verify', lobbyPassword: GOLDEN_LOBBY_PASSWORD },
-      patch: '16.17',
-      fixtures: ['16.18/custom-game-queues', '16.18/game-queues', '16.17/create-lobby--legacy-blind'],
-      lobby: null,
-      writes: () => ({
-        create: () => ({ status: 500, body: fixtureBody('16.17', 'create-lobby--legacy-blind') }),
-      }),
-      expect: 'command-nack',
-      note: "The create POST answered the captured 500 INVALID_LOBBY: nack client_rejected with the path, status and the client's message.",
-      description: 'create_lobby the client refuses.',
-    },
-    {
-      name: 'command-invite-no-lobby',
-      golden: 'command-nack--invite--no-lobby',
-      kind: 'invite',
-      payload: { puuid: FRIEND, summonerId: '53574489' },
-      patch: '16.17',
-      fixtures: [],
-      lobby: null,
-      expect: 'command-nack',
-      note: 'No lobby open (GET lobby 404): nack no_lobby, nothing written.',
-      description: 'invite with no lobby.',
     },
     {
       name: 'command-wrong-phase',
@@ -1348,14 +1073,6 @@ export async function runScenarios(): Promise<ScenarioResult[]> {
       'The friend in the spectator slot (from a WS payload): side null, isSpectator true.',
     ),
   );
-  results.push(
-    await lobbyScenario(
-      'lobby-create-lobby',
-      '16.18',
-      'create-lobby',
-      'The lobby the 16.18 create made, posted by a process that did not create it: lobbyPassword null.',
-    ),
-  );
   results.push(await lobbyNamesScenario());
   results.push(await gameLiveScenario());
   results.push(await gameAtConnectScenario());
@@ -1365,9 +1082,7 @@ export async function runScenarios(): Promise<ScenarioResult[]> {
   results.push(await rankSocketScenario());
   results.push(await backfillScenario());
   results.push(await backfillNoCustomsScenario());
-  results.push(await createLobbyScenario());
-  results.push(await createLobbyNamesScenario());
-  results.push(await createLobbyBlindScenario());
+  results.push(await switchSideReplayScenario());
   for (const spec of commandCases()) {
     results.push(await commandScenario(spec));
   }

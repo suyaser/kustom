@@ -30,12 +30,12 @@ function entry(id: string, offsetMs = 0, outcome: ExecutedEntry['outcome'] = 'do
   return outcome === 'done'
     ? {
         id,
-        kind: 'create_lobby',
+        kind: 'switch_side',
         at: at(offsetMs),
         outcome,
-        result: { partyId: `party-${id}`, lobbyName: 'n' },
+        result: { side: 200 },
       }
-    : { id, kind: 'create_lobby', at: at(offsetMs), outcome, error: 'already_in_lobby: partyId=x' };
+    : { id, kind: 'switch_side', at: at(offsetMs), outcome, error: 'side_full: side 200 holds 5' };
 }
 
 describe('ExecutedStore', () => {

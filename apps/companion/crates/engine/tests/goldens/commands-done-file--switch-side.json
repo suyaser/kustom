@@ -1,0 +1,28 @@
+{
+  "name": "commands-done-file--switch-side",
+  "kind": "file",
+  "target": "disk",
+  "route": "commands-done-file",
+  "patch": "16.18",
+  "fixtures": [
+    "16.18/create-lobby",
+    "16.18/lobby-team"
+  ],
+  "scenario": "command-switch-side-replayed",
+  "note": "<stateDir>/commands-done.json after the switch: written after the client call and before the ack. \"at\" is the injected clock.",
+  "path": "commands-done.json",
+  "file": {
+    "version": 1,
+    "entries": [
+      {
+        "id": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        "kind": "switch_side",
+        "at": "2026-09-08T17:00:00.000Z",
+        "outcome": "done",
+        "result": {
+          "side": 200
+        }
+      }
+    ]
+  }
+}

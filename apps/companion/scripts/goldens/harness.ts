@@ -280,7 +280,6 @@ export async function startHarness(options: HarnessOptions): Promise<Harness> {
         schedule: neverScheduler,
         lookupIntervalMs: 0,
         onResponse: (response) => rank?.needed(response.ranksNeeded),
-        ...(commands ? { passwordFor: (partyId: string) => commands.passwordFor(partyId) } : {}),
       })
     : null;
   rank = has('rank')

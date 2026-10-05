@@ -15,59 +15,36 @@
  *  5. **No client:** `not_connected`, retryable, for the race where the socket dropped between the poll and the
  *     call. While disconnected the poll itself says `clientConnected=false` and is handed nothing.
  *  6. **Phase** other than `None`/`Lobby`: `wrong_phase`. Champion select and in-game are never states we act in.
- *  7. **Read before write.** Every executor GETs `/lol-lobby/v2/lobby` and compares: a second `create_lobby`
- *     finds a lobby and nacks `already_in_lobby`; a second `invite` finds the invitee and acks `done` without a
- *     POST; a second `switch_side` finds the player already there and acks `done` without a POST.
- *  8. **Ids from the client, never constants.** `create_lobby` reads `/lol-game-queues/v1/custom` for the
- *     Summoner's Rift subcategory's entries and `/lol-game-queues/v1/queues` to name them (16.18: the
- *     dialog's own entries carry no descriptive text at all, so the mode is resolved by joining the two on
- *     `id`, see `customLobbyIdsFor`), and takes the draft entry's id as the body's `queueId`/`mutators.id`,
- *     exactly as the client's own dialog does; when the join names no entry as draft, the command is
- *     `client_rejected` with the list in the nack, and nothing is posted.
- *
+ *  7. **Read before write.** The executor GETs `/lol-lobby/v2/lobby` and compares: a second `switch_side`
+ *     finds the player already there and acks `done` without a POST.
  * Polling: every `nextPollInMs` (5 s) while the client is connected, every `DISCONNECTED_POLL_INTERVAL_MS`
  * (60 s) with `clientConnected=false` while it is not (the answer is empty by contract, so the slower cadence
  * costs nothing). One command at a time, in the order handed out. Nothing here throws; nothing here stops the
- * process. The password of a lobby this companion created is kept in memory (`passwordFor`) so the lobby
- * watcher can send it with every lobby post for that party (M4.2), and it is logged at `debug` only. The lobby
- * `Create` event usually beats the post-write read that learns the party id, so the first lobby post after a
- * create may carry `lobbyPassword: null`; the password rides on the next roster change, and the server's
- * never-clear-on-null rule is what makes that harmless.
+ * process. `create_lobby` and `invite` were removed with Start a lobby (M22.11): the server queues only
+ * `switch_side`, and any other kind is nacked `malformed_payload` (an old server or a stray row is safe).
  */
 
 import {
   COMMANDS_POLL_INTERVAL_MS,
   type CommandFailureReason,
   type CompanionCommandEnvelope,
-  type CreateLobbyCommandPayload,
-  type CreateLobbyCommandResult,
   companionCommandAckResponseSchema,
   companionCommandPayloadSchemas,
   companionCommandsResponseSchema,
-  type InviteCommandPayload,
-  type InviteCommandResult,
   type SwitchSideCommandPayload,
   type SwitchSideCommandResult,
 } from '@customs/db/schemas';
 import {
-  CustomGameQueuesSchema,
-  type CustomLobbyMode,
-  customLobbyIdsFor,
-  describeMutators,
   describeWriteResponse,
   GameflowPhaseSchema,
-  GameQueuesSchema,
-  inviteWithFallback,
   isLobbyWriteVerified,
   type LcuClient,
   LOBBY_WRITE_REFERENCE_ROW,
   type Lobby,
   LobbySchema,
   type LobbyWriteKind,
-  postCreateLobby,
   postSwitchSide,
   readEndpoint,
-  summonersRiftSubcategory,
 } from '@customs/lcu';
 import { type ApiClient, failureFields } from './api.js';
 import type { CompanionHooks, ConnectedContext } from './connection.js';
@@ -78,19 +55,6 @@ import { type CompanionLogger, createMemoryLogger, errorFields } from './log.js'
 export const COMMANDS_API_PATH = '/api/companion/commands';
 export const LOBBY_PATH = readEndpoint('lobby').path;
 export const GAMEFLOW_PHASE_PATH = readEndpoint('gameflow-phase').path;
-/** Where a create body's `queueId` / `mutators.id` come from: the client's own Create Custom dialog data. */
-export const CUSTOM_GAME_QUEUES_PATH = readEndpoint('custom-game-queues').path;
-/**
- * The dialog's own mutator entries carry no descriptive text on 16.18 (`CustomGameMutatorSchema`), so the
- * mode is resolved by joining their ids against this list's names instead (`customLobbyIdsFor`).
- */
-export const GAME_QUEUES_PATH = readEndpoint('game-queues').path;
-/** The pick mode a `create_lobby` opens unless it asks otherwise (docs/04-decisions.md, 2026-09-09: the group plays draft). */
-export const CREATE_LOBBY_MODE: CustomLobbyMode = 'draft';
-/** M17.17: the payload's `pickType` names the mode; a mirror game's `create_lobby` asks for blind. */
-export function createLobbyModeFor(pickType: 'draft' | 'blind'): CustomLobbyMode {
-  return pickType === 'blind' ? 'blind' : CREATE_LOBBY_MODE;
-}
 /** The poll while the client is away: the answer is empty by contract, so this is a heartbeat, not a queue. */
 export const DISCONNECTED_POLL_INTERVAL_MS = 60_000;
 /** The only phases a command runs in. Anything else is `wrong_phase`. */
@@ -119,17 +83,12 @@ function done(result: Record<string, unknown>): CommandOutcome {
   return { outcome: 'done', result };
 }
 
-/** The nack text of a failed outcome, for a log line; a done outcome has none. */
-function outcomeError(outcome: CommandOutcome): string {
-  return outcome.outcome === 'failed' ? outcome.error : 'done';
-}
-
 type LobbyRead =
   | { readonly kind: 'lobby'; readonly lobby: Lobby }
   | { readonly kind: 'none' }
   | { readonly kind: 'failed'; readonly outcome: CommandOutcome };
 
-const KINDS: readonly LobbyWriteKind[] = ['create_lobby', 'invite', 'switch_side'];
+const KINDS: readonly LobbyWriteKind[] = ['switch_side'];
 
 function isKind(value: string): value is LobbyWriteKind {
   return (KINDS as readonly string[]).includes(value);
@@ -161,7 +120,6 @@ export class CommandRunner {
   private readonly ackAttempts: number;
   private readonly gate: Partial<Record<LobbyWriteKind, boolean>>;
   private readonly executed: ExecutedStore;
-  private readonly passwords = new Map<string, string>();
 
   private context: ConnectedContext | null = null;
   private phase: string | null = null;
@@ -209,11 +167,6 @@ export class CommandRunner {
   /** Whether a kind may run here. The gate is `@customs/lcu`'s; tests override it per kind. */
   isEnabled(kind: LobbyWriteKind): boolean {
     return this.gate[kind] ?? isLobbyWriteVerified(kind);
-  }
-
-  /** The password this companion set for a party, for the lobby post (M4.2). Null for any other party. */
-  passwordFor(partyId: string): string | null {
-    return this.passwords.get(partyId) ?? null;
   }
 
   start(): void {
@@ -425,14 +378,7 @@ export class CommandRunner {
     if (!ACTIONABLE_PHASES.includes(this.phase)) {
       return failed('wrong_phase', this.phase);
     }
-    switch (kind) {
-      case 'create_lobby':
-        return this.createLobby(context, parsed.data as CreateLobbyCommandPayload, log);
-      case 'invite':
-        return this.invite(context, parsed.data as InviteCommandPayload, log);
-      case 'switch_side':
-        return this.switchSide(context, parsed.data as SwitchSideCommandPayload, log);
-    }
+    return this.switchSide(context, parsed.data as SwitchSideCommandPayload, log);
   }
 
   private async readLobby(client: LcuClient): Promise<LobbyRead> {
@@ -450,160 +396,6 @@ export class CommandRunner {
       kind: 'failed',
       outcome: failed('client_rejected', `lobby answered ${describeWriteResponse(result)}`),
     };
-  }
-
-  // --- create_lobby --------------------------------------------------------------------------------------
-
-  private async createLobby(
-    context: ConnectedContext,
-    payload: CreateLobbyCommandPayload,
-    log: CompanionLogger,
-  ): Promise<CommandOutcome> {
-    const before = await this.readLobby(context.client);
-    if (before.kind === 'failed') {
-      return before.outcome;
-    }
-    if (before.kind === 'lobby') {
-      // Never dissolve a lobby somebody is standing in.
-      return failed('already_in_lobby', `partyId=${before.lobby.partyId}`);
-    }
-    const dialog = await context.client.get(CUSTOM_GAME_QUEUES_PATH, CustomGameQueuesSchema);
-    if (!dialog.ok) {
-      if (dialog.reason === 'network') {
-        return failed('not_connected', describeWriteResponse(dialog), true);
-      }
-      return failed(
-        'client_rejected',
-        `${CUSTOM_GAME_QUEUES_PATH} answered ${describeWriteResponse(dialog)}; no lobby created`,
-      );
-    }
-    // The dialog's own entries carry no descriptive text on 16.18 (schemas.ts, CustomGameMutatorSchema); the
-    // queue list names them by the same id, so it is read here and joined in `customLobbyIdsFor`.
-    const queues = await context.client.get(GAME_QUEUES_PATH, GameQueuesSchema);
-    if (!queues.ok) {
-      if (queues.reason === 'network') {
-        return failed('not_connected', describeWriteResponse(queues), true);
-      }
-      return failed(
-        'client_rejected',
-        `${GAME_QUEUES_PATH} answered ${describeWriteResponse(queues)}; no lobby created`,
-      );
-    }
-    const mode = createLobbyModeFor(payload.pickType);
-    const ids = customLobbyIdsFor(dialog.json, mode, queues.json);
-    if (ids === null) {
-      const rift = summonersRiftSubcategory(dialog.json);
-      return failed(
-        'client_rejected',
-        rift === null
-          ? `${CUSTOM_GAME_QUEUES_PATH} lists no Summoner's Rift classic subcategory; no lobby created`
-          : `${CUSTOM_GAME_QUEUES_PATH} lists no ${mode} entry for Summoner's Rift (it has: ${describeMutators(rift)}); no lobby created`,
-      );
-    }
-    log.debug('creating a custom lobby', {
-      lobbyName: payload.lobbyName,
-      lobbyPassword: payload.lobbyPassword,
-      mode,
-      queueId: ids.queueId,
-      mutatorId: ids.mutatorId,
-    });
-    const write = await postCreateLobby(context.client, {
-      lobbyName: payload.lobbyName,
-      lobbyPassword: payload.lobbyPassword,
-      ids,
-    });
-    if (!write.response.ok) {
-      return failed('client_rejected', `${write.path} answered ${describeWriteResponse(write.response)}`);
-    }
-    // The lobby now exists whatever the read-back says, so nothing from here on may be retryable: a retryable
-    // nack would have the server re-offer the row, the re-run would find the lobby and nack already_in_lobby,
-    // and the password would never be remembered. One more read on a failed one, then a recorded refusal.
-    let after = await this.readLobby(context.client);
-    if (after.kind === 'failed') {
-      log.warn('lobby created but could not be read back; reading once more', {
-        error: outcomeError(after.outcome),
-      });
-      after = await this.readLobby(context.client);
-    }
-    if (after.kind !== 'lobby') {
-      return failed(
-        'client_rejected',
-        after.kind === 'failed'
-          ? `create answered ${write.response.status} but the lobby could not be read back (${outcomeError(after.outcome)})`
-          : `create answered ${write.response.status} but no lobby followed`,
-      );
-    }
-    if (!after.lobby.gameConfig.isCustom) {
-      return failed(
-        'client_rejected',
-        `create answered ${write.response.status} but the lobby is not custom`,
-      );
-    }
-    this.passwords.set(after.lobby.partyId, payload.lobbyPassword);
-    const result: CreateLobbyCommandResult = {
-      partyId: after.lobby.partyId,
-      lobbyName: after.lobby.gameConfig.customLobbyName || payload.lobbyName,
-    };
-    log.info('custom lobby created', { partyId: result.partyId, lobbyName: result.lobbyName });
-    return done(result);
-  }
-
-  // --- invite ----------------------------------------------------------------------------------------------
-
-  private async invite(
-    context: ConnectedContext,
-    payload: InviteCommandPayload,
-    log: CompanionLogger,
-  ): Promise<CommandOutcome> {
-    const before = await this.readLobby(context.client);
-    if (before.kind === 'failed') {
-      return before.outcome;
-    }
-    if (before.kind === 'none') {
-      return failed('no_lobby');
-    }
-    const lobby = before.lobby;
-    if (!lobby.gameConfig.isCustom) {
-      return failed('not_custom_lobby', `queueId=${lobby.gameConfig.queueId}`);
-    }
-    const method: InviteCommandResult['method'] = payload.summonerId !== null ? 'summonerId' : 'puuid';
-    const already = inviteState(lobby, payload.puuid);
-    if (already !== null) {
-      log.info('invite already in place; no client call', { puuid: payload.puuid, state: already });
-      return done({ puuid: payload.puuid, method, state: already } satisfies InviteCommandResult);
-    }
-    if (!lobby.localMember.isLeader && lobby.localMember.allowedInviteOthers === false) {
-      return failed('client_rejected', 'the local player may not invite (not the leader)');
-    }
-    const summonerId = payload.summonerId === null ? null : Number(payload.summonerId);
-    const sent = await inviteWithFallback(context.client, {
-      puuid: payload.puuid,
-      summonerId: summonerId !== null && Number.isSafeInteger(summonerId) ? summonerId : null,
-    });
-    const last = sent.attempts[sent.attempts.length - 1];
-    if (last === undefined || !last.response.ok) {
-      const answers = sent.attempts
-        .map(
-          (attempt) =>
-            `${attempt.path} by ${inviteKey(attempt.body)} answered ${describeWriteResponse(attempt.response)}`,
-        )
-        .join('; ');
-      return failed('client_rejected', answers);
-    }
-    const after = await this.readLobby(context.client);
-    const state = after.kind === 'lobby' ? inviteState(after.lobby, payload.puuid) : null;
-    if (state === null) {
-      log.warn('invite accepted by the client but no invitation row followed; reporting Pending', {
-        puuid: payload.puuid,
-        method: sent.used.method,
-      });
-    }
-    log.info('invite sent', { puuid: payload.puuid, method: sent.used.method, state: state ?? 'Pending' });
-    return done({
-      puuid: payload.puuid,
-      method: sent.used.method,
-      state: state ?? 'Pending',
-    } satisfies InviteCommandResult);
   }
 
   // --- switch_side -----------------------------------------------------------------------------------------
@@ -708,29 +500,11 @@ export function isStale(
   return now - receivedAt > ttlMs;
 }
 
-/** `toSummonerId` or `toPuuid`: which body an invite attempt used, for a nack line. */
-function inviteKey(body: unknown): string {
-  const first = Array.isArray(body) ? body[0] : undefined;
-  return first && typeof first === 'object' ? (Object.keys(first as object)[0] ?? 'unknown') : 'unknown';
-}
-
 function recordedOutcome(entry: ExecutedEntry): CommandOutcome {
   if (entry.outcome === 'done') {
     return done(entry.result ?? {});
   }
   return { outcome: 'failed', error: entry.error ?? 'failed', retryable: false };
-}
-
-/** `Accepted` when the puuid is a member, `Pending` when it holds an outstanding invitation, else null. */
-export function inviteState(lobby: Lobby, puuid: string): InviteCommandResult['state'] | null {
-  if (lobby.members.some((member) => member.puuid === puuid)) {
-    return 'Accepted';
-  }
-  const row = lobby.invitations?.find((invitation) => invitation.toPuuid === puuid);
-  if (row === undefined) {
-    return null;
-  }
-  return row.state === 'Accepted' ? 'Accepted' : 'Pending';
 }
 
 /** The side the puuid is on, from `customTeam100`/`customTeam200` (reference, question 3). Null for a spectator or nobody. */

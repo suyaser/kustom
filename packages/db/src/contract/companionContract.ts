@@ -100,20 +100,6 @@ export const COMPANION_CONTRACT: readonly ContractEntry[] = [
     'companionCommandsResponseSchema',
   ),
   entry(
-    'commands-poll.payload.create_lobby',
-    'GET /api/companion/commands',
-    'response',
-    'createLobbyCommandPayloadSchema',
-    'commands[].payload when kind is create_lobby. The poll itself types payload as any object.',
-  ),
-  entry(
-    'commands-poll.payload.invite',
-    'GET /api/companion/commands',
-    'response',
-    'inviteCommandPayloadSchema',
-    'commands[].payload when kind is invite.',
-  ),
-  entry(
     'commands-poll.payload.switch_side',
     'GET /api/companion/commands',
     'response',
@@ -121,20 +107,6 @@ export const COMPANION_CONTRACT: readonly ContractEntry[] = [
     'commands[].payload when kind is switch_side.',
   ),
   entry('command-ack.request', ACK, 'request', 'companionCommandAckRequestSchema'),
-  entry(
-    'command-ack.result.create_lobby',
-    ACK,
-    'request',
-    'createLobbyCommandResultSchema',
-    'result when the command is create_lobby; any other result is a 422.',
-  ),
-  entry(
-    'command-ack.result.invite',
-    ACK,
-    'request',
-    'inviteCommandResultSchema',
-    'result when the command is invite.',
-  ),
   entry(
     'command-ack.result.switch_side',
     ACK,

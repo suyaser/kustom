@@ -90,7 +90,6 @@ struct Setup {
     skip_connect: bool,
     lookup_interval: Duration,
     backoff: BackoffOptions,
-    password_for: Option<engine::watchers::lobby::PasswordFor>,
 }
 
 impl Default for Setup {
@@ -108,7 +107,6 @@ impl Default for Setup {
                 max: Duration::from_millis(40),
                 ..Default::default()
             },
-            password_for: None,
         }
     }
 }
@@ -146,7 +144,6 @@ async fn setup(options: Setup) -> Harness {
         } else {
             Arc::new(TokioScheduler)
         },
-        password_for: options.password_for,
     };
     let (watcher, signals) = spawn_lobby_watcher(poster.clone(), watcher_options);
     let h = Harness {
@@ -255,30 +252,6 @@ async fn check_2_posts_lobby_json_one_member_side_100_named_no_password() {
     );
     assert_eq!(posts[0], golden_body("lobby--lobby"));
     assert!(logs.text().contains("lobby posted"));
-}
-
-#[tokio::test]
-async fn carries_the_password_this_process_set_and_null_for_any_other_party() {
-    let (logs, _g) = capture_logs();
-    let h = setup(Setup {
-        password_for: Some(Arc::new(|party: &str| {
-            (party == PARTY).then(|| "4821".to_string())
-        })),
-        ..Default::default()
-    })
-    .await;
-    h.update(lobby("lobby"), LcuEventType::Update);
-    h.settled().await;
-    assert_eq!(h.posts()[0].lobby_password.as_deref(), Some("4821"));
-    assert!(!logs.text().contains("4821"));
-    let other = setup(Setup {
-        password_for: Some(Arc::new(|_: &str| None)),
-        ..Default::default()
-    })
-    .await;
-    other.update(lobby("lobby"), LcuEventType::Update);
-    other.settled().await;
-    assert_eq!(other.posts()[0].lobby_password, None);
 }
 
 #[tokio::test]
@@ -600,30 +573,6 @@ async fn check_9_never_looks_up_the_local_player() {
         0
     );
     assert_eq!(h.posts()[0].members[0].game_name.as_deref(), Some("PRT Empty"));
-}
-
-#[tokio::test]
-async fn names_repost_drops_the_password_as_the_typescript_engine_does() {
-    let h = setup(Setup {
-        summoner: None,
-        routes: vec![(
-            format!("GET /lol-summoner/v2/summoners/puuid/{LEADER}"),
-            Route::json(200, &body("16.17", "summoner-by-puuid")),
-        )],
-        password_for: Some(Arc::new(|_: &str| Some("golden-pw-4821".to_string()))),
-        ..Default::default()
-    })
-    .await;
-    let created: Lobby = serde_json::from_value(body("16.18", "create-lobby")).unwrap();
-    h.update(created, LcuEventType::Create);
-    until(|| h.posts().len() == 2, "password post and names re-post").await;
-    h.settled().await;
-    let json = h.poster.posted_json();
-    assert_eq!(
-        json[0],
-        golden_body("lobby--create-lobby--with-password--names-unknown")
-    );
-    assert_eq!(json[1], golden_body("lobby--create-lobby--names-repost"));
 }
 
 #[tokio::test]

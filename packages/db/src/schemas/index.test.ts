@@ -7,6 +7,7 @@ import {
   companionBackfillScanRequestSchema,
   companionBackfillScanResponseSchema,
   companionCommandAckRequestSchema,
+  companionCommandKindSchema,
   companionCommandNackRequestSchema,
   companionCommandPayloadSchemas,
   companionCommandResultSchemas,
@@ -17,7 +18,6 @@ import {
   companionLobbyResponseSchema,
   companionMeResponseSchema,
   companionRankPayloadSchema,
-  createLobbyCommandPayloadSchema,
   DETECTED_TEAM_POSITION_ROLES,
   LOBBY_STATUSES,
   lcuGameIdSchema,
@@ -501,10 +501,10 @@ describe('command queue contract (M4.1)', () => {
       commands: [
         {
           id: '3f1e2d4c-5b6a-4798-8c9d-0e1f2a3b4c5d',
-          kind: 'create_lobby',
-          payload: { lobbyName: 'Customs 09 Sep #1', lobbyPassword: '4821' },
+          kind: 'switch_side',
+          payload: { targetSide: 200 },
           createdAt: '2026-09-09T20:00:00.000Z',
-          expiresAt: '2026-09-09T20:01:00.000Z',
+          expiresAt: '2026-09-09T20:03:00.000Z',
         },
         {
           id: '3f1e2d4c-5b6a-4798-8c9d-0e1f2a3b4c5e',
@@ -517,30 +517,22 @@ describe('command queue contract (M4.1)', () => {
       nextPollInMs: 5000,
     });
     expect(page.commands).toHaveLength(2);
-    expect(companionCommandPayloadSchemas.create_lobby.safeParse(page.commands[0]?.payload).success).toBe(
+    expect(companionCommandPayloadSchemas.switch_side.safeParse(page.commands[0]?.payload).success).toBe(
       true,
     );
     // The loose envelope carries an unknown kind so the companion can nack it; the strict union refuses it.
     expect(companionCommandSchema.safeParse(page.commands[1]).success).toBe(false);
-    expect(companionCommandPayloadSchemas.invite.parse({ puuid: PUUID_A, summonerId: null })).toEqual({
-      puuid: PUUID_A,
-      summonerId: null,
-    });
-    expect(
-      companionCommandPayloadSchemas.invite.safeParse({ puuid: PUUID_A, summonerId: 'x1' }).success,
-    ).toBe(false);
+    // create_lobby and invite were removed in M22.11: a stray row of either is an unknown kind.
+    expect(Object.keys(companionCommandPayloadSchemas)).toEqual(['switch_side']);
+    expect(companionCommandKindSchema.safeParse('create_lobby').success).toBe(false);
+    expect(companionCommandKindSchema.safeParse('invite').success).toBe(false);
     expect(companionCommandPayloadSchemas.switch_side.safeParse({ targetSide: 300 }).success).toBe(false);
-    expect(
-      companionCommandResultSchemas.invite.parse({ puuid: PUUID_A, method: 'puuid', state: 'Pending' }),
-    ).toEqual({ puuid: PUUID_A, method: 'puuid', state: 'Pending' });
     expect(companionCommandResultSchemas.switch_side.safeParse({ side: 0 }).success).toBe(false);
-    expect(
-      companionCommandAckRequestSchema.parse({ result: { partyId: 'p', lobbyName: 'n' } }).result,
-    ).toEqual({ partyId: 'p', lobbyName: 'n' });
+    expect(companionCommandAckRequestSchema.parse({ result: { side: 200 } }).result).toEqual({ side: 200 });
     expect(companionCommandNackRequestSchema.safeParse({ error: '', retryable: false }).success).toBe(false);
     expect(commandFailureReasonSchema.safeParse('side_full').success).toBe(true);
     expect(COMMANDS_PAGE_SIZE).toBe(10);
-    expect(COMPANION_COMMAND_TTL_MS).toEqual({ create_lobby: 60_000, invite: 300_000, switch_side: 180_000 });
+    expect(COMPANION_COMMAND_TTL_MS).toEqual({ switch_side: 180_000 });
     const tooMany = Array.from({ length: COMMANDS_PAGE_SIZE + 1 }, () => page.commands[0]);
     expect(companionCommandsResponseSchema.safeParse({ ok: true, commands: tooMany }).success).toBe(false);
   });
@@ -570,20 +562,5 @@ describe('windowPostKindSchema', () => {
     for (const kind of ['this-week', 'this-month', 'all-time', '', 'LAST-WEEK']) {
       expect(windowPostKindSchema.safeParse(kind).success, kind).toBe(false);
     }
-  });
-});
-
-describe('createLobbyCommandPayloadSchema (M17.17)', () => {
-  const base = { lobbyName: 'Customs 09 Sep #1', lobbyPassword: '4821' };
-
-  it('reads an old payload with no pick type as draft', () => {
-    expect(createLobbyCommandPayloadSchema.parse(base)).toEqual({ ...base, pickType: 'draft' });
-  });
-
-  it('accepts draft and blind and nothing else', () => {
-    expect(createLobbyCommandPayloadSchema.parse({ ...base, pickType: 'blind' }).pickType).toBe('blind');
-    expect(createLobbyCommandPayloadSchema.parse({ ...base, pickType: 'draft' }).pickType).toBe('draft');
-    expect(createLobbyCommandPayloadSchema.safeParse({ ...base, pickType: 'random' }).success).toBe(false);
-    expect(createLobbyCommandPayloadSchema.safeParse({ ...base, pickType: null }).success).toBe(false);
   });
 });

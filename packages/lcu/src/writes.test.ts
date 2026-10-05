@@ -1,29 +1,19 @@
 /**
- * The lobby writes (M4.1) against the fake client, plus the two guards that keep this package on the right
- * side of the Riot line: the allow-list (nothing POSTs outside `/lol-lobby/...`), and the verification gate,
- * which can never read `verified` while the reference row in docs/03-lcu-reference.md is still `unverified`.
+ * The lobby write (switch side) against the fake client, plus the two guards that keep this package on the
+ * right side of the Riot line: the allow-list (nothing POSTs outside `/lol-lobby/...`), and the verification
+ * gate, which can never read `verified` while the reference row in docs/03-lcu-reference.md is `unverified`.
  *
- * Every fake answer below is an **assumption**: the shape read from the 16.17 client's own UI code and
- * OpenAPI document, not a capture. The test names say so. A live run (`pnpm --filter companion
- * verify-commands`) is what turns them into fixtures. The one capture that exists is a refusal: the
- * community body answered `500 INVALID_LOBBY` on 2026-09-09 (`create-lobby--legacy-blind.json`).
+ * Create lobby and invite were removed in M22.11 (the server no longer queues them); their fixtures stay as
+ * the record of what the client accepted on 16.17 and 16.18.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { LcuClient, type LcuResponse } from './client.js';
+import { LcuClient } from './client.js';
 import { LIVE_CLIENT_DATA, WRITE_ENDPOINTS } from './endpoints.js';
 import { readFixture } from './fixtures.js';
-import {
-  type CustomGameQueues,
-  CustomGameQueuesSchema,
-  type GameQueue,
-  GameQueuesSchema,
-  LcuErrorSchema,
-  LobbySchema,
-} from './schemas.js';
 import {
   type CannedRoute,
   type FakeLcu,
@@ -32,71 +22,19 @@ import {
 } from './test-support/fake-lcu.js';
 import {
   assertLobbyWritePath,
-  chooseCustomLobbyMutator,
-  createLobbyBody,
-  createLobbyBodyVariant,
-  createLobbyCandidates,
-  customLobbyIdsFor,
-  describeMutators,
   describeWriteResponse,
-  inviteBody,
-  inviteWithFallback,
-  isAcceptedWrite,
   isLobbyWritePath,
   isLobbyWriteVerified,
-  KNOWN_CUSTOM_LOBBY_IDS,
   LOBBY_WRITE_PATHS,
   LOBBY_WRITE_VERIFICATION,
   type LobbyWriteKind,
-  postCreateLobby,
-  postCreateLobbyCandidates,
   postSwitchSide,
-  summonersRiftSubcategory,
   switchSidePath,
 } from './writes.js';
 
 const PASSWORD = 'fake-lockfile-password';
-const PUUID = 'aebd7c57-83d8-551d-a7b2-7caa7e8b1960';
 const SRC_DIR = fileURLToPath(new URL('./', import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-const IDS = { queueId: 3100, mutatorId: 19 };
-
-/**
- * Assumed: what `/lol-game-queues/v1/custom` lists for Summoner's Rift on 16.17. The blind entry has empty
- * words, like the client's own config for queue 3100 did in the log; the others carry the names the older
- * game-type configs had. Shape per the 16.17 OpenAPI document.
- */
-const ASSUMED_CUSTOM_QUEUES: CustomGameQueues = CustomGameQueuesSchema.parse({
-  queueAvailability: 'Available',
-  spectatorPolicies: ['AllAllowed', 'FriendsAllowed', 'LobbyAllowed', 'NotAllowed'],
-  spectatorSlotLimit: 4,
-  gameServerRegions: [],
-  subcategories: [
-    {
-      mapId: 12,
-      gameMode: 'ARAM',
-      numPlayersPerTeam: 5,
-      mutators: [{ id: 21, name: 'GAME_CFG_TEAM_BUILDER_RANDOM', pickMode: 'AllRandomPickStrategy' }],
-    },
-    {
-      mapId: 11,
-      gameMode: 'CLASSIC',
-      numPlayersPerTeam: 5,
-      queueAvailability: 'Available',
-      mutators: [
-        { id: 19, name: '', pickMode: '', banMode: '' },
-        {
-          id: 20,
-          name: 'GAME_CFG_DRAFT_STD',
-          pickMode: 'DraftModeSinglePickStrategy',
-          banMode: 'StandardBanStrategy',
-        },
-        { id: 6, name: 'GAME_CFG_TOURNAMENT_DRAFT', pickMode: 'TournamentPickStrategy' },
-        { id: 4, name: 'GAME_CFG_PICK_RANDOM', pickMode: 'AllRandomPickStrategy' },
-      ],
-    },
-  ],
-});
 
 const fakes: FakeLcu[] = [];
 const clients: LcuClient[] = [];
@@ -139,277 +77,14 @@ function sourceFiles(dir: string, prefix = ''): Record<string, string> {
   return out;
 }
 
-describe('request bodies (read from the 16.17 client, unverified as POSTs)', () => {
-  it("createLobbyBody is the client dialog's body: queueId at the top, mutators.id inside, no isCustom, null password when empty", () => {
-    expect(createLobbyBody({ lobbyName: 'Customs 09 Sep #1', lobbyPassword: '4821', ids: IDS })).toEqual({
-      customGameLobby: {
-        configuration: {
-          gameMode: 'CLASSIC',
-          gameMutator: '',
-          gameServerRegion: '',
-          mapId: 11,
-          mutators: { id: 19 },
-          spectatorPolicy: 'AllAllowed',
-          spectatorDelayEnabled: true,
-          teamSize: 5,
-          hidePublicly: false,
-          aramMapMutator: 'NONE',
-        },
-        lobbyName: 'Customs 09 Sep #1',
-        hidePublicly: false,
-        lobbyPassword: '4821',
-      },
-      queueId: 3100,
-    });
-    const open = createLobbyBody({
-      lobbyName: 'n',
-      lobbyPassword: '',
-      ids: { queueId: 3130, mutatorId: 3130 },
-    });
-    expect(open).toMatchObject({ customGameLobby: { lobbyPassword: null }, queueId: 3130 });
-    expect(open).not.toHaveProperty('isCustom');
-  });
-
-  it('the fallback variants carry the schema-complete and the legacy shapes, each with queueId', () => {
-    const full = createLobbyBodyVariant('dto-full', { lobbyName: 'n', lobbyPassword: 'p', ids: IDS });
-    expect(full).toMatchObject({
-      queueId: 3100,
-      customGameLobby: {
-        configuration: { mutators: { id: 19 }, gameTypeConfig: { id: 19 }, maxPlayerCount: 10 },
-      },
-      gameCustomization: {},
-    });
-    const legacy = createLobbyBodyVariant('legacy-queue', {
-      lobbyName: 'n',
-      lobbyPassword: 'p',
-      ids: { queueId: 3100, mutatorId: 1 },
-    });
-    expect(legacy).toEqual({
-      customGameLobby: {
-        configuration: {
-          gameMode: 'CLASSIC',
-          mapId: 11,
-          mutators: { id: 1 },
-          spectatorPolicy: 'AllAllowed',
-          teamSize: 5,
-          gameServerRegion: '',
-        },
-        lobbyName: 'n',
-        lobbyPassword: 'p',
-      },
-      isCustom: true,
-      queueId: 3100,
-    });
-  });
-
-  it('createLobbyCandidates ranks the live dialog ids first, then the known 3100/19 pair, and dedupes', () => {
-    const withLive = createLobbyCandidates({
-      lobbyName: 'n',
-      lobbyPassword: 'p',
-      live: { queueId: 20, mutatorId: 20 },
-    });
-    expect(withLive.map((candidate) => candidate.id)).toEqual([
-      'ui-live-20',
-      'ui-3100-19',
-      'ui-3100-3100',
-      'dto-full-3100-19',
-      'legacy-queue-3100',
-    ]);
-    expect(withLive.map((candidate) => candidate.variant)).toEqual([
-      'ui',
-      'ui',
-      'ui',
-      'dto-full',
-      'legacy-queue',
-    ]);
-    expect(withLive.every((candidate) => candidate.evidence.length > 20)).toBe(true);
-    // The live read landing on the known pair is the same body as the second candidate: listed once.
-    const onKnown = createLobbyCandidates({ lobbyName: 'n', lobbyPassword: 'p', live: IDS });
-    expect(onKnown.map((candidate) => candidate.id)).toEqual([
-      'ui-live-19',
-      'ui-3100-3100',
-      'dto-full-3100-19',
-      'legacy-queue-3100',
-    ]);
-    const noLive = createLobbyCandidates({ lobbyName: 'n', lobbyPassword: 'p', live: null });
-    expect(noLive[0]?.id).toBe('ui-3100-19');
-    expect(noLive).toHaveLength(4);
-  });
-
-  it('the mutator chooser reads the dialog: words first, the known blind id when the words are empty, null otherwise', () => {
-    const rift = summonersRiftSubcategory(ASSUMED_CUSTOM_QUEUES);
-    expect(rift?.mutators).toHaveLength(4);
-    expect(chooseCustomLobbyMutator(rift as NonNullable<typeof rift>, 'blind')?.id).toBe(19);
-    expect(chooseCustomLobbyMutator(rift as NonNullable<typeof rift>, 'draft')?.id).toBe(20);
-    expect(chooseCustomLobbyMutator(rift as NonNullable<typeof rift>, 'tournamentDraft')?.id).toBe(6);
-    expect(chooseCustomLobbyMutator(rift as NonNullable<typeof rift>, 'allRandom')?.id).toBe(4);
-    expect(customLobbyIdsFor(ASSUMED_CUSTOM_QUEUES, 'draft')).toEqual({ queueId: 20, mutatorId: 20 });
-    expect(describeMutators(rift as NonNullable<typeof rift>)).toBe(
-      '19, 20 GAME_CFG_DRAFT_STD pick=DraftModeSinglePickStrategy ban=StandardBanStrategy, 6 GAME_CFG_TOURNAMENT_DRAFT pick=TournamentPickStrategy, 4 GAME_CFG_PICK_RANDOM pick=AllRandomPickStrategy',
-    );
-
-    const nameless: CustomGameQueues = {
-      subcategories: [{ mapId: 11, gameMode: 'CLASSIC', mutators: [{ id: 19 }, { id: 20 }] }],
-    };
-    expect(customLobbyIdsFor(nameless, 'blind')).toEqual({ queueId: 19, mutatorId: 19 });
-    expect(customLobbyIdsFor(nameless, 'draft')).toBeNull();
-    expect(customLobbyIdsFor({ subcategories: [] }, 'blind')).toBeNull();
-    expect(KNOWN_CUSTOM_LOBBY_IDS).toEqual({ blindQueueId: 3100, blindGameTypeConfigId: 19 });
-  });
-
-  /**
-   * The regression test for Bug 2 (reviewer-caught, 2026-09-13): the real 16.18 `--verify-commands` capture
-   * has dialog entries with **no** descriptive `name`/`pickMode`/`banMode` on any mode (`custom-game-queues.json`
-   * mutators are all `{ name: "<id>", pickMode: "", banMode: "" }`), so the old word-matching-only
-   * `chooseCustomLobbyMutator` resolved nothing for draft and every other non-blind mode on this patch. The
-   * fix joins the dialog's mutator ids against `game-queues.json` (`GET /lol-game-queues/v1/queues`), which
-   * *does* name them ("SR Draft Pick Custom" for 3110, etc). This drives the join off the two real fixtures
-   * end to end, never invented data, and is what would have caught both the schema bug (Bug 1: parsing the
-   * fixture at all) and the resolution bug (Bug 2) before the flip shipped.
-   */
-  it('resolves queueId/mutatorId 3110 for draft from the real 16.18 custom-game-queues.json + game-queues.json fixtures', () => {
-    const dialogRead = readFixture('16.18', 'custom-game-queues');
-    const queuesRead = readFixture('16.18', 'game-queues');
-    expect(dialogRead.ok, dialogRead.ok ? '' : dialogRead.reason).toBe(true);
-    expect(queuesRead.ok, queuesRead.ok ? '' : queuesRead.reason).toBe(true);
-    if (!dialogRead.ok || !queuesRead.ok) {
-      throw new Error('unreachable: asserted ok above');
-    }
-    const dialog = CustomGameQueuesSchema.parse(dialogRead.envelope.body);
-    const queues: GameQueue[] = GameQueuesSchema.parse(queuesRead.envelope.body);
-
-    // The finding this fixture pins: the dialog itself names nothing.
-    const rift = summonersRiftSubcategory(dialog);
-    expect(rift).not.toBeNull();
-    for (const mutator of rift?.mutators ?? []) {
-      expect(mutator.name).toBe(String(mutator.id));
-      expect(mutator.pickMode).toBe('');
-      expect(mutator.banMode).toBe('');
-    }
-    // Without the queue list, nothing resolves for draft (the bug, reproduced).
-    expect(customLobbyIdsFor(dialog, 'draft')).toBeNull();
-    // With it (the fix), the join finds it by id -> name.
-    expect(customLobbyIdsFor(dialog, 'draft', queues)).toEqual({ queueId: 3110, mutatorId: 3110 });
-    expect(customLobbyIdsFor(dialog, 'blind', queues)).toEqual({ queueId: 3100, mutatorId: 3100 });
-    expect(customLobbyIdsFor(dialog, 'tournamentDraft', queues)).toEqual({ queueId: 3130, mutatorId: 3130 });
-    expect(customLobbyIdsFor(dialog, 'allRandom', queues)).toEqual({ queueId: 3120, mutatorId: 3120 });
-  });
-
-  it('inviteBody is a one-element array keyed by summoner id or puuid', () => {
-    expect(inviteBody({ method: 'summonerId', summonerId: 2686822975473024 })).toEqual([
-      { toSummonerId: 2686822975473024 },
-    ]);
-    expect(inviteBody({ method: 'puuid', puuid: PUUID })).toEqual([{ toPuuid: PUUID }]);
-  });
-
+describe('request paths', () => {
   it('switchSidePath names the side in the path, as the client UI does', () => {
     expect(switchSidePath(100)).toBe('/lol-lobby/v2/lobby/team/TEAM1');
     expect(switchSidePath(200)).toBe('/lol-lobby/v2/lobby/team/TEAM2');
   });
 });
 
-describe('the 2026-09-09 capture', () => {
-  it('pins the refusal: the community body answered 500 INVALID_LOBBY on 16.17 for mutators.id 1 and 2', () => {
-    for (const [id, mutatorId] of [
-      ['create-lobby--legacy-blind', 1],
-      ['create-lobby--legacy-draft', 2],
-    ] as const) {
-      const read = readFixture('16.17', id);
-      expect(read.ok, `${id} exists`).toBe(true);
-      if (!read.ok) {
-        continue;
-      }
-      expect(read.envelope.method).toBe('POST');
-      expect(read.envelope.status).toBe(500);
-      expect(read.envelope.request).toMatchObject({
-        customGameLobby: {
-          configuration: { mutators: { id: mutatorId } },
-          lobbyPassword: '[redacted]',
-        },
-        isCustom: true,
-      });
-      expect(read.envelope.request).not.toHaveProperty('queueId');
-      expect(LcuErrorSchema.parse(read.envelope.body)).toMatchObject({
-        errorCode: 'RPC_ERROR',
-        httpStatus: 500,
-        message: 'INVALID_LOBBY',
-      });
-    }
-  });
-
-  it('pins that both invite bodies answer 404 LOBBY_NOT_FOUND when there is no lobby', () => {
-    for (const id of ['lobby-invitations--no-lobby', 'lobby-invitations--by-puuid--no-lobby']) {
-      const read = readFixture('16.17', id);
-      expect(read.ok, `${id} exists`).toBe(true);
-      if (!read.ok) {
-        continue;
-      }
-      expect(read.envelope.status).toBe(404);
-      expect(LcuErrorSchema.parse(read.envelope.body).message).toBe('LOBBY_NOT_FOUND');
-    }
-  });
-});
-
-describe('the 2026-09-12 capture (16.18, all three writes accepted)', () => {
-  it('pins the accepted create: ui-live-3110, queueId === mutators.id, and the lobby that came back', () => {
-    for (const id of ['create-lobby--ui-live-3110', 'create-lobby']) {
-      const read = readFixture('16.18', id);
-      expect(read.ok, `${id} exists`).toBe(true);
-      if (!read.ok) {
-        continue;
-      }
-      expect(read.envelope.method).toBe('POST');
-      expect(read.envelope.path).toBe('/lol-lobby/v2/lobby');
-      expect(read.envelope.status).toBe(200);
-      expect(read.envelope.request).toEqual({
-        customGameLobby: {
-          configuration: {
-            gameMode: 'CLASSIC',
-            gameMutator: '',
-            gameServerRegion: '',
-            mapId: 11,
-            mutators: { id: 3110 },
-            spectatorPolicy: 'AllAllowed',
-            spectatorDelayEnabled: true,
-            teamSize: 5,
-            hidePublicly: false,
-            aramMapMutator: 'NONE',
-          },
-          lobbyName: 'customs-verify',
-          hidePublicly: false,
-          lobbyPassword: '[redacted]',
-        },
-        queueId: 3110,
-      });
-      const lobby = LobbySchema.parse(read.envelope.body);
-      expect(lobby.gameConfig.queueId).toBe(3110);
-      expect(lobby.gameConfig.isCustom).toBe(true);
-      expect(lobby.gameConfig.customMutatorName).toBe('TeamBuilderDraftPickStrategy');
-      expect(lobby.gameConfig.customLobbyName).toBe('customs-verify');
-    }
-  });
-
-  it('pins the accepted invite: [{ toSummonerId }] answered 200 with a Pending invitations[] row', () => {
-    const read = readFixture('16.18', 'lobby-invitations');
-    expect(read.ok).toBe(true);
-    if (!read.ok) {
-      return;
-    }
-    expect(read.envelope.status).toBe(200);
-    expect(read.envelope.request).toEqual([{ toSummonerId: 55838205 }]);
-    expect(read.envelope.body).toEqual([
-      {
-        invitationId: '',
-        invitationType: 'invalid',
-        state: 'Pending',
-        timestamp: '',
-        toPuuid: '',
-        toSummonerId: 55838205,
-        toSummonerName: '',
-      },
-    ]);
-  });
-
+describe('the 2026-09-12 capture (16.18)', () => {
   it('pins the accepted switch: POST /team/TEAM2 with no body answered 204', () => {
     const read = readFixture('16.18', 'lobby-team');
     expect(read.ok).toBe(true);
@@ -425,13 +100,8 @@ describe('the 2026-09-12 capture (16.18, all three writes accepted)', () => {
 });
 
 describe('the allow-list', () => {
-  it('holds exactly the create, invite and two team paths, all under /lol-lobby/', () => {
-    expect(LOBBY_WRITE_PATHS).toEqual([
-      '/lol-lobby/v2/lobby',
-      '/lol-lobby/v2/lobby/invitations',
-      '/lol-lobby/v2/lobby/team/TEAM1',
-      '/lol-lobby/v2/lobby/team/TEAM2',
-    ]);
+  it('holds exactly the two team paths, all under /lol-lobby/', () => {
+    expect(LOBBY_WRITE_PATHS).toEqual(['/lol-lobby/v2/lobby/team/TEAM1', '/lol-lobby/v2/lobby/team/TEAM2']);
     for (const path of LOBBY_WRITE_PATHS) {
       expect(path.startsWith('/lol-lobby/')).toBe(true);
       expect(() => assertLobbyWritePath(path)).not.toThrow();
@@ -451,6 +121,8 @@ describe('the allow-list', () => {
       '/lol-lobby/v1/lobby/custom/switch-teams',
       '/lol-lobby/v2/lobby/custom/switch-teams',
       '/liveclientdata/allgamedata',
+      '/lol-lobby/v2/lobby',
+      '/lol-lobby/v2/lobby/invitations',
       '/lol-lobby/v2/lobby/',
       'lol-lobby/v2/lobby',
     ]) {
@@ -498,8 +170,6 @@ describe('the allow-list', () => {
 
 describe('the verification gate', () => {
   const rowLabels: Record<LobbyWriteKind, string> = {
-    create_lobby: 'Create custom lobby',
-    invite: 'Invite',
     switch_side: 'Switch side',
   };
 
@@ -510,11 +180,7 @@ describe('the verification gate', () => {
       expect(line, `docs/03 has a row for ${rowLabels[kind]}`).toBeDefined();
       const cells = (line as string).split('|').map((cell) => cell.trim());
       const status = cells[cells.length - 2] as string;
-      expect(
-        WRITE_ENDPOINTS[
-          kind === 'create_lobby' ? 'createLobby' : kind === 'invite' ? 'invite' : 'switchSide'
-        ],
-      ).toBeDefined();
+      expect(WRITE_ENDPOINTS.switchSide).toBeDefined();
       const gate = LOBBY_WRITE_VERIFICATION[kind];
       const rowVerified = /^verified \(([\d.]+), (\d{4}-\d{2}-\d{2})\)/.exec(status);
       if (rowVerified === null) {
@@ -538,168 +204,6 @@ describe('the verification gate', () => {
 });
 
 describe('writes against the fake client (answers are assumptions, not captures)', () => {
-  it('postCreateLobby sends the dialog body and hands back the status and body (assumed: 200 with the lobby)', async () => {
-    const { client, posts } = await setup((request) =>
-      request.method === 'POST' && request.path === '/lol-lobby/v2/lobby'
-        ? {
-            status: 200,
-            body: { partyId: 'party-1', gameConfig: { customMutatorName: 'SimulPickStrategy' } },
-          }
-        : undefined,
-    );
-    const write = await postCreateLobby(client, {
-      lobbyName: 'customs-verify',
-      lobbyPassword: '1234',
-      ids: IDS,
-    });
-    expect(write.path).toBe('/lol-lobby/v2/lobby');
-    expect(write.response.ok && write.response.status).toBe(200);
-    expect(write.response.ok && write.response.json).toEqual({
-      partyId: 'party-1',
-      gameConfig: { customMutatorName: 'SimulPickStrategy' },
-    });
-    expect(posts()).toHaveLength(1);
-    expect(JSON.parse(posts()[0]?.body ?? '')).toEqual(write.body);
-    expect(posts()[0]?.contentType).toBe('application/json');
-  });
-
-  it('postCreateLobbyCandidates stops at the first 2xx, reports every attempt, and stops on a dead client', async () => {
-    const refusal: CannedRoute = {
-      status: 500,
-      body: { errorCode: 'RPC_ERROR', httpStatus: 500, implementationDetails: {}, message: 'INVALID_LOBBY' },
-    };
-    // Assumed: only the 3100/3100 pair is accepted.
-    const { client, posts } = await setup((request) => {
-      if (request.method !== 'POST' || request.path !== '/lol-lobby/v2/lobby') {
-        return undefined;
-      }
-      const body = JSON.parse(request.body) as {
-        queueId: number;
-        customGameLobby: { configuration: { mutators: { id: number } } };
-      };
-      return body.queueId === 3100 && body.customGameLobby.configuration.mutators.id === 3100
-        ? { status: 200, body: { partyId: 'party-2' } }
-        : refusal;
-    });
-    const seen: string[] = [];
-    const result = await postCreateLobbyCandidates(
-      client,
-      createLobbyCandidates({ lobbyName: 'n', lobbyPassword: 'p', live: { queueId: 7, mutatorId: 7 } }),
-      (attempt) => {
-        seen.push(`${attempt.candidate.id}:${describeWriteResponse(attempt.write.response)}`);
-        return undefined;
-      },
-    );
-    expect(seen).toEqual(['ui-live-7:500 INVALID_LOBBY', 'ui-3100-19:500 INVALID_LOBBY', 'ui-3100-3100:200']);
-    expect(result.accepted?.candidate.id).toBe('ui-3100-3100');
-    expect(result.attempts).toHaveLength(3);
-    expect(posts()).toHaveLength(3);
-
-    const { client: refusing } = await setup(() => refusal);
-    const none = await postCreateLobbyCandidates(
-      refusing,
-      createLobbyCandidates({ lobbyName: 'n', lobbyPassword: 'p', live: null }),
-    );
-    expect(none.accepted).toBeNull();
-    expect(none.attempts).toHaveLength(4);
-
-    const dead = new LcuClient({ port: 1, password: 'x', tls: { mode: 'insecure' }, timeoutMs: 500 });
-    clients.push(dead);
-    const gone = await postCreateLobbyCandidates(
-      dead,
-      createLobbyCandidates({ lobbyName: 'n', lobbyPassword: 'p', live: null }),
-    );
-    expect(gone.accepted).toBeNull();
-    expect(gone.attempts).toHaveLength(1);
-  });
-
-  it('postCreateLobbyCandidates accepts a 2xx whose body is not JSON: the lobby exists, so no later candidate may replace it', async () => {
-    const { client, posts } = await setup((request) =>
-      request.method === 'POST' && request.path === '/lol-lobby/v2/lobby'
-        ? { status: 200, body: 'OK', contentType: 'text/plain' }
-        : undefined,
-    );
-    const result = await postCreateLobbyCandidates(
-      client,
-      createLobbyCandidates({ lobbyName: 'n', lobbyPassword: 'p', live: null }),
-    );
-    expect(posts()).toHaveLength(1);
-    expect(result.accepted?.candidate.id).toBe('ui-3100-19');
-    const response = result.accepted?.write.response;
-    expect(response && !response.ok && response.reason === 'malformed' && response.text).toBe('OK');
-    expect(isAcceptedWrite(response as LcuResponse<unknown>)).toBe(true);
-    expect(isAcceptedWrite({ ok: false, reason: 'malformed', status: 500, text: 'x' })).toBe(false);
-    expect(isAcceptedWrite({ ok: false, reason: 'http', status: 200, json: {} })).toBe(false);
-  });
-
-  it('postCreateLobbyCandidates stops when the hook says so (a lobby exists after a refused-looking answer)', async () => {
-    const refusal: CannedRoute = {
-      status: 500,
-      body: { errorCode: 'RPC_ERROR', httpStatus: 500, implementationDetails: {}, message: 'INVALID_LOBBY' },
-    };
-    const { client, posts } = await setup(() => refusal);
-    const seen: string[] = [];
-    const result = await postCreateLobbyCandidates(
-      client,
-      createLobbyCandidates({ lobbyName: 'n', lobbyPassword: 'p', live: null }),
-      (attempt) => {
-        seen.push(attempt.candidate.id);
-        return seen.length === 2 ? 'stop' : undefined;
-      },
-    );
-    expect(seen).toEqual(['ui-3100-19', 'ui-3100-3100']);
-    expect(posts()).toHaveLength(2);
-    expect(result.accepted?.candidate.id).toBe('ui-3100-3100');
-    expect(result.attempts).toHaveLength(2);
-  });
-
-  it('inviteWithFallback POSTs [{ toSummonerId }] once when the client accepts it (assumed: 2xx)', async () => {
-    const { client, posts } = await setup((request) =>
-      request.method === 'POST' && request.path === '/lol-lobby/v2/lobby/invitations'
-        ? { status: 200, body: [] }
-        : undefined,
-    );
-    const result = await inviteWithFallback(client, { puuid: PUUID, summonerId: 7 });
-    expect(result.used).toEqual({ method: 'summonerId', summonerId: 7 });
-    expect(result.attempts).toHaveLength(1);
-    expect(posts().map((request) => JSON.parse(request.body))).toEqual([[{ toSummonerId: 7 }]]);
-  });
-
-  it('inviteWithFallback retries with [{ toPuuid }] on a 4xx, and starts there when no summoner id is known', async () => {
-    const { client, posts } = await setup((request) => {
-      if (request.method !== 'POST' || request.path !== '/lol-lobby/v2/lobby/invitations') {
-        return undefined;
-      }
-      return request.body.includes('toSummonerId')
-        ? { status: 400, body: { errorCode: 'RPC_ERROR', httpStatus: 400, message: 'assumed rejection' } }
-        : { status: 200, body: [] };
-    });
-    const result = await inviteWithFallback(client, { puuid: PUUID, summonerId: 7 });
-    expect(result.used).toEqual({ method: 'puuid', puuid: PUUID });
-    expect(result.attempts.map((attempt) => describeWriteResponse(attempt.response))).toEqual([
-      '400 assumed rejection',
-      '200',
-    ]);
-    const direct = await inviteWithFallback(client, { puuid: PUUID, summonerId: null });
-    expect(direct.attempts).toHaveLength(1);
-    expect(posts().map((request) => JSON.parse(request.body))).toEqual([
-      [{ toSummonerId: 7 }],
-      [{ toPuuid: PUUID }],
-      [{ toPuuid: PUUID }],
-    ]);
-  });
-
-  it('inviteWithFallback does not fall back on a 5xx or a dead client: that is not "wrong body"', async () => {
-    const { client, posts } = await setup((request) =>
-      request.method === 'POST'
-        ? { status: 500, body: { errorCode: 'RPC_ERROR', httpStatus: 500 } }
-        : undefined,
-    );
-    const result = await inviteWithFallback(client, { puuid: PUUID, summonerId: 7 });
-    expect(result.used.method).toBe('summonerId');
-    expect(posts()).toHaveLength(1);
-  });
-
   it('postSwitchSide POSTs the team path for the side asked, with no body (assumed: 204)', async () => {
     const { client, posts } = await setup((request) =>
       request.method === 'POST' && request.path === '/lol-lobby/v2/lobby/team/TEAM2'
@@ -724,11 +228,11 @@ describe('writes against the fake client (answers are assumptions, not captures)
       status: 400,
       body: { errorCode: 'RPC_ERROR', httpStatus: 400, message: 'bad', secret: 'do-not-print' },
     }));
-    const write = await postCreateLobby(client, { lobbyName: 'n', lobbyPassword: 'pass', ids: IDS });
+    const write = await postSwitchSide(client, 200);
     expect(describeWriteResponse(write.response)).toBe('400 bad');
     const dead = new LcuClient({ port: 1, password: 'x', tls: { mode: 'insecure' }, timeoutMs: 500 });
     clients.push(dead);
-    const gone = await postCreateLobby(dead, { lobbyName: 'n', lobbyPassword: 'pass', ids: IDS });
+    const gone = await postSwitchSide(dead, 200);
     expect(describeWriteResponse(gone.response)).toMatch(/^no answer \(/);
   });
 });

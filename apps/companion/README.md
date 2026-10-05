@@ -117,7 +117,6 @@ src/backfill.ts      past customs from match history, 60 s after connect then ev
 src/commandRunner.ts GET /api/companion/commands every 5 s while the client is up; create lobby / invite /
                      switch side through packages/lcu; ack or nack. Each kind gated on its docs/03 row (M4.1)
 src/executed.ts      commands-done.json: the execute-once record a lost ack is re-sent from (M4.1)
-src/verifyCommands.ts  --verify-commands: the human-run live probe of the three writes; report + fixtures (M4.1)
 src/log.ts           daily JSON log file (debug) plus the console (info)
 build/               the release build (M2.6): bundle, exe, publish
 ```
@@ -148,28 +147,6 @@ set CUSTOMS_NIGHT_SHOW_TOKEN=1 && Kustom.exe   # the same, for a shortcut that c
 `--show-token` exists for a terminal that cannot paste into a hidden prompt (some remote-desktop and
 older-console setups). It changes only what the console shows while typing; the token is still never written
 to the log, which knows it only as a secret to redact.
-
-### Verifying the lobby writes (M4.1)
-
-```
-pnpm --filter companion verify-commands       # from the repo: fixtures land in packages/lcu/fixtures/<patch>/
-Kustom.exe --verify-commands            # packaged: fixtures land in %APPDATA%\customs-night\fixtures\<patch>\
-set CUSTOMS_NIGHT_VERIFY_COMMANDS=1 && Kustom.exe   # the same, for a shortcut that cannot pass flags
-```
-
-The three lobby writes (create, invite, switch side) are `unverified` in `docs/03-lcu-reference.md`, so the
-command runner refuses each kind (`endpoint_unverified`) until a person has run this mode against a live client
-and pasted the report back. It needs the client in `None` or `Lobby`, one friend online, no token and no API.
-The first run (16.17, 2026-09-09) showed the community create body is refused (`500 INVALID_LOBBY`), so the
-second edition sends what the client's own lobby UI sends: it reads the Create Custom dialog data
-(`/lol-game-queues/v1/custom`, `/queues`), prints the Summoner's Rift entries and asks which id to use (Enter
-takes the default), then POSTs a ranked list of create bodies in order, stopping at the first the client
-accepts; then one invite POST, then one `POST /lol-lobby/v2/lobby/team/TEAM1|TEAM2` for the side you are not
-on (the draft and full-side repeats are opt-in). It asks before every write step, prints request, status and
-body shape, and writes `%APPDATA%\customs-night\verify-commands-<patch>-<date>.txt` plus one fixture per
-attempt and per dialog read. It never closes the lobby it makes: close it from the client afterwards. Paste the
-report and the fixtures back; the engineer writes the reference rows and flips `LOBBY_WRITE_VERIFICATION` in
-`packages/lcu/src/writes.ts`. Nothing in this mode flips anything itself.
 
 ### Finding a League that is not in `C:\Riot Games` (M2.19)
 

@@ -9,7 +9,7 @@
 //! Numbers: zod's `z.number().int()` is `i64` here (ids such as `gameId` exceed `i32`); the one plain
 //! `z.number()` (`endOfGameTimestamp`) is `f64`.
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value};
 
 /// A team: `100` (blue) or `200` (red). Re-uses the API's side type.
@@ -707,109 +707,6 @@ pub struct MatchHistoryList {
     pub platform_id: Option<String>,
     /// `games`.
     pub games: MatchHistoryGames,
-}
-
-/// The body of `POST /lol-lobby/v2/lobby`, exactly as the client's own Create Custom dialog sends it
-/// (`createLobbyBody`, the `ui` variant, accepted on 16.18). Key order follows the TypeScript body.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateLobbyBody {
-    /// `customGameLobby`.
-    pub custom_game_lobby: CustomGameLobby,
-    /// The draft entry's id from the dialog data (16.18: 3110), never a constant.
-    pub queue_id: i64,
-}
-
-/// `customGameLobby`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CustomGameLobby {
-    /// `configuration`.
-    pub configuration: CustomGameConfiguration,
-    /// The lobby name.
-    pub lobby_name: String,
-    /// Always `false`.
-    pub hide_publicly: bool,
-    /// `null` when empty, as the dialog sends it.
-    pub lobby_password: Option<String>,
-}
-
-/// `customGameLobby.configuration`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CustomGameConfiguration {
-    /// `CLASSIC`.
-    pub game_mode: String,
-    /// `""`.
-    pub game_mutator: String,
-    /// `""`.
-    pub game_server_region: String,
-    /// `11`.
-    pub map_id: i64,
-    /// `{ id }`, the same id as `queueId`.
-    pub mutators: MutatorRef,
-    /// `AllAllowed`.
-    pub spectator_policy: String,
-    /// `true`.
-    pub spectator_delay_enabled: bool,
-    /// `5`.
-    pub team_size: i64,
-    /// `false`.
-    pub hide_publicly: bool,
-    /// `NONE`.
-    pub aram_map_mutator: String,
-}
-
-/// `{ id }`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct MutatorRef {
-    /// The id.
-    pub id: i64,
-}
-
-impl CreateLobbyBody {
-    /// The dialog's body for a Summoner's Rift classic lobby with the given dialog entry id.
-    pub fn summoners_rift(lobby_name: &str, lobby_password: &str, entry_id: i64) -> Self {
-        CreateLobbyBody {
-            custom_game_lobby: CustomGameLobby {
-                configuration: CustomGameConfiguration {
-                    game_mode: "CLASSIC".into(),
-                    game_mutator: String::new(),
-                    game_server_region: String::new(),
-                    map_id: 11,
-                    mutators: MutatorRef { id: entry_id },
-                    spectator_policy: "AllAllowed".into(),
-                    spectator_delay_enabled: true,
-                    team_size: 5,
-                    hide_publicly: false,
-                    aram_map_mutator: "NONE".into(),
-                },
-                lobby_name: lobby_name.to_string(),
-                hide_publicly: false,
-                lobby_password: (!lobby_password.is_empty()).then(|| lobby_password.to_string()),
-            },
-            queue_id: entry_id,
-        }
-    }
-}
-
-/// One element of the invite body: `[{ toSummonerId }]` first (what the client's UI sends), `[{ toPuuid }]`
-/// as the fallback.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(untagged)]
-pub enum InviteTarget {
-    /// `{ "toSummonerId": n }`.
-    SummonerId {
-        /// The summoner id.
-        #[serde(rename = "toSummonerId")]
-        to_summoner_id: i64,
-    },
-    /// `{ "toPuuid": "..." }`.
-    Puuid {
-        /// The puuid.
-        #[serde(rename = "toPuuid")]
-        to_puuid: String,
-    },
 }
 
 fn non_empty<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {

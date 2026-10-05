@@ -14,14 +14,13 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { REDACTED, readFixture } from '@customs/lcu';
+import { REDACTED } from '@customs/lcu';
 import { describe, expect, it } from 'vitest';
 import { executedFileSchema } from '../../src/executed.js';
 import { queueEntrySchema } from '../../src/queue.js';
 import { diffGoldens, GOLDENS_DIR, INDEX_FILE, renderGoldens } from '../make-goldens.js';
 import { HARNESS_API_TOKEN, HARNESS_LCU_PASSWORD } from './harness.js';
 import {
-  GOLDEN_LOBBY_PASSWORD,
   GOLDEN_PAIR_TOKEN,
   GOLDEN_ROUTES,
   type Golden,
@@ -41,12 +40,6 @@ const goldens: Golden[] = files.map(
 );
 const index = JSON.parse(readFileSync(join(GOLDENS_DIR, INDEX_FILE), 'utf8')) as IndexFile;
 
-function fixtureRequest(patch: string, id: string): unknown {
-  const read = readFixture(patch, id);
-  if (!read.ok) throw new Error(read.reason);
-  return read.envelope.request;
-}
-
 /**
  * Checks one client-write or file golden. API routes return at once: `packages/db/src/contract/goldens.test.ts`
  * is the canonical check for those (M17.3).
@@ -61,25 +54,6 @@ function checkRequest(route: GoldenRoute, path: string, body: unknown): void {
     case 'commands-poll':
     case 'command-ack':
     case 'command-nack':
-      return;
-    case 'lcu-create-lobby': {
-      // The body the 16.18 client accepted (its capture redacts the password; ours is the synthetic one).
-      const sent = structuredClone(body) as { customGameLobby: { lobbyPassword: string } };
-      sent.customGameLobby.lobbyPassword = REDACTED;
-      const accepted = structuredClone(fixtureRequest('16.18', 'create-lobby')) as {
-        queueId: number;
-        customGameLobby: { configuration: { mutators: { id: number } } };
-      };
-      if ((body as { queueId: number }).queueId === 3100) {
-        // M17.17: the blind golden is the accepted body with blind's entry (3100) in place of draft's (3110).
-        accepted.queueId = 3100;
-        accepted.customGameLobby.configuration.mutators.id = 3100;
-      }
-      expect(sent).toEqual(accepted);
-      return;
-    }
-    case 'lcu-invite':
-      expect(body).toEqual(fixtureRequest('16.18', 'lobby-invitations'));
       return;
     case 'lcu-switch-side':
       expect(body).toBeNull();
@@ -118,8 +92,6 @@ describe('goldens: index', () => {
       'rank--current-ranked-stats--own',
       'rank--ranked-stats-by-puuid--other',
       'backfill-scan--match-history',
-      'command-ack--create-lobby',
-      'command-ack--invite--sent',
       'command-ack--switch-side',
     ]) {
       expect(files, name).toContain(`${name}.json`);
@@ -166,10 +138,7 @@ describe('goldens: credential guard', () => {
       for (const match of text.matchAll(SECRET_KEY_VALUE)) {
         const key = match[1] ?? '';
         const value = match[2] ?? '';
-        // The one password a golden may hold: the synthetic one the create scenario set, as the companion
-        // posts it (`lobbyPassword`, M4.2) and sends it to the client.
-        const synthetic = key === 'Password' && value === GOLDEN_LOBBY_PASSWORD;
-        if (value.length > 0 && value !== REDACTED && !synthetic) {
+        if (value.length > 0 && value !== REDACTED) {
           offenders.push(`${name}: ${key} = ${value.slice(0, 12)}...`);
         }
       }
@@ -183,15 +152,6 @@ describe('goldens: credential guard', () => {
       }
     }
     expect(offenders).toEqual([]);
-  });
-
-  it('the synthetic lobby password only sits where the companion sends a lobby password', () => {
-    for (const name of files) {
-      const text = readFileSync(join(GOLDENS_DIR, name), 'utf8');
-      const count = text.split(GOLDEN_LOBBY_PASSWORD).length - 1;
-      const keyed = (text.match(new RegExp(`"lobbyPassword": "${GOLDEN_LOBBY_PASSWORD}"`, 'g')) ?? []).length;
-      expect(count, name).toBe(keyed);
-    }
   });
 });
 

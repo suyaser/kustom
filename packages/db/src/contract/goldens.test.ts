@@ -56,13 +56,7 @@ const API_ROUTES = {
 type ApiRoute = keyof typeof API_ROUTES;
 
 /** Goldens of the companion's client writes and files: checked by `companionGuards.test.ts` and the Rust tests. */
-const COMPANION_ONLY_ROUTES = new Set([
-  'lcu-create-lobby',
-  'lcu-invite',
-  'lcu-switch-side',
-  'queue-file',
-  'commands-done-file',
-]);
+const COMPANION_ONLY_ROUTES = new Set(['lcu-switch-side', 'queue-file', 'commands-done-file']);
 
 interface GoldenRequest {
   readonly route: string;

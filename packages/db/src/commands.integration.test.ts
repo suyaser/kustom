@@ -76,14 +76,10 @@ if (stack === null) {
 
   /** One valid payload per kind, straight from the wire schemas so the two cannot drift. */
   const PAYLOADS: Record<string, unknown> = {
-    create_lobby: companionCommandPayloadSchemas.create_lobby.parse({
-      lobbyName: 'kustom night',
-      lobbyPassword: '4821',
-    }),
-    invite: companionCommandPayloadSchemas.invite.parse({
-      puuid: 'cmd-payload-puuid',
-      summonerId: '2686822975473024',
-    }),
+    // `create_lobby` and `invite` left the wire contract in M22.11 but stay values of the Postgres enum
+    // (dropping one needs a migration) and 0008's index still guards `create_lobby`: literals, not schemas.
+    create_lobby: { lobbyName: 'kustom night', lobbyPassword: '4821' },
+    invite: { puuid: 'cmd-payload-puuid', summonerId: '2686822975473024' },
     switch_side: companionCommandPayloadSchemas.switch_side.parse({ targetSide: 200 }),
   };
 
@@ -119,9 +115,13 @@ if (stack === null) {
     });
   }
 
-  describe('the kind enum is the zod enum', () => {
-    it('accepts every kind the wire schema names', async () => {
-      for (const kind of companionCommandKindSchema.options) {
+  /** The two kinds M22.11 removed from the wire contract; the Postgres enum keeps them. */
+  const LEGACY_KINDS = ['create_lobby', 'invite'] as const;
+  const LEGACY_CREATE_LOBBY_TTL_MS = 60_000;
+
+  describe('the kind enum holds the zod kinds and the two retired ones', () => {
+    it('accepts every kind the wire schema names, and the retired ones the enum keeps', async () => {
+      for (const kind of [...LEGACY_KINDS, ...companionCommandKindSchema.options]) {
         const created = await insert('companion_commands', {
           group_id: ORIGINAL_GROUP_ID,
           target_player_id: playerId,
@@ -145,8 +145,8 @@ if (stack === null) {
       expect(companionCommandKindSchema.safeParse('start_champ_select').success).toBe(false);
     });
 
-    it('has exactly the three kinds, in the order the enum declares them', () => {
-      expect(companionCommandKindSchema.options).toEqual(['create_lobby', 'invite', 'switch_side']);
+    it('the wire schema names exactly switch_side (create_lobby and invite are retired)', () => {
+      expect(companionCommandKindSchema.options).toEqual(['switch_side']);
       // One TTL and one payload and one result schema per kind, so a fourth kind cannot be
       // added in one place only.
       expect(Object.keys(COMPANION_COMMAND_TTL_MS).sort()).toEqual(
@@ -220,8 +220,8 @@ if (stack === null) {
       expect(expires_at - created_at).toBeLessThan(6 * 60_000);
     });
 
-    it('stores what the ack route writes, including a result that parses as its kind', async () => {
-      const ttl = COMPANION_COMMAND_TTL_MS.create_lobby;
+    it('stores what the ack route writes, including its result', async () => {
+      const ttl = LEGACY_CREATE_LOBBY_TTL_MS;
       const now = Date.now();
       const created = await insert('companion_commands', {
         group_id: ORIGINAL_GROUP_ID,
@@ -233,10 +233,7 @@ if (stack === null) {
       const id = String(rows(created.body)[0]?.id ?? '');
       expect(Date.parse(String(rows(created.body)[0]?.expires_at)) - now).toBeLessThanOrEqual(ttl);
 
-      const result = companionCommandResultSchemas.create_lobby.parse({
-        partyId: 'party-abc',
-        lobbyName: 'kustom night',
-      });
+      const result = { partyId: 'party-abc', lobbyName: 'kustom night' };
       const acked = await rest('service', `companion_commands?id=eq.${id}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
@@ -282,7 +279,7 @@ if (stack === null) {
         target_player_id: playerId,
         kind: 'create_lobby',
         payload: PAYLOADS.create_lobby,
-        expires_at: new Date(Date.now() + COMPANION_COMMAND_TTL_MS.create_lobby).toISOString(),
+        expires_at: new Date(Date.now() + LEGACY_CREATE_LOBBY_TTL_MS).toISOString(),
       });
     }
 

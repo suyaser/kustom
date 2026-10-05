@@ -105,7 +105,7 @@ export const lobbyStatusSchema = z.enum(LOBBY_STATUSES);
 export const gameSourceSchema = z.enum(['eog', 'backfill']);
 
 /** Commands the server queues for a companion to execute (M4.1). */
-export const companionCommandKindSchema = z.enum(['create_lobby', 'invite', 'switch_side']);
+export const companionCommandKindSchema = z.enum(['switch_side']);
 
 /** Lifecycle of a queued command. */
 export const companionCommandStatusSchema = z.enum(['pending', 'sent', 'acked', 'failed']);

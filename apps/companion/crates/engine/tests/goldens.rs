@@ -150,15 +150,7 @@ fn check(label: &str, route: &str, path: &str, body: &Value, command_kind: Optio
             round_trip::<CommandsDoneFile>(label, body);
         }
         // Writes to the League client: their types arrive with the bridge (M17.5) and the command runner
-        // (M17.10). Until then, the path is one of the three verified lobby writes.
-        "lcu-create-lobby" => {
-            assert_eq!(path, "/lol-lobby/v2/lobby", "{label}");
-            assert!(body.is_object(), "{label}");
-        }
-        "lcu-invite" => {
-            assert_eq!(path, "/lol-lobby/v2/lobby/invitations", "{label}");
-            assert!(body.is_array(), "{label}");
-        }
+        // (M17.10). Until then, the path is the verified lobby write.
         "lcu-switch-side" => {
             assert!(
                 path == "/lol-lobby/v2/lobby/team/TEAM1" || path == "/lol-lobby/v2/lobby/team/TEAM2",
@@ -182,7 +174,7 @@ fn the_index_lists_every_golden_file() {
     assert_eq!(listed, on_disk);
     assert_eq!(index.counts.total, on_disk.len());
     assert!(
-        on_disk.len() >= 30,
+        on_disk.len() >= 25,
         "expected the full golden set, found {}",
         on_disk.len()
     );

@@ -1,11 +1,5 @@
 import { z } from 'zod';
-import {
-  type companionCommandKindSchema,
-  jsonObjectSchema,
-  lobbyStatusSchema,
-  puuidSchema,
-  sideSchema,
-} from './common';
+import { type companionCommandKindSchema, jsonObjectSchema, lobbyStatusSchema, sideSchema } from './common';
 import { groupSummarySchema } from './invites';
 
 /**
@@ -200,8 +194,6 @@ export const COMMANDS_POLL_INTERVAL_MS = 5_000;
 export const COMMANDS_PAGE_SIZE = 10;
 /** Time to live per kind, set by whoever writes the row (M4.2, M4.3). Expired rows are `failed` with `expired`. */
 export const COMPANION_COMMAND_TTL_MS = {
-  create_lobby: 60_000,
-  invite: 5 * 60_000,
   switch_side: 3 * 60_000,
 } as const satisfies Record<z.infer<typeof companionCommandKindSchema>, number>;
 
@@ -223,19 +215,14 @@ export const COMPANION_COMMAND_TTL_MS = {
  * optional; absent means `COMMANDS_POLL_INTERVAL_MS`.
  *
  * `payload` per kind (`companionCommandPayloadSchemas`):
- * - `create_lobby`: `{ lobbyName: string(1..30), lobbyPassword: string(4..16), pickType?: 'draft' | 'blind' }` (pickType absent = draft)
- * - `invite`: `{ puuid, summonerId: string | null }` (digits; null when the server has none)
  * - `switch_side`: `{ targetSide: 100 | 200 }`
  * The companion applies the kind's schema itself and nacks `malformed_payload` for a kind it does not know or
  * a payload that does not parse, so one bad row never blocks a page.
  *
  * **POST `/api/companion/commands/{id}/ack`**, body `{ result }` (`companionCommandAckRequestSchema`), where
  * `result` matches the kind's result schema (`companionCommandResultSchemas`):
- * - `create_lobby`: `{ partyId, lobbyName }`
- * - `invite`: `{ puuid, method: 'summonerId' | 'puuid', state: 'Pending' | 'Accepted' }`
  * - `switch_side`: `{ side: 100 | 200 }`
- * Answer `{ ok: true }`: the row is `acked`, `acked_at` set, `result` stored, and the `onAcked` hooks run
- * (M4.2 hangs the invite fan-out there). 404 for an id that does not exist **or belongs to another player**
+ * Answer `{ ok: true }`: the row is `acked`, `acked_at` set, `result` stored, and the `onAcked` hooks run. 404 for an id that does not exist **or belongs to another player**
  * (never 403: a 403 would confirm somebody else's id exists). 409 when the row is already `acked` or `failed`;
  * nothing changes. 422 when `result` fails the kind's schema; the row is left alone.
  *
@@ -270,49 +257,19 @@ export const commandFailureReasonSchema = z.enum([
   'malformed_payload',
 ]);
 
-/** The pick type of the custom a `create_lobby` opens (M17.17). Mirror match asks for blind. */
-export const lobbyPickTypeSchema = z.enum(['draft', 'blind']);
-
-export const createLobbyCommandPayloadSchema = z.object({
-  lobbyName: z.string().trim().min(1).max(30),
-  lobbyPassword: z.string().min(4).max(16),
-  /** Absent on a payload queued before M17.17: that is draft, the only lobby Start a lobby made. */
-  pickType: lobbyPickTypeSchema.default('draft'),
-});
-
-export const inviteCommandPayloadSchema = z.object({
-  puuid: puuidSchema,
-  summonerId: z.string().regex(/^\d+$/).nullable(),
-});
-
 export const switchSideCommandPayloadSchema = z.object({
   targetSide: sideSchema,
 });
 
 export const companionCommandPayloadSchemas = {
-  create_lobby: createLobbyCommandPayloadSchema,
-  invite: inviteCommandPayloadSchema,
   switch_side: switchSideCommandPayloadSchema,
 } as const;
-
-export const createLobbyCommandResultSchema = z.object({
-  partyId: z.string().min(1),
-  lobbyName: z.string(),
-});
-
-export const inviteCommandResultSchema = z.object({
-  puuid: puuidSchema,
-  method: z.enum(['summonerId', 'puuid']),
-  state: z.enum(['Pending', 'Accepted']),
-});
 
 export const switchSideCommandResultSchema = z.object({
   side: sideSchema,
 });
 
 export const companionCommandResultSchemas = {
-  create_lobby: createLobbyCommandResultSchema,
-  invite: inviteCommandResultSchema,
   switch_side: switchSideCommandResultSchema,
 } as const;
 
@@ -322,8 +279,6 @@ export const companionCommandResultSchemas = {
  * it does not know instead of dropping the whole page.
  */
 export const companionCommandSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('create_lobby'), payload: createLobbyCommandPayloadSchema }),
-  z.object({ kind: z.literal('invite'), payload: inviteCommandPayloadSchema }),
   z.object({ kind: z.literal('switch_side'), payload: switchSideCommandPayloadSchema }),
 ]);
 
@@ -367,11 +322,7 @@ export const companionCommandAckResponseSchema = z.object({
 });
 
 export type CommandFailureReason = z.infer<typeof commandFailureReasonSchema>;
-export type CreateLobbyCommandPayload = z.infer<typeof createLobbyCommandPayloadSchema>;
-export type InviteCommandPayload = z.infer<typeof inviteCommandPayloadSchema>;
 export type SwitchSideCommandPayload = z.infer<typeof switchSideCommandPayloadSchema>;
-export type CreateLobbyCommandResult = z.infer<typeof createLobbyCommandResultSchema>;
-export type InviteCommandResult = z.infer<typeof inviteCommandResultSchema>;
 export type SwitchSideCommandResult = z.infer<typeof switchSideCommandResultSchema>;
 export type CompanionCommand = z.infer<typeof companionCommandSchema>;
 export type CompanionCommandEnvelope = z.infer<typeof companionCommandEnvelopeSchema>;

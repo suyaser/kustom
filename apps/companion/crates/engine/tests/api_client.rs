@@ -103,7 +103,7 @@ async fn every_route_body_is_json_equal_to_its_golden() {
     let scan: BackfillScanRequest =
         serde_json::from_value(golden_body("backfill-scan--match-history")).unwrap();
     assert_eq!(api.backfill_scan(&scan).await.unwrap().data.unknown, [1]);
-    let ack: CommandAck = serde_json::from_value(golden_body("command-ack--create-lobby")).unwrap();
+    let ack: CommandAck = serde_json::from_value(golden_body("command-ack--switch-side")).unwrap();
     api.ack("7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", &ack)
         .await
         .unwrap();
@@ -118,7 +118,7 @@ async fn every_route_body_is_json_equal_to_its_golden() {
     assert_eq!(bodies[1], eog);
     assert_eq!(bodies[2], golden_body("rank--current-ranked-stats--own"));
     assert_eq!(bodies[3], golden_body("backfill-scan--match-history"));
-    assert_eq!(bodies[4], golden_body("command-ack--create-lobby"));
+    assert_eq!(bodies[4], golden_body("command-ack--switch-side"));
     assert_eq!(bodies[5], golden_body("command-nack--unknown-kind"));
     assert!(
         requests[4]
@@ -307,7 +307,7 @@ async fn failures_are_typed() {
 
     // More than ten commands: the page is refused whole.
     let commands: Vec<Value> = (0..11)
-        .map(|i| json!({ "id": format!("{i}"), "kind": "invite", "payload": {}, "createdAt": "x", "expiresAt": "y" }))
+        .map(|i| json!({ "id": format!("{i}"), "kind": "switch_side", "payload": {}, "createdAt": "x", "expiresAt": "y" }))
         .collect();
     let page = json!({ "ok": true, "commands": commands }).to_string();
     let api = client(FakeTransport::new(move |_| respond(200, &page)));

@@ -15,7 +15,7 @@ use engine::api::wire::{
     CommandAck, CommandEnvelope, CommandNack, CommandsPoll, CommandsResponse, RankPayload,
 };
 use engine::lcu::LcuClient;
-use engine::lcu::events::{LcuEventType, RoutedEvent};
+use engine::lcu::events::RoutedEvent;
 use engine::lcu::types::{RankedStats, Summoner};
 use engine::lcu::writes::LobbyWriteKind;
 use engine::watchers::commands::{
@@ -23,11 +23,10 @@ use engine::watchers::commands::{
     is_stale, spawn_command_runner,
 };
 use engine::watchers::connection::{ConnectedContext, DisconnectReason, MachineEvent};
-use engine::watchers::lobby::{LobbyWatcherOptions, spawn_lobby_watcher};
 use engine::watchers::rank::{RankPostOutcome, RankPoster, RankSyncHandle, RankSyncOptions, spawn_rank_sync};
 use serde_json::{Value, json};
 use support::fake_client::{FakeClient, Route, start_fake_client};
-use support::watch_kit::{ManualScheduler, ScriptedPoster, pause, until};
+use support::watch_kit::{ManualScheduler, pause, until};
 use support::{Pki, body, credentials, golden_body, pki};
 
 const ME: &str = "34151cbd-d9f8-5dad-9dc8-c6a8e253c0de";
@@ -433,7 +432,6 @@ impl CommandApi for FakeCommands {
 
 fn envelope(id: &str, kind: &str, payload: Value) -> CommandEnvelope {
     let ttl_ms: i64 = match kind {
-        "invite" => 300_000,
         "switch_side" => 180_000,
         _ => 60_000,
     };
@@ -460,12 +458,6 @@ fn lobby_world(
                 Some(lobby) => Route::json(200, &lobby),
                 None => not_found(),
             });
-        }
-        if method == "GET" && path == "/lol-game-queues/v1/custom" {
-            return Some(Route::json(200, &body_of("16.18", "custom-game-queues")));
-        }
-        if method == "GET" && path == "/lol-game-queues/v1/queues" {
-            return Some(Route::json(200, &body_of("16.18", "game-queues")));
         }
         if method == "POST" {
             let _ = body;
@@ -532,134 +524,86 @@ impl RunnerHarness {
 }
 
 #[tokio::test]
-async fn golden_create_lobby_ack_client_write_lobby_password_replay_and_commands_done() {
-    let h = runner_setup("None", HashMap::new()).await;
-    let created = body_of("16.18", "create-lobby");
-    let after = created.clone();
-    lobby_world(&h.fake, None, move |_, path, world| {
-        (path == "/lol-lobby/v2/lobby").then(|| {
-            *world.lock().unwrap() = Some(after.clone());
-            Route::json(200, &after)
-        })
-    });
-    let create = envelope(
+async fn golden_switch_side_ack_client_write_replay_and_commands_done() {
+    let h = runner_setup("Lobby", HashMap::new()).await;
+    lobby_world(
+        &h.fake,
+        Some(body_of("16.18", "create-lobby")),
+        |_, path, world| {
+            (path == "/lol-lobby/v2/lobby/team/TEAM2").then(|| {
+                let mut lobby = world.lock().unwrap().clone().unwrap();
+                let moved = lobby["gameConfig"]["customTeam100"].clone();
+                lobby["gameConfig"]["customTeam200"] = moved;
+                lobby["gameConfig"]["customTeam100"] = json!([]);
+                *world.lock().unwrap() = Some(lobby);
+                Route {
+                    status: 204,
+                    body: String::new(),
+                    delay: Duration::ZERO,
+                }
+            })
+        },
+    );
+    let switch = envelope(
         "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-        "create_lobby",
-        json!({ "lobbyName": "customs-verify", "lobbyPassword": "golden-pw-4821" }),
+        "switch_side",
+        json!({ "targetSide": 200 }),
     );
     // The disconnected poll at start answers nothing (the real server's contract).
     until(|| !h.api.polls.lock().unwrap().is_empty(), "first poll").await;
     assert!(!h.api.polls.lock().unwrap()[0], "commands-poll--disconnected");
-    h.run(vec![create.clone()]).await;
+    h.run(vec![switch.clone()]).await;
     assert!(
         *h.api.polls.lock().unwrap().last().unwrap(),
         "commands-poll--connected"
     );
-    h.assert_golden("command-ack--create-lobby");
     let writes = h.fake.writes();
     assert_eq!(writes.len(), 1);
-    let sent: Value = serde_json::from_str(&writes[0].body).unwrap();
-    assert_eq!(sent, golden_body("lcu-create-lobby--create-lobby"));
-
-    // The lobby watcher carries the password this process set.
-    let poster = ScriptedPoster::ok();
-    let (lobby, _signals) = spawn_lobby_watcher(
-        poster.clone(),
-        LobbyWatcherOptions {
-            password_for: Some(h.runner.password_for()),
-            ..Default::default()
-        },
-    );
-    lobby.send(MachineEvent::Connected(h.context.clone()));
-    lobby.send(MachineEvent::Event(Arc::new(RoutedEvent::Lobby {
-        event_type: LcuEventType::Create,
-        lobby: Some(Box::new(serde_json::from_value(created).unwrap())),
-    })));
-    until(|| poster.posted().len() == 1, "lobby post").await;
-    assert_eq!(
-        poster.posted_json()[0],
-        golden_body("lobby--create-lobby--with-password")
-    );
+    let sent = if writes[0].body.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_str(&writes[0].body).unwrap()
+    };
+    assert_eq!(sent, golden_body("lcu-switch-side--lobby-team"));
 
     // A lost ack: the same id again is re-acked from the record with no client call.
-    h.api.connected_pages.lock().unwrap().0.push(vec![create]);
+    h.api.connected_pages.lock().unwrap().0.push(vec![switch]);
     h.runner.poll_now();
     until(|| h.api.answers().len() == 2, "replayed ack").await;
     assert_eq!(
         h.api.answers()[1].2,
-        golden_body("command-ack--create-lobby--replayed")
+        golden_body("command-ack--switch-side--replayed")
     );
     assert_eq!(h.fake.writes().len(), 1, "execute once");
     let done: Value =
         serde_json::from_str(&std::fs::read_to_string(h.state.join("commands-done.json")).unwrap()).unwrap();
-    assert_eq!(done, golden_file("commands-done-file--create-lobby")["file"]);
+    assert_eq!(done, golden_file("commands-done-file--switch-side")["file"]);
 }
 
-/// M17.17: `pickType` names the entry the create body carries. Blind is 3100 and draft 3110 on 16.18, both
-/// joined from the dialog data and the queue list; an old payload with no `pickType` is draft.
+/// M22.11: the server no longer queues `create_lobby` or `invite`. A stray row of either (an old server) is an
+/// unknown kind: a logged `malformed_payload` nack, and the client never hears about it.
 #[tokio::test]
-async fn pick_type_blind_sends_the_blind_entry_and_draft_or_absent_the_draft_one() {
-    let created = body_of("16.18", "create-lobby");
-    let base = json!({ "lobbyName": "customs-verify", "lobbyPassword": "golden-pw-4821" });
-    let mut blind = base.clone();
-    blind["pickType"] = json!("blind");
-    let mut draft = base.clone();
-    draft["pickType"] = json!("draft");
-    for (label, payload, queue_id) in [
-        ("blind", blind, 3100),
-        ("draft", draft, 3110),
-        ("absent", base, 3110),
-    ] {
-        let h = runner_setup("None", HashMap::new()).await;
-        let after = created.clone();
-        lobby_world(&h.fake, None, move |_, path, world| {
-            (path == "/lol-lobby/v2/lobby").then(|| {
-                *world.lock().unwrap() = Some(after.clone());
-                Route::json(200, &after)
-            })
-        });
+async fn create_lobby_and_invite_are_unknown_kinds_now() {
+    for kind in ["create_lobby", "invite"] {
+        let h = runner_setup("Lobby", HashMap::new()).await;
         h.run(vec![envelope(
-            "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-            "create_lobby",
-            payload,
+            "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
+            kind,
+            json!({ "puuid": FRIEND, "summonerId": null }),
         )])
         .await;
-        let writes = h.fake.writes();
-        assert_eq!(writes.len(), 1, "{label}");
-        let sent: Value = serde_json::from_str(&writes[0].body).unwrap();
-        assert_eq!(sent["queueId"], queue_id, "{label}");
+        let (_, _, body) = h.last_answer();
         assert_eq!(
-            sent["customGameLobby"]["configuration"]["mutators"]["id"], queue_id,
-            "{label}"
+            body["error"],
+            format!("malformed_payload: unknown kind \"{kind}\""),
+            "{kind}"
         );
-        let golden = if label == "blind" {
-            "lcu-create-lobby--create-lobby--blind"
-        } else {
-            "lcu-create-lobby--create-lobby"
-        };
-        assert_eq!(sent, golden_body(golden), "{label}");
+        assert_eq!(body["retryable"], false, "{kind}");
+        assert!(
+            h.fake.requests.lock().unwrap().is_empty(),
+            "{kind}: no client call"
+        );
     }
-}
-
-/// A `pickType` outside the schema's enum is `malformed_payload` and never reaches the client.
-#[tokio::test]
-async fn an_unknown_pick_type_is_a_malformed_payload_with_no_client_call() {
-    let h = runner_setup("None", HashMap::new()).await;
-    lobby_world(&h.fake, None, |_, _, _| None);
-    let payload =
-        json!({ "lobbyName": "customs-verify", "lobbyPassword": "golden-pw-4821", "pickType": "random" });
-    h.run(vec![envelope(
-        "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
-        "create_lobby",
-        payload,
-    )])
-    .await;
-    let (_, _, body) = h.last_answer();
-    assert_eq!(
-        body["error"],
-        "malformed_payload: pickType: Invalid option: expected one of \"draft\"|\"blind\""
-    );
-    assert!(h.fake.requests.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -683,80 +627,6 @@ fn golden_poll_paths_and_the_switch_side_write_have_no_body() {
     assert_eq!(
         (g["path"].as_str().unwrap(), &g["body"]),
         ("/lol-lobby/v2/lobby/team/TEAM2", &Value::Null)
-    );
-}
-
-#[tokio::test]
-async fn golden_invite_sent_with_its_client_write() {
-    let h = runner_setup("Lobby", HashMap::new()).await;
-    lobby_world(&h.fake, Some(body_of("16.18", "create-lobby")), |_, path, _| {
-        (path == "/lol-lobby/v2/lobby/invitations")
-            .then(|| Route::json(200, &body_of("16.18", "lobby-invitations")))
-    });
-    h.run(vec![envelope(
-        "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
-        "invite",
-        json!({ "puuid": FRIEND, "summonerId": "55838205" }),
-    )])
-    .await;
-    h.assert_golden("command-ack--invite--sent");
-    let sent: Value = serde_json::from_str(&h.fake.writes()[0].body).unwrap();
-    assert_eq!(sent, golden_body("lcu-invite--lobby-invitations"));
-}
-
-#[tokio::test]
-async fn golden_invite_already_pending_and_already_member_without_a_write() {
-    for (fixture, payload, golden) in [
-        (
-            "lobby",
-            json!({ "puuid": "ae4f66e8-745c-5b24-8315-dc046c8bba96", "summonerId": null }),
-            "command-ack--invite--already-pending",
-        ),
-        (
-            "lobby--two-players",
-            json!({ "puuid": FRIEND, "summonerId": "53574489" }),
-            "command-ack--invite--already-member",
-        ),
-    ] {
-        let h = runner_setup("Lobby", HashMap::new()).await;
-        lobby_world(&h.fake, Some(body_of("16.17", fixture)), |_, _, _| None);
-        h.run(vec![envelope(
-            "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
-            "invite",
-            payload,
-        )])
-        .await;
-        h.assert_golden(golden);
-        assert!(h.fake.writes().is_empty());
-    }
-}
-
-#[tokio::test]
-async fn golden_invite_client_rejected_lists_both_answers() {
-    let h = runner_setup("Lobby", HashMap::new()).await;
-    lobby_world(&h.fake, Some(body_of("16.17", "lobby")), |_, path, _| {
-        (path == "/lol-lobby/v2/lobby/invitations")
-            .then(|| Route::json(404, &body_of("16.17", "lobby-invitations--no-lobby")))
-    });
-    h.run(vec![envelope(
-        "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
-        "invite",
-        json!({ "puuid": "b3b781b3-9a77-5061-8054-817d2355b2e6", "summonerId": "80934556" }),
-    )])
-    .await;
-    h.assert_golden("command-nack--invite--client-rejected");
-    let bodies: Vec<Value> = h
-        .fake
-        .writes()
-        .iter()
-        .map(|w| serde_json::from_str(&w.body).unwrap())
-        .collect();
-    assert_eq!(
-        bodies,
-        [
-            json!([{ "toSummonerId": 80934556 }]),
-            json!([{ "toPuuid": "b3b781b3-9a77-5061-8054-817d2355b2e6" }])
-        ]
     );
 }
 
@@ -811,31 +681,9 @@ async fn golden_switch_side_with_its_client_write_and_already_there() {
 }
 
 #[tokio::test]
-async fn golden_nacks_already_in_lobby_client_rejected_no_lobby_wrong_phase_unknown_kind_malformed() {
+async fn golden_nacks_wrong_phase_unknown_kind_malformed() {
     let id = "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f";
-    let create = json!({ "lobbyName": "customs-verify", "lobbyPassword": "golden-pw-4821" });
     let cases: Vec<(&str, Option<Value>, &str, Value, &str)> = vec![
-        (
-            "Lobby",
-            Some(body_of("16.17", "lobby")),
-            "create_lobby",
-            create.clone(),
-            "command-nack--create-lobby--already-in-lobby",
-        ),
-        (
-            "Lobby",
-            None,
-            "create_lobby",
-            create,
-            "command-nack--create-lobby--client-rejected",
-        ),
-        (
-            "Lobby",
-            None,
-            "invite",
-            json!({ "puuid": FRIEND, "summonerId": "53574489" }),
-            "command-nack--invite--no-lobby",
-        ),
         (
             "InProgress",
             None,
@@ -854,10 +702,7 @@ async fn golden_nacks_already_in_lobby_client_rejected_no_lobby_wrong_phase_unkn
     ];
     for (phase, lobby, kind, payload, golden) in cases {
         let h = runner_setup(phase, HashMap::new()).await;
-        lobby_world(&h.fake, lobby, |_, path, _| {
-            (path == "/lol-lobby/v2/lobby")
-                .then(|| Route::json(500, &body_of("16.17", "create-lobby--legacy-blind")))
-        });
+        lobby_world(&h.fake, lobby, |_, _, _| None);
         h.run(vec![envelope(id, kind, payload)]).await;
         h.assert_golden(golden);
         if golden.ends_with("wrong-phase")
@@ -893,11 +738,11 @@ async fn golden_not_connected_is_retryable_and_not_recorded() {
 
 #[tokio::test]
 async fn check_10_the_gate_refuses_a_kind_flagged_off_with_no_client_call() {
-    let h = runner_setup("Lobby", HashMap::from([(LobbyWriteKind::Invite, false)])).await;
+    let h = runner_setup("Lobby", HashMap::from([(LobbyWriteKind::SwitchSide, false)])).await;
     h.run(vec![envelope(
         "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
-        "invite",
-        json!({ "puuid": FRIEND, "summonerId": null }),
+        "switch_side",
+        json!({ "targetSide": 200 }),
     )])
     .await;
     let (_, _, body) = h.last_answer();
@@ -905,7 +750,7 @@ async fn check_10_the_gate_refuses_a_kind_flagged_off_with_no_client_call() {
         body["error"]
             .as_str()
             .unwrap()
-            .starts_with("endpoint_unverified: Invite (POST /lol-lobby/v2/lobby/invitations)")
+            .starts_with("endpoint_unverified: Switch side (POST /lol-lobby/v2/lobby/team/{team})")
     );
     assert!(h.fake.requests.lock().unwrap().is_empty());
 }
@@ -976,7 +821,7 @@ fn executed_store_keeps_the_newest_200_drops_entries_older_than_a_day_and_starts
     let mut store = ExecutedStore::new(dir.path(), Arc::new(move || now));
     let entry = |id: String, at: &str| engine::watchers::CommandsDoneEntry {
         id,
-        kind: "invite".into(),
+        kind: "switch_side".into(),
         at: at.into(),
         outcome: engine::watchers::CommandOutcome::Done,
         result: Some(serde_json::Map::new()),
