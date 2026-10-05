@@ -262,7 +262,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
       standing?: 'normal' | 'fearless';
       rule: string | null;
       rated: boolean;
-      ratedOverride: boolean | null;
+      override: boolean | null;
       minute: number;
     },
     spun?: string,
@@ -275,7 +275,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
         state: {
           standing: next.standing ?? 'fearless',
           pending: ruleFromKey(next.rule),
-          rated: next.ratedOverride,
+          rated: next.override,
           nextRated: next.rated,
           updatedAt: T(next.minute),
         },
@@ -294,7 +294,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     expect(chip()).toBe('Rated');
     fireEvent.click(toggle());
     expect(chip()).toBe('Not rated');
-    await net.release(cardAnswer({ rule: null, rated: false, ratedOverride: false, minute: 4 }));
+    await net.release(cardAnswer({ rule: null, rated: false, override: false, minute: 4 }));
     expect(chip()).toBe('Not rated');
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     expect(asks.asks).toHaveLength(0);
@@ -314,7 +314,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     expect(title()).toBe('Class wars');
     expect(chip()).toBe('Not rated');
     expect(card().textContent).toMatch(/Tanks only · \d+ open/);
-    await net.release(cardAnswer({ rule: 'class:Tank', rated: false, ratedOverride: null, minute: 4 }));
+    await net.release(cardAnswer({ rule: 'class:Tank', rated: false, override: null, minute: 4 }));
     expect(title()).toBe('Class wars');
     expect(screen.queryByRole('button', { name: 'Set mode' })).toBeNull();
     expect(asks.asks).toHaveLength(0);
@@ -340,7 +340,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }));
     await tonight();
     fireEvent.click(screen.getByRole('button', { name: /^Spin/ }));
-    await net.release(cardAnswer({ rule: 'mirror', rated: true, ratedOverride: null, minute: 4 }, 'mirror'));
+    await net.release(cardAnswer({ rule: 'mirror', rated: true, override: null, minute: 4 }, 'mirror'));
     expect(title()).toBe('Mirror match');
     expect(document.querySelector('[data-slot="spin-reveal"]')).toHaveTextContent('Spin says:');
     expect(asks.asks).toHaveLength(0);
@@ -357,7 +357,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     expect(title()).toBe('Class wars');
     expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
-    await net.release(cardAnswer({ rule: 'class:Mage', rated: false, ratedOverride: null, minute: 4 }));
+    await net.release(cardAnswer({ rule: 'class:Mage', rated: false, override: null, minute: 4 }));
     expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
   });
 

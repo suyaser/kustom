@@ -317,11 +317,17 @@ if (stack === null) {
   describe('POST /api/admin/mode', () => {
     it('lets the owner and an admin set it, and posts nothing to Discord', async () => {
       const byOwner = await setMode(FAY, 'normal');
-      expect(byOwner).toMatchObject({ status: 200, json: { ok: true, mode: 'normal', changed: true } });
+      expect(byOwner).toMatchObject({
+        status: 200,
+        json: { ok: true, state: { standing: 'normal' }, changed: true },
+      });
       expect(await modeRow(groups.f)).toMatchObject({ mode: 'normal', set_by: idOf.get(FAY) });
 
       const byAdmin = await setMode(ALI, 'fearless');
-      expect(byAdmin).toMatchObject({ status: 200, json: { ok: true, mode: 'fearless', changed: true } });
+      expect(byAdmin).toMatchObject({
+        status: 200,
+        json: { ok: true, state: { standing: 'fearless' }, changed: true },
+      });
       expect(await modeRow(groups.f)).toMatchObject({ mode: 'fearless', set_by: idOf.get(ALI) });
 
       expect(posts).toEqual([]);
@@ -330,7 +336,10 @@ if (stack === null) {
     it('a repeat of the current mode is a 200 that writes nothing', async () => {
       const before = await modeRow(groups.f);
       const again = await setMode(FAY, 'fearless');
-      expect(again).toMatchObject({ status: 200, json: { ok: true, mode: 'fearless', changed: false } });
+      expect(again).toMatchObject({
+        status: 200,
+        json: { ok: true, state: { standing: 'fearless' }, changed: false },
+      });
       expect(await modeRow(groups.f)).toEqual(before);
     });
 
@@ -451,7 +460,10 @@ if (stack === null) {
     });
 
     it("Fearless again: the pool equals the pool after A, and B's champions are not in it", async () => {
-      expect((await setMode(FAY, 'fearless')).json).toMatchObject({ mode: 'fearless', changed: true });
+      expect((await setMode(FAY, 'fearless')).json).toMatchObject({
+        state: { standing: 'fearless' },
+        changed: true,
+      });
       expect(await poolIds(groups.f)).toEqual(range(1, 10));
       expect(await stampOf(gameB)).toBe('normal');
       expect(posts).toEqual([]);

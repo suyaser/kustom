@@ -590,10 +590,10 @@ if (stack === null || !ready) {
     const anon = createClient<Database>(stack.url, stack.anonKey, { auth: { persistSession: false } });
 
     /** What Tonight's server render reads for the switch (anon key, `loadModeFacts`), and its `updated_at`. */
-    async function tonightRated(): Promise<{ rated: boolean; version: number }> {
+    async function tonightRated(): Promise<{ rated: boolean; at: number }> {
       const facts = await loadModeFacts(anon, groups.g);
       if (facts.state === null) throw new Error('Tonight could not read the card state');
-      return { rated: nextRated(facts.state), version: Date.parse(facts.standing.since ?? '') };
+      return { rated: nextRated(facts.state), at: Date.parse(facts.standing.since ?? '') };
     }
 
     function formRequest(fields: Record<string, string>) {
@@ -620,7 +620,7 @@ if (stack === null || !ready) {
       expect(off).not.toHaveProperty('next');
       const read1 = await tonightRated();
       expect(read1.rated).toBe(false);
-      expect(read1.version).toBeGreaterThan(start.version);
+      expect(read1.at).toBeGreaterThan(start.at);
 
       const on = await card({ rated: true });
       expect(on).toMatchObject({
@@ -631,7 +631,7 @@ if (stack === null || !ready) {
       });
       const read2 = await tonightRated();
       expect(read2.rated).toBe(true);
-      expect(read2.version).toBeGreaterThan(read1.version);
+      expect(read2.at).toBeGreaterThan(read1.at);
 
       // The same value twice is still a write (it is a choice for the next game).
       const again = await card({ rated: true });
