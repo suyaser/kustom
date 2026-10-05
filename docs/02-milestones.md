@@ -13522,7 +13522,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   no channel connected.
 
   *Landed 2026-10-05 (a99ab356, reviewer pass). Follow-ups: degrade to 1200 when the player lookup fails instead of dropping the post; afterIngest reuses afterResponse.*
-- [ ] **M21.7** After the game, every surface prints the odds of the teams that played. *(owners:
+- [x] **M21.7** After the game, every surface prints the odds of the teams that played. *(owners:
   `platform-engineer` for the Discord and loader halves, `web-engineer` for Tonight; after M21.4, can run beside
   M21.5)* Route each reader that prints a rolled split's odds through `gameReceiptOf` (the one rule), so a `custom`
   game shows pre-game odds (or none when not rated) and its `Upset` comes from them: the Discord result post
@@ -13538,6 +13538,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   the Tonight balanced/in-game `rolled` path reads `blue_win_prob` for a finished game without `teamsMatchSplit`;
   (4) the AI recap's facts for the swapped game say `upset` by the pre-game odds (already true, asserted).
 
+  *Landed 2026-10-05 (97e6fa97, reviewer pass). Acceptance (2) superseded (decision row M21.7). Open for product: kickoff odds on compact surfaces for unrolled games.*
 - [x] **M21.8** The balancer remembers the teams that were played. *(owner: `platform-engineer`; after M21.4;
   both halves wait on the owner's yes, OPEN item 5, because (a) supersedes the 2026-09-08 `lastSplit` row)* (a)
   `last game's teams again` reads the most recent **played** teams of these same ten (the latest game whose ten
