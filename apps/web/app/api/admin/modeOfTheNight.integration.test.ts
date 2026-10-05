@@ -449,7 +449,12 @@ if (stack === null || !ready) {
       const aram = await openAndRoll();
       const abyss = await record(aram.partyId, { gameMode: 'ARAM' });
       // Owner bug 2026-10-05: an ARAM is never a Rift rule game; the rule is still handed back.
-      expect(abyss.game).toMatchObject({ rule: null, rule_class_tag: null, rated: false, rule_checked: false });
+      expect(abyss.game).toMatchObject({
+        rule: null,
+        rule_class_tag: null,
+        rated: false,
+        rule_checked: false,
+      });
       expect(await cardRow()).toMatchObject({ pending_rule: 'class', pending_class_tag: 'Support' });
 
       // M20.6/M20.7 (decision row 2026-10-05): a live Rift game with no lock plays the pending
