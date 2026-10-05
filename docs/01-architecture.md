@@ -84,6 +84,8 @@ game_players   (game_id, player_id, side, role null, champion_id, kills, deaths,
                 damage_to_objectives null)                      -- 0015, M7.14
                 index (group_id, player_id) include (game_id)   -- 0042
 companion_tokens (id, player_id, token_hash, label, last_seen_at, revoked_at null, created_at)
+                current_party_id null, current_party_at null   -- 0050, M22.3: the party of the token's last
+                accepted lobby post, written only when it changes; liveTables (lib/liveTables.ts) reads it
 companion_commands (id, target_player_id, kind, payload jsonb, status, created_at, acked_at,
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
 discord_config (group_id pk, guild_id, webhook_url, results_channel_id,   -- pk group_id 0020, M13.4
