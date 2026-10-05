@@ -119,6 +119,21 @@ describe('GamesList', () => {
     }
   });
 
+  it('a remake reads Remake: no side, no odds, no note, still a link (05-design.md 15.4)', () => {
+    const { container } = render(
+      <GamesList
+        view={view({
+          items: [item({ remake: true, durationLabel: '4 min' })],
+        })}
+        base={BASE}
+      />,
+    );
+    const row = screen.getByRole('link', { name: /Remake/ });
+    expect(row).toHaveAttribute('href', `${BASE}/game-1`);
+    expect(row.textContent).not.toMatch(/won|was \d+%|50–50/);
+    expect(container.querySelector('li svg')).toBeNull();
+  });
+
   it("adds the viewer's own line on a game they played, and the filtered player's", () => {
     render(
       <GamesList

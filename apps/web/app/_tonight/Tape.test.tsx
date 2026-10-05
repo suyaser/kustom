@@ -49,6 +49,27 @@ describe('the tape names the rule', () => {
     expect(screen.getByText('1 played')).toBeInTheDocument();
   });
 
+  it('a remake (05-design.md 15.2): Remake, its minutes, one link to its page, no side, not played', () => {
+    render(
+      <Tape
+        tape={[
+          tapeEntry(),
+          tapeEntry({ lobbyId: 'l2', result: null, remake: { gameId: 'remake-1', durationS: 245 } }),
+          tapeEntry({ lobbyId: 'l3', result: null }),
+        ]}
+        group={ORIGINAL_GROUP}
+      />,
+    );
+    const tile = screen.getByRole('link', { name: 'Game 2, Remake, 4 minutes' });
+    expect(tile).toHaveAttribute('href', '/g/customs/games/remake-1');
+    expect(tile).toHaveTextContent('4 min');
+    expect(tile.textContent).not.toMatch(/BLUE|RED|won|MVP|not rated/i);
+    expect(tile.querySelector('[data-side-fill]')).toBeNull();
+    // A lobby that never produced a game keeps `No result`, with no link.
+    expect(screen.getByText('No result').closest('a')).toBeNull();
+    expect(screen.getByText('1 played')).toBeInTheDocument();
+  });
+
   it('a plain game is unchanged: not rated on a game played not rated, nothing on a rated game', () => {
     const notRated = draw(result({ rated: false }));
     expect(screen.getByText('not rated')).toBeInTheDocument();

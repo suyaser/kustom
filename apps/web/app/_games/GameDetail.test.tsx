@@ -102,6 +102,15 @@ describe('GameDetail', () => {
     expect(screen.getByRole('button', { name: 'Restore' }).closest('header')).not.toBeNull();
   });
 
+  it('a remake: h1 Remake, no receipt, the teams and scoreboard stay (05-design.md 15.4)', () => {
+    draw(game({ remake: true, rated: false, ratedStamp: false, durationLabel: '4 min' }));
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Remake']);
+    expect(screen.queryByRole('region', { name: 'The odds were' })).toBeNull();
+    expect(screen.queryByText('How the bot decided')).toBeNull();
+    expect(screen.getByRole('region', { name: 'Scoreboard' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Blue team' })).toBeInTheDocument();
+  });
+
   it('a game that ended early says so (M23.1)', () => {
     draw(game({ voidReason: 'early-end', ratedStamp: false, rated: false }));
     expect(screen.getByText('Not rated · ended early')).toBeInTheDocument();

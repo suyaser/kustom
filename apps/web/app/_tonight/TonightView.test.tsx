@@ -1336,9 +1336,10 @@ describe('finished: the odds of the teams that played (M21.7)', () => {
       red: result.red.map((seat) => ({ ...seat, rBefore: null, rAfter: null })),
     });
 
-    it('teams block: GAME OVER, the teams that played, no winner and no receipt', () => {
+    it('teams block: REMAKE, the teams that played, no winner and no receipt', () => {
       drawWith(short(swapped(workedResult({ oddsKind: 'rolled' }))));
-      expect(h1()).toBe('GAME OVER');
+      expect(h1()).toBe('REMAKE');
+      expect(screen.getAllByText('No result, so no Rating change.').length).toBeGreaterThan(0);
       expect(sideOf(VIEWER_PUUID)).toBe(
         teams.blue.some((seat) => seat.puuid === VIEWER_PUUID) ? 'Red team' : 'Blue team',
       );
@@ -1355,7 +1356,7 @@ describe('finished: the odds of the teams that played (M21.7)', () => {
       render(
         <TonightView {...fixture} snapshot={{ ...fixture.snapshot, lobby: view }} group={ORIGINAL_GROUP} />,
       );
-      expect(h1()).toBe('GAME OVER');
+      expect(h1()).toBe('REMAKE');
       expect(screen.queryByText('Won')).toBeNull();
       expect(screen.queryByRole('region', { name: TITLE_FINISHED })).toBeNull();
       expect(screen.queryByText(NO_ODDS)).toBeNull();

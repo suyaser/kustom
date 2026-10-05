@@ -103,7 +103,7 @@ describe('the strip headline, one per state', () => {
     expect(withoutTeams.sentence).toBe('');
   });
 
-  it('M23.2: a voided game says why, not the plain not-rated sentence', () => {
+  it('M23.2, 05-design.md 15.3: a voided game says why, not the plain not-rated sentence', () => {
     const voided = (voidReason: string | null) =>
       stripOf(
         snapshot(
@@ -118,19 +118,20 @@ describe('the strip headline, one per state', () => {
           }),
         ),
       ).sentence;
-    expect(voided('early-end')).toBe('Not rated · ended early');
-    expect(voided('admin')).toBe('Not rated · voided');
+    expect(voided('early-end')).toBe('Ended early, so no Rating change.');
+    expect(voided('admin')).toBe('Voided, so no Rating change.');
     expect(voided(null)).toBe('Not rated, so no Rating change.');
   });
 
-  it('a remake is no result: no winner announced, teams or none', () => {
+  it('a remake is no result (05-design.md 15.1): REMAKE, its sentence, said once, teams or none', () => {
     const remake = workedResult({ rated: false, durationS: 240 });
     for (const teams of [workedTeams(), null]) {
       const state = tonightState(snapshot(lobbyView({ status: 'finished', teams, result: remake })));
       const strip = header(state);
-      expect(strip.headline).toBe('GAME OVER');
-      expect(strip.sentence).toBe('');
-      expect(announcement(state, strip, null)).toBe('');
+      expect(strip.headline).toBe('REMAKE');
+      expect(strip.sentence).toBe('No result, so no Rating change.');
+      expect(strip.live).toBe(false);
+      expect(announcement(state, strip, null)).toBe('Remake. No result.');
     }
     const played = tonightState(
       snapshot(lobbyView({ status: 'finished', teams: workedTeams(), result: workedResult() })),

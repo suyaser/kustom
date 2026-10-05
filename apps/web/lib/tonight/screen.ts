@@ -210,6 +210,12 @@ export function announcement(state: TonightState, header: HeaderView, viewerPuui
       if (state.lobby.status === 'in_game') {
         return announceGameStarted(spokenSeat(viewerSeat(state.teams, viewerPuuid)));
       }
+      // A finished remake's teams block says so once (05-design.md 15.1); any other unrated finish
+      // has nothing to say (M3.4).
+      if (state.lobby.status === 'finished') {
+        const played = state.lobby.result;
+        return played != null && isRemake(played.durationS) ? REMAKE_ANNOUNCEMENT : '';
+      }
       if (state.lobby.status !== 'balanced') return '';
       const chosen = chosenSplit(state.teams.stored);
       const odds = chosen === null ? '' : barSentence(chosen.blueWinProb);

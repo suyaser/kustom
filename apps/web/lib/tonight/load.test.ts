@@ -272,17 +272,24 @@ describe('what a tape row carries', () => {
     });
   });
 
-  it('gives a remake (300 s or less) no result: no winner, not played, whatever it was rated', () => {
+  it('gives a remake (300 s or less) no result, but keeps its game for the tile: no winner, not played', () => {
     const game = source().games[0] as TapeSource['games'][number];
     const unrated = source().gamePlayers.map((row) => ({ ...row, r_before: null, r_after: null }));
     const [row] = assembleTape(
       source({ games: [{ ...game, duration_s: 300 }], gamePlayers: unrated }),
       CLOCK,
     );
-    expect(row).toMatchObject({ status: 'finished', result: null });
-    expect(
-      assembleTape(source({ games: [{ ...game, duration_s: 301 }], gamePlayers: unrated }), CLOCK)[0]?.result,
-    ).not.toBeNull();
+    expect(row).toMatchObject({
+      status: 'finished',
+      result: null,
+      remake: { gameId: game.id, durationS: 300 },
+    });
+    const [played] = assembleTape(
+      source({ games: [{ ...game, duration_s: 301 }], gamePlayers: unrated }),
+      CLOCK,
+    );
+    expect(played?.result).not.toBeNull();
+    expect(played).not.toHaveProperty('remake');
   });
 
   it('M23.2: carries why a game was voided, and nothing for one that was not', () => {
