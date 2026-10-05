@@ -250,7 +250,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
   const title = () => within(card()).getByRole('heading', { level: 2 }).textContent;
   const chip = () => (within(card()).queryByText('Not rated') === null ? 'Rated' : 'Not rated');
 
-  async function tonight(key: 'idle' | 'balanced' = 'idle', options: TonightFixtureOptions = {}) {
+  async function tonight(key: 'idle' | 'balanced' | 'in-game' = 'idle', options: TonightFixtureOptions = {}) {
     const { connection: _c, ...fixture } = tonightStateFixture(key, { now: NOW, ...options });
     render(<TonightView {...fixture} viewer={ADMIN_VIEWER} group={ORIGINAL_GROUP} />);
     await screen.findByRole('switch', { name: 'Rated' });
@@ -349,10 +349,11 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     asks.stop();
   });
 
-  it("after Roll, the card stays this game's; Set mode moves the admin's Next game picker on the tap", async () => {
+  // M20.18: in game (balanced, the picker is this game's: thisGameControls.test.tsx).
+  it("in game, the card stays this game's; Set mode moves the admin's Next game picker on the tap", async () => {
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
-    await tonight('balanced', { rule: 'class:Tank' });
+    await tonight('in-game', { rule: 'class:Tank' });
     expect(title()).toBe('Class wars');
     const picker = () => screen.getByRole('combobox', { name: 'Next game' }) as HTMLSelectElement;
     expect(picker().value).toBe('fearless');

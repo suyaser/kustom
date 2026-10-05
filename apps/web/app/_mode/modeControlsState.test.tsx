@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { MODE_APPLIES_NEXT_GAME, MODE_READ_FAILED } from '@/lib/mode/copy';
-import { RATED_OFF } from '@/lib/mode/ruleCopy';
+import { RATED_OFF, RATED_OFF_THIS } from '@/lib/mode/ruleCopy';
 import { ADMIN_VIEWER, type TonightFixtureOptions, tonightStateFixture } from '../_tonight/fixtures';
 import { TonightView } from '../_tonight/TonightView';
 
@@ -12,9 +12,12 @@ import { TonightView } from '../_tonight/TonightView';
  * - **Owner bug 1, "the mode resets to Normal after Roll".** The controls were fed the state the
  *   record *would* leave (`upcomingState`), a prediction. M20.8: Roll moves the rule onto the
  *   lobby, so after Roll the card is this game (the lock) and the controls are the next game (the
- *   row, as set), under `Changes apply from the next game.`; nothing is predicted.
+ *   row, as set), under `Changes apply from the next game.`; nothing is predicted. M20.18: that
+ *   holds in game; while balanced the controls are this game's (the lock, as set), under the
+ *   `This game` legend.
  * - **Owner bug 3, "picking it again doesn't stick".** After Roll the row is empty, so picking this
- *   game's rule again is a plain change and queues it for the next game.
+ *   game's rule again is a plain change and queues it for the next game (in game; M20.18: while
+ *   balanced the picker is this game's, so there is nothing to queue).
  * - **Audit defect 2.** Tonight draws the card in a different place per phase, so a Roll mounted the
  *   controls afresh and lost an unsaved pick, a write in flight and the outcome line.
  * - **A failed mode read rendered as Normal.**
@@ -36,7 +39,21 @@ afterEach(() => {
 });
 
 describe('owner bug 1: after Roll the controls show what is set for the next game, never a prediction', () => {
-  for (const key of ['balanced', 'in-game'] as const) {
+  it('M20.18, balanced: the card is this game, and so are the select and the switch (the lock)', async () => {
+    render(page('balanced', { rule: 'class:Tank', mode: 'normal' }));
+    await screen.findByRole('switch', { name: 'Rated' });
+    expect(within(card()).getByRole('heading', { level: 2 })).toHaveTextContent('Class wars');
+    expect(within(card()).getByText('Not rated')).toBeInTheDocument();
+    expect(within(card()).queryByText(MODE_APPLIES_NEXT_GAME)).toBeNull();
+    const thisGame = screen.getByRole('group', { name: 'This game' });
+    expect(within(thisGame).getByRole('combobox', { name: 'Mode' })).toBe(select());
+    expect(within(thisGame).getByRole('switch', { name: 'Rated' })).toBe(toggle());
+    expect(select().value).toBe('class:Tank');
+    expect(toggle()).toHaveAttribute('aria-checked', 'false');
+    expect(toggle()).toHaveAccessibleDescription(RATED_OFF_THIS);
+  });
+
+  for (const key of ['in-game'] as const) {
     it(`${key}: the card is this game; the select and the switch are the row, under the next-game line`, async () => {
       render(page(key, { rule: 'class:Tank', mode: 'normal' }));
       await screen.findByRole('switch', { name: 'Rated' });
@@ -61,7 +78,7 @@ describe('owner bug 1: after Roll the controls show what is set for the next gam
 });
 
 describe('owner bug 3: the locked rule can be queued again for the next game', () => {
-  it('after Roll, picking region wars again posts it, and the next-game line says so', async () => {
+  it('in game, picking region wars again posts it, and the next-game line says so', async () => {
     const fetchMock = vi.fn(
       async () =>
         ({
@@ -82,7 +99,7 @@ describe('owner bug 3: the locked rule can be queued again for the next game', (
         }) as Response,
     );
     vi.stubGlobal('fetch', fetchMock);
-    render(page('balanced', { rule: 'region' }));
+    render(page('in-game', { rule: 'region' }));
     await screen.findByRole('switch', { name: 'Rated' });
     expect(select().value).toBe('fearless');
     fireEvent.change(select(), { target: { value: 'region' } });
@@ -134,7 +151,8 @@ describe('audit defect 2: the controls keep their state when Roll moves the card
     await screen.findByRole('switch', { name: 'Rated' });
     fireEvent.click(toggle());
     expect(toggle()).toHaveAttribute('aria-disabled', 'true');
-    view.rerender(page('balanced'));
+    // Roll moved the switch onto the lock (the render after it); balanced, the switch is this game's.
+    view.rerender(page('balanced', { rated: false }));
     await screen.findByRole('switch', { name: 'Rated' });
     expect(toggle()).toHaveAttribute('aria-disabled', 'true');
     await act(async () => {
