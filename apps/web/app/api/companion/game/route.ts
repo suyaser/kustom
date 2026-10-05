@@ -52,7 +52,7 @@ export const maxDuration = 60;
  *
  * `in_progress` moves the party's live lobby to `in_game`, which freezes its roster (M2.9)
  * for good — from here the row is only ever `finished` by an eog block or `dropped` by the
- * two-hour sweep (M5.11).
+ * two-hour sweep (M5.11), or `dropped` early by the party's next game (M21.11, below).
  * `eog` writes the game, runs the rating fold and moves the lobby to `finished` (M2.5). Both
  * are idempotent: `eog` dedupes on `lcu_game_id` and the fold claims the game with the null
  * `mu_after` columns, so everyone in the lobby who runs a companion posts the same block and

@@ -211,7 +211,9 @@ export interface GameLobbyMember {
  */
 export function lobbyFitsGame(members: readonly GameLobbyMember[], participants: readonly string[]): boolean {
   const played = new Set(participants);
-  const sided = members.filter((member) => !member.isSpectator && (member.side === 100 || member.side === 200));
+  const sided = members.filter(
+    (member) => !member.isSpectator && (member.side === 100 || member.side === 200),
+  );
   if (!sided.every((member) => played.has(member.puuid))) return false;
   return members.length === 0 || members.some((member) => played.has(member.puuid));
 }
