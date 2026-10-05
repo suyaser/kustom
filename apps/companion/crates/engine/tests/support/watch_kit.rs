@@ -7,12 +7,13 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use engine::api::wire::LobbyPayload;
+use engine::api::wire::{LobbyLeavePayload, LobbyPayload};
 use engine::watchers::lobby::{Cancel, LobbyAnswer, LobbyPoster, PostOutcome, Scheduler};
 
 /// Records every body; answers from a script where the last entry repeats (like the TS fake API).
 pub struct ScriptedPoster {
     pub bodies: Mutex<Vec<LobbyPayload>>,
+    leaves: Mutex<Vec<String>>,
     script: Mutex<(Vec<(PostOutcome, Duration)>, usize)>,
 }
 
@@ -29,6 +30,7 @@ impl ScriptedPoster {
     pub fn new(script: Vec<(PostOutcome, Duration)>) -> Arc<Self> {
         Arc::new(Self {
             bodies: Mutex::new(Vec::new()),
+            leaves: Mutex::new(Vec::new()),
             script: Mutex::new((script, 0)),
         })
     }
@@ -63,6 +65,18 @@ impl LobbyPoster for ScriptedPoster {
             tokio::time::sleep(delay).await;
         }
         outcome
+    }
+
+    async fn post_leave(&self, body: &LobbyLeavePayload) -> Result<bool, String> {
+        self.leaves.lock().unwrap().push(body.party_id.clone());
+        Ok(true)
+    }
+}
+
+impl ScriptedPoster {
+    /// The `partyId` of every leave posted, in order.
+    pub fn left(&self) -> Vec<String> {
+        self.leaves.lock().unwrap().clone()
     }
 }
 

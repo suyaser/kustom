@@ -333,7 +333,7 @@ async fn check_6_posts_nothing_on_the_two_recorded_deletes() {
     pause(50).await;
     h.settled().await;
     assert!(h.posts().is_empty());
-    assert_eq!(logs.count("lobby closed; nothing posted"), 2);
+    assert_eq!(logs.count("lobby closed; no roster posted"), 2);
     let gone = h
         .drain_signals()
         .into_iter()
@@ -1316,4 +1316,72 @@ async fn an_unreadable_2xx_from_the_api_client_is_dropped_not_retried() {
     assert!(watcher.settled(SETTLE).await);
     assert_eq!(fake.requests().len(), 1);
     assert_eq!(scheduler.len(), 0);
+}
+
+// M22.9: a lobby Delete that is not a game start posts one leave; a game start and a disconnect post none.
+
+impl Harness {
+    fn phase(&self, phase: &str) {
+        self.watcher
+            .send(MachineEvent::Event(Arc::new(RoutedEvent::GameflowPhase(
+                phase.into(),
+            ))));
+    }
+}
+
+#[tokio::test]
+async fn m22_9_a_delete_in_the_lobby_phase_posts_one_leave_for_that_party() {
+    let h = setup(Setup::default()).await;
+    h.update(lobby("lobby"), LcuEventType::Create);
+    h.settled().await;
+    h.phase("None");
+    h.remove();
+    h.settled().await;
+    assert_eq!(h.poster.left(), vec![PARTY.to_string()]);
+    // A second Delete has no lobby behind it: nothing more is sent.
+    h.remove();
+    h.settled().await;
+    assert_eq!(h.poster.left().len(), 1);
+}
+
+#[tokio::test]
+async fn m22_9_a_game_start_posts_no_leave_whatever_the_phase_of_the_start() {
+    for phase in ["ChampSelect", "GameStart", "InProgress"] {
+        let h = setup(Setup::default()).await;
+        h.update(lobby("lobby"), LcuEventType::Create);
+        h.settled().await;
+        h.phase(phase);
+        h.remove();
+        h.settled().await;
+        assert!(h.poster.left().is_empty(), "{phase}");
+        assert_eq!(h.posts().len(), 1, "the roster post only");
+    }
+}
+
+#[tokio::test]
+async fn m22_9_a_disconnect_posts_no_leave_and_a_delete_after_it_has_no_phase() {
+    let h = setup(Setup::default()).await;
+    h.update(lobby("lobby"), LcuEventType::Create);
+    h.settled().await;
+    h.watcher.send(MachineEvent::Disconnected(
+        engine::watchers::connection::DisconnectReason::SocketClosed,
+    ));
+    h.remove();
+    h.settled().await;
+    assert!(h.poster.left().is_empty());
+}
+
+#[tokio::test]
+async fn m22_9_an_unknown_phase_posts_no_leave() {
+    let h = setup(Setup {
+        skip_connect: true,
+        ..Setup::default()
+    })
+    .await;
+    // No Connected event: the phase was never read.
+    h.update(lobby("lobby"), LcuEventType::Create);
+    h.settled().await;
+    h.remove();
+    h.settled().await;
+    assert!(h.poster.left().is_empty());
 }

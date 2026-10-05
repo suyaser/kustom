@@ -97,6 +97,27 @@
       "notExported": []
     },
     {
+      "file": "lobby-leave.request.json",
+      "route": "POST /api/companion/lobby/leave",
+      "side": "request",
+      "schema": "companionLobbyLeavePayloadSchema",
+      "notExported": [
+        {
+          "pointer": "/properties/partyId",
+          "kinds": [
+            "normalised"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "lobby-leave.response.json",
+      "route": "POST /api/companion/lobby/leave",
+      "side": "response",
+      "schema": "companionLobbyLeaveResponseSchema",
+      "notExported": []
+    },
+    {
       "file": "game.request.json",
       "route": "POST /api/companion/game",
       "side": "request",

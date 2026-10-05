@@ -37,8 +37,9 @@ use crate::config::CompanionToken;
 use transport::{HttpRequest, Method, Transport};
 use wire::{
     AckResponse, ApiIssue, BackfillScanRequest, BackfillScanResponse, CommandAck, CommandNack, CommandsPoll,
-    CommandsResponse, ErrorResponse, GamePayload, GameResponse, HealthResponse, LobbyPayload, LobbyResponse,
-    MeResponse, PairRequest, PairResponse, RankPayload, RankResponse,
+    CommandsResponse, ErrorResponse, GamePayload, GameResponse, HealthResponse, LobbyLeavePayload,
+    LobbyLeaveResponse, LobbyPayload, LobbyResponse, MeResponse, PairRequest, PairResponse, RankPayload,
+    RankResponse,
 };
 
 /// `GET /api/companion/me`.
@@ -47,6 +48,8 @@ pub const ME_PATH: &str = "/api/companion/me";
 pub const PAIR_PATH: &str = "/api/companion/pair";
 /// `POST /api/companion/lobby`.
 pub const LOBBY_PATH: &str = "/api/companion/lobby";
+/// `POST /api/companion/lobby/leave` (M22.9).
+pub const LOBBY_LEAVE_PATH: &str = "/api/companion/lobby/leave";
 /// `POST /api/companion/game`.
 pub const GAME_PATH: &str = "/api/companion/game";
 /// `POST /api/companion/rank`.
@@ -66,6 +69,8 @@ pub mod attempts {
     pub const IN_PROGRESS: u32 = 4;
     /// `POST lobby`: one; the watcher retries only while its payload is the newest.
     pub const LOBBY: u32 = 1;
+    /// `POST lobby/leave`: one; an old server answers 404 and a missed leave is the sweep's.
+    pub const LOBBY_LEAVE: u32 = 1;
     /// `POST game` phase `eog` from the queue: one per pass.
     pub const QUEUED_GAME: u32 = 1;
     /// `POST rank`.
@@ -512,6 +517,18 @@ impl ApiClient {
     pub async fn post_lobby(&self, body: &LobbyPayload) -> ApiResult<LobbyResponse> {
         self.request(Method::Post, LOBBY_PATH, Some(body), attempts::LOBBY, false)
             .await
+    }
+
+    /// `POST /api/companion/lobby/leave`: one attempt.
+    pub async fn post_lobby_leave(&self, body: &LobbyLeavePayload) -> ApiResult<LobbyLeaveResponse> {
+        self.request(
+            Method::Post,
+            LOBBY_LEAVE_PATH,
+            Some(body),
+            attempts::LOBBY_LEAVE,
+            false,
+        )
+        .await
     }
 
     /// `POST /api/companion/game`, phase `in_progress`: four attempts.

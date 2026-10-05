@@ -41,6 +41,16 @@ export const companionMeResponseSchema = z.object({
 });
 
 /**
+ * The answer to `POST /api/companion/lobby/leave` (M22.9). `released` is true when this post
+ * cleared the token's current party; false when the token was already somewhere else or nowhere
+ * (a repeated or late leave), which is a no-op and still `ok`.
+ */
+export const companionLobbyLeaveResponseSchema = z.object({
+  ok: z.literal(true),
+  released: z.boolean(),
+});
+
+/**
  * `POST /api/companion/lobby`.
  *
  * `status` is echoed so the companion can log it; the companion never sends a status. Who
