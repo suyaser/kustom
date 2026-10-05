@@ -14,7 +14,7 @@ import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import { championTable } from '../mode/champions';
 import { isPlayableStatus, lockLobbyAtStart } from '../mode/lock';
 import { type ModeRecord, stampColumns } from '../mode/record';
-import { readModeRow } from '../mode/state';
+import { GROUP_TABLE, modeTableOfLobby, readTableModeRow } from '../mode/table';
 import { gameFactsInsert, writeGameFacts } from '../stats/gameFacts';
 import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
@@ -193,7 +193,9 @@ export async function ingestEogGame(
           status: lobby.status,
           now: new Date(),
         });
-  const read = await readModeRow(client, groupId);
+  // M22.4: the lobby's table's card (group_modes unless the night is forked; no lobby: the group's).
+  const table = lobby === null ? GROUP_TABLE : await modeTableOfLobby(client, groupId, lobby.id, new Date());
+  const read = await readTableModeRow(client, groupId, table);
   const modeRecord: ModeRecord = {
     kind,
     lock: stored?.lock ?? null,
@@ -204,6 +206,7 @@ export async function ingestEogGame(
     row: read.row,
     rowUpdatedAt: read.updatedAt,
     lockedAt: stored?.lockedAt ?? null,
+    ...(table.forked ? { modeTable: table } : {}),
   };
   const modeColumns = stampColumns({
     ...modeRecord,

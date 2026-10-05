@@ -28,6 +28,7 @@ const ALLOWED: Record<string, string> = {
   'components/receipt/types.ts': "the stored row's type",
   'components/receipt/model.ts':
     'maps a stored row to a StoredSplit; the readers hand it to gameReceiptOf (or, live, the balanced/in-game rolled path)',
+  'lib/testing/tonightRows.ts': 'tests only (M22.5): fixture split rows for Tonight snapshots, never printed',
 };
 
 /** `kickoff_blue_win_prob` is the kickoff record's own column (M21.4), not the split's. */

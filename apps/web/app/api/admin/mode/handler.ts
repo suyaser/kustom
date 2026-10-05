@@ -33,6 +33,7 @@ import {
   NOTHING_TO_SPIN,
   nextPairNotice,
   PAIR_SHORT,
+  PICK_A_LOBBY_FIRST,
   REGION_SHORT,
   REGIONS_STAY,
   ROLLED_TO_THIS_GAME,
@@ -48,7 +49,8 @@ import {
 } from '@/lib/mode/ruleNotices';
 import { type LiveLock, readLiveLock, writeLock, writeModeCard } from '@/lib/mode/set';
 import { hasOpenLobby, previousRule } from '@/lib/mode/spin';
-import { type ModeStore, type StoredModeRow, supabaseModeStore } from '@/lib/mode/state';
+import type { ModeStore, StoredModeRow } from '@/lib/mode/state';
+import { type ModeTable, modeTableForRoute, PICK_A_LOBBY, tableModeStore } from '@/lib/mode/table';
 import { siteOrigin } from '@/lib/siteUrl';
 import { setGroupModeRequestSchema, setGroupModeResponseSchema } from './schema';
 
@@ -92,9 +94,21 @@ export interface ModeRouteDeps {
   spinFacts?: (game: ModeGame) => Promise<{ previous: PendingRule | null; lobbyOpen: boolean }>;
   /** Tests only: the group's live lock, read for a next-game region refusal (default: the database). */
   liveLock?: () => Promise<LiveLock | null>;
+  /**
+   * Tests only: which lobby's card the action is for (M22.4; default `modeTableForRoute` over the
+   * database: the group's card on every one-lobby night).
+   */
+  modeTable?: () => Promise<ModeTable | typeof PICK_A_LOBBY>;
 }
 
-type RouteRefusal = Refusal | 'started' | 'no-lock' | 'rolled' | 'mode-started' | 'no-this-game';
+type RouteRefusal =
+  | Refusal
+  | 'started'
+  | 'no-lock'
+  | 'rolled'
+  | 'mode-started'
+  | 'no-this-game'
+  | typeof PICK_A_LOBBY;
 
 const REFUSAL_WORDS: Record<RouteRefusal, string> = {
   'too-few-open': RULE_TOO_FEW_OPEN,
@@ -109,6 +123,7 @@ const REFUSAL_WORDS: Record<RouteRefusal, string> = {
   rolled: ROLLED_TO_THIS_GAME,
   'mode-started': THIS_GAME_STAYS,
   'no-this-game': NO_THIS_GAME,
+  [PICK_A_LOBBY]: PICK_A_LOBBY_FIRST,
 };
 
 export async function handleSetGroupMode(
@@ -119,7 +134,18 @@ export async function handleSetGroupMode(
   const back = safeNextPath(input.redirectTo) ?? context.redirectTo;
   const groupId = context.groupId;
   const client = context.client;
-  const store = deps.store ?? supabaseModeStore(client);
+  const refuse = (refusal: RouteRefusal): NextResponse => {
+    const words = REFUSAL_WORDS[refusal];
+    return context.form ? redirectBack(context.request, back, { error: words }) : context.fail(409, words);
+  };
+  // M22.4: whose card. Every one-lobby night is the group's (one read, nothing forked); with two
+  // lobbies live the body names one (`lobbyId`) or the action is refused. Wall clock: liveness is
+  // read against the lobby rows' own times.
+  const table = await (
+    deps.modeTable ?? (() => modeTableForRoute(client, groupId, input.lobbyId, new Date()))
+  )();
+  if (table === PICK_A_LOBBY) return refuse(PICK_A_LOBBY);
+  const store = deps.store ?? tableModeStore(client, table);
   const contextFor =
     deps.context ??
     ((standing: StoredModeRow['row']['standing']) =>
@@ -127,10 +153,6 @@ export async function handleSetGroupMode(
         ...(deps.rng === undefined ? {} : { rng: deps.rng }),
         ...(deps.table === undefined ? {} : { table: deps.table }),
       }));
-  const refuse = (refusal: RouteRefusal): NextResponse => {
-    const words = REFUSAL_WORDS[refusal];
-    return context.form ? redirectBack(context.request, back, { error: words }) : context.fail(409, words);
-  };
 
   const regionAction: RegionAction | null =
     input.redraw === true
@@ -143,7 +165,7 @@ export async function handleSetGroupMode(
   let action: ModeAction;
   if (regionAction !== null) action = regionAction;
   else if (input.spin === true) {
-    const facts = await (deps.spinFacts ?? ((game: ModeGame) => spinFactsOf(context, deps, game)))(
+    const facts = await (deps.spinFacts ?? ((game: ModeGame) => spinFactsOf(context, deps, game, table)))(
       thisGame ? 'this' : 'next',
     );
     action = {
@@ -179,6 +201,7 @@ export async function handleSetGroupMode(
             context: (lock) => contextFor(lock.standing),
             store,
             playerId: context.admin.playerId,
+            partyId: table.partyId,
           }),
         (written) => written.ok,
       );
@@ -221,7 +244,7 @@ export async function handleSetGroupMode(
     // M20.17: a next-game region tap that lost to Roll. The row has no region rule because Roll
     // moved it onto the balanced lobby's lock, so say that, not that region wars is off.
     if (result.refusal === 'no-region-rule' && regionAction !== null) {
-      const live = await (deps.liveLock ?? (() => readLiveLock(client, groupId)))();
+      const live = await (deps.liveLock ?? (() => readLiveLock(client, groupId, table.partyId)))();
       if (live !== null && live.status === 'balanced' && live.stored.lock.mode.id === 'region') {
         return refuse('rolled');
       }
@@ -334,16 +357,18 @@ async function spinFactsOf(
   context: AdminContext,
   deps: ModeRouteDeps,
   game: ModeGame,
+  table: ModeTable,
 ): Promise<{ previous: PendingRule | null; lobbyOpen: boolean }> {
+  // M22.4: on a forked night, the table's own previous rule and its own lobby (null party: today's).
   const [previous, lobbyOpen] = await Promise.all([
     previousRule(
       context.client,
       context.groupId,
       deps.now?.() ?? new Date(),
       deps.timeZone ?? readServerEnv().CUSTOMS_NIGHT_TZ,
-      { live: game === 'next' },
+      { live: game === 'next', partyId: table.partyId },
     ),
-    game === 'this' ? true : hasOpenLobby(context.client, context.groupId),
+    game === 'this' ? true : hasOpenLobby(context.client, context.groupId, table.partyId),
   ]);
   const rule = previous === null || previous.id === 'normal' || previous.id === 'fearless' ? null : previous;
   return { previous: rule, lobbyOpen };
@@ -378,7 +403,8 @@ async function repostTeams(context: AdminContext, lobbyId: string, newRegions: b
 export function setGroupModeRoute(
   options: AdminRouteOptions & ModeRouteDeps = {},
 ): (request: Request) => Promise<NextResponse> {
-  const { rng, now, timeZone, table, store, context, spinFacts, liveLock, ...routeOptions } = options;
+  const { rng, now, timeZone, table, store, context, spinFacts, liveLock, modeTable, ...routeOptions } =
+    options;
   const deps: ModeRouteDeps = {
     ...(rng ? { rng } : {}),
     ...(now ? { now } : {}),
@@ -388,6 +414,7 @@ export function setGroupModeRoute(
     ...(context ? { context } : {}),
     ...(spinFacts ? { spinFacts } : {}),
     ...(liveLock ? { liveLock } : {}),
+    ...(modeTable ? { modeTable } : {}),
   };
   return withAdminAuth(
     setGroupModeRequestSchema,

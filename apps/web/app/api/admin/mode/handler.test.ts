@@ -466,3 +466,30 @@ describe("POST /api/admin/mode: game 'this' for the rule, Spin and Rated (M20.18
     expect(asked).toEqual(['this', 'next']);
   });
 });
+
+describe('POST /api/admin/mode: which lobby (M22.4)', () => {
+  const LOBBY = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+
+  it('two lobbies live and no lobbyId: 409 Pick a lobby first., nothing written, no bump', async () => {
+    const { t, mode } = setup(card(), { modeTable: async () => 'pick-a-lobby' });
+    expect(await answer(await mode(json({ groupId: GROUP, rated: false })))).toEqual({
+      status: 409,
+      body: { ok: false, error: 'Pick a lobby first.' },
+    });
+    expect(t.writes).toEqual([]);
+    expect(bumps).toEqual([]);
+  });
+
+  it('a form post goes back with the words', async () => {
+    const { mode } = setup(card(), { modeTable: async () => 'pick-a-lobby' });
+    const response = await mode(form({ groupId: GROUP, rated: 'false', redirectTo: '/g/crew' }));
+    expect(response.status).toBe(303);
+    expect(noticeOf(response).get('error')).toBe('Pick a lobby first.');
+  });
+
+  it('one lobby: a lobbyId changes nothing, the card is written as without one', async () => {
+    const { t, mode } = setup(card());
+    expect((await mode(json({ groupId: GROUP, rated: false, lobbyId: LOBBY }))).status).toBe(200);
+    expect(t.writes.map((write) => write.patch)).toEqual([{ rated: false }]);
+  });
+});

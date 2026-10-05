@@ -170,6 +170,12 @@ const formTrue = z.preprocess(
  * only the fields it sets (last write wins, M20 D7); `/api/admin/mode/spin` is gone (its no-JS form
  * posts here with `spin=true`). M14's body `{ groupId, mode }` parses unchanged. `redirectTo` is
  * where an HTML form post goes back to (a path on this site).
+ *
+ * `lobbyId` (M22.4, M22 D5) names the lobby whose card the action is for, any `lobbies.id` of its
+ * table: with two or more lobbies live each has its own card (the pending rule, its pair, Rated;
+ * the standing mode stays the group's). Absent means the only live lobby, or the group's card when
+ * none is live; absent while two are live is a 409 (`Pick a lobby first.`). With one lobby it is
+ * never needed and changes nothing.
  */
 export const setGroupModeRequestSchema = z
   .object({
@@ -181,6 +187,7 @@ export const setGroupModeRequestSchema = z
     side: z.enum(['blue', 'red']).optional(),
     region: regionIdSchema.optional(),
     game: modeGameSchema.optional(),
+    lobbyId: z.guid().optional(),
     redirectTo: z.string().optional(),
   })
   .refine(
@@ -276,6 +283,26 @@ export const groupModeRowSchema = z.object({
 });
 
 export type GroupModeRow = z.infer<typeof groupModeRowSchema>;
+
+/**
+ * A `lobby_modes` row (M22.4, `0051`) as anon may read it and as a Realtime event carries it: a
+ * forked lobby's next game, keyed by its group and party. No standing mode (the group's, on
+ * `group_modes`), no admin ids. A value from a newer deployment fails the parse; the caller falls
+ * back to the server render.
+ */
+export const lobbyModeRowSchema = z.object({
+  group_id: groupIdSchema,
+  lcu_party_id: z.string().min(1),
+  pending_rule: ruleIdSchema.nullable(),
+  pending_class_tag: classTagSchema.nullable(),
+  pending_region_blue: regionIdSchema.nullable(),
+  pending_region_red: regionIdSchema.nullable(),
+  rated_override: z.boolean().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export type LobbyModeRow = z.infer<typeof lobbyModeRowSchema>;
 
 /**
  * The lobby's lock columns (`0032`, `0047`), all null for no lock. A lock exists exactly when

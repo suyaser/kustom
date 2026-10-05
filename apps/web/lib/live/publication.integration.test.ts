@@ -39,7 +39,8 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  */
 
 const REMOVED = ['lobbies', 'lobby_members', 'splits', 'games', 'game_players', 'ratings'] as const;
-const PUBLISHED = ['public.fearless_state', 'public.group_live', 'public.group_modes'];
+/** M22.4 (0051) adds lobby_modes: name-free like group_modes, its admin ids kept out by column privilege. */
+const PUBLISHED = ['public.fearless_state', 'public.group_live', 'public.group_modes', 'public.lobby_modes'];
 
 const WEB_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -290,7 +291,7 @@ if (stack === null || psql === null) {
   });
 
   describe('the Realtime publication against the local Supabase stack (M19.11)', () => {
-    it('is exactly group_live, group_modes and fearless_state (acceptance 1)', () => {
+    it('is exactly group_live, group_modes, lobby_modes (0051) and fearless_state (acceptance 1)', () => {
       expect(publishedTables(psql)).toEqual(PUBLISHED);
     });
 

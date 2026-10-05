@@ -84,6 +84,8 @@ game_players   (game_id, player_id, side, role null, champion_id, kills, deaths,
                 damage_to_objectives null)                      -- 0015, M7.14
                 index (group_id, player_id) include (game_id)   -- 0042
 companion_tokens (id, player_id, token_hash, label, last_seen_at, revoked_at null, created_at)
+                current_party_id null, current_party_at null   -- 0050, M22.3: the party of the token's last
+                accepted lobby post, written only when it changes; liveTables (lib/liveTables.ts) reads it
 companion_commands (id, target_player_id, kind, payload jsonb, status, created_at, acked_at,
                 sent_at, attempts, result jsonb, error, expires_at)   -- 0006, M4.1
 discord_config (group_id pk, guild_id, webhook_url, results_channel_id,   -- pk group_id 0020, M13.4
@@ -107,6 +109,15 @@ group_modes    (group_id pk, mode -> modes.id default 'normal', set_by null -> p
                 updated_at)                                     -- 0024, M14.29: one standing mode per group;
                                                                 -- 0030, M14.46: a new group starts on 'normal'
                                                                 -- (was 'fearless'); existing rows kept their mode
+lobby_modes    (group_id -> groups, lcu_party_id, pending_rule null, pending_class_tag null,   -- 0051, M22.4
+                pending_region_blue null, pending_region_red null, rated_override null, pending_set_by null,
+                set_by null, taken_by_lobby_id null, created_at, updated_at)  pk (group_id, lcu_party_id)
+                -- a forked lobby's next game (M22 D5): the rule, pair and Rated, never the standing mode
+                -- (group-wide). Forked by lobbies_fork_mode when a lobby starts while another is in play
+                -- (liveTables' inPlay: live, and a recently seen token's current_party_id is its party),
+                -- folded onto group_modes within the next settle once it is the only one in play
+                -- (lib/mode/table.ts); none on a one-lobby night. Teams down hands a lock back here only
+                -- when taken_by_lobby_id is that lobby. Card columns public, published to supabase_realtime
 group_invites  (group_id pk, code unique -- 22 url-safe chars, stored as is, rotated_at, rotated_by)  -- 0021, M13.5
 pairing_codes  (code_hash pk -- sha256 of 6 chars, group_id, auth_user_id, discord_id, created_at,
                 expires_at -- 15 min, used_at)                                        -- 0021, M13.5
@@ -161,8 +172,8 @@ Also in the schema:
   - RLS helpers (`0022`): `current_player_id()` and `is_group_admin(group)`, executable by `authenticated` too,
     because a function called inside a policy runs as the querying role. Both answer only about the caller's own
     verified session.
-- **Realtime.** The `supabase_realtime` publication is exactly `group_live` (`0037`), `group_modes` (`0024`) and
-  `fearless_state` (`0017`) since `0044` (M19.11), which took `lobbies`, `lobby_members`, `splits`, `games`,
+- **Realtime.** The `supabase_realtime` publication is exactly `group_live` (`0037`), `group_modes` (`0024`),
+  `lobby_modes` (`0051`, M22.4, name-free) and `fearless_state` (`0017`) since `0044` (M19.11), which took `lobbies`, `lobby_members`, `splits`, `games`,
   `game_players` and `ratings` out: `lobby_members` and `splits` have no `group_id`, so every change to them reached
   any anon subscriber of any group. Those six stay publicly readable through PostgREST under the same RLS; only
   their change events stopped, and Realtime refuses a subscription to them ("Unable to subscribe to changes with

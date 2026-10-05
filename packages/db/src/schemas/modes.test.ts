@@ -9,6 +9,7 @@ import {
   groupModeSchema,
   isFearlessMode,
   lobbyLockRowSchema,
+  lobbyModeRowSchema,
   MODE_CHOICES,
   MODE_IDS,
   NEW_GROUP_MODE,
@@ -73,6 +74,15 @@ describe('isFearlessMode', () => {
 });
 
 describe('setGroupModeRequestSchema', () => {
+  it('M22.4: an optional lobbyId names the lobby whose card the action is for, a uuid', () => {
+    const lobbyId = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+    expect(setGroupModeRequestSchema.parse({ groupId: GROUP, rated: false, lobbyId }).lobbyId).toBe(lobbyId);
+    expect(setGroupModeRequestSchema.parse({ groupId: GROUP, rated: false }).lobbyId).toBeUndefined();
+    expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, rated: false, lobbyId: 'B' }).success).toBe(
+      false,
+    );
+  });
+
   it('accepts a group and a known mode, with or without redirectTo', () => {
     expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, mode: 'normal' }).success).toBe(true);
     expect(
@@ -436,5 +446,28 @@ describe('0048_mode_one_row_contract.sql (M20.7, contract: after the code is liv
       body.indexOf('drop column lock_version'),
     );
     expect(body).toMatch(/add constraint lobbies_lock_whole check \(coalesce\(/);
+  });
+});
+
+describe('lobbyModeRowSchema (M22.4, 0051)', () => {
+  const row = {
+    group_id: GROUP,
+    lcu_party_id: 'party-1',
+    pending_rule: 'region',
+    pending_class_tag: null,
+    pending_region_blue: 'ionia',
+    pending_region_red: 'noxus',
+    rated_override: false,
+    created_at: '2026-10-05T18:00:00Z',
+    updated_at: '2026-10-05T18:01:00Z',
+  };
+
+  it('parses a forked lobby card as anon reads it, without a standing mode or admin ids', () => {
+    expect(lobbyModeRowSchema.parse({ ...row, set_by: 'x', pending_set_by: 'y' })).toEqual(row);
+  });
+
+  it('refuses a row with no party, or a rule this build does not know', () => {
+    expect(lobbyModeRowSchema.safeParse({ ...row, lcu_party_id: '' }).success).toBe(false);
+    expect(lobbyModeRowSchema.safeParse({ ...row, pending_rule: 'chaos' }).success).toBe(false);
   });
 });
