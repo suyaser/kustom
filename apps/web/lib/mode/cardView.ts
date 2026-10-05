@@ -178,6 +178,23 @@ export function selectValue(row: ModeRow): string {
 }
 
 /**
+ * M20.18: the select's value while the lobby is balanced: what this game plays (the lock's rule
+ * key, else its standing mode).
+ */
+export function lockSelectValue(lock: ModeLock): string {
+  const rule = ruleOf(lock.mode);
+  return rule === null ? lock.standing : ruleKey(rule);
+}
+
+/** M20.18: {@link tooFewFrom} for this game: the lock's standing mode, its rule kept selectable. */
+export function tooFewForLock(lock: ModeLock, unplayable: UnplayableRules, poolCleared = false): string[] {
+  const list = lock.standing === 'fearless' && !poolCleared ? unplayable.banned : unplayable.all;
+  const rule = ruleOf(lock.mode);
+  const current = rule === null ? null : ruleKey(rule);
+  return list.filter((key) => key !== current);
+}
+
+/**
  * Which rule options the select greys out with ` (too few open)` (D7): under standing Fearless, the
  * rules unplayable with tonight's bans. The rule already pending stays selectable.
  */

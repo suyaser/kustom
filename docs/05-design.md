@@ -2105,7 +2105,7 @@ Placement follows STRATEGY §6(a)'s order; the card never moves above the strip 
 | **Idle** | **Row**: title + chip, `138 open · 34 banned`, `See what's open ›`. 64px min at ≥768; status and action stack at 375. Empty pool: `Nothing banned yet. All 172 open.` | after `Top this week` (5.15) | title + chip, the rule (`Tanks only`), `See the tanks ›` |
 | **Filling / more than ten** | Row + **five lane tiles** (`top 32`, `jungle 34`…; `--raised`, 64px), each a link to the panel on that lane (`/mode?lane=jungle`). The find box moved into the panel. | under the roster and `Still needed:`, before the tape | row; tiles show each lane's allowed count where the mode has a pool |
 | **Balanced** | Row + **your lane**: `◈ Your lane support · 24 open`; the whole row links to `/mode?lane=support`, so the panel **opens on the viewer's lane**. Not seated (visitor, sitting out): no lane line, link to `/mode`, panel opens on `All`. **The answer band's `What's open for support` links to the same URL** and opens the panel. | directly after the team cards (the sit-out note is above the receipt, 5.15) | `Your lane support · 11 tanks`; answer band `Tanks for support` (the mode supplies the label; `Normal` supplies none) |
-| **In game** | Row + `This game's ten join the ban list when it ends.` Admin controls stay, with `Changes apply from the next game.` under the select. | after the team cards | row; the rule |
+| **In game** | Row + `This game's ten join the ban list when it ends.` Admin controls stay, for the next game: `Changes apply from the next game.` above the `Next game` picker (8.3.1). | after the team cards | row; the rule |
 | **Finished** | **`Banned next game`** leads the card: meta `from game 4`, five rows (60px role cell + the two chips, blue's seat then red's), footer counts. Then the row, under a muted eyebrow **`Next game`** (text 15 muted), so its chip reads as the next game's (M15.15). Hidden for an ARAM or a remake (they add nothing): the `Next game` row alone. A Rift game played not rated: `Not rated, so this game banned nothing.` where `Banned next game` would be, then the `Next game` row. | directly under the result poster, before the tape | the `Next game` row; the kept/broke line is the poster's (M15.5), not the card's |
 | **Mirror match on a Fearless night** (M15.14) | The card keeps the Fearless pool: mirror is a lane rule, every ban stands. Pending or locked, status `Same champion as your lane opponent · 138 open` (text 700 23) + `This game only. Then back to Fearless.`, action `How it works ›`. Balanced, seated: `◈ Your lane support · 27 open`, answer band `What's open for support`. In game: `This game's champions join the ban list when it ends.` (five, not ten: each lane's two seats locked one champion). Finished: `Banned next game` lists each champion once (one chip per lane). Idle, the strip's host line `Mirror match next. Host: open a Blind Pick custom in League yourself. Start a lobby only makes Draft Pick.`; filling, `Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.` (M15.16; dashed note, lead in 700). On a Normal night, mirror is unchanged: no pool, no counts. | as the state | n/a |
 | **Not rated on a Fearless night** (M15.15) | A game that isn't rated adds nothing to the pool (R4), so no line promises bans. Balanced and in game, under the counts: `This game isn't rated, so it bans nothing.` Finished: see the Finished row. Before Roll, the panel when the next game is not rated: `Still open, by lane. Next game isn't rated, so it bans nothing.`; once the teams are set: `Still open, by lane. This game isn't rated, so it bans nothing.`; empty pool: `Nothing banned yet, so every champion is open. This game isn't rated, so it bans nothing.` (or `Next game isn't rated, …` before Roll). The strip's in-game sentence becomes `Not rated, so no Rating change.` in the same state, so the strip and the card never disagree. | as the state | the rule's own `Not rated: Ratings don't move.` |
@@ -2113,18 +2113,22 @@ Placement follows STRATEGY §6(a)'s order; the card never moves above the strip 
 | Reset moment (Realtime) | Dashed card: `Fresh pool.` + `Raafat reset fearless, so every champion is open again.` · `reset 21:40`, until the next game lands. Announcer: `Fearless reset. Every champion is open again.` | in place | n/a |
 | Mode changed (Realtime) | The card re-renders in place (it never disappears, 8.2); after a switch to Normal, members get a dashed note inside the card (`Back to Normal.` / `An admin set tonight to Normal, so every champion is open.`) until the next game lands. A one-game M15 mode returns to the standing mode after its game, which reads as this same change. Announcer: `Tonight's mode is now Class wars: Tanks only.` | in place | same |
 
-#### 8.3.1 Region wars' pair controls on the admin foot (M20.10, ruled 2026-10-05)
+#### 8.3.1 The admin foot: this game's and the next game's controls (M20.10, M20.18; ruled 2026-10-05)
 
-Ruled in the M20.10 design review, round 1, on the kit frames at 375 Night and 1440 Day. This is placement
-and three strings. Everything else is M20.1's copy, unchanged.
+Ruled in the M20.10 design review, round 1, on the kit frames at 375 Night and 1440 Day, and revised in the
+M20.18 design review on the branch frames (`balanced-admin-375-night`, `balanced-admin-1440-day`,
+`balanced-admin-375-fearless-night`, `balanced-admin-375-queued-pair-day`, `in-game-admin-375-night`,
+`in-game-admin-1440-day`). Owner rule (2026-10-05): **until the game starts, mode changes apply to this game;
+once it starts, they apply to the next game.** Everything else is M20.1's copy, unchanged.
 
 **New copy (approved, [NEW COPY] in `lib/mode/ruleCopy.ts`):**
 
 | String | Where | Why |
 |---|---|---|
 | `Set region` | The submit beside each side select. It shows once that select's choice differs from the side's region, and always without JS. It looks like `Set mode`: the primary button on the select's row, 44px. | A select never posts on change. Each change sends the teams post again (a this-game change), arrowing a closed select on Windows fires `change` once per option, and no-JS needs a submit anyway. |
-| `This game` | The legend over this game's pair. It only shows after Roll, while the lobby is balanced. | After Roll the foot can hold two pairs. Each one needs to say which game it belongs to. |
-| `Next game` | Not a new region heading. The next game's pair has **no heading of its own**: it sits under the mode picker, whose label is already `Next game` once teams are rolled (M20.8). | One `Next game` per group. |
+| `This game` | The legend of the one this-game `<fieldset>` while the lobby is balanced. It holds the `Mode` picker, `Spin`, the one-game sentence, this game's region pair and `Rated` (M20.18). | Balanced, every control in it changes this game and reposts the teams. One legend says so once. |
+| `Next game` | Balanced: the legend over a queued next-game region pair, the only next-game control left. In game: the picker's label, as in M20.8. Never both at once. | One `Next game` per foot. |
+| `This game is rated.` / `This game is recorded, not rated.` | The Rated switch's sentence while balanced (M20.18). In game and before Roll it stays `Next game is rated.` / `Next game is recorded, not rated.` | The switch acts on this game's lock while balanced. Same shape as the next-game pair, so only the first word changes. |
 
 **Order of the foot**
 
@@ -2136,31 +2140,38 @@ Before Roll (no lobby, filling, or more than ten):
    above is the next game's);
 4. `Rated`, then `Reset fearless`.
 
-After Roll, balanced (two groups, split by a hairline):
+After Roll, balanced (M20.18):
 
 1. eyebrow;
-2. **`This game`** (a `<fieldset>` legend, same style as the picker label): `Blue's region`, `Red's region`,
-   `Redraw regions`. It comes first because it is the pair the status above shows.
-3. a hairline, `border-t border-border` with `pt-3`, that opens the next-game group;
-4. `Changes apply from the next game.` (8.3's in-game caption, text 15 muted), then the `Next game`
-   picker, `Spin` and the one-game sentence;
-5. the next game's pair when region wars is pending, **with no heading**;
-6. `Rated`, then `Reset fearless`.
+2. **`This game`** (a `<fieldset>` legend, text 15 700): the `Mode` picker (its label stays `Mode`), `Spin`
+   and the one-game sentence; this game's pair (`Blue's region`, `Red's region`, `Redraw regions`) when the
+   rule is region wars; then `Rated` with `This game is rated.` / `This game is recorded, not rated.`;
+3. `Reset fearless` (it is the pool's, not a game's, so it sits outside both groups);
+4. only when a next-game region pair is queued: a hairline, `border-t border-border` with `pt-3`, then the
+   legend **`Next game`** (same style as `This game`) over that pair's `Blue's region`, `Red's region`,
+   `Redraw regions`. No pair queued: no hairline, nothing after `Reset fearless`.
 
-In game (no this-game controls): no hairline. The foot starts with the caption, as in M20.8.
+There is **no `Changes apply from the next game.` caption while balanced**: nothing in the foot is next-game
+except the queued pair, and its legend already says so.
 
-- **The caption never sits directly under this game's `Redraw regions`.** A this-game change applies at
-  once and reposts the teams, so a caption right under it saying "from the next game" would be false. The
-  hairline and its position at the top of the next-game group give it the right owner.
-- **The bold `Next game: Region wars.` line (`nextLine`) is not rendered in the foot after Roll.** The
-  picker's label and its value already say the same thing, and the caption takes its slot whether a rule is
-  pending or not. `nextLine` stays wherever it appears outside the foot.
+In game (no this-game controls, unchanged from M20.8): no hairline, no `This game` group. The foot starts with
+the caption `Changes apply from the next game.`, then the `Next game` picker, `Spin`, the one-game sentence,
+`Rated` with `Next game is …`, then `Reset fearless`.
+
+- **The legend and the `Mode` label must not read as two stacked labels.** The legend gets `mb-3` (12px), more
+  than the label-to-control gap, so `This game` reads as the group's name and `Mode` as the select's.
+- **The bold `Next game: Region wars.` line (`nextLine`) is not rendered in the foot after Roll.** It stays in
+  the card body (`Next game: Region wars, Shurima vs Zaun.` in the queued-pair frame), where members see it
+  too.
 - In the 2-column layout (the card's container ≥ 520px) the two side selects share a row and
   `Redraw regions` goes on its own line under them. At 375 they stack: Blue, Red, Redraw. Blue always comes
   first. The order never depends on the viewer's side.
-- A region change's notice (`Next game: Shurima vs Zaun.`, `New regions: …`) uses the foot's existing
-  notice slot, like `Set mode`. The status above changes in place, so the tap gets a visible answer even at
-  375, where the notice is below the fold.
+- A mode, Spin, Rated or region change's notice (`Next game: Shurima vs Zaun.`, `New regions: …`) uses the
+  foot's existing notice slot, like `Set mode`. The status above changes in place, so the tap gets a visible
+  answer even at 375, where the notice is below the fold.
+- A this-game choice the route refuses (the game has started, too few open for class wars, an undrawable
+  region pair) answers on the foot's failure line (text-sm 700, `role="alert"`) in the route's own words, and
+  the card keeps this game's rule. The generic `Couldn't change that. Try again.` is only for a non-409.
 
 **The short-pair line**
 
@@ -2170,8 +2181,8 @@ In game (no this-game controls): no hairline. The foot starts with the caption, 
   an error.
 - **Placement:** directly under the status (the pair) and above the lane line and the one-game line, for
   everyone, before Roll. Admins do not get a second copy in the foot while the status shows it.
-- **After Roll,** when the next game's pair in the foot is the one that went short, the line goes once,
-  inside the next-game group, above that pair's selects. The status there is this game's pair, so the line
+- **After Roll,** when the queued next-game pair in the foot is the one that went short, the line goes once,
+  inside the `Next game` group, under its legend and above that pair's selects. The status there is this game's pair, so the line
   would be wrong under it.
 - In the select, the short side reads `Ixtal (too few open)` and stays selected. The other short regions
   are disabled.
@@ -2473,7 +2484,7 @@ A mode is **one definition**, not a component tree. The card and the panel are s
 | card, Normal (everyone) | `Every champion is open.` (replaces `Standard draft, nothing narrowed. Only admins see this card.`, retired by the 8.2 ruling) | [NEW COPY] |
 | card, finished | `Banned next game` · `from game 4` | [NEW COPY] |
 | answer band | `What's open for support` / `Tanks for support` / `Ionia for support` | [NEW COPY] |
-| controls | `Admins and the owner`; label `Mode`; button `Set mode`; in game `Changes apply from the next game.`; failure `Couldn't change that. Try again.`; M15: switch `Rated`, `Next game is rated.` / `Next game is recorded, not rated.` (lead 2026-10-04: both describe the next game) | [NEW COPY] (replaces M14.30's switch copy) |
+| controls | `Admins and the owner`; label `Mode`; button `Set mode`; in game `Changes apply from the next game.` (never while balanced, M20.18); failure `Couldn't change that. Try again.`; M15: switch `Rated`, `Next game is rated.` / `Next game is recorded, not rated.` (lead 2026-10-04: both describe the next game); balanced, `This game is rated.` / `This game is recorded, not rated.` (M20.18, 8.3.1) | [NEW COPY] (replaces M14.30's switch copy) |
 | reset | `Reset fearless`; AlertDialog `Reset the fearless pool?` / `All 34 bans are cleared and every champion is open again. Discord gets told.` / `Reset fearless` · `Cancel` | button shipped; dialog [NEW COPY] |
 | panel bar | `Tonight · Mode`, `Close` | [NEW COPY] |
 | panel head, Fearless | `Pool since Thu 1 Oct, 4 games. Every champion locked since then is banned.` | [NEW COPY] |
