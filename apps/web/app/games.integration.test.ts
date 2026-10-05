@@ -413,7 +413,7 @@ if (stack === null) {
       expect(rift).toEqual(expect_('sr'));
       expect(aram).toEqual(expect_('aram'));
       expect(rift).toHaveLength(2);
-      expect(aram).toHaveLength(2);
+      expect(aram).toHaveLength(3); // KIWI is ARAM Mayhem (quit-game fix)
     });
 
     it('a page past the end is the last page, never a 416 or a 500; page 0 or below is page 1', async () => {

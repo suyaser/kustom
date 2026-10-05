@@ -28,7 +28,7 @@ Acceptance criteria are what an implementing agent must demonstrate before marki
 | M19 Fast pages | in progress (2026-10-04: M19.1, M19.2, M19.4, M19.5, M19.6, M19.7 landed on main as `perf-integrate`, reviewer pass per lane and on the merge; Tonight result screen 38→14 queries, 14→5 rounds, refresh incl. prefetches ~95→14; Stats warm 0 queries; M19.3, M19.9, M19.10, M19.13, M19.15, M19.16, M19.17 landed 2026-10-04; M19.11 ready on `m19-11-publication`, hosted push 2026-10-05) | Added 2026-10-04 from `redesign/research/performance.md`: Tonight changes once per real change, renders in ≤ 6 waves and ≤ 300 ms, never hears another group, controls stay pending until the screen answers, tabs answer at once. Owner decisions 2026-10-04 (decision rows): the name-free Mode card may be patched on the client (M19.13), and a per-group `group_live` signal replaces the table subscriptions, after which player and lobby tables leave the anon Realtime publication (M19.9 to M19.11). `getClaims()` is an investigation with a required security review (M19.12). M19.3 and M19.13 wait for `fix-mode-qa`. |
 | M20 Region wars on all 13 regions, its regions on the card from the moment it's chosen, on one mode state | in progress (2026-10-05: M20.1 to M20.10 landed; M20.13 product walk done on the local stack, the scene and the two-admin night pass; open: M20.14 to M20.17 from the walk) | Added 2026-10-04 from the owner's five decisions (decision rows M20 D1 to D8), amended the same day by the owner's zones decision (M20 D9 to D11): two-region champions from a Kustom home list so all 13 regions can be drawn (M20.2, M20.3), region tags on every champion chip (M20.4, M20.5), the Mode card on one `group_modes` row with no version or CAS, Roll moving the rule onto the lobby (M20.6 to M20.8), and region wars' two regions as mode state: drawn the moment region wars is chosen (Set mode or Spin), shown on the card and panel before any lobby exists, redrawn or changed side by side by an admin any time before the game starts, carried into the lock by Roll (M20.9, M20.10; the old picks and Redraw tasks M20.11 and M20.12 are merged into them). Every other mode's choices were already made at selection (audit in M20 D10). M19.13 landed before M20; M20.8 rewrites on its store. |
 | M21 The teams that play are the teams | in progress (2026-10-05: M21.1, M21.4 to M21.9 and M21.11 landed; M21.12 built, waits on 0049 on hosted; M21.10 walk done on the local stack, the scene passes, M21.10 stays open on M21.2 (not done, not deferred); open: M21.13, M21.14 from the walk) | Added 2026-10-04 from the owner's "when we roll teams sometimes we ignore it and make our own teams ..." (decision row M21 D1): the roll is a suggestion, and from game start every surface uses the teams that actually started. Ratings already fold on the eog sides and do not change. Source: the frozen lobby sides at `in_game` (server only, M21.4), audited against history first (M21.1); the companion sending the gameflow session's teams (M21.3) only if the audit fails, after a real-client check (M21.2). Fixes the in-game view (and an unrolled game showing as a filling lobby), adds a `Game on` post when the teams changed, and moves seven after-game readers that still print the rolled odds onto `gameReceiptOf` (M21.7). M21.8 (balancer memory) waits on the owner's yes; M21.9 follows M20.10. |
-| M22 Several lobbies at once | planned (2026-10-05: scoped by product from the owner's bug and request; M22.1 ready to brief and ship first; M22.2 to M22.8 wait on OPEN 1 to 5 in the M22 section and on M20.18) | Added 2026-10-05 from the owner (decision rows M22 D1 to D3): two Kustoms in two customs of one group were one lobby on Tonight, which stayed on the owner's first custom after he joined the other (root cause: Tonight draws the newest lobby row by `created_at`, and nothing ends a lobby its host left; M22.1). Then: several live lobbies per group, each with its own mode, Rated, region pair, Roll, posts and Tonight view; one lobby (one Kustom, or several in the same custom) stays exactly as today. `lobby_modes` forks from `group_modes` only when a second lobby is live and folds back when one is left (M22 D5). |
+| M22 Several lobbies at once | in progress (2026-10-05: M22.1 to M22.5, M22.7 and M22.11 landed, 0050 and 0051 on hosted; M22.8 dropped; M22.6 Tonight switcher in progress, then the M22.10 walk; M22.9 conditional) | Added 2026-10-05 from the owner (decision rows M22 D1 to D3): two Kustoms in two customs of one group were one lobby on Tonight, which stayed on the owner's first custom after he joined the other (root cause: Tonight draws the newest lobby row by `created_at`, and nothing ends a lobby its host left; M22.1). Then: several live lobbies per group, each with its own mode, Rated, region pair, Roll, posts and Tonight view; one lobby (one Kustom, or several in the same custom) stays exactly as today. `lobby_modes` forks from `group_modes` only when a second lobby is live and folds back when one is left (M22 D5). |
 
 Update this table as tasks complete. Status values: `not started`, `in progress`, `blocked: <why>`, `done`.
 
@@ -13939,7 +13939,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
 
   *Step 0, run by the owner 2026-10-05 (hosted, read only, ids shortened): every lobby of the night is in the same group (customs). Host B's lobby 84ca (reporter 630d) opened 18:50; the owner's 02c8 (reporter 51db) opened 19:29; the owner then posted party 3ff6 from 19:38, whose cycles finished through the night. 02c8 stayed `open` until the sweep at 21:30 and 84ca until 21:38. Same group, so the cause is this task's rule, not the foreign-party one; M22.1 would have let 02c8 go at 19:38.*
   *Landed 2026-10-05 (72b1cf6e, reviewer pass). oneLobby.integration replays the owner's scene. Follow-ups: a let-go failure fails an otherwise landed post (idempotent retry, noise); a co-host who moved with P keeps A until M22.3.*
-- [ ] **M22.2** Design: Tonight and Discord with two lobbies. *(owner: `designer` for `docs/05-design.md`, `product`
+- [x] **M22.2** *(landed 2026-10-05)* Design: Tonight and Discord with two lobbies. *(owner: `designer` for `docs/05-design.md`, `product`
   for every word; after the owner answers OPEN 4 and 5)* Spec the switcher above (chip anatomy, selected state,
   where it sits on 375 and 1440, how a third lobby fits, how the switcher leaves when one table is left, focus and
   screen-reader order, `prefers-reduced-motion`), which parts of the page belong to the selected lobby (Mode card,
@@ -13950,7 +13950,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   every string listed with its plain-words copy from product; (3) no control a friend has to press before seeing
   their own lobby.
 
-- [ ] **M22.3** Which Kustom is in which lobby; which lobbies are live. *(owner: `platform-engineer`; migration,
+- [x] **M22.3** *(landed 2026-10-05)* Which Kustom is in which lobby; which lobbies are live. *(owner: `platform-engineer`; migration,
   next free number, shown to the owner before it is applied)* Store each token's current party (only when it
   changes) on every accepted lobby post; a server helper `liveTables(groupId, now)` returns tonight's live tables
   (M22 D4) with, for each, its newest row, who is watching, and its label inputs; every later task reads it, and
@@ -13962,7 +13962,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   the M19.8 no-op holds (a repeated post writes no row, including the token); (3) the throwaway-restore check script
   for the migration, like the other `m*-throwaway-check.sh`; (4) M22.1's tests still pass on the new rule.
 
-- [ ] **M22.4** Each lobby has its own mode. *(owner: `platform-engineer` for the migration and the routes,
+- [x] **M22.4** *(landed 2026-10-05)* Each lobby has its own mode. *(owner: `platform-engineer` for the migration and the routes,
   `core-engineer` only if `transition`/`take` need a table argument (they should not: the row is the input); after
   M20.18 and M22.3; OPEN 1 and 2 answered)* `lobby_modes` as in the data model; fork and fold; every mode reader and
   writer takes its table: the card route (`app/api/admin/mode/handler.ts`, a new optional `lobbyId` in the body;
@@ -13980,7 +13980,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   is ignored; (5) the client store patches the right lobby's card or falls back to the server render (no second
   lobby's change ever lands on the first's card).
 
-- [ ] **M22.5** Tonight's loader and state, per lobby. *(owner: `web-engineer`; after M22.3)* The snapshot gains
+- [x] **M22.5** *(landed 2026-10-05)* Tonight's loader and state, per lobby. *(owner: `web-engineer`; after M22.3)* The snapshot gains
   `lobbies` (one view per live table, built from `liveTables`) and `selectedLobbyId`; `lobby` stays and is the
   selected one, so every reader of today's snapshot is unchanged. Selection: `?lobby=` if it is a live table of
   this group, else the table the signed-in viewer is on, else the most recently changed. A finished cycle of a live
@@ -14001,7 +14001,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   unchanged; (3) a render test that one live table renders no switcher element at all; (4) an admin's tap in lobby 2
   never changes lobby 1's card (integration over the route plus a render check).
 
-- [ ] **M22.7** Discord says which lobby. *(owner: `platform-engineer`; after M22.3 and M22.2's copy)* While two or
+- [x] **M22.7** *(landed 2026-10-05)* Discord says which lobby. *(owner: `platform-engineer`; after M22.3 and M22.2's copy)* While two or
   more tables are live, the teams post, a reroll post, `Game on` and the result post carry the lobby label in the
   title (copy from M22.2), and their links open Tonight on that lobby (`?lobby=`). The Fearless post follows OPEN 1.
   With one live table every post is byte for byte today's. Acceptance: (1) the existing Discord snapshots pass
