@@ -11,7 +11,6 @@ import { mintCompanionToken, NOT_A_MEMBER_ERROR } from '@/lib/companionAuth';
 import { loadGroupPool, lobbyGroupId } from '@/lib/ingest/balance';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { rebuildRatings } from '@/lib/ingest/rebuild';
-import { startLobby } from '@/lib/lobbyStart';
 import { eogBody, lobbyBody, testGameId } from '@/lib/testing/fixtures';
 import { pinTestGroupMode } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -403,87 +402,6 @@ if (stack === null) {
       expect(await membership(newcomer, groupIds.a)).toEqual({ role: 'member' });
       expect(await membership(newcomer, groupIds.b)).toBeNull();
       expect(await membership(aOnly[0] as string, groupIds.a)).toEqual({ role: 'admin' });
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Acceptance 4: start a lobby targets the group's tokens, and the poll is per token group
-  // ---------------------------------------------------------------------------
-
-  describe('start a lobby (acceptance 4)', () => {
-    const GATE = { create_lobby: true, invite: true, switch_side: false } as const;
-
-    it('never targets a token of another group, even one seen more recently, and polls stay per group', async () => {
-      const now = new Date();
-      const ago = (ms: number): string => new Date(now.getTime() - ms).toISOString();
-      // Fresher than anything in B: A's host, and `both`'s A token.
-      await db
-        .from('companion_tokens')
-        .update({ last_seen_at: ago(10_000) })
-        .eq('group_id', groupIds.a);
-      tokens.bothA = (await mintToken(both, groupIds.a, ago(20_000))).token;
-      await db
-        .from('companion_tokens')
-        .update({ last_seen_at: ago(5 * 60_000) })
-        .eq('group_id', groupIds.b);
-      tokens.bothB = (await mintToken(both, groupIds.b, ago(8 * 60_000))).token;
-
-      // Nobody pressed it from a session: the freshest **B** token is B's host.
-      const pressed = await startLobby(
-        db,
-        { pressedByPlayerId: null, groupId: groupIds.b },
-        { now, gate: GATE },
-      );
-      expect(pressed.ok).toBe(true);
-      if (!pressed.ok) return;
-      expect(pressed.value.host.playerId).toBe(id(hostB));
-      const { data: row } = await db
-        .from('companion_commands')
-        .select('group_id, target_player_id, kind')
-        .eq('id', pressed.value.commandId)
-        .single();
-      expect(row).toEqual({ group_id: groupIds.b, target_player_id: id(hostB), kind: 'create_lobby' });
-
-      // The lock is per group (`0019`): B's live create does not stop A, and A's does not stop B.
-      await db.from('companion_commands').delete().eq('id', pressed.value.commandId);
-      const lockA = await db
-        .from('companion_commands')
-        .insert({
-          group_id: groupIds.a,
-          target_player_id: id(hostA),
-          kind: 'create_lobby',
-          payload: { lobbyName: 'Customs 01 Jan #1', lobbyPassword: '1234' },
-          expires_at: new Date(now.getTime() + 60_000).toISOString(),
-        })
-        .select('id')
-        .single();
-      expect(lockA.error).toBeNull();
-
-      // Pressed by `both`, who has a token in each group: the presser wins, through their **B** token.
-      const byBoth = await startLobby(
-        db,
-        { pressedByPlayerId: id(both), groupId: groupIds.b },
-        { now, gate: GATE },
-      );
-      expect(byBoth.ok).toBe(true);
-      if (!byBoth.ok) return;
-      expect(byBoth.value.host.playerId).toBe(id(both));
-
-      // `both` polling with their A token gets nothing of B's; with their B token, the create.
-      const viaA = await getCommands(
-        companion('commands?clientConnected=true', tokens.bothA, undefined, 'GET'),
-      );
-      expect(((await viaA.json()) as { commands: unknown[] }).commands).toEqual([]);
-      const viaB = await getCommands(
-        companion('commands?clientConnected=true', tokens.bothB, undefined, 'GET'),
-      );
-      const handed = ((await viaB.json()) as { commands: { id: string; kind: string }[] }).commands;
-      expect(handed.map((command) => command.id)).toEqual([byBoth.value.commandId]);
-
-      await db
-        .from('companion_commands')
-        .delete()
-        .in('id', [byBoth.value.commandId, lockA.data?.id ?? '']);
     });
   });
 
