@@ -1508,6 +1508,7 @@ export type Database = {
           pending_set_by: string | null
           rated_override: boolean | null
           set_by: string | null
+          taken_by_lobby_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1521,6 +1522,7 @@ export type Database = {
           pending_set_by?: string | null
           rated_override?: boolean | null
           set_by?: string | null
+          taken_by_lobby_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1534,6 +1536,7 @@ export type Database = {
           pending_set_by?: string | null
           rated_override?: boolean | null
           set_by?: string | null
+          taken_by_lobby_id?: string | null
           updated_at?: string
         }
         Relationships: [

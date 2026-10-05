@@ -310,14 +310,17 @@ export async function ingestLobby(
   reportedByPlayerId: string,
   options: LobbyIngestOptions,
 ): Promise<LobbyIngestResult> {
-  const result = await ingestPostedLobby(client, payload, reportedByPlayerId, options);
-  // After the post landed, whichever way it answered (a foreign party included, M22.1 case d):
-  // this token's Kustom is in party X now, so it is in no other lobby.
+  // Whichever way the post answers (a foreign party included, M22.1 case d): this token's Kustom
+  // is in party X now, so it is in no other lobby. Moved **before** the post's row is written
+  // (M22.4): `lobbies_fork_mode` (0051) then reads this token in X, never still in the lobby it is
+  // leaving, so one Kustom moving to a new custom never counts as a second lobby in play, while
+  // the same player's other Kustom still in the old one does.
   const now = options.now ?? new Date();
   const previousPartyId =
     options.tokenId === undefined
       ? null
       : await moveTokenParty(client, options.tokenId, payload.partyId, now);
+  const result = await ingestPostedLobby(client, payload, reportedByPlayerId, options);
   await letGoLeftLobbies(client, {
     groupId: options.groupId,
     playerId: reportedByPlayerId,

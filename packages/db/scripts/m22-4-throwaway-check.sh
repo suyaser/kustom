@@ -6,13 +6,16 @@
 #   2. a fresh throwaway from the local stack's image: `auth` restored, every migration before 0051
 #      replayed in order;
 #   3. 0051: applies; a second apply fails and rolls back;
-#   4. the fork trigger: the first lobby never forks; a second lobby while another is in play forks a
-#      copy of the group card (rule, pair, Rated; never the standing mode); a host moving to a new
-#      custom (only their own token in the old one), a finished lobby nobody's Kustom is in, and a new
-#      cycle of a live lobby write nothing; an in_game lobby counts with no token; a new lobby alone
-#      deletes a left-over row of its party; a second fork of the same party overwrites a stale row;
-#   5. mode_take_lobby: stale on a different read or a missing row, locked (row emptied, updated_at
-#      = locked_at), then exists; teams coming down hand back to the lobby row, never group_modes;
+#   4. the fork trigger (in play = live with a token whose current party it is): the first lobby
+#      never forks; a second lobby while another is in play forks a copy of the group card (rule,
+#      pair, Rated; never the standing mode); a host whose token moved to the new custom, a finished
+#      lobby nobody's Kustom is in, an in_game lobby with no token (an old build), a stale or revoked
+#      token, and a new cycle of a live lobby write nothing; the same host's second Kustom still in
+#      the old custom forks; a new lobby alone deletes a left-over row of its party; a second fork of
+#      the same party overwrites a stale row; the trigger takes the per-group advisory lock;
+#   5. mode_take_lobby: stale on a different read or a missing row, locked (row emptied and stamped
+#      with the lobby, updated_at = locked_at), then exists; teams coming down hand back to the lobby
+#      row only for a lock taken from it, else to group_modes (an older build's take);
 #      mode_hand_back_lobby gives nothing back after an admin write; one lobby's teams down still
 #      hands back to group_modes (0048's path);
 #   6. lobby_mode_fold: copies the rule, pair and Rated (not the mode) and deletes the row; refuses
@@ -136,8 +139,21 @@ expect_eq "the row holds no standing mode" \
   "$(q "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'lobby_modes' and column_name = 'mode'")" "0"
 
 q "insert into public.lobbies (group_id, lcu_party_id, reported_by_player_id) values ('$G2', 'qa', '$P3')" >/dev/null
+expect_eq "the host's second Kustom still in the old custom: the new one forks" \
+  "$(must_pass "insert into public.companion_tokens (player_id, token_hash, group_id, last_seen_at, current_party_id, current_party_at) values ('$P3', 'm224-hash-cy-2', '$G2', now(), 'qa', now());
+update public.companion_tokens set current_party_id = 'qc', current_party_at = now() where token_hash = 'm224-hash-cy';
+insert into public.lobbies (group_id, lcu_party_id, reported_by_player_id) values ('$G2', 'qc', '$P3');
+select string_agg(lcu_party_id, ',') from public.lobby_modes where group_id = '$G2';")" "qc"
+for case in "update public.companion_tokens set last_seen_at = now() - interval '11 minutes' where token_hash = 'm224-hash-cy';|a token last seen 11 minutes ago" \
+  "update public.companion_tokens set revoked_at = now() where token_hash = 'm224-hash-cy';|a revoked token"; do
+  expect_eq "${case#*|} keeps nothing in play" \
+    "$(must_pass "${case%%|*}
+insert into public.lobbies (group_id, lcu_party_id, reported_by_player_id) values ('$G2', 'qd', '$P2');
+select count(*) from public.lobby_modes where group_id = '$G2';")" "0"
+done
+q "update public.companion_tokens set current_party_id = 'qb', current_party_at = now() where token_hash = 'm224-hash-cy'" >/dev/null
 q "insert into public.lobbies (group_id, lcu_party_id, reported_by_player_id) values ('$G2', 'qb', '$P3')" >/dev/null
-expect_eq "a host moving to a new custom (only their own token in the old one) does not fork" \
+expect_eq "a host whose token moved to the new custom does not fork" \
   "$(q "select count(*) from public.lobby_modes where group_id = '$G2'")" "0"
 
 q "insert into public.lobbies (group_id, lcu_party_id, status) values ('$G3', 'ra', 'finished')" >/dev/null
@@ -151,9 +167,13 @@ expect_eq "a new lobby alone deletes a left-over row of its party" \
   "$(q "select count(*) from public.lobby_modes where group_id = '$G3'")" "0"
 
 q "insert into public.lobbies (group_id, lcu_party_id, status) values ('$G4', 'sa', 'in_game')" >/dev/null
+expect_eq "an in_game lobby with no token (an old build) is not in play" \
+  "$(must_pass "insert into public.lobbies (group_id, lcu_party_id) values ('$G4', 'sx');
+select count(*) from public.lobby_modes where group_id = '$G4';")" "0"
+q "insert into public.companion_tokens (player_id, token_hash, group_id, last_seen_at, current_party_id, current_party_at) values ('$P3', 'm224-hash-cy-g4', '$G4', now(), 'sa', now())" >/dev/null
 q "insert into public.lobby_modes (group_id, lcu_party_id, pending_rule, rated_override, created_at) values ('$G4', 'sb', 'mirror', true, now() - interval '2 days')" >/dev/null
 q "insert into public.lobbies (id, group_id, lcu_party_id) values ('$LS', '$G4', 'sb')" >/dev/null
-expect_eq "an in_game lobby counts with no token; the fork overwrites a stale row of the party" \
+expect_eq "an in_game lobby with its Kustom counts; the fork overwrites a stale row of the party" \
   "$(q "select coalesce(pending_rule, '-') || ':' || coalesce(rated_override::text, '-') || ':' || (created_at > now() - interval '1 minute') from public.lobby_modes where group_id = '$G4' and lcu_party_id = 'sb'")" \
   "-:-:true"
 
@@ -161,9 +181,16 @@ q "update public.lobbies set status = 'finished' where id = '$LA'" >/dev/null
 q "insert into public.lobbies (group_id, lcu_party_id, reported_by_player_id) values ('$G1', 'pa', '$P1')" >/dev/null
 expect_eq "a new cycle of a live lobby writes nothing" \
   "$(q "select string_agg(lcu_party_id, ',') from public.lobby_modes where group_id = '$G1'")" "pb"
+expect_eq "the fork takes the per-group advisory lock" \
+  "$(q "select position('pg_advisory_xact_lock(hashtext(new.group_id::text))' in prosrc) > 0 from pg_proc where proname = 'lobbies_fork_mode'")" "t"
 
 echo "== 5. the take and the hand-back"
 q "update public.group_modes set pending_rule = 'class', pending_class_tag = 'Tank', pending_region_blue = null, pending_region_red = null, rated_override = null where group_id = '$G1'" >/dev/null
+expect_eq "a lock not taken from the row (an older build's take) hands back to group_modes" \
+  "$(must_pass "update public.group_modes set pending_rule = null, pending_class_tag = null where group_id = '$G1';
+update public.lobbies set status = 'balanced', lock_mode = 'normal', lock_rule = 'mirror', locked_at = now() + interval '1 second' where id = '$LB';
+update public.lobbies set status = 'open' where id = '$LB';
+select gm.pending_rule || ':' || lm.pending_rule from public.group_modes gm join public.lobby_modes lm on lm.group_id = gm.group_id where gm.group_id = '$G1';")" "mirror:region"
 q "update public.lobbies set status = 'balanced' where id = '$LB'" >/dev/null
 TAKE="select public.mode_take_lobby('$LB', '$G1', 'pb', array['balanced'], 'fearless', 'region', null, 'ionia', 'noxus', false, 'fearless', 'region', null, 'ionia', 'noxus', false, true)"
 expect_eq "a read that is not the row is stale" \
@@ -174,8 +201,8 @@ expect_eq "the take locks" "$(q "$TAKE")" "locked"
 expect_eq "the lock is the row's rule, pair and Rated" \
   "$(q "select lock_mode || ':' || lock_rule || ':' || lock_region_blue || ':' || lock_region_red || ':' || lock_rated from public.lobbies where id = '$LB'")" \
   "fearless:region:ionia:noxus:false"
-expect_eq "the row is emptied with updated_at = locked_at; the group card is untouched" \
-  "$(q "select (lm.pending_rule is null and lm.rated_override is null) || ':' || (lm.updated_at = l.locked_at) || ':' || gm.pending_rule || ':' || gm.pending_class_tag from public.lobby_modes lm join public.lobbies l on l.id = '$LB' join public.group_modes gm on gm.group_id = lm.group_id where lm.group_id = '$G1' and lm.lcu_party_id = 'pb'")" \
+expect_eq "the row is emptied and stamped with updated_at = locked_at; the group card is untouched" \
+  "$(q "select (lm.pending_rule is null and lm.rated_override is null and lm.taken_by_lobby_id = l.id) || ':' || (lm.updated_at = l.locked_at) || ':' || gm.pending_rule || ':' || gm.pending_class_tag from public.lobby_modes lm join public.lobbies l on l.id = '$LB' join public.group_modes gm on gm.group_id = lm.group_id where lm.group_id = '$G1' and lm.lcu_party_id = 'pb'")" \
   "true:true:class:Tank"
 expect_eq "the old read is stale now (the row moved)" "$(q "$TAKE")" "stale"
 expect_eq "a second take of the row as it is finds the lock" \
@@ -230,6 +257,7 @@ for role in anon authenticated; do
     "$(must_pass "set local role $role; select count(*) >= 0 from (select group_id, lcu_party_id, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override, created_at, updated_at from public.lobby_modes) t;")" "t"
   must_fail "$role reading set_by" "set local role $role; select set_by from public.lobby_modes;"
   must_fail "$role reading pending_set_by" "set local role $role; select pending_set_by from public.lobby_modes;"
+  must_fail "$role reading taken_by_lobby_id" "set local role $role; select taken_by_lobby_id from public.lobby_modes;"
   must_fail "$role inserting" "set local role $role; insert into public.lobby_modes (group_id, lcu_party_id) values ('$G2', 'x4');"
   must_fail "$role updating" "set local role $role; update public.lobby_modes set rated_override = true;"
   must_fail "$role executing lobby_mode_fold" "set local role $role; select public.lobby_mode_fold('$G4', 'fresh');"

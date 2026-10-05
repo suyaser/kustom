@@ -1,6 +1,6 @@
 import type { RowPatch } from '@customs/core';
 import type { Database } from '@customs/db';
-import { type LiveTable, liveTables } from '../liveTables';
+import { inPlay, type LiveTable, liveTablesWithTokens } from '../liveTables';
 import type { ServiceClient } from '../supabase';
 import { tonightStart } from '../tonight/night';
 import {
@@ -26,16 +26,16 @@ import {
  * read, and every caller takes the code path it had before M22: the same queries, unfiltered by
  * party, the same `group_modes` writes, the same `mode_take` and `mode_hand_back`.
  *
- * **In play** narrows M22 D4's live by D7's watching ({@link inPlay}): a table `in_game`, or live and
- * watched by some Kustom. A finished table inside its 20 minutes that nobody's Kustom is in any more
- * (the host opened a new custom) still shows on Tonight but never forks a new one and never needs a
- * `lobbyId`: one host moving on is one lobby, exactly today. The fork trigger reads the same rule.
+ * **In play** is `lib/liveTables.ts`' `inPlay`, the one rule: a live table (M22.5's fold) with a
+ * Kustom in it by its current party. A finished table inside its 20 minutes that nobody's Kustom is
+ * in any more still shows on Tonight but never forks a new one and never needs a `lobbyId`: one
+ * host moving on is one lobby, exactly today. The fork trigger (`lobbies_fork_mode`) asks the same.
  *
  * With a row, the server **settles** first ({@link settleForks}): the rows of tables that ended are
  * deleted and, with exactly one table in play, its row is **folded** onto `group_modes`
  * (`lobby_modes_settle` -> `lobby_mode_fold`), unless that table holds a live lock (the lock's
- * hand-back must still find its row; a later call folds). Settling runs on every mode read and
- * write of a forked night, so the fold happens on the first of them after the other table ended;
+ * hand-back must still find its row; a later settle folds). Settling runs on every mode read and
+ * write of a forked night, so the fold happens within the next settle after the other table ended;
  * Tonight's reader can show the same card before that with {@link cardSourceOf}.
  *
  * Core's `transition`, `take`, `handBack` and `recordGame` are unchanged: the row is their input
@@ -60,31 +60,18 @@ export const GROUP_TABLE: ModeTable = { partyId: null, forked: false };
 /** The refusal for an action that names no lobby while two are live, or one that is not live. */
 export const PICK_A_LOBBY = 'pick-a-lobby' as const;
 
-/** A live table as the mode routing reads it. */
-export type ModeLiveTable = Pick<LiveTable, 'partyId' | 'watchers'> & {
-  lobby: Pick<LiveTable['lobby'], 'status'>;
-};
-
 /**
- * Is a live table **in play** for the mode (M22 D4 narrowed by D7)? `in_game`, or watched by a
- * Kustom (a token of the group seen inside `HOST_WINDOW_MS` that is in it, `lib/liveTables.ts`).
- * An unwatched pre-game table is let go by the lobby route; an unwatched finished one is only the
- * walk back nobody took.
- */
-export function inPlay(table: ModeLiveTable): boolean {
-  return table.lobby.status === 'in_game' || table.watchers.length > 0;
-}
-
-/**
- * Which table a mode action is for, pure: `live` the group's live tables, `forked` the parties
- * with a fresh `lobby_modes` row after the settle, `partyId` the table the caller named (null: none).
+ * Which table a mode action is for, pure: `live` the group's live tables, `playing` the parties of
+ * those in play (`inPlay`), `forked` the parties with a fresh `lobby_modes` row after the settle,
+ * `partyId` the table the caller named (null: none).
  *
  * - A party named: its own row when forked, else `group_modes` filtered to it while it is live.
  * - None named (or one that is not live): the only table in play; the group's card when none is;
  *   {@link PICK_A_LOBBY} when two or more are.
  */
 export function tableOf(
-  live: readonly ModeLiveTable[],
+  live: readonly Pick<LiveTable, 'partyId'>[],
+  playing: ReadonlySet<string>,
   forked: ReadonlySet<string>,
   partyId: string | null,
 ): ModeTable | typeof PICK_A_LOBBY {
@@ -92,9 +79,9 @@ export function tableOf(
     if (forked.has(partyId)) return { partyId, forked: true };
     if (live.some((table) => table.partyId === partyId)) return { partyId, forked: false };
   }
-  const playing = live.filter(inPlay);
-  if (playing.length >= 2) return PICK_A_LOBBY;
-  const only = playing[0];
+  const inPlayNow = live.filter((table) => playing.has(table.partyId));
+  if (inPlayNow.length >= 2) return PICK_A_LOBBY;
+  const only = inPlayNow[0];
   if (only === undefined) return GROUP_TABLE;
   return { partyId: only.partyId, forked: forked.has(only.partyId) };
 }
@@ -106,7 +93,7 @@ export function tableOf(
  * that are not live are ignored.
  */
 export function cardSourceOf(
-  live: readonly Pick<ModeLiveTable, 'partyId'>[],
+  live: readonly Pick<LiveTable, 'partyId'>[],
   forked: ReadonlySet<string>,
 ): Map<string, 'group' | 'lobby'> {
   return new Map(live.map((table) => [table.partyId, forked.has(table.partyId) ? 'lobby' : 'group']));
@@ -137,11 +124,11 @@ export async function settleForks(
   client: ServiceClient,
   groupId: string,
   now: Date,
-): Promise<{ live: LiveTable[]; forked: Set<string> }> {
+): Promise<{ live: LiveTable[]; playing: Set<string>; forked: Set<string> }> {
   const since = tonightStart(now);
-  const live = await liveTables(client, groupId, now, { nightStart: since });
+  const { tables: live, tokens } = await liveTablesWithTokens(client, groupId, now, { nightStart: since });
   const parties = live.map((table) => table.partyId);
-  const playing = live.filter(inPlay);
+  const playing = live.filter((table) => inPlay(table, tokens));
   const { data: folded, error } = await client.rpc('lobby_modes_settle', {
     p_group_id: groupId,
     p_live_parties: parties,
@@ -156,7 +143,7 @@ export async function settleForks(
       .filter((fork) => fork.partyId !== folded && Date.parse(fork.createdAt) >= since.getTime())
       .map((fork) => fork.partyId),
   );
-  return { live, forked };
+  return { live, playing: new Set(playing.map((table) => table.partyId)), forked };
 }
 
 /**
@@ -172,8 +159,8 @@ export async function modeTableOfParty(
 ): Promise<ModeTable> {
   if (partyId === null) return GROUP_TABLE;
   if ((await readForks(client, groupId)).length === 0) return GROUP_TABLE;
-  const { live, forked } = await settleForks(client, groupId, now);
-  const table = tableOf(live, forked, partyId);
+  const { live, playing, forked } = await settleForks(client, groupId, now);
+  const table = tableOf(live, playing, forked, partyId);
   return table === PICK_A_LOBBY ? { partyId, forked: false } : table;
 }
 
@@ -187,8 +174,8 @@ export async function modeTableOfLobby(
   if ((await readForks(client, groupId)).length === 0) return GROUP_TABLE;
   const partyId = await partyOfLobby(client, groupId, lobbyId);
   if (partyId === null) return GROUP_TABLE;
-  const { live, forked } = await settleForks(client, groupId, now);
-  const table = tableOf(live, forked, partyId);
+  const { live, playing, forked } = await settleForks(client, groupId, now);
+  const table = tableOf(live, playing, forked, partyId);
   return table === PICK_A_LOBBY ? { partyId, forked: false } : table;
 }
 
@@ -209,8 +196,8 @@ export async function modeTableForRoute(
     partyId = await partyOfLobby(client, groupId, lobbyId);
     if (partyId === null) return PICK_A_LOBBY;
   }
-  const { live, forked } = await settleForks(client, groupId, now);
-  return tableOf(live, forked, partyId);
+  const { live, playing, forked } = await settleForks(client, groupId, now);
+  return tableOf(live, playing, forked, partyId);
 }
 
 async function partyOfLobby(client: ServiceClient, groupId: string, lobbyId: string): Promise<string | null> {

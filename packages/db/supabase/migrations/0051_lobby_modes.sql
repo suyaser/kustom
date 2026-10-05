@@ -18,17 +18,18 @@
 --                           while another table of the group is in play; a new table alone deletes
 --                           a left-over row of its party (it reads group_modes). A new cycle of a
 --                           live table (the previous row is live, or finished under 20 minutes ago)
---                           writes nothing. **In play** is M22 D4's live narrowed by D7's watching:
---                           a table `in_game`, or live (open, balanced, or finished under 20
---                           minutes ago) with a token of the group seen in the last 10 minutes
---                           (HOST_WINDOW_MS) whose current party it is, other than the inserting
---                           reporter's own tokens (the trigger runs before the lobby route moves
---                           that token's current party, and the table it is leaving is let go
---                           right after, M22 D6). So one Kustom moving from a custom to a new one,
---                           or a finished custom nobody's Kustom is in any more, never forks: one
---                           lobby stays exactly today (M22 D2). Over the last day's rows, without
---                           the night boundary: a stale row can only cause a fork that the server's
---                           settle folds back.
+--                           writes nothing. **In play** is apps/web/lib/liveTables.ts' inPlay, the
+--                           one rule: a live table (open, balanced, in_game, or finished under 20
+--                           minutes ago) with an unrevoked token of the group seen in the last 10
+--                           minutes (HOST_WINDOW_MS) whose current_party_id is the table's party.
+--                           in_game alone does not count. The lobby route moves the posting token's
+--                           current party before it writes the row (M22.4), so a Kustom moving
+--                           from one custom to a new one is already out of the old one here, while
+--                           the same player's second Kustom still in it counts. One lobby stays
+--                           exactly today (M22 D2). Serialised per group by an advisory lock, so
+--                           two lobbies inserted at the same moment see each other. Over the last
+--                           day's rows, without the night boundary: a stale row can only cause a
+--                           fork that the server's settle folds back.
 --   lobby_mode_fold         the fold: the row's pending rule, pair and Rated onto group_modes, then
 --                           the row deleted, in one transaction, unless the table's live row holds a
 --                           lock (then the lock's hand-back still has its row to go to; the server
@@ -43,15 +44,21 @@
 --                           (and a share lock on group_modes for the standing mode), 'stale' when the
 --                           row is not what the server read or is gone (folded: the server re-reads
 --                           and takes from group_modes), 'exists' when the lobby has a lock or left
---                           the statuses, else the lock written and the row's pending fields
---                           emptied ('locked').
+--                           the statuses, else the lock written, the row's pending fields emptied
+--                           and the row stamped with the lobby it locked (taken_by_lobby_id)
+--                           ('locked').
 --   mode_hand_back_lobby    mode_hand_back (0047) on a lobby_modes row: only into empty fields,
 --                           nothing once the row was written after the lock.
---   lobbies_drop_mode_lock  (trigger, replaced) teams coming down hand the lock back to the table's
---                           lobby_modes row when it has one, else to group_modes exactly as 0048.
+--   lobbies_drop_mode_lock  (trigger, replaced) teams coming down hand the lock back to the
+--                           lobby_modes row it was taken from (taken_by_lobby_id is this lobby),
+--                           else to group_modes exactly as 0048.
 --
--- Additive: the previous build never reads lobby_modes, and with no row every path is 0048's. A
--- rollback deploys the previous build; rows left behind are ignored by it.
+-- **With the previous build still running.** Only a token with a current_party_id (written by the
+-- M22.3 lobby route) can put a table in play, so with a build older than M22.3 nothing ever forks.
+-- With the M22.3 build and not this one, a second lobby can fork a row that build never reads (it
+-- shows and plays the group card, as before), and since only mode_take_lobby (this build) stamps
+-- taken_by_lobby_id, every lock that build takes still hands back to group_modes. A rollback deploys
+-- the previous build; rows left behind are ignored by it and deleted by this build's settle.
 --
 -- One explicit transaction. Never edit this file once it has been applied. Add a new migration.
 
@@ -71,6 +78,7 @@ create table public.lobby_modes (
   rated_override      boolean,
   pending_set_by      uuid        references public.players (id) on delete set null,
   set_by              uuid        references public.players (id) on delete set null,
+  taken_by_lobby_id   uuid,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
   primary key (group_id, lcu_party_id),
@@ -102,6 +110,8 @@ comment on column public.lobby_modes.set_by is
   'players.id of the admin who last wrote this table''s card. Not readable by anon or authenticated (0029''s rule).';
 comment on column public.lobby_modes.pending_set_by is
   'players.id of the admin who set the pending rule. Not readable by anon or authenticated (0029''s rule).';
+comment on column public.lobby_modes.taken_by_lobby_id is
+  'lobbies.id whose lock mode_take_lobby last took from this row: the teams-down trigger hands a lock back here only when it is that lobby''s. Not readable by anon or authenticated.';
 comment on column public.lobby_modes.updated_at is
   'Set by lobby_modes_set_updated_at on every update. The client store''s ordering and mode_hand_back_lobby''s "written after the lock" test.';
 
@@ -222,6 +232,9 @@ as $$
 declare
   prev record;
 begin
+  -- One fork decision per group at a time: two lobbies inserted at the same moment see each other.
+  perform pg_advisory_xact_lock(hashtext(new.group_id::text));
+
   -- A new cycle of a table that is still live keeps that table's card.
   select l.status, l.updated_at into prev
   from public.lobbies l
@@ -244,17 +257,15 @@ begin
         and l.created_at > now() - interval '1 day'
       order by l.lcu_party_id, l.created_at desc, l.id desc
     ) newest
-    where newest.status = 'in_game'
-      or ((newest.status in ('open', 'balanced')
-          or (newest.status = 'finished' and newest.updated_at > now() - interval '20 minutes'))
-        and exists (
-          select 1 from public.companion_tokens t
-          where t.group_id = new.group_id
-            and t.revoked_at is null
-            and t.last_seen_at > now() - interval '10 minutes'
-            and t.current_party_id = newest.lcu_party_id
-            and t.player_id is distinct from new.reported_by_player_id
-        ))
+    where (newest.status in ('open', 'balanced', 'in_game')
+        or (newest.status = 'finished' and newest.updated_at > now() - interval '20 minutes'))
+      and exists (
+        select 1 from public.companion_tokens t
+        where t.group_id = new.group_id
+          and t.revoked_at is null
+          and t.last_seen_at > now() - interval '10 minutes'
+          and t.current_party_id = newest.lcu_party_id
+      )
   ) then
     insert into public.lobby_modes as lm (group_id, lcu_party_id, pending_rule, pending_class_tag,
       pending_region_blue, pending_region_red, rated_override, pending_set_by)
@@ -270,6 +281,7 @@ begin
         rated_override = excluded.rated_override,
         pending_set_by = excluded.pending_set_by,
         set_by = null,
+        taken_by_lobby_id = null,
         created_at = now();
   else
     delete from public.lobby_modes where group_id = new.group_id and lcu_party_id = new.lcu_party_id;
@@ -279,7 +291,7 @@ end;
 $$;
 
 comment on function public.lobbies_fork_mode() is
-  'M22.4 (0051): after a lobbies insert that starts a new table (the party''s previous row is not live), copies group_modes'' pending rule, pair and Rated into the party''s lobby_modes row while another table of the group is in play (in_game, or live with a recently seen token of the group whose current party it is, not the reporter''s), and otherwise deletes a left-over row of the party. A new cycle of a live table writes nothing. Security definer so every lobbies writer forks. Trigger only.';
+  'M22.4 (0051): after a lobbies insert that starts a new table (the party''s previous row is not live), copies group_modes'' pending rule, pair and Rated into the party''s lobby_modes row while another table of the group is in play (live, with an unrevoked token of the group seen in the last 10 minutes whose current_party_id is its party: lib/liveTables.ts inPlay), and otherwise deletes a left-over row of the party. A new cycle of a live table writes nothing. Serialised per group (advisory lock). Security definer so every lobbies writer forks. Trigger only.';
 
 revoke all on function public.lobbies_fork_mode() from public, anon, authenticated;
 
@@ -353,7 +365,9 @@ begin
     return 'exists';
   end if;
 
-  -- As mode_take: only a row with something to move is written, and then updated_at = locked_at.
+  -- As mode_take, the pending fields are emptied only when there is something to move; the row is
+  -- always stamped with the lobby it locked (the teams-down trigger's "taken from here"). Either
+  -- way updated_at = now() = locked_at, one transaction.
   if p_empty_row and (lm.pending_rule is not null or lm.rated_override is not null) then
     update public.lobby_modes
     set pending_rule = null,
@@ -361,7 +375,12 @@ begin
         pending_region_blue = null,
         pending_region_red = null,
         rated_override = null,
-        pending_set_by = null
+        pending_set_by = null,
+        taken_by_lobby_id = p_lobby_id
+    where group_id = p_group_id and lcu_party_id = p_party_id;
+  else
+    update public.lobby_modes
+    set taken_by_lobby_id = p_lobby_id
     where group_id = p_group_id and lcu_party_id = p_party_id;
   end if;
   return 'locked';
@@ -436,9 +455,11 @@ as $$
 begin
   if old.status = 'balanced' and new.status = 'open' then
     if old.lock_mode is not null then
+      -- Back to the row only when this lock was taken from it (mode_take_lobby stamped it).
       if exists (
         select 1 from public.lobby_modes lm
         where lm.group_id = old.group_id and lm.lcu_party_id = old.lcu_party_id
+          and lm.taken_by_lobby_id = old.id
       ) then
         perform public.mode_hand_back_lobby(
           old.group_id, old.lcu_party_id, old.lock_rule, old.lock_class_tag, old.lock_region_blue,
@@ -464,7 +485,7 @@ end;
 $$;
 
 comment on function public.lobbies_drop_mode_lock() is
-  'M15.3 (0032), M15.17 (0035), M20.7 (0047/0048), M22.4 (0051): when a lobby goes balanced -> open (the teams came down), hands its mode lock back to its table''s card (the lobby_modes row when the table is forked, mode_hand_back_lobby; else group_modes, mode_hand_back: only into empty fields, never over an admin write after the lock) and clears it. Security definer so any writer of the status hands back. Trigger only.';
+  'M15.3 (0032), M15.17 (0035), M20.7 (0047/0048), M22.4 (0051): when a lobby goes balanced -> open (the teams came down), hands its mode lock back to the card it was taken from (the lobby_modes row whose taken_by_lobby_id is this lobby, mode_hand_back_lobby; else group_modes, mode_hand_back: only into empty fields, never over an admin write after the lock) and clears it. Security definer so any writer of the status hands back. Trigger only.';
 
 revoke all on function public.lobbies_drop_mode_lock() from public, anon, authenticated;
 

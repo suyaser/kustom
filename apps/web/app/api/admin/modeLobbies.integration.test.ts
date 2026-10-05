@@ -47,6 +47,7 @@ if (stack === null) {
   );
   const { rollForTest } = await import('@/lib/testing/roll');
   const { sequenceRng } = await import('@/lib/testing/modeNight');
+  const { inPlay, liveTablesWithTokens } = await import('@/lib/liveTables');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -405,5 +406,124 @@ if (stack === null) {
     expect(answer.json).toMatchObject({ state: { pending: { id: 'region' }, rated: false } });
     expect(await forks()).toEqual([]);
     expect(await groupCard()).toMatchObject({ ...card0, rated_override: false });
+  });
+
+  /**
+   * One rule for "in play" (M22.4 review): the same fixtures go through the SQL path (the fork
+   * trigger, by inserting a probe lobby) and through `inPlay` over `liveTablesWithTokens`, and the
+   * two must agree. Each case is its own scratch group with one other table and the tokens named.
+   */
+  describe('in play: the fork trigger and inPlay agree on the same rows', () => {
+    type TokenFixture = { party: string | null; seenMinutesAgo: number; revoked?: boolean };
+    const cases: {
+      name: string;
+      status: 'open' | 'balanced' | 'in_game' | 'finished';
+      tokens: TokenFixture[];
+      expected: boolean;
+    }[] = [
+      {
+        name: 'open, a token in it',
+        status: 'open',
+        tokens: [{ party: 'other', seenMinutesAgo: 1 }],
+        expected: true,
+      },
+      {
+        name: 'balanced, a token in it',
+        status: 'balanced',
+        tokens: [{ party: 'other', seenMinutesAgo: 1 }],
+        expected: true,
+      },
+      {
+        name: 'in game, a token in it',
+        status: 'in_game',
+        tokens: [{ party: 'other', seenMinutesAgo: 1 }],
+        expected: true,
+      },
+      { name: 'in game, no token (an old build)', status: 'in_game', tokens: [], expected: false },
+      {
+        name: 'finished just now, a token in it',
+        status: 'finished',
+        tokens: [{ party: 'other', seenMinutesAgo: 1 }],
+        expected: true,
+      },
+      {
+        name: 'finished, its token moved on',
+        status: 'finished',
+        tokens: [{ party: 'probe', seenMinutesAgo: 1 }],
+        expected: false,
+      },
+      {
+        name: 'open, its token moved to the probe',
+        status: 'open',
+        tokens: [{ party: 'probe', seenMinutesAgo: 1 }],
+        expected: false,
+      },
+      {
+        name: 'open, a token with no party yet',
+        status: 'open',
+        tokens: [{ party: null, seenMinutesAgo: 1 }],
+        expected: false,
+      },
+      {
+        name: 'open, its token seen 11 minutes ago',
+        status: 'open',
+        tokens: [{ party: 'other', seenMinutesAgo: 11 }],
+        expected: false,
+      },
+      {
+        name: 'open, its token revoked',
+        status: 'open',
+        tokens: [{ party: 'other', seenMinutesAgo: 1, revoked: true }],
+        expected: false,
+      },
+      {
+        name: "open, the probe host's second machine still in it",
+        status: 'open',
+        tokens: [
+          { party: 'probe', seenMinutesAgo: 1 },
+          { party: 'other', seenMinutesAgo: 1 },
+        ],
+        expected: true,
+      },
+    ];
+    const scratch: string[] = [];
+
+    afterAll(async () => {
+      await deleteTestGroups(db, scratch);
+    });
+
+    it.each(cases)('$name', async ({ status, tokens: fixtures, expected }) => {
+      const key = `ip${scratch.length}`;
+      const groupId = (await createTestGroups(db, `${runId}${key}`, [key] as const))[key] ?? '';
+      scratch.push(groupId);
+      const partyOf = (name: string | null) => (name === null ? null : `it-${runId}-${key}-${name}`);
+      const other = partyOf('other') ?? '';
+      const probe = partyOf('probe') ?? '';
+      const otherRow = await db.from('lobbies').insert({ group_id: groupId, lcu_party_id: other, status });
+      expect(otherRow.error).toBeNull();
+      for (const [index, fixture] of fixtures.entries()) {
+        const party = partyOf(fixture.party);
+        const inserted = await db.from('companion_tokens').insert({
+          player_id: idOf.get(BO) ?? '',
+          token_hash: `${key}-${runId}-${index}`,
+          group_id: groupId,
+          last_seen_at: new Date(Date.now() - fixture.seenMinutesAgo * 60_000).toISOString(),
+          current_party_id: party,
+          current_party_at: party === null ? null : new Date().toISOString(),
+          revoked_at: fixture.revoked === true ? new Date().toISOString() : null,
+        });
+        expect(inserted.error).toBeNull();
+      }
+
+      const { tables, tokens: seenTokens } = await liveTablesWithTokens(db, groupId, new Date());
+      const ts = tables.some((table) => table.partyId !== probe && inPlay(table, seenTokens));
+      const probeRow = await db.from('lobbies').insert({ group_id: groupId, lcu_party_id: probe });
+      expect(probeRow.error).toBeNull();
+      const { data, error } = await db.from('lobby_modes').select('lcu_party_id').eq('group_id', groupId);
+      expect(error).toBeNull();
+      const sql = (data ?? []).some((row) => row.lcu_party_id === probe);
+
+      expect({ ts, sql }).toEqual({ ts: expected, sql: expected });
+    });
   });
 }

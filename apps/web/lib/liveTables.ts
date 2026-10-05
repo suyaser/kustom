@@ -255,6 +255,29 @@ export async function liveTables(
   now: Date,
   options: { nightStart?: Date } = {},
 ): Promise<LiveTable[]> {
+  return (await liveTablesWithTokens(client, groupId, now, options)).tables;
+}
+
+/**
+ * Is a live table **in play** (M22.4, the mode's fork and fold, and the one place this is
+ * decided)? A table `live` from {@link foldLiveTables} with a Kustom in it by its **current party**:
+ * some token of `tokens` (the group's {@link WatchingToken}s: unrevoked, seen inside
+ * {@link HOST_WINDOW_MS}) whose `current_party_id` is the table's party. The seat-only rule of
+ * {@link tokenWatches} does not count here, and neither does `in_game` alone: an old companion build
+ * that never writes a current party never puts a table in play. `lobbies_fork_mode` (0051) asks
+ * the same question in SQL; `modeLobbies.integration.test.ts` feeds both the same rows.
+ */
+export function inPlay(table: Pick<LiveTable, 'partyId'>, tokens: readonly WatchingToken[]): boolean {
+  return tokens.some((token) => token.currentPartyId === table.partyId);
+}
+
+/** {@link liveTables} plus the watching tokens it read, for {@link inPlay}. Same reads. */
+export async function liveTablesWithTokens(
+  client: ServiceClient,
+  groupId: string,
+  now: Date,
+  options: { nightStart?: Date } = {},
+): Promise<{ tables: LiveTable[]; tokens: WatchingToken[] }> {
   const nightStart = (options.nightStart ?? tonightStart(now)).toISOString();
   const lingerSince = new Date(now.getTime() - TABLE_LINGER_MS).toISOString();
   const [candidates, tokens] = await Promise.all([
@@ -268,7 +291,7 @@ export async function liveTables(
   ]);
   if (candidates.error) throw new Error(`liveTables: candidate select failed: ${candidates.error.message}`);
   const parties = [...new Set((candidates.data ?? []).map((row) => row.lcu_party_id))];
-  if (parties.length === 0) return [];
+  if (parties.length === 0) return { tables: [], tokens };
 
   const { data, error } = await client
     .from('lobbies')
@@ -294,5 +317,5 @@ export async function liveTables(
     unseated.map((table) => table.lobby.id),
     tokens.map((token) => token.playerId),
   );
-  return foldLiveTables(rows, tokens, seats, now);
+  return { tables: foldLiveTables(rows, tokens, seats, now), tokens };
 }
