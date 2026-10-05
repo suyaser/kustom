@@ -226,6 +226,7 @@ function RowOdds({ item }: { item: GameListItem }) {
     <CompactReceipt
       winner={item.winningSide}
       ratingsBefore={odds.ratingsBefore}
+      ratingBlueWinProb={odds.kickoffBlueWinProb ?? null}
       aram={item.aram}
       winnerInTitle
     />
