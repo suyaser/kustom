@@ -1,6 +1,7 @@
 import { type Calibration, type CalibrationGame, calibration } from '@customs/core';
 import { readAssignments } from '../discord/assemble';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
+import { calibrationGameOf, type ReceiptSeat } from '../games/receipt';
 import type { PublicClient } from '../publicClient';
 
 /**
@@ -15,7 +16,8 @@ import type { PublicClient } from '../publicClient';
  *   `winProbability`, so it counts only the calls that function made, and restarts at `0 of 20` at
  *   the switch (05-design 11.7);
  * - played from a chosen split, and the ten on each side are exactly that split's ten (teams were
- *   not changed in the lobby after the roll);
+ *   not changed in the lobby after the roll), or its two teams on each other's sides with the odds
+ *   flipped (M21.7, `calibrationGameOf`, the one rule);
  * - **every** such game, across rating resets: a reset does not wipe the bot's past calls.
  *
  * `calibration` itself drops the 50/50 splits. Pre-game odds (§4.10) are never counted: they are
@@ -62,31 +64,31 @@ export function calibrationGames(
     if (rows.length !== 10 || rows.some((row) => row.r_before === null || row.r_after === null)) continue;
     const split = splitByLobby.get(game.lobby_id);
     if (split === undefined || split.odds_model !== 'kustom') continue;
-    const p = split.blue_win_prob;
-    if (!Number.isFinite(p) || p < 0 || p > 1) continue;
-
-    const played = (side: 100 | 200): Set<string> | null => {
-      const set = new Set<string>();
-      for (const row of rows) {
-        if (row.side !== side) continue;
-        const puuid = puuidOf.get(row.player_id);
-        if (puuid === undefined) return null;
-        set.add(puuid);
-      }
-      return set;
-    };
-    const blue = played(100);
-    const red = played(200);
-    if (blue === null || red === null) continue;
-    if (!sameTen(blue, readAssignments(split.blue)) || !sameTen(red, readAssignments(split.red))) continue;
-
-    out.push({ blueWinProb: p, blueWon: game.winning_side === 100 });
+    // M21.7: the receipt rule's own check (`calibrationGameOf`), so Tonight's line and the game
+    // page's count the same games: the split's ten on its sides, or on swapped sides with the odds
+    // flipped; changed teams never.
+    const seats: ReceiptSeat[] = [];
+    for (const row of rows) {
+      const puuid = puuidOf.get(row.player_id);
+      if (puuid === undefined || (row.side !== 100 && row.side !== 200)) break;
+      seats.push({ puuid, side: row.side, rBefore: row.r_before });
+    }
+    if (seats.length !== rows.length) continue;
+    const counted = calibrationGameOf({
+      aram: false,
+      winningSide: game.winning_side,
+      rated: true,
+      seats,
+      chosen: {
+        blue: readAssignments(split.blue),
+        red: readAssignments(split.red),
+        blueWinProb: split.blue_win_prob,
+        oddsModel: 'kustom',
+      },
+    });
+    if (counted !== null) out.push(counted);
   }
   return out;
-}
-
-function sameTen(played: ReadonlySet<string>, rolled: readonly { puuid: string }[]): boolean {
-  return played.size === 5 && rolled.length === 5 && rolled.every((seat) => played.has(seat.puuid));
 }
 
 /** PostgREST answers at most this many rows per request; the reads below page through. */

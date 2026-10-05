@@ -1,5 +1,7 @@
 import type { SideValue } from '@customs/db';
 import { inChunks, mapChunks } from '../chunks';
+import { readAssignments } from '../discord/assemble';
+import { rolledOddsOf } from '../games/receipt';
 import type { PublicClient } from '../publicClient';
 import {
   BREAKDOWN_COLUMNS,
@@ -76,11 +78,21 @@ export async function loadGameBreakdowns(
   ]);
 
   for (const [gameId, game] of games) {
+    const raw = rows.get(gameId) ?? [];
+    const bot = game.lobbyId === null ? undefined : botOdds.get(game.lobbyId);
+    // M21.7: the bot's claim only for the teams it rolled, turned round when they sat on swapped
+    // sides; a game whose teams changed after the roll has no bot odds (`rolledOddsOf`).
+    const seats = raw.flatMap((row) => {
+      const puuid = puuids.get(row.player_id);
+      return puuid === undefined || (row.side !== 100 && row.side !== 200)
+        ? []
+        : [{ puuid, side: row.side as SideValue }];
+    });
     const breakdownGame: BreakdownGame = {
       winningSide: game.winningSide,
-      botBlueWinProb: game.lobbyId === null ? null : (botOdds.get(game.lobbyId)?.blueWinProb ?? null),
-      botOddsModel: game.lobbyId === null ? null : (botOdds.get(game.lobbyId)?.oddsModel ?? null),
-      rows: (rows.get(gameId) ?? []).map(toBreakdownRow),
+      botBlueWinProb: bot === undefined ? null : rolledOddsOf(bot, seats),
+      botOddsModel: bot === undefined ? null : bot.oddsModel,
+      rows: raw.map(toBreakdownRow),
     };
     const reasons = new Map<string, KustomReason | null>();
     for (const row of breakdownGame.rows) {
@@ -92,16 +104,26 @@ export async function loadGameBreakdowns(
   return out;
 }
 
-/** The chosen split's `blue_win_prob` and `odds_model` per lobby: the bot's claim (M14.59, M18.6). */
+interface ChosenOdds {
+  blueWinProb: number;
+  oddsModel: OddsModel;
+  blue: { puuid: string }[];
+  red: { puuid: string }[];
+}
+
+/**
+ * The chosen split's `blue_win_prob`, `odds_model` and teams per lobby: the bot's claim (M14.59,
+ * M18.6), and who it was about (M21.7).
+ */
 async function loadChosenBlueWinProbs(
   client: PublicClient,
   lobbyIds: readonly string[],
-): Promise<Map<string, { blueWinProb: number; oddsModel: OddsModel }>> {
-  const odds = new Map<string, { blueWinProb: number; oddsModel: OddsModel }>();
+): Promise<Map<string, ChosenOdds>> {
+  const odds = new Map<string, ChosenOdds>();
   for (const { data, error } of await mapChunks(lobbyIds, (chunk) =>
     client
       .from('splits')
-      .select('lobby_id, blue_win_prob, odds_model')
+      .select('lobby_id, blue_win_prob, odds_model, blue, red')
       .in('lobby_id', chunk)
       .eq('is_chosen', true),
   )) {
@@ -111,6 +133,8 @@ async function loadChosenBlueWinProbs(
       odds.set(row.lobby_id, {
         blueWinProb: row.blue_win_prob,
         oddsModel: row.odds_model === 'kustom' ? 'kustom' : 'openskill',
+        blue: readAssignments(row.blue),
+        red: readAssignments(row.red),
       });
     }
   }

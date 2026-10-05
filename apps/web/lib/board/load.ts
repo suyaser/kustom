@@ -8,7 +8,10 @@ import {
   rowReason,
 } from '../breakdown/read';
 import { inChunks, mapChunks } from '../chunks';
+import { readAssignments } from '../discord/assemble';
+import { readKickoffs } from '../games/kickoffs';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
+import { kickoffOddsFor, playedOddsOf, rolledOddsOf } from '../games/receipt';
 import { type FoldAwardPlayer, type FoldPerformance, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
 import { loadRosterLabels, withLabel } from '../names/roster';
@@ -660,13 +663,12 @@ async function loadRecentGames(
   if (played.length === 0) return [];
 
   const gameIds = played.map(({ game }) => game.id);
-  const [rows, splits, modes] = await Promise.all([
+  const lobbyIds = played.flatMap(({ game }) => (game.lobbyId === null ? [] : [game.lobbyId]));
+  const [rows, splits, modes, kickoffs] = await Promise.all([
     loadGameRows(client, gameIds, { withStats: true }),
-    loadChosenSplits(
-      client,
-      played.flatMap(({ game }) => (game.lobbyId === null ? [] : [game.lobbyId])),
-    ),
+    loadChosenSplits(client, lobbyIds),
     loadGameModes(client, gameIds),
+    readKickoffs(client, lobbyIds, 'board'),
   ]);
   const names = await loadNamesByPlayerId(
     client,
@@ -685,11 +687,30 @@ async function loadRecentGames(
     // M18.5: the pre-game odds are `winProbability` of the stored all-time Kustom Ratings going in.
     const before = (side: SideValue): KustomBefore[] =>
       all.filter((other) => other.side === side).map((other) => ({ r: other.rBefore }));
+    const mode = modes.get(game.id);
+    const aram = matchesQueue(mode?.gameMode ?? null, 'aram');
+    // M21.7: the receipt rule (`lib/games/receipt.ts`): the split's odds only for its teams (flipped
+    // on swapped sides); changed teams get pre-game odds, the kickoff record's first.
+    const seats = all.flatMap((other) => {
+      const puuid = names.get(other.playerId)?.puuid;
+      return puuid === undefined ? [] : [{ puuid, side: other.side, rBefore: other.rBefore }];
+    });
+    const odds = playedOddsOf({
+      aram,
+      rated: mode?.rated ?? true,
+      seats,
+      chosen: split ?? null,
+      kickoff: game.lobbyId === null ? null : (kickoffs.get(game.lobbyId) ?? null),
+    });
+    const kickoffOdds =
+      odds.kind === 'pre-game' && game.lobbyId !== null
+        ? kickoffOddsFor(kickoffs.get(game.lobbyId), seats)
+        : null;
 
     // M14.58 / M14.59: the fold's stored breakdown, read with the same rows.
     const breakdown: BreakdownGame = {
       winningSide: game.winningSide,
-      botBlueWinProb: split?.blueWinProb ?? null,
+      botBlueWinProb: split === undefined ? null : rolledOddsOf(split, seats),
       botOddsModel: split?.oddsModel ?? null,
       rows: all.map((other) => ({
         playerId: other.playerId,
@@ -722,10 +743,12 @@ async function loadRecentGames(
       weekRBefore: row.weekRBefore,
       weekRAfter: row.weekRAfter,
       award: recentAward(all, game, names, row.playerId),
-      blueWinProb: split?.blueWinProb ?? null,
-      pickRank: split?.rank ?? null,
-      ratingsBefore: split === undefined ? { blue: before(100), red: before(200) } : null,
-      aram: matchesQueue(modes.get(game.id) ?? null, 'aram'),
+      blueWinProb: odds.kind === 'rolled' ? odds.blueWinProb : kickoffOdds,
+      pickRank: odds.rank,
+      // A pre-game game without kickoff odds reads the befores (the fold's `fold_p` first, at render).
+      ratingsBefore:
+        odds.kind === 'pre-game' && kickoffOdds === null ? { blue: before(100), red: before(200) } : null,
+      aram,
       team: inLaneOrder(team),
       reason: rowReason(breakdown, row.playerId, track),
       odds: resultOdds(breakdown),
@@ -761,12 +784,12 @@ function recentAward(
 async function loadChosenSplits(
   client: PublicClient,
   lobbyIds: readonly string[],
-): Promise<Map<string, { blueWinProb: number; rank: number; oddsModel: OddsModel }>> {
-  const splits = new Map<string, { blueWinProb: number; rank: number; oddsModel: OddsModel }>();
+): Promise<Map<string, ChosenSplitRow>> {
+  const splits = new Map<string, ChosenSplitRow>();
   for (const { data, error } of await mapChunks(lobbyIds, (chunk) =>
     client
       .from('splits')
-      .select('lobby_id, blue_win_prob, rank, odds_model')
+      .select('lobby_id, blue_win_prob, rank, odds_model, blue, red')
       .in('lobby_id', chunk)
       .eq('is_chosen', true),
   )) {
@@ -777,23 +800,34 @@ async function loadChosenSplits(
         blueWinProb: row.blue_win_prob,
         rank: row.rank,
         oddsModel: row.odds_model === 'kustom' ? 'kustom' : 'openskill',
+        blue: readAssignments(row.blue),
+        red: readAssignments(row.red),
       });
     }
   }
   return splits;
 }
 
+interface ChosenSplitRow {
+  blueWinProb: number;
+  rank: number;
+  oddsModel: OddsModel;
+  blue: { puuid: string }[];
+  red: { puuid: string }[];
+}
+
 /** `games.game_mode` (0039) for the listed games only (the ARAM label), never the blob. */
 async function loadGameModes(
   client: PublicClient,
   gameIds: readonly string[],
-): Promise<Map<string, string | null>> {
-  const modes = new Map<string, string | null>();
+): Promise<Map<string, { gameMode: string | null; rated: boolean }>> {
+  const modes = new Map<string, { gameMode: string | null; rated: boolean }>();
   for (const { data, error } of await mapChunks(gameIds, (chunk) =>
-    client.from('games').select('id, gameMode:game_mode').in('id', chunk),
+    client.from('games').select('id, gameMode:game_mode, rated').in('id', chunk),
   )) {
     if (error) throw new Error(`board: game mode lookup failed: ${error.message}`);
-    for (const row of data ?? []) modes.set(row.id, gameModeFromRaw({ gameMode: row.gameMode }));
+    for (const row of data ?? [])
+      modes.set(row.id, { gameMode: gameModeFromRaw({ gameMode: row.gameMode }), rated: row.rated });
   }
   return modes;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLobbyMember, isRosterFrozen, memberRowMoved, RANK_STALE_MS } from './lobby';
+import { isLobbyMember, isRosterFrozen, lobbyFitsGame, memberRowMoved, RANK_STALE_MS } from './lobby';
 import { isDisplayNameAutomatic } from './players';
 
 describe('memberRowMoved (M19.8: a post writes only the rows that moved)', () => {
@@ -104,5 +104,45 @@ describe('RANK_STALE_MS', () => {
     // `companion.integration.test.ts`.
     expect(RANK_STALE_MS).toBe(7 * 24 * 60 * 60 * 1000);
     expect(RANK_STALE_MS).toBe(604_800_000);
+  });
+});
+
+describe('lobbyFitsGame (M21.11: a game matches only a lobby whose sided members played it)', () => {
+  const ten = Array.from({ length: 10 }, (_, i) => `p${i}`);
+  const sided = (puuids: readonly string[]) =>
+    puuids.map((puuid, i) => ({ puuid, side: i < puuids.length / 2 ? 100 : 200, isSpectator: false }));
+  const watching = (puuids: readonly string[]) =>
+    puuids.map((puuid) => ({ puuid, side: null, isSpectator: true }));
+
+  it('fits the ten who played, on any sides, with spectators who watched', () => {
+    expect(lobbyFitsGame(sided(ten), ten)).toBe(true);
+    expect(lobbyFitsGame(sided(ten), [...ten].reverse())).toBe(true);
+    expect(lobbyFitsGame([...sided(ten), ...watching(['s1', 's2'])], ten)).toBe(true);
+  });
+
+  it('fits a spectator or an unsided member who took a seat, and a smaller game', () => {
+    const nine = ten.slice(0, 9);
+    const members = [...sided(nine), { puuid: 's1', side: null, isSpectator: true }];
+    expect(lobbyFitsGame(members, [...nine, 's1'])).toBe(true);
+    expect(lobbyFitsGame(sided(ten.slice(0, 6)), ten.slice(0, 6))).toBe(true);
+  });
+
+  it('refuses the 2026-10-02 roster: five sided members did not play, five watchers did', () => {
+    const watchers = ['s0', 's1', 's2', 's3', 's4'];
+    const members = [
+      ...sided(ten),
+      ...watching(watchers.slice(0, 3)),
+      ...watchers.slice(3).map((puuid) => ({ puuid, side: null, isSpectator: false })),
+    ];
+    expect(lobbyFitsGame(members, [...ten.slice(0, 5), ...watchers])).toBe(false);
+  });
+
+  it('refuses one sided member missing, and a roster none of whom played', () => {
+    expect(lobbyFitsGame(sided(ten), [...ten.slice(0, 9), 'x'])).toBe(false);
+    expect(lobbyFitsGame(watching(['s1']), ten)).toBe(false);
+  });
+
+  it('fits a lobby with no member rows: nothing in it says otherwise', () => {
+    expect(lobbyFitsGame([], ten)).toBe(true);
   });
 });

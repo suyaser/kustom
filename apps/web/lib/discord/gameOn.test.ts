@@ -1,5 +1,5 @@
 import type { Role } from '@customs/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { modePageUrl } from '../siteUrl';
 import { GAME4_GROUP, GAME4_ORIGIN, game4Identity } from '../testing/discordGame4';
 import { buildGameOnInput, type GameOnKickoff, type GameOnSource, type NameLookup } from './assemble';
@@ -17,7 +17,7 @@ import {
   type WebhookPayload,
 } from './embeds';
 import { DESCRIPTION_LIMIT, ELLIPSIS, EMBEDS_LIMIT, messageLength, TITLE_LIMIT, TOTAL_LIMIT } from './limits';
-import { announcesKickoff, postGameOnForLobby } from './post';
+import { announcesKickoff, loadKickoffRatings, postGameOnForLobby } from './post';
 
 /**
  * M21.6: the `Game on` post, a new message when the game starts with teams Kustom did not roll.
@@ -250,5 +250,55 @@ describe('which kickoffs are announced (acceptance 3)', () => {
       kickoff: { kind: 'rolled', blue: [puuid(0)], red: [puuid(1)], at: TWO_SWAP.at, swapped: false },
     });
     expect(outcome).toMatchObject({ status: 'skipped', attempts: 0 });
+  });
+
+  describe('loadKickoffRatings degrades to 1200 instead of dropping the post (M21.7)', () => {
+    type Client = Parameters<typeof loadKickoffRatings>[0];
+    /** A client whose `players` read answers `players` and whose `ratings` read answers `ratings`. */
+    const fake = (players: () => unknown, ratings: () => unknown): Client =>
+      ({
+        from: (table: string) => ({
+          select: () => ({
+            in: async () => (table === 'players' ? players() : undefined),
+            eq: () => ({ in: async () => ratings() }),
+          }),
+        }),
+      }) as unknown as Client;
+    const quiet = () => vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    it('reads the stored r, 1200 for a player with no row', async () => {
+      const client = fake(
+        () => ({ data: [{ id: 'p0', puuid: puuid(0) }], error: null }),
+        () => ({ data: [{ player_id: 'p0', r: 1312, games: 9 }], error: null }),
+      );
+      const of = await loadKickoffRatings(client, 'g', [puuid(0), puuid(1)]);
+      expect([of(puuid(0)), of(puuid(1))]).toEqual([1312, 1200]);
+    });
+
+    it.each([
+      [
+        'the players read errors',
+        () => ({ data: null, error: { message: 'boom' } }),
+        () => ({ data: [], error: null }),
+      ],
+      [
+        'the ratings read errors',
+        () => ({ data: [{ id: 'p0', puuid: puuid(0) }], error: null }),
+        () => ({ data: null, error: { message: 'boom' } }),
+      ],
+      [
+        'the request throws',
+        () => {
+          throw new Error('fetch failed');
+        },
+        () => ({ data: [], error: null }),
+      ],
+    ])('%s: 1200 for everyone, logged, never a throw', async (_, players, ratings) => {
+      const spy = quiet();
+      const of = await loadKickoffRatings(fake(players, ratings), 'g', [puuid(0), puuid(1)]);
+      expect([of(puuid(0)), of(puuid(1))]).toEqual([1200, 1200]);
+      expect(spy).toHaveBeenCalledOnce();
+      spy.mockRestore();
+    });
   });
 });

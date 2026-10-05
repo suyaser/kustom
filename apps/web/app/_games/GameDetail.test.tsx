@@ -63,6 +63,7 @@ function game(overrides: Partial<GameDetailView> = {}): GameDetailView {
       kind: 'rolled',
       splits: THREE_SPLITS,
       chosen: THREE_SPLITS[0] as (typeof THREE_SPLITS)[number],
+      swapped: false,
     },
     names: FIXTURE_NAMES,
     calibration: CALIBRATION_READY,
@@ -140,7 +141,15 @@ describe('GameDetail', () => {
 
   it('a backfilled game shows pre-game odds and says Kustom did not pick the teams', () => {
     draw(
-      game({ receipt: { kind: 'pre-game', reason: 'no-split', ratingsBefore: RATINGS_KNOWN, rolled: null } }),
+      game({
+        receipt: {
+          kind: 'pre-game',
+          reason: 'no-split',
+          ratingsBefore: RATINGS_KNOWN,
+          rolled: null,
+          kickoffBlueWinProb: null,
+        },
+      }),
     );
     expect(screen.getByRole('region', { name: 'Pre-game odds' })).toBeInTheDocument();
     expect(
@@ -157,6 +166,7 @@ describe('GameDetail', () => {
           reason: 'teams-changed',
           ratingsBefore: RATINGS_KNOWN,
           rolled: THREE_SPLITS,
+          kickoffBlueWinProb: null,
         },
       }),
     );
@@ -171,7 +181,13 @@ describe('GameDetail', () => {
   it('a missing mu_before says No odds for this game and draws no receipt', () => {
     draw(
       game({
-        receipt: { kind: 'pre-game', reason: 'no-split', ratingsBefore: RATINGS_MISSING, rolled: null },
+        receipt: {
+          kind: 'pre-game',
+          reason: 'no-split',
+          ratingsBefore: RATINGS_MISSING,
+          rolled: null,
+          kickoffBlueWinProb: null,
+        },
       }),
     );
     expect(screen.getByText('No odds for this game.')).toBeInTheDocument();
@@ -345,7 +361,13 @@ describe('M14.58 / M14.59: why this many points, and the odds the rating used', 
     render(
       <GameDetail
         game={game({
-          receipt: { kind: 'pre-game', reason: 'no-split', ratingsBefore: RATINGS_KNOWN, rolled: null },
+          receipt: {
+            kind: 'pre-game',
+            reason: 'no-split',
+            ratingsBefore: RATINGS_KNOWN,
+            rolled: null,
+            kickoffBlueWinProb: null,
+          },
         })}
         backHref="/g/customs/games"
         breakdown={breakdown({

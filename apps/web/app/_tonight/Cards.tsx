@@ -270,8 +270,15 @@ export function LastGameCard({
           <p className="num text-sm text-muted-foreground font-stretch-85%">
             {formatMinutes(result.durationS)}
           </p>
-          {result.blueWinProb === null ? (
-            <CompactReceipt winner={result.winningSide} ratingsBefore={before} aram={last.aram} />
+          {/* M21.7: `none` (not rated, teams not the roll) prints no odds; a game nobody rolled
+              reads its kickoff odds, else the befores. */}
+          {result.oddsKind === 'none' ? null : result.blueWinProb === null ? (
+            <CompactReceipt
+              winner={result.winningSide}
+              ratingsBefore={before}
+              ratingBlueWinProb={result.kickoffBlueWinProb ?? null}
+              aram={last.aram}
+            />
           ) : (
             <CompactReceipt
               winner={result.winningSide}

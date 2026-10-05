@@ -1,6 +1,7 @@
 import { displayKustom, KUSTOM_START } from '@customs/core';
 import { type KickoffRow, kickoffFromRow, type LobbyKickoff } from '@customs/db/schemas';
 import type { StoredSplit } from '@/components/receipt/types';
+import { orientRun } from '../games/receipt';
 import { inLaneOrder } from '../laneOrder';
 import { renderWebName } from './copy';
 import type { KickoffSeatView, KickoffView, MemberView, SeatView, TeamsView } from './types';
@@ -66,12 +67,7 @@ export function readKickoff(row: KickoffRow, lobbyId: string): LobbyKickoff | nu
  * sentence name the side each team is really on.
  */
 export function swappedRun(stored: readonly StoredSplit[]): StoredSplit[] {
-  return stored.map((split) => ({
-    ...split,
-    blue: split.red,
-    red: split.blue,
-    blueWinProb: 1 - split.blueWinProb,
-  }));
+  return orientRun(stored, true);
 }
 
 /** Where the viewer plays at kickoff, or `null` (not on a team, or not known). */

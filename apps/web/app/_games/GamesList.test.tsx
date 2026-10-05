@@ -78,7 +78,7 @@ describe('GamesList', () => {
             item({ odds: { kind: 'rolled', blueWinProb: 0.46, rank: 2 }, winningSide: 100 }),
             item({
               id: 'game-2',
-              odds: { kind: 'pre-game', ratingsBefore: RATINGS_KNOWN },
+              odds: { kind: 'pre-game', ratingsBefore: RATINGS_KNOWN, kickoffBlueWinProb: null },
               winningSide: 200,
             }),
           ],

@@ -176,8 +176,22 @@ export interface ResultView {
   gameId: string;
   winningSide: SideValue;
   durationS: number;
-  /** The chosen split's odds, or `null` when the game was played without a stored split. */
+  /**
+   * Blue's chance for the teams that played (M21.7, `postedOdds` in `lib/games/receipt.ts`): the
+   * chosen split's when its teams played (flipped for swapped sides), the pre-game odds when the
+   * teams changed after the roll, `null` for a game nobody rolled (the card then reads the befores,
+   * as before) or one with no honest odds (not rated, teams not the roll).
+   */
   blueWinProb: number | null;
+  /** The receipt kind (M21.7, `playedOddsOf`). Absent in older fixtures: read from {@link blueWinProb}. */
+  oddsKind?: 'rolled' | 'pre-game' | 'none' | undefined;
+  /** The chosen split's rank when its teams played (`pick #2`), else `null`. Absent: not known. */
+  pickRank?: number | null | undefined;
+  /**
+   * A pre-game game's kickoff odds (M21.4's record, `custom` / `unrolled`) when the record's teams
+   * are the ones that played, else `null` or absent: preferred over the befores (M21.7).
+   */
+  kickoffBlueWinProb?: number | null | undefined;
   topDamage: { name: PlayerName; damage: number } | null;
   /**
    * The MVP and the ACE by name (M11.3): `gatedGameAward`'s answer, the function the Discord

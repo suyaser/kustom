@@ -13522,7 +13522,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   no channel connected.
 
   *Landed 2026-10-05 (a99ab356, reviewer pass). Follow-ups: degrade to 1200 when the player lookup fails instead of dropping the post; afterIngest reuses afterResponse.*
-- [ ] **M21.7** After the game, every surface prints the odds of the teams that played. *(owners:
+- [x] **M21.7** After the game, every surface prints the odds of the teams that played. *(owners:
   `platform-engineer` for the Discord and loader halves, `web-engineer` for Tonight; after M21.4, can run beside
   M21.5)* Route each reader that prints a rolled split's odds through `gameReceiptOf` (the one rule), so a `custom`
   game shows pre-game odds (or none when not rated) and its `Upset` comes from them: the Discord result post
@@ -13538,6 +13538,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   the Tonight balanced/in-game `rolled` path reads `blue_win_prob` for a finished game without `teamsMatchSplit`;
   (4) the AI recap's facts for the swapped game say `upset` by the pre-game odds (already true, asserted).
 
+  *Landed 2026-10-05 (97e6fa97, reviewer pass). Acceptance (2) superseded (decision row M21.7). Open for product: kickoff odds on compact surfaces for unrolled games.*
 - [x] **M21.8** The balancer remembers the teams that were played. *(owner: `platform-engineer`; after M21.4;
   both halves wait on the owner's yes, OPEN item 5, because (a) supersedes the 2026-09-08 `lastSplit` row)* (a)
   `last game's teams again` reads the most recent **played** teams of these same ten (the latest game whose ten
@@ -13564,13 +13565,14 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
 - [ ] **M21.10** Review and scene walk. *(owners: `reviewer`, then `product`)* The reviewer's pass over M21.4 to
   M21.9; product walks the scene on the local stack with a hand-swapped game. Acceptance: the milestone acceptance
   below, played through once, plus M21.1's verdict recorded and M21.2 done or explicitly deferred by the owner.
-- [ ] **M21.11** A game matched to a stale lobby. *(owner: `platform-engineer`; from the M21.1 audit)* On
+- [x] **M21.11** A game matched to a stale lobby. *(owner: `platform-engineer`; from the M21.1 audit)* On
   2026-10-02 a game was attached to a lobby whose last member row was 61 minutes before the game started: five of
   its sided members never played and five spectators or unsided members did (lobby 422e74e0). Find how the eog
   matched it (party id reuse, lobby kept open across games, or the eog fallback) and make a game match only a lobby
   whose sided members are the players in it, or create a fresh lobby. Acceptance: an integration test reproduces
   the stale match and shows the fix; the M21.1 query rerun on local fixtures has no `no_visible_cause`.
 - [ ] **M21.12** The game mode at game start. *(owner: `companion-engineer` for the payload, `platform-engineer` for the schema; from M21.5 and M21.6)* The server learns a game is an ARAM only at the end of game, so an ARAM played on custom or unrolled teams shows kickoff odds in game (M21.5) and gets a `Game on` post (M21.6). The engine already reads `/lol-gameflow/v1/session` at GameStart; send its game mode (queue / `gameData.queue` or `map`) in the `in_progress` body as an optional field (Rust payload, zod schema, regenerated goldens), store it on the lobby with the kickoff record, and have Tonight hide the odds and Discord skip the post for ARAM. Verify the field on a real client first (03-lcu-reference). Acceptance: an ARAM start stores the mode, Tonight shows no odds, no `Game on` post; a Rift start is unchanged; an old companion without the field behaves as today.
+  *Landed 2026-10-05 (3c16ab00, reviewer pass). staleLobby.integration replays 2026-10-02. M21.1 query rerun on the local stack after the merge: `no_visible_cause` 0 (one `lobby_created_after_start` in the fixture data).*
 
 ```
 M21.1 (audit) --+-- M21.4 (kickoff, server) --+-- M21.5 (Tonight in game) -- M21.9 (after M20.10) --\

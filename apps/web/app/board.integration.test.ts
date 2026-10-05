@@ -261,8 +261,13 @@ if (stack === null) {
     await db.from('splits').insert({
       lobby_id: lobbyId,
       rank: 1,
-      blue: [1, 2, 3, 4, 5],
-      red: [6, 7, 8, 9, 10],
+      // The ten who played the lobby game, each on the side they played (M21.7: a split's odds
+      // print only for its own teams).
+      blue: [puuid.zoe, puuid.nameless, ...fillerPuuids.slice(0, 3)].map((one) => ({
+        puuid: one,
+        role: 'top',
+      })),
+      red: [puuid.ali, ...fillerPuuids.slice(3)].map((one) => ({ puuid: one, role: 'top' })),
       gap: 40,
       blue_win_prob: 0.58,
       score: 1,

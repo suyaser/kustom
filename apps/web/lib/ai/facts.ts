@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
-import { preGameOdds, SETTLING_GAMES } from '@customs/core';
+import { SETTLING_GAMES } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import type {
   AiClaim,
@@ -13,9 +13,10 @@ import type {
 } from '@customs/db/schemas';
 import { championName, listChampions } from '../champs/names';
 import type { AiProvider } from '../env';
+import { readKickoffs } from '../games/kickoffs';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
-import { readScoreRows, readSplitRuns } from '../games/read';
-import { type GameReceipt, gameReceiptOf } from '../games/receipt';
+import { readPlayersById, readScoreRows, readSplitRuns } from '../games/read';
+import { type GameReceipt, gameReceiptOf, receiptBlueWinProb } from '../games/receipt';
 import { aiGateOpen, readAiGate } from '../premium';
 import { resultOdds } from '../receipt/copy';
 import { killParticipation } from '../stats/killParticipation';
@@ -760,15 +761,13 @@ export async function readGameMeta(
 }
 
 /**
- * The recap's `upset` fact, by the receipt's own `Upset` rule: the rolled split's odds, or core's
- * `preGameOdds` for a game with no roll. A receipt with no odds (an ARAM, or since M15.18 a game
+ * The recap's `upset` fact, by the receipt's own `Upset` rule over the one number the receipt
+ * prints (`receiptBlueWinProb`, M21.7): the rolled split's odds (flipped for swapped sides), else
+ * the kickoff odds or core's `preGameOdds`. A receipt with no odds (an ARAM, or since M15.18 a game
  * played not rated whose teams are not the bot's) is never an upset.
  */
 export function receiptUpset(receipt: GameReceipt, winningSide: 100 | 200): boolean {
-  let blueWinProb: number | null = null;
-  if (receipt.kind === 'rolled') blueWinProb = receipt.chosen.blueWinProb;
-  else if (receipt.kind === 'pre-game')
-    blueWinProb = preGameOdds(receipt.ratingsBefore.blue, receipt.ratingsBefore.red);
+  const blueWinProb = receiptBlueWinProb(receipt);
   return blueWinProb !== null && Number.isFinite(blueWinProb) && resultOdds(blueWinProb, winningSide).upset;
 }
 
@@ -798,23 +797,32 @@ export async function loadGameFactsInput(
   if (game === null || (game.winning_side !== 100 && game.winning_side !== 200)) return null;
   const winningSide: 100 | 200 = game.winning_side;
 
-  const [rows, runs] = await Promise.all([
+  const lobbyIds = game.lobby_id === null ? [] : [game.lobby_id];
+  const [rows, runs, kickoffs] = await Promise.all([
     readScoreRows(service, [game.id]),
-    game.lobby_id === null ? Promise.resolve(new Map()) : readSplitRuns(service, [game.lobby_id]),
+    game.lobby_id === null ? Promise.resolve(new Map()) : readSplitRuns(service, lobbyIds),
+    readKickoffs(service, lobbyIds, 'ai facts'),
   ]);
   if (rows.length === 0) return null;
   const aram = matchesQueue(gameModeFromRaw(game.raw), 'aram');
+  // The split names puuids; the scoreboard names player ids (M21.7: compared ids before, so every
+  // rolled game read as `teams-changed`). An id with no `players_public` row matches nobody.
+  const players = await readPlayersById(
+    service,
+    rows.map((row) => row.playerId),
+  );
 
   const receipt = gameReceiptOf({
     aram,
     // M15.18: a game played not rated keeps its rolled odds (and its `Upset`), never pre-game odds.
     rated: game.rated,
     seats: rows.map((row) => ({
-      puuid: row.playerId,
+      puuid: players.get(row.playerId)?.puuid ?? `id:${row.playerId}`,
       side: row.side,
       rBefore: row.rBefore,
     })),
     splits: game.lobby_id === null ? [] : (runs.get(game.lobby_id) ?? []),
+    kickoff: game.lobby_id === null ? null : (kickoffs.get(game.lobby_id) ?? null),
   });
   const upset = receiptUpset(receipt, winningSide);
 

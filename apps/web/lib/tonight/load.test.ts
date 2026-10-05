@@ -37,6 +37,18 @@ const red = ['r1', 'r2', 'r3', 'r4', 'r5'].map((puuid, index) =>
   seat(puuid, ['top', 'jungle', 'mid', 'adc', 'support'][index] ?? 'top'),
 );
 
+/** The ten on the scoreboard, each on the split's side (the rolled-and-played game). */
+const TEN = [...blue.map((one) => [one.puuid, 100] as const), ...red.map((one) => [one.puuid, 200] as const)];
+const scoreboard = (sideOf: (puuid: string, side: 100 | 200) => 100 | 200 = (_, side) => side) =>
+  TEN.map(([puuid, side]) => ({
+    game_id: 'g1',
+    player_id: `p-${puuid}`,
+    side: sideOf(puuid, side),
+    r_before: 1500,
+    r_after: 1508,
+  }));
+const tenPlayers = new Map(TEN.map(([puuid]) => [`p-${puuid}`, { puuid, name: puuid }]));
+
 function source(overrides: Partial<TapeSource> = {}): TapeSource {
   return {
     lobbies: [G1],
@@ -50,10 +62,10 @@ function source(overrides: Partial<TapeSource> = {}): TapeSource {
         gameMode: 'CLASSIC',
       },
     ],
-    gamePlayers: Array.from({ length: 10 }, () => ({ game_id: 'g1', r_before: 1500, r_after: 1508 })),
+    gamePlayers: scoreboard(),
     splits: [{ lobby_id: 'l1', blue, red, blue_win_prob: 0.62 }],
     members: [],
-    players: new Map(),
+    players: tenPlayers,
     ...overrides,
   };
 }
@@ -121,6 +133,81 @@ describe('what a tape row carries', () => {
       mvp: null,
       // M15.19: no rule columns in this source.
       rule: null,
+    });
+  });
+
+  describe('odds by the receipt rule (M21.7)', () => {
+    const rolledSplit = { lobby_id: 'l1', blue, red, blue_win_prob: 0.62, rank: 2 };
+    /** b1 and r1 traded seats after the roll: the teams are not the split's. */
+    const traded = (puuid: string, side: 100 | 200): 100 | 200 =>
+      puuid === 'b1' ? 200 : puuid === 'r1' ? 100 : side;
+    const tradedTeams = {
+      blue: ['r1', 'b2', 'b3', 'b4', 'b5'],
+      red: ['b1', 'r2', 'r3', 'r4', 'r5'],
+    };
+
+    it('rolled and played: the split odds and pick number, as before', () => {
+      const [row] = assembleTape(source({ splits: [rolledSplit] }), CLOCK);
+      expect(row).toMatchObject({ blueWinProb: 0.62, rank: 2 });
+    });
+
+    it('rolled, played on swapped sides: the split turned round, pick number kept', () => {
+      const swapped = scoreboard((_, side) => (side === 100 ? 200 : 100));
+      const [row] = assembleTape(source({ splits: [rolledSplit], gamePlayers: swapped }), CLOCK);
+      expect(row?.blueWinProb).toBeCloseTo(0.38, 10);
+      expect(row?.rank).toBe(2);
+    });
+
+    it('rolled, then swapped in the lobby: the kickoff odds, no pick number', () => {
+      const kickoffs = new Map([
+        [
+          'l1',
+          {
+            kind: 'custom' as const,
+            ...tradedTeams,
+            at: '2026-09-08T17:19:00.000Z',
+            blueWinProb: 0.41,
+            oddsModel: 'kustom' as const,
+          },
+        ],
+      ]);
+      const [row] = assembleTape(
+        source({ splits: [rolledSplit], gamePlayers: scoreboard(traded), kickoffs }),
+        CLOCK,
+      );
+      expect(row).toMatchObject({ blueWinProb: 0.41, rank: null });
+    });
+
+    it('rolled, then swapped, no kickoff record: pre-game odds from the befores, never 0.62', () => {
+      const [row] = assembleTape(source({ splits: [rolledSplit], gamePlayers: scoreboard(traded) }), CLOCK);
+      // Ten at 1500: an even game.
+      expect(row).toMatchObject({ blueWinProb: 0.5, rank: null });
+    });
+
+    it('rolled, then swapped, played not rated: no odds', () => {
+      const game = { ...(source().games[0] as TapeSource['games'][number]), rated: false };
+      const [row] = assembleTape(
+        source({ splits: [rolledSplit], games: [game], gamePlayers: scoreboard(traded) }),
+        CLOCK,
+      );
+      expect(row).toMatchObject({ blueWinProb: null, rank: null });
+    });
+
+    it('unrolled: no odds on the tile, as before, even with a kickoff record', () => {
+      const kickoffs = new Map([
+        [
+          'l1',
+          {
+            kind: 'unrolled' as const,
+            ...tradedTeams,
+            at: '2026-09-08T17:19:00.000Z',
+            blueWinProb: 0.41,
+            oddsModel: 'kustom' as const,
+          },
+        ],
+      ]);
+      const [row] = assembleTape(source({ splits: [], gamePlayers: scoreboard(traded), kickoffs }), CLOCK);
+      expect(row).toMatchObject({ blueWinProb: null, rank: null });
     });
   });
 

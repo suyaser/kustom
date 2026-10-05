@@ -160,26 +160,101 @@ export async function mayReportLobby(
  * that lobby, `is_spectator` and all. On 16.17 a spectator stays in the client's `members[]`
  * with `isSpectator: true` (M2.13), so this check has something to match.
  *
+ * "The lobby the game was played from" is {@link selectGameLobby}'s answer (M21.11): a party's
+ * stale row whose sided members did not play this game is not that lobby, so being a member of
+ * it proves nothing about this game.
+ *
  * A token whose player is in neither list still gets a 403.
  */
 export async function isLobbyMemberOfGame(
   client: ServiceClient,
   partyId: string | null,
   playerId: string,
-  startedAt?: string | null,
+  startedAt: string | null | undefined,
+  participants: readonly string[],
 ): Promise<boolean> {
-  if (partyId === null) return false;
-
-  const lobby = await selectLatestLobby(client, partyId, startedAt);
-  if (lobby === null) return false;
+  const match = await selectGameLobby(client, partyId, startedAt, participants);
+  if (match.kind !== 'matched') return false;
 
   const { count, error } = await client
     .from('lobby_members')
     .select('player_id', { count: 'exact', head: true })
-    .eq('lobby_id', lobby.id)
+    .eq('lobby_id', match.lobby.id)
     .eq('player_id', playerId);
   if (error) throw new Error(`ingestGame: lobby membership check failed: ${error.message}`);
   return (count ?? 0) > 0;
+}
+
+/** A `lobby_members` row as {@link lobbyFitsGame} reads it. */
+export interface GameLobbyMember {
+  puuid: string;
+  side: number | null;
+  isSpectator: boolean;
+}
+
+/**
+ * Was this game played from a lobby with this roster? (M21.11)
+ *
+ * Yes when **every sided member played** (side 100 or 200 and not a spectator: the people the
+ * client had on a team when the roster froze) **and at least one member played** (a row with no
+ * member rows at all fits: nothing in it says otherwise, and a game always attached to one). Sides are not
+ * compared: the eog's sides are final and ratings fold on them, and a split played on swapped
+ * sides is still that lobby's game. A player who is not sided in the lobby (a spectator who took
+ * a seat, a member with no side, someone the last lobby post missed) does not make it a
+ * stranger's game.
+ *
+ * What it refuses is the 2026-10-02 case: a party's row whose game was never recorded (a remake,
+ * a companion that died mid-game) stays `in_game` with its roster frozen, the next rotation's
+ * lobby posts land on that frozen row and change nothing, and the next game's eog resolved to it
+ * -- five sided members who never played, five spectators who did. The M21.1 audit's other 120
+ * lobby games (ten sided and smaller, spectators who played included) all fit.
+ */
+export function lobbyFitsGame(members: readonly GameLobbyMember[], participants: readonly string[]): boolean {
+  const played = new Set(participants);
+  const sided = members.filter(
+    (member) => !member.isSpectator && (member.side === 100 || member.side === 200),
+  );
+  if (!sided.every((member) => played.has(member.puuid))) return false;
+  return members.length === 0 || members.some((member) => played.has(member.puuid));
+}
+
+/**
+ * Which lobby an end-of-game block was played from (M21.11):
+ *
+ * - `matched`: the party's row by the game's start ({@link selectLatestLobby}) and its roster
+ *   fits the game ({@link lobbyFitsGame});
+ * - `stale`: that row exists but its roster does not fit -- it is another game's lobby, and the
+ *   game is stored with no lobby (ratings never needed one);
+ * - `none`: no party id, or a party nobody posted.
+ *
+ * Abandoned rows are the caller's to refuse (`findLobby`).
+ */
+export type GameLobbyMatch =
+  | { kind: 'none' }
+  | { kind: 'matched'; lobby: ExistingLobby }
+  | { kind: 'stale'; lobby: ExistingLobby };
+
+export async function selectGameLobby(
+  client: ServiceClient,
+  partyId: string | null,
+  startedAt: string | null | undefined,
+  participants: readonly string[],
+): Promise<GameLobbyMatch> {
+  if (partyId === null) return { kind: 'none' };
+  const lobby = await selectLatestLobby(client, partyId, startedAt);
+  if (lobby === null) return { kind: 'none' };
+
+  const { data, error } = await client
+    .from('lobby_members')
+    .select('side, is_spectator, players!inner(puuid)')
+    .eq('lobby_id', lobby.id);
+  if (error) throw new Error(`ingestGame: lobby roster select failed: ${error.message}`);
+  const members = (data ?? []).map((row) => ({
+    puuid: row.players.puuid,
+    side: row.side,
+    isSpectator: row.is_spectator,
+  }));
+  return lobbyFitsGame(members, participants) ? { kind: 'matched', lobby } : { kind: 'stale', lobby };
 }
 
 export interface LobbyIngestOptions {

@@ -138,6 +138,13 @@ describe('which games the calibration line counts (STRATEGY §4.8)', () => {
     expect(calibrationGames([game()], [swapped], puuidOf)).toEqual([]);
   });
 
+  it("counts the split's teams on swapped sides with the odds flipped (M21.7, the game page's rule)", () => {
+    const turned = { ...split, blue: split.red, red: split.blue };
+    const [counted] = calibrationGames([game()], [turned], puuidOf);
+    expect(counted?.blueWinProb).toBeCloseTo(0.4, 10);
+    expect(counted?.blueWon).toBe(true);
+  });
+
   it('counts only Kustom rolls (M18.6): the line restarts at the switch', () => {
     expect(calibrationGames([game()], [{ ...split, odds_model: 'openskill' }], puuidOf)).toEqual([]);
   });

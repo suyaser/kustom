@@ -8,7 +8,15 @@ import {
   storedScoreParts,
 } from '@customs/db/schemas';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
+import { readKickoffs } from '../games/kickoffs';
 import { matchesQueue } from '../games/queue';
+import {
+  kickoffDisagrees,
+  type PlayedSplit,
+  playedOddsOf,
+  postedOdds,
+  splitRolesFor,
+} from '../games/receipt';
 import { type FoldPerformance, gatedGameAward, gateGame } from '../ingest/fold';
 import type { PoolMember, SeatMove } from '../ingest/selection';
 import { loadCheckNames } from '../mode/clientNames';
@@ -431,46 +439,74 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
     .eq('game_id', gameId);
   if (playerError) throw new Error(`discord: game_players lookup failed: ${playerError.message}`);
 
-  const splitRoles = await loadSplitRoles(client, game.lobby_id);
+  const [chosen, kickoffs] = await Promise.all([
+    loadChosenSplit(client, game.lobby_id),
+    readKickoffs(client, game.lobby_id === null ? [] : [game.lobby_id], 'discord'),
+  ]);
   const rule = storedRule(gameId, game);
   // M15.10: a checked champion newer than the pin is named as the client named it.
   const names = rule === null ? {} : await loadCheckNames(client, gameId, rule.check);
 
-  const players: ResultSourcePlayer[] = (rows ?? [])
-    .filter((row) => row.side === 100 || row.side === 200)
-    .map((row) => ({
-      puuid: row.players.puuid,
-      name: row.players.display_name ?? row.players.game_name ?? null,
-      side: (row.side === 100 ? 100 : 200) as SideValue,
-      // What the scoreboard says first; the split's role is the fallback, so the two embeds
-      // line up even when the client reported no position. The award below does **not** take
-      // that fallback — see {@link ResultSourcePlayer.stats}.
-      role: row.role ?? splitRoles.roles.get(row.players.puuid) ?? null,
-      damage: row.damage_to_champs,
-      rBefore: row.r_before,
-      rAfter: row.r_after,
-      stats: {
-        role: row.role,
-        kills: row.kills,
-        deaths: row.deaths,
-        assists: row.assists,
-        damageToChamps: row.damage_to_champs,
-        gold: row.gold,
-        cs: row.cs,
-        visionScore: row.vision_score,
-        damageSelfMitigated: row.damage_self_mitigated,
-        damageToObjectives: row.damage_to_objectives,
-      },
-    }));
+  const sided = (rows ?? []).filter((row) => row.side === 100 || row.side === 200);
+  const seats = sided.map((row) => ({
+    puuid: row.players.puuid,
+    side: (row.side === 100 ? 100 : 200) as SideValue,
+    rBefore: row.r_before,
+  }));
+  // M21.7: the split's role is a fallback only for a player whose team is one of the split's two
+  // (whichever side it sat on); someone on a changed team was never given a lane on it.
+  const splitRoles = splitRolesFor(chosen, seats);
+  const kickoff = game.lobby_id === null ? null : (kickoffs.get(game.lobby_id) ?? null);
+  if (kickoffDisagrees(kickoff, seats)) {
+    console.warn(
+      `discord: game ${gameId}'s kickoff record (lobby ${game.lobby_id}) is not its end-of-game teams; ignored`,
+    );
+  }
+  const rift = matchesQueue(typeof game.gameMode === 'string' ? game.gameMode : null, 'sr');
+  const odds = postedOdds(
+    playedOddsOf({
+      aram: matchesQueue(typeof game.gameMode === 'string' ? game.gameMode : null, 'aram'),
+      rated: game.rated,
+      seats,
+      chosen,
+      kickoff,
+    }),
+    chosen,
+  );
+
+  const players: ResultSourcePlayer[] = sided.map((row) => ({
+    puuid: row.players.puuid,
+    name: row.players.display_name ?? row.players.game_name ?? null,
+    side: (row.side === 100 ? 100 : 200) as SideValue,
+    // What the scoreboard says first; the split's role is the fallback, so the two embeds
+    // line up even when the client reported no position. The award below does **not** take
+    // that fallback — see {@link ResultSourcePlayer.stats}.
+    role: row.role ?? splitRoles.get(row.players.puuid) ?? null,
+    damage: row.damage_to_champs,
+    rBefore: row.r_before,
+    rAfter: row.r_after,
+    stats: {
+      role: row.role,
+      kills: row.kills,
+      deaths: row.deaths,
+      assists: row.assists,
+      damageToChamps: row.damage_to_champs,
+      gold: row.gold,
+      cs: row.cs,
+      visionScore: row.vision_score,
+      damageSelfMitigated: row.damage_self_mitigated,
+      damageToObjectives: row.damage_to_objectives,
+    },
+  }));
 
   return {
     winningSide: game.winning_side,
     durationS: game.duration_s,
     gameNumber: await countGamesThrough(client, game.group_id, game.started_at),
-    blueWinProb: splitRoles.blueWinProb,
+    blueWinProb: odds,
     endedAt: new Date(Date.parse(game.started_at) + game.duration_s * 1_000).toISOString(),
     rated: game.rated,
-    rift: matchesQueue(typeof game.gameMode === 'string' ? game.gameMode : null, 'sr'),
+    rift,
     rule: rule === null || Object.keys(names).length === 0 ? rule : { ...rule, names },
     players,
   };
@@ -508,29 +544,33 @@ export function storedRule(
   return { mode, check: check.data };
 }
 
-/** The chosen split of the lobby this game was played from: who played where, and the odds. */
-async function loadSplitRoles(
+/** The chosen split of the lobby this game was played from (its teams, roles, odds and rank), or `null`. */
+async function loadChosenSplit(
   client: ServiceClient,
   lobbyId: string | null,
-): Promise<{ roles: Map<string, Role>; blueWinProb: number | null }> {
-  const empty = { roles: new Map<string, Role>(), blueWinProb: null };
-  if (lobbyId === null) return empty;
+): Promise<PlayedSplitRoles | null> {
+  if (lobbyId === null) return null;
 
   const { data, error } = await client
     .from('splits')
-    .select('blue, red, blue_win_prob')
+    .select('blue, red, blue_win_prob, rank')
     .eq('lobby_id', lobbyId)
     .eq('is_chosen', true)
     .maybeSingle();
   if (error) throw new Error(`discord: split lookup failed: ${error.message}`);
-  if (!data) return empty;
-
-  const roles = new Map<string, Role>();
-  for (const side of [data.blue, data.red]) {
-    for (const assignment of readAssignments(side)) roles.set(assignment.puuid, assignment.role);
-  }
-  return { roles, blueWinProb: data.blue_win_prob };
+  if (!data) return null;
+  return {
+    blue: readAssignments(data.blue),
+    red: readAssignments(data.red),
+    blueWinProb: data.blue_win_prob,
+    rank: data.rank,
+  };
 }
+
+type PlayedSplitRoles = PlayedSplit & {
+  blue: { puuid: string; role: Role }[];
+  red: { puuid: string; role: Role }[];
+};
 
 /**
  * Which game this is, counted from the group's first: `Kustom · game 47` (M5.12, product

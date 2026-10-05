@@ -9,8 +9,7 @@ import { after } from 'next/server';
  * the task then runs detached. Detached tasks are tracked so an integration test can wait for
  * them with {@link settleDetached} instead of sleeping.
  *
- * `lib/ai/afterIngest.ts` has its own copy of the same scheduler for the AI line (M16.4); it was
- * left alone to keep this change out of the AI module.
+ * `lib/ai/afterIngest.ts` (the AI line, M16.4) uses this one too (M21.7, the M21.6 follow-up).
  */
 
 export type Scheduler = (task: () => Promise<unknown>) => void;

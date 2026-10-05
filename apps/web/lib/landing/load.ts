@@ -4,6 +4,7 @@ import type { ReceiptNames, StoredSplit, WinnerSide } from '@/components/receipt
 import { inChunks } from '../chunks';
 import { readAssignments } from '../discord/assemble';
 import { matchesQueue } from '../games/queue';
+import { splitSidesOf } from '../games/receipt';
 import type { PageGroup } from '../groups/pageGroup';
 import type { PublicClient } from '../publicClient';
 import { CALIBRATION_MIN_GAMES } from '../receipt/copy';
@@ -97,12 +98,6 @@ export interface QualifyingGame {
   rated: boolean;
 }
 
-const sameTen = (a: readonly string[], b: readonly string[]): boolean => {
-  if (a.length !== 5 || b.length !== 5) return false;
-  const set = new Set(a);
-  return set.size === 5 && b.every((puuid) => set.has(puuid));
-};
-
 /**
  * The demo group's games the receipt and the calibration line may use, newest first: Summoner's
  * Rift, a winner, a chosen split, and the ten on each side exactly the split's ten. A game whose
@@ -131,25 +126,16 @@ export function qualifyingGames(
     const split = splitByLobby.get(game.lobbyId);
     if (split === undefined) continue;
     const rows = seatsByGame.get(game.id) ?? [];
-    const side = (value: number) =>
-      rows.filter((row) => row.side === value).map((row) => puuidById.get(row.playerId) ?? '');
-    const blue = side(100);
-    const red = side(200);
     if (rows.length !== 10) continue;
-    if (
-      !sameTen(
-        blue,
-        split.blue.map((seat) => seat.puuid),
-      )
-    )
-      continue;
-    if (
-      !sameTen(
-        red,
-        split.red.map((seat) => seat.puuid),
-      )
-    )
-      continue;
+    const seats = rows.flatMap((row) => {
+      const puuid = puuidById.get(row.playerId);
+      return puuid === undefined || (row.side !== 100 && row.side !== 200)
+        ? []
+        : [{ puuid, side: row.side as 100 | 200 }];
+    });
+    // The receipt rule's check (M21.7): the split's ten on its own sides. Swapped sides are the
+    // bot's teams too, but the demo draws the run as stored, so it keeps to `same`.
+    if (seats.length !== 10 || splitSidesOf(split, seats) !== 'same') continue;
     out.push({ game, winner: game.winningSide, split, rated: rows.every((row) => row.rated) });
   }
   return out;
