@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 import { ACTION_FAILED } from '@/lib/admin/homeCopy';
-import { RATE_ANYWAY, RESTORE_GAME, VOID_GAME } from '@/lib/games/copy';
+import { RATE_ANYWAY, RESTORE_GAME, VOID_AFTER_TONIGHT, VOID_GAME } from '@/lib/games/copy';
 
 /**
  * An admin's `Void game` / `Restore` on the game page (M23.1). Only rendered for an admin or the
@@ -17,12 +17,18 @@ export function VoidGame({
   gameId,
   voidReason,
   redirectTo,
+  held = false,
 }: {
   groupId: string;
   gameId: string;
   /** `games.void_reason`: null (a rated game: `Void game`), `admin` (`Restore`), `early-end` (`Rate it anyway`). */
   voidReason: string | null;
   redirectTo: string;
+  /**
+   * M23.3: the rebuild guard holds (a lobby is live, or a game landed in the last 15 minutes), so
+   * the button is disabled and says when it will work. The route refuses with the same sentence.
+   */
+  held?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -63,11 +69,18 @@ export function VoidGame({
       <input type="hidden" name="redirectTo" value={redirectTo} />
       <button
         type="submit"
+        disabled={held}
+        aria-describedby={held ? `void-held-${gameId}` : undefined}
         aria-disabled={pending ? true : undefined}
-        className="-ms-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-sm font-bold text-foreground underline underline-offset-3 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:text-muted-foreground"
+        className="-ms-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-sm font-bold text-foreground underline underline-offset-3 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:text-muted-foreground disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
       >
         {voidReason === null ? VOID_GAME : voidReason === 'early-end' ? RATE_ANYWAY : RESTORE_GAME}
       </button>
+      {held ? (
+        <p id={`void-held-${gameId}`} className="text-xs text-muted-foreground">
+          {VOID_AFTER_TONIGHT}
+        </p>
+      ) : null}
       {error === null ? null : (
         <p role="alert" className="text-xs text-destructive">
           {error}

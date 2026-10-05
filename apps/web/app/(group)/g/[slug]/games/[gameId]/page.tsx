@@ -9,6 +9,7 @@ import { cachedGroupCalibration } from '@/lib/games/calibrationCache';
 import { resultForWinner } from '@/lib/games/copy';
 import { loadGameDetail } from '@/lib/games/detail';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
+import { guardBlocker } from '@/lib/ingest/rebuild';
 import { claimableSeats } from '@/lib/me/claimable';
 import { groupHref } from '@/lib/nav';
 import { loadGameHead } from '@/lib/og/heads';
@@ -77,12 +78,21 @@ export default async function GamePage({ params }: GamePageProps) {
   // One round (app-perf): the recap and the breakdown are keyed by the URL's id and the group, so
   // they start beside the game; a game of another group is still the 404 below, its extras unused.
   const wellFormed = isGameId(gameId);
-  const [game, recap, rawBreakdown] = await Promise.all([
+  const admin = viewerIsAdmin(viewer);
+  const [game, recap, rawBreakdown, held] = await Promise.all([
     loadGame(gameId, group.id, viewer.kind === 'linked' ? viewer.puuid : null),
     // M16.4: the AI recap, if any (nothing for a group without Premium); `Hide` for admins only.
     wellFormed ? loadGameRecapOrNone(getServiceClient, { groupId: group.id, gameId, now: new Date() }) : null,
     // M14.58 / M14.59: the fold's stored breakdown, beside it (a failed read is plain numbers).
     wellFormed ? loadGameBreakdownOrNone(createPublicClient(), gameId) : null,
+    // M23.3: admins only, one round: the rebuild's own guard, so Void / Restore is disabled while a
+    // lobby is live or a game just landed (the route would refuse). A failed read disables it too.
+    admin && wellFormed
+      ? guardBlocker(getServiceClient(), group.id, new Date()).then(
+          (blocker) => blocker !== null,
+          () => true,
+        )
+      : false,
   ]);
   if (game === null) notFound();
   const breakdown = game.aram ? null : rawBreakdown;
@@ -112,8 +122,14 @@ export default async function GamePage({ params }: GamePageProps) {
       breakdown={breakdown}
       admin={
         // M23.1: an admin may take a game the fold rated out of ratings, or put a voided one back.
-        viewerIsAdmin(viewer) && (game.voidReason !== null || (game.ratedStamp && game.rated)) ? (
-          <VoidGame groupId={group.id} gameId={game.gameId} voidReason={game.voidReason} redirectTo={here} />
+        admin && (game.voidReason !== null || (game.ratedStamp && game.rated)) ? (
+          <VoidGame
+            groupId={group.id}
+            gameId={game.gameId}
+            voidReason={game.voidReason}
+            redirectTo={here}
+            held={held}
+          />
         ) : null
       }
       recap={
@@ -121,7 +137,7 @@ export default async function GamePage({ params }: GamePageProps) {
           <AiRecap
             recap={recap}
             groupId={group.id}
-            canHide={viewerIsAdmin(viewer)}
+            canHide={admin}
             hideRedirect={here}
             // M19.17: a linked viewer's waiter asks the small recap read, not the page.
             pollGameId={viewer.kind === 'linked' ? gameId : undefined}

@@ -11,7 +11,7 @@ import { noteWrite, withLiveSignal } from '@/lib/live/bump';
  * `POST /api/admin/void-game { groupId, gameId, action: 'void' | 'restore', redirectTo? }` (M23.1)
  * -> `{ ok: true, voided, changed, folded }`. 401 signed out, 403 for anyone who is not an admin or
  * the owner of the body's group, 400 for a bad body, 404 for a game of another group, 409 `This
- * game is not rated.` (a void of a game played not rated) or `Finish tonight's game first.` (a live
+ * game is not rated.` (a void of a game played not rated) or `Ratings can change after tonight's games.` (M23.3; a live
  * lobby or a game in the last 15 minutes: nothing written). The rules and the rebuild are
  * `lib/admin/voidGame.ts`. A no-JS form post goes back to the page.
  */
