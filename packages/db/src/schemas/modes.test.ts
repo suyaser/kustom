@@ -99,9 +99,13 @@ describe('setGroupModeRequestSchema', () => {
     );
     expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, side: 'blue' }).success).toBe(false);
     expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, region: 'targon' }).success).toBe(false);
-    expect(
-      setGroupModeRequestSchema.safeParse({ groupId: GROUP, mode: 'region', game: 'this' }).success,
-    ).toBe(false);
+    // M20.18: every action names its target game, not only the region ones.
+    for (const action of [{ mode: 'region' }, { mode: 'normal' }, { rated: false }, { spin: 'true' }]) {
+      expect(setGroupModeRequestSchema.parse({ groupId: GROUP, ...action, game: 'this' }).game).toBe('this');
+    }
+    expect(setGroupModeRequestSchema.safeParse({ groupId: GROUP, rated: true, game: 'now' }).success).toBe(
+      false,
+    );
     expect(
       setGroupModeRequestSchema.safeParse({ groupId: GROUP, redraw: true, side: 'red', region: 'ionia' })
         .success,

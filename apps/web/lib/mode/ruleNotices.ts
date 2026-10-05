@@ -1,4 +1,5 @@
 import type { ClassTag, PendingRule, RegionPair, RuleOption, StandingModeId } from '@customs/core';
+import type { ModeGame } from '@customs/db/schemas';
 import { REGION_NAMES, type RegionId } from '../champs/regions';
 import { MODE_ANNOUNCEMENTS } from './copy';
 
@@ -21,6 +22,9 @@ export const CLASS_PLURAL: Record<ClassTag, string> = {
 export const RULE_TOO_FEW_OPEN = 'That rule has too few champions open tonight.';
 
 const STANDING_NAME: Record<StandingModeId, string> = { normal: 'Normal', fearless: 'Fearless' };
+
+/** M20.18: the game a notice is about, `Next game` (the row) or `This game` (the balanced lobby's lock). */
+const GAME_HEAD: Record<ModeGame, string> = { next: 'Next game', this: 'This game' };
 
 /** `Tanks only`, `Region wars`, `Mirror match`: the rule's short name. */
 export function ruleLabel(rule: RuleOption): string {
@@ -53,16 +57,18 @@ export function pairVs(pair: RegionPair): string {
 
 /**
  * `Next game: Class wars, tanks only. Not rated.` and the region and mirror versions. Region wars
- * names its pair (M20.1: `Next game: Region wars. Blue: Zaun · Red: Noxus. Not rated.`).
+ * names its pair (M20.1: `Next game: Region wars. Blue: Zaun · Red: Noxus. Not rated.`). M20.18:
+ * `This game: …` for a rule chosen for this game between Roll and game start.
  */
-export function ruleChosenNotice(rule: PendingRule, rated: boolean): string {
+export function ruleChosenNotice(rule: PendingRule, rated: boolean, game: ModeGame = 'next'): string {
+  const head = GAME_HEAD[game];
   switch (rule.id) {
     case 'class':
-      return `Next game: Class wars, ${CLASS_PLURAL[rule.tag]} only. ${ratedWord(rated)}`;
+      return `${head}: Class wars, ${CLASS_PLURAL[rule.tag]} only. ${ratedWord(rated)}`;
     case 'region':
-      return `Next game: Region wars. ${pairLine(rule)}. ${ratedWord(rated)}`;
+      return `${head}: Region wars. ${pairLine(rule)}. ${ratedWord(rated)}`;
     case 'mirror':
-      return `Next game: Mirror match. ${ratedWord(rated)}`;
+      return `${head}: Mirror match. ${ratedWord(rated)}`;
   }
 }
 
@@ -102,10 +108,26 @@ export const NO_REGION_RULE = 'Region wars is not on for that game.';
  */
 export const ROLLED_TO_THIS_GAME = "Teams were just rolled, so those regions are this game's now.";
 
-/** `Next game is rated.` / `Next game is not rated.` */
-export function ratedNotice(rated: boolean): string {
-  return rated ? 'Next game is rated.' : 'Next game is not rated.';
+/** `Next game is rated.` / `Next game is not rated.`; M20.18: `This game is rated.` for this game's switch. */
+export function ratedNotice(rated: boolean, game: ModeGame = 'next'): string {
+  const head = GAME_HEAD[game];
+  return rated ? `${head} is rated.` : `${head} is not rated.`;
 }
+
+/** M20.18: a standing pick for this game: `This game is Fearless.`, `Rule cleared. This game is Normal.` */
+export function thisStandingNotice(standing: StandingModeId, clearedRule: boolean): string {
+  const line = `This game is ${STANDING_NAME[standing]}.`;
+  return clearedRule ? `Rule cleared. ${line}` : line;
+}
+
+/**
+ * M20.18: a `this` mode, Spin or Rated action once the game has started (409). The lock is
+ * frozen in game; the same tap with no target (the card's `Next game`) is the next game's.
+ */
+export const THIS_GAME_STAYS =
+  "The game has started, so this game's mode stays. Changes now are for the next game.";
+/** M20.18: a `this` mode, Spin or Rated action with no rolled game (409): there is no lock to change. */
+export const NO_THIS_GAME = 'No teams are rolled yet, so changes are for the next game.';
 
 /** A standing pick: `Rule cleared. Back to Fearless.` when it cleared a rule, else M14's line. */
 export function standingNotice(standing: StandingModeId, clearedRule: boolean): string {

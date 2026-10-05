@@ -19,13 +19,26 @@ import type { ServiceClient } from '../supabase';
  * "Tonight's previous rule" (D3: no `Tanks only` twice in a row). The rule locked on the group's
  * live lobby (rolled, maybe being played right now) wins; otherwise the rule of tonight's latest
  * recorded rule game. Null when tonight has had none.
+ *
+ * M20.18: a Spin for this game (`live: false`) skips the live lock (it is the rule being
+ * replaced) and reads only the game played before this one.
  */
 export async function previousRule(
   client: ServiceClient,
   groupId: string,
   now: Date,
   timeZone: string,
+  options: { live?: boolean } = {},
 ): Promise<Mode | null> {
+  if (options.live !== false) {
+    const locked = await liveLockedRule(client, groupId);
+    if (locked !== null) return locked;
+  }
+  return lastPlayedRule(client, groupId, now, timeZone);
+}
+
+/** The rule locked on the group's newest `balanced` or `in_game` lobby, or null. */
+async function liveLockedRule(client: ServiceClient, groupId: string): Promise<Mode | null> {
   const live = await client
     .from('lobbies')
     .select('lock_rule, lock_class_tag, lock_region_blue, lock_region_red')
@@ -45,7 +58,16 @@ export async function previousRule(
     });
     if (locked !== null) return locked;
   }
+  return null;
+}
 
+/** The rule of tonight's latest recorded rule game, or null. */
+async function lastPlayedRule(
+  client: ServiceClient,
+  groupId: string,
+  now: Date,
+  timeZone: string,
+): Promise<Mode | null> {
   const last = await client
     .from('games')
     .select('rule, rule_class_tag, rule_region_blue, rule_region_red')

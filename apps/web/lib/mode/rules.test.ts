@@ -6,6 +6,7 @@ import { type ModeRecord, recordResultOf, rowTouchedAfterLock, stampColumns } fr
 import { serverRng } from './rng';
 import {
   CLASS_PLURAL,
+  NO_THIS_GAME,
   nextPairNotice,
   ratedNotice,
   ruleChosenNotice,
@@ -13,7 +14,9 @@ import {
   shortPairRedrawnNotice,
   spinNotice,
   standingNotice,
+  THIS_GAME_STAYS,
   thisPairNotice,
+  thisStandingNotice,
 } from './ruleNotices';
 import { missingRow, rowFromColumns, storedFromColumns } from './state';
 
@@ -262,5 +265,23 @@ describe('the notices', () => {
     expect(standingNotice('fearless', true)).toBe('Rule cleared. Back to Fearless.');
     expect(ruleLabel({ id: 'class', tag: 'Support' })).toBe('Supports only');
     expect(Object.keys(CLASS_PLURAL)).toHaveLength(5);
+  });
+
+  it("M20.18: this game's lines, between Roll and game start", () => {
+    expect(ruleChosenNotice({ id: 'class', tag: 'Tank' }, false, 'this')).toBe(
+      'This game: Class wars, tanks only. Not rated.',
+    );
+    expect(ruleChosenNotice({ id: 'region', blue: 'zaun', red: 'noxus' }, true, 'this')).toBe(
+      'This game: Region wars. Blue: Zaun · Red: Noxus. Rated.',
+    );
+    expect(ruleChosenNotice({ id: 'mirror' }, true, 'this')).toBe('This game: Mirror match. Rated.');
+    expect(ratedNotice(true, 'this')).toBe('This game is rated.');
+    expect(ratedNotice(false, 'this')).toBe('This game is not rated.');
+    expect(thisStandingNotice('fearless', true)).toBe('Rule cleared. This game is Fearless.');
+    expect(thisStandingNotice('normal', false)).toBe('This game is Normal.');
+    expect(THIS_GAME_STAYS).toBe(
+      "The game has started, so this game's mode stays. Changes now are for the next game.",
+    );
+    expect(NO_THIS_GAME).toBe('No teams are rolled yet, so changes are for the next game.');
   });
 });
