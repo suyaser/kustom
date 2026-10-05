@@ -1,4 +1,5 @@
 import 'server-only';
+import { afterResponse, type Scheduler } from '../afterResponse';
 import { editResultWithRecap, type RecapEditOutcome } from '../discord/aiEdit';
 import type { AiGate } from '../premium';
 import { getServiceClient } from '../supabase';
@@ -76,7 +77,7 @@ export async function runGameLine(input: GameLineInput, deps: GameLineHookDeps):
  * detached outside a request scope, tracked for `settleDetached`, a failure logged and swallowed.
  * Re-exported so the AI callers (`scouting.ts`, `storyline.ts`) keep their import.
  */
-export { afterResponse, type Scheduler } from '../afterResponse';
+export { afterResponse, type Scheduler };
 
 /**
  * The route's one call: schedule the recap and return at once. Never throws, never waits. The
