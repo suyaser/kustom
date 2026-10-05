@@ -978,6 +978,8 @@ Long-running process (Node engine) plus optional Tauri tray shell (M6). State ma
 ```
 disconnected --(lockfile found)--> connected --(ws open)--> watching
 watching: on lobby event -> POST /api/companion/lobby
+          on custom lobby Delete, phase known and not ChampSelect/GameStart/InProgress
+            -> POST /api/companion/lobby/leave { partyId } (Rust engine, M22.9; one attempt)
           on gameflow InProgress -> mark lobby in_game
           on eog WS event -> POST /api/companion/game (GET eog-stats-block only as the connect-time fallback)
           every 6h -> POST /api/companion/rank for self; on lobby roster, for each unknown puuid

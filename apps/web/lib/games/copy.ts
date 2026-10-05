@@ -141,6 +141,11 @@ export const ENDED_EARLY_NOTE = 'Not rated · ended early';
 /** M23.1 [NEW COPY]: the restore button on a game that ended early (a real short stomp). */
 export const RATE_ANYWAY = 'Rate it anyway';
 /** M23.1 [NEW COPY]: a void or restore whose rebuild did not finish; the flag was put back (503). */
+/**
+ * M23.3 [NEW COPY]: under a disabled Void / Restore / Rate it anyway while a lobby is live or a game
+ * landed in the last 15 minutes (the rebuild guard), and the route's 409 for the same.
+ */
+export const VOID_AFTER_TONIGHT = "Ratings can change after tonight's games.";
 export const REBUILD_FAILED = "Couldn't update ratings. Try again in a minute.";
 
 /** The Games row and game page note for a voided game, by why it was voided. */

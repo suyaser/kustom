@@ -1,8 +1,7 @@
-import { REBUILD_FAILED, VOID_NOT_RATED } from '../games/copy';
+import { REBUILD_FAILED, VOID_AFTER_TONIGHT, VOID_NOT_RATED } from '../games/copy';
 import { guardBlocker, type RebuildResult, rebuildRatings } from '../ingest/rebuild';
 import { FENCE_RERUNS } from '../ingest/rebuildCron';
 import type { ServiceClient } from '../supabase';
-import { FINISH_TONIGHT_FIRST } from './homeCopy';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
 /**
@@ -18,7 +17,8 @@ import { type AdminWriteResult, writeFailed, writeOk } from './result';
  * - Only a game that is in the fold (`rated`, every row carrying `r_after`) can be voided, so an
  *   ARAM, a remake or a game played not rated never triggers a rebuild.
  * - The rebuild's own guard (a live lobby, a game in the last fifteen minutes) is checked **before**
- *   the write, so a refusal changes nothing: `Finish tonight's game first.`, like `Reset ratings`.
+ *   the write, so a refusal changes nothing: `Ratings can change after tonight's games.` (M23.3; the
+ *   game page disables the button under the same guard).
  * - A rebuild that does not fold, or throws, has the flag put back in one conditional update and
  *   answers 503 `Couldn't update ratings. Try again in a minute.`: the game is never left flagged
  *   one way with the ratings folded the other.
@@ -81,7 +81,7 @@ export async function setGameVoided(
     game.rated && game.game_players.length > 0 && game.game_players.every((row) => row.r_after !== null);
   if (wantVoided && !inFold) return writeFailed(409, VOID_NOT_RATED);
 
-  if ((await guardBlocker(client, groupId, now)) !== null) return writeFailed(409, FINISH_TONIGHT_FIRST);
+  if ((await guardBlocker(client, groupId, now)) !== null) return writeFailed(409, VOID_AFTER_TONIGHT);
 
   // Conditioned on the state just read, so two taps write once.
   const stamp = now.toISOString();

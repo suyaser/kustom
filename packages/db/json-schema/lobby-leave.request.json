@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/lobby-leave.request",
+  "title": "companionLobbyLeavePayloadSchema",
+  "description": "POST /api/companion/lobby/leave (request). M22.9. The Rust companion only; the TypeScript engine never sends it, so there is no golden.",
+  "type": "object",
+  "properties": {
+    "partyId": {
+      "type": "string",
+      "minLength": 1,
+      "x-zod-not-exported": [
+        "normalised"
+      ]
+    }
+  },
+  "required": [
+    "partyId"
+  ]
+}

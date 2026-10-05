@@ -130,6 +130,16 @@ export const companionLobbyPayloadSchema = z.preprocess(
   }),
 );
 
+/**
+ * `POST /api/companion/lobby/leave` (M22.9): this Kustom's client closed the lobby `partyId` and
+ * it was not a game start. The server clears the token's current party when it is still
+ * `partyId`, then lets go the lobbies the token left. One field, so an old server (404) and an old
+ * companion (never sends it) both stay as they were after M22.3.
+ */
+export const companionLobbyLeavePayloadSchema = z.object({
+  partyId: z.string().trim().min(1),
+});
+
 /** What the mapper returns for one lobby member. `summonerId` may stay a client number. */
 export interface CompanionLobbyMemberInput {
   puuid: string;
@@ -403,6 +413,7 @@ export interface CompanionRankPayloadInput {
 
 export type CompanionLobbyMember = z.infer<typeof companionLobbyMemberSchema>;
 export type CompanionLobbyPayload = z.infer<typeof companionLobbyPayloadSchema>;
+export type CompanionLobbyLeavePayload = z.infer<typeof companionLobbyLeavePayloadSchema>;
 export type CompanionGameParticipant = z.infer<typeof companionGameParticipantSchema>;
 export type CompanionGamePayload = z.infer<typeof companionGamePayloadSchema>;
 export type CompanionGameEogPayload = Extract<CompanionGamePayload, { phase: 'eog' }>;
