@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PageGroup } from '@/lib/groups/pageGroup';
-import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { groupHref } from '@/lib/nav';
 import { workedBoardRows } from '@/lib/testing/boardFixtures';
 import { lobbyView, tapeEntry, workedMembers } from '@/lib/testing/tonightFixtures';
@@ -12,7 +11,6 @@ import { DailyCard, TopFive } from './Cards';
 import { RerollControl } from './RerollControl';
 import { RoleTonight } from './RoleTonight';
 import { RollControl } from './RollControl';
-import { StartLobby, StartLobbySignIn } from './StartLobby';
 import { Tape } from './Tape';
 
 /**
@@ -69,19 +67,6 @@ describe("the controls send the page's group", () => {
 
     fireEvent.click(screen.getByRole('button', { name: REROLL_LABEL }));
     await waitFor(() => expect(lastBody()).toEqual({ groupId: GROUP_B.id, splitId: 'split-2' }));
-  });
-
-  it('Start a lobby, and its sign-in, which returns to the group page it started from', async () => {
-    answer(409, { ok: false, error: 'no' });
-    const { container, unmount } = inGroup(<StartLobby start={null} press around={0} />);
-    expect(container.querySelector('input[name="groupId"]')).toHaveValue(GROUP_B.id);
-    expect(container.querySelector('input[name="redirectTo"]')).toHaveValue('/g/thursday-flex');
-    fireEvent.click(screen.getByRole('button', { name: START_LOBBY_BUTTON }));
-    await waitFor(() => expect(lastBody()).toEqual({ groupId: GROUP_B.id }));
-    unmount();
-
-    const signIn = inGroup(<StartLobbySignIn />);
-    expect(signIn.container.querySelector('input[name="next"]')).toHaveValue('/g/thursday-flex');
   });
 
   it("Role for tonight's sign-in and role tap", async () => {

@@ -135,8 +135,8 @@ export const CONNECT_TIMEOUT_MS = 8_000;
  * a name can arrive with no `group_live` bump (a lobby post that changed nobody's seat writes only
  * the player row), it costs one render a minute and only while a fallback name is on screen.
  *
- * The 5 s page poll for a pending `Start a lobby` is gone (M19.17): `StartLobby` polls the small
- * status route itself and asks for one render when the command settles.
+ * No other timer: the 5 s poll for a pending lobby command went with M19.17, and the command with
+ * M22.11.
  */
 export const NAME_REREAD_MS = 60_000;
 
