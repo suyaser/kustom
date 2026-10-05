@@ -59,7 +59,13 @@ export async function loadTonightLobbyLock(
   groupId: string,
   nightStart: Date,
   options: { lobbyId?: string | null; now?: Date } = {},
-): Promise<{ status: LobbyStatusValue; lock: ModeLock | null } | null> {
+): Promise<{
+  status: LobbyStatusValue;
+  lock: ModeLock | null;
+  /** M22.6: the drawn row's party and how many tables are live (the panel's per-lobby card). */
+  partyId: string;
+  liveTables: number;
+} | null> {
   const { data, error } = await client
     .from('lobbies')
     .select(
@@ -101,7 +107,14 @@ export async function loadTonightLobbyLock(
       if (drawn === null || Date.parse(row.created_at) >= Date.parse(drawn.created_at)) drawn = row;
     }
   }
-  return drawn === null ? null : { status: drawn.status, lock: modeLockOf(drawn) };
+  return drawn === null
+    ? null
+    : {
+        status: drawn.status,
+        lock: modeLockOf(drawn),
+        partyId: drawn.lcu_party_id,
+        liveTables: tables.length,
+      };
 }
 
 /** The `games` columns a stamp is made of; Tonight reads them with the rest of the game row. */

@@ -233,6 +233,7 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
         }
         breakdown={breakdown}
         pitchCookie={state.kind === 'result' ? await readPitchCookie() : undefined}
+        requestedLobby={one(query.lobby)}
       />
       <TonightLive
         groupId={group.id}

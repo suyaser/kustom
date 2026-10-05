@@ -32,18 +32,22 @@ export interface ModePanelData {
   viewerSide: 'blue' | 'red' | null;
   isAdmin: boolean;
   poolSince: string | null;
+  /** M22.6: live lobbies (14.5: `Both lobbies add to this list.` with 2+). */
+  liveTables: number;
 }
 
 export async function loadModePanel(
   slug: string,
   laneParam: string | string[] | undefined,
+  lobbyParam?: string | string[] | undefined,
 ): Promise<ModePanelData> {
   const group = await requirePageGroup(slug);
   const client = createPublicClient();
   const timeZone = nightTimeZone();
   const nightStart = tonightStart();
-  const [{ mode, fearless, view, lobbyStatus }, viewer] = await Promise.all([
-    loadModePanelView(client, group.id, nightStart),
+  const lobbyId = (Array.isArray(lobbyParam) ? lobbyParam[0] : lobbyParam)?.slice(0, 200) ?? null;
+  const [{ mode, fearless, view, lobbyStatus, liveTables }, viewer] = await Promise.all([
+    loadModePanelView(client, group.id, nightStart, lobbyId),
     currentViewerState(group.id),
   ]);
   const pooled = view.shown.id === 'fearless' || view.shown.id === 'class' || view.shown.id === 'region';
@@ -52,7 +56,7 @@ export async function loadModePanel(
   const seatRead = lobbyStatus === 'balanced' || (lobbyStatus === 'in_game' && view.shown.id === 'region');
   if (viewer.kind === 'linked' && pooled && seatRead) {
     try {
-      const snapshot = await loadTonight(client, { nightStart, timeZone, groupId: group.id });
+      const snapshot = await loadTonight(client, { nightStart, timeZone, groupId: group.id, lobbyId });
       const live = snapshot.lobby;
       if (live !== null && live.status === 'balanced') {
         // The split's lane; the region side is where the client has them (M21.9).
@@ -76,5 +80,6 @@ export async function loadModePanel(
     viewerSide,
     isAdmin: viewer.kind === 'linked' && viewer.isAdmin,
     poolSince: poolSinceLabel(fearless.resetAt, timeZone),
+    liveTables,
   };
 }

@@ -177,17 +177,22 @@ export async function loadTonight(
   ];
 
   const several = anonTables.length >= 2;
-  const [night, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }, watchers, cards] =
-    await Promise.all([
-      loadNight(client, currents, tapeLobbies, hostIds, groupId, clock),
-      fearlessRead,
-      modeFacts,
-      several && options.readWatchers !== undefined ? options.readWatchers() : Promise.resolve(null),
-      // M22.6: each forked lobby's own card, only with two or more live (no request on one lobby).
-      several && groupId !== undefined
-        ? loadLobbyCards(client, groupId, nightStart)
-        : Promise.resolve(new Map<string, LobbyCard>()),
-    ]);
+  const [
+    night,
+    { mode, modeSince, ...fearless },
+    { state: modeRow, failed: modeReadFailed },
+    watchers,
+    cards,
+  ] = await Promise.all([
+    loadNight(client, currents, tapeLobbies, hostIds, groupId, clock),
+    fearlessRead,
+    modeFacts,
+    several && options.readWatchers !== undefined ? options.readWatchers() : Promise.resolve(null),
+    // M22.6: each forked lobby's own card, only with two or more live (no request on one lobby).
+    several && groupId !== undefined
+      ? loadLobbyCards(client, groupId, nightStart)
+      : Promise.resolve(new Map<string, LobbyCard>()),
+  ]);
 
   // M22.3 with the server's tokens: who watches each table, and a finished table whose Kustoms have
   // moved to another party ends now instead of lingering (lead ruling 2026-10-05).
@@ -323,7 +328,8 @@ function firstReporters(rows: readonly TableRow[]): Map<string, string> {
   for (const row of rows) {
     if (row.reportedByPlayerId === null) continue;
     const seen = first.get(row.lcuPartyId);
-    if (seen === undefined || Date.parse(row.createdAt) < Date.parse(seen.createdAt)) first.set(row.lcuPartyId, row);
+    if (seen === undefined || Date.parse(row.createdAt) < Date.parse(seen.createdAt))
+      first.set(row.lcuPartyId, row);
   }
   return new Map([...first].map(([party, row]) => [party, row.reportedByPlayerId as string]));
 }

@@ -37,11 +37,14 @@ export function Tape({
   tape,
   group,
   after = false,
+  labelOf,
 }: {
   tape: readonly TapeEntry[];
   group: PageGroup;
   /** A lobby is on the page, so the tape is what came before it: `1 earlier`, not `1 played`. */
   after?: boolean | undefined;
+  /** M22.6 (14.6): on a night two lobbies overlapped, each tile's lobby label (its own line). */
+  labelOf?: ((entry: TapeEntry) => string | null) | undefined;
 }) {
   const titleId = useId();
   if (tape.length === 0) return null;
@@ -63,7 +66,13 @@ export function Tape({
       </div>
       <ol className="flex flex-col gap-2">
         {shown.map(({ entry, number }) => (
-          <Tile key={entry.lobbyId} entry={entry} number={number} group={group} />
+          <Tile
+            key={entry.lobbyId}
+            entry={entry}
+            number={number}
+            group={group}
+            label={labelOf?.(entry) ?? null}
+          />
         ))}
       </ol>
       {earlier.length === 0 ? null : (
@@ -73,7 +82,13 @@ export function Tape({
           </summary>
           <ol className="mt-2 flex flex-col gap-2">
             {earlier.map(({ entry, number }) => (
-              <Tile key={entry.lobbyId} entry={entry} number={number} group={group} />
+              <Tile
+                key={entry.lobbyId}
+                entry={entry}
+                number={number}
+                group={group}
+                label={labelOf?.(entry) ?? null}
+              />
             ))}
           </ol>
         </details>
@@ -82,7 +97,17 @@ export function Tape({
   );
 }
 
-function Tile({ entry, number, group }: { entry: TapeEntry; number: number; group: PageGroup }) {
+function Tile({
+  entry,
+  number,
+  group,
+  label,
+}: {
+  entry: TapeEntry;
+  number: number;
+  group: PageGroup;
+  label: string | null;
+}) {
   const result = entry.result;
   const side = result === null ? null : result.winningSide === 100 ? 'blue' : 'red';
   const href = result === null ? null : groupHref(group, { page: 'game', gameId: result.gameId });
@@ -115,6 +140,12 @@ function Tile({ entry, number, group }: { entry: TapeEntry; number: number; grou
             </span>
           )}
         </span>
+        {label === null ? null : (
+          <span data-slot="tape-lobby" className="block text-xs text-muted-foreground">
+            <span className="sr-only">, </span>
+            {label}
+          </span>
+        )}
         {result === null ? (
           <span className="block text-sm text-muted-foreground">{TAPE_NO_RESULT}</span>
         ) : (

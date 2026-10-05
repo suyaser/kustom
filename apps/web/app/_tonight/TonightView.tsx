@@ -17,7 +17,7 @@ import {
   unplayableRules,
 } from '@/lib/mode/card';
 import { championTable } from '@/lib/mode/champions';
-import type { ModeSlice } from '@/lib/mode/clientStore';
+import { type ModeSlice, modeCardKey } from '@/lib/mode/clientStore';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
 import {
   MIRROR_HOST_FILLING_REST,
@@ -64,6 +64,7 @@ import {
   winsHeadline,
   wouldSitOutLine,
 } from '@/lib/tonight/screenCopy';
+import { selectedTable } from '@/lib/tonight/selection';
 import type { SitOutRule } from '@/lib/tonight/sitOut';
 import {
   anySeatOnTheWrongSide,
@@ -74,6 +75,15 @@ import {
   tonightHeader,
   tonightState,
 } from '@/lib/tonight/state';
+import {
+  lobbiesDateLine,
+  lobbyChips,
+  tableLabels,
+  tileLabel,
+  UNWATCHED_IN_GAME,
+  UNWATCHED_LEAD,
+  UNWATCHED_REST,
+} from '@/lib/tonight/switcher';
 import type {
   KickoffSeatView,
   KickoffView,
@@ -95,6 +105,7 @@ import { ruleLineOf } from '../_mode/RuleLine';
 import { Announcer } from './Announcer';
 import { AwardLine, DailyCard, EmptyGroup, LastGameCard, SitOutCard, TopFive } from './Cards';
 import { Elapsed } from './Elapsed';
+import { LobbySwitcher } from './LobbySwitcher';
 import { RerollControl } from './RerollControl';
 import { RoleTonight } from './RoleTonight';
 import { RollControl } from './RollControl';
@@ -156,6 +167,8 @@ export interface TonightViewProps {
    * pitch's first paint is its final one (fix-result-cls). Absent: not dismissed.
    */
   pitchCookie?: string | null | undefined;
+  /** M22.6: the URL's `?lobby=`, or null: a pin naming no live table is dropped from the URL. */
+  requestedLobby?: string | null | undefined;
 }
 
 export function TonightView(props: TonightViewProps) {
@@ -198,7 +211,23 @@ export function TonightView(props: TonightViewProps) {
   // M15.5: what the card is about (the lock after Roll, else the next game), one answer for the
   // card, the answer band, the strip's host line and the announcer.
   // A missing row is a new group (`missingRow`); a failed read is flagged (`modeReadFailed`).
-  const modeRow = snapshot.modeRow ?? missingRow();
+  // M22.6 (05-design.md 14): with two or more live tables, the selected one's label, and its own
+  // card when it is forked (`lobby_modes`: pending rule, pair, Rated; the standing mode is the
+  // group's). With one, none of this exists and the card is the group's, as before M22.
+  const tables = snapshot.lobbies ?? [];
+  const several = tables.length >= 2;
+  const shownTable = several ? selectedTable(snapshot) : undefined;
+  const labels = several ? tableLabels(tables) : null;
+  const lobbyLabel = shownTable === undefined ? null : (labels?.get(shownTable.id) ?? null);
+  const fork = shownTable?.card ?? null;
+  const groupRow = snapshot.modeRow ?? missingRow();
+  const modeRow =
+    fork === null ? groupRow : { standing: groupRow.standing, pending: fork.pending, rated: fork.rated };
+  const modeSince = fork === null ? snapshot.modeSince : fork.updatedAt;
+  const storeKey = modeCardKey(
+    group.id,
+    fork === null || shownTable === undefined ? null : shownTable.partyId,
+  );
   const bans = snapshot.fearless.champions.map((champion) => champion.id);
   const table = championTable();
   const cardView = modeCardView({
@@ -207,7 +236,7 @@ export function TonightView(props: TonightViewProps) {
     lock: snapshot.lobby?.lock ?? null,
     bans,
     table,
-    rowUpdatedAt: snapshot.modeSince,
+    rowUpdatedAt: modeSince,
     lockedAt: snapshot.lobby?.lockedAt ?? null,
   });
   const speech: ModeSpeech = {
@@ -222,7 +251,7 @@ export function TonightView(props: TonightViewProps) {
   // needs to render the card for any state it hears after this render (no names, no player ids).
   const modeSlice: ModeSlice = {
     row: modeRow,
-    updatedAt: snapshot.modeSince,
+    updatedAt: modeSince,
     resetAt: snapshot.fearless.resetAt,
   };
   const modeLive: ModeCardLive = {
@@ -236,6 +265,7 @@ export function TonightView(props: TonightViewProps) {
     regions: regionFacts(bans, table),
     normalFacts: normalNoteFactsOf(snapshot),
     readFailed: snapshot.modeReadFailed === true,
+    lobbies: lobbyLabel === null ? null : { count: tables.length, label: lobbyLabel, storeKey },
   };
   // Everyone, every state, empty group included (design ruling on §8.2, 2026-10-03).
   const modeCard = (
@@ -276,7 +306,11 @@ export function TonightView(props: TonightViewProps) {
   );
   const answer = answerBand(state, puuid);
   const rolls = rollerOf(state, isAdmin);
-  const action = stripAction(props, state, { isAdmin, linked, emptyGroup });
+  // 14.8: no Roll for a lobby no Kustom watches any more (the roster may be stale).
+  const action =
+    shownTable?.watched === false && state.kind === 'filling'
+      ? null
+      : stripAction(props, state, { isAdmin, linked, emptyGroup });
   const ruleJump =
     answer !== null && answer.kind === 'seated' && answer.role !== null && variant === 'balanced'
       ? showsFearlessPool(cardView)
@@ -311,7 +345,26 @@ export function TonightView(props: TonightViewProps) {
     <div className="mx-auto w-full max-w-[1180px] px-(--gutter) pt-4 pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_var(--rail-w)] lg:items-start lg:gap-5 lg:pt-6">
       <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
         <Strip
-          dateLine={stripDateLine(snapshot.nightLabel, gameNumber(snapshot, state))}
+          dateLine={
+            several
+              ? lobbiesDateLine(snapshot.nightLabel, tables.length)
+              : stripDateLine(snapshot.nightLabel, gameNumber(snapshot, state))
+          }
+          lobbyLabel={lobbyLabel}
+          switcher={
+            snapshot.severalLobbiesTonight === true ? (
+              <LobbySwitcher
+                chips={lobbyChips(snapshot, puuid)}
+                selected={snapshot.selectedLobbyId ?? null}
+                home={groupHome(group)}
+                renderedAt={props.renderedAt ?? Date.now()}
+                stalePin={
+                  props.requestedLobby != null &&
+                  !tables.some((table) => table.rowIds.includes(props.requestedLobby as string))
+                }
+              />
+            ) : null
+          }
           headline={state.kind === 'result' ? winsHeadline(state.result.winningSide) : header.headline}
           count={header.count}
           sub={
@@ -350,7 +403,7 @@ export function TonightView(props: TonightViewProps) {
           mode={mode}
           speech={speech}
           live={{
-            groupId: group.id,
+            groupId: storeKey,
             slice: modeSlice,
             lockedRule: speech.lockedRule,
             locked: speech.locked,
@@ -358,6 +411,10 @@ export function TonightView(props: TonightViewProps) {
             readFailed: snapshot.modeReadFailed === true,
           }}
         />
+
+        {shownTable?.watched === false && state.kind !== 'result' ? (
+          <UnwatchedNote inGame={shownTable.lobby.status === 'in_game'} />
+        ) : null}
 
         {/* M14.65: an unlinked friend with a claimable row sees `Which one is you?` first. */}
         {claimFirst ? <RoleTonight lobby={snapshot.lobby} viewer={viewer} /> : null}
@@ -373,7 +430,7 @@ export function TonightView(props: TonightViewProps) {
         {state.kind === 'idle' && !emptyGroup ? <Idle {...props} /> : null}
         {/* M22.11: mirror next and no lobby open, so the host makes it Blind Pick. */}
         {linked && !emptyGroup && (state.kind === 'idle' || state.kind === 'result') ? (
-          <MirrorNext groupId={group.id} slice={modeSlice} readFailed={snapshot.modeReadFailed === true}>
+          <MirrorNext groupId={storeKey} slice={modeSlice} readFailed={snapshot.modeReadFailed === true}>
             <MirrorMakeBlindLine />
           </MirrorNext>
         ) : null}
@@ -384,7 +441,7 @@ export function TonightView(props: TonightViewProps) {
             linked={linked}
             wouldSitOut={props.wouldSitOut ?? null}
             rolls={rolls !== null}
-            mirror={{ groupId: group.id, slice: modeSlice, readFailed: snapshot.modeReadFailed === true }}
+            mirror={{ groupId: storeKey, slice: modeSlice, readFailed: snapshot.modeReadFailed === true }}
           />
         ) : null}
         {state.kind === 'filling' ? modeCard : null}
@@ -449,7 +506,16 @@ export function TonightView(props: TonightViewProps) {
 
       <aside aria-label="Around tonight" className="mt-4 flex min-w-0 flex-col gap-4 lg:mt-0 lg:gap-5">
         {showDaily ? <DailyCard mystery={props.mystery ?? null} group={group} /> : null}
-        <Tape tape={snapshot.tape} group={group} after={state.kind !== 'idle'} />
+        <Tape
+          tape={snapshot.tape}
+          group={group}
+          after={state.kind !== 'idle'}
+          labelOf={
+            snapshot.severalLobbiesTonight === true
+              ? (entry) => tileLabel(entry, tables, labels ?? tableLabels(tables))
+              : undefined
+          }
+        />
         {emptyGroup ? null : (
           <TopFive
             rows={props.topPlayers}
@@ -461,6 +527,24 @@ export function TonightView(props: TonightViewProps) {
         {state.kind === 'idle' && !emptyGroup ? modeCard : null}
       </aside>
     </div>
+  );
+}
+
+/** 14.8: the selected lobby has no Kustom watching it any more (5.15's dashed note, no icon). */
+function UnwatchedNote({ inGame }: { inGame: boolean }) {
+  return (
+    <p
+      data-slot="lobby-unwatched"
+      className="rounded-card border border-dashed border-border-strong px-(--card-pad) py-3 text-sm"
+    >
+      {inGame ? (
+        UNWATCHED_IN_GAME
+      ) : (
+        <>
+          <b className="font-bold">{UNWATCHED_LEAD}</b> {UNWATCHED_REST}
+        </>
+      )}
+    </p>
   );
 }
 

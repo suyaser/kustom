@@ -70,6 +70,7 @@ import {
   ruleSentence,
 } from '@/lib/mode/ruleCopy';
 import { ruleLabel } from '@/lib/mode/ruleNotices';
+import { adminFootLines, banListInGameLine, banListLine, withLobby } from '@/lib/tonight/switcher';
 import { cn } from '@/lib/utils';
 import { RoleIcon } from '../_icons/RoleIcon';
 import type { ModeControlsProps } from './ModeControls';
@@ -119,6 +120,12 @@ export interface ModeCardLive {
   normalFacts: NormalNoteFacts;
   /** The render's `group_modes` read failed: `slice` is a stand-in (keep the last good one). */
   readFailed?: boolean | undefined;
+  /**
+   * M22.6 (05-design.md 14.5): two or more lobbies live. `count` of them, the drawn lobby's
+   * `label`, and its card's client store key (`modeCardKey`: its own for a forked lobby). Absent
+   * or null with one lobby: today's card, keyed on the group.
+   */
+  lobbies?: { count: number; label: string; storeKey: string } | null | undefined;
 }
 
 export interface ModeCardBodyProps {
@@ -148,12 +155,14 @@ const NO_SLICE: ModeSlice = {
 export function ModeCardBody(props: ModeCardBodyProps) {
   const { group, variant, viewerLane, viewerSide, live } = props;
   const readFailed = live?.readFailed === true;
-  const merged = useModeSlice(group.id, live?.slice ?? NO_SLICE, true, readFailed);
+  const lobbies = live?.lobbies ?? null;
+  const storeKey = lobbies?.storeKey ?? group.id;
+  const merged = useModeSlice(storeKey, live?.slice ?? NO_SLICE, true, readFailed);
   // M20.18: this game's lock, with this page's own `this` answers on it at once (balanced only:
   // in game the lock is frozen, so nothing patches it).
   const lock =
     useThisGameLock(
-      group.id,
+      storeKey,
       live !== null && live.lock !== null && live.lobbyStatus === 'balanced' && live.lobbyId != null
         ? { lobbyId: live.lobbyId, lock: live.lock }
         : null,
@@ -175,7 +184,7 @@ export function ModeCardBody(props: ModeCardBodyProps) {
         });
   const counts = poolCleared ? props.emptyCounts : props.counts;
   // M20 D11: Roll redrew a short pair; this game's notice, until the game starts (balanced only).
-  const rollNotice = useThisGameNotice(group.id, live?.lobbyId ?? null);
+  const rollNotice = useThisGameNotice(storeKey, live?.lobbyId ?? null);
   const shortPair =
     rollNotice !== null && live?.lobbyStatus === 'balanced' && view.locked && view.shown.id === 'region'
       ? rollNotice
@@ -280,7 +289,9 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       : notRatedPool
         ? FEARLESS_NOT_RATED_IN_GAME
         : fearlessOn
-          ? FEARLESS_IN_GAME
+          ? lobbies === null
+            ? FEARLESS_IN_GAME
+            : banListInGameLine(lobbies.count)
           : mirrorPool
             ? FEARLESS_IN_GAME_MIRROR
             : null;
@@ -343,7 +354,11 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       <Link
         data-warm-sprites={pooled ? '' : undefined}
         id={MODE_CARD_LINK_ID}
-        href={modePanelHref(group, lane)}
+        href={
+          lobbies === null || live?.lobbyId == null
+            ? modePanelHref(group, lane)
+            : withLobby(modePanelHref(group, lane), live.lobbyId)
+        }
         scroll={false}
         className="block px-(--card-pad) py-4 hover:bg-accent @[520px]:grid @[520px]:grid-cols-[minmax(0,1fr)_auto] @[520px]:items-center @[520px]:gap-4"
       >
@@ -383,6 +398,11 @@ export function ModeCardBody(props: ModeCardBodyProps) {
               <span className="text-md font-bold">{mirrorStatus(null)}</span>
             )}
           </SpinReveal>
+          {lobbies !== null && poolOn && variant !== 'in-game' ? (
+            <span data-spin-hide="" data-slot="mode-ban-list" className="text-xs text-muted-foreground">
+              {banListLine(lobbies.count)}
+            </span>
+          ) : null}
           {pairShort ? (
             <span data-spin-hide="" data-slot="mode-pair-short" className="text-sm font-bold">
               {REGION_PAIR_SHORT}
@@ -452,6 +472,13 @@ export function ModeCardBody(props: ModeCardBodyProps) {
         <ModeControlsLazy
           {...controls}
           groupId={group.id}
+          {...(lobbies === null
+            ? {}
+            : {
+                lobbyId: live?.lobbyId ?? null,
+                storeKey,
+                lobbyNote: adminFootLines(lobbies.label),
+              })}
           mode={view.standing}
           banned={counts.banned}
           resetConfirmHref={modeResetConfirmHref(group)}

@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
 
 interface ModePageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ lane?: string | string[] }>;
+  searchParams: Promise<{ lane?: string | string[]; lobby?: string | string[] }>;
 }
 
 export async function generateMetadata({ params }: ModePageProps): Promise<Metadata> {
@@ -35,8 +35,8 @@ export async function generateMetadata({ params }: ModePageProps): Promise<Metad
 }
 
 export default async function ModePage({ params, searchParams }: ModePageProps) {
-  const [{ slug }, { lane }] = await Promise.all([params, searchParams]);
-  const data = await loadModePanel(slug, lane);
+  const [{ slug }, { lane, lobby }] = await Promise.all([params, searchParams]);
+  const data = await loadModePanel(slug, lane, lobby);
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-(--gutter) pt-4 pb-8 lg:pt-6">
@@ -60,6 +60,7 @@ export default async function ModePage({ params, searchParams }: ModePageProps) 
           viewerLane={data.viewerLane}
           isAdmin={data.isAdmin}
           poolSince={data.poolSince}
+          liveTables={data.liveTables}
           cardHref={modeCardHref(data.group)}
           heading="h1"
           headingId="mode-panel-title"

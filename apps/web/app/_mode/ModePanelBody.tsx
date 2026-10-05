@@ -37,6 +37,7 @@ import {
 } from '@/lib/mode/ruleCopy';
 import { ruleLabel } from '@/lib/mode/ruleNotices';
 import { fearlessCounts, type LaneChoice } from '@/lib/mode/view';
+import { panelHeadLine } from '@/lib/tonight/switcher';
 import { FearlessPool, type PoolSide } from './FearlessPool';
 import { RatedChip } from './RatedChip';
 import { preloadChampionSprites } from './sprites';
@@ -64,6 +65,8 @@ export interface ModePanelBodyProps {
   isAdmin: boolean;
   /** `Thu 1 Oct` (the pool's reset day in the group's zone), or `null`. */
   poolSince: string | null;
+  /** M22.6 (14.5): live lobbies; with 2+ the head says they all add to this list. */
+  liveTables?: number | undefined;
   /** `/g/<slug>#mode`: the card the admin line points at. */
   cardHref: string;
   heading: 'h1' | 'h2';
@@ -235,6 +238,7 @@ function FearlessBody({
   heading,
   counts,
   view,
+  liveTables = 0,
 }: ModePanelBodyProps & { counts: ReturnType<typeof fearlessCounts> }) {
   preloadChampionSprites();
   // M15.15: a game that is not rated bans nothing, so the sentence makes no promise for it.
@@ -242,6 +246,7 @@ function FearlessBody({
   return (
     <>
       <p className="text-sm text-muted-foreground">{fearlessPoolSince(poolSince, fearless.games ?? 0)}</p>
+      {liveTables >= 2 ? <p className="text-sm text-muted-foreground">{panelHeadLine(liveTables)}</p> : null}
       <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <span>
           <span className="num text-xl font-semibold font-stretch-85%">{counts.open}</span>{' '}

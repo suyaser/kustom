@@ -60,7 +60,9 @@ export function LobbySwitcher({
     last.current = { chips, selected, tapped: before.tapped && selected === before.selected };
     if (selected !== before.selected) setTapped(null);
     if (line === null) return;
-    const timer = setTimeout(() => window.dispatchEvent(new CustomEvent(ANNOUNCE_EVENT, { detail: { line } })));
+    const timer = setTimeout(() =>
+      window.dispatchEvent(new CustomEvent(ANNOUNCE_EVENT, { detail: { line } })),
+    );
     return () => clearTimeout(timer);
   }, [chips, selected]);
 

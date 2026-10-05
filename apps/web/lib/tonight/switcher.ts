@@ -134,16 +134,26 @@ export function panelHeadLine(count: number): string {
   return count === 2 ? 'Both lobbies add to this list.' : 'Every lobby adds to this list.';
 }
 
+/** `/g/<slug>/mode?lane=top` with `lobby=<id>` added (14.5: the panel keeps the selection). */
+export function withLobby<T extends string>(href: T, lobbyId: string): T {
+  return `${href}${href.includes('?') ? '&' : '?'}lobby=${encodeURIComponent(lobbyId)}` as T;
+}
+
 /** 14.8: a live table nobody's Kustom is watching any more. */
 export const UNWATCHED_LEAD = 'Nobody with Kustom is in this lobby any more.';
 export const UNWATCHED_REST = 'It closes in a few minutes unless someone with Kustom joins.';
-export const UNWATCHED_IN_GAME = 'Nobody with Kustom is in this game any more, so its result may not come in.';
+export const UNWATCHED_IN_GAME =
+  'Nobody with Kustom is in this game any more, so its result may not come in.';
 
 /**
  * 14.6: the tape tile's lobby line, only on a night two tables overlapped: a live table's label,
  * else the tile's table's host (`tableHost`, `loadTonight`). Null: no line.
  */
-export function tileLabel(entry: TapeEntry, tables: readonly TableView[], labels: Map<string, string>): string | null {
+export function tileLabel(
+  entry: TapeEntry,
+  tables: readonly TableView[],
+  labels: Map<string, string>,
+): string | null {
   const live = tables.find((table) => table.rowIds.includes(entry.lobbyId));
   if (live !== undefined) return labels.get(live.id) ?? null;
   if (entry.tableHost === undefined) return null;
@@ -170,7 +180,8 @@ export function switcherAnnouncement(
   }
   const opened = after.chips.find((chip) => !before.chips.some((prev) => prev.key === chip.key));
   if (opened !== undefined && before.chips.length > 0) return `${opened.label} is open too.`;
-  if (tapped && shownAfter !== undefined && shownAfter.key !== shownBefore) return `Showing ${shownAfter.label}.`;
+  if (tapped && shownAfter !== undefined && shownAfter.key !== shownBefore)
+    return `Showing ${shownAfter.label}.`;
   const mine = after.chips.find((chip) => chip.you && chip.id !== after.selected);
   const was = mine === undefined ? undefined : before.chips.find((chip) => chip.key === mine.key);
   if (mine !== undefined && was !== undefined && was.status.kind !== mine.status.kind) {
