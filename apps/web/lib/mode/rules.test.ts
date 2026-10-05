@@ -161,11 +161,24 @@ describe('the stamp at record (core recordGame)', () => {
     expect(recordResultOf(record({ row: now })).patch).toEqual({});
   });
 
-  it('a remake or an ARAM keeps the lock stamp, never rated nor checked, and hands the lock back', () => {
+  it('a remake or an ARAM is never rated nor checked, and hands the lock back; only a remake keeps the rule', () => {
     for (const kind of ['remake', 'aram'] as const) {
       const lock = { ...tanksLock, rated: true };
       const stamped = stampColumns({ ...record({ kind, lock }), seats, table: table() });
-      expect(stamped).toMatchObject({ rule: 'class', rated: false, rule_checked: false, rule_check: null });
+      expect(stamped).toMatchObject({ rated: false, rule_checked: false, rule_check: null });
+      // Owner bug 2026-10-05: an ARAM (by its own end-of-game mode) is never a Rift rule game,
+      // whatever lock its lobby holds. A remake was the rule's game, cut short.
+      expect(stamped).toMatchObject(
+        kind === 'aram'
+          ? {
+              mode: 'fearless',
+              rule: null,
+              rule_class_tag: null,
+              rule_region_blue: null,
+              rule_region_red: null,
+            }
+          : { mode: 'fearless', rule: 'class', rule_class_tag: 'Tank' },
+      );
       expect(recordResultOf(record({ kind, lock })).patch).toEqual({ pending: tanksLock.mode, rated: true });
       // M20.7 review: an admin wrote the row after the lock, so nothing comes back.
       const touched = record({ kind, lock, rowUpdatedAt: '2026-10-05T18:00:01.000Z' });

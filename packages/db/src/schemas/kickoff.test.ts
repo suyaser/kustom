@@ -58,6 +58,9 @@ describe('kickoffFromRow / kickoffRowOf', () => {
     expect(plain !== null && 'gameMode' in plain).toBe(false);
     expect(kickoffIsAram({ gameMode: undefined })).toBe(false);
     expect(kickoffIsAram({ gameMode: 'CLASSIC' })).toBe(false);
+    // ARAM: Mayhem is an ARAM (owner bug 2026-10-05: the 2026-10-04 custom "ARAM" was KIWI).
+    expect(kickoffIsAram({ gameMode: 'KIWI' })).toBe(true);
+    expect(kickoffIsAram({ gameMode: 'KIWI_JADE' })).toBe(true);
   });
 
   it('a rolled row writes no odds; a priced row writes no swap', () => {
