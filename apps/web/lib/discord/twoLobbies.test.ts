@@ -111,35 +111,35 @@ describe('two lobbies live: every post that names one, as snapshots', () => {
 describe('the label leads the title (14.10)', () => {
   it('teams, reroll, both Game on kinds and the result', () => {
     expect(teamsEmbed(game4Teams({ lobbyLabel: KNIFIY })).embeds[0]?.title).toBe(
-      "knifiy's lobby · Teams are set",
+      "knifiy's lobby\u00a0· Teams are set",
     );
     expect(
       teamsEmbed(game4Teams({ promoted: { rank: 2, splitCount: 3 }, lobbyLabel: KNIFIY })).embeds[0]?.title,
-    ).toBe("knifiy's lobby · Teams are set · reroll 1 of 2");
+    ).toBe("knifiy's lobby\u00a0· Teams are set · reroll 1 of 2");
     expect(gameOnEmbed(gameOn('custom', { lobbyLabel: KNIFIY })).embeds[0]?.title).toBe(
-      `knifiy's lobby · ${GAME_ON_CUSTOM_TITLE}`,
+      `knifiy's lobby\u00a0· ${GAME_ON_CUSTOM_TITLE}`,
     );
     expect(gameOnEmbed(gameOn('unrolled', { lobbyLabel: KNIFIY })).embeds[0]?.title).toBe(
-      `knifiy's lobby · ${GAME_ON_UNROLLED_TITLE}`,
+      `knifiy's lobby\u00a0· ${GAME_ON_UNROLLED_TITLE}`,
     );
     expect(resultEmbed(game4Result({ lobbyLabel: XETA })).embeds[0]?.title).toBe(
-      "XETA's lobby · Red wins · 31 min",
+      "XETA's lobby\u00a0· Red wins · 31 min",
     );
   });
 
   it('a same-name lobby and a nameless one', () => {
     expect(
       labelledTitle('Teams are set', { ...KNIFIY, label: { kind: 'host', name: 'Ana', repeat: 2 } }),
-    ).toBe("Ana's lobby 2 · Teams are set");
+    ).toBe("Ana's lobby 2\u00a0· Teams are set");
     expect(labelledTitle('Game on', { ...KNIFIY, label: { kind: 'numbered', n: 3 } })).toBe(
-      'Lobby 3 · Game on',
+      'Lobby 3\u00a0· Game on',
     );
   });
 
   it('the host name is escaped by renderName, plain in the bold title', () => {
     const label: PostLobbyLabel = { ...KNIFIY, label: { kind: 'host', name: '[x](y)_*', repeat: 1 } };
     expect(teamsEmbed(game4Teams({ lobbyLabel: label })).embeds[0]?.title).toBe(
-      "\\[x\\]\\(y\\)\\_\\*'s lobby · Teams are set",
+      "\\[x\\]\\(y\\)\\_\\*'s lobby\u00a0· Teams are set",
     );
   });
 });
@@ -206,6 +206,6 @@ describe('a posted label stays (posts are never edited)', () => {
     const posted = resultEmbed(game4Result({ lobbyLabel: XETA }));
     const edited = recapPayload(posted, 'Red closed it out.');
     expect(edited.embeds[0]).toEqual(posted.embeds[0]);
-    expect(edited.embeds[0]?.title).toBe("XETA's lobby · Red wins · 31 min");
+    expect(edited.embeds[0]?.title).toBe("XETA's lobby\u00a0· Red wins · 31 min");
   });
 });
