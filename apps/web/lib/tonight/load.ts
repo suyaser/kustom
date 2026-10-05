@@ -922,7 +922,9 @@ async function scoreboardPlayers(
 
 interface ChosenSplit {
   /** The chosen split's teams, roles, odds and rank (M21.7: the receipt rule reads them), or `null`. */
-  split: (PlayedSplit & { blue: { puuid: string; role: Role }[]; red: { puuid: string; role: Role }[] }) | null;
+  split:
+    | (PlayedSplit & { blue: { puuid: string; role: Role }[]; red: { puuid: string; role: Role }[] })
+    | null;
   explanation: string | null;
 }
 

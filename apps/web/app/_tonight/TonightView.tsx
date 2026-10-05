@@ -47,8 +47,8 @@ import {
   gameNumber,
   noMainCount,
   offRoleSeats,
-  resultReceipt,
   receiptNames,
+  resultReceipt,
   viewerSeat,
 } from '@/lib/tonight/screen';
 import {
@@ -717,14 +717,18 @@ function Teams({
           side="blue"
           seats={blueSeats}
           viewerPuuid={viewerPuuid}
-          className={(played === null ? seat?.side : viewerSide) === 'blue' ? 'order-first md:order-none' : undefined}
+          className={
+            (played === null ? seat?.side : viewerSide) === 'blue' ? 'order-first md:order-none' : undefined
+          }
           group={group}
         />
         <TeamCard
           side="red"
           seats={redSeats}
           viewerPuuid={viewerPuuid}
-          className={(played === null ? seat?.side : viewerSide) === 'red' ? 'order-first md:order-none' : undefined}
+          className={
+            (played === null ? seat?.side : viewerSide) === 'red' ? 'order-first md:order-none' : undefined
+          }
           group={group}
         />
       </div>

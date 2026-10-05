@@ -295,7 +295,10 @@ export function postedOdds(played: PlayedOdds, chosen: object | null): number | 
  * gets none: the split never gave them a lane on that team (M21.5 and M21.6 use the same rule).
  */
 export function splitRolesFor(
-  chosen: { blue: readonly { puuid: string; role: Role }[]; red: readonly { puuid: string; role: Role }[] } | null,
+  chosen: {
+    blue: readonly { puuid: string; role: Role }[];
+    red: readonly { puuid: string; role: Role }[];
+  } | null,
   seats: readonly Pick<ReceiptSeat, 'puuid' | 'side'>[],
 ): Map<string, Role> {
   const roles = new Map<string, Role>();

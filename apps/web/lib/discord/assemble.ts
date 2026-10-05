@@ -545,7 +545,10 @@ export function storedRule(
 }
 
 /** The chosen split of the lobby this game was played from (its teams, roles, odds and rank), or `null`. */
-async function loadChosenSplit(client: ServiceClient, lobbyId: string | null): Promise<PlayedSplitRoles | null> {
+async function loadChosenSplit(
+  client: ServiceClient,
+  lobbyId: string | null,
+): Promise<PlayedSplitRoles | null> {
   if (lobbyId === null) return null;
 
   const { data, error } = await client

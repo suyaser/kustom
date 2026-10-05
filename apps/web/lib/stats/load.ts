@@ -754,7 +754,10 @@ async function loadOddsInputs(
     }),
     readKickoffs(client, lobbyIds, 'stats'),
     mapChunks(withLobby, async (chunk) => {
-      const { data, error } = await client.from('games').select('id, rated, gameMode:game_mode').in('id', chunk);
+      const { data, error } = await client
+        .from('games')
+        .select('id, rated, gameMode:game_mode')
+        .in('id', chunk);
       if (error) throw new Error(`stats: game lookup failed: ${error.message}`);
       return data ?? [];
     }),

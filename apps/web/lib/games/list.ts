@@ -13,6 +13,7 @@ import { kdaLine } from '../stats/funCopy';
 import { renderWebName } from '../tonight/copy';
 import { formatMinutes } from './duration';
 import { GAMES_PAGE_SIZE, type GamesFilters, gamesRange, pageCount } from './filters';
+import { readKickoffs } from './kickoffs';
 import { gameModeFromRaw, matchesQueue } from './queue';
 import {
   type PlayerRef,
@@ -22,7 +23,6 @@ import {
   readSplitRuns,
   type ScoreRow,
 } from './read';
-import { readKickoffs } from './kickoffs';
 import { gameReceiptOf } from './receipt';
 
 /**
