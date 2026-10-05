@@ -2,8 +2,8 @@ import {
   type ChampionTable,
   CLASS_TAGS,
   classPool,
-  type LockedMode,
-  type ModeState,
+  type ModeLock,
+  type ModeRow,
   RULE_OPTIONS,
   type RuleOption,
   ruleKey,
@@ -28,22 +28,18 @@ export {
   selectValue,
   showsFearlessPool,
   type UnplayableRules,
-  upcomingState,
 } from './cardView';
 
 /**
  * What the Mode card shows (M15.5; brief D2, 05-design 8.3, 8.10): pure, so every state is a unit
  * test and the card, the panel, the answer band and the strip's host line read one answer.
  *
- * - **Before Roll** (no lobby, filling, finished) the card is the **next game**: the pending rule if
- *   any, else the standing mode, with the Rated switch or the mode's default (core's `nextGame`).
- * - **Set and in game** the card is **this game**: the lobby's lock taken at Roll. Anything an admin
- *   did since (the version moved) is for the next game: `Next game: Mages only.` in the admin foot.
- *   A Rated-only flip changes only Rated (the user, 2026-10-04): the line is the game after this
- *   one's record (`upcomingState`), e.g. `Next game: Fearless.` or `Next game: not rated.`
- * - Region wars that could not be drawn at Roll locked the standing mode while the rule stayed
- *   pending at the same version: the card says the rule didn't apply.
- * - A lobby set before `0032` (no lock) reads as the next game.
+ * - **Before Roll** (no lobby, filling, finished) the card is the **next game**: the group's row
+ *   (`group_modes`), its pending rule if any (region wars with its pair, M20 D9), else the standing
+ *   mode, with the Rated switch or the mode's default.
+ * - **Set and in game** the card is **this game**: the lobby's lock (Roll moved the row's pending
+ *   fields onto it, M20 D6). The row is the next game: when it says more than the lock, admins read
+ *   `Next game: Mages only.` in the foot.
  *
  * M19.13: the view itself is `cardView.ts` (no champion table, client-safe); this file adds the
  * table-backed facts the server computes once per render ({@link classFacts},
@@ -51,20 +47,25 @@ export {
  */
 
 export interface ModeCardInput {
-  state: ModeState;
+  row: ModeRow;
   lobbyStatus: LobbyStatusValue | null;
-  lock: LockedMode | null;
+  lock: ModeLock | null;
   /** The Fearless pool's champion ids (counted only while the standing mode is Fearless). */
   bans: readonly number[];
   table: ChampionTable;
+  /** `group_modes.updated_at` and the lock's `locked_at` (the didn't-apply note, `cardView.ts`). */
+  rowUpdatedAt?: string | null | undefined;
+  lockedAt?: string | null | undefined;
 }
 
 export function modeCardView(input: ModeCardInput): ModeCardView {
   return modeCardViewFrom({
-    state: input.state,
+    row: input.row,
     lobbyStatus: input.lobbyStatus,
     lock: input.lock,
     classFacts: classFacts(input.bans, input.table),
+    rowUpdatedAt: input.rowUpdatedAt,
+    lockedAt: input.lockedAt,
   });
 }
 
@@ -99,6 +100,6 @@ export function unplayableRules(bans: readonly number[], table: ChampionTable): 
  * Which rule options the select greys out with ` (too few open)` (D7): under standing Fearless, a
  * class under 10 open or no two regions with 8 open. The rule already pending stays selectable.
  */
-export function tooFewOpen(state: ModeState, bans: readonly number[], table: ChampionTable): string[] {
-  return tooFewFrom(state, unplayableRules(bans, table));
+export function tooFewOpen(row: ModeRow, bans: readonly number[], table: ChampionTable): string[] {
+  return tooFewFrom(row, unplayableRules(bans, table));
 }

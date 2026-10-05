@@ -1,7 +1,7 @@
 import type { ChampionFacts, ChampionTable, ModeLock, ModeRow } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { championTable, regionIds } from './champions';
-import { lockFromRow, modeLockOf, storedLockOf } from './lock';
+import { modeLockOf, storedLockOf } from './lock';
 import { type ModeRecord, recordResultOf, rowTouchedAfterLock, stampColumns } from './record';
 import { serverRng } from './rng';
 import {
@@ -15,7 +15,7 @@ import {
   standingNotice,
   thisPairNotice,
 } from './ruleNotices';
-import { missingRow, missingState, rowFromColumns, stateFromRow, storedFromColumns } from './state';
+import { missingRow, rowFromColumns, storedFromColumns } from './state';
 
 /**
  * The server's mapping around core's one-row mode (M20.7): the card row's columns, the lobby's lock
@@ -80,24 +80,6 @@ describe('the card row (0047)', () => {
     expect(storedFromColumns(null)).toEqual({ row: missingRow(), exists: false, updatedAt: null });
     expect(missingRow()).toEqual({ standing: 'normal', pending: null, rated: null });
   });
-
-  it('(pre-M20.8 adapter) the old card shape: region wars pairless, updated_at as the order', () => {
-    const legacy = stateFromRow(
-      columns({
-        pending_rule: 'region',
-        pending_region_blue: 'zaun',
-        pending_region_red: 'noxus',
-        rated_override: false,
-      }),
-    );
-    expect(legacy).toEqual({
-      standing: 'normal',
-      pending: { id: 'region' },
-      ratedOverride: false,
-      version: Date.parse('2026-10-05T18:00:00.000Z'),
-    });
-    expect(missingState()).toEqual({ standing: 'normal', pending: null, ratedOverride: null, version: 0 });
-  });
 });
 
 describe('the lock columns (0047: keyed on lock_mode, Rated as moved)', () => {
@@ -128,19 +110,6 @@ describe('the lock columns (0047: keyed on lock_mode, Rated as moved)', () => {
       rated: null,
     });
     expect(storedLockOf(lockRow)?.lockedAt).toBe('2026-10-05T18:00:00.000Z');
-  });
-
-  it('(pre-M20.8 adapter) the old lock shape: the effective Rated, locked_at as the order', () => {
-    expect(lockFromRow(lockRow)).toEqual({
-      lock: {
-        mode: { id: 'region', blue: 'ionia', red: 'noxus' },
-        rated: false,
-        version: Date.parse('2026-10-05T18:00:00.000Z'),
-      },
-    });
-    expect(
-      lockFromRow({ ...lockRow, lock_rule: null, lock_region_blue: null, lock_region_red: null })?.lock.rated,
-    ).toBe(true);
   });
 });
 

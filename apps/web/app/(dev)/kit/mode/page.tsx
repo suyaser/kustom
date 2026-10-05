@@ -1,4 +1,4 @@
-import type { Mode } from '@customs/core';
+import type { ModeRow, PendingRule } from '@customs/core';
 import { notFound } from 'next/navigation';
 import { ModePanelBody } from '@/app/_mode/ModePanelBody';
 import { PageGroupProvider } from '@/app/_shell/PageGroup';
@@ -15,7 +15,8 @@ import { parseLane } from '@/lib/mode/view';
  * Dev-only: the mode panel's body as the direct page renders it (M14.30, M15.5), from fixtures, for
  * the states the local data cannot reach without writing to the shared stack: `?mode=normal`,
  * `?pool=empty`, `?lane=<role>`, `?admin=1`; M15.5 `?rule=class:Tank|region|mirror`,
- * `?drawn=1` (region wars after Roll: Ionia vs Noxus; M20.5 `?pair=piltover:zaun` for another pair),
+ * `?drawn=1` (after Roll: the rule locked on a balanced lobby), region wars always on Ionia vs Noxus
+ * (M20 D9; M20.5 `?pair=piltover:zaun` for another pair),
  * `?side=red` (seated on red), `?rated=0|1`.
  * A 404 in production.
  */
@@ -40,20 +41,19 @@ export default async function KitModePage({
   const group = ORIGINAL_GROUP;
   const standing = mode === 'normal' ? 'normal' : 'fearless';
   const fearless = pool === 'empty' ? { champions: [], resetAt: null, games: 0 } : demoPool(false);
-  const pending = ruleFromKey(rule);
+  const option = ruleFromKey(rule);
+  const pending: PendingRule | null =
+    option === null ? null : option.id === 'region' ? { id: 'region', blue, red } : option;
   const override = rated === '1' ? true : rated === '0' ? false : null;
-  const state = { standing, pending, ratedOverride: override, version: 2 } as const;
+  const locked = drawn === '1' && pending !== null;
+  // After Roll the row is empty: its rule and Rated moved onto the lock (M20.7).
+  const row: ModeRow = locked
+    ? { standing, pending: null, rated: null }
+    : { standing, pending, rated: override };
   const view = modeCardView({
-    state,
-    lobbyStatus: drawn === '1' ? 'balanced' : null,
-    lock:
-      drawn === '1' && pending !== null
-        ? {
-            mode: pending.id === 'region' ? ({ id: 'region', blue, red } as Mode) : pending,
-            rated: override ?? pending.id === 'mirror',
-            version: 2,
-          }
-        : null,
+    row,
+    lobbyStatus: locked ? 'balanced' : null,
+    lock: locked ? { standing, mode: pending, rated: override } : null,
     bans: fearless.champions.map((champion) => champion.id),
     table: championTable(),
   });

@@ -124,7 +124,9 @@ if (stack === null) {
 
     it('2. picked: rated; Start a lobby stays and asks for Blind Pick; filling: the host line, and Spin never mirror', async () => {
       const answer = await night.card({ mode: 'mirror' });
-      expect(answer).toMatchObject({ mode: 'fearless', next: { rule: 'mirror', rated: true } });
+      expect(answer).toMatchObject({
+        state: { standing: 'fearless', pending: { id: 'mirror' }, nextRated: true },
+      });
       expect(await readPickType(night.db, night.group.id)).toBe('blind');
 
       const afterResult = await night.tonightPaint(host());

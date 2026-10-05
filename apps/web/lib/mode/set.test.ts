@@ -1,7 +1,7 @@
 import type { ModeRow, TransitionContext } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { memoryModeStore } from '../testing/modeStore';
-import { nextGameOf, writeModeCard } from './set';
+import { writeModeCard } from './set';
 import { columnsOfPatch, patchIsNoop } from './state';
 
 const GROUP = '00000000-0000-0000-0000-0000000000aa';
@@ -115,32 +115,5 @@ describe('the patch as columns', () => {
       false,
     );
     expect(patchIsNoop(row({ pending: { id: 'mirror' } }), { pending: null })).toBe(false);
-  });
-});
-
-describe('nextGameOf (the pre-M20.8 client answer)', () => {
-  it('is the next game with the rule as the select string and updated_at as the order', () => {
-    const at = '2026-10-05T18:00:00.000Z';
-    expect(
-      nextGameOf({ row: row({ pending: { id: 'class', tag: 'Tank' } }), exists: true, updatedAt: at }),
-    ).toEqual({
-      standing: 'fearless',
-      rule: 'class:Tank',
-      rated: false,
-      ratedOverride: null,
-      version: Date.parse(at),
-    });
-    expect(
-      nextGameOf({
-        row: row({ pending: { id: 'region', blue: 'zaun', red: 'noxus' } }),
-        exists: true,
-        updatedAt: at,
-      }),
-    ).toMatchObject({ rule: 'region', rated: false });
-    expect(nextGameOf({ row: row({ rated: false }), exists: false, updatedAt: null })).toMatchObject({
-      rule: null,
-      rated: false,
-      version: 0,
-    });
   });
 });

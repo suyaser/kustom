@@ -1,0 +1,2402 @@
+{
+  "Normal | empty | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | empty | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal | empty-admin | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | empty-admin | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal | idle | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | idle | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal | filling | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | filling | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal | over-ten | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | over-ten | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal | balanced | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | balanced | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal | in-game | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | in-game | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, not rated | empty | member": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | empty | admin": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is recorded, not rated.",
+    "select": "normal",
+    "rated": "false",
+    "mirror": null
+  },
+  "Normal, not rated | empty-admin | member": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | empty-admin | admin": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is recorded, not rated.",
+    "select": "normal",
+    "rated": "false",
+    "mirror": null
+  },
+  "Normal, not rated | idle | member": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | idle | admin": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is recorded, not rated.",
+    "select": "normal",
+    "rated": "false",
+    "mirror": null
+  },
+  "Normal, not rated | filling | member": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | filling | admin": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is recorded, not rated.",
+    "select": "normal",
+    "rated": "false",
+    "mirror": null
+  },
+  "Normal, not rated | over-ten | member": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | over-ten | admin": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is recorded, not rated.",
+    "select": "normal",
+    "rated": "false",
+    "mirror": null
+  },
+  "Normal, not rated | balanced | member": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | balanced | admin": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is recorded, not rated.",
+    "select": "normal",
+    "rated": "false",
+    "mirror": null
+  },
+  "Normal, not rated | in-game | member": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | in-game | admin": {
+    "text": "ModeNormalNot ratedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is recorded, not rated.",
+    "select": "normal",
+    "rated": "false",
+    "mirror": null
+  },
+  "Normal, not rated | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, not rated | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | empty | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | empty | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | empty-admin | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | empty-admin | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | idle | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | idle | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | filling | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | filling | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | over-ten | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | over-ten | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | balanced | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | balanced | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | in-game | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | in-game | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, rated | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, rated | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | empty | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Normal mode now. An admin switched off Fearless, so every champion is open.",
+    "mirror": null
+  },
+  "Normal, just switched | empty | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | empty-admin | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Normal mode now. An admin switched off Fearless, so every champion is open.",
+    "mirror": null
+  },
+  "Normal, just switched | empty-admin | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | idle | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Normal mode now. An admin switched off Fearless, so every champion is open.",
+    "mirror": null
+  },
+  "Normal, just switched | idle | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | filling | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Normal mode now. An admin switched off Fearless, so every champion is open.",
+    "mirror": null
+  },
+  "Normal, just switched | filling | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | over-ten | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Normal mode now. An admin switched off Fearless, so every champion is open.",
+    "mirror": null
+  },
+  "Normal, just switched | over-ten | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | balanced | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, just switched | balanced | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | in-game | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, just switched | in-game | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Normal, just switched | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "Normal, just switched | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | empty | member": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless with bans | empty | admin": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | empty-admin | member": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless with bans | empty-admin | admin": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | idle | member": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless with bans | idle | admin": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | filling | member": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": null
+  },
+  "Fearless with bans | filling | admin": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | over-ten | member": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": null
+  },
+  "Fearless with bans | over-ten | admin": {
+    "text": "ModeFearlessRated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | balanced | member": {
+    "text": "ModeFearlessRated138 open35 bannedYour lanesupport·27 openSee what's open ›",
+    "mirror": null
+  },
+  "Fearless with bans | balanced | admin": {
+    "text": "ModeFearlessRated138 open35 bannedYour lanesupport·27 openSee what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | in-game | member": {
+    "text": "ModeFearlessRated138 open35 bannedThis game's ten join the ban list when it ends.See what's open ›",
+    "mirror": null
+  },
+  "Fearless with bans | in-game | admin": {
+    "text": "ModeFearlessRated138 open35 bannedThis game's ten join the ban list when it ends.See what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless with bans | finished | member": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonSion, NoxusjungleOlaf, FreljordXin Zhao, Demacia ·  and IoniamidGalio, DemaciaTwisted Fate, BilgewateradcSivir, ShurimaTristana, Bandle CitysupportAlistarMorgana, Demacia ·  and TargonNext gameFearlessRated128 open45 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless with bans | finished | admin": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonSion, NoxusjungleOlaf, FreljordXin Zhao, Demacia ·  and IoniamidGalio, DemaciaTwisted Fate, BilgewateradcSivir, ShurimaTristana, Bandle CitysupportAlistarMorgana, Demacia ·  and TargonNext gameFearlessRated128 open45 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | empty | member": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned | empty | admin": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | empty-admin | member": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned | empty-admin | admin": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | idle | member": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned | idle | admin": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | filling | member": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31",
+    "mirror": null
+  },
+  "Fearless, nothing banned | filling | admin": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | over-ten | member": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31",
+    "mirror": null
+  },
+  "Fearless, nothing banned | over-ten | admin": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | balanced | member": {
+    "text": "ModeFearlessRated173 open0 bannedYour lanesupport·31 openSee what's open ›Nothing banned yet, so every champion is open. The ten you lock this game are banned next game.",
+    "mirror": null
+  },
+  "Fearless, nothing banned | balanced | admin": {
+    "text": "ModeFearlessRated173 open0 bannedYour lanesupport·31 openSee what's open ›Nothing banned yet, so every champion is open. The ten you lock this game are banned next game.Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | in-game | member": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.This game's ten join the ban list when it ends.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned | in-game | admin": {
+    "text": "ModeFearlessRatedNothing banned yet. All 173 open.This game's ten join the ban list when it ends.See what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned | finished | member": {
+    "text": "ModeNext gameFearlessRatedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned | finished | admin": {
+    "text": "ModeNext gameFearlessRatedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, not rated | empty | member": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless, not rated | empty | admin": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.Reset fearless",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, not rated | empty-admin | member": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless, not rated | empty-admin | admin": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.Reset fearless",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, not rated | idle | member": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless, not rated | idle | admin": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.Reset fearless",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, not rated | filling | member": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": null
+  },
+  "Fearless, not rated | filling | admin": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.Reset fearless",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, not rated | over-ten | member": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": null
+  },
+  "Fearless, not rated | over-ten | admin": {
+    "text": "ModeFearlessNot rated138 open35 bannedSee what's open ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.Reset fearless",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, not rated | balanced | member": {
+    "text": "ModeFearlessNot rated138 open35 bannedYour lanesupport·27 openSee what's open ›",
+    "mirror": null
+  },
+  "Fearless, not rated | balanced | admin": {
+    "text": "ModeFearlessNot rated138 open35 bannedYour lanesupport·27 openSee what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.Reset fearless",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, not rated | in-game | member": {
+    "text": "ModeFearlessNot rated138 open35 bannedThis game isn't rated, so it bans nothing.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, not rated | in-game | admin": {
+    "text": "ModeFearlessNot rated138 open35 bannedThis game isn't rated, so it bans nothing.See what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.Reset fearless",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, not rated | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "Fearless, not rated | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | empty | member": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | empty | admin": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | empty-admin | member": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | empty-admin | admin": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | idle | member": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | idle | admin": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | filling | member": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | filling | admin": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | over-ten | member": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | over-ten | admin": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.See what's open ›top 39jungle 39mid 41adc 23support 31Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | balanced | member": {
+    "text": "ModeFearlessNot rated173 open0 bannedYour lanesupport·31 openSee what's open ›Nothing banned yet, so every champion is open. This game isn't rated, so it bans nothing.",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | balanced | admin": {
+    "text": "ModeFearlessNot rated173 open0 bannedYour lanesupport·31 openSee what's open ›Nothing banned yet, so every champion is open. This game isn't rated, so it bans nothing.Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | in-game | member": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.This game isn't rated, so it bans nothing.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | in-game | admin": {
+    "text": "ModeFearlessNot ratedNothing banned yet. All 173 open.This game isn't rated, so it bans nothing.See what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is recorded, not rated.",
+    "select": "fearless",
+    "rated": "false",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRatedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "Fearless, nothing banned, not rated | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRatedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | empty | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | empty | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | idle | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | idle | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | filling | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | filling | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | over-ten | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | balanced | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openYour lanesupport·11 tanksThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | balanced | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openYour lanesupport·11 tanksThis game only. Then back to Fearless.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | in-game | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game: tanks only.This game isn't rated, so it bans nothing.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | in-game | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game: tanks only.This game isn't rated, so it bans nothing.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "class wars Tank, Fearless night | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | empty | member": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | empty | admin": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | idle | member": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | idle | admin": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | filling | member": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | filling | admin": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | over-ten | member": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | balanced | member": {
+    "text": "ModeClass warsNot ratedTanks onlyYour lanesupport·11 tanksThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | balanced | admin": {
+    "text": "ModeClass warsNot ratedTanks onlyYour lanesupport·11 tanksThis game only. Then back to Normal.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | in-game | member": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game: tanks only.See the tanks ›",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | in-game | admin": {
+    "text": "ModeClass warsNot ratedTanks onlyThis game: tanks only.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "class wars Tank, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | empty | member": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | empty | admin": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | idle | member": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | idle | admin": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | filling | member": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›top 3jungle 2mid 4adc 16support 1",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | filling | admin": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›top 3jungle 2mid 4adc 16support 1Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | over-ten | member": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›top 3jungle 2mid 4adc 16support 1",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game only. Then back to Fearless.See the marksmen ›top 3jungle 2mid 4adc 16support 1Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | balanced | member": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openYour lanesupport·1 marksmanThis game only. Then back to Fearless.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | balanced | admin": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openYour lanesupport·1 marksmanThis game only. Then back to Fearless.See the marksmen ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | in-game | member": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game: marksmen only.This game isn't rated, so it bans nothing.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | in-game | admin": {
+    "text": "ModeClass warsNot ratedMarksmen only · 26 openThis game: marksmen only.This game isn't rated, so it bans nothing.See the marksmen ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "class wars Marksman, Fearless night | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | empty | member": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | empty | admin": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | idle | member": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | idle | admin": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | filling | member": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›top 4jungle 2mid 4adc 22support 1",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | filling | admin": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›top 4jungle 2mid 4adc 22support 1Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | over-ten | member": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›top 4jungle 2mid 4adc 22support 1",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game only. Then back to Normal.See the marksmen ›top 4jungle 2mid 4adc 22support 1Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | balanced | member": {
+    "text": "ModeClass warsNot ratedMarksmen onlyYour lanesupport·1 marksmanThis game only. Then back to Normal.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | balanced | admin": {
+    "text": "ModeClass warsNot ratedMarksmen onlyYour lanesupport·1 marksmanThis game only. Then back to Normal.See the marksmen ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | in-game | member": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game: marksmen only.See the marksmen ›",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | in-game | admin": {
+    "text": "ModeClass warsNot ratedMarksmen onlyThis game: marksmen only.See the marksmen ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Marksman",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "class wars Marksman, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | empty | member": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | empty | admin": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | idle | member": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | idle | admin": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | filling | member": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›top 8jungle 9mid 26adc 6support 13",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | filling | admin": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›top 8jungle 9mid 26adc 6support 13Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | over-ten | member": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›top 8jungle 9mid 26adc 6support 13",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game only. Then back to Fearless.See the mages ›top 8jungle 9mid 26adc 6support 13Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | balanced | member": {
+    "text": "ModeClass warsNot ratedMages only · 62 openYour lanesupport·13 magesThis game only. Then back to Fearless.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | balanced | admin": {
+    "text": "ModeClass warsNot ratedMages only · 62 openYour lanesupport·13 magesThis game only. Then back to Fearless.See the mages ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | in-game | member": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game: mages only.This game isn't rated, so it bans nothing.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | in-game | admin": {
+    "text": "ModeClass warsNot ratedMages only · 62 openThis game: mages only.This game isn't rated, so it bans nothing.See the mages ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "class wars Mage, Fearless night | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | empty | member": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | empty | admin": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | idle | member": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | idle | admin": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | filling | member": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›top 10jungle 10mid 32adc 7support 16",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | filling | admin": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›top 10jungle 10mid 32adc 7support 16Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | over-ten | member": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›top 10jungle 10mid 32adc 7support 16",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedMages onlyThis game only. Then back to Normal.See the mages ›top 10jungle 10mid 32adc 7support 16Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | balanced | member": {
+    "text": "ModeClass warsNot ratedMages onlyYour lanesupport·16 magesThis game only. Then back to Normal.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | balanced | admin": {
+    "text": "ModeClass warsNot ratedMages onlyYour lanesupport·16 magesThis game only. Then back to Normal.See the mages ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | in-game | member": {
+    "text": "ModeClass warsNot ratedMages onlyThis game: mages only.See the mages ›",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | in-game | admin": {
+    "text": "ModeClass warsNot ratedMages onlyThis game: mages only.See the mages ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "class wars Mage, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | empty | member": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | empty | admin": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | idle | member": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | idle | admin": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | filling | member": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›top 4jungle 10mid 11adc 3support 1",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | filling | admin": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›top 4jungle 10mid 11adc 3support 1Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | over-ten | member": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›top 4jungle 10mid 11adc 3support 1",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game only. Then back to Fearless.See the assassins ›top 4jungle 10mid 11adc 3support 1Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | balanced | member": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openYour lanesupport·1 assassinThis game only. Then back to Fearless.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | balanced | admin": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openYour lanesupport·1 assassinThis game only. Then back to Fearless.See the assassins ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | in-game | member": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game: assassins only.This game isn't rated, so it bans nothing.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | in-game | admin": {
+    "text": "ModeClass warsNot ratedAssassins only · 29 openThis game: assassins only.This game isn't rated, so it bans nothing.See the assassins ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "class wars Assassin, Fearless night | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | empty | member": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | empty | admin": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | idle | member": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | idle | admin": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | filling | member": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›top 7jungle 15mid 16adc 6support 2",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | filling | admin": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›top 7jungle 15mid 16adc 6support 2Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | over-ten | member": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›top 7jungle 15mid 16adc 6support 2",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game only. Then back to Normal.See the assassins ›top 7jungle 15mid 16adc 6support 2Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | balanced | member": {
+    "text": "ModeClass warsNot ratedAssassins onlyYour lanesupport·2 assassinsThis game only. Then back to Normal.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | balanced | admin": {
+    "text": "ModeClass warsNot ratedAssassins onlyYour lanesupport·2 assassinsThis game only. Then back to Normal.See the assassins ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | in-game | member": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game: assassins only.See the assassins ›",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | in-game | admin": {
+    "text": "ModeClass warsNot ratedAssassins onlyThis game: assassins only.See the assassins ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Assassin",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "class wars Assassin, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | empty | member": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | empty | admin": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | idle | member": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | idle | admin": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | filling | member": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›top 1jungle 4mid 7adc 1support 26",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | filling | admin": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›top 1jungle 4mid 7adc 1support 26Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | over-ten | member": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›top 1jungle 4mid 7adc 1support 26",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game only. Then back to Fearless.See the supports ›top 1jungle 4mid 7adc 1support 26Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | balanced | member": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openYour lanesupport·26 supportsThis game only. Then back to Fearless.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | balanced | admin": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openYour lanesupport·26 supportsThis game only. Then back to Fearless.See the supports ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | in-game | member": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game: supports only.This game isn't rated, so it bans nothing.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | in-game | admin": {
+    "text": "ModeClass warsNot ratedSupports only · 39 openThis game: supports only.This game isn't rated, so it bans nothing.See the supports ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "class wars Support, Fearless night | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars Support, Normal night | empty | member": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Normal night | empty | admin": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Normal night | empty-admin | member": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Normal night | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Normal night | idle | member": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Normal night | idle | admin": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Normal night | filling | member": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›top 1jungle 4mid 8adc 1support 29",
+    "mirror": null
+  },
+  "class wars Support, Normal night | filling | admin": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›top 1jungle 4mid 8adc 1support 29Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Normal night | over-ten | member": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›top 1jungle 4mid 8adc 1support 29",
+    "mirror": null
+  },
+  "class wars Support, Normal night | over-ten | admin": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game only. Then back to Normal.See the supports ›top 1jungle 4mid 8adc 1support 29Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Normal night | balanced | member": {
+    "text": "ModeClass warsNot ratedSupports onlyYour lanesupport·29 supportsThis game only. Then back to Normal.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Normal night | balanced | admin": {
+    "text": "ModeClass warsNot ratedSupports onlyYour lanesupport·29 supportsThis game only. Then back to Normal.See the supports ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Normal night | in-game | member": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game: supports only.See the supports ›",
+    "mirror": null
+  },
+  "class wars Support, Normal night | in-game | admin": {
+    "text": "ModeClass warsNot ratedSupports onlyThis game: supports only.See the supports ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "class:Support",
+    "rated": "false",
+    "mirror": null
+  },
+  "class wars Support, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "class wars Support, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | empty | member": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on | empty | admin": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | empty-admin | member": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on | empty-admin | admin": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | idle | member": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on | idle | admin": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | filling | member": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars, rated on | filling | admin": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | over-ten | member": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars, rated on | over-ten | admin": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | balanced | member": {
+    "text": "ModeClass warsRatedTanks only · 40 openYour lanesupport·11 tanksThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on | balanced | admin": {
+    "text": "ModeClass warsRatedTanks only · 40 openYour lanesupport·11 tanksThis game only. Then back to Fearless.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | in-game | member": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game: tanks only.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on | in-game | admin": {
+    "text": "ModeClass warsRatedTanks only · 40 openThis game: tanks only.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on | finished | member": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonSion, NoxusjungleOlaf, FreljordXin Zhao, Demacia ·  and IoniamidGalio, DemaciaTwisted Fate, BilgewateradcSivir, ShurimaTristana, Bandle CitysupportAlistarMorgana, Demacia ·  and TargonNext gameFearlessRated128 open45 bannedSee what's open ›",
+    "mirror": null
+  },
+  "class wars, rated on | finished | admin": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonSion, NoxusjungleOlaf, FreljordXin Zhao, Demacia ·  and IoniamidGalio, DemaciaTwisted Fate, BilgewateradcSivir, ShurimaTristana, Bandle CitysupportAlistarMorgana, Demacia ·  and TargonNext gameFearlessRated128 open45 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | empty | member": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | empty | admin": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | empty-admin | member": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | empty-admin | admin": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | idle | member": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | idle | admin": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | filling | member": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | filling | admin": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | over-ten | member": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | over-ten | admin": {
+    "text": "ModeClass warsRatedTanks onlyThis game only. Then back to Normal.See the tanks ›top 18jungle 16mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | balanced | member": {
+    "text": "ModeClass warsRatedTanks onlyYour lanesupport·11 tanksThis game only. Then back to Normal.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | balanced | admin": {
+    "text": "ModeClass warsRatedTanks onlyYour lanesupport·11 tanksThis game only. Then back to Normal.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | in-game | member": {
+    "text": "ModeClass warsRatedTanks onlyThis game: tanks only.See the tanks ›",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | in-game | admin": {
+    "text": "ModeClass warsRatedTanks onlyThis game: tanks only.See the tanks ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "class:Tank",
+    "rated": "true",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "class wars, rated on, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars | empty | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars | empty | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars | empty-admin | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars | empty-admin | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars | idle | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars | idle | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars | filling | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars | filling | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars | over-ten | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars | over-ten | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars | balanced | member": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusYour lanesupport·IoniaThis game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars | balanced | admin": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusYour lanesupport·IoniaThis game only. Then back to Fearless.See both pools ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars | in-game | member": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusThis game: Ionia vs Noxus.This game isn't rated, so it bans nothing.See both pools ›",
+    "mirror": null
+  },
+  "region wars | in-game | admin": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusThis game: Ionia vs Noxus.This game isn't rated, so it bans nothing.See both pools ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "region wars | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, Normal night | empty | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›",
+    "mirror": null
+  },
+  "region wars, Normal night | empty | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars, Normal night | empty-admin | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›",
+    "mirror": null
+  },
+  "region wars, Normal night | empty-admin | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars, Normal night | idle | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›",
+    "mirror": null
+  },
+  "region wars, Normal night | idle | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars, Normal night | filling | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›",
+    "mirror": null
+  },
+  "region wars, Normal night | filling | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars, Normal night | over-ten | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›",
+    "mirror": null
+  },
+  "region wars, Normal night | over-ten | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Normal.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars, Normal night | balanced | member": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusYour lanesupport·IoniaThis game only. Then back to Normal.See both pools ›",
+    "mirror": null
+  },
+  "region wars, Normal night | balanced | admin": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusYour lanesupport·IoniaThis game only. Then back to Normal.See both pools ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars, Normal night | in-game | member": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusThis game: Ionia vs Noxus.See both pools ›",
+    "mirror": null
+  },
+  "region wars, Normal night | in-game | admin": {
+    "text": "ModeRegion warsNot ratedBLUEIoniavsREDNoxusThis game: Ionia vs Noxus.See both pools ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "region wars, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | empty | member": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars, rated on | empty | admin": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "region",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | empty-admin | member": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars, rated on | empty-admin | admin": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "region",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | idle | member": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars, rated on | idle | admin": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "region",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | filling | member": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars, rated on | filling | admin": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "region",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | over-ten | member": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars, rated on | over-ten | admin": {
+    "text": "ModeRegion warsRatedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "region",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | balanced | member": {
+    "text": "ModeRegion warsRatedBLUEIoniavsREDNoxusYour lanesupport·IoniaThis game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars, rated on | balanced | admin": {
+    "text": "ModeRegion warsRatedBLUEIoniavsREDNoxusYour lanesupport·IoniaThis game only. Then back to Fearless.See both pools ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "region",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | in-game | member": {
+    "text": "ModeRegion warsRatedBLUEIoniavsREDNoxusThis game: Ionia vs Noxus.See both pools ›",
+    "mirror": null
+  },
+  "region wars, rated on | in-game | admin": {
+    "text": "ModeRegion warsRatedBLUEIoniavsREDNoxusThis game: Ionia vs Noxus.See both pools ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "region",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars, rated on | finished | member": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonSion, NoxusjungleOlaf, FreljordXin Zhao, Demacia ·  and IoniamidGalio, DemaciaTwisted Fate, BilgewateradcSivir, ShurimaTristana, Bandle CitysupportAlistarMorgana, Demacia ·  and TargonNext gameFearlessRated128 open45 bannedSee what's open ›",
+    "mirror": null
+  },
+  "region wars, rated on | finished | admin": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonSion, NoxusjungleOlaf, FreljordXin Zhao, Demacia ·  and IoniamidGalio, DemaciaTwisted Fate, BilgewateradcSivir, ShurimaTristana, Bandle CitysupportAlistarMorgana, Demacia ·  and TargonNext gameFearlessRated128 open45 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "region wars that could not be drawn | empty | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | empty | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars that could not be drawn | empty-admin | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | empty-admin | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars that could not be drawn | idle | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | idle | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars that could not be drawn | filling | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | filling | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars that could not be drawn | over-ten | member": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | over-ten | admin": {
+    "text": "ModeRegion warsNot ratedSides drawn when teams are rolled.This game only. Then back to Fearless.See both pools ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars that could not be drawn | balanced | member": {
+    "text": "ModeRegion wars didn't apply to this game: too few open champions for two regions. It's still set for the next game.FearlessNot rated138 open35 bannedYour lanesupport·27 openSee what's open ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | balanced | admin": {
+    "text": "ModeRegion wars didn't apply to this game: too few open champions for two regions. It's still set for the next game.FearlessNot rated138 open35 bannedYour lanesupport·27 openSee what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars that could not be drawn | in-game | member": {
+    "text": "ModeRegion wars didn't apply to this game: too few open champions for two regions. It's still set for the next game.FearlessNot rated138 open35 bannedThis game isn't rated, so it bans nothing.See what's open ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | in-game | admin": {
+    "text": "ModeRegion wars didn't apply to this game: too few open champions for two regions. It's still set for the next game.FearlessNot rated138 open35 bannedThis game isn't rated, so it bans nothing.See what's open ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "region wars that could not be drawn | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "region wars that could not be drawn | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Fearless night | empty | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Fearless night | empty | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Fearless night | empty-admin | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Fearless night | empty-admin | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Fearless night | idle | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Fearless night | idle | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Fearless night | filling | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Fearless night | filling | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Fearless night | over-ten | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Fearless night | over-ten | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Fearless night | balanced | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openYour lanesupport·27 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Fearless night | balanced | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openYour lanesupport·27 openThis game only. Then back to Fearless.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Fearless night | in-game | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game's champions join the ban list when it ends.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Fearless night | in-game | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 138 openThis game's champions join the ban list when it ends.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.Reset fearless",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Fearless night | finished | member": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonjungleOlaf, FreljordmidGalio, DemaciaadcSivir, ShurimasupportAlistarNext gameFearlessRated133 open40 bannedSee what's open ›",
+    "mirror": null
+  },
+  "mirror match, Fearless night | finished | admin": {
+    "text": "ModeBanned next gamefrom game 3topKayle, Demacia ·  and TargonjungleOlaf, FreljordmidGalio, DemaciaadcSivir, ShurimasupportAlistarNext gameFearlessRated133 open40 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Normal night | empty | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Normal night | empty | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Normal night | empty-admin | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Normal night | empty-admin | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Normal night | idle | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Normal night | idle | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Normal night | filling | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Normal night | filling | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Normal night | over-ten | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Normal night | over-ten | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, Normal night | balanced | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Normal night | balanced | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Normal night | in-game | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›",
+    "mirror": null
+  },
+  "mirror match, Normal night | in-game | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponentThis game only. Then back to Normal.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Normal.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, Normal night | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "mirror match, Normal night | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, not rated | empty | member": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, not rated | empty | admin": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "mirror",
+    "rated": "false",
+    "mirror": null
+  },
+  "mirror match, not rated | empty-admin | member": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, not rated | empty-admin | admin": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "mirror",
+    "rated": "false",
+    "mirror": null
+  },
+  "mirror match, not rated | idle | member": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, not rated | idle | admin": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "mirror",
+    "rated": "false",
+    "mirror": null
+  },
+  "mirror match, not rated | filling | member": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, not rated | filling | admin": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "mirror",
+    "rated": "false",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, not rated | over-ten | member": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, not rated | over-ten | admin": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game only. Then back to Fearless.How it works ›top 29jungle 31mid 34adc 17support 27Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "mirror",
+    "rated": "false",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, not rated | balanced | member": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openYour lanesupport·27 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, not rated | balanced | admin": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openYour lanesupport·27 openThis game only. Then back to Fearless.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "mirror",
+    "rated": "false",
+    "mirror": null
+  },
+  "mirror match, not rated | in-game | member": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game isn't rated, so it bans nothing.How it works ›",
+    "mirror": null
+  },
+  "mirror match, not rated | in-game | admin": {
+    "text": "ModeMirror matchNot ratedSame champion as your lane opponent · 138 openThis game isn't rated, so it bans nothing.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "mirror",
+    "rated": "false",
+    "mirror": null
+  },
+  "mirror match, not rated | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "mirror match, not rated | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, nothing banned | empty | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, nothing banned | empty | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, nothing banned | empty-admin | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, nothing banned | empty-admin | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, nothing banned | idle | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, nothing banned | idle | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, nothing banned | filling | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›top 39jungle 39mid 41adc 23support 31",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, nothing banned | filling | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›top 39jungle 39mid 41adc 23support 31Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, nothing banned | over-ten | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›top 39jungle 39mid 41adc 23support 31",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, nothing banned | over-ten | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game only. Then back to Fearless.How it works ›top 39jungle 39mid 41adc 23support 31Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": "Mirror match next. It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it."
+  },
+  "mirror match, nothing banned | balanced | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openYour lanesupport·31 openThis game only. Then back to Fearless.How it works ›",
+    "mirror": null
+  },
+  "mirror match, nothing banned | balanced | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openYour lanesupport·31 openThis game only. Then back to Fearless.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, nothing banned | in-game | member": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game's champions join the ban list when it ends.How it works ›",
+    "mirror": null
+  },
+  "mirror match, nothing banned | in-game | admin": {
+    "text": "ModeMirror matchRatedSame champion as your lane opponent · 173 openThis game's champions join the ban list when it ends.How it works ›Admins and the ownerChanges apply from the next game.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSet modeSpinFor the next game only. Then back to Fearless.RatedNext game is rated.",
+    "select": "mirror",
+    "rated": "true",
+    "mirror": null
+  },
+  "mirror match, nothing banned | finished | member": {
+    "text": "ModeNext gameFearlessRatedNothing banned yet. All 173 open.See what's open ›",
+    "mirror": null
+  },
+  "mirror match, nothing banned | finished | admin": {
+    "text": "ModeNext gameFearlessRatedNothing banned yet. All 173 open.See what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | empty | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | empty | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | empty-admin | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | empty-admin | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | idle | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | idle | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | filling | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | filling | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | over-ten | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | over-ten | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game only. Then back to Fearless.See the tanks ›top 14jungle 14mid 1adc 0support 11Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Tank",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | balanced | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openYour lanesupport·11 tanksThis game only. Then back to Fearless.See the tanks ›",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | balanced | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openYour lanesupport·11 tanksThis game only. Then back to Fearless.See the tanks ›Admins and the ownerNext game: Mages only.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | in-game | member": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game: tanks only.This game isn't rated, so it bans nothing.See the tanks ›",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | in-game | admin": {
+    "text": "ModeClass warsNot ratedTanks only · 40 openThis game: tanks only.This game isn't rated, so it bans nothing.See the tanks ›Admins and the ownerNext game: Mages only.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Fearless.RatedNext game is recorded, not rated.Reset fearless",
+    "select": "class:Mage",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | finished | member": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›",
+    "mirror": null
+  },
+  "after Roll, a rule queued since | finished | admin": {
+    "text": "ModeNot rated, so this game banned nothing.Next gameFearlessRated138 open35 bannedSee what's open ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinRatedNext game is rated.Reset fearless",
+    "select": "fearless",
+    "rated": "true",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | empty | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | empty | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | empty-admin | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | empty-admin | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | idle | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | idle | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | filling | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | filling | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | over-ten | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | over-ten | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | balanced | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | balanced | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerNext game: Region wars.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | in-game | member": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | in-game | admin": {
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerNext game: Region wars.ModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinFor the next game only. Then back to Normal.RatedNext game is recorded, not rated.",
+    "select": "region",
+    "rated": "false",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | finished | member": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›",
+    "mirror": null
+  },
+  "after Roll, region queued over a Normal game | finished | admin": {
+    "text": "ModeNext gameNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
+    "select": "normal",
+    "rated": "true",
+    "mirror": null
+  }
+}

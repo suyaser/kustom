@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { nextGame } from '@customs/core';
+import { nextRated } from '@customs/core';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -18,7 +18,7 @@ import { rebuildRatings } from '@/lib/ingest/rebuild';
 import { moveLobby } from '@/lib/lobbyState';
 import { modeCardView } from '@/lib/mode/card';
 import { championTable } from '@/lib/mode/champions';
-import { loadLobbyLock, loadModeState } from '@/lib/mode/tonightRead';
+import { loadLobbyLock, loadModeFacts, loadModeState } from '@/lib/mode/tonightRead';
 import { eogBody, testGameId } from '@/lib/testing/fixtures';
 import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -272,10 +272,8 @@ if (stack === null || !ready) {
       const before = await cardRow();
       const answer = await card({ mode: 'class:Tank' });
       expect(answer).toMatchObject({
-        mode: 'fearless',
         state: { standing: 'fearless', pending: { id: 'class', tag: 'Tank' }, rated: null, nextRated: false },
         notice: 'Next game: Class wars, tanks only. Not rated.',
-        next: { rule: 'class:Tank', rated: false },
       });
       const after = await cardRow();
       expect(after).toMatchObject({
@@ -573,10 +571,14 @@ if (stack === null || !ready) {
       // Tonight's last rule game was Mage (the not-rated game above).
       const spun = new Set<string>();
       for (let attempt = 0; attempt < 30; attempt += 1) {
-        const body = (await card({ spin: true })) as { spun: string; next: { rule: string } };
+        const body = (await card({ spin: true })) as {
+          spun: string;
+          state: { pending: { id: string; tag?: string } };
+        };
         spun.add(body.spun);
         expect(body.spun).not.toBe('class:Mage');
-        expect(body.next.rule).toBe(body.spun);
+        const pending = body.state.pending;
+        expect(pending.id === 'class' ? `class:${pending.tag}` : pending.id).toBe(body.spun);
       }
       expect(spun.has('mirror')).toBe(true);
       await card({ mode: 'normal' });
@@ -587,11 +589,11 @@ if (stack === null || !ready) {
   describe('the Rated switch', () => {
     const anon = createClient<Database>(stack.url, stack.anonKey, { auth: { persistSession: false } });
 
-    /** What Tonight's server render reads for the switch (anon key, `loadModeState`). */
-    async function tonightRated(): Promise<{ rated: boolean; version: number }> {
-      const state = await loadModeState(anon, groups.g);
-      if (state === null) throw new Error('Tonight could not read the card state');
-      return { rated: nextGame(state).rated, version: state.version };
+    /** What Tonight's server render reads for the switch (anon key, `loadModeFacts`), and its `updated_at`. */
+    async function tonightRated(): Promise<{ rated: boolean; at: number }> {
+      const facts = await loadModeFacts(anon, groups.g);
+      if (facts.state === null) throw new Error('Tonight could not read the card state');
+      return { rated: nextRated(facts.state), at: Date.parse(facts.standing.since ?? '') };
     }
 
     function formRequest(fields: Record<string, string>) {
@@ -609,10 +611,16 @@ if (stack === null || !ready) {
 
       // M20.7: no version; Tonight's order is `updated_at`, which every write moves.
       const off = await card({ rated: false });
-      expect(off).toMatchObject({ ok: true, changed: true, state: { rated: false }, next: { rated: false } });
+      expect(off).toMatchObject({
+        ok: true,
+        changed: true,
+        state: { rated: false },
+        notice: 'Next game is not rated.',
+      });
+      expect(off).not.toHaveProperty('next');
       const read1 = await tonightRated();
       expect(read1.rated).toBe(false);
-      expect(read1.version).toBeGreaterThan(start.version);
+      expect(read1.at).toBeGreaterThan(start.at);
 
       const on = await card({ rated: true });
       expect(on).toMatchObject({
@@ -623,7 +631,7 @@ if (stack === null || !ready) {
       });
       const read2 = await tonightRated();
       expect(read2.rated).toBe(true);
-      expect(read2.version).toBeGreaterThan(read1.version);
+      expect(read2.at).toBeGreaterThan(read1.at);
 
       // The same value twice is still a write (it is a choice for the next game).
       const again = await card({ rated: true });
@@ -688,7 +696,7 @@ if (stack === null || !ready) {
       const lock = await loadLobbyLock(anon, lobbyId);
       if (state === null || lock === null) throw new Error('no card state or no lock');
       return modeCardView({
-        state,
+        row: state,
         lobbyStatus: 'balanced',
         lock,
         bans: [],

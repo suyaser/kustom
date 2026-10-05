@@ -1,3 +1,4 @@
+import { lockRated } from '@customs/core';
 import { rosterKey } from '@customs/db/constants';
 import { PLAYERS_PER_GAME } from '../lobbyRules';
 import { NOT_RATED_RESULT_LINE } from '../mode/notRated';
@@ -140,7 +141,9 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
 
 function inGameHeader(lobby: LobbyView): HeaderView {
   // M15.5: a game locked not rated says so in the strip, so it never contradicts the card.
-  const sentence = lobby.lock?.rated === false ? NOT_RATED_RESULT_LINE : IN_GAME_SENTENCE;
+  // The lock stores Rated as moved (null = the locked mode's default, M20.7): read it through core.
+  const notRated = lobby.lock != null && !lockRated(lobby.lock);
+  const sentence = notRated ? NOT_RATED_RESULT_LINE : IN_GAME_SENTENCE;
   return { headline: HEADLINE_IN_GAME, count: null, sentence, live: true };
 }
 

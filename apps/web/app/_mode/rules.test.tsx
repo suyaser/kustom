@@ -8,6 +8,7 @@ import { LANE_ORDER } from '@/lib/laneOrder';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { modeCardView } from '@/lib/mode/card';
 import { championTable, regionIds } from '@/lib/mode/champions';
+import { applyModeRow, noteThisGame, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { MODE_NOW_NORMAL_BODY } from '@/lib/mode/copy';
 import { MIRROR_HOST_FILLING_LINE, MIRROR_HOST_LEAD, mirrorStatus } from '@/lib/mode/ruleCopy';
 import { fearlessCounts } from '@/lib/mode/view';
@@ -112,11 +113,18 @@ describe('the card per state, class wars', () => {
 });
 
 describe('region wars and mirror match', () => {
-  it('before Roll: sides drawn when teams are rolled, See both pools', () => {
-    draw('idle', { rule: 'region' });
-    expect(within(card()).getByRole('heading', { name: 'Region wars' })).toBeInTheDocument();
-    expect(within(card()).getByText('Sides drawn when teams are rolled.')).toBeInTheDocument();
-    expect(within(card()).getByRole('link', { name: /See both pools/ })).toBeInTheDocument();
+  it('before Roll: its pair, as after Roll (M20 D9), and See both pools; no lobby needed', () => {
+    for (const key of ['empty', 'idle', 'filling'] as const) {
+      const view = draw(key, { rule: 'region' });
+      const c = within(card());
+      expect(c.getByRole('heading', { name: 'Region wars' })).toBeInTheDocument();
+      expect(c.getByText('BLUE')).toBeInTheDocument();
+      expect(c.getByText('Ionia')).toBeInTheDocument();
+      expect(c.getByText('Noxus')).toBeInTheDocument();
+      expect(c.queryByText(/drawn when teams are rolled/)).toBeNull();
+      expect(c.getByRole('link', { name: /See both pools/ })).toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it('after Roll: BLUE Ionia vs RED Noxus, your side’s region for your lane', () => {
@@ -134,6 +142,22 @@ describe('region wars and mirror match', () => {
   it("no draw at Roll: the card says the rule didn't apply", () => {
     draw('balanced', { rule: 'region', noDraw: true });
     expect(within(card()).getByText(/Region wars didn't apply to this game/)).toBeInTheDocument();
+  });
+
+  it("M20 D11: Roll's short-pair notice shows on this lobby's card until the game starts", () => {
+    const line = 'Targon vs Zaun ran short after the bans, so Roll drew Ionia vs Noxus.';
+    const { connection: _c, ...fixture } = tonightStateFixture('balanced', { now: NOW, rule: 'region' });
+    const lobbyId = fixture.snapshot.lobby?.id ?? '';
+    resetModeStoreForTests();
+    const view = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    expect(within(card()).queryByText(line)).toBeNull();
+    act(() => noteThisGame(ORIGINAL_GROUP.id, lobbyId, line));
+    expect(within(card()).getByText(line)).toBeInTheDocument();
+    view.unmount();
+    // In game: the picks are made, the notice has done its job.
+    draw('in-game', { rule: 'region' });
+    expect(within(card()).queryByText(line)).toBeNull();
+    resetModeStoreForTests();
   });
 
   it('mirror: rated, the status, How it works; Start a lobby stays', () => {
@@ -278,12 +302,17 @@ describe('M15.15: a not-rated game never promises bans', () => {
     ).toBeTruthy();
   });
 
-  it('region wars not drawn at Roll, in game: the Fearless game it fell back to bans nothing', () => {
-    draw('in-game', { rule: 'region', noDraw: true });
+  it('region wars not drawn at Roll, in game: the Fearless game it fell back to is rated as the moved switch says (M20 D6 (d))', () => {
+    // The listed parity change: it used to stay not rated; now the standing default (rated) bans.
+    const fell = draw('in-game', { rule: 'region', noDraw: true });
     const c = within(card());
     expect(c.getByText(/Region wars didn't apply to this game/)).toBeInTheDocument();
-    expect(c.getByText(NOT_RATED_IN_GAME)).toBeInTheDocument();
-    expect(c.queryByText(TEN)).toBeNull();
+    expect(c.getByText(TEN)).toBeInTheDocument();
+    fell.unmount();
+    // Rated switched off before Roll moved with it: that game bans nothing.
+    draw('in-game', { rule: 'region', noDraw: true, rated: false });
+    expect(within(card()).getByText(NOT_RATED_IN_GAME)).toBeInTheDocument();
+    expect(within(card()).queryByText(TEN)).toBeNull();
   });
 
   it('a not-rated rule game on Fearless keeps its rule line and adds that it bans nothing', () => {
@@ -333,7 +362,7 @@ describe('who gets controls', () => {
     const admin = draw('in-game', { rule: 'class:Tank', queued: 'class:Mage' }, ADMIN_VIEWER);
     expect(await screen.findByRole('button', { name: 'Spin' })).toBeInTheDocument();
     expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Mode' })).toHaveValue('class:Mage');
+    expect(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ })).toHaveValue('class:Mage');
     admin.unmount();
     for (const viewer of [MEMBER_VIEWER, ANON_VIEWER]) {
       const other = draw('idle', { rule: 'class:Tank' }, viewer);
@@ -346,26 +375,31 @@ describe('who gets controls', () => {
 });
 
 describe("M14's switched-off note after a rule game", () => {
-  it('does not show when the card went back to Normal because a game landed', () => {
+  it("shows from an admin's switch this page heard, never from a render's updated_at (M20.8)", () => {
+    // Roll, the hand-backs and a live game's record all move `group_modes.updated_at` since
+    // M20.7, so a render cannot tell an admin's switch from them: a page opened after the switch
+    // shows no note.
     const { connection: _c, ...fixture } = tonightStateFixture('filling', {
       now: NOW,
       mode: 'normal',
       normalJustNow: true,
     });
-    const since = fixture.snapshot.modeSince ?? '';
-    const shown = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
-    expect(screen.getByText(MODE_NOW_NORMAL_BODY)).toBeInTheDocument();
-    shown.unmount();
-    // The compare-and-clear wrote the card two seconds after the rule game was recorded.
-    const landed = new Date(Date.parse(since) - 2_000).toISOString();
-    render(
-      <TonightView
-        {...fixture}
-        snapshot={{ ...fixture.snapshot, lastGameAt: landed }}
-        group={ORIGINAL_GROUP}
-      />,
-    );
+    const opened = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
     expect(screen.queryByText(MODE_NOW_NORMAL_BODY)).toBeNull();
+    opened.unmount();
+    // A page on Fearless hears the admin's write that moves the row to Normal: the note shows.
+    resetModeStoreForTests();
+    const { connection: _f, ...fearless } = tonightStateFixture('filling', { now: NOW, mode: 'fearless' });
+    render(<TonightView {...fearless} group={ORIGINAL_GROUP} />);
+    expect(screen.queryByText(MODE_NOW_NORMAL_BODY)).toBeNull();
+    act(() => {
+      applyModeRow(ORIGINAL_GROUP.id, {
+        row: { standing: 'normal', pending: null, rated: null },
+        updatedAt: new Date(NOW - 60_000).toISOString(),
+      });
+    });
+    expect(screen.getByText(MODE_NOW_NORMAL_BODY)).toBeInTheDocument();
+    resetModeStoreForTests();
   });
 
   it('the announcer says the rule is done instead', () => {
@@ -374,6 +408,7 @@ describe("M14's switched-off note after a rule game", () => {
       pending: { id: 'class' as const, tag: 'Tank' as const },
       nextRated: false,
       lockedRule: { id: 'class' as const, tag: 'Tank' as const },
+      locked: true,
       lobbyStatus: 'in_game',
     };
     const { rerender } = render(<Announcer text="" mode="normal" speech={before} />);
@@ -386,6 +421,7 @@ describe("M14's switched-off note after a rule game", () => {
           pending: null,
           nextRated: true,
           lockedRule: null,
+          locked: false,
           lobbyStatus: 'finished',
         }}
       />,
@@ -396,6 +432,8 @@ describe("M14's switched-off note after a rule game", () => {
 
 describe('the Spin reveal', () => {
   const labels = { 'class:Tank': 'Tanks only', region: 'Region wars' };
+  const TANKS = { id: 'class', tag: 'Tank' } as const;
+  const ZAUN = { id: 'region', blue: 'zaun', red: 'noxus' } as const;
   const spin = (rule: string, source: 'local' | 'broadcast' = 'local') =>
     act(() => {
       window.dispatchEvent(new CustomEvent('kustom:spin-reveal', { detail: { rule, source } }));
@@ -411,7 +449,7 @@ describe('the Spin reveal', () => {
     render(
       <>
         <Announcer text="" mode="fearless" />
-        <SpinReveal labels={labels} pendingKey="class:Tank">
+        <SpinReveal labels={labels} pending={TANKS}>
           <span>Tanks only</span>
         </SpinReveal>
       </>,
@@ -424,7 +462,7 @@ describe('the Spin reveal', () => {
   it('with motion: cycles for at most 1.5 s and lands on the same result', () => {
     vi.useFakeTimers();
     vi.stubGlobal('matchMedia', () => ({ matches: false }));
-    render(<SpinReveal labels={labels} pendingKey="region" />);
+    render(<SpinReveal labels={labels} pending={ZAUN} />);
     spin('region');
     expect(screen.queryByText('Spin says: Region wars.')).toBeNull();
     act(() => vi.advanceTimersByTime(1_500));
@@ -432,7 +470,7 @@ describe('the Spin reveal', () => {
   });
 
   it('ignores a rule it does not know', () => {
-    render(<SpinReveal labels={labels} pendingKey={null} />);
+    render(<SpinReveal labels={labels} pending={null} />);
     spin('class:Fighter');
     expect(reveal()).toBeNull();
   });
@@ -443,7 +481,7 @@ describe('the Spin reveal', () => {
     const view = render(
       <>
         <Announcer text="" mode="fearless" />
-        <SpinReveal labels={labels} pendingKey="region" />
+        <SpinReveal labels={labels} pending={ZAUN} />
       </>,
     );
     spin('class:Tank', 'broadcast');
@@ -454,7 +492,7 @@ describe('the Spin reveal', () => {
     view.rerender(
       <>
         <Announcer text="" mode="fearless" />
-        <SpinReveal labels={labels} pendingKey="class:Tank" />
+        <SpinReveal labels={labels} pending={TANKS} />
       </>,
     );
     expect(reveal()).toBeNull();
@@ -462,10 +500,10 @@ describe('the Spin reveal', () => {
 
   it('a matching broadcast before the refresh: revealed once the refresh confirms it', () => {
     reduced();
-    const view = render(<SpinReveal labels={labels} pendingKey={null} />);
+    const view = render(<SpinReveal labels={labels} pending={null} />);
     spin('class:Tank', 'broadcast');
     expect(reveal()).toBeNull();
-    view.rerender(<SpinReveal labels={labels} pendingKey="class:Tank" />);
+    view.rerender(<SpinReveal labels={labels} pending={TANKS} />);
     expect(reveal()).toHaveTextContent('Spin says: Tanks only.');
   });
 
@@ -473,7 +511,7 @@ describe('the Spin reveal', () => {
     vi.useFakeTimers();
     reduced();
     const view = render(
-      <SpinReveal labels={labels} pendingKey={null}>
+      <SpinReveal labels={labels} pending={null}>
         <span>Every champion is open.</span>
       </SpinReveal>,
     );
@@ -482,7 +520,7 @@ describe('the Spin reveal', () => {
     spin('class:Tank', 'local');
     expect(reveal()).toHaveTextContent('Spin says: Tanks only.');
     view.rerender(
-      <SpinReveal labels={labels} pendingKey="class:Tank">
+      <SpinReveal labels={labels} pending={TANKS}>
         <span>Tanks only</span>
       </SpinReveal>,
     );
@@ -499,7 +537,7 @@ describe('the Spin reveal', () => {
     const { container, unmount } = render(
       <section data-slot="mode-card">
         <span data-spin-hide="">Class wars</span>
-        <SpinReveal labels={labels} pendingKey="class:Tank">
+        <SpinReveal labels={labels} pending={TANKS}>
           <span>Tanks only</span>
         </SpinReveal>
       </section>,
@@ -518,9 +556,22 @@ describe('the Spin reveal', () => {
     expect(card).not.toHaveAttribute('data-spin-cycling');
   });
 
+  it("region wars: a broadcast names the card's pair, never the broadcast's (M20.8 acceptance 6)", () => {
+    reduced();
+    render(<SpinReveal labels={labels} pending={ZAUN} />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('kustom:spin-reveal', {
+          detail: { rule: 'region', source: 'broadcast', blue: 'targon', red: 'ionia' },
+        }),
+      );
+    });
+    expect(reveal()).toHaveTextContent('Spin says: Region wars. Blue: Zaun · Red: Noxus.');
+  });
+
   it('a matching broadcast after the refresh: revealed', () => {
     reduced();
-    render(<SpinReveal labels={labels} pendingKey="class:Tank" />);
+    render(<SpinReveal labels={labels} pending={TANKS} />);
     spin('class:Tank', 'broadcast');
     expect(reveal()).toHaveTextContent('Spin says: Tanks only.');
   });
@@ -575,22 +626,18 @@ describe('the panels', () => {
   ) => {
     const standing = extra.standing ?? 'normal';
     const fearless = standing === 'fearless' ? demoPool(false) : { champions: [], resetAt: null, games: 0 };
+    const pair = extra.regions ?? { blue: 'ionia', red: 'noxus' };
     const pending =
       rule === 'class:Tank'
         ? ({ id: 'class', tag: 'Tank' } as const)
         : rule === 'region'
-          ? ({ id: 'region' } as const)
+          ? ({ id: 'region', ...pair } as const)
           : ({ id: 'mirror' } as const);
+    // Before Roll the rule is the row's; after Roll (`drawn`) it moved onto the lock (M20.7).
     const view = modeCardView({
-      state: { standing, pending, ratedOverride: null, version: 1 },
+      row: { standing, pending: extra.drawn ? null : pending, rated: null },
       lobbyStatus: extra.drawn ? 'balanced' : null,
-      lock: extra.drawn
-        ? {
-            mode: { id: 'region', ...(extra.regions ?? { blue: 'ionia', red: 'noxus' }) },
-            rated: false,
-            version: 1,
-          }
-        : null,
+      lock: extra.drawn ? { standing, mode: { id: 'region', ...pair }, rated: false } : null,
       bans: fearless.champions.map((c) => c.id),
       table: championTable(),
     });
@@ -632,9 +679,16 @@ describe('the panels', () => {
     expect(screen.getAllByText('Banned').length).toBeGreaterThan(0);
   });
 
-  it('region before Roll, then both pools with the viewer side first, and the credit', () => {
+  it("region before Roll shows its pair's pools (M20 D9); after Roll the viewer side first; the credit", () => {
     const before = panel('region');
-    expect(screen.getByText('The two regions are drawn when teams are rolled.')).toBeInTheDocument();
+    expect(screen.queryByText(/drawn when teams are rolled/)).toBeNull();
+    expect(screen.getByText(/^Blue picks only from Ionia, Red only from Noxus\./)).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole('region')
+        .map((r) => r.getAttribute('aria-label'))
+        .filter((label) => /^(BLUE|RED) \w+$/.test(label ?? '')),
+    ).toEqual(['BLUE Ionia', 'RED Noxus']);
     expect(
       screen.getByText(
         "Regions from Meraki's lolstaticdata and the League of Legends Wiki. Where a champion has two, the second is our own call.",
@@ -704,9 +758,9 @@ describe('the panels', () => {
     const fearless = demoPool(false);
     const view = (drawn: boolean) =>
       modeCardView({
-        state: { standing: 'fearless', pending: null, ratedOverride: false, version: 1 },
+        row: { standing: 'fearless', pending: null, rated: drawn ? null : false },
         lobbyStatus: drawn ? 'balanced' : null,
-        lock: drawn ? { mode: { id: 'fearless' }, rated: false, version: 1 } : null,
+        lock: drawn ? { standing: 'fearless', mode: { id: 'fearless' }, rated: false } : null,
         bans: fearless.champions.map((c) => c.id),
         table: championTable(),
       });

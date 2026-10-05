@@ -5,7 +5,7 @@ import { availableFearless } from '../fearless/present';
 import type { FearlessChampion, FearlessView } from '../fearless/types';
 import { DISPLAY_LOCALE } from '../night';
 import type { TonightSnapshot } from '../tonight/types';
-import { type NormalNoteFacts, normalNote } from './cardView';
+import type { NormalNoteFacts } from './cardView';
 
 /**
  * The Mode card's and the mode panel's derived facts (M14.30; 05-design.md 8.3, 8.7). Pure, so
@@ -66,8 +66,6 @@ export function poolSinceLabel(resetAt: string | null, timeZone: string): string
     .replace(',', '');
 }
 
-export { RECORD_CLEAR_SLACK_MS } from './cardView';
-
 /** The night's facts behind the members' `Normal mode now.` note (M19.13: the client card reads them). */
 export function normalNoteFactsOf(snapshot: TonightSnapshot): NormalNoteFacts {
   let lastResultAt: number | null = null;
@@ -77,28 +75,7 @@ export function normalNoteFactsOf(snapshot: TonightSnapshot): NormalNoteFacts {
     if (Number.isFinite(at) && (lastResultAt === null || at > lastResultAt)) lastResultAt = at;
   }
   return {
-    nightStart: snapshot.nightStart,
-    lastGameAt: snapshot.lastGameAt ?? null,
     lastResultAt,
-    // M20.7: Roll moves the pending rule onto the lock and empties the row, which moves
-    // `updated_at`; while the teams are up the card is this game's lock, so a Roll is never read
-    // as an admin switching to Normal. M20.8 replaces this note's `since` with an admin write time.
-    finishedNow:
-      snapshot.lobby?.status === 'finished' ||
-      snapshot.lobby?.status === 'in_game' ||
-      snapshot.lobby?.status === 'balanced',
+    finishedNow: snapshot.lobby?.status === 'finished' || snapshot.lobby?.status === 'in_game',
   };
-}
-
-/**
- * The members' dashed `Normal mode now.` note (M14.30): the group is on Normal, the switch
- * happened tonight, and no game of tonight has started since (a game landing ends the moment).
- * One function with the client card's (`normalNote`, `cardView.ts`).
- */
-export function normalJustNow(snapshot: TonightSnapshot): boolean {
-  return normalNote(normalNoteFactsOf(snapshot), {
-    standing: snapshot.mode,
-    pending: snapshot.modeState?.pending ?? null,
-    since: snapshot.modeSince,
-  });
 }

@@ -1,8 +1,7 @@
 'use client';
 
-import { type RuleOption, ruleKey } from '@customs/core';
+import { type PendingRule, type RuleOption, ruleKey } from '@customs/core';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { spinAnnouncement } from '@/lib/mode/ruleCopy';
 import { spinNotice } from '@/lib/mode/ruleNotices';
 import {
   ANNOUNCE_EVENT,
@@ -12,6 +11,7 @@ import {
   SPIN_TICK_MS,
   SPIN_WAIT_MS,
   spinDetail,
+  spinPendingDetail,
 } from '@/lib/mode/spinEvents';
 
 /**
@@ -23,27 +23,29 @@ import {
  *
  * **A broadcast plays only what the card confirms** (M15.5 review, design round 1). Another page's
  * Realtime broadcast (a claim anyone with the anon key could send on the public channel) plays only
- * when its rule is the card's pending rule (`pendingKey`, from the `group_modes` row in the client
- * mode store), so the reveal and the card never disagree. One that beats the row waits up to
+ * when its rule is the card's pending rule (`pending`, from the `group_modes` row in the client
+ * mode store), so the reveal and the card never disagree, and it names the card's pair, never the
+ * broadcast's. One that beats the row waits up to
  * {@link SPIN_WAIT_MS}; anything else is dropped silently. This admin's own Spin (`source:
  * 'local'`) is the route's answer, which the controls have already put on the card, and plays at
- * once (M19.13).
+ * once (M19.13), naming the answer's pair.
  */
 export function SpinReveal({
   labels,
-  pendingKey,
+  pending: pendingRule,
   children,
 }: {
   labels: Readonly<Record<string, string>>;
-  /** The card's pending rule key (`class:Tank`, `region`, `mirror`), or null with none. */
-  pendingKey: string | null;
+  /** The card's pending rule (region wars with its pair), or null with none. */
+  pending: PendingRule | null;
   children?: ReactNode;
 }) {
+  const pendingKey = pendingRule === null ? null : ruleKey(pendingRule);
   const [shown, setShown] = useState<{ text: string; landed: boolean } | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const held = useRef<{ rule: RuleOption; until: number } | null>(null);
-  const pending = useRef(pendingKey);
-  const play = useRef<(rule: RuleOption) => void>(() => {});
+  const pending = useRef(pendingRule);
+  const play = useRef<(rule: PendingRule | RuleOption) => void>(() => {});
   const slot = useRef<HTMLSpanElement>(null);
   const cycling = !!shown && !shown.landed;
 
@@ -57,12 +59,13 @@ export function SpinReveal({
     return () => card.removeAttribute('data-spin-cycling');
   }, [cycling]);
 
-  play.current = (rule: RuleOption) => {
+  play.current = (rule: PendingRule | RuleOption) => {
     for (const timer of timers.current) clearTimeout(timer);
     timers.current = [];
     const land = () => {
-      setShown({ text: spinNotice(rule), landed: true });
-      window.dispatchEvent(new CustomEvent(ANNOUNCE_EVENT, { detail: { line: spinAnnouncement(rule) } }));
+      const line = spinNotice(rule);
+      setShown({ text: line, landed: true });
+      window.dispatchEvent(new CustomEvent(ANNOUNCE_EVENT, { detail: { line } }));
       timers.current.push(setTimeout(() => setShown(null), SPIN_HOLD_MS));
     };
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -85,18 +88,18 @@ export function SpinReveal({
 
   // The refreshed card confirms (or not) a Spin that arrived before it.
   useEffect(() => {
-    pending.current = pendingKey;
+    pending.current = pendingRule;
     const claim = held.current;
     if (claim === null) return;
     if (Date.now() > claim.until) {
       held.current = null;
       return;
     }
-    if (pendingKey !== null && ruleKey(claim.rule) === pendingKey) {
+    if (pendingRule !== null && ruleKey(claim.rule) === pendingKey) {
       held.current = null;
-      play.current(claim.rule);
+      play.current(pendingRule);
     }
-  }, [pendingKey]);
+  }, [pendingRule, pendingKey]);
 
   useEffect(() => {
     const onSpin = (event: Event) => {
@@ -105,9 +108,15 @@ export function SpinReveal({
       // M19.13: this admin's own Spin is the route's answer (already in the client mode store),
       // so it plays at once; another page's broadcast still waits for the card to confirm it.
       const local = (event as CustomEvent<{ source?: unknown } | null>).detail?.source === 'local';
-      if (local || (pending.current !== null && ruleKey(rule) === pending.current)) {
+      const card = pending.current;
+      if (local) {
         held.current = null;
-        play.current(rule);
+        play.current(spinPendingDetail(event) ?? rule);
+        return;
+      }
+      if (card !== null && ruleKey(rule) === ruleKey(card)) {
+        held.current = null;
+        play.current(card);
         return;
       }
       // Not (yet) the pending rule: wait for the page's refresh to confirm it, then forget it.

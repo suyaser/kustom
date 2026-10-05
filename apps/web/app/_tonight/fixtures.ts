@@ -1,4 +1,11 @@
-import { type Mode, modeRatedDefault, type RuleOption } from '@customs/core';
+import {
+  type Mode,
+  type ModeLock,
+  type ModeRow,
+  modeRatedDefault,
+  type PendingRule,
+  type RuleOption,
+} from '@customs/core';
 import type { GroupMode, RuleCheck } from '@customs/db/schemas';
 import { championLane } from '@/lib/champs/lanes';
 import { listChampions } from '@/lib/champs/names';
@@ -440,7 +447,8 @@ export function tonightStateFixture(
   key: TonightStateKey,
   options: TonightFixtureOptions = {},
 ): TonightStateFixture {
-  const raw = stateFixture(key, options.now ?? Date.parse('2026-09-08T20:30:00.000Z'));
+  const now = options.now ?? Date.parse('2026-09-08T20:30:00.000Z');
+  const raw = stateFixture(key, now);
   const finished = key === 'finished' || key === 'long-night';
   const standing = options.mode ?? 'fearless';
   const rule = ruleFromKey(options.rule);
@@ -449,38 +457,47 @@ export function tonightStateFixture(
   const live = status === 'balanced' || status === 'in_game';
   const rated = options.rated ?? modeRatedDefault(rule?.id ?? standing);
   // Live: the lobby holds its lock (M15.5), a standing-mode game included, so a Rated-off Fearless
-  // game reads not rated on the strip and the card alike.
-  const lock = live
+  // game reads not rated on the strip and the card alike. M20.7: Roll moved the row's rule (with
+  // its pair) and Rated onto the lock and emptied them; a region pair with no draw left (`noDraw`)
+  // locks the standing mode with Rated moved and leaves the rule pending.
+  const noDraw = options.noDraw === true && rule?.id === 'region';
+  const lock: ModeLock | null = live
     ? {
-        mode:
-          rule === null
-            ? ({ id: standing } as Mode)
-            : options.noDraw && rule.id === 'region'
-              ? ({ id: standing } as Mode)
-              : lockedMode(rule),
-        rated,
-        version: 3,
+        standing,
+        mode: rule === null || noDraw ? ({ id: standing } as Mode) : lockedMode(rule),
+        rated: options.rated ?? null,
       }
     : null;
-  const modeState = {
+  // The row (the next game): before Roll the chosen rule; after Roll what was chosen since (or the
+  // rule a no-draw Roll left pending); finished, the rule game landed and nothing is pending.
+  const pendingOf = (one: RuleOption | null) => (one === null ? null : (lockedMode(one) as PendingRule));
+  const modeRow: ModeRow = {
     standing,
-    // Finished: the rule game landed and the compare-and-clear took the rule.
-    pending: finished ? null : queued !== null && live ? queued : rule,
-    ratedOverride: finished || options.rated === undefined ? null : options.rated,
-    version: queued !== null && live ? 4 : 3,
+    pending: finished
+      ? null
+      : live
+        ? queued !== null
+          ? pendingOf(queued)
+          : noDraw
+            ? pendingOf(rule)
+            : null
+        : pendingOf(rule),
+    rated: finished || live ? null : (options.rated ?? null),
   };
   const lobby = raw.snapshot.lobby;
   const fixture: TonightStateFixture = {
     ...raw,
     snapshot: {
       ...raw.snapshot,
-      modeState,
+      modeRow,
       lobby:
         lobby === null
           ? null
           : {
               ...lobby,
               lock,
+              // Roll took the lock two minutes before `now`.
+              lockedAt: lock === null ? null : new Date(now - 2 * 60_000).toISOString(),
               result:
                 lobby.result === null || (rule === null && rated)
                   ? lobby.result
@@ -514,8 +531,11 @@ export function tonightStateFixture(
             // A mirror game adds five: each lane's two seats locked the same champion (M15.14).
             demoPool(finished && rated, rule?.id === 'mirror' ? 1 : 2),
       modeSince: options.normalJustNow
-        ? new Date((options.now ?? Date.now()) - 5 * 60_000).toISOString()
-        : null,
+        ? new Date(now - 5 * 60_000).toISOString()
+        : // A choice queued after Roll wrote the row after the lock.
+          live && queued !== null
+          ? new Date(now - 60_000).toISOString()
+          : null,
       nightStart: options.normalJustNow
         ? new Date((options.now ?? Date.now()) - 3 * 3_600_000).toISOString()
         : raw.snapshot.nightStart,

@@ -53,17 +53,14 @@ export function pairVs(pair: RegionPair): string {
 
 /**
  * `Next game: Class wars, tanks only. Not rated.` and the region and mirror versions. Region wars
- * names its pair (M20.1: `Next game: Region wars. Blue: Zaun · Red: Noxus. Not rated.`); the
- * pairless option is the pre-M20.8 card client's, deleted with it.
+ * names its pair (M20.1: `Next game: Region wars. Blue: Zaun · Red: Noxus. Not rated.`).
  */
-export function ruleChosenNotice(rule: RuleOption | PendingRule, rated: boolean): string {
+export function ruleChosenNotice(rule: PendingRule, rated: boolean): string {
   switch (rule.id) {
     case 'class':
       return `Next game: Class wars, ${CLASS_PLURAL[rule.tag]} only. ${ratedWord(rated)}`;
     case 'region':
-      return 'blue' in rule
-        ? `Next game: Region wars. ${pairLine(rule)}. ${ratedWord(rated)}`
-        : `Next game: Region wars. Sides are drawn when teams are rolled. ${ratedWord(rated)}`;
+      return `Next game: Region wars. ${pairLine(rule)}. ${ratedWord(rated)}`;
     case 'mirror':
       return `Next game: Mirror match. ${ratedWord(rated)}`;
   }
@@ -71,7 +68,7 @@ export function ruleChosenNotice(rule: RuleOption | PendingRule, rated: boolean)
 
 /** `Spin says: Tanks only.`; region wars names its pair (`Spin says: Region wars. Blue: Zaun · Red: Noxus.`). */
 export function spinNotice(rule: RuleOption | PendingRule): string {
-  if (rule.id === 'region' && 'blue' in rule) return `Spin says: ${ruleLabel(rule)}. ${pairLine(rule)}.`;
+  if ('blue' in rule) return `Spin says: ${ruleLabel(rule)}. ${pairLine(rule)}.`;
   return `Spin says: ${ruleLabel(rule)}.`;
 }
 

@@ -1,4 +1,4 @@
-import type { LockedMode, ModeState } from '@customs/core';
+import type { ModeLock, ModeRow } from '@customs/core';
 import type { LobbyStatusValue } from '@customs/db';
 import {
   DEFAULT_GROUP_MODE,
@@ -14,8 +14,8 @@ import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import type { PublicClient } from '../publicClient';
 import { loadCheckNames } from './clientNames';
 import { readGroupModeRow } from './load';
-import { lockFromRow } from './lock';
-import { stateFromRow } from './state';
+import { LOCK_COLUMNS, modeLockOf } from './lock';
+import { rowFromColumns } from './state';
 import type { GameStampView } from './types';
 
 /**
@@ -25,27 +25,23 @@ import type { GameStampView } from './types';
  * no stamp), so a page never 500s over a rule and a database one migration behind still renders.
  */
 
-export async function loadModeState(client: PublicClient, groupId: string): Promise<ModeState | null> {
+export async function loadModeState(client: PublicClient, groupId: string): Promise<ModeRow | null> {
   // The same row the fearless pool reads, once per render (`readGroupModeRow`).
   const { data, error } = await readGroupModeRow(client, groupId);
   if (error) {
     console.error('mode: reading the card state failed', error.message);
     return null;
   }
-  return data === null ? null : stateFromRow(data);
+  return data === null ? null : rowFromColumns(data);
 }
 
-export async function loadLobbyLock(client: PublicClient, lobbyId: string): Promise<LockedMode | null> {
-  const { data, error } = await client
-    .from('lobbies')
-    .select('lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at')
-    .eq('id', lobbyId)
-    .maybeSingle();
+export async function loadLobbyLock(client: PublicClient, lobbyId: string): Promise<ModeLock | null> {
+  const { data, error } = await client.from('lobbies').select(LOCK_COLUMNS).eq('id', lobbyId).maybeSingle();
   if (error) {
     console.error('mode: reading the lobby lock failed', error.message);
     return null;
   }
-  return data === null ? null : (lockFromRow(data)?.lock ?? null);
+  return data === null ? null : modeLockOf(data);
 }
 
 /**
@@ -56,12 +52,10 @@ export async function loadTonightLobbyLock(
   client: PublicClient,
   groupId: string,
   nightStart: Date,
-): Promise<{ status: LobbyStatusValue; lock: LockedMode | null } | null> {
+): Promise<{ status: LobbyStatusValue; lock: ModeLock | null } | null> {
   const { data, error } = await client
     .from('lobbies')
-    .select(
-      'status, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at',
-    )
+    .select(`status, ${LOCK_COLUMNS}`)
     .eq('group_id', groupId)
     .gte('created_at', nightStart.toISOString())
     .neq('status', 'abandoned')
@@ -72,7 +66,7 @@ export async function loadTonightLobbyLock(
     console.error('mode: reading tonight lobby lock failed', error.message);
     return null;
   }
-  return data === null ? null : { status: data.status, lock: lockFromRow(data)?.lock ?? null };
+  return data === null ? null : { status: data.status, lock: modeLockOf(data) };
 }
 
 /** The `games` columns a stamp is made of; Tonight reads them with the rest of the game row. */
@@ -148,7 +142,7 @@ export async function loadModeFacts(
   groupId: string,
 ): Promise<{
   standing: { mode: GroupMode; since: string | null };
-  state: ModeState | null;
+  state: ModeRow | null;
   failed: boolean;
 }> {
   // The one read of the row per render (`readGroupModeRow`, audit defect 10).
@@ -160,23 +154,7 @@ export async function loadModeFacts(
   if (data === null) return { standing: { mode: NEW_GROUP_MODE, since: null }, state: null, failed: false };
   return {
     standing: { mode: parseGroupMode(data.mode), since: data.updated_at },
-    state: stateFromRow(data),
+    state: rowFromColumns(data),
     failed: false,
   };
-}
-
-/** `games.created_at` of the group's newest game: when the last game landed, or null. */
-export async function loadLastGameAt(client: PublicClient, groupId: string): Promise<string | null> {
-  const { data, error } = await client
-    .from('games')
-    .select('created_at')
-    .eq('group_id', groupId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    console.error('mode: reading the last game time failed', error.message);
-    return null;
-  }
-  return data?.created_at ?? null;
 }

@@ -1,9 +1,11 @@
+import type { ModeRow } from '@customs/core';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { applyModeRow } from '@/lib/mode/clientStore';
 import { MODE_APPLIES_NEXT_GAME, MODE_CHANGE_FAILED } from '@/lib/mode/copy';
 import { RATED_OFF, RATED_ON } from '@/lib/mode/ruleCopy';
+import { ruleFromKey } from '@/lib/mode/spinEvents';
 import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { type HarnessProps, ModeControlsHarness as ModeControls } from '@/lib/testing/ModeControlsHarness';
 import { ADMIN_VIEWER, type TonightFixtureOptions, tonightStateFixture } from '../_tonight/fixtures';
@@ -19,9 +21,16 @@ import { TonightView } from '../_tonight/TonightView';
  * props after a tap unless they say so: the switch must answer on its own.
  */
 
-/** The card as the page rendered it: Fearless, the switch at its default (rated), version 4. */
-const SERVER = { standing: 'fearless', pending: null, ratedOverride: null, version: 4 } as const;
-const at = (version: number, ratedOverride: boolean | null = null) => ({ ...SERVER, version, ratedOverride });
+/** `group_modes.updated_at` at minute `m`: the client store's gate (M20.8). */
+const T = (m: number) => `2026-10-05T19:${String(m).padStart(2, '0')}:00.000Z`;
+
+/** The row as the page rendered it (at `T(4)`): Fearless, the switch at its default (rated). */
+const SERVER: ModeRow = { standing: 'fearless', pending: null, rated: null };
+/** A render of the row at minute `m` with the switch at `rated`. */
+const at = (m: number, rated: boolean | null = null) => ({
+  server: { ...SERVER, rated },
+  serverUpdatedAt: T(m),
+});
 
 const PROPS: HarnessProps = {
   groupId: ORIGINAL_GROUP.id,
@@ -30,17 +39,19 @@ const PROPS: HarnessProps = {
   redirectTo: '/g/customs',
   resetConfirmHref: '/g/customs/mode/reset',
   server: SERVER,
+  serverUpdatedAt: T(4),
 };
 
-function answer(rated: boolean, version: number): Response {
+/** The route's answer to a flip (M20.7): the row after it at minute `m`, and its notice. */
+function answer(rated: boolean, m: number): Response {
   return {
     ok: true,
     status: 200,
     json: async () => ({
       ok: true,
-      mode: 'fearless',
+      state: { ...SERVER, rated, nextRated: rated, updatedAt: T(m) },
+      notice: rated ? 'Next game is rated.' : 'Next game is not rated.',
       changed: true,
-      next: { standing: 'fearless', rule: null, rated, ratedOverride: rated, version },
     }),
   } as Response;
 }
@@ -193,20 +204,20 @@ describe('the page re-read and the switch agree', () => {
     const { rerender } = render(<ModeControls {...PROPS} />);
     fireEvent.click(toggle());
     await net.release(answer(false, 5));
-    // A Realtime re-read that started before the write: still version 4, still rated.
-    rerender(<ModeControls {...PROPS} server={at(4)} />);
+    // A Realtime re-read that started before the write: still T(4), still rated.
+    rerender(<ModeControls {...PROPS} {...at(4)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     // The re-read of our own write.
-    rerender(<ModeControls {...PROPS} server={at(5, false)} />);
+    rerender(<ModeControls {...PROPS} {...at(5, false)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     // Another admin picked a mode, which resets the switch to the default.
-    rerender(<ModeControls {...PROPS} server={at(6)} />);
+    rerender(<ModeControls {...PROPS} {...at(6)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'true');
   });
 
   it('with no write of its own, the switch is simply the page', () => {
     const { rerender } = render(<ModeControls {...PROPS} />);
-    rerender(<ModeControls {...PROPS} server={at(5, false)} />);
+    rerender(<ModeControls {...PROPS} {...at(5, false)} />);
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     expect(toggle()).toHaveAccessibleDescription(RATED_OFF);
   });
@@ -245,13 +256,14 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     await screen.findByRole('switch', { name: 'Rated' });
   }
 
+  /** The route's answer (M20.7): the row after the write (`rule` a select key) and a notice. */
   function cardAnswer(
     next: {
-      standing?: string;
+      standing?: 'normal' | 'fearless';
       rule: string | null;
       rated: boolean;
-      ratedOverride: boolean | null;
-      version: number;
+      override: boolean | null;
+      minute: number;
     },
     spun?: string,
   ): Response {
@@ -260,9 +272,15 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
       status: 200,
       json: async () => ({
         ok: true,
-        mode: next.standing ?? 'fearless',
+        state: {
+          standing: next.standing ?? 'fearless',
+          pending: ruleFromKey(next.rule),
+          rated: next.override,
+          nextRated: next.rated,
+          updatedAt: T(next.minute),
+        },
+        notice: 'The route says so.',
         changed: true,
-        next: { standing: next.standing ?? 'fearless', ...next },
         ...(spun === undefined ? {} : { spun }),
       }),
     } as Response;
@@ -276,7 +294,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     expect(chip()).toBe('Rated');
     fireEvent.click(toggle());
     expect(chip()).toBe('Not rated');
-    await net.release(cardAnswer({ rule: null, rated: false, ratedOverride: false, version: 4 }));
+    await net.release(cardAnswer({ rule: null, rated: false, override: false, minute: 4 }));
     expect(chip()).toBe('Not rated');
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     expect(asks.asks).toHaveLength(0);
@@ -289,14 +307,14 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     vi.stubGlobal('fetch', net.mock);
     await tonight();
     expect(title()).toBe('Fearless');
-    const select = screen.getByRole('combobox', { name: 'Mode' });
+    const select = screen.getByRole('combobox', { name: /^(Mode|Next game)$/ });
     fireEvent.change(select, { target: { value: 'class:Tank' } });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     // Before the route has answered: the card is already the new one.
     expect(title()).toBe('Class wars');
     expect(chip()).toBe('Not rated');
     expect(card().textContent).toMatch(/Tanks only · \d+ open/);
-    await net.release(cardAnswer({ rule: 'class:Tank', rated: false, ratedOverride: null, version: 4 }));
+    await net.release(cardAnswer({ rule: 'class:Tank', rated: false, override: null, minute: 4 }));
     expect(title()).toBe('Class wars');
     expect(screen.queryByRole('button', { name: 'Set mode' })).toBeNull();
     expect(asks.asks).toHaveLength(0);
@@ -307,7 +325,9 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
     await tonight();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Mode' }), { target: { value: 'normal' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }), {
+      target: { value: 'normal' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     expect(title()).toBe('Normal');
     await net.release({ ok: false, status: 403, json: async () => ({}) } as Response);
@@ -322,7 +342,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }));
     await tonight();
     fireEvent.click(screen.getByRole('button', { name: /^Spin/ }));
-    await net.release(cardAnswer({ rule: 'mirror', rated: true, ratedOverride: null, version: 4 }, 'mirror'));
+    await net.release(cardAnswer({ rule: 'mirror', rated: true, override: null, minute: 4 }, 'mirror'));
     expect(title()).toBe('Mirror match');
     expect(document.querySelector('[data-slot="spin-reveal"]')).toHaveTextContent('Spin says:');
     expect(asks.asks).toHaveLength(0);
@@ -335,11 +355,13 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     await tonight('balanced', { rule: 'class:Tank' });
     expect(title()).toBe('Class wars');
     expect(screen.queryByText('Next game: Mages only.')).toBeNull();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Mode' }), { target: { value: 'class:Mage' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }), {
+      target: { value: 'class:Mage' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     expect(title()).toBe('Class wars');
     expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
-    await net.release(cardAnswer({ rule: 'class:Mage', rated: false, ratedOverride: null, version: 4 }));
+    await net.release(cardAnswer({ rule: 'class:Mage', rated: false, override: null, minute: 4 }));
     expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
   });
 
@@ -347,7 +369,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     await tonight();
     act(() => {
       applyModeRow(ORIGINAL_GROUP.id, {
-        state: { standing: 'normal', pending: null, ratedOverride: false, version: 5 },
+        row: { standing: 'normal', pending: null, rated: false },
         updatedAt: '2026-09-08T20:29:00.000Z',
       });
     });
@@ -355,7 +377,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     act(() => {
       applyModeRow(ORIGINAL_GROUP.id, {
-        state: { standing: 'fearless', pending: null, ratedOverride: null, version: 4 },
+        row: { standing: 'fearless', pending: null, rated: null },
         updatedAt: '2026-09-08T20:28:00.000Z',
       });
     });

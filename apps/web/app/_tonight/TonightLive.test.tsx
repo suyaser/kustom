@@ -124,9 +124,9 @@ const {
 } = await import('./TonightLive');
 const { modeRowParsers } = await import('@/lib/mode/liveRows');
 await modeRowParsers();
-const { confirmedVersion, useModeSlice } = await import('@/lib/mode/clientStore');
+const { useModeSlice } = await import('@/lib/mode/clientStore');
 
-/** The card version the server render showed, in the M19.13 tests. */
+/** The render's `group_modes.updated_at` (ms after the epoch), in the M19.13 tests. */
 const SHOWN_MODE = 4;
 
 /** A `group_modes` row as Realtime carries it (the id columns included, which are never read). */
@@ -160,15 +160,15 @@ function modeBump(): void {
 /** What the card reads from the store: its standing, pending rule, Rated switch and reset time. */
 function CardProbe() {
   const slice = useModeSlice(GROUP_A, {
-    state: { standing: 'fearless', pending: null, ratedOverride: null, version: SHOWN_MODE },
-    updatedAt: null,
+    row: { standing: 'fearless', pending: null, rated: null },
+    updatedAt: new Date(SHOWN_MODE).toISOString(),
     resetAt: '2026-10-01T16:00:00.000Z',
   });
-  const pending = slice.state.pending;
+  const pending = slice.row.pending;
   return (
     <p data-testid="card">
-      {slice.state.standing} {pending === null ? '-' : pending.id === 'class' ? pending.tag : pending.id}{' '}
-      {slice.state.ratedOverride === null ? 'default' : String(slice.state.ratedOverride)} {slice.resetAt}
+      {slice.row.standing} {pending === null ? '-' : pending.id === 'class' ? pending.tag : pending.id}{' '}
+      {slice.row.rated === null ? 'default' : String(slice.row.rated)} {slice.resetAt}
     </p>
   );
 }
@@ -374,7 +374,6 @@ describe('M19.13: the Mode card on the client', () => {
     fire('group_modes', modeRow(SHOWN_MODE + 1, { pending_rule: 'mirror' }));
     await settle();
     expect(card()).toContain('normal - default');
-    expect(confirmedVersion(GROUP_A)).toBe(SHOWN_MODE + 2);
     // A row older than the render itself is ignored too.
     fire('group_modes', modeRow(SHOWN_MODE - 1, { rated_override: false }));
     await settle();

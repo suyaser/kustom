@@ -1,4 +1,4 @@
-import type { RuleOption, StandingModeId } from '@customs/core';
+import { type PendingRule, type RuleOption, ruleKey, type StandingModeId } from '@customs/core';
 import { MODE_ANNOUNCEMENTS } from './copy';
 import { ruleDoneLine } from './ruleCopy';
 import { ratedNotice, ruleChosenNotice, standingNotice } from './ruleNotices';
@@ -10,18 +10,19 @@ import { ratedNotice, ruleChosenNotice, standingNotice } from './ruleNotices';
  */
 export interface ModeSpeech {
   standing: StandingModeId;
-  /** The pending rule for the next game. */
-  pending: RuleOption | null;
+  /** The pending rule for the next game (the row's). */
+  pending: PendingRule | null;
   /** Whether the next game is rated (the switch, else the default). */
   nextRated: boolean;
   /** The rule locked on tonight's live lobby (balanced, in game), or null. */
   lockedRule: RuleOption | null;
+  /** The card is this game's lock (balanced or in game, with a lock). */
+  locked: boolean;
   /** The lobby's status, or null with none. */
   lobbyStatus: string | null;
 }
 
-const key = (rule: RuleOption | null) =>
-  rule === null ? '' : rule.id === 'class' ? `class:${rule.tag}` : rule.id;
+const key = (rule: RuleOption | null) => (rule === null ? '' : ruleKey(rule));
 
 /** The line to say for the change from `prev` to `next`, or null when the card did not change. */
 export function modeSpeechLine(prev: ModeSpeech, next: ModeSpeech): string | null {
@@ -29,6 +30,9 @@ export function modeSpeechLine(prev: ModeSpeech, next: ModeSpeech): string | nul
   if (prev.lockedRule !== null && next.lockedRule === null && next.lobbyStatus === 'finished') {
     if (next.pending === null) return ruleDoneLine(next.standing);
   }
+  // M20.8: Roll moved the row onto the lock, or the teams came down and handed it back. Nobody
+  // chose anything (the teams post says what this game is), so nothing is said.
+  if (prev.locked !== next.locked) return null;
   if (prev.standing !== next.standing) return standingNotice(next.standing, prev.pending !== null);
   if (key(prev.pending) !== key(next.pending)) {
     if (next.pending !== null) return ruleChosenNotice(next.pending, next.nextRated);

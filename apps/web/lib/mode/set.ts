@@ -2,7 +2,6 @@ import {
   lockTransition,
   type ModeAction,
   type ModeLock,
-  nextRated,
   type Refusal,
   type RegionAction,
   type RuleOption,
@@ -10,10 +9,10 @@ import {
   type TransitionContext,
   transition,
 } from '@customs/core';
-import { type NextGame, ruleChoiceOf, ruleColumnsOf } from '@customs/db/schemas';
+import { ruleColumnsOf } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
 import { LOCK_COLUMNS, type StoredLock, storedLockOf } from './lock';
-import { legacyStateOf, type ModeStore, patchIsNoop, type StoredModeRow } from './state';
+import { type ModeStore, patchIsNoop, type StoredModeRow } from './state';
 
 /**
  * One write to the Mode card (M20.7): core's `transition` decides the patch, and the patch is
@@ -113,19 +112,4 @@ export async function writeLockRegions(
   if (error) throw new Error(`mode: lock region write failed: ${error.message}`);
   if ((data ?? []).length === 0) return { ok: false, refusal: 'started' };
   return { ok: true, lobbyId: live.lobbyId, lock: result.lock };
-}
-
-/**
- * @deprecated M20.8: the pre-M20.8 card client's `next` answer. `version` is
- * `Date.parse(updated_at)` (`legacyStateOf`), which the client store orders by.
- */
-export function nextGameOf(stored: StoredModeRow): NextGame {
-  const legacy = legacyStateOf(stored);
-  return {
-    standing: stored.row.standing,
-    rule: legacy.pending === null ? null : ruleChoiceOf(legacy.pending),
-    rated: nextRated(stored.row),
-    ratedOverride: stored.row.rated,
-    version: legacy.version,
-  };
 }

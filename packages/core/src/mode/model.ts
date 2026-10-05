@@ -38,7 +38,7 @@ export type RegionId = string;
  */
 export const UNAFFILIATED: RegionId = 'unaffiliated';
 
-/** Blue's and red's region for one region wars game, drawn at Roll. */
+/** Blue's and red's region for one region wars game, drawn when region wars is chosen (M20 D9). */
 export interface RegionPair {
   blue: RegionId;
   red: RegionId;

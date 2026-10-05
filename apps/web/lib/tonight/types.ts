@@ -1,4 +1,4 @@
-import type { LockedMode, Mode, ModeState } from '@customs/core';
+import type { Mode, ModeLock, ModeRow } from '@customs/core';
 import type { LobbyStatusValue, RoleValue, SideValue } from '@customs/db';
 import type { GroupMode, KickoffKind } from '@customs/db/schemas';
 import type { StoredSplit } from '@/components/receipt/types';
@@ -247,10 +247,12 @@ export interface LobbyView {
   /** The lobby's game, when it has finished one. */
   result: ResultView | null;
   /**
-   * The mode the lobby locked at Roll teams (M15.3 / M15.5, `lobbies.lock_*`), for a balanced or
-   * in-game lobby. Absent or null: no lock (a lobby set before `0032`), and the card shows the next game.
+   * This game (M20.7, `lobbies.lock_*`; core's `ModeLock`): what Roll, or the game's start, moved
+   * off the card. Absent or null: no lock, and the card shows the next game.
    */
-  lock?: LockedMode | null | undefined;
+  lock?: ModeLock | null | undefined;
+  /** `lobbies.locked_at` of {@link lock}, or null: whether an admin wrote the row since (the card's notes). */
+  lockedAt?: string | null | undefined;
   /**
    * The teams that started the game (M21.5), for an `in_game` lobby with a kickoff record only.
    * Absent or null: no record (a game before M21.4, unequal sides), and the page is as before.
@@ -285,23 +287,19 @@ export interface TonightSnapshot {
    * in force. The Mode card (M14.30) reads both.
    */
   mode: GroupMode;
-  /** When the mode was last set (`group_modes.updated_at`, M14.30), or `null`. */
+  /** `group_modes.updated_at`, or `null`: the client mode store's gate (M19.13), nothing else. */
   modeSince: string | null;
   /**
-   * The Mode card's state (M15.5, `0032`): the standing mode, the pending rule, the Rated switch and
-   * the version. Absent in older fixtures: read as {@link mode} with nothing pending.
+   * The next game (M20.8; `group_modes`, core's `ModeRow`): the standing mode, the pending rule
+   * with its region pair, the Rated switch. Absent in older fixtures: read as {@link mode} with
+   * nothing pending.
    */
-  modeState?: ModeState | undefined;
+  modeRow?: ModeRow | undefined;
   /**
    * The `group_modes` read failed (audit, M19.13): `modeState` is a stand-in, never to be shown as
    * the group's mode. The card keeps the last good state it had and says it could not read it.
    */
   modeReadFailed?: boolean | undefined;
-  /**
-   * `games.created_at` of the group's newest game (M15.5): a mode write within seconds of it is
-   * the server's compare-and-clear, not an admin's switch, so no `Normal mode now.` note.
-   */
-  lastGameAt?: string | null | undefined;
   /**
    * The configured zone's offset for this night, from the server (`lib/night.ts`). It travels so
    * the browser's re-read prints the tape's clocks the way the server did, without `Intl`.

@@ -126,28 +126,33 @@ if (stack === null) {
       });
       const answer = await night.card({ mode: 'region' }, sequenceRng(FIRST_DRAW));
       expect(answer).toMatchObject({
-        mode: 'fearless',
         state: {
+          standing: 'fearless',
           pending: { id: 'region', blue: 'shurima', red: 'bilgewater' },
           rated: null,
           nextRated: false,
         },
         notice: 'Next game: Region wars. Blue: Shurima · Red: Bilgewater. Not rated.',
-        next: { rule: 'region', rated: false },
       });
+      // M20.8: the pre-M20.8 client's `mode` and `next` are gone from the answer.
+      expect(answer).not.toHaveProperty('next');
+      expect(answer).not.toHaveProperty('mode');
       expect(await night.cardRow()).toMatchObject({
         pending_rule: 'region',
         pending_region_blue: 'shurima',
         pending_region_red: 'bilgewater',
       });
       shared.lobby = await night.openLobby();
-      // The pre-M20.8 card copy (M20.8 replaces it with the pair).
+      // M20.8: the card shows the pair before Roll, for a signed-out visitor, and the panel both pools.
       const page = await night.tonightPaint();
       expect(page).toContain('Region wars');
-      expect(page).toContain('Sides drawn when teams are rolled.');
+      expect(page).toContain('Shurima');
+      expect(page).toContain('Bilgewater');
+      expect(page).not.toContain('drawn when teams are rolled');
       expect(page).toContain('This game only. Then back to Fearless.');
       const { text } = await panelHtml(null);
-      expect(text).toContain('The two regions are drawn when teams are rolled.');
+      expect(text).toContain('Blue picks only from Shurima, Red only from Bilgewater.');
+      expect(text).not.toContain('drawn when teams are rolled');
       expect(text).toContain(REGION_CREDIT);
     });
 

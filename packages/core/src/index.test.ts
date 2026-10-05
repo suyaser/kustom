@@ -32,9 +32,6 @@ describe('core skeleton', () => {
       'SPIN_FAMILIES',
       'STANDING_MODES',
       'UNAFFILIATED',
-      // M15.2 lifecycle: compare and clear once a game is recorded. Deprecated by M20.6's
-      // `transition`; the lifecycle names go when apps/web moves (M20.7, M20.8).
-      'afterRecord',
       // The MVP / ACE adjustment (M7.8), applied to a fold's result and never inside the fold.
       'applyMvpAceBonus',
       'balance',
@@ -45,12 +42,9 @@ describe('core skeleton', () => {
       'calibration',
       // M15.2 the post-game rule check: per side (mirror: per lane), champions only.
       'checkMode',
-      'chooseRule',
-      'chooseStanding',
       // M15.2 pools: any-tag classes, regions, minus the Fearless bans the caller passes.
       'classPool',
       'config',
-      'consumesRule',
       // M14.4: who differs between two stored splits; the sentence's `Next best:` is built on it.
       'describeSwap',
       // M18.1: round(r), the printed Kustom Rating.
@@ -74,7 +68,6 @@ describe('core skeleton', () => {
       'fitOddsPair',
       // M14.58 / M14.59 (a): the probability the fold stores per side; predictWin, one function.
       'foldWinProbability',
-      'gameStamp',
       // M20.6 the one mode transition: hand back into empty fields only (teams down, remake, ARAM).
       'handBack',
       // A player's main and backup read off their own games (M5.16); M5.17 stores the pair.
@@ -86,7 +79,6 @@ describe('core skeleton', () => {
       'isStandingMode',
       // M18.1: K from the player's own rated games on the track (32 down to 16).
       'kFor',
-      'lockAtRoll',
       // M20.6: this game's Rated (the moved switch, else the locked mode's default).
       'lockRated',
       // M20.6: redraw or set a side on this game's region pair.
@@ -96,7 +88,6 @@ describe('core skeleton', () => {
       'modeRatedDefault',
       // Who carried each side (M7.8): the MVP won, the ACE did not.
       'mvpAce',
-      'nextGame',
       // M20.6: the next game's Rated (the switch, else the next mode's default).
       'nextRated',
       'nextSplit',
@@ -129,13 +120,11 @@ describe('core skeleton', () => {
       'rulePlayable',
       'sameRule',
       'seedFromRank',
-      'setRated',
       // M18.1: performance-rank shares (1.2 .. 0.8 winners, reversed losers).
       'shareFor',
       'shareRanks',
       // M18.11: 200 games, 0 < b < 0.8, at most every 30 days (injected clock).
       'shouldAdoptOddsPair',
-      'startState',
       // M20.6 Roll: the rule, its pair and Rated move onto the lobby's lock.
       'take',
       // M20.6: every admin action on the mode row, as a patch of only the fields it sets.

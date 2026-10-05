@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { STALE_ROSTER } from '@/lib/admin/roll';
 import { lobbyRosterKey } from '@/lib/ingest/lobby';
+import { modeStoreThisGameForTests, resetModeStoreForTests, thisGameNoticeOf } from '@/lib/mode/clientStore';
 import { holdTonightRefresh } from '@/lib/testing/heldTonightRefresh';
 import { extraMember, workedMembers } from '@/lib/testing/tonightFixtures';
 import { ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
@@ -84,6 +85,20 @@ describe('the roll control', () => {
     });
     // Teams up: nothing to say here, the block is about to be replaced by the teams.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it("M20 D11: keeps the answer's short-pair notice for this lobby's Mode card", async () => {
+    resetModeStoreForTests();
+    const line = 'Targon vs Zaun ran short after the bans, so Roll drew Shurima vs Zaun.';
+    answer(200, { ...rolled(), modeNotice: line });
+    const settled = vi.fn();
+    draw(workedMembers(), settled);
+    fireEvent.click(screen.getByRole('button', { name: ROLL_LABEL }));
+    await waitFor(() => expect(settled).toHaveBeenCalledTimes(1));
+    expect(thisGameNoticeOf(modeStoreThisGameForTests(), ORIGINAL_GROUP_ID, LOBBY_ID)).toBe(line);
+    // Another lobby never shows it.
+    expect(thisGameNoticeOf(modeStoreThisGameForTests(), ORIGINAL_GROUP_ID, 'another')).toBeNull();
+    resetModeStoreForTests();
   });
 
   it('treats a repeat press as a success, not a refusal', async () => {

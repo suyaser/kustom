@@ -1,8 +1,7 @@
-import { groupModeRowSchema } from '@customs/db/schemas';
+import type { PendingRule } from '@customs/core';
+import { groupModeRowSchema, ruleModeOf } from '@customs/db/schemas';
 import { z } from 'zod';
 import type { ModeRowSlice } from './clientStore';
-import { pendingOfRow } from './clientStore';
-import { legacyVersion } from './legacyVersion';
 
 /**
  * The Mode card's two Realtime rows, parsed (M19.13). **Loaded only by a dynamic import**
@@ -19,16 +18,19 @@ export function parseModeRow(row: unknown): { groupId: string; slice: ModeRowSli
   const parsed = groupModeRowSchema.safeParse(row);
   if (!parsed.success) return null;
   const data = parsed.data;
+  // A rule this build cannot read (or, before 0048, a region wars with no pair) is no rule.
+  const rule = ruleModeOf({
+    rule: data.pending_rule,
+    classTag: data.pending_class_tag,
+    regionBlue: data.pending_region_blue,
+    regionRed: data.pending_region_red,
+  });
+  const pending =
+    rule === null || rule.id === 'normal' || rule.id === 'fearless' ? null : (rule as PendingRule);
   return {
     groupId: data.group_id,
     slice: {
-      state: {
-        standing: data.mode,
-        pending: pendingOfRow(data.pending_rule, data.pending_class_tag),
-        ratedOverride: data.rated_override,
-        // M20.7: no version column; the store orders by `updated_at` (M20.8 drops the field).
-        version: legacyVersion(data.updated_at),
-      },
+      row: { standing: data.mode, pending, rated: data.rated_override },
       updatedAt: data.updated_at,
     },
   };

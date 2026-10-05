@@ -4,7 +4,7 @@ import {
   checkMode,
   type ModeLock,
   type ModeRow,
-  type RecordedGameKind,
+  type RecordInput,
   type RecordResult,
   recordGame,
   type StandingModeId,
@@ -45,7 +45,7 @@ export interface GameModeColumns {
 
 /** The game as the card sees it, carried from ingest to the route's write after the fold. */
 export interface ModeRecord {
-  kind: RecordedGameKind;
+  kind: RecordInput['kind'];
   lock: ModeLock | null;
   live: boolean;
   /** The row the stamp read. */
