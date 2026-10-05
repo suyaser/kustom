@@ -13178,7 +13178,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   in the PR); (8) 100% of the new module covered.
 
   *Landed 2026-10-05 (2b74f454, reviewer pass after one round; 634 core tests, transition.ts 100% covered). Acceptance (7), deleting the old lifecycle exports, moves to M20.7/M20.8 when apps/web stops calling them.*
-- [ ] **M20.7** Schema and server on the one-row model. *(owner: `platform-engineer`; after M20.6; migration at
+- [x] **M20.7** Schema and server on the one-row model. *(owner: `platform-engineer`; after M20.6; migration at
   the next free number at merge, local first, shown to the user before it is applied; amended 2026-10-04 for M20
   D9 to D11)* **Migration list:** (a) `group_modes` keeps `standing`, the pending rule and class tag, keeps
   `rated`, keeps `set_by` private (0029); (b) `group_modes` gains `pending_region_blue` and
@@ -13215,6 +13215,7 @@ or a full room: the card is on Tonight in every state, empty group included.
   before (a replay of the local stack's games moves no rating); (12) one `group_live` bump of kind `mode` per
   action (M19.9); (13) the migration shown first, with (c)'s count.
 
+  *Landed 2026-10-05 (84d6327e, reviewer pass after one round). Split into 0047 expand (on hosted 2026-10-05, before the code) and 0048 contract (owner, after the new build is live and old tabs are gone). Adapters left for M20.8 are listed in the engineer's report: legacyStateOf, lockFromRow, legacyVersion, legacyModeAnswerSchema, the pairless pre-Roll branch.*
 - [ ] **M20.8** Tonight: the card renders `{ standing, pending, rated }`. *(owner: `web-engineer`; after M20.7;
   the Tonight lane, see Order; amended 2026-10-04 for M20 D9)* The select is `pending ?? standing`; the client
   keeps only a `useOptimistic` draft of the last tap; every notice is the route's `notice`, never recomputed.
