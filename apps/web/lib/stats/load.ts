@@ -430,6 +430,8 @@ interface GameRow {
   gameMode?: string | null;
   /** Set only when the read asked for the facts. */
   rawFacts?: RawGameFacts | null;
+  /** `games.rated` (M15.18), set only when the read asked for the facts (`/fun`'s odds, M21.7). */
+  rated?: boolean;
 }
 
 /**
@@ -474,7 +476,7 @@ async function loadGamePage(
     let query = client
       .from('games')
       .select(
-        'id, started_at, duration_s, winning_side, lcu_game_id, lobby_id, game_mode, game_facts(facts_version, facts)',
+        'id, started_at, duration_s, winning_side, lcu_game_id, lobby_id, game_mode, rated, game_facts(facts_version, facts)',
       )
       .order('started_at', { ascending: false })
       .order('lcu_game_id', { ascending: false })
@@ -635,6 +637,7 @@ function toGameRows(
     winning_side: number | null;
     lobby_id: string | null;
     game_mode?: string | null;
+    rated?: boolean;
   }[],
   shape: RawShape,
   facts: ReadonlyMap<string, RawGameFacts> = new Map(),
@@ -651,6 +654,7 @@ function toGameRows(
       lobbyId: row.lobby_id,
       ...(shape === 'none' ? {} : { gameMode: gameModeFromRaw({ gameMode: row.game_mode ?? null }) }),
       ...(shape === 'facts' ? { rawFacts: facts.get(row.id) ?? emptyRawFacts() } : {}),
+      ...(row.rated === undefined ? {} : { rated: row.rated }),
     });
   }
   return games;
@@ -735,12 +739,20 @@ interface OddsInputs {
  */
 async function loadOddsInputs(
   client: PublicClient,
-  games: readonly { id: string; lobbyId: string | null }[],
+  games: readonly { id: string; lobbyId: string | null; gameMode?: string | null; rated?: boolean }[],
 ): Promise<OddsInputs> {
   const lobbyIds = games.map((game) => game.lobbyId).filter((id): id is string => id !== null);
   const out: OddsInputs = { splits: new Map(), kickoffs: new Map(), games: new Map() };
   if (lobbyIds.length === 0) return out;
-  const withLobby = games.filter((game) => game.lobbyId !== null).map((game) => game.id);
+  // `/fun` reads the facts shape, which carries the mode and `rated`: no second games read. Only a
+  // read without them (none today) asks the games table.
+  for (const game of games) {
+    if (game.lobbyId === null || game.rated === undefined || game.gameMode === undefined) continue;
+    out.games.set(game.id, { rated: game.rated, aram: matchesQueue(game.gameMode, 'aram') });
+  }
+  const withLobby = games
+    .filter((game) => game.lobbyId !== null && !out.games.has(game.id))
+    .map((game) => game.id);
 
   const [splitPages, kickoffs, gamePages] = await Promise.all([
     mapChunks(lobbyIds, async (chunk) => {

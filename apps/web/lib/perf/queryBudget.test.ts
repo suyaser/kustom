@@ -211,7 +211,9 @@ describe('query budgets', () => {
       }),
     );
     expect(result?.recent.length).toBeGreaterThan(0);
-    expectWithin(recording, { queries: 10, waves: 4 });
+    // M21.7: + one `lobbies` read (the kickoff records, `readKickoffs`) in an existing wave; no new round.
+    expectWithin(recording, { queries: 11, waves: 4 });
+    expect(recording.count('lobbies')).toBe(1);
     expect(recording.count('ratings')).toBe(1);
   });
 
@@ -228,7 +230,9 @@ describe('query budgets', () => {
       }),
     );
     expect(result.items.length).toBeGreaterThan(0);
-    expectWithin(recording, { queries: 5, waves: 2 });
+    // M21.7: + one `lobbies` read (the kickoff records, `readKickoffs`) in an existing wave; no new round.
+    expectWithin(recording, { queries: 6, waves: 2 });
+    expect(recording.count('lobbies')).toBe(1);
   });
 
   it('the Games list filtered to a player', async () => {
@@ -244,7 +248,8 @@ describe('query budgets', () => {
       }),
     );
     expect(result.focusName).not.toBeNull();
-    expectWithin(recording, { queries: 6, waves: 3 });
+    // M21.7: + one `lobbies` read (the kickoff records, `readKickoffs`) in an existing wave; no new round.
+    expectWithin(recording, { queries: 7, waves: 3 });
   });
 
   it('the calibration line (uncached): four rounds, chunks in parallel', async () => {
@@ -268,7 +273,8 @@ describe('query budgets', () => {
       calibration: async () => ({ n: 0, favoredWon: 0, expectedPct: null, actualPct: null }),
     });
     expect(result?.gameId).toBe(GAME(1));
-    expect({ queries: recording.count(), waves: recording.waves() }).toEqual({ queries: 4, waves: 2 });
+    // M21.7: + one `lobbies` read (the kickoff records, `readKickoffs`) in an existing wave; no new round.
+    expect({ queries: recording.count(), waves: recording.waves() }).toEqual({ queries: 5, waves: 2 });
   });
 
   it("a game's breakdown: two rounds", async () => {
@@ -313,7 +319,10 @@ describe('query budgets', () => {
       loadRecordsSegment(client, { window: 'all-time', groupId: GROUP, now: NOW, timeZone: 'Europe/London' }),
     );
     expect(result.stats.games).toBe(6);
-    expectWithin(recording, { queries: 4, waves: 3 });
+    // M21.7: + one `lobbies` read (the kickoff records) beside the splits; `rated` and the mode ride
+    // on the facts read, so no second `games` read.
+    expectWithin(recording, { queries: 5, waves: 3 });
+    expect(recording.count('games')).toBe(1);
     expect(recording.requests.filter((r) => (r.select ?? '').includes('raw'))).toEqual([]);
   });
 
