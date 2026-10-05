@@ -14005,7 +14005,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   unchanged; (2) new snapshots for two lobbies; (3) the limits guard passes with the longest label; (4) a post
   sent while two were live keeps its label after one ends (posts are never edited).
 
-- [ ] **M22.8** *(conditional on OPEN 3)* Start a second lobby. *(owner: `platform-engineer` for
+- [~] **M22.8** *(dropped 2026-10-05: Start a lobby is removed, M22.11)* *(conditional on OPEN 3)* Start a second lobby. *(owner: `platform-engineer` for
   `lib/lobbyStart.ts`, `web-engineer` for the control)* While a lobby is live, `Start a lobby` opens another only on
   a **free host** (an unrevoked, recently seen token whose current party is not a live table): the presser if they
   are a free host, else the freshest free host. With none free, the refusal reads `Every Kustom is already in a
@@ -14027,6 +14027,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   pre-M22 build; (2) the owner's scene from M22.1; (3) two lobbies all the way through: different modes, region
   wars in one, Roll in each, both games, both results, both posts; (4) one lobby ends and Tonight returns to the
   one-lobby page with the survivor's mode on the card. Gaps filed as M22.11 onward.
+- [ ] **M22.11** Remove `Start a lobby`. *(owner: `web-engineer` for Tonight and admin, `platform-engineer` for the route, command queue and status read, `companion-engineer` for the companion's create-lobby command handling; owner decision 2026-10-05)* Lobbies come from the customs hosts open. Remove the Tonight control and its pending frame, the `/api/me/lobbies/start` route and status read (M19.16, M19.17), the start command in the queue and its sweep, and every copy line; keep the command table if other commands still use it (switch side). The companion stops acting on a start command (keep reading unknown commands as a logged drop). Acceptance: no `Start a lobby` string or route left (grep test), every suite green, a companion without the change still runs (it simply never receives a start command).
 
 ```
 M22.1 (bug, now) ---------------------------------------------------------------\
