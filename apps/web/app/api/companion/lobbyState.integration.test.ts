@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { rollLobby } from '@/lib/admin/roll';
 import { mintCompanionToken } from '@/lib/companionAuth';
-import { type BalanceOutcome, selectLastSplit } from '@/lib/ingest/balance';
+import { type BalanceOutcome, selectLastPlayedTeams } from '@/lib/ingest/balance';
 import { clearLobbyHooks, registerLobbyHook } from '@/lib/ingest/hooks';
 import { ingestLobby } from '@/lib/ingest/lobby';
 import { ensurePlayers } from '@/lib/ingest/players';
@@ -730,8 +730,43 @@ if (stack === null) {
     });
   });
 
-  describe('lastSplit: not the same five again (M2.7)', () => {
-    it('hands the balancer the last chosen split for these ten, and split 1 is not a repeat', async () => {
+  describe('last teams: not the same five again (M2.7, M21.8)', () => {
+    /** The ten as the lookup takes them. */
+    async function tenOf(cast: readonly string[]) {
+      return Promise.all(cast.map(async (puuid) => ({ puuid, playerId: await playerIdOf(puuid) })));
+    }
+
+    /** The lobby's game, played on these sides (M21.8 reads `game_players.side`). */
+    async function playGame(lobbyId: string, blue: Set<string>, red: Set<string>): Promise<void> {
+      const { data, error } = await db
+        .from('games')
+        .insert({
+          group_id: ORIGINAL_GROUP_ID,
+          lobby_id: lobbyId,
+          lcu_game_id: gameNumber(),
+          started_at: new Date().toISOString(),
+          duration_s: 1_800,
+          winning_side: 100,
+          raw: {},
+        })
+        .select('id')
+        .single();
+      if (error) throw new Error(error.message);
+      const rows = await Promise.all(
+        [...[...blue].map((puuid) => [puuid, 100] as const), ...[...red].map((puuid) => [puuid, 200] as const)].map(
+          async ([puuid, side]) => ({
+            group_id: ORIGINAL_GROUP_ID,
+            game_id: data.id,
+            player_id: await playerIdOf(puuid),
+            side,
+          }),
+        ),
+      );
+      const players = await db.from('game_players').insert(rows);
+      if (players.error) throw new Error(players.error.message);
+    }
+
+    it('hands the balancer the teams these ten last played, and split 1 is not a repeat', async () => {
       const cast = await freshCast('ls');
       const id = party('last-split');
 
@@ -742,12 +777,19 @@ if (stack === null) {
       const blueA = sideOf(chosenA.split.blue);
       const redA = sideOf(chosenA.split.red);
 
-      // The lookup the balancer is handed: the newest chosen split for exactly these ten.
-      const stored = await selectLastSplit(db, chosenA.rosterKey, ORIGINAL_GROUP_ID);
+      const ten = await tenOf(cast);
+      // M21.8: a roll nobody played is not "last time".
+      expect(await selectLastPlayedTeams(db, ten, ORIGINAL_GROUP_ID, null)).toBeNull();
+
+      // They play the roll as rolled.
+      await playGame(openedA.lobbyId, blueA, redA);
+
+      // The lookup the balancer is handed: the newest teams these ten played.
+      const stored = await selectLastPlayedTeams(db, ten, ORIGINAL_GROUP_ID, null);
       expect(stored).not.toBeNull();
       expect(new Set(stored ?? [])).toEqual(blueA);
       // M13.3: the same ten in another group are another group's history.
-      expect(await selectLastSplit(db, chosenA.rosterKey, randomUUID())).toBeNull();
+      expect(await selectLastPlayedTeams(db, ten, randomUUID(), null)).toBeNull();
 
       // Game one closes the row; the same party opens the night's next cycle (M2.14).
       await db.from('lobbies').update({ status: 'finished' }).eq('id', openedA.lobbyId);
@@ -780,16 +822,15 @@ if (stack === null) {
       const chosenAgain = await roll(changed.lobbyId);
 
       expect(chosenAgain.rosterKey).not.toBe(chosen.rosterKey);
-      // Before this balance stored its own row there was no chosen split for these ten at all,
-      // which is the `lastSplit: null` the balancer was called with.
+      // These ten never played together, which is the `lastSplit: null` the balancer was called
+      // with; the one chosen split for them is the roll's own.
+      expect(await selectLastPlayedTeams(db, await tenOf(swapped), ORIGINAL_GROUP_ID, null)).toBeNull();
       const { count } = await db
         .from('splits')
         .select('id', { count: 'exact', head: true })
         .eq('roster_key', chosenAgain.rosterKey)
         .eq('is_chosen', true);
       expect(count).toBe(1);
-      // And a roster nobody has ever split has no history either.
-      expect(await selectLastSplit(db, 'nobody-has-played-this-ten', ORIGINAL_GROUP_ID)).toBeNull();
     });
   });
 

@@ -161,6 +161,7 @@ describe('a write that lands and then throws still bumps (M19.9)', () => {
         ratingRowsChanged: 0,
         prunedRatings: 0,
         rolesChanged: 0,
+        fillFlagsReleased: 0,
         dryRun: false,
         problems: [],
         rated: 1,
