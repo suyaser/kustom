@@ -100,12 +100,23 @@ if (stack === null) {
     return (await response.json()) as { lobbyId: string | null };
   }
 
-  async function postEog(puuids: readonly string[], gameId: number, startedAt: Date, gameMode: string) {
+  async function postEog(
+    puuids: readonly string[],
+    gameId: number,
+    startedAt: Date,
+    gameMode: string | null,
+  ) {
     gameIds.push(gameId);
     return postGame(
       jsonRequest(
         '/api/companion/game',
-        eogBody({ gameId, partyId, puuids, startedAt: startedAt.toISOString(), raw: { gameMode } }),
+        eogBody({
+          gameId,
+          partyId,
+          puuids,
+          startedAt: startedAt.toISOString(),
+          raw: gameMode === null ? {} : { gameMode },
+        }),
         tokens.host,
       ),
     );
@@ -219,9 +230,11 @@ if (stack === null) {
 
     // The quit game's own block, late from a queue file: it still finishes its lobby (dropped ->
     // finished, M5.11), on its own lock.
+    expect((await lobbyRow(rift)).status).toBe('dropped');
     const late = await postEog(ten, riftGame, new Date(aramStart.getTime() - 30 * 60_000), 'CLASSIC');
     expect(late.status).toBe(200);
     expect(((await late.json()) as { lobbyId: string | null }).lobbyId).toBe(rift);
+    expect((await gameRow(riftGame)).lobby_id).toBe(rift);
     expect((await lobbyRow(rift)).status).toBe('finished');
   });
 
@@ -240,6 +253,21 @@ if (stack === null) {
     expect((await gameRow(aramGame)).lobby_id).toBeNull();
     expect((await lobbyRow(rift)).status).toBe('dropped');
     expect(await ratingsSnapshot()).toBe(before);
+  });
+
+  it('a block with no mode against an ARAM kickoff is refused as stale: stored with no lobby, the row dropped', async () => {
+    const { lobbyId: abyss } = await postMembers(ten);
+    const aramGame = testGameId();
+    expect((await start(aramGame, 'ARAM')).lobbyId).toBe(abyss);
+    expect(await lobbyRow(abyss)).toMatchObject({ status: 'in_game', kickoff_game_mode: 'ARAM' });
+
+    // A block that names no mode is Rift (M5.26), so it is not this ARAM lobby's game.
+    const riftGame = testGameId();
+    const answer = await postEog(ten, riftGame, new Date(), null);
+    expect(answer.status).toBe(200);
+    expect(((await answer.json()) as { lobbyId: string | null }).lobbyId).toBeNull();
+    expect((await gameRow(riftGame)).lobby_id).toBeNull();
+    expect((await lobbyRow(abyss)).status).toBe('dropped');
   });
 
   it('the same mode twice (or a mode unknown) is unchanged: a Rift game after a quit Rift game still lands on the row', async () => {
