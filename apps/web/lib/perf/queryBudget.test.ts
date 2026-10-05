@@ -351,7 +351,7 @@ describe('query budgets', () => {
     expectWithin(recording, { queries: 9, waves: 3 });
   });
 
-  it('Tonight, two live lobbies: the same nine requests in three rounds', async () => {
+  it('Tonight, two live lobbies: ten requests in three rounds (the one-lobby nine plus the lobby cards)', async () => {
     const { loadTonight } = await import('../tonight/load');
     const rows = await import('../testing/tonightRows');
     const other = {
@@ -373,6 +373,9 @@ describe('query budgets', () => {
       now: rows.NOW,
     });
     expect(result.lobbies).toHaveLength(2);
-    expectWithin(recording, { queries: 9, waves: 3 });
+    // M22.6: the tenth is deliberate: each forked lobby's own card (`lobby_modes`, `lib/tonight/cards.ts`),
+    // read only on a night with two or more live tables, beside an existing round. No embed reaches it
+    // from a request already made (it has no foreign key to `group_modes` or `lobbies`).
+    expectWithin(recording, { queries: 10, waves: 3 });
   });
 });
