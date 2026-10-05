@@ -12,6 +12,8 @@ import {
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import type { PublicClient } from '../publicClient';
+import { pickTable } from '../tonight/selection';
+import { nightTables } from '../tonight/tables';
 import { loadCheckNames } from './clientNames';
 import { readGroupModeRow } from './load';
 import { LOCK_COLUMNS, modeLockOf } from './lock';
@@ -45,28 +47,61 @@ export async function loadLobbyLock(client: PublicClient, lobbyId: string): Prom
 }
 
 /**
- * Tonight's newest lobby (the one Tonight draws) with its status and lock, for the mode panel,
- * which shows what the card shows without reading the whole night. Null with none or on failure.
+ * The lobby Tonight draws, with its status and lock, for the mode panel, which shows what the card
+ * shows without reading the whole night. Null with none or on failure.
+ *
+ * M22.5: the drawn lobby is a live table's (`lib/tonight/tables.ts`): table `lobbyId` (any of its
+ * rows tonight, `?lobby=`) when it is live, else the most recently changed; with no live table the
+ * night's newest non-`abandoned` row, as before. One read, as before (tonight's rows of the group).
  */
 export async function loadTonightLobbyLock(
   client: PublicClient,
   groupId: string,
   nightStart: Date,
+  options: { lobbyId?: string | null; now?: Date } = {},
 ): Promise<{ status: LobbyStatusValue; lock: ModeLock | null } | null> {
   const { data, error } = await client
     .from('lobbies')
-    .select(`status, ${LOCK_COLUMNS}`)
+    .select(
+      `id, lcu_party_id, status, created_at, updated_at, reported_by_player_id, lobby_name, ${LOCK_COLUMNS}`,
+    )
     .eq('group_id', groupId)
-    .gte('created_at', nightStart.toISOString())
-    .neq('status', 'abandoned')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .gte('created_at', nightStart.toISOString());
   if (error) {
     console.error('mode: reading tonight lobby lock failed', error.message);
     return null;
   }
-  return data === null ? null : { status: data.status, lock: modeLockOf(data) };
+  const rows = data ?? [];
+  const tables = nightTables(
+    rows.map((row) => ({
+      id: row.id,
+      lcuPartyId: row.lcu_party_id,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      reportedByPlayerId: row.reported_by_player_id,
+      lobbyName: row.lobby_name,
+    })),
+    options.now ?? new Date(),
+  );
+  const picked = pickTable(
+    tables.map((table) => ({
+      id: table.lobby.id,
+      rowIds: table.rowIds,
+      openedAt: table.openedAt,
+      changedAt: table.changedAt,
+    })),
+    { requested: options.lobbyId ?? null },
+  );
+  let drawn: (typeof rows)[number] | null = null;
+  if (picked !== null) drawn = rows.find((row) => row.id === picked) ?? null;
+  else {
+    for (const row of rows) {
+      if (row.status === 'abandoned') continue;
+      if (drawn === null || Date.parse(row.created_at) >= Date.parse(drawn.created_at)) drawn = row;
+    }
+  }
+  return drawn === null ? null : { status: drawn.status, lock: modeLockOf(drawn) };
 }
 
 /** The `games` columns a stamp is made of; Tonight reads them with the rest of the game row. */

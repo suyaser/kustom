@@ -32,9 +32,15 @@ import type {
  *
  * The page renders exactly one of these and the header strip. A status the page has no block
  * for — `abandoned`, which the loader already filters out — is idle.
+ *
+ * M22.5: the state of the selected table (`snapshot.lobby`), or of table `lobbyId` when given and
+ * live (`snapshot.lobbies`); an id that is not a live table draws the selected one.
  */
-export function tonightState(snapshot: TonightSnapshot): TonightState {
-  const lobby = snapshot.lobby;
+export function tonightState(snapshot: TonightSnapshot, lobbyId?: string | null): TonightState {
+  const lobby =
+    lobbyId == null
+      ? snapshot.lobby
+      : ((snapshot.lobbies ?? []).find((table) => table.id === lobbyId)?.lobby ?? snapshot.lobby);
   if (lobby === null) return { kind: 'idle' };
 
   switch (lobby.status) {
