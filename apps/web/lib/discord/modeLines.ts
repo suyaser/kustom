@@ -108,7 +108,7 @@ export function teamsModeWords(input: TeamsModeInput): TeamsModeWords | null {
     case 'mirror':
       return {
         rule: 'This game: mirror match, same champion as your lane opponent.',
-        rest: `Make the custom Blind Pick. ${ratedWord(rated)}`, // M22.11 [NEW COPY]: hosts make the custom
+        rest: `The host opens a Blind Pick custom in League. ${ratedWord(rated)}`, // M22.11 [NEW COPY]: hosts make the custom
         action: 'How it works',
       };
   }
@@ -121,7 +121,7 @@ export function teamsModeWords(input: TeamsModeInput): TeamsModeWords | null {
  *
  * - class: `**This game: tanks only.** Not rated. [See the tanks](<url>)`
  * - region: `**This game: region wars.** Blue picks from Ionia, Red from Noxus. Not rated. [See both pools](<url>)`
- * - mirror: `**This game: mirror match, same champion as your lane opponent.** Make the custom Blind Pick. Rated. [How it works](<url>)`
+ * - mirror: `**This game: mirror match, same champion as your lane opponent.** The host opens a Blind Pick custom in League. Rated. [How it works](<url>)`
  * - Normal or Fearless switched to not rated: `**This game: not rated.**`, with no link: the Normal
  *   panel says games are rated as usual, so it would contradict the line.
  * - no URL: the same, without the link.

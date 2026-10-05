@@ -19,7 +19,7 @@ import {
 import { championTable } from '@/lib/mode/champions';
 import type { ModeSlice } from '@/lib/mode/clientStore';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
-import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, MIRROR_MAKE_BLIND, ruleLaneLabel } from '@/lib/mode/ruleCopy';
+import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, MIRROR_HOST_IDLE_REST, ruleLaneLabel } from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
 import { missingRow } from '@/lib/mode/state';
 import { bannedByGame, normalNoteFactsOf } from '@/lib/mode/view';
@@ -981,7 +981,7 @@ function MirrorFillingLine() {
 
 /**
  * The mirror host line on idle and finished (M22.11): no lobby is open, and the host makes the next
- * one, so it says to make it Blind Pick. The filling line's look (05-design §10, dashed note).
+ * one, so it says to make it Blind Pick (05-design 14.13 item 6). The filling line's look (dashed note).
  */
 function MirrorMakeBlindLine() {
   return (
@@ -989,7 +989,7 @@ function MirrorMakeBlindLine() {
       data-slot="mirror-host-line"
       className="rounded-control border border-dashed border-border-strong bg-transparent px-3 py-2.5 text-sm"
     >
-      {MIRROR_MAKE_BLIND}
+      <b className="font-bold">{MIRROR_HOST_LEAD}</b> {MIRROR_HOST_IDLE_REST}
     </p>
   );
 }

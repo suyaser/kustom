@@ -91,7 +91,7 @@ describe('teamsModeLine', () => {
       `This game: region wars. Blue picks from Ionia, Red from Noxus. Not rated. See both pools: ${URL}`,
     );
     expect(plain(teamsModeLine({ mode: MIRROR, rated: true }, URL))).toBe(
-      `This game: mirror match, same champion as your lane opponent. Make the custom Blind Pick. Rated. How it works: ${URL}`,
+      `This game: mirror match, same champion as your lane opponent. The host opens a Blind Pick custom in League. Rated. How it works: ${URL}`,
     );
     expect(teamsModeWords({ mode: { id: 'normal' }, rated: true })).toBeNull();
   });
@@ -131,7 +131,7 @@ describe('teamsModeLine', () => {
 
   it("tells the host to make mirror's custom Blind Pick (M22.11)", () => {
     expect(teamsModeLine({ mode: MIRROR, rated: true }, URL)).toBe(
-      `**This game: mirror match, same champion as your lane opponent.** Make the custom Blind Pick. Rated. [How it works](${URL})`,
+      `**This game: mirror match, same champion as your lane opponent.** The host opens a Blind Pick custom in League. Rated. [How it works](${URL})`,
     );
   });
 

@@ -76,8 +76,12 @@ export const MIRROR_HOST_FILLING_REST =
   'It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.';
 export const MIRROR_HOST_FILLING_LINE = `${MIRROR_HOST_LEAD} ${MIRROR_HOST_FILLING_REST}`;
 
-/** M22.11 [NEW COPY]: idle and finished with mirror next; the host makes the next custom. */
-export const MIRROR_MAKE_BLIND = 'Mirror match: make the custom Blind Pick.';
+/**
+ * M22.11 [NEW COPY] (05-design 14.13 item 6): idle and finished with mirror next, no lobby open; the
+ * host makes the next custom. Same lead as the filling line.
+ */
+export const MIRROR_HOST_IDLE_REST = 'The host opens a Blind Pick custom in League.';
+export const MIRROR_HOST_IDLE_LINE = `${MIRROR_HOST_LEAD} ${MIRROR_HOST_IDLE_REST}`;
 
 /** Under the status: `This game only. Then back to Fearless.` */
 export function oneGameLine(standing: StandingModeId): string {

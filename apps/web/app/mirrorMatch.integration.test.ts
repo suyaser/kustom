@@ -1,6 +1,6 @@
 import type { Role } from '@customs/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, MIRROR_MAKE_BLIND } from '@/lib/mode/ruleCopy';
+import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_IDLE_REST, MIRROR_HOST_LEAD } from '@/lib/mode/ruleCopy';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import {
   descriptionOf,
@@ -20,7 +20,7 @@ import {
  * 2. Mirror picked: rated; after a result the page tells the host to make the custom Blind Pick
  *    (M22.11). While a lobby fills, the host line says what to do if it is Draft Pick, and Spin
  *    never lands on mirror (QA fix 2026-10-04).
- * 3. Roll locks it; the teams post says `Make the custom Blind Pick` and `Rated`.
+ * 3. Roll locks it; the teams post says `The host opens a Blind Pick custom in League.` and `Rated`.
  * 4. Every lane kept: rated, ratings move, exactly its five champions join the pool, and the card
  *    is back on Fearless with the Blind Pick line gone.
  * 5. Mid broken and a seat with no detected position: the poster and the result post flag it, the
@@ -129,8 +129,9 @@ if (stack === null) {
 
       const afterResult = await night.tonightPaint(host());
       expect(afterResult).toContain('Mirror match');
-      expect(afterResult).toContain(MIRROR_MAKE_BLIND);
-      expect(afterResult).not.toContain('Mirror match next.');
+      expect(afterResult).toContain(MIRROR_HOST_LEAD);
+      expect(afterResult).toContain(MIRROR_HOST_IDLE_REST);
+      expect(afterResult).not.toContain(MIRROR_HOST_FILLING_REST);
       expect(afterResult).not.toContain('Blind Pick custom in League yourself');
 
       // Filling: six in the lobby.
@@ -161,7 +162,7 @@ if (stack === null) {
       // M20.7: Rated is moved as it was (null = mirror's default, rated).
       expect(lock).toMatchObject({ lock_mode: 'fearless', lock_rule: 'mirror', lock_rated: null });
       expect(descriptionOf(night.posts[0])).toContain(
-        `This game: mirror match, same champion as your lane opponent. Make the custom Blind Pick. Rated. How it works: https://kustom.test/g/${night.group.slug}/mode`,
+        `This game: mirror match, same champion as your lane opponent. The host opens a Blind Pick custom in League. Rated. How it works: https://kustom.test/g/${night.group.slug}/mode`,
       );
 
       expect(answer).toMatchObject({ created: true, rated: true });
@@ -182,7 +183,7 @@ if (stack === null) {
       // Back on Fearless, the Blind Pick line gone.
       expect(await night.cardRow()).toMatchObject({ mode: 'fearless', pending_rule: null });
       const page = await night.tonightPaint(host());
-      expect(page).not.toContain(MIRROR_MAKE_BLIND);
+      expect(page).not.toContain(MIRROR_HOST_IDLE_REST);
       night.clearPosts();
     });
 
