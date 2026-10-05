@@ -508,3 +508,30 @@ async fn the_reqwest_transport_speaks_http() {
     )));
     assert!(request.contains(&format!("authorization: bearer {}", TOKEN.to_ascii_lowercase())));
 }
+
+#[tokio::test(start_paused = true)]
+async fn m22_9_a_leave_posts_the_party_id_once_and_reads_released() {
+    let fake = FakeTransport::new(|_| respond(200, r#"{"ok":true,"released":true}"#));
+    let api = client(fake.clone());
+    let leave = engine::api::wire::LobbyLeavePayload {
+        party_id: "party-1".into(),
+    };
+    let ok = api.post_lobby_leave(&leave).await.unwrap();
+    assert!(ok.data.released);
+    let requests = fake.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        requests[0].url,
+        "https://kustom.example/api/companion/lobby/leave"
+    );
+    assert_eq!(body_of(&requests[0]), json!({ "partyId": "party-1" }));
+
+    // An old server has no such route: one attempt, then the failure, never a retry.
+    let missing = FakeTransport::new(|_| respond(404, r#"{"ok":false,"error":"not found"}"#));
+    let failure = client(missing.clone())
+        .post_lobby_leave(&leave)
+        .await
+        .unwrap_err();
+    assert_eq!(failure.status(), Some(404));
+    assert_eq!(missing.requests().len(), 1);
+}

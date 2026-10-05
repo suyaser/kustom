@@ -460,6 +460,25 @@ pub struct LobbyResponse {
     pub ranks_needed: Vec<String>,
 }
 
+/// `POST /api/companion/lobby/leave` (`companionLobbyLeavePayloadSchema`, M22.9): the client closed this
+/// lobby and no game started.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LobbyLeavePayload {
+    /// The `partyId` of the lobby that closed.
+    pub party_id: String,
+}
+
+/// The answer to a leave (`companionLobbyLeaveResponseSchema`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LobbyLeaveResponse {
+    /// `true`.
+    pub ok: OkTrue,
+    /// The server cleared this token's current party; false for a repeat or a late leave.
+    pub released: bool,
+}
+
 /// Which phase a game answer is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

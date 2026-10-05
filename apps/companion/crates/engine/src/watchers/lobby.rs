@@ -33,7 +33,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 
 use super::connection::{ConnectedContext, MachineEvent, WATCHER_QUEUE, WatcherFeed};
-use crate::api::wire::LobbyPayload;
+use crate::api::wire::{LobbyLeavePayload, LobbyPayload};
 use crate::backoff::{Backoff, BackoffOptions};
 use crate::lcu::events::{LcuEventType, RoutedEvent};
 use crate::lcu::mapper::{NameCache, RiotIdName, is_lobby_bot, map_lobby, name_from_summoner};
@@ -86,6 +86,8 @@ impl PostOutcome {
 pub trait LobbyPoster: Send + Sync + 'static {
     /// `POST /api/companion/lobby` with `body`.
     fn post_lobby(&self, body: &LobbyPayload) -> impl Future<Output = PostOutcome> + Send;
+    /// `POST /api/companion/lobby/leave` (M22.9), one attempt: `Ok(released)` or the failure as text.
+    fn post_leave(&self, body: &LobbyLeavePayload) -> impl Future<Output = Result<bool, String>> + Send;
 }
 
 /// The real poster: M17.6's API client, one attempt per post (`attempts::LOBBY`). A 2xx is `Ok`, a 4xx or
@@ -114,6 +116,13 @@ impl LobbyPoster for crate::api::ApiClient {
             Err(ApiFailure::Schema { status, issues }) => {
                 PostOutcome::Unreadable(format!("{status} {}", issues.join("; ")))
             }
+        }
+    }
+
+    async fn post_leave(&self, body: &LobbyLeavePayload) -> Result<bool, String> {
+        match crate::api::ApiClient::post_lobby_leave(self, body).await {
+            Ok(ok) => Ok(ok.data.released),
+            Err(failure) => Err(failure.describe()),
         }
     }
 }
@@ -263,6 +272,10 @@ enum Msg {
         puuid: String,
         result: Result<RiotIdName, String>,
     },
+    LeaveDone {
+        party_id: String,
+        result: Result<bool, String>,
+    },
 }
 
 /// The running watcher. Dropping the handle stops it.
@@ -358,6 +371,8 @@ pub fn spawn_lobby_watcher<P: LobbyPoster>(
         processed: 0,
         context: None,
         generation: 0,
+        phase: None,
+        leaves_outstanding: 0,
         connect_read_outstanding: false,
         current_lobby: None,
         latest: None,
@@ -402,6 +417,9 @@ struct Actor<P> {
     processed: u64,
     context: Option<Arc<ConnectedContext>>,
     generation: u64,
+    /// The gameflow phase as the stream (and the connect read) last said it; `None` until known.
+    phase: Option<String>,
+    leaves_outstanding: usize,
     connect_read_outstanding: bool,
     current_lobby: Option<Lobby>,
     latest: Option<Item>,
@@ -481,13 +499,25 @@ impl<P: LobbyPoster> Actor<P> {
                 Msg::PostDone { item, outcome } => self.on_post_done(item, outcome),
                 Msg::Deferred { token, item, kind } => self.on_deferred(token, item, kind),
                 Msg::LookupDone { puuid, result } => self.on_lookup_done(puuid, result),
+                Msg::LeaveDone { party_id, result } => {
+                    self.leaves_outstanding = self.leaves_outstanding.saturating_sub(1);
+                    match result {
+                        Ok(released) => tracing::info!(party_id = %party_id, released, "lobby leave posted"),
+                        Err(reason) => {
+                            tracing::warn!(party_id = %party_id, %reason, "lobby leave not posted; the server lets the table go on its own clock");
+                        }
+                    }
+                }
             }
         }
     }
 
     fn publish(&self) {
-        let idle =
-            !self.in_flight && self.pending.is_none() && !self.draining && !self.connect_read_outstanding;
+        let idle = !self.in_flight
+            && self.pending.is_none()
+            && !self.draining
+            && !self.connect_read_outstanding
+            && self.leaves_outstanding == 0;
         self.view.send_modify(|view| {
             view.idle = idle;
             view.processed = self.processed;
@@ -508,6 +538,9 @@ impl<P: LobbyPoster> Actor<P> {
         match event {
             MachineEvent::Connected(context) => self.on_connected(context),
             MachineEvent::Disconnected(_) => {
+                // A disconnect is not a leave: the client may only be restarting, and the lobby is
+                // still its own (M22.9). Nothing is posted.
+                self.phase = None;
                 self.context = None;
                 self.current_lobby = None;
                 self.cancel_deferred();
@@ -515,16 +548,19 @@ impl<P: LobbyPoster> Actor<P> {
                     reason: LobbyGoneReason::Disconnected,
                 });
             }
-            MachineEvent::Event(routed) => {
-                if let RoutedEvent::Lobby { event_type, lobby } = routed.as_ref() {
+            MachineEvent::Event(routed) => match routed.as_ref() {
+                RoutedEvent::Lobby { event_type, lobby } => {
                     self.on_lobby_event(*event_type, lobby.as_deref());
                 }
-            }
+                RoutedEvent::GameflowPhase(phase) => self.phase = Some(phase.clone()),
+                _ => {}
+            },
         }
     }
 
     fn on_connected(&mut self, context: Arc<ConnectedContext>) {
         self.generation += 1;
+        self.phase = context.phase.clone();
         if let Some(summoner) = &context.summoner {
             self.names
                 .insert(summoner.puuid.clone(), name_from_summoner(summoner));
@@ -580,8 +616,11 @@ impl<P: LobbyPoster> Actor<P> {
             // newest payload still goes out.
             self.sequence += 1;
             self.cancel_deferred();
-            self.current_lobby = None;
-            tracing::info!(event_type = ?event_type, "lobby closed; nothing posted");
+            let closed = self.current_lobby.take();
+            tracing::info!(event_type = ?event_type, "lobby closed; no roster posted");
+            if let Some(closed) = closed {
+                self.leave(&closed.party_id);
+            }
             self.signal(LobbySignal::LobbyGone {
                 reason: LobbyGoneReason::Deleted,
             });
@@ -596,6 +635,37 @@ impl<P: LobbyPoster> Actor<P> {
             Source::Update
         };
         self.handle_lobby(lobby.clone(), source);
+    }
+
+    /// M22.9: a lobby `Delete` that is not a game start says this Kustom left the lobby, so the server can
+    /// let the table go now. A game start is told by the phase, which the stream delivers before the
+    /// `Delete` (`GameStart`, 30 to 100 ms earlier; docs/03-lcu-reference.md, Lobby): `ChampSelect`,
+    /// `GameStart` and `InProgress` mean the lobby became a game. An unknown phase sends nothing, and a
+    /// disconnect never gets here. One attempt; a lost leave is the server's two-hour sweep, as before.
+    fn leave(&mut self, party_id: &str) {
+        let started = matches!(
+            self.phase.as_deref(),
+            None | Some("ChampSelect" | "GameStart" | "InProgress")
+        );
+        if started || self.stopped {
+            tracing::debug!(party_id, phase = ?self.phase, "lobby closed for a game start or an unknown phase; no leave");
+            return;
+        }
+        self.leaves_outstanding += 1;
+        let poster = self.poster.clone();
+        let tx = self.tx.clone();
+        let body = LobbyLeavePayload {
+            party_id: party_id.to_string(),
+        };
+        self.tasks.spawn(async move {
+            let result = poster.post_leave(&body).await;
+            let _ = tx
+                .send(Msg::LeaveDone {
+                    party_id: body.party_id,
+                    result,
+                })
+                .await;
+        });
     }
 
     fn handle_lobby(&mut self, lobby: Lobby, source: Source) {
