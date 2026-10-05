@@ -13538,7 +13538,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   the Tonight balanced/in-game `rolled` path reads `blue_win_prob` for a finished game without `teamsMatchSplit`;
   (4) the AI recap's facts for the swapped game say `upset` by the pre-game odds (already true, asserted).
 
-- [ ] **M21.8** The balancer remembers the teams that were played. *(owner: `platform-engineer`; after M21.4;
+- [x] **M21.8** The balancer remembers the teams that were played. *(owner: `platform-engineer`; after M21.4;
   both halves wait on the owner's yes, OPEN item 5, because (a) supersedes the 2026-09-08 `lastSplit` row)* (a)
   `last game's teams again` reads the most recent **played** teams of these same ten (the latest game whose ten
   are this roster, from `game_players.side`), not the last chosen split, so a split the room ignored is not
@@ -13551,6 +13551,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   `counts_for_role_inference` flags would change on history, reported here; whether to refold history is the
   lead's call with the owner.
 
+  *Landed 2026-10-05 (ff850ddc, reviewer pass). The first hosted rebuild or 04:15 cron after deploy releases the stale fill flags (local customs: 7).*
 - [ ] **M21.9** Region wars in champ select uses the side you are on. *(owners: `web-engineer`, `designer` for
   the wording if any; after M20.10, same files)* While the lobby is `balanced`, the Mode card's and panel's `your
   region` and pool order follow the viewer's live side (`liveSide`) when known, else the split's side; in game they

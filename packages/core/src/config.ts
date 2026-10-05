@@ -274,7 +274,7 @@ export const config = {
      * off without removing the input.
      */
     fillProtectionFactor: 1.0,
-    /** Rating points added once when a split puts the same five together as `lastSplit`. */
+    /** Rating points added once when a split puts the same five together as `lastSplit` (the teams these ten last played, M21.8). */
     repeatSplitPenalty: 200,
     /**
      * Teammate variety (M18.13, owner-approved 2026-10-04; M18.14, owner decision 2026-10-04): a

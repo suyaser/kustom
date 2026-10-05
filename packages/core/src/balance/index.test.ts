@@ -445,6 +445,26 @@ describe('balance: repeat-split penalty', () => {
     expect(nowFirst.score).toBe(baseSecond.score);
   });
 
+  it('M21.8: after a hand-swapped game the played teams are the repeat, the ignored roll is not', () => {
+    // Roll one suggests the base split 1; the room swaps Hana and Omar and plays split 2's teams.
+    const first = balance({ players: ROSTER });
+    expectSplit(first.splits[0], SPLIT_1);
+    const playedBlue = Object.values(SPLIT_2.blue).map(id);
+    // The caller hands core the teams that played. Split 1 (ignored) is free again and comes
+    // first; split 2 (played) carries the 200 wherever it lands.
+    const second = balance({ players: ROSTER, lastSplit: playedBlue });
+    expectSplit(second.splits[0], SPLIT_1);
+    expect(second.splits[0]?.scoreParts?.repeat).toBe(0);
+    const played = names(playedBlue.map((puuid) => ({ puuid }))).join();
+    for (const split of second.splits) {
+      const isPlayed = names(split.blue).join() === played || names(split.red).join() === played;
+      expect(split.scoreParts?.repeat).toBe(isPlayed ? config.balance.repeatSplitPenalty : 0);
+    }
+    // And a roll fed the ignored suggestion instead (the pre-M21.8 input) would have moved split 1.
+    const wrong = balance({ players: ROSTER, lastSplit: Object.values(SPLIT_1.blue).map(id) });
+    expectSplit(wrong.splits[0], SPLIT_2);
+  });
+
   it('throws when lastSplit is not five players from the lobby', () => {
     expect(() => balance({ players: ROSTER, lastSplit: lastBlue.slice(0, 4) })).toThrow(BalanceError);
     expect(() => balance({ players: ROSTER, lastSplit: [...lastBlue, id('Omar')] })).toThrow(BalanceError);
