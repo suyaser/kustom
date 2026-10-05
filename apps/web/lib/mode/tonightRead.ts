@@ -13,7 +13,7 @@ import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import type { PublicClient } from '../publicClient';
 import { pickTable } from '../tonight/selection';
-import { nightTables } from '../tonight/tables';
+import { nightTables, tablesOverlapped } from '../tonight/tables';
 import { loadCheckNames } from './clientNames';
 import { readGroupModeRow } from './load';
 import { LOCK_COLUMNS, modeLockOf } from './lock';
@@ -65,6 +65,8 @@ export async function loadTonightLobbyLock(
   /** M22.6: the drawn row's party and how many tables are live (the panel's per-lobby card). */
   partyId: string;
   liveTables: number;
+  /** M22.12: two tables overlapped tonight (`tablesOverlapped`): the last one may hold a fork. */
+  overlapped: boolean;
 } | null> {
   const { data, error } = await client
     .from('lobbies')
@@ -78,18 +80,17 @@ export async function loadTonightLobbyLock(
     return null;
   }
   const rows = data ?? [];
-  const tables = nightTables(
-    rows.map((row) => ({
-      id: row.id,
-      lcuPartyId: row.lcu_party_id,
-      status: row.status,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      reportedByPlayerId: row.reported_by_player_id,
-      lobbyName: row.lobby_name,
-    })),
-    options.now ?? new Date(),
-  );
+  const tableRows = rows.map((row) => ({
+    id: row.id,
+    lcuPartyId: row.lcu_party_id,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    reportedByPlayerId: row.reported_by_player_id,
+    lobbyName: row.lobby_name,
+  }));
+  const now = options.now ?? new Date();
+  const tables = nightTables(tableRows, now);
   const picked = pickTable(
     tables.map((table) => ({
       id: table.lobby.id,
@@ -114,6 +115,7 @@ export async function loadTonightLobbyLock(
         lock: modeLockOf(drawn),
         partyId: drawn.lcu_party_id,
         liveTables: tables.length,
+        overlapped: tablesOverlapped(tableRows, now),
       };
 }
 

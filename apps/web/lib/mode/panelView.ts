@@ -29,17 +29,19 @@ export async function loadModePanelView(
   groupId: string,
   nightStart: Date,
   lobbyId: string | null = null,
+  now?: Date,
 ): Promise<ModePanelView> {
   const [{ mode, modeSince: _since, ...fearless }, row, lobby] = await Promise.all([
     loadFearless(client, groupId),
     loadModeState(client, groupId),
     // M22.6: the panel's `?lobby=` picks the table, so the lock is the selected lobby's.
-    loadTonightLobbyLock(client, groupId, nightStart, { lobbyId }),
+    loadTonightLobbyLock(client, groupId, nightStart, { lobbyId, ...(now === undefined ? {} : { now }) }),
   ]);
   const groupRow = row ?? { standing: mode, pending: null, rated: null };
   // M22.6: with two or more lobbies live, a forked lobby's own rule, pair and Rated (`lobby_modes`).
+  // M22.12: also the only live lobby of a night two overlapped, until its row is folded (`cardSourceOf`).
   const fork =
-    lobby !== null && lobby.liveTables >= 2
+    lobby !== null && (lobby.liveTables >= 2 || (lobby.liveTables === 1 && lobby.overlapped))
       ? ((await loadLobbyCards(client, groupId, nightStart.toISOString())).get(lobby.partyId) ?? null)
       : null;
   const view = modeCardView({
