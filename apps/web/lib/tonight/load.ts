@@ -167,8 +167,9 @@ export async function loadTonight(
   const tapeLobbies = pickTapeLobbies(lobbies, nightStart, null);
   // 14.6: on a night two tables overlapped, every tape tile names its lobby, ended ones too, so the
   // first reporter of every party tonight is read with the live tables' hosts (round three).
-  const overlapped = anonTables.length >= 2 || tablesOverlapped(tableRows, now);
-  const partyHosts = overlapped ? firstReporters(tableRows) : new Map<string, string>();
+  const overlappedRows = tablesOverlapped(tableRows, now);
+  const partyHosts =
+    anonTables.length >= 2 || overlappedRows ? firstReporters(tableRows) : new Map<string, string>();
   const hostIds = [
     ...new Set([
       ...anonTables.flatMap((table) => (table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId])),
@@ -237,9 +238,10 @@ export async function loadTonight(
   const drawn = fallback ?? (selectedLobbyId === null ? null : (rowById.get(selectedLobbyId) ?? null));
   const lobby = drawn === null ? null : (night.lobbies.get(drawn.id) ?? null);
   const drawnId = drawnLobbyId(drawn);
+  const overlapped = tables.length >= 2 || overlappedRows;
   const partyOfRow = new Map(nightRows.map((row) => [row.id, row.partyId]));
   const hostOfTile = (entry: TapeEntry): TapeEntry => {
-    const hostId = partyHosts.get(partyOfRow.get(entry.lobbyId) ?? '');
+    const hostId = !overlapped ? undefined : partyHosts.get(partyOfRow.get(entry.lobbyId) ?? '');
     const host = hostId === undefined ? undefined : night.players.get(hostId);
     return host === undefined ? entry : { ...entry, tableHost: displayName(host) };
   };

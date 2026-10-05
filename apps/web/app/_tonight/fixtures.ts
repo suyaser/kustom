@@ -25,10 +25,18 @@ import {
   workedTeams,
 } from '@/lib/testing/tonightFixtures';
 import { workedPuuid } from '@/lib/testing/workedExample';
+import type { LobbyCard } from '@/lib/tonight/cards';
 import type { LastGame } from '@/lib/tonight/lastGame';
 import type { Connection } from '@/lib/tonight/live';
 import { chosenSplit } from '@/lib/tonight/screen';
-import type { MemberView, PlayerName, TapeEntry, TonightSnapshot } from '@/lib/tonight/types';
+import type {
+  LobbyView,
+  MemberView,
+  PlayerName,
+  TableView,
+  TapeEntry,
+  TonightSnapshot,
+} from '@/lib/tonight/types';
 import type { ViewerState } from '@/lib/tonight/viewer';
 import type { TonightViewProps } from './TonightView';
 
@@ -651,5 +659,117 @@ function renameSnapshot(snap: TonightSnapshot): TonightSnapshot {
                   },
                 }),
           },
+  };
+}
+
+/** M22.6 (05-design.md 14.7): the other lobbies of a several-lobby frame. */
+export interface LobbiesFixtureOptions {
+  /** Live lobbies, 2 or 3. */
+  count: 2 | 3;
+  /** Which chip is selected (0 is the fixture's own lobby, the oldest). Default 0. */
+  selected?: number;
+  /** The second lobby's status. Default `open` (six in). */
+  other?: 'open' | 'balanced' | 'in_game';
+  /** The selected lobby has no Kustom watching it any more (14.8). */
+  unwatched?: boolean;
+}
+
+/**
+ * A fixture as a several-lobby night (M22.6): the fixture's lobby is the oldest table (the viewer is
+ * on it), then Chaos's lobby (Tanks only on its own card) and, with three, Mo's. Every tape tile
+ * names its lobby. Only for the 14.7 frames and the render tests.
+ */
+export function withLobbies(
+  fixture: TonightStateFixture,
+  options: LobbiesFixtureOptions,
+): TonightStateFixture {
+  const own = fixture.snapshot.lobby;
+  if (own === null) return fixture;
+  const now = Date.parse('2026-09-08T20:30:00.000Z');
+  const at = (minutesAgo: number) => new Date(now - minutesAgo * 60_000).toISOString();
+  const crowd = (names: readonly string[]): MemberView[] =>
+    names.map((name, index) =>
+      extraMember({
+        puuid: `puuid-${name.toLowerCase().replace(/\W/g, '')}`,
+        name,
+        isSpectator: false,
+        side: index % 2 === 0 ? 100 : 200,
+      }),
+    );
+  const other = options.other ?? 'open';
+  const lobbies: {
+    id: string;
+    party: string;
+    host: PlayerName;
+    opened: number;
+    lobby: LobbyView;
+    card: LobbyCard | null;
+  }[] = [
+    { id: own.id, party: 'party-a', host: own.members[0]?.name ?? null, lobby: own, opened: 100, card: null },
+    {
+      id: 'lobby-chaos',
+      party: 'party-b',
+      host: 'Chaos',
+      opened: 60,
+      lobby: {
+        ...own,
+        id: 'lobby-chaos',
+        status: other,
+        members: crowd(['Chaos', 'PRT Khokha', 'Ayasofya', 'Mirage', 'Sefa', 'Kaan']),
+        teams: null,
+        result: null,
+        kickoff: null,
+        lock: null,
+        startedAt: other === 'in_game' ? at(12) : null,
+      },
+      card: { pending: { id: 'class', tag: 'Tank' }, rated: null, updatedAt: at(30) },
+    },
+    {
+      id: 'lobby-mo',
+      party: 'party-c',
+      host: 'Mo',
+      opened: 20,
+      lobby: {
+        ...own,
+        id: 'lobby-mo',
+        status: 'open',
+        members: crowd(['Mo', 'Duman', 'Ece', 'Bora']),
+        teams: null,
+        result: null,
+        kickoff: null,
+        lock: null,
+        startedAt: null,
+      },
+      card: { pending: null, rated: null, updatedAt: at(15) },
+    },
+  ];
+  const live = lobbies.slice(0, options.count);
+  const selected = live[options.selected ?? 0] ?? live[0];
+  const tables: TableView[] = live.map((one) => ({
+    id: one.id,
+    partyId: one.party,
+    rowIds: [one.id],
+    openedAt: at(one.opened),
+    changedAt: at(1),
+    host: one.host === null ? null : { puuid: `host-${one.party}`, name: one.host },
+    watched: !(options.unwatched === true && one === selected),
+    lobby: one.lobby,
+    tile: null,
+    ...(one.card === null ? {} : { card: one.card }),
+  }));
+  const tape = fixture.snapshot.tape.map((entry, index) => ({
+    ...entry,
+    tableHost: index % 2 === 0 ? (own.members[0]?.name ?? null) : 'Chaos',
+  }));
+  return {
+    ...fixture,
+    snapshot: {
+      ...fixture.snapshot,
+      lobby: selected?.lobby ?? own,
+      lobbies: tables,
+      selectedLobbyId: selected?.id ?? own.id,
+      severalLobbiesTonight: true,
+      tape,
+    },
   };
 }
