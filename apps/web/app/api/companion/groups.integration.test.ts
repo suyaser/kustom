@@ -406,6 +406,41 @@ if (stack === null) {
   });
 
   // ---------------------------------------------------------------------------
+  // Acceptance 4: the poll is per token group (the lobby press half went with M22.11)
+  // ---------------------------------------------------------------------------
+
+  describe('the command poll (acceptance 4)', () => {
+    it('hands a player in two groups only the polling token group', async () => {
+      tokens.bothA = (await mintToken(both, groupIds.a, new Date().toISOString())).token;
+      tokens.bothB = (await mintToken(both, groupIds.b, new Date().toISOString())).token;
+      const queued = await db
+        .from('companion_commands')
+        .insert({
+          group_id: groupIds.b,
+          target_player_id: id(both),
+          kind: 'switch_side',
+          payload: { targetSide: 100 },
+          expires_at: new Date(Date.now() + 60_000).toISOString(),
+        })
+        .select('id')
+        .single();
+      expect(queued.error).toBeNull();
+
+      const viaA = await getCommands(
+        companion('commands?clientConnected=true', tokens.bothA, undefined, 'GET'),
+      );
+      expect(((await viaA.json()) as { commands: unknown[] }).commands).toEqual([]);
+      const viaB = await getCommands(
+        companion('commands?clientConnected=true', tokens.bothB, undefined, 'GET'),
+      );
+      const handed = ((await viaB.json()) as { commands: { id: string }[] }).commands;
+      expect(handed.map((command) => command.id)).toEqual([queued.data?.id]);
+
+      await db.from('companion_commands').delete().eq('id', queued.data?.id ?? '');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Acceptance 5: backfill
   // ---------------------------------------------------------------------------
 
