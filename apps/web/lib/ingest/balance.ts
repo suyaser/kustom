@@ -56,7 +56,8 @@ export async function balanceLobby(
 
   const key = rosterKey(selection.playing.map((member) => member.puuid));
   const [lastSplit, recentTeammates] = await Promise.all([
-    selectLastSplit(client, key, groupId),
+    // M21.8: the teams these ten last played, not the last split the bot chose for them.
+    selectLastPlayedTeams(client, selection.playing, groupId, lobby.id),
     loadRecentTeammates(client, groupId, now, timeZone),
   ]);
 
@@ -528,47 +529,107 @@ export async function loadRecentTeammates(
   );
 }
 
+/** How many of the group's recent games (with any of the ten in them) the repeat lookup reads. */
+export const LAST_TEAMS_HISTORY_GAMES = 200;
+
+/** How many live or dropped lobbies' kickoff records the repeat lookup reads. */
+const LAST_TEAMS_KICKOFF_LOBBIES = 20;
+
+/** One set of teams that played: a game's end-of-game sides, or a live lobby's kickoff teams. */
+export interface PlayedTeams {
+  /** `games.started_at`, or `lobbies.kickoff_at` for a game with no end-of-game block yet. */
+  at: string;
+  blue: readonly string[];
+  red: readonly string[];
+}
+
 /**
- * M2.7's lookup: the newest chosen split for exactly these ten, whatever night it was, and
- * the five puuids of its blue side. `null` when these ten have never been split before.
+ * M21.8's rule (pure): the blue five of the newest teams **these ten** played, or `null`.
  *
- * `roster_key` is why this is one indexed lookup rather than a jsonb set comparison, and why
- * changing one player makes it `null` without any extra rule.
- *
- * **Among this group's lobbies only** (M13.3): the same ten in another group are another
- * group's history, and its split must not decide this group's repeat penalty.
+ * Teams match when they are five and five and their ten are exactly this roster (`rosterKey`, so
+ * the same ten in any order). Newest by `at`; two stamped the same instant are ordered by their
+ * sorted blue side, so the answer never depends on the order rows came back in. Returned sorted.
  */
-export async function selectLastSplit(
+export function lastPlayedTeams(key: string, played: readonly PlayedTeams[]): readonly string[] | null {
+  let best: { at: number; blue: string[] } | null = null;
+  for (const teams of played) {
+    if (teams.blue.length !== 5 || teams.red.length !== 5) continue;
+    if (rosterKey([...teams.blue, ...teams.red]) !== key) continue;
+    const at = Date.parse(teams.at);
+    if (Number.isNaN(at)) continue;
+    const blue = [...teams.blue].sort();
+    if (best === null || at > best.at || (at === best.at && blue.join(' ') < best.blue.join(' '))) {
+      best = { at, blue };
+    }
+  }
+  return best === null ? null : best.blue;
+}
+
+/**
+ * The "last game's teams again" input (M21.8, replacing M2.7's last chosen split; decision row
+ * 2026-10-05 "M21 owner calls"): the blue five of the newest teams these same ten **actually
+ * played** in this group, whatever night it was, or `null`.
+ *
+ * - **A finished game**: its end-of-game sides (`game_players.side`), the truth after the game.
+ *   Any game, rated or not, like teammate variety. A roll the room ignored is not remembered; the
+ *   teams they made instead are.
+ * - **A game with no end-of-game block yet** (a live or `dropped` lobby): its kickoff teams
+ *   (M21.4, `lobbies.kickoff_blue`/`kickoff_red`), the teams that started it. The lobby being
+ *   balanced is never one of them.
+ *
+ * Bounded: the newest `LAST_TEAMS_HISTORY_GAMES` games of this group with any of the ten in them
+ * (a few months of nights), and the newest `LAST_TEAMS_KICKOFF_LOBBIES` live or dropped lobbies.
+ * Teams older than that are not "last time" for anybody in the room.
+ *
+ * **Among this group's games only** (M13.3).
+ */
+export async function selectLastPlayedTeams(
   client: ServiceClient,
-  key: string,
+  ten: readonly { playerId: string; puuid: string }[],
   groupId: string,
+  lobbyId: string | null,
 ): Promise<readonly string[] | null> {
-  const { data, error } = await client
-    .from('splits')
-    .select('blue, lobbies!inner(group_id)')
-    .eq('roster_key', key)
-    .eq('lobbies.group_id', groupId)
-    .eq('is_chosen', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(`balanceLobby: lastSplit lookup failed: ${error.message}`);
-  if (!data) return null;
+  if (ten.length !== 10) return null;
+  const key = rosterKey(ten.map((member) => member.puuid));
+  const puuidOf = new Map(ten.map((member) => [member.playerId, member.puuid]));
 
-  const blue = data.blue;
-  if (!Array.isArray(blue)) return null;
+  let kickoffs = client
+    .from('lobbies')
+    .select('id, kickoff_at, kickoff_blue, kickoff_red')
+    .eq('group_id', groupId)
+    .in('status', ['in_game', 'dropped'])
+    .not('kickoff_kind', 'is', null)
+    .order('kickoff_at', { ascending: false })
+    .limit(LAST_TEAMS_KICKOFF_LOBBIES);
+  if (lobbyId !== null) kickoffs = kickoffs.neq('id', lobbyId);
 
-  const puuids = blue
-    .map((entry) =>
-      typeof entry === 'object' && entry !== null && 'puuid' in entry
-        ? String((entry as { puuid: unknown }).puuid)
-        : '',
-    )
-    .filter((puuid) => puuid.length > 0);
+  const [games, live] = await Promise.all([
+    client
+      .from('games')
+      .select('id, started_at, game_players!inner(player_id, side)')
+      .eq('group_id', groupId)
+      .in('game_players.player_id', [...puuidOf.keys()])
+      .order('started_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(LAST_TEAMS_HISTORY_GAMES),
+    kickoffs,
+  ]);
+  if (games.error) throw new Error(`balanceLobby: last played teams lookup failed: ${games.error.message}`);
+  if (live.error) throw new Error(`balanceLobby: kickoff teams lookup failed: ${live.error.message}`);
 
-  // Core refuses a `lastSplit` that is not five of tonight's ten, and a stored split we
-  // cannot read five names out of is not worth failing a balance over.
-  return puuids.length === 5 ? puuids : null;
+  const played: PlayedTeams[] = [];
+  for (const game of games.data ?? []) {
+    // The embed holds only the ten's rows, so a game of these ten is one with ten of them here.
+    if (game.game_players.length !== 10) continue;
+    const side = (s: number) =>
+      game.game_players.filter((row) => row.side === s).map((row) => puuidOf.get(row.player_id) ?? '');
+    played.push({ at: game.started_at, blue: side(100), red: side(200) });
+  }
+  for (const lobby of live.data ?? []) {
+    if (lobby.kickoff_at === null || lobby.kickoff_blue === null || lobby.kickoff_red === null) continue;
+    played.push({ at: lobby.kickoff_at, blue: lobby.kickoff_blue, red: lobby.kickoff_red });
+  }
+  return lastPlayedTeams(key, played);
 }
 
 /**
