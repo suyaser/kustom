@@ -4,10 +4,11 @@ import type { StoredSplit } from '@/components/receipt/types';
 import {
   type CalibrationCandidate,
   calibrationGameOf,
+  type FoldedRow,
+  foldBlueWinProb,
   gameReceiptOf,
   kickoffOddsFor,
   playedOddsOf,
-  postedOdds,
   type ReceiptSeat,
   receiptBlueWinProb,
   rolledOddsOf,
@@ -283,11 +284,10 @@ describe('the after-game rule (M21.7)', () => {
     });
   });
 
-  describe('playedOddsOf and postedOdds', () => {
+  describe('playedOddsOf', () => {
     it('rolled and played: the stored odds and the pick number', () => {
       const played = playedOddsOf({ aram: false, rated: true, seats: seats(), chosen: chosen(0.62, 2) });
       expect(played).toEqual({ kind: 'rolled', blueWinProb: 0.62, rank: 2, swapped: false });
-      expect(postedOdds(played, chosen())).toBe(0.62);
     });
 
     it('swapped sides: 1 - p, the pick number kept', () => {
@@ -311,7 +311,6 @@ describe('the after-game rule (M21.7)', () => {
         kickoff: custom(),
       });
       expect(withRecord).toEqual({ kind: 'pre-game', blueWinProb: 0.41, rank: null, swapped: false });
-      expect(postedOdds(withRecord, chosen())).toBe(0.41);
       const without = playedOddsOf({ aram: false, rated: true, seats: traded(), chosen: chosen() });
       expect(without.blueWinProb).toBe(0.5);
     });
@@ -323,11 +322,10 @@ describe('the after-game rule (M21.7)', () => {
       ]) {
         const played = playedOddsOf({ ...flags, seats: traded(), chosen: chosen(), kickoff: custom() });
         expect(played).toEqual({ kind: 'none', blueWinProb: null, rank: null, swapped: false });
-        expect(postedOdds(played, chosen())).toBeNull();
       }
     });
 
-    it('unrolled: the compact surfaces stay without odds, as before', () => {
+    it("unrolled (M21.14): the kickoff record's odds, as on the full receipt", () => {
       const played = playedOddsOf({
         aram: false,
         rated: true,
@@ -335,8 +333,60 @@ describe('the after-game rule (M21.7)', () => {
         chosen: null,
         kickoff: { ...custom(), kind: 'unrolled' },
       });
-      expect(played.kind).toBe('pre-game');
-      expect(postedOdds(played, null)).toBeNull();
+      expect(played).toEqual({ kind: 'pre-game', blueWinProb: 0.41, rank: null, swapped: false });
+    });
+
+    it("no lobby (M21.14): the fold's number, else preGameOdds; the kickoff record still first", () => {
+      const base = { aram: false, rated: true, seats: traded(), chosen: null };
+      expect(playedOddsOf({ ...base, fallback: 0.37 }).blueWinProb).toBe(0.37);
+      expect(playedOddsOf(base).blueWinProb).toBe(0.5);
+      expect(
+        playedOddsOf({ ...base, kickoff: { ...custom(), kind: 'unrolled' }, fallback: 0.37 }).blueWinProb,
+      ).toBe(0.41);
+      expect(playedOddsOf({ ...base, seats: seats(BLUE, RED, { r: null }) }).blueWinProb).toBeNull();
+    });
+
+    it("is gameReceiptOf's number (receiptBlueWinProb) on every kind of game", () => {
+      const unrolled = { ...custom(), kind: 'unrolled' as const };
+      const cases = [
+        { seats: seats(), chosen: chosen(0.62, 2), kickoff: null },
+        { seats: seats(RED, BLUE), chosen: chosen(0.62), kickoff: null },
+        { seats: traded(), chosen: chosen(), kickoff: custom() },
+        { seats: traded(), chosen: chosen(), kickoff: null },
+        { seats: traded(), chosen: null, kickoff: unrolled },
+        { seats: seats(), chosen: null, kickoff: null },
+      ];
+      for (const one of cases) {
+        for (const flags of [
+          { aram: false, rated: true },
+          { aram: false, rated: false },
+          { aram: true, rated: false },
+        ]) {
+          for (const fallback of [null, 0.33]) {
+            const played = playedOddsOf({ ...flags, ...one, fallback });
+            const receipt = gameReceiptOf({
+              ...flags,
+              seats: one.seats,
+              splits: one.chosen === null ? [] : [{ ...one.chosen, isChosen: true }],
+              kickoff: one.kickoff,
+            });
+            expect(played.blueWinProb).toBe(receiptBlueWinProb(receipt, fallback));
+          }
+        }
+      }
+    });
+  });
+
+  describe('foldBlueWinProb', () => {
+    const rows = (blueP: number | null, rAfter: number | null = 1200): FoldedRow[] => [
+      ...BLUE.map(() => ({ side: 100, rAfter, foldP: blueP })),
+      ...RED.map(() => ({ side: 200, rAfter, foldP: blueP === null ? null : 1 - blueP })),
+    ];
+    it("blue's fold_p when all ten were folded with one, else null", () => {
+      expect(foldBlueWinProb(rows(0.3))).toBe(0.3);
+      expect(foldBlueWinProb(rows(null))).toBeNull();
+      expect(foldBlueWinProb(rows(0.3, null))).toBeNull();
+      expect(foldBlueWinProb(rows(0.3).slice(1))).toBeNull();
     });
   });
 

@@ -18,8 +18,8 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
  *   `Upset`, never the split's 62%; calibration does not count it (acceptance 2).
  * - **D, rolled, played on swapped sides.** The split's two teams on each other's sides (kickoff
  *   `rolled`, `swapped`), pick #2: the bot's teams, so its odds turned round, 38% for blue.
- * - **C, unrolled.** No split; kickoff `unrolled` at 30%. The tape and /fun stay without odds
- *   (as today); the full receipts read the kickoff odds, and so does the result post (M21.14).
+ * - **C, unrolled.** No split; kickoff `unrolled` at 30%. Every surface reads the kickoff odds
+ *   (M21.14: the result post, the tape, the poster and /fun too, once compact surfaces printed none).
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
  */
@@ -248,8 +248,8 @@ if (stack === null) {
     d: { blue: 0.38, upset: true },
     c: { blue: 0.3, upset: true },
   };
-  /** What the compact surfaces print (the tape, /fun): the unrolled game none. */
-  const COMPACT: Record<Key, number | null> = { a: 0.62, b: 0.35, d: 0.38, c: null };
+  /** What the compact surfaces print (the tape, the poster, /fun): the full receipt's number (M21.14). */
+  const COMPACT: Record<Key, number | null> = { a: 0.62, b: 0.35, d: 0.38, c: 0.3 };
 
   it('the Discord result post: the played odds, and split roles only for a split team', async () => {
     // M21.14: the full receipt's number for every game, the unrolled one's kickoff odds included.
@@ -291,6 +291,8 @@ if (stack === null) {
       groupId: group,
     });
     const tape = new Map(snapshot.tape.map((entry) => [entry.lobbyId, entry]));
+    // C is the night's last game: the poster's, not on the tape (lib/tonight/load.test.ts has the
+    // tape's unrolled game, M21.14).
     for (const key of ['a', 'b', 'd'] as const) close(tape.get(lobby[key])?.blueWinProb, COMPACT[key]);
     expect(tape.get(lobby.d)?.rank).toBe(2);
     expect(tape.get(lobby.b)?.rank).toBeNull();
@@ -329,16 +331,17 @@ if (stack === null) {
     expect(recent.get(game.c)?.ratingsBefore).toBeNull();
   });
 
-  it("/fun's Won against the odds: B at 35%, never the split's 62%; the unrolled game left out", async () => {
+  it("/fun's Won against the odds: B at 35%, never the split's 62%; the unrolled game in at 30% (M21.14)", async () => {
     const fun = await loadFunFacts(anon, { window: 'all-time', groupId: group, timeZone: TIME_ZONE });
     const keyOf = new Map(Object.entries(game).map(([key, id]) => [id, key]));
     const percents: Record<string, number> = {};
     for (const row of fun.odds.rows) {
       for (const win of row.games) percents[keyOf.get(win.game.id) ?? win.game.id] = win.percent;
     }
-    expect(percents).toEqual({ a: 38, b: 35, d: 38 });
-    expect(fun.odds.record?.game.id).toBe(game.b);
-    expect(fun.odds.record?.percent).toBe(35);
+    // C: blue won at its kickoff 30%, the longest odds of the night, so the record is C's now.
+    expect(percents).toEqual({ a: 38, b: 35, d: 38, c: 30 });
+    expect(fun.odds.record?.game.id).toBe(game.c);
+    expect(fun.odds.record?.percent).toBe(30);
     expect(resultOdds(0.35, 100).upset).toBe(true);
   });
 

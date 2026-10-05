@@ -12,6 +12,8 @@ import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { readKickoffs } from '../games/kickoffs';
 import { matchesQueue } from '../games/queue';
 import {
+  type FoldedRow,
+  foldBlueWinProb,
   gameReceiptOf,
   kickoffDisagrees,
   type ReceiptSeat,
@@ -574,26 +576,6 @@ export function resultOddsOf(input: {
     kickoff: input.kickoff,
   });
   return receiptBlueWinProb(receipt, foldBlueWinProb(input.folded));
-}
-
-/** One `game_players` row as {@link foldBlueWinProb} reads it. */
-export interface FoldedRow {
-  side: SideValue;
-  rAfter: number | null;
-  foldP: number | null;
-}
-
-/**
- * The fold's stored blue probability, `lib/breakdown/read.ts`'s `ratingBlueWinProb` rule (the
- * number the game page and Tonight fall back to, M14.59): five a side, every row folded with a
- * `fold_p`, blue's first; else `null`.
- */
-export function foldBlueWinProb(rows: readonly FoldedRow[]): number | null {
-  const blue = rows.filter((row) => row.side === 100);
-  const red = rows.filter((row) => row.side === 200);
-  if (blue.length !== 5 || red.length !== 5) return null;
-  if (!rows.every((row) => row.rAfter !== null && row.foldP !== null)) return null;
-  return blue[0]?.foldP ?? null;
 }
 
 /** The chosen split in `gameReceiptOf`'s shape: only the teams, the odds and the rank are read. */

@@ -2,15 +2,9 @@ import { preGameOdds } from '@customs/core';
 import type { LobbyKickoff } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
 import { game4Identity } from '@/lib/testing/discordGame4';
+import type { FoldedRow } from '../games/receipt';
 import { resultOddsLine } from '../receipt/copy';
-import {
-  buildResultInput,
-  type FoldedRow,
-  foldBlueWinProb,
-  type PlayedSplitRoles,
-  type ResultSource,
-  resultOddsOf,
-} from './assemble';
+import { buildResultInput, type PlayedSplitRoles, type ResultSource, resultOddsOf } from './assemble';
 import { resultEmbed } from './embeds';
 
 /**
@@ -115,14 +109,6 @@ describe('resultOddsOf (M21.14)', () => {
     if (b0 === undefined || r0 === undefined) throw new Error('empty split');
     const other = { ...rolled, blue: [r0, ...blueRest], red: [b0, ...redRest] };
     expect(resultOddsOf({ ...base, chosen: other, kickoff: custom })).toBe(0.35);
-  });
-});
-
-describe('foldBlueWinProb', () => {
-  it("blue's fold_p when all ten were folded, else null", () => {
-    expect(foldBlueWinProb(folded(0.3))).toBe(0.3);
-    expect(foldBlueWinProb(folded(null))).toBeNull();
-    expect(foldBlueWinProb(folded(0.3).slice(1))).toBeNull();
   });
 });
 
