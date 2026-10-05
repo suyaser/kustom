@@ -1,8 +1,8 @@
 # Kustom
 
 Kustom is a small Windows app for the friend who hosts your group's customs. It sits next to the League client,
-tells the site who is in the lobby and who won, and opens the custom and sends the invites when someone taps
-**Start a lobby** on the site. Nobody has to pick teams or report scores. It never plays for you: it stays out
+tells the site who is in the lobby and who won, and moves a player to their side when the site asks. Nobody has
+to pick teams or report scores. It never plays for you: it stays out
 of champ select and out of the game.
 
 Only one PC per lobby needs it, and it has to be an admin's. Everyone else just plays and installs nothing.
@@ -114,8 +114,8 @@ src/lobbyWatcher.ts  POST /api/companion/lobby on every roster change (M2.2)
 src/gameWatcher.ts   end-of-game capture, disk queue, POST /api/companion/game (M2.3)
 src/rankSync.ts      own rank every 6 h, other ranks when the server asks (M2.4)
 src/backfill.ts      past customs from match history, 60 s after connect then every 6 h, via the queue (M5.1)
-src/commandRunner.ts GET /api/companion/commands every 5 s while the client is up; create lobby / invite /
-                     switch side through packages/lcu; ack or nack. Each kind gated on its docs/03 row (M4.1)
+src/commandRunner.ts GET /api/companion/commands every 5 s while the client is up; switch side
+                     (the only kind left, M22.11) through packages/lcu; ack or nack. Each kind gated on its docs/03 row (M4.1)
 src/executed.ts      commands-done.json: the execute-once record a lost ack is re-sent from (M4.1)
 src/log.ts           daily JSON log file (debug) plus the console (info)
 build/               the release build (M2.6): bundle, exe, publish
