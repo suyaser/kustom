@@ -9,9 +9,9 @@
  * surface can never disagree with the explanation about who is on what.
  *
  * `mode/` (M15.2) is the mode model: the standing mode and the one-game rule, pools, Spin, the
- * post-game rule check and the lifecycle. Champion tags and regions are input; core imports no
- * fixture. M20.6's `transition` (one row, `take` at Roll, `handBack`, `recordGame`) replaces the
- * version-token lifecycle; the old lifecycle exports stay only until apps/web moves (M20.7, M20.8).
+ * post-game rule check and the card's state. Champion tags and regions are input; core imports no
+ * fixture. M20.6's `transition` (one row, `take` at Roll, `handBack`, `recordGame`) replaced the
+ * version-token lifecycle, whose exports M20.8 deleted once apps/web stopped calling them.
  *
  * `rating/kustom` (M18.1) is the Kustom rating that replaces OpenSkill at the M18 switch. Since
  * M18.2 the balancer (`balance`, `preGameOdds`) reads Kustom Ratings through `winProbability`;
