@@ -13327,21 +13327,23 @@ or a full room: the card is on Tonight in every state, empty group included.
     > - **No-JS:** Redraw and each side's `Set region` post and redirect with the notice: pass.
     > - **Spin landing on region wars:** `Spin says: Region wars. Blue: Bandle City · Red: Bilgewater.`: pass.
 
-- [ ] **M20.14** A region tag breaks inside a word at 375. *(owner: `web-engineer`, `designer` for the rule; from
+- [x] **M20.14** A region tag breaks inside a word at 375. *(owner: `web-engineer`, `designer` for the rule; from
   the M20.13 walk)* On Tonight at 375, the Mode card's `Banned next game` grid after a Fearless game shows Thresh's
   tag as `Shadow Isle` on one line and `s` on the next (screenshot `walks/m20-10-card-anon-375.png`). Steps: a Fearless
   game with Thresh in it, Tonight at 375 signed out. Acceptance: (1) on every pool view M20.4 names, at 375 and 1440, a
   region tag only wraps between words (or between the two regions), never inside one; (2) frames at 375 of the banned
   grid with Shadow Isles, Bandle City and a two-region champion (Ziggs, `Zaun · Bandle City`); (3) M14.30's seven
   panel checks still pass. Out of scope: shortening region names.
-- [ ] **M20.15** An admin's notice that the card no longer matches. *(owner: `web-engineer`; from the M20.13 walk)*
+  *Landed 2026-10-05 (m20-14-17-card 8be4b45e, reviewer pass; checks run by the lead after the engineer stalled).*
+- [x] **M20.15** An admin's notice that the card no longer matches. *(owner: `web-engineer`; from the M20.13 walk)*
   Two admins on Tonight with region wars queued. Admin A taps `Redraw regions` while admin B sets Blue's region in the
   same second; B's write lands last. Both cards correctly show B's pair (`Ionia vs Demacia`), but A's page still
   says `Next game: Shurima vs Zaun.` under it (screenshot `walks/m20-12-2-A.png`). Last write wins is accepted (M20
   D7); a sentence contradicting the card above it is not. Acceptance: (1) when the card's state changes from a write
   this page did not make, the page's own notice goes; (2) a two-page test: A's notice is gone once B's later write
   reaches A, and B's stays; (3) a page's own notice still shows after its own tap exactly as today. No new copy.
-- [ ] **M20.16** The next game's regions, shown to everyone while a game is on. *(owner: `web-engineer`, `designer`
+  *Landed 2026-10-05 (m20-14-17-card 8be4b45e, reviewer pass; checks run by the lead after the engineer stalled).*
+- [x] **M20.16** The next game's regions, shown to everyone while a game is on. *(owner: `web-engineer`, `designer`
   for placement; copy below is product's; from the M20.13 walk, and the M20.10 follow-up "members do not see the next
   game's pair after Roll")* Steps: a lobby balanced or a game in progress on Fearless; an admin queues region wars
   (Ixtal vs Ionia). Signed-out and member pages show only `Fearless · Rated · 163 open` (screenshot `walks/m20-18-
@@ -13355,7 +13357,8 @@ or a full room: the card is on Tonight in every state, empty group included.
   `in_game`, at 375 and 1440; (2) it changes on a second open page without a refresh when an admin redraws or changes
   a side (the existing `group_live` bump); (3) the short-pair line appears on the record that made the pair short,
   before Roll; (4) nothing else on the card changes; parity test lists the new line only.
-- [ ] **M20.17** The refusal when a next-game region tap loses to Roll. *(owner: `platform-engineer`, copy below is
+  *Landed 2026-10-05 (m20-14-17-card 8be4b45e, reviewer pass; checks run by the lead after the engineer stalled).*
+- [x] **M20.17** The refusal when a next-game region tap loses to Roll. *(owner: `platform-engineer`, copy below is
   product's; from the M20.13 walk)* An admin taps `Redraw regions` (or `Set region`) for the next game in the same
   moment another admin taps Roll. When Roll takes the rule first, the tap answers 409 `Region wars is not on for that
   game.`, which reads as wrong: region wars is on, for this game now. M20.9 (3) wanted no new copy because the card
@@ -13493,6 +13496,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   is needed, the gameflow session it already reads at `GameStart`).
 - **Ratings do not change.** The fold stays on `game_players.side`.
 
+  *Landed 2026-10-05 (m20-14-17-card 8be4b45e, reviewer pass; checks run by the lead after the engineer stalled).*
 - [x] **M21.1** Audit: do the frozen lobby sides equal the end-of-game sides? *(owner: `platform-engineer`, read
   only on the hosted database with the lead's go; product reads the numbers)* One SQL read, nothing written: for
   every group's `finished` lobby with a game, compare the frozen `lobby_members` (side 100/200) with that game's
