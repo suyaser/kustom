@@ -249,8 +249,10 @@ export interface PlayedOdds {
 }
 
 /**
- * {@link gameReceiptOf}'s answer for a surface that prints only the odds (the result post, the
- * tape, the poster card, a player's recent games, `/fun`), from the chosen split alone. The same
+ * {@link gameReceiptOf}'s answer for a surface that prints only the odds (the tape, the poster
+ * card, a player's recent games, `/fun`), from the chosen split alone. M21.14: every one of them
+ * prints `blueWinProb` as it is, pre-game odds included for a game nobody rolled or with no lobby
+ * (decision row 2026-10-05), so a compact line and the full receipt never disagree. The same
  * rule, so a compact line and the full receipt never disagree.
  */
 export function playedOddsOf(input: {
@@ -259,6 +261,11 @@ export function playedOddsOf(input: {
   seats: readonly ReceiptSeat[];
   chosen: PlayedSplit | null;
   kickoff?: LobbyKickoff | null | undefined;
+  /**
+   * The fold's stored blue probability ({@link foldBlueWinProb}, M14.59), where the surface has it:
+   * used after the kickoff odds and before `preGameOdds`, the {@link receiptBlueWinProb} order.
+   */
+  fallback?: number | null | undefined;
 }): PlayedOdds {
   const sides = input.chosen === null ? null : splitSidesOf(input.chosen, input.seats);
   if (input.chosen !== null && (sides === 'same' || sides === 'swapped')) {
@@ -270,23 +277,32 @@ export function playedOddsOf(input: {
   const before = ratingsBeforeOf(input.seats);
   return {
     kind: 'pre-game',
-    blueWinProb: kickoffOddsFor(input.kickoff, input.seats) ?? preGameOdds(before.blue, before.red),
+    blueWinProb:
+      kickoffOddsFor(input.kickoff, input.seats) ?? input.fallback ?? preGameOdds(before.blue, before.red),
     rank: null,
     swapped: false,
   };
 }
 
+/** One `game_players` row as {@link foldBlueWinProb} reads it. */
+export interface FoldedRow {
+  side: 100 | 200 | number | null | undefined;
+  rAfter: number | null | undefined;
+  foldP: number | null | undefined;
+}
+
 /**
- * {@link playedOddsOf}'s number on the surfaces that printed odds only for a rolled game before
- * M21.7 (the result post, the night tape, the poster's link picture, `/fun`): the bot's teams keep
- * their (oriented) odds, teams changed after a roll get their pre-game odds, and a game nobody
- * rolled stays without, as before (milestone acceptance 1, "the unrolled game as today"; whether
- * an unrolled game's kickoff odds should print there is product's call, filed as OPEN).
+ * The fold's stored blue probability, `lib/breakdown/read.ts`'s `ratingBlueWinProb` rule (the
+ * number the game page and Tonight's pre-game card fall back to, M14.59): five a side, every row
+ * folded with a `fold_p`, blue's first; else `null`. The fallback of {@link receiptBlueWinProb}
+ * and {@link playedOddsOf} on the surfaces that read the rows.
  */
-export function postedOdds(played: PlayedOdds, chosen: object | null): number | null {
-  if (played.kind === 'rolled') return played.blueWinProb;
-  if (played.kind === 'pre-game' && chosen !== null) return played.blueWinProb;
-  return null;
+export function foldBlueWinProb(rows: readonly FoldedRow[]): number | null {
+  const blue = rows.filter((row) => row.side === 100);
+  const red = rows.filter((row) => row.side === 200);
+  if (blue.length !== 5 || red.length !== 5) return null;
+  if (!rows.every((row) => row.rAfter != null && row.foldP != null)) return null;
+  return blue[0]?.foldP ?? null;
 }
 
 /**

@@ -15,10 +15,10 @@ import { loadFearless } from '../fearless/load';
 import { readKickoffs } from '../games/kickoffs';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import {
+  foldBlueWinProb,
   kickoffOddsFor,
   type PlayedSplit,
   playedOddsOf,
-  postedOdds,
   type ReceiptSeat,
   splitRolesFor,
 } from '../games/receipt';
@@ -249,7 +249,7 @@ const SPLIT_COLUMNS =
  * columns of `GAME_STAMP_COLUMNS`) and its scoreboard, embedded, with the award's stat line (M11.3).
  */
 const NIGHT_GAME_COLUMNS =
-  'id, lobby_id, winning_side, started_at, duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after)' as const;
+  'id, lobby_id, winning_side, started_at, duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after, fold_p)' as const;
 
 type NightGameRow = GameStampRow & {
   id: string;
@@ -816,19 +816,23 @@ function assembleResult(
   const winningSide = game.winning_side as SideValue;
   const rated = seats.length > 0 && seats.every((seat) => seat.rBefore !== null && seat.rAfter !== null);
   // M21.7: the one rule (`lib/games/receipt.ts`): the split's odds only when its teams played.
+  // M21.14: a game nobody rolled prints its pre-game odds too, the result post's number.
   const played = playedOddsOf({
     aram: matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram'),
     rated: stamp?.rated ?? true,
     seats: receiptSeats,
     chosen: splitRoles.split,
     kickoff,
+    fallback: foldBlueWinProb(
+      rows.map((row) => ({ side: row.side, rAfter: row.r_after, foldP: row.fold_p })),
+    ),
   });
 
   const result: ResultView = {
     gameId: game.id,
     winningSide,
     durationS: game.duration_s,
-    blueWinProb: postedOdds(played, splitRoles.split),
+    blueWinProb: played.blueWinProb,
     oddsKind: played.kind,
     pickRank: played.rank,
     kickoffBlueWinProb: played.kind === 'pre-game' ? kickoffOddsFor(kickoff, receiptSeats) : null,
@@ -876,7 +880,7 @@ async function loadGamePlayers(client: PublicClient, gameId: string) {
     // The stat line is the award's input (M11.3): the columns the result post reads, all of
     // them publicly readable on the rows this key already sees.
     .select(
-      'player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after',
+      'player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after, fold_p',
     )
     .eq('game_id', gameId);
   if (error) throw new Error(`tonight: game player lookup failed: ${error.message}`);
@@ -1042,6 +1046,8 @@ export interface TapeGamePlayer {
   game_id: string;
   r_before: number | null;
   r_after: number | null;
+  /** The fold's expected for this row's side (M14.59); absent reads as none (M21.14 fallback). */
+  fold_p?: number | null;
   player_id?: string;
   side?: number | null;
   role?: RoleValue | null;
@@ -1099,10 +1105,11 @@ export interface TapeSource {
  *
  * - **Result** is the lobby's newest game with a winner — `loadResult`'s pick — and `rated` is
  *   its rule, every scoreboard row carrying both all-time Ratings (`r_before`, `r_after`).
- * - **Odds** are the receipt rule's (`playedOddsOf` / `postedOdds`, M21.7), the number the poster
- *   read: the chosen split's stored `blue_win_prob` when its teams played (flipped for swapped
- *   sides), the pre-game odds when the teams changed after the roll, none for a game nobody
- *   rolled. A lobby with no finished game keeps the split's number (nothing to check it against).
+ * - **Odds** are the receipt rule's (`playedOddsOf`, M21.7), the number the poster and the result
+ *   post read: the chosen split's stored `blue_win_prob` when its teams played (flipped for swapped
+ *   sides), else the pre-game odds, a game nobody rolled included (M21.14): the kickoff record's,
+ *   else the fold's `fold_p`, else `preGameOdds`; none for a not-rated or ARAM game the bot did not
+ *   roll. A lobby with no finished game keeps the split's number (nothing to check it against).
  * - **Sitters** are `loadTeams`' rule: the lobby's members who are not one of the chosen
  *   split's ten, in join order (and by name inside one post, as `loadMembers` sorts). With no
  *   chosen split nobody is known to have sat, and there is no line.
@@ -1184,9 +1191,13 @@ function tapeOdds(
     seats,
     chosen,
     kickoff: game.lobby_id === null ? null : (source.kickoffs?.get(game.lobby_id) ?? null),
+    fallback: foldBlueWinProb(
+      rows.map((row) => ({ side: row.side, rAfter: row.r_after, foldP: row.fold_p })),
+    ),
   });
   return {
-    blueWinProb: postedOdds(played, chosen),
+    // M21.14: pre-game odds for a game nobody rolled too, the result post's number.
+    blueWinProb: played.blueWinProb,
     // `pick #2` only for the bot's own teams; absent in the source reads as no pick number.
     rank: played.kind === 'rolled' ? (split?.rank ?? null) : null,
   };

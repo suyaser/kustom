@@ -4,7 +4,7 @@ import { mapChunks } from '../chunks';
 import { readAssignments } from '../discord/assemble';
 import { readKickoffs } from '../games/kickoffs';
 import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, type QueueKind } from '../games/queue';
-import { type PlayedSplit, playedOddsOf, postedOdds } from '../games/receipt';
+import { type FoldedRow, foldBlueWinProb, type PlayedSplit, playedOddsOf } from '../games/receipt';
 import type { GamesHistoryView } from '../games/types';
 import { gamesHistoryView } from '../games/view';
 import { type WindowKind, type WindowRange, windowRange } from '../night';
@@ -344,6 +344,13 @@ async function readWindow(
   const roster = new Map(players.map((player) => [player.playerId, player]));
 
   const byGame = new Map<string, StatsRow[]>();
+  // M21.14: the fold's stored odds per game, the pre-game odds' fallback (`foldBlueWinProb`).
+  const foldedByGame = new Map<string, FoldedRow[]>();
+  for (const row of rows) {
+    const folded = foldedByGame.get(row.gameId) ?? [];
+    folded.push({ side: row.side, rAfter: row.rAfter, foldP: row.foldP });
+    foldedByGame.set(row.gameId, folded);
+  }
   for (const row of rows) {
     const played = byGame.get(row.gameId) ?? [];
     played.push({
@@ -373,7 +380,11 @@ async function readWindow(
     ...game,
     // Absent, not `null`, on every read that did not ask: `/stats` has no odds to be missing.
     ...(extras.withOdds === true
-      ? { blueWinProb: playedOddsOfGame(game.id, lobbyId, byGame.get(game.id) ?? [], odds) }
+      ? {
+          blueWinProb: playedOddsOfGame(game.id, lobbyId, byGame.get(game.id) ?? [], odds, {
+            fold: foldBlueWinProb(foldedByGame.get(game.id) ?? []),
+          }),
+        }
       : {}),
     rows: byGame.get(game.id) ?? [],
   }));
@@ -667,6 +678,8 @@ interface ScoreboardRow {
   role: RoleValue | null;
   rBefore: number | null;
   rAfter: number | null;
+  /** `fold_p` (M14.59): the `/fun` odds' fallback after the kickoff record (M21.14). */
+  foldP: number | null;
   championId: number | null;
   kills: number;
   deaths: number;
@@ -688,7 +701,7 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
     const { data, error } = await client
       .from('game_players')
       .select(
-        'game_id, player_id, side, role, r_before, r_after, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives',
+        'game_id, player_id, side, role, r_before, r_after, fold_p, champion_id, kills, deaths, assists, gold, damage_to_champs, cs, vision_score, damage_self_mitigated, damage_to_objectives',
       )
       .in('game_id', chunk);
     if (error) throw new Error(`stats: game player lookup failed: ${error.message}`);
@@ -704,6 +717,7 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
         role: row.role,
         rBefore: row.r_before,
         rAfter: row.r_after,
+        foldP: row.fold_p,
         championId: row.champion_id,
         kills: row.kills,
         deaths: row.deaths,
@@ -743,16 +757,15 @@ async function loadOddsInputs(
 ): Promise<OddsInputs> {
   const lobbyIds = games.map((game) => game.lobbyId).filter((id): id is string => id !== null);
   const out: OddsInputs = { splits: new Map(), kickoffs: new Map(), games: new Map() };
-  if (lobbyIds.length === 0) return out;
   // `/fun` reads the facts shape, which carries the mode and `rated`: no second games read. Only a
-  // read without them (none today) asks the games table.
+  // read without them (none today) asks the games table. Every game, a lobby or not (M21.14: a
+  // game with no lobby gets pre-game odds, so its mode and `rated` count too).
   for (const game of games) {
-    if (game.lobbyId === null || game.rated === undefined || game.gameMode === undefined) continue;
+    if (game.rated === undefined || game.gameMode === undefined) continue;
     out.games.set(game.id, { rated: game.rated, aram: matchesQueue(game.gameMode, 'aram') });
   }
-  const withLobby = games
-    .filter((game) => game.lobbyId !== null && !out.games.has(game.id))
-    .map((game) => game.id);
+  const withoutFacts = games.filter((game) => !out.games.has(game.id)).map((game) => game.id);
+  if (lobbyIds.length === 0 && withoutFacts.length === 0) return out;
 
   const [splitPages, kickoffs, gamePages] = await Promise.all([
     mapChunks(lobbyIds, async (chunk) => {
@@ -765,7 +778,7 @@ async function loadOddsInputs(
       return data ?? [];
     }),
     readKickoffs(client, lobbyIds, 'stats'),
-    mapChunks(withLobby, async (chunk) => {
+    mapChunks(withoutFacts, async (chunk) => {
       const { data, error } = await client
         .from('games')
         .select('id, rated, gameMode:game_mode')
@@ -797,24 +810,29 @@ async function loadOddsInputs(
   return out;
 }
 
-/** One game's odds for `/fun`, by the receipt rule (`postedOdds`): a game nobody rolled has none. */
+/**
+ * One game's odds for `/fun`, by the receipt rule (`playedOddsOf`): the bot's teams keep its odds,
+ * any other game -- teams changed, nobody rolled, no lobby at all (M21.14) -- its pre-game odds,
+ * the result post's and the game page's number; a not-rated or ARAM game the bot did not roll none.
+ */
 function playedOddsOfGame(
   gameId: string,
   lobbyId: string | null,
   rows: readonly StatsRow[],
   inputs: OddsInputs,
+  stored: { fold: number | null },
 ): number | null {
-  if (lobbyId === null) return null;
-  const chosen = inputs.splits.get(lobbyId) ?? null;
+  const chosen = lobbyId === null ? null : (inputs.splits.get(lobbyId) ?? null);
   const game = inputs.games.get(gameId);
   const played = playedOddsOf({
     aram: game?.aram ?? false,
     rated: game?.rated ?? true,
     seats: rows.map((row) => ({ puuid: row.puuid, side: row.side, rBefore: row.rBefore })),
     chosen,
-    kickoff: inputs.kickoffs.get(lobbyId) ?? null,
+    kickoff: lobbyId === null ? null : (inputs.kickoffs.get(lobbyId) ?? null),
+    fallback: stored.fold,
   });
-  return postedOdds(played, chosen);
+  return played.blueWinProb;
 }
 
 /**

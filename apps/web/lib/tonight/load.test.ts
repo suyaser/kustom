@@ -193,7 +193,7 @@ describe('what a tape row carries', () => {
       expect(row).toMatchObject({ blueWinProb: null, rank: null });
     });
 
-    it('unrolled: no odds on the tile, as before, even with a kickoff record', () => {
+    it("unrolled (M21.14): the kickoff record's odds, the result post's number; no pick number", () => {
       const kickoffs = new Map([
         [
           'l1',
@@ -207,7 +207,20 @@ describe('what a tape row carries', () => {
         ],
       ]);
       const [row] = assembleTape(source({ splits: [], gamePlayers: scoreboard(traded), kickoffs }), CLOCK);
-      expect(row).toMatchObject({ blueWinProb: null, rank: null });
+      expect(row).toMatchObject({ blueWinProb: 0.41, rank: null });
+    });
+
+    it("unrolled, no kickoff record (M21.14): the fold's fold_p, else preGameOdds", () => {
+      const folded = scoreboard((_, side) => side).map((row) => ({
+        ...row,
+        fold_p: row.side === 100 ? 0.44 : 0.56,
+      }));
+      expect(assembleTape(source({ splits: [], gamePlayers: folded }), CLOCK)[0]).toMatchObject({
+        blueWinProb: 0.44,
+        rank: null,
+      });
+      // Ten at 1500 and no fold_p: an even game.
+      expect(assembleTape(source({ splits: [] }), CLOCK)[0]).toMatchObject({ blueWinProb: 0.5, rank: null });
     });
   });
 

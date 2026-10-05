@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the result post of an unrolled game > matches the snapshot 1`] = `
+{
+  "avatar_url": "https://customs.example/og/kustom/avatar?v=2",
+  "embeds": [
+    {
+      "author": {
+        "name": "Customs Night · game 12",
+        "url": "https://customs.example/g/customs",
+      },
+      "color": 16739125,
+      "description": "Red was 18%. Red won. Upset!
+Top damage: R4, 10.0k.
+**MVP** R4 · **ACE** B4",
+      "title": "Red wins · 30 min",
+    },
+    {
+      "color": 3054591,
+      "description": "\`top\` **B0** · 1238 (-12)
+\`jungle\` **B1** · 1238 (-12)
+\`mid\` **B2** · 1238 (-12)
+\`adc\` **B3** · 1238 (-12)
+\`support\` **B4** · 1238 (-12)",
+      "title": "🟦 BLUE",
+    },
+    {
+      "color": 16739125,
+      "description": "\`top\` **R0** · 1162 (+12)
+\`jungle\` **R1** · 1162 (+12)
+\`mid\` **R2** · 1162 (+12)
+\`adc\` **R3** · 1162 (+12)
+\`support\` **R4** · 1162 (+12)",
+      "title": "🟥 RED",
+    },
+  ],
+  "username": "Kustom",
+}
+`;
