@@ -1,4 +1,4 @@
-import type { ModeRow, PendingRule } from '@customs/core';
+import { type Mode, type ModeLock, type ModeRow, type PendingRule, ruleKey, ruleOf } from '@customs/core';
 import { useSyncExternalStore } from 'react';
 import { ruleFromKey } from './spinEvents';
 
@@ -11,7 +11,8 @@ import { ruleFromKey } from './spinEvents';
  * `ModeRow`: standing mode, pending rule with its region pair, Rated switch), its
  * `group_modes.updated_at`, and the Fearless pool's `reset_at`. It never holds a name or a player
  * id: `set_by`, `pending_set_by` and `reset_by` are not read into it (the row parsers drop them
- * before anything here sees a row). This game's lock is the server render's, never patched here.
+ * before anything here sees a row). This game's lock is the server render's, patched only by this
+ * page's own `this` answers (M20.18, {@link applyLockAnswer}).
  *
  * Three sources, and only these:
  * - **the server render's props** (the first paint and every later render), merged at read time;
@@ -43,8 +44,19 @@ export interface ModeRowSlice {
   updatedAt: string | null;
 }
 
-/** A tap in flight: drafted on the card until its route answers (or fails). */
-export type ModeOptimistic = { kind: 'choice'; choice: string } | { kind: 'rated'; rated: boolean };
+/**
+ * A tap in flight: drafted on the card until its route answers (or fails). M20.18: `game: 'this'`
+ * drafts the balanced lobby's lock instead of the row.
+ */
+export type ModeOptimistic =
+  | { kind: 'choice'; choice: string; game?: 'this' | undefined }
+  | { kind: 'rated'; rated: boolean; game?: 'this' | undefined };
+
+/** This game: the balanced lobby's id and its lock (core's `ModeLock`). */
+export interface LockSlice {
+  lobbyId: string;
+  lock: ModeLock;
+}
 
 interface Entry {
   /** The newest row a channel row or an answer confirmed, or null with none since the page loaded. */
@@ -56,9 +68,14 @@ interface Entry {
    * page heard it (the members' `Normal mode now.` note); null with none.
    */
   normalSince: string | null;
+  /**
+   * M20.18: this page's last `this` answer, and the server render's lock it was taken over
+   * (`base`, {@link lockKey}; null with none). It shows until a render brings another lock.
+   */
+  lock: { lobbyId: string; lock: ModeLock; base: string | null } | null;
 }
 
-const EMPTY: Entry = { confirmed: null, resetAt: null, optimistic: null, normalSince: null };
+const EMPTY: Entry = { confirmed: null, resetAt: null, optimistic: null, normalSince: null, lock: null };
 
 let entries = new Map<string, Entry>();
 const listeners = new Set<() => void>();
@@ -93,6 +110,30 @@ export function applyModeRow(groupId: string, slice: ModeRowSlice): boolean {
     slice.row.standing !== 'normal' ? null : before === 'fearless' ? slice.updatedAt : current.normalSince;
   write(groupId, { ...current, confirmed: slice, normalSince });
   return true;
+}
+
+/**
+ * M20.18: a `this` answer's `thisGame` (the balanced lobby's lock after the write), on the card at
+ * once. The lock has no version (`locked_at` never moves), so the answer is held against the server
+ * render it was taken over: it shows while the render still carries that lock (an older render, or
+ * one still in flight), and a render with any other lock (this write's own re-read, another admin's
+ * write, a new lobby) takes over again.
+ */
+export function applyLockAnswer(groupId: string, answer: LockSlice): void {
+  const rendered = lastServerLock.get(groupId);
+  const base = rendered !== undefined && rendered.lobbyId === answer.lobbyId ? lockKey(rendered.lock) : null;
+  write(groupId, { ...entry(groupId), lock: { lobbyId: answer.lobbyId, lock: answer.lock, base } });
+}
+
+/** A lock as one string, for "is this the same lock": standing, rule (with its tag or pair), Rated. */
+export function lockKey(lock: ModeLock): string {
+  return `${lock.standing}/${modeKeyOf(lock.mode)}/${String(lock.rated)}`;
+}
+
+function modeKeyOf(mode: Mode): string {
+  if (mode.id === 'region') return `region:${mode.blue}:${mode.red}`;
+  const rule = ruleOf(mode);
+  return rule === null ? mode.id : ruleKey(rule);
 }
 
 /** A `fearless_state` row: the pool's reset time, only ever forward. */
@@ -165,6 +206,7 @@ export function resetModeStoreForTests(): void {
   entries = new Map();
   thisGame = new Map();
   lastGood.clear();
+  lastServerLock.clear();
   for (const listener of listeners) listener();
 }
 
@@ -184,6 +226,8 @@ function laterThan(at: string | null, than: string | null): boolean {
  * the card waits for the answer (the select already shows the pick).
  */
 export function draftRow(row: ModeRow, action: ModeOptimistic): ModeRow {
+  // A this-game tap drafts the lock ({@link draftLock}); a standing pick's row write waits for the answer.
+  if (action.game === 'this') return row;
   if (action.kind === 'rated') return { ...row, rated: action.rated };
   if (action.choice === 'normal' || action.choice === 'fearless') {
     return { standing: action.choice, pending: null, rated: null };
@@ -192,6 +236,44 @@ export function draftRow(row: ModeRow, action: ModeOptimistic): ModeRow {
   if (rule === null) return row;
   if (rule.id === 'region') return row.pending?.id === 'region' ? { ...row, rated: null } : row;
   return { ...row, pending: rule as PendingRule, rated: null };
+}
+
+/**
+ * M20.18: the draft of a this-game tap on the lock, as core's `lockTransition` leaves it: a
+ * standing pick plays that mode with Rated at its default, a rule pick resets Rated, a Rated flip
+ * sets it. Region wars keeps its pair when this game already plays it; otherwise the server draws
+ * the pair, so the card waits for the answer.
+ */
+export function draftLock(lock: ModeLock, action: ModeOptimistic): ModeLock {
+  if (action.game !== 'this') return lock;
+  if (action.kind === 'rated') return { ...lock, rated: action.rated };
+  if (action.choice === 'normal' || action.choice === 'fearless') {
+    return { standing: action.choice, mode: { id: action.choice }, rated: null };
+  }
+  const rule = ruleFromKey(action.choice);
+  if (rule === null) return lock;
+  if (rule.id === 'region') return lock.mode.id === 'region' ? { ...lock, rated: null } : lock;
+  return { ...lock, mode: rule, rated: null };
+}
+
+/**
+ * The lock the card shows (M20.18): the render's, unless this page's own `this` answer was taken
+ * over that very render; then a this-game tap in flight on top. Pure, so the merge is a unit test.
+ */
+export function mergeLock(
+  server: LockSlice | null,
+  groupId: string,
+  store: ReadonlyMap<string, Entry>,
+  withTap = true,
+): ModeLock | null {
+  if (server === null) return null;
+  const held = (store.get(groupId) ?? EMPTY).lock;
+  const base =
+    held !== null && held.lobbyId === server.lobbyId && held.base === lockKey(server.lock)
+      ? held.lock
+      : server.lock;
+  const tap = withTap ? (store.get(groupId) ?? EMPTY).optimistic : null;
+  return tap === null ? base : draftLock(base, tap.action);
 }
 
 /** The merged slice, plus the admin's switch off Fearless as this page heard it. */
@@ -249,6 +331,21 @@ export function useModeSlice(
   const store = useSyncExternalStore(subscribe, getEntries, getServerEntries);
   return mergeSlice(lastGoodServer(groupId, server, readFailed), groupId, store, withTap);
 }
+
+/**
+ * M20.18: the card's lock, `server` (the render's, with its lobby) merged with this page's `this`
+ * answers and a this-game tap in flight. The render's lock is noted per group, so an answer is
+ * held against the render it was taken over ({@link applyLockAnswer}).
+ */
+export function useThisGameLock(groupId: string, server: LockSlice | null, withTap = true): ModeLock | null {
+  const store = useSyncExternalStore(subscribe, getEntries, getServerEntries);
+  if (server === null) lastServerLock.delete(groupId);
+  else lastServerLock.set(groupId, server);
+  return mergeLock(server, groupId, store, withTap);
+}
+
+/** The lock of the newest render per group (written by renders, idempotent). */
+const lastServerLock = new Map<string, LockSlice>();
 
 /**
  * The last render whose `group_modes` read worked, per group (audit: a failed read must not show
