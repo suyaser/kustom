@@ -55,6 +55,7 @@ function game(overrides: Partial<GameDetailView> = {}): GameDetailView {
     winningSide: 200,
     nightLabel: 'Tuesday 22 September',
     durationLabel: '31 min',
+    remake: false,
     aram: false,
     rated: true,
     ratedStamp: true,

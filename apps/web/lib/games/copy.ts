@@ -124,6 +124,9 @@ export function teamTitle(side: 100 | 200): string {
 
 export const NOT_RATED = 'not rated';
 
+/** 05-design.md 15 [NEW COPY]: `Remake`, on the tape tile, the Games row and the game page h1. */
+export { REMAKE } from './remake';
+
 /** M23.1 [NEW COPY]: a voided game's note, on its Games row and its page. */
 export const VOIDED_NOTE = 'Not rated · voided';
 /** M23.1 [NEW COPY]: the game page's admin buttons. */

@@ -18,6 +18,7 @@ import {
   readSplitRuns,
 } from './read';
 import { type GameReceipt, gameReceiptOf } from './receipt';
+import { isRemake } from './remake';
 import type { HistorySeat } from './types';
 import { historyGameOf } from './view';
 
@@ -48,6 +49,8 @@ export interface GameDetailView {
   nightLabel: string;
   /** `21 min`. */
   durationLabel: string;
+  /** 05-design.md 15.4: 300 s or less (`isRemake`): h1 `Remake`, no receipt. */
+  remake: boolean;
   aram: boolean;
   /** Every row was rated by the fold. */
   rated: boolean;
@@ -192,6 +195,7 @@ export async function loadGameDetail(
     winningSide,
     nightLabel: formatNightLabel(nightStart(started, timeZone), timeZone),
     durationLabel: formatMinutes(game.duration_s),
+    remake: isRemake(game.duration_s),
     aram,
     rated,
     ratedStamp: game.rated,

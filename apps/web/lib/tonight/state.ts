@@ -1,8 +1,8 @@
 import { lockRated } from '@customs/core';
 import { rosterKey } from '@customs/db/constants';
-import { voidedNote } from '../games/copy';
-import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyRules';
-import { NOT_RATED_RESULT_LINE } from '../mode/notRated';
+import { isRemake } from '../games/remake';
+import { PLAYERS_PER_GAME } from '../lobbyRules';
+import { ADMIN_VOIDED_RESULT_LINE, ENDED_EARLY_RESULT_LINE, NOT_RATED_RESULT_LINE } from '../mode/notRated';
 import {
   BALANCED_SENTENCE,
   FINISHED_SENTENCE,
@@ -16,6 +16,7 @@ import {
   IN_GAME_SENTENCE,
   isNameless,
 } from './copy';
+import { REMAKE_HEADLINE, REMAKE_SENTENCE } from './screenCopy';
 import type {
   LobbyView,
   MemberView,
@@ -26,15 +27,6 @@ import type {
   TonightSnapshot,
   TonightState,
 } from './types';
-
-/**
- * A remake: a game of 300 s or less (`MIN_RATED_DURATION_S`, ingest's `recordedKind`). Never rated,
- * never a result post (`announcesResult`), and on Tonight no result either: no winner on the strip,
- * the poster or the tape, and never in the night record.
- */
-export function isRemake(durationS: number): boolean {
-  return durationS <= MIN_RATED_DURATION_S;
-}
 
 /**
  * Snapshot in, one primary block out (05-design.md, "The tonight page's three states — one
@@ -136,11 +128,14 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
       if (state.lobby.status === 'in_game') return inGameHeader(state.lobby);
       // A finished lobby that reaches the teams block is a game the fold did not rate: the
       // teams they played stay up under `GAME OVER`, with no deltas and no sentence.
+      // A remake says so (05-design.md 15.1): `REMAKE`, `No result, so no Rating change.`.
       if (state.lobby.status === 'finished') {
+        if (state.lobby.result != null && isRemake(state.lobby.result.durationS)) return REMAKE_HEADER;
         return { headline: HEADLINE_FINISHED, count: null, sentence: '', live: false };
       }
       return { headline: HEADLINE_BALANCED, count: null, sentence: BALANCED_SENTENCE, live: true };
     default:
+      if (isRemake(state.result.durationS)) return REMAKE_HEADER;
       return {
         headline: HEADLINE_FINISHED,
         count: null,
@@ -148,12 +143,25 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
         sentence: state.result.rated
           ? FINISHED_SENTENCE
           : state.result.stamp?.rift === true && !state.result.stamp.rated
-            ? // M23.2: a voided game says why (`Not rated · ended early`, `Not rated · voided`).
-              (voidedNote(state.result.stamp.voidReason ?? null) ?? NOT_RATED_RESULT_LINE)
+            ? // M23.2, 05-design.md 15.3: a voided game says why (`Ended early, so no Rating change.`).
+              voidedResultLine(state.result.stamp.voidReason ?? null)
             : '',
         live: false,
       };
   }
+}
+
+const REMAKE_HEADER: HeaderView = {
+  headline: REMAKE_HEADLINE,
+  count: null,
+  sentence: REMAKE_SENTENCE,
+  live: false,
+};
+
+/** The strip's sentence for a Rift game played not rated, by why (05-design.md 15.3). */
+function voidedResultLine(reason: string | null): string {
+  if (reason === null) return NOT_RATED_RESULT_LINE;
+  return reason === 'early-end' ? ENDED_EARLY_RESULT_LINE : ADMIN_VOIDED_RESULT_LINE;
 }
 
 function inGameHeader(lobby: LobbyView): HeaderView {

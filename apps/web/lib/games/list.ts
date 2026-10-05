@@ -25,6 +25,7 @@ import {
   type ScoreRow,
 } from './read';
 import { gameReceiptOf } from './receipt';
+import { isRemake } from './remake';
 
 /**
  * `/g/<slug>/games` (M14.16): one page of 25 of the group's games, filtered in the query, newest
@@ -65,6 +66,8 @@ export interface GameListItem {
   /** `21 min`. */
   durationLabel: string;
   winningSide: 100 | 200;
+  /** 05-design.md 15.4: 300 s or less (`isRemake`): the row says `Remake`, no side, no odds, no note. */
+  remake: boolean;
   aram: boolean;
   odds: CompactOdds;
   /** M15.19: `Tanks only · not rated`, `Ionia vs Noxus · not rated`, `Mirror match`; null with no rule. */
@@ -494,18 +497,22 @@ export function gameListItemOf(
   if (options.viewerPuuid !== null) lineFor(options.viewerPuuid, 'you');
 
   const started = new Date(game.startedAt);
+  const remake = isRemake(game.durationS);
   return {
     id: game.id,
     dateLabel: formatDayMonth(nightStart(started, options.timeZone), options.timeZone),
     durationLabel: formatMinutes(game.durationS),
     winningSide: game.winningSide,
+    remake,
     aram: game.aram,
     odds,
     // Not rated as the tape says it: no scoreboard row carries a fold.
     // M23.1: a voided game says so (ended early, or voided), whatever rule it was played under.
-    ruleNote:
-      voidedNote(game.voidReason) ??
-      ruleRowNote(game.rule, rows.length > 0 && rows.every((row) => row.rAfter !== null)),
+    // A remake has no note (05-design.md 15.4).
+    ruleNote: remake
+      ? null
+      : (voidedNote(game.voidReason) ??
+        ruleRowNote(game.rule, rows.length > 0 && rows.every((row) => row.rAfter !== null))),
     lines,
   };
 }

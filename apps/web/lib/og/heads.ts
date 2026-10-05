@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import { formatMinutes } from '../games/duration';
+import { isRemake } from '../games/remake';
 import { formatNightLabel, nightStart } from '../night';
 import { createPublicClient } from '../publicClient';
 import type { PlayerName } from '../tonight/types';
@@ -71,6 +72,8 @@ export interface GameHead {
   winningSide: 100 | 200;
   durationLabel: string;
   nightLabel: string;
+  /** 05-design.md 15.4: the `<title>` verdict is `Remake · 4 min`. */
+  remake: boolean;
 }
 
 export const loadGameHead = cache(
@@ -92,6 +95,7 @@ export const loadGameHead = cache(
       gameId: data.id,
       winningSide: data.winning_side,
       durationLabel: formatMinutes(data.duration_s),
+      remake: isRemake(data.duration_s),
       nightLabel: formatNightLabel(nightStart(started, timeZone), timeZone),
     };
   },

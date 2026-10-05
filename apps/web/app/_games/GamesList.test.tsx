@@ -13,6 +13,7 @@ function item(overrides: Partial<GameListItem> = {}): GameListItem {
     dateLabel: '22 Sep',
     durationLabel: '21 min',
     winningSide: 100,
+    remake: false,
     aram: false,
     odds: { kind: 'rolled', blueWinProb: 0.54, rank: 1 },
     ruleNote: null,

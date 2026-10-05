@@ -6,7 +6,7 @@ import { loadGameRecapOrNone } from '@/lib/ai/recap';
 import { welcomeHref } from '@/lib/board/hrefs';
 import { loadGameBreakdownOrNone } from '@/lib/breakdown/load';
 import { cachedGroupCalibration } from '@/lib/games/calibrationCache';
-import { resultForWinner } from '@/lib/games/copy';
+import { REMAKE, resultForWinner } from '@/lib/games/copy';
 import { loadGameDetail } from '@/lib/games/detail';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import { claimableSeats } from '@/lib/me/claimable';
@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: GamePageProps): Promise<Metad
   // page's loader (and never the session).
   const game = await loadGameHead(gameId, group.id, nightTimeZone());
   if (game === null) return { title: groupPageTitle(group) };
-  const verdict = `${resultForWinner(game.winningSide)} ${HEAD_SEPARATOR} ${game.durationLabel}`;
+  const verdict = `${game.remake ? REMAKE : resultForWinner(game.winningSide)} ${HEAD_SEPARATOR} ${game.durationLabel}`;
   return {
     title: groupPageTitle(group, verdict),
     ...shareMetadata(

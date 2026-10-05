@@ -45,6 +45,7 @@ export function gameDetailFixture(overrides: Partial<GameDetailView> = {}): Game
     winningSide: 200,
     nightLabel: 'Tuesday 20 October',
     durationLabel: '31 min',
+    remake: false,
     aram: false,
     rated: true,
     ratedStamp: true,

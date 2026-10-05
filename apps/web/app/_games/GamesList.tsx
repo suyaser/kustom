@@ -26,6 +26,7 @@ import {
   PLAYER_FILTER_LABEL,
   PLAYER_FILTER_SUBMIT,
   pageOf,
+  REMAKE,
   resultForWinner,
   SEE_ALL_DATES,
   showingFocus,
@@ -183,11 +184,17 @@ export function GameRow({ item, href }: { item: GameListItem; href: string }) {
       >
         <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <span className="flex items-center gap-2 text-md font-bold">
-            <SideGlyph
-              side={item.winningSide === 100 ? 'blue' : 'red'}
-              className={cn('size-3.5', SIDE_TEXT[item.winningSide])}
-            />
-            {resultForWinner(item.winningSide)}
+            {item.remake ? (
+              REMAKE
+            ) : (
+              <>
+                <SideGlyph
+                  side={item.winningSide === 100 ? 'blue' : 'red'}
+                  className={cn('size-3.5', SIDE_TEXT[item.winningSide])}
+                />
+                {resultForWinner(item.winningSide)}
+              </>
+            )}
           </span>
           <span className="text-xs text-muted-foreground">
             <NumText text={`${item.dateLabel} · ${item.durationLabel}`} />
@@ -206,6 +213,8 @@ export function GameRow({ item, href }: { item: GameListItem; href: string }) {
 }
 
 function RowOdds({ item }: { item: GameListItem }) {
+  // A remake has no result, so no odds line (05-design.md 15.4).
+  if (item.remake) return null;
   const { odds } = item;
   if (odds === null) {
     return item.aram ? (

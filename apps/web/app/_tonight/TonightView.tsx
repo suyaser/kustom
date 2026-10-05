@@ -6,6 +6,7 @@ import type { BoardRow, EmptyWindowFallback } from '@/lib/board/types';
 import { oddsGapSentence } from '@/lib/breakdown/copy';
 import type { GameBreakdown } from '@/lib/breakdown/load';
 import { fearlessWhatsOpen } from '@/lib/fearless/copy';
+import { isRemake } from '@/lib/games/remake';
 import type { PageGroup } from '@/lib/groups/pageGroup';
 import {
   classFacts,
@@ -72,7 +73,6 @@ import {
   anySeatOnTheWrongSide,
   type HeaderView,
   hasNamelessRow,
-  isRemake,
   lobbyAround,
   rollStage,
   tonightHeader,
@@ -371,7 +371,7 @@ export function TonightView(props: TonightViewProps) {
             ) : null
           }
           headline={
-            // A remake has no winner (M23.2 follow-up): the strip keeps `GAME OVER`.
+            // A remake has no winner (05-design.md 15.1): the strip says `REMAKE` (`tonightHeader`).
             state.kind === 'result' && !isRemake(state.result.durationS)
               ? winsHeadline(state.result.winningSide)
               : header.headline

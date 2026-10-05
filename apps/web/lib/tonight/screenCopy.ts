@@ -1,3 +1,4 @@
+import { REMAKE } from '../games/remake';
 import { PLAYERS_PER_GAME } from '../lobbyRules';
 import { renderWebName } from './copy';
 import type { PlayerName } from './types';
@@ -31,6 +32,11 @@ export function shortNightLabel(nightLabel: string): string {
 export function winsHeadline(side: 100 | 200): string {
   return side === 100 ? 'BLUE WINS' : 'RED WINS';
 }
+
+/** 05-design.md 15.1 [NEW COPY]: a finished remake's strip headline, sub-line and announcement. */
+export const REMAKE_HEADLINE = 'REMAKE';
+export const REMAKE_SENTENCE = 'No result, so no Rating change.';
+export const REMAKE_ANNOUNCEMENT = 'Remake. No result.';
 
 export const JUST_STARTED = 'Just started';
 
@@ -141,6 +147,11 @@ export function tapeGame(index: number): string {
   return `Game ${index}`;
 }
 export const TAPE_NO_RESULT = 'No result';
+/** 05-design.md 15.2: a remake tile's accessible name, `Game 3, Remake, 4 minutes`. */
+export function tapeRemakeLabel(index: number, durationS: number): string {
+  const minutes = Math.max(1, Math.floor(Math.max(0, durationS) / 60));
+  return `${tapeGame(index)}, ${REMAKE}, ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+}
 /** Long nights (STRATEGY §6(a)): the tape shows the newest three, the rest behind this. */
 export function showEarlierGames(count: number): string {
   return count === 1 ? 'Show 1 earlier game' : `Show ${count} earlier games`;

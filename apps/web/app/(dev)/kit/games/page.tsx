@@ -17,6 +17,7 @@ const row = (id: string, over: Partial<GameListItem>): GameListItem => ({
   dateLabel: '4 Oct',
   durationLabel: '28 min',
   winningSide: 100,
+  remake: false,
   aram: false,
   odds: { kind: 'rolled', blueWinProb: 0.54, rank: 1 },
   ruleNote: null,

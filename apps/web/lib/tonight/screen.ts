@@ -3,12 +3,13 @@ import type { RoleValue } from '@customs/db';
 import type { OffRoleSeat, RatingsBefore, ReceiptNames, StoredSplit } from '@/components/receipt/types';
 import { barSentence } from '@/lib/receipt/copy';
 import { type GameReceipt, gameReceiptOf } from '../games/receipt';
+import { isRemake } from '../games/remake';
 import { LANE_ORDER } from '../laneOrder';
 import { PLAYERS_PER_GAME } from '../lobbyRules';
 import { isNameless } from './copy';
 import { viewerKickoffSeat } from './kickoff';
-import { announceGameStarted, announceTeams, announceWinner } from './screenCopy';
-import { type HeaderView, isRemake } from './state';
+import { announceGameStarted, announceTeams, announceWinner, REMAKE_ANNOUNCEMENT } from './screenCopy';
+import type { HeaderView } from './state';
 import type {
   LobbyView,
   MemberView,
@@ -215,7 +216,9 @@ export function announcement(state: TonightState, header: HeaderView, viewerPuui
       return announceTeams(odds, spokenSeat(viewerSeat(state.teams, viewerPuuid)));
     }
     default:
-      // A remake has no winner to say (M3.4: and no apology either).
-      return isRemake(state.result.durationS) ? '' : announceWinner(state.result.winningSide);
+      // A remake has no winner to say (05-design.md 15.1): it says so, once.
+      return isRemake(state.result.durationS)
+        ? REMAKE_ANNOUNCEMENT
+        : announceWinner(state.result.winningSide);
   }
 }

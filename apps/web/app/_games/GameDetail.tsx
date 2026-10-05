@@ -20,6 +20,7 @@ import {
   COL_KDA,
   COL_VISION,
   GAMES_MODE_LABELS,
+  REMAKE,
   resultForWinner,
   SCOREBOARD_LABEL,
   teamTitle,
@@ -82,7 +83,7 @@ export function GameDetail({
             {BACK_TO_GAMES}
           </Link>
           <h1 className="font-display text-display leading-[0.95] font-black tracking-[-0.01em] uppercase font-stretch-62% text-balance">
-            {resultForWinner(game.winningSide)}
+            {game.remake ? REMAKE : resultForWinner(game.winningSide)}
           </h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <span>{game.nightLabel}</span>
@@ -104,9 +105,12 @@ export function GameDetail({
         {recap}
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_var(--rail-w)]">
-          <div className="lg:col-start-2 lg:row-start-1">
-            <GameReceipt game={game} howHref={howHref} breakdown={breakdown} />
-          </div>
+          {/* A remake has no result, so no receipt (05-design.md 15.4). */}
+          {game.remake ? null : (
+            <div className="lg:col-start-2 lg:row-start-1">
+              <GameReceipt game={game} howHref={howHref} breakdown={breakdown} />
+            </div>
+          )}
           <section
             aria-labelledby="scoreboard-title"
             className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1"

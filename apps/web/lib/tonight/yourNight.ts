@@ -2,10 +2,10 @@ import type { RoleValue, SideValue } from '@customs/db';
 import { championName } from '../champs/names';
 import { inChunks } from '../chunks';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
+import { isRemake } from '../games/remake';
 import { type FoldAwardPlayer, gameScores, gatedGameAward, gateGame } from '../ingest/fold';
 import type { PublicClient } from '../publicClient';
 import { type DeltaPair, sumDisplayDeltas } from '../ratingDisplay';
-import { isRemake } from './state';
 
 /**
  * Your night (M14.36): a linked viewer's recap of tonight's games in this group, on Tonight (idle

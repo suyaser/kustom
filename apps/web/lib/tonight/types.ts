@@ -429,6 +429,12 @@ export interface TapeEntry {
   /** Members who were not in the chosen split's ten, in join order. `TeamsView.sitters`' rule. */
   sitters: PlayerName[];
   /**
+   * 05-design.md 15.2: the lobby's newest game was a remake (300 s or less, `isRemake`). `result`
+   * stays `null` (no winner, never counted); the tile says `Remake` and links to the game's page.
+   * Absent: not a remake.
+   */
+  remake?: { gameId: string; durationS: number } | undefined;
+  /**
    * M22.6 (05-design.md 14.6): the first reporter of the tile's table, only on a night two tables
    * overlapped; the tile names its lobby after them. Absent: no lobby line (every one-lobby night).
    */

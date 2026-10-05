@@ -22,6 +22,7 @@ import {
   type ReceiptSeat,
   splitRolesFor,
 } from '../games/receipt';
+import { isRemake } from '../games/remake';
 import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
 import type { TableRow } from '../liveTables';
@@ -42,7 +43,6 @@ import { type LobbyCard, loadLobbyCards } from './cards';
 import { renderWebName } from './copy';
 import { kickoffView, readKickoff } from './kickoff';
 import { pickTable } from './selection';
-import { isRemake } from './state';
 import { nightTables, seatsFromRosters, type TokenSeen, tablesOverlapped } from './tables';
 import type {
   LobbyView,
@@ -1311,10 +1311,12 @@ export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[]
   const splitByLobby = new Map(source.splits.map((split) => [split.lobby_id, split]));
 
   return source.lobbies.map((lobby) => {
-    // A remake (300 s or less) is no result: the tile says `No result` and the tape does not count
-    // it, as Discord posts nothing for one (`announcesResult`).
+    // A remake (300 s or less) is no result: `result` stays null, so nothing counts it, as Discord
+    // posts nothing for one (`announcesResult`); the tile still says `Remake` and links to its page
+    // (05-design.md 15.2).
     const newest = gamesByLobby.get(lobby.id);
-    const game = newest === undefined || isRemake(newest.duration_s) ? undefined : newest;
+    const remake = newest !== undefined && isRemake(newest.duration_s);
+    const game = newest === undefined || remake ? undefined : newest;
     const split = splitByLobby.get(lobby.id);
     const rows = game === undefined ? [] : (rowsByGame.get(game.id) ?? []);
     const odds = game === undefined ? null : tapeOdds(game, rows, split, source);
@@ -1340,6 +1342,7 @@ export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[]
       blueWinProb: odds === null ? (split?.blue_win_prob ?? null) : odds.blueWinProb,
       rank: odds === null ? (split?.rank ?? null) : odds.rank,
       sitters: split === undefined ? [] : tapeSitters(lobby.id, split, source),
+      ...(remake ? { remake: { gameId: newest.id, durationS: newest.duration_s } } : {}),
     };
   });
 }

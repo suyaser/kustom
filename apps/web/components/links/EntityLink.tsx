@@ -32,13 +32,16 @@ export function EntityLink({
   href,
   className,
   children,
+  'aria-label': ariaLabel,
 }: {
   href: Route;
   className?: string | undefined;
   children?: ReactNode;
+  /** When the visible text does not read as a sentence (the remake tape tile, 05-design.md 15.2). */
+  'aria-label'?: string | undefined;
 }) {
   return (
-    <Link href={href} prefetch={false} className={cn(PRESS, className)}>
+    <Link href={href} prefetch={false} aria-label={ariaLabel} className={cn(PRESS, className)}>
       {children}
     </Link>
   );

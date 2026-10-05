@@ -5,7 +5,7 @@ import { EntityLink } from '@/components/links/EntityLink';
 import { CompactReceipt } from '@/components/receipt';
 import { Chip } from '@/components/ui/chip';
 import { SideGlyph } from '@/components/ui/side-glyph';
-import { voidedNote } from '@/lib/games/copy';
+import { REMAKE, voidedNote } from '@/lib/games/copy';
 import { formatMinutes } from '@/lib/games/duration';
 import type { PageGroup } from '@/lib/groups/pageGroup';
 import { ruleRowNote } from '@/lib/mode/rowNote';
@@ -19,6 +19,7 @@ import {
   tapeEarlier,
   tapeGame,
   tapePlayed,
+  tapeRemakeLabel,
 } from '@/lib/tonight/screenCopy';
 import type { TapeEntry } from '@/lib/tonight/types';
 import { cn } from '@/lib/utils';
@@ -110,8 +111,12 @@ function Tile({
   label: string | null;
 }) {
   const result = entry.result;
+  // A remake (05-design.md 15.2): no side, no receipt, no note, no MVP; its minutes and its link stay.
+  const remake = result === null ? (entry.remake ?? null) : null;
   const side = result === null ? null : result.winningSide === 100 ? 'blue' : 'red';
-  const href = result === null ? null : groupHref(group, { page: 'game', gameId: result.gameId });
+  const gameId = result?.gameId ?? remake?.gameId ?? null;
+  const href = gameId === null ? null : groupHref(group, { page: 'game', gameId });
+  const durationS = result?.durationS ?? remake?.durationS ?? null;
   const satOut = tapeSatOut(entry.sitters);
 
   const body: ReactNode = (
@@ -135,9 +140,9 @@ function Tile({
       <span className="min-w-0 flex-1 py-2 pr-3 pl-3">
         <span className="flex items-baseline justify-between gap-2">
           <span className="font-bold">{tapeGame(number)}</span>
-          {result === null ? null : (
+          {durationS === null ? null : (
             <span className="num text-sm text-muted-foreground font-stretch-85%">
-              {formatMinutes(result.durationS)}
+              {formatMinutes(durationS)}
             </span>
           )}
         </span>
@@ -148,7 +153,9 @@ function Tile({
           </span>
         )}
         {result === null ? (
-          <span className="block text-sm text-muted-foreground">{TAPE_NO_RESULT}</span>
+          <span className="block text-sm text-muted-foreground">
+            {remake === null ? TAPE_NO_RESULT : REMAKE}
+          </span>
         ) : (
           <>
             {entry.blueWinProb === null ? null : (
@@ -186,6 +193,7 @@ function Tile({
       ) : (
         <EntityLink
           href={href}
+          aria-label={remake === null ? undefined : tapeRemakeLabel(number, remake.durationS)}
           className="flex min-h-11 rounded-control border border-border bg-raised hover:border-border-strong"
         >
           {body}
