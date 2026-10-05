@@ -74,7 +74,7 @@ function heldFetch() {
 const bodies = (mock: ReturnType<typeof vi.fn>) =>
   mock.mock.calls.map((call) => JSON.parse(String((call as unknown as [string, RequestInit])[1].body)));
 
-const select = () => screen.getByRole('combobox', { name: 'Mode' }) as HTMLSelectElement;
+const select = () => screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }) as HTMLSelectElement;
 const setButton = () => screen.queryByRole('button', { name: SET_MODE });
 const spinButton = () => screen.getByRole('button', { name: /^Spin/ });
 

@@ -30,7 +30,9 @@ import before from './modeCardText.pre-m20-8.json';
  *    is the admin write, M20.8), never from a render, so a page opened after the switch has none.
  * 5. After Roll an admin's controls are the next game, the row as set (M20 D6: Roll moved the rule
  *    onto the lock), so the select and the switch read the row and `Set mode` is no longer offered
- *    for this game's rule (queuing it again is a plain change). The card above them is unchanged.
+ *    for this game's rule (queuing it again is a plain change). The picker is headed `Next game`,
+ *    not `Mode` (lead's call), under the kept `Changes apply from the next game.`. The card above
+ *    them is unchanged.
  *
  * One entry of the capture was fixed by hand: `Normal | empty | admin` was read before the lazy
  * admin controls had loaded (the first admin render of the run), so it lacked them; it now holds
@@ -142,7 +144,8 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
         const toggle = await screen.findByRole('switch', { name: 'Rated' });
         const card = screen.getByRole('region', { name: /^Mode / });
         const text = card.textContent ?? '';
-        const select = (screen.getByRole('combobox', { name: 'Mode' }) as HTMLSelectElement).value;
+        const select = (screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }) as HTMLSelectElement)
+          .value;
         const rated = toggle.getAttribute('aria-checked');
         const mirror = document.querySelector('[data-slot="mirror-host-line"]')?.textContent ?? null;
         const old = CHANGES(name, key, expected[`${name} | ${key} | admin`] as Entry);
@@ -152,6 +155,12 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
           const cut = (t: string) => t.slice(0, t.indexOf(ADMIN_FOOT));
           expect({ card: cut(text), mirror }).toEqual({ card: cut(old.text), mirror: old.mirror });
           expect(select).toBe(selectValue(row));
+          // The picker says whose game it is (lead's call on OPEN 1): `Next game`, never `Mode`.
+          expect(screen.getByRole('combobox', { name: 'Next game' })).toBeInTheDocument();
+          expect(screen.queryByRole('combobox', { name: 'Mode' })).toBeNull();
+          // Kept wherever it was (a `Next game: …` line replaces it, design round 1).
+          const applies = 'Changes apply from the next game.';
+          expect(text.includes(applies)).toBe(old.text.includes(applies));
           expect(rated).toBe(String(nextRated(row)));
         } else {
           expect({ text, select, rated, mirror }).toEqual({

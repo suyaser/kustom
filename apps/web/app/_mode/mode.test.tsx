@@ -317,7 +317,7 @@ describe('the admin controls on the card', () => {
     vi.stubGlobal('fetch', fetchMock);
     draw();
     expect(screen.queryByRole('button', { name: 'Set mode' })).toBeNull();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Mode' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }), {
       target: { value: 'normal' },
     });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -335,7 +335,7 @@ describe('the admin controls on the card', () => {
       vi.fn(async () => ({ ok: false, status: 500, json: async () => null }) as Response),
     );
     draw();
-    const select = screen.getByRole('combobox', { name: 'Mode' });
+    const select = screen.getByRole('combobox', { name: /^(Mode|Next game)$/ });
     fireEvent.change(select, { target: { value: 'normal' } });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(MODE_CHANGE_FAILED);
@@ -388,7 +388,7 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
 
   it('lists the rule optgroups, with a too-small rule disabled and suffixed', () => {
     draw({ tooFew: ['class:Marksman'] });
-    const select = screen.getByRole('combobox', { name: 'Mode' });
+    const select = screen.getByRole('combobox', { name: /^(Mode|Next game)$/ });
     const groups = [...select.querySelectorAll('optgroup')].map((group) => group.label);
     expect(groups).toEqual(['Class wars (one game)', 'Region wars (one game)', 'Mirror match (one game)']);
     const options = within(select).getAllByRole('option');

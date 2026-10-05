@@ -88,7 +88,7 @@ const cardText = () => {
 
 async function admin(): Promise<{ text: string; select: string; rated: string | null }> {
   const toggle = await screen.findByRole('switch', { name: 'Rated' });
-  const select = screen.getByRole('combobox', { name: 'Mode' }) as HTMLSelectElement;
+  const select = screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }) as HTMLSelectElement;
   return { text: cardText(), select: select.value, rated: toggle.getAttribute('aria-checked') };
 }
 

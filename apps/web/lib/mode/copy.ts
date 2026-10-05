@@ -52,6 +52,8 @@ export const MODE_ACTIONS: Record<GroupMode, string> = {
 export const MODE_ADMIN_EYEBROW = 'Admins and the owner';
 export const MODE_SETTINGS_LABEL = 'Mode settings';
 export const MODE_PICKER_LABEL = 'Mode';
+/** M20.8 (lead's call): after Roll the picker is the next game's (the row), so it says so. */
+export const MODE_PICKER_LABEL_NEXT = 'Next game';
 export const SET_MODE = 'Set mode';
 export const SETTING_MODE = 'Setting…';
 /** Under the select (design round 1): only Normal says something; Fearless is the card above it. */

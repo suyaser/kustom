@@ -27,7 +27,7 @@ function page(key: 'filling' | 'balanced' | 'in-game' | 'idle', options: Tonight
   return <TonightView {...fixture} viewer={ADMIN_VIEWER} group={ORIGINAL_GROUP} />;
 }
 
-const select = () => screen.getByRole('combobox', { name: 'Mode' }) as HTMLSelectElement;
+const select = () => screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }) as HTMLSelectElement;
 const toggle = () => screen.getByRole('switch', { name: 'Rated' });
 const card = () => screen.getByRole('region', { name: /^Mode / });
 
@@ -43,6 +43,8 @@ describe('owner bug 1: after Roll the controls show what is set for the next gam
       expect(within(card()).getByRole('heading', { level: 2 })).toHaveTextContent('Class wars');
       expect(within(card()).getByText('Not rated')).toBeInTheDocument();
       expect(within(card()).getByText(MODE_APPLIES_NEXT_GAME)).toBeInTheDocument();
+      // Headed `Next game` after Roll (lead's call), so the select never reads as this game's.
+      expect(screen.getByRole('combobox', { name: 'Next game' })).toBe(select());
       expect(select().value).toBe('normal');
       expect(toggle()).toHaveAttribute('aria-checked', 'true');
     });
@@ -51,6 +53,7 @@ describe('owner bug 1: after Roll the controls show what is set for the next gam
   it('before Roll the select is the pending rule and the switch its Rated', async () => {
     render(page('filling', { rule: 'class:Tank', mode: 'normal' }));
     await screen.findByRole('switch', { name: 'Rated' });
+    expect(screen.getByRole('combobox', { name: 'Mode' })).toBe(select());
     expect(select().value).toBe('class:Tank');
     expect(toggle()).toHaveAttribute('aria-checked', 'false');
     expect(toggle()).toHaveAccessibleDescription(RATED_OFF);

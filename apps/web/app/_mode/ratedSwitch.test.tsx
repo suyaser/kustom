@@ -307,7 +307,7 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     vi.stubGlobal('fetch', net.mock);
     await tonight();
     expect(title()).toBe('Fearless');
-    const select = screen.getByRole('combobox', { name: 'Mode' });
+    const select = screen.getByRole('combobox', { name: /^(Mode|Next game)$/ });
     fireEvent.change(select, { target: { value: 'class:Tank' } });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     // Before the route has answered: the card is already the new one.
@@ -325,7 +325,9 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     const net = heldFetch();
     vi.stubGlobal('fetch', net.mock);
     await tonight();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Mode' }), { target: { value: 'normal' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }), {
+      target: { value: 'normal' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     expect(title()).toBe('Normal');
     await net.release({ ok: false, status: 403, json: async () => ({}) } as Response);
@@ -353,7 +355,9 @@ describe('M19.13: Rated, Set mode and Spin move the card with no server render',
     await tonight('balanced', { rule: 'class:Tank' });
     expect(title()).toBe('Class wars');
     expect(screen.queryByText('Next game: Mages only.')).toBeNull();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Mode' }), { target: { value: 'class:Mage' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }), {
+      target: { value: 'class:Mage' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     expect(title()).toBe('Class wars');
     expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();

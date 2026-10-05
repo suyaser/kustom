@@ -362,7 +362,7 @@ describe('who gets controls', () => {
     const admin = draw('in-game', { rule: 'class:Tank', queued: 'class:Mage' }, ADMIN_VIEWER);
     expect(await screen.findByRole('button', { name: 'Spin' })).toBeInTheDocument();
     expect(screen.getByText('Next game: Mages only.')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Mode' })).toHaveValue('class:Mage');
+    expect(screen.getByRole('combobox', { name: /^(Mode|Next game)$/ })).toHaveValue('class:Mage');
     admin.unmount();
     for (const viewer of [MEMBER_VIEWER, ANON_VIEWER]) {
       const other = draw('idle', { rule: 'class:Tank' }, viewer);

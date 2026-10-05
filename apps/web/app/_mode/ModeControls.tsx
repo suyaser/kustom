@@ -40,6 +40,7 @@ import {
   MODE_CHANGE_FAILED,
   MODE_NAMES,
   MODE_PICKER_LABEL,
+  MODE_PICKER_LABEL_NEXT,
   MODE_PICKER_SENTENCES,
   MODE_SETTINGS_LABEL,
   SET_MODE,
@@ -314,7 +315,7 @@ export function ModeControls({
         <input type="hidden" name="groupId" value={groupId} />
         <input type="hidden" name="redirectTo" value={redirectTo} />
         <label htmlFor={selectId} className="text-xs font-bold">
-          {MODE_PICKER_LABEL}
+          {inGame ? MODE_PICKER_LABEL_NEXT : MODE_PICKER_LABEL}
         </label>
         {/* Row 1 the select at full width, row 2 `[Set mode][Spin]`; one row only when the card
             itself is 520px or wider (a container query, never the viewport; design round 1). */}

@@ -583,7 +583,7 @@ describe('the Mode card (M14.30)', () => {
     for (const key of states) {
       const admin = draw(key, { viewer: ADMIN_VIEWER });
       // The admin foot is code-split (`ModeControlsLazy`): it arrives a tick after the card.
-      expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+      expect(await screen.findByRole('combobox', { name: /^(Mode|Next game)$/ })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Reset fearless' })).toBeInTheDocument();
       // M15.5: Spin and the Rated switch on the admin row.
       expect(screen.getByRole('switch', { name: 'Rated' })).toBeInTheDocument();
@@ -591,7 +591,7 @@ describe('the Mode card (M14.30)', () => {
       admin.unmount();
       for (const viewer of [MEMBER_VIEWER, ANON_VIEWER]) {
         const other = draw(key, { viewer });
-        expect(screen.queryByRole('combobox', { name: 'Mode' })).toBeNull();
+        expect(screen.queryByRole('combobox', { name: /^(Mode|Next game)$/ })).toBeNull();
         expect(screen.queryByRole('switch')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Spin' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Reset fearless' })).toBeNull();
@@ -604,22 +604,22 @@ describe('the Mode card (M14.30)', () => {
   it('hides Reset with an empty pool and in Normal', async () => {
     const { connection: _c, ...empty } = tonightStateFixture('idle', { now: NOW, pool: 'empty' });
     const a = render(<TonightView {...empty} viewer={ADMIN_VIEWER} group={ORIGINAL_GROUP} />);
-    expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: /^(Mode|Next game)$/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reset fearless' })).toBeNull();
     a.unmount();
     const { connection: _d, ...normal } = tonightStateFixture('idle', { now: NOW, mode: 'normal' });
     render(<TonightView {...normal} viewer={ADMIN_VIEWER} group={ORIGINAL_GROUP} />);
-    expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: /^(Mode|Next game)$/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reset fearless' })).toBeNull();
   });
 
   it('empty group: everyone sees it (design ruling on 8.2), the picker for admins only', async () => {
     const member = draw('empty');
     expect(screen.getByRole('region', { name: /^Mode / })).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Mode' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /^(Mode|Next game)$/ })).toBeNull();
     member.unmount();
     draw('empty-admin');
-    expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: /^(Mode|Next game)$/ })).toBeInTheDocument();
   });
 
   it('switched to Normal tonight: members get the dashed note when the page hears the switch (M20.8)', () => {
