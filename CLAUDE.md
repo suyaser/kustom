@@ -94,7 +94,7 @@ pnpm --filter web formation-sim [seeds=20] [games=600]  # M18.13: team-formation
 pnpm --filter web perf-tonight [--delay 40] [--runs 3] [--also <slug>] [--playwright <path>] [--keep] [--delete perf-<hex>]  # M19.1: Tonight bench on the local stack only (needs `pnpm --filter web build`); scratch group, prints queries/rounds/TTFB per screen
 packages/db/scripts/m18-10-throwaway-check.sh [0043 path]  # M18.10: checks 0043 on a throwaway restore of local (pg_dump read only); needs Docker + pnpm db:start
 # M18.10 step 5 (read-only switch checks: board, one game, week sums): paste packages/db/scripts/m18-10-checks.sql into the SQL editor with the group slug
-pnpm --filter web perf-tonight-taps --playwright <path> [--delay 40] [--cpu 4] [--port 3171] [--web <app dir>] [--start yes]  # M19.3: Tonight in a real browser on the local stack only (needs a build): renders per event and per tap, pending-until-screen-changed (dead window), INP, another group's night (M19.10), a pending Start a lobby with --start yes (M19.17); scratch group + scratch auth user, deleted after
+pnpm --filter web perf-tonight-taps --playwright <path> [--delay 40] [--cpu 4] [--port 3171] [--web <app dir>]  # M19.3: Tonight in a real browser on the local stack only (needs a build): renders per event and per tap, pending-until-screen-changed (dead window), INP, another group's night (M19.10); scratch group + scratch auth user, deleted after
 pnpm --filter web backfill-game-facts [--dry-run] [--group <slug>] [--hosted]
                              # 0041 (db-perf): writes game_facts (rawFactsFromUnknown of games.raw) for
                              # every game without a row and recomputes rows below GAME_FACTS_VERSION
