@@ -33,8 +33,20 @@ import {
   fearlessResetBody,
 } from '@/lib/fearless/copy';
 import type { RegionTarget } from '@/lib/mode/cardView';
-import { applyModeRow, beginOptimistic, endOptimistic, type ModeOptimistic } from '@/lib/mode/clientStore';
-import { type ControlsWrite, controlsOf, type RegionWrite, useControls } from '@/lib/mode/controlsStore';
+import {
+  applyModeRow,
+  beginOptimistic,
+  endOptimistic,
+  type ModeOptimistic,
+  rowTime,
+} from '@/lib/mode/clientStore';
+import {
+  type CardMark,
+  type ControlsWrite,
+  controlsOf,
+  type RegionWrite,
+  useControls,
+} from '@/lib/mode/controlsStore';
 import {
   MODE_ADMIN_EYEBROW,
   MODE_APPLIES_NEXT_GAME,
@@ -140,6 +152,11 @@ export interface ModeControlsProps {
   regions?: { this: RegionTarget | null; next: RegionTarget | null } | undefined;
   /** The card's status already shows the next game's pair and its short-pair line (before Roll). */
   statusShowsNext?: boolean | undefined;
+  /**
+   * M20.15: the card as it is now (the row's `updated_at`, this game's pair). When it moves on
+   * from a write this page did not make, the page's own outcome line goes. Absent: never.
+   */
+  card?: CardMark | undefined;
 }
 
 export function ModeControls({
@@ -156,6 +173,7 @@ export function ModeControls({
   error,
   regions,
   statusShowsNext = false,
+  card,
 }: ModeControlsProps) {
   const selectId = useId();
   const sentenceId = useId();
@@ -170,10 +188,43 @@ export function ModeControls({
   const rated = nextRated;
   const choice = controls.pick ?? current;
   const pending = controls.pending;
-  const said = controls.said ?? (controls.acted ? null : (notice ?? null));
+  const said = controls.said ?? (controls.acted || controls.noticeGone ? null : (notice ?? null));
   const failed = controls.failed ?? (controls.acted ? null : (error ?? null));
 
   useEffect(() => setHydrated(true), []);
+
+  // M20.15: the card moved on from a write this page did not make (another admin, a Roll, a
+  // record): the outcome line said for the old card goes, so it never contradicts the card above
+  // it. Each line marks the card it was said for (`saidFor`); the page's own answer is that card,
+  // so it stays. A refusal stays (M20.17). Checked when the card moves and when a line is said
+  // (an answer older than a row already heard is stale at once), and on a remount (a Roll).
+  const cardAt = card?.updatedAt ?? null;
+  const cardPair = card?.thisPair ?? null;
+  const cardNow = useRef<CardMark | null>(card ?? null);
+  cardNow.current = card ?? null;
+  const loadedCard = useRef({ at: cardAt, pair: cardPair });
+  const seenPair = useRef(cardPair);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the card or the line moves; the rest is read fresh.
+  useEffect(() => {
+    // This game's pair is the server render's: a `this` answer's pair arrives on the card a moment
+    // after its line, so only a move of the pair to another pair than the line's is someone else's.
+    const pairMoved = cardPair !== seenPair.current;
+    seenPair.current = cardPair;
+    const now = controlsOf(groupId);
+    if (now.pending !== null) return;
+    if (now.said === null) {
+      // A no-JS post's `?notice=` is this page's line too, said for the card the page loaded with.
+      const moved = cardAt !== loadedCard.current.at || cardPair !== loadedCard.current.pair;
+      if (moved && !now.acted && !now.noticeGone && notice != null) dispatch({ type: 'stale' });
+      return;
+    }
+    const mine = now.saidFor;
+    if (mine === null) return;
+    const newerRow = rowTime(cardAt) > rowTime(mine.updatedAt);
+    const otherPair = pairMoved && cardPair !== null && cardPair !== mine.thisPair;
+    if (newerRow || otherPair) dispatch({ type: 'stale' });
+  }, [cardAt, cardPair, controls.said, controls.saidFor]);
+
   // Spin's quiet time is a deadline in the store, so it outlives a remount (a Roll moves the card).
   useEffect(() => {
     if (controls.spinUntil === null) return;
@@ -195,7 +246,14 @@ export function ModeControls({
     body: Record<string, unknown>,
     optimistic: ModeOptimistic | null = null,
   ): Promise<
-    | { ok: true; spun: RuleOption | null; state: ModeRowState | null; notice: string | null }
+    | {
+        ok: true;
+        spun: RuleOption | null;
+        state: ModeRowState | null;
+        notice: string | null;
+        /** This game's region pair after a `this` write (`blue|red`), else null. */
+        thisPair: string | null;
+      }
     | { ok: false; status: number; error: string | null }
   > {
     const token = optimistic === null ? null : beginOptimistic(groupId, optimistic);
@@ -222,20 +280,31 @@ export function ModeControls({
       if (!parsed.success) {
         void requestTonightRefresh();
         done();
-        return { ok: true, spun: null, state: null, notice: null };
+        return { ok: true, spun: null, state: null, notice: null, thisPair: null };
       }
-      const { state, notice, spun } = parsed.data;
+      const { state, notice, spun, thisGame } = parsed.data;
       // The answer first, then the tap goes: the card never flashes back to the old state.
       applyModeRow(groupId, {
         row: { standing: state.standing, pending: state.pending, rated: state.rated },
         updatedAt: state.updatedAt,
       });
       done();
-      return { ok: true, spun: spun === undefined ? null : ruleOptionOf(spun), state, notice };
+      const thisPair = thisGame?.mode.id === 'region' ? `${thisGame.mode.blue}|${thisGame.mode.red}` : null;
+      return { ok: true, spun: spun === undefined ? null : ruleOptionOf(spun), state, notice, thisPair };
     } catch {
       done();
       return { ok: false, status: 0, error: null };
     }
+  }
+
+  /**
+   * The card an answer's line is said for (M20.15): the answer's row, and this game's pair as the
+   * answer left it (a `this` write) or as the card shows it. An answer with no row: the card now.
+   */
+  function markOf(result: { state: ModeRowState | null; thisPair: string | null }): CardMark | null {
+    const shown = cardNow.current;
+    if (result.state === null) return shown;
+    return { updatedAt: result.state.updatedAt, thisPair: result.thisPair ?? shown?.thisPair ?? null };
   }
 
   /** Starts a write unless one is in flight (a double tap posts once). */
@@ -255,7 +324,7 @@ export function ModeControls({
       dispatch({ type: 'refused', failed: result.status === 409 ? RULE_TOO_FEW_OPEN : MODE_CHANGE_FAILED });
       return;
     }
-    dispatch({ type: 'answered', said: result.notice });
+    dispatch({ type: 'answered', said: result.notice, saidFor: markOf(result) });
     // The card is the answer already (M19.13): the button goes, focus stays on the select.
     selectRef.current?.focus();
   }
@@ -293,7 +362,7 @@ export function ModeControls({
       dispatch({ type: 'refused', failed: MODE_CHANGE_FAILED });
       return;
     }
-    dispatch({ type: 'answered', said: result.notice });
+    dispatch({ type: 'answered', said: result.notice, saidFor: markOf(result) });
   }
 
   /**
@@ -309,7 +378,7 @@ export function ModeControls({
       dispatch({ type: 'refused', failed: result.error ?? MODE_CHANGE_FAILED });
       return false;
     }
-    dispatch({ type: 'answered', said: result.notice });
+    dispatch({ type: 'answered', said: result.notice, saidFor: markOf(result) });
     if (target.game === 'this') void requestTonightRefresh();
     return true;
   }
@@ -469,7 +538,7 @@ export function ModeControls({
           groupId={groupId}
           banned={banned}
           confirmHref={resetConfirmHref}
-          onSaid={(line) => dispatch({ type: 'answered', said: line })}
+          onSaid={(line) => dispatch({ type: 'answered', said: line, saidFor: cardNow.current })}
           onClosed={() => statusRef.current?.focus()}
         />
       ) : null}

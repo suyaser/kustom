@@ -165,6 +165,14 @@ export const REGION_PAIR_SHORT =
   'Too few champions are open for this pair now. Roll will draw new regions unless an admin changes them.';
 
 /**
+ * M20.16 (product's copy): the next game's pair while a lobby is balanced or in game, for everyone,
+ * under this game's status: `Next game: Region wars, Ixtal vs Ionia.`
+ */
+export function nextRegionLine(pair: { blue: string; red: string }): string {
+  return `Next game: Region wars, ${regionName(pair.blue as RegionId)} vs ${regionName(pair.red as RegionId)}.`;
+}
+
+/**
  * `Next game: Mages only.` (a standing pick after Roll: `Next game: Normal.`). With `rated` it says
  * Rated too (QA fix 2026-10-04): `Next game: Tanks only. Rated.`; with no mode (the next game plays
  * the same mode as this one) only Rated: `Next game: not rated.`

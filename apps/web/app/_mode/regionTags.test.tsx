@@ -53,7 +53,7 @@ describe('the chip carries its regions (acceptance 2, 3)', () => {
     expect(spoken(chip('Bard'))).toBe('Bard');
   });
 
-  it('shows the dot between two regions, aria-hidden, with no-break spaces inside names and before it', () => {
+  it('shows the dot between two regions, aria-hidden, a no-break space before it', () => {
     render(
       <ul>
         <OpenChip id={711} name="Vex" regions={championRegionNames(711)} />
@@ -62,9 +62,38 @@ describe('the chip carries its regions (acceptance 2, 3)', () => {
     const tag = chip('Vex')?.querySelector('[data-slot="region-tag"]');
     const visible = (tag?.cloneNode(true) as Element) ?? null;
     for (const sr of visible.querySelectorAll('.sr-only')) sr.remove();
-    expect(visible.textContent).toBe('Shadow Isles · Bandle City');
+    expect(visible.textContent).toBe('Shadow Isles\u00a0· Bandle City');
     const dot = Array.from(tag?.querySelectorAll('[aria-hidden="true"]') ?? []).map((el) => el.textContent);
-    expect(dot).toEqual([' · ']);
+    expect(dot).toEqual(['\u00a0·']);
+  });
+
+  it('M20.14: each region is one unit that wraps only at its own spaces, never inside a word', () => {
+    render(
+      <ul>
+        <OpenChip id={711} name="Vex" regions={championRegionNames(711)} />
+        <OpenChip id={115} name="Ziggs" regions={championRegionNames(115)} />
+        <OpenChip id={412} name="Thresh" regions={championRegionNames(412)} />
+      </ul>,
+    );
+    const units = (name: string) =>
+      Array.from(chip(name)?.querySelectorAll('[data-slot="region-unit"]') ?? []).map((unit) => {
+        const clone = unit.cloneNode(true) as Element;
+        for (const sr of clone.querySelectorAll('.sr-only')) sr.remove();
+        return { text: clone.textContent, inlineBlock: unit.classList.contains('inline-block') };
+      });
+    // The dot ends the unit before it (so `Zaun ·` / `Bandle City` is the first break), and the
+    // spaces inside a region name are ordinary spaces (so only a unit wider than the line breaks,
+    // and there, between its words).
+    expect(units('Vex')).toEqual([
+      { text: 'Shadow Isles ·', inlineBlock: true },
+      { text: 'Bandle City', inlineBlock: true },
+    ]);
+    expect(units('Ziggs')).toEqual([
+      { text: 'Zaun ·', inlineBlock: true },
+      { text: 'Bandle City', inlineBlock: true },
+    ]);
+    expect(units('Thresh')).toEqual([{ text: 'Shadow Isles', inlineBlock: true }]);
+    expect(spoken(chip('Ziggs'))).toBe('Ziggs, Zaun and Bandle City');
   });
 
   it('an unaffiliated champion or an unknown id leaves no empty element', () => {

@@ -1,4 +1,4 @@
-import type { ChampionTable, ModeRow, Rng, TransitionContext } from '@customs/core';
+import type { ChampionTable, ModeLock, ModeRow, Rng, TransitionContext } from '@customs/core';
 import { setGroupModeResponseSchema } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
 import type { AdminAuthResult } from '@/lib/adminAuth';
@@ -257,6 +257,42 @@ describe('POST /api/admin/mode: region wars is drawn when it is chosen (M20 D9)'
       });
       expect(t.writes).toEqual([]);
     }
+  });
+
+  it('M20.17: a next-game region tap that lost to Roll says the regions are this game now', async () => {
+    const regionLock = (status: string, mode: ModeLock['mode']) => async () => ({
+      lobbyId: 'lobby',
+      status,
+      stored: { lock: { standing: 'fearless', mode, rated: null } as ModeLock, lockedAt: null },
+    });
+    const region = { id: 'region', blue: 'zaun', red: 'noxus' } as const;
+    const rolled = "Teams were just rolled, so those regions are this game's now.";
+    const cases: [ModeRouteDeps, Record<string, unknown>, string][] = [
+      [{ liveLock: regionLock('balanced', region) }, { redraw: true, game: 'next' }, rolled],
+      [{ liveLock: regionLock('balanced', region) }, { side: 'blue', region: 'ionia' }, rolled],
+      // Every other case keeps today's answer.
+      [{ liveLock: regionLock('in_game', region) }, { redraw: true }, 'Region wars is not on for that game.'],
+      [
+        { liveLock: regionLock('balanced', { id: 'fearless' }) },
+        { redraw: true },
+        'Region wars is not on for that game.',
+      ],
+      [{ liveLock: async () => null }, { redraw: true }, 'Region wars is not on for that game.'],
+    ];
+    for (const [deps, body, words] of cases) {
+      const { t, mode } = setup(card(), deps);
+      expect(await answer(await mode(json({ groupId: GROUP, ...body })))).toEqual({
+        status: 409,
+        body: { ok: false, error: words },
+      });
+      expect(t.writes).toEqual([]);
+    }
+    // A form post goes back with the same words.
+    const { mode } = setup(card(), { liveLock: regionLock('balanced', region) });
+    const response = await mode(
+      form({ groupId: GROUP, redraw: 'true', game: 'next', redirectTo: '/g/crew' }),
+    );
+    expect(noticeOf(response).get('error')).toBe(rolled);
   });
 
   it('a Fearless night counts the bans: a region the pool emptied is short', async () => {

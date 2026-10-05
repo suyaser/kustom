@@ -32,6 +32,7 @@ import {
   PAIR_SHORT,
   REGION_SHORT,
   REGIONS_STAY,
+  ROLLED_TO_THIS_GAME,
   RULE_TOO_FEW_OPEN,
   ratedNotice,
   ruleChosenNotice,
@@ -40,7 +41,7 @@ import {
   standingNotice,
   thisPairNotice,
 } from '@/lib/mode/ruleNotices';
-import { writeLockRegions, writeModeCard } from '@/lib/mode/set';
+import { type LiveLock, readLiveLock, writeLockRegions, writeModeCard } from '@/lib/mode/set';
 import { hasOpenLobby, previousRule } from '@/lib/mode/spin';
 import { type ModeStore, type StoredModeRow, supabaseModeStore } from '@/lib/mode/state';
 import { siteOrigin } from '@/lib/siteUrl';
@@ -77,9 +78,11 @@ export interface ModeRouteDeps {
   context?: (standing: StoredModeRow['row']['standing']) => Promise<TransitionContext>;
   /** Tests only: Spin's previous rule and open-lobby read (default: the database). */
   spinFacts?: () => Promise<{ previous: PendingRule | null; lobbyOpen: boolean }>;
+  /** Tests only: the group's live lock, read for a next-game region refusal (default: the database). */
+  liveLock?: () => Promise<LiveLock | null>;
 }
 
-const REFUSAL_WORDS: Record<Refusal | 'started' | 'no-lock', string> = {
+const REFUSAL_WORDS: Record<Refusal | 'started' | 'no-lock' | 'rolled', string> = {
   'too-few-open': RULE_TOO_FEW_OPEN,
   'nothing-to-spin': NOTHING_TO_SPIN,
   'no-region-rule': NO_REGION_RULE,
@@ -89,6 +92,7 @@ const REFUSAL_WORDS: Record<Refusal | 'started' | 'no-lock', string> = {
   'pair-short': PAIR_SHORT,
   started: REGIONS_STAY,
   'no-lock': NO_REGION_RULE,
+  rolled: ROLLED_TO_THIS_GAME,
 };
 
 export async function handleSetGroupMode(
@@ -107,7 +111,7 @@ export async function handleSetGroupMode(
         ...(deps.rng === undefined ? {} : { rng: deps.rng }),
         ...(deps.table === undefined ? {} : { table: deps.table }),
       }));
-  const refuse = (refusal: Refusal | 'started' | 'no-lock'): NextResponse => {
+  const refuse = (refusal: Refusal | 'started' | 'no-lock' | 'rolled'): NextResponse => {
     const words = REFUSAL_WORDS[refusal];
     return context.form ? redirectBack(context.request, back, { error: words }) : context.fail(409, words);
   };
@@ -186,7 +190,17 @@ export async function handleSetGroupMode(
       (written) => written.ok && written.changed,
     ),
   );
-  if (!result.ok) return refuse(result.refusal);
+  if (!result.ok) {
+    // M20.17: a next-game region tap that lost to Roll. The row has no region rule because Roll
+    // moved it onto the balanced lobby's lock, so say that, not that region wars is off.
+    if (result.refusal === 'no-region-rule' && regionAction !== null) {
+      const live = await (deps.liveLock ?? (() => readLiveLock(client, groupId)))();
+      if (live !== null && live.status === 'balanced' && live.stored.lock.mode.id === 'region') {
+        return refuse('rolled');
+      }
+    }
+    return refuse(result.refusal);
+  }
 
   const row = result.after.row;
   let notice: string;
@@ -309,7 +323,7 @@ async function repostTeams(context: AdminContext, lobbyId: string): Promise<void
 export function setGroupModeRoute(
   options: AdminRouteOptions & ModeRouteDeps = {},
 ): (request: Request) => Promise<NextResponse> {
-  const { rng, now, timeZone, table, store, context, spinFacts, ...routeOptions } = options;
+  const { rng, now, timeZone, table, store, context, spinFacts, liveLock, ...routeOptions } = options;
   const deps: ModeRouteDeps = {
     ...(rng ? { rng } : {}),
     ...(now ? { now } : {}),
@@ -318,6 +332,7 @@ export function setGroupModeRoute(
     ...(store ? { store } : {}),
     ...(context ? { context } : {}),
     ...(spinFacts ? { spinFacts } : {}),
+    ...(liveLock ? { liveLock } : {}),
   };
   return withAdminAuth(
     setGroupModeRequestSchema,

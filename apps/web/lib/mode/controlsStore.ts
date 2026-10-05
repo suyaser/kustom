@@ -19,6 +19,16 @@ export type RegionWrite = `${'redraw' | 'blue' | 'red'}-${'next' | 'this'}`;
 
 export type ControlsWrite = 'mode' | 'spin' | 'rated' | RegionWrite;
 
+/**
+ * What the card showed when this page's outcome line was said (M20.15): the row's `updated_at`
+ * (the answer's) and this game's region pair (`blue|red`, or null with none). A later card that
+ * differs came from a write this page did not make, and the line goes.
+ */
+export interface CardMark {
+  updatedAt: string | null;
+  thisPair: string | null;
+}
+
 export interface ControlsState {
   /** The select's unsaved choice, or null to follow the card. */
   pick: string | null;
@@ -28,17 +38,22 @@ export interface ControlsState {
   spinUntil: number | null;
   /** The outcome line of the last write. */
   said: string | null;
+  /** The card the outcome line was said for, or null when not known (M20.15). */
+  saidFor: CardMark | null;
   /** The refusal of the last write (`role="alert"`). */
   failed: string | null;
   /** A write happened here: a no-JS `?notice=` / `?error=` no longer applies. */
   acted: boolean;
+  /** Another write changed the card since the page loaded: a no-JS `?notice=` no longer applies. */
+  noticeGone: boolean;
 }
 
 export type ControlsAction =
   | { type: 'pick'; value: string }
   | { type: 'start'; write: ControlsWrite }
   | { type: 'refused'; failed: string }
-  | { type: 'answered'; said: string | null; spinUntil?: number | null }
+  | { type: 'answered'; said: string | null; spinUntil?: number | null; saidFor?: CardMark | null }
+  | { type: 'stale' }
   | { type: 'spin-free' };
 
 export const IDLE_CONTROLS: ControlsState = {
@@ -46,8 +61,10 @@ export const IDLE_CONTROLS: ControlsState = {
   pending: null,
   spinUntil: null,
   said: null,
+  saidFor: null,
   failed: null,
   acted: false,
+  noticeGone: false,
 };
 
 /** Pure, so every transition is a unit test. */
@@ -57,7 +74,7 @@ export function controlsReducer(state: ControlsState, action: ControlsAction): C
       return { ...state, pick: action.value };
     case 'start':
       if (state.pending !== null) return state;
-      return { ...state, pending: action.write, said: null, failed: null, acted: true };
+      return { ...state, pending: action.write, said: null, saidFor: null, failed: null, acted: true };
     case 'refused':
       // The pick goes back to the card: the select shows what is really set.
       return { ...state, pending: null, pick: null, failed: action.failed };
@@ -67,8 +84,14 @@ export function controlsReducer(state: ControlsState, action: ControlsAction): C
         pending: null,
         pick: null,
         said: action.said,
+        saidFor: action.saidFor ?? null,
         spinUntil: action.spinUntil === undefined ? state.spinUntil : action.spinUntil,
       };
+    case 'stale':
+      // M20.15: another write changed the card, so the outcome line no longer describes it. A
+      // refusal stays (M20.17: it says why the card moved under the tap).
+      if (state.said === null && state.noticeGone) return state;
+      return { ...state, said: null, saidFor: null, noticeGone: true };
     case 'spin-free':
       return { ...state, spinUntil: null };
   }

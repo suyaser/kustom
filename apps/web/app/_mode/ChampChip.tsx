@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { championSpriteStyle } from '@/lib/champs/ddragon';
 import { championSquare } from '@/lib/champs/square';
 import { cn } from '@/lib/utils';
@@ -117,7 +118,7 @@ export function BannedChip({
   );
 }
 
-/** U+00A0: region names never split inside, and a two-region tag breaks only after the dot. */
+/** U+00A0: the dot stays on the line of the region before it. */
 const NBSP = ' ';
 
 /**
@@ -125,6 +126,13 @@ const NBSP = ' ';
  * 13, line-height 16, muted; `--card` on a find hit, never an opacity). Read as `Vi, Piltover and
  * Zaun`: an sr-only `, ` before the tag, and between two regions the visible ` · ` is aria-hidden
  * beside an sr-only ` and `. No regions: the name alone, no empty element.
+ *
+ * Wrapping (M20.14: a tag only wraps between words, never inside one): each region is its own
+ * `inline-block` unit, the dot at the end of the unit before it (after a no-break space). A tag
+ * that does not fit breaks first between the units (`Piltover ·` / `Bandle City`); only a unit
+ * wider than the whole line (`Shadow Isles ·` in the card's narrow cell at 375) wraps inside it,
+ * and then only at its own space (`Shadow` / `Isles ·`). M20.5's no-break spaces inside region
+ * names made `Shadow Isles` one word, which `overflow-wrap: break-word` split as `Shadow Isle` / `s`.
  */
 function ChipText({
   name,
@@ -145,15 +153,18 @@ function ChipText({
         className={cn('text-2xs leading-4 font-normal', hit ? 'text-card' : 'text-muted-foreground')}
       >
         {regions.map((region, index) => (
-          <span key={region}>
-            {index === 0 ? null : (
-              <>
-                <span aria-hidden="true">{`${NBSP}· `}</span>
-                <span className="sr-only"> and </span>
-              </>
-            )}
-            {region.replaceAll(' ', NBSP)}
-          </span>
+          <Fragment key={region}>
+            {index === 0 ? null : ' '}
+            <span data-slot="region-unit" className="inline-block max-w-full">
+              {region}
+              {index === regions.length - 1 ? null : (
+                <>
+                  <span aria-hidden="true">{`${NBSP}·`}</span>
+                  <span className="sr-only"> and </span>
+                </>
+              )}
+            </span>
+          </Fragment>
         ))}
       </span>
     </span>
