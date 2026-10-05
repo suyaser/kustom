@@ -78,6 +78,22 @@ describe('kickoffView', () => {
     expect(kickoff.blueWinProb).toBe(record.kind === 'unrolled' ? record.blueWinProb : Number.NaN);
   });
 
+  it.each(['rolled', 'swapped', 'custom', 'unrolled'] as const)(
+    'an ARAM (M21.12), %s: no odds and marked aram; a Rift or no mode is unchanged',
+    (kind) => {
+      const { record, teams, members, kickoff } = workedKickoff(kind);
+      const aram = kickoffView({ ...record, gameMode: 'ARAM' }, teams, members);
+      expect(aram.blueWinProb).toBeNull();
+      expect(aram.aram).toBe(true);
+      expect(aram.blue).toEqual(kickoff.blue);
+      for (const gameMode of ['CLASSIC', null, undefined]) {
+        const view = kickoffView({ ...record, gameMode }, teams, members);
+        expect(view).toEqual(kickoff);
+        expect('aram' in view).toBe(false);
+      }
+    },
+  );
+
   it('a rolled record whose split cannot be read has no odds', () => {
     const { record, members } = workedKickoff('rolled');
     expect(kickoffView(record, null, members).blueWinProb).toBeNull();

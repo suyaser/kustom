@@ -127,6 +127,10 @@ pub struct InProgressPayload {
     pub party_id: Option<String>,
     /// When the phase was observed, ISO 8601.
     pub started_at: Option<String>,
+    /// The game mode from the session (`gameData.queue.gameMode`, else `map.gameMode`; M21.12), upper
+    /// case. Omitted from the body when the session names none. Unverified for ARAM on a live client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_mode: Option<String>,
 }
 
 /// Where an end-of-game post came from.

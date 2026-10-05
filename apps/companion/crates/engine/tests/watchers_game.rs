@@ -1005,6 +1005,52 @@ async fn a_disconnect_clears_the_held_party() {
     assert_eq!(h.by_phase("in_progress")[0]["partyId"], Value::Null);
 }
 
+// --- game mode at start (M21.12) --------------------------------------------------------------------------------
+
+async fn mode_posted(edit: impl FnOnce(&mut Value)) -> Value {
+    let h = setup(Setup {
+        script: vec![game_ok(false)],
+        routes: vec![(SESSION_GET.into(), session_with("GameStart", edit))],
+        ..Default::default()
+    })
+    .await;
+    h.phase("GameStart").await;
+    h.by_phase("in_progress")[0].clone()
+}
+
+#[tokio::test]
+async fn the_in_progress_post_carries_the_session_game_mode_upper_cased() {
+    let rift = mode_posted(|_| {}).await;
+    assert_eq!(rift["gameMode"], "CLASSIC", "the recorded custom is CLASSIC");
+    let aram = mode_posted(|s| s["gameData"]["queue"]["gameMode"] = json!(" aram ")).await;
+    assert_eq!(aram["gameMode"], "ARAM");
+}
+
+#[tokio::test]
+async fn the_game_mode_falls_back_to_the_map_and_is_left_out_when_the_session_has_none() {
+    let from_map = mode_posted(|s| {
+        s["gameData"]["queue"]["gameMode"] = Value::Null;
+        s["map"]["gameMode"] = json!("ARAM");
+    })
+    .await;
+    assert_eq!(from_map["gameMode"], "ARAM");
+    let none = mode_posted(|s| {
+        s["gameData"]["queue"]["gameMode"] = json!("");
+        s["map"]["gameMode"] = json!({ "not": "a string" });
+    })
+    .await;
+    assert!(
+        none.get("gameMode").is_none(),
+        "a malformed mode is dropped, the post still goes: {none}"
+    );
+    let junk = mode_posted(|s| {
+        s["gameData"]["queue"]["gameMode"] = json!("A B\n");
+        s["map"]["gameMode"] = Value::Null;
+    })
+    .await;
+    assert!(junk.get("gameMode").is_none());
+}
+
 // --- goldens ----------------------------------------------------------------------------------------------------
 
 #[tokio::test]

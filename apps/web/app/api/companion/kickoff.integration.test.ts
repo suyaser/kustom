@@ -170,10 +170,14 @@ if (stack === null || !ready) {
   }
 
   /** `in_progress` through the real route; returns the answer and how far `group_live` moved. */
-  async function start(partyId: string, gameId: number, token = tokens.host) {
+  async function start(partyId: string, gameId: number, token = tokens.host, gameMode?: string) {
     const before = await liveVersion();
     const response = await postGame(
-      jsonRequest('/api/companion/game', { phase: 'in_progress', gameId, partyId }, token),
+      jsonRequest(
+        '/api/companion/game',
+        { phase: 'in_progress', gameId, partyId, ...(gameMode === undefined ? {} : { gameMode }) },
+        token,
+      ),
     );
     expect(response.status).toBe(200);
     const answer = (await response.json()) as Record<string, unknown>;
@@ -378,6 +382,19 @@ if (stack === null || !ready) {
     expect(row).toMatchObject({ status: 'in_game', kickoff_kind: 'unrolled', kickoff_odds_model: 'kustom' });
     expect(row.kickoff_blue_win_prob).toBeCloseTo(winProbability(await rOf(blue), await rOf(red)), 12);
     expect(await rOf([fresh[0] ?? ''])).toBe(1200);
+    // An older companion sends no mode: nothing stored (M21.12).
+    expect(row.kickoff_game_mode).toBeNull();
+  });
+
+  it('(M21.12) the in_progress game mode is stored with the record and never rewritten; a Rift mode is stored too', async () => {
+    const aram = await openLobby(sided(ten.slice(0, 5), ten.slice(5)));
+    expect((await start(aram.partyId, testGameId(), tokens.host, 'ARAM')).bumps).toBe(1);
+    const row = await lobbyRow(aram.lobbyId);
+    expect(row).toMatchObject({ kickoff_kind: 'unrolled', kickoff_game_mode: 'ARAM' });
+    // A second companion with another answer (or none) writes nothing.
+    await start(aram.partyId, testGameId(), tokens.second, 'CLASSIC');
+    expect((await lobbyRow(aram.lobbyId)).kickoff_game_mode).toBe('ARAM');
+    expect(kickoffFromRow(row)).toMatchObject({ gameMode: 'ARAM' });
   });
 
   it('a 4v4: a kickoff record with four a side (M21.1 note b)', async () => {

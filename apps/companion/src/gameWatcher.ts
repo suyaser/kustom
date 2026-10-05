@@ -32,6 +32,7 @@ import {
 import {
   type EogStatsBlock,
   EogStatsBlockSchema,
+  type GameflowSession,
   GameflowSessionSchema,
   mapEog,
   readEndpoint,
@@ -55,6 +56,19 @@ const START_PHASES: readonly string[] = ['GameStart', 'InProgress'];
 const STALE_SESSION_PHASES: readonly string[] = ['Lobby', 'None'];
 
 export const CUSTOM_GAME_TYPE = 'CUSTOM_GAME';
+
+/**
+ * The game mode for the `in_progress` post (M21.12): `gameData.queue.gameMode`, else `map.gameMode`,
+ * trimmed and upper-cased; null when neither is a plain word (the field is then left out). Mirrors
+ * `GameflowSession::game_mode` in the Rust engine, which the goldens hold to this.
+ */
+export function gameModeOfSession(session: GameflowSession): string | null {
+  for (const raw of [session.gameData.queue.gameMode, session.map.gameMode]) {
+    const mode = (raw ?? '').trim().toUpperCase();
+    if (mode !== '' && mode.length <= 32 && /^[A-Z0-9_]+$/.test(mode)) return mode;
+  }
+  return null;
+}
 
 /** Statuses that mean the server has refused the game for good. */
 export const PERMANENT_REFUSALS: readonly number[] = [400, 403, 404, 422];
@@ -294,12 +308,14 @@ export class GameWatcher implements GameSink {
         return;
       }
       this.inProgressPosted.add(gameId);
+      const gameMode = gameModeOfSession(result.json);
       this.starts.set(gameId, { gameId, startedAt: observedAt, partyId });
       const payload: CompanionGameInProgressPayloadInput = {
         phase: 'in_progress',
         gameId,
         partyId,
         startedAt: observedAt,
+        ...(gameMode === null ? {} : { gameMode }),
       };
       this.logger.info('game started', { gameId, partyId, startedAt: observedAt, phase });
       this.inProgressInFlight += 1;

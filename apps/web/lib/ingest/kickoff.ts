@@ -69,6 +69,18 @@ export function classifyKickoff(input: {
   chosen: { blue: readonly { puuid: string }[]; red: readonly { puuid: string }[] } | null;
   ratingOf: (puuid: string) => number;
   at: Date;
+  /** M21.12: the session's game mode from the `in_progress` body; null or absent (an older companion) adds none. */
+  gameMode?: string | null | undefined;
+}): LobbyKickoff {
+  const record = classifyTeams(input);
+  return input.gameMode ? { ...record, gameMode: input.gameMode } : record;
+}
+
+function classifyTeams(input: {
+  teams: { blue: readonly string[]; red: readonly string[] };
+  chosen: { blue: readonly { puuid: string }[]; red: readonly { puuid: string }[] } | null;
+  ratingOf: (puuid: string) => number;
+  at: Date;
 }): LobbyKickoff {
   const blue = [...input.teams.blue];
   const red = [...input.teams.red];
@@ -123,6 +135,8 @@ export async function writeKickoffAtStart(
     onWrite?: () => void;
     requestOrigin?: string | null;
     schedule?: Scheduler;
+    /** M21.12: the `in_progress` body's `gameMode`; stored with the record. Absent: none stored. */
+    gameMode?: string | null | undefined;
   },
 ): Promise<KickoffOutcome> {
   const { data: lobby, error: lobbyError } = await client
@@ -180,6 +194,7 @@ export async function writeKickoffAtStart(
     chosen: split,
     ratingOf: (puuid) => rByPuuid.get(puuid) ?? KUSTOM_FRESH.r,
     at: input.now,
+    gameMode: input.gameMode,
   });
 
   const { data, error } = await client

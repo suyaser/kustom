@@ -1322,6 +1322,7 @@ export type Database = {
           kickoff_at: string | null
           kickoff_blue: string[] | null
           kickoff_blue_win_prob: number | null
+          kickoff_game_mode: string | null
           kickoff_kind: string | null
           kickoff_odds_model: string | null
           kickoff_red: string[] | null
@@ -1347,6 +1348,7 @@ export type Database = {
           kickoff_at?: string | null
           kickoff_blue?: string[] | null
           kickoff_blue_win_prob?: number | null
+          kickoff_game_mode?: string | null
           kickoff_kind?: string | null
           kickoff_odds_model?: string | null
           kickoff_red?: string[] | null
@@ -1372,6 +1374,7 @@ export type Database = {
           kickoff_at?: string | null
           kickoff_blue?: string[] | null
           kickoff_blue_win_prob?: number | null
+          kickoff_game_mode?: string | null
           kickoff_kind?: string | null
           kickoff_odds_model?: string | null
           kickoff_red?: string[] | null

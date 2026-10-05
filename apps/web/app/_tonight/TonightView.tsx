@@ -771,6 +771,8 @@ function Teams({
  * - `unrolled`: the same receipt with `Kustom didn't pick these teams. …`.
  * - Not rated (the lock says so), `custom` or `unrolled`: no bar and no number (M15.18), only
  *   `No odds for this game.` inside the frame; the strip keeps its rule line.
+ * - An ARAM (M21.12, the mode the session named at start), any kind: the same `No odds for this game.`
+ *   frame, never the split's receipt.
  * - No `How the bot decided` in game, for any kind (13.1); the finished poster has it.
  *
  * No Roll prompt, no side line, no admins named: the game is on.
@@ -802,7 +804,7 @@ function InGame({
   const notRated = lobby.lock != null && !lockRated(lobby.lock);
 
   const receipt =
-    game.kind === 'rolled' && teams !== null ? (
+    game.kind === 'rolled' && teams !== null && game.aram !== true ? (
       <FairnessReceipt
         variant="in-game"
         splits={game.swapped ? swappedRun(teams.stored) : teams.stored}
@@ -813,7 +815,7 @@ function InGame({
       />
     ) : (
       <PreGameReceipt
-        kickoff={{ blueWinProb: notRated ? null : game.blueWinProb }}
+        kickoff={{ blueWinProb: notRated || game.aram === true ? null : game.blueWinProb }}
         reason={game.kind === 'custom' ? 'teams-changed' : 'no-split'}
       />
     );

@@ -1,5 +1,5 @@
 import { displayKustom, KUSTOM_START } from '@customs/core';
-import { type KickoffRow, kickoffFromRow, type LobbyKickoff } from '@customs/db/schemas';
+import { type KickoffRow, kickoffFromRow, kickoffIsAram, type LobbyKickoff } from '@customs/db/schemas';
 import type { StoredSplit } from '@/components/receipt/types';
 import { orientRun } from '../games/receipt';
 import { inLaneOrder } from '../laneOrder';
@@ -39,8 +39,12 @@ export function kickoffView(
     blue,
     red,
     sitters: members.filter((member) => !playing.has(member.puuid)),
-    blueWinProb:
-      record.kind === 'rolled'
+    // Only when true, so a Rift or an older companion's view is exactly as before.
+    ...(kickoffIsAram(record) ? { aram: true } : {}),
+    // M21.12: an ARAM is not rated and the odds are for the Rift; hide them whoever the teams are.
+    blueWinProb: kickoffIsAram(record)
+      ? null
+      : record.kind === 'rolled'
         ? teams === null
           ? null
           : record.swapped

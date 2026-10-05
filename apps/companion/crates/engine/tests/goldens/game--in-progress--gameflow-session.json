@@ -16,6 +16,7 @@
     "phase": "in_progress",
     "gameId": 4000969091,
     "partyId": "e3c69392-a134-43cb-97ae-8add18c72494",
-    "startedAt": "2026-09-08T16:37:38.903Z"
+    "startedAt": "2026-09-08T16:37:38.903Z",
+    "gameMode": "CLASSIC"
   }
 }
