@@ -98,6 +98,11 @@ export interface GameIngestResult {
    * Riot ID. A second companion's identical block writes nothing (M19.9: no `group_live` bump).
    */
   wrote: boolean;
+  /**
+   * The party's `in_game` row this game was refused from (M21.11, {@link findLobby}): its roster is
+   * another game's. The route drops it. Null when the game matched a lobby or there was none.
+   */
+  staleLobby: FoundLobby | null;
 }
 
 /**
@@ -141,10 +146,16 @@ export async function ingestEogGame(
   // `partyId` at all, and this is the belt to that braces: a months-old game must never be
   // linked to a lobby cycle the party id happens to still match, and `games.lobby_id` being
   // null is already a rated-eligible state (M2.5).
-  const lobby =
+  const found =
     payload.source === 'backfill'
-      ? null
-      : await findLobby(client, payload.partyId ?? null, payload.startedAt);
+      ? { lobby: null, stale: null }
+      : await findLobby(
+          client,
+          payload.partyId ?? null,
+          payload.startedAt,
+          payload.participants.map((participant) => participant.puuid),
+        );
+  const lobby = found.lobby;
   const lobbyId = lobby?.id ?? null;
   const groupId = lobby?.groupId ?? options.groupId;
 
@@ -259,6 +270,7 @@ export async function ingestEogGame(
     participants: await countGamePlayers(client, game.id),
     modeRecord,
     wrote,
+    staleLobby: found.stale,
   };
 }
 
@@ -326,35 +338,59 @@ async function selectGame(
  * it, so linking a real game to it would say the group played a lobby that dissolved. Such a
  * game is stored with `lobby_id: null` and still rated — ratings never depended on a lobby
  * existing, which is also what makes backfill (M5.1) possible.
+ *
+ * **The roster has to fit (M21.11).** The row the clock picks is only this game's lobby when every
+ * sided member of it is on the scoreboard (`lobbyFitsGame`). A row that fails is another game's
+ * lobby -- on 2026-10-02 a party's `in_game` row whose own game never reported kept its frozen
+ * roster while the next rotation played -- and the game is stored with `lobby_id: null`.
  */
 export async function findLobbyId(
   client: ServiceClient,
   partyId: string | null,
-  startedAt?: string | null,
+  startedAt: string | null | undefined,
+  participants: readonly string[],
 ): Promise<string | null> {
-  return (await findLobby(client, partyId, startedAt))?.id ?? null;
+  return (await findLobby(client, partyId, startedAt, participants)).lobby?.id ?? null;
 }
 
-/** {@link findLobbyId}, with the lobby's group: the group the game will be stored in (M13.3). */
+export interface FoundLobby {
+  id: string;
+  groupId: string;
+  status: LobbyStatusValue;
+}
+
+/**
+ * {@link findLobbyId}, with the lobby's group (the group the game will be stored in, M13.3), and
+ * the `in_game` row it refused as `stale`: a party cannot be in two games, so that row's game is
+ * over and lost, and the route drops it now rather than at the two-hour sweep (M21.11) -- which
+ * is what lets the party's next lobby post open a fresh cycle instead of landing on a frozen one.
+ */
 export async function findLobby(
   client: ServiceClient,
   partyId: string | null,
-  startedAt?: string | null,
-): Promise<{ id: string; groupId: string; status: string } | null> {
-  if (partyId === null) return null;
-
+  startedAt: string | null | undefined,
+  participants: readonly string[],
+): Promise<{ lobby: FoundLobby | null; stale: FoundLobby | null }> {
   // An unknown party id is not an error: the companion may have missed the lobby events.
-  const lobby = await selectLatestLobby(client, partyId, startedAt);
-  if (lobby === null) return null;
+  const match = await selectGameLobby(client, partyId, startedAt, participants);
+  if (match.kind === 'none') return { lobby: null, stale: null };
 
-  if (lobby.status === 'abandoned') {
+  const found = { id: match.lobby.id, groupId: match.lobby.groupId, status: match.lobby.status };
+  if (found.status === 'abandoned') {
     console.warn(
-      `ingestGame: party ${partyId} resolves only to abandoned lobby ${lobby.id}; storing the game with no lobby`,
+      `ingestGame: party ${partyId} resolves only to abandoned lobby ${found.id}; storing the game with no lobby`,
     );
-    return null;
+    return { lobby: null, stale: null };
   }
 
-  return { id: lobby.id, groupId: lobby.groupId, status: lobby.status };
+  if (match.kind === 'stale') {
+    console.warn(
+      `ingestGame: party ${partyId} resolves to lobby ${found.id} (${found.status}) whose sided members did not all play this game; storing the game with no lobby`,
+    );
+    return { lobby: null, stale: found.status === 'in_game' ? found : null };
+  }
+
+  return { lobby: found, stale: null };
 }
 
 /**
