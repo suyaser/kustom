@@ -49,58 +49,91 @@ export interface RoleProfileRow {
   puuid: string;
   mainRole: Role | null;
   secondaryRole: Role | null;
+  /** The end-of-game side (M21.8): the team they actually played on. */
+  side: number;
+  /** The end-of-game role (M21.8), `null` when the client did not say. */
+  role: Role | null;
+}
+
+/** One seat of the chosen split: who, which side, which role. */
+export interface SplitSeat {
+  puuid: string;
+  side: 100 | 200;
+  role: Role;
 }
 
 /**
- * Did the balancer put each of these players on a role of their own?
+ * The guard's rule (M5.17, amended by M21.8), pure: which players the balancer filled.
  *
- * `true` — the honest default and the column's default — whenever we did not choose the seats:
- * a backfilled game, a game played from no lobby, a lobby whose split we cannot read, a player
- * who was not in the split at all (somebody swapped in). Nobody forced anything, so the game
- * counts.
+ * Returns `false` entries only; everybody absent counts. `false` only when all of these hold:
  *
- * `false` only when there *is* a chosen split, it names this player, and the role it gave them
- * is neither tonight's main nor tonight's backup. Tonight's, not the stored pair: a
- * role-for-tonight tap (M3.6) makes the tapped role the main for the night, which is exactly
- * how a player deliberately moves — tap it, play it on-role, and the game counts.
+ * 1. there is a chosen split (`null`: nobody rolled, so nobody chose any seat);
+ * 2. **the teams that played are the split's teams** (the same five and five, on either side).
+ *    When the room made its own teams the bot did not choose those seats, so every game counts,
+ *    the rule this function already stated for a game with no split (M21.8 (b));
+ * 3. the split names the player and the role it gave them is neither tonight's main nor tonight's
+ *    backup (a role-for-tonight tap is tonight's main; a flexible player is never off-role);
+ * 4. they played that role: a player who swapped seats inside the team chose the role they played,
+ *    so it counts. An end-of-game role the client did not report (`null`) keeps rule 3's answer.
+ */
+export function fillGuardFlags(
+  split: readonly SplitSeat[] | null,
+  players: readonly (RoleProfileRow & { roleOverride: Role | null })[],
+): Map<string, boolean> {
+  const flags = new Map<string, boolean>();
+  if (split === null || split.length === 0) return flags;
+  if (!sameTeams(split, players)) return flags;
+
+  const assigned = new Map(split.map((seat) => [seat.puuid, seat.role]));
+  for (const player of players) {
+    const role = assigned.get(player.puuid);
+    if (role === undefined) continue;
+    if (player.role !== null && player.role !== role) continue;
+    const tonight = resolveRoles(player);
+    const counts = tonight.main === null || role === tonight.main || role === tonight.secondary;
+    if (!counts) flags.set(player.playerId, false);
+  }
+  return flags;
+}
+
+/** The split's two teams are the two teams that played, on the same sides or swapped. */
+function sameTeams(split: readonly SplitSeat[], players: readonly { puuid: string; side: number }[]): boolean {
+  const key = (puuids: string[]) => [...puuids].sort().join(' ');
+  const splitBlue = key(split.filter((seat) => seat.side === 100).map((seat) => seat.puuid));
+  const splitRed = key(split.filter((seat) => seat.side === 200).map((seat) => seat.puuid));
+  const blue = key(players.filter((p) => p.side === 100).map((p) => p.puuid));
+  const red = key(players.filter((p) => p.side === 200).map((p) => p.puuid));
+  return (splitBlue === blue && splitRed === red) || (splitBlue === red && splitRed === blue);
+}
+
+/**
+ * Did the balancer put each of these players on a role of their own? The I/O around
+ * {@link fillGuardFlags}: the lobby's chosen split and tonight's taps.
  *
- * A flexible player (null main) is never off-role, by the balancer's own rule (M1.4), so every
- * role counts for them. That is what makes a newcomer's first three games the ones that decide
- * their main.
+ * `true` (absent), the honest default and the column's default, whenever we did not choose the
+ * seats: a backfilled game, a game played from no lobby, a lobby whose split we cannot read, a
+ * game whose teams are not the split's (M21.8), a player who was not in the split at all, or a
+ * player who played another role than the split's.
  */
 export async function roleInferenceFlags(
   client: ServiceClient,
   lobbyId: string | null,
   players: readonly RoleProfileRow[],
 ): Promise<Map<string, boolean>> {
-  const flags = new Map<string, boolean>();
-  if (lobbyId === null) return flags;
+  if (lobbyId === null) return new Map();
 
-  const assignments = await selectChosenAssignments(client, lobbyId);
-  if (assignments === null) return flags;
+  const split = await selectChosenSeats(client, lobbyId);
+  if (split === null) return new Map();
 
   const overrides = await selectRoleOverrides(client, lobbyId);
-
-  for (const player of players) {
-    const assigned = assignments.get(player.puuid);
-    if (assigned === undefined) continue;
-    const tonight = resolveRoles({
-      mainRole: player.mainRole,
-      secondaryRole: player.secondaryRole,
-      roleOverride: overrides.get(player.playerId) ?? null,
-    });
-    const counts = tonight.main === null || assigned === tonight.main || assigned === tonight.secondary;
-    if (!counts) flags.set(player.playerId, false);
-  }
-
-  return flags;
+  return fillGuardFlags(
+    split,
+    players.map((player) => ({ ...player, roleOverride: overrides.get(player.playerId) ?? null })),
+  );
 }
 
-/** The role the chosen split gave each puuid, or null when this lobby has no readable split. */
-async function selectChosenAssignments(
-  client: ServiceClient,
-  lobbyId: string,
-): Promise<Map<string, Role> | null> {
+/** The chosen split's seats, or null when this lobby has no readable split. */
+async function selectChosenSeats(client: ServiceClient, lobbyId: string): Promise<SplitSeat[] | null> {
   const { data, error } = await client
     .from('splits')
     .select('blue, red')
@@ -109,12 +142,135 @@ async function selectChosenAssignments(
     .maybeSingle();
   if (error) throw new Error(`roles: split lookup failed: ${error.message}`);
   if (!data) return null;
+  return seatsOf(data.blue, data.red);
+}
 
-  const assignments = new Map<string, Role>();
-  for (const entry of [...readAssignments(data.blue), ...readAssignments(data.red)]) {
-    assignments.set(entry.puuid, entry.role);
+function seatsOf(blue: unknown, red: unknown): SplitSeat[] | null {
+  const seats: SplitSeat[] = [
+    ...readAssignments(blue).map((a) => ({ puuid: a.puuid, role: a.role, side: 100 as const })),
+    ...readAssignments(red).map((a) => ({ puuid: a.puuid, role: a.role, side: 200 as const })),
+  ];
+  return seats.length === 0 ? null : seats;
+}
+
+/** One stored `false` flag the M21.8 rule releases (sets back to `true`). */
+export interface ReleasedFlag {
+  gameId: string;
+  playerId: string;
+}
+
+/**
+ * M21.8's one-time refold of history, idempotent: the stored `counts_for_role_inference = false`
+ * rows of this group's games that the amended guard would leave `true` -- the game's teams are
+ * not its lobby's chosen split, or the player played another role than the split gave them.
+ *
+ * Only `false` rows are looked at, and only ever released: the amended rule is the old one plus
+ * two more ways to count, so it never turns a `true` into a `false`. That is also why history
+ * can be refolded at all: the old rule measured against the role pair at fold time, which is gone,
+ * but neither new condition needs it. A second run finds nothing.
+ */
+export async function selectReleasedFillFlags(client: ServiceClient, groupId: string): Promise<ReleasedFlag[]> {
+  const filled: { gameId: string; playerId: string }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await client
+      .from('game_players')
+      .select('game_id, player_id')
+      .eq('group_id', groupId)
+      .eq('counts_for_role_inference', false)
+      .order('game_id', { ascending: true })
+      .order('player_id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`roles: filled rows select failed: ${error.message}`);
+    const rows = data ?? [];
+    filled.push(...rows.map((row) => ({ gameId: row.game_id, playerId: row.player_id })));
+    if (rows.length < PAGE_SIZE) break;
   }
-  return assignments.size === 0 ? null : assignments;
+  if (filled.length === 0) return [];
+
+  const gameIds = [...new Set(filled.map((row) => row.gameId))];
+  const seatsByGame = new Map<string, { playerId: string; puuid: string; side: number; role: Role | null }[]>();
+  const lobbyByGame = new Map<string, string | null>();
+  for (const chunk of chunked(gameIds)) {
+    const { data, error } = await client
+      .from('games')
+      .select('id, lobby_id, game_players(player_id, side, role, players!inner(puuid))')
+      .in('id', chunk);
+    if (error) throw new Error(`roles: filled games select failed: ${error.message}`);
+    for (const game of data ?? []) {
+      lobbyByGame.set(game.id, game.lobby_id);
+      seatsByGame.set(
+        game.id,
+        game.game_players.map((row) => ({
+          playerId: row.player_id,
+          puuid: row.players.puuid,
+          side: row.side,
+          role: row.role,
+        })),
+      );
+    }
+  }
+
+  const lobbyIds = [...new Set([...lobbyByGame.values()].filter((id): id is string => id !== null))];
+  const splitByLobby = new Map<string, SplitSeat[] | null>();
+  for (const chunk of chunked(lobbyIds)) {
+    const { data, error } = await client
+      .from('splits')
+      .select('lobby_id, blue, red')
+      .in('lobby_id', chunk)
+      .eq('is_chosen', true);
+    if (error) throw new Error(`roles: filled splits select failed: ${error.message}`);
+    for (const row of data ?? []) splitByLobby.set(row.lobby_id, seatsOf(row.blue, row.red));
+  }
+
+  const released: ReleasedFlag[] = [];
+  for (const row of filled) {
+    const lobbyId = lobbyByGame.get(row.gameId) ?? null;
+    const split = lobbyId === null ? null : (splitByLobby.get(lobbyId) ?? null);
+    const seats = seatsByGame.get(row.gameId) ?? [];
+    if (!stillFilled(split, seats, row.playerId)) released.push(row);
+  }
+  return released;
+}
+
+/**
+ * The amended rule's two new conditions only, for one stored `false` (pure): still filled when
+ * there is a split, its teams are the teams that played, and the player played the split's role
+ * (or no role was reported). The pair half of the rule is the stored `false` itself.
+ */
+export function stillFilled(
+  split: readonly SplitSeat[] | null,
+  seats: readonly { playerId: string; puuid: string; side: number; role: Role | null }[],
+  playerId: string,
+): boolean {
+  if (split === null || split.length === 0) return false;
+  if (!sameTeams(split, seats)) return false;
+  const seat = seats.find((s) => s.playerId === playerId);
+  if (seat === undefined) return false;
+  const assigned = split.find((s) => s.puuid === seat.puuid)?.role;
+  if (assigned === undefined) return false;
+  return seat.role === null || seat.role === assigned;
+}
+
+/** Write {@link selectReleasedFillFlags}' answer: those rows back to `true`. Returns rows written. */
+export async function releaseFillFlags(client: ServiceClient, rows: readonly ReleasedFlag[]): Promise<number> {
+  let written = 0;
+  for (let index = 0; index < rows.length; index += WRITE_CONCURRENCY) {
+    const chunk = rows.slice(index, index + WRITE_CONCURRENCY);
+    const counts = await Promise.all(
+      chunk.map(async (row) => {
+        const { error, count } = await client
+          .from('game_players')
+          .update({ counts_for_role_inference: true }, { count: 'exact' })
+          .eq('game_id', row.gameId)
+          .eq('player_id', row.playerId)
+          .eq('counts_for_role_inference', false);
+        if (error) throw new Error(`roles: releasing a fill flag failed: ${error.message}`);
+        return count ?? 0;
+      }),
+    );
+    written += counts.reduce((a, b) => a + b, 0);
+  }
+  return written;
 }
 
 /** Tonight's taps (M3.6), by player id. Absent is null, which `resolveRoles` reads as no tap. */
