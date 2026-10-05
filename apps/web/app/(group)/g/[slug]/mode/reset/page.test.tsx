@@ -18,6 +18,13 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/groups/requirePageGroup', () => ({ requirePageGroup: vi.fn(async () => GROUP) }));
 vi.mock('@/lib/viewer', () => ({ currentViewerState: vi.fn(async () => viewer.current) }));
 vi.mock('@/lib/publicClient', () => ({ createPublicClient: () => ({}) }));
+const tables = vi.hoisted(() => ({ live: 0 }));
+// M22.6: the page reads how many lobbies are live (one lobby: today's sentence).
+vi.mock('@/lib/mode/tonightRead', () => ({
+  loadTonightLobbyLock: vi.fn(async () =>
+    tables.live === 0 ? null : { status: 'open', lock: null, partyId: 'p', liveTables: tables.live },
+  ),
+}));
 vi.mock('@/lib/fearless/load', () => ({
   loadFearless: vi.fn(async () => ({
     mode: 'fearless',
@@ -38,6 +45,7 @@ async function open(): Promise<void> {
 
 beforeEach(() => {
   viewer.current = { kind: 'anonymous' };
+  tables.live = 0;
 });
 
 describe('the reset confirm page', () => {
@@ -64,5 +72,23 @@ describe('the reset confirm page', () => {
     expect(form?.querySelector('input[name="groupId"]')).toHaveValue(GROUP.id);
     expect(form?.querySelector('input[name="redirectTo"]')).toHaveValue('/g/thursday-flex');
     expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute('href', '/g/thursday-flex');
+  });
+
+  it('M22.6: with two lobbies live the question says both lobbies; with one, today', async () => {
+    viewer.current = { kind: 'linked', puuid: 'p1', isAdmin: true };
+    tables.live = 2;
+    const two = await ResetFearlessConfirm({ params: Promise.resolve({ slug: GROUP.slug }) });
+    const { unmount } = render(two);
+    expect(
+      screen.getByText(
+        'All 2 bans are cleared in both lobbies and every champion is open again. Discord gets told.',
+      ),
+    ).toBeInTheDocument();
+    unmount();
+    tables.live = 1;
+    await open();
+    expect(
+      screen.getByText('All 2 bans are cleared and every champion is open again. Discord gets told.'),
+    ).toBeInTheDocument();
   });
 });
