@@ -16,8 +16,9 @@ import {
   tooFewOpen,
   unplayableRules,
 } from '@/lib/mode/card';
+import { modeCardKey } from '@/lib/mode/cardKey';
 import { championTable } from '@/lib/mode/champions';
-import { type ModeSlice, modeCardKey } from '@/lib/mode/clientStore';
+import type { ModeSlice } from '@/lib/mode/clientStore';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
 import {
   MIRROR_HOST_FILLING_REST,
