@@ -139,6 +139,14 @@ export function withLobby<T extends string>(href: T, lobbyId: string): T {
   return `${href}${href.includes('?') ? '&' : '?'}lobby=${encodeURIComponent(lobbyId)}` as T;
 }
 
+/** 14.11: the Reset dialog's body while two or more lobbies are live. */
+export function resetBodyLobbies(banned: number, count: number): string {
+  return `All ${banned} bans are cleared ${count === 2 ? 'in both lobbies' : 'in every lobby'} and every champion is open again. Discord gets told.`;
+}
+
+/** 14.8: a card write or a Roll for a lobby that has just ended. */
+export const THAT_LOBBY_ENDED = 'That lobby has ended.';
+
 /** 14.8: a live table nobody's Kustom is watching any more. */
 export const UNWATCHED_LEAD = 'Nobody with Kustom is in this lobby any more.';
 export const UNWATCHED_REST = 'It closes in a few minutes unless someone with Kustom joins.';

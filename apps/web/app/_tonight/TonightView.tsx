@@ -311,7 +311,7 @@ export function TonightView(props: TonightViewProps) {
   const action =
     shownTable?.watched === false && state.kind === 'filling'
       ? null
-      : stripAction(props, state, { isAdmin, linked, emptyGroup });
+      : stripAction(props, state, { isAdmin, linked, emptyGroup, several });
   const ruleJump =
     answer !== null && answer.kind === 'seated' && answer.role !== null && variant === 'balanced'
       ? showsFearlessPool(cardView)
@@ -621,7 +621,7 @@ function Idle(props: TonightViewProps) {
 function stripAction(
   props: TonightViewProps,
   state: TonightState,
-  viewer: { isAdmin: boolean; linked: boolean; emptyGroup: boolean },
+  viewer: { isAdmin: boolean; linked: boolean; emptyGroup: boolean; several: boolean },
 ): ReactNode {
   if (state.kind === 'filling') {
     if (rollerOf(state, viewer.isAdmin) === null) return null;
@@ -632,6 +632,7 @@ function stripAction(
         lobbyId={state.lobby.id}
         members={state.lobby.members}
         hint={rollAdminHint(around, sitOutPreview(state.lobby, props.wouldSitOut ?? null), stage)}
+        {...(viewer.several ? { severalLobbies: true } : {})}
       />
     );
   }

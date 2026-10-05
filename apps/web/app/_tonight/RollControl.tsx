@@ -7,6 +7,7 @@ import { groupHome } from '@/lib/nav';
 import { asSentence, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { beginTonightPress } from '@/lib/tonight/live';
 import { rollRosterKey } from '@/lib/tonight/state';
+import { THAT_LOBBY_ENDED } from '@/lib/tonight/switcher';
 import type { MemberView } from '@/lib/tonight/types';
 import { usePageGroup } from '../_shell/PageGroup';
 
@@ -37,12 +38,15 @@ export function RollControl({
   members,
   hint = null,
   onSettled,
+  severalLobbies = false,
 }: {
   lobbyId: string;
   members: readonly MemberView[];
   /** One line above the button (`rollAdminHint`): the rotation preview, or the at-ten line. */
   hint?: string | null | undefined;
   onSettled?: (() => void) | undefined;
+  /** M22.6 (14.8): two or more lobbies live, so a lobby that went away says `That lobby has ended.` */
+  severalLobbies?: boolean | undefined;
 }) {
   const group = usePageGroup();
   const [pending, setPending] = useState(false);
@@ -68,7 +72,8 @@ export function RollControl({
       const answeredAt = Date.now();
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
-        setFailed(errorOf(body));
+        const said = errorOf(body);
+        setFailed(severalLobbies && said === ROLL_ABANDONED ? THAT_LOBBY_ENDED : said);
       } else {
         // M20 D11: Roll redrew a region pair the bans made short; the Mode card says so for this
         // game, in the route's words, until the game starts.
@@ -122,6 +127,9 @@ function modeNoticeOf(body: unknown): string | null {
  * full stop (`the lobby changed since you looked: …`) because `/admin` prints them inline. Here
  * each stands alone in its slot, so it gets a capital and a stop. Anything else gets ours.
  */
+/** `lib/admin/roll.ts`' 409 for a lobby no longer open or balanced (`abandoned`), as `errorOf` prints it. */
+const ROLL_ABANDONED = 'That lobby was abandoned.';
+
 function errorOf(body: unknown): string {
   if (typeof body === 'object' && body !== null && 'error' in body) {
     const error = (body as { error: unknown }).error;

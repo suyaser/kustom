@@ -478,6 +478,7 @@ export function ModeCardBody(props: ModeCardBodyProps) {
                 lobbyId: live?.lobbyId ?? null,
                 storeKey,
                 lobbyNote: adminFootLines(lobbies.label),
+                lobbyCount: lobbies.count,
               })}
           mode={view.standing}
           banned={counts.banned}

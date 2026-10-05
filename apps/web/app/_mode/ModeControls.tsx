@@ -86,9 +86,10 @@ import {
   THIS_GAME_HEADING,
   TOO_FEW_OPEN,
 } from '@/lib/mode/ruleCopy';
-import { NOTHING_TO_SPIN, RULE_TOO_FEW_OPEN } from '@/lib/mode/ruleNotices';
+import { NOTHING_TO_SPIN, PICK_A_LOBBY_FIRST, RULE_TOO_FEW_OPEN } from '@/lib/mode/ruleNotices';
 import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { beginTonightPress, requestTonightRefresh } from '@/lib/tonight/live';
+import { resetBodyLobbies, THAT_LOBBY_ENDED } from '@/lib/tonight/switcher';
 import { cn } from '@/lib/utils';
 import { type RegionChange, RegionControls } from './RegionControls';
 
@@ -190,6 +191,8 @@ export interface ModeControlsProps {
   lobbyId?: string | null | undefined;
   storeKey?: string | undefined;
   lobbyNote?: string | null | undefined;
+  /** M22.6: live lobbies, for the Reset dialog's `in both lobbies` (14.11). Default one. */
+  lobbyCount?: number | undefined;
 }
 
 /** This game's values for the controls while the lobby is balanced (M20.18). */
@@ -222,6 +225,7 @@ export function ModeControls({
   lobbyId = null,
   storeKey = groupId,
   lobbyNote = null,
+  lobbyCount = 1,
 }: ModeControlsProps) {
   const selectId = useId();
   const sentenceId = useId();
@@ -332,12 +336,16 @@ export function ModeControls({
       if (!response.ok) {
         // A 409 carries M20.1's words for the refusal; nothing else is shown as is.
         const body: unknown = response.status === 409 ? await response.json().catch(() => null) : null;
-        const error =
+        const said =
           typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string'
             ? body.error
             : null;
+        // M22.6 (14.8): a card that named its lobby and is told to pick one wrote to a lobby that
+        // has just ended: say so, and re-read the page for the lobbies that are left.
+        const ended = lobbyId !== null && said === PICK_A_LOBBY_FIRST;
+        if (ended) void requestTonightRefresh();
         done();
-        return { ok: false, status: response.status, error };
+        return { ok: false, status: response.status, error: ended ? THAT_LOBBY_ENDED : said };
       }
       const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
       if (!parsed.success) {
@@ -648,6 +656,7 @@ export function ModeControls({
   const reset =
     mode === 'fearless' && banned > 0 ? (
       <ResetFearless
+        lobbyCount={lobbyCount}
         groupId={groupId}
         banned={banned}
         confirmHref={resetConfirmHref}
@@ -721,6 +730,8 @@ export function ModeControls({
  */
 function refusal(result: { status: number; error: string | null }, fallback: string, words: boolean): string {
   if (result.status !== 409) return MODE_CHANGE_FAILED;
+  // M22.6 (14.8): which lobby the write was for is always said, whatever the target.
+  if (result.error === THAT_LOBBY_ENDED || result.error === PICK_A_LOBBY_FIRST) return result.error;
   return words ? (result.error ?? fallback) : fallback;
 }
 
@@ -740,6 +751,7 @@ function regionPairOf(pending: PendingRule | null): { blue?: string; red?: strin
 }
 
 function ResetFearless({
+  lobbyCount,
   groupId,
   banned,
   confirmHref,
@@ -748,6 +760,7 @@ function ResetFearless({
 }: {
   groupId: string;
   banned: number;
+  lobbyCount: number;
   confirmHref: string;
   onSaid: (line: string) => void;
   /** After a reset the dialog closes onto the outcome line, not its trigger (gone with the bans). */
@@ -827,7 +840,9 @@ function ResetFearless({
       >
         <AlertDialogHeader>
           <AlertDialogTitle>{FEARLESS_RESET_TITLE}</AlertDialogTitle>
-          <AlertDialogDescription>{fearlessResetBody(banned)}</AlertDialogDescription>
+          <AlertDialogDescription>
+            {lobbyCount >= 2 ? resetBodyLobbies(banned, lobbyCount) : fearlessResetBody(banned)}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         {error === null ? null : (
           <p role="alert" className="text-sm text-destructive">
