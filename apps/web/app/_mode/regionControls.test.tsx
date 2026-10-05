@@ -66,6 +66,7 @@ const card = () => screen.getByRole('region', { name: /^Mode / });
 const status = () => card().querySelector('a') as HTMLElement;
 const blue = () => screen.getByRole('combobox', { name: "Blue's region" }) as HTMLSelectElement;
 const red = () => screen.getByRole('combobox', { name: "Red's region" }) as HTMLSelectElement;
+const nextPair = () => card().querySelector('[data-slot="region-controls-next"]') as HTMLElement;
 const ready = () => screen.findByRole('switch', { name: 'Rated' });
 
 function answer(pending: { blue: string; red: string } | null, notice: string, status = 200) {
@@ -280,12 +281,21 @@ describe('this game: the balanced lobby locked region wars', () => {
   it('with region wars queued again, each pair has its own controls', async () => {
     render(page('balanced', { rule: 'region', queued: 'region' }));
     await ready();
-    expect(screen.getByRole('group', { name: 'This game' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Next game' })).toHaveAttribute(
-      'data-slot',
-      'region-controls-next',
-    );
+    const thisGame = screen.getByRole('group', { name: 'This game' });
+    const next = nextPair();
+    // 05-design 8.3.1: the next game's pair has no heading (the `Next game` picker is above it).
+    expect(next.querySelector('legend')).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Redraw regions' })).toHaveLength(2);
+    // The next-game group opens on a hairline, with the caption at its top: never under this
+    // game's Redraw.
+    const caption = screen.getByText('Changes apply from the next game.');
+    const group = caption.parentElement as HTMLElement;
+    expect(group.className).toContain('border-t');
+    expect(group).toContainElement(next);
+    expect(group).toContainElement(screen.getByRole('combobox', { name: 'Next game' }));
+    expect(group).not.toContainElement(thisGame);
+    expect(screen.queryByText('Next game: Region wars.')).toBeNull();
+    expect(screen.getAllByText('Next game')).toHaveLength(1);
   });
 });
 
@@ -298,11 +308,15 @@ describe('in game: this game pair is frozen', () => {
     expect(within(status()).getByText('Ionia')).toBeInTheDocument();
   });
 
-  it('region wars queued for the next game keeps its controls, headed Next game', async () => {
+  it('region wars queued for the next game keeps its controls, under the Next game picker', async () => {
     render(page('in-game', { rule: 'class:Tank', queued: 'region' }));
     await ready();
     expect(screen.queryByRole('group', { name: 'This game' })).toBeNull();
-    const next = screen.getByRole('group', { name: 'Next game' });
+    const next = nextPair();
+    // In game there is no this-game group, so no hairline: the caption sits in the foot itself.
+    expect(screen.getByText('Changes apply from the next game.').parentElement).toHaveTextContent(
+      'Admins and the owner',
+    );
     expect(
       new FormData(
         within(next).getByRole('button', { name: 'Redraw regions' }).closest('form') as HTMLFormElement,
@@ -348,7 +362,7 @@ describe('too few open and the short pair (M20 D11)', () => {
   it('after Roll the next game pair is the admin foot: the line sits there, not under the status', async () => {
     render(page('in-game', { rule: 'class:Tank', queued: 'region' }, true, ixtalShort()));
     await ready();
-    const next = screen.getByRole('group', { name: 'Next game' });
+    const next = nextPair();
     expect(within(next).getByText(REGION_PAIR_SHORT)).toBeInTheDocument();
     expect(within(status()).queryByText(REGION_PAIR_SHORT)).toBeNull();
   });

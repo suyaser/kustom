@@ -472,7 +472,8 @@ if (stack === null || !ready) {
       const page = await tonightPaint();
       expect(page).toContain('Class wars');
       expect(page).toContain('Tanks only · 42 open');
-      expect(page).toContain('This game only. Then back to Fearless.');
+      // Before Roll the card is the next game's (M20.10 design round 1).
+      expect(page).toContain('For the next game only. Then back to Fearless.');
       expect(page).toMatch(/Not rated/);
     });
 

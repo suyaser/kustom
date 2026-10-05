@@ -33,6 +33,8 @@ import before from './modeCardText.pre-m20-8.json';
  *    for this game's rule (queuing it again is a plain change). The picker is headed `Next game`,
  *    not `Mode` (lead's call), under the kept `Changes apply from the next game.`. The card above
  *    them is unchanged.
+ * 7. M20.10 design round 1: before Roll the card's one-game line is the next game's form,
+ *    `For the next game only. Then back to Fearless.` (it read `This game only.` with no game yet).
  * 6. M20.10: an admin's foot gains region wars' pair controls (`Redraw regions`, `Blue's region`,
  *    `Red's region`) wherever a pair can still change; they are cut out before the comparison and
  *    checked on their own: present exactly when the row's pending rule is region wars or the
@@ -102,6 +104,13 @@ function CHANGES(name: string, key: TonightStateKey, old: Entry): Entry {
     .replace('Sides drawn when teams are rolled.', 'BLUEIoniavsREDNoxus')
     // 4.
     .replace('Normal mode now. An admin switched off Fearless, so every champion is open.', '');
+  if (!AFTER_ROLL.has(key)) {
+    // 7.
+    text = text.replace(
+      /This game only\. Then back to (Fearless|Normal)\./,
+      'For the next game only. Then back to $1.',
+    );
+  }
   if (name === 'region wars that could not be drawn' && AFTER_ROLL.has(key)) {
     // 3.
     text = text
@@ -171,9 +180,9 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
           // The picker says whose game it is (lead's call on OPEN 1): `Next game`, never `Mode`.
           expect(screen.getByRole('combobox', { name: 'Next game' })).toBeInTheDocument();
           expect(screen.queryByRole('combobox', { name: 'Mode' })).toBeNull();
-          // Kept wherever it was (a `Next game: …` line replaces it, design round 1).
-          const applies = 'Changes apply from the next game.';
-          expect(text.includes(applies)).toBe(old.text.includes(applies));
+          // 05-design 8.3.1 (M20.10): the caption always heads the next-game group after Roll and
+          // the foot's bold `Next game: …` line is gone (the picker says it).
+          expect(text.includes('Changes apply from the next game.')).toBe(true);
           expect(rated).toBe(String(nextRated(row)));
         } else {
           expect({ text, select, rated, mirror }).toEqual({

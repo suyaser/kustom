@@ -57,6 +57,7 @@ import {
   REGION_PAIR_SHORT,
   REGION_VS,
   ruleAction,
+  ruleSentence,
 } from '@/lib/mode/ruleCopy';
 import { ruleLabel } from '@/lib/mode/ruleNotices';
 import { cn } from '@/lib/utils';
@@ -237,7 +238,14 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           : mirrorPool
             ? FEARLESS_IN_GAME_MIRROR
             : null;
-  const oneGame = rule && inGameLine === null && banLine === null ? oneGameLine(view.standing) : null;
+  // Before Roll the card is the next game's, so its one-game line says so, as the picker's sentence
+  // does (M20.10 design round 1); `This game only.` once the lobby has locked it.
+  const oneGame =
+    rule && inGameLine === null && banLine === null
+      ? view.locked
+        ? oneGameLine(view.standing)
+        : ruleSentence(view.standing)
+      : null;
   // The panel is one tap away: warm the connection to the sprites wherever a pool shows. The
   // sheets themselves load on intent, from the links (M14.45): the card's ten are their own squares.
   const pooled = poolOn || shown.id === 'class' || regions !== null;

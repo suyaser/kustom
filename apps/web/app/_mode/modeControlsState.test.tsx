@@ -92,7 +92,8 @@ describe('owner bug 3: the locked rule can be queued again for the next game', (
     expect(JSON.parse(String(init.body))).toEqual({ groupId: ORIGINAL_GROUP.id, mode: 'region' });
     // Queued: the admin's line says the next game is region wars too; the button goes; the line
     // under the controls is the route's notice, with the next game's own pair.
-    expect(screen.getByText('Next game: Region wars.')).toBeInTheDocument();
+    // 05-design 8.3.1: the `Next game` picker says it (no bold line in the foot).
+    expect(select().value).toBe('region');
     expect(screen.queryByRole('button', { name: 'Set mode' })).toBeNull();
     expect(document.querySelector('[data-slot="mode-outcome"]')).toHaveTextContent(
       'Next game: Region wars. Blue: Shurima · Red: Zaun. Not rated.',

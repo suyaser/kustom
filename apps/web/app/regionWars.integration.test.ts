@@ -149,7 +149,8 @@ if (stack === null) {
       expect(page).toContain('Shurima');
       expect(page).toContain('Bilgewater');
       expect(page).not.toContain('drawn when teams are rolled');
-      expect(page).toContain('This game only. Then back to Fearless.');
+      // Before Roll the card is the next game's (M20.10 design round 1).
+      expect(page).toContain('For the next game only. Then back to Fearless.');
       const { text } = await panelHtml(null);
       expect(text).toContain('Blue picks only from Shurima, Red only from Bilgewater.');
       expect(text).not.toContain('drawn when teams are rolled');
