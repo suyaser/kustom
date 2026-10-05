@@ -17,7 +17,7 @@ import type { TonightSnapshot } from './types';
 /**
  * M22.5 acceptance 1 and M22 D2: **with one live table Tonight is exactly what it was.** The real
  * loader runs over one party's night in every state, and the snapshot's fields from before M22
- * (everything but `lobbies` and `selectedLobbyId`), the state, and the requests it made (table and
+ * (everything but `lobbies`, `selectedLobbyId` and `severalLobbiesTonight`), the state, and the requests it made (table and
  * round of each; the lobbies read names two more columns since M22.5) are pinned to a file snapshot recorded **with the pre-M22.5 loader**
  * (`__snapshots__/oneTable.test.ts.snap`, first written at the M22.3 head 4c89a108). A change that
  * moves one field, one request or one round on a one-lobby night fails here.
@@ -40,12 +40,10 @@ function beforeM22(snapshot: TonightSnapshot): TonightSnapshot {
   const {
     lobbies: _lobbies,
     selectedLobbyId: _selected,
+    severalLobbiesTonight: _several,
     ...rest
-  } = snapshot as TonightSnapshot & {
-    lobbies?: unknown;
-    selectedLobbyId?: unknown;
-  };
-  return rest as TonightSnapshot;
+  } = snapshot;
+  return rest;
 }
 
 beforeEach(() => {

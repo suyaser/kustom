@@ -1,4 +1,4 @@
-import type { Fixtures, FixtureRow } from './recordingClient';
+import type { FixtureRow, Fixtures } from './recordingClient';
 
 /**
  * Tonight's rows for the recording fake client (`recordingClient.ts`): a group, twelve players,

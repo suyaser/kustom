@@ -24,6 +24,7 @@ import {
 } from '../games/receipt';
 import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
+import type { TableRow } from '../liveTables';
 import { loadCheckNames } from '../mode/clientNames';
 import { type LockRow, modeLockOf } from '../mode/lock';
 import { missingRow } from '../mode/state';
@@ -39,6 +40,8 @@ import { formatClock, formatNightLabel, type NightClock, nightClock } from '../n
 import type { PublicClient } from '../publicClient';
 import { renderWebName } from './copy';
 import { kickoffView, readKickoff } from './kickoff';
+import { pickTable } from './selection';
+import { nightTables, tablesOverlapped } from './tables';
 import type {
   LobbyView,
   MemberView,
@@ -47,6 +50,7 @@ import type {
   ResultView,
   SeatView,
   SplitChoice,
+  TableView,
   TapeEntry,
   TeamsView,
   TonightSnapshot,
@@ -105,6 +109,11 @@ export interface LoadTonightOptions {
    * `TABLE_LINGER_MS`, `lib/liveTables.ts`). Default: the clock. Tests pass it.
    */
   now?: Date;
+  /**
+   * `?lobby=` (M22.5): the table to draw, if it names a row of a live table of the group; ignored
+   * otherwise. The page re-selects once it knows the viewer (`withSelection`, `./selection.ts`).
+   */
+  lobbyId?: string | null;
 }
 
 export async function loadTonight(
@@ -126,18 +135,65 @@ export async function loadTonight(
   // Started before the lobbies are awaited, and awaited below; if the lobbies read throws first,
   // these must not become unhandled rejections (side references, as the page's roster read does).
   for (const started of [modeFacts, fearlessRead]) started.catch(() => undefined);
-  const lobbies = await selectNightLobbies(client, nightStart, groupId);
-  const lobbyRow = newestLobby(lobbies);
-  const tapeLobbies = pickTapeLobbies(lobbies, nightStart, drawnLobbyId(lobbyRow));
+  const now = options.now ?? new Date();
+  // M22.5: the same one read carries the abandoned rows too (a newest abandoned row ends its table,
+  // `lib/liveTables.ts`); everything else on the page reads the night without them, as before.
+  const nightRows = await selectNightLobbies(client, nightStart, groupId);
+  const lobbies = nightRows.filter((row) => row.status !== 'abandoned');
+  const tableRows = nightRows.map(tableRowOf);
+  const tables = nightTables(tableRows, now);
+  const rowById = new Map(lobbies.map((row) => [row.id, row]));
+  // The rows the page may draw: every live table's newest row, or, with no live table, the night's
+  // newest row as before M22 (a result an hour old stays up; a dropped one is the idle page).
+  const fallback = tables.length === 0 ? newestLobby(lobbies) : null;
+  const currents = (
+    fallback === null ? tables.map((table) => rowById.get(table.lobby.id)) : [fallback]
+  ).filter((row): row is LobbyRow => row !== undefined);
+  // Every finished and dropped row: the tape, and each live table's tile (14.6).
+  const tapeLobbies = pickTapeLobbies(lobbies, nightStart, null);
+  const hostIds = tables.flatMap((table) =>
+    table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId],
+  );
 
-  const [{ lobby, tape }, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }] =
-    await Promise.all([loadNight(client, lobbyRow, tapeLobbies, groupId, clock), fearlessRead, modeFacts]);
+  const [night, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }] =
+    await Promise.all([
+      loadNight(client, currents, tapeLobbies, hostIds, groupId, clock),
+      fearlessRead,
+      modeFacts,
+    ]);
+
+  const views: TableView[] = tables.flatMap((table) => {
+    const lobby = night.lobbies.get(table.lobby.id);
+    if (lobby === undefined) return [];
+    const host = table.label.hostPlayerId === null ? undefined : night.players.get(table.label.hostPlayerId);
+    return [
+      {
+        id: table.lobby.id,
+        partyId: table.partyId,
+        rowIds: table.rowIds,
+        openedAt: table.openedAt,
+        changedAt: table.changedAt,
+        host: host === undefined ? null : { puuid: host.puuid, name: displayName(host) },
+        watched: null,
+        lobby,
+        tile: night.tape.find((entry) => entry.lobbyId === table.lobby.id) ?? null,
+      },
+    ];
+  });
+  const selectedLobbyId = pickTable(views, { requested: options.lobbyId ?? null });
+  const drawn = fallback ?? (selectedLobbyId === null ? null : (rowById.get(selectedLobbyId) ?? null));
+  const lobby = drawn === null ? null : (night.lobbies.get(drawn.id) ?? null);
+  const drawnId = drawnLobbyId(drawn);
+  const tape = night.tape.filter((entry) => entry.lobbyId !== drawnId);
 
   return {
     nightStart,
     nightLabel: options.nightLabel ?? formatNightLabel(options.nightStart, options.timeZone),
     nightClock: clock,
     lobby,
+    lobbies: views,
+    selectedLobbyId,
+    severalLobbiesTonight: tablesOverlapped(tableRows, now),
     fearless,
     mode,
     modeSince: modeSince ?? null,
@@ -154,6 +210,9 @@ export async function loadTonight(
 interface LobbyRow {
   id: string;
   status: LobbyView['status'];
+  /** The table it belongs to (M22 D4) and its first reporter, for `nightTables`. */
+  partyId: string;
+  reportedByPlayerId: string | null;
   /** `Customs 09 Sep #1`, when the client reported one. Half of M4.10's line. */
   lobbyName: string | null;
   /** `lobbies.updated_at`: for an `in_game` row, when the game started (see {@link LobbyView.startedAt}). */
@@ -166,9 +225,9 @@ interface LobbyRow {
 }
 
 /**
- * Tonight's lobbies that are not `abandoned`, oldest first: **one read** for both the lobby the
- * page draws ({@link newestLobby}) and the tape's candidates ({@link pickTapeLobbies}), with the
- * name and the lock on the same rows. The name comes back with the row the page is already reading
+ * Tonight's lobbies, oldest first: **one read** for the live tables (`nightTables`, M22.5, which
+ * needs the `abandoned` rows too), the lobby the page draws and the tape's candidates
+ * ({@link pickTapeLobbies}), with the name and the lock on the same rows. The name comes back with the row the page is already reading
  * (M4.10). The password does not: it is not readable with the anon key (M14.28, `0028`), and only
  * a linked member of the group is given it, by the page, from a service-role read
  * (`lib/tonight/lobbyPassword.ts`).
@@ -181,10 +240,9 @@ async function selectNightLobbies(
   let query = client
     .from('lobbies')
     .select(
-      `id, status, lobby_name, updated_at, created_at, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at, ${KICKOFF_COLUMNS}`,
+      `id, lcu_party_id, status, reported_by_player_id, lobby_name, updated_at, created_at, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at, ${KICKOFF_COLUMNS}`,
     )
-    .gte('created_at', nightStart)
-    .neq('status', 'abandoned');
+    .gte('created_at', nightStart);
   if (groupId !== undefined) query = query.eq('group_id', groupId);
   const { data, error } = await query
     .order('created_at', { ascending: true })
@@ -193,12 +251,27 @@ async function selectNightLobbies(
   return (data ?? []).map((row) => ({
     id: row.id,
     status: row.status,
+    partyId: row.lcu_party_id,
+    reportedByPlayerId: row.reported_by_player_id,
     lobbyName: row.lobby_name,
     updatedAt: row.updated_at,
     created_at: row.created_at,
     lock: row,
     kickoff: row,
   }));
+}
+
+/** A night row as `lib/liveTables.ts` folds it. */
+function tableRowOf(row: LobbyRow): TableRow {
+  return {
+    id: row.id,
+    lcuPartyId: row.partyId,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updatedAt,
+    reportedByPlayerId: row.reportedByPlayerId,
+    lobbyName: row.lobbyName,
+  };
 }
 
 /**
@@ -265,27 +338,35 @@ type NightGameRow = GameStampRow & {
 };
 
 /**
- * The drawn lobby and the tape, in two more rounds: every member, split and game (with its
+ * The drawable lobbies and the tape, in two more rounds: every member, split and game (with its
  * scoreboard embedded) of tonight's lobbies in one read each, then the names and ratings of
  * everybody those mention. An `open` lobby reads no split and no game, and only a `finished` one
- * reads its game, as before.
+ * reads its game, as before. M22.5: `currents` is every live table's newest row (one on a
+ * one-lobby night, so the reads are the ones before M22); more tables only lengthen the `in` lists.
+ * The tape comes back whole (every finished and dropped row); the caller leaves out the drawn one.
  */
 async function loadNight(
   client: PublicClient,
-  lobbyRow: LobbyRow | null,
+  currents: readonly LobbyRow[],
   tapeLobbies: readonly TapeLobbyRow[],
+  hostIds: readonly string[],
   groupId: string | undefined,
   clock: NightClock,
-): Promise<{ lobby: LobbyView | null; tape: TapeEntry[] }> {
-  const current = lobbyRow;
+): Promise<{ lobbies: Map<string, LobbyView>; tape: TapeEntry[]; players: Map<string, PlayerRow> }> {
   const tapeIds = tapeLobbies.map((lobby) => lobby.id);
-  const memberIds = [...new Set([...(current === null ? [] : [current.id]), ...tapeIds])];
-  if (memberIds.length === 0) return { lobby: null, tape: [] };
+  const memberIds = [...new Set([...currents.map((current) => current.id), ...tapeIds])];
+  if (memberIds.length === 0) return { lobbies: new Map(), tape: [], players: new Map() };
   const splitIds = [
-    ...new Set([...(current !== null && current.status !== 'open' ? [current.id] : []), ...tapeIds]),
+    ...new Set([
+      ...currents.filter((current) => current.status !== 'open').map((current) => current.id),
+      ...tapeIds,
+    ]),
   ];
   const gameIds = [
-    ...new Set([...(current !== null && current.status === 'finished' ? [current.id] : []), ...tapeIds]),
+    ...new Set([
+      ...currents.filter((current) => current.status === 'finished').map((current) => current.id),
+      ...tapeIds,
+    ]),
   ];
 
   const [memberRows, splitRows, gameRows] = await Promise.all([
@@ -328,43 +409,56 @@ async function loadNight(
     ),
   ]);
 
-  const currentMembers = current === null ? [] : memberRows.filter((row) => row.lobby_id === current.id);
-  const currentGame =
-    current !== null && current.status === 'finished'
-      ? (gameRows.find((game) => game.lobby_id === current.id) ?? null)
-      : null;
+  const currentIds = new Set(currents.map((current) => current.id));
+  const currentMembers = memberRows.filter((row) => currentIds.has(row.lobby_id));
+  const currentGames = new Map<string, NightGameRow>();
+  for (const current of currents) {
+    if (current.status !== 'finished') continue;
+    const game = gameRows.find((row) => row.lobby_id === current.id);
+    if (game !== undefined) currentGames.set(current.id, game);
+  }
   const playerIds = [
     ...new Set([
       ...memberRows.map((row) => row.player_id),
       ...gameRows.flatMap((game) => game.game_players.map((row) => row.player_id)),
+      ...hostIds,
     ]),
   ];
-  const stampCheckOf = currentGame === null ? null : stampCheck(currentGame.id, currentGame);
+  const checks = new Map([...currentGames.values()].map((game) => [game.id, stampCheck(game.id, game)]));
   const [players, ratings, checkNames] = await Promise.all([
     readNightPlayers(client, playerIds),
-    loadRatings(
-      client,
-      currentMembers.map((row) => row.player_id),
-      groupId,
-    ),
-    currentGame === null ? Promise.resolve({}) : loadCheckNames(client, currentGame.id, stampCheckOf),
+    loadRatings(client, [...new Set(currentMembers.map((row) => row.player_id))], groupId),
+    Promise.all(
+      [...currentGames.values()].map(
+        async (game) =>
+          [game.id, await loadCheckNames(client, game.id, checks.get(game.id) ?? null)] as const,
+      ),
+    ).then((pairs) => new Map(pairs)),
   ]);
 
-  const lobby =
-    current === null
-      ? null
-      : buildLobby(current, {
-          members: buildMembers(currentMembers, players, ratings),
-          splits: splitRows.filter((row) => row.lobby_id === current.id),
-          game:
-            currentGame === null
-              ? null
-              : {
-                  row: currentGame,
-                  stamp: stampFromRow(currentGame, stampCheckOf, checkNames),
-                },
+  const lobbies = new Map<string, LobbyView>();
+  for (const current of currents) {
+    const game = currentGames.get(current.id) ?? null;
+    lobbies.set(
+      current.id,
+      buildLobby(current, {
+        members: buildMembers(
+          memberRows.filter((row) => row.lobby_id === current.id),
           players,
-        });
+          ratings,
+        ),
+        splits: splitRows.filter((row) => row.lobby_id === current.id),
+        game:
+          game === null
+            ? null
+            : {
+                row: game,
+                stamp: stampFromRow(game, checks.get(game.id) ?? null, checkNames.get(game.id) ?? {}),
+              },
+        players,
+      }),
+    );
+  }
 
   const tapeSet = new Set(tapeIds);
   const tapeGames = gameRows.filter((game) => game.lobby_id !== null && tapeSet.has(game.lobby_id));
@@ -387,7 +481,7 @@ async function loadNight(
           },
           clock,
         );
-  return { lobby, tape };
+  return { lobbies, tape, players };
 }
 
 /** The tape lobbies' kickoff records (M21.4), read with the night's lobby rows. A row without the columns has none. */
