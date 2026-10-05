@@ -332,4 +332,47 @@ describe('query budgets', () => {
     expect(result.length).toBe(10);
     expectWithin(recording, { queries: 2, waves: 1 });
   });
+
+  // Tonight (M22.5, budget added then): three rounds whatever the screen, and **more live lobbies
+  // cost nothing**: every table's newest row joins the `in` lists the night already reads (members,
+  // splits, games, names, ratings), so two tables are the same nine requests in the same three
+  // rounds as one. Its own fixture night (`lib/testing/tonightRows.ts`): this file's group has no lobbies.
+  it('Tonight, one lobby with its teams set: nine requests in three rounds', async () => {
+    const { loadTonight } = await import('../tonight/load');
+    const rows = await import('../testing/tonightRows');
+    const { client, recording } = recordingClient(rows.night([...rows.EARLIER, rows.currentCycle('teams')]));
+    const result = await loadTonight(client, {
+      nightStart: rows.NIGHT_START,
+      nightClock: rows.CLOCK,
+      groupId: rows.GROUP,
+      now: rows.NOW,
+    });
+    expect(result.lobbies).toHaveLength(1);
+    expectWithin(recording, { queries: 9, waves: 3 });
+  });
+
+  it('Tonight, two live lobbies: the same nine requests in three rounds', async () => {
+    const { loadTonight } = await import('../tonight/load');
+    const rows = await import('../testing/tonightRows');
+    const other = {
+      id: 'lobby-b1',
+      party: 'party-b',
+      status: 'open' as const,
+      created: 40,
+      updated: 40,
+      reporter: 12,
+      members: [10, 11, 12, 13, 14, 15],
+    };
+    const { client, recording } = recordingClient(
+      rows.night([...rows.EARLIER, other, rows.currentCycle('teams')]),
+    );
+    const result = await loadTonight(client, {
+      nightStart: rows.NIGHT_START,
+      nightClock: rows.CLOCK,
+      groupId: rows.GROUP,
+      now: rows.NOW,
+    });
+    expect(result.lobbies).toHaveLength(2);
+    expectWithin(recording, { queries: 9, waves: 3 });
+  });
 });

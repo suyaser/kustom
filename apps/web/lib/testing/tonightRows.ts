@@ -36,6 +36,8 @@ export interface CycleSpec {
   reporter: number | null;
   /** Player numbers on the roster (joined at `created`). */
   members: readonly number[];
+  /** A member who joined later than `created` (minutes before NOW), by player number. */
+  joins?: Readonly<Record<number, number>>;
   /** Blue and red player numbers of a chosen split (three ranks stored), or none. */
   split?: { blue: readonly number[]; red: readonly number[] };
   /** A game on this row: the winner and when it started (minutes before NOW). */
@@ -90,7 +92,7 @@ export function night(cycles: readonly CycleSpec[]): Fixtures {
       role_override: null,
       is_spectator: i >= 10,
       side: i < 5 ? 100 : i < 10 ? 200 : null,
-      created_at: ago(cycle.created),
+      created_at: ago(cycle.joins?.[n] ?? cycle.created),
     })),
   );
   const splits: FixtureRow[] = cycles.flatMap((cycle) =>

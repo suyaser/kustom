@@ -11,6 +11,7 @@ import {
   night,
 } from '../testing/tonightRows';
 import { loadTonight } from './load';
+import { withSelection } from './selection';
 import { tonightState } from './state';
 import type { TonightSnapshot } from './types';
 
@@ -69,6 +70,44 @@ describe('one table: the snapshot as before M22 (M22.5 acceptance 1)', () => {
         state: tonightState(snapshot).kind,
         requests: recording.requests.map((request) => `${request.wave} ${request.table}`),
       }).toMatchSnapshot();
+
+      // The new fields on a one-lobby night: one table that is the drawn lobby (the same object),
+      // or none at all; never "several lobbies".
+      expect(snapshot.severalLobbiesTonight).toBe(false);
+      if (snapshot.selectedLobbyId == null) {
+        expect(snapshot.lobbies).toEqual([]);
+      } else {
+        expect(snapshot.lobbies).toHaveLength(1);
+        expect(snapshot.lobbies?.[0]?.lobby).toBe(snapshot.lobby);
+        expect(snapshot.selectedLobbyId).toBe(snapshot.lobby?.id);
+        // A `?lobby=` or a viewer changes nothing with one table.
+        expect(withSelection(snapshot, { requested: 'lobby-a1', viewerPuuid: 'puuid-0' })).toBe(snapshot);
+      }
     });
   }
+
+  it('which scenes have a live table', async () => {
+    const live: Record<string, boolean> = {};
+    for (const [name, cycles] of Object.entries(SCENES)) {
+      const { client } = recordingClient(night(cycles));
+      const snapshot = await loadTonight(client, {
+        nightStart: NIGHT_START,
+        nightClock: CLOCK,
+        groupId: GROUP,
+        now: NOW,
+      });
+      live[name] = snapshot.selectedLobbyId != null;
+    }
+    expect(live).toEqual({
+      'no lobby tonight': false,
+      filling: true,
+      'teams set': true,
+      'in game': true,
+      result: true,
+      'result an hour ago (no live table)': false,
+      'dropped (idle with the tape)': false,
+      'newest abandoned (the finished one before it)': false,
+      'first lobby filling': true,
+    });
+  });
 });
