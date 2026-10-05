@@ -185,6 +185,31 @@ export async function modeNight(stack: LocalStack, key: string) {
     return { status: response.status, json: (await response.json()) as Record<string, unknown> };
   }
 
+  /**
+   * M20.18: one card action as the no-JS form posts it (`application/x-www-form-urlencoded`, the
+   * form's own fields): the status and the redirect's `notice` / `error`.
+   */
+  async function cardForm(fields: Record<string, string>, rng?: Rng) {
+    const response = await setGroupModeRoute({ ...adminOptions, ...(rng === undefined ? {} : { rng }) })(
+      new Request('http://localhost/api/admin/mode', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-forwarded-host': 'kustom.test',
+          'x-forwarded-proto': 'https',
+        },
+        body: new URLSearchParams(fields).toString(),
+      }),
+    );
+    const location = new URL(response.headers.get('location') ?? 'http://invalid/');
+    return {
+      status: response.status,
+      path: location.pathname,
+      notice: location.searchParams.get('notice'),
+      error: location.searchParams.get('error'),
+    };
+  }
+
   /** Spin (M20.7: the one mode route with `spin: true`); `rng` pins the pick and a region pair. */
   async function spin(rng: Rng) {
     const response = await setGroupModeRoute({ ...adminOptions, rng })(
@@ -486,6 +511,7 @@ export async function modeNight(stack: LocalStack, key: string) {
     },
     card,
     cardAnswer,
+    cardForm,
     spin,
     cardRow,
     companionLobby,

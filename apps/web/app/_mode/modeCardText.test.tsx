@@ -1,8 +1,8 @@
-import { nextRated } from '@customs/core';
+import { lockRated, nextRated } from '@customs/core';
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
-import { selectValue } from '@/lib/mode/cardView';
+import { lockSelectValue, selectValue } from '@/lib/mode/cardView';
 import { resetModeStoreForTests } from '@/lib/mode/clientStore';
 import {
   ADMIN_VIEWER,
@@ -46,6 +46,11 @@ import before from './modeCardText.pre-m20-8.json';
  *    status whenever the row holds a region pair (and the short-pair line under it when that pair
  *    fails the draw rule). Cut out before the comparison and checked on its own: present exactly
  *    then. Nothing else on the card changes.
+ * 10. M20.18 (owner, 2026-10-05: "until the game starts, mode changes are for this game"): while
+ *    balanced, 5 no longer holds for the picker, Spin and Rated. They are this game's: the select
+ *    reads the lock's rule (else its standing mode), the switch the lock's Rated, the picker is
+ *    headed `Mode` under the `This game` legend, and the in-game caption is gone. In game, 5 holds
+ *    as it was. The card above the foot is unchanged in both.
  *
  * One entry of the capture was fixed by hand: `Normal | empty | admin` was read before the lazy
  * admin controls had loaded (the first admin render of the run), so it lacked them; it now holds
@@ -212,6 +217,17 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
           // 5. The card is unchanged; the controls are the row.
           const cut = (t: string) => t.slice(0, t.indexOf(ADMIN_FOOT));
           expect({ card: cut(text), mirror }).toEqual({ card: cut(old.text), mirror: old.mirror });
+          if (key === 'balanced' && lock !== null) {
+            // 10. This game's controls, on the lock.
+            expect(select).toBe(lockSelectValue(lock));
+            expect(rated).toBe(String(lockRated(lock)));
+            expect(screen.getByRole('group', { name: 'This game' })).toBeInTheDocument();
+            expect(screen.getByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
+            expect(screen.queryByRole('combobox', { name: 'Next game' })).toBeNull();
+            expect(text.includes('Changes apply from the next game.')).toBe(false);
+            view.unmount();
+            return;
+          }
           expect(select).toBe(selectValue(row));
           // The picker says whose game it is (lead's call on OPEN 1): `Next game`, never `Mode`.
           expect(screen.getByRole('combobox', { name: 'Next game' })).toBeInTheDocument();
