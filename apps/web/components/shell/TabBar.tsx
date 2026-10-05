@@ -78,7 +78,7 @@ export function TabBar({ group }: { group: PageGroup }) {
             aria-current={active ? 'page' : undefined}
             data-pending={pending ? '' : undefined}
             className={cn(
-              'relative flex min-h-(--tabbar-h) flex-col items-center justify-center gap-1 text-2xs font-bold text-muted-foreground',
+              '@container relative flex min-h-(--tabbar-h) flex-col items-center justify-center gap-1 text-2xs font-bold text-muted-foreground',
               'transition-[color,scale] duration-(--dur-fast) ease-out active:scale-[.98] active:duration-(--dur-press)',
               'focus-visible:-outline-offset-4',
               (active || pending) &&
@@ -98,8 +98,10 @@ export function TabBar({ group }: { group: PageGroup }) {
                 />
               ) : null}
             </span>
-            {/* M14.42: at 200% text a label wraps or hyphenates inside its fifth, never widens the bar. */}
-            <span className="max-w-full text-center leading-tight hyphens-auto [overflow-wrap:anywhere]">
+            {/* Large text (05-design 14.13 item 7): the label grows with the text size until it would fill
+                its tab, then stops (24cqi of the tab; `Tonight`, the longest, is 3.5em wide), so a word
+                never breaks mid-word. At 100% 2xs is under the cap at every phone width from 320. */}
+            <span className="max-w-full text-center text-[length:min(var(--text-2xs),24cqi)] leading-tight">
               {tab.label}
             </span>
           </Link>
