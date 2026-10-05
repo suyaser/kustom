@@ -8,9 +8,11 @@ import {
   type Refusal,
   type RegionAction,
   type Rng,
+  ruleOf,
   type TransitionContext,
 } from '@customs/core';
 import {
+  type ModeGame,
   type ModeLockState,
   type ModeRowState,
   ruleChoiceOf,
@@ -27,6 +29,7 @@ import { modeContext } from '@/lib/mode/context';
 import {
   NO_OTHER_PAIR,
   NO_REGION_RULE,
+  NO_THIS_GAME,
   NOTHING_TO_SPIN,
   nextPairNotice,
   PAIR_SHORT,
@@ -39,9 +42,11 @@ import {
   SAME_REGION,
   spinNotice,
   standingNotice,
+  THIS_GAME_STAYS,
   thisPairNotice,
+  thisStandingNotice,
 } from '@/lib/mode/ruleNotices';
-import { type LiveLock, readLiveLock, writeLockRegions, writeModeCard } from '@/lib/mode/set';
+import { type LiveLock, readLiveLock, writeLock, writeModeCard } from '@/lib/mode/set';
 import { hasOpenLobby, previousRule } from '@/lib/mode/spin';
 import { type ModeStore, type StoredModeRow, supabaseModeStore } from '@/lib/mode/state';
 import { siteOrigin } from '@/lib/siteUrl';
@@ -56,13 +61,17 @@ import { setGroupModeRequestSchema, setGroupModeResponseSchema } from './schema'
  * owner of the body's `groupId`), zod on the body (400). Core's `transition` decides every patch
  * and the patch is written as one update of only its fields (M20 D7: last write wins). Region wars
  * is drawn when it is chosen (M20 D9): Set mode, Spin and re-queue write the rule and its pair in
- * the same update. `redraw` and `side` change the next game's pair (`game: 'next'`, the default) or
- * this game's (`'this'`: the balanced lobby's lock, then the teams post again as a Reroll does).
+ * the same update. Every action changes the next game (`game: 'next'`, the default: the row) or
+ * this game (`'this'`: the balanced lobby's lock, then the teams post again as a Reroll does; the
+ * pair since M20 D9, the rule, Spin and Rated since M20.18, the owner's "until the game starts,
+ * mode changes are for this game"). A `this` action writes the row only for a standing pick (its `mode`); once the game has
+ * started it is a 409 (the lock is frozen in game; the card sends those taps as `next`).
  *
  * Refusals are 409 with M20.1's words (a form post goes back with `?error=`): a rule with too few
  * champions open, nothing to spin, a region under 8 open, the same region twice, a pair failing
- * the union rule, no other pair to redraw, this game once it has started, and a region action
- * with no region wars on its target. Tonight's live signal: one `group_live` bump of kind `mode`
+ * the union rule, no other pair to redraw, this game once it has started (`REGIONS_STAY` for the
+ * pair, `THIS_GAME_STAYS` for the rule, Spin and Rated), `this` with no rolled game, and a region
+ * action with no region wars on its target. Tonight's live signal: one `group_live` bump of kind `mode`
  * per action that wrote (M19.9).
  */
 
@@ -76,13 +85,18 @@ export interface ModeRouteDeps {
   store?: ModeStore;
   /** Tests only: the draw inputs (default: `modeContext` over the database). */
   context?: (standing: StoredModeRow['row']['standing']) => Promise<TransitionContext>;
-  /** Tests only: Spin's previous rule and open-lobby read (default: the database). */
-  spinFacts?: () => Promise<{ previous: PendingRule | null; lobbyOpen: boolean }>;
+  /**
+   * Tests only: Spin's previous rule and open-lobby read for the game it targets (default: the
+   * database). `lobbyOpen` blocks mirror.
+   */
+  spinFacts?: (game: ModeGame) => Promise<{ previous: PendingRule | null; lobbyOpen: boolean }>;
   /** Tests only: the group's live lock, read for a next-game region refusal (default: the database). */
   liveLock?: () => Promise<LiveLock | null>;
 }
 
-const REFUSAL_WORDS: Record<Refusal | 'started' | 'no-lock' | 'rolled', string> = {
+type RouteRefusal = Refusal | 'started' | 'no-lock' | 'rolled' | 'mode-started' | 'no-this-game';
+
+const REFUSAL_WORDS: Record<RouteRefusal, string> = {
   'too-few-open': RULE_TOO_FEW_OPEN,
   'nothing-to-spin': NOTHING_TO_SPIN,
   'no-region-rule': NO_REGION_RULE,
@@ -93,6 +107,8 @@ const REFUSAL_WORDS: Record<Refusal | 'started' | 'no-lock' | 'rolled', string> 
   started: REGIONS_STAY,
   'no-lock': NO_REGION_RULE,
   rolled: ROLLED_TO_THIS_GAME,
+  'mode-started': THIS_GAME_STAYS,
+  'no-this-game': NO_THIS_GAME,
 };
 
 export async function handleSetGroupMode(
@@ -111,7 +127,7 @@ export async function handleSetGroupMode(
         ...(deps.rng === undefined ? {} : { rng: deps.rng }),
         ...(deps.table === undefined ? {} : { table: deps.table }),
       }));
-  const refuse = (refusal: Refusal | 'started' | 'no-lock' | 'rolled'): NextResponse => {
+  const refuse = (refusal: RouteRefusal): NextResponse => {
     const words = REFUSAL_WORDS[refusal];
     return context.form ? redirectBack(context.request, back, { error: words }) : context.fail(409, words);
   };
@@ -123,38 +139,13 @@ export async function handleSetGroupMode(
         ? { type: 'set-side', side: input.side, region: input.region }
         : null;
 
-  // This game's pair (M20 D9, D5): the lock, while the lobby is balanced. Teams post again.
-  if (regionAction !== null && input.game === 'this') {
-    return withLiveSignal(client, async (live) => {
-      const result = await noteWrite(
-        live,
-        groupId,
-        'mode',
-        () =>
-          writeLockRegions(client, {
-            groupId,
-            action: regionAction,
-            context: (lock) => contextFor(lock.standing),
-          }),
-        (written) => written.ok,
-      );
-      if (!result.ok) return refuse(result.refusal);
-      await repostTeams(context, result.lobbyId);
-      const after = await store.read(groupId);
-      const notice = result.lock.mode.id === 'region' ? thisPairNotice(result.lock.mode) : NO_REGION_RULE;
-      return answer(context, back, {
-        after,
-        notice,
-        changed: true,
-        thisGame: lockState(result.lobbyId, result.lock),
-      });
-    });
-  }
-
+  const thisGame = input.game === 'this';
   let action: ModeAction;
   if (regionAction !== null) action = regionAction;
   else if (input.spin === true) {
-    const facts = await (deps.spinFacts ?? (() => spinFactsOf(context, deps)))();
+    const facts = await (deps.spinFacts ?? ((game: ModeGame) => spinFactsOf(context, deps, game)))(
+      thisGame ? 'this' : 'next',
+    );
     action = {
       type: 'spin',
       previous: facts.previous,
@@ -170,6 +161,42 @@ export async function handleSetGroupMode(
   } else {
     // The schema refuses a body with none of them; this is the type's exhaustiveness.
     return context.fail(400, 'name exactly one of mode, rated, spin, redraw or side');
+  }
+
+  // This game (M20 D9 for the pair, M20.18 for the rule, Spin and Rated): the lock, while the lobby
+  // is balanced, in one conditional update; only a standing pick also sets the row's `mode`. The teams post goes again.
+  if (thisGame) {
+    const lockAction = action;
+    return withLiveSignal(client, async (live) => {
+      const result = await noteWrite(
+        live,
+        groupId,
+        'mode',
+        () =>
+          writeLock(client, {
+            groupId,
+            action: lockAction,
+            context: (lock) => contextFor(lock.standing),
+            store,
+            playerId: context.admin.playerId,
+          }),
+        (written) => written.ok,
+      );
+      if (!result.ok) {
+        if (regionAction === null && result.refusal === 'started') return refuse('mode-started');
+        if (regionAction === null && result.refusal === 'no-lock') return refuse('no-this-game');
+        return refuse(result.refusal);
+      }
+      await repostTeams(context, result.lobbyId, regionAction !== null);
+      const after = await store.read(groupId);
+      return answer(context, back, {
+        after,
+        notice: thisGameNotice(lockAction, result.before, result.lock),
+        changed: true,
+        thisGame: lockState(result.lobbyId, result.lock),
+        ...(result.spun === null ? {} : { spun: result.spun }),
+      });
+    });
   }
 
   // `context.groupId` and `context.admin.playerId`: the group the gate checked and the actor the
@@ -269,6 +296,24 @@ export function rowState(stored: StoredModeRow): ModeRowState {
   };
 }
 
+/** The notice for an action on this game's lock (M20.18; the pair's words since M20.1). */
+function thisGameNotice(action: ModeAction, before: ModeLock, lock: ModeLock): string {
+  switch (action.type) {
+    case 'standing':
+      return thisStandingNotice(action.standing, ruleOf(before.mode) !== null);
+    case 'rated':
+      return ratedNotice(lockRated(lock), 'this');
+    case 'spin':
+    case 'pick': {
+      // A pick or Spin that wrote always leaves a rule on the lock.
+      const rule = lock.mode as PendingRule;
+      return action.type === 'spin' ? spinNotice(rule) : ruleChosenNotice(rule, lockRated(lock), 'this');
+    }
+    default:
+      return lock.mode.id === 'region' ? thisPairNotice(lock.mode) : NO_REGION_RULE;
+  }
+}
+
 function lockState(lobbyId: string, lock: ModeLock): ModeLockState {
   return {
     lobbyId,
@@ -279,9 +324,16 @@ function lockState(lobbyId: string, lock: ModeLock): ModeLockState {
   };
 }
 
+/**
+ * Spin's facts. For the next game: tonight's previous rule (the live lock first) and whether a
+ * lobby is filling (mirror blocked then). For this game (M20.18): the rule played before this
+ * game (the live lock is the one being replaced), and mirror always blocked, because this game's
+ * lobby is already made, as it was made (M17.17 opens Blind Pick only at Start a lobby).
+ */
 async function spinFactsOf(
   context: AdminContext,
   deps: ModeRouteDeps,
+  game: ModeGame,
 ): Promise<{ previous: PendingRule | null; lobbyOpen: boolean }> {
   const [previous, lobbyOpen] = await Promise.all([
     previousRule(
@@ -289,18 +341,21 @@ async function spinFactsOf(
       context.groupId,
       deps.now?.() ?? new Date(),
       deps.timeZone ?? readServerEnv().CUSTOMS_NIGHT_TZ,
+      { live: game === 'next' },
     ),
-    hasOpenLobby(context.client, context.groupId),
+    game === 'this' ? true : hasOpenLobby(context.client, context.groupId),
   ]);
   const rule = previous === null || previous.id === 'normal' || previous.id === 'fearless' ? null : previous;
   return { previous: rule, lobbyOpen };
 }
 
 /**
- * This game's regions changed: the teams post again, the same post a Reroll sends (M20 D5). The
- * change stands whatever Discord answers; a failure is a log line.
+ * This game's lock changed: the teams post again, the same post a Reroll sends (M20 D5), its rule
+ * line read from the lock as it is now. `newRegions` (a pair change) words a region line
+ * `This game: region wars, new regions.`; a rule, Spin or Rated change (M20.18) gets the lock's
+ * plain line. The change stands whatever Discord answers; a failure is a log line.
  */
-async function repostTeams(context: AdminContext, lobbyId: string): Promise<void> {
+async function repostTeams(context: AdminContext, lobbyId: string, newRegions: boolean): Promise<void> {
   try {
     const { data, error } = await context.client
       .from('splits')
@@ -313,10 +368,10 @@ async function repostTeams(context: AdminContext, lobbyId: string): Promise<void
     if (data !== null)
       await postTeamsForSplit(context.client, data.id, {
         requestOrigin: siteOrigin(context.request),
-        newRegions: true,
+        newRegions,
       });
   } catch (error) {
-    console.error(`mode: reposting the teams for lobby ${lobbyId} failed; the new regions stand`, error);
+    console.error(`mode: reposting the teams for lobby ${lobbyId} failed; the change stands`, error);
   }
 }
 

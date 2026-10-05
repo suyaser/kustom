@@ -142,7 +142,7 @@ const formBoolean = z.preprocess((value) => {
 // POST /api/admin/mode (M14.29, M15.3; one route for every action since M20.7)
 // ---------------------------------------------------------------------------
 
-/** Which game a region action changes: the row (`next`) or the balanced lobby's lock (`this`). */
+/** Which game an action changes: the row (`next`) or the balanced lobby's lock (`this`, M20.18). */
 export const MODE_GAMES = ['next', 'this'] as const;
 export const modeGameSchema = z.enum(MODE_GAMES);
 export type ModeGame = z.infer<typeof modeGameSchema>;
@@ -163,8 +163,10 @@ const formTrue = z.preprocess(
  * - `redraw: true`: a new random region pair, never the same unordered pair (M20 D9);
  * - `side` + `region`: one side's region; the other side keeps its own.
  *
- * `game` names the target of `redraw` and `side` (default `next`): `next` is the row, `this` the
- * balanced lobby's lock (refused once the game has started). M20.7: each action is one update of
+ * `game` names the target of any action (default `next`): `next` is the row, `this` the balanced
+ * lobby's lock (M20 D9 for the pair; M20.18 for `mode`, `rated` and `spin`, the owner's
+ * "until the game starts, mode changes are for this game"); `this` is refused (409) once the game
+ * has started, and it writes the row only for a standing pick (`mode` alone). M20.7: each action is one update of
  * only the fields it sets (last write wins, M20 D7); `/api/admin/mode/spin` is gone (its no-JS form
  * posts here with `spin=true`). M14's body `{ groupId, mode }` parses unchanged. `redirectTo` is
  * where an HTML form post goes back to (a path on this site).
@@ -194,9 +196,6 @@ export const setGroupModeRequestSchema = z
   )
   .refine((body) => (body.side !== undefined) === (body.region !== undefined), {
     message: 'side and region go together',
-  })
-  .refine((body) => body.game === undefined || body.redraw === true || body.side !== undefined, {
-    message: 'game names the target of redraw or side only',
   });
 
 export type SetGroupModeRequest = z.infer<typeof setGroupModeRequestSchema>;

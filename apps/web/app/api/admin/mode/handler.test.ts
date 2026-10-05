@@ -121,7 +121,7 @@ describe('POST /api/admin/mode: the gate and the body', () => {
     expect(t.writes).toEqual([]);
   });
 
-  it('400 for an unknown choice, for no action, for two at once, and a target without a region action', async () => {
+  it('400 for an unknown choice, for no action, for two at once, and an unknown target game', async () => {
     const { t, mode } = setup();
     for (const body of [
       { groupId: GROUP, mode: 'class:Fighter' },
@@ -130,7 +130,7 @@ describe('POST /api/admin/mode: the gate and the body', () => {
       { groupId: GROUP, mode: 'normal', rated: true },
       { groupId: GROUP, rated: 'maybe' },
       { groupId: GROUP, side: 'blue' },
-      { groupId: GROUP, rated: true, game: 'this' },
+      { groupId: GROUP, rated: true, game: 'later' },
     ]) {
       expect((await mode(json(body))).status).toBe(400);
     }
@@ -428,5 +428,41 @@ describe('the live signal (M19.9)', () => {
     const outsider = setup(card(), {}, notAdmin);
     await outsider.mode(json({ groupId: GROUP, mode: 'normal' }));
     expect(bumps).toEqual([]);
+  });
+});
+
+describe("POST /api/admin/mode: game 'this' for the rule, Spin and Rated (M20.18)", () => {
+  it('409 with no rolled game: the row is never written, nothing bumps', async () => {
+    for (const body of [{ mode: 'class:Mage' }, { mode: 'normal' }, { rated: true }, { spin: true }]) {
+      const { t, mode } = setup();
+      expect(await answer(await mode(json({ groupId: GROUP, ...body, game: 'this' })))).toEqual({
+        status: 409,
+        body: { ok: false, error: 'No teams are rolled yet, so changes are for the next game.' },
+      });
+      expect(t.writes).toEqual([]);
+      expect(bumps).toEqual([]);
+    }
+  });
+
+  it('a region action with no rolled game keeps its M20.9 words', async () => {
+    const { t, mode } = setup();
+    expect(await answer(await mode(json({ groupId: GROUP, redraw: true, game: 'this' })))).toEqual({
+      status: 409,
+      body: { ok: false, error: 'Region wars is not on for that game.' },
+    });
+    expect(t.writes).toEqual([]);
+  });
+
+  it("Spin asks for this game's facts (mirror blocked, the played rule before it)", async () => {
+    const asked: string[] = [];
+    const { mode } = setup(card(), {
+      spinFacts: async (game) => {
+        asked.push(game);
+        return { previous: null, lobbyOpen: false };
+      },
+    });
+    await mode(json({ groupId: GROUP, spin: true, game: 'this' }));
+    await mode(json({ groupId: GROUP, spin: true }));
+    expect(asked).toEqual(['this', 'next']);
   });
 });
