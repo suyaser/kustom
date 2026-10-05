@@ -8,7 +8,8 @@ import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
  * M21.14 against the local stack: a game with no lobby at all (an eog that matched none) gets a
- * result post with its pre-game odds, the number the game page prints for it. The unrolled game
+ * result post with its pre-game odds, the number the game page prints for it, and `/fun` counts it
+ * at the same number. The unrolled game
  * (a lobby, no roll) is `app/playedOdds.integration.test.ts`'s game C.
  *
  * Skipped, not failed, without the local stack (`pnpm db:start`).
@@ -36,6 +37,7 @@ if (stack === null) {
   const { loadGameDetail } = await import('@/lib/games/detail');
   const { receiptBlueWinProb } = await import('@/lib/games/receipt');
   const { resultOddsLine } = await import('@/lib/receipt/copy');
+  const { loadFunFacts } = await import('@/lib/stats/load');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -130,5 +132,12 @@ if (stack === null) {
     const first = resultEmbed(input).embeds[0]?.description?.split('\n')[0];
     expect(first).toBe(resultOddsLine(blueP ?? 0, 200));
     expect(first).toMatch(/Upset!$/);
+  });
+
+  it("/fun's Won against the odds counts it at red's pre-game chance, the post's number", async () => {
+    const fun = await loadFunFacts(anon, { window: 'all-time', groupId: group, timeZone: 'Africa/Cairo' });
+    // The night's only win against the odds is the record (a row needs more wins than one).
+    expect(fun.odds.record?.game.id).toBe(gameId);
+    expect(fun.odds.record?.percent).toBe(100 - Math.round((blueP ?? 0) * 100));
   });
 }
