@@ -93,6 +93,11 @@ export interface PostOptions extends WebhookOptions {
    * already prefers `NEXT_PUBLIC_SITE_URL`; `tonightPageUrl` drops a localhost one.
    */
   requestOrigin?: string | null;
+  /**
+   * M20.9: the teams post again after an admin redrew or changed this game's regions; a region
+   * lock's rule line reads `This game: region wars, new regions.` (M20.1).
+   */
+  newRegions?: boolean;
 }
 
 /**
@@ -827,6 +832,10 @@ async function loadTeamsSource(
     // Reroll keeps the lobby's copy (M15.3), so its post carries the same rule line (M15.6).
     loadTeamsMode(client, data.lobbies.id),
   ]);
+  const shownMode =
+    mode !== null && options.newRegions === true && mode.mode.id === 'region'
+      ? { ...mode, newRegions: true }
+      : mode;
 
   const blue = readAssignments(data.blue);
   const red = readAssignments(data.red);
@@ -859,7 +868,7 @@ async function loadTeamsSource(
       tiedOnGames,
       promoted: { rank: data.rank, splitCount: count ?? data.rank },
       receipt,
-      mode,
+      mode: shownMode,
     },
   };
 }

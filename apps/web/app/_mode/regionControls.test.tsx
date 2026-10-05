@@ -173,7 +173,7 @@ describe('next game: region wars chosen, before Roll', () => {
     render(
       page('idle', { rule: 'region' }, true, (f) => ({
         ...f,
-        modeNotice: { notice: 'Next game: Shurima vs Zaun.' },
+        modeNotice: { notice: 'Next game: Shurima vs Zaun.', error: null },
       })),
     );
     await ready();

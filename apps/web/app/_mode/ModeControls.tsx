@@ -32,8 +32,8 @@ import {
   FEARLESS_RESETTING,
   fearlessResetBody,
 } from '@/lib/fearless/copy';
-import { applyModeRow, beginOptimistic, endOptimistic, type ModeOptimistic } from '@/lib/mode/clientStore';
 import type { RegionTarget } from '@/lib/mode/cardView';
+import { applyModeRow, beginOptimistic, endOptimistic, type ModeOptimistic } from '@/lib/mode/clientStore';
 import { type ControlsWrite, controlsOf, type RegionWrite, useControls } from '@/lib/mode/controlsStore';
 import {
   MODE_ADMIN_EYEBROW,
@@ -48,9 +48,9 @@ import {
   SETTING_MODE,
 } from '@/lib/mode/copy';
 import {
+  NEXT_GAME_HEADING,
   OPTGROUP_CLASS,
   OPTGROUP_MIRROR,
-  NEXT_GAME_HEADING,
   OPTGROUP_REGION,
   optionLabel,
   RATED_LABEL,
@@ -337,7 +337,7 @@ export function ModeControls({
     );
   };
 
-  const regionPending = pending !== null && pending.includes('-') ? (pending as RegionWrite) : null;
+  const regionPending = pending?.includes('-') ? (pending as RegionWrite) : null;
   const regionControls = (target: RegionTarget | null | undefined) =>
     target == null ? null : (
       <RegionControls

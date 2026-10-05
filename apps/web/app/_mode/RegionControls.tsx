@@ -59,53 +59,45 @@ export function RegionControls({
   hydrated,
   onChange,
 }: RegionControlsProps) {
-  const headingId = useId();
   const { game } = target;
   return (
-    <div
-      role="group"
-      aria-labelledby={heading === null ? undefined : headingId}
-      data-slot={`region-controls-${game}`}
-      className="flex flex-col gap-2"
-    >
-      {heading === null ? null : (
-        <p id={headingId} className="text-xs font-bold">
-          {heading}
-        </p>
-      )}
-      {showShort && target.short ? <p className="text-sm font-bold">{REGION_PAIR_SHORT}</p> : null}
-      <div className="grid gap-2 @[520px]:grid-cols-2">
-        {(['blue', 'red'] as const).map((side) => (
-          <SideSelect
-            key={side}
-            side={side}
-            target={target}
-            groupId={groupId}
-            action={action}
-            redirectTo={redirectTo}
-            pending={pending === `${side}-${game}`}
-            hydrated={hydrated}
-            onChange={onChange}
-          />
-        ))}
+    <fieldset data-slot={`region-controls-${game}`} className="min-w-0">
+      {heading === null ? null : <legend className="mb-2 text-xs font-bold">{heading}</legend>}
+      <div className="flex flex-col gap-2">
+        {showShort && target.short ? <p className="text-sm font-bold">{REGION_PAIR_SHORT}</p> : null}
+        <div className="grid gap-2 @[520px]:grid-cols-2">
+          {(['blue', 'red'] as const).map((side) => (
+            <SideSelect
+              key={side}
+              side={side}
+              target={target}
+              groupId={groupId}
+              action={action}
+              redirectTo={redirectTo}
+              pending={pending === `${side}-${game}`}
+              hydrated={hydrated}
+              onChange={onChange}
+            />
+          ))}
+        </div>
+        <form
+          method="post"
+          action={action}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onChange(target, { redraw: true });
+          }}
+        >
+          <input type="hidden" name="groupId" value={groupId} />
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+          <input type="hidden" name="redraw" value="true" />
+          <input type="hidden" name="game" value={game} />
+          <Button type="submit" variant="secondary" pending={pending === `redraw-${game}`}>
+            {REDRAW_REGIONS}
+          </Button>
+        </form>
       </div>
-      <form
-        method="post"
-        action={action}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void onChange(target, { redraw: true });
-        }}
-      >
-        <input type="hidden" name="groupId" value={groupId} />
-        <input type="hidden" name="redirectTo" value={redirectTo} />
-        <input type="hidden" name="redraw" value="true" />
-        <input type="hidden" name="game" value={game} />
-        <Button type="submit" variant="secondary" pending={pending === `redraw-${game}`}>
-          {REDRAW_REGIONS}
-        </Button>
-      </form>
-    </div>
+    </fieldset>
   );
 }
 

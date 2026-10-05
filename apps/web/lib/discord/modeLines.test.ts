@@ -119,6 +119,16 @@ describe('teamsModeLine', () => {
     ).toContain('Blue picks from Shadow Isles, Red from Bandle City.');
   });
 
+  it('after this game regions were redrawn or changed: `new regions` (M20.1, M20.9)', () => {
+    expect(teamsModeLine({ mode: IONIA_NOXUS, rated: false, newRegions: true }, URL)).toBe(
+      `**This game: region wars, new regions.** Blue picks from Ionia, Red from Noxus. Not rated. [See both pools](${URL})`,
+    );
+    // Only region wars has regions to be new.
+    expect(teamsModeLine({ mode: TANKS, rated: false, newRegions: true }, URL)).toBe(
+      teamsModeLine({ mode: TANKS, rated: false }, URL),
+    );
+  });
+
   it("says mirror's Blind Pick lobby", () => {
     expect(teamsModeLine({ mode: MIRROR, rated: true }, URL)).toBe(
       `**This game: mirror match, same champion as your lane opponent.** Blind Pick lobby. Rated. [How it works](${URL})`,

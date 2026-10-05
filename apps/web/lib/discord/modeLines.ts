@@ -62,6 +62,8 @@ export interface TeamsModeInput {
    * the game is the standing mode. Absent reads as false.
    */
   noDraw?: boolean | undefined;
+  /** M20.9: this game's regions were redrawn or changed after Roll (the repost's rule half). */
+  newRegions?: boolean | undefined;
 }
 
 /** M15.17: the teams line's rule half for a region wars that could not be drawn. */
@@ -99,7 +101,7 @@ export function teamsModeWords(input: TeamsModeInput): TeamsModeWords | null {
     }
     case 'region':
       return {
-        rule: 'This game: region wars.',
+        rule: input.newRegions === true ? 'This game: region wars, new regions.' : 'This game: region wars.',
         rest: `Blue picks from ${regionWord(mode.blue)}, Red from ${regionWord(mode.red)}. ${ratedWord(rated)}`,
         action: 'See both pools',
       };
