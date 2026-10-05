@@ -25,7 +25,8 @@ export function parseModeRow(row: unknown): { groupId: string; slice: ModeRowSli
     regionBlue: data.pending_region_blue,
     regionRed: data.pending_region_red,
   });
-  const pending = rule === null || rule.id === 'normal' || rule.id === 'fearless' ? null : (rule as PendingRule);
+  const pending =
+    rule === null || rule.id === 'normal' || rule.id === 'fearless' ? null : (rule as PendingRule);
   return {
     groupId: data.group_id,
     slice: {

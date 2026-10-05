@@ -237,6 +237,8 @@ export interface LobbyView {
    * off the card. Absent or null: no lock, and the card shows the next game.
    */
   lock?: ModeLock | null | undefined;
+  /** `lobbies.locked_at` of {@link lock}, or null: whether an admin wrote the row since (the card's notes). */
+  lockedAt?: string | null | undefined;
   /**
    * The teams that started the game (M21.5), for an `in_game` lobby with a kickoff record only.
    * Absent or null: no record (a game before M21.4, unequal sides), and the page is as before.

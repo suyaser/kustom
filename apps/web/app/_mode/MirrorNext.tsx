@@ -20,5 +20,5 @@ export function MirrorNext({
   children: ReactNode;
 }) {
   const merged = useModeSlice(groupId, slice, true, readFailed);
-  return merged.state.pending?.id === 'mirror' ? children : null;
+  return merged.row.pending?.id === 'mirror' ? children : null;
 }

@@ -178,7 +178,7 @@ describe('the panel builds the map on the server and passes it on', () => {
     didntApply: false,
     classOpen: null,
     laneCounts: null,
-    pendingKey: null,
+    pending: null,
   };
 
   it('Fearless: Vi carries Piltover and Zaun', () => {

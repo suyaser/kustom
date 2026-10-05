@@ -90,11 +90,7 @@ export function applyModeRow(groupId: string, slice: ModeRowSlice): boolean {
   }
   const before = current.confirmed?.row.standing ?? lastGood.get(groupId)?.row.standing ?? null;
   const normalSince =
-    slice.row.standing !== 'normal'
-      ? null
-      : before === 'fearless'
-        ? slice.updatedAt
-        : current.normalSince;
+    slice.row.standing !== 'normal' ? null : before === 'fearless' ? slice.updatedAt : current.normalSince;
   write(groupId, { ...current, confirmed: slice, normalSince });
   return true;
 }
@@ -119,6 +115,11 @@ export function endOptimistic(groupId: string, token: number): void {
   const current = entry(groupId);
   if (current.optimistic?.token !== token) return;
   write(groupId, { ...current, optimistic: null });
+}
+
+/** Tests only: the store's entries as the hook reads them. */
+export function modeStoreForTests(): ReadonlyMap<string, Entry> {
+  return entries;
 }
 
 /** Tests only: forget every group. */
@@ -220,7 +221,8 @@ const lastGood = new Map<string, ModeSlice>();
 export function lastGoodServer(groupId: string, server: ModeSlice, readFailed: boolean): ModeSlice {
   if (!readFailed) {
     const held = lastGood.get(groupId);
-    if (held === undefined || rowTime(held.updatedAt) <= rowTime(server.updatedAt)) lastGood.set(groupId, server);
+    if (held === undefined || rowTime(held.updatedAt) <= rowTime(server.updatedAt))
+      lastGood.set(groupId, server);
     return server;
   }
   return lastGood.get(groupId) ?? server;

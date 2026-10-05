@@ -314,7 +314,7 @@ describe('in game with the kickoff teams (M21.5)', () => {
         teams,
         kickoff,
         startedAt: '2026-09-08T20:07:00.000Z',
-        lock: { mode: { id: 'fearless' }, rated, version: 3 },
+        lock: { standing: 'fearless', mode: { id: 'fearless' }, rated },
       }),
     );
   };

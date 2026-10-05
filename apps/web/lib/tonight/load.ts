@@ -110,11 +110,8 @@ export async function loadTonight(
   const lobbyRow = newestLobby(lobbies);
   const tapeLobbies = pickTapeLobbies(lobbies, nightStart, drawnLobbyId(lobbyRow));
 
-  const [
-    { lobby, tape },
-    { mode, modeSince, ...fearless },
-    { state: modeRow, failed: modeReadFailed },
-  ] = await Promise.all([loadNight(client, lobbyRow, tapeLobbies, groupId, clock), fearlessRead, modeFacts]);
+  const [{ lobby, tape }, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }] =
+    await Promise.all([loadNight(client, lobbyRow, tapeLobbies, groupId, clock), fearlessRead, modeFacts]);
 
   return {
     nightStart,
@@ -404,6 +401,7 @@ function buildLobby(
   // This game's lock (Roll or the game's start), which the card shows while the teams are set or in game.
   const lock =
     !open && (lobby.status === 'balanced' || lobby.status === 'in_game') ? modeLockOf(lobby.lock) : null;
+  const lockedAt = lock === null ? null : (lobby.lock.locked_at ?? null);
   // M21.5: in game, the teams that started (the kickoff record), or none and the page is as before.
   const record = lobby.status === 'in_game' ? readKickoff(lobby.kickoff, lobby.id) : null;
   const kickoff = record === null ? null : kickoffView(record, teams, members);
@@ -422,6 +420,7 @@ function buildLobby(
     teams,
     result,
     lock,
+    lockedAt,
     kickoff,
   };
 }

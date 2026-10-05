@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
-import { MODE_READ_FAILED } from '@/lib/mode/copy';
+import { MODE_APPLIES_NEXT_GAME, MODE_READ_FAILED } from '@/lib/mode/copy';
 import { RATED_OFF } from '@/lib/mode/ruleCopy';
 import { ADMIN_VIEWER, type TonightFixtureOptions, tonightStateFixture } from '../_tonight/fixtures';
 import { TonightView } from '../_tonight/TonightView';
@@ -10,11 +10,11 @@ import { TonightView } from '../_tonight/TonightView';
  * The owner's Mode card bugs (2026-10-04) and the audit's state defects, through the real page:
  *
  * - **Owner bug 1, "the mode resets to Normal after Roll".** The controls were fed the state the
- *   record *would* leave (`upcomingState`), which drops the rule the game just locked: the select
- *   jumped to Normal and the Rated switch to on while the card said Class wars, not rated.
- * - **Owner bug 3, "picking it again doesn't stick".** After Roll the pending rule could not be
- *   picked again (the Set button hid while the choice equalled it), so it could not be queued for
- *   the next game too.
+ *   record *would* leave (`upcomingState`), a prediction. M20.8: Roll moves the rule onto the
+ *   lobby, so after Roll the card is this game (the lock) and the controls are the next game (the
+ *   row, as set), under `Changes apply from the next game.`; nothing is predicted.
+ * - **Owner bug 3, "picking it again doesn't stick".** After Roll the row is empty, so picking this
+ *   game's rule again is a plain change and queues it for the next game.
  * - **Audit defect 2.** Tonight draws the card in a different place per phase, so a Roll mounted the
  *   controls afresh and lost an unsaved pick, a write in flight and the outcome line.
  * - **A failed mode read rendered as Normal.**
@@ -35,27 +35,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('owner bug 1: after Roll the controls show what is set, not a prediction', () => {
+describe('owner bug 1: after Roll the controls show what is set for the next game, never a prediction', () => {
   for (const key of ['balanced', 'in-game'] as const) {
-    it(`${key}: the select is the pending rule and the switch is its Rated, as the card says`, async () => {
+    it(`${key}: the card is this game; the select and the switch are the row, under the next-game line`, async () => {
       render(page(key, { rule: 'class:Tank', mode: 'normal' }));
       await screen.findByRole('switch', { name: 'Rated' });
       expect(within(card()).getByRole('heading', { level: 2 })).toHaveTextContent('Class wars');
-      expect(select().value).toBe('class:Tank');
-      expect(toggle()).toHaveAttribute('aria-checked', 'false');
-      expect(toggle()).toHaveAccessibleDescription(RATED_OFF);
+      expect(within(card()).getByText('Not rated')).toBeInTheDocument();
+      expect(within(card()).getByText(MODE_APPLIES_NEXT_GAME)).toBeInTheDocument();
+      expect(select().value).toBe('normal');
+      expect(toggle()).toHaveAttribute('aria-checked', 'true');
     });
   }
 
-  it('region wars too: the select stays on Region wars after Roll', async () => {
-    render(page('balanced', { rule: 'region' }));
+  it('before Roll the select is the pending rule and the switch its Rated', async () => {
+    render(page('filling', { rule: 'class:Tank', mode: 'normal' }));
     await screen.findByRole('switch', { name: 'Rated' });
-    expect(select().value).toBe('region');
+    expect(select().value).toBe('class:Tank');
+    expect(toggle()).toHaveAttribute('aria-checked', 'false');
+    expect(toggle()).toHaveAccessibleDescription(RATED_OFF);
   });
 });
 
 describe('owner bug 3: the locked rule can be queued again for the next game', () => {
-  it('after Roll, Set mode is offered for the pending rule and posts it', async () => {
+  it('after Roll, picking region wars again posts it, and the next-game line says so', async () => {
     const fetchMock = vi.fn(
       async () =>
         ({
@@ -63,22 +66,37 @@ describe('owner bug 3: the locked rule can be queued again for the next game', (
           status: 200,
           json: async () => ({
             ok: true,
-            mode: 'fearless',
+            state: {
+              standing: 'fearless',
+              pending: { id: 'region', blue: 'shurima', red: 'zaun' },
+              rated: null,
+              nextRated: false,
+              updatedAt: '2026-09-08T20:29:00.000Z',
+            },
+            notice: 'Next game: Region wars. Blue: Shurima · Red: Zaun. Not rated.',
             changed: true,
-            next: { standing: 'fearless', rule: 'region', rated: false, ratedOverride: null, version: 4 },
           }),
         }) as Response,
     );
     vi.stubGlobal('fetch', fetchMock);
     render(page('balanced', { rule: 'region' }));
     await screen.findByRole('switch', { name: 'Rated' });
+    expect(select().value).toBe('fearless');
+    fireEvent.change(select(), { target: { value: 'region' } });
     fireEvent.click(screen.getByRole('button', { name: 'Set mode' }));
     await act(async () => {});
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(JSON.parse(String(init.body))).toEqual({ groupId: ORIGINAL_GROUP.id, mode: 'region' });
-    // Queued: the admin's line says the next game is region wars too; the button goes.
+    // Queued: the admin's line says the next game is region wars too; the button goes; the line
+    // under the controls is the route's notice, with the next game's own pair.
     expect(screen.getByText('Next game: Region wars.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set mode' })).toBeNull();
+    expect(document.querySelector('[data-slot="mode-outcome"]')).toHaveTextContent(
+      'Next game: Region wars. Blue: Shurima · Red: Zaun. Not rated.',
+    );
+    // This game's pair is the lock's, untouched.
+    expect(within(card()).getAllByText('Ionia').length).toBeGreaterThan(0);
+    expect(within(card()).queryByText('Shurima')).toBeNull();
   });
 
   it('before Roll, a choice equal to what is set still offers nothing', async () => {
@@ -119,9 +137,15 @@ describe('audit defect 2: the controls keep their state when Roll moves the card
         status: 200,
         json: async () => ({
           ok: true,
-          mode: 'fearless',
+          state: {
+            standing: 'fearless',
+            pending: null,
+            rated: false,
+            nextRated: false,
+            updatedAt: '2026-09-08T20:29:00.000Z',
+          },
+          notice: 'Next game is not rated.',
           changed: true,
-          next: { standing: 'fearless', rule: null, rated: false, ratedOverride: false, version: 4 },
         }),
       } as Response);
     });
@@ -142,7 +166,7 @@ describe('a failed mode read never shows as Normal', () => {
         snapshot={{
           ...good.snapshot,
           mode: 'fearless',
-          modeState: { standing: 'normal', pending: null, ratedOverride: null, version: 0 },
+          modeRow: { standing: 'normal', pending: null, rated: null },
           modeReadFailed: true,
         }}
         viewer={ADMIN_VIEWER}

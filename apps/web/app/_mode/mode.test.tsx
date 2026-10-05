@@ -295,7 +295,24 @@ describe('the admin controls on the card', () => {
 
   it('never submits on change: Set mode appears once the choice differs, then posts the route', async () => {
     const fetchMock = vi.fn(
-      async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }) as Response,
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          // The route's `{ state, notice }`: the line under the controls is its notice (M20.8).
+          json: async () => ({
+            ok: true,
+            state: {
+              standing: 'normal',
+              pending: null,
+              rated: null,
+              nextRated: true,
+              updatedAt: '2026-10-05T19:05:00.000Z',
+            },
+            notice: MODE_ANNOUNCEMENTS.normal,
+            changed: true,
+          }),
+        }) as Response,
     );
     vi.stubGlobal('fetch', fetchMock);
     draw();
@@ -383,7 +400,7 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
       'Mages only',
       'Assassins only',
       'Supports only',
-      'Region wars, sides drawn at roll',
+      'Region wars',
       'Mirror match',
     ]);
     expect(within(select).getByRole('option', { name: 'Marksmen only (too few open)' })).toBeDisabled();
@@ -409,7 +426,19 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
         ({
           ok: true,
           status: 200,
-          json: async () => ({ ok: true, mode: 'fearless', changed: true, spun: 'class:Tank' }),
+          json: async () => ({
+            ok: true,
+            state: {
+              standing: 'fearless',
+              pending: { id: 'class', tag: 'Tank' },
+              rated: null,
+              nextRated: false,
+              updatedAt: '2026-10-05T19:05:00.000Z',
+            },
+            notice: 'Spin says: Tanks only.',
+            changed: true,
+            spun: 'class:Tank',
+          }),
         }) as Response,
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -459,9 +488,15 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
           status: 200,
           json: async () => ({
             ok: true,
-            mode: 'fearless',
+            state: {
+              standing: 'fearless',
+              pending: null,
+              rated: false,
+              nextRated: false,
+              updatedAt: '2026-10-05T19:05:00.000Z',
+            },
+            notice: 'Next game is not rated.',
             changed: true,
-            next: { standing: 'fearless', rule: null, rated: false, ratedOverride: false, version: 5 },
           }),
         }) as Response,
     );
@@ -474,7 +509,7 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
         inGame={false}
         redirectTo="/g/customs"
         resetConfirmHref="/g/customs/mode/reset"
-        server={{ standing: 'fearless', pending: null, ratedOverride: null, version: 4 }}
+        server={{ standing: 'fearless', pending: null, rated: null }}
       />,
     );
     const toggle = screen.getByRole('switch', { name: 'Rated' }) as HTMLButtonElement;

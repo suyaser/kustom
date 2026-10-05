@@ -113,7 +113,7 @@ function standingView(mode: GroupMode): ModeCardView {
     didntApply: false,
     classOpen: null,
     laneCounts: null,
-    pendingKey: null,
+    pending: null,
   };
 }
 

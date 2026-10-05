@@ -36,11 +36,7 @@ export async function loadModeState(client: PublicClient, groupId: string): Prom
 }
 
 export async function loadLobbyLock(client: PublicClient, lobbyId: string): Promise<ModeLock | null> {
-  const { data, error } = await client
-    .from('lobbies')
-    .select(LOCK_COLUMNS)
-    .eq('id', lobbyId)
-    .maybeSingle();
+  const { data, error } = await client.from('lobbies').select(LOCK_COLUMNS).eq('id', lobbyId).maybeSingle();
   if (error) {
     console.error('mode: reading the lobby lock failed', error.message);
     return null;

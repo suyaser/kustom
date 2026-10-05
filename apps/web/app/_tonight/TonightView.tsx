@@ -1,4 +1,4 @@
-import { type Calibration, displayKustom, nextGame, ruleOf } from '@customs/core';
+import { type Calibration, displayKustom, lockRated, nextRated, ruleOf } from '@customs/core';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FairnessReceipt, PreGameReceipt } from '@/components/receipt';
@@ -16,14 +16,13 @@ import {
   tooFewOpen,
   unplayableRules,
 } from '@/lib/mode/card';
-import { requeueable } from '@/lib/mode/cardView';
 import { championTable } from '@/lib/mode/champions';
 import type { ModeSlice } from '@/lib/mode/clientStore';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
 import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, ruleLaneLabel } from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
-import { missingState } from '@/lib/mode/state';
-import { bannedByGame, normalJustNow, normalNoteFactsOf } from '@/lib/mode/view';
+import { missingRow } from '@/lib/mode/state';
+import { bannedByGame, normalNoteFactsOf } from '@/lib/mode/view';
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { groupHome, groupHref } from '@/lib/nav';
 import { displayDelta } from '@/lib/ratingDisplay';
@@ -189,28 +188,31 @@ export function TonightView(props: TonightViewProps) {
             : 'idle';
   // M15.5: what the card is about (the lock after Roll, else the next game), one answer for the
   // card, the answer band, the strip's host line and the announcer.
-  // A missing row is a new group (`missingState`); a failed read is flagged (`modeReadFailed`).
-  const modeState = snapshot.modeState ?? missingState();
+  // A missing row is a new group (`missingRow`); a failed read is flagged (`modeReadFailed`).
+  const modeRow = snapshot.modeRow ?? missingRow();
   const bans = snapshot.fearless.champions.map((champion) => champion.id);
   const table = championTable();
   const cardView = modeCardView({
-    state: modeState,
+    row: modeRow,
     lobbyStatus: snapshot.lobby?.status ?? null,
     lock: snapshot.lobby?.lock ?? null,
     bans,
     table,
+    rowUpdatedAt: snapshot.modeSince,
+    lockedAt: snapshot.lobby?.lockedAt ?? null,
   });
   const speech: ModeSpeech = {
-    standing: modeState.standing,
-    pending: modeState.pending,
-    nextRated: modeCardView({ state: modeState, lobbyStatus: null, lock: null, bans, table }).rated,
+    standing: modeRow.standing,
+    pending: modeRow.pending,
+    nextRated: nextRated(modeRow),
     lockedRule: cardView.locked ? ruleOf(cardView.shown) : null,
+    locked: cardView.locked,
     lobbyStatus: snapshot.lobby?.status ?? null,
   };
   // M19.13: the card's state as the client mode store starts from it, and the facts the store
   // needs to render the card for any state it hears after this render (no names, no player ids).
   const modeSlice: ModeSlice = {
-    state: modeState,
+    row: modeRow,
     updatedAt: snapshot.modeSince,
     resetAt: snapshot.fearless.resetAt,
   };
@@ -218,6 +220,7 @@ export function TonightView(props: TonightViewProps) {
     slice: modeSlice,
     lobbyStatus: snapshot.lobby?.status ?? null,
     lock: snapshot.lobby?.lock ?? null,
+    lockedAt: snapshot.lobby?.lockedAt ?? null,
     classFacts: classFacts(bans, table),
     unplayable: unplayableRules(bans, table),
     normalFacts: normalNoteFactsOf(snapshot),
@@ -243,17 +246,15 @@ export function TonightView(props: TonightViewProps) {
             }
           : null
       }
-      normalJustNow={normalJustNow(snapshot)}
       live={modeLive}
       controls={
         isAdmin
           ? {
               inGame: cardView.locked || variant === 'in-game',
-              requeue: requeueable(modeState, snapshot.lobby?.status ?? null, snapshot.lobby?.lock ?? null),
-              // What is set, before and after Roll (owner bug 1): never the post-record prediction.
-              selected: selectValue(modeState),
-              tooFew: tooFewOpen(modeState, bans, table),
-              nextRated: nextGame(modeState).rated,
+              // What is set for the next game, before and after Roll (owner bug 1): the row.
+              selected: selectValue(modeRow),
+              tooFew: tooFewOpen(modeRow, bans, table),
+              nextRated: nextRated(modeRow),
               redirectTo: groupHome(group),
               notice: props.modeNotice?.notice ?? null,
               error: props.modeNotice?.error ?? null,
@@ -341,6 +342,7 @@ export function TonightView(props: TonightViewProps) {
             groupId: group.id,
             slice: modeSlice,
             lockedRule: speech.lockedRule,
+            locked: speech.locked,
             lobbyStatus: speech.lobbyStatus,
             readFailed: snapshot.modeReadFailed === true,
           }}
@@ -735,7 +737,8 @@ function InGame({
   const names = receiptNames(lobby, null);
   const members = new Map(lobby.members.map((member) => [member.puuid, member]));
   const seat = viewerKickoffSeat(game, viewerPuuid);
-  const notRated = lobby.lock?.rated === false;
+  // The lock stores Rated as moved (null = the locked mode's default, M20.7): read it through core.
+  const notRated = lobby.lock != null && !lockRated(lobby.lock);
 
   const receipt =
     game.kind === 'rolled' && teams !== null ? (

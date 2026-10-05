@@ -1,6 +1,6 @@
 'use client';
 
-import { nextGame, type RuleOption } from '@customs/core';
+import { nextRated, type RuleOption } from '@customs/core';
 import type { GroupMode } from '@customs/db/schemas';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -27,13 +27,15 @@ export interface AnnouncerLive {
   slice: ModeSlice;
   /** The rule locked on tonight's live lobby (balanced, in game), or null. */
   lockedRule: RuleOption | null;
+  /** The card is this game's lock (balanced or in game, with a lock). */
+  locked: boolean;
   lobbyStatus: string | null;
   /** The render's `group_modes` read failed: keep the last good state, never announce a stand-in. */
   readFailed?: boolean | undefined;
 }
 
 const NO_SLICE: ModeSlice = {
-  state: { standing: 'normal', pending: null, ratedOverride: null, version: 0 },
+  row: { standing: 'normal', pending: null, rated: null },
   updatedAt: null,
   resetAt: null,
 };
@@ -51,15 +53,16 @@ export function Announcer({
   live?: AnnouncerLive | undefined;
 }) {
   const merged = useModeSlice(live?.groupId ?? '', live?.slice ?? NO_SLICE, false, live?.readFailed === true);
-  const mode: GroupMode = live === undefined ? serverMode : merged.state.standing;
+  const mode: GroupMode = live === undefined ? serverMode : merged.row.standing;
   const speech: ModeSpeech | undefined =
     live === undefined
       ? serverSpeech
       : {
-          standing: merged.state.standing,
-          pending: merged.state.pending,
-          nextRated: nextGame(merged.state).rated,
+          standing: merged.row.standing,
+          pending: merged.row.pending,
+          nextRated: nextRated(merged.row),
           lockedRule: live.lockedRule,
+          locked: live.locked,
           lobbyStatus: live.lobbyStatus,
         };
   const lastMode = useRef(mode);

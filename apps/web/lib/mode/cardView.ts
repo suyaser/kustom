@@ -60,6 +60,9 @@ export interface ModeCardViewInput {
   classFacts: ClassFacts | null;
   /** The Fearless pool was reset since the render (a `fearless_state` row): no bans count. */
   poolCleared?: boolean | undefined;
+  /** `group_modes.updated_at` of `row`, and the lock's `locked_at`: whether an admin wrote since Roll. */
+  rowUpdatedAt?: string | null | undefined;
+  lockedAt?: string | null | undefined;
 }
 
 export interface ModeCardView {
@@ -72,6 +75,12 @@ export interface ModeCardView {
   locked: boolean;
   /** Admins, after Roll, when the row says more than the lock: `Next game: Mages only.` */
   nextLine: string | null;
+  /**
+   * Region wars had no pair to draw at Roll (M20 D6 (d)): this game is the standing mode and the
+   * rule is still the row's, and nobody wrote the row since (Roll's own move stamps the row and
+   * the lock at the same moment). Region wars queued after Roll is the next game line instead.
+   */
+  didntApply: boolean;
   /** Class wars: the open count for `Tanks only · 12 open` (under Fearless only), else null. */
   classOpen: number | null;
   /** Class wars: open champions of the class per usual lane, for the tiles and `Your lane`. */
@@ -98,6 +107,8 @@ export function modeCardViewFrom(input: ModeCardViewInput): ModeCardView {
   const shown: Mode = locked ? lock.mode : rowMode(row);
   const standing = locked ? lock.standing : row.standing;
   const rated = locked ? lockRated(lock) : nextRated(row);
+  const writtenSince = writtenAfter(input.rowUpdatedAt, input.lockedAt);
+  const didntApply = locked && !writtenSince && row.pending?.id === 'region' && lock.mode.id !== 'region';
 
   let classOpen: number | null = null;
   let laneCounts: Record<RoleValue, number> | null = null;
@@ -113,11 +124,21 @@ export function modeCardViewFrom(input: ModeCardViewInput): ModeCardView {
     rated,
     standing,
     locked,
-    nextLine: locked ? nextLineOf(row, lock) : null,
+    // The didn't-apply note already says the rule is still set for the next game.
+    nextLine: locked && !didntApply ? nextLineOf(row, lock) : null,
+    didntApply,
     classOpen,
     laneCounts,
     pending: row.pending,
   };
+}
+
+/** Whether the row was written after the lock was taken; false when either time is unknown. */
+function writtenAfter(rowUpdatedAt: string | null | undefined, lockedAt: string | null | undefined): boolean {
+  if (rowUpdatedAt == null || lockedAt == null) return false;
+  const row = Date.parse(rowUpdatedAt);
+  const lock = Date.parse(lockedAt);
+  return Number.isFinite(row) && Number.isFinite(lock) && row > lock;
 }
 
 const modeKeyOf = (mode: Mode): string => {

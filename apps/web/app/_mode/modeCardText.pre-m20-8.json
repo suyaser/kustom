@@ -4,7 +4,7 @@
     "mirror": null
   },
   "Normal | empty | admin": {
-    "text": "ModeNormalRatedEvery champion is open.All modes ›",
+    "text": "ModeNormalRatedEvery champion is open.All modes ›Admins and the ownerModeNormalFearlessTanks onlyMarksmen onlyMages onlyAssassins onlySupports onlyRegion wars, sides drawn at rollMirror matchSpinEvery champion is open. The fearless list is saved for later.RatedNext game is rated.",
     "select": "normal",
     "rated": "true",
     "mirror": null

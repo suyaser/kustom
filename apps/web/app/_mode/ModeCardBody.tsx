@@ -1,6 +1,6 @@
 'use client';
 
-import { type LockedMode, nextGame, RULE_OPTIONS, ruleKey } from '@customs/core';
+import { type ModeLock, nextRated, RULE_OPTIONS, ruleKey } from '@customs/core';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -27,7 +27,6 @@ import {
   modeCardViewFrom,
   type NormalNoteFacts,
   normalNote,
-  requeueable,
   selectValue,
   showsFearlessPool,
   tooFewFrom,
@@ -53,7 +52,6 @@ import {
   modeName,
   oneGameLine,
   REGION_DIDNT_APPLY,
-  REGION_STATUS_BEFORE_ROLL,
   REGION_VS,
   ruleAction,
 } from '@/lib/mode/ruleCopy';
@@ -74,7 +72,7 @@ import { preconnectDataDragon, spriteSheetUrls } from './sprites';
  *
  * **With `live`** (Tonight) the card's state is the client mode store's slice (`useModeSlice`): the
  * render's props, then the `group_modes` / `fearless_state` rows the page's channel heard and the
- * controls' own answers, gated on `group_modes.version`. Standing, pending rule, Rated, the chip,
+ * controls' own answers, gated on `group_modes.updated_at`. Standing, pending rule, Rated, the chip,
  * the next-game line, the ban count and the admin controls' select all follow it with no server
  * render. The slice holds no name and no player id. **Without `live`** (the kit, old fixtures) it
  * is the server's `view` as given.
@@ -91,10 +89,13 @@ export interface CardCounts {
 
 /** The server's facts that let the client store render the card for any state it hears. */
 export interface ModeCardLive {
-  /** The render's card state, `group_modes.updated_at` and `fearless_state.reset_at`. */
+  /** The render's row (the next game), `group_modes.updated_at` and `fearless_state.reset_at`. */
   slice: ModeSlice;
   lobbyStatus: LobbyStatusValue | null;
-  lock: LockedMode | null;
+  /** This game: the lobby's lock (server render only, never patched on the client). */
+  lock: ModeLock | null;
+  /** The lock's `locked_at`, or null. */
+  lockedAt?: string | null | undefined;
   classFacts: ClassFacts;
   unplayable: UnplayableRules;
   normalFacts: NormalNoteFacts;
@@ -121,7 +122,7 @@ export interface ModeCardBodyProps {
 
 /** Stands in for the slice when there is no `live` (the hook still runs, its answer unused). */
 const NO_SLICE: ModeSlice = {
-  state: { standing: 'normal', pending: null, ratedOverride: null, version: 0 },
+  row: { standing: 'normal', pending: null, rated: null },
   updatedAt: null,
   resetAt: null,
 };
@@ -135,20 +136,24 @@ export function ModeCardBody(props: ModeCardBodyProps) {
     live === null
       ? props.view
       : modeCardViewFrom({
-          state: merged.state,
+          row: merged.row,
           lobbyStatus: live.lobbyStatus,
           lock: live.lock,
           classFacts: live.classFacts,
           poolCleared,
+          rowUpdatedAt: merged.updatedAt,
+          lockedAt: live.lockedAt,
         });
   const counts = poolCleared ? props.emptyCounts : props.counts;
   const normalJustNow =
     live === null
       ? props.normalJustNow
       : normalNote(live.normalFacts, {
-          standing: merged.state.standing,
-          pending: merged.state.pending,
-          since: merged.updatedAt,
+          standing: merged.row.standing,
+          pending: merged.row.pending,
+          // The admin write that switched Fearless off, as this page heard it; never `updated_at`,
+          // which Roll and the hand-backs move too.
+          since: merged.normalSince,
         });
   // A failed read hides the controls: nobody sets a mode from a picture the page could not read.
   let controls = readFailed ? null : props.controls;
@@ -158,10 +163,9 @@ export function ModeCardBody(props: ModeCardBodyProps) {
     controls = {
       ...controls,
       inGame: view.locked || variant === 'in-game',
-      requeue: requeueable(merged.state, live.lobbyStatus, live.lock),
-      selected: selectValue(merged.state),
-      tooFew: tooFewFrom(merged.state, live.unplayable, poolCleared),
-      nextRated: nextGame(merged.state).rated,
+      selected: selectValue(merged.row),
+      tooFew: tooFewFrom(merged.row, live.unplayable, poolCleared),
+      nextRated: nextRated(merged.row),
     };
   }
 
@@ -266,7 +270,7 @@ export function ModeCardBody(props: ModeCardBodyProps) {
             <RatedChip rated={view.rated} />
           </span>
           {/* The status slot: a Spin's cycle and landing play here, in the status's own type (round 1). */}
-          <SpinReveal labels={SPIN_LABELS} pendingKey={view.pendingKey}>
+          <SpinReveal labels={SPIN_LABELS} pending={view.pending}>
             {fearlessOn ? (
               <FearlessStatus counts={counts} emptyLine={variant !== 'balanced'} />
             ) : shown.id === 'normal' ? (
@@ -280,8 +284,6 @@ export function ModeCardBody(props: ModeCardBodyProps) {
               </span>
             ) : regions !== null ? (
               <RegionStatus blue={regions.blue} red={regions.red} />
-            ) : shown.id === 'region' ? (
-              <span className="text-md font-bold">{REGION_STATUS_BEFORE_ROLL}</span>
             ) : mirrorPool ? (
               <span className="text-md font-bold">
                 {mirrorStatus(null)}
@@ -360,7 +362,7 @@ const SPIN_LABELS: Record<string, string> = Object.fromEntries(
   RULE_OPTIONS.map((rule) => [ruleKey(rule), ruleLabel(rule)]),
 );
 
-/** Region wars after Roll: `◣ BLUE Ionia` vs `◥ RED Noxus` (05-design 8.10). */
+/** Region wars, before and after Roll (M20 D9): `◣ BLUE Ionia` vs `◥ RED Noxus` (05-design 8.10). */
 function RegionStatus({ blue, red }: { blue: RegionId; red: RegionId }) {
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">

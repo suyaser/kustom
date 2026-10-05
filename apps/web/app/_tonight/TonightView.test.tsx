@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
+import { applyModeRow, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { groupHref } from '@/lib/nav';
 import {
   BAR_CAPTION,
@@ -621,14 +622,19 @@ describe('the Mode card (M14.30)', () => {
     expect(await screen.findByRole('combobox', { name: 'Mode' })).toBeInTheDocument();
   });
 
-  it('switched to Normal tonight: members get the dashed note until a game lands', () => {
-    const { connection: _c, ...fixture } = tonightStateFixture('idle', {
-      now: NOW,
-      mode: 'normal',
-      normalJustNow: true,
-    });
+  it('switched to Normal tonight: members get the dashed note when the page hears the switch (M20.8)', () => {
+    resetModeStoreForTests();
+    const { connection: _c, ...fixture } = tonightStateFixture('idle', { now: NOW, mode: 'fearless' });
     render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    expect(screen.queryByText('Normal mode now.')).toBeNull();
+    act(() => {
+      applyModeRow(ORIGINAL_GROUP.id, {
+        row: { standing: 'normal', pending: null, rated: null },
+        updatedAt: new Date(NOW - 60_000).toISOString(),
+      });
+    });
     expect(screen.getByText('Normal mode now.')).toBeInTheDocument();
+    resetModeStoreForTests();
   });
 });
 

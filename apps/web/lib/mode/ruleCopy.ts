@@ -116,6 +116,10 @@ export function inGameRuleLine(mode: ShownMode): string | null {
   return null;
 }
 
+/** Region wars had no pair to draw at Roll: the card says so (M15.5 design round 1). */
+export const REGION_DIDNT_APPLY =
+  "Region wars didn't apply to this game: too few open champions for two regions. It's still set for the next game.";
+
 /* ---------------------------------------------------------------------------
  * The admin foot.
  * ------------------------------------------------------------------------- */

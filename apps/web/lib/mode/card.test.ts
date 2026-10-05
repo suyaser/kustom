@@ -1,30 +1,36 @@
-import type { LockedMode, ModeState } from '@customs/core';
+import type { ModeLock, ModeRow } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { listChampions } from '../champs/names';
-import { modeCardView, selectValue, tooFewOpen, upcomingState } from './card';
+import { modeCardView, selectValue, tooFewOpen } from './card';
 import { championTable } from './champions';
 import { nextGameLine } from './ruleCopy';
 import { type ModeSpeech, modeSpeechLine } from './speech';
 
 /**
- * M15.5: what the Mode card is about, per state (brief D2, 05-design 8.3), and what the announcer
- * says when it changes (brief §4).
+ * M15.5, on M20.8's one row: what the Mode card is about, per state (brief D2, 05-design 8.3), and
+ * what the announcer says when it changes (brief §4). Before Roll the card is the row (the next
+ * game); set and in game it is the lobby's lock (this game), and the row is the next game.
  */
 
 const table = championTable();
-const state = (over: Partial<ModeState> = {}): ModeState => ({
+const zaun = { id: 'region', blue: 'zaun', red: 'noxus' } as const;
+const state = (over: Partial<ModeRow> = {}): ModeRow => ({
   standing: 'fearless',
   pending: null,
-  ratedOverride: null,
-  version: 3,
+  rated: null,
   ...over,
 });
+const lockOf = (mode: ModeLock['mode'], rated: boolean | null = null): ModeLock => ({
+  standing: 'fearless',
+  mode,
+  rated,
+});
 const view = (
-  s: ModeState,
+  s: ModeRow,
   status: Parameters<typeof modeCardView>[0]['lobbyStatus'] = null,
-  lock: LockedMode | null = null,
+  lock: ModeLock | null = null,
   bans: number[] = [],
-) => modeCardView({ state: s, lobbyStatus: status, lock, bans, table });
+) => modeCardView({ row: s, lobbyStatus: status, lock, bans, table });
 
 describe('modeCardView', () => {
   it('before Roll the card is the next game: the pending rule at its default rated flag', () => {
@@ -35,42 +41,55 @@ describe('modeCardView', () => {
     expect(v.nextLine).toBeNull();
   });
 
+  it('region wars before Roll is the row with its pair (M20 D9), no lobby needed', () => {
+    for (const status of [null, 'open', 'finished'] as const) {
+      const v = view(state({ pending: zaun }), status);
+      expect(v.shown).toEqual(zaun);
+      expect(v.pending).toEqual(zaun);
+    }
+  });
+
   it('the Rated switch wins in any mode, Normal included', () => {
-    expect(view(state({ standing: 'normal', ratedOverride: false })).rated).toBe(false);
-    expect(view(state({ pending: { id: 'region' }, ratedOverride: true })).rated).toBe(true);
+    expect(view(state({ standing: 'normal', rated: false })).rated).toBe(false);
+    expect(view(state({ pending: zaun, rated: true })).rated).toBe(true);
     expect(view(state({ pending: { id: 'mirror' } })).rated).toBe(true);
   });
 
-  it('after Roll the card is the lock; a change since is the next game line', () => {
-    const lock: LockedMode = {
-      mode: { id: 'region', blue: 'ionia', red: 'noxus' },
-      rated: false,
-      version: 3,
-    };
-    const same = view(state({ pending: { id: 'region' } }), 'balanced', lock);
-    expect(same.shown).toEqual(lock.mode);
+  it('after Roll the card is the lock; the row as Roll left it says nothing, a choice since is the next game line', () => {
+    const lock = lockOf(zaun, false);
+    const same = view(state(), 'balanced', lock);
+    expect(same.shown).toEqual(zaun);
+    expect(same.rated).toBe(false);
     expect(same.locked).toBe(true);
     expect(same.nextLine).toBeNull();
-    const moved = view(state({ pending: { id: 'class', tag: 'Mage' }, version: 4 }), 'in_game', lock);
-    expect(moved.shown).toEqual(lock.mode);
+    const moved = view(state({ pending: { id: 'class', tag: 'Mage' } }), 'in_game', lock);
+    expect(moved.shown).toEqual(zaun);
     expect(moved.nextLine).toBe('Next game: Mages only.');
-    const toNormal = view(state({ standing: 'normal', version: 4 }), 'in_game', lock);
+    const toNormal = view(state({ standing: 'normal' }), 'in_game', lock);
     expect(toNormal.nextLine).toBe('Next game: Normal.');
   });
 
-  it("region wars with no draw at Roll: the card says it didn't apply, and the rule stays", () => {
-    const lock: LockedMode = { mode: { id: 'fearless' }, rated: false, version: 3 };
-    const v = view(state({ pending: { id: 'region' } }), 'balanced', lock);
-    expect(v.didntApply).toBe(true);
+  it("region wars with no pair at Roll: this game is the standing mode with Rated moved, the card says it didn't apply", () => {
+    const v = view(state({ pending: zaun }), 'balanced', lockOf({ id: 'fearless' }, false));
     expect(v.shown).toEqual({ id: 'fearless' });
     expect(v.rated).toBe(false);
+    expect(v.didntApply).toBe(true);
+    // The note already says it is still set for the next game.
+    expect(v.nextLine).toBeNull();
+    // An admin chose something else since: no note, the next game line names it.
+    const moved = view(state({ pending: { id: 'mirror' } }), 'balanced', lockOf({ id: 'fearless' }, false));
+    expect(moved.didntApply).toBe(false);
+    expect(moved.nextLine).toBe('Next game: Mirror match.');
   });
 
-  it('finished shows the next game again: the card is back on the standing mode', () => {
-    const lock: LockedMode = { mode: { id: 'class', tag: 'Tank' }, rated: false, version: 3 };
-    const v = view(state({ version: 4 }), 'finished', lock);
+  it('a lock on a lobby that is no longer set is not this game; the row is', () => {
+    const lock = lockOf({ id: 'class', tag: 'Tank' }, false);
+    const v = view(state(), 'finished', lock);
     expect(v.shown).toEqual({ id: 'fearless' });
     expect(v.rated).toBe(true);
+    expect(v.locked).toBe(false);
+    // Balanced with no lock (teams by hand, M21): the card is the next game.
+    expect(view(state({ pending: { id: 'mirror' } }), 'balanced', null).shown).toEqual({ id: 'mirror' });
   });
 
   it('class wars counts the open class under Fearless only, and per usual lane', () => {
@@ -114,6 +133,7 @@ describe('the announcer lines', () => {
     pending: null,
     nextRated: true,
     lockedRule: null,
+    locked: false,
     lobbyStatus: null,
     ...over,
   });
@@ -127,9 +147,8 @@ describe('the announcer lines', () => {
   it("a rule game landing says the rule is done, never M14's switched-off note", () => {
     const before = speech({
       lockedRule: { id: 'class', tag: 'Tank' },
+      locked: true,
       lobbyStatus: 'in_game',
-      pending: { id: 'class', tag: 'Tank' },
-      nextRated: false,
     });
     expect(modeSpeechLine(before, speech({ lobbyStatus: 'finished', standing: 'fearless' }))).toBe(
       "This game's rule is done. Back to Fearless.",
@@ -137,12 +156,27 @@ describe('the announcer lines', () => {
   });
 
   it('an admin picking the standing mode clears the rule', () => {
-    expect(modeSpeechLine(speech({ pending: { id: 'region' } }), speech())).toBe(
-      'Rule cleared. Back to Fearless.',
-    );
-    expect(modeSpeechLine(speech({ pending: { id: 'region' } }), speech({ standing: 'normal' }))).toBe(
+    expect(modeSpeechLine(speech({ pending: zaun }), speech())).toBe('Rule cleared. Back to Fearless.');
+    expect(modeSpeechLine(speech({ pending: zaun }), speech({ standing: 'normal' }))).toBe(
       'Rule cleared. Back to Normal.',
     );
+  });
+
+  it('region wars chosen names its pair', () => {
+    expect(modeSpeechLine(speech(), speech({ pending: zaun, nextRated: false }))).toBe(
+      'Next game: Region wars. Blue: Zaun · Red: Noxus. Not rated.',
+    );
+  });
+
+  it('Roll moving the row onto the lock, or the teams handing it back, says nothing', () => {
+    const before = speech({ pending: { id: 'class', tag: 'Tank' }, nextRated: false, lobbyStatus: 'open' });
+    const rolled = speech({
+      lockedRule: { id: 'class', tag: 'Tank' },
+      locked: true,
+      lobbyStatus: 'balanced',
+    });
+    expect(modeSpeechLine(before, rolled)).toBeNull();
+    expect(modeSpeechLine(rolled, { ...before, lobbyStatus: 'open' })).toBeNull();
   });
 
   it('the switch is always about the next game, and nothing changed says nothing', () => {
@@ -152,50 +186,39 @@ describe('the announcer lines', () => {
 });
 
 describe('a Rated flip after Roll changes only Rated (the user, 2026-10-04)', () => {
-  const tanksLock: LockedMode = { mode: { id: 'class', tag: 'Tank' }, rated: false, version: 3 };
-  const tanks = { id: 'class', tag: 'Tank' } as const;
+  const tanksLock = lockOf({ id: 'class', tag: 'Tank' }, false);
 
   it('the next game line does not repeat the rule; it names what the next game is', () => {
-    const flipped = state({ pending: tanks, ratedOverride: true, version: 4 });
-    expect(view(flipped, 'in_game', tanksLock).nextLine).toBe('Next game: Fearless.');
-    const off = state({ pending: tanks, ratedOverride: false, version: 4 });
-    expect(view(off, 'in_game', tanksLock).nextLine).toBe('Next game: Fearless. Not rated.');
+    expect(view(state({ rated: true }), 'in_game', tanksLock).nextLine).toBe('Next game: Fearless.');
+    expect(view(state({ rated: false }), 'in_game', tanksLock).nextLine).toBe(
+      'Next game: Fearless. Not rated.',
+    );
   });
 
   it('only Rated differs from this game: `Next game: not rated.` / `Next game: rated.`', () => {
-    const lock: LockedMode = { mode: { id: 'fearless' }, rated: true, version: 3 };
-    expect(view(state({ ratedOverride: false, version: 4 }), 'in_game', lock).nextLine).toBe(
+    expect(view(state({ rated: false }), 'in_game', lockOf({ id: 'fearless' }, true)).nextLine).toBe(
       'Next game: not rated.',
     );
-    const offLock: LockedMode = { mode: { id: 'fearless' }, rated: false, version: 3 };
-    expect(view(state({ ratedOverride: true, version: 4 }), 'balanced', offLock).nextLine).toBe(
+    expect(view(state({ rated: true }), 'balanced', lockOf({ id: 'fearless' }, false)).nextLine).toBe(
       'Next game: rated.',
     );
   });
 
   it('a rule queued after Roll is named, with Rated when it is not the rule default', () => {
-    const mages = state({ pending: { id: 'class', tag: 'Mage' }, ratedOverride: true, version: 5 });
-    expect(view(mages, 'in_game', tanksLock).nextLine).toBe('Next game: Mages only. Rated.');
-    const plain = state({ pending: { id: 'class', tag: 'Mage' }, version: 5 });
-    expect(view(plain, 'in_game', tanksLock).nextLine).toBe('Next game: Mages only.');
-    // The same rule queued again (no flip): named, so the admin sees it will repeat.
-    const again = state({ pending: tanks, version: 6 });
-    expect(view(again, 'in_game', tanksLock).nextLine).toBe('Next game: Tanks only.');
+    const mage = { id: 'class', tag: 'Mage' } as const;
+    expect(view(state({ pending: mage, rated: true }), 'in_game', tanksLock).nextLine).toBe(
+      'Next game: Mages only. Rated.',
+    );
+    expect(view(state({ pending: mage }), 'in_game', tanksLock).nextLine).toBe('Next game: Mages only.');
+    // The same rule queued again: named, so the admin sees it will repeat.
+    expect(view(state({ pending: { id: 'class', tag: 'Tank' } }), 'in_game', tanksLock).nextLine).toBe(
+      'Next game: Tanks only.',
+    );
   });
 
-  it('the controls read the upcoming card: the select and the switch are the game after this one', () => {
-    const flipped = state({ pending: tanks, ratedOverride: true, version: 4 });
-    const upcoming = upcomingState(flipped, 'in_game', tanksLock);
-    expect(selectValue(upcoming)).toBe('fearless');
-    expect(upcoming.ratedOverride).toBe(true);
-    // Nothing moved since Roll: the next game is the standing mode at its default.
-    const untouched = upcomingState(state({ pending: tanks, ratedOverride: false }), 'balanced', tanksLock);
-    expect(selectValue(untouched)).toBe('fearless');
-    expect(untouched.ratedOverride).toBeNull();
-    // Before Roll (or finished) it is the card itself.
-    expect(upcomingState(flipped, 'open', tanksLock)).toBe(flipped);
-    expect(upcomingState(flipped, 'finished', tanksLock)).toBe(flipped);
-    expect(upcomingState(flipped, 'in_game', null)).toBe(flipped);
+  it('the select and the switch are the row: the next game, never a prediction', () => {
+    expect(selectValue(state())).toBe('fearless');
+    expect(selectValue(state({ pending: zaun }))).toBe('region');
   });
 
   it('nextGameLine says Rated in both places', () => {

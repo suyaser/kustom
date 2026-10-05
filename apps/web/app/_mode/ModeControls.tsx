@@ -1,13 +1,13 @@
 'use client';
 
-import { type ClassTag, modeRatedDefault, type RuleOption, ruleKey } from '@customs/core';
+import { type ClassTag, type PendingRule, type RuleOption, ruleKey } from '@customs/core';
 import {
   GROUP_MODES,
   type GroupMode,
-  legacyModeAnswerSchema,
   type ModeChoice,
-  type NextGame,
+  type ModeRowState,
   ruleOptionOf,
+  setGroupModeResponseSchema,
 } from '@customs/db/schemas';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import {
@@ -32,7 +32,7 @@ import {
   FEARLESS_RESETTING,
   fearlessResetBody,
 } from '@/lib/fearless/copy';
-import { applyModeAnswer, beginOptimistic, endOptimistic, type ModeOptimistic } from '@/lib/mode/clientStore';
+import { applyModeRow, beginOptimistic, endOptimistic, type ModeOptimistic } from '@/lib/mode/clientStore';
 import { type ControlsWrite, controlsOf, useControls } from '@/lib/mode/controlsStore';
 import {
   MODE_ADMIN_EYEBROW,
@@ -58,13 +58,7 @@ import {
   SPINNING,
   TOO_FEW_OPEN,
 } from '@/lib/mode/ruleCopy';
-import {
-  NOTHING_TO_SPIN,
-  RULE_TOO_FEW_OPEN,
-  ratedNotice,
-  ruleChosenNotice,
-  standingNotice,
-} from '@/lib/mode/ruleNotices';
+import { NOTHING_TO_SPIN, RULE_TOO_FEW_OPEN } from '@/lib/mode/ruleNotices';
 import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { beginTonightPress, requestTonightRefresh } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
@@ -86,13 +80,13 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  *   everyone). `Normal`, `Fearless`, then the rule optgroups (M15.5); a rule too small under
  *   Fearless is a disabled option with ` (too few open)`. Picking Normal or Fearless clears a
  *   pending rule (R1). The button shows once the choice differs; without JS it is always there.
- *   **The select shows what is set** (the pending rule, else the standing mode) before and after
- *   Roll (owner bug 1, 2026-10-04: it used to show what the record would leave, so after Roll it
- *   read Normal while the game was Tanks). After Roll the pending rule is the one this game locked;
- *   `Set mode` is offered for it anyway (`requeue`), so it can be queued for the next game too
- *   (owner bug 3). M19.13: the tap is **optimistic** on the card (the client mode store shows core's
- *   own transition at once), `Setting…` until the route confirms, and the route's answer goes into
- *   the store, so the card is the new one with no server render; a failure puts the card back.
+ *   **The select shows what is set for the next game** (the row: `pending ?? standing`), before and
+ *   after Roll (owner bug 1, 2026-10-04). M20.8: Roll moves the pending rule onto the lobby, so after
+ *   Roll the row is empty and picking this game's rule again simply queues it (owner bug 3 needs no
+ *   special case). The tap is **optimistic** on the card (a draft of the last tap in the client
+ *   mode store), `Setting…` until the route confirms; the route's `{ state, notice }` goes into the
+ *   store and the outcome line, so the card is the new one with no server render and the line is
+ *   the route's, never recomputed; a failure puts the card back.
  * - **`Spin`** (M15.5, R3): the server picks; the card reveals the answer here and on every open
  *   page (the Realtime broadcast). Without JS it is a form post and the page reloads on the result.
  *   With JS it stays quiet (`aria-disabled`) from the tap until its own reveal has played. M19.13:
@@ -101,8 +95,8 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  * - **`Rated`** (M15.5, R9): a switch for the next game, in any mode; a submit button with
  *   `role="switch"`, so it works as a form post with no JS. With JS it flips on the tap (prod fix
  *   2026-10-04, "I tap it and nothing changes"; M19.13: an optimistic tap in the client mode store),
- *   takes the route's `next` as the answer, and reverts with `Couldn't change that.` on a failure.
- *   An answer without `next` is never guessed at: the page re-reads.
+ *   takes the route's `state` as the answer, and reverts with `Couldn't change that.` on a failure.
+ *   An answer that does not parse is never guessed at: the page re-reads.
  * - **State** (audit defects 2, 7, 8): what is set comes in as props from the client mode store and
  *   is never copied; the controls' own state is the unsaved pick, the write in flight, Spin's quiet
  *   time and the outcome line (`lib/mode/controlsStore.ts`), kept per group so a Roll that moves the
@@ -124,11 +118,6 @@ export interface ModeControlsProps {
   banned: number;
   /** After Roll (teams set or in game): every change is for the next game. */
   inGame: boolean;
-  /**
-   * After Roll, the pending rule is the one this game locked and nothing changed since: picking it
-   * again queues it for the next game too (`requeueable`), so `Set mode` is offered for it.
-   */
-  requeue?: boolean | undefined;
   /** Tonight's path: where the no-JS forms come back to. */
   redirectTo: string;
   /** `/g/<slug>/mode/reset`: where Reset goes without JS, to confirm before anything is cleared. */
@@ -151,7 +140,6 @@ export function ModeControls({
   mode,
   banned,
   inGame,
-  requeue = false,
   redirectTo,
   resetConfirmHref,
   selected = mode,
@@ -189,23 +177,25 @@ export function ModeControls({
   }, [controls.spinUntil, dispatch]);
 
   /**
-   * One write to a mode route. M19.13: no Tonight press: the route's answer goes into the client
-   * mode store (`applyModeAnswer`), which is the card, and the route's `group_live` bump re-reads
-   * nothing once its `group_modes` row has arrived (`TonightLive`). `optimistic` is shown on the card
-   * while the write is in flight. An answer without the card's new state is never guessed at: the
-   * page re-reads instead.
+   * One write to the mode route. M19.13: no Tonight press: the answer's `state` goes into the client
+   * mode store (`applyModeRow`, gated on its `updatedAt`), which is the card, and the route's
+   * `group_live` bump re-reads nothing once its `group_modes` row has arrived (`TonightLive`).
+   * `optimistic` is shown on the card while the write is in flight. An answer that does not parse
+   * is never guessed at: the page re-reads instead.
    */
   async function post(
-    action: string,
     body: Record<string, unknown>,
     optimistic: ModeOptimistic | null = null,
-  ): Promise<{ ok: true; spun: RuleOption | null; next: NextGame | null } | { ok: false; status: number }> {
+  ): Promise<
+    | { ok: true; spun: RuleOption | null; state: ModeRowState | null; notice: string | null }
+    | { ok: false; status: number }
+  > {
     const token = optimistic === null ? null : beginOptimistic(groupId, optimistic);
     const done = () => {
       if (token !== null) endOptimistic(groupId, token);
     };
     try {
-      const response = await fetch(action, {
+      const response = await fetch(MODE_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId, ...body }),
@@ -214,15 +204,20 @@ export function ModeControls({
         done();
         return { ok: false, status: response.status };
       }
-      // M20.7: the answer is `{ state, notice }` plus the fields this client reads; M20.8 moves it to `state`.
-      const parsed = legacyModeAnswerSchema.safeParse(await response.json().catch(() => null));
-      const spun = parsed.success && parsed.data.spun !== undefined ? ruleOptionOf(parsed.data.spun) : null;
-      const next = parsed.success ? (parsed.data.next ?? null) : null;
+      const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
+      if (!parsed.success) {
+        void requestTonightRefresh();
+        done();
+        return { ok: true, spun: null, state: null, notice: null };
+      }
+      const { state, notice, spun } = parsed.data;
       // The answer first, then the tap goes: the card never flashes back to the old state.
-      if (next !== null) applyModeAnswer(groupId, next);
-      else void requestTonightRefresh();
+      applyModeRow(groupId, {
+        row: { standing: state.standing, pending: state.pending, rated: state.rated },
+        updatedAt: state.updatedAt,
+      });
       done();
-      return { ok: true, spun, next };
+      return { ok: true, spun: spun === undefined ? null : ruleOptionOf(spun), state, notice };
     } catch {
       done();
       return { ok: false, status: 0 };
@@ -239,22 +234,14 @@ export function ModeControls({
   async function setMode(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const picked = choice;
-    // The pending rule picked again after Roll queues it for the next game too (owner bug 3).
-    if ((picked === current && !requeue) || !begin('mode')) return;
-    const result = await post(MODE_ACTION, { mode: picked }, { kind: 'choice', choice: picked });
+    if (picked === current || !begin('mode')) return;
+    const result = await post({ mode: picked }, { kind: 'choice', choice: picked });
     if (!result.ok) {
       // 409: the server's rule check (a page older than the pool, QA fix 2026-10-04).
       dispatch({ type: 'refused', failed: result.status === 409 ? RULE_TOO_FEW_OPEN : MODE_CHANGE_FAILED });
       return;
     }
-    const rule = ruleOptionOf(picked as ModeChoice);
-    dispatch({
-      type: 'answered',
-      said:
-        rule === null
-          ? standingNotice(picked as GroupMode, current !== mode)
-          : ruleChosenNotice(rule, result.next?.rated ?? modeRatedDefault(rule.id)),
-    });
+    dispatch({ type: 'answered', said: result.notice });
     // The card is the answer already (M19.13): the button goes, focus stays on the select.
     selectRef.current?.focus();
   }
@@ -262,18 +249,22 @@ export function ModeControls({
   async function spin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (controlsOf(groupId).spinUntil !== null || !begin('spin')) return;
-    const result = await post(SPIN_ACTION, { spin: true });
+    const result = await post({ spin: true });
     if (!result.ok) {
       dispatch({ type: 'refused', failed: result.status === 409 ? NOTHING_TO_SPIN : MODE_CHANGE_FAILED });
       return;
     }
     // With the answer on the card the reveal cycles now; without it, wait for the re-read too.
-    const quiet = result.next !== null ? SPIN_CYCLE_MS : SPIN_WAIT_MS + SPIN_CYCLE_MS;
+    const quiet = result.state !== null ? SPIN_CYCLE_MS : SPIN_WAIT_MS + SPIN_CYCLE_MS;
     dispatch({ type: 'answered', said: null, spinUntil: Date.now() + quiet });
     if (result.spun !== null) {
       const rule = ruleKey(result.spun);
-      // This page's reveal is the route's own answer (`local`); the broadcast is checked by others.
-      window.dispatchEvent(new CustomEvent(SPIN_REVEAL_EVENT, { detail: { rule, source: 'local' } }));
+      // This page's reveal is the route's own answer (`local`), naming the answer's pair; the
+      // broadcast carries the rule only and is checked against each page's card.
+      const pair = regionPairOf(result.state?.pending ?? null);
+      window.dispatchEvent(
+        new CustomEvent(SPIN_REVEAL_EVENT, { detail: { rule, source: 'local', ...pair } }),
+      );
       window.dispatchEvent(new CustomEvent(SPIN_BROADCAST_EVENT, { detail: { rule } }));
     }
   }
@@ -283,17 +274,16 @@ export function ModeControls({
     // The switch as it shows now (the card's value, a tap in flight included).
     const target = !rated;
     if (!begin('rated')) return;
-    const result = await post(MODE_ACTION, { rated: target }, { kind: 'rated', rated: target });
+    const result = await post({ rated: target }, { kind: 'rated', rated: target });
     if (!result.ok) {
       dispatch({ type: 'refused', failed: MODE_CHANGE_FAILED });
       return;
     }
-    // The route's answer is the next game as written.
-    dispatch({ type: 'answered', said: ratedNotice(result.next?.rated ?? target) });
+    dispatch({ type: 'answered', said: result.notice });
   }
 
   // `Setting…` stays up until the route confirms (M19.13: the card already shows the tap), then goes.
-  const showSet = !hydrated || choice !== current || requeue || pending === 'mode';
+  const showSet = !hydrated || choice !== current || pending === 'mode';
   const spinBusy = pending === 'spin' || controls.spinUntil !== null;
   // Design round 1: `Next game: Mages only.` already says it; don't repeat `Changes apply…` under it.
   const afterRoll = inGame && nextLine === null;
@@ -441,6 +431,11 @@ export function ModeControls({
       </p>
     </div>
   );
+}
+
+/** Region wars' pair for the local reveal's detail (`SpinReveal` reads `blue` / `red`). */
+function regionPairOf(pending: PendingRule | null): { blue?: string; red?: string } {
+  return pending?.id === 'region' ? { blue: pending.blue, red: pending.red } : {};
 }
 
 function ResetFearless({

@@ -29,11 +29,9 @@ import {
   classCounts,
   classEmptyLane,
   classSentence,
-  drawnRegions,
   mirrorSentence,
   modeName,
   NORMAL_RULE_LIST,
-  REGION_PANEL_BEFORE_ROLL,
   regionEmptyLane,
   regionSentence,
 } from '@/lib/mode/ruleCopy';
@@ -92,7 +90,11 @@ export function ModePanelBody(props: ModePanelBodyProps) {
       ) : shown.id === 'class' ? (
         <ClassBody {...props} tag={shown.tag} rated={rated} />
       ) : shown.id === 'region' ? (
-        <RegionBody {...props} regions={drawnRegions(shown)} rated={rated} />
+        <RegionBody
+          {...props}
+          regions={{ blue: shown.blue as RegionId, red: shown.red as RegionId }}
+          rated={rated}
+        />
       ) : shown.id === 'mirror' ? (
         <>
           <p className="text-base">{mirrorSentence(rated)}</p>
@@ -190,17 +192,10 @@ function ClassBody(props: ModePanelBodyProps & { tag: ClassTag; rated: boolean }
 }
 
 function RegionBody(
-  props: ModePanelBodyProps & { regions: { blue: RegionId; red: RegionId } | null; rated: boolean },
+  // M20 D9: region wars always carries its pair, before Roll (the row's) and after (the lock's).
+  props: ModePanelBodyProps & { regions: { blue: RegionId; red: RegionId }; rated: boolean },
 ) {
   const { regions, rated } = props;
-  if (regions === null) {
-    return (
-      <>
-        <p className="text-base">{REGION_PANEL_BEFORE_ROLL}</p>
-        <p className="text-xs text-muted-foreground">{REGION_CREDIT}</p>
-      </>
-    );
-  }
   preloadChampionSprites();
   const table = championTable();
   const ids = (region: RegionId) =>

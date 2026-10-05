@@ -53,6 +53,9 @@ export interface ModeCardInput {
   /** The Fearless pool's champion ids (counted only while the standing mode is Fearless). */
   bans: readonly number[];
   table: ChampionTable;
+  /** `group_modes.updated_at` and the lock's `locked_at` (the didn't-apply note, `cardView.ts`). */
+  rowUpdatedAt?: string | null | undefined;
+  lockedAt?: string | null | undefined;
 }
 
 export function modeCardView(input: ModeCardInput): ModeCardView {
@@ -61,6 +64,8 @@ export function modeCardView(input: ModeCardInput): ModeCardView {
     lobbyStatus: input.lobbyStatus,
     lock: input.lock,
     classFacts: classFacts(input.bans, input.table),
+    rowUpdatedAt: input.rowUpdatedAt,
+    lockedAt: input.lockedAt,
   });
 }
 

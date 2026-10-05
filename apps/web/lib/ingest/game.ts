@@ -1,4 +1,4 @@
-import type { RecordedGameKind } from '@customs/core';
+import type { RecordInput } from '@customs/core';
 import {
   type CompanionGameEogPayload,
   type CompanionGameEogPayloadWithWinner,
@@ -263,13 +263,13 @@ export async function ingestEogGame(
 }
 
 /**
- * How the mode lifecycle sees the game (core's `RecordedGameKind`): ARAM (anything that is not the
+ * How the mode lifecycle sees the game (core's `RecordInput['kind']`): ARAM (anything that is not the
  * Rift, `isRatedMode`'s rule), a remake (the rating gate's short game: 300 seconds or less), or a
  * Rift game. Remakes and ARAM never rate, never get checked, and leave the rule pending (R1).
  */
 export function recordedKind(
   payload: Pick<CompanionGameEogPayloadWithWinner, 'raw' | 'durationS'>,
-): RecordedGameKind {
+): RecordInput['kind'] {
   if (!isRatedMode(payload.raw)) return 'aram';
   if (payload.durationS <= MIN_RATED_DURATION_S) return 'remake';
   return 'rift';
