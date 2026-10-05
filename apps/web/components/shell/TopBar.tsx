@@ -55,14 +55,16 @@ export function TopBar({
       <div className="mx-auto flex min-h-(--topbar-h) w-full max-w-7xl flex-wrap items-center gap-x-6 px-(--gutter)">
         <Link
           href={groupHome(group)}
-          className="flex min-h-11 min-w-0 items-center gap-3 rounded-control py-2"
+          className="flex min-h-11 min-w-0 items-center gap-3 rounded-control py-2 max-lg:flex-1 max-lg:flex-wrap"
         >
           <Wordmark />{' '}
-          {/* Wraps between words; a single word wider than the room ends in an ellipsis instead of
-              breaking mid-word (05-design 14.13 item 7). The full name stays in the text and the title. */}
+          {/* Below 1024 the lockup can wrap: when the name has less than 8em beside KUSTOM (200% text) it
+              drops to its own line, full width. It wraps between words; only a single word wider than
+              the bar ends in an ellipsis, never a mid-word break (05-design 14.13 item 7). The full name
+              stays in the text and the title. */}
           <span
             title={group.name}
-            className="min-w-0 overflow-hidden border-s border-border ps-3 text-sm leading-snug font-bold text-ellipsis"
+            className="min-w-0 overflow-hidden border-s border-border ps-3 text-sm leading-snug font-bold text-ellipsis max-lg:grow max-lg:basis-[8em]"
           >
             {group.name}
           </span>
