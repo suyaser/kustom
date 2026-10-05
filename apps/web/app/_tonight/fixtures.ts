@@ -672,6 +672,8 @@ export interface LobbiesFixtureOptions {
   other?: 'open' | 'balanced' | 'in_game';
   /** The selected lobby has no Kustom watching it any more (14.8). */
   unwatched?: boolean;
+  /** The frame's clock (ms), as `tonightStateFixture`'s `now`. Default the fixtures' 20:30. */
+  now?: number;
 }
 
 /**
@@ -685,7 +687,8 @@ export function withLobbies(
 ): TonightStateFixture {
   const own = fixture.snapshot.lobby;
   if (own === null) return fixture;
-  const now = Date.parse('2026-09-08T20:30:00.000Z');
+  // The frame's own clock (the kit passes `Date.now()`), so `In game · 12 min` reads 12 minutes.
+  const now = options.now ?? Date.parse('2026-09-08T20:30:00.000Z');
   const at = (minutesAgo: number) => new Date(now - minutesAgo * 60_000).toISOString();
   const crowd = (names: readonly string[]): MemberView[] =>
     names.map((name, index) =>

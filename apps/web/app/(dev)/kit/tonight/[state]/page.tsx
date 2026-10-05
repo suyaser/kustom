@@ -205,6 +205,7 @@ export default async function KitTonightPage({
           selected: Number(sel ?? 0),
           other: other === 'balanced' || other === 'in_game' ? other : 'open',
           unwatched: unwatched === '1',
+          now: Date.now(),
         })
       : tagged;
   const shown = kitViewer(viewer, paired);

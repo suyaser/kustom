@@ -94,7 +94,7 @@ export function LobbySwitcher({
                 onClick={(event) => tap(event, chip.id)}
                 aria-current={current ? 'page' : undefined}
                 className={cn(
-                  'flex min-h-16 flex-col gap-0.5 rounded-control border border-border-strong bg-card px-3 py-2.5 text-foreground',
+                  'flex h-full min-h-16 flex-col gap-0.5 rounded-control border border-border-strong bg-card px-3 py-2.5 text-foreground',
                   'touch-manipulation transition-colors duration-(--dur-fast) ease-out hover:bg-accent active:scale-[.98] active:duration-(--dur-press)',
                   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                   chip.status.kind === 'no-kustom' && 'border-dashed',
@@ -104,9 +104,9 @@ export function LobbySwitcher({
               >
                 {/* The sticker sits on the label's first line; a name too long to share it pushes the
                     sticker to its own line instead of breaking the name mid-word (14.4: wraps between words). */}
-                <span className="flex flex-wrap items-start justify-between gap-x-2">
+                <span className="flex flex-wrap items-start justify-between gap-x-2 md:grid md:grid-cols-[minmax(0,1fr)_auto]">
                   <span className="min-w-0 text-md leading-snug font-bold [overflow-wrap:break-word]">
-                    {chip.label}
+                    <LabelText label={chip.label} />
                   </span>
                   {chip.you ? (
                     <Chip variant="you" aria-hidden="true" className="mt-0.5 ml-auto">
@@ -114,13 +114,22 @@ export function LobbySwitcher({
                     </Chip>
                   ) : null}
                 </span>
-                <span className="flex flex-wrap gap-x-1 text-xs">
-                  <span className="font-bold whitespace-nowrap tabular-nums">
+                {/* Below 768 the mode takes its own line with no dot; from 768 status and mode share one. */}
+                <span className="flex flex-col text-xs md:flex-row md:flex-wrap md:gap-x-1">
+                  <span className="flex flex-wrap gap-x-1 font-bold tabular-nums">
                     <span className="sr-only">, </span>
-                    {chipStatusText(chip.status, now)}
+                    {chipStatusText(chip.status, now)
+                      .split(' · ')
+                      .map((part, index) => (
+                        <span key={part} className="whitespace-nowrap">
+                          {index === 0 ? part : `· ${part}`}
+                        </span>
+                      ))}
                   </span>
                   <span className="whitespace-nowrap text-muted-foreground">
-                    <span aria-hidden="true">· </span>
+                    <span aria-hidden="true" className="hidden md:inline">
+                      ·{' '}
+                    </span>
                     <span className="sr-only">, </span>
                     {chip.mode}
                   </span>
@@ -132,5 +141,18 @@ export function LobbySwitcher({
         })}
       </ul>
     </nav>
+  );
+}
+
+/** A break chance before `'s lobby`, so a long name wraps there and not after its apostrophe (14.4). */
+function LabelText({ label }: { label: string }) {
+  const at = label.lastIndexOf("'s lobby");
+  if (at <= 0) return label;
+  return (
+    <>
+      {label.slice(0, at)}
+      <wbr />
+      {label.slice(at)}
+    </>
   );
 }

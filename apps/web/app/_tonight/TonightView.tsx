@@ -309,7 +309,7 @@ export function TonightView(props: TonightViewProps) {
   const rolls = rollerOf(state, isAdmin);
   // 14.8: no Roll for a lobby no Kustom watches any more (the roster may be stale).
   const action =
-    shownTable?.watched === false && state.kind === 'filling'
+    shownTable?.watched === false && (state.kind === 'filling' || state.kind === 'teams')
       ? null
       : stripAction(props, state, { isAdmin, linked, emptyGroup, several });
   const ruleJump =
@@ -378,7 +378,8 @@ export function TonightView(props: TonightViewProps) {
               <SubLine state={state} header={header} renderedAt={props.renderedAt ?? Date.now()} />
             )
           }
-          lobbyLive={header.live}
+          // M22.6: the Live tag is the night's, not the selected lobby's.
+          lobbyLive={several ? tables.some((table) => table.lobby.status !== 'finished') : header.live}
           meter={state.kind === 'filling' ? Math.min(lobbyAround(state.lobby.members), 10) : null}
           names={names}
           action={action}
