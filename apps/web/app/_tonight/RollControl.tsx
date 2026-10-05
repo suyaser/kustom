@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { LOBBY_ABANDONED } from '@/lib/admin/rerollCopy';
 import { noteThisGame } from '@/lib/mode/clientStore';
 import { groupHome } from '@/lib/nav';
 import { asSentence, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
@@ -73,7 +74,7 @@ export function RollControl({
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         const said = errorOf(body);
-        setFailed(severalLobbies && said === ROLL_ABANDONED ? THAT_LOBBY_ENDED : said);
+        setFailed(severalLobbies && said === asSentence(LOBBY_ABANDONED) ? THAT_LOBBY_ENDED : said);
       } else {
         // M20 D11: Roll redrew a region pair the bans made short; the Mode card says so for this
         // game, in the route's words, until the game starts.
@@ -127,9 +128,6 @@ function modeNoticeOf(body: unknown): string | null {
  * full stop (`the lobby changed since you looked: …`) because `/admin` prints them inline. Here
  * each stands alone in its slot, so it gets a capital and a stop. Anything else gets ours.
  */
-/** `lib/admin/roll.ts`' 409 for a lobby no longer open or balanced (`abandoned`), as `errorOf` prints it. */
-const ROLL_ABANDONED = 'That lobby was abandoned.';
-
 function errorOf(body: unknown): string {
   if (typeof body === 'object' && body !== null && 'error' in body) {
     const error = (body as { error: unknown }).error;

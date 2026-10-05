@@ -2,6 +2,7 @@ import type { Metadata, Route } from 'next';
 import Link from 'next/link';
 import { loadModePanel } from '@/app/_mode/loadPanel';
 import { ModePanelBody } from '@/app/_mode/ModePanelBody';
+import { LobbyLabelText } from '@/app/_tonight/LobbyLabelText';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import { MODE_NAMES, PANEL_CRUMB_TONIGHT } from '@/lib/mode/copy';
 import { modeCardHref } from '@/lib/mode/hrefs';
@@ -56,7 +57,9 @@ export default async function ModePage({ params, searchParams }: ModePageProps) 
         {data.lobby === null ? null : (
           <>
             <span aria-hidden="true">{' · '}</span>
-            <span className="[overflow-wrap:anywhere]">{data.lobby.label}</span>
+            <span className="min-w-0">
+              <LobbyLabelText label={data.lobby.label} />
+            </span>
           </>
         )}
       </nav>

@@ -1,6 +1,7 @@
 import { ORIGINAL_GROUP_ID } from '@customs/db/schemas';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LOBBY_ABANDONED } from '@/lib/admin/rerollCopy';
 import { STALE_ROSTER } from '@/lib/admin/roll';
 import { lobbyRosterKey } from '@/lib/ingest/lobby';
 import { modeStoreThisGameForTests, resetModeStoreForTests, thisGameNoticeOf } from '@/lib/mode/clientStore';
@@ -126,6 +127,20 @@ describe('the roll control', () => {
     );
     expect(settled).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.getByRole('button', { name: ROLL_LABEL })).toBeEnabled());
+  });
+
+  it("M22.6: with two lobbies live, an abandoned lobby's 409 reads That lobby has ended.", async () => {
+    answer(409, { ok: false, error: LOBBY_ABANDONED });
+    render(<RollControl lobbyId={LOBBY_ID} members={workedMembers()} severalLobbies />);
+    fireEvent.click(screen.getByRole('button', { name: ROLL_LABEL }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^That lobby has ended\.$/);
+  });
+
+  it('M22.6: with one lobby the same 409 is printed in the route words, as before', async () => {
+    answer(409, { ok: false, error: LOBBY_ABANDONED });
+    draw();
+    fireEvent.click(screen.getByRole('button', { name: ROLL_LABEL }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^That lobby was abandoned\.$/);
   });
 
   it('presses again with the roster the re-read brought', async () => {

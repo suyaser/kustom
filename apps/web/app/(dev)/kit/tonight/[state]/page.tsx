@@ -121,6 +121,7 @@ export default async function KitTonightPage({
     sel?: string;
     other?: string;
     unwatched?: string;
+    bans?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -149,6 +150,7 @@ export default async function KitTonightPage({
     sel,
     other,
     unwatched,
+    bans,
   } = await searchParams;
   if (!(TONIGHT_STATES as readonly string[]).includes(state)) notFound();
 
@@ -206,6 +208,7 @@ export default async function KitTonightPage({
           other: other === 'balanced' || other === 'in_game' ? other : 'open',
           unwatched: unwatched === '1',
           now: Date.now(),
+          otherBans: bans === 'other',
         })
       : tagged;
   const shown = kitViewer(viewer, paired);

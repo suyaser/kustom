@@ -5,6 +5,7 @@ import { type ReactNode, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PANEL_CLOSE, PANEL_CRUMB_MODE, PANEL_CRUMB_TONIGHT } from '@/lib/mode/copy';
 import { MODE_CARD_LINK_ID } from '@/lib/mode/hrefs';
+import { LobbyLabelText } from '../_tonight/LobbyLabelText';
 
 /**
  * The mode panel over Tonight (M14.30; 05-design.md 8.5.2 and 8.6, the one routed panel): opened
@@ -105,7 +106,7 @@ export function ModeOverlay({
         className="fixed inset-0 flex flex-col overflow-hidden bg-card text-foreground lg:inset-x-0 lg:top-8 lg:bottom-auto lg:mx-auto lg:max-h-[calc(100svh-64px)] lg:w-[min(1180px,calc(100vw-64px))] lg:rounded-card lg:border lg:border-border-strong lg:shadow-overlay forced-colors:border-2"
       >
         <div className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-card px-4 lg:px-6">
-          <p className="min-w-0 text-[0.9375rem] text-muted-foreground [overflow-wrap:anywhere]">
+          <p className="min-w-0 text-[0.9375rem] text-muted-foreground">
             {lobbyLabel === null ? (
               <>
                 {PANEL_CRUMB_TONIGHT}
@@ -118,7 +119,7 @@ export function ModeOverlay({
                   {PANEL_CRUMB_TONIGHT}
                   <span aria-hidden="true">{' · '}</span>
                 </span>
-                {lobbyLabel}
+                <LobbyLabelText label={lobbyLabel} />
                 <span aria-hidden="true">{' · '}</span>
               </>
             )}

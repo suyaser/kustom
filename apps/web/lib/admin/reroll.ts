@@ -10,7 +10,7 @@ import {
 import { readAssignments } from '../discord/assemble';
 import type { ServiceClient } from '../supabase';
 import { idSchema } from './formValues';
-import { NO_MORE_SPLITS } from './rerollCopy';
+import { LOBBY_ABANDONED, NO_MORE_SPLITS } from './rerollCopy';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
 /**
@@ -205,7 +205,7 @@ function notBalancedMessage(status: LobbyStatusValue): string {
     case 'finished':
       return 'that game is over';
     default:
-      return 'that lobby was abandoned';
+      return LOBBY_ABANDONED;
   }
 }
 

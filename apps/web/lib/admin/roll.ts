@@ -11,6 +11,7 @@ import { shortPairRedrawnNotice } from '../mode/ruleNotices';
 import type { ServiceClient } from '../supabase';
 import { idSchema } from './formValues';
 import { NO_SUCH_LOBBY } from './reroll';
+import { LOBBY_ABANDONED } from './rerollCopy';
 import { type AdminWriteResult, writeFailed, writeOk } from './result';
 
 /**
@@ -248,6 +249,6 @@ function notRollableMessage(status: LobbyStatusValue): string {
     case 'finished':
       return 'that game is over';
     default:
-      return 'that lobby was abandoned';
+      return LOBBY_ABANDONED;
   }
 }

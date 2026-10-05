@@ -15,6 +15,7 @@ import {
   YOU_IN_THIS_LOBBY,
 } from '@/lib/tonight/switcher';
 import { cn } from '@/lib/utils';
+import { LobbyLabelText } from './LobbyLabelText';
 
 /**
  * The lobby switcher (05-design.md 14.4, M22.6): one chip per live table, a strip row between the
@@ -113,7 +114,7 @@ export function LobbySwitcher({
                     sticker to its own line instead of breaking the name mid-word (14.4: wraps between words). */}
                 <span className="flex flex-wrap items-start justify-between gap-x-2 md:grid md:grid-cols-[minmax(0,1fr)_auto]">
                   <span className="min-w-0 text-md leading-snug font-bold [overflow-wrap:break-word]">
-                    <LabelText label={chip.label} />
+                    <LobbyLabelText label={chip.label} />
                   </span>
                   {chip.you ? (
                     <Chip variant="you" aria-hidden="true" className="mt-0.5 ml-auto">
@@ -148,18 +149,5 @@ export function LobbySwitcher({
         })}
       </ul>
     </nav>
-  );
-}
-
-/** A break chance before `'s lobby`, so a long name wraps there and not after its apostrophe (14.4). */
-function LabelText({ label }: { label: string }) {
-  const at = label.lastIndexOf("'s lobby");
-  if (at <= 0) return label;
-  return (
-    <>
-      {label.slice(0, at)}
-      <wbr />
-      {label.slice(at)}
-    </>
   );
 }

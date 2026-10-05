@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { applyModeRow, modeCardKey, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { ROLL_LABEL } from '@/lib/tonight/copy';
+import { resetLiveState, setLiveState } from '@/lib/tonight/live';
 import { withSelection } from '@/lib/tonight/selection';
 import { UNWATCHED_LEAD } from '@/lib/tonight/switcher';
 import {
@@ -332,5 +333,19 @@ describe('refusals and Reset with two lobbies (14.8, 14.11)', () => {
     expect(
       await screen.findByText(/bans are cleared in both lobbies and every champion is open again/),
     ).toBeInTheDocument();
+  });
+});
+
+describe('the Live tag is the night, not the selected lobby (designer round 1)', () => {
+  afterEach(() => resetLiveState());
+
+  it('shows while the other lobby is in game, with the selected one finished', () => {
+    act(() => setLiveState({ connection: 'live' }));
+    const view = draw({ ...fixture('finished'), viewer: MEMBER_VIEWER });
+    // One lobby, finished: no tag, as before M22.
+    expect(document.querySelector('[data-slot="live-tag"]')).toBeNull();
+    view.unmount();
+    draw({ ...two('finished', 0, { count: 2, other: 'in_game' }), viewer: MEMBER_VIEWER });
+    expect(document.querySelector('[data-slot="live-tag"]')).not.toBeNull();
   });
 });

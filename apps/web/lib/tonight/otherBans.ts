@@ -39,8 +39,11 @@ export function otherLobbyBans(
   }
   const mine = [...played.values()].filter((entry) => shown.rowIds.includes(entry.lobbyId));
   const since = Math.max(Date.parse(shown.openedAt), ...mine.map((entry) => Date.parse(entry.createdAt)));
+  // A game whose lobby has no label (no live table, no host known) is left out of the count, so
+  // the note never says `from a game in` nobody: the number is always the named lobby's.
   const others = [...played.values()]
     .filter((entry) => !shown.rowIds.includes(entry.lobbyId) && Date.parse(entry.createdAt) > since)
+    .filter((entry) => tileLabel(entry, tables, labels) !== null)
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   const games = new Set(others.map((entry) => entry.result?.gameId));
   const count = fearless.champions.filter(

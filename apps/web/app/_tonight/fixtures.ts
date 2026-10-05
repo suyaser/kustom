@@ -674,6 +674,11 @@ export interface LobbiesFixtureOptions {
   unwatched?: boolean;
   /** The frame's clock (ms), as `tonightStateFixture`'s `now`. Default the fixtures' 20:30. */
   now?: number;
+  /**
+   * Chaos's lobby finished a game five minutes ago that banned two champions, newer than the
+   * selected lobby's last game: the Mode card's `2 more banned from a game in Chaos's lobby.` (14.5).
+   */
+  otherBans?: boolean;
 }
 
 /**
@@ -748,10 +753,11 @@ export function withLobbies(
   ];
   const live = lobbies.slice(0, options.count);
   const selected = live[options.selected ?? 0] ?? live[0];
+  const chaosGame = options.otherBans === true ? 'game-chaos-1' : null;
   const tables: TableView[] = live.map((one) => ({
     id: one.id,
     partyId: one.party,
-    rowIds: [one.id],
+    rowIds: chaosGame !== null && one.id === 'lobby-chaos' ? ['lobby-chaos-0', one.id] : [one.id],
     openedAt: at(one.opened),
     changedAt: at(1),
     host: one.host === null ? null : { puuid: `host-${one.party}`, name: one.host },
@@ -760,10 +766,42 @@ export function withLobbies(
     tile: null,
     ...(one.card === null ? {} : { card: one.card }),
   }));
-  const tape = fixture.snapshot.tape.map((entry, index) => ({
+  const ownTape = fixture.snapshot.tape.map((entry, index) => ({
     ...entry,
     tableHost: index % 2 === 0 ? (own.members[0]?.name ?? null) : 'Chaos',
   }));
+  const chaosTile: TapeEntry | null =
+    chaosGame === null
+      ? null
+      : {
+          lobbyId: 'lobby-chaos-0',
+          createdAt: at(1),
+          clock: '',
+          status: 'finished',
+          result: {
+            gameId: chaosGame,
+            winningSide: 200,
+            durationS: 1_620,
+            aram: false,
+            rated: true,
+            mvp: 'Chaos',
+          },
+          blueWinProb: 0.5,
+          rank: 1,
+          sitters: [],
+          tableHost: 'Chaos',
+        };
+  const tape = chaosTile === null ? ownTape : [...ownTape, chaosTile];
+  // Two of the pool's champions came from Chaos's game.
+  const fearless =
+    chaosGame === null
+      ? fixture.snapshot.fearless
+      : {
+          ...fixture.snapshot.fearless,
+          champions: fixture.snapshot.fearless.champions.map((champion, index) =>
+            index < 2 ? { ...champion, gameId: chaosGame } : champion,
+          ),
+        };
   return {
     ...fixture,
     snapshot: {
@@ -773,6 +811,7 @@ export function withLobbies(
       selectedLobbyId: selected?.id ?? own.id,
       severalLobbiesTonight: true,
       tape,
+      fearless,
     },
   };
 }
