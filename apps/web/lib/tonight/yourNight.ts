@@ -3,9 +3,9 @@ import { championName } from '../champs/names';
 import { inChunks } from '../chunks';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
 import { type FoldAwardPlayer, gameScores, gatedGameAward, gateGame } from '../ingest/fold';
-import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import type { PublicClient } from '../publicClient';
 import { type DeltaPair, sumDisplayDeltas } from '../ratingDisplay';
+import { isRemake } from './state';
 
 /**
  * Your night (M14.36): a linked viewer's recap of tonight's games in this group, on Tonight (idle
@@ -15,6 +15,8 @@ import { type DeltaPair, sumDisplayDeltas } from '../ratingDisplay';
  * rule, so the card goes at 06:00) that the viewer played, and that are either **rated** (every row
  * carries `r_before` and `r_after`, the fold's own mark; a remake or a short surrender is not) or an
  * **ARAM** (never rated, but a game: it counts in wins and losses and says nothing about Rating).
+ * Never a remake (300 s or less, ARAM included: no result anywhere) and never a voided game
+ * (`void_reason` set, M23.2: ended early or voided by an admin, it does not count).
  *
  * The Rating change is the sum of each rated game's `displayDelta`, the number the poster prints per
  * game, so the card and the posters add up: `sumDisplayDeltas`, the one function the player page's
@@ -64,6 +66,8 @@ export interface YourNightGame {
   gameMode: unknown;
   /** `games.rated` (M15.3, `0032`); absent in older fixtures, read as rated. */
   rated?: boolean | null;
+  /** `games.void_reason` (M23.1, `0052`): `early-end` or `admin`; absent in older fixtures, not voided. */
+  void_reason?: string | null;
   game_players: readonly YourNightRow[];
 }
 
@@ -90,6 +94,7 @@ export function foldYourNight(
 
   for (const game of ordered) {
     if (game.winning_side !== 100 && game.winning_side !== 200) continue;
+    if (game.void_reason != null || isRemake(game.duration_s)) continue;
     const me = game.game_players.find((row) => row.player_id === viewerPlayerId);
     if (me === undefined || (me.side !== 100 && me.side !== 200)) continue;
     const aram = matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram');
@@ -97,7 +102,7 @@ export function foldYourNight(
     const isRated =
       !aram && rows.length > 0 && rows.every((row) => row.r_before !== null && row.r_after !== null);
     // M15.5 (R4): a Rift game played not rated still counts in wins and losses, like an ARAM.
-    const notRatedRift = !aram && game.rated === false && game.duration_s > MIN_RATED_DURATION_S;
+    const notRatedRift = !aram && game.rated === false;
     if (!aram && !isRated && !notRatedRift) continue;
     if (notRatedRift) notRated = true;
 
@@ -169,7 +174,7 @@ function awardPlayers(
 }
 
 const COLUMNS =
-  'id, started_at, duration_s, winning_side, rated, gameMode:game_mode, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, champion_id, r_before, r_after)';
+  'id, started_at, duration_s, winning_side, rated, void_reason, gameMode:game_mode, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, champion_id, r_before, r_after)';
 
 /** PostgREST's `max_rows`: one page of the night's games. */
 const PAGE = 1_000;

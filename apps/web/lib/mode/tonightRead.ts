@@ -119,7 +119,7 @@ export async function loadTonightLobbyLock(
 
 /** The `games` columns a stamp is made of; Tonight reads them with the rest of the game row. */
 export const GAME_STAMP_COLUMNS =
-  'duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check' as const;
+  'duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, void_reason' as const;
 
 export interface GameStampRow {
   duration_s: number;
@@ -131,6 +131,8 @@ export interface GameStampRow {
   rated: boolean;
   rule_checked: boolean;
   rule_check: unknown;
+  /** M23.2 (`0052`): why it was voided; absent in older fixtures, read as not voided. */
+  void_reason?: string | null;
 }
 
 /** The stored rule check of a stamp row, or null (not checked, or a check this build cannot parse, logged). */
@@ -159,6 +161,7 @@ export function stampFromRow(
       matchesQueue(gameModeFromRaw({ gameMode: data.gameMode }), 'sr') &&
       data.duration_s > MIN_RATED_DURATION_S,
     check,
+    ...(data.void_reason == null ? {} : { voidReason: data.void_reason }),
     ...(Object.keys(names).length === 0 ? {} : { names }),
   };
 }

@@ -6,8 +6,9 @@ import { type GameReceipt, gameReceiptOf } from '../games/receipt';
 import { LANE_ORDER } from '../laneOrder';
 import { PLAYERS_PER_GAME } from '../lobbyRules';
 import { isNameless } from './copy';
-import { ANNOUNCE_GAME_STARTED, announceTeams, announceWinner } from './screenCopy';
-import type { HeaderView } from './state';
+import { viewerKickoffSeat } from './kickoff';
+import { announceGameStarted, announceTeams, announceWinner } from './screenCopy';
+import { type HeaderView, isRemake } from './state';
 import type {
   LobbyView,
   MemberView,
@@ -180,6 +181,12 @@ export function seatStanding(ratedGames: number | null): 'new' | 'settling' | 's
   return isSettling(ratedGames) ? 'settling' : 'settled';
 }
 
+function spokenSeat(
+  seat: { side: 'blue' | 'red'; role: RoleValue | null } | null,
+): { side: 'Blue' | 'Red'; role: RoleValue | null } | null {
+  return seat === null ? null : { side: seat.side === 'blue' ? 'Blue' : 'Red', role: seat.role };
+}
+
 /**
  * The one polite announcement for this snapshot (05-design.md 6.4): one meaningful sentence per
  * change, never a bare number, never the timer. The page renders it in a single visually hidden
@@ -194,20 +201,21 @@ export function announcement(state: TonightState, header: HeaderView, viewerPuui
       return header.sentence;
     // M21.5: the same one sentence as a game with no kickoff record, so the move from the teams
     // to the teams that started is announced once.
+    // The viewer's side is named (6.4: `You're on Red, mid.`): in game it is the side the game
+    // started on (M21.5's kickoff seat), which may not be the split's, so the change is said.
     case 'in-game':
-      return ANNOUNCE_GAME_STARTED;
+      return announceGameStarted(spokenSeat(viewerKickoffSeat(state.game, viewerPuuid)));
     case 'teams': {
-      if (state.lobby.status === 'in_game') return ANNOUNCE_GAME_STARTED;
+      if (state.lobby.status === 'in_game') {
+        return announceGameStarted(spokenSeat(viewerSeat(state.teams, viewerPuuid)));
+      }
       if (state.lobby.status !== 'balanced') return '';
       const chosen = chosenSplit(state.teams.stored);
       const odds = chosen === null ? '' : barSentence(chosen.blueWinProb);
-      const seat = viewerSeat(state.teams, viewerPuuid);
-      return announceTeams(
-        odds,
-        seat === null ? null : { side: seat.side === 'blue' ? 'Blue' : 'Red', role: seat.role },
-      ).trim();
+      return announceTeams(odds, spokenSeat(viewerSeat(state.teams, viewerPuuid)));
     }
     default:
-      return announceWinner(state.result.winningSide);
+      // A remake has no winner to say (M3.4: and no apology either).
+      return isRemake(state.result.durationS) ? '' : announceWinner(state.result.winningSide);
   }
 }

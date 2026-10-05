@@ -11,6 +11,8 @@ export interface GameStampView {
   rift: boolean;
   /** The stored check, or null when the game was not checked (remake, ARAM, standing mode). */
   check: RuleCheck | null;
+  /** M23.2: `games.void_reason` (`early-end`, `admin`), or null/absent when it is not voided. */
+  voidReason?: string | null | undefined;
   /** M15.10: the client's names for checked champions newer than the pinned table, by key. */
   names?: Readonly<Record<number, string>> | undefined;
 }

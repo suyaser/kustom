@@ -173,12 +173,20 @@ export const FINISH_SETUP = 'Finish setup';
 
 /** The page's one polite announcement per change (05-design.md 6.4). */
 export const ANNOUNCE_GAME_STARTED = 'Game started.';
+/** `You're on Red, mid.` (6.4), `You're on Red.` with no role; '' for a viewer not playing. */
+export function announceYou(you: { side: 'Blue' | 'Red'; role: string | null } | null): string {
+  if (you === null) return '';
+  return you.role === null ? `You're on ${you.side}.` : `You're on ${you.side}, ${you.role}.`;
+}
 export function announceTeams(
   oddsSentence: string,
-  you: { side: 'Blue' | 'Red'; role: string } | null,
+  you: { side: 'Blue' | 'Red'; role: string | null } | null,
 ): string {
-  const tail = you === null ? '' : ` You're on ${you.side}, ${you.role}.`;
-  return `Teams are set. ${oddsSentence}${tail}`;
+  return `Teams are set. ${oddsSentence} ${announceYou(you)}`.replace(/ +/g, ' ').trim();
+}
+/** `Game started. You're on Red, mid.`: the side the game started on, which may not be the split's. */
+export function announceGameStarted(you: { side: 'Blue' | 'Red'; role: string | null } | null): string {
+  return you === null ? ANNOUNCE_GAME_STARTED : `${ANNOUNCE_GAME_STARTED} ${announceYou(you)}`;
 }
 export function announceWinner(side: 100 | 200): string {
   return side === 100 ? 'Blue wins.' : 'Red wins.';
