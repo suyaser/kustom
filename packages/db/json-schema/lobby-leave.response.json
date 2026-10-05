@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "customs-night/companion/lobby-leave.response",
+  "title": "companionLobbyLeaveResponseSchema",
+  "description": "POST /api/companion/lobby/leave (response)",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "released": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ok",
+    "released"
+  ]
+}

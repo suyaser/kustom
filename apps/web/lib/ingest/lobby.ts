@@ -368,7 +368,7 @@ export async function ingestLobby(
  * Runs right after the token's move and before the post's own writes ({@link ingestLobby}). A lobby
  * that stays because another Kustom is still in it is its own table on Tonight (M22.5).
  */
-async function letGoLeftLobbies(
+export async function letGoLeftLobbies(
   client: ServiceClient,
   input: {
     groupId: string;
@@ -478,6 +478,40 @@ async function moveTokenParty(
     : update.eq('current_party_id', previous));
   if (updateError) throw new Error(`ingestLobby: token party update failed: ${updateError.message}`);
   return previous;
+}
+
+/**
+ * **A Kustom says it left its lobby** (M22.9): the client closed lobby `partyId` and it was not a
+ * game start. Clears the token's current party when it is still `partyId` (a compare-and-set, so a
+ * leave that arrives after the same Kustom posted its next lobby, or a repeated leave, changes
+ * nothing and answers `false`), then lets go the lobbies the token left with {@link letGoLeftLobbies}
+ * exactly as a post for a new party would: the one it held, and any other the player reported, unless
+ * another Kustom is still in it. The group is the token's, never the body's. An old companion that
+ * never sends this behaves as after M22.3: the lobby goes at {@link HOST_WINDOW_MS} or the sweep.
+ */
+export async function leaveLobby(
+  client: ServiceClient,
+  input: { groupId: string; playerId: string; tokenId: string; partyId: string; now: Date; live: LiveChanges },
+): Promise<boolean> {
+  const { data, error } = await client
+    .from('companion_tokens')
+    .update({ current_party_id: null, current_party_at: null })
+    .eq('id', input.tokenId)
+    .eq('current_party_id', input.partyId)
+    .select('id');
+  if (error) throw new Error(`leaveLobby: token party clear failed: ${error.message}`);
+  if ((data ?? []).length === 0) return false;
+  await letGoLeftLobbies(client, {
+    groupId: input.groupId,
+    playerId: input.playerId,
+    tokenId: input.tokenId,
+    previousPartyId: input.partyId,
+    // No lobby is the new one: the token is in none.
+    partyId: '',
+    now: input.now,
+    live: input.live,
+  });
+  return true;
 }
 
 /** The post itself: the party's row and its roster (everything {@link ingestLobby} did before M22.1). */
