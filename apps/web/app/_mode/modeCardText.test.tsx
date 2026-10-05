@@ -39,6 +39,13 @@ import before from './modeCardText.pre-m20-8.json';
  *    `Red's region`) wherever a pair can still change; they are cut out before the comparison and
  *    checked on their own: present exactly when the row's pending rule is region wars or the
  *    balanced lobby's lock is.
+ * 8. M20.14: a region tag wraps only between words. Multi-word region names keep their ordinary
+ *    space (no U+00A0), and the space between two regions follows the sr-only ` and ` (each region
+ *    is its own unit), so `Demacia · ⍽and Targon` reads `Demacia · and ⍽Targon` in the text.
+ * 9. M20.16: balanced and in game, `Next game: Region wars, <blue> vs <red>.` under this game's
+ *    status whenever the row holds a region pair (and the short-pair line under it when that pair
+ *    fails the draw rule). Cut out before the comparison and checked on its own: present exactly
+ *    then. Nothing else on the card changes.
  *
  * One entry of the capture was fixed by hand: `Normal | empty | admin` was read before the lazy
  * admin controls had loaded (the first admin render of the run), so it lacked them; it now holds
@@ -120,8 +127,31 @@ function CHANGES(name: string, key: TonightStateKey, old: Entry): Entry {
         "This game's ten join the ban list when it ends.",
       );
   }
+  // 8.
+  text = text.replaceAll(' ·  and ', ' · and  ');
+  for (const words of ['Bandle City', 'Shadow Isles', 'The Void']) {
+    text = text.replaceAll(words.replace(' ', ' '), words);
+  }
   return { ...old, text };
 }
+
+/**
+ * 9. The card's text with M20.16's next-game region line (and its short-pair line, after Roll) cut
+ * out, and whether the line was there.
+ */
+function cutNextRegion(card: HTMLElement, key: TonightStateKey): { card: HTMLElement; nextLine: boolean } {
+  const trimmed = card.cloneNode(true) as HTMLElement;
+  const line = trimmed.querySelector('[data-slot="mode-next-region"]');
+  line?.remove();
+  if (AFTER_ROLL.has(key)) trimmed.querySelector('[data-slot="mode-pair-short"]')?.remove();
+  return { card: trimmed, nextLine: line !== null };
+}
+
+/** 9. Exactly when the line is expected: balanced or in game, with a region pair on the row. */
+const nextLineExpected = (target: ReturnType<typeof tonightStateFixture>, key: TonightStateKey) =>
+  AFTER_ROLL.has(key) &&
+  target.snapshot.lobby?.lock != null &&
+  target.snapshot.modeRow?.pending?.id === 'region';
 
 function renderEntry(options: TonightFixtureOptions, key: TonightStateKey, admin: boolean) {
   const target = tonightStateFixture(key, { now: NOW, ...options });
@@ -144,8 +174,10 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
   for (const [name, options] of CASES) {
     for (const key of KEYS) {
       it(`${name} | ${key} | member`, () => {
-        const { view } = renderEntry(options, key, false);
-        const card = screen.getByRole('region', { name: /^Mode / });
+        const { target, view } = renderEntry(options, key, false);
+        // 9.
+        const { card, nextLine } = cutNextRegion(screen.getByRole('region', { name: /^Mode / }), key);
+        expect(nextLine).toBe(nextLineExpected(target, key));
         const mirror = document.querySelector('[data-slot="mirror-host-line"]')?.textContent ?? null;
         const old = CHANGES(name, key, expected[`${name} | ${key} | member`] as Entry);
         expect({ text: card.textContent ?? '', mirror }).toEqual({ text: old.text, mirror: old.mirror });
@@ -155,9 +187,10 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
       it(`${name} | ${key} | admin`, async () => {
         const { target, view } = renderEntry(options, key, true);
         const toggle = await screen.findByRole('switch', { name: 'Rated' });
-        const card = screen.getByRole('region', { name: /^Mode / });
+        // 9.
+        const { card: trimmed, nextLine } = cutNextRegion(screen.getByRole('region', { name: /^Mode / }), key);
+        expect(nextLine).toBe(nextLineExpected(target, key));
         // 6.
-        const trimmed = card.cloneNode(true) as HTMLElement;
         const pairs = trimmed.querySelectorAll('[data-slot^="region-controls-"]');
         for (const one of pairs) one.remove();
         const text = trimmed.textContent ?? '';

@@ -52,6 +52,7 @@ import {
   isRule,
   mirrorStatus,
   modeName,
+  nextRegionLine,
   oneGameLine,
   REGION_DIDNT_APPLY,
   REGION_PAIR_SHORT,
@@ -182,6 +183,11 @@ export function ModeCardBody(props: ModeCardBodyProps) {
         });
   // Under the status, for everyone, while the status is the next game's pair (before Roll).
   const pairShort = !view.locked && view.shown.id === 'region' && targets.next?.short === true;
+  // M20.16: while the card is this game's (balanced or in game), the next game's region pair for
+  // everyone, under this game's lines, with the short-pair line under it when the pair fails the
+  // draw rule. It follows the row live like the rest of the card.
+  const nextPending = view.locked && view.pending?.id === 'region' ? view.pending : null;
+  const nextPairShort = nextPending !== null && targets.next?.short === true;
   // A failed read hides the controls: nobody sets a mode from a picture the page could not read.
   let controls = readFailed ? null : props.controls;
   if (controls !== null && live !== null) {
@@ -194,7 +200,8 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       tooFew: tooFewFrom(merged.row, live.unplayable, poolCleared),
       nextRated: nextRated(merged.row),
       regions: targets,
-      statusShowsNext: !view.locked,
+      // The status block says the next game's short pair (before Roll, and after it M20.16's line).
+      statusShowsNext: !view.locked || nextPending !== null,
       // M20.15: the card the outcome line is checked against (another admin's write clears it).
       card: {
         updatedAt: merged.updatedAt,
@@ -371,6 +378,16 @@ export function ModeCardBody(props: ModeCardBodyProps) {
               {oneGame}
             </span>
           )}
+          {nextPending === null ? null : (
+            <span data-spin-hide="" data-slot="mode-next-region" className="text-sm">
+              {nextRegionLine(nextPending)}
+            </span>
+          )}
+          {nextPairShort ? (
+            <span data-spin-hide="" data-slot="mode-pair-short" className="text-sm font-bold">
+              {REGION_PAIR_SHORT}
+            </span>
+          ) : null}
         </span>
         <span
           data-spin-hide=""

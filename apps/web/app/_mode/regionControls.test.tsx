@@ -5,11 +5,12 @@ import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { regionFacts } from '@/lib/mode/card';
 import { regionOpenFor, regionPairPasses, regionTargets } from '@/lib/mode/cardView';
 import { championTable } from '@/lib/mode/champions';
-import { resetModeStoreForTests } from '@/lib/mode/clientStore';
+import { applyModeRow, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { resetControlsForTests } from '@/lib/mode/controlsStore';
 import { REGION_PAIR_SHORT } from '@/lib/mode/ruleCopy';
 import {
   ADMIN_VIEWER,
+  ANON_VIEWER,
   MEMBER_VIEWER,
   type TonightFixtureOptions,
   type TonightStateKey,
@@ -358,13 +359,76 @@ describe('too few open and the short pair (M20 D11)', () => {
     render(page('idle', { rule: 'region', mode: 'normal' }, false, ixtalShort()));
     expect(screen.queryByText(REGION_PAIR_SHORT)).toBeNull();
   });
+});
 
-  it('after Roll the next game pair is the admin foot: the line sits there, not under the status', async () => {
-    render(page('in-game', { rule: 'class:Tank', queued: 'region' }, true, ixtalShort()));
-    await ready();
-    const next = nextPair();
-    expect(within(next).getByText(REGION_PAIR_SHORT)).toBeInTheDocument();
-    expect(within(status()).queryByText(REGION_PAIR_SHORT)).toBeNull();
+describe("M20.16: the next game's regions for everyone while a game is on", () => {
+  const VIEWERS = [
+    ['a signed-out visitor', ANON_VIEWER],
+    ['a member', MEMBER_VIEWER],
+    ['an admin', ADMIN_VIEWER],
+  ] as const;
+  const night = (
+    key: 'balanced' | 'in-game',
+    viewer: (typeof VIEWERS)[number][1],
+    tweak: (fixture: ReturnType<typeof tonightStateFixture>) => ReturnType<typeof tonightStateFixture> = (f) =>
+      f,
+  ) => {
+    const { connection: _c, ...fixture } = tweak(
+      tonightStateFixture(key, { now: NOW, mode: 'fearless', queued: 'region' }),
+    );
+    return <TonightView {...fixture} viewer={viewer} group={ORIGINAL_GROUP} />;
+  };
+  const nextLine = () => card().querySelector('[data-slot="mode-next-region"]');
+
+  for (const key of ['balanced', 'in-game'] as const) {
+    for (const [who, viewer] of VIEWERS) {
+      it(`${key}, ${who}: \`Next game: Region wars, Shurima vs Zaun.\` under this game's status`, async () => {
+        render(night(key, viewer));
+        if (viewer === ADMIN_VIEWER) await ready();
+        expect(nextLine()).toHaveTextContent('Next game: Region wars, Shurima vs Zaun.');
+        // Inside the status block (the card's link), after this game's lines.
+        expect(status()).toContainElement(nextLine() as HTMLElement);
+        expect(within(status()).queryByText(REGION_PAIR_SHORT)).toBeNull();
+      });
+
+      it(`${key}, ${who}: the short-pair line under it when the pair fails the draw rule`, async () => {
+        render(night(key, viewer, ixtalShort()));
+        if (viewer === ADMIN_VIEWER) await ready();
+        expect(nextLine()).toHaveTextContent('Next game: Region wars, Ixtal vs Noxus.');
+        const short = within(status()).getByText(REGION_PAIR_SHORT);
+        expect(nextLine()?.nextElementSibling).toBe(short);
+        // Said once on the card: the admin's next-game pair has no second copy.
+        expect(screen.getAllByText(REGION_PAIR_SHORT)).toHaveLength(1);
+      });
+    }
+  }
+
+  it('changes without a refresh when an admin redraws (the row the channel hears)', async () => {
+    render(night('in-game', ANON_VIEWER));
+    expect(nextLine()).toHaveTextContent('Next game: Region wars, Shurima vs Zaun.');
+    act(() => {
+      applyModeRow(ORIGINAL_GROUP.id, {
+        row: { standing: 'fearless', pending: { id: 'region', blue: 'shadow-isles', red: 'ionia' }, rated: null },
+        updatedAt: '2026-09-08T20:35:00.000Z',
+      });
+    });
+    expect(nextLine()).toHaveTextContent('Next game: Region wars, Shadow Isles vs Ionia.');
+    // Region wars taken off the next game: the line goes.
+    act(() => {
+      applyModeRow(ORIGINAL_GROUP.id, {
+        row: { standing: 'fearless', pending: null, rated: null },
+        updatedAt: '2026-09-08T20:36:00.000Z',
+      });
+    });
+    expect(nextLine()).toBeNull();
+  });
+
+  it('no line before Roll (the status is the pair) or with no region pair queued', () => {
+    const { unmount } = render(page('idle', { rule: 'region' }, false));
+    expect(nextLine()).toBeNull();
+    unmount();
+    render(page('in-game', { rule: 'class:Tank', queued: 'class:Mage' }, false));
+    expect(nextLine()).toBeNull();
   });
 });
 
