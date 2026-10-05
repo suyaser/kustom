@@ -32,7 +32,7 @@ import {
   tooFewFrom,
   type UnplayableRules,
 } from '@/lib/mode/cardView';
-import { type ModeSlice, poolClearedSince, useModeSlice } from '@/lib/mode/clientStore';
+import { type ModeSlice, poolClearedSince, useModeSlice, useThisGameNotice } from '@/lib/mode/clientStore';
 import {
   MODE_ACTIONS,
   MODE_CARD_LABEL,
@@ -96,6 +96,8 @@ export interface ModeCardLive {
   lock: ModeLock | null;
   /** The lock's `locked_at`, or null. */
   lockedAt?: string | null | undefined;
+  /** The lobby the card is drawn for (the Roll answer's notice is keyed on it), or null. */
+  lobbyId?: string | null | undefined;
   classFacts: ClassFacts;
   unplayable: UnplayableRules;
   normalFacts: NormalNoteFacts;
@@ -145,6 +147,12 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           lockedAt: live.lockedAt,
         });
   const counts = poolCleared ? props.emptyCounts : props.counts;
+  // M20 D11: Roll redrew a short pair; this game's notice, until the game starts (balanced only).
+  const rollNotice = useThisGameNotice(group.id, live?.lobbyId ?? null);
+  const shortPair =
+    rollNotice !== null && live?.lobbyStatus === 'balanced' && view.locked && view.shown.id === 'region'
+      ? rollNotice
+      : null;
   const normalJustNow =
     live === null
       ? props.normalJustNow
@@ -243,6 +251,14 @@ export function ModeCardBody(props: ModeCardBodyProps) {
           {MODE_READ_FAILED}
         </p>
       ) : null}
+      {shortPair === null ? null : (
+        <p
+          data-slot="mode-roll-notice"
+          className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm"
+        >
+          {shortPair}
+        </p>
+      )}
       {/* Design round 1: the didn't-apply note leads the card, before the mode it fell back to. */}
       {view.didntApply ? (
         <p className="mx-(--card-pad) mt-4 rounded-control border border-dashed border-border-strong px-3 py-2.5 text-sm">

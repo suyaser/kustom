@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { noteThisGame } from '@/lib/mode/clientStore';
 import { groupHome } from '@/lib/nav';
 import { asSentence, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { beginTonightPress } from '@/lib/tonight/live';
@@ -65,9 +66,14 @@ export function RollControl({
         body: JSON.stringify({ groupId: group.id, rosterKey }),
       });
       const answeredAt = Date.now();
+      const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
-        const body: unknown = await response.json().catch(() => null);
         setFailed(errorOf(body));
+      } else {
+        // M20 D11: Roll redrew a region pair the bans made short; the Mode card says so for this
+        // game, in the route's words, until the game starts.
+        const notice = modeNoticeOf(body);
+        if (notice !== null) noteThisGame(group.id, lobbyId, notice);
       }
       // Teams up or a refusal, the page is now behind the server: re-read it. Realtime would
       // deliver the teams too; asking keeps the answer from waiting on a socket, and is the one
@@ -102,6 +108,13 @@ export function RollControl({
       )}
     </form>
   );
+}
+
+/** The roll answer's `modeNotice` (`rollResponseSchema`), if it carries one. No zod on Tonight's first load. */
+function modeNoticeOf(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('modeNotice' in body)) return null;
+  const notice = (body as { modeNotice: unknown }).modeNotice;
+  return typeof notice === 'string' && notice.trim().length > 0 ? notice : null;
 }
 
 /**

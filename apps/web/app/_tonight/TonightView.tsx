@@ -221,6 +221,7 @@ export function TonightView(props: TonightViewProps) {
     lobbyStatus: snapshot.lobby?.status ?? null,
     lock: snapshot.lobby?.lock ?? null,
     lockedAt: snapshot.lobby?.lockedAt ?? null,
+    lobbyId: snapshot.lobby?.id ?? null,
     classFacts: classFacts(bans, table),
     unplayable: unplayableRules(bans, table),
     normalFacts: normalNoteFactsOf(snapshot),

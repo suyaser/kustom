@@ -8,7 +8,7 @@ import { LANE_ORDER } from '@/lib/laneOrder';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { modeCardView } from '@/lib/mode/card';
 import { championTable, regionIds } from '@/lib/mode/champions';
-import { applyModeRow, resetModeStoreForTests } from '@/lib/mode/clientStore';
+import { applyModeRow, noteThisGame, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { MODE_NOW_NORMAL_BODY } from '@/lib/mode/copy';
 import { MIRROR_HOST_FILLING_LINE, MIRROR_HOST_LEAD, mirrorStatus } from '@/lib/mode/ruleCopy';
 import { fearlessCounts } from '@/lib/mode/view';
@@ -142,6 +142,22 @@ describe('region wars and mirror match', () => {
   it("no draw at Roll: the card says the rule didn't apply", () => {
     draw('balanced', { rule: 'region', noDraw: true });
     expect(within(card()).getByText(/Region wars didn't apply to this game/)).toBeInTheDocument();
+  });
+
+  it("M20 D11: Roll's short-pair notice shows on this lobby's card until the game starts", () => {
+    const line = 'Targon vs Zaun ran short after the bans, so Roll drew Ionia vs Noxus.';
+    const { connection: _c, ...fixture } = tonightStateFixture('balanced', { now: NOW, rule: 'region' });
+    const lobbyId = fixture.snapshot.lobby?.id ?? '';
+    resetModeStoreForTests();
+    const view = render(<TonightView {...fixture} group={ORIGINAL_GROUP} />);
+    expect(within(card()).queryByText(line)).toBeNull();
+    act(() => noteThisGame(ORIGINAL_GROUP.id, lobbyId, line));
+    expect(within(card()).getByText(line)).toBeInTheDocument();
+    view.unmount();
+    // In game: the picks are made, the notice has done its job.
+    draw('in-game', { rule: 'region' });
+    expect(within(card()).queryByText(line)).toBeNull();
+    resetModeStoreForTests();
   });
 
   it('mirror: rated, the status, How it works; Start a lobby stays', () => {

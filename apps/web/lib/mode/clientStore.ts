@@ -117,6 +117,44 @@ export function endOptimistic(groupId: string, token: number): void {
   write(groupId, { ...current, optimistic: null });
 }
 
+/**
+ * This game's notice from the Roll answer (M20 D11): `Targon vs Zaun ran short after the bans, so
+ * Roll drew Shurima vs Zaun.`, per group and keyed on the lobby, so another lobby (a new night, a
+ * Roll after teams came down) never shows it. The roll route's own words, never recomputed, and
+ * only on the page that rolled (the server keeps no column for it).
+ */
+let thisGame = new Map<string, { lobbyId: string; line: string }>();
+
+export function noteThisGame(groupId: string, lobbyId: string, line: string): void {
+  thisGame = new Map(thisGame).set(groupId, { lobbyId, line });
+  for (const listener of listeners) listener();
+}
+
+/** Pure: the notice for `lobbyId`, or null. */
+export function thisGameNoticeOf(
+  notes: ReadonlyMap<string, { lobbyId: string; line: string }>,
+  groupId: string,
+  lobbyId: string | null,
+): string | null {
+  const note = notes.get(groupId);
+  return note !== undefined && lobbyId !== null && note.lobbyId === lobbyId ? note.line : null;
+}
+
+/** Tests only: the Roll notices as the hook reads them. */
+export function modeStoreThisGameForTests(): ReadonlyMap<string, { lobbyId: string; line: string }> {
+  return thisGame;
+}
+
+const getThisGame = () => thisGame;
+const getServerThisGame = () => EMPTY_THIS_GAME;
+const EMPTY_THIS_GAME: ReadonlyMap<string, { lobbyId: string; line: string }> = new Map();
+
+/** The Roll answer's notice for this lobby, or null (the server render has none). */
+export function useThisGameNotice(groupId: string, lobbyId: string | null): string | null {
+  const notes = useSyncExternalStore(subscribe, getThisGame, getServerThisGame);
+  return thisGameNoticeOf(notes, groupId, lobbyId);
+}
+
 /** Tests only: the store's entries as the hook reads them. */
 export function modeStoreForTests(): ReadonlyMap<string, Entry> {
   return entries;
@@ -125,6 +163,7 @@ export function modeStoreForTests(): ReadonlyMap<string, Entry> {
 /** Tests only: forget every group. */
 export function resetModeStoreForTests(): void {
   entries = new Map();
+  thisGame = new Map();
   lastGood.clear();
   for (const listener of listeners) listener();
 }
