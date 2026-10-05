@@ -1380,7 +1380,9 @@ describe('balanced on the wrong side: the line says where to move (M21.13)', () 
       ANON_VIEWER,
     ];
     for (const viewer of others) {
-      const view = render(<TonightView {...sitting('balanced', 200)} viewer={viewer} group={ORIGINAL_GROUP} />);
+      const view = render(
+        <TonightView {...sitting('balanced', 200)} viewer={viewer} group={ORIGINAL_GROUP} />,
+      );
       expect(document.querySelector('[data-slot="answer-band"]')).toBeNull();
       expect(view.container.textContent).not.toMatch(/Move to/);
       // The general side line under the cards is unchanged, and it is the only instruction.

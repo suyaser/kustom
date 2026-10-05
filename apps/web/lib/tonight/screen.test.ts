@@ -111,7 +111,9 @@ describe('the 2.0 tonight helpers (M14.9)', () => {
 
     it('side unknown (a spectator slot, or no member row): no instruction', () => {
       expect(viewerMoveTo(seatedOnTheirSides(teams, { [blue.puuid]: null }), blue.puuid)).toBeNull();
-      expect(viewerMoveTo({ ...teams, blue: teams.blue.map((s) => ({ ...s, liveSide: null })) }, blue.puuid)).toBeNull();
+      expect(
+        viewerMoveTo({ ...teams, blue: teams.blue.map((s) => ({ ...s, liveSide: null })) }, blue.puuid),
+      ).toBeNull();
     });
 
     it('not seated in the split, or nobody looking: no instruction', () => {

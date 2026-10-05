@@ -201,7 +201,9 @@ function Answer({ answer }: { answer: NonNullable<AnswerBand> }) {
           {`${ANSWER_ON} `}
           <Chip variant="side" side={answer.side} className="inline-flex align-middle" />
           {answer.moveTo === undefined ? (
-            answer.role === null ? null : answerRole(answer.role)
+            answer.role === null ? null : (
+              answerRole(answer.role)
+            )
           ) : (
             <>
               {`${ANSWER_MOVE_TO} `}
