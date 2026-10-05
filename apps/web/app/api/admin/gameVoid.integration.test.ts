@@ -3,7 +3,6 @@ import type { Database } from '@customs/db';
 import { gameVoidResponseSchema } from '@customs/db/schemas';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FINISH_TONIGHT_FIRST } from '@/lib/admin/homeCopy';
 import { NO_SUCH_GAME, setGameVoided } from '@/lib/admin/voidGame';
 import {
   type AdminAuthResult,
@@ -12,7 +11,13 @@ import {
   supabaseAdminLookup,
 } from '@/lib/adminAuth';
 import type { AdminRouteOptions } from '@/lib/adminRoute';
-import { ENDED_EARLY_NOTE, REBUILD_FAILED, VOID_NOT_RATED, VOIDED_NOTE } from '@/lib/games/copy';
+import {
+  ENDED_EARLY_NOTE,
+  REBUILD_FAILED,
+  VOID_AFTER_TONIGHT,
+  VOID_NOT_RATED,
+  VOIDED_NOTE,
+} from '@/lib/games/copy';
 import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ingestEogGame } from '@/lib/ingest/game';
 import { ensurePlayers } from '@/lib/ingest/players';
@@ -260,7 +265,7 @@ if (stack === null) {
 
   it("refuses while a game landed in the last 15 minutes, before writing (the rebuild's guard)", async () => {
     const refused = await call(ADMIN, { action: 'void' });
-    expect(refused).toEqual({ status: 409, json: expect.objectContaining({ error: FINISH_TONIGHT_FIRST }) });
+    expect(refused).toEqual({ status: 409, json: expect.objectContaining({ error: VOID_AFTER_TONIGHT }) });
     expect(await badRow()).toEqual({ rated: true, void_reason: null });
     expect(await ratingsOf(groups.v)).toEqual(original);
   });

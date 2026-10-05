@@ -959,24 +959,26 @@ export async function guardBlocker(
   groupId: string,
   now: Date,
 ): Promise<string | null> {
-  const { data: lobby, error: lobbyError } = await client
-    .from('lobbies')
-    .select('id, status')
-    .eq('group_id', groupId)
-    .in('status', ['open', 'balanced', 'in_game'])
-    .limit(1)
-    .maybeSingle();
+  // Both reads in one round (M23.3: the game page asks this on every admin view).
+  const since = new Date(now.getTime() - RECENT_GAME_MS).toISOString();
+  const [{ data: lobby, error: lobbyError }, { data: game, error: gameError }] = await Promise.all([
+    client
+      .from('lobbies')
+      .select('id, status')
+      .eq('group_id', groupId)
+      .in('status', ['open', 'balanced', 'in_game'])
+      .limit(1)
+      .maybeSingle(),
+    client
+      .from('games')
+      .select('lcu_game_id, created_at')
+      .eq('group_id', groupId)
+      .gte('created_at', since)
+      .limit(1)
+      .maybeSingle(),
+  ]);
   if (lobbyError) throw new Error(`rebuild: lobby guard failed: ${lobbyError.message}`);
   if (lobby) return `lobby ${lobby.id} is ${lobby.status}`;
-
-  const since = new Date(now.getTime() - RECENT_GAME_MS).toISOString();
-  const { data: game, error: gameError } = await client
-    .from('games')
-    .select('lcu_game_id, created_at')
-    .eq('group_id', groupId)
-    .gte('created_at', since)
-    .limit(1)
-    .maybeSingle();
   if (gameError) throw new Error(`rebuild: game guard failed: ${gameError.message}`);
   if (game) return `game ${game.lcu_game_id} landed at ${game.created_at}`;
 
