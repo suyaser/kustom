@@ -4485,7 +4485,7 @@ Ten play, the rest sit out. …             ← sub-line, the selected lobby's
 | Width | Grid | Notes |
 |---|---|---|
 | < 768 (375) | `grid-template-columns: repeat(2, minmax(0, 1fr))`, gap 8 | Two chips side by side, equal width (~164 px each at 375). A third lobby starts a second row at the **same** width (half, left), never full width: a wider chip reads as the important one. Four: two rows of two. |
-| ≥ 768 to 1440 | `repeat(auto-fill, minmax(15rem, 1fr))`, gap 8, inside the main column (the 340 rail is unchanged) | At 1440 the main column fits three tracks; two lobbies take two and leave the third empty, so chips stay about 260 px and do not stretch across the page. Status and mode sit on one line. |
+| ≥ 768 to 1440 | `repeat(auto-fill, minmax(14rem, 1fr))`, gap 8, inside the main column (the 340 rail is unchanged) | At 1440 the main column (about 730 px) fits three 14rem tracks with their gaps (15rem would not, M22.6); two lobbies take two and leave the third empty, so chips stay about 260 px and do not stretch across the page. Status and mode sit on one line. |
 | 200% text | the `rem` minimum collapses the grid to one column by itself at 375 and 768 | Every chip full width, all lines wrap, nothing hidden or cut. Three lobbies at 200% are about 400 px of switcher; accepted (the headline is still the largest type and the action row is still reachable). |
 
 - **No horizontal scroll, ever.** Chips past the edge are lobbies nobody sees (the old phone tabs' lesson,
