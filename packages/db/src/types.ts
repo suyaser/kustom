@@ -333,6 +333,8 @@ export type Database = {
       companion_tokens: {
         Row: {
           created_at: string
+          current_party_at: string | null
+          current_party_id: string | null
           group_id: string
           id: string
           label: string | null
@@ -343,6 +345,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_party_at?: string | null
+          current_party_id?: string | null
           group_id: string
           id?: string
           label?: string | null
@@ -353,6 +357,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_party_at?: string | null
+          current_party_id?: string | null
           group_id?: string
           id?: string
           label?: string | null
