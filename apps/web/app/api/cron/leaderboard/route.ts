@@ -81,7 +81,7 @@ export async function GET(request: Request): Promise<Response> {
            * **The zone decides which week the post prints** (M5.12, the reviewer 2026-09-10). The
            * board is read through `This week` now, and a week is a pair of 06:00 boundaries in
            * `CUSTOMS_NIGHT_TZ`; without this the post fell back to the built-in default while both
-           * pages read the configured zone. Read the same way `startLobby`'s handler reads it.
+           * pages read the configured zone. Read the same way the window cron reads it.
            */
           timeZone: nightTimeZone(),
           groupId: group.id,

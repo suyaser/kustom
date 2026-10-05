@@ -351,7 +351,7 @@ function lockState(lobbyId: string, lock: ModeLock): ModeLockState {
  * Spin's facts. For the next game: tonight's previous rule (the live lock first) and whether a
  * lobby is filling (mirror blocked then). For this game (M20.18): the rule played before this
  * game (the live lock is the one being replaced), and mirror always blocked, because this game's
- * lobby is already made, as it was made (M17.17 opens Blind Pick only at Start a lobby).
+ * lobby is already made, as it was made (Blind Pick is chosen when the custom is made).
  */
 async function spinFactsOf(
   context: AdminContext,

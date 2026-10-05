@@ -10,9 +10,9 @@ import type { ServiceClient } from '../supabase';
  * pair drawn in the same write (M20 D10). This file only reads the previous rule and whether
  * tonight's lobby is already open.
  *
- * **Mirror needs a lobby Kustom has not made yet** (QA fix 2026-10-04). Start a lobby asks the
- * companion for Blind Pick only when it makes the lobby (M17.17); a lobby that is already `open`
- * was made as it was, most likely Draft Pick. So while one is open, mirror is blocked for Spin.
+ * **Mirror needs a lobby nobody has made yet** (QA fix 2026-10-04). The host makes it Blind Pick
+ * by hand (M22.11); a lobby that is already `open` was made as it was, most likely Draft Pick. So
+ * while one is open, mirror is blocked for Spin.
  */
 
 /**

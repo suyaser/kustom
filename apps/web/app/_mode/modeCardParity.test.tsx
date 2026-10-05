@@ -1,8 +1,8 @@
-import type { ModeRow } from '@customs/core';
+import type { ModeLock, ModeRow } from '@customs/core';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
-import { applyModeRow, resetModeStoreForTests } from '@/lib/mode/clientStore';
+import { applyLockAnswer, applyModeRow, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import {
   ADMIN_VIEWER,
   MEMBER_VIEWER,
@@ -23,6 +23,11 @@ import { TonightView } from '../_tonight/TonightView';
  * `group_modes` row the page's channel would receive (a control's route answer goes through the
  * same `applyModeRow`): the card must end up with the identical text. The pool, the lobby's lock
  * and the night are the same in both, as they are when only the mode moves.
+ *
+ * M20.18 exceptions: balanced, an admin's select and switch are this game's (the lobby's lock), which
+ * a row does not move, so the older row leaves them as they were; the second block below checks
+ * them the same way against the lock instead: the same night with an older lock, then the target
+ * lock fed in as this page's own `this` answer (`applyLockAnswer`, from the route's `thisGame`).
  *
  * Not here: `Normal mode now.` (M20.8: only a switch the page heard shows it, so a render and a
  * heard row differ by design; `rules.test.tsx` covers it). The older row never moves Fearless to
@@ -128,11 +133,57 @@ describe('the Mode card from server props and from the client mode store (M19.13
 
         const { connection: _b, ...old } = olderNight(target);
         render(<TonightView {...old} viewer={ADMIN_VIEWER} group={ORIGINAL_GROUP} />);
-        expect((await admin()).select).not.toBe(expected.select);
+        // M20.18: balanced, the select is this game's lock, which the older row does not move.
+        if (key === 'balanced') expect((await admin()).select).toBe(expected.select);
+        else expect((await admin()).select).not.toBe(expected.select);
         act(() => {
           applyModeRow(ORIGINAL_GROUP.id, { row: targetRow(target), updatedAt: newer(target) });
         });
         expect(await admin()).toEqual(expected);
+      });
+    }
+  }
+});
+
+/**
+ * M20.18: balanced, the same night with an older lock (another rule, or none), then the target lock
+ * as this page's own `this` answer: the card and this game's controls end up identical to the
+ * server's render of the target lock.
+ */
+function olderLockNight(target: TonightStateFixture): TonightStateFixture {
+  const lobby = target.snapshot.lobby;
+  const lock = lobby?.lock ?? null;
+  if (lobby == null || lock === null) throw new Error('balanced fixture without a lock');
+  const older: ModeLock =
+    lock.mode.id === lock.standing
+      ? { standing: lock.standing, mode: { id: 'class', tag: 'Mage' }, rated: !(lock.rated ?? true) }
+      : { standing: lock.standing, mode: { id: lock.standing }, rated: null };
+  return { ...target, snapshot: { ...target.snapshot, lobby: { ...lobby, lock: older } } };
+}
+
+describe('the Mode card from server props and from a this-game answer (M20.18)', () => {
+  for (const [name, options] of CASES) {
+    for (const viewer of ['member', 'admin'] as const) {
+      it(`${name}, balanced: a ${viewer}'s card${viewer === 'admin' ? ' and controls are' : ' is'} identical`, async () => {
+        const target = tonightStateFixture('balanced', { now: NOW, ...options });
+        const who = viewer === 'admin' ? ADMIN_VIEWER : MEMBER_VIEWER;
+        const read = async () =>
+          viewer === 'admin' ? await admin() : { text: cardText(), select: null, rated: null };
+        const { connection: _c, ...server } = target;
+        const first = render(<TonightView {...server} viewer={who} group={ORIGINAL_GROUP} />);
+        const expected = await read();
+        first.unmount();
+
+        const { connection: _b, ...old } = olderLockNight(target);
+        render(<TonightView {...old} viewer={who} group={ORIGINAL_GROUP} />);
+        expect((await read()).text).not.toBe(expected.text);
+        const lobby = target.snapshot.lobby;
+        const lock = lobby?.lock ?? null;
+        if (lobby == null || lock === null) throw new Error('balanced fixture without a lock');
+        act(() => {
+          applyLockAnswer(ORIGINAL_GROUP.id, { lobbyId: lobby.id, lock });
+        });
+        expect(await read()).toEqual(expected);
       });
     }
   }

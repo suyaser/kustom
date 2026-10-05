@@ -51,7 +51,6 @@ if (stack === null) {
   const { tonightStart } = await import('@/lib/tonight/night');
   const { tonightState } = await import('@/lib/tonight/state');
   const { createPublicClient } = await import('@/lib/publicClient');
-  const { readStartLobbyState } = await import('@/lib/lobbyStart');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -223,10 +222,6 @@ if (stack === null) {
     expect(filling.snapshot.lobby?.members.map((member) => member.puuid).sort()).toEqual(
       [BO, ...boCrew, ANA].sort(),
     );
-
-    // Start a lobby refuses on B, the live lobby, and no longer on A.
-    const start = await readStartLobbyState(db, { groupId: groups.g });
-    expect(start.liveLobbyId).toBe(b.lobbyId);
 
     // B's game starts: Tonight shows B in game.
     const gameId = testGameId();

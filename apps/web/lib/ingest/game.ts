@@ -9,6 +9,7 @@ import {
   scrubRawEogBlock,
 } from '@customs/db';
 import { invalidateGroup } from '../cache/tags';
+import { gameModeFromRaw } from '../games/queue';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import { championTable } from '../mode/champions';
 import { isPlayableStatus, lockLobbyAtStart } from '../mode/lock';
@@ -155,6 +156,7 @@ export async function ingestEogGame(
           payload.partyId ?? null,
           payload.startedAt,
           payload.participants.map((participant) => participant.puuid),
+          blockGameMode(payload.raw),
         );
   const lobby = found.lobby;
   const lobbyId = lobby?.id ?? null;
@@ -291,6 +293,15 @@ export function recordedKind(
   return 'rift';
 }
 
+/**
+ * The end-of-game block's own game mode for the lobby match: the client's word, or '' for a block
+ * that names none (Rift, M5.26). Never null, so the match always compares it with the lobby's
+ * kickoff mode (owner bug 2026-10-05).
+ */
+export function blockGameMode(raw: unknown): string {
+  return gameModeFromRaw(raw) ?? '';
+}
+
 /** The stored row for this `lcu_game_id`, or null. */
 async function findGame(client: ServiceClient, lcuGameId: number): Promise<{ id: string } | null> {
   const { data, error } = await client.from('games').select('id').eq('lcu_game_id', lcuGameId).maybeSingle();
@@ -374,9 +385,11 @@ export async function findLobby(
   partyId: string | null,
   startedAt: string | null | undefined,
   participants: readonly string[],
+  /** The block's own game mode ({@link blockGameMode}); null skips the mode check. */
+  gameMode: string | null = null,
 ): Promise<{ lobby: FoundLobby | null; stale: FoundLobby | null }> {
   // An unknown party id is not an error: the companion may have missed the lobby events.
-  const match = await selectGameLobby(client, partyId, startedAt, participants);
+  const match = await selectGameLobby(client, partyId, startedAt, participants, gameMode);
   if (match.kind === 'none') return { lobby: null, stale: null };
 
   const found = { id: match.lobby.id, groupId: match.lobby.groupId, status: match.lobby.status };
@@ -389,7 +402,7 @@ export async function findLobby(
 
   if (match.kind === 'stale') {
     console.warn(
-      `ingestGame: party ${partyId} resolves to lobby ${found.id} (${found.status}) whose sided members did not all play this game; storing the game with no lobby`,
+      `ingestGame: party ${partyId} resolves to lobby ${found.id} (${found.status}) whose sided members did not all play this game, or that kicked off another game mode (${match.lobby.kickoffGameMode ?? 'unknown'} vs ${gameMode ?? 'unknown'}); storing the game with no lobby`,
     );
     return { lobby: null, stale: found.status === 'in_game' ? found : null };
   }

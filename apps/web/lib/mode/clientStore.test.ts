@@ -1,15 +1,20 @@
-import type { ModeRow } from '@customs/core';
+import type { ModeLock, ModeRow } from '@customs/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   applyFearlessReset,
+  applyLockAnswer,
   applyModeRow,
   beginOptimistic,
+  draftLock,
   draftRow,
   endOptimistic,
+  lockKey,
   type ModeSlice,
+  mergeLock,
   mergeSlice,
   modeCardKey,
   modeStoreForTests,
+  noteServerLock,
   poolClearedSince,
   resetModeStoreForTests,
 } from './clientStore';
@@ -242,5 +247,121 @@ describe('the rows as the store takes them', () => {
   it('drops a malformed row (a mode this build does not know, no updated_at)', () => {
     expect(parseModeRow({ group_id: GROUP, mode: 'aram', updated_at: at(1) })).toBeNull();
     expect(parseFearlessRow({ group_id: GROUP, reset_at: 'yesterday' })).toBeNull();
+  });
+});
+
+describe("M20.18: this game, the lock patched from this page's own `this` answers", () => {
+  const LOBBY = '33333333-3333-4333-8333-333333333333';
+  const fearless: ModeLock = { standing: 'fearless', mode: { id: 'fearless' }, rated: null };
+  const tanks: ModeLock = { standing: 'fearless', mode: { id: 'class', tag: 'Tank' }, rated: null };
+  const mages: ModeLock = { standing: 'fearless', mode: { id: 'class', tag: 'Mage' }, rated: null };
+
+  afterEach(() => {
+    resetModeStoreForTests();
+  });
+
+  it('with no answer the render is the lock', () => {
+    noteServerLock(GROUP, { lobbyId: LOBBY, lock: fearless });
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests())).toEqual(fearless);
+    expect(mergeLock(null, GROUP, modeStoreForTests())).toBeNull();
+  });
+
+  it('the answer shows over the render it was taken over, and goes when a render brings another lock', () => {
+    noteServerLock(GROUP, { lobbyId: LOBBY, lock: fearless });
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests())).toEqual(tanks);
+    // The write's own re-read, or another admin's write after it: the render wins.
+    expect(mergeLock({ lobbyId: LOBBY, lock: tanks }, GROUP, modeStoreForTests())).toEqual(tanks);
+    expect(mergeLock({ lobbyId: LOBBY, lock: mages }, GROUP, modeStoreForTests())).toEqual(mages);
+    // Another lobby, or another group: never this answer.
+    expect(mergeLock({ lobbyId: OTHER, lock: fearless }, GROUP, modeStoreForTests())).toEqual(fearless);
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, OTHER, modeStoreForTests())).toEqual(fearless);
+  });
+
+  /** A render arriving: noted first (as `useThisGameLock` does), then merged. */
+  const renderLock = (lock: ModeLock) => {
+    noteServerLock(GROUP, { lobbyId: LOBBY, lock });
+    return mergeLock({ lobbyId: LOBBY, lock }, GROUP, modeStoreForTests());
+  };
+
+  it('review fix: A, answer B, render B, another admin back to A: the render of A is the card', () => {
+    expect(renderLock(fearless)).toEqual(fearless);
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests())).toEqual(tanks);
+    expect(renderLock(tanks)).toEqual(tanks);
+    expect(renderLock(fearless)).toEqual(fearless);
+  });
+
+  it('review fix: A, answer B, render B, render C, render A: never B again', () => {
+    expect(renderLock(fearless)).toEqual(fearless);
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(renderLock(tanks)).toEqual(tanks);
+    expect(renderLock(mages)).toEqual(mages);
+    expect(renderLock(fearless)).toEqual(fearless);
+  });
+
+  it('an older render still on the base keeps the answer until another render is seen', () => {
+    expect(renderLock(fearless)).toEqual(fearless);
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(renderLock(fearless)).toEqual(tanks);
+    expect(renderLock(mages)).toEqual(mages);
+    expect(renderLock(fearless)).toEqual(fearless);
+  });
+
+  it('an answer for a lobby the page never rendered is not shown', () => {
+    noteServerLock(GROUP, { lobbyId: OTHER, lock: fearless });
+    applyLockAnswer(GROUP, { lobbyId: LOBBY, lock: tanks });
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests())).toEqual(fearless);
+  });
+
+  it('a this-game tap drafts the lock, never the row', () => {
+    const tap = { kind: 'rated', rated: false, game: 'this' } as const;
+    expect(draftRow(row(), tap)).toEqual(row());
+    expect(draftLock(fearless, tap)).toEqual({ ...fearless, rated: false });
+    expect(draftLock(tanks, { kind: 'choice', choice: 'normal', game: 'this' })).toEqual({
+      standing: 'normal',
+      mode: { id: 'normal' },
+      rated: null,
+    });
+    expect(
+      draftLock({ ...fearless, rated: false }, { kind: 'choice', choice: 'class:Mage', game: 'this' }),
+    ).toEqual(mages);
+    // Region wars waits for the server's pair, unless this game already plays it.
+    expect(draftLock(fearless, { kind: 'choice', choice: 'region', game: 'this' })).toEqual(fearless);
+    const region: ModeLock = {
+      standing: 'fearless',
+      mode: { id: 'region', blue: 'ionia', red: 'noxus' },
+      rated: true,
+    };
+    expect(draftLock(region, { kind: 'choice', choice: 'region', game: 'this' })).toEqual({
+      ...region,
+      rated: null,
+    });
+    // A next-game tap leaves the lock alone.
+    expect(draftLock(fearless, { kind: 'rated', rated: false })).toEqual(fearless);
+  });
+
+  it('the tap in flight sits on the lock and goes when it answers', () => {
+    noteServerLock(GROUP, { lobbyId: LOBBY, lock: fearless });
+    const token = beginOptimistic(GROUP, { kind: 'rated', rated: false, game: 'this' });
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests())?.rated).toBe(false);
+    expect(
+      mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests(), false)?.rated,
+    ).toBeNull();
+    endOptimistic(GROUP, token);
+    expect(mergeLock({ lobbyId: LOBBY, lock: fearless }, GROUP, modeStoreForTests())?.rated).toBeNull();
+  });
+
+  it('lockKey tells locks apart by standing, rule, pair and Rated', () => {
+    const locks: ModeLock[] = [
+      fearless,
+      tanks,
+      mages,
+      { ...fearless, rated: false },
+      { ...fearless, standing: 'normal' },
+      { standing: 'fearless', mode: { id: 'region', blue: 'ionia', red: 'noxus' }, rated: null },
+      { standing: 'fearless', mode: { id: 'region', blue: 'noxus', red: 'ionia' }, rated: null },
+    ];
+    expect(new Set(locks.map(lockKey)).size).toBe(locks.length);
   });
 });

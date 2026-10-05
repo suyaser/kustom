@@ -1,7 +1,6 @@
 import type { Role } from '@customs/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readPickType } from '@/lib/lobbyStart';
-import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD } from '@/lib/mode/ruleCopy';
+import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_IDLE_REST, MIRROR_HOST_LEAD } from '@/lib/mode/ruleCopy';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import {
   descriptionOf,
@@ -15,15 +14,15 @@ import {
 /**
  * M15.11, Mirror match end to end, the M15.8 way: a scratch group's fixture night through the real
  * routes on the local stack. Mirror is the first rated rule (R4): it rates like a normal game and
- * feeds the Fearless pool; Start a lobby opens the Blind Pick custom itself (M17.17, was the host's by hand, R10).
+ * feeds the Fearless pool; the host makes the Blind Pick custom by hand (R10; M22.11 removed the lobby press).
  *
  * 1. Standing Fearless and one rated game; Spin, twenty times over, lands on mirror sometimes (M17.17).
- * 2. Mirror picked: rated; `Start the next lobby` stays after a result (no host line) and the
- *    create_lobby it queues asks for blind (`readPickType`). While a lobby fills, the host line
- *    says what to do if it is Draft Pick, and Spin never lands on mirror (QA fix 2026-10-04).
- * 3. Roll locks it; the teams post says `Blind Pick lobby` and `Rated`.
+ * 2. Mirror picked: rated; after a result the page tells the host to make the custom Blind Pick
+ *    (M22.11). While a lobby fills, the host line says what to do if it is Draft Pick, and Spin
+ *    never lands on mirror (QA fix 2026-10-04).
+ * 3. Roll locks it; the teams post says `The host opens a Blind Pick custom in League.` and `Rated`.
  * 4. Every lane kept: rated, ratings move, exactly its five champions join the pool, and the card
- *    is back on Fearless with `Start the next lobby` back.
+ *    is back on Fearless with the Blind Pick line gone.
  * 5. Mid broken and a seat with no detected position: the poster and the result post flag it, the
  *    game still rates; the lane with no position is `couldn't check`.
  * 6. Played in a Draft lobby (bans in the blob, no lane could match) with two seats on one lane:
@@ -122,17 +121,17 @@ if (stack === null) {
       night.clearPosts();
     });
 
-    it('2. picked: rated; Start a lobby stays and asks for Blind Pick; filling: the host line, and Spin never mirror', async () => {
+    it('2. picked: rated; the host is told to make it Blind Pick; filling: the host line, and Spin never mirror', async () => {
       const answer = await night.card({ mode: 'mirror' });
       expect(answer).toMatchObject({
         state: { standing: 'fearless', pending: { id: 'mirror' }, nextRated: true },
       });
-      expect(await readPickType(night.db, night.group.id)).toBe('blind');
 
       const afterResult = await night.tonightPaint(host());
       expect(afterResult).toContain('Mirror match');
-      expect(afterResult).toContain('Start the next lobby');
-      expect(afterResult).not.toContain('Mirror match next.');
+      expect(afterResult).toContain(MIRROR_HOST_LEAD);
+      expect(afterResult).toContain(MIRROR_HOST_IDLE_REST);
+      expect(afterResult).not.toContain(MIRROR_HOST_FILLING_REST);
       expect(afterResult).not.toContain('Blind Pick custom in League yourself');
 
       // Filling: six in the lobby.
@@ -155,7 +154,7 @@ if (stack === null) {
       if (error) throw new Error(error.message);
     });
 
-    it('3. Roll locks it, rated; the teams post says Blind Pick lobby; 4. every lane kept rates and feeds the pool', async () => {
+    it('3. Roll locks it, rated; the teams post says make it Blind Pick; 4. every lane kept rates and feeds the pool', async () => {
       const ratingsBefore = await night.ratingsOfTen();
       const poolBefore = await night.poolIds();
 
@@ -163,7 +162,7 @@ if (stack === null) {
       // M20.7: Rated is moved as it was (null = mirror's default, rated).
       expect(lock).toMatchObject({ lock_mode: 'fearless', lock_rule: 'mirror', lock_rated: null });
       expect(descriptionOf(night.posts[0])).toContain(
-        `This game: mirror match, same champion as your lane opponent. Blind Pick lobby. Rated. How it works: https://kustom.test/g/${night.group.slug}/mode`,
+        `This game: mirror match, same champion as your lane opponent. The host opens a Blind Pick custom in League. Rated. How it works: https://kustom.test/g/${night.group.slug}/mode`,
       );
 
       expect(answer).toMatchObject({ created: true, rated: true });
@@ -181,11 +180,10 @@ if (stack === null) {
       // A rated game: the Fearless pool post follows the result.
       expect(night.posts.some((post) => /fearless/i.test(titleOf(post)))).toBe(true);
 
-      // Back on Fearless, `Start the next lobby` back in the host's strip.
+      // Back on Fearless, the Blind Pick line gone.
       expect(await night.cardRow()).toMatchObject({ mode: 'fearless', pending_rule: null });
       const page = await night.tonightPaint(host());
-      expect(page).toContain('Start the next lobby');
-      expect(await readPickType(night.db, night.group.id)).toBe('draft');
+      expect(page).not.toContain(MIRROR_HOST_IDLE_REST);
       night.clearPosts();
     });
 

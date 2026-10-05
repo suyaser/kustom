@@ -1,5 +1,5 @@
 import type { LobbyStatusValue } from '@customs/db';
-import { HOST_WINDOW_MS } from './lobbyStart';
+import { HOST_WINDOW_MS } from './hostPresence';
 import type { ServiceClient } from './supabase';
 import { tonightStart } from './tonight/night';
 

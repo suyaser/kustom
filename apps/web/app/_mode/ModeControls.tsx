@@ -1,6 +1,14 @@
 'use client';
 
-import { type ClassTag, type PendingRule, type RuleOption, ruleKey } from '@customs/core';
+import {
+  type ClassTag,
+  type Mode,
+  type ModeLock,
+  type PendingRule,
+  type RuleOption,
+  ruleKey,
+  ruleOf,
+} from '@customs/core';
 import {
   GROUP_MODES,
   type GroupMode,
@@ -34,9 +42,11 @@ import {
 } from '@/lib/fearless/copy';
 import type { RegionTarget } from '@/lib/mode/cardView';
 import {
+  applyLockAnswer,
   applyModeRow,
   beginOptimistic,
   endOptimistic,
+  lockKey,
   type ModeOptimistic,
   rowTime,
 } from '@/lib/mode/clientStore';
@@ -63,10 +73,13 @@ import {
   OPTGROUP_CLASS,
   OPTGROUP_MIRROR,
   OPTGROUP_REGION,
+  oneGameLine,
   optionLabel,
   RATED_LABEL,
   RATED_OFF,
+  RATED_OFF_THIS,
   RATED_ON,
+  RATED_ON_THIS,
   ruleSentence,
   SPIN,
   SPINNING,
@@ -116,7 +129,13 @@ const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassi
  *   time and the outcome line (`lib/mode/controlsStore.ts`), kept per group so a Roll that moves the
  *   card to another place on the page loses none of it.
  * - **`Reset fearless`** while the standing mode is Fearless and the pool has a ban.
- * - After Roll every change is for the next game: `Changes apply from the next game.` heads the
+ * - **M20.18: while the lobby is balanced (`thisGame`) the picker, Spin and Rated act on this game**
+ *   (`game: 'this'`, the owner's "until the game starts, mode changes are for this game"): they
+ *   show the lock's values under the `This game` legend with this game's region pair, and the
+ *   answer's `thisGame` is on the card at once (`applyLockAnswer`); the route's repost and its
+ *   `group_live` bump refresh every other page. Below the hairline the next game keeps only what
+ *   still applies to it: a queued next-game region pair, headed `Next game`.
+ * - In game every change is for the next game: `Changes apply from the next game.` heads the
  *   next-game group under the `Next game` picker (05-design 8.3.1: no bold `nextLine` in the foot).
  * - Outcomes show in place, never as a toast; a refusal is `role="alert"`. The outcome line is not
  *   a live region: Tonight's Announcer speaks the card's change once (QA fix 2026-10-04).
@@ -130,8 +149,14 @@ export interface ModeControlsProps {
   mode: GroupMode;
   /** Bans in the pool now, for whether Reset shows and its dialog sentence. */
   banned: number;
-  /** After Roll (teams set or in game): every change is for the next game. */
+  /** After Roll (teams set or in game): the picker is the next game's unless `thisGame` is given. */
   inGame: boolean;
+  /**
+   * M20.18: the lobby is balanced, so the picker, Spin and Rated act on this game's lock: its id
+   * (the answer is keyed on it), the select's value, whether it is rated, its standing mode and the
+   * rule keys too small to pick for it. Absent or null: they act on the next game (the row).
+   */
+  thisGame?: ThisGameControls | null | undefined;
   /** Tonight's path: where the no-JS forms come back to. */
   redirectTo: string;
   /** `/g/<slug>/mode/reset`: where Reset goes without JS, to confirm before anything is cleared. */
@@ -159,11 +184,23 @@ export interface ModeControlsProps {
   card?: CardMark | undefined;
 }
 
+/** This game's values for the controls while the lobby is balanced (M20.18). */
+export interface ThisGameControls {
+  lobbyId: string;
+  /** The lock's rule key, else its standing mode. */
+  selected: string;
+  /** Whether this game is rated (core's `lockRated`). */
+  rated: boolean;
+  standing: GroupMode;
+  tooFew: readonly string[];
+}
+
 export function ModeControls({
   groupId,
   mode,
   banned,
   inGame,
+  thisGame = null,
   redirectTo,
   resetConfirmHref,
   selected = mode,
@@ -184,8 +221,13 @@ export function ModeControls({
   const statusRef = useRef<HTMLParagraphElement>(null);
 
   // What is set is the card's (the client mode store, a tap in flight included): never a copy.
-  const current = selected;
-  const rated = nextRated;
+  // M20.18: while balanced, this game's lock; otherwise the row (the next game).
+  const forThis = thisGame !== null;
+  const current = thisGame?.selected ?? selected;
+  const rated = thisGame?.rated ?? nextRated;
+  const tooFewNow = thisGame?.tooFew ?? tooFew;
+  /** The target every picker, Spin and Rated write names while balanced. */
+  const target: { game?: 'this' } = forThis ? { game: 'this' } : {};
   const choice = controls.pick ?? current;
   const pending = controls.pending;
   const said = controls.said ?? (controls.acted || controls.noticeGone ? null : (notice ?? null));
@@ -200,16 +242,21 @@ export function ModeControls({
   // (an answer older than a row already heard is stale at once), and on a remount (a Roll).
   const cardAt = card?.updatedAt ?? null;
   const cardPair = card?.thisPair ?? null;
+  const cardLock = card?.thisLock ?? null;
   const cardNow = useRef<CardMark | null>(card ?? null);
   cardNow.current = card ?? null;
   const loadedCard = useRef({ at: cardAt, pair: cardPair });
   const seenPair = useRef(cardPair);
+  const seenLock = useRef(cardLock);
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the card or the line moves; the rest is read fresh.
   useEffect(() => {
     // This game's pair is the server render's: a `this` answer's pair arrives on the card a moment
     // after its line, so only a move of the pair to another pair than the line's is someone else's.
     const pairMoved = cardPair !== seenPair.current;
     seenPair.current = cardPair;
+    // M20.18: likewise this game's lock (rule, standing, Rated): moved to another lock than the line's.
+    const lockMoved = cardLock !== seenLock.current;
+    seenLock.current = cardLock;
     const now = controlsOf(groupId);
     if (now.pending !== null) return;
     if (now.said === null) {
@@ -222,8 +269,9 @@ export function ModeControls({
     if (mine === null) return;
     const newerRow = rowTime(cardAt) > rowTime(mine.updatedAt);
     const otherPair = pairMoved && cardPair !== null && cardPair !== mine.thisPair;
-    if (newerRow || otherPair) dispatch({ type: 'stale' });
-  }, [cardAt, cardPair, controls.said, controls.saidFor]);
+    const otherLock = lockMoved && cardLock !== null && mine.thisLock != null && cardLock !== mine.thisLock;
+    if (newerRow || otherPair || otherLock) dispatch({ type: 'stale' });
+  }, [cardAt, cardPair, cardLock, controls.said, controls.saidFor]);
 
   // Spin's quiet time is a deadline in the store, so it outlives a remount (a Roll moves the card).
   useEffect(() => {
@@ -253,6 +301,10 @@ export function ModeControls({
         notice: string | null;
         /** This game's region pair after a `this` write (`blue|red`), else null. */
         thisPair: string | null;
+        /** This game's lock after a `this` write (`lockKey`), else null. */
+        thisLock: string | null;
+        /** This game's rule after a `this` write (region wars with its pair), else null. */
+        thisRule: PendingRule | null;
       }
     | { ok: false; status: number; error: string | null }
   > {
@@ -280,7 +332,15 @@ export function ModeControls({
       if (!parsed.success) {
         void requestTonightRefresh();
         done();
-        return { ok: true, spun: null, state: null, notice: null, thisPair: null };
+        return {
+          ok: true,
+          spun: null,
+          state: null,
+          notice: null,
+          thisPair: null,
+          thisLock: null,
+          thisRule: null,
+        };
       }
       const { state, notice, spun, thisGame } = parsed.data;
       // The answer first, then the tap goes: the card never flashes back to the old state.
@@ -288,9 +348,24 @@ export function ModeControls({
         row: { standing: state.standing, pending: state.pending, rated: state.rated },
         updatedAt: state.updatedAt,
       });
+      // M20.18: a `this` write's lock is on the card at once; the re-read confirms it.
+      const lock: ModeLock | null =
+        thisGame === undefined
+          ? null
+          : { standing: thisGame.standing, mode: thisGame.mode as Mode, rated: thisGame.rated };
+      if (thisGame !== undefined && lock !== null)
+        applyLockAnswer(groupId, { lobbyId: thisGame.lobbyId, lock });
       done();
       const thisPair = thisGame?.mode.id === 'region' ? `${thisGame.mode.blue}|${thisGame.mode.red}` : null;
-      return { ok: true, spun: spun === undefined ? null : ruleOptionOf(spun), state, notice, thisPair };
+      return {
+        ok: true,
+        spun: spun === undefined ? null : ruleOptionOf(spun),
+        state,
+        notice,
+        thisPair,
+        thisLock: lock === null ? null : lockKey(lock),
+        thisRule: lock === null || ruleOf(lock.mode) === null ? null : (lock.mode as PendingRule),
+      };
     } catch {
       done();
       return { ok: false, status: 0, error: null };
@@ -301,10 +376,18 @@ export function ModeControls({
    * The card an answer's line is said for (M20.15): the answer's row, and this game's pair as the
    * answer left it (a `this` write) or as the card shows it. An answer with no row: the card now.
    */
-  function markOf(result: { state: ModeRowState | null; thisPair: string | null }): CardMark | null {
+  function markOf(result: {
+    state: ModeRowState | null;
+    thisPair: string | null;
+    thisLock: string | null;
+  }): CardMark | null {
     const shown = cardNow.current;
     if (result.state === null) return shown;
-    return { updatedAt: result.state.updatedAt, thisPair: result.thisPair ?? shown?.thisPair ?? null };
+    return {
+      updatedAt: result.state.updatedAt,
+      thisPair: result.thisPair ?? shown?.thisPair ?? null,
+      thisLock: result.thisLock ?? shown?.thisLock ?? null,
+    };
   }
 
   /** Starts a write unless one is in flight (a double tap posts once). */
@@ -318,10 +401,11 @@ export function ModeControls({
     event.preventDefault();
     const picked = choice;
     if (picked === current || !begin('mode')) return;
-    const result = await post({ mode: picked }, { kind: 'choice', choice: picked });
+    const result = await post({ mode: picked, ...target }, { kind: 'choice', choice: picked, ...target });
     if (!result.ok) {
-      // 409: the server's rule check (a page older than the pool, QA fix 2026-10-04).
-      dispatch({ type: 'refused', failed: result.status === 409 ? RULE_TOO_FEW_OPEN : MODE_CHANGE_FAILED });
+      // 409: the server's rule check (a page older than the pool, QA fix 2026-10-04); for this game
+      // also the game has started or the teams came down (M20.18), in the route's words.
+      dispatch({ type: 'refused', failed: refusal(result, RULE_TOO_FEW_OPEN, forThis) });
       return;
     }
     dispatch({ type: 'answered', said: result.notice, saidFor: markOf(result) });
@@ -332,9 +416,9 @@ export function ModeControls({
   async function spin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (controlsOf(groupId).spinUntil !== null || !begin('spin')) return;
-    const result = await post({ spin: true });
+    const result = await post({ spin: true, ...target });
     if (!result.ok) {
-      dispatch({ type: 'refused', failed: result.status === 409 ? NOTHING_TO_SPIN : MODE_CHANGE_FAILED });
+      dispatch({ type: 'refused', failed: refusal(result, NOTHING_TO_SPIN, forThis) });
       return;
     }
     // With the answer on the card the reveal cycles now; without it, wait for the re-read too.
@@ -343,23 +427,25 @@ export function ModeControls({
     if (result.spun !== null) {
       const rule = ruleKey(result.spun);
       // This page's reveal is the route's own answer (`local`), naming the answer's pair; the
-      // broadcast carries the rule only and is checked against each page's card.
-      const pair = regionPairOf(result.state?.pending ?? null);
+      // broadcast carries the rule only and is checked against each page's card. M20.18: a Spin
+      // for this game names the lock's pair and sends no broadcast (other pages match a broadcast
+      // against the next game's rule; they re-read on the route's bump instead).
+      const pair = regionPairOf(forThis ? result.thisRule : (result.state?.pending ?? null));
       window.dispatchEvent(
         new CustomEvent(SPIN_REVEAL_EVENT, { detail: { rule, source: 'local', ...pair } }),
       );
-      window.dispatchEvent(new CustomEvent(SPIN_BROADCAST_EVENT, { detail: { rule } }));
+      if (!forThis) window.dispatchEvent(new CustomEvent(SPIN_BROADCAST_EVENT, { detail: { rule } }));
     }
   }
 
   async function flipRated(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     // The switch as it shows now (the card's value, a tap in flight included).
-    const target = !rated;
+    const flipped = !rated;
     if (!begin('rated')) return;
-    const result = await post({ rated: target }, { kind: 'rated', rated: target });
+    const result = await post({ rated: flipped, ...target }, { kind: 'rated', rated: flipped, ...target });
     if (!result.ok) {
-      dispatch({ type: 'refused', failed: MODE_CHANGE_FAILED });
+      dispatch({ type: 'refused', failed: refusal(result, MODE_CHANGE_FAILED, forThis) });
       return;
     }
     dispatch({ type: 'answered', said: result.notice, saidFor: markOf(result) });
@@ -370,31 +456,39 @@ export function ModeControls({
    * is the card at once) or this game (the lock: the page re-reads it now; the route's `group_live`
    * bump re-reads every other page). The outcome line is the route's notice, a refusal its 409.
    */
-  async function changeRegions(target: RegionTarget, change: RegionChange): Promise<boolean> {
+  async function changeRegions(pair: RegionTarget, change: RegionChange): Promise<boolean> {
     const control = 'redraw' in change ? 'redraw' : change.side;
-    if (!begin(`${control}-${target.game}`)) return false;
-    const result = await post({ ...change, game: target.game });
+    if (!begin(`${control}-${pair.game}`)) return false;
+    const result = await post({ ...change, game: pair.game });
     if (!result.ok) {
       dispatch({ type: 'refused', failed: result.error ?? MODE_CHANGE_FAILED });
       return false;
     }
+    // M20.18: a `this` answer's lock is on the card already (`applyLockAnswer`); the route's
+    // `group_live` bump re-reads the rest of the page.
     dispatch({ type: 'answered', said: result.notice, saidFor: markOf(result) });
-    if (target.game === 'this') void requestTonightRefresh();
     return true;
   }
 
   // `Setting…` stays up until the route confirms (M19.13: the card already shows the tap), then goes.
   const showSet = !hydrated || choice !== current || pending === 'mode';
   const spinBusy = pending === 'spin' || controls.spinUntil !== null;
-  // 05-design 8.3.1 (M20.10 design round 1): after Roll the caption always heads the next-game
-  // group; the foot's bold `nextLine` is gone (the `Next game` picker already says it).
-  const afterRoll = inGame;
+  // 05-design 8.3.1 (M20.10 design round 1): in game the caption always heads the next-game
+  // group; the foot's bold `nextLine` is gone (the `Next game` picker already says it). M20.18:
+  // balanced, the picker is this game's, so neither the caption nor the `Next game` label shows.
+  const afterRoll = inGame && !forThis;
   const chosenRule = ruleOptionOf(choice as ModeChoice);
   // M14.76: `Changes apply from the next game.` is said once, under the eyebrow, not under each control.
-  const sentence = chosenRule === null ? MODE_PICKER_SENTENCES[choice as GroupMode] : ruleSentence(mode);
+  // M20.18: a rule for this game is `This game only. Then back to Fearless.`, as the status says it.
+  const sentence =
+    chosenRule === null
+      ? MODE_PICKER_SENTENCES[choice as GroupMode]
+      : thisGame !== null
+        ? oneGameLine(thisGame.standing)
+        : ruleSentence(mode);
   const option = (rule: RuleOption) => {
     const key = ruleKey(rule);
-    const small = tooFew.includes(key);
+    const small = tooFewNow.includes(key);
     return (
       <option key={key} value={key} disabled={small}>
         {optionLabel(rule)}
@@ -404,83 +498,172 @@ export function ModeControls({
   };
 
   const regionPending = pending?.includes('-') ? (pending as RegionWrite) : null;
-  const regionControls = (target: RegionTarget | null | undefined) =>
-    target == null ? null : (
+  const regionControls = (pair: RegionTarget | null | undefined) =>
+    pair == null ? null : (
       <RegionControls
-        target={target}
+        target={pair}
         groupId={groupId}
         action={MODE_ACTION}
         redirectTo={redirectTo}
-        // After Roll the foot can hold two pairs (and the picker is the next game's): each says which.
-        // 8.3.1: only this game's pair is headed; the next game's sits under the `Next game` picker.
-        heading={inGame && target.game === 'this' ? THIS_GAME_HEADING : null}
-        showShort={target.game === 'next' && !statusShowsNext}
+        // After Roll the foot can hold two pairs: each says which. In game (8.3.1) only this game's
+        // pair is headed and the next game's sits under the `Next game` picker; balanced (M20.18)
+        // this game's sits inside the `This game` fieldset, so only the next game's is headed.
+        heading={
+          forThis
+            ? pair.game === 'next'
+              ? MODE_PICKER_LABEL_NEXT
+              : null
+            : inGame && pair.game === 'this'
+              ? THIS_GAME_HEADING
+              : null
+        }
+        showShort={pair.game === 'next' && !statusShowsNext}
         pending={regionPending}
         hydrated={hydrated}
         onChange={changeRegions}
       />
     );
+  /** No-JS posts name the game too (M20.18): balanced, every picker, Spin and Rated form is this game's. */
+  const gameInput = forThis ? <input type="hidden" name="game" value="this" /> : null;
+
+  const picker = (
+    <form
+      method="post"
+      action={MODE_ACTION}
+      onSubmit={(event) => void setMode(event)}
+      aria-label={MODE_SETTINGS_LABEL}
+      className="flex flex-col gap-2"
+    >
+      <input type="hidden" name="groupId" value={groupId} />
+      <input type="hidden" name="redirectTo" value={redirectTo} />
+      {gameInput}
+      <label htmlFor={selectId} className="text-xs font-bold">
+        {afterRoll ? MODE_PICKER_LABEL_NEXT : MODE_PICKER_LABEL}
+      </label>
+      {/* Row 1 the select at full width, row 2 `[Set mode][Spin]`; one row only when the card
+        itself is 520px or wider (a container query, never the viewport; design round 1). */}
+      <div className="flex flex-col gap-2 @[520px]:flex-row @[520px]:items-center">
+        <NativeSelect
+          id={selectId}
+          ref={selectRef}
+          name="mode"
+          value={choice}
+          aria-describedby={sentenceId}
+          onChange={(event) => dispatch({ type: 'pick', value: event.target.value })}
+          className="w-full @[520px]:max-w-sm @[520px]:flex-1"
+        >
+          {GROUP_MODES.map((one) => (
+            <option key={one} value={one}>
+              {MODE_NAMES[one]}
+            </option>
+          ))}
+          <optgroup label={OPTGROUP_CLASS}>
+            {CLASS_CHOICES.map((tag) => option({ id: 'class', tag }))}
+          </optgroup>
+          <optgroup label={OPTGROUP_REGION}>{option({ id: 'region' })}</optgroup>
+          <optgroup label={OPTGROUP_MIRROR}>{option({ id: 'mirror' })}</optgroup>
+        </NativeSelect>
+        <div className="flex flex-wrap gap-2">
+          {showSet ? (
+            <Button type="submit" pending={pending === 'mode'}>
+              {pending === 'mode' ? SETTING_MODE : SET_MODE}
+            </Button>
+          ) : null}
+          {/* Spin sits on the select's row (8.4.2), in its own form so it posts with no JS. */}
+          <Button type="submit" form={`${selectId}-spin`} variant="secondary" pending={spinBusy}>
+            {spinBusy ? SPINNING : SPIN}
+          </Button>
+        </div>
+      </div>
+      <p id={sentenceId} className="text-xs text-muted-foreground empty:hidden">
+        {sentence}
+      </p>
+    </form>
+  );
+
+  const ratedSwitch = (
+    <form
+      method="post"
+      action={MODE_ACTION}
+      onSubmit={(event) => void flipRated(event)}
+      className="flex flex-col gap-1"
+    >
+      <input type="hidden" name="groupId" value={groupId} />
+      <input type="hidden" name="redirectTo" value={redirectTo} />
+      {gameInput}
+      <button
+        type="submit"
+        name="rated"
+        value={rated ? 'false' : 'true'}
+        role="switch"
+        aria-checked={rated}
+        aria-describedby={ratedSentenceId}
+        aria-disabled={pending === 'rated' ? true : undefined}
+        className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-control text-[1.0625rem] font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors duration-(--dur-fast) forced-colors:border-[CanvasText]',
+            rated ? 'border-foreground bg-foreground' : 'border-border-strong bg-transparent',
+          )}
+        >
+          <span
+            className={cn(
+              'block size-4 rounded-full transition-transform duration-(--dur-fast) motion-reduce:transition-none',
+              rated ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground',
+            )}
+          />
+        </span>
+        {RATED_LABEL}
+      </button>
+      <p id={ratedSentenceId} className="text-xs text-muted-foreground">
+        {forThis ? (rated ? RATED_ON_THIS : RATED_OFF_THIS) : rated ? RATED_ON : RATED_OFF}
+      </p>
+    </form>
+  );
+
+  const reset =
+    mode === 'fearless' && banned > 0 ? (
+      <ResetFearless
+        groupId={groupId}
+        banned={banned}
+        confirmHref={resetConfirmHref}
+        onSaid={(line) => dispatch({ type: 'answered', said: line, saidFor: cardNow.current })}
+        onClosed={() => statusRef.current?.focus()}
+      />
+    ) : null;
 
   return (
     <div className="flex flex-col gap-3 border-t border-border bg-raised/45 px-(--card-pad) py-4">
       <p className="font-mono text-2xs text-muted-foreground">{MODE_ADMIN_EYEBROW}</p>
-      {/* This game's pair first: it is what the status above shows (M20.10). */}
-      {regionControls(regions?.this)}
-      <NextGameGroup split={regions?.this != null}>
-        {afterRoll ? <p className="text-sm text-muted-foreground">{MODE_APPLIES_NEXT_GAME}</p> : null}
-        <form
-          method="post"
-          action={MODE_ACTION}
-          onSubmit={(event) => void setMode(event)}
-          aria-label={MODE_SETTINGS_LABEL}
-          className="flex flex-col gap-2"
-        >
-          <input type="hidden" name="groupId" value={groupId} />
-          <input type="hidden" name="redirectTo" value={redirectTo} />
-          <label htmlFor={selectId} className="text-xs font-bold">
-            {inGame ? MODE_PICKER_LABEL_NEXT : MODE_PICKER_LABEL}
-          </label>
-          {/* Row 1 the select at full width, row 2 `[Set mode][Spin]`; one row only when the card
-            itself is 520px or wider (a container query, never the viewport; design round 1). */}
-          <div className="flex flex-col gap-2 @[520px]:flex-row @[520px]:items-center">
-            <NativeSelect
-              id={selectId}
-              ref={selectRef}
-              name="mode"
-              value={choice}
-              aria-describedby={sentenceId}
-              onChange={(event) => dispatch({ type: 'pick', value: event.target.value })}
-              className="w-full @[520px]:max-w-sm @[520px]:flex-1"
-            >
-              {GROUP_MODES.map((one) => (
-                <option key={one} value={one}>
-                  {MODE_NAMES[one]}
-                </option>
-              ))}
-              <optgroup label={OPTGROUP_CLASS}>
-                {CLASS_CHOICES.map((tag) => option({ id: 'class', tag }))}
-              </optgroup>
-              <optgroup label={OPTGROUP_REGION}>{option({ id: 'region' })}</optgroup>
-              <optgroup label={OPTGROUP_MIRROR}>{option({ id: 'mirror' })}</optgroup>
-            </NativeSelect>
-            <div className="flex flex-wrap gap-2">
-              {showSet ? (
-                <Button type="submit" pending={pending === 'mode'}>
-                  {pending === 'mode' ? SETTING_MODE : SET_MODE}
-                </Button>
-              ) : null}
-              {/* Spin sits on the select's row (8.4.2), in its own form so it posts with no JS. */}
-              <Button type="submit" form={`${selectId}-spin`} variant="secondary" pending={spinBusy}>
-                {spinBusy ? SPINNING : SPIN}
-              </Button>
-            </div>
-          </div>
-          <p id={sentenceId} className="text-xs text-muted-foreground empty:hidden">
-            {sentence}
-          </p>
-        </form>
-        {regionControls(regions?.next)}
-      </NextGameGroup>
+      {forThis ? (
+        <>
+          {/* M20.18: balanced, everything that changes this game under one legend: the rule,
+              Spin, this game's pair and Rated. The pool's Reset is not a game's, so it follows. */}
+          <fieldset data-slot="mode-this-game" className="flex min-w-0 flex-col gap-3">
+            <legend className="mb-3 text-xs font-bold">{THIS_GAME_HEADING}</legend>
+            {picker}
+            {regionControls(regions?.this)}
+            {ratedSwitch}
+          </fieldset>
+          {reset}
+          {/* Below the hairline, only what is still the next game's: a queued pair, headed. */}
+          {regions?.next == null ? null : <NextGameGroup split>{regionControls(regions.next)}</NextGameGroup>}
+        </>
+      ) : (
+        <>
+          {/* This game's pair first: it is what the status above shows (M20.10). */}
+          {regionControls(regions?.this)}
+          <NextGameGroup split={regions?.this != null}>
+            {afterRoll ? <p className="text-sm text-muted-foreground">{MODE_APPLIES_NEXT_GAME}</p> : null}
+            {picker}
+            {regionControls(regions?.next)}
+          </NextGameGroup>
+          {ratedSwitch}
+          {reset}
+        </>
+      )}
       <form
         id={`${selectId}-spin`}
         method="post"
@@ -492,56 +675,8 @@ export function ModeControls({
         {/* M20.7: Spin is the one mode route with `spin=true`. */}
         <input type="hidden" name="spin" value="true" />
         <input type="hidden" name="redirectTo" value={redirectTo} />
+        {gameInput}
       </form>
-
-      <form
-        method="post"
-        action={MODE_ACTION}
-        onSubmit={(event) => void flipRated(event)}
-        className="flex flex-col gap-1"
-      >
-        <input type="hidden" name="groupId" value={groupId} />
-        <input type="hidden" name="redirectTo" value={redirectTo} />
-        <button
-          type="submit"
-          name="rated"
-          value={rated ? 'false' : 'true'}
-          role="switch"
-          aria-checked={rated}
-          aria-describedby={ratedSentenceId}
-          aria-disabled={pending === 'rated' ? true : undefined}
-          className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-control text-[1.0625rem] font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <span
-            aria-hidden="true"
-            className={cn(
-              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors duration-(--dur-fast) forced-colors:border-[CanvasText]',
-              rated ? 'border-foreground bg-foreground' : 'border-border-strong bg-transparent',
-            )}
-          >
-            <span
-              className={cn(
-                'block size-4 rounded-full transition-transform duration-(--dur-fast) motion-reduce:transition-none',
-                rated ? 'translate-x-[22px] bg-card' : 'translate-x-[2px] bg-muted-foreground',
-              )}
-            />
-          </span>
-          {RATED_LABEL}
-        </button>
-        <p id={ratedSentenceId} className="text-xs text-muted-foreground">
-          {rated ? RATED_ON : RATED_OFF}
-        </p>
-      </form>
-
-      {mode === 'fearless' && banned > 0 ? (
-        <ResetFearless
-          groupId={groupId}
-          banned={banned}
-          confirmHref={resetConfirmHref}
-          onSaid={(line) => dispatch({ type: 'answered', said: line, saidFor: cardNow.current })}
-          onClosed={() => statusRef.current?.focus()}
-        />
-      ) : null}
 
       {failed === null ? null : (
         <p role="alert" className="text-sm font-bold">
@@ -559,8 +694,18 @@ export function ModeControls({
 }
 
 /**
+ * A refused write's line (M20.18): the route's own words on a 409 (the game has started, no teams
+ * are rolled, too few open), else `fallback` for a 409 with none; anything else `Couldn't change that.`
+ */
+function refusal(result: { status: number; error: string | null }, fallback: string, words: boolean): string {
+  if (result.status !== 409) return MODE_CHANGE_FAILED;
+  return words ? (result.error ?? fallback) : fallback;
+}
+
+/**
  * 05-design 8.3.1: with this game's pair above it, the next game's controls open on a hairline, so
  * `Changes apply from the next game.` never sits under this game's `Redraw regions`.
+ * While balanced (M20.18) it opens the queued next-game pair, under its `Next game` legend.
  */
 function NextGameGroup({ split, children }: { split: boolean; children: ReactNode }) {
   if (!split) return <>{children}</>;

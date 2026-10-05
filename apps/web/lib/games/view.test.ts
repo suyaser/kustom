@@ -189,7 +189,8 @@ describe('gamesHistoryView', () => {
       queue: 'aram',
     });
     expect(abyss.queue).toBe('aram');
-    expect(abyss.items.map((game) => game.id)).toEqual(['aram']);
+    // ARAM: Mayhem (`KIWI`) is an ARAM (owner bug 2026-10-05).
+    expect(abyss.items.map((game) => game.id).sort()).toEqual(['aram', 'kiwi']);
   });
 });
 

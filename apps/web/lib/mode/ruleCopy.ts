@@ -68,13 +68,20 @@ export function mirrorStatus(open: number | null): string {
 
 /**
  * The filling host line (M15.16, back since the 2026-10-04 QA fix): while a lobby fills and the next
- * game's rule is mirror, the lobby may already be a Draft Pick one (made before mirror was picked,
- * or by hand), and Start a lobby only asks for Blind Pick when it makes the lobby (M17.17).
+ * game's rule is mirror, the lobby may already be a Draft Pick one (made before mirror was picked);
+ * hosts make every lobby by hand since M22.11.
  */
 export const MIRROR_HOST_LEAD = 'Mirror match next.';
 export const MIRROR_HOST_FILLING_REST =
   'It needs a Blind Pick lobby. If this one is Draft Pick, the host opens a Blind Pick custom in League and everyone moves to it.';
 export const MIRROR_HOST_FILLING_LINE = `${MIRROR_HOST_LEAD} ${MIRROR_HOST_FILLING_REST}`;
+
+/**
+ * M22.11 [NEW COPY] (05-design 14.13 item 6): idle and finished with mirror next, no lobby open; the
+ * host makes the next custom. Same lead as the filling line.
+ */
+export const MIRROR_HOST_IDLE_REST = 'The host opens a Blind Pick custom in League.';
+export const MIRROR_HOST_IDLE_LINE = `${MIRROR_HOST_LEAD} ${MIRROR_HOST_IDLE_REST}`;
 
 /** Under the status: `This game only. Then back to Fearless.` */
 export function oneGameLine(standing: StandingModeId): string {
@@ -158,7 +165,7 @@ export const REGION_SELECT_LABELS: Record<'blue' | 'red', string> = {
  * on Windows fires `change` per option). M20.1 names no button; the designer/product to confirm.
  */
 export const SET_REGION = 'Set region';
-/** After Roll, this game's pair's legend (05-design 8.3.1); the next game's pair has none. */
+/** Balanced: the legend of the one this-game fieldset (rule, Spin, pair, Rated) (05-design 8.3.1). */
 export const THIS_GAME_HEADING = 'This game';
 /** M20 D11: the shown next-game pair went short (bans grew after it was drawn); everyone, under the status. */
 export const REGION_PAIR_SHORT =
@@ -190,6 +197,13 @@ export const RATED_LABEL = 'Rated';
 export const RATED_ON = 'Next game is rated.';
 /** Lead ruling (M15.5 design round 1): the switch is about the next game, as the announcer says. */
 export const RATED_OFF = 'Next game is recorded, not rated.';
+/**
+ * [NEW COPY, M20.18] The switch while the lobby is balanced acts on this game (decision row
+ * 2026-10-05, "until the game starts, mode changes are for this game"): RATED_ON / RATED_OFF with
+ * `This game`, as the route's own notice says it (`ratedNotice(…, 'this')`).
+ */
+export const RATED_ON_THIS = 'This game is rated.';
+export const RATED_OFF_THIS = 'This game is recorded, not rated.';
 
 /* ---------------------------------------------------------------------------
  * The announcer.

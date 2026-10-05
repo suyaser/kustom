@@ -20,10 +20,15 @@ import type { CompanionCommandKind } from '@customs/db/schemas';
  * first try, and with a real lobby to work in the invite and the side switch were exercised too
  * (200 / 200 / 204). So the queue writes rows from here on. A test that wants the old zero-row
  * behavior passes a `gate` override; it must not read the constant and hope.
+ *
+ * **`create_lobby` and `invite` are off since M22.11**, for a different reason: the lobby press
+ * that queued the one and the fan-out that queued the other are removed (lobbies are the customs
+ * hosts open). Both kinds stay in the companion contract, so a shipped Kustom still parses them;
+ * the server simply never writes one.
  */
 export const COMMAND_KIND_ENABLED: Readonly<Record<CompanionCommandKind, boolean>> = {
-  create_lobby: true,
-  invite: true,
+  create_lobby: false,
+  invite: false,
   switch_side: true,
 };
 

@@ -22,8 +22,8 @@ import { describe, expect, it } from 'vitest';
  * Type-only imports (`import type`, `{ type X }` only) are skipped, as `verbatimModuleSyntax`
  * erases them; everything else is followed, so this is stricter than the bundler's tree shaking
  * and never looser. A dynamic `import()` is not followed: the bundler splits it into a chunk that
- * loads when the line runs, which is how `StartLobby` validates its answer with zod without
- * putting zod in Tonight's first load.
+ * loads when the line runs, which is how a client control can validate an answer with zod
+ * without putting zod in Tonight's first load.
  */
 
 const WEB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

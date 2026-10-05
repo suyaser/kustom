@@ -8,7 +8,7 @@ import type { SplitChoice } from '@/lib/tonight/types';
 import { RerollControl } from './RerollControl';
 
 /**
- * The reroll control (M3.2's button), brought into line with `RollControl` and `StartLobby` on
+ * The reroll control (M3.2's button), brought into line with `RollControl` (and the lobby press, gone since M22.11) on
  * 2026-10-03: quiet and `aria-disabled` while a press is in flight — never the `disabled`
  * attribute, which drops the focus to `<body>` (M3.20) — with the real attribute kept for the one
  * permanent case, the last split. A refusal reads like the other two controls': the route's words

@@ -67,7 +67,7 @@ export interface StripProps {
   names?: NameStripTeams | null | undefined;
   /**
    * M14.41 (scene-walk gap 2): the night's one deliberate press for this viewer (`Roll teams`,
-   * `Reroll`, `Start a lobby`), as the strip's last row, so it is on the first screen at 375.
+   * `Reroll`; since M22.11 also the idle no-host line), as the strip's last row, so it is on the first screen at 375.
    */
   action?: ReactNode;
   /**
