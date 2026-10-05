@@ -172,16 +172,19 @@ export interface RecentGame {
   /** `mvp`, `ace`, or `null` (M7.10). */
   award: RecentAward | null;
   /**
-   * Blue's chance in the split the group played (`splits.blue_win_prob` of the chosen split), or
-   * `null` for a game with no stored split.
+   * Blue's chance for the teams that played (M21.7, `playedOddsOf` in `lib/games/receipt.ts`): the
+   * chosen split's when its teams played (flipped on swapped sides), the kickoff record's when the
+   * teams changed or nobody rolled and its teams are the scoreboard's; else `null` (then
+   * {@link ratingsBefore} carries the pre-game odds, or the game has none).
    */
   blueWinProb: number | null;
-  /** The chosen split's rank (`pick #2` after a reroll), or `null` with no split. */
+  /** The chosen split's rank (`pick #2` after a reroll) when its teams played, else `null`. */
   pickRank: number | null;
   /**
-   * Everyone's rating going in, by side, for a game with no stored split: the compact receipt's
-   * pre-game odds come from core's `preGameOdds` over these (STRATEGY §4.10). `null` when the game
-   * has a split.
+   * Everyone's rating going in, by side, for a pre-game receipt with no kickoff odds: the compact
+   * receipt's pre-game odds come from core's `preGameOdds` over these (STRATEGY §4.10). `null` when
+   * {@link blueWinProb} is set or the game has no honest odds (an ARAM or a not-rated game whose
+   * teams are not the bot's, M15.18).
    */
   ratingsBefore: { blue: KustomBefore[]; red: KustomBefore[] } | null;
   /** An ARAM: the receipt keeps its line and adds the label; no rating claims. */
