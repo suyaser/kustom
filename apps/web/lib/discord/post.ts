@@ -282,29 +282,34 @@ async function loadChosenSplit(client: ServiceClient, lobbyId: string): Promise<
  * Each kickoff player's all-time `r` in the group, through the balancer's own read
  * (`selectRatings`, 1200 for no row): the same numbers the kickoff odds were taken over.
  *
- * M21.6 follow-up (M21.7): a failed player lookup degrades to 1200 for everyone (logged) instead
- * of dropping the post: the odds on it are the stored kickoff odds, only the printed Ratings fall
- * back, and a `Game on` post is never retried.
+ * M21.6 follow-up (M21.7): a failed lookup (the players read, the ratings read, or a thrown
+ * request) degrades to 1200 for everyone, logged, instead of dropping the post: the odds on it are
+ * the stored kickoff odds, only the printed Ratings fall back, and a `Game on` post is never retried.
  */
 export async function loadKickoffRatings(
   client: ServiceClient,
   groupId: string,
   puuids: readonly string[],
 ): Promise<(puuid: string) => number> {
-  const { data, error } = await client
-    .from('players')
-    .select('id, puuid')
-    .in('puuid', [...puuids]);
-  if (error) {
-    console.error(`discord: kickoff player lookup failed; Game on prints 1200 for everyone: ${error.message}`);
+  const fresh = (why: unknown): ((puuid: string) => number) => {
+    console.error('discord: kickoff rating lookup failed; Game on prints 1200 for everyone', why);
     return () => KUSTOM_FRESH.r;
-  }
-  const idOf = new Map((data ?? []).map((row) => [row.puuid, row.id]));
-  const ratings = await selectRatings(client, [...idOf.values()], groupId);
-  return (puuid) => {
-    const id = idOf.get(puuid);
-    return (id === undefined ? undefined : ratings.get(id))?.r ?? KUSTOM_FRESH.r;
   };
+  try {
+    const { data, error } = await client
+      .from('players')
+      .select('id, puuid')
+      .in('puuid', [...puuids]);
+    if (error) return fresh(error.message);
+    const idOf = new Map((data ?? []).map((row) => [row.puuid, row.id]));
+    const ratings = await selectRatings(client, [...idOf.values()], groupId);
+    return (puuid) => {
+      const id = idOf.get(puuid);
+      return (id === undefined ? undefined : ratings.get(id))?.r ?? KUSTOM_FRESH.r;
+    };
+  } catch (error) {
+    return fresh(error);
+  }
 }
 
 /**
