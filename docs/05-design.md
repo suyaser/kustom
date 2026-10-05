@@ -4465,16 +4465,16 @@ Ten play, the rest sit out. …             ← sub-line, the selected lobby's
 ```
 ┌────────────────────────────┐   link, --card fill, 1px --border-strong, --radius-control (6), min-h 64
 │ Ana's lobby          [YOU] │   label: text 700 --fs-md (19), wraps, never truncates · YOU sticker (5.0 `you`)
-│ 7 in · Region wars         │   status (text 700 --fs-xs, numbers mono) · mode (text 400 --fs-xs muted)
+│ 7 in · Region wars         │   status (text 700 --fs-xs, tabular numbers) · mode (text 400 --fs-xs muted)
 └────────────────────────────┘   padding 10 12; status and mode are two nowrap spans that wrap as units
 ```
 
 | Part | Spec |
 |---|---|
 | Label | 14.1. Text face 700 at `--fs-md`, `--foreground`. Wraps between words; a 16-character name plus `'s lobby` wraps to two lines at 375, by design. |
-| `YOU` sticker | Only on the chip of the table the signed-in viewer is on (a linked player on its roster, the same test M22.5 uses to open on it). It is the existing sticker (`--primary-fill`, text 700 `--fs-2xs`, `--radius-chip`), end-aligned on the label's first line. Amber here means **you**, which is one of its three meanings; the **selected** state is never amber fill. Screen readers: the sticker's text is `aria-hidden` and the link carries `, you're in this lobby`. |
-| Status | One of: `7 in` (filling, over ten too: `12 in`) · `Teams set` · `In game · 12 min` (`In game · just started` under a minute; the minutes tick once a minute like 5.4, never `mm:ss`) · `Blue won` / `Red won` (finished, inside the 20-minute walk back) · `No Kustom` (14.8). Text face 700 `--fs-xs` `--foreground`, numbers in mono (tabular). No side colour on `Red won`: a word, not a colour (1.1 rule 1). No dot, no pulse: the live tag stays the only pulsing thing in the product (5.4). |
-| Mode | The selected lobby's mode in at most two words, the card title's or the rule's own word: `Normal`, `Fearless`, `Tanks only`, `Marksmen only`, `Mages only`, `Assassins only`, `Supports only`, `Region wars`, `Mirror match`. A pending rule wins over the standing mode (`Region wars`, not `Fearless`), because it is what this game plays. `Not rated` is not on the chip (the card says it). Text 400 `--fs-xs` `--muted-foreground`, joined to the status by ` · `. |
+| `YOU` sticker | Only on the chip of the table the signed-in viewer is on (a linked player on its roster, the same test M22.5 uses to open on it). It is the existing sticker (`--primary-fill`, text 700 `--fs-2xs`, `--radius-chip`), end-aligned on the label's first line. Below 768, when the label needs the whole width (a long one-word name such as `Ramzyinhović's lobby`), the sticker goes on its own line under the label, still end-aligned; from 768 up it always shares the label's first line and the label wraps beside it. Amber here means **you**, which is one of its three meanings; the **selected** state is never amber fill. Screen readers: the sticker's text is `aria-hidden` and the link carries `, you're in this lobby`. |
+| Status | One of: `7 in` (filling, over ten too: `12 in`) · `Teams set` · `In game · 12 min` (`In game · just started` under a minute; the minutes tick once a minute like 5.4, never `mm:ss`) · `Blue won` / `Red won` (finished, inside the 20-minute walk back) · `No Kustom` (14.8). Text face 700 `--fs-xs` `--foreground`, numbers as tabular figures in the text face (not mono: at `--fs-xs` beside the label, the text face reads as one line). No side colour on `Red won`: a word, not a colour (1.1 rule 1). No dot, no pulse: the live tag stays the only pulsing thing in the product (5.4). |
+| Mode | The selected lobby's mode in at most two words, the card title's or the rule's own word: `Normal`, `Fearless`, `Tanks only`, `Marksmen only`, `Mages only`, `Assassins only`, `Supports only`, `Region wars`, `Mirror match`. A pending rule wins over the standing mode (`Region wars`, not `Fearless`), because it is what this game plays. `Not rated` is not on the chip (the card says it). Text 400 `--fs-xs` `--muted-foreground`. From 768 up it follows the status on the same line, joined by ` · `. Below 768 it goes on its own line under the status, with no ` · `, so a long status (`In game · 23 min`, `No Kustom`) never leaves a line that starts with a dot, and every phone chip has the same three parts: label, status, mode. |
 | Selected | `aria-current="page"`, `--raised` fill, a 2px `--foreground` border (the 1px edge thickens inward so nothing moves) and the 3px `--primary-text` bar inset at the bottom edge: the same "current" mark as the window chips and segmented links (`WindowChips`, `SegLinks`), so the product has one current-state look. Shape, weight and fill, never colour alone. |
 | Unselected | `--card`, 1px `--border-strong` (≥ 3:1 control edge, 3.2), hover `--accent`, `:active` `scale(.98)` at `--dur-press`. |
 | `No Kustom` chip | Dashed 1px `--border-strong` edge (dashed = absent, 5.7) plus the word. Still selectable. |
@@ -4485,7 +4485,7 @@ Ten play, the rest sit out. …             ← sub-line, the selected lobby's
 | Width | Grid | Notes |
 |---|---|---|
 | < 768 (375) | `grid-template-columns: repeat(2, minmax(0, 1fr))`, gap 8 | Two chips side by side, equal width (~164 px each at 375). A third lobby starts a second row at the **same** width (half, left), never full width: a wider chip reads as the important one. Four: two rows of two. |
-| ≥ 768 to 1440 | `repeat(auto-fill, minmax(15rem, 1fr))`, gap 8, inside the main column (the 340 rail is unchanged) | At 1440 the main column fits three tracks; two lobbies take two and leave the third empty, so chips stay about 260 px and do not stretch across the page. Status and mode sit on one line. |
+| ≥ 768 to 1440 | `repeat(auto-fill, minmax(14rem, 1fr))`, gap 8, inside the main column (the 340 rail is unchanged) | At 1440 the main column (about 730 px) fits three 14rem tracks with their gaps (15rem would not, M22.6); two lobbies take two and leave the third empty, so chips stay about 260 px and do not stretch across the page. Status and mode sit on one line. |
 | 200% text | the `rem` minimum collapses the grid to one column by itself at 375 and 768 | Every chip full width, all lines wrap, nothing hidden or cut. Three lobbies at 200% are about 400 px of switcher; accepted (the headline is still the largest type and the action row is still reachable). |
 
 - **No horizontal scroll, ever.** Chips past the edge are lobbies nobody sees (the old phone tabs' lesson,
@@ -4862,3 +4862,9 @@ Placeholders in `‹›`. `both` is for exactly two live lobbies, `every` for th
 6. **M22.11 copy:** the mirror host line (`… Start a lobby only makes Draft Pick.`, 8.3, 8.11) and 5.10's action
    row list `Start a lobby`; both need rewording when it goes (suggested: `Mirror match next. The host opens a
    Blind Pick custom in League.`).
+7. **200% text breaks words in the shell** (seen in M22.6's F6 frames, older than M22). At 375 with 200% text,
+   the top bar's group name breaks as `Custom` / `s Night` and the tab bar's labels as `Tonig` / `ht` and
+   `Game` / `s`. A word must never break mid-word in the shell: the group name should wrap between words (or
+   give way to the wordmark), and the tab labels need their own rule at large text (icon only with the label
+   as the accessible name, or a label size that does not scale past the tab's width). Needs its own ticket;
+   not M22's.
