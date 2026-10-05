@@ -17,4 +17,4 @@ alter table public.games
   add constraint games_voided_not_rated check (voided_at is null or not rated);
 
 comment on column public.games.voided_at is
-  'M23.1 (0052): when an admin voided this game (taken out of ratings by hand); null = not voided. A voided game is rated = false (games_voided_not_rated) and a restore sets rated = true and this null. Written only by /api/admin/games/void.';
+  'M23.1 (0052): when an admin voided this game (taken out of ratings by hand); null = not voided. A voided game is rated = false (games_voided_not_rated) and a restore sets rated = true and this null. Written only by the admin Void game route (lib/admin/voidGame.ts).';

@@ -7,7 +7,7 @@ import { RESTORE_GAME, VOID_GAME } from '@/lib/games/copy';
 
 /**
  * An admin's `Void game` / `Restore` on the game page (M23.1). Only rendered for an admin or the
- * owner (the page decides from the session); `POST /api/admin/games/void` checks again. One tap, no
+ * owner (the page decides from the session); `POST /api/admin/void-game` checks again. One tap, no
  * confirm: it is undone by the other button. A real form, so it works without JavaScript (the route
  * sends a form post back to `redirectTo`); with JavaScript it posts JSON, then re-renders the page,
  * or prints the route's refusal (`Finish tonight's game first.`).
@@ -34,7 +34,7 @@ export function VoidGame({
     setPending(true);
     setError(null);
     try {
-      const response = await fetch('/api/admin/games/void', {
+      const response = await fetch('/api/admin/void-game', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId, gameId, action }),
@@ -51,7 +51,7 @@ export function VoidGame({
 
   return (
     <form
-      action="/api/admin/games/void"
+      action="/api/admin/void-game"
       method="post"
       onSubmit={onSubmit}
       className="flex flex-col items-start"

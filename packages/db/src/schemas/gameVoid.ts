@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { groupIdSchema } from './groups';
 
 /**
- * `POST /api/admin/games/void` (M23.1): an admin's `Void game` (take a game out of ratings) or
+ * `POST /api/admin/void-game` (M23.1): an admin's `Void game` (take a game out of ratings) or
  * `Restore` (put it back). The group is the body's, checked against the session's admin-or-owner
  * membership by the route gate; the game must be that group's. `redirectTo` is where a no-JS form
  * post goes back to.

@@ -28,7 +28,7 @@ import {
 import { resolveLocalStack } from '@/lib/testing/localStack';
 
 /**
- * `POST /api/admin/games/void` (M23.1) against the local stack: the real admin-or-owner check on
+ * `POST /api/admin/void-game` (M23.1) against the local stack: the real admin-or-owner check on
  * the body's group, the rebuild guard (nothing written while it holds), the void folding the group
  * as if the game was never played (compared with a group that never had it), a second tap writing
  * nothing, a restore putting the numbers back, another group's game a 404, and a game played not
@@ -56,7 +56,7 @@ if (stack === null) {
   process.env.BOOTSTRAP_ADMIN_DISCORD_ID = '';
   process.env.DISCORD_WEBHOOK_URL = '';
 
-  const { gameVoidRoute } = await import('./games/void/handler');
+  const { gameVoidRoute } = await import('./void-game/handler');
   const { loadGamesList } = await import('@/lib/games/list');
   const { loadGameDetail } = await import('@/lib/games/detail');
   const { createPublicClient } = await import('@/lib/publicClient');
@@ -149,7 +149,7 @@ if (stack === null) {
 
   async function call(index: number | null, body: Record<string, unknown>) {
     const response = await gameVoidRoute(as(index))(
-      new Request('http://localhost/api/admin/games/void', {
+      new Request('http://localhost/api/admin/void-game', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId: groups.v, gameId: bad, ...body }),
