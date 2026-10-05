@@ -13556,7 +13556,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   lead's call with the owner.
 
   *Landed 2026-10-05 (ff850ddc, reviewer pass). The first hosted rebuild or 04:15 cron after deploy releases the stale fill flags (local customs: 7).*
-- [ ] **M21.9** Region wars in champ select uses the side you are on. *(owners: `web-engineer`, `designer` for
+- [x] **M21.9** Region wars in champ select uses the side you are on. *(owners: `web-engineer`, `designer` for
   the wording if any; after M20.10, same files)* While the lobby is `balanced`, the Mode card's and panel's `your
   region` and pool order follow the viewer's live side (`liveSide`) when known, else the split's side; in game they
   follow the kickoff teams (M21.5). The side line still asks them to move to the split's side; when they do, the
@@ -13565,6 +13565,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   post-game check is unchanged (it already reads the eog side; asserted); (4) members and visitors unchanged except
   the viewer's own side.
 
+  *Landed 2026-10-05 (1d251956, reviewer pass). Copy check for M21.10: the side line should read as an instruction.*
 - [ ] **M21.10** Review and scene walk. *(owners: `reviewer`, then `product`)* The reviewer's pass over M21.4 to
   M21.9; product walks the scene on the local stack with a hand-swapped game. Acceptance: the milestone acceptance
   below, played through once, plus M21.1's verdict recorded and M21.2 done or explicitly deferred by the owner.
