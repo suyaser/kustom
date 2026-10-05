@@ -15,16 +15,18 @@ export const dynamic = 'force-dynamic';
  * a repeat, or a leave that lost the race to the same Kustom's next lobby post, answers
  * `released: false` and writes nothing. Never touches another group.
  */
-export const POST = withCompanionAuth(companionLobbyLeavePayloadSchema, async (payload, { client, identity }) =>
-  withLiveSignal(client, async (live) => {
-    const released = await leaveLobby(client, {
-      groupId: identity.groupId,
-      playerId: identity.playerId,
-      tokenId: identity.tokenId,
-      partyId: payload.partyId,
-      now: new Date(),
-      live,
-    });
-    return jsonOk(companionLobbyLeaveResponseSchema, { ok: true, released });
-  }),
+export const POST = withCompanionAuth(
+  companionLobbyLeavePayloadSchema,
+  async (payload, { client, identity }) =>
+    withLiveSignal(client, async (live) => {
+      const released = await leaveLobby(client, {
+        groupId: identity.groupId,
+        playerId: identity.playerId,
+        tokenId: identity.tokenId,
+        partyId: payload.partyId,
+        now: new Date(),
+        live,
+      });
+      return jsonOk(companionLobbyLeaveResponseSchema, { ok: true, released });
+    }),
 );

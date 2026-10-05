@@ -491,7 +491,14 @@ async function moveTokenParty(
  */
 export async function leaveLobby(
   client: ServiceClient,
-  input: { groupId: string; playerId: string; tokenId: string; partyId: string; now: Date; live: LiveChanges },
+  input: {
+    groupId: string;
+    playerId: string;
+    tokenId: string;
+    partyId: string;
+    now: Date;
+    live: LiveChanges;
+  },
 ): Promise<boolean> {
   const { data, error } = await client
     .from('companion_tokens')
