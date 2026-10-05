@@ -274,6 +274,9 @@ if (stack === null) {
       const before = await night.tonightPaint(viewer);
       expect(before).toContain(`Ionia for ${role}`);
       expect(before).not.toContain(`Freljord for ${role}`);
+      // M21.13: the line says where they are and where to move.
+      expect(before).toMatch(new RegExp(`on\\s*BLUE\\.\\s*Move to\\s*RED\\s*to play ${role}\\.`));
+      expect(before).not.toContain(`playing ${role}`);
 
       // Lobby post 2: they move to red. The region follows.
       expect(await night.companionLobby(partyId, night.ten, { [who]: 200 })).toBe(lobbyId);
@@ -281,6 +284,8 @@ if (stack === null) {
       const after = await night.tonightPaint(viewer);
       expect(after).toContain(`Freljord for ${role}`);
       expect(after).not.toContain(`Ionia for ${role}`);
+      expect(after).toContain(`playing ${role}`);
+      expect(after).not.toContain('Move to');
 
       // Visitors: the same card either way (only the viewer's own side moves).
       expect(await night.tonightPaint()).toContain('BLUE Ionia vs RED Freljord');

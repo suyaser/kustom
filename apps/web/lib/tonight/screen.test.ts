@@ -17,10 +17,11 @@ import {
   receiptNames,
   seatStanding,
   stillNeeded,
+  viewerMoveTo,
   viewerRegionSide,
   viewerSeat,
 } from './screen';
-import { elapsedLabel, rosterCount, stripDateLine, wouldSitOutLine } from './screenCopy';
+import { answerMoveLine, elapsedLabel, rosterCount, stripDateLine, wouldSitOutLine } from './screenCopy';
 import { tonightState } from './state';
 
 describe('the 2.0 tonight helpers (M14.9)', () => {
@@ -88,6 +89,44 @@ describe('the 2.0 tonight helpers (M14.9)', () => {
     expect(viewerRegionSide(teams, 'nobody')).toBeNull();
     expect(viewerRegionSide(teams, null)).toBeNull();
     expect(viewerRegionSide(null, seat.puuid)).toBeNull();
+  });
+
+  describe('M21.13: where to move while balanced', () => {
+    const teams = workedTeams();
+    const blue = teams.blue[0];
+    const red = teams.red[0];
+    if (blue === undefined || red === undefined) throw new Error('fixture');
+
+    it('right side: no instruction, for either side', () => {
+      expect(viewerMoveTo(seatedOnTheirSides(teams), blue.puuid)).toBeNull();
+      expect(viewerMoveTo(seatedOnTheirSides(teams), red.puuid)).toBeNull();
+    });
+
+    it('wrong side: the split side, either way round', () => {
+      expect(viewerMoveTo(seatedOnTheirSides(teams, { [blue.puuid]: 200 }), blue.puuid)).toBe('blue');
+      expect(viewerMoveTo(seatedOnTheirSides(teams, { [red.puuid]: 100 }), red.puuid)).toBe('red');
+      // Somebody else on the wrong side changes nothing for the viewer.
+      expect(viewerMoveTo(seatedOnTheirSides(teams, { [red.puuid]: 100 }), blue.puuid)).toBeNull();
+    });
+
+    it('side unknown (a spectator slot, or no member row): no instruction', () => {
+      expect(viewerMoveTo(seatedOnTheirSides(teams, { [blue.puuid]: null }), blue.puuid)).toBeNull();
+      expect(
+        viewerMoveTo({ ...teams, blue: teams.blue.map((s) => ({ ...s, liveSide: null })) }, blue.puuid),
+      ).toBeNull();
+    });
+
+    it('not seated in the split, or nobody looking: no instruction', () => {
+      expect(viewerMoveTo(seatedOnTheirSides(teams), 'nobody')).toBeNull();
+      expect(viewerMoveTo(seatedOnTheirSides(teams), null)).toBeNull();
+      expect(viewerMoveTo(null, blue.puuid)).toBeNull();
+    });
+
+    it("says where they are and where to go, with and without a role (product's copy)", () => {
+      expect(answerMoveLine('red', 'blue', 'top')).toBe('YOU on RED. Move to BLUE to play top.');
+      expect(answerMoveLine('blue', 'red', 'support')).toBe('YOU on BLUE. Move to RED to play support.');
+      expect(answerMoveLine('red', 'blue', null)).toBe('YOU on RED. Move to BLUE.');
+    });
   });
 
   it('lists the lanes nobody mains, in lane order, only short of ten', () => {

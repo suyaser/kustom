@@ -53,6 +53,18 @@ export const ANSWER_ON = 'on';
 export function answerRole(role: string): string {
   return `, playing ${role}`;
 }
+/**
+ * M21.13 (product's copy): balanced, sitting on the other side from the split: `YOU on RED. Move to
+ * BLUE to play top.`; without a role, `YOU on RED. Move to BLUE.`. The band renders the two sides as
+ * side pills between these pieces; `answerMoveLine` is the same sentence as plain text.
+ */
+export const ANSWER_MOVE_TO = '. Move to';
+export function answerMoveRole(role: string | null): string {
+  return role === null ? '.' : ` to play ${role}.`;
+}
+export function answerMoveLine(here: 'blue' | 'red', there: 'blue' | 'red', role: string | null): string {
+  return `YOU ${ANSWER_ON} ${here.toUpperCase()}${ANSWER_MOVE_TO} ${there.toUpperCase()}${answerMoveRole(role)}`;
+}
 /** Finished: ` · won` / ` · lost` after the side pill. */
 export function answerResult(won: boolean): string {
   return won ? ' · won' : ' · lost';

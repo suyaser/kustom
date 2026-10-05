@@ -143,6 +143,21 @@ export function viewerRegionSide(teams: TeamsView | null, puuid: string | null):
 }
 
 /**
+ * M21.13: while the lobby is `balanced`, the side the viewer should move to: the split's side when
+ * the client has them (`liveSide`) on the other one. `null` when they already sit on the split's
+ * side, when their live side is unknown (`null`: a spectator slot, or no member row), or when they
+ * are not in the split; the answer band then keeps `YOU on BLUE, playing top`.
+ */
+export function viewerMoveTo(teams: TeamsView | null, puuid: string | null): 'blue' | 'red' | null {
+  if (teams === null || puuid === null) return null;
+  const blue = teams.blue.find((seat) => seat.puuid === puuid);
+  if (blue !== undefined) return blue.liveSide === 200 ? 'blue' : null;
+  const red = teams.red.find((seat) => seat.puuid === puuid);
+  if (red !== undefined) return red.liveSide === 100 ? 'red' : null;
+  return null;
+}
+
+/**
  * `Still needed: jungle, support` (STRATEGY §6(a)): the lanes nobody in the lobby mains, in lane
  * order, while the lobby is short of ten. Empty when nobody has a main role to read (the bot can
  * put anyone anywhere, and naming every lane would be noise) or when the lobby is full.

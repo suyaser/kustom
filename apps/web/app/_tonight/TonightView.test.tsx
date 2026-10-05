@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { SIDE_LINE_AUTO } from '@/lib/discord/embeds';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { applyModeRow, resetModeStoreForTests } from '@/lib/mode/clientStore';
@@ -19,8 +20,15 @@ import {
   TITLE_IN_GAME,
   TITLE_PRE_GAME,
 } from '@/lib/receipt/copy';
-import { lobbyView, snapshot, workedMembers, workedResult, workedTeams } from '@/lib/testing/tonightFixtures';
-import { visibleText } from '@/lib/testing/visibleText';
+import {
+  lobbyView,
+  seatedOnTheirSides,
+  snapshot,
+  workedMembers,
+  workedResult,
+  workedTeams,
+} from '@/lib/testing/tonightFixtures';
+import { visibleText, withoutSrOnly } from '@/lib/testing/visibleText';
 import {
   IN_GAME_SENTENCE,
   MISSED_INVITE_LEAD,
@@ -1318,5 +1326,73 @@ describe('finished: the odds of the teams that played (M21.7)', () => {
       drawWith(remake(traded(workedResult({ award: null, oddsKind: 'none' }))));
       expect(screen.getByText(NO_ODDS)).toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * M21.13: while balanced, a viewer the client has on the other side from the split reads where they
+ * are and where to move (`YOU on RED. Move to BLUE to play support.`); the region link follows the
+ * side they sit on (M21.9). Theo (the viewer) is the split's Blue support.
+ */
+describe('balanced on the wrong side: the line says where to move (M21.13)', () => {
+  /** The band's words after the YOU sticker (the sticker sits on its own, a margin away). */
+  const band = () => {
+    const element = withoutSrOnly(document.querySelector('[data-slot="answer-band"]'));
+    const sticker = element.querySelector('[data-variant="you"]');
+    if (sticker === null) throw new Error('no YOU sticker');
+    sticker.remove();
+    return (element.textContent ?? '').replace(/\s+/g, ' ').trim();
+  };
+  const sitting = (key: TonightStateKey, theo: 100 | 200 | null) => {
+    const { connection: _c, ...fixture } = tonightStateFixture(key, { now: NOW, rule: 'region' });
+    const lobby = fixture.snapshot.lobby;
+    if (lobby === null || lobby.teams === null) throw new Error('fixture');
+    const teams = seatedOnTheirSides(lobby.teams, { [VIEWER_PUUID]: theo });
+    if (!teams.blue.some((seat) => seat.puuid === VIEWER_PUUID)) throw new Error('Theo is not on blue');
+    return { ...fixture, snapshot: { ...fixture.snapshot, lobby: { ...lobby, teams } } };
+  };
+
+  it('on the wrong side: where they are, where to move, and the region of the side they sit on', () => {
+    render(<TonightView {...sitting('balanced', 200)} group={ORIGINAL_GROUP} />);
+    expect(band()).toBe('on RED. Move to BLUE to play support. Noxus for support');
+    expect(screen.getByRole('link', { name: 'Noxus for support' })).toBeInTheDocument();
+    expect(screen.queryByText(/, playing support/)).toBeNull();
+  });
+
+  it('on the right side, or with no side known: the line as before', () => {
+    const right = render(<TonightView {...sitting('balanced', 100)} group={ORIGINAL_GROUP} />);
+    expect(band()).toBe('on BLUE, playing support Ionia for support');
+    right.unmount();
+    render(<TonightView {...sitting('balanced', null)} group={ORIGINAL_GROUP} />);
+    expect(band()).toBe('on BLUE, playing support Ionia for support');
+  });
+
+  it('the next lobby post that moves them brings back the line as before, with no refresh', () => {
+    const view = render(<TonightView {...sitting('balanced', 200)} group={ORIGINAL_GROUP} />);
+    expect(band()).toMatch(/^on RED\. Move to BLUE/);
+    view.rerender(<TonightView {...sitting('balanced', 100)} group={ORIGINAL_GROUP} />);
+    expect(band()).toBe('on BLUE, playing support Ionia for support');
+  });
+
+  it('members not in the split and visitors see no change wherever Theo sits', () => {
+    const others = [
+      { kind: 'linked', puuid: 'puuid-nobody', isAdmin: false, isMember: true } as const,
+      ANON_VIEWER,
+    ];
+    for (const viewer of others) {
+      const view = render(
+        <TonightView {...sitting('balanced', 200)} viewer={viewer} group={ORIGINAL_GROUP} />,
+      );
+      expect(document.querySelector('[data-slot="answer-band"]')).toBeNull();
+      expect(view.container.textContent).not.toMatch(/Move to/);
+      // The general side line under the cards is unchanged, and it is the only instruction.
+      expect(screen.getByText(SIDE_LINE_AUTO)).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('in game: no instruction (the kickoff side, M21.5)', () => {
+    render(<TonightView {...sitting('in-game', 200)} group={ORIGINAL_GROUP} />);
+    expect(band()).not.toMatch(/Move to/);
   });
 });
