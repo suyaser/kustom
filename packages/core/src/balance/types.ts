@@ -38,7 +38,10 @@ export interface BalanceInput {
   /** Exactly ten, in any order. */
   players: readonly BalancePlayer[];
   duos?: readonly Duo[];
-  /** The five puuids on one side of the last chosen split for these ten, or `null`. */
+  /**
+   * The five puuids on one side of the teams these ten **last played** (M21.8: the caller reads
+   * the end-of-game sides, not the last split it suggested), or `null`. Either side's five.
+   */
   lastSplit?: readonly string[] | null;
   /**
    * The odds function's calibration (M18.1 `winProbability`), the same pair the fold passes.

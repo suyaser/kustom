@@ -24,7 +24,12 @@ import {
   formatComparison,
   type RebuildComparison,
 } from './rebuildCompare';
-import { recomputeInferredRoles, selectAllPlayerIds } from './roles';
+import {
+  recomputeInferredRoles,
+  releaseFillFlags,
+  selectAllPlayerIds,
+  selectReleasedFillFlags,
+} from './roles';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
 /**
@@ -201,6 +206,13 @@ export interface RebuildReport {
    */
   rolesChanged: number;
   /**
+   * Stored `counts_for_role_inference = false` rows this run sets back to `true` (or would): the
+   * M21.8 fill guard's refold of history, for games whose teams were not the chosen split's or
+   * whose player played another role than the split's (`selectReleasedFillFlags`). Zero on every
+   * run after the first.
+   */
+  fillFlagsReleased: number;
+  /**
    * The biggest move this rebuild made to a `mu` that was **already stored**. A player who had
    * no `ratings` row is not a move of any size — they are counted in `firstRatings` instead,
    * because "the biggest change was 25.0" for somebody's first game is noise, not news.
@@ -241,6 +253,7 @@ export function rebuildWrote(result: RebuildResult): boolean {
     report.breakdownsFilled > 0 ||
     report.ratingRowsChanged > 0 ||
     report.prunedRatings > 0 ||
+    report.fillFlagsReleased > 0 ||
     report.rolesChanged > 0
   );
 }
@@ -660,6 +673,9 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
               : new Date(Date.parse(kustomWeekStart(lastRatedAt, timeZone)) - 7 * 86_400_000).toISOString(),
         });
 
+  // M21.8: the fill guard's refold (read now so a dry run can say how many would move).
+  const releasedFlags = await selectReleasedFillFlags(client, groupId);
+
   const report: RebuildReport = {
     groupId,
     groupSlug,
@@ -678,6 +694,7 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
     seedsStored,
     playersWritten: played.size,
     rolesChanged: 0,
+    fillFlagsReleased: releasedFlags.length,
     largestMuChange,
     firstRatings,
     orphanRatings: orphans.length,
@@ -721,6 +738,9 @@ export async function rebuildRatings(client: ServiceClient, options: RebuildOpti
   //
   // After the writes, because it reads `mu_after` to decide which games count, and that column
   // is what the two calls above have just settled.
+  //
+  // The fill guard's released flags first (M21.8), because the recompute reads them.
+  report.fillFlagsReleased = await releaseFillFlags(client, releasedFlags);
   const roles = await recomputeInferredRoles(client, await selectAllPlayerIds(client), { now });
   report.rolesChanged = roles.changed;
 
@@ -1287,6 +1307,9 @@ export function formatRebuildReport(report: RebuildReport): string {
     }, ${report.kustom.ratingRows} ratings row${report.kustom.ratingRows === 1 ? '' : 's'}, ${report.kustom.weeks} week${
       report.kustom.weeks === 1 ? '' : 's'
     }`,
+    `fill guard    ${report.fillFlagsReleased} filled flag${report.fillFlagsReleased === 1 ? '' : 's'} ${
+      report.dryRun ? 'to release' : 'released'
+    } (M21.8: teams or role not the split's)`,
     `roles         ${report.rolesChanged} inferred pair${report.rolesChanged === 1 ? '' : 's'} moved`,
     `biggest move  ${formatMuChange(report.largestMuChange, report.firstRatings)}`,
   ];
