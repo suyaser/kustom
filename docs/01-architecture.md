@@ -10,8 +10,8 @@
 |  eog capture         |   POST /api/companion/rank         |    rating)                |
 |  rank sync           |   GET  /api/companion/me           |  Supabase client          |
 |                      |   GET  /api/companion/commands     |                           |
-|  lobby automation    | <-------------------------------- |                           |
-+----------------------+   (create lobby, invite, switch)   +------------+--------------+
+|  side switching      | <-------------------------------- |                           |
++----------------------+           (switch side)            +------------+--------------+
         |  local HTTPS + WSS                                             |
         v                                                               v
 +----------------------+                                   +---------------------------+
@@ -139,7 +139,8 @@ and the two `players.backfill_*` columns are still in the table and read by noth
 Also in the schema:
 
 - **Enums, not check constraints**, for the string unions: `lobby_status`, `player_role`, `game_source`,
-  `companion_command_kind` (`create_lobby`, `invite`, `switch_side`), `companion_command_status` (`pending`,
+  `companion_command_kind` (`switch_side`; `create_lobby` and `invite` are still values but retired since M22.11,
+  below), `companion_command_status` (`pending`,
   `sent`, `acked`, `failed`). The generated types then carry the same unions `packages/core` declares. `side`
   stays a smallint with a check, because 100 and 200 are the client's numbers, not a vocabulary of ours.
 - **Functions.** Every `security definer` function is `set search_path = ''`, has execute revoked from public,
@@ -284,13 +285,13 @@ Rules:
   (it reads the teams that were played, below); `roster_key` stays for history and the receipt.
 - A companion token is revoked by setting `companion_tokens.revoked_at`, never by deleting the row: the auth path
   filters on it and `last_seen_at` stays as the audit trail of a token that may have leaked.
-- **At most one `create_lobby` command is live at a time per group** (M4.9,
-  `0008_one_create_lobby_at_a_time.sql`; per group since M13.3's `0019`): a partial unique index over
-  `(group_id, kind)` where `kind = 'create_lobby' and status in ('pending', 'sent')`. That is the Start-a-lobby
-  double-tap lock, per group rather than per host so two admins pressing at once cannot open two lobbies and fan
-  out two sets of invites, and per group rather than global so one group's press never blocks another's.
-  The API still reads the pending row first for the friendly refusal and maps a `23505` on this index to the same
-  409. An ack, a non-retryable nack or the expiry sweep takes the row out of the two live statuses and releases the lock.
+- **`create_lobby` and `invite` are retired command kinds** (M22.11; decision rows 2026-10-05 "M22.11 how Start a
+  lobby was removed" and "Companion command cleanup after M22.11"). Lobbies come from the customs hosts open in
+  League; nothing queues either kind any more and only `switch_side` is in the companion contract. Both enum
+  values and the `0008_one_create_lobby_at_a_time.sql` partial unique index (per group since `0019`) stay on
+  purpose: dropping an enum value needs a migration and nothing inserts them. A stray old row only expires by
+  TTL; the poll hands its kind out as a plain string and `ackCommand` accepts its result as plain JSON, so an
+  older companion never loops on a 422.
 
 ### The daily game (`daily_mysteries`, M5.32; two games from M8.4)
 
@@ -870,8 +871,8 @@ check read membership, so a shared champion is in both pools and `kept` for eith
   champions, so each side keeps 8 of its own even if the other takes every shared one. Never the same region
   twice, never `unaffiliated`; symmetric.
 - `drawSpin(options, previousRule, playable, rng)`: a family uniformly from `SPIN_FAMILIES` (`class`, `region`,
-  `mirror`; M17.17), then an option; never the previous rule, an unplayable option or a standing mode. Mirror joined
-  once Start a lobby began opening the Blind Pick lobby itself. `drawRegions(regions, source, rng)`: blue uniformly from the candidates
+  `mirror`; M17.17), then an option; never the previous rule, an unplayable option or a standing mode. Mirror match
+  needs a Blind Pick custom, which the host opens in League (nothing opens it for them since M22.11). `drawRegions(regions, source, rng)`: blue uniformly from the candidates
   with at least one partner passing `pairDrawable`, then red uniformly from blue's passing partners. `source` is
   `{ roster, bans }` (applies the union rule) or bare open counts (reads regions as disjoint: only right while no
   champion is shared). Both sort candidates by a stable key; `rng` returns `[0, 1)` or the draw throws `RangeError`.
@@ -959,8 +960,7 @@ in_game ---(2h idle, no result)---> dropped ---(a late eog block)---> finished
   promotes another split without the lobby ever leaving `balanced` (`promoteSplit` supersedes the old split's
   rows and queues the new ones in the same write). **Leaving** `balanced` — to `open`, `in_game`, `finished`,
   `abandoned` — fails the ones still pending with `superseded`, inside `moveLobby` itself. Nobody is dragged to
-  a side from a split the group has moved on from. `create_lobby` and `invite` are never queued by a transition
-  (they are M4.2's button) and never superseded by one; they expire on their own TTL.
+  a side from a split the group has moved on from. `switch_side` is the only kind the server queues (M22.11).
 
 ## Overlay panel (inside `apps/companion`)
 
@@ -981,7 +981,7 @@ watching: on lobby event -> POST /api/companion/lobby
           on gameflow InProgress -> mark lobby in_game
           on eog WS event -> POST /api/companion/game (GET eog-stats-block only as the connect-time fallback)
           every 6h -> POST /api/companion/rank for self; on lobby roster, for each unknown puuid
-          every 5s -> GET /api/companion/commands -> execute (create lobby, invite, switch side) -> ack
+          every 5s -> GET /api/companion/commands -> execute (switch side) -> ack
 ```
 
 - Config in `%APPDATA%/customs-night/config.json`: `{ mode, apiBase, companionToken? }`. Host pastes a token
@@ -1040,7 +1040,7 @@ watching: on lobby event -> POST /api/companion/lobby
   the challenge routes and a mismatch is 404). `cron/sweep` stays global.
 - `/api/me/*` **the third route class** (M3.6): a Supabase session with a **linked player**, scoped to the
   body's `groupId` since M13.4 — after the parse, `lib/me/route.ts` hands the handler `context.role`, the
-  player's membership role in that group or `null`. `start` and `role-tonight` refuse a non-member (403
+  player's membership role in that group or `null`. `role-tonight` refuses a non-member (403
   `NOT_IN_THIS_GROUP`); `link` asks nothing of a visitor who has no player row yet and only claims out of that
   group's tonight lobby. The caller is resolved the one way this project resolves anybody — session → Discord
   identity → `players.discord_id` → the player row — and no request body is ever part of that chain
@@ -1062,17 +1062,6 @@ watching: on lobby event -> POST /api/companion/lobby
   - Which members may be claimed is decided **on the server** with the service role
     (`apps/web/lib/me/claimable.ts`): `discord_id` is not readable with the anon key, so the page is handed the
     PUUIDs of the unclaimed members only and never learns who is linked to what.
-  - `POST /api/me/lobbies/start` is `Start a lobby` (M4.2's rules, moved onto this class by M4.13): one
-    `create_lobby` command for the host the server picked (payload `{ lobbyName, lobbyPassword, pickType }`, M17.17:
-    `pickType` is `blind` when the group's next rule is mirror match and `draft` otherwise; a payload without it
-    reads as draft, and the companion resolves that entry from the client's own custom-queue list), with the
-    invites following off its ack. The presser
-    is `context.me.player.playerId` from the session and never the body, which carries nothing but a
-    `redirectTo` for the no-JavaScript path; a session with no player row is a 403 with
-    `START_LOBBY_NOT_LINKED` rather than a 500. **There is no admin branch**: an admin of the group is a member
-    of it, so `/admin`'s one button posts here too and the old
-    `/api/admin/lobbies/start` was deleted rather than aliased. The rules and every string it answers with are
-    `apps/web/lib/lobbyStart.ts`, imported by both surfaces.
 - **Creating, joining and pairing** (M13.5; `lib/groups/`, schemas in `packages/db/src/schemas/invites.ts`).
   Session routes that come before a group is the caller's, so they carry no `groupId` to check and use
   `lib/groups/sessionRoute.ts` (`resolveMe` without `withViewerAuth`'s membership step): `POST /api/groups
