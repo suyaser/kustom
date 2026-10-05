@@ -6,6 +6,7 @@ import {
   shareFor,
 } from '@customs/core';
 import type { SideValue } from '@customs/db';
+import { foldBlueWinProb } from '../games/receipt';
 
 /**
  * Why each game moved a Rating by as much as it did (M14.58, Kustom since M18.6), and which odds a
@@ -232,13 +233,10 @@ function pct(p: number): number {
 /**
  * The all-time fold's blue probability for a game: the stored `fold_p` when every blue row was
  * folded under Kustom (they are one number written five times; the first is read), else `null`.
+ * One rule with `lib/games/receipt.ts`'s `foldBlueWinProb`, which it delegates to.
  */
 export function ratingBlueWinProb(rows: readonly BreakdownRow[]): number | null {
-  const blue = rows.filter((row) => row.side === 100);
-  const red = rows.filter((row) => row.side === 200);
-  if (blue.length !== 5 || red.length !== 5) return null;
-  if (!rows.every((row) => row.rAfter !== null && row.foldP !== null)) return null;
-  return blue[0]?.foldP ?? null;
+  return foldBlueWinProb(rows);
 }
 
 /** The result line's odds (M14.59), or `null` for a game with neither number. */
