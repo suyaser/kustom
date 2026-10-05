@@ -9,7 +9,8 @@ import {
 import { supersedeLobbyCommands } from '../commands/queue';
 import type { CompanionIdentity } from '../companionAuth';
 import type { LiveChanges } from '../live/bump';
-import { ACTIVE_LOBBY_STATUSES, assertLegalTransition, isActiveLobbyStatus } from '../lobbyState';
+import { HOST_WINDOW_MS } from '../lobbyStart';
+import { ACTIVE_LOBBY_STATUSES, assertLegalTransition, isActiveLobbyStatus, moveLobby } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
 import { ensureMemberships } from './memberships';
 import { ensurePlayers } from './players';
@@ -285,6 +286,116 @@ export interface LobbyIngestOptions {
  * finished game would hand the party to whichever group's companion happened to post first.
  */
 export async function ingestLobby(
+  client: ServiceClient,
+  payload: CompanionLobbyPayload,
+  reportedByPlayerId: string,
+  options: LobbyIngestOptions,
+): Promise<LobbyIngestResult> {
+  const result = await ingestPostedLobby(client, payload, reportedByPlayerId, options);
+  // After the post landed, whichever way it answered (a foreign party included, M22.1 case d):
+  // this token's Kustom is in party X now, so it is in no other lobby.
+  await letGoLeftLobbies(client, {
+    groupId: options.groupId,
+    playerId: reportedByPlayerId,
+    partyId: payload.partyId,
+    now: options.now ?? new Date(),
+    live: options.live,
+  });
+  return result;
+}
+
+/**
+ * **A host's Kustom is in one lobby at a time** (M22.1, decision row M22 D6). The client cannot be
+ * in two lobbies, so a post from player P's token for party X means P has left every other lobby,
+ * and the client's lobby `Delete` posts nothing. Every other lobby of the token's group that is
+ * `open` or `balanced`, was reported by P and is not party X is **let go**:
+ *
+ * - unless another member of it has an unrevoked token of the group seen inside
+ *   {@link HOST_WINDOW_MS}: that Kustom still reports it, and nothing is written;
+ * - a `balanced` one first takes the teams-down move (`balanced -> open`), so
+ *   `lobbies_drop_mode_lock` hands its lock back to `group_modes` through `mode_hand_back` and
+ *   `moveLobby` supersedes its commands; then `open -> abandoned`. Never `balanced -> abandoned`
+ *   directly: that would keep the lock off the card.
+ * - `in_game` is never touched (M21.11 owns those rows).
+ *
+ * Every move is `moveLobby`'s compare-and-set, so a lobby another request moved first (a game
+ * started, a roll) keeps that request's status. Each move touches the group's live signal, which
+ * the route bumps once with everything else the request touched. A repeated post finds nothing to
+ * let go and writes nothing; on the common post this is one indexed read.
+ *
+ * Known gap until M22.5: when two lobbies really are live (a co-host's Kustom still in the other),
+ * Tonight still draws the newest.
+ */
+async function letGoLeftLobbies(
+  client: ServiceClient,
+  input: { groupId: string; playerId: string; partyId: string; now: Date; live: LiveChanges | undefined },
+): Promise<void> {
+  const { data, error } = await client
+    .from('lobbies')
+    .select('id, status')
+    .eq('group_id', input.groupId)
+    .eq('reported_by_player_id', input.playerId)
+    .in('status', ['open', 'balanced'])
+    .neq('lcu_party_id', input.partyId);
+  if (error) throw new Error(`ingestLobby: left lobbies select failed: ${error.message}`);
+  const left = data ?? [];
+  if (left.length === 0) return;
+
+  const watched = await selectWatchedLobbies(
+    client,
+    left.map((row) => row.id),
+    input,
+  );
+
+  for (const row of left) {
+    if (watched.has(row.id)) continue;
+    if (row.status === 'balanced') {
+      // Teams down first: the trigger hands the lock back. A `false` means another request moved
+      // the lobby; the next move then only lands if that left it `open`.
+      if (await moveLobby(client, { lobbyId: row.id, from: ['balanced'], to: 'open' })) {
+        input.live?.touch(input.groupId, 'lobby');
+      }
+    }
+    if (await moveLobby(client, { lobbyId: row.id, from: ['open'], to: 'abandoned' })) {
+      input.live?.touch(input.groupId, 'lobby');
+    }
+  }
+}
+
+/**
+ * The lobbies among `lobbyIds` that another member is still watching: a `lobby_members` row other
+ * than the poster whose player has an unrevoked token of the group seen inside
+ * {@link HOST_WINDOW_MS}.
+ */
+async function selectWatchedLobbies(
+  client: ServiceClient,
+  lobbyIds: readonly string[],
+  input: { groupId: string; playerId: string; now: Date },
+): Promise<Set<string>> {
+  const { data: members, error } = await client
+    .from('lobby_members')
+    .select('lobby_id, player_id')
+    .in('lobby_id', [...lobbyIds])
+    .neq('player_id', input.playerId);
+  if (error) throw new Error(`ingestLobby: left lobby members select failed: ${error.message}`);
+  const others = [...new Set((members ?? []).map((row) => row.player_id))];
+  if (others.length === 0) return new Set();
+
+  const seenSince = new Date(input.now.getTime() - HOST_WINDOW_MS).toISOString();
+  const { data: tokens, error: tokenError } = await client
+    .from('companion_tokens')
+    .select('player_id')
+    .eq('group_id', input.groupId)
+    .is('revoked_at', null)
+    .gte('last_seen_at', seenSince)
+    .in('player_id', others);
+  if (tokenError) throw new Error(`ingestLobby: co-host token select failed: ${tokenError.message}`);
+  const hosts = new Set((tokens ?? []).map((row) => row.player_id));
+  return new Set((members ?? []).filter((row) => hosts.has(row.player_id)).map((row) => row.lobby_id));
+}
+
+/** The post itself: the party's row and its roster (everything {@link ingestLobby} did before M22.1). */
+async function ingestPostedLobby(
   client: ServiceClient,
   payload: CompanionLobbyPayload,
   reportedByPlayerId: string,
