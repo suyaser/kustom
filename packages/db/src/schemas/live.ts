@@ -20,7 +20,7 @@ import { groupIdSchema } from './groups';
  * ({@link GROUP_LIVE_KIND_PRECEDENCE}).
  *
  * - `lobby`: a lobby roster, side, spectator flag, name or status moved (lobby post, the idle
- *   sweep, `in_progress`), a player's role for tonight, or Start a lobby queued a command.
+ *   sweep, `in_progress`), a player's role for tonight, or a side switch was queued.
  * - `split`: Roll or Reroll put teams up.
  * - `game`: an end-of-game block (or a backfilled game) was stored, rated, or closed its lobby.
  * - `mode`: the Mode card moved (mode, Spin, Rated, fearless reset). The name-free card can be
