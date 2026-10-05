@@ -2113,6 +2113,76 @@ Placement follows STRATEGY §6(a)'s order; the card never moves above the strip 
 | Reset moment (Realtime) | Dashed card: `Fresh pool.` + `Raafat reset fearless, so every champion is open again.` · `reset 21:40`, until the next game lands. Announcer: `Fearless reset. Every champion is open again.` | in place | n/a |
 | Mode changed (Realtime) | The card re-renders in place (it never disappears, 8.2); after a switch to Normal, members get a dashed note inside the card (`Back to Normal.` / `An admin set tonight to Normal, so every champion is open.`) until the next game lands. A one-game M15 mode returns to the standing mode after its game, which reads as this same change. Announcer: `Tonight's mode is now Class wars: Tanks only.` | in place | same |
 
+#### 8.3.1 Region wars' pair controls on the admin foot (M20.10, ruled 2026-10-05)
+
+Ruled in the M20.10 design review, round 1, on the kit frames at 375 Night and 1440 Day. This is placement
+and three strings. Everything else is M20.1's copy, unchanged.
+
+**New copy (approved, [NEW COPY] in `lib/mode/ruleCopy.ts`):**
+
+| String | Where | Why |
+|---|---|---|
+| `Set region` | The submit beside each side select. It shows once that select's choice differs from the side's region, and always without JS. It looks like `Set mode`: the primary button on the select's row, 44px. | A select never posts on change. Each change sends the teams post again (a this-game change), arrowing a closed select on Windows fires `change` once per option, and no-JS needs a submit anyway. |
+| `This game` | The legend over this game's pair. It only shows after Roll, while the lobby is balanced. | After Roll the foot can hold two pairs. Each one needs to say which game it belongs to. |
+| `Next game` | Not a new region heading. The next game's pair has **no heading of its own**: it sits under the mode picker, whose label is already `Next game` once teams are rolled (M20.8). | One `Next game` per group. |
+
+**Order of the foot**
+
+Before Roll (no lobby, filling, or more than ten):
+
+1. eyebrow `Admins and the owner`;
+2. `Mode` picker, `Spin` and the one-game sentence;
+3. the next game's pair: `Blue's region`, `Red's region`, `Redraw regions`, with no heading (the picker
+   above is the next game's);
+4. `Rated`, then `Reset fearless`.
+
+After Roll, balanced (two groups, split by a hairline):
+
+1. eyebrow;
+2. **`This game`** (a `<fieldset>` legend, same style as the picker label): `Blue's region`, `Red's region`,
+   `Redraw regions`. It comes first because it is the pair the status above shows.
+3. a hairline, `border-t border-border` with `pt-3`, that opens the next-game group;
+4. `Changes apply from the next game.` (8.3's in-game caption, text 15 muted), then the `Next game`
+   picker, `Spin` and the one-game sentence;
+5. the next game's pair when region wars is pending, **with no heading**;
+6. `Rated`, then `Reset fearless`.
+
+In game (no this-game controls): no hairline. The foot starts with the caption, as in M20.8.
+
+- **The caption never sits directly under this game's `Redraw regions`.** A this-game change applies at
+  once and reposts the teams, so a caption right under it saying "from the next game" would be false. The
+  hairline and its position at the top of the next-game group give it the right owner.
+- **The bold `Next game: Region wars.` line (`nextLine`) is not rendered in the foot after Roll.** The
+  picker's label and its value already say the same thing, and the caption takes its slot whether a rule is
+  pending or not. `nextLine` stays wherever it appears outside the foot.
+- In the 2-column layout (the card's container ≥ 520px) the two side selects share a row and
+  `Redraw regions` goes on its own line under them. At 375 they stack: Blue, Red, Redraw. Blue always comes
+  first. The order never depends on the viewer's side.
+- A region change's notice (`Next game: Shurima vs Zaun.`, `New regions: …`) uses the foot's existing
+  notice slot, like `Set mode`. The status above changes in place, so the tap gets a visible answer even at
+  375, where the notice is below the fold.
+
+**The short-pair line**
+
+`Too few champions are open for this pair now. Roll will draw new regions unless an admin changes them.`
+
+- **Look:** text-sm, 700, `--foreground`. No colour, no icon, no box. It is a fact with a consequence, not
+  an error.
+- **Placement:** directly under the status (the pair) and above the lane line and the one-game line, for
+  everyone, before Roll. Admins do not get a second copy in the foot while the status shows it.
+- **After Roll,** when the next game's pair in the foot is the one that went short, the line goes once,
+  inside the next-game group, above that pair's selects. The status there is this game's pair, so the line
+  would be wrong under it.
+- In the select, the short side reads `Ixtal (too few open)` and stays selected. The other short regions
+  are disabled.
+
+**Do not**
+
+- No side colour, tint or glyph on the selects or their labels. The status above carries the side marks,
+  and the controls are plain form controls.
+- No auto-post on select change, and no `Random` option (M20.1).
+- No motion on a redraw or a change, reduced motion or not. The status re-renders in place.
+
 ### 8.4 The card, visually
 
 #### 8.4.1 Anatomy (375, `mode-card-states-375.png`)
@@ -2371,7 +2441,7 @@ A mode is **one definition**, not a component tree. The card and the panel are s
 | Field | Fearless | Class wars | Region wars |
 |---|---|---|---|
 | `name` / option label | `Fearless` | `Class wars` / `Tanks only` (one option per class) | `Region wars` |
-| `status` (card level 1) | `138 open · 34 banned` | `Tanks only` | `◣ BLUE Ionia` vs `◥ RED Noxus` (side glyph + display face side word, region in text 700 23; `Sides drawn when teams are rolled.` before balanced) |
+| `status` (card level 1) | `138 open · 34 banned` | `Tanks only` | `◣ BLUE Ionia` vs `◥ RED Noxus` (side glyph + display face side word, region in text 700 23; the same status before Roll, because the pair is drawn when region wars is chosen (M20 D9), with M20.1's short-pair line under it when bans have made the pair undrawable (8.3.1)) |
 | `actionLabel` | `See what's open` | `See the tanks` | `See both pools` |
 | `laneLabel(role)` (answer band) | `What's open for support` | `Tanks for support` | `Ionia for support` (your side's region) |
 | `ratedDefault` | rated | not rated (M15) | not rated (M15) |
