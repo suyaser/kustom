@@ -13910,7 +13910,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
 
 **Tasks**
 
-- [ ] **M22.1** Tonight follows the host to the lobby they joined (the bug, ships first). *(owner:
+- [x] **M22.1** Tonight follows the host to the lobby they joined (the bug, ships first). *(owner:
   `platform-engineer`; no migration, no companion change, no Tonight change)* **Step 0, the lead, read only on
   hosted:** list last night's `lobbies` of every group the two hosts are in (`id`, `group_id`, `lcu_party_id`,
   `status`, `created_at`, `updated_at`, `reported_by_player_id`) and paste the rows (ids shortened, no names) under
@@ -13937,6 +13937,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   draws the newest; that is M22.5 and M22.6.
 
   *Step 0, run by the owner 2026-10-05 (hosted, read only, ids shortened): every lobby of the night is in the same group (customs). Host B's lobby 84ca (reporter 630d) opened 18:50; the owner's 02c8 (reporter 51db) opened 19:29; the owner then posted party 3ff6 from 19:38, whose cycles finished through the night. 02c8 stayed `open` until the sweep at 21:30 and 84ca until 21:38. Same group, so the cause is this task's rule, not the foreign-party one; M22.1 would have let 02c8 go at 19:38.*
+  *Landed 2026-10-05 (72b1cf6e, reviewer pass). oneLobby.integration replays the owner's scene. Follow-ups: a let-go failure fails an otherwise landed post (idempotent retry, noise); a co-host who moved with P keeps A until M22.3.*
 - [ ] **M22.2** Design: Tonight and Discord with two lobbies. *(owner: `designer` for `docs/05-design.md`, `product`
   for every word; after the owner answers OPEN 4 and 5)* Spec the switcher above (chip anatomy, selected state,
   where it sits on 375 and 1440, how a third lobby fits, how the switcher leaves when one table is left, focus and
