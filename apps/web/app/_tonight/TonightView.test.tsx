@@ -12,12 +12,13 @@ import {
   NO_ODDS,
   PRE_GAME_NO_SPLIT,
   PRE_GAME_TEAMS_CHANGED,
+  resultOddsShort,
   TITLE_BALANCED,
   TITLE_FINISHED,
   TITLE_IN_GAME,
   TITLE_PRE_GAME,
 } from '@/lib/receipt/copy';
-import { lobbyView, snapshot, workedMembers, workedTeams } from '@/lib/testing/tonightFixtures';
+import { lobbyView, snapshot, workedMembers, workedResult, workedTeams } from '@/lib/testing/tonightFixtures';
 import { visibleText } from '@/lib/testing/visibleText';
 import {
   IN_GAME_SENTENCE,
@@ -1194,5 +1195,122 @@ describe('in game: the teams that started (M21.5)', () => {
       expect(row.className).toContain('grid-cols-[minmax(0,1fr)_auto]');
       expect(row.className).not.toContain('3.25rem');
     }
+  });
+});
+
+/**
+ * M21.7: a finished game on Tonight prints the odds of the teams that played, by the game page's
+ * rule (`gameReceiptOf`): the bot's receipt turned round on swapped sides, pre-game odds (the
+ * kickoff record's first) when the teams changed after the roll, none on a not-rated changed game.
+ * The poster (a rated result) and the finished-not-rated teams block (a remake) both.
+ */
+describe('finished: the odds of the teams that played (M21.7)', () => {
+  type Result = ReturnType<typeof workedResult>;
+  const members = workedMembers();
+  const teams = workedTeams({ members });
+  const p = teams.blueWinProb;
+  /** The split's two teams on each other's sides. */
+  const swapped = (result: Result): Result => ({
+    ...result,
+    blue: result.red.map((seat) => ({ ...seat, side: 100 as const })),
+    red: result.blue.map((seat) => ({ ...seat, side: 200 as const })),
+  });
+  /** The first blue and the first red traded after the roll. */
+  const traded = (result: Result): Result => {
+    const [b0, ...blue] = result.blue;
+    const [r0, ...red] = result.red;
+    if (b0 === undefined || r0 === undefined) throw new Error('fixture');
+    return {
+      ...result,
+      blue: [{ ...r0, side: 100 as const }, ...blue],
+      red: [{ ...b0, side: 200 as const }, ...red],
+    };
+  };
+  const drawWith = (result: Result) => {
+    const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW });
+    const view = lobbyView({ status: 'finished', members, teams, result });
+    return render(
+      <TonightView {...fixture} snapshot={{ ...fixture.snapshot, lobby: view }} group={ORIGINAL_GROUP} />,
+    );
+  };
+  const sideOf = (puuid: string) =>
+    ['Blue team', 'Red team'].find((side) =>
+      within(screen.getByRole('region', { name: side }))
+        .queryAllByRole('link')
+        .some((link) => link.getAttribute('href')?.endsWith(`/p/${puuid}`)),
+    );
+
+  it('the poster, played as rolled: the split odds, exactly as before', () => {
+    drawWith(workedResult({ award: null }));
+    const receipt = screen.getByRole('region', { name: TITLE_FINISHED });
+    expect(within(receipt).getByText(resultOddsShort(p, 200))).toBeInTheDocument();
+  });
+
+  it('the poster, swapped sides: the bot receipt turned round, so red (the split blue) was p', () => {
+    drawWith(swapped(workedResult({ award: null, blueWinProb: 1 - p, oddsKind: 'rolled' })));
+    const receipt = screen.getByRole('region', { name: TITLE_FINISHED });
+    expect(within(receipt).getByText(resultOddsShort(1 - p, 200))).toBeInTheDocument();
+    expect(within(receipt).queryByText(resultOddsShort(p, 200))).toBeNull();
+  });
+
+  it('the poster, teams changed: pre-game odds at the kickoff number, the teams-changed line', () => {
+    drawWith(
+      traded(
+        workedResult({ award: null, blueWinProb: 0.35, oddsKind: 'pre-game', kickoffBlueWinProb: 0.35 }),
+      ),
+    );
+    expect(screen.queryByRole('region', { name: TITLE_FINISHED })).toBeNull();
+    const receipt = screen.getByRole('region', { name: TITLE_PRE_GAME });
+    expect(within(receipt).getByText(PRE_GAME_TEAMS_CHANGED)).toBeInTheDocument();
+    expect(within(receipt).getByText(resultOddsShort(0.35, 200))).toBeInTheDocument();
+  });
+
+  it('the poster, teams changed on a game played not rated: no odds', () => {
+    drawWith(
+      traded(
+        workedResult({
+          award: null,
+          blueWinProb: null,
+          oddsKind: 'none',
+          stamp: { rift: true, rated: false, rule: null, check: null },
+        }),
+      ),
+    );
+    expect(screen.getByText(NO_ODDS)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: TITLE_FINISHED })).toBeNull();
+  });
+
+  describe('the teams block of a game the fold did not rate (a remake)', () => {
+    const remake = (result: Result): Result => ({
+      ...result,
+      rated: false,
+      blue: result.blue.map((seat) => ({ ...seat, rAfter: null })),
+      red: result.red.map((seat) => ({ ...seat, rAfter: null })),
+    });
+
+    it('swapped sides: each team on the side it played, the split receipt turned round', () => {
+      const result = remake(swapped(workedResult({ award: null, oddsKind: 'rolled' })));
+      drawWith(result);
+      expect(sideOf(VIEWER_PUUID)).toBe(
+        teams.blue.some((seat) => seat.puuid === VIEWER_PUUID) ? 'Red team' : 'Blue team',
+      );
+      expect(screen.getAllByText(barSentence(1 - p)).length).toBeGreaterThan(0);
+    });
+
+    it("teams changed: the scoreboard's sides and pre-game odds, never the split's teams under its odds", () => {
+      const result = remake(
+        traded(workedResult({ award: null, oddsKind: 'pre-game', kickoffBlueWinProb: 0.35 })),
+      );
+      drawWith(result);
+      const movedToRed = result.red[0]?.puuid ?? '';
+      expect(sideOf(movedToRed)).toBe('Red team');
+      expect(screen.getByText(PRE_GAME_TEAMS_CHANGED)).toBeInTheDocument();
+      expect(screen.queryAllByText(barSentence(p))).toHaveLength(0);
+    });
+
+    it('teams changed, not rated: no odds', () => {
+      drawWith(remake(traded(workedResult({ award: null, oddsKind: 'none' }))));
+      expect(screen.getByText(NO_ODDS)).toBeInTheDocument();
+    });
   });
 });
