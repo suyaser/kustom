@@ -419,6 +419,8 @@ export interface TapeEntry {
      * game under the rule), for `Tanks only · not rated` on the tile. Null or absent: no rule.
      */
     rule?: Mode | null | undefined;
+    /** M23.2: `games.void_reason` (`early-end`, `admin`): the tile says `ended early` / `voided`. */
+    voidReason?: string | null | undefined;
   } | null;
   /** The chosen split's stored odds, or `null` with no split: no evenness line, no underdog line. */
   blueWinProb: number | null;

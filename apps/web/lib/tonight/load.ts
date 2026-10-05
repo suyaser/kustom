@@ -42,6 +42,7 @@ import { type LobbyCard, loadLobbyCards } from './cards';
 import { renderWebName } from './copy';
 import { kickoffView, readKickoff } from './kickoff';
 import { pickTable } from './selection';
+import { isRemake } from './state';
 import { nightTables, seatsFromRosters, type TokenSeen, tablesOverlapped } from './tables';
 import type {
   LobbyView,
@@ -402,7 +403,7 @@ const SPLIT_COLUMNS =
  * columns of `GAME_STAMP_COLUMNS`) and its scoreboard, embedded, with the award's stat line (M11.3).
  */
 const NIGHT_GAME_COLUMNS =
-  'id, lobby_id, winning_side, started_at, duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after, fold_p)' as const;
+  'id, lobby_id, winning_side, started_at, duration_s, gameMode:game_mode, rule, rule_class_tag, rule_region_blue, rule_region_red, rated, rule_checked, rule_check, void_reason, game_players(player_id, side, role, kills, deaths, assists, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, damage_to_champs, r_before, r_after, fold_p)' as const;
 
 type NightGameRow = GameStampRow & {
   id: string;
@@ -1254,6 +1255,8 @@ export interface TapeSource {
     rule_checked?: boolean;
     /** `games.rated` (M15.18): a not-rated game shows no pre-game odds (M21.7). Absent: rated. */
     rated?: boolean;
+    /** M23.2 (`0052`): why it was voided; absent in older fixtures, read as not voided. */
+    void_reason?: string | null;
   }[];
   /**
    * The scoreboard rows. `r_*` decide `rated`; the stat line (optional, M14.9) is the MVP's input,
@@ -1308,7 +1311,10 @@ export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[]
   const splitByLobby = new Map(source.splits.map((split) => [split.lobby_id, split]));
 
   return source.lobbies.map((lobby) => {
-    const game = gamesByLobby.get(lobby.id);
+    // A remake (300 s or less) is no result: the tile says `No result` and the tape does not count
+    // it, as Discord posts nothing for one (`announcesResult`).
+    const newest = gamesByLobby.get(lobby.id);
+    const game = newest === undefined || isRemake(newest.duration_s) ? undefined : newest;
     const split = splitByLobby.get(lobby.id);
     const rows = game === undefined ? [] : (rowsByGame.get(game.id) ?? []);
     const odds = game === undefined ? null : tapeOdds(game, rows, split, source);
@@ -1329,6 +1335,7 @@ export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[]
               rated: rows.length > 0 && rows.every((row) => row.r_before !== null && row.r_after !== null),
               mvp: tapeMvp(rows, game, source.players),
               rule: tapeRule(game),
+              ...(game.void_reason == null ? {} : { voidReason: game.void_reason }),
             },
       blueWinProb: odds === null ? (split?.blue_win_prob ?? null) : odds.blueWinProb,
       rank: odds === null ? (split?.rank ?? null) : odds.rank,

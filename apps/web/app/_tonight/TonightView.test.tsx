@@ -1325,6 +1325,42 @@ describe('finished: the odds of the teams that played (M21.7)', () => {
       expect(screen.getByText(NO_ODDS)).toBeInTheDocument();
     });
   });
+
+  describe('a real remake (300 s or less) is no result', () => {
+    const short = (result: Result): Result => ({
+      ...result,
+      durationS: 240,
+      rated: false,
+      award: null,
+      blue: result.blue.map((seat) => ({ ...seat, rBefore: null, rAfter: null })),
+      red: result.red.map((seat) => ({ ...seat, rBefore: null, rAfter: null })),
+    });
+
+    it('teams block: GAME OVER, the teams that played, no winner and no receipt', () => {
+      drawWith(short(swapped(workedResult({ oddsKind: 'rolled' }))));
+      expect(h1()).toBe('GAME OVER');
+      expect(sideOf(VIEWER_PUUID)).toBe(
+        teams.blue.some((seat) => seat.puuid === VIEWER_PUUID) ? 'Red team' : 'Blue team',
+      );
+      expect(screen.queryByRole('region', { name: TITLE_FINISHED })).toBeNull();
+      // Only the tape's earlier games say who won.
+      const tape = screen.getByRole('region', { name: TAPE_TITLE });
+      expect(screen.queryAllByText(/ won\b/).every((line) => tape.contains(line))).toBe(true);
+      expect(screen.queryByText(NO_ODDS)).toBeNull();
+    });
+
+    it('no stored split (unrolled): the poster with no winner, no Won tag, no receipt', () => {
+      const { connection: _c, ...fixture } = tonightStateFixture('finished', { now: NOW });
+      const view = lobbyView({ status: 'finished', members, teams: null, result: short(workedResult()) });
+      render(
+        <TonightView {...fixture} snapshot={{ ...fixture.snapshot, lobby: view }} group={ORIGINAL_GROUP} />,
+      );
+      expect(h1()).toBe('GAME OVER');
+      expect(screen.queryByText('Won')).toBeNull();
+      expect(screen.queryByRole('region', { name: TITLE_FINISHED })).toBeNull();
+      expect(screen.queryByText(NO_ODDS)).toBeNull();
+    });
+  });
 });
 
 /**

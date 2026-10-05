@@ -5,6 +5,7 @@ import { EntityLink } from '@/components/links/EntityLink';
 import { CompactReceipt } from '@/components/receipt';
 import { Chip } from '@/components/ui/chip';
 import { SideGlyph } from '@/components/ui/side-glyph';
+import { voidedNote } from '@/lib/games/copy';
 import { formatMinutes } from '@/lib/games/duration';
 import type { PageGroup } from '@/lib/groups/pageGroup';
 import { ruleRowNote } from '@/lib/mode/rowNote';
@@ -158,7 +159,13 @@ function Tile({
                 aram={result.aram}
               />
             )}
-            {result.aram ? null : <TileNote rated={result.rated} rule={result.rule ?? null} />}
+            {result.aram ? null : (
+              <TileNote
+                rated={result.rated}
+                rule={result.rule ?? null}
+                voidReason={result.voidReason ?? null}
+              />
+            )}
             {result.mvp === null ? null : (
               <span className="mt-1 flex flex-wrap items-center gap-1.5 text-sm font-bold">
                 <MvpSticker />
@@ -191,9 +198,18 @@ function Tile({
 /**
  * Under the receipt line: the rule's name (M15.19, `Tanks only · not rated`, `Mirror match`), else
  * `not rated` for a Rift game no Rating moved on, else nothing. ARAM says so in its own chip.
+ * M23.2: a voided game says why first, as its Games row does (`Not rated · ended early`).
  */
-function TileNote({ rated, rule }: { rated: boolean; rule: Mode | null }) {
-  const note = ruleRowNote(rule, rated) ?? (rated ? null : TAPE_NOT_RATED);
+function TileNote({
+  rated,
+  rule,
+  voidReason,
+}: {
+  rated: boolean;
+  rule: Mode | null;
+  voidReason: string | null;
+}) {
+  const note = voidedNote(voidReason) ?? ruleRowNote(rule, rated) ?? (rated ? null : TAPE_NOT_RATED);
   return note === null ? null : <span className="block text-xs text-muted-foreground">{note}</span>;
 }
 

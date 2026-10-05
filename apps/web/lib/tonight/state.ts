@@ -1,6 +1,7 @@
 import { lockRated } from '@customs/core';
 import { rosterKey } from '@customs/db/constants';
-import { PLAYERS_PER_GAME } from '../lobbyRules';
+import { voidedNote } from '../games/copy';
+import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyRules';
 import { NOT_RATED_RESULT_LINE } from '../mode/notRated';
 import {
   BALANCED_SENTENCE,
@@ -25,6 +26,15 @@ import type {
   TonightSnapshot,
   TonightState,
 } from './types';
+
+/**
+ * A remake: a game of 300 s or less (`MIN_RATED_DURATION_S`, ingest's `recordedKind`). Never rated,
+ * never a result post (`announcesResult`), and on Tonight no result either: no winner on the strip,
+ * the poster or the tape, and never in the night record.
+ */
+export function isRemake(durationS: number): boolean {
+  return durationS <= MIN_RATED_DURATION_S;
+}
 
 /**
  * Snapshot in, one primary block out (05-design.md, "The tonight page's three states — one
@@ -138,7 +148,8 @@ export function tonightHeader(state: TonightState, admins: readonly PlayerName[]
         sentence: state.result.rated
           ? FINISHED_SENTENCE
           : state.result.stamp?.rift === true && !state.result.stamp.rated
-            ? NOT_RATED_RESULT_LINE
+            ? // M23.2: a voided game says why (`Not rated · ended early`, `Not rated · voided`).
+              (voidedNote(state.result.stamp.voidReason ?? null) ?? NOT_RATED_RESULT_LINE)
             : '',
         live: false,
       };

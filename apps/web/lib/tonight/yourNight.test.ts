@@ -142,6 +142,43 @@ describe('your night', () => {
     expect(mixed?.ratingDelta).not.toBeNull();
   });
 
+  it('M23.2: a voided game (ended early, or by an admin) never counts in the night record', () => {
+    const voided = (id: string, at: string, reason: string, winner: 100 | 200 = 100) => ({
+      ...game(id, at, { unrated: true, winner }),
+      duration_s: 632,
+      rated: false,
+      void_reason: reason,
+    });
+    expect(foldYourNight([voided('e1', '2026-10-03T18:00:00Z', 'early-end')], ME, PUUID_OF)).toBeNull();
+    expect(
+      foldYourNight([{ ...voided('v1', '2026-10-03T18:00:00Z', 'admin'), duration_s: 1_800 }], ME, PUUID_OF),
+    ).toBeNull();
+    // Beside a rated game: only the rated one counts, and nothing says not rated.
+    const night = foldYourNight(
+      [voided('e1', '2026-10-03T18:00:00Z', 'early-end', 200), game('g1', '2026-10-03T19:00:00Z')],
+      ME,
+      PUUID_OF,
+    );
+    expect(night).toMatchObject({ wins: 1, losses: 0 });
+    expect(night?.notRated).toBeUndefined();
+    // A game played not rated by a rule (no void stamp) still counts, as before.
+    const ruled = {
+      ...game('n1', '2026-10-03T18:00:00Z', { unrated: true }),
+      rated: false,
+      void_reason: null,
+    };
+    expect(foldYourNight([ruled], ME, PUUID_OF)).toMatchObject({ wins: 1, notRated: true });
+  });
+
+  it('a remake (300 s or less) is no game, ARAM included', () => {
+    const aramRemake = { ...game('a1', '2026-10-03T18:00:00Z', { aram: true }), duration_s: 300 };
+    expect(foldYourNight([aramRemake], ME, PUUID_OF)).toBeNull();
+    expect(foldYourNight([{ ...aramRemake, duration_s: 301 }], ME, PUUID_OF)).toMatchObject({
+      wins: 1,
+      losses: 0,
+    });
+  });
+
   it('goes at the 06:00 boundary: with the clock past it, last night is not tonight', () => {
     const games = [game('g1', '2026-10-03T18:00:00Z')];
     const tonight = nightStart(new Date('2026-10-03T22:00:00Z'), 'Africa/Cairo');
