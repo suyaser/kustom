@@ -38,6 +38,7 @@ import {
 import type { GameStampView } from '../mode/types';
 import { formatClock, formatNightLabel, type NightClock, nightClock } from '../night';
 import type { PublicClient } from '../publicClient';
+import { type LobbyCard, loadLobbyCards } from './cards';
 import { renderWebName } from './copy';
 import { kickoffView, readKickoff } from './kickoff';
 import { pickTable } from './selection';
@@ -164,18 +165,28 @@ export async function loadTonight(
   ];
   // Every finished and dropped row: the tape, and each live table's tile (14.6).
   const tapeLobbies = pickTapeLobbies(lobbies, nightStart, null);
-  const hostIds = anonTables.flatMap((table) =>
-    table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId],
-  );
+  // 14.6: on a night two tables overlapped, every tape tile names its lobby, ended ones too, so the
+  // first reporter of every party tonight is read with the live tables' hosts (round three).
+  const overlapped = anonTables.length >= 2 || tablesOverlapped(tableRows, now);
+  const partyHosts = overlapped ? firstReporters(tableRows) : new Map<string, string>();
+  const hostIds = [
+    ...new Set([
+      ...anonTables.flatMap((table) => (table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId])),
+      ...partyHosts.values(),
+    ]),
+  ];
 
-  const [night, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }, watchers] =
+  const several = anonTables.length >= 2;
+  const [night, { mode, modeSince, ...fearless }, { state: modeRow, failed: modeReadFailed }, watchers, cards] =
     await Promise.all([
       loadNight(client, currents, tapeLobbies, hostIds, groupId, clock),
       fearlessRead,
       modeFacts,
-      anonTables.length >= 2 && options.readWatchers !== undefined
-        ? options.readWatchers()
-        : Promise.resolve(null),
+      several && options.readWatchers !== undefined ? options.readWatchers() : Promise.resolve(null),
+      // M22.6: each forked lobby's own card, only with two or more live (no request on one lobby).
+      several && groupId !== undefined
+        ? loadLobbyCards(client, groupId, nightStart)
+        : Promise.resolve(new Map<string, LobbyCard>()),
     ]);
 
   // M22.3 with the server's tokens: who watches each table, and a finished table whose Kustoms have
@@ -212,6 +223,8 @@ export async function loadTonight(
         watched: watchers === null ? null : table.watchers.length > 0,
         lobby,
         tile: night.tape.find((entry) => entry.lobbyId === table.lobby.id) ?? null,
+        // Only a forked table carries the key, so a one-lobby snapshot is today's field for field.
+        ...(cards.has(table.partyId) ? { card: cards.get(table.partyId) } : {}),
       },
     ];
   });
@@ -219,7 +232,14 @@ export async function loadTonight(
   const drawn = fallback ?? (selectedLobbyId === null ? null : (rowById.get(selectedLobbyId) ?? null));
   const lobby = drawn === null ? null : (night.lobbies.get(drawn.id) ?? null);
   const drawnId = drawnLobbyId(drawn);
-  const tape = night.tape.filter((entry) => entry.lobbyId !== drawnId);
+  const partyOfRow = new Map(nightRows.map((row) => [row.id, row.partyId]));
+  const hostOfTile = (entry: TapeEntry): TapeEntry => {
+    const hostId = partyHosts.get(partyOfRow.get(entry.lobbyId) ?? '');
+    const host = hostId === undefined ? undefined : night.players.get(hostId);
+    return host === undefined ? entry : { ...entry, tableHost: displayName(host) };
+  };
+  const tape = night.tape.filter((entry) => entry.lobbyId !== drawnId).map(hostOfTile);
+  if (overlapped) for (const view of views) if (view.tile !== null) view.tile = hostOfTile(view.tile);
 
   const snapshot: TonightSnapshot = {
     nightStart,
@@ -228,7 +248,7 @@ export async function loadTonight(
     lobby,
     lobbies: views,
     selectedLobbyId,
-    severalLobbiesTonight: tables.length >= 2 || tablesOverlapped(tableRows, now),
+    severalLobbiesTonight: tables.length >= 2 || overlapped,
     fearless,
     mode,
     modeSince: modeSince ?? null,
@@ -295,6 +315,17 @@ async function selectNightLobbies(
     lock: row,
     kickoff: row,
   }));
+}
+
+/** Each party's first reporter tonight (`liveTables`' label rule: the oldest row that has one). */
+function firstReporters(rows: readonly TableRow[]): Map<string, string> {
+  const first = new Map<string, TableRow>();
+  for (const row of rows) {
+    if (row.reportedByPlayerId === null) continue;
+    const seen = first.get(row.lcuPartyId);
+    if (seen === undefined || Date.parse(row.createdAt) < Date.parse(seen.createdAt)) first.set(row.lcuPartyId, row);
+  }
+  return new Map([...first].map(([party, row]) => [party, row.reportedByPlayerId as string]));
 }
 
 /** A night row as `lib/liveTables.ts` folds it. */
