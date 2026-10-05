@@ -5,7 +5,7 @@ import { isNameless, renderWebName } from './tonight/copy';
 /**
  * The group's hosts and whether any of them is up (M14.66): who Tonight names when nobody's Kustom
  * is running, and the window lobby ingest uses. Moved out of the retired `lib/lobbyStart.ts`
- * (M22.11, Start a lobby removed) unchanged.
+ * (M22.11 removed the lobby press) unchanged.
  */
 
 /**

@@ -525,7 +525,7 @@ function Idle(props: TonightViewProps) {
 /**
  * The strip's action row (M14.41, scene-walk gap 2): the night's one deliberate press, where the
  * viewer is already looking. Admins: `Roll teams` once the lobby can be rolled, `Reroll` while the
- * teams are up. Nothing else since M22.11 removed `Start a lobby` (lobbies are the customs hosts
+ * teams are up. Nothing else since M22.11 removed the lobby press (lobbies are the customs hosts
  * open): on idle, a linked player with no host up in ten minutes reads who to ask.
  */
 function stripAction(

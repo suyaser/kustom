@@ -14,7 +14,7 @@ import {
 /**
  * M15.11, Mirror match end to end, the M15.8 way: a scratch group's fixture night through the real
  * routes on the local stack. Mirror is the first rated rule (R4): it rates like a normal game and
- * feeds the Fearless pool; the host makes the Blind Pick custom by hand (R10; M22.11 removed Start a lobby).
+ * feeds the Fearless pool; the host makes the Blind Pick custom by hand (R10; M22.11 removed the lobby press).
  *
  * 1. Standing Fearless and one rated game; Spin, twenty times over, lands on mirror sometimes (M17.17).
  * 2. Mirror picked: rated; after a result the page tells the host to make the custom Blind Pick

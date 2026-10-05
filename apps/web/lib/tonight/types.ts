@@ -320,7 +320,7 @@ export interface TonightSnapshot {
   /**
    * The group's hosts by name (M14.66): every player with an unrevoked companion token of the
    * group, oldest first, nameless ones dropped (`readGroupHostNames` in `lib/hostPresence.ts`).
-   * Feeds `noKustomRunningLine(adminNames(hostNames))` under `Start a lobby` on idle.
+   * Feeds `noKustomRunningLine(adminNames(hostNames))` in the idle strip.
    *
    * Tokens are service-role only, so the anon {@link loadTonight} answers `[]` and the page fills
    * it on the server (`withHostPresence`).

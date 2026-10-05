@@ -270,7 +270,7 @@ describe('every state leads with its headline and its primary action', () => {
     expect(screen.queryAllByRole('button', { name: 'Sign in with Discord' })).toHaveLength(0);
   });
 
-  it('finished: RED WINS, the odds were, the result line, deltas, MVP and ACE, Start the next lobby', () => {
+  it('finished: RED WINS, the odds were, the result line, deltas, MVP and ACE, no lobby press (M22.11)', () => {
     draw('finished');
     expect(h1()).toBe('RED WINS');
     const receipt = screen.getByRole('region', { name: TITLE_FINISHED });
@@ -283,7 +283,7 @@ describe('every state leads with its headline and its primary action', () => {
       within(screen.getByRole('region', { name: side })).queryAllByText(/^(gained|lost) \d+$/),
     );
     expect(deltas.length).toBe(10);
-    expect(screen.getByRole('button', { name: 'Start the next lobby' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /lobby/i })).toBeNull();
     expect(screen.getByText('Won')).toBeInTheDocument();
   });
 

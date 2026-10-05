@@ -5,8 +5,7 @@ import type { TonightSnapshot } from './types';
 
 /**
  * Who hosts, and whether any of them is up, for Tonight (M14.66): so idle can say
- * `Nobody's Kustom is running right now. Ask Yasser or Omar to open it.` under `Start a lobby`
- * before anyone taps, instead of only after the press's 409.
+ * `Nobody's Kustom is running right now. Ask Yasser or Omar to open it.` in the strip.
  *
  * Read with the service role on the server (`companion_tokens` has no anon policy); only the
  * names and one boolean reach the page. Null on any failure: the page keeps the anon

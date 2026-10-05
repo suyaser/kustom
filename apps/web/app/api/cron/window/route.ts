@@ -124,7 +124,7 @@ export async function GET(request: Request): Promise<Response> {
    * **The zone decides which week this is** (M5.9, M5.12): a window is a pair of 06:00
    * boundaries in `CUSTOMS_NIGHT_TZ`, and a route that let the post fall back to the built-in
    * default would claim one week in `window_posts`, print another on the board and link to a
-   * third. Read the same way the nightly post and `startLobby`'s handler read it. Global: every
+   * third. Read the same way the nightly post reads it. Global: every
    * group shares the zone and the Sunday week (M13, "What stays global").
    */
   const timeZone = nightTimeZone();

@@ -494,7 +494,7 @@ export const ROLE_TAP_OFFLINE = 'That did not reach the server. Your role is unc
 export const LINK_OFFLINE = 'That did not reach the server. Nothing changed — tap it again.';
 
 /* ---------------------------------------------------------------------------
- * Nobody's Kustom is running (M14.66; kept when M22.11 removed Start a lobby).
+ * Nobody's Kustom is running (M14.66; kept when M22.11 removed the lobby press).
  * ------------------------------------------------------------------------- */
 
 /** Who to ask when nobody's Kustom is up and the hosts cannot be named (none, or more than three). */
