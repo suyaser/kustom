@@ -23,6 +23,7 @@ import {
   resultForWinner,
   SCOREBOARD_LABEL,
   teamTitle,
+  VOIDED_NOTE,
   WON_TAG,
   YOU_WORD,
 } from '@/lib/games/copy';
@@ -48,6 +49,7 @@ export function GameDetail({
   afterScoreboard,
   group,
   recap,
+  admin,
   breakdown = null,
 }: {
   game: GameDetailView;
@@ -65,6 +67,8 @@ export function GameDetail({
   afterScoreboard?: ReactNode;
   /** M16.4: the AI recap (`components/ai/AiRecap`), under the header, above the receipt and scoreboard. */
   recap?: ReactNode;
+  /** M23.1: an admin's `Void game` / `Restore` (`VoidGame`), at the foot of the header; admins only. */
+  admin?: ReactNode;
 }) {
   return (
     <div className="flex-1">
@@ -87,7 +91,14 @@ export function GameDetail({
               <NumText text={game.durationLabel} />
             </span>
             {game.aram ? <Chip>{GAMES_MODE_LABELS.aram}</Chip> : null}
+            {game.voided ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{VOIDED_NOTE}</span>
+              </>
+            ) : null}
           </p>
+          {admin}
         </header>
 
         {recap}

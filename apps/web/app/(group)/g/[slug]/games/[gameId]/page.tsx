@@ -26,6 +26,7 @@ import { currentViewerState } from '@/lib/viewer';
 import { VersusPitch } from '../../../../../_board/VersusPitch';
 import { GameDetail } from '../../../../../_games/GameDetail';
 import { ThatsMe } from '../../../../../_games/ThatsMe';
+import { VoidGame } from '../../../../../_games/VoidGame';
 
 /**
  * One stored game (M11.4's address, rebuilt by M14.16): the result, the full receipt and both
@@ -109,6 +110,12 @@ export default async function GamePage({ params }: GamePageProps) {
       howHref="/how"
       group={group}
       breakdown={breakdown}
+      admin={
+        // M23.1: an admin may take a rated game out of ratings, or put a voided one back.
+        viewerIsAdmin(viewer) && (game.voided || game.ratedStamp) ? (
+          <VoidGame groupId={group.id} gameId={game.gameId} voided={game.voided} redirectTo={here} />
+        ) : null
+      }
       recap={
         recap === null ? null : (
           <AiRecap

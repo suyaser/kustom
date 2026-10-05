@@ -12,7 +12,7 @@ import {
   supabaseAdminLookup,
 } from '@/lib/adminAuth';
 import type { AdminRouteOptions } from '@/lib/adminRoute';
-import { VOID_NOT_RATED } from '@/lib/games/copy';
+import { VOID_NOT_RATED, VOIDED_NOTE } from '@/lib/games/copy';
 import { supabaseGroupRole } from '@/lib/groups/membership';
 import { ingestEogGame } from '@/lib/ingest/game';
 import { ensurePlayers } from '@/lib/ingest/players';
@@ -57,6 +57,9 @@ if (stack === null) {
   process.env.DISCORD_WEBHOOK_URL = '';
 
   const { gameVoidRoute } = await import('./games/void/handler');
+  const { loadGamesList } = await import('@/lib/games/list');
+  const { loadGameDetail } = await import('@/lib/games/detail');
+  const { createPublicClient } = await import('@/lib/publicClient');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -271,6 +274,25 @@ if (stack === null) {
     expect(columns.every((c) => c.mu_after === null && c.r_after === null && c.week_r_after === null)).toBe(
       true,
     );
+  });
+
+  it('stays on Games and its page, marked voided (anon reads)', async () => {
+    const anon = createPublicClient();
+    const list = await loadGamesList(anon, {
+      groupId: groups.v,
+      viewerPuuid: null,
+      timeZone: 'Europe/London',
+      filters: { window: 'all-time', mode: 'sr', player: null, page: 1 },
+    });
+    expect(list.items).toHaveLength(3);
+    expect(list.items.filter((item) => item.ruleNote === VOIDED_NOTE).map((item) => item.id)).toEqual([bad]);
+    const detail = await loadGameDetail(anon, {
+      gameId: bad,
+      groupId: groups.v,
+      viewerPuuid: null,
+      timeZone: 'Europe/London',
+    });
+    expect(detail).toMatchObject({ voided: true, ratedStamp: false, rated: false });
   });
 
   it('a second void writes nothing and moves nothing', async () => {
