@@ -281,8 +281,12 @@ async function loadChosenSplit(client: ServiceClient, lobbyId: string): Promise<
 /**
  * Each kickoff player's all-time `r` in the group, through the balancer's own read
  * (`selectRatings`, 1200 for no row): the same numbers the kickoff odds were taken over.
+ *
+ * M21.6 follow-up (M21.7): a failed player lookup degrades to 1200 for everyone (logged) instead
+ * of dropping the post: the odds on it are the stored kickoff odds, only the printed Ratings fall
+ * back, and a `Game on` post is never retried.
  */
-async function loadKickoffRatings(
+export async function loadKickoffRatings(
   client: ServiceClient,
   groupId: string,
   puuids: readonly string[],
@@ -291,7 +295,10 @@ async function loadKickoffRatings(
     .from('players')
     .select('id, puuid')
     .in('puuid', [...puuids]);
-  if (error) throw new Error(`discord: kickoff player lookup failed: ${error.message}`);
+  if (error) {
+    console.error(`discord: kickoff player lookup failed; Game on prints 1200 for everyone: ${error.message}`);
+    return () => KUSTOM_FRESH.r;
+  }
   const idOf = new Map((data ?? []).map((row) => [row.puuid, row.id]));
   const ratings = await selectRatings(client, [...idOf.values()], groupId);
   return (puuid) => {

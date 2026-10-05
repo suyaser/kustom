@@ -1,6 +1,10 @@
 import type { RoleValue, SideValue } from '@customs/db';
+import type { LobbyKickoff } from '@customs/db/schemas';
 import { mapChunks } from '../chunks';
+import { readAssignments } from '../discord/assemble';
+import { readKickoffs } from '../games/kickoffs';
 import { GAMES_QUEUE, gameModeFromRaw, matchesQueue, type QueueKind } from '../games/queue';
+import { type PlayedSplit, playedOddsOf, postedOdds } from '../games/receipt';
 import type { GamesHistoryView } from '../games/types';
 import { gamesHistoryView } from '../games/view';
 import { type WindowKind, type WindowRange, windowRange } from '../night';
@@ -330,11 +334,8 @@ async function readWindow(
         newest.map((game) => game.id),
       ),
     extras.withOdds === true
-      ? loadChosenWinProbs(
-          client,
-          newest.map((game) => game.lobbyId).filter((id): id is string => id !== null),
-        )
-      : Promise.resolve(new Map<string, number>()),
+      ? loadOddsInputs(client, newest)
+      : Promise.resolve<OddsInputs>({ splits: new Map(), kickoffs: new Map(), games: new Map() }),
   ]);
   const players = await loadPlayers(
     client,
@@ -372,7 +373,7 @@ async function readWindow(
     ...game,
     // Absent, not `null`, on every read that did not ask: `/stats` has no odds to be missing.
     ...(extras.withOdds === true
-      ? { blueWinProb: lobbyId === null ? null : (odds.get(lobbyId) ?? null) }
+      ? { blueWinProb: playedOddsOfGame(game.id, lobbyId, byGame.get(game.id) ?? [], odds) }
       : {}),
     rows: byGame.get(game.id) ?? [],
   }));
@@ -715,45 +716,90 @@ async function loadGameRows(client: PublicClient, gameIds: readonly string[]): P
   return rows;
 }
 
+/** What {@link playedOddsOfGame} reads beside the scoreboard (M8.2, M21.7). */
+interface OddsInputs {
+  splits: Map<string, PlayedSplit>;
+  kickoffs: Map<string, LobbyKickoff>;
+  /** `games.rated` and the mode, per game id: a not-rated or ARAM game shows no pre-game odds. */
+  games: Map<string, { rated: boolean; aram: boolean }>;
+}
+
 /**
- * The chance the balancer gave blue, per lobby: the **chosen** split's `blue_win_prob` (M8.2).
+ * The chance the balancer gave blue, per lobby: the **chosen** split's `blue_win_prob` and teams
+ * (M8.2), each lobby's kickoff record and each game's `rated` and mode (M21.7), in one round.
  *
- * The same read `lib/board/load.ts` makes for the per-game expand (M5.30), spelled again here
- * rather than exported from it — the latitude {@link withRange} already
- * takes, and for the same reason: that file keeps its queries private and an export would be a seam
- * between two loaders. What must not drift is the *rule*, and the rule is one line of SQL:
- * `is_chosen`, `blue_win_prob`, and nothing derived.
- *
- * **Never a recompute.** A rebuild rewrites every `mu` in the database and does not touch
- * `splits`, which is precisely why `Won against the odds` reads this column and not a rating.
- *
- * A lobby with no chosen split — balanced then rerolled into nothing, or never balanced — simply
- * has no entry, and its games are in neither list on the page.
+ * **Never a recompute** of the bot's number: a rebuild rewrites every rating and does not touch
+ * `splits` or the kickoff record, which is why `Won against the odds` reads them. A game whose teams
+ * changed after the roll reads its pre-game odds (the kickoff record's, else `preGameOdds` over the
+ * stored `r_before`s), the number every other surface prints for it.
  */
-async function loadChosenWinProbs(
+async function loadOddsInputs(
   client: PublicClient,
-  lobbyIds: readonly string[],
-): Promise<Map<string, number>> {
-  const odds = new Map<string, number>();
-  if (lobbyIds.length === 0) return odds;
+  games: readonly { id: string; lobbyId: string | null }[],
+): Promise<OddsInputs> {
+  const lobbyIds = games.map((game) => game.lobbyId).filter((id): id is string => id !== null);
+  const out: OddsInputs = { splits: new Map(), kickoffs: new Map(), games: new Map() };
+  if (lobbyIds.length === 0) return out;
+  const withLobby = games.filter((game) => game.lobbyId !== null).map((game) => game.id);
 
-  const pages = await mapChunks(lobbyIds, async (chunk) => {
-    const { data, error } = await client
-      .from('splits')
-      .select('lobby_id, blue_win_prob')
-      .in('lobby_id', chunk)
-      .eq('is_chosen', true);
-    if (error) throw new Error(`stats: split lookup failed: ${error.message}`);
-    return data ?? [];
-  });
-
-  for (const data of pages) {
+  const [splitPages, kickoffs, gamePages] = await Promise.all([
+    mapChunks(lobbyIds, async (chunk) => {
+      const { data, error } = await client
+        .from('splits')
+        .select('lobby_id, blue_win_prob, rank, blue, red')
+        .in('lobby_id', chunk)
+        .eq('is_chosen', true);
+      if (error) throw new Error(`stats: split lookup failed: ${error.message}`);
+      return data ?? [];
+    }),
+    readKickoffs(client, lobbyIds, 'stats'),
+    mapChunks(withLobby, async (chunk) => {
+      const { data, error } = await client.from('games').select('id, rated, gameMode:game_mode').in('id', chunk);
+      if (error) throw new Error(`stats: game lookup failed: ${error.message}`);
+      return data ?? [];
+    }),
+  ]);
+  for (const data of splitPages) {
     for (const row of data) {
       if (row.blue_win_prob === null) continue;
-      odds.set(row.lobby_id, row.blue_win_prob);
+      out.splits.set(row.lobby_id, {
+        blue: readAssignments(row.blue),
+        red: readAssignments(row.red),
+        blueWinProb: row.blue_win_prob,
+        rank: row.rank,
+      });
     }
   }
-  return odds;
+  out.kickoffs = kickoffs;
+  for (const data of gamePages) {
+    for (const row of data) {
+      out.games.set(row.id, {
+        rated: row.rated,
+        aram: matchesQueue(gameModeFromRaw({ gameMode: row.gameMode }), 'aram'),
+      });
+    }
+  }
+  return out;
+}
+
+/** One game's odds for `/fun`, by the receipt rule (`postedOdds`): a game nobody rolled has none. */
+function playedOddsOfGame(
+  gameId: string,
+  lobbyId: string | null,
+  rows: readonly StatsRow[],
+  inputs: OddsInputs,
+): number | null {
+  if (lobbyId === null) return null;
+  const chosen = inputs.splits.get(lobbyId) ?? null;
+  const game = inputs.games.get(gameId);
+  const played = playedOddsOf({
+    aram: game?.aram ?? false,
+    rated: game?.rated ?? true,
+    seats: rows.map((row) => ({ puuid: row.puuid, side: row.side, rBefore: row.rBefore })),
+    chosen,
+    kickoff: inputs.kickoffs.get(lobbyId) ?? null,
+  });
+  return postedOdds(played, chosen);
 }
 
 /**

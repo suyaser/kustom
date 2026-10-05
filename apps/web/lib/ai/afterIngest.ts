@@ -1,5 +1,4 @@
 import 'server-only';
-import { after } from 'next/server';
 import { editResultWithRecap, type RecapEditOutcome } from '../discord/aiEdit';
 import type { AiGate } from '../premium';
 import { getServiceClient } from '../supabase';
@@ -72,21 +71,12 @@ export async function runGameLine(input: GameLineInput, deps: GameLineHookDeps):
   }
 }
 
-export type Scheduler = (task: () => Promise<unknown>) => void;
-
 /**
- * Next's `after()`: runs the task once the response has been sent. Outside a request scope (a
- * script, a unit test calling the route handler directly) `after` throws; the task then runs
- * detached, its promise never awaited and never rejected (`runGameLine` catches everything).
+ * The scheduler is the shared one (`lib/afterResponse.ts`, M21.6 follow-up): Next's `after()`, or
+ * detached outside a request scope, tracked for `settleDetached`, a failure logged and swallowed.
+ * Re-exported so the AI callers (`scouting.ts`, `storyline.ts`) keep their import.
  */
-export const afterResponse: Scheduler = (task) => {
-  const run = () => task().catch(() => undefined);
-  try {
-    after(run);
-  } catch {
-    void run();
-  }
-};
+export { afterResponse, type Scheduler } from '../afterResponse';
 
 /**
  * The route's one call: schedule the recap and return at once. Never throws, never waits. The
