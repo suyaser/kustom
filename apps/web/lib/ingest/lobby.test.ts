@@ -140,6 +140,9 @@ describe('lobbyFitsGame (M21.11: a game matches only a lobby whose sided members
   it('refuses one sided member missing, and a roster none of whom played', () => {
     expect(lobbyFitsGame(sided(ten), [...ten.slice(0, 9), 'x'])).toBe(false);
     expect(lobbyFitsGame(watching(['s1']), ten)).toBe(false);
-    expect(lobbyFitsGame([], ten)).toBe(false);
+  });
+
+  it('fits a lobby with no member rows: nothing in it says otherwise', () => {
+    expect(lobbyFitsGame([], ten)).toBe(true);
   });
 });

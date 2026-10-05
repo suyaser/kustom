@@ -196,7 +196,8 @@ export interface GameLobbyMember {
  * Was this game played from a lobby with this roster? (M21.11)
  *
  * Yes when **every sided member played** (side 100 or 200 and not a spectator: the people the
- * client had on a team when the roster froze) **and at least one member played**. Sides are not
+ * client had on a team when the roster froze) **and at least one member played** (a row with no
+ * member rows at all fits: nothing in it says otherwise, and a game always attached to one). Sides are not
  * compared: the eog's sides are final and ratings fold on them, and a split played on swapped
  * sides is still that lobby's game. A player who is not sided in the lobby (a spectator who took
  * a seat, a member with no side, someone the last lobby post missed) does not make it a
@@ -211,7 +212,8 @@ export interface GameLobbyMember {
 export function lobbyFitsGame(members: readonly GameLobbyMember[], participants: readonly string[]): boolean {
   const played = new Set(participants);
   const sided = members.filter((member) => !member.isSpectator && (member.side === 100 || member.side === 200));
-  return sided.every((member) => played.has(member.puuid)) && members.some((member) => played.has(member.puuid));
+  if (!sided.every((member) => played.has(member.puuid))) return false;
+  return members.length === 0 || members.some((member) => played.has(member.puuid));
 }
 
 /**
