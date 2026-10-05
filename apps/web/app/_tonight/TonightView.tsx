@@ -49,6 +49,7 @@ import {
   offRoleSeats,
   receiptNames,
   resultReceipt,
+  viewerMoveTo,
   viewerRegionSide,
   viewerSeat,
 } from '@/lib/tonight/screen';
@@ -489,7 +490,12 @@ function answerBand(state: TonightState, puuid: string | null): AnswerBand {
   }
   if (state.kind === 'teams' && state.lobby.status !== 'finished') {
     const seat = viewerSeat(state.teams, puuid);
-    return seat === null ? null : { kind: 'seated', side: seat.side, role: seat.role };
+    if (seat === null) return null;
+    // M21.13: balanced and sitting on the other side: where they are, then where to move.
+    const moveTo = state.lobby.status === 'balanced' ? viewerMoveTo(state.teams, puuid) : null;
+    return moveTo === null
+      ? { kind: 'seated', side: seat.side, role: seat.role }
+      : { kind: 'seated', side: moveTo === 'blue' ? 'red' : 'blue', role: seat.role, moveTo };
   }
   // M21.5: `YOU on BLUE` from the teams that started; a changed side has no role to name.
   if (state.kind === 'in-game') {

@@ -9,7 +9,9 @@ import { renderWebName } from '@/lib/tonight/copy';
 import {
   ANSWER_IN_LOBBY,
   ANSWER_MAIN_ROLE,
+  ANSWER_MOVE_TO,
   ANSWER_ON,
+  answerMoveRole,
   answerResult,
   answerRole,
   NAME_ROW_BLUE,
@@ -34,6 +36,11 @@ export type AnswerBand =
       side: 'blue' | 'red';
       /** `null` in game on a side that changed after the roll (M21.5): no lane until the eog. */
       role: RoleValue | null;
+      /**
+       * M21.13: balanced, the viewer sits on `side` (their live side) and the split put them on
+       * this one: `YOU on RED. Move to BLUE to play top.`. Absent: `YOU on BLUE, playing top`.
+       */
+      moveTo?: 'blue' | 'red' | undefined;
       /** M14.30, Fearless: `What's open for <role>`, one tap into the panel on the viewer's lane. */
       jump?: { href: Route; label: string; id: string } | undefined;
     }
@@ -193,7 +200,15 @@ function Answer({ answer }: { answer: NonNullable<AnswerBand> }) {
         <>
           {`${ANSWER_ON} `}
           <Chip variant="side" side={answer.side} className="inline-flex align-middle" />
-          {answer.role === null ? null : answerRole(answer.role)}
+          {answer.moveTo === undefined ? (
+            answer.role === null ? null : answerRole(answer.role)
+          ) : (
+            <>
+              {`${ANSWER_MOVE_TO} `}
+              <Chip variant="side" side={answer.moveTo} className="inline-flex align-middle" />
+              {answerMoveRole(answer.role)}
+            </>
+          )}
           {answer.jump === undefined ? null : (
             <>
               {' '}
