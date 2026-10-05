@@ -1,5 +1,5 @@
 import 'server-only';
-import { type HostPresence, readHostPresence } from '../lobbyStart';
+import { type HostPresence, readHostPresence } from '../hostPresence';
 import { getServiceClient } from '../supabase';
 import type { TonightSnapshot } from './types';
 

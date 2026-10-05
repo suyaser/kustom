@@ -9,7 +9,7 @@ import {
 import { supersedeLobbyCommands } from '../commands/queue';
 import type { CompanionIdentity } from '../companionAuth';
 import type { LiveChanges } from '../live/bump';
-import { HOST_WINDOW_MS } from '../lobbyStart';
+import { HOST_WINDOW_MS } from '../hostPresence';
 import { ACTIVE_LOBBY_STATUSES, assertLegalTransition, isActiveLobbyStatus, moveLobby } from '../lobbyState';
 import type { ServiceClient } from '../supabase';
 import { ensureMemberships } from './memberships';
