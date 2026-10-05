@@ -38,8 +38,9 @@ export async function loadModePanelView(
   ]);
   const groupRow = row ?? { standing: mode, pending: null, rated: null };
   // M22.6: with two or more lobbies live, a forked lobby's own rule, pair and Rated (`lobby_modes`).
+  // M22.12: also the only live lobby of a night two overlapped, until its row is folded (`cardSourceOf`).
   const fork =
-    lobby !== null && lobby.liveTables >= 2
+    lobby !== null && (lobby.liveTables >= 2 || (lobby.liveTables === 1 && lobby.overlapped))
       ? ((await loadLobbyCards(client, groupId, nightStart.toISOString())).get(lobby.partyId) ?? null)
       : null;
   const view = modeCardView({

@@ -178,6 +178,10 @@ export async function loadTonight(
   ];
 
   const several = anonTables.length >= 2;
+  // M22.12: the cards are read on any night two tables overlapped, not only while two are live: the
+  // last table left may hold a forked row the server has not folded yet (`cardSourceOf`), and
+  // nothing folds it until the next mode call. A one-lobby night still makes no request.
+  const readCards = (several || overlappedRows) && groupId !== undefined;
   const [
     night,
     { mode, modeSince, ...fearless },
@@ -189,9 +193,9 @@ export async function loadTonight(
     fearlessRead,
     modeFacts,
     several && options.readWatchers !== undefined ? options.readWatchers() : Promise.resolve(null),
-    // M22.6: each forked lobby's own card, only with two or more live (no request on one lobby).
-    several && groupId !== undefined
-      ? loadLobbyCards(client, groupId, nightStart)
+    // M22.6: each forked lobby's own card, only on a night of several lobbies (none on one lobby).
+    readCards
+      ? loadLobbyCards(client, groupId ?? '', nightStart)
       : Promise.resolve(new Map<string, LobbyCard>()),
   ]);
 
@@ -213,6 +217,9 @@ export async function loadTonight(
           ),
         );
   const fallback = tables.length === 0 ? newest : null;
+  // M22.12: the only live table's unfolded row is the card (`cardSourceOf`), exactly what the fold
+  // will write to `group_modes`; the page draws `modeRow` with one table, so it carries the row.
+  const onlyCard = tables.length === 1 ? cards.get(tables[0]?.partyId ?? '') : undefined;
 
   const views: TableView[] = tables.flatMap((table) => {
     const lobby = night.lobbies.get(table.lobby.id);
@@ -258,8 +265,11 @@ export async function loadTonight(
     severalLobbiesTonight: tables.length >= 2 || overlapped,
     fearless,
     mode,
-    modeSince: modeSince ?? null,
-    modeRow: modeRow ?? missingRow(),
+    modeSince: onlyCard?.updatedAt ?? modeSince ?? null,
+    modeRow:
+      onlyCard === undefined
+        ? (modeRow ?? missingRow())
+        : { standing: (modeRow ?? missingRow()).standing, pending: onlyCard.pending, rated: onlyCard.rated },
     modeReadFailed,
     tape,
     // M14.66: companion tokens are not readable with the anon key; the page fills both on the
