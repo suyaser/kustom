@@ -292,10 +292,10 @@ export interface FoldedRow {
 }
 
 /**
- * The fold's stored blue probability, `lib/breakdown/read.ts`'s `ratingBlueWinProb` rule (the
- * number the game page and Tonight's pre-game card fall back to, M14.59): five a side, every row
- * folded with a `fold_p`, blue's first; else `null`. The fallback of {@link receiptBlueWinProb}
- * and {@link playedOddsOf} on the surfaces that read the rows.
+ * The fold's stored blue probability (the number the game page and Tonight's pre-game card fall
+ * back to, M14.59): five a side, every row folded with a `fold_p`, blue's first; else `null`. The
+ * fallback of {@link receiptBlueWinProb} and {@link playedOddsOf} on the surfaces that read the
+ * rows. The one copy of the rule: `lib/breakdown/read.ts`'s `ratingBlueWinProb` delegates here.
  */
 export function foldBlueWinProb(rows: readonly FoldedRow[]): number | null {
   const blue = rows.filter((row) => row.side === 100);

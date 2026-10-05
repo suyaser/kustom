@@ -4371,3 +4371,483 @@ A side whose five are not the split's five has no lanes until the end of game:
   be off).
 - The answer band says `YOU on RED` with no `, playing <role>` (already built).
 - At the end of game the result's seats bring the real lanes back; no in-game guess at lanes from the split.
+
+---
+
+## 14. Several lobbies at once (M22.2, ruled 2026-10-05)
+
+Owner: `designer`; every word is product's to sign (14.10 lists them). Inputs: the M22 section of
+`docs/02-milestones.md` (the Tonight model, the data model, OPEN 1 to 5), decision rows M22 D1 to D7 and
+"M22 owner answers" (2026-10-05). The owner's answers this section builds on: **one Fearless ban list for the
+group**, a new lobby **starts on a copy of the current mode**, **`Start a lobby` is removed** (M22.11), Tonight
+uses **a switcher**, and a lobby is **called after its host** (`Ana's lobby`).
+
+**The rule above all others (M22 D2): with at most one live lobby nothing in this section exists.** No
+switcher element (not even empty), no label, no new sentence, no new line in a post. Every frame, string and
+post is today's, byte for byte. The rest of this section applies only **while two or more tables are live**
+(M22 D4: a table is live while its newest row is `open`, `balanced`, `in_game`, or `finished` less than 20
+minutes ago with no newer row).
+
+### 14.1 The lobby label
+
+| Case | Label | Notes |
+|---|---|---|
+| normal | `<host>'s lobby` (`Ana's lobby`, `knifiy's lobby`, `Chaos's lobby`) | Always `'s`, straight apostrophe, also after an s. The host's name is the one the site prints everywhere else (`renderWebName`; Discord: `renderName`, escaped), game name only, no `#tag`. Names keep their own case: `knifiy's lobby` starts lower case at the head of a title, as the name does everywhere. |
+| two live tables with the same host name | the older keeps `Ana's lobby`; the newer is `Ana's lobby 2` (`3`, …) | Happens when a host leaves a custom someone else's Kustom still watches and opens another. Numbered by when the table opened tonight. |
+| no host name known | `Lobby <n>`, n by when the table opened tonight | A fallback only; it should never show. |
+
+- **Who is the host**: the person who opened the custom. Platform supplies it in `liveTables`' label inputs
+  (M22.3): the client's lobby leader if the roster records one, else the table's first reporter. **The label
+  is fixed for the table's life tonight**; it never changes because the host left, because a leader changed,
+  or because another Kustom took over reporting. A lobby that renames itself mid-night is a lobby people lose.
+- The label is the only name a lobby ever has. Never `Lobby 1` / `Lobby 2` beside host names, never the
+  client's lobby name (`customs-night` stays in the teams post's `Lobby` field and the page's password line
+  only), never `your lobby` as a label (the `YOU` sticker says that).
+
+### 14.2 What belongs to the selected lobby, and what stays night-wide
+
+| Selected lobby (switches with the chip) | Night-wide (identical whichever chip is selected) |
+|---|---|
+| the strip's headline, sub-line, answer band or name rows, action row (`Roll teams`, `Reroll`) | the strip's top line (live tag and date line, 14.3) |
+| the filling rack, `Still needed:`, joined-now line, `Which one is you?` (claimable seats from this lobby only) | the switcher |
+| the sit-out card | the tape (14.6) |
+| the receipt (full, compact `Odds at kickoff`, the finished poster) and its `How the bot decided` | `Top this week`, `Your night`, the Daily card, the versus pitch |
+| both team cards, the side line (M21.13), the in-game block (section 13) | the Fearless ban list and its counts (14.5): **one list**, shown inside whichever lobby's Mode card is on screen |
+| the result poster, MVP / ACE, `Full scoreboard`, the AI recap slot | the page's one polite announcer (6.4) and the tab bar's amber dot |
+| the Mode card's rule, region pair, `Rated` and the lane line; its admin foot writes **this** lobby (`lobbyId` in every body) | |
+| `Your role tonight`: follows the selected lobby's state, as today (it is the viewer's role for the next game, whichever lobby) | |
+
+Inside the selected lobby every part is **exactly today's component in today's order** (5.10 to 5.15, 8.3,
+section 13). Nothing is restyled, relabelled or reordered; the parts are drawn from the selected table's view
+instead of the night's newest row. That is the whole of "how each lobby reads": like a one-lobby night.
+
+### 14.3 The strip with two lobbies
+
+```
+[● Live]  Sat 3 Oct, 2 lobbies            ← top line: unchanged height (--chip-h); the game number gives way
+┌ switcher (14.4) ────────────────────┐    ← new row, only while 2+ live
+└─────────────────────────────────────┘
+7 IN THE LOBBY                            ← h1, the selected lobby's state (sr-only prefix "Ana's lobby: ")
+Ten play, the rest sit out. …             ← sub-line, the selected lobby's
+[YOU] in the lobby · adc                  ← answer band, the selected lobby's
+[          Roll teams          ]          ← action row, the selected lobby's
+```
+
+- **Date line**: `Sat 3 Oct, 2 lobbies` (`3 lobbies`) replaces `Sat 3 Oct, game 4 tonight` while 2+ are live.
+  The night's game number stops meaning one thing when two games run at once (both would say `game 7`), and
+  the count of lobbies is the night-wide fact worth the line. It is shorter than today's longest date line,
+  so 5.4's no-rewrap rule at 375 holds with `Reconnecting…` in the tag. Back to today's form when one is left.
+- **The switcher is a strip row between the top line and the headline** (this is the designer's ruling 5.10
+  asks for). Night-wide things sit together on top (live, date, which lobby), then everything below belongs to
+  the chip that is selected. Gaps: top line to switcher 8, switcher to h1 12 (the h1 keeps its own top margin
+  when there is no switcher, so one lobby's strip measures exactly as today).
+- **The h1 does not print the label.** The selected chip sits right above it. Screen readers get the label as
+  a visually hidden prefix inside the h1 (`<span class="sr-only">Ana's lobby: </span>7 IN THE LOBBY`), so a
+  heading jump says whose lobby it is.
+- **The mirror host line and the action row lose `Start a lobby`** in M22.11, for one lobby and many alike;
+  that is M22.11's copy, not this section's.
+
+### 14.4 The switcher
+
+**Anatomy (one chip).**
+
+```
+┌────────────────────────────┐   link, --card fill, 1px --border-strong, --radius-control (6), min-h 64
+│ Ana's lobby          [YOU] │   label: text 700 --fs-md (19), wraps, never truncates · YOU sticker (5.0 `you`)
+│ 7 in · Region wars         │   status (text 700 --fs-xs, numbers mono) · mode (text 400 --fs-xs muted)
+└────────────────────────────┘   padding 10 12; status and mode are two nowrap spans that wrap as units
+```
+
+| Part | Spec |
+|---|---|
+| Label | 14.1. Text face 700 at `--fs-md`, `--foreground`. Wraps between words; a 16-character name plus `'s lobby` wraps to two lines at 375, by design. |
+| `YOU` sticker | Only on the chip of the table the signed-in viewer is on (a linked player on its roster, the same test M22.5 uses to open on it). It is the existing sticker (`--primary-fill`, text 700 `--fs-2xs`, `--radius-chip`), end-aligned on the label's first line. Amber here means **you**, which is one of its three meanings; the **selected** state is never amber fill. Screen readers: the sticker's text is `aria-hidden` and the link carries `, you're in this lobby`. |
+| Status | One of: `7 in` (filling, over ten too: `12 in`) · `Teams set` · `In game · 12 min` (`In game · just started` under a minute; the minutes tick once a minute like 5.4, never `mm:ss`) · `Blue won` / `Red won` (finished, inside the 20-minute walk back) · `No Kustom` (14.8). Text face 700 `--fs-xs` `--foreground`, numbers in mono (tabular). No side colour on `Red won`: a word, not a colour (1.1 rule 1). No dot, no pulse: the live tag stays the only pulsing thing in the product (5.4). |
+| Mode | The selected lobby's mode in at most two words, the card title's or the rule's own word: `Normal`, `Fearless`, `Tanks only`, `Marksmen only`, `Mages only`, `Assassins only`, `Supports only`, `Region wars`, `Mirror match`. A pending rule wins over the standing mode (`Region wars`, not `Fearless`), because it is what this game plays. `Not rated` is not on the chip (the card says it). Text 400 `--fs-xs` `--muted-foreground`, joined to the status by ` · `. |
+| Selected | `aria-current="page"`, `--raised` fill, a 2px `--foreground` border (the 1px edge thickens inward so nothing moves) and the 3px `--primary-text` bar inset at the bottom edge: the same "current" mark as the window chips and segmented links (`WindowChips`, `SegLinks`), so the product has one current-state look. Shape, weight and fill, never colour alone. |
+| Unselected | `--card`, 1px `--border-strong` (≥ 3:1 control edge, 3.2), hover `--accent`, `:active` `scale(.98)` at `--dur-press`. |
+| `No Kustom` chip | Dashed 1px `--border-strong` edge (dashed = absent, 5.7) plus the word. Still selectable. |
+| Focus | 2px `--ring` outline, offset 2, on the chip's radius (6.x). |
+
+**Layout.**
+
+| Width | Grid | Notes |
+|---|---|---|
+| < 768 (375) | `grid-template-columns: repeat(2, minmax(0, 1fr))`, gap 8 | Two chips side by side, equal width (~164 px each at 375). A third lobby starts a second row at the **same** width (half, left), never full width: a wider chip reads as the important one. Four: two rows of two. |
+| ≥ 768 to 1440 | `repeat(auto-fill, minmax(15rem, 1fr))`, gap 8, inside the main column (the 340 rail is unchanged) | At 1440 the main column fits three tracks; two lobbies take two and leave the third empty, so chips stay about 260 px and do not stretch across the page. Status and mode sit on one line. |
+| 200% text | the `rem` minimum collapses the grid to one column by itself at 375 and 768 | Every chip full width, all lines wrap, nothing hidden or cut. Three lobbies at 200% are about 400 px of switcher; accepted (the headline is still the largest type and the action row is still reachable). |
+
+- **No horizontal scroll, ever.** Chips past the edge are lobbies nobody sees (the old phone tabs' lesson,
+  5.11). The grid wraps instead.
+- **Order: by when the table opened tonight**, oldest first, fixed for the night. Not by status or by "yours
+  first": chips that reorder under a thumb get the wrong lobby tapped. The `YOU` sticker finds yours.
+
+**Which chip is selected.**
+
+1. `?lobby=<id>` if it names a live table of this group (a tap, a refresh, a Discord link).
+2. Else the table the signed-in viewer is on.
+3. Else the table that changed most recently.
+
+- **The page opens on your lobby with no tap** (M22.2 acceptance 3). Opening Tonight does **not** write
+  `?lobby=`: until you tap, the selection is implicit and **follows you**. If you leave Ana's custom for
+  Bo's, the next live refresh shows Bo's lobby (this is the M22.1 owner's scene, done right).
+- **A tap pins it.** The chip is a link to `/g/<slug>?lobby=<id>`; with JS the tap does a shallow
+  `router.replace` (scroll kept, no history entry, so Back leaves Tonight instead of walking back through
+  chip taps); without JS it is an ordinary link. A pinned choice survives refreshes and live updates, and
+  live updates **never move it**: when your own lobby changes state while you look at the other one, your chip's
+  status changes, and the announcer says it once (14.9).
+- A pinned table that **ends** drops the pin: the selection falls to rule 2 or 3, the URL loses `?lobby=`
+  (`replace`), and the announcer says what happened.
+- A stale `?lobby=` (an ended table, another group's id, garbage) is ignored as if absent. No error, no
+  notice: an old Discord link should land on tonight, not on a complaint.
+- `?lobby=` names the **table**, not one game cycle: a teams post's link opened after that lobby's next game
+  started still lands on the lobby (M22.5 decides how the id resolves).
+
+**Speed (INP < 200 ms).** The chip's selected state paints in the frame of the tap, from the client, like a
+pressed tab (5.9a). Recommended for M22.5/M22.6: the snapshot carries every live table's whole view, so a
+switch is a client re-render with no request. If a switch ever has to fetch, the lobby part of `<main>` takes
+5.9a's pending frame after 300 ms (shapes only, no words); the strip's top line and the switcher stay.
+
+**Arriving and leaving.** The switcher appears in one paint when the refresh that sees a second live table
+lands, and leaves in one paint when only one is left. No slide, no fade, no height animation, so
+`prefers-reduced-motion` changes nothing here (the chip's colour change already drops to instant under 2.9's
+query). Arriving pushes the headline down once, on a real event; that is the only shift this section causes.
+
+**Screen readers and focus.**
+
+- DOM order: skip link, nav, `<main>`: strip top line, **switcher**, h1, the rest. The switcher is
+  `<nav aria-label="Lobbies"><ul>` of links (a list of places, so links with `aria-current="page"`, not a
+  tablist and not `aria-pressed` buttons: each chip is a URL).
+- Each link's text reads in visual order: `Ana's lobby, 7 in, Region wars, you're in this lobby`.
+- Focus stays on the tapped chip. The announcer says `Showing Bo's lobby.` once (aria-current changes are not
+  read reliably).
+- Chip status changes are **not** announced (two lobbies ticking would talk over each other); they are read
+  when a chip is focused. The exceptions are in 14.9.
+
+### 14.5 The Mode card and the shared Fearless list
+
+Each lobby has its own card state (M22 D5): standing mode, pending rule with its class or region pair, and
+`Rated`. **The Fearless ban list is one list for the group** (owner answer 1), so every lobby's card shows the
+same counts, and a game in any lobby adds to it.
+
+**Reading of the owner's answer (open question 1 in 14.13):** OPEN 1 said "Reset and the on/off switch follow the same
+answer", so **Fearless on/off and Reset are the group's**: switching a lobby's card between `Normal` and
+`Fearless` switches every lobby; a rule (class, region, mirror) and `Rated` stay the lobby's own. A rated game
+in any lobby, played while Fearless is on, adds its champions. This section is drawn for that reading.
+
+**The card (8.4.1), changes only while 2+ are live and only on a Fearless night:**
+
+```
+┌──────────────────────────────────────────────┐
+│ Fearless [Rated]                              │  unchanged (this lobby's Rated)
+│ 138 open   34 banned                          │  unchanged: the group's one list
+│ One ban list for both lobbies.                │  NEW, text 400 --fs-xs muted, one line
+│ ◈ Your lane support · 24 open                 │  unchanged (balanced)
+│ See what's open ›                             │  unchanged; href adds &lobby=<id>
+├──────────────────────────────────────────────┤
+│ Admins and the owner                          │
+│ Mode                                          │
+│ [ Region wars (sides drawn at roll)       ⌄ ] [Set mode]
+│ A rule or Rated here is for Ana's lobby only. │  NEW, --fs-xs muted, under the select, 2+ live only
+│ Normal or Fearless is for every lobby.        │
+│ (●─) Rated                                    │
+│ [ Reset fearless ]                            │  dialog copy names every lobby (14.10)
+└──────────────────────────────────────────────┘
+```
+
+- **Normal night** (Fearless off): the card is today's per lobby, plus the admin foot's two sentences. No
+  ban-list line.
+- **In game, Fearless on:** `This game's ten join the ban list for both lobbies when it ends.` replaces
+  today's line while 2+ are live (`for every lobby` with three).
+- **The other lobby's game added bans** (Fearless on, this lobby not finished): a dashed note inside the card,
+  the 8.3 "reset moment" shape: lead `10 more banned` (700), then `from a game in Bo's lobby.`, until this
+  lobby's next game lands or the night ends. Counts update in place. This is the one thing a player in champ
+  select must not miss: a name that was open a minute ago is not open now.
+- **Finished:** `Banned next game · from game 4` lists **this lobby's** game's champions (what we just
+  banned), the counts are the list's. If the other lobby's game landed after it, the dashed note above sits
+  under the block.
+- **Region pair, class and mirror** read exactly as 8.3 and 8.3.1, per lobby: Ana's lobby can be Ionia vs
+  Noxus while Bo's is Tanks only.
+- **The panel** (`/mode`) is the one list: it takes `?lobby=` only for the viewer's lane and the rule block.
+  While 2+ are live its head gains `Both lobbies add to this list.` under `Pool since …`, and its bar crumb
+  names the lobby: `Tonight · Ana's lobby · Mode` (≥ 1024), `Ana's lobby · Mode` (< 1024, so `× Close` keeps
+  its 44 px). Close / Back returns to `/g/<slug>?lobby=<id>`, so the selection survives the panel.
+- **Fork and fold are silent.** A new lobby that starts on a copy of the current mode says nothing about it;
+  its card simply shows that mode. When one lobby is left and its mode folds onto the group card, the
+  one-lobby card shows the survivor's mode with no note.
+
+### 14.6 The tape
+
+**Yes, each tile names its lobby, but only on a night where two lobbies were live at the same time.** The tape
+is the whole night in both lobbies, newest first, numbered in the night's order (`Game 3` is still the third
+game of the night), and the tile gets one more line:
+
+```
+┌────┬──────────────────────────────┐
+│ ◥  │ Game 3            31 min     │  unchanged
+│RED │ Bo's lobby                   │  NEW: the label, text 400 --fs-xs muted, its own line
+│░░░░│ Blue was 53%. Red won.       │  unchanged
+│░░░░│ [MVP] Syndrome Axes          │  unchanged (and the M15.19 rule note line, unchanged)
+└────┴──────────────────────────────┘
+```
+
+- **The condition is the night, not the moment**: once two tables overlapped tonight (M22.5 supplies one
+  boolean for the night), every tile carries its label for the rest of the night, including after the switcher
+  has gone. A tape where only the later tiles are labelled reads as if the earlier games were nobody's. A host
+  who closes a custom and opens a new one later, with no overlap, labels nothing: that night was one lobby at
+  a time, which is today.
+- Its own line, not appended to `Game 3`: at 340 px in the rail the tile's text column is about 250 px, and
+  `Game 3 · Used2BeATahmMain's lobby` would wrap mid-label.
+- The tape leaves out **only the selected lobby's own current result** (the poster above already shows it, 5.15).
+  The other live lobby's latest result **is** a tile, so the person in Ana's lobby sees how Bo's game went
+  without switching. Switching therefore swaps one tile; that is correct, and the tile count in the header
+  (`2 earlier`) follows.
+- The tile's accessible name gains the label (`Game 3, Bo's lobby, Red won, 31 minutes`).
+
+### 14.7 Frames
+
+All frames are Night; Day is the same layout on Day tokens (7.3), nothing art-directed. `▣` is the selected
+chip, `□` an unselected one.
+
+**F1. One lobby, any state (the proof).** Today's 5.10 strip, today's date line (`Sat 3 Oct, game 4
+tonight`), no switcher element in the DOM, no label on tape tiles, today's Mode card, today's posts. M22.6's
+render test asserts the element is absent; M22.7's snapshots are today's.
+
+**F2. Two lobbies, both filling, 375** (viewer in Ana's lobby, an admin):
+
+```
+[● Live]  Sat 3 Oct, 2 lobbies
+▣ Ana's lobby    [YOU]  □ Bo's lobby
+  7 in · Region wars      6 in · Fearless
+7 IN THE LOBBY
+‹today's filling sub-line›
+[YOU] in the lobby · adc
+— filling rack, Still needed:, Mode card (Region wars, Ionia vs Noxus) —
+— tape (Bo's lobby and Ana's lobby tiles, labelled) —
+```
+
+**F3. Two lobbies, one in game, 1440** (viewer in Bo's lobby, opened from a Discord link to Ana's):
+
+```
+[● Live]  Sat 3 Oct, 2 lobbies                                        │ rail 340
+▣ Ana's lobby                 □ Bo's lobby            [YOU]            │ Tonight
+  In game · 12 min · Region wars   Teams set · Fearless                │  Game 3 · Bo's lobby
+IN GAME 12 MIN                                                         │  Game 2 · Ana's lobby
+Ratings move when it ends.                                             │ Top this week
+— name rows (viewer not seated here), Odds at kickoff, team cards —    │
+— Mode card: Region wars · Not rated · Ionia vs Noxus —                │
+```
+The `YOU` on Bo's chip is how the viewer finds their own lobby after following a link to someone else's.
+
+**F4. A lobby ending, 375.** Ana's lobby finished: its chip reads `Red won`, the page (if selected) is the
+finished poster. Twenty minutes later with no next game, Ana's table ends: the switcher goes in one paint, the
+date line returns to `Sat 3 Oct, game 6 tonight`, the page is Bo's one-lobby page (F1), Bo's mode is on the
+card, the announcer says `Ana's lobby has ended.` (`Ana's lobby has ended. Showing Bo's lobby.` if Ana's was
+on screen). Tape tiles keep their labels (14.6).
+
+**F5. Three lobbies, 375:** two chips, then one chip at half width on the second row; order by opening time.
+
+**F6. 200% text, 375:** one chip per row, label wrapping to two lines, status and mode wrapping as units.
+
+### 14.8 Empty and refused states
+
+| Case | What shows |
+|---|---|
+| A live table nobody's Kustom is watching (M22.3), pre-game | Chip status `No Kustom`, dashed edge. Selected: a dashed note under the strip (5.15's sit-out shape, no icon), lead `Nobody with Kustom is in this lobby any more.` then `It closes in a few minutes unless someone with Kustom joins.` The action row shows no `Roll teams` (the roster may be stale and the moves would go nowhere). |
+| The same, in game | Chip `In game · 12 min` (the game is still real). Selected: note `Nobody with Kustom is in this game any more, so its result may not come in.` |
+| An admin's card write with no lobby while 2+ are live (a stale page) | The route's 409 (M22.4) shown in the card's existing failure slot: `Pick a lobby first.` |
+| A write or a Roll for a lobby that has just ended | `That lobby has ended.` in the same slot; the page refreshes to the new set of lobbies. |
+| A Roll the server refuses because no Kustom watches the lobby (if platform adds the refusal) | `Nobody with Kustom is in that lobby, so it can't be rolled.` |
+
+There is no "pick a lobby" empty state: something is always selected (14.4's rules always yield a table).
+
+### 14.9 The announcer (6.4's one polite region)
+
+Only these, and only while 2+ are live (or at the moment the count changes):
+
+| When | Says |
+|---|---|
+| a second (third) table goes live | `Bo's lobby is open too.` |
+| a table ends, another was on screen | `Ana's lobby has ended.` |
+| the table on screen ends | `Ana's lobby has ended. Showing Bo's lobby.` |
+| a chip tap | `Showing Bo's lobby.` |
+| the viewer's own lobby, not on screen, gets teams / a result | `Teams are set in your lobby.` / `Your lobby's game is over.` |
+| the other lobby's game added bans (Fearless) | `10 more banned, from Bo's lobby.` |
+
+Everything the selected lobby announces today (headline changes, mode changes, resets) is unchanged and is
+said only for the selected lobby.
+
+### 14.10 Discord: naming the lobby
+
+**Rule (M22 D7).** While two or more tables are live **at send time** (the post's own table counts, including
+a finished one inside its 20 minutes), a post about one lobby **leads its E1 title with the label**:
+`<label> · <today's title>`. With one live table the post is byte for byte today's. A posted label is never
+removed: posts are never edited, and the 15-minute AI recap edit re-sends the stored E1 unchanged.
+
+**Why the title, and why first.** The title is the first bold line, and it is what tells two posts a minute
+apart in one channel apart; with the label first, the difference is the first word (`Ana's lobby · Teams are
+set` / `Bo's lobby · Teams are set`), not the last. As a suffix (`Teams are set · reroll 1 of 2 · Ana's
+lobby`, `Game on, with your own teams · Ana's lobby`) the label is the part that wraps onto line two at 375
+(about 36 characters). The author line was rejected: it is small grey text above the title that most
+people skip, and it already carries two facts (`Customs Night · Fearless`, `Customs Night · game 47`). The
+author line, colours, stack and every other line stay as 10.2 to 10.5 say.
+
+| Post | E1 title while 2+ live | Links |
+|---|---|---|
+| Teams | `Ana's lobby · Teams are set` | title and author: `/g/<slug>?lobby=<id>`; E4: `/g/<slug>?lobby=<id>#how-the-bot-decided`; the mode line's masked link: `/g/<slug>/mode?lobby=<id>` |
+| Reroll | `Ana's lobby · Teams are set · reroll 1 of 2` | same |
+| Game on | `Ana's lobby · Game on, with your own teams` / `Ana's lobby · Game on` | title and author: `/g/<slug>?lobby=<id>` |
+| Result | `Ana's lobby · Red wins · 31 min` | title: the game page, unchanged (a game is not a lobby); author: `/g/<slug>?lobby=<id>` |
+| Fearless pool | title stays `Fearless` (the list is the group's); description gains a second line: `From a game in Ana's lobby. One list for both lobbies.` (`… for every lobby.` with three) | unchanged (`/g/<slug>/mode`) |
+| Fearless reset | description gains a second line: `For both lobbies.` (`For every lobby.`) | unchanged |
+| Nightly board, Sunday weekly, ratings reset, test | unchanged (group posts) | unchanged |
+
+The label in a title is plain (the title is already bold), escaped with `renderName` like every name. E2 and
+E3 still never carry a `url` (10.3).
+
+**Limits (10.12).** The longest label is the 32-character cut of an escaped name plus `'s lobby 2 · ` (about
+45 characters, more only for a name made of escapable characters), and the longest title it leads is `Game on,
+with your own teams`: well under the 256-character title limit. A teams post grows by under 100 characters
+against a typical 2,400 of 6,000. **The label is part of the title and is never cut** (10.12's never-cut
+list already holds E1's title); `guardMessage` needs no new give-way step. M22.7's limit test runs with a
+32-character name of escapable characters as the host.
+
+**Teams, filled** (two live lobbies: knifiy's and XETA's; this is knifiy's region-wars game on a Fearless night):
+
+```text
+Kustom  APP  Today at 21:12
+┃ Customs Night · Fearless                         author, links /g/customs?lobby=<id>   E1 amber 16764774
+┃ knifiy's lobby · Teams are set                   title, links /g/customs?lobby=<id>
+┃ **This game: region wars.** Blue picks from Ionia, Red from Noxus. Rated. See both pools
+┃ **Blue 49%** · **51% Red**
+┃ 🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥
+┃ Basically a coin flip.
+┃ Seats
+┃ You'll be moved to your side — if not, move yourself.
+┃ Lobby
+┃ `knifiy-customs` · password `4471`
+
+┃ 🟦 BLUE                                                                            E2 blue 3054591
+┃ `top` **FoxHound** · 1224
+┃ `jungle` **SugarPapy** · 1378
+┃ `mid` **Ramzyinhović** · 2638
+┃ `adc` **PRT Khokha** · 1218
+┃ `support` **Used2BeATahmMain** · 1322
+
+┃ 🟥 RED                                                                             E3 red 16739125
+┃ `top` **H4RDC0R33** · 1531
+┃ `jungle` **Syndrome Axes** · 2291
+┃ `mid` **knifiy** · 1454
+┃ `adc` **Chaos** · 1287
+┃ `support` **TheSHADOWREAPER** · 1262
+
+┃ How the bot decided                              title, links /g/customs?lobby=<id>#how-the-bot-decided
+┃ Rating gap 45 pts · Main roles 10/10 · Bot's pick #1 of 3
+┃ …
+```
+
+Webhook body, E1 only:
+
+```json
+{ "color": 16764774,
+  "author": { "name": "Customs Night · Fearless", "url": "https://playkustom.com/g/customs?lobby=<id>" },
+  "title": "knifiy's lobby · Teams are set", "url": "https://playkustom.com/g/customs?lobby=<id>",
+  "description": "**This game: region wars.** Blue picks from Ionia, Red from Noxus. Rated. [See both pools](https://playkustom.com/g/customs/mode?lobby=<id>)\n**Blue 49%** · **51% Red**\n🟦🟦🟦🟦🟦🟥🟥🟥🟥🟥\nBasically a coin flip.",
+  "fields": [ { "name": "Seats", "value": "…" }, { "name": "Lobby", "value": "`knifiy-customs` · password `4471`" } ] }
+```
+
+**Result, filled** (XETA's lobby, Red won, both lobbies still live):
+
+```text
+Kustom  APP  Today at 21:44
+┃ Customs Night · game 47                          author, links /g/customs?lobby=<id>   E1 red 16739125
+┃ XETA's lobby · Red wins · 31 min                 title, links /g/customs/games/<id>
+┃ Red was 51%. Red won.
+┃ Top damage: Kai, 31.4k.
+┃ **MVP** Kai · **ACE** XETA
+
+┃ 🟦 BLUE  … five lines `role` **name** · 1210 (-14)
+┃ 🟥 RED   … five lines `role` **name** · 1546 (+15)
+```
+
+**Fearless pool, filled** (after that game):
+
+```text
+┃ Customs Night                                                                      E1 amber
+┃ Fearless                                         title, links /g/customs/mode
+┃ Banned next game: 10 more, 44 in all. 128 still open.
+┃ From a game in XETA's lobby. One list for both lobbies.
+┃ top · 9
+┃ **Aatrox**, **Gnar**, Camille, …
+┃ …
+┃ Kustom · tap the title to see what's still open
+```
+
+### 14.11 Every new string (for M22.6 and M22.7; product signs each)
+
+Placeholders in `‹›`. `both` is for exactly two live lobbies, `every` for three or more.
+
+**Tonight (M22.6)**
+
+| Where | Copy | Status |
+|---|---|---|
+| lobby label | `‹host›'s lobby`; same name twice: `‹host›'s lobby 2`; no name: `Lobby ‹n›` | [NEW COPY] |
+| switcher nav name (sr) | `Lobbies` | [NEW COPY] |
+| chip status | `‹n› in` · `Teams set` · `In game · ‹n› min` · `In game · just started` · `Blue won` / `Red won` · `No Kustom` | [NEW COPY] |
+| chip mode | `Normal`, `Fearless`, `Tanks only`, `Marksmen only`, `Mages only`, `Assassins only`, `Supports only`, `Region wars`, `Mirror match` | existing mode words |
+| chip `YOU` (sr) | `, you're in this lobby` | [NEW COPY] |
+| strip date line | `‹Sat 3 Oct›, ‹n› lobbies` | [NEW COPY] |
+| h1 prefix (sr) | `‹label›: ` | [NEW COPY] |
+| Mode card, Fearless on | `One ban list for both lobbies.` / `One ban list for every lobby.` | [NEW COPY] |
+| Mode card, in game, Fearless on | `This game's ten join the ban list for both lobbies when it ends.` / `… for every lobby …` | [NEW COPY] |
+| Mode card, other lobby added bans | lead `‹10› more banned` + `from a game in ‹label›.` | [NEW COPY] |
+| Mode card, admin foot | `A rule or Rated here is for ‹label› only. Normal or Fearless is for every lobby.` | [NEW COPY], depends on 14.13 Q1 |
+| Reset dialog body | `All ‹34› bans are cleared in both lobbies and every champion is open again. Discord gets told.` (`in every lobby`) | [NEW COPY] |
+| panel head | `Both lobbies add to this list.` / `Every lobby adds to this list.` | [NEW COPY] |
+| panel bar crumb | `Tonight · ‹label› · Mode` (≥ 1024), `‹label› · Mode` (< 1024) | [NEW COPY] |
+| tape tile | `‹label›` (own line); accessible name `Game ‹3›, ‹label›, …` | [NEW COPY] |
+| unwatched, pre-game | lead `Nobody with Kustom is in this lobby any more.` + `It closes in a few minutes unless someone with Kustom joins.` | [NEW COPY] |
+| unwatched, in game | `Nobody with Kustom is in this game any more, so its result may not come in.` | [NEW COPY] |
+| errors | `Pick a lobby first.` (M22.4's 409) · `That lobby has ended.` · `Nobody with Kustom is in that lobby, so it can't be rolled.` | first from M22.4; others [NEW COPY] |
+| announcer | `‹label› is open too.` · `‹label› has ended.` · `‹label› has ended. Showing ‹label›.` · `Showing ‹label›.` · `Teams are set in your lobby.` · `Your lobby's game is over.` · `‹10› more banned, from ‹label›.` | [NEW COPY] |
+
+**Discord (M22.7)**
+
+| Where | Copy | Status |
+|---|---|---|
+| E1 title prefix (teams, reroll, Game on both kinds, result) | `‹label› · ‹today's title›` | [NEW COPY] |
+| Fearless pool, description line 2 | `From a game in ‹label›. One list for both lobbies.` / `… for every lobby.` | [NEW COPY] |
+| Fearless reset, description line 2 | `For both lobbies.` / `For every lobby.` | [NEW COPY] |
+| links | Tonight links gain `?lobby=‹id›`; the mode link `/mode?lobby=‹id›` | not copy |
+
+### 14.12 Acceptance for M22.6 and M22.7 (designer signs on screenshots, at most 3 rounds)
+
+1. F1 at 375 and 1440, Night and Day: pixel-identical to the pre-M22 build (no switcher in the DOM).
+2. F2 to F6 at 375 and 1440, Night and Day, and F2 and F6 at 200% text: nothing truncated, no horizontal
+   scroll, the selected chip told apart in greyscale (border, bar, fill).
+3. Opening Tonight signed in as a player in the second-opened lobby lands on it with no tap; a Discord link
+   to the other lobby lands on that one with the `YOU` chip visible.
+4. A chip tap paints the selected state within 100 ms and shows the lobby within the 200 ms INP budget
+   (`perf-tonight-taps`); a live refresh never moves a pinned selection.
+5. axe clean on F2 and F3; VoiceOver reads a chip as `Ana's lobby, 7 in, Region wars, you're in this lobby,
+   current page` and the h1 with its label.
+6. Discord: today's snapshots unchanged; two-lobby snapshots for teams, reroll, both Game on kinds, result,
+   Fearless pool and reset; one real pair of posts in a scratch channel, shot on a phone (dark) and desktop.
+
+### 14.13 Open questions (for the lead)
+
+1. **Fearless on/off with two lobbies.** This section reads the owner's answer as "the on/off switch and Reset
+   are the group's" (OPEN 1's own wording), while M22 D5 lists the standing mode as the lobby's. If product
+   rules the standing mode per lobby with one shared list, 14.5 changes: a Normal lobby's card shows no counts,
+   its games add nothing, and the admin foot's second sentence goes. Needs a decision row before M22.4.
+2. **A ban that lands mid champ select.** With one list, the other lobby's game can add ten names while this
+   lobby is picking. Which list does this lobby's game count against (the list at its start lock, or at its
+   end)? The dashed note in 14.5 shows it either way; the result post's check line depends on the answer.
+3. **Roll on an unwatched lobby** (14.8): should the server refuse it? The page hides the button either way.
+4. **Discord title prefix vs the milestone's suffix.** M22.2's brief shows `Teams are set · Ana's lobby`; this
+   section rules the label first (14.10, reasons there). Product to confirm.
+5. **Who is the host** for the label (14.1): platform to say whether the roster records the client's lobby
+   leader; else the first reporter.
+6. **M22.11 copy:** the mirror host line (`… Start a lobby only makes Draft Pick.`, 8.3, 8.11) and 5.10's action
+   row list `Start a lobby`; both need rewording when it goes (suggested: `Mirror match next. The host opens a
+   Blind Pick custom in League.`).
