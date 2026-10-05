@@ -26,7 +26,7 @@ export type RegionChange = { redraw: true } | { side: 'blue' | 'red'; region: st
  * under 8 open for that game is a disabled `(too few open)` option, from the server's run of the
  * route's own check (`regionFacts`); the side's current region always stays selectable.
  *
- * Each control is its own `<form method="post">` to `POST /api/admin/mode` (`redraw` or
+ * Each control is its own `<form method="post">` to the mode route (`redraw` or
  * `side` + `region`, with `game`), so it works with no JS; with JS the parent posts it and shows
  * the route's notice. A select never posts on change: its `Set region` button shows once the
  * choice differs (always without JS), as `Set mode` does.
@@ -34,6 +34,8 @@ export type RegionChange = { redraw: true } | { side: 'blue' | 'red'; region: st
 export interface RegionControlsProps {
   target: RegionTarget;
   groupId: string;
+  /** The mode route (`ModeControls` owns it: the one place that posts it). */
+  action: string;
   redirectTo: string;
   /** `This game` / `Next game` after Roll; none before (the pair is the mode picker's). */
   heading: string | null;
@@ -46,11 +48,10 @@ export interface RegionControlsProps {
   onChange: (target: RegionTarget, change: RegionChange) => Promise<boolean>;
 }
 
-const MODE_ACTION = '/api/admin/mode';
-
 export function RegionControls({
   target,
   groupId,
+  action,
   redirectTo,
   heading,
   showShort,
@@ -80,6 +81,7 @@ export function RegionControls({
             side={side}
             target={target}
             groupId={groupId}
+            action={action}
             redirectTo={redirectTo}
             pending={pending === `${side}-${game}`}
             hydrated={hydrated}
@@ -89,7 +91,7 @@ export function RegionControls({
       </div>
       <form
         method="post"
-        action={MODE_ACTION}
+        action={action}
         onSubmit={(event) => {
           event.preventDefault();
           void onChange(target, { redraw: true });
@@ -111,6 +113,7 @@ function SideSelect({
   side,
   target,
   groupId,
+  action,
   redirectTo,
   pending,
   hydrated,
@@ -119,6 +122,7 @@ function SideSelect({
   side: 'blue' | 'red';
   target: RegionTarget;
   groupId: string;
+  action: string;
   redirectTo: string;
   pending: boolean;
   hydrated: boolean;
@@ -144,7 +148,7 @@ function SideSelect({
   return (
     <form
       method="post"
-      action={MODE_ACTION}
+      action={action}
       onSubmit={(event) => void submit(event)}
       className="flex flex-col gap-1"
     >

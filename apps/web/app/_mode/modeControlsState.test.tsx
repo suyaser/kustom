@@ -97,9 +97,11 @@ describe('owner bug 3: the locked rule can be queued again for the next game', (
     expect(document.querySelector('[data-slot="mode-outcome"]')).toHaveTextContent(
       'Next game: Region wars. Blue: Shurima · Red: Zaun. Not rated.',
     );
-    // This game's pair is the lock's, untouched.
-    expect(within(card()).getAllByText('Ionia').length).toBeGreaterThan(0);
-    expect(within(card()).queryByText('Shurima')).toBeNull();
+    // This game's pair is the lock's, untouched (the card's status; the foot's region selects
+    // list every region, M20.10).
+    const status = card().querySelector('a') as HTMLElement;
+    expect(within(status).getAllByText('Ionia').length).toBeGreaterThan(0);
+    expect(within(status).queryByText('Shurima')).toBeNull();
   });
 
   it('before Roll, a choice equal to what is set still offers nothing', async () => {

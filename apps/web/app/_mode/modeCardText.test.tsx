@@ -33,6 +33,10 @@ import before from './modeCardText.pre-m20-8.json';
  *    for this game's rule (queuing it again is a plain change). The picker is headed `Next game`,
  *    not `Mode` (lead's call), under the kept `Changes apply from the next game.`. The card above
  *    them is unchanged.
+ * 6. M20.10: an admin's foot gains region wars' pair controls (`Redraw regions`, `Blue's region`,
+ *    `Red's region`) wherever a pair can still change; they are cut out before the comparison and
+ *    checked on their own: present exactly when the row's pending rule is region wars or the
+ *    balanced lobby's lock is.
  *
  * One entry of the capture was fixed by hand: `Normal | empty | admin` was read before the lazy
  * admin controls had loaded (the first admin render of the run), so it lacked them; it now holds
@@ -143,7 +147,16 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
         const { target, view } = renderEntry(options, key, true);
         const toggle = await screen.findByRole('switch', { name: 'Rated' });
         const card = screen.getByRole('region', { name: /^Mode / });
-        const text = card.textContent ?? '';
+        // 6.
+        const trimmed = card.cloneNode(true) as HTMLElement;
+        const pairs = trimmed.querySelectorAll('[data-slot^="region-controls-"]');
+        for (const one of pairs) one.remove();
+        const text = trimmed.textContent ?? '';
+        const lock = target.snapshot.lobby?.lock ?? null;
+        const pairOpen =
+          target.snapshot.modeRow?.pending?.id === 'region' ||
+          (target.snapshot.lobby?.status === 'balanced' && lock?.mode.id === 'region');
+        expect(pairs.length > 0).toBe(pairOpen);
         const select = (screen.getByRole('combobox', { name: /^(Mode|Next game)$/ }) as HTMLSelectElement)
           .value;
         const rated = toggle.getAttribute('aria-checked');

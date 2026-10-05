@@ -343,6 +343,7 @@ export function ModeControls({
       <RegionControls
         target={target}
         groupId={groupId}
+        action={MODE_ACTION}
         redirectTo={redirectTo}
         // After Roll the foot can hold two pairs (and the picker is the next game's): each says which.
         heading={inGame ? (target.game === 'this' ? THIS_GAME_HEADING : NEXT_GAME_HEADING) : null}
